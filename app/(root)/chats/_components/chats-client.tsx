@@ -584,7 +584,10 @@ export function ChatsClient({
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
   const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
   const [chatListTab, setChatListTab] = useState<TabKey>("all");
-  const [unreadOnly, setUnreadOnly] = useState(true);
+  // Arranca apagado: lo enciende la barra lateral cuando la cuenta real de no
+  // leídos llega y es mayor que cero. Encenderlo aquí mostraba "ningún chat
+  // coincide" mientras los contadores estaban en camino.
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
   const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
   const [detectedCommitment, setDetectedCommitment] = useState<DetectedCommitment | null>(null);
