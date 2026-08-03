@@ -870,38 +870,21 @@ export async function resolveWhatsAppJid(
   const digitos = numero.replace(/@.*/, '').replace(/\D/g, '');
   if (!baseUrlRaw || !key || !instanceName || !digitos) return null;
 
-  // México sin el 1. Preguntar solo por lo guardado no sirve: a `521XXXXXXXXXX`
-  // WhatsApp responde que existe —es el mismo teléfono— y se sigue enviando a la
-  // forma que ya no entrega. Se pregunta por las dos y se prefiere la corta, que
-  // es la que WhatsApp usa hoy.
-  const esMexicoConUno = /^521\d{10}$/.test(digitos);
-  const alternativa = esMexicoConUno ? `52${digitos.slice(3)}` : null;
-  const aConsultar = alternativa ? [alternativa, digitos] : [digitos];
-
   const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/chat/whatsappNumbers/${encodeURIComponent(instanceName)}`;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
   try {
-    const res = await doRequest(endpoint, key, ctrl.signal, 'POST', { numbers: aConsultar });
+    const res = await doRequest(endpoint, key, ctrl.signal, 'POST', { numbers: [digitos] });
     clearTimeout(t);
     if (!res.ok) return null;
 
     const raw = await res.json().catch(() => null);
-    if (!Array.isArray(raw)) return null;
+    const fila = Array.isArray(raw) ? raw[0] : null;
+    if (!fila?.exists) return null;
 
-    // El orden de la respuesta no está garantizado, así que se busca por número.
-    for (const candidato of aConsultar) {
-      const fila = raw.find(
-        (r: any) => String(r?.number ?? '').replace(/\D/g, '') === candidato,
-      );
-      if (!fila?.exists) continue;
-
-      const jid = typeof fila.jid === 'string' ? fila.jid.trim() : '';
-      if (jid) return jid;
-    }
-
-    return null;
+    const jid = typeof fila.jid === 'string' ? fila.jid.trim() : '';
+    return jid || null;
   } catch {
     clearTimeout(t);
     return null;
