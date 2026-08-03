@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ClientRow } from "@/types/billing";
 import { daysLeftService } from "../helpers";
-import { Database, CircleCheck, CircleX, UserX, Hourglass } from "lucide-react";
+import { Database, CircleX, UserX, Hourglass } from "lucide-react";
 
 type Props = {
     table: Table<ClientRow>;
@@ -70,11 +70,9 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
 
     // Las de prueba no entran en "pagó" ni en "no pagó": no se les ha cobrado
     // nada todavia. Contarlas como morosas hacía ver deuda donde no la hay.
-    const paidCount = React.useMemo(
-        () => data.filter((u) => !u.isDemo && (u.billing?.billingStatus ?? "UNPAID") === "PAID").length,
-        [data]
-    );
-
+    //
+    // No hay tarjeta de "Pagaron". Esta pantalla es para perseguir cobros, y el
+    // que ya pagó no hay que perseguirlo: ocupaba sitio sin decir qué hacer.
     const unpaidCount = React.useMemo(
         () => data.filter((u) => !u.isDemo && (u.billing?.billingStatus ?? "UNPAID") === "UNPAID").length,
         [data]
@@ -114,7 +112,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
     const anyQuickFilterActive = !!paidFilter || !!dueFilter;
 
     return (
-        <div className={cn("hidden sm:grid grid-cols-2 md:grid-cols-5 gap-3", className)}>
+        <div className={cn("hidden sm:grid grid-cols-2 md:grid-cols-4 gap-3", className)}>
             <StatCard
                 title="Total"
                 value={total}
@@ -122,15 +120,6 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 active={!anyQuickFilterActive}
                 onClick={clearAllQuickFilters}
                 color="#3B82F6"
-            />
-
-            <StatCard
-                title="Pagaron"
-                value={paidCount}
-                icon={<CircleCheck className="h-4 w-4" />}
-                active={paidFilter === "PAID"}
-                onClick={() => setExclusiveFilter("paid", "PAID")}
-                color="#22C55E"
             />
 
             <StatCard
