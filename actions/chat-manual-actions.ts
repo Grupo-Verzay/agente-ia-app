@@ -318,11 +318,26 @@ async function resolveChatStorageUserId(
   return fallbackUserId ?? null;
 }
 
+/**
+ * A qué destinatario se le entrega el mensaje.
+ *
+ * Manda al NÚMERO siempre que se sepa. El `@lid` —la identidad interna que
+ * WhatsApp le da a un contacto— solo se usa cuando no hay número, que es el
+ * único caso en que hace falta.
+ *
+ * Antes era al revés: si el chat tenía `@lid`, se enviaba ahí. Evolution acepta
+ * ese envío y devuelve OK, pero WhatsApp lo marca fallido después, así que el
+ * mensaje salía con el aspa roja y no le llegaba a nadie. Solo pasaba en los
+ * chats que tenían `@lid`; a un número sin él llegaba al instante.
+ */
 async function resolveTransportRemoteJid(params: {
   userId?: string | null;
   instanceName: string;
   remoteJid: string;
 }) {
+  const esNumero = /@s\.whatsapp\.net$/i.test(params.remoteJid);
+  if (esNumero) return params.remoteJid;
+
   const candidates = buildWhatsAppJidCandidates(params.remoteJid);
   if (!params.userId || !params.instanceName || candidates.length === 0) {
     return params.remoteJid;
