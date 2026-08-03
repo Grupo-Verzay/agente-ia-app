@@ -849,6 +849,48 @@ export async function findMessagesByRemoteJid(
     queriedRemoteJid: normalizedRemoteJid,
   };
 }
+/**
+ * Le pregunta a WhatsApp cuál es el destinatario válido de un número.
+ *
+ * El mismo teléfono puede estar guardado con una forma que ya no existe —los
+ * móviles mexicanos perdieron el 1 de `52 1 XXXXXXXXXX`— y a esa forma WhatsApp
+ * acepta el envío y lo marca fallido después, sin aviso. Desde el teléfono no se
+ * nota porque WhatsApp resuelve el número solo; desde aquí hay que preguntárselo.
+ *
+ * Devuelve el JID bueno, o null si no se pudo averiguar. Un null nunca bloquea
+ * el envío: se sigue con lo que se tenía.
+ */
+export async function resolveWhatsAppJid(
+  apiKeyData: Pick<ApiKey, 'url' | 'key'>,
+  instanceName: string,
+  numero: string,
+  timeoutMs = 6000,
+): Promise<string | null> {
+  const { url: baseUrlRaw, key } = apiKeyData;
+  const digitos = numero.replace(/@.*/, '').replace(/\D/g, '');
+  if (!baseUrlRaw || !key || !instanceName || !digitos) return null;
+
+  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/chat/whatsappNumbers/${encodeURIComponent(instanceName)}`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  try {
+    const res = await doRequest(endpoint, key, ctrl.signal, 'POST', { numbers: [digitos] });
+    clearTimeout(t);
+    if (!res.ok) return null;
+
+    const raw = await res.json().catch(() => null);
+    const fila = Array.isArray(raw) ? raw[0] : null;
+    if (!fila?.exists) return null;
+
+    const jid = typeof fila.jid === 'string' ? fila.jid.trim() : '';
+    return jid || null;
+  } catch {
+    clearTimeout(t);
+    return null;
+  }
+}
+
 export async function sendTextMessage(
   apiKeyData: Pick<ApiKey, 'url' | 'key'>,
   instanceName: string,
