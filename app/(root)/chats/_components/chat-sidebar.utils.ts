@@ -25,7 +25,19 @@ export function formatTimeFromEpoch(epoch?: number): string {
 const BAD_NAMES = new Set(['você', 'voce', 'desconocido', '.', '']);
 
 export function isBadContactName(name?: string | null): boolean {
-  return !name || BAD_NAMES.has(name.toLowerCase().trim());
+  if (!name) return true;
+
+  const limpio = name.trim();
+  if (BAD_NAMES.has(limpio.toLowerCase())) return true;
+
+  // Una ristra de dígitos no es un nombre. Cuando WhatsApp no da el nombre del
+  // contacto, lo que queda guardado es su identificador interno —los quince
+  // dígitos de un `@lid`— y se mostraba tal cual en la cabecera del chat, en la
+  // lista y en Contactos. Sin nombre es preferible el número, que al menos se
+  // reconoce.
+  //
+  // El mínimo de seis evita descartar apodos numéricos cortos.
+  return /^\d{6,}$/.test(limpio);
 }
 
 export function nameFrom(chat: ChatData): string {
