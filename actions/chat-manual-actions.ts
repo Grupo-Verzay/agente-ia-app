@@ -20,6 +20,7 @@ import {
 import {
   fetchChatsFromEvolution,
   findMessagesByRemoteJid,
+  resolveWhatsAppJid,
   sendMediaByUrl,
   sendTextMessage,
   sendReaction,
@@ -330,13 +331,78 @@ async function resolveChatStorageUserId(
  * mensaje salía con el aspa roja y no le llegaba a nadie. Solo pasaba en los
  * chats que tenían `@lid`; a un número sin él llegaba al instante.
  */
+/**
+ * Destinatarios ya confirmados con WhatsApp, para no preguntar en cada mensaje.
+ *
+ * La consulta solo hace falta una vez por contacto: la identidad de un número no
+ * cambia de un mensaje al siguiente. Media hora es de sobra para una
+ * conversación y evita que un cambio raro se quede pegado para siempre.
+ */
+const destinatariosConfirmados = new Map<string, { jid: string; expira: number }>();
+const VIGENCIA_DESTINATARIO_MS = 30 * 60_000;
+
+/**
+ * El destinatario tal y como lo reconoce WhatsApp hoy.
+ *
+ * Un chat abierto hace meses puede tener guardada una forma del número que ya no
+ * existe —los móviles mexicanos perdieron el 1 de `52 1 XXXXXXXXXX`—. WhatsApp
+ * acepta el envío a la forma vieja y lo marca fallido después, así que el
+ * mensaje salía con el aspa roja sin que le llegara a nadie y sin error que
+ * mirar. No hay regla que valga para decidirlo desde aquí: hay contactos que
+ * conservan el 1 y otros que no, así que se pregunta.
+ *
+ * Si la consulta falla o tarda, se envía igual con lo que había: es una mejora
+ * del acierto, no un requisito para poder escribir.
+ */
+async function destinatarioSegunWhatsApp(
+  context: Exclude<ChatActionContext, null>,
+  remoteJid: string,
+): Promise<string> {
+  if (!/@s\.whatsapp\.net$/i.test(remoteJid)) return remoteJid;
+
+  const clave = `${context.instanceName}::${remoteJid}`;
+  const enCache = destinatariosConfirmados.get(clave);
+  if (enCache && enCache.expira > Date.now()) return enCache.jid;
+
+  const confirmado = await resolveWhatsAppJid(
+    context.apiKeyData,
+    context.instanceName,
+    remoteJid,
+  );
+  const elegido = confirmado || remoteJid;
+
+  destinatariosConfirmados.set(clave, {
+    jid: elegido,
+    expira: Date.now() + VIGENCIA_DESTINATARIO_MS,
+  });
+
+  return elegido;
+}
+
+/**
+ * A qué destinatario se le entrega el mensaje.
+ *
+ * Manda al NÚMERO siempre que se sepa. El `@lid` —la identidad interna que
+ * WhatsApp le da a un contacto— solo se usa cuando no hay número, que es el
+ * único caso en que hace falta.
+ *
+ * Antes era al revés: si el chat tenía `@lid`, se enviaba ahí. Evolution acepta
+ * ese envío y devuelve OK, pero WhatsApp lo marca fallido después, así que el
+ * mensaje salía con el aspa roja y no le llegaba a nadie. Solo pasaba en los
+ * chats que tenían `@lid`; a un número sin él llegaba al instante.
+ */
 async function resolveTransportRemoteJid(params: {
   userId?: string | null;
   instanceName: string;
   remoteJid: string;
+  context?: Exclude<ChatActionContext, null>;
 }) {
   const esNumero = /@s\.whatsapp\.net$/i.test(params.remoteJid);
-  if (esNumero) return params.remoteJid;
+  if (esNumero) {
+    return params.context
+      ? destinatarioSegunWhatsApp(params.context, params.remoteJid)
+      : params.remoteJid;
+  }
 
   const candidates = buildWhatsAppJidCandidates(params.remoteJid);
   if (!params.userId || !params.instanceName || candidates.length === 0) {
@@ -606,6 +672,7 @@ export async function sendManualChatPayloadAction(
     userId: storageUserId,
     instanceName: context.instanceName,
     remoteJid,
+    context,
   });
 
   // Guardamos el texto original antes de appendear firma
@@ -770,6 +837,7 @@ export async function sendManualWorkflowAction(
     userId: storageUserId,
     instanceName: context.instanceName,
     remoteJid,
+    context,
   });
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const workflow = await db.workflow.findFirst({
@@ -871,6 +939,7 @@ export async function sendManualQuickReplyAction(
     userId: storageUserId,
     instanceName: context.instanceName,
     remoteJid,
+    context,
   });
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const quickReply = await db.quickReply.findFirst({
