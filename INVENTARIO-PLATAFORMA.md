@@ -48,7 +48,7 @@ Todo está separado en dos capas:
 
 **Otros**
 26. [Procesos automáticos del motor](#26-procesos-automáticos-del-motor)
-27. [Dudas para Carlos](#27-dudas-para-carlos)
+27. [Pantallas que se retiran](#27-pantallas-que-se-retiran)
 
 ---
 
@@ -337,10 +337,9 @@ Módulo de finanzas del cliente (`/dashboard/finance`).
 | **Google Sheets** | Conecta hojas de cálculo para leer o escribir datos. | `/google-sheets`, `/tools/sheets` | Funcional |
 | **Google Drive** | Acceso a archivos de Drive. | `/tools/drive` | Funcional |
 | **Documentos** | Trabajo con documentos. | `/tools/docs` | Funcional |
-| **Canva** | Diseño integrado. | `/canva` | Funcional |
+| **Canva** | Registra URLs nuevas para tenerlas dentro de la App. | `/canva` | Funcional |
 | **Base de conocimiento** | Documentos que el agente usa para responder. | `/my-data` | Funcional |
 | **Datos externos** | Importa información de otros sistemas para que el agente la consulte. | `/my-data`, `/panel/external-data` | Funcional |
-| **Herramientas 1 a 5** | Cinco espacios genéricos para herramientas. | `/tools/tool-1` … `tool-5` | ⚠️ Sin identidad propia: son contenedores sin nombre de negocio definido |
 
 ---
 
@@ -537,38 +536,28 @@ parte del valor.
 
 ---
 
-## 27. Dudas para Carlos
+## 27. Pantallas que se retiran
 
-Cosas que están en el código pero no puedo traducir a beneficio de negocio sin
-que tú me confirmes qué son o si siguen en uso:
+Confirmado con Carlos: están en el código pero ya no se usan, y conviene
+sacarlas del menú antes de grabar cualquier video.
 
-1. **Herramientas 1 a 5** (`/tools/tool-1` … `tool-5`) — Existen cinco espacios
-   de herramienta sin nombre ni función definida. ¿Son huecos reservados para
-   herramientas futuras, o cada uno ya tiene un uso que debería documentar?
+| Pantalla | Qué pasa con ella |
+|---|---|
+| **Herramientas 1 a 5** (`/tools/tool-1` … `tool-5`) | Ya no se usan para nada. Fuera del menú. |
+| **Clientes antigua** (`/clientes`) | Vacía: solo muestra la palabra "decapreted". Fuera del menú. |
+| **Flujos antiguos** (`/flow`) | Queda solo el creador visual (`/workflow`). Fuera del menú. |
 
-2. **Pantalla "Clientes" antigua** (`/clientes`) — **Está vacía**: solo muestra
-   la palabra "decapreted" en pantalla. No hace nada. Habría que quitarla del
-   menú antes de grabar cualquier video, porque si alguien entra ahí ve eso.
+Y lo que sí sigue, con su uso confirmado:
 
-3. **Dos zonas de flujos** (`/flow` y `/workflow`) — La zona antigua (`/flow`)
-   incluye un botón para **migrar los flujos** a la nueva. La vigente para
-   vender y grabar es el creador visual (`/workflow`). ¿Confirmas que ya se
-   puede dejar de mostrar la antigua?
+| Pantalla | Para qué se usa |
+|---|---|
+| **Canva** (`/canva`) | Registrar URLs nuevas dentro de la App. |
+| **Seg-pruebas y Mis estadísticas** | Monitoreo del negocio del reseller. |
+| **Panel del cliente** (`/client-panel`) | Que el cliente tenga sus informes, catálogos y finanzas. |
+| **Finanzas** | En prueba, pero en uso. |
 
-4. **Canva** (`/canva`) — Está integrado, pero no sé qué hace exactamente el
-   cliente ahí ni cómo lo vendes. ¿Diseñar piezas para campañas?
-
-5. **"Seg-pruebas" y "Mis estadísticas"** — Ambas viven en el panel de reseller.
-   ¿Las usas hoy o quedaron de una etapa anterior?
-
-6. **Panel del cliente** (`/client-panel`) — Es una vista simplificada. ¿Para
-   quién es exactamente: para el cliente del cliente, o para cuentas limitadas?
-
-7. **Módulo de Finanzas** — Es un sistema contable bastante completo dentro de
-   la plataforma. ¿Lo vendes como parte del producto o está en pruebas?
-
-8. **Cotizaciones vs. Productos** — Se solapan un poco. ¿Cómo los diferencias
-   al explicarlos?
+Queda una sola cosa por definir: **Cotizaciones frente a Productos**. Se solapan
+al explicarlos y todavía no está decidido cómo se diferencian de cara al cliente.
 
 ---
 
