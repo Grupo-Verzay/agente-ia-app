@@ -192,13 +192,24 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                 )}
               </BreadcrumbList>
 
+              {isFlow &&
+                <div className="flex flex-1 justify-end">
+                  <ThemeSwitcher />
+                </div>
+              }
+            </Breadcrumb>
+            {/* Fuera del Breadcrumb (overflow-hidden) para que el badge de la campana
+                no se recorte. Los cuatro botones viven en la misma fila y a la misma
+                altura: dentro del breadcrumb, "Ver tutoriales" quedaba más alto que
+                los demás porque lo centraba otra caja. */}
+            <div className="ml-2 flex shrink-0 items-center gap-2">
               {guides.length > 0 && (
-                <div className='flex justify-end flex-1'>
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button
                         variant="ghost"
-                        className="bg-[#FF0033] hover:bg-[#e60000] text-white font-semibold transition duration-200 uppercase"
+                        size="sm"
+                        className="h-9 bg-[#FF0033] hover:bg-[#e60000] text-white font-semibold transition duration-200 uppercase"
                       >
                         <Play className="h-4 w-4 text-white" />
                         <span className="hidden sm:inline">Ver tutoriales</span>
@@ -242,17 +253,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                       </ScrollArea>
                     </DialogContent>
                   </Dialog>
-                </div>
               )}
-              {isFlow &&
-                <div className="flex flex-1 justify-end">
-                  <ThemeSwitcher />
-                </div>
-              }
-            </Breadcrumb>
-            {/* Fuera del Breadcrumb (overflow-hidden) para que el badge de la campana
-                no se recorte. */}
-            <div className="ml-2 flex shrink-0 items-center gap-2">
               <GlobalSearch />
               <SupportButton
                 label="Ayuda"
