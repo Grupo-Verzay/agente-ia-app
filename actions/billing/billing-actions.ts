@@ -175,8 +175,6 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
             where: { userId: me.id },
         });
 
-        if (!billing) return { success: true, message: "Sin billing.", data: null };
-
         // Todo lo que la tarjeta necesita para hablarle al cliente en los
         // terminos de SU marca: como llama su marca a este nivel de plan,
         // cuantos dolares son esos pesos y a que WhatsApp escribir. Se resuelve
@@ -193,11 +191,24 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
 
         const [planLabel, priceUsd, brandWhatsapp] = await Promise.all([
             cuenta?.plan ? etiquetaDePlanParaCuenta(cuenta.plan, resellerId) : Promise.resolve(null),
-            (billing.currencyCode ?? "COP").toUpperCase() === "COP"
+            billing && (billing.currencyCode ?? "COP").toUpperCase() === "COP"
                 ? equivalenteEnUsd(Number(billing.price ?? 0))
                 : Promise.resolve(null),
             whatsappDeLaMarca(resellerId),
         ]);
+
+        // Sin fila de cobro igual hay que decirle como se llama su plan: el
+        // nombre sale del nivel de la cuenta, no de la facturacion. Antes se
+        // cortaba aqui y la tarjeta terminaba usando la tabla interna de
+        // nombres, asi que un nivel 6 salia como "Agencias" mientras el resto
+        // de la App lo llamaba "Enterprise".
+        if (!billing) {
+            return {
+                success: true,
+                message: "Sin billing.",
+                data: { sinFacturacion: true, planLabel, brandWhatsapp },
+            };
+        }
 
         return {
             success: true,
