@@ -5,13 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { MyDataContent } from './_components/MyDataContent';
 import type { Plan } from '@prisma/client';
-import { PLAN_LABELS } from '@/types/plans';
+import { PLAN_LEVEL_LABELS } from '@/types/plans';
+import { etiquetaDePlanParaCuenta } from '@/lib/plan-pricing';
+import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_PLANS: Plan[] = ['intermedio', 'avanzado', 'enterprise', 'personalizado'];
 
-function UpgradeRequired({ currentPlan }: { currentPlan: Plan }) {
+// El nombre del plan que se muestra es el de SU marca. Los nombres internos
+// ("Agencias", "Enterprise") no coinciden con los que vende cada marca, así que
+// para los niveles a los que todavía no pertenece se usa el número de nivel.
+function UpgradeRequired({ planLabel }: { planLabel: string }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
       <Card className="w-full max-w-md border-dashed">
@@ -27,17 +32,17 @@ function UpgradeRequired({ currentPlan }: { currentPlan: Plan }) {
         <CardContent className="flex flex-col items-center gap-4 text-center">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Plan actual:</span>
-            <Badge variant="outline">{PLAN_LABELS[currentPlan]}</Badge>
+            <Badge variant="outline">{planLabel}</Badge>
           </div>
           <div className="space-y-1 text-sm text-muted-foreground">
-            <p>Disponible desde el plan <strong>Intermedio</strong>.</p>
+            <p>Disponible desde el <strong>{PLAN_LEVEL_LABELS['intermedio']}</strong>.</p>
             <p>Contacta a tu administrador para actualizar tu plan.</p>
           </div>
           <div className="flex flex-wrap justify-center gap-1.5 pt-1">
             {ALLOWED_PLANS.map((plan) => (
               <Badge key={plan} className="text-xs bg-primary/10 text-primary border-primary/20">
                 <Sparkles className="h-2.5 w-2.5 mr-1" />
-                {PLAN_LABELS[plan]}
+                {PLAN_LEVEL_LABELS[plan]}
               </Badge>
             ))}
           </div>
@@ -56,13 +61,20 @@ export default async function MyDataPage() {
   const hasAccess = ALLOWED_PLANS.includes(userPlan);
 
   if (!hasAccess) {
+    const cuenta = await db.user
+      .findUnique({ where: { id: user.id }, select: { demoResellerId: true } })
+      .catch(() => null);
+    const planLabel =
+      (await etiquetaDePlanParaCuenta(userPlan, cuenta?.demoResellerId ?? null).catch(() => null)) ??
+      PLAN_LEVEL_LABELS[userPlan];
+
     return (
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
           <h2 className="h3-bold text-gray-900 dark:text-white">Mis Datos Externos</h2>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
-          <UpgradeRequired currentPlan={userPlan} />
+          <UpgradeRequired planLabel={planLabel} />
         </div>
       </div>
     );

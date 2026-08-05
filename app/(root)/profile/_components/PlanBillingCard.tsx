@@ -52,9 +52,14 @@ export function PlanBillingCard({ userPlan }: Props) {
     const isPaid = billing?.billingStatus === 'PAID';
     const isActive = billing?.accessStatus === 'ACTIVE';
 
+    // Hay nombre de plan pero puede no haber cobro configurado: en ese caso lo
+    // único que llega es la etiqueta de la marca, y los estados (Activo, Al día,
+    // Prueba) no tienen de dónde salir.
+    const tieneFacturacion = !!billing && !billing.sinFacturacion;
+
     // Nunca ha pagado: sigue en prueba o compró sin completar el pago. Mientras
     // esté así ve los tres planes, aunque ya tenga uno asignado con su precio.
-    const nuncaHaPagado = !!billing && !billing.lastPaymentAt;
+    const nuncaHaPagado = tieneFacturacion && !billing.lastPaymentAt;
     const diasDePrueba = nuncaHaPagado && isActive ? diasRestantes(billing?.dueDate) : null;
 
     return (
@@ -81,7 +86,7 @@ export function PlanBillingCard({ userPlan }: Props) {
                         <>
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-xl font-bold">{planLabel}</span>
-                                {billing && (
+                                {tieneFacturacion && (
                                     <Badge variant="outline" className={isActive
                                         ? 'text-green-600 bg-green-500/10 border-green-500/30'
                                         : 'text-destructive bg-destructive/10 border-destructive/30'}>
@@ -91,12 +96,12 @@ export function PlanBillingCard({ userPlan }: Props) {
                                 {/* En prueba no está "al día": está probando. Decírselo
                                     así es más honesto y de paso le recuerda que tiene
                                     fecha de fin. */}
-                                {billing && diasDePrueba !== null ? (
+                                {tieneFacturacion && diasDePrueba !== null ? (
                                     <Badge variant="outline" className="text-amber-600 bg-amber-500/10 border-amber-500/30">
                                         <AlertCircle className="h-3 w-3 mr-1 inline" />
                                         Prueba · {diasDePrueba} {diasDePrueba === 1 ? 'día' : 'días'}
                                     </Badge>
-                                ) : billing && (
+                                ) : tieneFacturacion && (
                                     <Badge variant="outline" className={isPaid
                                         ? 'text-green-600 bg-green-500/10 border-green-500/30'
                                         : 'text-amber-600 bg-amber-500/10 border-amber-500/30'}>
