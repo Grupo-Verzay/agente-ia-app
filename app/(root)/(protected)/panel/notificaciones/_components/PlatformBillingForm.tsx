@@ -69,7 +69,7 @@ export function PlatformBillingForm({ initial }: Props) {
             <CreditCard className="h-4 w-4 text-primary" />
             Mensajes de cobro de la plataforma
           </CardTitle>
-          <CardDescription className="mt-1 text-xs">
+          <CardDescription className="mt-1 hidden text-xs sm:block">
             Estos son los mensajes que se envían a tus clientes (y el estándar que heredan los resellers).
             Vienen con el patrón por defecto; edítalos si quieres personalizarlos. Placeholders:{' '}
             <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {link}'}</code>.
@@ -86,7 +86,7 @@ export function PlatformBillingForm({ initial }: Props) {
                 <MessageCircle className="h-4 w-4 text-green-500" />
                 {label}
               </CardTitle>
-              <CardDescription className="text-xs">{hint}</CardDescription>
+              <CardDescription className="hidden text-xs sm:block">{hint}</CardDescription>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               <ExpandableTextarea

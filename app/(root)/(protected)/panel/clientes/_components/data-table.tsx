@@ -33,7 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
 
@@ -112,11 +112,18 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
             <div className="flex flex-col sm:flex-row items-centerem gap-2 flex-1">
               <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
 
-              {/* button-create-client */}
+              {/* button-create-client. En el teléfono ocupaba una fila entera
+                  para decir "+ Nuevo": queda solo el más, junto al buscador. */}
               {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
 
-                <Button onClick={openCreateDialogUser} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  + Nuevo
+                <Button
+                  onClick={openCreateDialogUser}
+                  title="Nuevo cliente"
+                  aria-label="Nuevo cliente"
+                  className="h-9 w-9 shrink-0 self-start p-0 bg-blue-600 hover:bg-blue-700 text-white sm:h-10 sm:w-auto sm:self-auto sm:px-4"
+                >
+                  <Plus className="h-4 w-4 sm:hidden" />
+                  <span className="hidden sm:inline">+ Nuevo</span>
                 </Button>
               }
             </div>

@@ -129,7 +129,9 @@ function ToolCard({
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{friendlyDescription}</p>
+            {/* En el teléfono solo el nombre y el interruptor: la descripción
+                salía cortada a media palabra y no ayudaba a decidir. */}
+            <p className="hidden sm:line-clamp-1 text-xs text-muted-foreground mt-0.5">{friendlyDescription}</p>
             {!isBuiltin && cfg.toolType === 'search_by_field' && cfg.searchField && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 Campo: <code className="bg-muted px-1 py-0.5 rounded text-[10px]">{cfg.searchField}</code>

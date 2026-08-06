@@ -77,8 +77,10 @@ export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
     <TooltipProvider delayDuration={120}>
       <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto p-1">
 
-        {/* ── 4 Metric Cards ── */}
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+        {/* ── 4 Metric Cards ──
+            En el teléfono se saltan: ocupaban la pantalla entera antes de llegar
+            a las alertas y las gráficas, que es a lo que se entra. */}
+        <div className="hidden sm:flex sm:gap-3">
           <div className="min-w-0 sm:flex-1">
             <MetricCard icon={<Users className="h-4 w-4" />} label="Total Usuarios" value={totalUsers}
               helper="Clientes registrados en la plataforma" color="#3B82F6" />
