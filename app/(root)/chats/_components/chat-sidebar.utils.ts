@@ -135,6 +135,7 @@ export function lastTextFrom(chat: ChatData): {
     "reactionMessage",
     "interactiveResponseMessage",
     "meta_call",
+    "call",
     "contactMessage",
     "contactsArrayMessage",
   ]);
@@ -199,6 +200,14 @@ export function lastTextFrom(chat: ChatData): {
         } else {
           text = bodyText || "↩️ Respuesta";
         }
+        break;
+      }
+      // Las llamadas del CRM ("Llamada realizada", "Videollamada realizada",
+      // "Llamada con IA realizada") salían sin icono, como si fueran texto
+      // suelto, mientras una nota de voz o una imagen sí lo llevaban.
+      case "call": {
+        const detalle = msg?.conversation?.trim();
+        text = detalle ? `📞 ${detalle}` : "📞 Llamada";
         break;
       }
       case "meta_call": {
