@@ -11,6 +11,13 @@ interface Props<TData> {
 
 type FilterFields = 'email' | 'name' | 'company' | 'reseller'
 
+const NOMBRES_DE_CAMPO: Record<FilterFields, string> = {
+    company: 'empresa',
+    name: 'nombre',
+    email: 'correo',
+    reseller: 'marca',
+}
+
 export function ColumnFilterInput<TData>({ table, initialValue, initialColumn }: Props<TData>) {
     const [selectedColumn, setSelectedColumn] = useState<FilterFields>(initialColumn ?? 'company')
     const [value, setValue] = useState<string>(initialValue ?? '')
@@ -29,8 +36,10 @@ export function ColumnFilterInput<TData>({ table, initialValue, initialColumn }:
     }, [])
 
     return (
-        <div className="flex flex-row gap-2 shrink-0">
-            {/* Select */}
+        <div className="flex min-w-0 flex-1 flex-row gap-2 sm:flex-none sm:shrink-0">
+            {/* Select. En el teléfono no cabe junto al buscador y al botón de
+                nuevo, así que ahí se busca por empresa —lo que se busca casi
+                siempre— y el selector aparece a partir de tablet. */}
             <Select
                 value={selectedColumn}
                 onValueChange={(val: FilterFields) => {
@@ -39,7 +48,7 @@ export function ColumnFilterInput<TData>({ table, initialValue, initialColumn }:
                     handleFilter('', val)
                 }}
             >
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="hidden w-[120px] sm:flex">
                     <SelectValue placeholder="Filtrar por..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -52,14 +61,14 @@ export function ColumnFilterInput<TData>({ table, initialValue, initialColumn }:
 
             {/* Input */}
             <Input
-                placeholder={`Buscar por ${selectedColumn}...`}
+                placeholder={`Buscar por ${NOMBRES_DE_CAMPO[selectedColumn]}...`}
                 value={value}
                 onChange={(e) => {
                     const val = e.target.value
                     setValue(val)
                     handleFilter(val, selectedColumn)
                 }}
-                className="w-72 shrink-0"
+                className="min-w-0 flex-1 sm:w-72 sm:flex-none sm:shrink-0"
             />
         </div>
     )
