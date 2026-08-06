@@ -109,7 +109,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
         <div className="flex justify-between items-center gap-2">
           <div className="flex flex-row flex-1 gap-2">
 
-            <div className="flex flex-col sm:flex-row items-centerem gap-2 flex-1">
+            <div className="flex flex-row items-center gap-2 flex-1">
               <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
 
               {/* button-create-client. En el teléfono ocupaba una fila entera
@@ -120,7 +120,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                   onClick={openCreateDialogUser}
                   title="Nuevo cliente"
                   aria-label="Nuevo cliente"
-                  className="h-9 w-9 shrink-0 self-start p-0 bg-blue-600 hover:bg-blue-700 text-white sm:h-10 sm:w-auto sm:self-auto sm:px-4"
+                  className="h-9 w-9 shrink-0 p-0 bg-blue-600 hover:bg-blue-700 text-white sm:h-10 sm:w-auto sm:px-4"
                 >
                   <Plus className="h-4 w-4 sm:hidden" />
                   <span className="hidden sm:inline">+ Nuevo</span>
