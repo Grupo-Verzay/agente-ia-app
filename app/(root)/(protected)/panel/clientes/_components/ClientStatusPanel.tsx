@@ -77,7 +77,11 @@ export const ClientStatusPanel = ({ users, onFilterChange }: ClientStatusSummary
     }, [onFilterChange]);
 
     return (
-        <div className="flex flex-col sm:flex-row">
+        // En el teléfono no caben cinco contadores junto al buscador: se
+        // apilaban uno debajo de otro y empujaban la tabla media pantalla hacia
+        // abajo. Son las mismas cifras de las tarjetas de arriba, que también se
+        // saltan en móvil.
+        <div className="hidden sm:flex sm:flex-row">
             {(
                 ["total", "qrDisconnected", "qrConnected", "evoOn", "evoOff"] as StatusKey[]
             ).map((key) => {
