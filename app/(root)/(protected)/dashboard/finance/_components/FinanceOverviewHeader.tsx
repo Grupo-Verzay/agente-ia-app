@@ -113,7 +113,10 @@ export function FinanceOverviewHeader() {
 
   return (
     <div className="sticky top-0 z-50 space-y-1 border-b bg-background px-1 py-1 shadow-sm">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      {/* En el teléfono las cuatro cifras se saltan: llenaban la pantalla y
+          además salían cortadas ("$ 3.657.0..."). Los mismos números están en
+          el resumen del mes, un scroll más abajo. */}
+      <div className="hidden gap-2 md:grid md:grid-cols-4">
         <FinanceStatCard
           href={`/dashboard/finance/sales?month=${selectedMonthValue}`}
           title="Ingresos"

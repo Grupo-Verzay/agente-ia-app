@@ -84,7 +84,7 @@ export function ConnectionAlertForm({ initial }: Props) {
               <PlugZap className="h-4 w-4 text-primary" />
               Aviso de WhatsApp desvinculado
             </CardTitle>
-            <CardDescription className="mt-1 text-xs">
+            <CardDescription className="mt-1 hidden text-xs sm:block">
               Se envía al número de notificación del cliente cuya línea se cayó. Es el aviso que más
               importa que llegue, así que si lo apagas nadie se entera de una caída.
             </CardDescription>
@@ -108,7 +108,7 @@ export function ConnectionAlertForm({ initial }: Props) {
             {errorHorarios ? (
               <p className="text-[11px] text-destructive">{errorHorarios}</p>
             ) : (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="hidden text-[11px] text-muted-foreground sm:block">
                 En hora de Colombia, separados por comas. Cuanto más juntos, menos margen hay para
                 no repetir el mismo aviso.
               </p>
@@ -197,7 +197,7 @@ export function ConnectionAlertForm({ initial }: Props) {
                 <RefreshCw className={`h-4 w-4 ${loadingInstances ? 'animate-spin' : ''}`} />
               </Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="hidden text-[11px] text-muted-foreground sm:block">
               Si la que elijas no está disponible, el aviso sale igual por la línea de cada dueño.
             </p>
           </div>
@@ -218,7 +218,7 @@ export function ConnectionAlertForm({ initial }: Props) {
             description="Se envía tal cual, sin placeholders."
             onChange={(v) => setForm((f) => ({ ...f, message: v }))}
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="hidden text-[11px] text-muted-foreground sm:block">
             {form.message.length} caracteres. Este aviso no admite placeholders: se envía tal cual.
           </p>
         </div>
