@@ -55,6 +55,7 @@ import {
   scheduleCallbackAction,
   clearMissedCallsAction,
   setCallLeadStatusAction,
+  setCallContactNameAction,
   diagnoseCallsAction,
   deleteCallAction,
   deleteAllCallsAction,
@@ -782,6 +783,89 @@ const LEAD_STATUS_META: Record<string, { label: string; className: string }> = {
 };
 
 // Control compacto para fijar/cambiar el estado del lead desde la fila de llamada.
+/**
+ * El nombre bajo el número, editable en el sitio.
+ *
+ * En un historial de llamadas un número suelto no dice de qué cliente es, y el
+ * nombre que da WhatsApp muchas veces no existe o no sirve. Un clic sobre él lo
+ * abre para escribir; Enter guarda, Escape cancela y vaciarlo devuelve el de
+ * WhatsApp.
+ */
+function ContactNameCell({
+  phone,
+  name,
+  onSaved,
+}: {
+  phone: string;
+  name: string;
+  onSaved?: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(name);
+  const [guardando, setGuardando] = useState(false);
+
+  // El nombre puede cambiar por debajo (recarga de la lista) mientras no se esté
+  // escribiendo en él.
+  useEffect(() => {
+    if (!editando) setValor(name);
+  }, [name, editando]);
+
+  const guardar = async () => {
+    const limpio = valor.trim();
+    setEditando(false);
+    if (limpio === name) return;
+
+    setGuardando(true);
+    const res = await setCallContactNameAction({ phone, name: limpio || null });
+    setGuardando(false);
+    if (!res.success) {
+      setValor(name);
+      toast.error(res.message || 'No se pudo guardar el nombre.');
+      return;
+    }
+    toast.success(limpio ? 'Nombre guardado.' : 'Nombre quitado.');
+    onSaved?.();
+  };
+
+  if (editando) {
+    return (
+      <Input
+        autoFocus
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onBlur={guardar}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void guardar();
+          }
+          if (e.key === 'Escape') {
+            setValor(name);
+            setEditando(false);
+          }
+        }}
+        placeholder="Nombre del contacto"
+        className="mx-auto mt-1 h-7 max-w-[180px] text-center text-xs"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditando(true)}
+      disabled={guardando}
+      title="Editar el nombre del contacto"
+      className={cn(
+        'mx-auto mt-0.5 block max-w-[180px] truncate rounded px-1 text-xs transition-colors hover:bg-muted disabled:opacity-60',
+        name ? 'text-muted-foreground hover:text-foreground' : 'italic text-muted-foreground/60 hover:text-foreground',
+      )}
+    >
+      {name || 'Poner nombre'}
+    </button>
+  );
+}
+
 // Si el lead no existe aún, la acción lo crea (lead mínimo) para no perder el contacto.
 function LeadStatusButton({ phone, contactName }: { phone: string; contactName?: string | null }) {
   const [status, setStatus] = useState<string | null>(null);
@@ -877,7 +961,7 @@ function CallTableRow({
         >
           {formatPhone(call.phone)}
         </button>
-        {name && <div className="text-xs text-muted-foreground">{name}</div>}
+        <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
       </td>
       {/* Tipo */}
       <td className="px-2 py-2 text-center">

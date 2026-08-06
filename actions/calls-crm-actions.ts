@@ -143,8 +143,22 @@ export async function getCallsCrmData(params?: {
       const jids = phones.map((p) => `${p}@s.whatsapp.net`);
       const sessions = await db.session.findMany({
         where: { userId: { in: scopeIds }, remoteJid: { in: jids } },
-        select: { id: true, remoteJid: true },
+        select: { id: true, remoteJid: true, customName: true },
       });
+
+      // El nombre puesto a mano manda sobre el que da WhatsApp. Es el mismo
+      // campo que se edita en Registros, así que el contacto se llama igual en
+      // toda la App y un mensaje nuevo del cliente no lo pisa.
+      const jidToCustomName = new Map<string, string>();
+      for (const s of sessions) {
+        const propio = s.customName?.trim();
+        if (propio && !jidToCustomName.has(s.remoteJid)) jidToCustomName.set(s.remoteJid, propio);
+      }
+      for (const c of calls) {
+        const propio = jidToCustomName.get(`${c.phone}@s.whatsapp.net`);
+        if (propio) c.contactName = propio;
+      }
+
       if (sessions.length > 0) {
         const sessionIds = sessions.map((s) => s.id);
         const sessionIdToJid = new Map(sessions.map((s) => [s.id, s.remoteJid]));
@@ -451,6 +465,72 @@ export async function diagnoseCallsAction(): Promise<{
 
 // NO exportar (este archivo es 'use server': solo puede exportar funciones async).
 const CALL_LEAD_STATUSES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
+
+/**
+ * Pone (o quita) el nombre del contacto de una llamada.
+ *
+ * Se guarda en el nombre propio del lead —el mismo que se edita en Registros—
+ * y no en el que manda WhatsApp: ese lo vuelve a escribir el próximo mensaje
+ * del cliente y el nombre puesto a mano se perdería. Si el número todavía no
+ * tiene lead se crea uno mínimo, igual que al marcarle un estado.
+ *
+ * Pasar el nombre vacío lo borra y vuelve a verse el de WhatsApp.
+ */
+export async function setCallContactNameAction(input: {
+  phone: string;
+  name: string | null;
+}): Promise<{ success: boolean; message?: string; name?: string | null }> {
+  const me = await currentUser();
+  const ownerId = me?.ownerId ?? me?.id;
+  if (!ownerId) return { success: false, message: 'No autorizado.' };
+
+  const digits = (input.phone || '').replace(/\D/g, '');
+  if (!digits) return { success: false, message: 'Número inválido.' };
+  const remoteJid = `${digits}@s.whatsapp.net`;
+
+  const nombre = (input.name ?? '').trim().slice(0, 120) || null;
+
+  try {
+    // Todas las cuentas del mismo equipo, para que el contacto se llame igual
+    // entre el dueño y sus asesores.
+    const equipo = await db.user.findMany({
+      where: { OR: [{ id: ownerId }, { ownerId }] },
+      select: { id: true },
+    });
+    const idsDelEquipo = equipo.map((u) => u.id);
+
+    const actualizadas = await db.session.updateMany({
+      where: { userId: { in: idsDelEquipo }, remoteJid },
+      data: { customName: nombre },
+    });
+    if (actualizadas.count > 0) return { success: true, name: nombre };
+
+    // Sin nombre que guardar no hace falta inventar un lead.
+    if (!nombre) return { success: true, name: null };
+
+    const user = await db.user.findUnique({
+      where: { id: ownerId },
+      select: { instancias: { where: { instanceType: 'Whatsapp' }, select: { instanceId: true }, take: 1 } },
+    });
+    const instanceId = user?.instancias?.[0]?.instanceId;
+    if (!instanceId) return { success: false, message: 'No hay instancia de WhatsApp para guardar el nombre.' };
+
+    await db.session.create({
+      data: {
+        userId: ownerId,
+        remoteJid,
+        pushName: nombre,
+        customName: nombre,
+        instanceId,
+        status: true,
+      },
+    });
+    return { success: true, name: nombre };
+  } catch (err) {
+    console.error('[setCallContactNameAction]', err);
+    return { success: false, message: 'No se pudo guardar el nombre.' };
+  }
+}
 
 /**
  * Cambia el estado del lead asociado al número de la llamada, directamente desde
