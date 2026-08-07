@@ -94,10 +94,31 @@ export async function deleteGuide(id: string) {
   }
 }
 
+/**
+ * Los tutoriales de la pantalla en la que se está, para el botón "Ver
+ * tutoriales" de la barra.
+ *
+ * Se buscaba por dirección exacta, y un tutorial del Panel —guardado como
+ * `/panel`— no salía en ninguna de sus pantallas, porque el navegador está en
+ * `/panel/analytics`, `/panel/clientes`, etc. Quedaba grabado y no aparecía por
+ * ningún lado.
+ *
+ * Ahora también valen los tutoriales de las secciones que contienen a la
+ * pantalla actual: en `/panel/analytics` salen los de `/panel/analytics` y los
+ * de `/panel`. La raíz `/` se queda fuera a propósito —si contara, su tutorial
+ * saldría en toda la App—, salvo cuando se está justo en ella.
+ */
 export async function getGuidesForPath(path: string) {
+  const actual = (path || '/').replace(/\/+$/, '');
+  if (!actual) return db.guideUrl.findMany({ where: { path: '/' } });
+
+  const segmentos = actual.split('/').filter(Boolean);
+  const candidatos = segmentos.map((_, i) => '/' + segmentos.slice(0, i + 1).join('/'));
+
   const guides = await db.guideUrl.findMany({
-    where: { path },
+    where: { path: { in: candidatos } },
   });
 
-  return guides;
+  // El más específico primero: si hay uno de la pantalla exacta, ese encabeza.
+  return guides.sort((a, b) => b.path.length - a.path.length);
 }
