@@ -115,6 +115,36 @@ export async function getGuidesForPath(path: string) {
   const segmentos = actual.split('/').filter(Boolean);
   const candidatos = segmentos.map((_, i) => '/' + segmentos.slice(0, i + 1).join('/'));
 
+  // Las pestañas de un módulo no cuelgan de su dirección: Informes es una
+  // pestaña del Panel pero vive en /crm/dashboard, así que por dirección no hay
+  // manera de saber que pertenece ahí. Se pregunta a qué módulo pertenece la
+  // pantalla actual y se añade la dirección de ese módulo, para que el tutorial
+  // del Panel salga en todas sus pestañas.
+  const variantes = new Set<string>();
+  for (const c of candidatos) {
+    variantes.add(c);
+    // Las pestañas del panel se guardan como /admin/... y se sirven en /panel/...
+    variantes.add(c.replace('/panel/', '/admin/'));
+  }
+
+  try {
+    const items = await db.moduleItem.findMany({
+      where: {
+        OR: [
+          { url: { in: Array.from(variantes) } },
+          { customUrl: { in: Array.from(variantes) } },
+        ],
+      },
+      select: { module: { select: { route: true } } },
+    });
+    for (const item of items) {
+      const ruta = item.module?.route?.trim();
+      if (ruta && ruta !== '/' && !candidatos.includes(ruta)) candidatos.push(ruta);
+    }
+  } catch {
+    // Sin módulos seguimos con las direcciones de la propia pantalla.
+  }
+
   const guides = await db.guideUrl.findMany({
     where: { path: { in: candidatos } },
   });
