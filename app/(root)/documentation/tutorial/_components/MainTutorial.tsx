@@ -196,6 +196,10 @@ export const MainTutorial = ({ user }: { user: User }) => {
                                         ">
                                         <CardHeader>
                                             <CardTitle>{guide.title}</CardTitle>
+                                            {/* En qué pantalla sale. Sin esto no había forma de
+                                                ver a qué módulo quedó pegado un tutorial, y con
+                                                dos módulos llamados igual es fácil errarle. */}
+                                            <p className="text-xs text-muted-foreground">{guide.path}</p>
                                         </CardHeader>
                                         <CardContent className="flex flex-1 justify-stretch items-center">
                                             <p className="text-muted-foreground">{guide.description}</p>
