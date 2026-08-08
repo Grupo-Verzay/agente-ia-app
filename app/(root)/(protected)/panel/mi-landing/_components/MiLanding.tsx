@@ -384,6 +384,8 @@ export function MiLanding() {
               <p className="pt-2 text-sm text-muted-foreground">
                 Periodos de pago que quieres ofrecer. Si dejas solo uno activo, el selector
                 (Mensual / Trimestral / Anual) no aparece y se muestran esos precios directamente.
+                Si los desactivas los tres, tu landing no muestra precios: solo queda la prueba
+                gratuita, y el cliente contrata un plan de pago después, desde su panel.
               </p>
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
                 <Label className="text-sm">Mostrar plan Mensual</Label>
@@ -398,10 +400,17 @@ export function MiLanding() {
                 <Switch checked={showBillingYearly} onCheckedChange={setShowBillingYearly} />
               </div>
               {!showBillingMonthly && !showBillingQuarterly && !showBillingYearly && (
-                <p className="text-xs text-amber-500">
-                  Debes dejar al menos un periodo activo. Si los desactivas todos, tu landing
-                  mostrará los precios mensuales.
-                </p>
+                showCreateAgentCta ? (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-500">
+                    Tu landing no mostrará la sección de precios. El único camino para el
+                    visitante será «Crear mi Agente IA» (prueba gratuita).
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-500">
+                    Sin precios y sin el botón «Crear mi Agente IA», tu landing se queda sin
+                    ninguna forma de que el cliente empiece. Activa al menos uno de los dos.
+                  </p>
+                )
               )}
             </div>
           </div>
