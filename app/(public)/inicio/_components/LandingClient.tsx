@@ -210,12 +210,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(showAssistanceIA ? "IA" : "HUMANO");
-  // Periodos habilitados. Si se desactivan todos, se usa mensual como respaldo.
+  // Periodos habilitados. Si se desactivan los tres, la landing no muestra precios:
+  // solo queda la prueba gratuita y el plan de pago se contrata dentro del panel.
   const availablePeriods: BillingPeriod[] = [];
   if (showBillingMonthly) availablePeriods.push("monthly");
   if (showBillingQuarterly) availablePeriods.push("quarterly");
   if (showBillingYearly) availablePeriods.push("yearly");
-  if (availablePeriods.length === 0) availablePeriods.push("monthly");
+  const showPricing = availablePeriods.length > 0;
   const showBillingToggle = availablePeriods.length > 1;
   const defaultPeriod: BillingPeriod =
     availablePeriods.includes("yearly") ? "yearly"
@@ -228,11 +229,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
   const [modalPlan, setModalPlan]           = useState<{ plan: SubscriptionPlanItem; checkoutUrl: string | null } | null>(null);
 
   useEffect(() => {
+    // Sin sección de precios no hay nada que pintar con los planes: se evita la consulta.
+    if (!showPricing) { setPlansLoading(false); return; }
     getActiveSubscriptionPlans().then((res) => {
       if (res.success) setPlans(res.data);
       setPlansLoading(false);
     });
-  }, []);
+  }, [showPricing]);
 
   const hasIAPlans     = plans.some((p) => p.assistanceType === "IA");
   const hasHUMANOPlans = plans.some((p) => p.assistanceType === "HUMANO");
@@ -280,7 +283,9 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             )}
           </div>
           <nav className="hidden items-center gap-7 sm:flex">
-            {[["#how","Cómo funciona"],["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]].map(([href,label]) => (
+            {[["#how","Cómo funciona"],["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]]
+              .filter(([href]) => href !== "#pricing" || showPricing)
+              .map(([href,label]) => (
               <a key={href} href={href} className="text-sm text-slate-400 transition-colors hover:text-white">{label}</a>
             ))}
           </nav>
@@ -300,7 +305,9 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
         </div>
         {mobileMenuOpen && (
           <div className="space-y-3 border-t border-white/10 px-4 py-3 sm:hidden">
-            {[["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]].map(([href,label]) => (
+            {[["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]]
+              .filter(([href]) => href !== "#pricing" || showPricing)
+              .map(([href,label]) => (
               <a key={href} href={href} className="block text-sm text-slate-300" onClick={() => setMobileMenuOpen(false)}>{label}</a>
             ))}
             <div className="flex gap-2 pt-1">
@@ -351,11 +358,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                     </Button>
                   </Link>
                 )}
-                <a href="#pricing">
-                  <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 md:w-auto">
-                    Ver planes
-                  </Button>
-                </a>
+                {showPricing && (
+                  <a href="#pricing">
+                    <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 md:w-auto">
+                      Ver planes
+                    </Button>
+                  </a>
+                )}
                 {(meetingUrl ?? "https://verzay.com/agendar-una-reunion") && (
                   <a href={meetingUrl ?? "https://verzay.com/agendar-una-reunion"} target="_blank" rel="noopener noreferrer">
                     <Button size="lg" variant="outline" className="w-full gap-2 border-cyan-500/40 bg-cyan-500/10 px-8 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 md:w-auto">
@@ -640,6 +649,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       </section>
 
       {/* ══ PRECIOS ════════════════════════════════════════════════════════ */}
+      {showPricing && (
       <section id="pricing" className="py-6 bg-white/[0.02]">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
@@ -716,6 +726,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           </FadeIn>
         </div>
       </section>
+      )}
 
       {/* ══ ENTERPRISE / AGENCIAS ══════════════════════════════════════════ */}
       <section className="py-4">
@@ -845,7 +856,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} Agente IA. Todos los derechos reservados.</p>
           <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500">
             <a href="#features" className="transition-colors hover:text-slate-300">Funciones</a>
-            <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>
+            {showPricing && <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>}
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
             <Link href="/documentacion" className="transition-colors hover:text-slate-300">Documentación</Link>
             {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-400">Instagram</a>}

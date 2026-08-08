@@ -421,13 +421,14 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
   if (hasHumano) availableTypes.push("HUMANO");
   const showAssistanceToggle = availableTypes.length > 1;
 
-  // Periodos de facturación habilitados por el reseller. Si desactiva todos, se
-  // usa mensual como respaldo (la sección de precios no puede quedar sin precio).
+  // Periodos de facturación habilitados por el reseller. Si desactiva los tres, la
+  // landing no muestra precios: solo queda la prueba gratuita ("Crear mi Agente IA")
+  // y el cliente contrata un plan de pago ya dentro de su panel.
   const availablePeriods: BillingPeriod[] = [];
   if (showBillingMonthly) availablePeriods.push("monthly");
   if (showBillingQuarterly) availablePeriods.push("quarterly");
   if (showBillingYearly) availablePeriods.push("yearly");
-  if (availablePeriods.length === 0) availablePeriods.push("monthly");
+  const showPricing = availablePeriods.length > 0;
   const showBillingToggle = availablePeriods.length > 1;
   // Preferencia por defecto: anual → trimestral → mensual (el primero habilitado).
   const defaultPeriod: BillingPeriod =
@@ -486,7 +487,9 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
             {!logoUrl && <span className="text-lg font-bold text-white">{brandName}</span>}
           </div>
           <nav className="hidden items-center gap-7 sm:flex">
-            {[["#how","Cómo funciona"],["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]].map(([href,label]) => (
+            {[["#how","Cómo funciona"],["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]]
+              .filter(([href]) => href !== "#pricing" || showPricing)
+              .map(([href,label]) => (
               <a key={href} href={href} className="text-sm text-slate-400 transition-colors hover:text-white">{label}</a>
             ))}
           </nav>
@@ -506,7 +509,9 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
         </div>
         {mobileMenuOpen && (
           <div className="space-y-3 border-t border-white/10 px-4 py-3 sm:hidden">
-            {[["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]].map(([href,label]) => (
+            {[["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]]
+              .filter(([href]) => href !== "#pricing" || showPricing)
+              .map(([href,label]) => (
               <a key={href} href={href} className="block text-sm text-slate-300" onClick={() => setMobileMenuOpen(false)}>{label}</a>
             ))}
             <div className="flex gap-2 pt-1">
@@ -549,11 +554,13 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                     </Button>
                   </Link>
                 )}
-                <a href="#pricing">
-                  <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 md:w-auto">
-                    Ver planes
-                  </Button>
-                </a>
+                {showPricing && (
+                  <a href="#pricing">
+                    <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 md:w-auto">
+                      Ver planes
+                    </Button>
+                  </a>
+                )}
                 {meetingUrl && (
                   <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
                     <Button size="lg" variant="outline" className="w-full gap-2 border-cyan-500/40 bg-cyan-500/10 px-8 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 md:w-auto">
@@ -803,6 +810,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       </section>
 
       {/* ══ PRECIOS ═════════════════════════════════════════════════════════ */}
+      {showPricing && (
       <section id="pricing" className="py-6 bg-white/[0.02]">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
@@ -846,6 +854,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           </FadeIn>
         </div>
       </section>
+      )}
 
       {/* ══ FAQ ═════════════════════════════════════════════════════════════ */}
       <section id="faq" className="py-6">
@@ -924,7 +933,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} {brandName}. Todos los derechos reservados.</p>
           <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500">
             <a href="#features" className="transition-colors hover:text-slate-300">Funciones</a>
-            <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>
+            {showPricing && <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>}
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
             {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-400">Instagram</a>}
             {facebook && <a href={facebook} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-blue-400">Facebook</a>}
