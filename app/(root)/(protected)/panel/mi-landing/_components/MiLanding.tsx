@@ -190,18 +190,18 @@ export function MiLanding() {
                 <div className="space-y-1.5">
                   <Label className="flex items-center gap-1.5 text-sm"><MessageCircle className="h-3.5 w-3.5 text-green-500" /> Número WhatsApp</Label>
                   <Input placeholder="ej. 573001234567" value={whatsappInput} onChange={(e) => setWhatsappInput(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Botón flotante de contacto en tu landing.</p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Botón flotante de contacto en tu landing.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="flex items-center gap-1.5 text-sm"><Calendar className="h-3.5 w-3.5 text-blue-500" /> Link de agenda / reunión</Label>
                   <Input placeholder="https://calendly.com/tu-nombre" value={meetingUrlInput} onChange={(e) => setMeetingUrlInput(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Botón &quot;Agendar asesoría&quot; en tu landing pública.</p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Botón &quot;Agendar asesoría&quot; en tu landing pública.</p>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-sm"><FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" /> Google Sheets (tus leads)</Label>
                 <Input placeholder="https://docs.google.com/spreadsheets/d/..." value={sheetsUrlInput} onChange={(e) => setSheetsUrlInput(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Los registros de tu landing llegarán aquí también.</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">Los registros de tu landing llegarán aquí también.</p>
               </div>
             </div>
           </div>
@@ -220,7 +220,7 @@ export function MiLanding() {
                     <input type="color" value={bgColorInput || "#0f172a"} onChange={(e) => setBgColorInput(e.target.value)} className="h-9 w-14 cursor-pointer rounded-md border border-border bg-transparent p-0.5" />
                     <Input placeholder="#0f172a" value={bgColorInput} onChange={(e) => setBgColorInput(e.target.value)} />
                   </div>
-                  <p className="text-xs text-muted-foreground">Color del fondo oscuro de toda la landing.</p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Color del fondo oscuro de toda la landing.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="flex items-center gap-1.5 text-sm"><Palette className="h-3.5 w-3.5 text-pink-500" /> Color primario</Label>
@@ -228,13 +228,13 @@ export function MiLanding() {
                     <input type="color" value={primaryColorInput || "#2563eb"} onChange={(e) => setPrimaryColorInput(e.target.value)} className="h-9 w-14 cursor-pointer rounded-md border border-border bg-transparent p-0.5" />
                     <Input placeholder="#2563eb" value={primaryColorInput} onChange={(e) => setPrimaryColorInput(e.target.value)} />
                   </div>
-                  <p className="text-xs text-muted-foreground">Color de botones y acentos en tu landing.</p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Color de botones y acentos en tu landing.</p>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-sm"><Image className="h-3.5 w-3.5 text-violet-500" /> Logo (URL de imagen)</Label>
                 <Input placeholder="https://mi-empresa.com/logo.png" value={logoUrlInput} onChange={(e) => setLogoUrlInput(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Reemplaza el ícono de robot en navbar y footer.</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">Reemplaza el ícono de robot en navbar y footer.</p>
               </div>
             </div>
           </div>
@@ -289,7 +289,7 @@ export function MiLanding() {
               <div className="space-y-1.5">
                 <Label className="text-sm">URL YouTube / Vimeo</Label>
                 <Input placeholder="https://www.youtube.com/watch?v=..." value={videoUrlInput} onChange={(e) => setVideoUrlInput(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Aparece después de los 3 pasos en tu landing.</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">Aparece después de los 3 pasos en tu landing.</p>
               </div>
             </div>
           </div>
@@ -376,7 +376,7 @@ export function MiLanding() {
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
                 <div>
                   <Label className="text-sm">Mostrar botón «Crear mi Agente IA»</Label>
-                  <p className="text-xs text-muted-foreground">Botones que llevan al registro. Desactívalo para ocultarlos de tu landing.</p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Botones que llevan al registro. Desactívalo para ocultarlos de tu landing.</p>
                 </div>
                 <Switch checked={showCreateAgentCta} onCheckedChange={setShowCreateAgentCta} />
               </div>

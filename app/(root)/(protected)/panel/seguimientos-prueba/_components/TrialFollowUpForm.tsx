@@ -157,7 +157,7 @@ export function TrialFollowUpForm({ initial }: Props) {
                 <Zap className="h-4 w-4 text-primary" />
                 Seguimientos automáticos por WhatsApp
               </CardTitle>
-              <CardDescription className="mt-1 text-xs">
+              <CardDescription className="mt-1 hidden text-xs sm:block">
                 Envía mensajes automáticos a los prospectos que se registran en la prueba gratis.
                 Usa <code className="bg-muted px-1 rounded text-[11px]">{'{nombre}'}</code> para insertar el nombre del prospecto.
               </CardDescription>
@@ -184,7 +184,7 @@ export function TrialFollowUpForm({ initial }: Props) {
                 onChange={(e) => setForm(f => ({ ...f, trialDays: Number(e.target.value) }))}
                 className="h-8 w-24"
               />
-              <span className="text-[11px] text-muted-foreground">
+              <span className="hidden text-[11px] text-muted-foreground sm:inline">
                 Aplica a las cuentas que se registren de ahora en adelante.
               </span>
             </div>
@@ -249,7 +249,7 @@ export function TrialFollowUpForm({ initial }: Props) {
                 </Button>
               </div>
             )}
-            <p className="text-[11px] text-muted-foreground">
+            <p className="hidden text-[11px] text-muted-foreground sm:block">
               Si dejas este campo vacio, los mensajes saldran desde Verzay Notificaciones.
             </p>
           </div>
@@ -274,7 +274,7 @@ export function TrialFollowUpForm({ initial }: Props) {
                     <MessageCircle className="h-4 w-4 text-green-500" />
                     {day}
                   </CardTitle>
-                  <CardDescription className="text-xs">{hint}</CardDescription>
+                  <CardDescription className="hidden text-xs sm:block">{hint}</CardDescription>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5">

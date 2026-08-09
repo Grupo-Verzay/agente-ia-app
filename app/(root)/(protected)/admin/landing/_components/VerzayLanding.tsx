@@ -361,7 +361,7 @@ export function VerzayLanding() {
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
                       <div>
                         <Label className="text-sm">Mostrar botón «Crear mi Agente IA»</Label>
-                        <p className="text-xs text-muted-foreground">Botones que llevan al registro. Desactívalo para ocultarlos de la landing.</p>
+                        <p className="hidden text-xs text-muted-foreground sm:block">Botones que llevan al registro. Desactívalo para ocultarlos de la landing.</p>
                       </div>
                       <Switch checked={showFreeTrial} onCheckedChange={setShowFreeTrial} />
                     </div>
@@ -381,7 +381,7 @@ export function VerzayLanding() {
                           <input type="color" value={bgColorInput || "#0f172a"} onChange={(e) => setBgColorInput(e.target.value)} className="h-9 w-14 cursor-pointer rounded-md border border-border bg-transparent p-0.5" />
                           <Input placeholder="#0f172a" value={bgColorInput} onChange={(e) => setBgColorInput(e.target.value)} />
                         </div>
-                        <p className="text-xs text-muted-foreground">Color del fondo oscuro de toda la landing.</p>
+                        <p className="hidden text-xs text-muted-foreground sm:block">Color del fondo oscuro de toda la landing.</p>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="flex items-center gap-1.5 text-sm"><Palette className="h-3.5 w-3.5 text-pink-500" /> Color primario</Label>
@@ -389,13 +389,13 @@ export function VerzayLanding() {
                           <input type="color" value={primaryColorInput || "#2563eb"} onChange={(e) => setPrimaryColorInput(e.target.value)} className="h-9 w-14 cursor-pointer rounded-md border border-border bg-transparent p-0.5" />
                           <Input placeholder="#2563eb" value={primaryColorInput} onChange={(e) => setPrimaryColorInput(e.target.value)} />
                         </div>
-                        <p className="text-xs text-muted-foreground">Color de botones y acentos en la landing.</p>
+                        <p className="hidden text-xs text-muted-foreground sm:block">Color de botones y acentos en la landing.</p>
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="flex items-center gap-1.5 text-sm"><Image className="h-3.5 w-3.5 text-violet-500" /> Logo (URL de imagen)</Label>
                       <Input placeholder="https://verzay.com/logo.png" value={logoUrlInput} onChange={(e) => setLogoUrlInput(e.target.value)} />
-                      <p className="text-xs text-muted-foreground">Reemplaza el ícono de robot en navbar y footer.</p>
+                      <p className="hidden text-xs text-muted-foreground sm:block">Reemplaza el ícono de robot en navbar y footer.</p>
                     </div>
                   </div>
                 </div>
@@ -447,7 +447,7 @@ export function VerzayLanding() {
                     <div className="space-y-1.5">
                       <Label className="text-sm">URL YouTube / Vimeo</Label>
                       <Input placeholder="https://www.youtube.com/watch?v=..." value={videoUrlInput} onChange={(e) => setVideoUrlInput(e.target.value)} />
-                      <p className="text-xs text-muted-foreground">Aparece después de los 3 pasos en la landing.</p>
+                      <p className="hidden text-xs text-muted-foreground sm:block">Aparece después de los 3 pasos en la landing.</p>
                     </div>
                   </div>
                 </div>
@@ -515,7 +515,7 @@ export function VerzayLanding() {
                     <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", openSections.planes && "-rotate-180")} />
                   </button>
                   <div className={cn(openSections.planes ? "pb-3 space-y-3" : "hidden")}>
-                    <p className="text-xs text-muted-foreground">Controla qué tipos de asistencia aparecen en la sección de precios de la landing.</p>
+                    <p className="hidden text-xs text-muted-foreground sm:block">Controla qué tipos de asistencia aparecen en la sección de precios de la landing.</p>
                     <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                       <Label className="text-sm">Mostrar Asistencia IA</Label>
                       <Switch checked={showAssistanceIA} onCheckedChange={setShowAssistanceIA} />
@@ -585,7 +585,7 @@ export function VerzayLanding() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4 space-y-4">
-                <p className="text-xs text-muted-foreground">
+                <p className="hidden text-xs text-muted-foreground sm:block">
                   Configuración específica para la página{" "}
                   <a href="https://agente.ia-app.com/resellers" target="_blank" rel="noopener noreferrer" className="font-medium text-blue-500 hover:underline">
                     /resellers
