@@ -237,7 +237,7 @@ export function ExternalDataImportClient({ clients }: Props) {
             <FileSpreadsheet className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Importar datos externos</CardTitle>
           </div>
-          <CardDescription>
+          <CardDescription className="hidden sm:block">
             Sincroniza información de clientes (cédula, correo, servicio, monto, etc.)
             desde Google Sheets. Los datos se guardan bajo el cliente seleccionado y
             el agente IA los usará automáticamente en cada conversación.
@@ -420,7 +420,7 @@ export function ExternalDataImportClient({ clients }: Props) {
                 disabled={isLoading}
                 className="max-w-52 text-xs"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="hidden text-xs text-muted-foreground sm:block">
                 Usa &ldquo;Ver columnas del sheet&rdquo; para detectarlas automáticamente.
               </p>
             </div>

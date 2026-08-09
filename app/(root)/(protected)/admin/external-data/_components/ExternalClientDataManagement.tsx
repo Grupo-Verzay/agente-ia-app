@@ -119,7 +119,7 @@ export function ExternalClientDataManagement({
             <Database className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Gestión de datos externos</CardTitle>
           </div>
-          <CardDescription>
+          <CardDescription className="hidden sm:block">
             Visualiza, crea y edita los registros de datos externos por cliente.
             Estos datos son usados por el agente IA en cada conversación.
           </CardDescription>

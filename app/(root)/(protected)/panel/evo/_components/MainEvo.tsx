@@ -162,7 +162,7 @@ export const MainEvo = ({ userId }: Props) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="hidden text-xs text-muted-foreground sm:block">
             Borra una instancia que quedó viva en Evolution API pero ya no existe en la app.
             Devuelve el error real del servidor si algo falla.
           </p>

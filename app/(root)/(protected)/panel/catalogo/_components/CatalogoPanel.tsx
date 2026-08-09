@@ -183,7 +183,7 @@ export function CatalogoPanel({ userId }: Props) {
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="hidden text-xs text-muted-foreground sm:block">
                   Se mostrará un botón "Consultar por WhatsApp" en las cards de producto.
                 </p>
               </div>
@@ -225,7 +225,7 @@ export function CatalogoPanel({ userId }: Props) {
                     className="flex-1"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="hidden text-xs text-muted-foreground sm:block">
                   Color usado en precios y botones del catálogo.
                 </p>
               </div>

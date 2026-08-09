@@ -116,7 +116,7 @@ export const CreditMain = ({ userId }: Props) => {
                         <Settings className="h-4 w-4 text-muted-foreground" />
                         <CardTitle className="text-base">Créditos por plan</CardTitle>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="hidden text-xs text-muted-foreground sm:block">
                         Estos son los créditos que se asignan automáticamente al cambiar el plan de un usuario.
                         El plan <strong>Personalizado</strong> no se auto-sincroniza (asignación manual).
                     </p>
@@ -206,7 +206,7 @@ export const CreditMain = ({ userId }: Props) => {
                     <Card className="border-border shadow-sm max-w-md">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">Override de créditos (usuario)</CardTitle>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="hidden text-xs text-muted-foreground sm:block">
                                 Ajusta manualmente los créditos de este usuario. Usa esto para planes
                                 Personalizados o acuerdos especiales.
                             </p>

@@ -103,7 +103,7 @@ export function RegisterLinksManager({ links }: Props) {
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle className="text-base">Links de Registro por Servidor</CardTitle>
-        <CardDescription>
+        <CardDescription className="hidden sm:block">
           Cada URL asigna automáticamente el servidor correspondiente al nuevo usuario.
           No se expone ninguna clave sensible en los links.
         </CardDescription>
