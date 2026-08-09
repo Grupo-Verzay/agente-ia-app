@@ -438,7 +438,7 @@ export function ExternalDataImportClient({ clients }: Props) {
                 disabled={isLoading}
                 className="max-w-52 text-xs"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="hidden text-xs text-muted-foreground sm:block">
                 Usa &ldquo;Ver columnas del sheet&rdquo; para detectarlas automáticamente.
               </p>
             </div>

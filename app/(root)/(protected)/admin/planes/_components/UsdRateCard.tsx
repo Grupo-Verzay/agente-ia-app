@@ -36,12 +36,12 @@ export function UsdRateCard() {
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <p className="text-sm font-semibold">Tasa de cobro USD → COP</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="hidden text-xs text-muted-foreground sm:block">
             Los precios de abajo son la referencia en dólares. El cobro sale en pesos con esta
             tasa. Vacío = se factura en dólares.
           </p>
           {previewValido && (
-            <p className="text-xs text-muted-foreground">
+            <p className="hidden text-xs text-muted-foreground sm:block">
               Un plan de $50 USD se factura como ${(50 * numero).toLocaleString("es-CO")} COP.
             </p>
           )}

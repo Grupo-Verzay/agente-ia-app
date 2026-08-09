@@ -1311,7 +1311,7 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
             <Bot className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Herramientas IA por cliente</CardTitle>
           </div>
-          <CardDescription>
+          <CardDescription className="hidden sm:block">
             Define qué herramientas tiene disponibles el agente IA para cada cliente.
             Las herramientas del sistema tienen lógica fija en el backend; las dinámicas
             son consultas configurables sobre los datos externos cargados.

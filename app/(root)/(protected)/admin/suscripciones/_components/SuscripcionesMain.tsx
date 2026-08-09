@@ -123,7 +123,7 @@ export function SuscripcionesMain() {
     <div className="flex flex-col gap-4 p-4 h-full overflow-y-auto">
       <div>
         <h2 className="text-lg font-semibold">Suscripciones</h2>
-        <p className="text-xs text-muted-foreground">
+        <p className="hidden text-xs text-muted-foreground sm:block">
           Revisa y aprueba los pagos manuales pendientes.
         </p>
       </div>
