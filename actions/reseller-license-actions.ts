@@ -161,9 +161,21 @@ export async function migrateLegacyClientsToPool(
       };
     }
 
+    // El nivel de la cuenta va con el pool: es lo que abre o cierra módulos.
+    // Sin esto el cliente entraba al pool nuevo pero seguía viendo el nivel viejo.
+    const planDelPool = await db.subscriptionPlan.findUnique({
+      where: { id: subscriptionPlanId },
+      select: { plan: true },
+    });
+
     await db.user.updateMany({
       where: { id: { in: legacyUserIds } },
-      data: { demoResellerId: resellerUserId, resellerSubscriptionPlanId: subscriptionPlanId, isDemo: false },
+      data: {
+        demoResellerId: resellerUserId,
+        resellerSubscriptionPlanId: subscriptionPlanId,
+        isDemo: false,
+        ...(planDelPool ? { plan: planDelPool.plan } : {}),
+      },
     });
     await db.reseller.deleteMany({
       where: { resellerid: resellerUserId, userId: { in: legacyUserIds } },
@@ -590,5 +602,166 @@ export async function convertDemoToClient(demoUserId: string, subscriptionPlanId
   } catch (e) {
     console.error("[convertDemoToClient]", e);
     return { success: false, message: "Error al convertir la demo." };
+  }
+}
+
+// ── Cambio de plan de un cliente de reseller ──────────────────────────────
+
+/**
+ * Planes a los que un cliente puede moverse: los pools del reseller dueño de
+ * esa cuenta, con las licencias libres de cada uno. El pool actual del cliente
+ * se marca (`isCurrent`) y su licencia no se cuenta como ocupada al calcular
+ * las libres del resto, porque al cambiarse la libera.
+ *
+ * Lo puede pedir el reseller para sus propios clientes, o un admin para
+ * cualquiera (el reseller se deduce del cliente).
+ */
+export async function getPlanChangeOptions(clientId: string) {
+  try {
+    const me = await currentUser();
+    if (!me) return { success: false, message: "Sin permisos", data: null };
+
+    const client = await db.user.findUnique({
+      where: { id: clientId },
+      select: { id: true, isDemo: true, demoResellerId: true, resellerSubscriptionPlanId: true },
+    });
+    if (!client) return { success: false, message: "Cliente no encontrado.", data: null };
+
+    const resellerUserId = client.demoResellerId;
+    if (!resellerUserId) {
+      return { success: false, message: "Este cliente no pertenece a ningún reseller.", data: null };
+    }
+    const puede = isAdminLike(me.role) || (me.role === "reseller" && resellerUserId === me.id);
+    if (!puede) return { success: false, message: "Sin permisos sobre este cliente.", data: null };
+
+    const pools = await db.resellerLicensePool.findMany({
+      where: { resellerUserId },
+      include: { subscriptionPlan: true },
+    });
+
+    const usage = await db.user.groupBy({
+      by: ["resellerSubscriptionPlanId"],
+      where: { demoResellerId: resellerUserId, isDemo: false, resellerSubscriptionPlanId: { not: null } },
+      _count: { _all: true },
+    });
+    const usedByPlan = new Map<string, number>();
+    for (const row of usage) {
+      if (row.resellerSubscriptionPlanId) usedByPlan.set(row.resellerSubscriptionPlanId, row._count._all);
+    }
+
+    return {
+      success: true,
+      message: "",
+      data: {
+        isDemo: client.isDemo,
+        currentSubscriptionPlanId: client.resellerSubscriptionPlanId,
+        options: pools.map((pool) => {
+          const isCurrent = pool.subscriptionPlanId === client.resellerSubscriptionPlanId;
+          // Al cambiarse, el cliente libera su licencia actual: no la cuentes
+          // contra el pool que ya ocupa.
+          const used = (usedByPlan.get(pool.subscriptionPlanId) ?? 0) - (isCurrent ? 1 : 0);
+          return {
+            subscriptionPlanId: pool.subscriptionPlanId,
+            plan: pool.subscriptionPlan.plan,
+            assistanceType: pool.subscriptionPlan.assistanceType,
+            credits: pool.subscriptionPlan.credits,
+            availableLicenses: pool.totalLicenses - used,
+            isCurrent,
+          };
+        }),
+      },
+    };
+  } catch (e) {
+    console.error("[getPlanChangeOptions]", e);
+    return { success: false, message: "Error al cargar los planes disponibles.", data: null };
+  }
+}
+
+/**
+ * Mueve a un cliente de reseller al pool indicado: le cambia el NIVEL de la
+ * cuenta (que es lo que abre o cierra módulos) y lo pasa a ese pool para el
+ * cobro. La licencia del pool anterior queda libre sola, porque el uso se
+ * cuenta con los clientes que apuntan a cada pool.
+ *
+ * Los créditos pasan a ser los del plan nuevo. Se conserva lo ya consumido en
+ * el ciclo, para que cambiar de plan no regale un ciclo nuevo de créditos.
+ */
+export async function changeClientPlan(clientId: string, subscriptionPlanId: string) {
+  try {
+    const me = await currentUser();
+    if (!me) return { success: false, message: "Sin permisos" };
+
+    const client = await db.user.findUnique({
+      where: { id: clientId },
+      select: { id: true, isDemo: true, demoResellerId: true, resellerSubscriptionPlanId: true },
+    });
+    if (!client) return { success: false, message: "Cliente no encontrado." };
+
+    const resellerUserId = client.demoResellerId;
+    if (!resellerUserId) {
+      return { success: false, message: "Este cliente no pertenece a ningún reseller." };
+    }
+    const puede = isAdminLike(me.role) || (me.role === "reseller" && resellerUserId === me.id);
+    if (!puede) return { success: false, message: "Sin permisos sobre este cliente." };
+
+    if (client.isDemo) {
+      return { success: false, message: "Es una cuenta de prueba: conviértela en cliente para asignarle un plan." };
+    }
+    if (client.resellerSubscriptionPlanId === subscriptionPlanId) {
+      return { success: false, message: "El cliente ya está en ese plan." };
+    }
+
+    const pool = await db.resellerLicensePool.findUnique({
+      where: { resellerUserId_subscriptionPlanId: { resellerUserId, subscriptionPlanId } },
+      include: { subscriptionPlan: true },
+    });
+    if (!pool) return { success: false, message: "El reseller no tiene licencias de ese plan." };
+
+    const used = await db.user.count({
+      where: {
+        demoResellerId: resellerUserId,
+        isDemo: false,
+        resellerSubscriptionPlanId: subscriptionPlanId,
+        id: { not: clientId },
+      },
+    });
+    if (used >= pool.totalLicenses) {
+      return {
+        success: false,
+        message: `Sin licencias libres en ese plan (${pool.totalLicenses} en total, todas ocupadas). Sube el total del pool primero.`,
+      };
+    }
+
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: clientId },
+        data: {
+          plan: pool.subscriptionPlan.plan,
+          resellerSubscriptionPlanId: subscriptionPlanId,
+        },
+      });
+
+      // Créditos del plan nuevo, conservando lo ya consumido del ciclo.
+      const upd = await tx.iaCredit.updateMany({
+        where: { userId: clientId },
+        data: { total: pool.subscriptionPlan.credits },
+      });
+      if (upd.count === 0) {
+        const renewalDate = new Date();
+        renewalDate.setMonth(renewalDate.getMonth() + 1);
+        await tx.iaCredit.create({
+          data: { userId: clientId, total: pool.subscriptionPlan.credits, used: 0, renewalDate },
+        });
+      }
+    });
+
+    revalidatePath("/panel/clientes");
+    revalidatePath("/panel/mis-clientes");
+    revalidatePath("/admin/clientes");
+    revalidatePath("/admin/reseller");
+    return { success: true, message: "Plan actualizado. El cliente lo verá al volver a entrar." };
+  } catch (e) {
+    console.error("[changeClientPlan]", e);
+    return { success: false, message: "Error al cambiar el plan." };
   }
 }

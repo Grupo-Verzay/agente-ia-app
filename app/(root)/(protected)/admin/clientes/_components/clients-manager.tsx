@@ -24,9 +24,10 @@ import { LENGTH_PASSWORD_HASH } from '@/types/generic';
 import { ModuleWithItems } from '@/schema/module';
 import { setUserModules } from '@/actions/user-module-actions';
 import { ModulesDialog } from '@/components/shared/ModulesDialog';
+import { PlanDialog } from '@/components/shared/PlanDialog';
 
 
-export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules'
+export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules' | 'plan'
 
 interface Props {
     users: ClientInterface[],
@@ -46,6 +47,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openBackupDialog, setOpenBackupDialog] = useState(false);
     const [openModulesDialog, setOpenModulesDialog] = useState(false);
+    const [openPlanDialog, setOpenPlanDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
 
@@ -225,6 +227,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         if (dialog === 'editar') return setOpenEditDialog(state);
         if (dialog === 'backup') return setOpenBackupDialog(state);
         if (dialog === 'modules') return setOpenModulesDialog(state);
+        if (dialog === 'plan') return setOpenPlanDialog(state);
     };
 
     const openCreateDialogUser = () => {
@@ -276,6 +279,15 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     user={user}
                     apikeys={apikeys}
                     currentUserRol={currentUserRol}
+                />
+            )}
+            {/* Dialog cambiar plan */}
+            {user && (
+                <PlanDialog
+                    openPlanDialog={openPlanDialog}
+                    setOpenPlanDialog={setOpenPlanDialog}
+                    user={user}
+                    onChanged={() => router.refresh()}
                 />
             )}
             {/* Dialog delete */}
