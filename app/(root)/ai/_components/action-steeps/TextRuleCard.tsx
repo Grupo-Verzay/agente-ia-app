@@ -22,7 +22,11 @@ export const TextRuleCard: FC<PropsTextRule> = ({ el, onRemove, onChange, isMana
             </CardHeader>
             <CardContent>
                 <Textarea
-                    placeholder="Regla adicional para este paso…"
+                    // Aquí va lo que el cliente recibe: las plantillas hablan del
+                    // "PRIMER elemento de TEXTO" y este es ese elemento. Decía
+                    // solo "regla adicional", así que quien buscaba dónde escribir
+                    // la respuesta pasaba de largo y la dejaba en blanco.
+                    placeholder="Respuesta que recibe el cliente, o una regla adicional para este paso…"
                     value={el.text}
                     onChange={(e) => onChange(e.target.value)}
                     className="min-h-[32px]"

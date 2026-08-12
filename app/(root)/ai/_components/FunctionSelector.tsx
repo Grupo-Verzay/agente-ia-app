@@ -244,7 +244,12 @@ export const FunctionSelector = ({
                                 {step && (
                                     <CommandGroup heading="TEXTO">
                                         <CommandItem onSelect={addText}>
-                                            <span className="flex items-center gap-2">📝 Agregar regla</span>
+                                            {/* "respuesta/regla" y no "regla" a secas: este es el
+                                                elemento que el cliente recibe —las plantillas lo
+                                                llaman el PRIMER elemento de TEXTO—, y llamarlo solo
+                                                regla hacía que se buscara la respuesta en otro lado.
+                                                Es un cambio de etiqueta: el prompt no cambia. */}
+                                            <span className="flex items-center gap-2">📝 Agregar respuesta/regla</span>
                                         </CommandItem>
                                     </CommandGroup>
                                 )}
