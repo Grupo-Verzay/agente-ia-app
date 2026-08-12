@@ -202,17 +202,21 @@ export const FunctionSelector = ({
                         <Command>
                             <CommandList>
                                 <CommandGroup heading="ACCIONES">
-                                    {/* Capturar un dato es la razón de ser de un paso de embudo
-                                        —el nombre, el interés—, pero solo se ofrecía en Gestión.
-                                        Quien armaba el embudo tenía que pedir el dato en el texto
-                                        y confiar en que el agente lo guardara solo. */}
-                                    <CommandItem onSelect={() => addFunctionCaptura()}>
-                                        <span className="flex items-center gap-2">📋 Captura de datos</span>
-                                    </CommandItem>
+                                    {/* Captura de datos vive solo en Gestión. Se probó ofrecerla en
+                                        embudo, FAQ, productos y extras, y lo que hace es estorbar:
+                                        obliga a declarar campos producto por producto para algo que
+                                        el modelo ya resuelve solo —reconoce cuándo alguien quiere
+                                        avanzar con la compra y pide lo que falta—, y Gestión ya
+                                        recoge esos datos.
 
-                                    {/* Consulta y Actualizar datos siguen fuera a propósito: están
+                                        Consulta y Actualizar datos siguen fuera por lo mismo: están
                                         escritas pero nadie las pidió, y cada opción de más en este
                                         menú es una decisión de más para quien arma el embudo. */}
+                                    {isManagement && (
+                                        <CommandItem onSelect={() => addFunctionCaptura()}>
+                                            <span className="flex items-center gap-2">📋 Captura de datos</span>
+                                        </CommandItem>
+                                    )}
 
                                     {!isManagement && (
                                         <>
