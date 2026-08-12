@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GuideUrl as Guide, User } from '@prisma/client';
 import { getAllGuides, createGuide, updateGuide, deleteGuide } from '@/actions/guide-actions';
 import { Button } from '@/components/ui/button';
@@ -88,6 +88,46 @@ export const MainTutorial = ({ user }: { user: User }) => {
         return res;
     };
 
+    /**
+     * Las pantallas a las que se le puede pegar un tutorial.
+     *
+     * Dos arreglos sobre lo que había.
+     *
+     * Uno: se listaba `modules` tal cual, y los módulos que solo agrupan
+     * submenús —Contactos, Integraciones, Herramientas, Entrenamiento…— comparten
+     * la misma dirección, `#container`. Al desplegable eso le llega como el mismo
+     * valor repetido, así que elegir "Entrenamiento" marcaba de golpe las siete
+     * que la comparten y guardaba un revoltijo.
+     *
+     * Dos: `#container` no es una dirección de ninguna pantalla, así que un
+     * tutorial guardado ahí no aparece en ningún lado por más que exista. En su
+     * lugar se ofrecen las pantallas de dentro, que sí lo son.
+     *
+     * Las direcciones se guardan como `/admin/...` y se sirven en `/panel/...`,
+     * que es la forma con la que hay que compararlas.
+     */
+    const pantallas = useMemo(() => {
+        const vistas = new Map<string, string>();
+
+        for (const modulo of modules) {
+            const ruta = (modulo.route ?? '').trim();
+            if (ruta.startsWith('/')) {
+                if (!vistas.has(ruta)) vistas.set(ruta, modulo.label);
+                continue;
+            }
+
+            for (const item of modulo.moduleItems ?? []) {
+                const url = (item.url ?? '').trim().replace('/admin/', '/panel/');
+                if (!url.startsWith('/') || vistas.has(url)) continue;
+                vistas.set(url, `${modulo.label} → ${item.title}`);
+            }
+        }
+
+        return Array.from(vistas, ([path, label]) => ({ path, label })).sort((a, b) =>
+            a.label.localeCompare(b.label, 'es'),
+        );
+    }, [modules]);
+
     const filteredGuides = guides.filter(guide =>
         guide.title.toLowerCase().includes(filter.toLowerCase()) ||
         guide.path.toLowerCase().includes(filter.toLowerCase())
@@ -100,7 +140,7 @@ export const MainTutorial = ({ user }: { user: User }) => {
     };
 
     return (
-        <div className="flex flex-col p-4 gap-6 overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col p-4 gap-6 overflow-hidden">
             <Header
                 title="Tutoriales"
             />
@@ -149,10 +189,12 @@ export const MainTutorial = ({ user }: { user: User }) => {
                                     <SelectTrigger>
                                         <SelectValue placeholder="Selecione un modulo/section" />
                                     </SelectTrigger>
-                                    <SelectContent>
-                                        {modules.map((link) => (
-                                            <SelectItem key={link.id} value={link.route}>
-                                                {link.label}
+                                    {/* Alto acotado y con scroll: la lista pasa de veinte
+                                        entradas y sin esto tapaba el botón de crear. */}
+                                    <SelectContent className="max-h-[50vh]">
+                                        {pantallas.map((p) => (
+                                            <SelectItem key={p.path} value={p.path}>
+                                                {p.label}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -177,9 +219,20 @@ export const MainTutorial = ({ user }: { user: User }) => {
                     <p className="text-muted-foreground">Loading guides...</p>
                 </div>
             ) : (
-                <div className="flex-1">
-                    <div className="max-h-[80vh] overflow-auto py-2">
-                        <div className="flex flex-wrap flex-1 gap-2 justify-center">
+                // La lista se lleva el alto que sobra y hace su propio scroll.
+                // Antes tenía un tope de 80% de la pantalla dentro de una página
+                // sin altura: al pasar de cuatro tarjetas la última quedaba
+                // cortada y no había forma de bajar hasta ella.
+                <div className="flex-1 min-h-0">
+                    <div className="h-full overflow-auto py-2">
+                        {/* Rejilla que se acomoda sola al ancho disponible.
+                            Antes eran tarjetas de ancho fijo centradas: al 75% de
+                            zoom entraban cinco por fila, al 100% solo cuatro, y la
+                            quinta quedaba sola en el medio y cortada por abajo. Con
+                            columnas automáticas caben las que quepan, alineadas
+                            desde la izquierda, y las demás bajan a la fila
+                            siguiente sin huecos raros. */}
+                        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
                             {filteredGuides.length > 0 ? (
                                 filteredGuides.map(guide => (
                                     <Card key={guide.id}
@@ -192,7 +245,7 @@ export const MainTutorial = ({ user }: { user: User }) => {
                                         hover:shadow-lg 
                                         hover:scale-[1.015] 
                                         hover:border-primary
-                                        w-64
+                                        w-full
                                         ">
                                         <CardHeader>
                                             <CardTitle>{guide.title}</CardTitle>
