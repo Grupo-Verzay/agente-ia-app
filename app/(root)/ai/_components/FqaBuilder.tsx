@@ -507,7 +507,6 @@ export function FqaBuilder({
                                                                     <div className="px-6 space-y-2">
                                                                         <StepTemplatePicker
                                                                             label={`Objetivo/respuesta principal de la pregunta ${idx + 1}`}
-                                                                            filterCategories={["Averiguación", "Diagnóstico"]}
                                                                             onApply={(content) => updateMain(step.id, content)}
                                                                         />
                                                                         <Textarea
