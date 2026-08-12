@@ -1,9 +1,50 @@
+import { nanoid } from "nanoid";
+
+import type { ElementItem } from "@/types/agentAi";
+
 export type StepTemplate = {
     id: string;
     name: string;
     description: string;
     content: string;
 };
+
+/**
+ * Lo que la plantilla deja armado además del texto.
+ *
+ * La plantilla habla de una FUNCIÓN y de un PRIMER elemento de TEXTO, así que
+ * aplicarla y dejar el bloque vacío obligaba a agregar las dos cosas a mano, y
+ * quien no lo hacía se quedaba con un texto que nombra un flujo que no existe.
+ * Se agregan ya puestos: el selector de flujo —vacío, para elegirlo— y la
+ * regla/parámetro debajo.
+ */
+export function elementosDeLaPlantilla(): ElementItem[] {
+    return [
+        {
+            id: nanoid(),
+            kind: "function",
+            fn: "ejecutar_flujo",
+            flowId: null,
+            flowName: null,
+        } as ElementItem,
+        {
+            id: nanoid(),
+            kind: "text",
+            text: "",
+        } as ElementItem,
+    ];
+}
+
+/**
+ * ¿Este bloque ya tiene su selector de flujo?
+ *
+ * Aplicar la plantilla dos veces no debe dejar dos selectores.
+ */
+export function yaTieneEjecutarFlujo(elements?: ElementItem[]): boolean {
+    return (elements ?? []).some(
+        (el) => el.kind === "function" && (el as { fn?: string }).fn === "ejecutar_flujo",
+    );
+}
 
 /**
  * La única plantilla.
