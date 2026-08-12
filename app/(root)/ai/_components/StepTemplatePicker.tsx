@@ -4,30 +4,30 @@ import { useRef, useState } from "react";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { LayoutTemplate } from "lucide-react";
-import { STEP_TEMPLATES } from "./helpers/stepTemplates";
+import { cn } from "@/lib/utils";
+import { STEP_TEMPLATES, StepTemplate } from "./helpers/stepTemplates";
 
 interface Props {
     label: string;
-    onApply: (content: string) => void;
+    onApply: (plantilla: StepTemplate) => void;
     disabled?: boolean;
 }
 
 /**
  * El botón "Plantillas" de cada bloque.
  *
- * Antes esto era un catálogo de dos paneles: a la izquierda dieciséis plantillas
- * agrupadas por fase de venta, a la derecha la vista previa de la elegida. Al
- * quedar una sola plantilla, elegir sobra: se muestra directamente lo que se va
- * a aplicar.
+ * Las tres se disparan igual —por el título que el cliente le ponga al bloque— y
+ * se diferencian en qué hace al activarse, así que la lista va plana: nombre y
+ * una línea de qué hace. Antes estaban agrupadas por fase de venta, con
+ * cabeceras e iconos, que era una clasificación que ya no significa nada.
  *
  * El texto se muestra tal cual, con su formato: son tablas y condiciones, y
  * reacomodarlo en viñetas haría que en la vista previa se lea distinto de lo que
  * termina pegado en el bloque.
  */
 export function StepTemplatePicker({ label, onApply, disabled }: Props) {
-    const plantilla = STEP_TEMPLATES[0];
-
     const [open, setOpen] = useState(false);
+    const [selected, setSelected] = useState<StepTemplate>(STEP_TEMPLATES[0]);
     const [popoverWidth, setPopoverWidth] = useState(520);
     const [alignOffset, setAlignOffset] = useState(0);
     const anchorRef = useRef<HTMLDivElement>(null);
@@ -55,17 +55,9 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
     };
 
     const handleApply = () => {
-        onApply(plantilla.content);
+        onApply(selected);
         setOpen(false);
     };
-
-    if (!plantilla) {
-        return (
-            <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold">{label}</label>
-            </div>
-        );
-    }
 
     return (
         <Popover open={open} onOpenChange={handleOpenChange}>
@@ -95,29 +87,62 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
                 side="bottom"
                 sideOffset={4}
             >
-                <div className="flex flex-col" style={{ height: 380 }}>
+                <div className="flex" style={{ height: 380 }}>
 
-                    <div className="px-4 py-3 border-b bg-muted/10 shrink-0">
-                        <p className="text-sm font-semibold">{plantilla.name}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            {plantilla.description}
-                        </p>
+                    {/* ── Lista ── */}
+                    <div className="w-52 shrink-0 border-r overflow-y-auto bg-muted/20">
+                        {STEP_TEMPLATES.map((t) => {
+                            const isSelected = selected.id === t.id;
+                            return (
+                                <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setSelected(t)}
+                                    className={cn(
+                                        "w-full text-left px-3 py-2.5 border-b border-muted/40 transition-colors",
+                                        isSelected
+                                            ? "bg-primary/10 border-l-2 border-l-primary"
+                                            : "hover:bg-muted/50"
+                                    )}
+                                >
+                                    <p className={cn(
+                                        "text-sm leading-snug",
+                                        isSelected ? "font-semibold text-primary" : "font-medium"
+                                    )}>
+                                        {t.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-3">
+                                        {t.description}
+                                    </p>
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    <div className="flex-1 overflow-auto px-4 py-3">
-                        <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground/75">
-                            {plantilla.content}
-                        </pre>
-                    </div>
+                    {/* ── Vista previa ── */}
+                    <div className="flex flex-col flex-1 min-w-0">
+                        <div className="px-4 py-3 border-b bg-muted/10 shrink-0">
+                            <p className="text-sm font-semibold">{selected.name}</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {selected.description}
+                            </p>
+                        </div>
 
-                    <div className="px-4 py-3 border-t bg-muted/10 shrink-0 flex items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">
-                            Reemplaza el contenido actual del bloque
-                        </p>
-                        <Button size="sm" onClick={handleApply} className="gap-1.5 shrink-0">
-                            <LayoutTemplate className="h-3.5 w-3.5" />
-                            Aplicar
-                        </Button>
+                        <div className="flex-1 overflow-auto px-4 py-3">
+                            <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground/75">
+                                {selected.content}
+                            </pre>
+                        </div>
+
+                        <div className="px-4 py-3 border-t bg-muted/10 shrink-0 flex items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground">
+                                Reemplaza el contenido actual del bloque
+                            </p>
+                            <Button size="sm" onClick={handleApply} className="gap-1.5 shrink-0">
+                                <LayoutTemplate className="h-3.5 w-3.5" />
+                                Aplicar
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </PopoverContent>
