@@ -79,6 +79,12 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
                 </div>
             </PopoverAnchor>
 
+            {/* Siempre hacia abajo.
+                Cuando el bloque queda en la parte baja de la pantalla, el panel
+                se daba vuelta y se abría hacia arriba, tapando el bloque y
+                dejando la lista fuera de vista: se elegía a ciegas. Se prefiere
+                que baje aunque haya que bajar la página. Y el alto se limita a
+                lo que quepa, para no salirse por debajo en pantallas cortas. */}
             <PopoverContent
                 className="p-0 overflow-hidden"
                 style={{ width: popoverWidth }}
@@ -86,8 +92,9 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
                 alignOffset={alignOffset}
                 side="bottom"
                 sideOffset={4}
+                avoidCollisions={false}
             >
-                <div className="flex" style={{ height: 380 }}>
+                <div className="flex" style={{ height: "min(380px, 60vh)" }}>
 
                     {/* ── Lista ── */}
                     <div className="w-52 shrink-0 border-r overflow-y-auto bg-muted/20">
