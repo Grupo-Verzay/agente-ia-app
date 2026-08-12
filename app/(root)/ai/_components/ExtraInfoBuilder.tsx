@@ -547,7 +547,6 @@ export function ExtraInfoBuilder({
                                                                     <div className="px-6 space-y-2">
                                                                         <StepTemplatePicker
                                                                             label={`Objetivo/respuesta principal del extra ${idx + 1}`}
-                                                                            filterCategories={["Negociación"]}
                                                                             onApply={(content) => updateMain(step.id, content)}
                                                                         />
                                                                         <Textarea

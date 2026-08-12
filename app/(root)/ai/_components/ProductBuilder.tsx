@@ -503,7 +503,6 @@ export const ProductBuilder = ({
                                                                 <div className="px-6 space-y-2">
                                                                     <StepTemplatePicker
                                                                         label={`Objetivo/respuesta principal del producto ${idx + 1}`}
-                                                                        filterCategories={["Exposición"]}
                                                                         onApply={(content) => updateMain(step.id, content)}
                                                                     />
                                                                     <Textarea
