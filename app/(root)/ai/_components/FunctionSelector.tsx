@@ -202,27 +202,31 @@ export const FunctionSelector = ({
                         <Command>
                             <CommandList>
                                 <CommandGroup heading="ACCIONES">
-                                    {/* Gestión: captura/consulta/actualizar */}
-                                    {isManagement && (
-                                        <>
-                                            <CommandItem onSelect={() => addFunctionCaptura()}>
-                                                Captura de datos
-                                            </CommandItem>
-                                            {/* <CommandItem onSelect={() => addFunctionConsultaDatos()}>
-                                                Consulta de datos
-                                            </CommandItem>
-                                            <CommandItem onSelect={() => addFunctionActualizarDatos()}>
-                                                Actualizar datos
-                                            </CommandItem> */}
-                                        </>
-                                    )}
+                                    {/* Capturar un dato es la razón de ser de un paso de embudo
+                                        —el nombre, el interés—, pero solo se ofrecía en Gestión.
+                                        Quien armaba el embudo tenía que pedir el dato en el texto
+                                        y confiar en que el agente lo guardara solo. */}
+                                    <CommandItem onSelect={() => addFunctionCaptura()}>
+                                        <span className="flex items-center gap-2">📋 Captura de datos</span>
+                                    </CommandItem>
 
-                                    {/* No gestión: enrutamiento / ejecutar flujo / notificar */}
+                                    {/* Consulta y Actualizar datos siguen fuera a propósito: están
+                                        escritas pero nadie las pidió, y cada opción de más en este
+                                        menú es una decisión de más para quien arma el embudo. */}
+
                                     {!isManagement && (
                                         <>
-                                            <CommandItem onSelect={addRouting}>
-                                                <span className="flex items-center gap-2">🔀 Enrutamiento</span>
-                                            </CommandItem>
+                                            {/* Enrutamiento se retiró del menú. Escribía en el prompt
+                                                "PRIORIDAD: se evalúa ANTES de la BIENVENIDA → OMITIR
+                                                BIENVENIDA", justo lo que la bienvenida obligatoria
+                                                prohíbe. Con las dos puestas el modelo recibía dos
+                                                órdenes opuestas y obedecía una al azar. Lo que hacía
+                                                ya está cubierto: el modo inteligente enruta en el
+                                                primer mensaje, y las plantillas por palabra en
+                                                cualquier otro momento.
+
+                                                La tarjeta se conserva: los bloques que ya lo tengan
+                                                guardado se siguen viendo y editando. */}
                                             <CommandItem onSelect={addFunctionEjecutarFlujo}>
                                                 <span className="flex items-center gap-2">⚡ Ejecutar flujo</span>
                                             </CommandItem>
