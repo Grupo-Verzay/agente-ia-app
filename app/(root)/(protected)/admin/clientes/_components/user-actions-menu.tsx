@@ -107,6 +107,11 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                         </DropdownMenuItem>
                     }
                     <DropdownMenuItem
+                        onClick={() => openDialogGetUserId(user.id, 'plan', true)}
+                    >
+                        Cambiar plan
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                         onClick={() => openDialogGetUserId(user.id, 'modules', true)}
                     >
                         Módulos

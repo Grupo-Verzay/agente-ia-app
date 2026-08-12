@@ -68,6 +68,13 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                             Tools
                         </DropdownMenuItem>
                     }
+                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
+                        <DropdownMenuItem
+                            onClick={() => openDialogGetUserId(user.id, 'plan', true)}
+                        >
+                            Cambiar plan
+                        </DropdownMenuItem>
+                    }
                     <DropdownMenuItem
                         onClick={() => openDialogGetUserId(user.id, 'modules', true)}
                     >
