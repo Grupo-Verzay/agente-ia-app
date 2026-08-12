@@ -139,7 +139,11 @@ export async function getGuidesForPath(path: string) {
     });
     for (const item of items) {
       const ruta = item.module?.route?.trim();
-      if (ruta && ruta !== '/' && !candidatos.includes(ruta)) candidatos.push(ruta);
+      // Solo direcciones de verdad. Los módulos que agrupan submenús comparten
+      // "#container": darlo por bueno haría que un tutorial guardado ahí saliera
+      // en las pantallas de los siete módulos que lo comparten a la vez.
+      if (!ruta?.startsWith('/') || ruta === '/' || candidatos.includes(ruta)) continue;
+      candidatos.push(ruta);
     }
   } catch {
     // Sin módulos seguimos con las direcciones de la propia pantalla.
