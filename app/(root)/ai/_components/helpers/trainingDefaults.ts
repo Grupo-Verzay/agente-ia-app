@@ -7,76 +7,85 @@ export type WelcomeType = "obligatoria" | "inteligente";
 // número: la lista de elementos se arma como [función?, texto, extras...] y el
 // elemento de FUNCIÓN solo entra si el paso tiene flujo. Sin flujo todo se corre
 // un puesto y un número fijo apuntaría a la nota de control.
-export const WELCOME_MAIN_MESSAGE_OBLIGATORIA = `🔒 CONDICIÓN DE CHAT NUEVO (GATE): collected == {} AND current_step == 1
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO. Se ejecuta ante cualquier intención del usuario, sea texto, audio, imagen, sticker o mensaje de anuncio.
+//
+// El texto va en tablas y no en líneas corridas: así el orden de salida del
+// turno —primero la función, después el texto, después esperar— queda en una
+// columna numerada, y el modelo lo respeta mejor que cuando viene en párrafos.
+export const WELCOME_MAIN_MESSAGE_OBLIGATORIA = `## 🔒 GATE — PRIMER TURNO (BIENVENIDA OBLIGATORIA)
 
-✅ LÓGICA DE EJECUCIÓN — MODO OBLIGATORIO:
-   → Si el paso tiene elemento FUNCIÓN (Ejecutar flujo) → ejecutarlo SIEMPRE, sin importar el mensaje.
-   → Emitir a continuación el PRIMER elemento de TEXTO del paso, palabra por palabra.
-   → Si el paso NO tiene elemento FUNCIÓN → emitir igual ese mismo texto.
-   → Ignorar la intención del mensaje del usuario, sea cual sea su contenido.
+**CONDICIÓN DE ACTIVACIÓN:**
+\`collected == {}\` **AND** \`current_step == 1\` **AND** \`bienvenida_enviada != true\`
 
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+> 🚨 **PRIORIDAD ABSOLUTA.** Este bloque se ejecuta ante cualquier intención del usuario: texto, audio, imagen, sticker o mensaje de anuncio.
 
-➡️ TRANSICIÓN:
-   → bienvenida_enviada = true
-   → current_step permanece en 1 hasta capturar la variable del paso, o si no tiene, hasta que el cliente responda.
+### 📤 SALIDA DEL TURNO — en este orden, siempre
 
-🚫 PROHIBIDO:
-- Saltar la BIENVENIDA por intención directa del usuario.
-- Repetir la bienvenida si bienvenida_enviada == true.
-- Formular preguntas propias o de confirmación.
-- Reformular, inventar, resumir o parafrasear el texto.
-- Emitir cualquier mensaje distinto del flujo + el PRIMER elemento de TEXTO.
-- Emitir los elementos marcados NO EMITIR (transición / notas de control).
-- Usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
-- Activar Q&A, CATÁLOGO, OBJECIONES o cualquier módulo lateral en este turno.
-- Agregar o quitar cualquier texto al emitir. Lo único permitido es la firma declarada en "Firma del agente", al inicio del mensaje.
+| # | Acción | Condición |
+|---|--------|-----------|
+| 1º | **FUNCIÓN** (Ejecutar flujo) | Solo si el paso la tiene. Si no la tiene, se omite sin error. |
+| 2º | **PRIMER elemento de TEXTO** del paso, palabra por palabra | Siempre sale, haya flujo o no. |
+| 3º | **ESPERAR** respuesta del usuario | No emitir nada más. |
 
-💬 EMIT SALIDA LITERAL: flujo (si existe) + PRIMER elemento de TEXTO del paso. Ambos cuentan como la salida de este turno. Esperar respuesta.`;
+### ➡️ TRANSICIÓN
 
-export const WELCOME_MAIN_MESSAGE_INTELIGENTE = `🔒 CONDICIÓN DE CHAT NUEVO (GATE): collected == {} AND current_step == 1
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO. Se ejecuta ante cualquier primer mensaje del usuario, sea texto, audio, imagen, sticker o mensaje de anuncio.
+- \`bienvenida_enviada = true\` → se marca **siempre**, aunque el usuario no responda.
+- \`current_step\` permanece en **1** hasta capturar la variable del paso; si el paso no tiene variable, hasta que el cliente envíe cualquier mensaje nuevo.
 
-✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-   → Analizar el primer mensaje del usuario:
-      • Si detecta una INTENCIÓN DIRECTA (ver lista abajo) → ir al paso destino (según el elemento de TRANSICIÓN), sin ejecutar la BIENVENIDA.
-      • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo.
-   → SECUENCIA: si el paso tiene elemento FUNCIÓN (Ejecutar flujo) → ejecutarlo; luego emitir el PRIMER elemento de TEXTO del paso, palabra por palabra.
-   → Si el paso NO tiene elemento FUNCIÓN → emitir igual ese mismo texto.
+### 🚫 PROHIBIDO
 
-📋 INTENCIÓN DIRECTA — SOLO estas cuentan:
-- Menciona un producto o servicio específico del catálogo.
-- Pregunta el precio de un ítem concreto.
-- Pide agendar, comprar o cotizar algo puntual.
+- Saltar la BIENVENIDA, sea cual sea la intención del usuario.
+- Ejecutar este bloque si \`bienvenida_enviada == true\` → continuar con el paso que corresponda.
+- Reformular, resumir o parafrasear el texto. Sale palabra por palabra.
+- Emitir los elementos marcados **NO EMITIR** (transición / notas de control).`;
 
-❌ NO cuenta como intención directa (ejecutar SECUENCIA normal):
-- Saludos ("hola", "buenas", "buenos días").
-- Peticiones genéricas ("quiero información", "cuéntame más", "me interesa").
-- Mensajes precargados provenientes de anuncios de Meta o campañas.
-- Emojis, stickers, audios sin petición concreta.
+// La bienvenida se gasta una sola vez por contacto: en RUTA A no llega a salir,
+// pero igual se marca enviada. Si el cliente entró preguntando por un precio, ya
+// fue atendido, y hacerle la bienvenida más tarde —en esa conversación o en
+// cualquier otra— sería empezar de cero con alguien que ya viene conversando.
+// La marca vive en el historial, así que a los 180 días, cuando se limpia, el
+// contacto vuelve a ser nuevo y el ciclo se repite.
+export const WELCOME_MAIN_MESSAGE_INTELIGENTE = `## 🔓 GATE — PRIMER TURNO (MODO INTELIGENTE)
 
-⚠️ VALIDACIÓN DE SALTO: si el paso destino requiere variables que aún no están capturadas → NO saltar. Ejecutar la SECUENCIA normal desde el Paso 1.
+**CONDICIÓN DE ACTIVACIÓN:**
+\`collected == {}\` **AND** \`current_step == 1\` **AND** \`gate_evaluado != true\`
 
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+> 🚨 **PRIORIDAD ABSOLUTA.** Este bloque se ejecuta ante cualquier primer mensaje del usuario: texto, audio, imagen, sticker o mensaje de anuncio.
 
-➡️ TRANSICIÓN:
-   → bienvenida_enviada = true
-   → Si hubo intención directa válida → current_step = el paso destino.
-   → Si no → current_step permanece en 1 hasta capturar la variable del paso, o si no tiene, hasta que el cliente responda.
+### 🧠 DECISIÓN — se evalúa una sola vez
 
-🚫 PROHIBIDO:
-- Repetir la bienvenida si bienvenida_enviada == true.
-- Saltar pasos cuyas variables sean requeridas por el paso destino.
-- Formular preguntas propias o de confirmación.
-- Reformular, inventar, resumir o parafrasear el texto.
-- Emitir cualquier mensaje distinto del flujo + el PRIMER elemento de TEXTO.
-- Emitir los elementos marcados NO EMITIR (transición / notas de control).
-- Usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
-- Activar Q&A, CATÁLOGO, OBJECIONES o cualquier módulo lateral en este turno.
-- Agregar o quitar cualquier texto al emitir. Lo único permitido es la firma declarada en "Firma del agente", al inicio del mensaje.
+- **INTENCIÓN DIRECTA** que corresponda a un paso destino declarado en TRANSICIÓN → **RUTA A**
+- **Sin intención clara**, o intención que no mapea a un destino declarado → **RUTA B**
+- En caso de duda → **RUTA B**
 
-💬 EMIT SALIDA LITERAL: flujo (si existe) + PRIMER elemento de TEXTO del paso. Ambos cuentan como la salida de este turno. Esperar respuesta.`;
+### 📤 RUTA A — Intención directa
+
+| # | Acción | Condición |
+|---|--------|-----------|
+| 1º | Saltar la BIENVENIDA | No ejecutar su flujo ni su texto. |
+| 2º | \`current_step\` = paso destino | Solo destinos declarados en TRANSICIÓN. |
+| 3º | Ejecutar el paso destino con sus propios elementos | FUNCIÓN si la tiene, luego su PRIMER TEXTO. |
+
+### 📤 RUTA B — Sin intención clara
+
+| # | Acción | Condición |
+|---|--------|-----------|
+| 1º | **FUNCIÓN** (Ejecutar flujo) | Solo si el paso la tiene. Si no la tiene, se omite sin error. |
+| 2º | **PRIMER elemento de TEXTO** del paso, palabra por palabra | Siempre sale, haya flujo o no. |
+| 3º | **ESPERAR** respuesta del usuario | No emitir nada más. |
+
+### ➡️ TRANSICIÓN
+
+- \`gate_evaluado = true\` → se marca **siempre**, en ambas rutas.
+- \`bienvenida_enviada = true\` → se marca **siempre**, en ambas rutas. Una vez evaluado el primer turno, este contacto no vuelve a ver la bienvenida en ninguna conversación.
+- **RUTA A:** \`current_step\` = paso destino.
+- **RUTA B:** \`current_step\` permanece en **1** hasta capturar la variable del paso; si el paso no tiene variable, hasta que el cliente envíe cualquier mensaje nuevo.
+
+### 🚫 PROHIBIDO
+
+- Ejecutar este bloque si \`gate_evaluado == true\` → continuar con el paso que corresponda.
+- Saltar a un paso que **no** esté declarado como destino en TRANSICIÓN.
+- Reformular, resumir o parafrasear el texto. Sale palabra por palabra.
+- Emitir los elementos marcados **NO EMITIR** (transición / notas de control).`;
 
 export const WELCOME_MESSAGES: Record<WelcomeType, string> = {
     obligatoria: WELCOME_MAIN_MESSAGE_OBLIGATORIA,
