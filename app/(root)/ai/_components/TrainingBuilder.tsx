@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, GripVertical, ChevronDown, Copy, MousePointerClick, ArrowRight } from "lucide-react";
 import { StepTemplatePicker } from "./StepTemplatePicker";
+import { elementosDeLaPlantilla, yaTieneEjecutarFlujo } from "./helpers/stepTemplates";
 
 import {
   AnyStep,
@@ -324,6 +325,25 @@ export function TrainingBuilder({
   const updateStepMainMessage = (stepId: string, mainMessage: string) => {
     setSteps((prev) =>
       prev.map((s) => (s.id === stepId ? { ...s, mainMessage } : s))
+    );
+  };
+
+  // Aplicar la plantilla deja además el paso armado: el selector de flujo y la
+  // regla/parámetro. La plantilla los nombra, así que tenerlos que agregar a
+  // mano después era el paso que se olvidaba.
+  const aplicarPlantilla = (stepId: string, mainMessage: string) => {
+    setSteps((prev) =>
+      prev.map((s) => {
+        if (s.id !== stepId) return s;
+        const elementos = s.elements ?? [];
+        return {
+          ...s,
+          mainMessage,
+          elements: yaTieneEjecutarFlujo(elementos)
+            ? elementos
+            : [...elementos, ...elementosDeLaPlantilla()],
+        };
+      })
     );
   };
 
@@ -742,7 +762,7 @@ export function TrainingBuilder({
                                         <StepTemplatePicker
                                           label={`Objetivo/respuesta principal del paso ${idx + 1}`}
                                           disabled={false}
-                                          onApply={(content) => updateStepMainMessage(step.id, content)}
+                                          onApply={(content) => aplicarPlantilla(step.id, content)}
                                         />
                                         <Textarea
                                           value={step.mainMessage}

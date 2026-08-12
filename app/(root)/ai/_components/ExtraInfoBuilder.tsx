@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, PenSquare, GripVertical, ChevronDown, Copy } from "lucide-react";
 import { StepTemplatePicker } from "./StepTemplatePicker";
+import { elementosDeLaPlantilla, yaTieneEjecutarFlujo } from "./helpers/stepTemplates";
 
 import { useExtrasAutosave, AutosaveStatus } from "./hooks/useExtrasAutosave"; // 👈 actualizado
 import { FunctionSelector } from "./FunctionSelector";
@@ -281,6 +282,25 @@ export function ExtraInfoBuilder({
     const updateMain = (id: string, v: string) =>
         setItems((p) => p.map((x) => (x.id === id ? { ...x, mainMessage: v } : x)));
 
+    // Aplicar la plantilla deja además el bloque armado: el selector de flujo y
+    // la regla/parámetro. La plantilla los nombra, así que tenerlos que agregar
+    // a mano después era el paso que se olvidaba.
+    const aplicarPlantilla = (id: string, content: string) =>
+        setItems((prev) =>
+            prev.map((it: any) => {
+                if (it.id !== id) return it;
+                const elementos = it.elements ?? [];
+                return {
+                    ...it,
+                    mainMessage: content,
+                    elements: yaTieneEjecutarFlujo(elementos)
+                        ? elementos
+                        : [...elementos, ...elementosDeLaPlantilla()],
+                };
+            }),
+        );
+
+
     /* ====== Mutadores de ELEMENTOS ====== */
     const removeElement = (extraId: string, elId: string) => {
         setItems((prev) =>
@@ -547,7 +567,7 @@ export function ExtraInfoBuilder({
                                                                     <div className="px-6 space-y-2">
                                                                         <StepTemplatePicker
                                                                             label={`Objetivo/respuesta principal del extra ${idx + 1}`}
-                                                                            onApply={(content) => updateMain(step.id, content)}
+                                                                            onApply={(content) => aplicarPlantilla(step.id, content)}
                                                                         />
                                                                         <Textarea
                                                                             value={step.mainMessage ?? ""}
