@@ -9,7 +9,7 @@ import { Plus, Trash2, GripVertical, ChevronDown, Copy, ArrowRight } from "lucid
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StepTemplatePicker } from "./StepTemplatePicker";
-import { elementosDeLaPlantilla, yaTieneEjecutarFlujo } from "./helpers/stepTemplates";
+import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
@@ -228,20 +228,21 @@ export function FqaBuilder({
     const updateMain = (id: string, v: string) =>
         setItems((prev) => prev.map((it) => (it.id === id ? { ...it, mainMessage: v } : it)));
 
-    // Aplicar la plantilla deja además el bloque armado: el selector de flujo y
-    // la regla/parámetro. La plantilla los nombra, así que tenerlos que agregar
-    // a mano después era el paso que se olvidaba.
-    const aplicarPlantilla = (id: string, content: string) =>
+    // Aplicar la plantilla deja además el bloque armado con lo que esa plantilla
+    // nombra: el selector de flujo, el aviso al asesor o solo el texto. Tenerlo
+    // que agregar a mano después era el paso que se olvidaba.
+    const aplicarPlantilla = (id: string, plantilla: StepTemplate) =>
         setItems((prev) =>
             prev.map((it: any) => {
                 if (it.id !== id) return it;
                 const elementos = it.elements ?? [];
                 return {
                     ...it,
-                    mainMessage: content,
-                    elements: yaTieneEjecutarFlujo(elementos)
-                        ? elementos
-                        : [...elementos, ...elementosDeLaPlantilla()],
+                    mainMessage: plantilla.content,
+                    elements: [
+                        ...elementos,
+                        ...elementosQueFaltan(plantilla, elementos, notificationNumber),
+                    ],
                 };
             }),
         );
@@ -527,7 +528,7 @@ export function FqaBuilder({
                                                                     <div className="px-6 space-y-2">
                                                                         <StepTemplatePicker
                                                                             label={`Objetivo/respuesta principal de la pregunta ${idx + 1}`}
-                                                                            onApply={(content) => aplicarPlantilla(step.id, content)}
+                                                                            onApply={(plantilla) => aplicarPlantilla(step.id, plantilla)}
                                                                         />
                                                                         <Textarea
                                                                             value={step.mainMessage ?? ""}
