@@ -136,6 +136,8 @@ export function lastTextFrom(chat: ChatData): {
     "interactiveResponseMessage",
     "meta_call",
     "call",
+    "templateMessage",
+    "template",
     "contactMessage",
     "contactsArrayMessage",
   ]);
@@ -200,6 +202,20 @@ export function lastTextFrom(chat: ChatData): {
         } else {
           text = bodyText || "↩️ Respuesta";
         }
+        break;
+      }
+      // Las plantillas salían como "[Mensaje templateMessage]" también aquí. En
+      // una línea solo cabe el arranque del texto, que es lo que permite
+      // reconocer cuál se mandó sin abrir el chat.
+      case "templateMessage":
+      case "template": {
+        const plantilla = (msg as Record<string, any>)?.templateMessage ?? {};
+        const hidratada =
+          plantilla?.hydratedTemplate ?? plantilla?.hydratedFourRowTemplate ?? {};
+        const cuerpo = String(
+          hidratada?.hydratedContentText ?? hidratada?.hydratedTitleText ?? msg?.conversation ?? "",
+        ).trim();
+        text = cuerpo ? `📋 ${cuerpo}` : "📋 Plantilla";
         break;
       }
       // Las llamadas del CRM ("Llamada realizada", "Videollamada realizada",

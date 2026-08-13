@@ -137,6 +137,53 @@ function extraerTelefonosDeVcard(vcard: string): string[] {
  * Si la vCard no llegó (los adjuntos largos se recortan al guardarlos), queda al
  * menos el nombre, que es más que lo que había.
  */
+/**
+ * El texto de una plantilla de WhatsApp.
+ *
+ * Salía como "[Mensaje templateMessage]": el asesor abría el chat y no veía qué
+ * se le había mandado al cliente, así que para saberlo tenía que ir al
+ * administrador de plantillas de Meta y buscarla por nombre.
+ *
+ * El texto ya viene en el mensaje, pero cada canal lo pone en un sitio distinto:
+ * WhatsApp lo trae "hidratado" —con las variables ya reemplazadas— en varias
+ * formas según el tipo de plantilla, y Meta Cloud lo manda como texto plano. Se
+ * miran todos y se usa el primero que traiga algo.
+ *
+ * Sin texto por ningún lado queda el nombre de la plantilla, que al menos
+ * permite buscarla.
+ */
+function formatTemplateMessage(messageData: Record<string, any>): string {
+  const plantilla = messageData?.templateMessage ?? messageData?.template ?? {};
+  const hidratada =
+    plantilla?.hydratedTemplate ??
+    plantilla?.hydratedFourRowTemplate ??
+    plantilla?.fourRowTemplate ??
+    {};
+
+  const partes = [
+    hidratada?.hydratedTitleText ?? hidratada?.hydratedTitle,
+    hidratada?.hydratedContentText ?? hidratada?.hydratedContent,
+    hidratada?.hydratedFooterText ?? hidratada?.hydratedFooter,
+  ]
+    .map((t) => String(t ?? '').trim())
+    .filter(Boolean);
+
+  if (partes.length) return partes.join('\n\n');
+
+  const suelto = [
+    messageData?.conversation,
+    messageData?.extendedTextMessage?.text,
+    plantilla?.body,
+    plantilla?.text,
+  ]
+    .map((t) => String(t ?? '').trim())
+    .find(Boolean);
+  if (suelto) return suelto;
+
+  const nombre = String(plantilla?.name ?? '').trim();
+  return nombre ? `📋 Plantilla: ${nombre}` : '📋 Plantilla enviada';
+}
+
 function formatContactMessage(messageData: Record<string, any>): string {
   const contactos: Array<{ displayName?: string; vcard?: string }> =
     messageData?.contactsArrayMessage?.contacts ??
@@ -298,6 +345,10 @@ export function toUIMessages(
       case 'contactMessage':
       case 'contactsArrayMessage':
         content = formatContactMessage(messageData as Record<string, any>);
+        break;
+      case 'templateMessage':
+      case 'template':
+        content = formatTemplateMessage(messageData as Record<string, any>);
         break;
       case 'stickerMessage':
       case 'lottieStickerMessage': {
