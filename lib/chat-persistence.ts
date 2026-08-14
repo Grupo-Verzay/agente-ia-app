@@ -7,6 +7,7 @@ import {
   pickObservedAlternateRemoteJid,
   pickPreferredWhatsAppRemoteJid,
 } from '@/lib/whatsapp-jid';
+import { esSobreInternoDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -686,6 +687,11 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
   const messageTimestamp = epochToDate(input.messageTimestamp);
   const isDeleteEvent = isDeletedMessageEvent(input);
   const hasDisplayablePayload = hasDisplayableMessagePayload(input);
+
+  // Sobres internos de WhatsApp (la edición de un mensaje, el voto de una
+  // encuesta): no se guardan. Pasaban el filtro de payload por no ser texto y
+  // acababan como una burbuja vacía con el nombre del tipo.
+  if (esSobreInternoDeWhatsapp(input.messageType)) return;
 
   if (isDeleteEvent) {
     // El cliente borró un mensaje ("eliminar para todos"). NO se persiste el

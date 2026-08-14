@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { esSobreInternoDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
@@ -308,6 +309,11 @@ export function toUIMessages(
       if (targetId) reactions.set(targetId, (rm?.text as string) ?? '');
       return null;
     }
+
+    // Sobres internos (la edición de un mensaje, el voto de una encuesta): sin
+    // burbuja. No llevan texto legible y salían como "[Mensaje
+    // secretEncryptedMessage]" debajo del mensaje que se editó.
+    if (esSobreInternoDeWhatsapp(m.messageType)) return null;
 
     if (isDeletedMessage(m.messageType, messageData as Record<string, any>)) {
       content = 'Mensaje eliminado';
