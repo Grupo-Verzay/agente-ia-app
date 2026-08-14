@@ -1,6 +1,7 @@
 import { type LucideIcon } from "lucide-react";
 import { extractWhatsAppDigits, fmtPhone } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
+import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
 import type { ChatData } from "@/actions/chat-actions";
 
 // Sin timeZone fijo: usa la zona horaria LOCAL del navegador de cada usuario
@@ -144,6 +145,11 @@ export function lastTextFrom(chat: ChatData): {
   let text = "";
 
   if (!msg) {
+    text = "";
+  } else if (esSobreInternoDeWhatsapp(type)) {
+    // Un sobre interno (la edición de un mensaje) no es el "último mensaje" de
+    // nadie: sin texto, en vez del nombre crudo del tipo. Los nuevos ya no se
+    // guardan; esto cubre los que quedaron de antes.
     text = "";
   } else if (msg.conversation && !typedPreviewTypes.has(type ?? "")) {
     text = normalizePreviewText(msg.conversation);
