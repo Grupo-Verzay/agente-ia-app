@@ -92,28 +92,16 @@ export default function ChoosePlanToPay({
                                 <span className="text-sm font-semibold">{p.label}</span>
                                 {activo && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />}
                             </div>
-                            {/* Dólares arriba y pesos debajo: el de arriba es el que vio
-                                en la landing y con el que compara; el de abajo, el que le
-                                va a aparecer en la pasarela. Se quitaron los créditos y el
-                                tipo de asistencia — en el momento de pagar solo estorban,
-                                y si no coinciden con lo que le vendieron abren una
-                                discusión justo antes de cobrarle. */}
-                            {p.priceUsd ? (
-                                <>
-                                    <div className="mt-1 text-lg font-bold tabular-nums">
-                                        {fmt(p.priceUsd, "USD")}
-                                        <span className="text-xs font-normal text-muted-foreground"> USD/mes</span>
-                                    </div>
-                                    <div className="text-xs text-muted-foreground tabular-nums">
-                                        {fmt(p.price, p.currency)} {p.currency}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="mt-1 text-lg font-bold tabular-nums">
-                                    {fmt(p.price, p.currency)}
-                                    <span className="text-xs font-normal text-muted-foreground">/mes</span>
-                                </div>
-                            )}
+                            {/* Solo el precio de cobro. Antes iba el equivalente en
+                                dólares encima, pero salía de dividir los pesos por la
+                                tasa: se movía solo cada vez que la tasa cambiaba y
+                                acababa contradiciendo el precio que le vendieron, justo
+                                en la pantalla de pagar. Se quitaron también los créditos
+                                y el tipo de asistencia — en ese momento solo estorban. */}
+                            <div className="mt-1 text-lg font-bold tabular-nums">
+                                {fmt(p.price, p.currency)}
+                                <span className="text-xs font-normal text-muted-foreground"> {p.currency}/mes</span>
+                            </div>
                         </button>
                     );
                 })}

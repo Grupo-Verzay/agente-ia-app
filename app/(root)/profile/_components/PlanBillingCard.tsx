@@ -114,19 +114,13 @@ export function PlanBillingCard({ userPlan }: Props) {
                             <div className="space-y-1.5 text-sm mt-auto">
                                 <div className="flex justify-between gap-3">
                                     <span className="text-muted-foreground">Monto</span>
-                                    {/* Dólares arriba, pesos debajo: es la cifra con la
-                                        que vio el precio, y seis dígitos a secas asustan. */}
+                                    {/* Solo lo que se cobra. El equivalente en dólares
+                                        que iba encima salía de dividir los pesos por la
+                                        tasa, así que cambiaba solo y acababa diciendo un
+                                        precio distinto al que el cliente contrató. */}
                                     <span className="text-right font-medium tabular-nums">
-                                        {billing?.priceUsd ? (
-                                            <>
-                                                {fmtPrice(billing.priceUsd, 'USD')} USD/mes
-                                                <span className="block text-xs font-normal text-muted-foreground">
-                                                    {fmtPrice(billing?.price, billing?.currencyCode)} {billing?.currencyCode || 'COP'}
-                                                </span>
-                                            </>
-                                        ) : (
-                                            fmtPrice(billing?.price, billing?.currencyCode)
-                                        )}
+                                        {fmtPrice(billing?.price, billing?.currencyCode)}{' '}
+                                        {billing?.currencyCode || 'COP'}/mes
                                     </span>
                                 </div>
                                 <div className="flex flex-col gap-1">

@@ -49,6 +49,7 @@ type EditForm = {
   assistanceType: string;
   isResellerPlan: boolean;
   priceUSD: number;
+  priceCop: number;
   priceWholesale: number;
   priceQuarterly: number;
   priceYearly: number;
@@ -116,6 +117,7 @@ export function PlanesMain() {
       assistanceType: type,
       isResellerPlan: isReseller,
       priceUSD: existing?.priceUSD ?? defaultPrices[plan][type],
+      priceCop: existing?.priceCop ?? 0,
       priceWholesale: existing?.priceWholesale ?? 0,
       priceQuarterly: existing?.priceQuarterly ?? 0,
       priceYearly: existing?.priceYearly ?? 0,
@@ -144,6 +146,8 @@ export function PlanesMain() {
       features: form.features.split("\n").map((f) => f.trim()).filter(Boolean),
       description: form.description || undefined,
       color: form.color || undefined,
+      // 0 es "sin precio en pesos": vuelve a la conversión desde dólares.
+      priceCop: form.priceCop || null,
       priceWholesale: form.priceWholesale || null,
       priceQuarterly: form.priceQuarterly || null,
       priceYearly: form.priceYearly || null,
@@ -494,6 +498,20 @@ export function PlanesMain() {
                     onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
+
+              {period === "monthly" && (
+                <div className="space-y-1">
+                  <Label>Precio de cobro (COP/mes)</Label>
+                  <Input type="number" min={0} step={1} value={form.priceCop}
+                    onChange={(e) => setForm({ ...form, priceCop: parseInt(e.target.value) || 0 })}
+                    placeholder="349000" />
+                  <p className="text-[11px] text-muted-foreground">
+                    Es lo que se le cobra al cliente, tal cual. Déjalo en 0 para que se
+                    calcule desde el precio en dólares con la tasa — así sale 346.500 en vez
+                    de 349.000, y cambia solo cada vez que muevas la tasa.
+                  </p>
+                </div>
+              )}
 
               {!form.isResellerPlan && form.assistanceType === "IA" && (
                 <div className="space-y-1">
