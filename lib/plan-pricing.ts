@@ -69,26 +69,6 @@ export async function etiquetaDePlanParaCuenta(
     }
 }
 
-/**
- * Cuántos dólares son esos pesos, con la tasa configurada.
- *
- * Es la referencia con la que el cliente vio el precio en la landing: verlo al
- * lado del monto en pesos es lo que le confirma que no le están cobrando otra
- * cosa. Sin tasa puesta, no hay equivalencia que mostrar.
- */
-export async function equivalenteEnUsd(montoCop: number): Promise<number | null> {
-    if (!Number.isFinite(montoCop) || montoCop <= 0) return null;
-
-    const cfg = await db.siteConfig
-        .findUnique({ where: { id: 1 }, select: { usdToCopRate: true } })
-        .catch(() => null);
-
-    const tasa = Number(cfg?.usdToCopRate ?? 0);
-    if (!Number.isFinite(tasa) || tasa <= 0) return null;
-
-    return Math.round(montoCop / tasa);
-}
-
 /** El nivel llega por URL o por un formulario, así que se valida contra el enum. */
 export function normalizarPlan(valor: string | undefined | null): Plan | null {
     const slug = valor?.trim().toLowerCase();
@@ -121,18 +101,42 @@ export async function precioDePlanParaCuenta(
         const propio = await db.resellerPlan
             .findFirst({
                 where: { resellerUserId, plan, assistanceType: tipo, isActive: true },
-                select: { priceMonthly: true },
+                select: { priceMonthly: true, priceCop: true },
             })
             .catch(() => null);
-        if (propio) return { plan, ...(await convertirAMonedaDeCobro(Number(propio.priceMonthly))) };
+        if (propio) {
+            const enPesos = precioEnPesosEscrito(propio.priceCop);
+            if (enPesos) return { plan, ...enPesos };
+            return { plan, ...(await convertirAMonedaDeCobro(Number(propio.priceMonthly))) };
+        }
     }
 
     const dePlataforma = await db.subscriptionPlan
         .findFirst({
             where: { plan, assistanceType: tipo, isResellerPlan: false, isActive: true },
-            select: { priceUSD: true },
+            select: { priceUSD: true, priceCop: true },
         })
         .catch(() => null);
 
+    const enPesos = precioEnPesosEscrito(dePlataforma?.priceCop);
+    if (enPesos) return { plan, ...enPesos };
+
     return { plan, ...(await convertirAMonedaDeCobro(Number(dePlataforma?.priceUSD ?? 0))) };
+}
+
+/**
+ * El precio en pesos que se escribió a mano, si lo hay.
+ *
+ * Es el que manda: puesto, no se convierte nada y el cliente paga exactamente la
+ * cifra que se publicó. Vacío o en cero se devuelve null, y el llamador sigue con
+ * la conversión desde dólares de siempre — así ningún plan que nadie haya tocado
+ * cambia de precio.
+ */
+function precioEnPesosEscrito(
+    valor: { toString(): string } | null | undefined,
+): { price: number; currency: string } | null {
+    const pesos = Number(valor ?? 0);
+    if (!Number.isFinite(pesos) || pesos <= 0) return null;
+    // Wompi cobra en pesos enteros; un monto con decimales invalida el enlace.
+    return { price: Math.round(pesos), currency: "COP" };
 }

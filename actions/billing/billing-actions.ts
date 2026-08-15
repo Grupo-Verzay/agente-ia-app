@@ -14,7 +14,7 @@ import {
     setUserBillingWebhookEnabled,
     syncUserBillingLifecycle,
 } from "./helpers/billing-notifications.server";
-import { equivalenteEnUsd, etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
+import { etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
 import { whatsappDeLaMarca } from "@/lib/brand-support.server";
 import { serializeUserBilling, toDate } from "./helpers/billing-helpers";
 import {
@@ -189,11 +189,8 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
 
         const resellerId = cuenta?.demoResellerId ?? null;
 
-        const [planLabel, priceUsd, brandWhatsapp] = await Promise.all([
+        const [planLabel, brandWhatsapp] = await Promise.all([
             cuenta?.plan ? etiquetaDePlanParaCuenta(cuenta.plan, resellerId) : Promise.resolve(null),
-            billing && (billing.currencyCode ?? "COP").toUpperCase() === "COP"
-                ? equivalenteEnUsd(Number(billing.price ?? 0))
-                : Promise.resolve(null),
             whatsappDeLaMarca(resellerId),
         ]);
 
@@ -216,7 +213,6 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
             data: {
                 ...billing,
                 planLabel,
-                priceUsd,
                 brandWhatsapp,
                 price: billing.price ? billing.price.toString() : null,
                 dueDate: billing.dueDate ? billing.dueDate.toISOString() : null,

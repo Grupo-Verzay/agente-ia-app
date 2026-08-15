@@ -10,6 +10,8 @@ export type SubscriptionPlanItem = {
   assistanceType: string;
   isResellerPlan: boolean;
   priceUSD: number;
+  /** Precio en pesos escrito a mano. Puesto, manda él y no se convierte nada. */
+  priceCop: number | null;
   priceWholesale: number | null;
   priceQuarterly: number | null;
   priceYearly: number | null;
@@ -36,6 +38,7 @@ export async function getAllSubscriptionPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceCop: p.priceCop != null ? Number(p.priceCop) : null,
         priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
         priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
         priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
@@ -58,6 +61,7 @@ export async function getActiveSubscriptionPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceCop: p.priceCop != null ? Number(p.priceCop) : null,
         priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
         priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
         priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
@@ -79,6 +83,7 @@ export async function getActiveResellerAccessPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceCop: p.priceCop != null ? Number(p.priceCop) : null,
         priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
         priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
         priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
@@ -94,6 +99,7 @@ export async function upsertSubscriptionPlan(data: {
   assistanceType: string;
   isResellerPlan?: boolean;
   priceUSD: number;
+  priceCop?: number | null;
   priceWholesale?: number | null;
   priceQuarterly?: number | null;
   priceYearly?: number | null;
@@ -113,6 +119,7 @@ export async function upsertSubscriptionPlan(data: {
     const isResellerPlan = data.isResellerPlan ?? false;
     const payload = {
       priceUSD: data.priceUSD,
+      priceCop: data.priceCop ?? null,
       priceWholesale: data.priceWholesale ?? null,
       priceQuarterly: data.priceQuarterly ?? null,
       priceYearly: data.priceYearly ?? null,

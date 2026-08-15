@@ -29,6 +29,7 @@ type EditForm = {
   assistanceType: string;
   name: string;
   priceMonthly: number;
+  priceCop: number;
   priceQuarterly: number;
   priceYearly: number;
   credits: number;
@@ -83,6 +84,7 @@ export function MisPlanes() {
       assistanceType: type,
       name: rp?.name ?? "",
       priceMonthly: rp?.priceMonthly ?? mp?.priceUSD ?? 0,
+      priceCop: rp?.priceCop ?? 0,
       priceQuarterly: rp?.priceQuarterly ?? mp?.priceQuarterly ?? 0,
       priceYearly: rp?.priceYearly ?? mp?.priceYearly ?? 0,
       credits: rp?.credits ?? mp?.credits ?? 0,
@@ -108,6 +110,8 @@ export function MisPlanes() {
       features: form.features.split("\n").map((f) => f.trim()).filter(Boolean),
       description: form.description || undefined,
       color: form.color || undefined,
+      // 0 es "sin precio en pesos": vuelve a la conversión desde dólares.
+      priceCop: form.priceCop || null,
       priceQuarterly: form.priceQuarterly || null,
       priceYearly: form.priceYearly || null,
       checkoutUrlMonthly: form.checkoutUrlMonthly || undefined,
@@ -269,6 +273,19 @@ export function MisPlanes() {
                     onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
+
+              {period === "monthly" && (
+                <div className="space-y-1">
+                  <Label>Precio de cobro (COP/mes)</Label>
+                  <Input type="number" min={0} step={1} value={form.priceCop}
+                    onChange={(e) => setForm({ ...form, priceCop: parseInt(e.target.value) || 0 })}
+                    placeholder="349000" />
+                  <p className="text-[11px] text-muted-foreground">
+                    Es lo que se le cobra a tu cliente, tal cual. Déjalo en 0 para que se
+                    calcule desde el precio en dólares con la tasa del día.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <Label>Nombre del plan (visible en tu landing)</Label>

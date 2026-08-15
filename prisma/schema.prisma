@@ -1423,6 +1423,11 @@ model SubscriptionPlan {
   assistanceType       String   @default("IA") // "IA" | "HUMANO"
   isResellerPlan       Boolean  @default(false) // true = plan para resellers en /resellers
   priceUSD             Decimal  @default(0) @db.Decimal(10, 2)
+  // Precio en pesos escrito a mano. Puesto, manda él y no se convierte nada:
+  // multiplicar dólares por la tasa nunca da un número redondo, y además cambiaba
+  // solo al mover la tasa. Vacío, se sigue convirtiendo desde `priceUSD`, que se
+  // queda como la referencia de la landing. La columna la crea el backend.
+  priceCop             Decimal? @map("price_cop") @db.Decimal(12, 2)
   priceWholesale       Decimal? @db.Decimal(10, 2) // precio mayorista para resellers
   credits              Int      @default(0)
   features             String[]
@@ -1706,6 +1711,10 @@ model ResellerPlan {
   plan                 Plan
   assistanceType       String   @default("IA")
   priceMonthly         Decimal  @default(0) @db.Decimal(10, 2)
+  // Igual que en los planes de la plataforma: puesto, manda él y no se convierte
+  // nada. Un reseller le pone su propio precio a los mismos niveles y tiene el
+  // mismo derecho a números redondos. La columna la crea el backend.
+  priceCop             Decimal? @map("price_cop") @db.Decimal(12, 2)
   priceQuarterly       Decimal? @db.Decimal(10, 2)
   priceYearly          Decimal? @db.Decimal(10, 2)
   checkoutUrlMonthly   String?

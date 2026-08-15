@@ -19,8 +19,6 @@ type Props = {
   canPayOnline?: boolean;
   /** Nombre comercial del plan, con el que lo llama su marca. */
   planLabel?: string | null;
-  /** Los mismos pesos en dólares, la referencia con la que vio el precio. */
-  amountUsd?: number | null;
   /** WhatsApp de su marca. Sin él no se pinta el botón. */
   brandWhatsapp?: string | null;
 };
@@ -99,34 +97,26 @@ export default function BillingLockScreen(props: Props) {
     awaitingFirstPayment,
     canPayOnline,
     planLabel,
-    amountUsd,
     brandWhatsapp,
   } = props;
 
   const moneda = currencyCode ?? "COP";
 
   /**
-   * El importe, con los dólares arriba y los pesos debajo.
+   * El importe: lo que se le cobra, y nada más.
    *
-   * Es la cifra con la que vio el precio publicado; seis dígitos en pesos, a
-   * secas, le hacen dudar de si le están cobrando lo que eligió. Los dos juntos
-   * y hace la cuenta solo. Sin equivalencia configurada, solo los pesos.
+   * Llevaba encima el equivalente en dólares, pero ese número no estaba guardado
+   * en ninguna parte: salía de dividir los pesos por la tasa. Al bajar la tasa,
+   * un cliente que compró por 59 USD veía "63 USD/mes" sobre el mismo importe de
+   * siempre, y en la pantalla de pagar eso no se lee como un redondeo: se lee
+   * como que le subieron el precio.
    */
   const Importe = () =>
     !amountDue ? null : (
       <div className="tabular-nums">
-        {amountUsd ? (
-          <>
-            <p className="text-2xl font-bold tracking-tight">${amountUsd} USD/mes</p>
-            <p className="text-sm text-muted-foreground">
-              {amountDue} {moneda}
-            </p>
-          </>
-        ) : (
-          <p className="text-2xl font-bold tracking-tight">
-            {amountDue} {moneda}
-          </p>
-        )}
+        <p className="text-2xl font-bold tracking-tight">
+          {amountDue} {moneda}/mes
+        </p>
       </div>
     );
 

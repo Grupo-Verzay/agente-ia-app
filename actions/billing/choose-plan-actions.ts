@@ -37,7 +37,6 @@ export type PlanDisponible = {
      * landing. Se cobra en pesos, pero seis cifras a secas asustan y le hacen
      * dudar de si le están cobrando lo que eligió.
      */
-    priceUsd: number | null;
     isPopular: boolean;
     isCurrent: boolean;
 };
@@ -85,7 +84,6 @@ export async function getPlanesParaPagar(): Promise<{
                 credits: p.credits,
                 features: p.features,
                 isPopular: p.isPopular,
-                precioReferencia: Number(p.priceMonthly),
             }))
             : dePlataforma.map((p) => ({
                 plan: p.plan as string,
@@ -95,15 +93,15 @@ export async function getPlanesParaPagar(): Promise<{
                 credits: p.credits,
                 features: p.features,
                 isPopular: p.isPopular,
-                precioReferencia: Number(p.priceUSD),
             }));
 
         const data: PlanDisponible[] = [];
         for (const p of fuente) {
             // Sin precio es una tarjeta de "a consultar": no se puede pagar sola,
-            // así que no tiene sentido ofrecerla aquí.
-            if (!(p.precioReferencia > 0)) continue;
-
+            // así que no tiene sentido ofrecerla aquí. El que manda es el precio
+            // de cobro: un plan con precio en pesos escrito a mano y sin precio en
+            // dólares es perfectamente vendible, y mirando solo la referencia se
+            // quedaba fuera de la lista.
             const precio = await precioDePlanParaCuenta(p.plan, p.assistanceType, resellerUserId);
             if (!precio || !(precio.price > 0)) continue;
 
@@ -116,9 +114,6 @@ export async function getPlanesParaPagar(): Promise<{
                 features: p.features ?? [],
                 price: precio.price,
                 currency: precio.currency,
-                // El de referencia, no una reconversión: es el número exacto
-                // que el dueño escribió en Planes.
-                priceUsd: precio.currency === "COP" ? p.precioReferencia : null,
                 isPopular: p.isPopular,
                 isCurrent: p.plan === me.plan,
             });

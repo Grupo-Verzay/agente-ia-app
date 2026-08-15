@@ -12,6 +12,8 @@ export type ResellerPlanItem = {
   plan: Plan;
   assistanceType: string;
   priceMonthly: number;
+  /** Precio en pesos escrito a mano. Puesto, manda él y no se convierte nada. */
+  priceCop: number | null;
   priceQuarterly: number | null;
   priceYearly: number | null;
   checkoutUrlMonthly: string | null;
@@ -62,6 +64,7 @@ function mapPlan(p: {
   plan: Plan;
   assistanceType: string;
   priceMonthly: { toNumber: () => number };
+  priceCop: { toNumber: () => number } | null;
   priceQuarterly: { toNumber: () => number } | null;
   priceYearly: { toNumber: () => number } | null;
   checkoutUrlMonthly: string | null;
@@ -79,6 +82,7 @@ function mapPlan(p: {
   return {
     ...p,
     priceMonthly: Number(p.priceMonthly),
+    priceCop: p.priceCop != null ? Number(p.priceCop) : null,
     priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
     priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
   };
@@ -149,6 +153,7 @@ export async function upsertResellerPlan(data: {
   plan: Plan;
   assistanceType: string;
   priceMonthly: number;
+  priceCop?: number | null;
   priceQuarterly?: number | null;
   priceYearly?: number | null;
   checkoutUrlMonthly?: string;
@@ -170,6 +175,7 @@ export async function upsertResellerPlan(data: {
     }
     const payload = {
       priceMonthly: data.priceMonthly,
+      priceCop: data.priceCop ?? null,
       priceQuarterly: data.priceQuarterly ?? null,
       priceYearly: data.priceYearly ?? null,
       checkoutUrlMonthly: data.checkoutUrlMonthly ?? null,

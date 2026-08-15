@@ -16,7 +16,7 @@ import AppSkeleton from "@/components/custom/AppSkeleton";
 import { Breadcrumbs } from "@/components/custom/Breadcrumbs";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
 import BillingLockScreen from "@/components/shared/BillingLockScreen";
-import { equivalenteEnUsd, etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
+import { etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
 import { whatsappDeLaMarca } from "@/lib/brand-support.server";
 import { LockedRouteGuard } from "@/components/shared/LockedRouteGuard";
 
@@ -104,11 +104,8 @@ export default async function RootGroupLayout({
                 .findUnique({ where: { id: user.id }, select: { demoResellerId: true } })
                 .catch(() => null);
 
-            const [planLabel, amountUsd, brandWhatsapp] = await Promise.all([
+            const [planLabel, brandWhatsapp] = await Promise.all([
                 etiquetaDePlanParaCuenta(user.plan, cuenta?.demoResellerId ?? null),
-                (billing?.currencyCode ?? "COP").toUpperCase() === "COP"
-                    ? equivalenteEnUsd(Number(billing?.price ?? 0))
-                    : Promise.resolve(null),
                 // El WhatsApp de SU marca: un cliente de un reseller no debe
                 // acabar escribiendole a Verzay, que ni lo conoce.
                 whatsappDeLaMarca(cuenta?.demoResellerId ?? null),
@@ -135,7 +132,6 @@ export default async function RootGroupLayout({
                     awaitingFirstPayment={!billing?.lastPaymentAt}
                     canPayOnline={Number(billing?.price ?? 0) > 0}
                     planLabel={planLabel}
-                    amountUsd={amountUsd}
                     brandWhatsapp={brandWhatsapp}
                 />
             );
