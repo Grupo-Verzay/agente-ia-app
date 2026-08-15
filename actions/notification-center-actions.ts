@@ -126,7 +126,12 @@ export async function getNotificationCenterData(): Promise<{
     ]);
 
     // Chats sin leer: mensajes con unreadCount > 0 en Evolution/Baileys (bajan a 0 al abrir el chat)
-    let unreadChats: { remoteJid: string; pushName?: string | null; updatedAt?: string | null }[] = [];
+    let unreadChats: {
+      remoteJid: string;
+      pushName?: string | null;
+      updatedAt?: string | null;
+      lastMessage?: { key?: { id?: string | null } | null } | null;
+    }[] = [];
     if (instances.length > 0 && owner?.apiKeyId) {
       // Solo instancias servibles por Evolution/Baileys. El último fallback ya NO
       // es instances[0]: si solo hay Meta/Telegram, no se llama al endpoint de
@@ -222,7 +227,12 @@ export async function getNotificationCenterData(): Promise<{
       ...collabItems,
       ...connectionItems,
       ...unreadChats.map((chat) => ({
-        id: `chat-${chat.remoteJid}`,
+        // El último mensaje va dentro del identificador a propósito. La campanita
+        // recuerda lo que ya se abrió; con un id fijo por contacto, haberlo
+        // abierto una vez lo callaría para siempre y no se volvería a avisar de
+        // sus mensajes nuevos. Cambiando el id con cada mensaje, lo visto se
+        // queda visto y lo nuevo vuelve a salir.
+        id: `chat-${chat.remoteJid}-${chat.lastMessage?.key?.id ?? chat.updatedAt ?? ""}`,
         kind: "chat" as const,
         title: chat.pushName || cleanJidNumber(chat.remoteJid),
         description: "Mensaje sin leer",

@@ -37,16 +37,33 @@ import {
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { cn } from "@/lib/utils";
 
-const NC_KEY = "nc_dismissed_v1";
-function loadDismissed(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try { return new Set(JSON.parse(window.sessionStorage.getItem(NC_KEY) ?? "[]") as string[]); }
-  catch { return new Set(); }
+// Lo que ya se abrió desde la campanita.
+//
+// Vivía en `sessionStorage`, que el navegador vacía al cerrar la pestaña: cada
+// vez que se volvía a entrar reaparecían notificaciones de hace semanas, ya
+// leídas. Ahora va en `localStorage`, que sí sobrevive.
+//
+// La lista se recorta a los últimos 500: los avisos de chat llevan la fecha del
+// mensaje en su identificador —para que uno NUEVO del mismo contacto sí vuelva a
+// salir—, así que sin tope crecería sin parar.
+const NC_KEY = "nc_dismissed_v2";
+const NC_MAX = 500;
+
+function loadDismissedList(): string[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(window.localStorage.getItem(NC_KEY) ?? "[]") as string[]; }
+  catch { return []; }
 }
+
+function loadDismissed(): Set<string> {
+  return new Set(loadDismissedList());
+}
+
 function saveDismissed(id: string): void {
   try {
-    const s = loadDismissed(); s.add(id);
-    window.sessionStorage.setItem(NC_KEY, JSON.stringify([...s]));
+    const lista = loadDismissedList().filter((x) => x !== id);
+    lista.push(id);
+    window.localStorage.setItem(NC_KEY, JSON.stringify(lista.slice(-NC_MAX)));
   } catch {}
 }
 
@@ -207,7 +224,11 @@ export function NotificationCenter() {
   }, []);
 
   const dismiss = useCallback((id: string, kind: NotificationKind, href: string) => {
-    saveDismissed(id);
+    // Los errores de configuración (sin instancia, sin API Key) no se guardan
+    // como vistos: describen algo que sigue roto, y esconderlos para siempre
+    // dejaría la cuenta sin enviar mensajes sin que nadie lo recuerde. Vuelven a
+    // salir hasta que se arreglen.
+    if (kind !== "connection") saveDismissed(id);
     // Las notificaciones de colaboración se marcan como leídas en el servidor
     // (id con prefijo "collab:") para que no reaparezcan.
     if (id.startsWith("collab:")) {
