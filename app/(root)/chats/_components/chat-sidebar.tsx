@@ -85,6 +85,18 @@ import type { ChatData } from "@/actions/chat-actions";
 // dentro (y cerca) del viewport. Por debajo se renderiza la lista completa,
 // con el mismo comportamiento de siempre.
 
+// Los chats que ya se abrieron se recuerdan por LÍNEA y chat, no solo por chat.
+// El mismo contacto puede escribir a dos líneas —y un `@lid` se repite entre
+// ellas—: con una sola marca compartida, abrirlo en una borraba la de la otra y
+// las dos se quedaban peleando por siempre en "No leídos".
+function claveDeChatVisto(instanceName: string | undefined, remoteJid: string): string {
+  return `${instanceName ?? ""}::${remoteJid}`;
+}
+
+// Tope de la lista guardada en el navegador: una entrada por chat abierto, y
+// nada la borraba nunca.
+const MAX_CHATS_VISTOS = 1000;
+
 const SIDEBAR_VIRTUALIZE_AFTER = 50;
 const SIDEBAR_OVERSCAN_ITEMS = 10;
 // Alturas estimadas (px). Los contactos con sesión CRM muestran una fila de
@@ -272,11 +284,14 @@ export function ChatSidebar({
   );
 
   const markMessageAsSeen = useCallback(
-    (remoteJid: string, messageId: string) => {
+    (remoteJid: string, messageId: string, instanceName?: string, ts?: number) => {
       if (!remoteJid || !messageId) return;
+      const clave = claveDeChatVisto(instanceName, remoteJid);
       setSeenMessages((prev) => {
-        const filtered = prev.filter((m) => m.userId !== remoteJid);
-        return [...filtered, { userId: remoteJid, messageId } satisfies MessageRecord];
+        const filtered = prev.filter((m) => m.userId !== clave);
+        return [...filtered, { userId: clave, messageId, ts } satisfies MessageRecord].slice(
+          -MAX_CHATS_VISTOS,
+        );
       });
       setForcedUnreadJids((prev) => {
         if (!prev.has(remoteJid)) return prev;
@@ -289,18 +304,32 @@ export function ChatSidebar({
   );
 
   const markMessageAsUnseen = useCallback(
-    (remoteJid: string) => {
-      setSeenMessages((prev) => prev.filter((m) => m.userId !== remoteJid));
+    (remoteJid: string, instanceName?: string) => {
+      const clave = claveDeChatVisto(instanceName, remoteJid);
+      setSeenMessages((prev) =>
+        prev.filter((m) => m.userId !== clave && m.userId !== remoteJid),
+      );
       setForcedUnreadJids((prev) => new Set([...prev, remoteJid]));
     },
     [setSeenMessages],
   );
 
   const isMessageSeen = useCallback(
-    (remoteJid: string, messageId: string) => {
+    (remoteJid: string, messageId: string, instanceName?: string, ts?: number) => {
       if (!messageId) return false;
-      const record = seenMessages.find((m) => m.userId === remoteJid);
-      return record?.messageId === messageId;
+      const clave = claveDeChatVisto(instanceName, remoteJid);
+      // El registro viejo (solo remoteJid) sigue valiendo: los navegadores ya
+      // tienen guardados los suyos y no hay por qué marcarles como sin leer todo
+      // lo que ya habían abierto.
+      const record =
+        seenMessages.find((m) => m.userId === clave) ??
+        seenMessages.find((m) => m.userId === remoteJid);
+      if (!record) return false;
+      if (record.messageId === messageId) return true;
+      // Nada anterior a lo ya visto vuelve a contar como sin leer, diga lo que
+      // diga el contador de WhatsApp. Un mensaje NUEVO sí, porque su fecha es
+      // posterior.
+      return !!record.ts && !!ts && ts <= record.ts;
     },
     [seenMessages],
   );
@@ -325,7 +354,7 @@ export function ChatSidebar({
         const lastMsgData = lastTextFrom(chat);
         const isSelected = chat.remoteJid === selectedJid;
         const wasSeenPreviously = lastMsgData.id
-          ? isMessageSeen(chat.remoteJid, lastMsgData.id)
+          ? isMessageSeen(chat.remoteJid, lastMsgData.id, chat.instanceName, ts)
           : false;
         const hasUnreadFromServer = (chat.unreadCount ?? 0) > 0;
         const hasLocalPending = inactiveAgentUnreadJids?.has(chat.remoteJid) ?? false;
@@ -676,10 +705,15 @@ export function ChatSidebar({
 
   const handleSelectJid = useCallback(
     (jid: string, lastMessageId: string, instanceName?: string) => {
-      if (jid && lastMessageId) markMessageAsSeen(jid, lastMessageId);
+      if (jid && lastMessageId) {
+        const contacto = contacts.find(
+          (c) => c.id === jid && (!instanceName || c.instanceName === instanceName),
+        );
+        markMessageAsSeen(jid, lastMessageId, instanceName ?? contacto?.instanceName, contacto?.ts);
+      }
       void onSelectRemoteJid?.(jid, instanceName);
     },
-    [markMessageAsSeen, onSelectRemoteJid],
+    [contacts, markMessageAsSeen, onSelectRemoteJid],
   );
 
   const handlePrefetchJid = useCallback(
@@ -732,11 +766,11 @@ export function ChatSidebar({
 
   const handleBulkMarkRead = useCallback((read: boolean) => {
     for (const jid of selectedJidsArray) {
+      const contact = contacts.find((c) => c.id === jid);
       if (read) {
-        const contact = contacts.find((c) => c.id === jid);
-        markMessageAsSeen(jid, contact?.lastMessageId ?? "");
+        markMessageAsSeen(jid, contact?.lastMessageId ?? "", contact?.instanceName, contact?.ts);
       } else {
-        markMessageAsUnseen(jid);
+        markMessageAsUnseen(jid, contact?.instanceName);
       }
     }
     clearSelection();
@@ -803,9 +837,16 @@ export function ChatSidebar({
   const handleItemMarkRead = useCallback(
     (id: string) => {
       const c = contacts.find((x) => x.id === id);
-      if (c?.lastMessageId) markMessageAsSeen(id, c.lastMessageId);
+      if (c?.lastMessageId) markMessageAsSeen(id, c.lastMessageId, c.instanceName, c.ts);
     },
     [contacts, markMessageAsSeen],
+  );
+  const handleItemMarkUnread = useCallback(
+    (id: string) => {
+      const c = contacts.find((x) => x.id === id);
+      markMessageAsUnseen(id, c?.instanceName);
+    },
+    [contacts, markMessageAsUnseen],
   );
   const handleItemRenameRequest = useCallback(
     (contact: SidebarContact) => {
@@ -1026,7 +1067,7 @@ export function ChatSidebar({
                 onToggleSelect={toggleSelectJid}
                 allTags={allTags}
                 onMarkRead={handleItemMarkRead}
-                onMarkUnread={markMessageAsUnseen}
+                onMarkUnread={handleItemMarkUnread}
                 onResolve={handleResolve}
                 onAssignTag={handleAssignTag}
                 onRenameRequest={handleItemRenameRequest}
