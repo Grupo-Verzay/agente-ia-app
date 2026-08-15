@@ -1,8 +1,26 @@
 import { useState, useEffect } from 'react';
 
 export interface MessageRecord {
+  /**
+   * Qué chat, y en qué línea: `<instancia>::<remoteJid>`.
+   *
+   * Antes era solo el remoteJid. Un mismo contacto que escribe a dos líneas
+   * —y sobre todo un `@lid`, que se repite entre líneas— compartía una única
+   * marca: abrir el chat en una borraba la marca de la otra, y las dos se
+   * pisaban sin parar. El nombre del campo se queda por los registros ya
+   * guardados en los navegadores.
+   */
   userId: string;
   messageId: string;
+  /**
+   * Fecha del último mensaje visto, en milisegundos.
+   *
+   * El id exacto no bastaba: Evolution cambia el último mensaje de un chat por
+   * cosas que no son un mensaje nuevo (un acuse, una edición), y al no coincidir
+   * el id la conversación volvía a marcarse sin leer. Con la fecha, se considera
+   * leído todo lo que no sea posterior a lo que ya se abrió.
+   */
+  ts?: number;
 }
 
 /**
