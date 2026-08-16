@@ -69,6 +69,50 @@ export async function etiquetaDePlanParaCuenta(
     }
 }
 
+/**
+ * Cómo llama una marca a cada uno de los seis niveles.
+ *
+ * Es `etiquetaDePlanParaCuenta` para los seis de una vez, en una sola consulta,
+ * para las pantallas que los listan juntos —el desplegable de "Crear cliente",
+ * por ejemplo—. Ahí no sirve la tabla interna de nombres: dice "Agencias" para el
+ * nivel 6 y "Enterprise" para el 5, que no es como los vende ninguna marca, y
+ * quien crea el cliente termina eligiendo el nivel equivocado.
+ *
+ * Al nivel que la marca no le puso nombre le queda su número, que es lo único
+ * cierto que se puede decir de él sin inventarse un nombre comercial ajeno.
+ */
+export async function etiquetasDePlanesParaMarca(
+    resellerUserId: string | null,
+): Promise<Record<string, string>> {
+    const etiquetas: Record<string, string> = {};
+
+    try {
+        // Una marca o la otra, nunca las dos mezcladas: rellenar los huecos de un
+        // reseller con los nombres de la plataforma sería ponerle en el
+        // desplegable el nombre comercial de otra marca.
+        const filas = resellerUserId
+            ? await db.resellerPlan.findMany({
+                where: { resellerUserId, isActive: true },
+                select: { plan: true, name: true },
+                orderBy: { assistanceType: "asc" },
+            })
+            : await db.subscriptionPlan.findMany({
+                where: { isResellerPlan: false, isActive: true },
+                select: { plan: true, name: true },
+                orderBy: { assistanceType: "asc" },
+            });
+
+        for (const p of filas) {
+            const nombre = p.name?.trim();
+            if (nombre && !etiquetas[p.plan]) etiquetas[p.plan] = nombre;
+        }
+    } catch {
+        // Sin nombres se devuelve el mapa vacío y el llamador cae a los niveles.
+    }
+
+    return etiquetas;
+}
+
 /** El nivel llega por URL o por un formulario, así que se valida contra el enum. */
 export function normalizarPlan(valor: string | undefined | null): Plan | null {
     const slug = valor?.trim().toLowerCase();
