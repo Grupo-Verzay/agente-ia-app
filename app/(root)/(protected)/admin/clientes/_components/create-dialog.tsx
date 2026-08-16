@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox";
-import { PLAN_LABELS, PLANS } from "@/types/plans";
+import { PLAN_LEVEL_LABELS, PLANS } from "@/types/plans";
+import { getPlanLabelsForMyBrand } from "@/actions/subscription-plan-actions";
 import { ApiKey, Role } from "@prisma/client";
 import { userSchema, UserFormValues } from "@/schema/user";
 import { Country } from "@/components/custom/CountryCodeSelect";
@@ -52,6 +53,20 @@ export const CreateDialog = ({
   handleCreate,
   apikeys,
 }: Props) => {
+  // Los nombres con los que SU marca vende cada nivel. La tabla interna decía
+  // "Agencias" para el nivel 6 y "Enterprise" para el 5, que no es como los
+  // vende nadie: quien daba de alta un cliente no reconocía lo que elegía. Al
+  // nivel sin nombre propio le queda su número.
+  const [etiquetasDePlan, setEtiquetasDePlan] = useState<Record<string, string>>(PLAN_LEVEL_LABELS);
+
+  useEffect(() => {
+    let vigente = true;
+    void getPlanLabelsForMyBrand().then((mapa) => {
+      if (vigente && mapa && Object.keys(mapa).length > 0) setEtiquetasDePlan(mapa);
+    });
+    return () => { vigente = false; };
+  }, []);
+
   const [status, setStatus] = useState(true);
   const [enabledSynthesizer, setEnabledSynthesizer] = useState(false);
   const [enabledLeadStatusClassifier, setEnabledLeadStatusClassifier] = useState(false);
@@ -185,7 +200,7 @@ export const CreateDialog = ({
                     <SelectContent>
                       <SelectGroup>
                         {PLANS.map((plan) => (
-                          <SelectItem key={plan} value={plan}>{PLAN_LABELS[plan]}</SelectItem>
+                          <SelectItem key={plan} value={plan}>{etiquetasDePlan[plan] ?? PLAN_LEVEL_LABELS[plan]}</SelectItem>
                         ))}
                       </SelectGroup>
                     </SelectContent>

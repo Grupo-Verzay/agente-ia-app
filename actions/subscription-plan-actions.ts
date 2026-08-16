@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
+import { currentUser } from "@/lib/auth";
+import { etiquetasDePlanesParaMarca } from "@/lib/plan-pricing";
+import { PLAN_LEVEL_LABELS } from "@/types/plans";
+
 export type SubscriptionPlanItem = {
   id: string;
   plan: Plan;
@@ -159,5 +163,35 @@ export async function toggleSubscriptionPlanActive(id: string, isActive: boolean
     return { success: true };
   } catch {
     return { success: false };
+  }
+}
+
+/**
+ * Cómo llama SU marca a cada nivel, para los desplegables que los listan todos.
+ *
+ * El de "Crear cliente" usaba la tabla interna de nombres, que dice "Agencias"
+ * para el nivel 6 y "Enterprise" para el 5. Ninguna marca los vende así, y quien
+ * está dando de alta un cliente no reconoce lo que está eligiendo.
+ *
+ * Un reseller ve los suyos; el dueño de la plataforma, los de la plataforma. Al
+ * nivel sin nombre le queda su número, que es lo único cierto que se puede decir
+ * de él sin ponerle el nombre comercial de otra marca.
+ */
+export async function getPlanLabelsForMyBrand(): Promise<Record<string, string>> {
+  try {
+    const me = await currentUser();
+    if (!me) return {};
+
+    const yo = await db.user
+      .findUnique({ where: { id: me.id }, select: { role: true, demoResellerId: true } })
+      .catch(() => null);
+
+    // Un reseller vende sus propios planes; un cliente suyo ve los de él.
+    const resellerId = yo?.role === "reseller" ? me.id : yo?.demoResellerId ?? null;
+
+    const etiquetas = await etiquetasDePlanesParaMarca(resellerId);
+    return { ...PLAN_LEVEL_LABELS, ...etiquetas };
+  } catch {
+    return {};
   }
 }
