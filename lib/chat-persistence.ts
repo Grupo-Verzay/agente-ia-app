@@ -576,7 +576,16 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
   // Nombre "basura" (mensajes propios, sin nombre): no debe guardarse como
   // nombre del lead. 'Você'/'Voce' es lo que WhatsApp asigna a los mensajes
   // salientes (fromMe).
-  const cleanPushName = isBadPushName(input.pushName) ? undefined : input.pushName?.trim();
+  //
+  // También se rechaza el nombre de la PROPIA línea: WhatsApp a veces manda el
+  // nombre de tu perfil como pushName de un mensaje entrante (sincronización de
+  // historial, mensajes en contexto de negocio), y así un lead real acababa
+  // llamándose "Verzay Atención". Se compara normalizado, porque la instancia se
+  // llama "VERZAY_ATENCION" y el perfil "Verzay Atención".
+  const esNombreDeLaLinea =
+    !!input.pushName && normalizarNombre(input.pushName) === normalizarNombre(input.instanceName);
+  const cleanPushName =
+    isBadPushName(input.pushName) || esNombreDeLaLinea ? undefined : input.pushName?.trim();
 
   const existing = await db.session.findFirst({
     where: {
@@ -587,17 +596,23 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
       ],
     },
     orderBy: { updatedAt: 'desc' },
-    select: { id: true },
+    select: { id: true, pushName: true },
   });
 
   if (existing) {
+    // Un nombre que ya vale —o el que el usuario editó a mano— NO se pisa con el
+    // que traiga un mensaje posterior. El nombre se toma una vez, cuando entra el
+    // lead, y a partir de ahí solo lo cambia la edición manual. Antes se
+    // reescribía en cada mensaje, así que un entrante con el nombre de la línea
+    // borraba el bueno una y otra vez.
+    const nombreAEscribir = esNombreBueno(existing.pushName) ? undefined : cleanPushName || undefined;
     try {
       await db.session.update({
         where: { id: existing.id },
         data: {
           remoteJid,
           remoteJidAlt,
-          pushName: cleanPushName || undefined,
+          pushName: nombreAEscribir,
           instanceId,
           updatedAt: new Date(),
         },
@@ -617,7 +632,7 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
             where: { id: existing.id },
             data: {
               remoteJidAlt,
-              pushName: cleanPushName || undefined,
+              pushName: nombreAEscribir,
               updatedAt: new Date(),
             },
           })
@@ -658,6 +673,29 @@ function isBadPushName(name?: string | null) {
   return lower === '' || lower === '.' || lower === 'desconocido' || lower === 'você' || lower === 'voce';
 }
 
+// Sin acentos, en minúsculas y con espacios/guiones bajos colapsados. Sirve para
+// comparar el nombre que llega con el de la propia línea: la instancia se llama
+// "VERZAY_ATENCION" y su perfil "Verzay Atención" — misma cosa una vez
+// normalizadas.
+const DIACRITICOS = /[̀-ͯ]/g;
+function normalizarNombre(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(DIACRITICOS, '')
+    .toLowerCase()
+    .replace(/[_\s]+/g, ' ')
+    .trim();
+}
+
+// Un nombre real que ya vale la pena conservar: ni basura, ni una ristra de
+// dígitos (el identificador de un @lid). Se usa para NO pisar un nombre bueno
+// —o el que el usuario editó a mano— con el que traiga un mensaje posterior.
+function esNombreBueno(name?: string | null): boolean {
+  const limpio = (name ?? '').trim();
+  if (!limpio || isBadPushName(limpio)) return false;
+  return !/^\d{6,}$/.test(limpio);
+}
+
 export async function persistChatMessage(input: PersistChatMessageInput) {
   if (!input.userId || !input.instanceName || !input.remoteJid) return;
   if (
@@ -687,6 +725,15 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
   const messageTimestamp = epochToDate(input.messageTimestamp);
   const isDeleteEvent = isDeletedMessageEvent(input);
   const hasDisplayablePayload = hasDisplayableMessagePayload(input);
+
+  // Nombre a guardar en la bandeja: ni basura ni el nombre de la propia línea
+  // (WhatsApp a veces manda el de tu perfil como pushName de un entrante). Mismo
+  // criterio que en la sesión CRM. Null cuando no hay nombre válido, para que el
+  // COALESCE conserve el que ya hubiera.
+  const esNombreDeLaLineaMsg =
+    !!input.pushName && normalizarNombre(input.pushName) === normalizarNombre(input.instanceName);
+  const pushNameLimpio =
+    isBadPushName(input.pushName) || esNombreDeLaLineaMsg ? null : input.pushName?.trim() || null;
 
   // Sobres internos de WhatsApp (la edición de un mensaje, el voto de una
   // encuesta): no se guardan. Pasaban el filtro de payload por no ser texto y
@@ -748,7 +795,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     VALUES (
       ${input.userId}, ${input.instanceName}, ${input.instanceType ?? null}, ${normalizedRemoteJid},
       ${remoteJidAlt}, ${input.senderPn ?? null}, ${messageId}, ${input.fromMe},
-      ${input.pushName ?? null}, ${input.messageType ?? 'conversation'}, ${input.content ?? null},
+      ${pushNameLimpio}, ${input.messageType ?? 'conversation'}, ${input.content ?? null},
       ${input.mediaUrl ?? null}, ${recortarRawAdjuntos(input.raw)}, ${messageTimestamp}, NOW(), NOW()
     )
     ON CONFLICT ("userId", "instanceName", "remoteJid", "messageId", "fromMe")
@@ -791,7 +838,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     )
     VALUES (
       ${input.userId}, ${input.instanceName}, ${input.instanceType ?? null}, ${normalizedRemoteJid},
-      ${remoteJidAlt}, ${input.senderPn ?? null}, ${input.pushName ?? null},
+      ${remoteJidAlt}, ${input.senderPn ?? null}, ${pushNameLimpio},
       ${messageId}, ${input.fromMe}, ${input.messageType ?? 'conversation'},
       ${input.content ?? null}, ${input.mediaUrl ?? null}, ${recortarRawParaBandeja(input.raw)},
       ${messageTimestamp}, NOW(), NOW()
@@ -801,7 +848,16 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "instanceType" = COALESCE(EXCLUDED."instanceType", "chat_conversations"."instanceType"),
       "remoteJidAlt" = COALESCE(EXCLUDED."remoteJidAlt", "chat_conversations"."remoteJidAlt"),
       "senderPn" = COALESCE(EXCLUDED."senderPn", "chat_conversations"."senderPn"),
-      "pushName" = COALESCE(EXCLUDED."pushName", "chat_conversations"."pushName"),
+      -- El nombre se conserva una vez capturado: solo se rellena cuando el que
+      -- había está vacío o es un número (@lid). Así un mensaje posterior con el
+      -- nombre de la línea no pisa el bueno, ni el que el usuario editó a mano.
+      "pushName" = CASE
+        WHEN "chat_conversations"."pushName" IS NULL
+          OR btrim("chat_conversations"."pushName") = ''
+          OR "chat_conversations"."pushName" ~ '^[0-9]{6,}$'
+        THEN COALESCE(EXCLUDED."pushName", "chat_conversations"."pushName")
+        ELSE "chat_conversations"."pushName"
+      END,
       "lastMessageId" = EXCLUDED."lastMessageId",
       "lastMessageFromMe" = EXCLUDED."lastMessageFromMe",
       "lastMessageType" = EXCLUDED."lastMessageType",
