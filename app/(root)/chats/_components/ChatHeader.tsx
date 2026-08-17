@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Search } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,25 @@ import { deleteLidChat } from '@/actions/merge-lid-contact';
 import { cn } from '@/lib/utils';
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
+
+// Avisos de "@lid" que el usuario ya cerró, por chat. Muchos contactos usan un
+// WhatsApp sin número visible (cuenta por nombre de usuario) y su @lid no es un
+// duplicado de nadie: no hay con qué unirlo. En esos, el aviso es ruido fijo, así
+// que se puede cerrar y no vuelve a salir EN ESE chat. En los @lid nuevos sí
+// sigue apareciendo, por si alguno sí es un duplicado que conviene unir.
+const LID_AVISO_KEY = 'lid_aviso_oculto_v1';
+function avisosLidOcultos(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try { return new Set(JSON.parse(window.localStorage.getItem(LID_AVISO_KEY) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+function ocultarAvisoLid(jid: string): void {
+  try {
+    const s = avisosLidOcultos(); s.add(jid);
+    // Tope generoso: una entrada por chat cerrado, y nada la borra.
+    window.localStorage.setItem(LID_AVISO_KEY, JSON.stringify(Array.from(s).slice(-2000)));
+  } catch {}
+}
 
 const PALETTE = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500'];
 function colorFor(id: string) {
@@ -120,6 +139,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [mergeOpen, setMergeOpen] = useState(false);
   const [confirmDeleteLid, setConfirmDeleteLid] = useState(false);
   const [deletingLid, setDeletingLid] = useState(false);
+  // ¿El aviso de @lid de ESTE chat ya se cerró? Se relee al cambiar de chat.
+  const [avisoLidOculto, setAvisoLidOculto] = useState(false);
+  useEffect(() => {
+    setAvisoLidOculto(!!remoteJid && avisosLidOcultos().has(remoteJid));
+  }, [remoteJid]);
 
   const isAgent = !!advisorRole;
   const isOwnerLike = !advisorRole || advisorRole === 'administrador';
@@ -724,7 +748,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       )}
 
-      {remoteJid && isLidJid(remoteJid) && (
+      {remoteJid && isLidJid(remoteJid) && !avisoLidOculto && (
         <div className="flex items-center justify-between gap-2 border-t border-amber-200/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/30 dark:bg-amber-950/20 dark:text-amber-400">
           {confirmDeleteLid ? (
             <>
@@ -767,6 +791,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
                 <Button size="sm" variant="ghost" className="h-7 text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => setConfirmDeleteLid(true)}>
                   Eliminar
+                </Button>
+                {/* Cerrar el aviso: este contacto no tiene número real y no hay
+                    nada que unir. No vuelve a salir en este chat. */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0 text-amber-700 hover:text-amber-900 dark:text-amber-400"
+                  title="Ocultar este aviso"
+                  onClick={() => { if (remoteJid) { ocultarAvisoLid(remoteJid); setAvisoLidOculto(true); } }}
+                >
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
             </>
