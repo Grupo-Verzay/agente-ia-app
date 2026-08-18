@@ -10,7 +10,7 @@ import {
 import { ChevronsUpDown, LogOut } from 'lucide-react'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from './ui/sidebar'
 import { handleLogout } from '@/lib/handleLogout'
-import { getPlanLabel } from '@/components/shared/PlanBadgeDisplay'
+import { PLAN_LEVEL_LABELS } from '@/types/plans'
 import { UserLogoAvatar } from '@/components/shared/UserLogoAvatar'
 
 type LogoutButtonProps = {
@@ -31,7 +31,12 @@ type LogoutButtonProps = {
 
 const LogoutButton = ({ user, resellerImage, resellerCompany, planLabel: planLabelDeLaMarca }: LogoutButtonProps) => {
   const { isMobile } = useSidebar()
-  const planLabel = planLabelDeLaMarca?.trim() || getPlanLabel(user?.plan)
+  // El nombre que la marca le puso al nivel; si no hay ninguno, el número de
+  // nivel ("Nivel 6"), nunca el interno "Agencias"/"Enterprise".
+  const planLabel =
+    planLabelDeLaMarca?.trim() ||
+    (user?.plan ? PLAN_LEVEL_LABELS[user.plan as keyof typeof PLAN_LEVEL_LABELS] : '') ||
+    ''
   const displayName = resellerCompany ?? user?.company ?? user?.name
 
   return (
@@ -46,9 +51,11 @@ const LogoutButton = ({ user, resellerImage, resellerCompany, planLabel: planLab
               <UserLogoAvatar logoUrl={resellerImage ?? undefined} plan={user?.plan} alt={displayName ?? 'Logo'} className="h-8 w-8 rounded-lg" />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{displayName}</span>
-                <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
-                  Plan {planLabel}
-                </span>
+                {planLabel ? (
+                  <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
+                    Plan {planLabel}
+                  </span>
+                ) : null}
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>

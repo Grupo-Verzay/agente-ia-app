@@ -101,11 +101,13 @@ export default async function RootGroupLayout({
             // El reseller dueño de la cuenta no viaja en la sesión, así que se
             // lee aquí: es lo que decide con qué nombre se le llama a su plan.
             const cuenta = await db.user
-                .findUnique({ where: { id: user.id }, select: { demoResellerId: true } })
+                .findUnique({ where: { id: user.id }, select: { demoResellerId: true, role: true } })
                 .catch(() => null);
+            const marcaParaEtiqueta =
+                cuenta?.role === 'reseller' ? user.id : cuenta?.demoResellerId ?? null;
 
             const [planLabel, brandWhatsapp] = await Promise.all([
-                etiquetaDePlanParaCuenta(user.plan, cuenta?.demoResellerId ?? null),
+                etiquetaDePlanParaCuenta(user.plan, marcaParaEtiqueta),
                 // El WhatsApp de SU marca: un cliente de un reseller no debe
                 // acabar escribiendole a Verzay, que ni lo conoce.
                 whatsappDeLaMarca(cuenta?.demoResellerId ?? null),
@@ -193,11 +195,20 @@ export default async function RootGroupLayout({
     // (que es el 6) y movía clientes de nivel para cuadrarlo. Los nombres internos
     // no deben salir a pantalla.
     const cuentaDeLaSesion = await db.user
-        .findUnique({ where: { id: user.id }, select: { demoResellerId: true } })
+        .findUnique({ where: { id: user.id }, select: { demoResellerId: true, role: true } })
         .catch(() => null);
+    // Con qué marca se resuelve el nombre del nivel: si la cuenta ES un reseller,
+    // con SUS propios planes (el nombre que él le puso al nivel en Mis Planes); si
+    // es cliente de un reseller, con los de ese reseller; si es directa, con los de
+    // la plataforma. Antes un reseller se resolvía como cuenta directa y nunca veía
+    // el nombre que él mismo configuró.
+    const marcaParaEtiqueta =
+        cuentaDeLaSesion?.role === 'reseller'
+            ? user.id
+            : cuentaDeLaSesion?.demoResellerId ?? null;
     const planLabelSidebar = await etiquetaDePlanParaCuenta(
         user.plan,
-        cuentaDeLaSesion?.demoResellerId ?? null,
+        marcaParaEtiqueta,
     ).catch(() => null);
 
     // Tema fresco de DB: del reseller/super_admin, o del propio user
