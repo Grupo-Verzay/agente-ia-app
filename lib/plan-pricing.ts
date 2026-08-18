@@ -43,6 +43,10 @@ export async function convertirAMonedaDeCobro(
  * Cada marca le pone el suyo al mismo nivel interno, así que a un cliente de
  * Aizen-Bot hay que mostrarle el nombre de Aizen-Bot y no el de Verzay. Sin
  * nombre propio, la etiqueta por defecto del nivel.
+ *
+ * NO se filtra por `isActive`: un plan que la marca tiene apagado (no lo vende
+ * ahora mismo) igual conserva su nombre, y una cuenta puede estar en ese nivel.
+ * Exigir activo hacía que el nombre "desapareciera" y saliera el número de nivel.
  */
 export async function etiquetaDePlanParaCuenta(
     plan: Plan,
@@ -51,7 +55,7 @@ export async function etiquetaDePlanParaCuenta(
     try {
         if (resellerUserId) {
             const propio = await db.resellerPlan.findFirst({
-                where: { resellerUserId, plan, isActive: true },
+                where: { resellerUserId, plan },
                 select: { name: true },
                 orderBy: { assistanceType: "asc" },
             });
@@ -59,7 +63,7 @@ export async function etiquetaDePlanParaCuenta(
         }
 
         const dePlataforma = await db.subscriptionPlan.findFirst({
-            where: { plan, isResellerPlan: false, isActive: true },
+            where: { plan, isResellerPlan: false },
             select: { name: true },
             orderBy: { assistanceType: "asc" },
         });
@@ -90,14 +94,16 @@ export async function etiquetasDePlanesParaMarca(
         // Una marca o la otra, nunca las dos mezcladas: rellenar los huecos de un
         // reseller con los nombres de la plataforma sería ponerle en el
         // desplegable el nombre comercial de otra marca.
+        // Sin filtro de `isActive`: el nombre de un nivel vale aunque la marca lo
+        // tenga apagado; se puede asignar ese nivel a un cliente igual.
         const filas = resellerUserId
             ? await db.resellerPlan.findMany({
-                where: { resellerUserId, isActive: true },
+                where: { resellerUserId },
                 select: { plan: true, name: true },
                 orderBy: { assistanceType: "asc" },
             })
             : await db.subscriptionPlan.findMany({
-                where: { isResellerPlan: false, isActive: true },
+                where: { isResellerPlan: false },
                 select: { plan: true, name: true },
                 orderBy: { assistanceType: "asc" },
             });
