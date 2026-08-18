@@ -771,6 +771,9 @@ model User {
   sheetsUrl                          String?                      @map("sheets_url")
   sheetsFormName                     String?                      @map("sheets_form_name")
   sheetsRegistroName                 String?                      @map("sheets_registro_name")
+  // Opt-in de sincronización automática a Google Sheets: cada lead nuevo o
+  // modificado se vuelca solo. La columna la crea el backend.
+  sheetsAutoSyncEnabled              Boolean                      @default(false) @map("sheets_auto_sync_enabled")
   googleCalendarId                   String?                      @map("google_calendar_id")
   googleCalendarSyncEnabled          Boolean                      @default(false) @map("google_calendar_sync_enabled")
   ownerId                            String?                      @map("owner_id")

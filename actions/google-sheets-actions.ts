@@ -364,23 +364,50 @@ export async function syncAllContactsToGoogleSheets(
 }
 
 /* ── Sincronización automática (opt-in) ───────────────────────
- * NOTA: la preferencia persistente requiere una columna dedicada en la BD
- * (una migración aplicada por el backend). Hasta que exista, esta preferencia
- * NO se persiste para no romper consultas del usuario. La sincronización manual
- * (botón masivo) sigue funcionando normalmente.
+ * El opt-in se guarda por cuenta en User.sheetsAutoSyncEnabled. Cuando está
+ * activo, autoSyncContactIfEnabled vuelca cada lead nuevo o modificado; el botón
+ * masivo sigue disponible igual.
  */
-export async function getSheetsAutoSyncEnabled(_userId: string): Promise<boolean> {
-  return false;
+export async function getSheetsAutoSyncEnabled(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { sheetsAutoSyncEnabled: true },
+    });
+    return user?.sheetsAutoSyncEnabled ?? false;
+  } catch {
+    return false;
+  }
 }
 
 export async function setSheetsAutoSyncEnabled(
-  _userId: string,
-  _enabled: boolean,
+  userId: string,
+  enabled: boolean,
 ): Promise<{ success: boolean; message?: string }> {
-  return {
-    success: false,
-    message: 'La sincronización automática estará disponible en breve. Por ahora usa “Sincronizar a Google Sheets”.',
-  };
+  if (!userId) return { success: false, message: 'Cuenta no válida.' };
+
+  // Activar sin una hoja conectada dejaría el interruptor encendido sin efecto.
+  if (enabled) {
+    const cfg = await getGoogleSheetsConfig(userId);
+    if (!cfg) {
+      return {
+        success: false,
+        message: 'Primero conecta una hoja de Google Sheets.',
+      };
+    }
+  }
+
+  try {
+    await db.user.update({
+      where: { id: userId },
+      data: { sheetsAutoSyncEnabled: enabled },
+    });
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, message: `No se pudo guardar: ${msg}` };
+  }
 }
 
 /**
