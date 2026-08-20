@@ -101,8 +101,7 @@ export const CRM_LEAD_STATUS_PROMPT_DEFAULTS: CrmLeadStatusPromptConfig = {
     "Responde SOLO con JSON válido, sin markdown y sin texto adicional.",
   useOnlySummary: true,
   definitions: {
-    FRIO: `Interés bajo o exploratorio, sin urgencia ni siguiente paso claro.
-El Usuario envia el siguiente mensaje. > Hola, me interesa el *Agente IA* para mejorar la atención y ventas de mi negocio`,
+    FRIO: "Interés bajo o exploratorio, sin urgencia ni siguiente paso claro.",
     TIBIO:
       "Interés real, pero aún faltan dudas, comparación, presupuesto o decisión.",
     CALIENTE:
