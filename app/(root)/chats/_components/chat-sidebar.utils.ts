@@ -224,6 +224,29 @@ export function lastTextFrom(chat: ChatData): {
         text = cuerpo ? `📋 ${cuerpo}` : "📋 Plantilla";
         break;
       }
+      // Los mensajes con botones o lista salían como "[interactiveMessage]".
+      // En una línea cabe el arranque del texto, que es lo que permite saber de
+      // qué iba sin abrir el chat.
+      case "interactiveMessage":
+      case "buttonsMessage":
+      case "listMessage":
+      case "buttonsResponseMessage":
+      case "listResponseMessage": {
+        const m = msg as Record<string, any>;
+        const cuerpo = String(
+          m?.interactiveMessage?.body?.text ??
+          m?.interactiveMessage?.header?.title ??
+          m?.buttonsMessage?.contentText ??
+          m?.buttonsMessage?.headerText ??
+          m?.listMessage?.description ??
+          m?.listMessage?.title ??
+          m?.buttonsResponseMessage?.selectedDisplayText ??
+          m?.listResponseMessage?.title ??
+          "",
+        ).trim();
+        text = cuerpo ? `🔘 ${cuerpo}` : "🔘 Mensaje con botones";
+        break;
+      }
       // Las llamadas del CRM ("Llamada realizada", "Videollamada realizada",
       // "Llamada con IA realizada") salían sin icono, como si fueran texto
       // suelto, mientras una nota de voz o una imagen sí lo llevaban.
