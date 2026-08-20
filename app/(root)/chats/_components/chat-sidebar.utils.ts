@@ -215,13 +215,33 @@ export function lastTextFrom(chat: ChatData): {
       // reconocer cuál se mandó sin abrir el chat.
       case "templateMessage":
       case "template": {
-        const plantilla = (msg as Record<string, any>)?.templateMessage ?? {};
-        const hidratada =
-          plantilla?.hydratedTemplate ?? plantilla?.hydratedFourRowTemplate ?? {};
-        const cuerpo = String(
-          hidratada?.hydratedContentText ?? hidratada?.hydratedTitleText ?? msg?.conversation ?? "",
-        ).trim();
+        // El texto de la plantilla vive a distinta profundidad segun por donde
+        // entre el mensaje, asi que se busca por nombre en vez de por ruta fija.
+        const buscar = (obj: any, nombres: string[], nivel = 0): string => {
+          if (!obj || typeof obj !== "object" || nivel > 6) return "";
+          for (const n of nombres) {
+            const v = obj[n];
+            if (typeof v === "string" && v.trim()) return v.trim();
+          }
+          for (const v of Object.values(obj)) {
+            if (v && typeof v === "object") {
+              const hallado = buscar(v, nombres, nivel + 1);
+              if (hallado) return hallado;
+            }
+          }
+          return "";
+        };
+        const plantilla = (msg as Record<string, any>)?.templateMessage ?? msg ?? {};
+        const cuerpo =
+          buscar(plantilla, ["hydratedContentText", "hydratedTitleText", "hydratedContent"]) ||
+          String(msg?.conversation ?? "").trim();
         text = cuerpo ? `📋 ${cuerpo}` : "📋 Plantilla";
+        break;
+      }
+      case "templateButtonReplyMessage": {
+        const r = (msg as Record<string, any>)?.templateButtonReplyMessage ?? {};
+        const elegido = String(r?.selectedDisplayText ?? r?.selectedId ?? "").trim();
+        text = elegido ? `↩️ ${elegido}` : "↩️ Respuesta";
         break;
       }
       // Los mensajes con botones o lista salían como "[interactiveMessage]".
