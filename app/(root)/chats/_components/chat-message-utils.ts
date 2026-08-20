@@ -185,6 +185,99 @@ function formatTemplateMessage(messageData: Record<string, any>): string {
   return nombre ? `📋 Plantilla: ${nombre}` : '📋 Plantilla enviada';
 }
 
+/**
+ * Mensajes con botones o lista (los "interactivos" de WhatsApp) y las
+ * respuestas del cliente a ellos.
+ *
+ * Salían como "[Mensaje interactiveMessage]": el asesor abría el chat y no veía
+ * ni qué se preguntó ni qué opciones se ofrecieron. Se arma el texto real
+ * (encabezado + cuerpo + pie) y se listan las opciones, que es lo que permite
+ * entender la conversación sin abrir WhatsApp aparte.
+ */
+function formatInteractiveMessage(messageData: Record<string, any>): string {
+  const limpiar = (t: unknown) => String(t ?? '').trim();
+
+  // Etiquetas de los botones del formato nuevo (nativeFlowMessage). Cada botón
+  // trae sus datos como JSON dentro de un string, con el nombre del campo
+  // cambiando según el tipo (respuesta rápida, enlace, llamada...).
+  const etiquetasDeFlujo = (flujo: any): string[] => {
+    const botones = Array.isArray(flujo?.buttons) ? flujo.buttons : [];
+    return botones
+      .map((b: any) => {
+        let params: Record<string, any> = {};
+        try {
+          params = typeof b?.buttonParamsJson === 'string' ? JSON.parse(b.buttonParamsJson) : (b?.buttonParamsJson ?? {});
+        } catch {
+          params = {};
+        }
+        const directa = limpiar(params.display_text || params.title || params.text);
+        if (directa) return directa;
+        // Listas: las opciones viven dentro de secciones.
+        const secciones = Array.isArray(params.sections) ? params.sections : [];
+        const filas = secciones.flatMap((sec: any) => (Array.isArray(sec?.rows) ? sec.rows : []));
+        const titulos = filas.map((f: any) => limpiar(f?.title)).filter(Boolean);
+        return titulos.join(' · ');
+      })
+      .filter(Boolean);
+  };
+
+  const tipo = messageData?.interactiveMessage
+    ? 'interactive'
+    : messageData?.buttonsMessage
+      ? 'buttons'
+      : messageData?.listMessage
+        ? 'list'
+        : messageData?.buttonsResponseMessage
+          ? 'buttonsResponse'
+          : messageData?.listResponseMessage
+            ? 'listResponse'
+            : 'desconocido';
+
+  // Respuestas del cliente: lo que eligió.
+  if (tipo === 'buttonsResponse') {
+    const r = messageData.buttonsResponseMessage;
+    return limpiar(r?.selectedDisplayText) || 'Opción seleccionada';
+  }
+  if (tipo === 'listResponse') {
+    const r = messageData.listResponseMessage;
+    return limpiar(r?.title) || limpiar(r?.description) || 'Opción seleccionada';
+  }
+
+  let partes: string[] = [];
+  let opciones: string[] = [];
+
+  if (tipo === 'interactive') {
+    const i = messageData.interactiveMessage;
+    partes = [i?.header?.title, i?.header?.subtitle, i?.body?.text, i?.footer?.text];
+    opciones = etiquetasDeFlujo(i?.nativeFlowMessage);
+    // Carrusel: cada tarjeta aporta su propio cuerpo y sus botones.
+    const tarjetas = Array.isArray(i?.carouselMessage?.cards) ? i.carouselMessage.cards : [];
+    for (const tarjeta of tarjetas) {
+      partes.push(tarjeta?.body?.text);
+      opciones.push(...etiquetasDeFlujo(tarjeta?.nativeFlowMessage));
+    }
+  } else if (tipo === 'buttons') {
+    const b = messageData.buttonsMessage;
+    partes = [b?.headerText ?? b?.text, b?.contentText, b?.footerText];
+    const botones = Array.isArray(b?.buttons) ? b.buttons : [];
+    opciones = botones.map((x: any) => limpiar(x?.buttonText?.displayText)).filter(Boolean);
+  } else if (tipo === 'list') {
+    const l = messageData.listMessage;
+    partes = [l?.title, l?.description, l?.footerText];
+    const secciones = Array.isArray(l?.sections) ? l.sections : [];
+    const filas = secciones.flatMap((sec: any) => (Array.isArray(sec?.rows) ? sec.rows : []));
+    opciones = filas.map((f: any) => limpiar(f?.title)).filter(Boolean);
+  }
+
+  const texto = partes.map(limpiar).filter(Boolean).join('\n\n');
+  const listaOpciones = opciones.map(limpiar).filter(Boolean);
+
+  if (texto && listaOpciones.length) return `${texto}\n\n🔘 ${listaOpciones.join(' · ')}`;
+  if (texto) return texto;
+  if (listaOpciones.length) return `🔘 ${listaOpciones.join(' · ')}`;
+  return '🔘 Mensaje con botones';
+}
+
 function formatContactMessage(messageData: Record<string, any>): string {
   const contactos: Array<{ displayName?: string; vcard?: string }> =
     messageData?.contactsArrayMessage?.contacts ??
@@ -345,6 +438,13 @@ export function toUIMessages(
         break;
       case 'interactiveResponseMessage':
         content = getInteractiveResponseText(messageData as Record<string, any>, isUser);
+        break;
+      case 'interactiveMessage':
+      case 'buttonsMessage':
+      case 'listMessage':
+      case 'buttonsResponseMessage':
+      case 'listResponseMessage':
+        content = formatInteractiveMessage(messageData as Record<string, any>);
         break;
       // Tarjetas de contacto. Salían como "[Mensaje contactMessage]", que no dice
       // ni quién es ni su teléfono: para usarlo había que abrir WhatsApp aparte.
