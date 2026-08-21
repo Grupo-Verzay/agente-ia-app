@@ -36,6 +36,12 @@ const USER_SELECT = {
     advisorRole: true,
     preferredCurrencyCode: true,
     trialEndsAt: true,
+    // El layout los necesita en CADA navegación (tema de la interfaz y con qué
+    // marca se nombra el nivel del plan). Venían de dos consultas extra a la
+    // MISMA fila que ya se lee aquí; traerlos de una quita esas dos idas y
+    // vueltas de todas las páginas.
+    theme: true,
+    demoResellerId: true,
 } satisfies Prisma.UserSelect;
 
 type DbUser = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;
