@@ -7,6 +7,7 @@ import { Prisma, type WorkflowNode } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildChatHistorySessionId } from "@/lib/chat-history/build-session-id";
+import { pausarIaPorIntervencionHumana } from "@/lib/human-takeover";
 import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import {
@@ -668,6 +669,13 @@ export async function sendManualChatPayloadAction(
 
   const user = await currentUser();
   const storageUserId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
+  const effectiveOwnerId = storageUserId ?? user?.ownerId ?? user?.id ?? null;
+
+  // El asesor está interviniendo: la IA se calla antes de que salga el mensaje.
+  // Si el envío falla, la conversación queda en pausa —que es el lado seguro— y
+  // se reactiva con el interruptor.
+  if (user?.id) await pausarIaPorIntervencionHumana(effectiveOwnerId, remoteJid);
+
   const transportRemoteJid = await resolveTransportRemoteJid({
     userId: storageUserId,
     instanceName: context.instanceName,
@@ -704,33 +712,25 @@ export async function sendManualChatPayloadAction(
     historyType: "notification",
   });
 
-  if (result.success && user?.id) {
-    // Si el usuario es asesor, actualiza las sesiones del dueño
-    const effectiveOwnerId = storageUserId ?? user.ownerId ?? user.id;
-
+  // Cierre de la conversación: la frase de despedida del asesor apaga la firma y
+  // cancela los seguimientos pendientes. La pausa de la IA ya quedó hecha arriba.
+  if (result.success && user?.id && effectiveOwnerId) {
     const delPhrase = (user?.delSeguimiento as string | null | undefined)?.trim();
     const isClosing = Boolean(originalText !== null && delPhrase && originalText === delPhrase);
 
-    const sessionData = {
-      status: false,
-      ...(isClosing ? { signatureEnabled: false } : {}),
-    };
-
-    const ops: Promise<any>[] = [
-      db.session.updateMany({ where: { userId: effectiveOwnerId, remoteJid }, data: sessionData }),
-    ];
-
     if (isClosing) {
-      ops.push(
+      await Promise.all([
+        db.session.updateMany({
+          where: { userId: effectiveOwnerId, remoteJid },
+          data: { signatureEnabled: false },
+        }),
         db.crmFollowUp.updateMany({
           where: { userId: effectiveOwnerId, remoteJid, status: { in: ["PENDING", "PROCESSING"] } },
           data: { status: "CANCELLED", cancelledAt: new Date() },
         }),
         db.seguimiento.deleteMany({ where: { remoteJid } }),
-      );
+      ]);
     }
-
-    await Promise.all(ops);
   }
 
   return result;
