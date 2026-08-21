@@ -151,8 +151,6 @@ export default async function RootGroupLayout({
         allModulesRes,
         navPrefs,
         userIntegrationsResult,
-        panelModule,
-        resellerModule,
         planLabelSidebar,
         userModuleRecords,
     ] = await Promise.all([
@@ -173,16 +171,6 @@ export default async function RootGroupLayout({
             }
         })(),
         getUserIntegrations(),
-        db.module.findFirst({
-            where: { route: { in: ["/panel", "/admin"] } },
-            include: { moduleItems: { orderBy: { createdAt: "asc" } } },
-        }),
-        user.role === 'reseller'
-            ? db.module.findFirst({
-                where: { route: "/reseller-panel" },
-                include: { moduleItems: { orderBy: { createdAt: "asc" } } },
-            })
-            : Promise.resolve(null),
         // Cómo llama SU marca al nivel de plan de la cuenta. Si la cuenta ES un
         // reseller se resuelve con SUS propios planes; si es cliente de un
         // reseller, con los de ese reseller; si es directa, con los de la
@@ -216,6 +204,27 @@ export default async function RootGroupLayout({
     const allModules = allModulesRes.data ?? [];
 
     if (allModules.length === 0) return <AppSkeleton />;
+
+    // El módulo del panel y el del reseller ya vienen en `allModules`: antes se
+    // pedían con dos consultas aparte que devolvían justo lo mismo. Los items se
+    // ordenan igual que allí (por fecha de creación).
+    const porFechaDeCreacion = <T extends { moduleItems?: { createdAt: Date }[] }>(m: T | undefined) =>
+        m
+            ? {
+                ...m,
+                moduleItems: [...(m.moduleItems ?? [])].sort(
+                    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+                ),
+            }
+            : null;
+
+    const panelModule = porFechaDeCreacion(
+        allModules.find((m) => m.route === "/panel" || m.route === "/admin"),
+    );
+    const resellerModule =
+        user.role === 'reseller'
+            ? porFechaDeCreacion(allModules.find((m) => m.route === "/reseller-panel"))
+            : null;
 
     let modules = allModules;
     if (!isAdmin(user?.role)) {

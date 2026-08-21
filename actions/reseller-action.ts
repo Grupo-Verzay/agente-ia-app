@@ -82,7 +82,16 @@ export const getResellerProfileForUser = async (
     userId: string
 ): Promise<ResellerInfoResponse> => {
     try {
-        const user = await db.user.findUnique({ where: { id: userId } })
+        // Solo las columnas que se usan abajo: antes traía la fila entera del
+        // usuario (~80 columnas) para leer doce, en cada navegación.
+        const user = await db.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true, role: true, name: true, email: true, image: true,
+                faviconUrl: true, brandName: true, theme: true, company: true,
+                notificationNumber: true, mapsUrl: true, lat: true, lng: true,
+            },
+        })
 
         if (!user) {
             return {
