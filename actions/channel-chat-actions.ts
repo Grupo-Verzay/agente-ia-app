@@ -14,6 +14,7 @@ import type {
   SendMessageResult,
 } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
+import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
 
 type ChannelOutgoingPayload = { kind: string; text?: string; [key: string]: unknown };
 
@@ -123,6 +124,12 @@ export async function sendChannelTextAction(
   payload: ChannelOutgoingPayload,
 ): Promise<SendMessageResult> {
   try {
+    // El asesor interviene: la IA se calla antes de que salga el mensaje, no
+    // después. Un audio o una imagen tardan segundos en subir y la IA alcanzaba
+    // a contestar encima.
+    const dueno = await resolveInstanceOwner(instanceName);
+    await pausarIaPorIntervencionHumana(dueno?.userId, remoteJid);
+
     if (payload.kind === 'media') {
       const res = await fetch(
         `${backendUrl()}/whatsapp/baileys/send-media-channel/${encodeURIComponent(instanceName)}`,
@@ -146,7 +153,7 @@ export async function sendChannelTextAction(
         return { success: false, message: typeof reason === 'string' && reason ? reason : `Error ${res.status} al enviar.`, remoteJid };
       }
       const publicUrl = await res.json().then((j) => j?.mediaUrl).catch(() => null);
-      const owner = await resolveInstanceOwner(instanceName);
+      const owner = dueno;
       if (owner?.userId) {
         await persistChatMessage({
           userId: owner.userId,
@@ -188,7 +195,7 @@ export async function sendChannelTextAction(
       };
     }
 
-    const owner = await resolveInstanceOwner(instanceName);
+    const owner = dueno;
     if (owner?.userId) {
       await persistChatMessage({
         userId: owner.userId,
