@@ -1,5 +1,6 @@
 import { Plan } from "@prisma/client";
 
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 
 /**
@@ -49,6 +50,23 @@ export async function convertirAMonedaDeCobro(
  * Exigir activo hacía que el nombre "desapareciera" y saliera el número de nivel.
  */
 export async function etiquetaDePlanParaCuenta(
+    plan: Plan,
+    resellerUserId: string | null,
+): Promise<string | null> {
+    // El layout la pide en CADA navegación y el nombre de un plan casi nunca
+    // cambia, así que se guarda unos minutos en vez de consultar cada vez. Al
+    // vencer se vuelve a leer solo, sin que nadie tenga que invalidar nada.
+    return etiquetaEnCache(plan, resellerUserId ?? "");
+}
+
+const etiquetaEnCache = unstable_cache(
+    async (plan: Plan, resellerUserId: string): Promise<string | null> =>
+        leerEtiquetaDePlan(plan, resellerUserId || null),
+    ["etiqueta-plan-por-cuenta"],
+    { revalidate: 300 },
+);
+
+async function leerEtiquetaDePlan(
     plan: Plan,
     resellerUserId: string | null,
 ): Promise<string | null> {
