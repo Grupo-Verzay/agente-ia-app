@@ -32,13 +32,25 @@ export function MergeLidDialog({ open, onOpenChange, lidJid, instanceName }: Mer
 
   // Cargar / filtrar contactos de la misma línea al abrir y al escribir.
   useEffect(() => {
-    if (!open || !instanceName) return;
+    if (!open) return;
+    // Sin línea no hay a quién buscar. Antes se salía por aquí dejando el
+    // "Cargando contactos…" encendido: si la línea aún no estaba resuelta al
+    // abrir, el buscador giraba para siempre y no decía nada.
+    if (!instanceName) {
+      setLoading(false);
+      return;
+    }
     let alive = true;
     setLoading(true);
     const t = setTimeout(async () => {
       try {
         const res = await listMergeCandidates({ instanceName, query });
-        if (alive && res.ok) setItems(res.items);
+        if (!alive) return;
+        if (res.ok) setItems(res.items);
+        // Un fallo del servidor tampoco puede quedarse en silencio.
+        else toast.error(res.error || 'No se pudieron cargar los contactos.');
+      } catch {
+        if (alive) toast.error('No se pudieron cargar los contactos.');
       } finally {
         if (alive) setLoading(false);
       }
@@ -53,6 +65,7 @@ export function MergeLidDialog({ open, onOpenChange, lidJid, instanceName }: Mer
     if (!open) {
       setQuery('');
       setItems([]);
+      setLoading(false);
     }
   }, [open]);
 
@@ -106,7 +119,11 @@ export function MergeLidDialog({ open, onOpenChange, lidJid, instanceName }: Mer
               </div>
             ) : items.length === 0 && !manualNumberOption ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
-                {query ? 'Sin resultados. Escribe el número completo.' : 'No hay contactos en esta línea.'}
+                {!instanceName
+                  ? 'No se pudo identificar la línea de este chat. Cierra y vuelve a abrir el chat.'
+                  : query
+                    ? 'Sin resultados. Escribe el número completo.'
+                    : 'No hay contactos en esta línea.'}
               </div>
             ) : (
               <ul className="divide-y divide-border">
