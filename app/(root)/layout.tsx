@@ -153,6 +153,8 @@ export default async function RootGroupLayout({
         userIntegrationsResult,
         panelModule,
         resellerModule,
+        planLabelSidebar,
+        userModuleRecords,
     ] = await Promise.all([
         getResellerProfileForUser(user.id),
         getSiteConfig(),
@@ -181,43 +183,34 @@ export default async function RootGroupLayout({
                 include: { moduleItems: { orderBy: { createdAt: "asc" } } },
             })
             : Promise.resolve(null),
+        // Cómo llama SU marca al nivel de plan de la cuenta. Si la cuenta ES un
+        // reseller se resuelve con SUS propios planes; si es cliente de un
+        // reseller, con los de ese reseller; si es directa, con los de la
+        // plataforma. Los datos que decidían eso venían de una consulta aparte
+        // a la misma fila del usuario: ahora llegan con `user`.
+        etiquetaDePlanParaCuenta(
+            user.plan,
+            user.role === 'reseller' ? user.id : user.demoResellerId ?? null,
+        ).catch(() => null),
+        // Módulos asignados a mano. Solo aplican a cuentas que no son admin ni
+        // reseller; para las demás no se pide nada.
+        (!isAdmin(user.role) && user.role !== 'reseller')
+            ? db.userModule.findMany({ where: { B: user.id }, select: { A: true } })
+            : Promise.resolve([] as { A: string }[]),
     ]);
 
     // Logo abajo: del reseller asignado, o del platform (SiteConfig)
     const resellerImage = onReseller?.data?.image ?? siteConfig.logoUrl ?? null;
     const resellerCompany = onReseller?.data?.company ?? null;
 
-    // Cómo llama SU marca al nivel de plan que tiene la cuenta.
-    //
-    // Al pie de la barra lateral se leía el nombre interno del nivel —"Enterprise"
-    // para el 5, "Agencias" para el 6—, que no es el que vende ninguna marca. El
-    // dueño de una cuenta de nivel 5 leía "Plan Enterprise", buscaba su Enterprise
-    // (que es el 6) y movía clientes de nivel para cuadrarlo. Los nombres internos
-    // no deben salir a pantalla.
-    const cuentaDeLaSesion = await db.user
-        .findUnique({ where: { id: user.id }, select: { demoResellerId: true, role: true } })
-        .catch(() => null);
-    // Con qué marca se resuelve el nombre del nivel: si la cuenta ES un reseller,
-    // con SUS propios planes (el nombre que él le puso al nivel en Mis Planes); si
-    // es cliente de un reseller, con los de ese reseller; si es directa, con los de
-    // la plataforma. Antes un reseller se resolvía como cuenta directa y nunca veía
-    // el nombre que él mismo configuró.
-    const marcaParaEtiqueta =
-        cuentaDeLaSesion?.role === 'reseller'
-            ? user.id
-            : cuentaDeLaSesion?.demoResellerId ?? null;
-    const planLabelSidebar = await etiquetaDePlanParaCuenta(
-        user.plan,
-        marcaParaEtiqueta,
-    ).catch(() => null);
-
     // Tema fresco de DB: del reseller/super_admin, o del propio user
     let initialTheme: ThemeApp = 'Default';
     if (onReseller?.data?.theme) {
         initialTheme = onReseller.data.theme as ThemeApp;
     } else {
-        const freshUser = await db.user.findUnique({ where: { id: user.id }, select: { theme: true } });
-        initialTheme = (freshUser?.theme as ThemeApp) ?? 'Default';
+        // El tema ya viaja en `user` (ver USER_SELECT): antes se volvía a pedir
+        // la misma fila en cada navegación.
+        initialTheme = (user.theme as ThemeApp) ?? 'Default';
     }
 
     const allModules = allModulesRes.data ?? [];
@@ -235,10 +228,6 @@ export default async function RootGroupLayout({
                 return true;
             });
         } else {
-            const userModuleRecords = await db.userModule.findMany({
-                where: { B: user.id },
-                select: { A: true },
-            });
             if (userModuleRecords.length > 0) {
                 const allowedIds = new Set(userModuleRecords.map(r => r.A));
                 modules = allModules.filter(m => allowedIds.has(m.id));
