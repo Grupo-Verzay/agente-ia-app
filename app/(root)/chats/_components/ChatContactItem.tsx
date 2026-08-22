@@ -31,7 +31,7 @@ import { LeadStatusSelect } from "./LeadStatusSelect";
 import { ServiceTypeSelect } from "./ServiceTypeSelect";
 import { ClientStatusSelect } from "./ClientStatusSelect";
 import { cn } from "@/lib/utils";
-import { getIconForMessageType } from "./chat-sidebar.utils";
+import { FECHA_COMPLETA, getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
 import type { LeadStatus, ServiceType, ClientStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
@@ -442,7 +442,11 @@ function ChatContactItemBase({
                   {contact.name || "Sin nombre"}
                 </span>
               </div>
-              <span className="shrink-0 text-xs text-muted-foreground" suppressHydrationWarning>
+              <span
+                className="shrink-0 text-xs text-muted-foreground"
+                suppressHydrationWarning
+                title={contact.ts ? FECHA_COMPLETA.format(new Date(contact.ts)) : undefined}
+              >
                 {contact.timestamp}
               </span>
             </div>
