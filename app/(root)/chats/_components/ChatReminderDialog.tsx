@@ -127,7 +127,7 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
         variant="outline"
         size="sm"
         onClick={handleOpen}
-        className="h-7 gap-1 px-2 border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900"
+        className="h-7 min-w-7 gap-0.5 px-1 border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900"
         title={
           reminderCount === 0
             ? 'Crear recordatorio para este lead'
@@ -141,7 +141,7 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
             overflow-x-auto, que también recorta por arriba, y un badge flotando
             fuera del borde salía cortado. */}
         {reminderCount > 0 && (
-          <span className="text-[10px] font-bold leading-none tabular-nums">
+          <span className="pr-0.5 text-[9px] font-bold leading-none tabular-nums">
             {reminderCount > 99 ? '99+' : reminderCount}
           </span>
         )}
