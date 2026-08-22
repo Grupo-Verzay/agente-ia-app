@@ -22,7 +22,6 @@ import {
     Eye,
     FileSpreadsheet,
     Globe,
-    HardDrive,
     Loader2,
     Lock,
     MapPin,
@@ -69,7 +68,6 @@ import { optimizeFile } from "../../workflow/[workflowId]/helpers";
 import { SafeImage } from "@/components/custom/SafeImage";
 import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox";
 import { Button } from "@/components/ui/button";
-import { UserBackupManager } from "@/components/backup/UserBackupManager";
 import dynamic from "next/dynamic";
 import type { Plan } from "@prisma/client";
 import { PLAN_LABELS } from "@/types/plans";
@@ -408,10 +406,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
     const canSeeApariencia = true; // todos los usuarios pueden personalizar su logo y tema
-    // Respaldo: los clientes no lo usan y exportar/restaurar su cuenta entera es
-    // una operación de soporte, no de uso diario. Queda solo para el dueño de la
-    // plataforma, que además tiene "Backup" en el menú de cada cliente.
-    const canSeeRespaldo = user.role === Role.super_admin;
     // Favicon y Nombre de la marca solo aplican a Super-Admin y Resellers
     // (los usuarios normales heredan el branding de su reseller).
     const canSeeBrandingExtras = user.role === Role.super_admin || isReseller;
@@ -427,7 +421,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
         { value: 'herramientas', label: 'Herramientas', icon: Database },
         { value: 'cuenta', label: 'Cuenta', icon: CreditCard },
         { value: 'seguridad', label: 'Seguridad', icon: ShieldCheck },
-        ...(canSeeRespaldo ? [{ value: 'respaldo', label: 'Respaldo', icon: HardDrive }] : []),
         ...(canSeeApariencia ? [{ value: 'apariencia', label: 'Apariencia', icon: Palette }] : []),
     ];
 
@@ -982,19 +975,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                             </div>
                         </TabPanel>
                     </TabsContent>
-
-                    {/* ── Tab: Respaldo ────────────────────────── */}
-                    {canSeeRespaldo && (
-                        <TabsContent value="respaldo" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
-                            <TabPanel>
-                                <UserBackupManager
-                                    targetUserId={userId}
-                                    subjectLabel={user.company ?? user.name ?? "tu cuenta"}
-                                    twoColumns
-                                />
-                            </TabPanel>
-                        </TabsContent>
-                    )}
 
                     {/* ── Tab: Herramientas ────────────────────── */}
                     <TabsContent value="herramientas" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
