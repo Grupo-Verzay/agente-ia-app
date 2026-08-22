@@ -80,13 +80,11 @@ export function ActivationChecklist() {
 
   useEffect(() => {
     void load();
-    // Al volver de /connection o del asistente, refresca el estado.
+    // Al volver de /connection o del editor del agente, refresca el estado.
     const onFocus = () => void load();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [load]);
-
-  const openWizard = () => window.dispatchEvent(new Event("agent-onboarding:open"));
 
   // Loading skeleton (breve).
   if (loading) {
@@ -161,9 +159,9 @@ export function ActivationChecklist() {
           title="Configura tu agente"
           desc="Negocio y objetivo (qué debe hacer)."
           action={
-            <button type="button" onClick={openWizard} className={primaryBtn}>
+            <Link href="/ai" className={primaryBtn}>
               Configurar
-            </button>
+            </Link>
           }
         />
         <Row

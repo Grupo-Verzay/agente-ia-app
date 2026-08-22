@@ -18,7 +18,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Layers, Mic, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Mic, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
@@ -119,7 +119,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [signatureName, setSignatureName] = useState<string>(_initialSignatureName);
     const [firmaEnabled, setFirmaEnabled] = useState<boolean>(_initialSignatureName.trim().length > 0);
     const [promptVersion, setPromptVersion] = useState<number>(promptMeta.version);
-    const [emptyStateDismissed, setEmptyStateDismissed] = useState(false);
     const [applyingChip, setApplyingChip] = useState<string | null>(null);
     const [, startChipTransition] = useTransition();
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -195,12 +194,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         return () => obs.disconnect();
     }, []);
 
-    const isEmpty =
-        !emptyStateDismissed &&
-        (sections?.training?.steps ?? []).length === 0 &&
-        (sections?.faq?.steps ?? []).length === 0 &&
-        (sections?.products?.steps ?? []).length === 0 &&
-        (sections?.management?.steps ?? []).length === 0;
     const saveHandlersRef = useRef<Record<string, () => Promise<void>>>({});
 
     const registerSaveHandler = useCallback((key: string, handler: () => Promise<void>) => {
@@ -475,10 +468,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-48" align="end">
                                     <DropdownMenuGroup>
-                                        <DropdownMenuItem onSelect={() => window.dispatchEvent(new Event("agent-onboarding:open"))}>
-                                            <Layers className="mr-2 h-4 w-4" />
-                                            Configurar con asistente
-                                        </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
                                             <BarChart2 className="mr-2 h-4 w-4" />
                                             Métricas del agente
@@ -512,24 +501,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
                 <div className="flex flex-row w-full gap-2 flex-1 min-h-0">
                     <div className="flex flex-1 flex-col min-h-0 overflow-y-auto pr-1">
-
-                        {/* Empty state: ofrecer plantilla cuando el agente no tiene contenido */}
-                        {isEmpty && (
-                            <div className="mb-3 flex items-center gap-4 flex-nowrap rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-violet-500/10 px-5 py-4 shadow-sm">
-                                <span className="text-3xl shrink-0">🤖</span>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-base font-bold leading-tight">¡Configura tu Agente IA! ✨</p>
-                                    <p className="mt-0.5 text-xs text-muted-foreground">Te guiamos paso a paso — en minutos queda listo para responder.</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => window.dispatchEvent(new Event("agent-onboarding:open"))}
-                                    className="shrink-0 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition hover:brightness-110"
-                                >
-                                    ✦ Usar asistente
-                                </button>
-                            </div>
-                        )}
 
                         <TabsContent value="business" className="m-0">
                             <BusinessPromptBuilder
