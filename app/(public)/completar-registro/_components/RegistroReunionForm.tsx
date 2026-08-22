@@ -277,15 +277,10 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
     }
 
     // La cuenta se creó y la sesión ya quedó iniciada (signIn en el server
-    // action). Entramos directo a la app con la señal `alta_agente=1` para abrir
-    // SIEMPRE el asistente "Da de alta tu Agente IA" (sin depender del auto-abrir,
-    // que en algunos flujos —p. ej. cuentas demo de reseller— no aparecía).
+    // action). Se entra directo a la app; quien vino con un plan ve allí el botón
+    // de pagar, porque su cuenta queda pendiente de pago.
     // Navegación dura para que la petición lleve la cookie de sesión recién creada.
-    //
-    // Quien vino con un plan no entra al asistente: su cuenta está pendiente de
-    // pago y lo que le toca ver es el botón de pagar. Configurar el agente antes
-    // de tenerlo activo sería trabajo que quizá no llegue a usar.
-    window.location.href = planSlug ? "/profile" : "/profile?alta_agente=1";
+    window.location.href = "/profile";
   };
 
   if (successData) {
