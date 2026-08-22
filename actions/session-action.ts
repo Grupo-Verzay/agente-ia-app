@@ -507,18 +507,29 @@ export async function getChatContactSessions(
 
     // Recordatorios pendientes, en UNA sola consulta para toda la bandeja: con
     // una por chat esto costaría cientos de viajes a la base en cada carga.
-    // Las campañas quedan fuera porque su remoteJid es una lista de números.
-    const recordatoriosRaw = allRemoteJids.length
-      ? await db.reminders.groupBy({
-          by: ['remoteJid'],
-          where: { remoteJid: { in: allRemoteJids }, isCampaign: false },
-          _count: { _all: true },
-        })
-      : [];
-
+    //
+    // Va en su propio try: es un contador accesorio, y sin él esta función caía
+    // entera al catch de abajo y devolvía "sin sesiones" — con lo que la bandeja
+    // se quedaba sin NINGÚN badge (clasificación, asesor, seguimientos, citas…),
+    // no solo sin el de recordatorios.
+    //
+    // Las campañas quedan fuera porque su remoteJid es una lista de números, no
+    // un contacto. Se comparan con `not: true` para no perder las filas antiguas
+    // en las que la columna quedó nula.
     const recordatoriosMap = new Map<string, number>();
-    for (const fila of recordatoriosRaw) {
-      if (fila.remoteJid) recordatoriosMap.set(fila.remoteJid, fila._count._all);
+    try {
+      if (allRemoteJids.length) {
+        const recordatoriosRaw = await db.reminders.groupBy({
+          by: ['remoteJid'],
+          where: { remoteJid: { in: allRemoteJids }, isCampaign: { not: true } },
+          _count: { _all: true },
+        });
+        for (const fila of recordatoriosRaw) {
+          if (fila.remoteJid) recordatoriosMap.set(fila.remoteJid, fila._count._all);
+        }
+      }
+    } catch (error) {
+      console.error('No se pudieron contar los recordatorios de la bandeja:', error);
     }
 
     const data: ChatContactSessionMap = {};
