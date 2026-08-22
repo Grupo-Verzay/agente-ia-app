@@ -126,6 +126,7 @@ function mapChatContactSessionSummary(
   pendingSeguimientos?: number,
   seguimientosTipos?: { tipo: string; count: number }[],
   latestAppointmentStatus?: AppointmentStatus | null,
+  reminderCount?: number,
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
 
@@ -144,6 +145,7 @@ function mapChatContactSessionSummary(
     pendingSeguimientos: pendingSeguimientos ?? 0,
     seguimientosTipos: seguimientosTipos ?? [],
     latestAppointmentStatus: latestAppointmentStatus ?? null,
+    reminderCount: reminderCount ?? 0,
     assignedAdvisorId: session.assignedAdvisorId ?? null,
     status: mappedSession.status,
     agentDisabled: mappedSession.agentDisabled,
@@ -503,6 +505,22 @@ export async function getChatContactSessions(
       }
     }
 
+    // Recordatorios pendientes, en UNA sola consulta para toda la bandeja: con
+    // una por chat esto costaría cientos de viajes a la base en cada carga.
+    // Las campañas quedan fuera porque su remoteJid es una lista de números.
+    const recordatoriosRaw = allRemoteJids.length
+      ? await db.reminders.groupBy({
+          by: ['remoteJid'],
+          where: { remoteJid: { in: allRemoteJids }, isCampaign: false },
+          _count: { _all: true },
+        })
+      : [];
+
+    const recordatoriosMap = new Map<string, number>();
+    for (const fila of recordatoriosRaw) {
+      if (fila.remoteJid) recordatoriosMap.set(fila.remoteJid, fila._count._all);
+    }
+
     const data: ChatContactSessionMap = {};
 
     for (const chat of chatsWithCandidates) {
@@ -550,6 +568,7 @@ export async function getChatContactSessions(
         seg?.count ?? 0,
         Object.entries(seg?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
         appointmentStatusMap.get(preferredSession.id) ?? null,
+        recordatoriosMap.get(preferredSession.remoteJid) ?? 0,
       );
     }
 
