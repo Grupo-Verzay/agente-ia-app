@@ -9,6 +9,7 @@ import { SafeImage } from '@/components/custom/SafeImage';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
 import { MessageContextMenu } from './MessageContextMenu';
 import { CallDialog } from './CallDialog';
+import { fmtPhone } from '@/lib/whatsapp-jid';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
 
 /* ─── ExpandableText ─── */
@@ -69,6 +70,9 @@ interface MessageBubbleProps {
   /** El cliente eliminó este mensaje ("eliminar para todos"); se conserva con badge. */
   clientDeleted?: boolean;
   senderName?: string;
+  /** Autor del mensaje en chats de grupo (vacío en los 1-a-1). */
+  groupSenderName?: string | null;
+  groupSenderPhone?: string | null;
   avatarSrc?: string;
   timestamp?: number;
   media?: MediaData;
@@ -95,6 +99,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   sentByAi,
   clientDeleted,
   senderName,
+  groupSenderName,
+  groupSenderPhone,
   avatarSrc,
   timestamp,
   media,
@@ -116,6 +122,33 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   // Sin avatar por mensaje (como WhatsApp en chats 1-a-1): burbujas limpias y
   // más espacio. El avatar del contacto ya se ve en la cabecera del chat.
   const showAvatar = false;
+
+  // Cada integrante del grupo, siempre del mismo color, para seguir quién habla
+  // sin leer el nombre. Se elige por su número (o su nombre, si no hay número).
+  const COLORES_AUTOR = [
+    'text-emerald-600 dark:text-emerald-400',
+    'text-blue-600 dark:text-blue-400',
+    'text-violet-600 dark:text-violet-400',
+    'text-rose-600 dark:text-rose-400',
+    'text-amber-600 dark:text-amber-400',
+    'text-cyan-600 dark:text-cyan-400',
+    'text-indigo-600 dark:text-indigo-400',
+    'text-teal-600 dark:text-teal-400',
+  ];
+  const autorEtiqueta = groupSenderName || (groupSenderPhone ? fmtPhone(groupSenderPhone) || `+${groupSenderPhone}` : '');
+  const autorLinea = !isUserMessage && autorEtiqueta ? (() => {
+    const semilla = groupSenderPhone || groupSenderName || '';
+    let h = 0;
+    for (let i = 0; i < semilla.length; i++) h = (h * 31 + semilla.charCodeAt(i)) >>> 0;
+    return (
+      <span
+        className={cn('mb-0.5 block truncate text-[0.7rem] font-semibold leading-tight', COLORES_AUTOR[h % COLORES_AUTOR.length])}
+        title={groupSenderPhone ? `${autorEtiqueta} · +${groupSenderPhone}` : autorEtiqueta}
+      >
+        {autorEtiqueta}
+      </span>
+    );
+  })() : null;
 
   const senderIcon = isUserMessage ? (
     <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-gray-300" title={sentByAi ? 'Enviado por el Agente IA' : 'Enviado por asesor humano'}>
@@ -314,6 +347,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       {isUserMessage && replyBtn}
       {isUserMessage && contextMenu}
       <div className={cn('px-2 pt-2 pb-1.5 break-words relative inline-block max-w-[94%] sm:max-w-[78%] lg:max-w-[72%]', bubbleClass)}>
+        {autorLinea}
         {adPreview && (
           <div className={cn(
             'mb-1.5 rounded-lg overflow-hidden border text-xs',

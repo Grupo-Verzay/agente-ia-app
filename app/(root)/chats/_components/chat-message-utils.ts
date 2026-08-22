@@ -393,6 +393,30 @@ export function normalizeDeliveryState(status?: string): MessageDeliveryState {
   return 'sent';
 }
 
+/**
+ * Quién escribió el mensaje, en los chats de GRUPO.
+ *
+ * En un grupo todos los mensajes entrantes llegan con el JID del grupo en
+ * `remoteJid`, así que la burbuja no decía de cuál de los integrantes era: se
+ * leía la conversación entera sin saber quién hablaba. WhatsApp manda al autor
+ * aparte, en `key.participant`, y su nombre visible en `pushName`.
+ *
+ * El `@lid` es el identificador interno de WhatsApp y no sirve como teléfono; si
+ * el número real viene en `participantAlt`, se usa ese.
+ */
+function autorDeMensajeDeGrupo(m: EvolutionMessage): { name: string | null; phone: string | null } {
+  const jidCrudo = m.key?.participant || m.participant || '';
+  const jidAlterno = m.key?.participantAlt || '';
+  const jid = /@lid$/i.test(jidCrudo) && jidAlterno ? jidAlterno : jidCrudo;
+
+  const digitos = jid.split('@')[0]?.replace(/\D/g, '') ?? '';
+  const phone = /@lid$/i.test(jid) || !digitos ? null : digitos;
+
+  const nombre = (m.pushName ?? '').trim();
+
+  return { name: nombre || null, phone };
+}
+
 /** Convierte EvolutionMessage[] → UIBubble[] inyectando base64 del caché si existe */
 export function toUIMessages(
   messages: EvolutionMessage[],
@@ -406,6 +430,8 @@ export function toUIMessages(
   const bubbles = messages.map((m): UIBubble | null => {
     const isUser = m.key?.fromMe === true;
     const sender: 'user' | 'other' = isUser ? 'user' : 'other';
+    const esGrupo = /@g\.us$/i.test(m.key?.remoteJid ?? '');
+    const autor = !isUser && esGrupo ? autorDeMensajeDeGrupo(m) : null;
     const ts = m.messageTimestamp;
     let content = '';
     let media: MediaData | null = null;
@@ -579,6 +605,9 @@ export function toUIMessages(
       kind,
       call,
       adPreview,
+      ...(autor && (autor.name || autor.phone)
+        ? { groupSenderName: autor.name, groupSenderPhone: autor.phone }
+        : {}),
       // Marca persistida por el backend (respuesta del agente / nodo de flujo).
       // El emparejamiento por texto de chat-main puede sumar más, pero nunca la quita.
       ...((m as any).sentByAi === true ? { sentByAi: true } : {}),
