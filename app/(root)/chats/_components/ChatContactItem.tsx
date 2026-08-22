@@ -174,9 +174,24 @@ function ChatContactItemBase({
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
       />
     );
-    // 2. Recordatorios programados. Va arriba a propósito: es un aviso de "algo
-    //    pendiente con este cliente" y con 6 badges visibles, más abajo se caía
-    //    de la fila en las cuentas que usan validación de cliente.
+    // 2. Asesor asignado (Sin asignar / iniciales)
+    if (advisors && advisors.length > 0) {
+      badgeItems.push(
+        <AdvisorAssignBadge
+          key="advisor"
+          assignedAdvisorId={contact.chatSession.assignedAdvisorId ?? null}
+          advisors={advisors}
+          advisorRole={advisorRole}
+          currentAdvisorId={currentAdvisorId}
+          sessionId={contact.chatSession.id}
+          onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
+          size="sm"
+        />
+      );
+    }
+    // 3. Recordatorios programados. Va justo detrás del asesor: la fila muestra
+    //    6 badges y más abajo se caía de pantalla en las cuentas que usan
+    //    validación de cliente.
     const recordatorios = contact.chatSession.reminderCount ?? 0;
     if (recordatorios > 0) {
       badgeItems.push(
@@ -198,21 +213,6 @@ function ChatContactItemBase({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-      );
-    }
-    // 3. Asesor asignado (Sin asignar / iniciales)
-    if (advisors && advisors.length > 0) {
-      badgeItems.push(
-        <AdvisorAssignBadge
-          key="advisor"
-          assignedAdvisorId={contact.chatSession.assignedAdvisorId ?? null}
-          advisors={advisors}
-          advisorRole={advisorRole}
-          currentAdvisorId={currentAdvisorId}
-          sessionId={contact.chatSession.id}
-          onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
-          size="sm"
-        />
       );
     }
     if (clientValidationEnabled) {
