@@ -17,7 +17,7 @@ export function epochToMs(epoch?: number): number {
   return epoch < 2_000_000_000 ? epoch * 1000 : epoch;
 }
 
-const DIA_DE_LA_SEMANA = new Intl.DateTimeFormat("es", { weekday: "short" });
+const DIA_DE_LA_SEMANA = new Intl.DateTimeFormat("es", { weekday: "long" });
 const FECHA_CORTA = new Intl.DateTimeFormat("es", {
   day: "2-digit",
   month: "2-digit",
@@ -51,7 +51,8 @@ export function formatTimeFromEpoch(epoch?: number): string {
   if (dias <= 0) return CHAT_TIME_FORMATTER.format(fecha);
   if (dias === 1) return "Ayer";
   if (dias < 7) {
-    const dia = DIA_DE_LA_SEMANA.format(fecha).replace(/\.$/, "");
+    // El nombre completo: "Mar" se confundía con el mes de marzo.
+    const dia = DIA_DE_LA_SEMANA.format(fecha);
     return dia.charAt(0).toUpperCase() + dia.slice(1);
   }
   return FECHA_CORTA.format(fecha);
