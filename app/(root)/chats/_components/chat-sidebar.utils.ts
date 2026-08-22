@@ -17,10 +17,44 @@ export function epochToMs(epoch?: number): number {
   return epoch < 2_000_000_000 ? epoch * 1000 : epoch;
 }
 
+const DIA_DE_LA_SEMANA = new Intl.DateTimeFormat("es", { weekday: "short" });
+const FECHA_CORTA = new Intl.DateTimeFormat("es", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "2-digit",
+});
+export const FECHA_COMPLETA = new Intl.DateTimeFormat("es", {
+  dateStyle: "full",
+  timeStyle: "short",
+});
+
+/** Medianoche de ese día, para comparar días y no horas. */
+function inicioDelDia(fecha: Date): number {
+  return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getTime();
+}
+
+/**
+ * La marca de tiempo de la lista de chats.
+ *
+ * Antes siempre era la hora, así que un mensaje de hace tres semanas se leía
+ * "04:55 p. m." y no había forma de saber de cuándo era. Ahora la hora se
+ * reserva para hoy y el resto dice el día, como en WhatsApp: "Ayer", el nombre
+ * del día dentro de la semana, y la fecha en adelante.
+ */
 export function formatTimeFromEpoch(epoch?: number): string {
   const ms = epochToMs(epoch);
   if (!ms) return "";
-  return CHAT_TIME_FORMATTER.format(new Date(ms));
+
+  const fecha = new Date(ms);
+  const dias = Math.round((inicioDelDia(new Date()) - inicioDelDia(fecha)) / 86_400_000);
+
+  if (dias <= 0) return CHAT_TIME_FORMATTER.format(fecha);
+  if (dias === 1) return "Ayer";
+  if (dias < 7) {
+    const dia = DIA_DE_LA_SEMANA.format(fecha).replace(/\.$/, "");
+    return dia.charAt(0).toUpperCase() + dia.slice(1);
+  }
+  return FECHA_CORTA.format(fecha);
 }
 
 const BAD_NAMES = new Set(['você', 'voce', 'desconocido', '.', '']);
