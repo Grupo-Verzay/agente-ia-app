@@ -162,6 +162,8 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           sentByAi={message.sentByAi}
           clientDeleted={message.clientDeleted}
           senderName={message.sender === 'user' ? (message.sentByAi ? 'Agente IA' : advisorName) : undefined}
+          groupSenderName={message.groupSenderName}
+          groupSenderPhone={message.groupSenderPhone}
           avatarSrc={message.avatarSrc}
           timestamp={message.ts}
           media={message.media}

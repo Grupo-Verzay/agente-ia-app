@@ -528,6 +528,9 @@ export type EvolutionMessage = {
     remoteJidAlt?: string;
     senderLid?: string;
     senderPn?: string;
+    /** Quién escribió, en los mensajes de grupo. */
+    participant?: string;
+    participantAlt?: string;
   };
   pushName?: string | null;
   senderPn?: string | null;

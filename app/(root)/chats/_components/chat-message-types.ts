@@ -78,6 +78,12 @@ export type UIBubble = {
     sourceUrl?: string;
     thumbnailUrl?: string;
   };
+  /**
+   * Quién escribió, SOLO en chats de grupo. En un chat 1-a-1 el autor ya está en
+   * la cabecera, así que ahí se deja vacío y la burbuja se ve como siempre.
+   */
+  groupSenderName?: string | null;
+  groupSenderPhone?: string | null;
   sentByAi?: boolean;
   /** El cliente eliminó este mensaje ("eliminar para todos"); se conserva con badge. */
   clientDeleted?: boolean;
