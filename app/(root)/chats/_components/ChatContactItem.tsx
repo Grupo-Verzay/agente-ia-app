@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Archive, CalendarClock, Check, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, Bell, CalendarClock, Check, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -174,7 +174,33 @@ function ChatContactItemBase({
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
       />
     );
-    // 2. Asesor asignado (Sin asignar / iniciales)
+    // 2. Recordatorios programados. Va arriba a propósito: es un aviso de "algo
+    //    pendiente con este cliente" y con 6 badges visibles, más abajo se caía
+    //    de la fila en las cuentas que usan validación de cliente.
+    const recordatorios = contact.chatSession.reminderCount ?? 0;
+    if (recordatorios > 0) {
+      badgeItems.push(
+        <TooltipProvider key="reminders">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1.5 dark:border-amber-700 dark:bg-amber-950">
+                <Bell className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="text-[10px] font-bold leading-none tabular-nums text-amber-700 dark:text-amber-300">
+                  {recordatorios > 99 ? "99+" : recordatorios}
+                </span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+              <p className="text-xs font-semibold">
+                {recordatorios === 1 ? "1 recordatorio" : `${recordatorios} recordatorios`}
+              </p>
+              <p className="text-xs">Programados para este contacto.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+    // 3. Asesor asignado (Sin asignar / iniciales)
     if (advisors && advisors.length > 0) {
       badgeItems.push(
         <AdvisorAssignBadge
@@ -190,7 +216,7 @@ function ChatContactItemBase({
       );
     }
     if (clientValidationEnabled) {
-      // 3. Estado del cliente (Activo / Inactivo)
+      // 4. Estado del cliente (Activo / Inactivo)
       badgeItems.push(
         <ClientStatusSelect
           key="clientStatus"
@@ -199,7 +225,7 @@ function ChatContactItemBase({
           onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue)}
         />
       );
-      // 4. Tipo de asistencia (IA / Humana)
+      // 5. Tipo de asistencia (IA / Humana)
       badgeItems.push(
         <ServiceTypeSelect
           key="serviceType"

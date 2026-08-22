@@ -98,6 +98,9 @@ export type ChatContactSessionSummary = {
   pendingSeguimientos?: number;
   seguimientosTipos?: { tipo: string; count: number }[];
   latestAppointmentStatus?: AppointmentStatus | null;
+  // Recordatorios pendientes de este contacto. Los que ya sonaron se borran (o
+  // avanzan a su próxima fecha si se repiten), así que cada fila es uno vivo.
+  reminderCount?: number;
   assignedAdvisorId?: string | null;
   status?: boolean;
   agentDisabled?: boolean;

@@ -10,7 +10,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ReminderForm } from '@/app/(root)/reminders/_components/ReminderForm';
-import { getReminderFormDeps } from '@/actions/reminders-actions';
+import { getReminderFormDeps, getRemindersByRemoteJid } from '@/actions/reminders-actions';
+import { readBadgeCount, writeBadgeCount } from './chat-badge-cache';
 import type { Session, Workflow } from '@prisma/client';
 
 type FormDeps = {
@@ -57,6 +58,24 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [deps, setDeps] = useState<FormDeps | null>(reminderDepsCache);
+
+  // Cuántos recordatorios tiene programados este contacto. Se pinta sobre la
+  // campanita para poder distinguirlo sin abrir nada. Arranca del último valor
+  // conocido —mismo caché que los demás contadores del header— para que el
+  // número no aparezca un segundo después que el chat.
+  const [reminderCount, setReminderCount] = useState(0);
+
+  const refreshCount = useCallback(async () => {
+    const res = await getRemindersByRemoteJid(userId, session.remoteJid);
+    const total = res.success && res.data ? res.data.length : 0;
+    setReminderCount(total);
+    writeBadgeCount(`rem:${session.id}`, total);
+  }, [userId, session.remoteJid, session.id]);
+
+  useEffect(() => {
+    setReminderCount(readBadgeCount(`rem:${session.id}`));
+    void refreshCount();
+  }, [session.id, refreshCount]);
 
   // Prefetch en 2º plano al montar (al abrir el chat): cachea a nivel de módulo, así
   // la primera vez carga una sola vez y de ahí en más el diálogo abre instantáneo.
@@ -108,10 +127,21 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
         variant="outline"
         size="sm"
         onClick={handleOpen}
-        className="h-7 px-2 border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900"
-        title="Crear recordatorio para este lead"
+        className="relative h-7 px-2 border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900"
+        title={
+          reminderCount === 0
+            ? 'Crear recordatorio para este lead'
+            : reminderCount === 1
+              ? '1 recordatorio programado — clic para crear otro'
+              : `${reminderCount} recordatorios programados — clic para crear otro`
+        }
       >
         <BellPlus className="h-3.5 w-3.5" />
+        {reminderCount > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-600 px-1 text-[9px] font-bold leading-none tabular-nums text-white">
+            {reminderCount > 99 ? '99+' : reminderCount}
+          </span>
+        )}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -134,7 +164,10 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
               leads={deps.leads}
               initialData={initialData}
               forceCreate
-              onSuccess={() => setOpen(false)}
+              onSuccess={() => {
+                setOpen(false);
+                void refreshCount();
+              }}
             />
           )}
         </DialogContent>
