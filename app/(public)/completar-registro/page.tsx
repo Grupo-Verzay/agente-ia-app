@@ -6,6 +6,42 @@ import { getResellerPublicConfig } from '@/actions/reseller-plan-actions';
 import { getSiteConfig } from '@/actions/admin/site-config-actions';
 import { getPublicBrandingBySlug } from '@/actions/public-branding-actions';
 import { getCountryCodes } from '@/actions/get-country-action';
+import { db } from '@/lib/db';
+import { etiquetaDePlanParaCuenta, normalizarPlan, precioDePlanParaCuenta } from '@/lib/plan-pricing';
+import { PLAN_LABELS, PLANS } from '@/types/plans';
+
+/**
+ * Qué plan se está comprando, para enseñarlo antes de que el cliente teclee
+ * nada.
+ *
+ * La página decía solo "Activa tu cuenta": ni el plan ni el precio. En una
+ * reunión eso es un problema para los dos lados —el cliente no ve qué compra y
+ * quien vende no puede confirmar que el enlace es el correcto— y un enlace
+ * equivocado no se notaba hasta después de cobrar.
+ */
+async function planDelEnlace(planSlug: string | undefined, asistencia: string | undefined, resellerSlug: string | undefined) {
+  const plan = normalizarPlan(planSlug);
+  if (!plan) return null;
+
+  const resellerUserId = resellerSlug
+    ? await db.reseller
+        .findFirst({ where: { slug: resellerSlug }, select: { resellerid: true } })
+        .then((fila) => fila?.resellerid ?? null)
+        .catch(() => null)
+    : null;
+
+  const [precio, etiqueta] = await Promise.all([
+    precioDePlanParaCuenta(plan, asistencia, resellerUserId).catch(() => null),
+    etiquetaDePlanParaCuenta(plan, resellerUserId).catch(() => null),
+  ]);
+
+  return {
+    nombre: etiqueta?.trim() || PLAN_LABELS[plan],
+    nivel: PLANS.indexOf(plan) + 1,
+    precio: precio?.price ?? null,
+    moneda: precio?.currency ?? null,
+  };
+}
 
 interface Props {
   searchParams: { r?: string; tipo?: string; plan?: string; a?: string; ref?: string; aff?: string; obj?: string };
@@ -33,6 +69,7 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
     getCountryCodes(),
     getPublicBrandingBySlug(resellerSlug ?? ''),
   ]);
+  const planDeVenta = await planDelEnlace(planSlug, searchParams.a, resellerSlug);
   const resellerSheetsUrl = resellerConfig.sheetsUrl;
   const resellerFormName = resellerConfig.sheetsRegistroName;
   const accent = branding.primaryColor?.trim() || null;
@@ -62,6 +99,25 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
             <p className="mt-2 text-sm text-slate-400">
               Creas tu cuenta y activas el plan con el pago.
             </p>
+          )}
+          {planDeVenta && !isReseller && (
+            <div className="mt-4 inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5">
+              <span className="text-sm font-semibold text-white">Plan {planDeVenta.nombre}</span>
+              <span className="text-xs text-slate-400">Nivel {planDeVenta.nivel}</span>
+              {planDeVenta.precio !== null && (
+                <span
+                  className="text-sm font-semibold tabular-nums text-white"
+                  style={accent ? { color: accent } : undefined}
+                >
+                  {new Intl.NumberFormat('es-CO', {
+                    style: 'currency',
+                    currency: planDeVenta.moneda ?? 'USD',
+                    maximumFractionDigits: 0,
+                  }).format(Number(planDeVenta.precio))}
+                  <span className="text-xs font-normal text-slate-400"> /mes</span>
+                </span>
+              )}
+            </div>
           )}
           {isReseller && (
             <p className="mt-2 max-w-md text-sm text-slate-400">
