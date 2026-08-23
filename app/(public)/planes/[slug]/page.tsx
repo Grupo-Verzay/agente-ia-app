@@ -5,8 +5,8 @@ import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { PlanDetailPage } from "./_components/PlanDetailPage";
 
 const PLAN_LABELS: Record<string, string> = {
-  lite: "Lite", basico: "Básico", intermedio: "Intermedio",
-  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Planes mixtos",
+  lite: "Nivel 1", basico: "Nivel 2", intermedio: "Nivel 3",
+  avanzado: "Nivel 4", enterprise: "Nivel 5", personalizado: "Nivel 6",
 };
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ tipo?: string }> };

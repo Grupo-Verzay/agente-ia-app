@@ -17,8 +17,8 @@ import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions"
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
 const PLAN_LABELS: Record<string, string> = {
-  lite: "Lite", basico: "Básico", intermedio: "Intermedio",
-  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Agencias",
+  lite: "Nivel 1", basico: "Nivel 2", intermedio: "Nivel 3",
+  avanzado: "Nivel 4", enterprise: "Nivel 5", personalizado: "Nivel 6",
 };
 const PLAN_ORDER = ["lite", "basico", "intermedio", "avanzado", "enterprise", "personalizado"];
 type BillingPeriod = "monthly" | "quarterly" | "yearly";
