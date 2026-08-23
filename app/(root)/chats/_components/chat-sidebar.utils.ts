@@ -266,9 +266,30 @@ export function lastTextFrom(chat: ChatData): {
           }
           return "";
         };
+        // Las plantillas nuevas no usan los campos `hydrated…`: traen el texto en
+        // `interactiveMessageTemplate.body.text`, un nivel mas adentro y con
+        // otro nombre. Sin mirar ahi, la lista mostraba solo "Plantilla".
+        const buscarSeccion = (obj: any, seccion: string, nivel = 0): string => {
+          if (!obj || typeof obj !== "object" || nivel > 6) return "";
+          const directo = obj[seccion];
+          if (typeof directo === "string" && directo.trim()) return directo.trim();
+          if (directo && typeof directo === "object") {
+            const texto = directo.text ?? directo.title;
+            if (typeof texto === "string" && texto.trim()) return texto.trim();
+          }
+          for (const v of Object.values(obj)) {
+            if (v && typeof v === "object") {
+              const hallado = buscarSeccion(v, seccion, nivel + 1);
+              if (hallado) return hallado;
+            }
+          }
+          return "";
+        };
         const plantilla = (msg as Record<string, any>)?.templateMessage ?? msg ?? {};
         const cuerpo =
           buscar(plantilla, ["hydratedContentText", "hydratedTitleText", "hydratedContent"]) ||
+          buscarSeccion(plantilla, "body") ||
+          buscarSeccion(plantilla, "header") ||
           String(msg?.conversation ?? "").trim();
         text = cuerpo ? `📋 ${cuerpo}` : "📋 Plantilla";
         break;

@@ -593,7 +593,7 @@ export function WorkflowCanvas({
 
   return (
     <WorkflowAddNodeProvider value={addNodeFromSource}>
-    <div ref={wrapperRef} className="w-full h-full max-h-[93vh]">
+    <div ref={wrapperRef} className="relative w-full h-full max-h-[93vh]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -642,32 +642,36 @@ export function WorkflowCanvas({
           <WorkflowNodesSidebarTrigger />
         </Panel>
 
-        {/* Lienzo vacío: el "+" también en el centro. Arriba a la derecha, en un
-            lienzo en blanco, no se ve como el sitio por donde se empieza; en
-            medio sí, y es donde ya está el "+" en cuanto hay un nodo. */}
-        {nodes.length === 0 && (
-          <Panel position="top-center" className="pointer-events-none !inset-0 !m-0 flex items-center justify-center">
-            <div className="pointer-events-auto flex flex-col items-center gap-3">
-              <InlineAddNode
-                totalNodes={totalNodes}
-                seguimientoNodes={seguimientoNodes}
-                side="bottom"
-                onPickAction={(action) => void createAtCenter(action)}
-                trigger={
-                  <button
-                    type="button"
-                    className="nodrag nopan flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg transition-all hover:scale-105 hover:bg-primary/90"
-                    title="Agregar el primer paso"
-                  >
-                    <Plus className="h-7 w-7" strokeWidth={3} />
-                  </button>
-                }
-              />
-              <p className="text-sm font-medium text-muted-foreground">Agrega el primer paso</p>
-            </div>
-          </Panel>
-        )}
       </ReactFlow>
+
+      {/* Lienzo vacío: el "+" también en el centro. Arriba a la derecha, en un
+          lienzo en blanco, no se ve como el sitio por donde se empieza; en medio
+          sí, y es donde ya está el "+" en cuanto hay un nodo.
+          Va FUERA de <ReactFlow>: sus <Panel> se colocan solos y el de arriba al
+          centro lleva un translateX(-50%) que, con el bloque a ancho completo,
+          se llevaba el botón a esconderse contra el borde izquierdo. */}
+      {nodes.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+          <div className="pointer-events-auto flex flex-col items-center gap-3">
+            <InlineAddNode
+              totalNodes={totalNodes}
+              seguimientoNodes={seguimientoNodes}
+              side="bottom"
+              onPickAction={(action) => void createAtCenter(action)}
+              trigger={
+                <button
+                  type="button"
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg transition-all hover:scale-105 hover:bg-primary/90"
+                  title="Agregar el primer paso"
+                >
+                  <Plus className="h-7 w-7" strokeWidth={3} />
+                </button>
+              }
+            />
+            <p className="text-sm font-medium text-muted-foreground">Agrega el primer paso</p>
+          </div>
+        </div>
+      )}
     </div>
     </WorkflowAddNodeProvider>
   );

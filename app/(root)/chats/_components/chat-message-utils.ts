@@ -176,13 +176,43 @@ function buscarCampoProfundo(objeto: any, nombres: string[], profundidad = 0): s
   return '';
 }
 
+/**
+ * El texto de una sección (encabezado, cuerpo, pie) en cualquier nivel.
+ *
+ * Las plantillas nuevas de WhatsApp no usan los campos `hydrated…`: traen el
+ * texto en `interactiveMessageTemplate.body.text`, un nivel más adentro y con
+ * otro nombre. Sin mirar ahí, un mensaje de plantilla se leía como "Plantilla
+ * enviada" y el asesor no veía lo que le habían escrito al cliente.
+ */
+function buscarTextoDeSeccion(objeto: any, seccion: string, profundidad = 0): string {
+  if (!objeto || typeof objeto !== 'object' || profundidad > 6) return '';
+
+  const directo = objeto[seccion];
+  if (typeof directo === 'string' && directo.trim()) return directo.trim();
+  if (directo && typeof directo === 'object') {
+    const texto = directo.text ?? directo.title;
+    if (typeof texto === 'string' && texto.trim()) return texto.trim();
+  }
+
+  for (const valor of Object.values(objeto)) {
+    if (valor && typeof valor === 'object') {
+      const encontrado = buscarTextoDeSeccion(valor, seccion, profundidad + 1);
+      if (encontrado) return encontrado;
+    }
+  }
+  return '';
+}
+
 function formatTemplateMessage(messageData: Record<string, any>): string {
   const plantilla = messageData?.templateMessage ?? messageData?.template ?? messageData ?? {};
 
   const partes = [
-    buscarCampoProfundo(plantilla, ['hydratedTitleText', 'hydratedTitle']),
-    buscarCampoProfundo(plantilla, ['hydratedContentText', 'hydratedContent']),
-    buscarCampoProfundo(plantilla, ['hydratedFooterText', 'hydratedFooter']),
+    buscarCampoProfundo(plantilla, ['hydratedTitleText', 'hydratedTitle'])
+      || buscarTextoDeSeccion(plantilla, 'header'),
+    buscarCampoProfundo(plantilla, ['hydratedContentText', 'hydratedContent'])
+      || buscarTextoDeSeccion(plantilla, 'body'),
+    buscarCampoProfundo(plantilla, ['hydratedFooterText', 'hydratedFooter'])
+      || buscarTextoDeSeccion(plantilla, 'footer'),
   ]
     .map((t) => String(t ?? '').trim())
     .filter(Boolean);
