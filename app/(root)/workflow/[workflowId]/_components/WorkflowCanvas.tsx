@@ -23,7 +23,7 @@ import {
 } from '@xyflow/react';
 
 import { toast } from 'sonner';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   createNodeFromCanvas,
@@ -36,6 +36,7 @@ import { CustomNodeData, PaletteItem, PropsWorkflowCanvas, Action } from '@/type
 import { CustomEdge, CustomNode } from '.';
 import { WorkflowAddNodeProvider, AddNodeFn } from './WorkflowAddNodeContext';
 import { WorkflowNodesSidebarTrigger } from './WorkflowNodesSidebarTrigger';
+import { InlineAddNode } from './InlineAddNode';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -467,11 +468,10 @@ export function WorkflowCanvas({
     [screenToFlowPosition, createFromItem]
   );
 
-  // CLICK desde sidebar (reusa createFromItem)
-  useEffect(() => {
-    if (!registerCreateNode) return;
-
-    registerCreateNode(async (action: Action) => {
+  // Coloca la acción en el centro de lo que se está viendo. Lo usan el menú
+  // lateral y el "+" del lienzo vacío, que no tienen un nodo del que colgar.
+  const createAtCenter = useCallback(
+    async (action: Action) => {
       const el = wrapperRef.current;
       if (!el) return;
 
@@ -481,15 +481,19 @@ export function WorkflowCanvas({
         y: rect.top + rect.height / 2,
       });
 
-      const item: PaletteItem = {
-        type: 'customNode',
-        label: action.label,
-        nodeTipo: action.type,
-      };
+      await createFromItem(
+        { type: 'customNode', label: action.label, nodeTipo: action.type },
+        pos,
+      );
+    },
+    [screenToFlowPosition, createFromItem],
+  );
 
-      await createFromItem(item, pos);
-    });
-  }, [registerCreateNode, screenToFlowPosition, createFromItem]);
+  // CLICK desde sidebar (reusa createAtCenter)
+  useEffect(() => {
+    if (!registerCreateNode) return;
+    registerCreateNode(createAtCenter);
+  }, [registerCreateNode, createAtCenter]);
 
   // Reacomoda el contenido cuando cambia el ANCHO del canvas (al abrir/cerrar
   // el menú lateral izquierdo). Sin esto, el flujo se corría a la derecha y el
@@ -637,6 +641,32 @@ export function WorkflowCanvas({
         <Panel position="top-right">
           <WorkflowNodesSidebarTrigger />
         </Panel>
+
+        {/* Lienzo vacío: el "+" también en el centro. Arriba a la derecha, en un
+            lienzo en blanco, no se ve como el sitio por donde se empieza; en
+            medio sí, y es donde ya está el "+" en cuanto hay un nodo. */}
+        {nodes.length === 0 && (
+          <Panel position="top-center" className="pointer-events-none !inset-0 !m-0 flex items-center justify-center">
+            <div className="pointer-events-auto flex flex-col items-center gap-3">
+              <InlineAddNode
+                totalNodes={totalNodes}
+                seguimientoNodes={seguimientoNodes}
+                side="bottom"
+                onPickAction={(action) => void createAtCenter(action)}
+                trigger={
+                  <button
+                    type="button"
+                    className="nodrag nopan flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg transition-all hover:scale-105 hover:bg-primary/90"
+                    title="Agregar el primer paso"
+                  >
+                    <Plus className="h-7 w-7" strokeWidth={3} />
+                  </button>
+                }
+              />
+              <p className="text-sm font-medium text-muted-foreground">Agrega el primer paso</p>
+            </div>
+          </Panel>
+        )}
       </ReactFlow>
     </div>
     </WorkflowAddNodeProvider>
