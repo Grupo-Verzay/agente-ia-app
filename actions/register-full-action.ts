@@ -28,6 +28,17 @@ const DEFAULT_DEL_SEGUIMIENTO = "Estamos para servirle.";
 const DEFAULT_REGISTER_PLAN = "avanzado" as const;
 const FALLBACK_IA_CREDITS = 8000;
 const PAID_TRIAL_DAYS = 30;
+/**
+ * Días de gracia de una cuenta vendida (la que entra con plan desde un enlace).
+ *
+ * Estaban en cero para todo el mundo, así que al día 31 se cortaba en seco:
+ * quien pagaba con un día de retraso se encontraba la cuenta suspendida y había
+ * que reactivarla a mano. Tres días dan margen para que llegue el pago sin que
+ * el cliente se quede sin servicio.
+ *
+ * La prueba gratis sigue en cero: ahí el corte al vencer es el punto.
+ */
+const PAID_GRACE_DAYS = 3;
 
 const DEFAULT_TAGS = [
   { name: "Nuevo cliente", color: "#22c55e" },
@@ -470,7 +481,7 @@ export async function fullRegisterAction(
               serviceEndsAt: trialEndsAt,
               licenseDays: trialDays,
             }),
-          graceDays: 0,
+          graceDays: planElegido ? PAID_GRACE_DAYS : 0,
         },
       });
 
