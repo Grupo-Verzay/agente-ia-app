@@ -191,12 +191,31 @@ type BillingRecordLike = {
   billingStatus?: BillingStatus | null;
   accessStatus?: AccessStatus | null;
   user?: { name?: string | null; company?: string | null } | null;
+  /** Link de pago del plan, cuando el cliente no tiene uno propio escrito. */
+  planPaymentLink?: string | null;
 };
+
+/**
+ * Por dónde paga el cliente.
+ *
+ * Manda lo que tenga escrito en su ficha ("Medio de pago"): si alguien le puso
+ * un link a medida, ese es el bueno. Si está vacío, el del plan, que es el que
+ * evita tener que escribirlo cliente por cliente. `paymentMethodLabel` va al
+ * final porque suele ser una etiqueta ("Link de pago"), no un link.
+ */
+export function resolverMedioDePago(billing: BillingRecordLike): string {
+  return (
+    billing.paymentNotes?.trim() ||
+    billing.planPaymentLink?.trim() ||
+    billing.paymentMethodLabel?.trim() ||
+    "-"
+  );
+}
 
 function buildInputFromRecord(billing: BillingRecordLike, type: BillingTemplateType, now: Date) {
   const dueDate = billing.dueDate ? new Date(billing.dueDate) : null;
   const daysRemaining = getBillingDaysRemaining(dueDate, now);
-  const paymentText = (billing.paymentNotes?.trim() || billing.paymentMethodLabel?.trim() || "").trim() || "-";
+  const paymentText = resolverMedioDePago(billing);
   return {
     type,
     dueDate,

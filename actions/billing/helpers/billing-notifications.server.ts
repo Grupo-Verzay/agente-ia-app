@@ -12,7 +12,8 @@ import { listMetaTemplates, sendMetaTemplate } from "@/actions/channel-chat-acti
 import { db } from "@/lib/db";
 import type { BillingStatus, BillingTemplateType, AccessStatus } from "@/types/billing";
 
-import { buildBillingMessage, buildBillingMessageForRecord } from "../billing-message-templates";
+import { buildBillingMessage, buildBillingMessageForRecord, resolverMedioDePago } from "../billing-message-templates";
+import { enlaceDePagoDelPlan } from "@/lib/plan-payment-link";
 import { fmtDateDDMMYYYY, fmtPriceLine } from "./billing-helpers";
 import {
     evaluateBillingLifecycle,
@@ -89,14 +90,13 @@ function pickBillingStateTemplate(args: {
 }
 
 function buildBillingMessageInput(
-    billing: BillingUserRecord,
+    billing: BillingUserRecord & { planPaymentLink?: string | null },
     template: BillingTemplateType,
     now = new Date()
 ) {
     const dueDate = billing.dueDate ? new Date(billing.dueDate) : null;
     const daysRemaining = getBillingDaysRemaining(dueDate, now);
-    const paymentText =
-        (billing.paymentNotes?.trim() || billing.paymentMethodLabel?.trim() || "").trim() || "-";
+    const paymentText = resolverMedioDePago(billing);
 
     return {
         type: template,
@@ -339,6 +339,20 @@ export async function sendBillingTemplateMessage(args: {
     }
 
     const now = args.now ?? new Date();
+
+    // El link de pago del plan, para los clientes que no tienen uno escrito en
+    // su ficha. Se resuelve aquí, que es por donde pasan todos los avisos —los
+    // de la plataforma y los de un reseller—, así ninguno se queda sin él.
+    const billing = args.billing.paymentNotes?.trim()
+        ? args.billing
+        : {
+            ...args.billing,
+            planPaymentLink: await enlaceDePagoDelPlan(
+                args.billing.user?.plan,
+                await resolveClientResellerId(args.billing.userId).catch(() => null),
+            ),
+        };
+
     const metaResult = await sendMetaBillingTemplate({
         dispatcher,
         billing: args.billing,
@@ -352,8 +366,8 @@ export async function sendBillingTemplateMessage(args: {
     // Si hay override para esta plantilla, se usa; si no, el texto estándar.
     const override = args.textOverride?.trim() || await loadPlatformBillingOverride(args.template);
     const text = override
-        ? buildBillingMessageForRecord(args.billing, args.template, now, override)
-        : buildBillingMessage(buildBillingMessageInput(args.billing, args.template, now));
+        ? buildBillingMessageForRecord(billing, args.template, now, override)
+        : buildBillingMessage(buildBillingMessageInput(billing, args.template, now));
     const history = {
         instanceName: dispatcher.instanceName,
         type: "notification" as const,
