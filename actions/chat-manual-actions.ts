@@ -8,6 +8,7 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildChatHistorySessionId } from "@/lib/chat-history/build-session-id";
 import { pausarIaPorIntervencionHumana } from "@/lib/human-takeover";
+import { esNodoDeAutomatizacion, ejecutarNodoDeAutomatizacion } from "@/lib/workflow-automation-nodes";
 import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import {
@@ -861,10 +862,29 @@ export async function sendManualWorkflowAction(
   }
 
   const nodes = await getExecutionNodesForWorkflow(workflowId);
+  const dueno = storageUserId ?? workflow.userId;
   let sentCount = 0;
   let skippedCount = 0;
+  let automatizaciones = 0;
 
   for (const node of nodes) {
+    // Los nodos que no mandan nada (aplicar un tag, asignar asesor, llamar con
+    // IA...) no los resuelve la app: los ejecuta el motor del backend, el mismo
+    // que corre cuando el flujo lo dispara el agente. Antes se saltaban sin
+    // avisar y el flujo parecía funcionar a medias.
+    if (esNodoDeAutomatizacion(node.tipo)) {
+      const hecho = await ejecutarNodoDeAutomatizacion({
+        tipo: node.tipo,
+        message: node.message,
+        userId: dueno,
+        remoteJid,
+        instanceName: context.instanceName,
+      });
+      if (hecho) automatizaciones += 1;
+      else skippedCount += 1;
+      continue;
+    }
+
     const payload = buildWorkflowPayload(node);
     if (!payload) {
       skippedCount += 1;
@@ -877,7 +897,7 @@ export async function sendManualWorkflowAction(
       persistRemoteJid: remoteJid,
       payload,
       source: "manual_chat_workflow",
-      userId: storageUserId ?? workflow.userId,
+      userId: dueno,
       instanceType: "evolution",
       historyType: "workflow",
       metadata: {
@@ -901,18 +921,24 @@ export async function sendManualWorkflowAction(
     sentCount += 1;
   }
 
-  if (sentCount === 0) {
+  if (sentCount === 0 && automatizaciones === 0) {
     return {
       success: false,
       message: `El flujo "${workflow.name}" no tiene nodos enviables manualmente.`,
     };
   }
 
+  const detalle = [
+    sentCount > 0 ? `${sentCount} envio(s)` : "",
+    automatizaciones > 0 ? `${automatizaciones} automatizacion(es)` : "",
+    skippedCount > 0 ? `${skippedCount} nodo(s) omitido(s)` : "",
+  ].filter(Boolean);
+
   return {
     success: true,
     message:
-      skippedCount > 0
-        ? `Flujo "${workflow.name}" enviado con ${sentCount} paso(s) y ${skippedCount} nodo(s) omitido(s).`
+      detalle.length > 1
+        ? `Flujo "${workflow.name}" ejecutado: ${detalle.join(", ")}.`
         : `Flujo "${workflow.name}" enviado correctamente.`,
     data: {
       sentCount,
