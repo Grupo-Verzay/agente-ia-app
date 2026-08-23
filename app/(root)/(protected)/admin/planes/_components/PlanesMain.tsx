@@ -551,9 +551,15 @@ export function PlanesMain() {
                     : `Link de pago · ${period === "monthly" ? "Mensual" : period === "quarterly" ? "Trimestral" : "Anual"}`}
                 </Label>
                 {period === "monthly" && (
-                  <Input value={form.checkoutUrlMonthly}
-                    onChange={(e) => setForm({ ...form, checkoutUrlMonthly: e.target.value })}
-                    placeholder="https://checkout.stripe.com/..." />
+                  <>
+                    <Input value={form.checkoutUrlMonthly}
+                      onChange={(e) => setForm({ ...form, checkoutUrlMonthly: e.target.value })}
+                      placeholder="realizarpago.com/plan-1" />
+                    <p className="text-[11px] text-muted-foreground">
+                      Es el que sale en los avisos de cobro por WhatsApp de los clientes con
+                      este plan. Si un cliente tiene su propio link escrito en su ficha, manda el suyo.
+                    </p>
+                  </>
                 )}
                 {period === "quarterly" && (
                   <Input value={form.checkoutUrlQuarterly}
