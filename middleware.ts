@@ -46,7 +46,9 @@ export default auth((req) => {
   const isPublicRoute =
     publicRoutes.includes(currentPath) ||
     currentPath.startsWith("/schedule/") ||
-    currentPath.startsWith("/r/");
+    currentPath.startsWith("/r/") ||
+    // Enlace corto de venta (/plan/4): lo abre un cliente que aún no existe.
+    currentPath.startsWith("/plan/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {
