@@ -554,10 +554,11 @@ export function PlanesMain() {
                   <>
                     <Input value={form.checkoutUrlMonthly}
                       onChange={(e) => setForm({ ...form, checkoutUrlMonthly: e.target.value })}
-                      placeholder="realizarpago.com/plan-1" />
+                      placeholder="\u{1F449} realizarpago.com/plan-1" />
                     <p className="text-[11px] text-muted-foreground">
-                      Es el que sale en los avisos de cobro por WhatsApp de los clientes con
-                      este plan. Si un cliente tiene su propio link escrito en su ficha, manda el suyo.
+                      Sale tal cual en los avisos de cobro por WhatsApp de los clientes con este
+                      plan, con lo que escribas aquí —emoji incluido—. Si un cliente tiene su
+                      propio medio de pago en su ficha, manda el suyo.
                     </p>
                   </>
                 )}

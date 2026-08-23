@@ -13,10 +13,9 @@ import { db } from "@/lib/db";
  * plan. Es el mismo campo "URL de checkout (mensual)" que ya existe en la
  * pantalla de Planes.
  *
- * Un link sale con la manita delante (👉 realizarpago.com/plan-5), que es como
- * se escribe hoy a mano. Si el campo trae otra cosa —unos datos de
- * transferencia, por ejemplo— se devuelve tal cual: una manita delante de un
- * número de cuenta no señala nada y queda fea.
+ * Sale TAL CUAL está escrito, con su manita o sin ella. El adorno lo pone quien
+ * llena el campo y no el sistema: así se cambia desde la pantalla, sin tocar
+ * código, y sirve igual para un link que para unos datos de transferencia.
  */
 export async function enlaceDePagoDelPlan(
     plan: Plan | string | null | undefined,
@@ -59,23 +58,5 @@ function elPrimeroConLink(
 ): string | null {
     const conLink = filas.filter((fila) => fila.checkoutUrlMonthly?.trim());
     const activa = conLink.find((fila) => fila.isActive);
-    const link = (activa ?? conLink[0])?.checkoutUrlMonthly?.trim();
-    return link ? conManita(link) : null;
-}
-
-const MANITA = "\u{1F449}";
-
-/** La manita delante, solo si lo escrito es un link de una sola línea. */
-function conManita(texto: string): string {
-    if (texto.startsWith(MANITA)) return texto;
-    return esUnLink(texto) ? `${MANITA} ${texto}` : texto;
-}
-
-/**
- * Una sola línea, sin espacios y con pinta de dirección web. Deja fuera los
- * bloques de varias líneas (datos de transferencia) y las frases sueltas.
- */
-function esUnLink(texto: string): boolean {
-    if (/\s/.test(texto)) return false;
-    return /^(https?:\/\/|www\.|[\w-]+(\.[\w-]+)+(\/|$))/i.test(texto);
+    return (activa ?? conLink[0])?.checkoutUrlMonthly?.trim() || null;
 }
