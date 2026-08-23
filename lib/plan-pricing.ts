@@ -1,5 +1,7 @@
 import { Plan } from "@prisma/client";
 
+import { PLANS } from "@/types/plans";
+
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 
@@ -138,9 +140,33 @@ export async function etiquetasDePlanesParaMarca(
 }
 
 /** El nivel llega por URL o por un formulario, así que se valida contra el enum. */
+/**
+ * El plan que pide un enlace de registro.
+ *
+ * Acepta dos formas y devuelve la misma:
+ *
+ *   - Por NIVEL: `nivel-2`, `nivel2`, `nivel 2` o `2`. Es la buena para los
+ *     enlaces de venta. Los seis niveles no cambian nunca, mientras que el
+ *     nombre interno de alguno —`avanzado` se vende como "Esencial",
+ *     `enterprise` como "Business"— se lee como un nombre comercial y se presta
+ *     a confusión con el que el cliente ve en la landing.
+ *   - Por nombre interno: `basico`, `avanzado`… Sigue funcionando, para no
+ *     romper ningún enlace que ya esté circulando.
+ *
+ * El número es la posición en PLANS, que está en orden ascendente de capacidad:
+ * Nivel 1 = lite … Nivel 6 = personalizado. Es la misma numeración que usan las
+ * pantallas internas (PLAN_LEVEL_LABELS).
+ */
 export function normalizarPlan(valor: string | undefined | null): Plan | null {
     const slug = valor?.trim().toLowerCase();
     if (!slug) return null;
+
+    const porNivel = slug.match(/^(?:nivel[\s_-]*)?(\d+)$/);
+    if (porNivel) {
+        const nivel = Number(porNivel[1]);
+        return nivel >= 1 && nivel <= PLANS.length ? PLANS[nivel - 1] : null;
+    }
+
     return (Object.values(Plan) as string[]).includes(slug) ? (slug as Plan) : null;
 }
 
