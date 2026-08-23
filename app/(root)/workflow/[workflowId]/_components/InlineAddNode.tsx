@@ -1,5 +1,6 @@
 'use client';
 
+import type React from 'react';
 import { useState } from 'react';
 import { Lock, Plus } from 'lucide-react';
 
@@ -62,39 +63,57 @@ export function InlineAddNode({
     sourceHandle,
     totalNodes,
     seguimientoNodes,
+    onPickAction,
+    side = 'right',
+    trigger,
 }: {
-    sourceId: string;
-    sourceHandle: string;
+    sourceId?: string;
+    sourceHandle?: string;
     totalNodes: number;
     seguimientoNodes: number;
+    /**
+     * Qué hacer con la acción elegida. Sin esto, se engancha al nodo de origen,
+     * que es lo de siempre. El lienzo vacío no tiene de dónde colgar el primer
+     * nodo, así que pasa el suyo y coloca en el centro.
+     */
+    onPickAction?: (action: Action) => void;
+    side?: 'right' | 'top' | 'bottom' | 'left';
+    /** Otro botón para abrir la misma lista. Sin esto, el "+" pequeño. */
+    trigger?: React.ReactNode;
 }) {
     const addNode = useAddNode();
     const { lockedFeatures } = useWorkflowEditorShell();
     const isLocked = (a: Action) => lockedFeatures.has(a.type);
     const [open, setOpen] = useState(false);
 
-    if (!addNode) return null;
+    if (!onPickAction && !addNode) return null;
 
     const pick = (action: Action) => {
         setOpen(false);
-        void addNode({ sourceId, sourceHandle, action });
+        if (onPickAction) {
+            onPickAction(action);
+            return;
+        }
+        if (sourceId && sourceHandle) void addNode?.({ sourceId, sourceHandle, action });
     };
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    className="nodrag nopan flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90"
-                    title="Agregar acción"
-                >
-                    <Plus className="h-5 w-5" strokeWidth={3} />
-                </button>
+                {trigger ?? (
+                    <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        className="nodrag nopan flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90"
+                        title="Agregar acción"
+                    >
+                        <Plus className="h-5 w-5" strokeWidth={3} />
+                    </button>
+                )}
             </PopoverTrigger>
 
             <PopoverContent
-                side="right"
+                side={side}
                 align="center"
                 sideOffset={12}
                 collisionPadding={12}
