@@ -10,8 +10,8 @@ import type { SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { PlanDetailData } from "@/actions/plan-detail-actions";
 
 const PLAN_LABELS: Record<string, string> = {
-  lite: "Lite", basico: "Básico", intermedio: "Intermedio",
-  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Planes mixtos",
+  lite: "Nivel 1", basico: "Nivel 2", intermedio: "Nivel 3",
+  avanzado: "Nivel 4", enterprise: "Nivel 5", personalizado: "Nivel 6",
 };
 
 const PLAN_GRADIENTS: Record<string, string> = {

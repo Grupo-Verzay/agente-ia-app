@@ -1,12 +1,22 @@
 import { Plan } from "@prisma/client";
 
+/**
+ * Cómo se llama cada plan cuando la marca no le puso nombre.
+ *
+ * Eran nombres comerciales inventados —"Avanzado", "Agencias"—, y ninguno
+ * existe: cada marca bautiza sus planes como quiere y renombra cuando quiere.
+ * Poner uno de esos por defecto era enseñar un nombre que no es de nadie.
+ *
+ * El nivel, en cambio, no cambia nunca. Donde la marca sí escribió un nombre,
+ * ese manda y esto no se ve.
+ */
 export const PLAN_LABELS: Record<Plan, string> = {
-    lite: 'Lite',
-    basico: 'Básico',
-    intermedio: 'Intermedio',
-    avanzado: 'Avanzado',
-    enterprise: 'Enterprise',
-    personalizado: 'Agencias',
+    lite: 'Nivel 1',
+    basico: 'Nivel 2',
+    intermedio: 'Nivel 3',
+    avanzado: 'Nivel 4',
+    enterprise: 'Nivel 5',
+    personalizado: 'Nivel 6',
 };
 
 export const PLANS: Plan[] = ['lite', 'basico', 'intermedio', 'avanzado', 'enterprise', 'personalizado'];
