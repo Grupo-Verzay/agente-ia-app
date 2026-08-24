@@ -290,6 +290,7 @@ function buildChatContactDescriptors(chats: ChatData[]): ChatContactDescriptor[]
       senderPn: chat.senderPn,
       pushName: chat.pushName,
       aliases: chat.aliases,
+      instanceName: chat.instanceName,
     }));
 }
 
@@ -352,6 +353,14 @@ function getPreferenceForJid(remoteJid: string, preferences: ChatConversationPre
 }
 
 function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
+  // Un mismo numero puede escribirle a mas de una linea: si getChatContactSessions
+  // encontro sesiones en varias, dejo la de ESTA linea bajo una llave compuesta.
+  // Se prueba primero para no heredar el asesor/etiquetas de otra linea.
+  const candidatoDeLinea = chat.instanceName
+    ? sessions[`${chat.instanceName}::${chat.remoteJid}`]
+    : undefined;
+  if (candidatoDeLinea) return candidatoDeLinea;
+
   return getChatIdentityCandidates(chat)
     .map((candidate) => sessions[candidate])
     .find(Boolean);
