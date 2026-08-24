@@ -15,6 +15,7 @@ import {
   getDeletedLastMessageJids,
   getPersistedInboxChats,
   getPersistedMessages,
+  marcarMensajeComoEliminado,
   persistChatMessage,
   persistEvolutionMessages,
   resolveInstanceOwner,
@@ -1076,7 +1077,26 @@ export async function deleteMessageAction(
   if (user.role !== "admin" && user.role !== "super_admin") {
     return { success: false, message: "Solo los administradores pueden eliminar mensajes." };
   }
-  return deleteMessage(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe);
+  const resultado = await deleteMessage(
+    context.apiKeyData,
+    context.instanceName,
+    remoteJid,
+    messageId,
+    fromMe,
+  );
+  if (!resultado.success) return resultado;
+
+  // Borrarlo en WhatsApp no basta: el panel lee su propia copia, asi que el
+  // mensaje reaparecia al recargar el chat. Se marca igual que cuando el
+  // borrado lo hace el cliente y llega por webhook.
+  const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
+  await marcarMensajeComoEliminado({
+    userId: storageUserId ?? user.ownerId ?? user.id,
+    instanceName: context.instanceName,
+    messageId,
+  });
+
+  return resultado;
 }
 
 export async function editMessageAction(
