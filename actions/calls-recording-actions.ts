@@ -145,14 +145,53 @@ async function summarize(transcript: string, cfg: AiCfg): Promise<string> {
  * resume y guarda en chat_messages.raw.call. Best-effort e idempotente (si ya hay
  * transcripción, no rehace). Se llama desde el cliente tras colgar.
  */
-export async function processCallRecordingAction(input: {
+/**
+ * Duración de un WAV a partir de su propio encabezado (sampleRate/canales/bits),
+ * sin depender de que AstraCalls informe la duración de la llamada. Astra no da
+ * ese dato en la respuesta de lanzar la llamada del bot, y la grabación es lo
+ * único fiable que hay: su duración es, en la práctica, la de la llamada.
+ */
+function duracionDelWav(buffer: Buffer): number {
+  try {
+    if (buffer.length < 44 || buffer.toString('ascii', 0, 4) !== 'RIFF') return 0;
+    const canales = buffer.readUInt16LE(22);
+    const sampleRate = buffer.readUInt32LE(24);
+    const bitsPorMuestra = buffer.readUInt16LE(34);
+    if (!canales || !sampleRate || !bitsPorMuestra) return 0;
+
+    // Busca el chunk "data" (puede no estar justo después del header fmt fijo).
+    let offset = 12;
+    while (offset + 8 <= buffer.length) {
+      const chunkId = buffer.toString('ascii', offset, offset + 4);
+      const chunkSize = buffer.readUInt32LE(offset + 4);
+      if (chunkId === 'data') {
+        const bytesPorMuestra = (bitsPorMuestra / 8) * canales;
+        if (!bytesPorMuestra) return 0;
+        return Math.round(chunkSize / bytesPorMuestra / sampleRate);
+      }
+      offset += 8 + chunkSize + (chunkSize % 2);
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Descarga la grabación, transcribe, resume y guarda todo en chat_messages.raw.
+ * Best-effort e idempotente (si ya hay transcripción, no rehace).
+ *
+ * Compartida por las dos llamadas que pueden pedir este proceso: la del asesor
+ * en vivo (processCallRecordingAction, autenticada por sesión) y la del bot
+ * lanzado por una automatización (sin sesión de navegador: la pide el backend
+ * por su cuenta cuando detecta que la grabación ya está lista).
+ */
+export async function processCallRecordingForUser(input: {
+  userId: string;
   chatMessageId: string;
   astraSid: string;
   astraCallId: string;
 }): Promise<{ success: boolean; message?: string }> {
-  const me = await currentUser();
-  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
-  if (!userId) return { success: false, message: 'No autorizado.' };
   if (!BASE || !KEY) return { success: false, message: 'Llamadas no configuradas.' };
 
   let id: bigint;
@@ -163,7 +202,7 @@ export async function processCallRecordingAction(input: {
   }
 
   const row = await db.chatMessage.findFirst({
-    where: { id, userId, messageType: 'call' },
+    where: { id, userId: input.userId, messageType: 'call' },
     select: { raw: true },
   });
   if (!row) return { success: false, message: 'Llamada no encontrada.' };
@@ -176,14 +215,19 @@ export async function processCallRecordingAction(input: {
     : {};
   if (callObj.transcript) return { success: true }; // ya procesada
 
-  const wav = await fetchRecordingBase64(input.astraSid, input.astraCallId);
-  if (!wav) return { success: false, message: 'Grabación no disponible aún.' };
+  const wavBase64 = await fetchRecordingBase64(input.astraSid, input.astraCallId);
+  if (!wavBase64) return { success: false, message: 'Grabación no disponible aún.' };
 
-  const cfg = await getUserAiConfig(userId);
+  const cfg = await getUserAiConfig(input.userId);
   if (!cfg) return { success: false, message: 'Sin configuración de IA activa.' };
 
-  const transcript = await transcribe(wav, cfg);
+  const transcript = await transcribe(wavBase64, cfg);
   const summary = transcript ? await summarize(transcript, cfg) : '';
+
+  // La duración solo se recalcula si aún no hay una (p.ej. la llamada del
+  // asesor ya la trae medida en vivo desde el navegador; la del bot llega en 0
+  // porque nadie la midió, así que aquí se completa con la del audio).
+  const duracion = Number(callObj.durationSecs ?? 0) || duracionDelWav(Buffer.from(wavBase64, 'base64'));
 
   const nextRaw = {
     ...rawObj,
@@ -194,11 +238,23 @@ export async function processCallRecordingAction(input: {
       astraCallId: input.astraCallId,
       transcript: transcript || null,
       summary: summary || null,
+      durationSecs: duracion,
     },
   };
 
   await db.chatMessage.update({ where: { id }, data: { raw: nextRaw as Prisma.InputJsonValue } });
   return { success: true };
+}
+
+export async function processCallRecordingAction(input: {
+  chatMessageId: string;
+  astraSid: string;
+  astraCallId: string;
+}): Promise<{ success: boolean; message?: string }> {
+  const me = await currentUser();
+  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
+  if (!userId) return { success: false, message: 'No autorizado.' };
+  return processCallRecordingForUser({ ...input, userId });
 }
 
 function extFromMime(mime: string): string {
