@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { getInstanceLiveStatusAction } from '@/actions/instance-live-status-action';
+import type { EvolutionInstance } from '@/actions/fetch-intance-action';
 import { createInstance } from '@/actions/api-action';
 import { toast } from 'sonner';
 import { ClientInstanceCard, ConnectionCard } from './';
@@ -20,7 +22,25 @@ export const ConnectionMain = ({
   const [loading, setLoading] = useState<boolean>(false);
   const instanceName = !instance ? '' : instance.instanceName;
   const displayName = getInstanceDisplayName(instance?.instanceName, (instance as any)?.displayName);
-  const currentInstanceInfo = instanceInfo?.find((i) => i.name === instanceName);
+
+  // El estado en vivo (numero, foto, conexion) ya no llega precargado desde el
+  // servidor: se pide aparte, aqui, para que Perfil/Conexion se pinten al
+  // instante aunque Evolution este caido o lento. Mientras no responda, la
+  // tarjeta simplemente no muestra esos datos (no bloquea nada).
+  const [liveInfo, setLiveInfo] = useState<EvolutionInstance[] | undefined>(instanceInfo);
+
+  useEffect(() => {
+    if (!instanceName || instanceType !== 'Whatsapp') return;
+    let vigente = true;
+    void getInstanceLiveStatusAction(instanceName).then((res) => {
+      if (vigente && res.success) setLiveInfo(res.data);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [instanceName, instanceType]);
+
+  const currentInstanceInfo = liveInfo?.find((i) => i.name === instanceName);
 
   // Nombre de instancia derivado del campo company del usuario (no editable por el cliente)
   const derivedInstanceName = useMemo(() =>

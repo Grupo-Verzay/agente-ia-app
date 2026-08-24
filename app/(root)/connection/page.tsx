@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getApiKeyById } from "@/actions/api-action";
-import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 import { ConnectionMain } from "./_components";
 import { CallLinkCard } from "./_components/CallLinkCard";
@@ -105,24 +104,9 @@ const Connection = async () => {
         instancesData[type].prompts?.push(prompt);
     });
 
-    // Obtener info de Evolution solo para instancias de tipo WhatsApp
-    if (apiKey) {
-        const fetchPromises = instancias.map(async (instancia) => {
-            const type = normalizeType(instancia.instanceType);
-            if (type !== "Whatsapp") return;
-
-            if (instancesData[type]?.instance) {
-                const instanceInfo = await fetchInstanceAction({
-                    evoApiKey: apiKey.key,
-                    evoUrl: apiKey.url,
-                    instanceName: instancia.instanceName
-                });
-                instancesData[type].info = instanceInfo?.data;
-            }
-        });
-
-        await Promise.all(fetchPromises);
-    }
+    // El estado en vivo (Evolution) ya NO se pide aqui: bloqueaba el
+    // renderizado de la pagina completa si Evolution estaba caido o lento.
+    // Se pide aparte, desde el cliente, en getInstanceLiveStatusAction.
 
     // Render principal
     return (
