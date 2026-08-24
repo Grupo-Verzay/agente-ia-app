@@ -353,13 +353,14 @@ function getPreferenceForJid(remoteJid: string, preferences: ChatConversationPre
 }
 
 function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
-  // Un mismo numero puede escribirle a mas de una linea: si getChatContactSessions
-  // encontro sesiones en varias, dejo la de ESTA linea bajo una llave compuesta.
-  // Se prueba primero para no heredar el asesor/etiquetas de otra linea.
-  const candidatoDeLinea = chat.instanceName
-    ? sessions[`${chat.instanceName}::${chat.remoteJid}`]
-    : undefined;
-  if (candidatoDeLinea) return candidatoDeLinea;
+  // Un mismo numero puede escribirle a mas de una linea: getChatContactSessions
+  // deja la sesion de ESTA linea bajo una llave compuesta. Si se conoce la
+  // linea del chat, se usa ESA y solo esa — sin caer de vuelta a la busqueda
+  // global — porque el caso a blindar es que un contacto SIN sesion en esta
+  // linea no debe heredar en silencio el asesor/etiquetas de otra linea.
+  if (chat.instanceName) {
+    return sessions[`${chat.instanceName}::${chat.remoteJid}`];
+  }
 
   return getChatIdentityCandidates(chat)
     .map((candidate) => sessions[candidate])

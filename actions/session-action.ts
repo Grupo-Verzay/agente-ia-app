@@ -573,28 +573,33 @@ export async function getChatContactSessions(
           return b.updatedAt.getTime() - a.updatedAt.getTime();
         })[0];
 
-      if (!preferredSession) continue;
-
-      const seg = seguimientosMap.get(preferredSession.remoteJid);
-      data[chat.chatRemoteJid] = mapChatContactSessionSummary(
-        preferredSession,
-        seg?.count ?? 0,
-        Object.entries(seg?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
-        appointmentStatusMap.get(preferredSession.id) ?? null,
-        recordatoriosMap.get(preferredSession.remoteJid) ?? 0,
-      );
+      if (preferredSession) {
+        const seg = seguimientosMap.get(preferredSession.remoteJid);
+        data[chat.chatRemoteJid] = mapChatContactSessionSummary(
+          preferredSession,
+          seg?.count ?? 0,
+          Object.entries(seg?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
+          appointmentStatusMap.get(preferredSession.id) ?? null,
+          recordatoriosMap.get(preferredSession.remoteJid) ?? 0,
+        );
+      }
 
       // Un mismo numero puede escribirle a mas de una linea de la cuenta, cada
       // una con su propia Session (asesor asignado, etiquetas...). La entrada
       // de arriba es "la sesion global" del contacto (para quien no distingue
-      // linea); esta de aqui es la sesion de SU linea, y solo se guarda cuando
-      // hay mas de una sesion en juego para el mismo contacto — si solo hay
-      // una, ya es la misma que quedo arriba y no hace falta duplicarla.
-      if (chat.instanceName && matchedSessions.size > 1) {
+      // linea, o para cuando solo hay una). Esta de aqui es la de SU linea, y
+      // se calcula SIEMPRE que se conoce la linea del chat — no solo cuando ya
+      // se sabe que hay mas de una, porque el caso que hay que blindar es
+      // justo el contrario: un contacto que NO tiene sesion en esta linea no
+      // debe heredar en silencio la de otra (verse "asignado" o con etiquetas
+      // que aqui no le pusieron). Si no hay sesion para esta linea, no se
+      // escribe nada bajo la llave compuesta a proposito: getSessionForChat no
+      // cae de vuelta a la global cuando ya sabe en que linea esta.
+      if (chat.instanceName) {
         const sesionDeSuLinea = Array.from(matchedSessions.values()).find(
           (s) => s.instanceId === chat.instanceName,
         );
-        if (sesionDeSuLinea && sesionDeSuLinea.id !== preferredSession.id) {
+        if (sesionDeSuLinea) {
           const segLinea = seguimientosMap.get(sesionDeSuLinea.remoteJid);
           data[`${chat.instanceName}::${chat.chatRemoteJid}`] = mapChatContactSessionSummary(
             sesionDeSuLinea,
