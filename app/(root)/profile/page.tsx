@@ -5,7 +5,6 @@ import { getCountryCodes } from '@/actions/get-country-action';
 import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getApiKeyById } from "@/actions/api-action";
-import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 interface ActionResponse<T> {
   success: boolean;
@@ -111,25 +110,9 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
     instancesData[type].prompts.push(prompt);
   });
 
-  // Consultar Evolution solo para WhatsApp
-  if (apiKey) {
-    const fetchPromises = instancias.map(async (instancia) => {
-      const type = normalizeType(instancia.instanceType);
-      if (type !== "Whatsapp") return;
-
-      if (instancesData[type]?.instance) {
-        const instanceInfo = await fetchInstanceAction({
-          evoApiKey: apiKey.key,
-          evoUrl: apiKey.url,
-          instanceName: instancia.instanceName
-        });
-
-        instancesData[type].info = instanceInfo?.data;
-      }
-    });
-
-    await Promise.all(fetchPromises);
-  }
+  // El estado en vivo (Evolution) ya NO se pide aqui: bloqueaba el
+  // renderizado de la pagina completa si Evolution estaba caido o lento.
+  // Se pide aparte, desde el cliente, en getInstanceLiveStatusAction.
 
   const countries = await getCountryCodes();
 
