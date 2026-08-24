@@ -696,6 +696,41 @@ function esNombreBueno(name?: string | null): boolean {
   return !/^\d{6,}$/.test(limpio);
 }
 
+/**
+ * Marca un mensaje como eliminado en la copia local, conservando su contenido:
+ * el panel lo pinta como "Eliminado" en la burbuja y en la lista.
+ *
+ * Lo usan los dos caminos por los que un mensaje puede desaparecer: el evento
+ * de borrado que manda WhatsApp cuando lo borra el cliente, y el borrado que
+ * hace un administrador desde el panel. Sin esto, el borrado del panel solo
+ * llegaba a WhatsApp y el mensaje reaparecia al recargar el chat, porque la
+ * copia local seguia intacta.
+ *
+ * Se busca solo por el ID de WhatsApp, que es unico a nivel global: exigir
+ * ademas el remoteJid falla en los chats que entraron por `@lid`.
+ */
+export async function marcarMensajeComoEliminado(params: {
+  userId: string;
+  instanceName: string;
+  messageId: string;
+}): Promise<void> {
+  const { userId, instanceName, messageId } = params;
+  if (!userId || !instanceName || !messageId) return;
+
+  await db.$executeRaw`
+    UPDATE "chat_messages" SET "deleted" = TRUE, "updatedAt" = NOW()
+    WHERE "userId" = ${userId}
+      AND "instanceName" = ${instanceName}
+      AND "messageId" = ${messageId}
+  `.catch(() => {});
+  await db.$executeRaw`
+    UPDATE "chat_conversations" SET "lastMessageDeleted" = TRUE, "updatedAt" = NOW()
+    WHERE "userId" = ${userId}
+      AND "instanceName" = ${instanceName}
+      AND "lastMessageId" = ${messageId}
+  `.catch(() => {});
+}
+
 export async function persistChatMessage(input: PersistChatMessageInput) {
   if (!input.userId || !input.instanceName || !input.remoteJid) return;
   if (
@@ -758,18 +793,11 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       // original no se encontraba y se perdía su texto, mostrando "Mensaje
       // eliminado" en blanco. Marcando por ID se conserva el contenido igual que
       // en los mensajes enviados.
-      await db.$executeRaw`
-        UPDATE "chat_messages" SET "deleted" = TRUE, "updatedAt" = NOW()
-        WHERE "userId" = ${input.userId}
-          AND "instanceName" = ${input.instanceName}
-          AND "messageId" = ${targetId}
-      `.catch(() => {});
-      await db.$executeRaw`
-        UPDATE "chat_conversations" SET "lastMessageDeleted" = TRUE, "updatedAt" = NOW()
-        WHERE "userId" = ${input.userId}
-          AND "instanceName" = ${input.instanceName}
-          AND "lastMessageId" = ${targetId}
-      `.catch(() => {});
+      await marcarMensajeComoEliminado({
+        userId: input.userId,
+        instanceName: input.instanceName,
+        messageId: targetId,
+      });
     }
     return;
   }
