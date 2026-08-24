@@ -3,6 +3,46 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatContactSessionMap } from "@/types/session";
 import type { FetchChatsResult } from "@/actions/chat-actions";
+import { epochToMs } from "@/app/(root)/chats/_components/chat-sidebar.utils";
+
+/**
+ * Un mensaje deja de ser "nuevo" pasado este rato. Sin este corte, cualquier
+ * cosa que hiciera subir el timestamp de un chat viejo (una resincronización,
+ * el mismo mensaje llegando en otra unidad de tiempo) se anunciaba como recién
+ * llegada, y al abrir la app salía una chorrera de avisos ya vistos.
+ */
+const VENTANA_DE_NOVEDAD_MS = 5 * 60 * 1000;
+
+/** Cuántos chats se recuerdan entre aperturas. Los más recientes mandan. */
+const MAXIMO_CHATS_RECORDADOS = 500;
+
+function claveDeAvisos(advisorId: string | undefined): string {
+  return `chat_avisado_ts_${advisorId ?? "cuenta"}`;
+}
+
+/** Lee el mapa de "último mensaje ya avisado" que quedó de la sesión anterior. */
+function leerAvisados(advisorId: string | undefined): Map<string, number> {
+  try {
+    const crudo = localStorage.getItem(claveDeAvisos(advisorId));
+    if (!crudo) return new Map();
+    const filas = JSON.parse(crudo) as [string, number][];
+    if (!Array.isArray(filas)) return new Map();
+    return new Map(filas.filter((fila) => Array.isArray(fila) && typeof fila[0] === "string"));
+  } catch {
+    return new Map();
+  }
+}
+
+function guardarAvisados(advisorId: string | undefined, mapa: Map<string, number>): void {
+  try {
+    const filas = Array.from(mapa.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAXIMO_CHATS_RECORDADOS);
+    localStorage.setItem(claveDeAvisos(advisorId), JSON.stringify(filas));
+  } catch {
+    // Sin espacio o sin localStorage: se avisa igual, solo se pierde la memoria.
+  }
+}
 
 async function showNotification(title: string, options: NotificationOptions): Promise<void> {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
@@ -191,21 +231,29 @@ export function useAdvisorNotifications(
     if (!chatsResult?.success) return;
     const chats = chatsResult.data;
 
-    // Primera ejecución: inicializar timestamps sin notificar
+    // Primera ejecución: se parte de lo que quedó guardado de la sesión anterior
+    // y se registra lo que hay ahora, sin avisar de nada.
     if (prevMsgTimestampsRef.current === null) {
-      const initial = new Map<string, number>();
+      const inicial = leerAvisados(currentAdvisorId);
       for (const chat of chats) {
-        initial.set(chat.remoteJid, chat.lastMessage?.messageTimestamp ?? 0);
+        const ts = epochToMs(chat.lastMessage?.messageTimestamp);
+        if (ts > (inicial.get(chat.remoteJid) ?? 0)) inicial.set(chat.remoteJid, ts);
       }
-      prevMsgTimestampsRef.current = initial;
+      prevMsgTimestampsRef.current = inicial;
+      guardarAvisados(currentAdvisorId, inicial);
       return;
     }
 
     const prev = prevMsgTimestampsRef.current;
     const toNotify: typeof chats = [];
+    const recienteDesde = Date.now() - VENTANA_DE_NOVEDAD_MS;
+    let hayCambios = false;
 
     for (const chat of chats) {
-      const currentTs = chat.lastMessage?.messageTimestamp ?? 0;
+      // Normalizado a milisegundos: el mismo mensaje puede llegar en segundos
+      // por un camino y en milisegundos por otro, y comparar los dos crudos
+      // hacía pasar por nuevo un mensaje de hace meses.
+      const currentTs = epochToMs(chat.lastMessage?.messageTimestamp);
       const prevTs = prev.get(chat.remoteJid) ?? 0;
       const isFromMe = chat.lastMessage?.key?.fromMe ?? true;
       // Un chat que aparece por PRIMERA vez en esta sesión (la bandeja carga de
@@ -215,13 +263,24 @@ export function useAdvisorNotifications(
       // prevTs=0 y pasaba el filtro).
       const known = prev.has(chat.remoteJid);
 
-      if (known && currentTs > prevTs && !isFromMe && chat.remoteJid !== selectedJid) {
+      if (
+        known &&
+        currentTs > prevTs &&
+        currentTs >= recienteDesde &&
+        !isFromMe &&
+        chat.remoteJid !== selectedJid
+      ) {
         toNotify.push(chat);
       }
 
       // Siempre actualizar el timestamp visto para no re-detectar el mismo mensaje
-      prev.set(chat.remoteJid, currentTs);
+      if (currentTs !== prevTs) {
+        prev.set(chat.remoteJid, currentTs);
+        hayCambios = true;
+      }
     }
+
+    if (hayCambios) guardarAvisados(currentAdvisorId, prev);
 
     if (toNotify.length === 0) return;
 
@@ -258,7 +317,7 @@ export function useAdvisorNotifications(
     }
   // pendingUnreadJids excluido de deps a propósito: usamos el valor del closure sin ciclo
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatsResult, chatSessions, selectedJid]);
+  }, [chatsResult, chatSessions, selectedJid, currentAdvisorId]);
 
   return { pendingUnreadJids };
 }
