@@ -81,6 +81,14 @@ export type ChatContactDescriptor = {
   senderPn?: string | null;
   pushName?: string | null;
   aliases?: string[];
+  /**
+   * Linea (Instancia) de la que viene este chat. Un mismo numero puede
+   * escribirle a mas de una linea de la cuenta, cada una con su propia
+   * Session (asesor asignado, etiquetas...) para ese contacto. Sirve para
+   * que getChatContactSessions no mezcle la sesion de una linea con la de
+   * otra al elegir "la" sesion de un contacto.
+   */
+  instanceName?: string | null;
 };
 
 export type ChatContactSessionSummary = {

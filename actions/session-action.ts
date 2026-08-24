@@ -379,6 +379,7 @@ export async function getChatContactSessions(
           senderPn: z.string().trim().nullish(),
           pushName: z.string().trim().nullish(),
           aliases: z.array(z.string().trim()).optional(),
+          instanceName: z.string().trim().nullish(),
         }),
       )
       .parse(chats ?? []);
@@ -401,6 +402,7 @@ export async function getChatContactSessions(
 
       return {
         chatRemoteJid: chat.remoteJid,
+        instanceName: chat.instanceName ?? null,
         preferredRemoteJid: resolvePreferredRemoteJid(observedAliases),
         candidates: buildRemoteJidCandidates(chat.remoteJid, observedAliases),
       };
@@ -581,6 +583,28 @@ export async function getChatContactSessions(
         appointmentStatusMap.get(preferredSession.id) ?? null,
         recordatoriosMap.get(preferredSession.remoteJid) ?? 0,
       );
+
+      // Un mismo numero puede escribirle a mas de una linea de la cuenta, cada
+      // una con su propia Session (asesor asignado, etiquetas...). La entrada
+      // de arriba es "la sesion global" del contacto (para quien no distingue
+      // linea); esta de aqui es la sesion de SU linea, y solo se guarda cuando
+      // hay mas de una sesion en juego para el mismo contacto — si solo hay
+      // una, ya es la misma que quedo arriba y no hace falta duplicarla.
+      if (chat.instanceName && matchedSessions.size > 1) {
+        const sesionDeSuLinea = Array.from(matchedSessions.values()).find(
+          (s) => s.instanceId === chat.instanceName,
+        );
+        if (sesionDeSuLinea && sesionDeSuLinea.id !== preferredSession.id) {
+          const segLinea = seguimientosMap.get(sesionDeSuLinea.remoteJid);
+          data[`${chat.instanceName}::${chat.chatRemoteJid}`] = mapChatContactSessionSummary(
+            sesionDeSuLinea,
+            segLinea?.count ?? 0,
+            Object.entries(segLinea?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
+            appointmentStatusMap.get(sesionDeSuLinea.id) ?? null,
+            recordatoriosMap.get(sesionDeSuLinea.remoteJid) ?? 0,
+          );
+        }
+      }
     }
 
     return {
