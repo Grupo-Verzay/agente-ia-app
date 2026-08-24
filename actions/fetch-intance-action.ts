@@ -27,6 +27,9 @@ const EvolutionInstanceSchema = z.object({
     })
 });
 
+/** Lo que se espera a Evolution antes de dar la linea por no disponible. */
+const TIEMPO_MAXIMO_MS = 8000;
+
 export type EvolutionSchemaType = z.infer<typeof FetchInstancesSchema>
 export type EvolutionInstance = z.infer<typeof EvolutionInstanceSchema>
 
@@ -49,6 +52,13 @@ export async function fetchInstanceAction(form: EvolutionSchemaType): Promise<Re
 
     const { evoUrl, evoApiKey, instanceName } = parse.data
 
+    // Perfil y Conexion se pintan en el servidor y esperan a esta consulta. Sin
+    // limite de tiempo, un Evolution caido o lento dejaba la pagina cargando para
+    // siempre: la App parecia rota entera aunque todo lo demas estuviera bien.
+    // Con el corte, la pagina sale igual y solo falta el estado de la linea.
+    const corte = new AbortController();
+    const temporizador = setTimeout(() => corte.abort(), TIEMPO_MAXIMO_MS);
+
     try {
         const res = await fetch(`https://${evoUrl}/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`, {
             method: 'GET',
@@ -56,7 +66,8 @@ export async function fetchInstanceAction(form: EvolutionSchemaType): Promise<Re
                 'apikey': evoApiKey,
                 'Accept': 'application/json'
             },
-            cache: 'no-store'
+            cache: 'no-store',
+            signal: corte.signal
         })
 
         if (!res.ok) {
@@ -74,10 +85,18 @@ export async function fetchInstanceAction(form: EvolutionSchemaType): Promise<Re
             data
         }
 
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.name === 'AbortError') {
+            return {
+                success: false,
+                message: 'Evolution no respondio a tiempo.'
+            }
+        }
         return {
             success: false,
             message: `Error inesperado: ${error.message || error}`
         }
+    } finally {
+        clearTimeout(temporizador)
     }
 }
