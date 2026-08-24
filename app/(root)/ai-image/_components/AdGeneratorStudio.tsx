@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
@@ -30,7 +30,24 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
       <Card className="flex flex-col overflow-hidden rounded-[28px] border-border shadow-sm lg:min-h-0">
         <CardHeader className="space-y-2.5 border-b bg-gradient-to-b from-muted/40 to-background px-4 py-3">
           <CardTitle className="text-lg font-semibold">Generador de imágenes</CardTitle>
-          {!keyConfigured && (
+          {/* Siempre visible, con o sin key: si desaparecia al configurarla no
+              quedaba forma de reabrir el dialogo para cambiarla despues. */}
+          {keyConfigured ? (
+            <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2.5">
+              <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-sm text-muted-foreground">
+                API key de Google (Gemini) configurada.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => setDialogOpen(true)}
+              >
+                Cambiar
+              </Button>
+            </div>
+          ) : (
             <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5">
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span className="flex-1 text-sm text-amber-700 dark:text-amber-400">
