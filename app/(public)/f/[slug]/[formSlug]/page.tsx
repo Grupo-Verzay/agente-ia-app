@@ -51,7 +51,11 @@ export default async function PublicFormPage({
       <div className="w-full max-w-lg">
         {/* Título */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">{result.form.title}</h1>
+          {/* Mayuscula solo visual (CSS): el titulo se guarda tal cual se escribio,
+              para Google Sheets y en todas partes. Antes el editor forzaba el
+              propio VALOR a mayuscula al escribir, por eso no habia forma de
+              guardarlo distinto ni de que la pestana de Sheets coincidiera. */}
+          <h1 className="text-3xl font-bold text-white uppercase">{result.form.title}</h1>
           {result.form.description && (
             <p className="mt-2 text-slate-400 text-sm">{result.form.description}</p>
           )}
