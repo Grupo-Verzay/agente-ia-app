@@ -3,6 +3,18 @@
 import { useState } from 'react';
 import { Handle, Position, useConnection, useNodeConnections } from '@xyflow/react';
 import { MessageSquareIcon, Trash2, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { diagramaActions } from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
 
@@ -25,6 +37,28 @@ const ICON_COLOR: Record<string, string> = {
     notificacion: '#8b5cf6',
     solicitud: '#6366f1',
 };
+
+// Que se le pide escribir al usuario en cada tipo de nodo. El texto del nodo
+// es siempre el mismo campo (`content`); lo unico que cambia es como se le
+// explica, para que no tenga que adivinar si ahi va un mensaje, un enlace o
+// una nota interna.
+const CONTENT_HINT: Record<string, { label: string; placeholder: string }> = {
+    inicio: { label: 'Cómo arranca la conversación', placeholder: 'Ej: el cliente escribe por primera vez al WhatsApp' },
+    text: { label: 'Mensaje que recibe el cliente', placeholder: 'Ej: ¡Hola! Bienvenido, ¿en qué te puedo ayudar hoy?' },
+    image: { label: 'Imagen que se envía', placeholder: 'Describe la imagen o pega el enlace' },
+    video: { label: 'Video que se envía', placeholder: 'Describe el video o pega el enlace' },
+    document: { label: 'Documento que se envía', placeholder: 'Ej: catálogo en PDF' },
+    audio: { label: 'Audio que se envía', placeholder: 'Describe el audio o pega el enlace' },
+    intention: { label: 'Qué se pregunta para decidir', placeholder: 'Ej: ¿el cliente quiere comprar o solo está preguntando?' },
+    node_pause: { label: 'Por qué se pausa', placeholder: 'Ej: espera a que un asesor conteste' },
+    nota: { label: 'Nota interna', placeholder: 'Solo para el equipo, el cliente no la ve' },
+    sheets_write: { label: 'Qué se registra', placeholder: 'Ej: nombre, teléfono y producto de interés' },
+    sheets_read: { label: 'Qué se consulta', placeholder: 'Ej: si el cliente ya está en la base' },
+    notificacion: { label: 'Aviso que se manda', placeholder: 'Ej: avisar al asesor que hay un cliente nuevo' },
+    solicitud: { label: 'Datos que se piden', placeholder: 'Ej: nombre, ciudad y fecha del evento' },
+};
+
+const DEFAULT_HINT = { label: 'Texto de este paso', placeholder: 'Escribe aquí lo que pasa en este paso' };
 
 export type FlowNodeSize = 'sm' | 'md' | 'lg';
 
@@ -61,10 +95,12 @@ export type FlowNodeData = {
 /**
  * Nodo del diagrama, calcado de la maqueta aprobada: un cuadro con el icono
  * solo, y el nombre + contenido como texto centrado debajo (no dentro de una
- * tarjeta con encabezado). Nombre y contenido se editan ahi mismo -son
- * inputs sin borde que se ven como el texto de la maqueta hasta que se les
- * hace foco-. Eliminar y cambiar de tamano quedan en una mini barra que solo
- * aparece al pasar el mouse, para no ensuciar la vista en reposo.
+ * tarjeta con encabezado). El texto ya no se escribe encima del lienzo
+ * -teclear dentro de un cuadrito de 116 px, con el lienzo moviendose debajo,
+ * era incomodo-: al hacer clic en el nodo se abre un modal con el nombre del
+ * paso y el texto que ve el cliente. Eliminar y cambiar de tamano quedan en
+ * una mini barra que solo aparece al pasar el mouse, para no ensuciar la
+ * vista en reposo.
  */
 export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const connection = useConnection();
@@ -73,8 +109,12 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const incoming = useNodeConnections({ handleType: 'target', handleId: 'in' });
     const isTrigger = incoming.length === 0;
 
-    const [label, setLabel] = useState(data.label);
-    const [content, setContent] = useState(data.content);
+    const [open, setOpen] = useState(false);
+    // Borrador del modal: lo escrito solo entra al diagrama al darle a Listo,
+    // para poder cerrar sin haber ensuciado el nodo.
+    const [draftLabel, setDraftLabel] = useState(data.label);
+    const [draftContent, setDraftContent] = useState(data.content);
+
     const size = data.size ?? 'md';
     const t = SIZE_TOKENS[size];
     const currentCardAction = diagramaActions.find((a) => a.type === data.tipo);
@@ -83,6 +123,19 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     // El nodo de arranque no recibe nada: ni la chincheta roja de "aqui entra
     // la conversacion" -el arranque ya es el- ni el conector de entrada.
     const isInicio = data.tipo === 'inicio';
+    const hint = CONTENT_HINT[data.tipo] ?? DEFAULT_HINT;
+
+    const abrir = () => {
+        setDraftLabel(data.label);
+        setDraftContent(data.content);
+        setOpen(true);
+    };
+
+    const guardar = () => {
+        data.onChangeLabel(id, draftLabel.trim() || currentCardAction?.label || 'Paso');
+        data.onChangeContent(id, draftContent);
+        setOpen(false);
+    };
 
     return (
         <div className={`group relative ${t.wrapper} text-center`}>
@@ -115,7 +168,17 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 )}
 
                 <div
-                    className={`flex h-full w-full items-center justify-center border border-border/70 bg-card ${t.box}`}
+                    role="button"
+                    tabIndex={0}
+                    title="Clic para escribir el texto de este paso"
+                    onClick={abrir}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            abrir();
+                        }
+                    }}
+                    className={`flex h-full w-full cursor-pointer items-center justify-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${t.box}`}
                     style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)' }}
                 >
                     <Icon className={t.iconSvg} strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
@@ -151,26 +214,64 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 )}
             </div>
 
-            <input
-                value={label}
-                onChange={(e) => {
-                    setLabel(e.target.value);
-                    data.onChangeLabel(id, e.target.value);
-                }}
-                placeholder="Nombre del paso"
-                title="Nombre del paso"
-                className={`nodrag mt-2.5 w-full truncate border-0 bg-transparent p-0 text-center font-semibold leading-tight text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0 ${t.title}`}
-            />
-            <textarea
-                value={content}
-                onChange={(e) => {
-                    setContent(e.target.value);
-                    data.onChangeContent(id, e.target.value);
-                }}
-                placeholder="Sin texto todavía"
-                rows={1}
-                className={`nodrag mt-0.5 w-full resize-none border-0 bg-transparent p-0 text-center leading-tight text-muted-foreground outline-none placeholder:italic placeholder:text-muted-foreground/70 focus-visible:ring-0 ${t.sub}`}
-            />
+            <div className="nodrag cursor-pointer" onClick={abrir} title="Clic para escribir el texto de este paso">
+                <p className={`mt-2.5 w-full truncate font-semibold leading-tight text-foreground ${t.title}`}>
+                    {data.label || 'Paso sin nombre'}
+                </p>
+                <p
+                    className={`mt-0.5 line-clamp-2 w-full leading-tight ${t.sub} ${data.content ? 'text-muted-foreground' : 'italic text-muted-foreground/70'
+                        }`}
+                >
+                    {data.content || 'Sin texto todavía'}
+                </p>
+            </div>
+
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent className="nodrag nowheel sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Icon className="h-4 w-4" strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
+                            {data.label || currentCardAction?.label || 'Paso'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Escribe lo que pasa en este paso: es lo que verá el cliente cuando lea el diagrama.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-1">
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`nombre-${id}`}>Nombre del paso</Label>
+                            <Input
+                                id={`nombre-${id}`}
+                                value={draftLabel}
+                                onChange={(e) => setDraftLabel(e.target.value)}
+                                placeholder={currentCardAction?.label ?? 'Nombre del paso'}
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`texto-${id}`}>{hint.label}</Label>
+                            <Textarea
+                                id={`texto-${id}`}
+                                value={draftContent}
+                                onChange={(e) => setDraftContent(e.target.value)}
+                                placeholder={hint.placeholder}
+                                rows={6}
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button type="button" onClick={guardar}>
+                            Listo
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
