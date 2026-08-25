@@ -17,8 +17,8 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 
-import type { Action } from '@/types/workflow-node';
-import { nodeActions, accionActions, automationActions, seguimientoActions } from '@/types/workflow-node';
+import type { DiagramaAction } from './diagrama-node-types';
+import { diagramaContentActions, diagramaLogicActions } from './diagrama-node-types';
 
 export function FlowSidebarTrigger() {
     const { toggleSidebar, open, openMobile, isMobile } = useSidebar();
@@ -40,30 +40,28 @@ function SidebarSectionLabel({ label }: { label: string }) {
     );
 }
 
-export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: Action) => void }) {
+export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: DiagramaAction) => void }) {
     const { setOpen, setOpenMobile, isMobile } = useSidebar();
     const closeSidebar = () => (isMobile ? setOpenMobile(false) : setOpen(false));
 
     const [q, setQ] = useState('');
     const qLower = q.trim().toLowerCase();
 
-    const matches = (a: Action) => !qLower || a.label.toLowerCase().includes(qLower) || a.type.toLowerCase().includes(qLower);
-    const filteredNodes = useMemo(() => nodeActions.filter(matches), [qLower]);
-    const filteredAcciones = useMemo(() => accionActions.filter(matches), [qLower]);
-    const filteredAutomatizaciones = useMemo(() => automationActions.filter(matches), [qLower]);
-    const filteredSeguimientos = useMemo(() => seguimientoActions.filter(matches), [qLower]);
+    const matches = (a: DiagramaAction) => !qLower || a.label.toLowerCase().includes(qLower) || a.type.toLowerCase().includes(qLower);
+    const filteredNodes = useMemo(() => diagramaContentActions.filter(matches), [qLower]);
+    const filteredAcciones = useMemo(() => diagramaLogicActions.filter(matches), [qLower]);
 
-    const onDragStart = (evt: React.DragEvent, action: Action) => {
+    const onDragStart = (evt: React.DragEvent, action: DiagramaAction) => {
         evt.dataTransfer.setData('application/reactflow', JSON.stringify({ type: 'customNode', label: action.label, nodeTipo: action.type }));
         evt.dataTransfer.effectAllowed = 'move';
     };
 
-    const onClickCreate = (action: Action) => {
+    const onClickCreate = (action: DiagramaAction) => {
         onCreateNode(action);
         closeSidebar();
     };
 
-    const renderTile = (action: Action, seguimiento = false) => {
+    const renderTile = (action: DiagramaAction) => {
         const Icon = action.icon;
         return (
             <button
@@ -72,7 +70,7 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: Action) =
                 draggable
                 onDragStart={(e) => onDragStart(e, action)}
                 onClick={() => onClickCreate(action)}
-                className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border/70 bg-background p-3 text-center transition hover:border-primary/50 hover:bg-accent ${seguimiento ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border/70 bg-background p-3 text-center transition hover:border-primary/50 hover:bg-accent"
             >
                 <Icon className={`h-5 w-5 ${action.iconClassName ?? ''}`} />
                 <span className="text-[11px] font-medium leading-tight">{action.label}</span>
@@ -99,24 +97,6 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: Action) =
                     <SidebarGroupLabel className="px-1"><SidebarSectionLabel label="Acciones" /></SidebarGroupLabel>
                     <SidebarGroupContent>
                         <div className="grid grid-cols-2 gap-2 px-1 pb-2">{filteredAcciones.map((a) => renderTile(a))}</div>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-
-                <SidebarSeparator />
-
-                <SidebarGroup>
-                    <SidebarGroupLabel className="px-1"><SidebarSectionLabel label="Automatizaciones" /></SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <div className="grid grid-cols-2 gap-2 px-1 pb-2">{filteredAutomatizaciones.map((a) => renderTile(a))}</div>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-
-                <SidebarSeparator />
-
-                <SidebarGroup>
-                    <SidebarGroupLabel className="px-1"><SidebarSectionLabel label="Seguimientos" /></SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <div className="grid grid-cols-2 gap-2 px-1 pb-2">{filteredSeguimientos.map((a) => renderTile(a, true))}</div>
                     </SidebarGroupContent>
                 </SidebarGroup>
             </SidebarContent>

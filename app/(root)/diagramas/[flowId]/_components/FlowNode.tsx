@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { Handle, Position, useConnection, useNodeConnections } from '@xyflow/react';
-import { MessageSquareIcon, Trash2, ChevronDown, Zap } from 'lucide-react';
+import { MessageSquareIcon, Trash2, Zap, StickyNote } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { CARD_ACTIONS } from '@/types/workflow-node';
 import { SourceDotHandle } from './SourceDotHandle';
-import { cn } from '@/lib/utils';
+
+const NOTA_CARD_ACTION = { icon: StickyNote, bg: 'bg-amber-500', label: 'Nota' };
 
 export type FlowNodeData = {
     tipo: string;
@@ -24,9 +25,10 @@ export type FlowNodeData = {
 /**
  * Nodo del diagrama, estilo n8n: icono grande a la izquierda y
  * titulo/subtitulo dentro, en vez del encabezado angosto de antes. El
- * contenido de texto se edita en un panel que se despliega al hacer clic -
- * asi el nodo se ve compacto cuando no se esta editando. El nodo sin
- * conexion entrante se marca como disparador (rayo), igual que en n8n.
+ * contenido del paso queda siempre a la vista debajo del encabezado -no se
+ * esconde detras de un clic-, igual que en los nodos que ya existian. El
+ * nodo sin conexion entrante se marca como disparador (rayo), igual que en
+ * n8n.
  */
 export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const connection = useConnection();
@@ -36,11 +38,9 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const isTrigger = incoming.length === 0;
 
     const [content, setContent] = useState(data.content);
-    const [open, setOpen] = useState(false);
-    const currentCardAction = CARD_ACTIONS.find((a) => a.type === data.tipo);
+    const currentCardAction = data.tipo === 'nota' ? NOTA_CARD_ACTION : CARD_ACTIONS.find((a) => a.type === data.tipo);
     const Icon = currentCardAction?.icon ?? MessageSquareIcon;
     const isIntention = data.tipo === 'intention';
-    const preview = content.trim() || 'Sin texto todavía';
 
     return (
         <div className="relative w-[224px]">
@@ -61,26 +61,19 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 />
 
                 <div className="flex items-center gap-2 p-3">
-                    <button
-                        type="button"
-                        onClick={() => setOpen((o) => !o)}
-                        className="nodrag flex min-w-0 flex-1 items-center gap-3 text-left"
+                    <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] ${currentCardAction?.bg ?? 'bg-gray-500'}`}
                     >
-                        <span
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] ${currentCardAction?.bg ?? 'bg-gray-500'}`}
-                        >
-                            <Icon className="h-5 w-5 text-white" />
+                        <Icon className="h-5 w-5 text-white" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13.5px] font-semibold leading-tight text-foreground">
+                            {data.label}
                         </span>
-                        <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13.5px] font-semibold leading-tight text-foreground">
-                                {data.label}
-                            </span>
-                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{preview}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                            {currentCardAction?.label ?? data.tipo}
                         </span>
-                        <ChevronDown
-                            className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
-                        />
-                    </button>
+                    </span>
                     <Button
                         type="button"
                         variant="ghost"
@@ -93,20 +86,17 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                     </Button>
                 </div>
 
-                {open && (
-                    <div className="border-t border-border/60 p-3 pt-2.5">
-                        <Textarea
-                            value={content}
-                            onChange={(e) => {
-                                setContent(e.target.value);
-                                data.onChangeContent(id, e.target.value);
-                            }}
-                            placeholder="Texto o nota de este paso..."
-                            className="min-h-[72px] resize-none text-sm nodrag"
-                            autoFocus
-                        />
-                    </div>
-                )}
+                <div className="border-t border-border/60 p-3 pt-2.5">
+                    <Textarea
+                        value={content}
+                        onChange={(e) => {
+                            setContent(e.target.value);
+                            data.onChangeContent(id, e.target.value);
+                        }}
+                        placeholder="Texto o nota de este paso..."
+                        className="min-h-[64px] resize-none text-sm nodrag"
+                    />
+                </div>
             </div>
 
             {isIntention ? (

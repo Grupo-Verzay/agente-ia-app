@@ -1,12 +1,12 @@
 'use client';
 
 import { createContext, useContext } from 'react';
-import { Action } from '@/types/workflow-node';
+import type { DiagramaAction } from './diagrama-node-types';
 
 export type AddNodeFn = (params: {
     sourceId: string;
     sourceHandle: string;
-    action: Action;
+    action: DiagramaAction;
 }) => void | Promise<void>;
 
 const FlowAddNodeCtx = createContext<AddNodeFn | null>(null);
