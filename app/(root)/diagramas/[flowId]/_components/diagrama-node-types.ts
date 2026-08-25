@@ -1,4 +1,5 @@
 import {
+  CirclePlay,
   FileText,
   Image as ImageIcon,
   Video,
@@ -32,6 +33,19 @@ export interface DiagramaAction {
   iconClassName?: string;
 }
 
+/**
+ * Nodo de arranque. No esta en el panel lateral a proposito: se crea solo,
+ * uno por diagrama, al crear el diagrama (ver createFlowAction). Sirve para
+ * que quien abre el lienzo vea de un vistazo por donde empieza el proceso.
+ */
+export const diagramaInicioAction: DiagramaAction = {
+  type: 'inicio',
+  label: 'Inicio',
+  icon: CirclePlay,
+  bg: 'bg-emerald-500',
+  iconClassName: 'h-4 w-4 text-white',
+};
+
 export const diagramaContentActions: DiagramaAction[] = [
   { type: 'text', label: 'Texto', icon: FileText, bg: 'bg-gray-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'image', label: 'Imagen', icon: ImageIcon, bg: 'bg-blue-500', iconClassName: 'h-4 w-4 text-white' },
@@ -50,4 +64,8 @@ export const diagramaLogicActions: DiagramaAction[] = [
   { type: 'solicitud', label: 'Tomar solicitud', icon: ClipboardList, bg: 'bg-indigo-500', iconClassName: 'h-4 w-4 text-white' },
 ];
 
-export const diagramaActions: DiagramaAction[] = [...diagramaContentActions, ...diagramaLogicActions];
+export const diagramaActions: DiagramaAction[] = [
+  diagramaInicioAction,
+  ...diagramaContentActions,
+  ...diagramaLogicActions,
+];

@@ -103,6 +103,29 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
   }
 }
 
+/**
+ * Nodo con el que nace todo diagrama nuevo.
+ *
+ * Un lienzo en blanco no dice por donde se empieza a leer, y estos diagramas
+ * se le muestran al cliente: el primer nodo tiene que marcar el arranque. Se
+ * siembra aqui, al crear, y no en el lienzo, para que quede guardado en la
+ * base igual que cualquier otro nodo y el usuario pueda editarlo o borrarlo.
+ *
+ * La forma es la misma que espera el lienzo (`FlowGraphNode` en
+ * FlowCanvas.tsx): id, tipo, label, content, posicion y tamano.
+ */
+function nodoInicial(flowId: string) {
+  return {
+    id: `n_${flowId}_inicio`,
+    tipo: "inicio",
+    label: "Inicio",
+    content: "Bienvenido",
+    posX: 0,
+    posY: 0,
+    size: "md" as const,
+  };
+}
+
 export async function createFlowAction(name: string): Promise<ActionResult<FlowSummary>> {
   const trimmed = name.trim();
   if (!trimmed) return { success: false, message: "El nombre es obligatorio." };
@@ -119,9 +142,10 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
     }
 
     const id = `flow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const nodesJson = JSON.stringify([nodoInicial(id)]) as unknown as Prisma.InputJsonValue;
     const rows = await db.$queryRaw<FlowSummary[]>`
-      INSERT INTO "flows" ("id", "userId", "name")
-      VALUES (${id}, ${userId}, ${trimmed})
+      INSERT INTO "flows" ("id", "userId", "name", "nodes")
+      VALUES (${id}, ${userId}, ${trimmed}, ${nodesJson}::jsonb)
       RETURNING "id", "name", "description", "createdAt", "updatedAt"
     `;
     return { success: true, data: rows[0] };
