@@ -273,8 +273,8 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
 
                 {hasTwoOutputs ? (
                     <>
-                        <SourceDotHandle id="yes" label="Sí" topPct={38} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
-                        <SourceDotHandle id="no" label="No" topPct={62} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
+                        <SourceDotHandle id="yes" label="Sí" topPct={20} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
+                        <SourceDotHandle id="no" label="No" topPct={80} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
                     </>
                 ) : (
                     <SourceDotHandle id="out" label="" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
