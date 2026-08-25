@@ -40,6 +40,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/sessions" },
     { route: "/flow" },
     { route: "/workflow" },
+    { route: "/diagramas" },
     { route: "/campaigns" },
     { route: "/tools" },
     { route: "/reminders" },
