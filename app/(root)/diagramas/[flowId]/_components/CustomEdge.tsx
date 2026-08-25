@@ -4,7 +4,7 @@ import React, { memo, useCallback } from 'react';
 import {
     BaseEdge,
     EdgeLabelRenderer,
-    getSmoothStepPath,
+    getBezierPath,
     type EdgeProps,
     useReactFlow,
 } from '@xyflow/react';
@@ -16,14 +16,17 @@ function CustomEdgeComponent(props: EdgeProps) {
     const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected } = props;
     const { deleteElements } = useReactFlow();
 
-    const [edgePath, labelX, labelY] = getSmoothStepPath({
+    // Curva, no escalones: el trazo de escalones sale del nodo hacia la
+    // derecha y, si el nodo de destino quedo debajo o detras, tiene que dar
+    // una vuelta en angulo recto que se ve como un error. La curva llega a
+    // cualquier lado sin rodeos raros.
+    const [edgePath, labelX, labelY] = getBezierPath({
         sourceX,
         sourceY,
         sourcePosition,
         targetX,
         targetY,
         targetPosition,
-        borderRadius: 18,
     });
 
     const handleDelete = useCallback(
