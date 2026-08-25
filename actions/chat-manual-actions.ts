@@ -12,10 +12,10 @@ import { esNodoDeAutomatizacion, ejecutarNodoDeAutomatizacion } from "@/lib/work
 import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import {
+  eliminarMensajeDelTodo,
   getDeletedLastMessageJids,
   getPersistedInboxChats,
   getPersistedMessages,
-  marcarMensajeComoEliminado,
   persistChatMessage,
   persistEvolutionMessages,
   resolveInstanceOwner,
@@ -1087,13 +1087,18 @@ export async function deleteMessageAction(
   if (!resultado.success) return resultado;
 
   // Borrarlo en WhatsApp no basta: el panel lee su propia copia, asi que el
-  // mensaje reaparecia al recargar el chat. Se marca igual que cuando el
-  // borrado lo hace el cliente y llega por webhook.
+  // mensaje reaparecia al recargar el chat. Esta accion es solo para
+  // administradores (arriba), y para ellos "eliminar" es de verdad: se borra
+  // la fila, no se deja el aviso "Eliminado" (eso es lo correcto cuando lo
+  // borra el CLIENTE en WhatsApp, no cuando lo borra un administrador desde
+  // el panel).
   const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
-  await marcarMensajeComoEliminado({
+  await eliminarMensajeDelTodo({
     userId: storageUserId ?? user.ownerId ?? user.id,
     instanceName: context.instanceName,
+    remoteJid,
     messageId,
+    fromMe,
   });
 
   return resultado;
