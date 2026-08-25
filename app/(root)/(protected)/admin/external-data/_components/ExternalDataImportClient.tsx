@@ -150,7 +150,7 @@ export function ExternalDataImportClient({ clients }: Props) {
       );
       if (waCol) setColumnName(waCol);
       toast.success(`${res.headers.length} columnas detectadas`);
-    } catch (err) {
+    } catch (err: any) {
       toast.error(err?.message ?? 'Error al previsualizar');
     } finally {
       setIsPreviewing(false);
@@ -216,7 +216,7 @@ export function ExternalDataImportClient({ clients }: Props) {
       } else {
         toast.warning(`Importación con advertencias — ${res.errors} error(es)`, { id: toastId });
       }
-    } catch (err) {
+    } catch (err: any) {
       const msg = err?.message ?? 'Error inesperado durante la importación';
       addLog(msg, 'error');
       toast.error(msg, { id: toastId });

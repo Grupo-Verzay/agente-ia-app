@@ -120,7 +120,7 @@ export async function generateWhatsappPairingCode({
 export async function generateQRCode({ instanceName, userId }: GenerateQrInterface): Promise<QRCodeResponse> {
   try {
     await assertUserCanUseApp(userId);
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error?.message ?? "No autorizado." };
   }
 
@@ -205,7 +205,7 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
         // lo manejamos abajo con mensaje genérico
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     apiConnectedNow = false;
     failMessage =
       error?.name === 'AbortError'
@@ -313,7 +313,7 @@ export async function agregarApi(data: FormData): Promise<ClientResponse<ApiKey>
   try {
     const createdApiKey = await db.apiKey.create({ data: { url, key } })
     return { success: true, message: 'API Key agregada exitosamente', data: createdApiKey }
-  } catch (error) {
+  } catch (error: any) {
     console.error(error)
     return { success: false, message: error.message || 'Error al agregar la API Key' }
   }
@@ -331,7 +331,7 @@ export async function editarApiKey(data: FormData): Promise<ClientResponse<ApiKe
   try {
     await db.apiKey.update({ where: { id }, data: { url, key } });
     return { success: true, message: "API Key actualizada exitosamente." }
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error.message || "Error al actualizar la API Key." }
   }
 }
@@ -345,7 +345,7 @@ export async function eliminarApiKey(id: string) {
     await db.apiKey.delete({ where: { id } });
     revalidatePath('/agregar-api');
     return { success: true, message: "API Key eliminada exitosamente." }
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error.message || "Error al eliminar la API Key." }
   }
 }
@@ -355,7 +355,7 @@ export async function obtenerApiKeys() {
     const apiKeys = await db.apiKey.findMany();
     apiKeys.sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
     return { success: true, data: apiKeys };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error.message || "Error al obtener las API Keys." };
   }
 }
@@ -365,7 +365,7 @@ export async function getApiKeyById(id: string) {
     if (!id) return { success: false, message: 'Missing id' };
     const apiKey = await db.apiKey.findUnique({ where: { id } });
     return { success: true, data: apiKey };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error.message || "Error al obtener las API Keys." };
   }
 }
@@ -457,7 +457,7 @@ export async function createInstance(data: FormData) {
       revalidatePath('/agregar-api');
       return { success: true, message: "Instancia creada exitosamente.", instancia: nuevaInstancia };
     }
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error.message || "Error al crear la instancia." };
   }
 }
@@ -529,7 +529,7 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
     await db.instancia.delete({ where: { id: instancia.id } });
 
     return { success: true, message: "Instancia eliminada exitosamente." };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error?.message || "Error al eliminar la instancia." };
   }
 }
@@ -600,7 +600,7 @@ export async function forceRecreateInstance(userId: string, instanceType: string
 
     revalidatePath('/profile');
     return { success: true, message: "Instancia recreada exitosamente. Escanea el QR para reconectar WhatsApp." };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error?.message || "Error al recrear la instancia." };
   }
 }
@@ -639,7 +639,7 @@ export async function renameInstance(userId: string, instanceType: string, newNa
 
     revalidatePath('/connection');
     return { success: true, message: "Nombre actualizado correctamente." };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error?.message || "Error al renombrar la instancia." };
   }
 }
@@ -688,7 +688,7 @@ export async function deleteInstanceInternal(
 
     await db.instancia.delete({ where: { id: instancia.id } });
     return { success: true, message: "Instancia eliminada exitosamente.", instanceName };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error?.message || "Error al eliminar la instancia.", instanceName: null };
   }
 }
@@ -828,7 +828,7 @@ export async function createInstanceInternal(
       });
       return { success: true, message: "Instancia creada exitosamente." };
     }
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, message: error?.message || "Error al crear la instancia." };
   }
 }
@@ -952,7 +952,7 @@ export async function getDataApi(userId: string, apiKeyId: string) {
         instanceId: instancia.instanceId,
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       success: false,
       message: error.message || "Error al obtener datos de la API.",

@@ -88,7 +88,7 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
       .map(serializeUserBilling);
 
     return { success: true, message: "Clientes cargados.", data: safeUsers };
-  } catch (e) {
+  } catch (e: any) {
     console.error("[getClientsWithBilling]", e);
     return { success: false, message: e?.message ?? "Error cargando clientes con billing." };
   }

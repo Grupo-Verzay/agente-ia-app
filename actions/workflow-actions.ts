@@ -194,7 +194,7 @@ export const deleteWorkflow = async (id: string) => {
             message: `Flujo "${deleted.name}" eliminado correctamente.`,
             data: deleted,
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error al eliminar el flujo:", error);
 
         return {

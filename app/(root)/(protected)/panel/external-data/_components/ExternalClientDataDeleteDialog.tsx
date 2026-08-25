@@ -45,7 +45,7 @@ export function ExternalClientDataDeleteDialog({
         toast.error('No se pudo eliminar el registro');
         onClose();
       }
-    } catch (err) {
+    } catch (err: any) {
       toast.error(err?.message ?? 'Error al eliminar el registro');
     } finally {
       setIsDeleting(false);

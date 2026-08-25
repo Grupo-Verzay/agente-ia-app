@@ -180,7 +180,7 @@ export function WorkflowCanvas({
         )
       );
       toast.success('Flujo ordenado', { id: toastId });
-    } catch (e) {
+    } catch (e: any) {
       toast.error(e?.message ?? 'No se pudo guardar el orden', { id: toastId });
     }
   }, [setNodes]);
@@ -240,7 +240,7 @@ export function WorkflowCanvas({
         const posY = clamp(Math.max(0, Number(y.toFixed(2))), 0, 100000);
 
         await updateWorkflowNodePosition({ nodeId: id, posX, posY });
-      } catch (e) {
+      } catch (e: any) {
         toast.error(e?.message ?? 'No se pudo guardar la posición del nodo');
       }
       delete pending.current[id];
@@ -360,7 +360,7 @@ export function WorkflowCanvas({
         lastEdgeTargetRef.current = nodeDB.id;
 
         toast.success(connected ? 'Nodo creado y conectado' : 'Nodo creado', { id: toastId });
-      } catch (e) {
+      } catch (e: any) {
         toast.error(e?.message ?? 'Error creando nodo', { id: toastId });
       }
     },
@@ -434,7 +434,7 @@ export function WorkflowCanvas({
             id: toastId,
           });
         }
-      } catch (e) {
+      } catch (e: any) {
         toast.error(e?.message ?? 'Error creando nodo', { id: toastId });
       }
     },
@@ -565,7 +565,7 @@ export function WorkflowCanvas({
 
         // actualizar “último target conectado”
         lastEdgeTargetRef.current = res.edge.targetId;
-      } catch (e) {
+      } catch (e: any) {
         toast.error(e?.message ?? 'No se pudo crear la conexión');
       }
     },
@@ -583,7 +583,7 @@ export function WorkflowCanvas({
         try {
           const res = await deleteWorkflowEdge({ workflowId, edgeId: edge.id });
           toast.success(res.message || 'Relación eliminada.');
-        } catch (e) {
+        } catch (e: any) {
           toast.error(e?.message ?? 'No se pudo eliminar la conexión');
         }
       }

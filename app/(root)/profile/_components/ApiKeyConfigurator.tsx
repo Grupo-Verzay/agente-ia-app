@@ -274,7 +274,7 @@ export function ApiKeyConfigurator({
             }
 
             onSaved?.();
-        } catch (err) {
+        } catch (err: any) {
             toast.error(err?.message || "Error guardando configuración");
         } finally {
             setLoading(false);

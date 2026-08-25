@@ -130,7 +130,7 @@ export function ChangeUserPasswordForm({ userId }: Props) {
                 setConfirmPassword("");
                 setFieldError({});
                 addLog("info", "Campos limpiados. Proceso terminado.");
-            } catch (e) {
+            } catch (e: any) {
                 const msg = e?.message ?? String(e);
                 addLog("error", msg);
                 toast.error(msg, { id: "chg-pass" });

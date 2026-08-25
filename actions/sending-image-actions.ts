@@ -110,7 +110,7 @@ export const sendingImageMessage = async ({
         }
 
         return { success: true, message: 'Imagen enviada correctamente.' };
-    } catch (error) {
+    } catch (error: any) {
         const errMsg = `Error enviando imagen a ${remoteJid}: ${error.message || error}`;
         console.error(errMsg);
         return { success: false, message: errMsg, error: errMsg };
