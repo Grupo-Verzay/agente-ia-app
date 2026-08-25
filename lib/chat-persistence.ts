@@ -765,6 +765,12 @@ export async function eliminarMensajeDelTodo(params: {
     // Si era el ultimo mensaje de la conversacion, la vista previa de la lista
     // (chat_conversations) queda apuntando a una fila que ya no existe. Se
     // recalcula desde el mensaje que ahora queda de ultimo, si hay alguno.
+    //
+    // FROM LATERAL correlacionado con la tabla del UPDATE (c) no es valido en
+    // Postgres ("invalid reference to FROM-clause entry for table"): el
+    // target de un UPDATE no entra en el scope que LATERAL puede referenciar.
+    // Como aqui ya se conoce la conversacion exacta (remoteJid puntual, no un
+    // patron), un subquery normal sin LATERAL basta.
     await db.$executeRaw`
       UPDATE "chat_conversations" c SET
         "lastMessageId" = m."messageId",
@@ -776,10 +782,10 @@ export async function eliminarMensajeDelTodo(params: {
         "lastMessageTimestamp" = m."messageTimestamp",
         "lastMessageDeleted" = m."deleted",
         "updatedAt" = NOW()
-      FROM LATERAL (
+      FROM (
         SELECT "messageId", "fromMe", "messageType", "content", "mediaUrl", "raw", "messageTimestamp", "deleted"
         FROM "chat_messages"
-        WHERE "userId" = c."userId" AND "instanceName" = c."instanceName" AND "remoteJid" = c."remoteJid"
+        WHERE "userId" = ${userId} AND "instanceName" = ${instanceName} AND "remoteJid" = ${remoteJid}
         ORDER BY "messageTimestamp" DESC, "id" DESC
         LIMIT 1
       ) m
