@@ -86,6 +86,15 @@ const SIZE_TOKENS: Record<FlowNodeSize, {
     lg: { wrapper: 'w-[148px]', box: 'h-[74px] w-[74px] rounded-[18px]', iconSvg: 'h-[29px] w-[29px]', title: 'text-[13px]', sub: 'text-xs' },
 };
 
+// El nodo de Decision saca DOS conectores por su lado derecho, con sus
+// etiquetas "Si"/"No". En un cuadrado se le montan encima del icono, asi que
+// para ese tipo la caja es un rectangulo: mismo alto, mas ancho.
+const WIDE_TOKENS: Record<FlowNodeSize, { wrapper: string; box: string }> = {
+    sm: { wrapper: 'w-[128px]', box: 'h-11 w-[72px] rounded-[10px]' },
+    md: { wrapper: 'w-[164px]', box: 'h-[58px] w-[102px] rounded-[14px]' },
+    lg: { wrapper: 'w-[204px]', box: 'h-[74px] w-[130px] rounded-[18px]' },
+};
+
 export type FlowNodeData = {
     tipo: string;
     label: string;
@@ -139,6 +148,9 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     // Pregunta: tarjeta ancha con dos renglones (IA y cliente) y salidas Si/No.
     const isPregunta = data.tipo === 'pregunta_ia';
     const hasTwoOutputs = isIntention || isPregunta;
+    // Pregunta trae su propia maqueta (tarjeta ancha); Decision reusa la caja
+    // de siempre pero en version rectangular.
+    const caja = isIntention ? WIDE_TOKENS[size] : { wrapper: t.wrapper, box: t.box };
     const hint = CONTENT_HINT[data.tipo] ?? DEFAULT_HINT;
 
     const abrir = () => {
@@ -156,7 +168,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     };
 
     return (
-        <div className={`group relative ${isPregunta ? 'w-[240px]' : t.wrapper} text-center`}>
+        <div className={`group relative ${isPregunta ? 'w-[240px]' : caja.wrapper} text-center`}>
             {/* El nombre va ARRIBA del cuadro y se edita ahi mismo: es un input
                 sin borde que se ve como texto hasta que se le hace foco. */}
             <input
@@ -167,7 +179,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 className={`nodrag mb-1.5 w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-center font-semibold leading-tight text-foreground outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground/70 hover:border-border focus:border-primary focus-visible:ring-0 ${t.title}`}
             />
 
-            <div className={`relative mx-auto ${isPregunta ? 'w-full' : t.box}`}>
+            <div className={`relative mx-auto ${isPregunta ? 'w-full' : caja.box}`}>
                 {isTrigger && !isInicio && (
                     <span
                         className="absolute -left-2.5 top-1/2 z-10 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full border-2 border-background bg-red-500"
@@ -208,7 +220,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                     }}
                     className={`flex w-full cursor-pointer border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${isPregunta
                         ? 'flex-col gap-2 rounded-2xl px-3 py-2.5 text-left'
-                        : `h-full items-center justify-center ${t.box}`
+                        : `h-full items-center justify-center ${caja.box}`
                         }`}
                     style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)' }}
                 >

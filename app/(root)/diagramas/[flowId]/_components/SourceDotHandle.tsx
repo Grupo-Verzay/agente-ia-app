@@ -17,6 +17,13 @@ export const SourceDotHandle = (props: {
     const connections = useNodeConnections({ handleType: "source", handleId: id });
     const isFree = connections.length === 0;
 
+    // Un nodo de Decision tiene dos salidas. En cuanto una esta conectada, el
+    // "+" de la otra se queda flotando al lado del nodo y ensucia el lienzo:
+    // a partir de ahi solo aparece al pasar el mouse por el nodo, que es
+    // cuando de verdad se busca.
+    const salidasDelNodo = useNodeConnections({ handleType: "source" });
+    const soloAlPasarElMouse = isFree && salidasDelNodo.length > 0;
+
     return (
         <div
             className="absolute right-0 z-20"
@@ -52,7 +59,12 @@ export const SourceDotHandle = (props: {
             ) : null}
 
             {isFree && nodeId ? (
-                <div className="absolute left-10 top-1/2 -translate-y-1/2">
+                <div
+                    className={`absolute left-10 top-1/2 -translate-y-1/2 ${soloAlPasarElMouse
+                        ? "opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+                        : ""
+                        }`}
+                >
                     <InlineAddNode sourceId={nodeId} sourceHandle={id} totalNodes={totalNodes} />
                 </div>
             ) : null}

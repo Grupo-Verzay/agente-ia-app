@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 
 import { saveFlowGraphAction } from '@/actions/flow-actions';
 import { FlowCanvas, type FlowCanvasHandle, type FlowGraphNode, type FlowGraphEdge } from './FlowCanvas';
-import { FlowSidebar, FlowSidebarTrigger } from './FlowSidebar';
+import { FlowSidebar } from './FlowSidebar';
 
 interface FlowEditorClientProps {
   flowId: string;
@@ -63,9 +63,6 @@ export function FlowEditorClient({ flowId, flowName, initialNodes, initialEdges 
             </ReactFlowProvider>
           </div>
 
-          <div className="absolute right-3 top-3 z-30">
-            <FlowSidebarTrigger />
-          </div>
           <FlowSidebar onCreateNode={(action) => canvasRef.current?.createAtCenter(action)} />
         </SidebarProvider>
       </div>
