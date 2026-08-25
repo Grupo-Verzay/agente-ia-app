@@ -12,6 +12,7 @@ import {
   FileSearch,
   Bell,
   ClipboardList,
+  Bot,
 } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
@@ -55,6 +56,10 @@ export const diagramaContentActions: DiagramaAction[] = [
 ];
 
 export const diagramaLogicActions: DiagramaAction[] = [
+  // Pregunta: la unica tarjeta ancha del diagrama. Lleva dos renglones -lo que
+  // dice la IA y lo que contesta el cliente- y sale por dos conectores, Si y
+  // No, para poder dibujar que pasa cuando la respuesta no es la esperada.
+  { type: 'pregunta_ia', label: 'Pregunta IA', icon: Bot, bg: 'bg-fuchsia-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'intention', label: 'Decisión', icon: GitFork, bg: 'bg-black', iconClassName: 'h-4 w-4 text-white' },
   { type: 'node_pause', label: 'Pausa', icon: OctagonPause, bg: 'bg-sky-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'nota', label: 'Nota', icon: StickyNote, bg: 'bg-amber-500', iconClassName: 'h-4 w-4 text-white' },

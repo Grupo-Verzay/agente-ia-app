@@ -47,6 +47,9 @@ export interface FlowGraphNode {
   tipo: string;
   label: string;
   content: string;
+  // Solo lo usa el nodo Pregunta: el renglon del cliente. Los nodos se
+  // guardan como JSON, asi que sumar un campo no pide migracion.
+  reply?: string;
   posX: number;
   posY: number;
   size?: 'sm' | 'md' | 'lg';
@@ -101,10 +104,12 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           tipo: n.tipo,
           label: n.label,
           content: n.content,
+          reply: n.reply ?? '',
           size: n.size ?? 'md',
           totalNodes: initialNodesDB.length,
           onChangeLabel: () => {},
           onChangeContent: () => {},
+          onChangeReply: () => {},
           onChangeSize: () => {},
           onDelete: () => {},
         },
@@ -151,6 +156,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, content } } : n)));
   }, [setNodes]);
 
+  const onChangeReply = useCallback((nodeId: string, reply: string) => {
+    setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, reply } } : n)));
+  }, [setNodes]);
+
   const onChangeSize = useCallback((nodeId: string, size: 'sm' | 'md' | 'lg') => {
     setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, size } } : n)));
   }, [setNodes]);
@@ -163,7 +172,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   // Cada nodo necesita las funciones de arriba enganchadas (no existen todavia
   // cuando se arma rawInitialNodes). Se inyectan aqui, una vez.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onChangeSize, onDelete: onDeleteNode } })));
+    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onChangeReply, onChangeSize, onDelete: onDeleteNode } })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -187,7 +196,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
     const node = nodesRef.current.find((n) => n.id === sourceId);
     const tipo = node?.data?.tipo ?? '';
-    const candidates = tipo === 'intention' ? ['yes', 'no'] : ['out'];
+    const candidates = tipo === 'intention' || tipo === 'pregunta_ia' ? ['yes', 'no'] : ['out'];
     for (const h of candidates) {
       const occupied = edgesRef.current.some((e) => e.source === sourceId && (e.sourceHandle ?? 'out') === h);
       if (!occupied) return h;
@@ -215,10 +224,12 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           tipo: item.nodeTipo,
           label: item.label,
           content: '',
+          reply: '',
           size: 'md',
           totalNodes: nds.length + 1,
           onChangeLabel,
           onChangeContent,
+          onChangeReply,
           onChangeSize,
           onDelete: onDeleteNode,
         },
@@ -237,7 +248,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     }
     lastEdgeTargetRef.current = id;
     toast.success(connected ? 'Nodo creado y conectado' : 'Nodo creado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeReply, onChangeSize, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
 
   const addNodeFromSource: AddNodeFn = useCallback(({ sourceId, sourceHandle, action }) => {
     const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -254,10 +265,12 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           tipo: action.type,
           label: action.label,
           content: '',
+          reply: '',
           size: 'md',
           totalNodes: nds.length + 1,
           onChangeLabel,
           onChangeContent,
+          onChangeReply,
           onChangeSize,
           onDelete: onDeleteNode,
         },
@@ -268,7 +281,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setEdges((eds) => eds.concat({ id: edgeId, source: sourceId, target: id, sourceHandle, targetHandle: 'in', type: 'customEdge' }));
     lastEdgeTargetRef.current = id;
     toast.success('Nodo creado y conectado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDeleteNode, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeReply, onChangeSize, onDeleteNode, setEdges, setNodes]);
 
   const onDragOver = useCallback((evt: React.DragEvent) => {
     evt.preventDefault();
@@ -299,6 +312,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         tipo: n.data.tipo,
         label: n.data.label,
         content: n.data.content,
+        reply: n.data.reply ?? '',
         posX: n.position.x,
         posY: n.position.y,
         size: n.data.size,
