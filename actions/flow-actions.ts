@@ -104,25 +104,54 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
 }
 
 /**
- * Nodo con el que nace todo diagrama nuevo.
+ * Los dos nodos con los que nace todo diagrama nuevo, ya conectados: el que
+ * marca el arranque y el primer mensaje al cliente.
  *
  * Un lienzo en blanco no dice por donde se empieza a leer, y estos diagramas
- * se le muestran al cliente: el primer nodo tiene que marcar el arranque. Se
- * siembra aqui, al crear, y no en el lienzo, para que quede guardado en la
- * base igual que cualquier otro nodo y el usuario pueda editarlo o borrarlo.
+ * se le muestran al cliente. Se siembran aqui, al crear, y no en el lienzo,
+ * para que queden guardados en la base igual que cualquier otro nodo y el
+ * usuario pueda editarlos o borrarlos.
  *
- * La forma es la misma que espera el lienzo (`FlowGraphNode` en
- * FlowCanvas.tsx): id, tipo, label, content, posicion y tamano.
+ * La forma es la misma que espera el lienzo (`FlowGraphNode` y
+ * `FlowGraphEdge` en FlowCanvas.tsx). La separacion horizontal es el ancho
+ * de carril del lienzo, para que caigan ya alineados en la cuadricula.
  */
-function nodoInicial(flowId: string) {
+const ANCHO_DE_CARRIL = 350;
+
+function grafoInicial(flowId: string) {
+  const inicioId = `n_${flowId}_inicio`;
+  const bienvenidaId = `n_${flowId}_bienvenida`;
+
   return {
-    id: `n_${flowId}_inicio`,
-    tipo: "inicio",
-    label: "Inicio",
-    content: "Bienvenido",
-    posX: 0,
-    posY: 0,
-    size: "md" as const,
+    nodes: [
+      {
+        id: inicioId,
+        tipo: "inicio",
+        label: "Inicio",
+        content: "",
+        posX: 0,
+        posY: 0,
+        size: "md" as const,
+      },
+      {
+        id: bienvenidaId,
+        tipo: "text",
+        label: "Bienvenida",
+        content: "",
+        posX: ANCHO_DE_CARRIL,
+        posY: 0,
+        size: "md" as const,
+      },
+    ],
+    edges: [
+      {
+        id: `e_${flowId}_inicio`,
+        sourceId: inicioId,
+        targetId: bienvenidaId,
+        sourceHandle: "out",
+        targetHandle: "in",
+      },
+    ],
   };
 }
 
@@ -142,10 +171,12 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
     }
 
     const id = `flow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    const nodesJson = JSON.stringify([nodoInicial(id)]) as unknown as Prisma.InputJsonValue;
+    const grafo = grafoInicial(id);
+    const nodesJson = JSON.stringify(grafo.nodes) as unknown as Prisma.InputJsonValue;
+    const edgesJson = JSON.stringify(grafo.edges) as unknown as Prisma.InputJsonValue;
     const rows = await db.$queryRaw<FlowSummary[]>`
-      INSERT INTO "flows" ("id", "userId", "name", "nodes")
-      VALUES (${id}, ${userId}, ${trimmed}, ${nodesJson}::jsonb)
+      INSERT INTO "flows" ("id", "userId", "name", "nodes", "edges")
+      VALUES (${id}, ${userId}, ${trimmed}, ${nodesJson}::jsonb, ${edgesJson}::jsonb)
       RETURNING "id", "name", "description", "createdAt", "updatedAt"
     `;
     return { success: true, data: rows[0] };

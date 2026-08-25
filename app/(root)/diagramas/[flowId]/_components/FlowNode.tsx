@@ -80,11 +80,14 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const currentCardAction = diagramaActions.find((a) => a.type === data.tipo);
     const Icon = currentCardAction?.icon ?? MessageSquareIcon;
     const isIntention = data.tipo === 'intention';
+    // El nodo de arranque no recibe nada: ni la chincheta roja de "aqui entra
+    // la conversacion" -el arranque ya es el- ni el conector de entrada.
+    const isInicio = data.tipo === 'inicio';
 
     return (
         <div className={`group relative ${t.wrapper} text-center`}>
             <div className={`relative mx-auto ${t.box}`}>
-                {isTrigger && (
+                {isTrigger && !isInicio && (
                     <span
                         className="absolute -left-2.5 top-1/2 z-10 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full border-2 border-background bg-red-500"
                         style={{ boxShadow: '0 2px 6px rgba(20,24,29,0.2)' }}
@@ -93,21 +96,23 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                     </span>
                 )}
 
-                <Handle
-                    id="in"
-                    type="target"
-                    position={Position.Left}
-                    isConnectable={!connection.inProgress || isTarget}
-                    isConnectableStart={false}
-                    style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: 9999,
-                        background: 'hsl(var(--card))',
-                        border: '1.8px solid hsl(var(--border))',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                    }}
-                />
+                {!isInicio && (
+                    <Handle
+                        id="in"
+                        type="target"
+                        position={Position.Left}
+                        isConnectable={!connection.inProgress || isTarget}
+                        isConnectableStart={false}
+                        style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 9999,
+                            background: 'hsl(var(--card))',
+                            border: '1.8px solid hsl(var(--border))',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                        }}
+                    />
+                )}
 
                 <div
                     className={`flex h-full w-full items-center justify-center border border-border/70 bg-card ${t.box}`}
