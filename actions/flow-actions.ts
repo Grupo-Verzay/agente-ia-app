@@ -269,7 +269,7 @@ const TIPO_POR_FUNCION: Record<string, string> = {
   notificar_asesor: "notificacion",
   consulta_datos: "sheets_read",
   actualizar_datos: "sheets_write",
-  ejecutar_flujo: "node_pause",
+  ejecutar_flujo: "flujo",
   enrutamiento: "intention",
 };
 
@@ -302,7 +302,6 @@ function grafoDesdePasos(flowId: string, pasos: PasoDeEntrenamiento[]) {
     tipo: string;
     label: string;
     content: string;
-    reply?: string;
     posX: number;
     posY: number;
     size: "md";
@@ -326,17 +325,19 @@ function grafoDesdePasos(flowId: string, pasos: PasoDeEntrenamiento[]) {
     const mensaje = limpiar(paso.mainMessage ?? "", 160);
     const condicion = limpiar(paso.condicionParaAvanzar ?? "", 120);
 
-    // Con condicion para avanzar el paso se dibuja como Pregunta: el mensaje
-    // arriba, la condicion abajo, y sale por Si (sigue) y por No (queda libre
-    // para que se dibuje que hacer cuando no se cumple).
-    const tipo = condicion ? "pregunta_ia" : tipoDelPaso(paso);
+    // Con condicion para avanzar el paso se dibuja como Decision: sale por Si
+    // (sigue) y por No (queda libre para que se dibuje que hacer cuando no se
+    // cumple). La condicion se suma al texto para que se vea en el nodo.
+    const tipo = condicion ? "intention" : tipoDelPaso(paso);
+    const texto = condicion
+      ? [mensaje, `Avanza si: ${condicion}`].filter(Boolean).join("\n\n")
+      : mensaje;
 
     nodes.push({
       id,
       tipo,
       label: (paso.title ?? "").trim() || `Paso ${i + 1}`,
-      content: mensaje,
-      reply: condicion,
+      content: texto,
       posX: (i + 1) * ANCHO_DE_CARRIL,
       posY: 0,
       size: "md",
@@ -351,7 +352,7 @@ function grafoDesdePasos(flowId: string, pasos: PasoDeEntrenamiento[]) {
     });
 
     anteriorId = id;
-    anteriorSalida = tipo === "pregunta_ia" || tipo === "intention" ? "yes" : "out";
+    anteriorSalida = tipo === "intention" ? "yes" : "out";
   });
 
   return { nodes, edges };
