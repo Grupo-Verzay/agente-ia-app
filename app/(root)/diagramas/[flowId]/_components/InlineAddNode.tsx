@@ -93,10 +93,10 @@ export function InlineAddNode({
                     <button
                         type="button"
                         onClick={(e) => e.stopPropagation()}
-                        className="nodrag nopan flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90"
+                        className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/40 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
                         title="Agregar acción"
                     >
-                        <Plus className="h-5 w-5" strokeWidth={3} />
+                        <Plus className="h-4 w-4" strokeWidth={2.5} />
                     </button>
                 )}
             </PopoverTrigger>
