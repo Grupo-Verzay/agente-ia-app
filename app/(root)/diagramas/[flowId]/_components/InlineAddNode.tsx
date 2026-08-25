@@ -10,8 +10,8 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { Action, nodeActions, accionActions, seguimientoActions, automationActions } from '@/types/workflow-node';
+import type { DiagramaAction } from './diagrama-node-types';
+import { diagramaContentActions, diagramaLogicActions } from './diagrama-node-types';
 import { useAddNode } from './FlowAddNodeContext';
 
 function SectionDivider({ label }: { label: string }) {
@@ -28,11 +28,9 @@ function SectionDivider({ label }: { label: string }) {
 function ActionRow({
     action,
     onPick,
-    seguimiento,
 }: {
-    action: Action;
-    onPick: (a: Action) => void;
-    seguimiento?: boolean;
+    action: DiagramaAction;
+    onPick: (a: DiagramaAction) => void;
 }) {
     const Icon = action.icon;
     return (
@@ -40,10 +38,7 @@ function ActionRow({
             type="button"
             variant="outline"
             onClick={() => onPick(action)}
-            className={cn(
-                'flex w-full items-center justify-start gap-2 text-sm',
-                seguimiento && 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50'
-            )}
+            className="flex w-full items-center justify-start gap-2 text-sm"
         >
             <Icon className={`h-4 w-4 ${action.iconClassName ?? ''}`} />
             <span className="truncate">{action.label}</span>
@@ -67,7 +62,7 @@ export function InlineAddNode({
      * que es lo de siempre. El lienzo vacío no tiene de dónde colgar el primer
      * nodo, así que pasa el suyo y coloca en el centro.
      */
-    onPickAction?: (action: Action) => void;
+    onPickAction?: (action: DiagramaAction) => void;
     side?: 'right' | 'top' | 'bottom' | 'left';
     /** Otro botón para abrir la misma lista. Sin esto, el "+" pequeño. */
     trigger?: React.ReactNode;
@@ -77,7 +72,7 @@ export function InlineAddNode({
 
     if (!onPickAction && !addNode) return null;
 
-    const pick = (action: Action) => {
+    const pick = (action: DiagramaAction) => {
         setOpen(false);
         if (onPickAction) {
             onPickAction(action);
@@ -118,23 +113,13 @@ export function InlineAddNode({
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-2">
                         <div className="flex flex-col gap-2">
                             <SectionDivider label="Nodos" />
-                            {nodeActions.map((action) => (
+                            {diagramaContentActions.map((action) => (
                                 <ActionRow key={action.type} action={action} onPick={pick} />
                             ))}
 
                             <SectionDivider label="Acciones" />
-                            {accionActions.map((action) => (
+                            {diagramaLogicActions.map((action) => (
                                 <ActionRow key={action.type} action={action} onPick={pick} />
-                            ))}
-
-                            <SectionDivider label="Automatizaciones" />
-                            {automationActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} />
-                            ))}
-
-                            <SectionDivider label="Seguimientos" />
-                            {seguimientoActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} seguimiento />
                             ))}
                         </div>
                     </div>

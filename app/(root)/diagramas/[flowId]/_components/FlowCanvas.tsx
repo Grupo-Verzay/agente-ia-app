@@ -24,7 +24,8 @@ import { toast } from 'sonner';
 import { LayoutGrid, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-import { Action, PaletteItem } from '@/types/workflow-node';
+import { PaletteItem } from '@/types/workflow-node';
+import type { DiagramaAction } from './diagrama-node-types';
 import { CustomEdge } from './CustomEdge';
 import { FlowNode, type FlowNodeData } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
@@ -59,7 +60,7 @@ export interface FlowGraphEdge {
 
 export interface FlowCanvasHandle {
   getGraph: () => { nodes: FlowGraphNode[]; edges: FlowGraphEdge[] };
-  createAtCenter: (action: Action) => void;
+  createAtCenter: (action: DiagramaAction) => void;
 }
 
 interface FlowCanvasProps {
@@ -299,7 +300,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     }
   }, [createFromItem]);
 
-  const createAtCenter = useCallback((action: Action) => {
+  const createAtCenter = useCallback((action: DiagramaAction) => {
     createFromItem({ type: 'customNode', label: action.label, nodeTipo: action.type });
   }, [createFromItem]);
 
