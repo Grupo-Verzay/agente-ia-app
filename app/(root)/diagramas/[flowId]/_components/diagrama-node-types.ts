@@ -5,8 +5,12 @@ import {
   File,
   Music,
   OctagonPause,
-  Brain,
+  GitFork,
   StickyNote,
+  FileSpreadsheet,
+  FileSearch,
+  Bell,
+  ClipboardList,
 } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
@@ -37,9 +41,13 @@ export const diagramaContentActions: DiagramaAction[] = [
 ];
 
 export const diagramaLogicActions: DiagramaAction[] = [
-  { type: 'intention', label: 'Decisión', icon: Brain, bg: 'bg-black', iconClassName: 'h-4 w-4 text-white' },
+  { type: 'intention', label: 'Decisión', icon: GitFork, bg: 'bg-black', iconClassName: 'h-4 w-4 text-white' },
   { type: 'node_pause', label: 'Pausa', icon: OctagonPause, bg: 'bg-sky-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'nota', label: 'Nota', icon: StickyNote, bg: 'bg-amber-500', iconClassName: 'h-4 w-4 text-white' },
+  { type: 'sheets_write', label: 'Registrar en Sheets', icon: FileSpreadsheet, bg: 'bg-emerald-600', iconClassName: 'h-4 w-4 text-white' },
+  { type: 'sheets_read', label: 'Consultar Sheets', icon: FileSearch, bg: 'bg-emerald-600', iconClassName: 'h-4 w-4 text-white' },
+  { type: 'notificacion', label: 'Notificación', icon: Bell, bg: 'bg-violet-500', iconClassName: 'h-4 w-4 text-white' },
+  { type: 'solicitud', label: 'Tomar solicitud', icon: ClipboardList, bg: 'bg-indigo-500', iconClassName: 'h-4 w-4 text-white' },
 ];
 
 export const diagramaActions: DiagramaAction[] = [...diagramaContentActions, ...diagramaLogicActions];
