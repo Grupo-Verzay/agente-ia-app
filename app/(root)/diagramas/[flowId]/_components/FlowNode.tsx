@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Handle, Position, useConnection, useNodeConnections } from '@xyflow/react';
-import { Bot, MessageSquareIcon, Trash2, User, Zap } from 'lucide-react';
+import { MessageSquareIcon, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -34,9 +34,14 @@ const ICON_COLOR: Record<string, string> = {
     nota: '#f59e0b',
     sheets_write: '#059669',
     sheets_read: '#059669',
-    notificacion: '#8b5cf6',
+    notificacion: '#eab308',
     solicitud: '#6366f1',
-    pregunta_ia: '#d946ef',
+    flujo: '#0d9488',
+    cta: '#f97316',
+    paso: '#f43f5e',
+    seguimiento: '#8b5cf6',
+    llamada_ia: '#d946ef',
+    automatizacion: '#06b6d4',
 };
 
 // Que se le pide escribir al usuario en cada tipo de nodo. El texto del nodo
@@ -57,14 +62,12 @@ const CONTENT_HINT: Record<string, { label: string; placeholder: string }> = {
     sheets_read: { label: 'Qué se consulta', placeholder: 'Ej: si el cliente ya está en la base' },
     notificacion: { label: 'Aviso que se manda', placeholder: 'Ej: avisar al asesor que hay un cliente nuevo' },
     solicitud: { label: 'Datos que se piden', placeholder: 'Ej: nombre, ciudad y fecha del evento' },
-    pregunta_ia: { label: 'Lo que pregunta la IA', placeholder: 'Ej: ¿Quieres que te agende una cita?' },
-};
-
-// Segundo renglon del nodo Pregunta: la respuesta del cliente con la que se
-// da por cumplida la pregunta. Si contesta eso, sale por Si; si no, por No.
-const REPLY_HINT = {
-    label: 'Respuesta del cliente que cuenta como "Sí"',
-    placeholder: 'Ej: dice que sí, pide la cita o manda una fecha',
+    flujo: { label: 'Qué flujo se ejecuta', placeholder: 'Ej: el flujo de agendamiento de citas' },
+    cta: { label: 'Qué se le pide hacer al cliente', placeholder: 'Ej: agenda tu cita en este enlace' },
+    paso: { label: 'Qué pasa en este paso', placeholder: 'Ej: el asesor revisa la solicitud' },
+    seguimiento: { label: 'Cuándo y qué se recuerda', placeholder: 'Ej: a los 2 días, recordarle la cotización' },
+    llamada_ia: { label: 'Para qué se llama al cliente', placeholder: 'Ej: confirmar la cita por teléfono' },
+    automatizacion: { label: 'Qué se hace automáticamente', placeholder: 'Ej: marcar el contacto como contactado' },
 };
 
 const DEFAULT_HINT = { label: 'Texto de este paso', placeholder: 'Escribe aquí lo que pasa en este paso' };
@@ -103,9 +106,6 @@ export type FlowNodeData = {
     totalNodes: number;
     onChangeLabel: (nodeId: string, label: string) => void;
     onChangeContent: (nodeId: string, content: string) => void;
-    // Solo lo usa el nodo Pregunta: el renglon del cliente.
-    reply?: string;
-    onChangeReply: (nodeId: string, reply: string) => void;
     onChangeSize: (nodeId: string, size: FlowNodeSize) => void;
     onDelete: (nodeId: string) => void;
     // Index signature: React Flow exige que el `data` de un Node cumpla
@@ -135,7 +135,6 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     // para poder cerrar sin haber ensuciado el nodo.
     const [draftLabel, setDraftLabel] = useState(data.label);
     const [draftContent, setDraftContent] = useState(data.content);
-    const [draftReply, setDraftReply] = useState(data.reply ?? '');
 
     const size = data.size ?? 'md';
     const t = SIZE_TOKENS[size];
@@ -145,30 +144,25 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     // El nodo de arranque no recibe nada: ni la chincheta roja de "aqui entra
     // la conversacion" -el arranque ya es el- ni el conector de entrada.
     const isInicio = data.tipo === 'inicio';
-    // Pregunta: tarjeta ancha con dos renglones (IA y cliente) y salidas Si/No.
-    const isPregunta = data.tipo === 'pregunta_ia';
-    const hasTwoOutputs = isIntention || isPregunta;
-    // Pregunta trae su propia maqueta (tarjeta ancha); Decision reusa la caja
-    // de siempre pero en version rectangular.
+    // Decision reusa la caja de siempre pero en version rectangular, para que
+    // los dos conectores de salida no se le monten encima al icono.
     const caja = isIntention ? WIDE_TOKENS[size] : { wrapper: t.wrapper, box: t.box };
     const hint = CONTENT_HINT[data.tipo] ?? DEFAULT_HINT;
 
     const abrir = () => {
         setDraftLabel(data.label);
         setDraftContent(data.content);
-        setDraftReply(data.reply ?? '');
         setOpen(true);
     };
 
     const guardar = () => {
         data.onChangeLabel(id, draftLabel.trim() || currentCardAction?.label || 'Paso');
         data.onChangeContent(id, draftContent);
-        if (isPregunta) data.onChangeReply(id, draftReply);
         setOpen(false);
     };
 
     return (
-        <div className={`group relative ${isPregunta ? 'w-[240px]' : caja.wrapper} text-center`}>
+        <div className={`group relative ${caja.wrapper} text-center`}>
             {/* El nombre va ARRIBA del cuadro y se edita ahi mismo: es un input
                 sin borde que se ve como texto hasta que se le hace foco. */}
             <input
@@ -179,7 +173,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 className={`nodrag mb-1.5 w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-center font-semibold leading-tight text-foreground outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground/70 hover:border-border focus:border-primary focus-visible:ring-0 ${t.title}`}
             />
 
-            <div className={`relative mx-auto ${isPregunta ? 'w-full' : caja.box}`}>
+            <div className={`relative mx-auto ${caja.box}`}>
                 {isTrigger && !isInicio && (
                     <span
                         className="absolute -left-2.5 top-1/2 z-10 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full border-2 border-background bg-red-500"
@@ -218,37 +212,10 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                             abrir();
                         }
                     }}
-                    className={`flex w-full cursor-pointer border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${isPregunta
-                        ? 'flex-col gap-2 rounded-2xl px-3 py-2.5 text-left'
-                        : `h-full items-center justify-center ${caja.box}`
-                        }`}
+                    className={`flex h-full w-full cursor-pointer items-center justify-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${caja.box}`}
                     style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)' }}
                 >
-                    {isPregunta ? (
-                        <>
-                            <div className="flex items-start gap-2">
-                                <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-fuchsia-500/10">
-                                    <Bot className="h-3.5 w-3.5" strokeWidth={1.8} style={{ color: ICON_COLOR.pregunta_ia }} />
-                                </span>
-                                <p className={`line-clamp-2 flex-1 leading-snug ${data.content ? 'text-foreground' : 'italic text-muted-foreground/70'} ${t.sub}`}>
-                                    {data.content || 'Qué pregunta la IA'}
-                                </p>
-                            </div>
-
-                            <span className="h-px w-full bg-border/70" />
-
-                            <div className="flex items-start gap-2">
-                                <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-500/10">
-                                    <User className="h-3.5 w-3.5" strokeWidth={1.8} style={{ color: '#0ea5e9' }} />
-                                </span>
-                                <p className={`line-clamp-2 flex-1 leading-snug ${data.reply ? 'text-foreground' : 'italic text-muted-foreground/70'} ${t.sub}`}>
-                                    {data.reply || 'Qué contesta el cliente'}
-                                </p>
-                            </div>
-                        </>
-                    ) : (
-                        <Icon className={t.iconSvg} strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
-                    )}
+                    <Icon className={t.iconSvg} strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
                 </div>
 
                 {/* barra de acciones: oculta hasta que se pasa el mouse por el nodo */}
@@ -271,7 +238,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                     </button>
                 </div>
 
-                {hasTwoOutputs ? (
+                {isIntention ? (
                     <>
                         <SourceDotHandle id="yes" label="Sí" topPct={20} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
                         <SourceDotHandle id="no" label="No" topPct={80} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
@@ -283,7 +250,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
 
             {/* Debajo del cuadro solo se asoma el texto cuando lo hay: un nodo
                 vacio no lleva ningun aviso, para no llenar el lienzo de ruido. */}
-            {data.content && !isPregunta && (
+            {data.content && (
                 <p
                     onClick={abrir}
                     title="Clic para editar el texto de este paso"
@@ -317,38 +284,16 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor={`texto-${id}`} className="flex items-center gap-1.5">
-                                {isPregunta && <Bot className="h-3.5 w-3.5" style={{ color: ICON_COLOR.pregunta_ia }} />}
-                                {hint.label}
-                            </Label>
+                            <Label htmlFor={`texto-${id}`}>{hint.label}</Label>
                             <Textarea
                                 id={`texto-${id}`}
                                 value={draftContent}
                                 onChange={(e) => setDraftContent(e.target.value)}
                                 placeholder={hint.placeholder}
-                                rows={isPregunta ? 3 : 6}
+                                rows={6}
                                 autoFocus
                             />
                         </div>
-
-                        {isPregunta && (
-                            <div className="space-y-1.5">
-                                <Label htmlFor={`respuesta-${id}`} className="flex items-center gap-1.5">
-                                    <User className="h-3.5 w-3.5 text-sky-500" />
-                                    {REPLY_HINT.label}
-                                </Label>
-                                <Textarea
-                                    id={`respuesta-${id}`}
-                                    value={draftReply}
-                                    onChange={(e) => setDraftReply(e.target.value)}
-                                    placeholder={REPLY_HINT.placeholder}
-                                    rows={3}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Si el cliente contesta eso, el diagrama sigue por <strong>Sí</strong>; si no, por <strong>No</strong>.
-                                </p>
-                            </div>
-                        )}
                     </div>
 
                     <DialogFooter>
