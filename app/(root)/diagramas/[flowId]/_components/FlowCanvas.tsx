@@ -48,6 +48,7 @@ export interface FlowGraphNode {
   content: string;
   posX: number;
   posY: number;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export interface FlowGraphEdge {
@@ -97,9 +98,11 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           tipo: n.tipo,
           label: n.label,
           content: n.content,
+          size: n.size ?? 'md',
           totalNodes: initialNodesDB.length,
           onChangeLabel: () => {},
           onChangeContent: () => {},
+          onChangeSize: () => {},
           onDelete: () => {},
         },
       } satisfies Node<FlowNodeData>;
@@ -145,6 +148,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, content } } : n)));
   }, [setNodes]);
 
+  const onChangeSize = useCallback((nodeId: string, size: 'sm' | 'md' | 'lg') => {
+    setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, size } } : n)));
+  }, [setNodes]);
+
   const onDeleteNode = useCallback((nodeId: string) => {
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
@@ -153,7 +160,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   // Cada nodo necesita las funciones de arriba enganchadas (no existen todavia
   // cuando se arma rawInitialNodes). Se inyectan aqui, una vez.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onDelete: onDeleteNode } })));
+    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onChangeSize, onDelete: onDeleteNode } })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -239,9 +246,11 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           tipo: item.nodeTipo,
           label: item.label,
           content: '',
+          size: 'md',
           totalNodes: nds.length + 1,
           onChangeLabel,
           onChangeContent,
+          onChangeSize,
           onDelete: onDeleteNode,
         },
       } satisfies Node<FlowNodeData>),
@@ -259,7 +268,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     }
     lastEdgeTargetRef.current = id;
     toast.success(connected ? 'Nodo creado y conectado' : 'Nodo creado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
 
   const addNodeFromSource: AddNodeFn = useCallback(({ sourceId, sourceHandle, action }) => {
     const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -276,9 +285,11 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           tipo: action.type,
           label: action.label,
           content: '',
+          size: 'md',
           totalNodes: nds.length + 1,
           onChangeLabel,
           onChangeContent,
+          onChangeSize,
           onDelete: onDeleteNode,
         },
       } satisfies Node<FlowNodeData>),
@@ -288,7 +299,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setEdges((eds) => eds.concat({ id: edgeId, source: sourceId, target: id, sourceHandle, targetHandle: 'in', type: 'customEdge' }));
     lastEdgeTargetRef.current = id;
     toast.success('Nodo creado y conectado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onDeleteNode, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDeleteNode, setEdges, setNodes]);
 
   const onDragOver = useCallback((evt: React.DragEvent) => {
     evt.preventDefault();
@@ -321,6 +332,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         content: n.data.content,
         posX: n.position.x,
         posY: n.position.y,
+        size: n.data.size,
       })),
       edges: edgesRef.current.map((e) => ({
         id: e.id,
