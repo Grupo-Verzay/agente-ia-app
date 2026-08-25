@@ -95,7 +95,7 @@ export const MediaPicker: React.FC<Props> = ({ onSend, prefixForUpload = "upload
         setCaption("");
         setPtt(false);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("[MediaPicker] send error:", e);
       alert(
         useBase64

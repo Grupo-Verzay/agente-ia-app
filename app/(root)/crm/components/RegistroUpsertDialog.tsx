@@ -181,7 +181,7 @@ export function RegistroUpsertDialog({
 
             onOpenChange(false);
             onSuccess();
-        } catch (e) {
+        } catch (e: any) {
             toast.error(e?.message || "Ocurrió un error inesperado.", { id: tId });
         } finally {
             setSaving(false);

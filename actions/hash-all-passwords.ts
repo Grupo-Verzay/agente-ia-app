@@ -101,7 +101,7 @@ export async function hashAllPasswords(): Promise<HashProgress> {
                 });
 
                 updatedSoFar += res.count;
-            } catch (e) {
+            } catch (e: any) {
                 errors.push(`Batch ${batchIndex + 1}/${batchesTotal} failed: ${e?.message ?? String(e)}`);
             }
         }
@@ -122,7 +122,7 @@ export async function hashAllPasswords(): Promise<HashProgress> {
             skippedNullPassword,
             errors: errors.length ? errors : undefined,
         };
-    } catch (e) {
+    } catch (e: any) {
         return {
             success: false,
             phase: "error",

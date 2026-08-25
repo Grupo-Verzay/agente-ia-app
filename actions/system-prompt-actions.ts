@@ -345,7 +345,7 @@ export async function upsertAgentPromptText(input: {
                 prompt,
             },
         };
-    } catch (e) {
+    } catch (e: any) {
         return { ok: false as const, error: e?.message ?? "Error al guardar el prompt." };
     }
 }

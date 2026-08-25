@@ -303,7 +303,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                 await updatePlatformLogoUrl(url);
             }
             toast.success('Logo actualizado', { id: toastId });
-        } catch (error) {
+        } catch (error: any) {
             toast.error(error?.message || 'Error al subir el avatar', { id: toastId });
         } finally {
             setLoadingField(null);

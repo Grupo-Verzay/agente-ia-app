@@ -48,7 +48,7 @@ export const ResetAllPasswords = () => {
                 if (res.errors?.length) {
                     res.errors.forEach((e: string) => addLog("error", e));
                 }
-            } catch (e) {
+            } catch (e: any) {
                 const msg = e?.message ?? String(e);
                 addLog("error", msg);
                 toast.error(msg, { id: "hash-all" });

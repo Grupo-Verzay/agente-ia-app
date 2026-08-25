@@ -67,7 +67,7 @@ export async function updatePreferredCurrencyCode(
     });
 
     return { success: true, message: 'Moneda actualizada.' };
-  } catch (error) {
+  } catch (error: any) {
     console.error('updatePreferredCurrencyCode error:', error);
     return { success: false, message: error?.message || 'Error al actualizar moneda.' };
   }

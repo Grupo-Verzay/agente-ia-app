@@ -42,7 +42,7 @@ export async function getBillingServiceAccessSnapshot(userId?: string) {
         email: billing?.user?.email ?? null,
       },
     };
-  } catch (e) {
+  } catch (e: any) {
     return { success: false as const, message: e?.message ?? "Error calculando estado de acceso." };
   }
 }

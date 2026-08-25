@@ -118,7 +118,7 @@ export const sendingMessages = async ({
 
         return { success: true, message: 'Se notifico correctamente.', messageId };
 
-    } catch (error) {
+    } catch (error: any) {
         const errMsg = `Error enviando texto a ${remoteJid}: ${error.message || error}`;
         console.error(errMsg);
         return { success: false, message: errMsg, error: errMsg };

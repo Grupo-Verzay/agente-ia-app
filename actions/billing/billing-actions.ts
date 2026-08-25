@@ -157,7 +157,7 @@ export async function getUserBillingByUserId(
             message: billing ? "Billing encontrado." : "Cliente sin billing configurado.",
             data: serializeUserBilling(billing),
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[getUserBillingByUserId]", error);
         return {
             success: false,
@@ -227,7 +227,7 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
                 updatedAt: billing.updatedAt ? billing.updatedAt.toISOString() : null,
             },
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[getOwnBillingAction]", error);
         return { success: false, message: error?.message ?? "Error obteniendo billing." };
     }
@@ -308,7 +308,7 @@ export async function upsertUserBillingConfig(
             message: `Billing actualizado.${suffix}`,
             data: syncResult.billing ?? billing,
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[upsertUserBillingConfig]", error);
         return { success: false, message: error?.message ?? "Error actualizando billing." };
     }
@@ -372,7 +372,7 @@ export async function setUserBillingDueDate(
             message: "Fecha de pago actualizada.",
             data: syncResult.billing ?? billing,
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[setUserBillingDueDate]", error);
         return { success: false, message: error?.message ?? "Error actualizando dueDate." };
     }
@@ -426,7 +426,7 @@ export async function markUserAsPaid(
                 : "Pago registrado. Servicio activo.",
             data: sideEffects.billing,
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[markUserAsPaid]", error);
         return { success: false, message: error?.message ?? "Error marcando pago." };
     }
@@ -469,7 +469,7 @@ export async function markUserAsUnpaid(
                 : "Estado actualizado: NO PAGADO.",
             data: sideEffects.billing,
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[markUserAsUnpaid]", error);
         return { success: false, message: error?.message ?? "Error marcando no pagado." };
     }
@@ -523,7 +523,7 @@ export async function suspendUserService(
                 : "Servicio suspendido.",
             data: sideEffects.billing,
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[suspendUserService]", error);
         return { success: false, message: error?.message ?? "Error suspendiendo servicio." };
     }
@@ -575,7 +575,7 @@ export async function activateUserService(
                 : "Servicio activado.",
             data: sideEffects.billing,
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[activateUserService]", error);
         return { success: false, message: error?.message ?? "Error activando servicio." };
     }
@@ -601,7 +601,7 @@ export async function toggleUserStatus(
             message: enable ? "Usuario activado." : "Usuario desactivado.",
             data: { status: updated.status },
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[toggleUserStatus]", error);
         return { success: false, message: error?.message ?? "Error actualizando estado del usuario." };
     }

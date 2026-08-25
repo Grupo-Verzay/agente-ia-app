@@ -65,7 +65,7 @@ export async function previewBillingReminderMessage(
             message: "Vista previa generada.",
             data: { text, template, daysRemaining },
         };
-    } catch (e) {
+    } catch (e: any) {
         console.error("[previewBillingReminderMessage]", e);
         return { success: false, message: e?.message ?? "Error generando vista previa." };
     }

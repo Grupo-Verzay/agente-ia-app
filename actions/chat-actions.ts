@@ -375,7 +375,7 @@ async function fetchMessagesForRemoteJid(
       meta,
       raw,
     };
-  } catch (e) {
+  } catch (e: any) {
     clearTimeout(t);
     return {
       success: false as const,
@@ -697,7 +697,7 @@ export async function fetchChatsFromEvolution(
       .map(c => ({ ...c, instanceName, instanceType: 'evolution' as const }));
     // LOG 4: Éxito
     return { success: true, message: `OK findChats ${instanceName}`, data: chatData };
-  } catch (e) {
+  } catch (e: any) {
     clearTimeout(t);
     const errMsg = e?.name === 'AbortError' ? 'Timeout de solicitud.' : `Error de red: ${e?.message || String(e)}`;
     // LOG 5: Error de red/timeout
@@ -939,7 +939,7 @@ export async function sendTextMessage(
       };
     if (!raw) return { success: false, message: 'Respuesta inválida o vacía al enviar mensaje.', remoteJid };
     return { success: true, message: `Mensaje enviado OK a ${remoteJid}`, data: raw, remoteJid };
-  } catch (e) {
+  } catch (e: any) {
     clearTimeout(t);
     return {
       success: false,
@@ -1003,7 +1003,7 @@ export async function sendAudio(
       };
     if (!raw) return { success: false, message: 'Respuesta inválida o vacía al enviar audio.', remoteJid };
     return { success: true, message: `Audio enviado a ${remoteJid}`, data: raw, remoteJid };
-  } catch (e) {
+  } catch (e: any) {
     clearTimeout(t);
     return {
       success: false,
@@ -1101,7 +1101,7 @@ export async function sendMediaByUrl(
     }
     if (!raw) return { success: false, message: 'Respuesta inválida o vacía al enviar media.', remoteJid };
     return { success: true, message: `Media (${params.mediatype}) enviada a ${remoteJid}`, data: raw, remoteJid };
-  } catch (e) {
+  } catch (e: any) {
     clearTimeout(t);
     return {
       success: false,
@@ -1165,7 +1165,7 @@ export async function getMediaBase64FromMessage(
       raw,
       messageId,
     };
-  } catch (e) {
+  } catch (e: any) {
     clearTimeout(t);
     return {
       success: false,
@@ -1200,7 +1200,7 @@ export async function sendFileBase64(
       fileName: file.name,
       caption,
     });
-  } catch (e) {
+  } catch (e: any) {
     return {
       success: false,
       message: `Error en la preparación/conversión: ${e?.message || String(e)}`,
@@ -1334,7 +1334,7 @@ export async function markMessagesAsReadByIds(
 
 
     return { success: true, message: `${count} mensajes marcados como leídos con éxito.`, raw };
-  } catch (e) {
+  } catch (e: any) {
     clearTimeout(timeout);
     const errMsg = e?.name === 'AbortError' ? 'Timeout de solicitud.' : `Error de red: ${e.message || String(e)}`;
     console.error(`[READ] 🛑 Error de red/timeout en markMessagesAsReadByIds (x${count}, JID: ${jid}): ${errMsg}`);

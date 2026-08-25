@@ -294,7 +294,7 @@ export async function previewGoogleSheet(
 
     const headers = Object.keys(rows[0]);
     return { success: true, headers, rows: rows.slice(0, maxRows) };
-  } catch (err) {
+  } catch (err: any) {
     return { success: false, error: err?.message ?? 'Error de red al acceder a la hoja' };
   }
 }
@@ -340,7 +340,7 @@ export async function importFromGoogleSheetUrl(
       };
     }
     csvText = await response.text();
-  } catch (err) {
+  } catch (err: any) {
     return {
       created: 0,
       updated: 0,

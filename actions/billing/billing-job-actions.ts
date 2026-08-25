@@ -524,7 +524,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                     userId: billing.userId,
                     template,
                 });
-            } catch (error) {
+            } catch (error: any) {
                 errors++;
                 skipped.push({
                     userBillingId: candidate.id,
@@ -788,7 +788,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                 report,
             },
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("[runBillingDailyJob]", error);
 
         return {

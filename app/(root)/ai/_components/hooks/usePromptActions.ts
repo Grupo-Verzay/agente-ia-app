@@ -57,7 +57,7 @@ export function usePromptActions(opts: {
             }
 
             handleOk(res.data?.prompt?.version);
-        } catch (e) {
+        } catch (e: any) {
             setError(e?.message ?? "Error al publicar.");
         } finally {
             setLoading(null);
