@@ -113,10 +113,11 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
  * usuario pueda editarlos o borrarlos.
  *
  * La forma es la misma que espera el lienzo (`FlowGraphNode` y
- * `FlowGraphEdge` en FlowCanvas.tsx). La separacion horizontal es el ancho
- * de carril del lienzo, para que caigan ya alineados en la cuadricula.
+ * `FlowGraphEdge` en FlowCanvas.tsx). La separacion horizontal tiene que
+ * coincidir con COL_W de ese mismo archivo, para que los dos nodos caigan ya
+ * alineados en la cuadricula: si alla se cambia el carril, aqui tambien.
  */
-const ANCHO_DE_CARRIL = 350;
+const ANCHO_DE_CARRIL = 220;
 
 function grafoInicial(flowId: string) {
   const inicioId = `n_${flowId}_inicio`;

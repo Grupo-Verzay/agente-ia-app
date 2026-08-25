@@ -31,11 +31,16 @@ import { FlowNode, type FlowNodeData } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
 import { InlineAddNode } from './InlineAddNode';
 
-// Misma cuadricula/comportamiento de carriles que Workflow, para que el
-// lienzo se sienta identico. Ver WorkflowCanvas.tsx para el original.
-const COL_W = 350;
+// Cuadricula y comportamiento de carriles heredados de Workflow (ver
+// WorkflowCanvas.tsx para el original), pero con el carril mas estrecho: los
+// nodos de un diagrama son cuadraditos de ~116 px, no las tarjetas anchas de
+// Workflow, asi que con el carril de 350 la linea entre dos nodos salia mas
+// larga que los propios nodos. NODE_W es solo el respaldo de ancho cuando el
+// nodo aun no se ha medido: se ajusta al mayor de los tres tamanos (lg) para
+// que el hueco calculado no salga negativo.
+const COL_W = 220;
 const ROW_H = 160;
-const NODE_W = 320;
+const NODE_W = 148;
 
 function snapMultiple(v: number, step: number) {
   return Math.round(v / step) * step;
