@@ -1077,21 +1077,21 @@ export async function deleteMessageAction(
   if (user.role !== "admin" && user.role !== "super_admin") {
     return { success: false, message: "Solo los administradores pueden eliminar mensajes." };
   }
-  const resultado = await deleteMessage(
+  // El borrado en WhatsApp ("eliminar para todos") tiene su propio limite de
+  // tiempo: pasado un rato, WhatsApp lo rechaza aunque el mensaje sea tuyo.
+  // Antes eso frenaba TODO: si WhatsApp decia que no, la copia local ni se
+  // tocaba, y un mensaje viejo quedaba imposible de quitar del panel aunque
+  // el administrador -que aqui ya se autentico como tal, arriba- solo quiera
+  // que deje de verse. Se intenta igual (mejor si WhatsApp tambien lo borra),
+  // pero un fallo ahi ya no bloquea el borrado local.
+  const resultadoWhatsapp = await deleteMessage(
     context.apiKeyData,
     context.instanceName,
     remoteJid,
     messageId,
     fromMe,
   );
-  if (!resultado.success) return resultado;
 
-  // Borrarlo en WhatsApp no basta: el panel lee su propia copia, asi que el
-  // mensaje reaparecia al recargar el chat. Esta accion es solo para
-  // administradores (arriba), y para ellos "eliminar" es de verdad: se borra
-  // la fila, no se deja el aviso "Eliminado" (eso es lo correcto cuando lo
-  // borra el CLIENTE en WhatsApp, no cuando lo borra un administrador desde
-  // el panel).
   const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
   await eliminarMensajeDelTodo({
     userId: storageUserId ?? user.ownerId ?? user.id,
@@ -1101,7 +1101,14 @@ export async function deleteMessageAction(
     fromMe,
   });
 
-  return resultado;
+  if (!resultadoWhatsapp.success) {
+    return {
+      success: true,
+      message: `Eliminado del panel. WhatsApp no lo borro: ${resultadoWhatsapp.message}`,
+    };
+  }
+
+  return resultadoWhatsapp;
 }
 
 export async function editMessageAction(
