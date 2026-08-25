@@ -1207,6 +1207,26 @@ model WorkflowFeatureAccess {
   @@map("workflow_feature_access")
 }
 
+// Diagramas de "Flow": lienzo puro para disenar procesos de clientes, sin
+// motor de ejecucion (a diferencia de Workflow). Un solo blob JSON con los
+// nodos y conexiones tal cual los entrega React Flow, en vez de tablas
+// relacionales por nodo/conexion -no hace falta esa granularidad sin
+// ejecucion, y asi el frontend puede auto-provisionar la tabla (ver
+// lib/flow-persistence.ts) sin depender de una migracion del backend.
+model Flow {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  nodes       Json     @default("[]")
+  edges       Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@map("flows")
+}
+
 model AiModel {
   id           String     @id @default(uuid())
   providerId   String
