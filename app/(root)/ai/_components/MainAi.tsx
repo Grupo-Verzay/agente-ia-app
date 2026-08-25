@@ -18,7 +18,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Mic, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Mic, MoreVertical, Trash2, Workflow as WorkflowIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
@@ -43,6 +43,7 @@ import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { AgentMetricsPanel } from "./AgentMetricsPanel";
 import { applyTemplateToPrompt } from "@/actions/apply-template-action";
+import { createFlowFromPromptAction } from "@/actions/flow-actions";
 import { toast } from "sonner";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
@@ -69,6 +70,39 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [showTemplates, setShowTemplates] = useState(false);
     const [showPromptChat, setShowPromptChat] = useState(false);
     const [showVoice, setShowVoice] = useState(false);
+    const [generandoDiagrama, setGenerandoDiagrama] = useState(false);
+    const [confirmarDiagrama, setConfirmarDiagrama] = useState(false);
+
+    // Dibuja los pasos del entrenamiento como diagrama. Trabaja sobre el
+    // prompt guardado, asi que primero se guarda lo que haya en pantalla y
+    // recien despues se genera; si no, el diagrama saldria de la version
+    // anterior y el usuario no entenderia por que le falta el ultimo paso.
+    //
+    // Siempre redibuja EL MISMO diagrama del agente, de modo que lo que se
+    // haya movido o agregado a mano ahi se pierde: por eso se pregunta antes.
+    const handleGenerarDiagrama = async () => {
+        setConfirmarDiagrama(false);
+        setGenerandoDiagrama(true);
+        try {
+            // Guarda el entrenamiento si hay cambios sin guardar en pantalla.
+            await saveHandlersRef.current["training"]?.();
+            const res = await createFlowFromPromptAction(promptMeta.id);
+            if (!res.success) {
+                toast.error(res.message);
+                return;
+            }
+            toast.success(
+                res.data.actualizado
+                    ? `Diagrama actualizado con ${res.data.pasos} pasos.`
+                    : `Diagrama generado con ${res.data.pasos} pasos.`
+            );
+            router.push(`/diagramas/${res.data.id}`);
+        } catch {
+            toast.error("No se pudo generar el diagrama.");
+        } finally {
+            setGenerandoDiagrama(false);
+        }
+    };
 
     const trainingMd = sections?.training
         ? buildTrainingMarkdown(TrainingDraftSchema.parse(sections.training))
@@ -429,6 +463,19 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
                             <Button
                                 variant="outline"
+                                className="gap-2 h-9"
+                                onClick={() => setConfirmarDiagrama(true)}
+                                disabled={generandoDiagrama}
+                                title="Dibuja los pasos del entrenamiento como diagrama"
+                            >
+                                <WorkflowIcon className="h-4 w-4" />
+                                <span className="hidden sm:inline">
+                                    {generandoDiagrama ? 'Generando...' : 'Generar diagrama'}
+                                </span>
+                            </Button>
+
+                            <Button
+                                variant="outline"
                                 className="gap-2 h-9 bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 hover:text-primary hover:border-primary/50"
                                 onClick={() => setShowPromptChat(true)}
                             >
@@ -656,6 +703,35 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
             />
 
             <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
+
+            <Dialog open={confirmarDiagrama} onOpenChange={setConfirmarDiagrama}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <WorkflowIcon className="h-4 w-4 text-primary" />
+                            Generar diagrama del agente
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3 text-sm text-muted-foreground">
+                        <p>
+                            Se van a dibujar los pasos de <strong>Inicio</strong> como diagrama: un nodo por
+                            paso, con su mensaje y su condición para avanzar.
+                        </p>
+                        <p>
+                            Es siempre el mismo diagrama del agente, así que se vuelve a dibujar encima. Si
+                            lo habías movido o le agregaste ramas a mano, <strong>eso se pierde</strong>.
+                        </p>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" onClick={() => setConfirmarDiagrama(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleGenerarDiagrama} disabled={generandoDiagrama}>
+                            {generandoDiagrama ? 'Generando...' : 'Generar'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={showVoice} onOpenChange={setShowVoice}>
                 <DialogContent className="flex h-[min(585px,92dvh)] w-[min(820px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">

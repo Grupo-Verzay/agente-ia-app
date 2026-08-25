@@ -46,8 +46,17 @@ async function ensureFlowTable(): Promise<void> {
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
       )
     `;
+    // Diagrama generado desde el entrenamiento de un agente: se guarda de que
+    // prompt salio para poder volver a dibujarlo encima en vez de crear uno
+    // nuevo cada vez. Nulo en los diagramas hechos a mano.
+    await db.$executeRaw`
+      ALTER TABLE "flows" ADD COLUMN IF NOT EXISTS "promptId" TEXT
+    `;
     await db.$executeRaw`
       CREATE UNIQUE INDEX IF NOT EXISTS "flows_user_name_unique" ON "flows" ("userId", "name")
+    `;
+    await db.$executeRaw`
+      CREATE INDEX IF NOT EXISTS "flows_prompt_idx" ON "flows" ("userId", "promptId")
     `;
     await db.$executeRaw`
       CREATE INDEX IF NOT EXISTS "flows_user_updated_idx" ON "flows" ("userId", "updatedAt" DESC)
@@ -243,5 +252,183 @@ export async function deleteFlowAction(flowId: string): Promise<ActionResult<nul
   } catch (error) {
     console.error("[deleteFlowAction]", error);
     return { success: false, message: "No se pudo eliminar el flujo." };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Generar un diagrama a partir del entrenamiento del agente
+ * ------------------------------------------------------------------ */
+
+/**
+ * Que tipo de nodo le toca a un paso segun lo que hace. Un paso que solo
+ * habla es un nodo de texto; si ademas ejecuta una funcion, se dibuja con el
+ * icono de esa funcion, que dice mas de un vistazo.
+ */
+const TIPO_POR_FUNCION: Record<string, string> = {
+  captura_datos: "solicitud",
+  notificar_asesor: "notificacion",
+  consulta_datos: "sheets_read",
+  actualizar_datos: "sheets_write",
+  ejecutar_flujo: "node_pause",
+  enrutamiento: "intention",
+};
+
+interface PasoDeEntrenamiento {
+  title?: string;
+  mainMessage?: string;
+  condicionParaAvanzar?: string;
+  elements?: { kind?: string; fn?: string; text?: string }[];
+}
+
+function limpiar(texto: string, tope: number): string {
+  // El nodo muestra dos renglones: se recorta para que la tarjeta no cargue
+  // el paso entero, que en estos prompts puede ser media pantalla.
+  const plano = texto
+    .replace(/[*_>#`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plano.length > tope ? `${plano.slice(0, tope - 1).trimEnd()}…` : plano;
+}
+
+function tipoDelPaso(paso: PasoDeEntrenamiento): string {
+  const funcion = (paso.elements ?? []).find((el) => el?.kind === "function" && el.fn);
+  if (funcion?.fn && TIPO_POR_FUNCION[funcion.fn]) return TIPO_POR_FUNCION[funcion.fn];
+  return "text";
+}
+
+function grafoDesdePasos(flowId: string, pasos: PasoDeEntrenamiento[]) {
+  const nodes: {
+    id: string;
+    tipo: string;
+    label: string;
+    content: string;
+    reply?: string;
+    posX: number;
+    posY: number;
+    size: "md";
+  }[] = [];
+  const edges: {
+    id: string;
+    sourceId: string;
+    targetId: string;
+    sourceHandle: string;
+    targetHandle: string;
+  }[] = [];
+
+  const inicioId = `n_${flowId}_inicio`;
+  nodes.push({ id: inicioId, tipo: "inicio", label: "Inicio", content: "", posX: 0, posY: 0, size: "md" });
+
+  let anteriorId = inicioId;
+  let anteriorSalida = "out";
+
+  pasos.forEach((paso, i) => {
+    const id = `n_${flowId}_p${i + 1}`;
+    const mensaje = limpiar(paso.mainMessage ?? "", 160);
+    const condicion = limpiar(paso.condicionParaAvanzar ?? "", 120);
+
+    // Con condicion para avanzar el paso se dibuja como Pregunta: el mensaje
+    // arriba, la condicion abajo, y sale por Si (sigue) y por No (queda libre
+    // para que se dibuje que hacer cuando no se cumple).
+    const tipo = condicion ? "pregunta_ia" : tipoDelPaso(paso);
+
+    nodes.push({
+      id,
+      tipo,
+      label: (paso.title ?? "").trim() || `Paso ${i + 1}`,
+      content: mensaje,
+      reply: condicion,
+      posX: (i + 1) * ANCHO_DE_CARRIL,
+      posY: 0,
+      size: "md",
+    });
+
+    edges.push({
+      id: `e_${flowId}_${i}`,
+      sourceId: anteriorId,
+      targetId: id,
+      sourceHandle: anteriorSalida,
+      targetHandle: "in",
+    });
+
+    anteriorId = id;
+    anteriorSalida = tipo === "pregunta_ia" || tipo === "intention" ? "yes" : "out";
+  });
+
+  return { nodes, edges };
+}
+
+/**
+ * Dibuja los pasos del entrenamiento del agente en SU diagrama.
+ *
+ * Cada agente tiene un solo diagrama generado (se reconoce por "promptId"):
+ * la primera vez se crea y de ahi en adelante se vuelve a dibujar encima, asi
+ * que el diagrama siempre retrata el prompt de hoy. Ojo: eso pisa lo que se
+ * haya movido o agregado a mano en ese diagrama; los diagramas hechos a mano
+ * desde /diagramas no se tocan nunca, porque no tienen promptId.
+ */
+export async function createFlowFromPromptAction(
+  promptId: string,
+): Promise<ActionResult<{ id: string; name: string; pasos: number; actualizado: boolean }>> {
+  try {
+    const userId = await requireUserId();
+    await ensureFlowTable();
+
+    const prompt = await db.agentPrompt.findFirst({
+      where: { id: promptId, userId },
+      select: { sections: true, businessName: true },
+    });
+    if (!prompt) return { success: false, message: "No se encontró el entrenamiento del agente." };
+
+    const secciones = (prompt.sections ?? {}) as { training?: { steps?: PasoDeEntrenamiento[] } };
+    const pasos = Array.isArray(secciones.training?.steps) ? secciones.training!.steps! : [];
+    if (pasos.length === 0) {
+      return { success: false, message: "El entrenamiento no tiene pasos todavía. Guarda el prompt y vuelve a intentarlo." };
+    }
+
+    const existente = await db.$queryRaw<{ id: string; name: string }[]>`
+      SELECT "id", "name" FROM "flows"
+      WHERE "userId" = ${userId} AND "promptId" = ${promptId}
+      ORDER BY "updatedAt" DESC
+      LIMIT 1
+    `;
+
+    if (existente.length > 0) {
+      const { id, name } = existente[0];
+      const grafo = grafoDesdePasos(id, pasos);
+      const nodesJson = JSON.stringify(grafo.nodes) as unknown as Prisma.InputJsonValue;
+      const edgesJson = JSON.stringify(grafo.edges) as unknown as Prisma.InputJsonValue;
+
+      await db.$executeRaw`
+        UPDATE "flows"
+        SET "nodes" = ${nodesJson}::jsonb, "edges" = ${edgesJson}::jsonb, "updatedAt" = NOW()
+        WHERE "userId" = ${userId} AND "id" = ${id}
+      `;
+      return { success: true, data: { id, name, pasos: pasos.length, actualizado: true } };
+    }
+
+    // Primera vez: nombre libre, y si ya hay uno con ese nombre se numera. El
+    // indice unico es (userId, name), asi que sin esto el insert falla.
+    const base = `Flujo de ${(prompt.businessName ?? "").trim() || "mi agente"}`;
+    const usados = await db.$queryRaw<{ name: string }[]>`
+      SELECT "name" FROM "flows" WHERE "userId" = ${userId} AND "name" LIKE ${`${base}%`}
+    `;
+    const tomados = new Set(usados.map((f) => f.name));
+    let name = base;
+    for (let i = 2; tomados.has(name); i++) name = `${base} ${i}`;
+
+    const id = `flow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const grafo = grafoDesdePasos(id, pasos);
+    const nodesJson = JSON.stringify(grafo.nodes) as unknown as Prisma.InputJsonValue;
+    const edgesJson = JSON.stringify(grafo.edges) as unknown as Prisma.InputJsonValue;
+
+    await db.$executeRaw`
+      INSERT INTO "flows" ("id", "userId", "name", "promptId", "nodes", "edges")
+      VALUES (${id}, ${userId}, ${name}, ${promptId}, ${nodesJson}::jsonb, ${edgesJson}::jsonb)
+    `;
+
+    return { success: true, data: { id, name, pasos: pasos.length, actualizado: false } };
+  } catch (error) {
+    console.error("[createFlowFromPromptAction]", error);
+    return { success: false, message: "No se pudo generar el diagrama." };
   }
 }
