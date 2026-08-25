@@ -61,7 +61,7 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: DiagramaA
         closeSidebar();
     };
 
-    const renderTile = (action: DiagramaAction) => {
+    const renderRow = (action: DiagramaAction) => {
         const Icon = action.icon;
         return (
             <button
@@ -70,12 +70,12 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: DiagramaA
                 draggable
                 onDragStart={(e) => onDragStart(e, action)}
                 onClick={() => onClickCreate(action)}
-                className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border/70 bg-background p-3 text-center transition hover:border-primary/50 hover:bg-accent"
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-accent"
             >
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${action.bg ?? 'bg-gray-500'}`}>
-                    <Icon className="h-4 w-4 text-white" />
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${action.bg ?? 'bg-gray-500'}`}>
+                    <Icon className="h-3.5 w-3.5 text-white" />
                 </span>
-                <span className="text-[11px] font-medium leading-tight">{action.label}</span>
+                <span className="truncate text-[12.5px] font-medium">{action.label}</span>
             </button>
         );
     };
@@ -89,7 +89,7 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: DiagramaA
                 <SidebarGroup>
                     <SidebarGroupLabel className="px-1"><SidebarSectionLabel label="Nodos" /></SidebarGroupLabel>
                     <SidebarGroupContent>
-                        <div className="grid grid-cols-2 gap-2 px-1 pb-2">{filteredNodes.map((a) => renderTile(a))}</div>
+                        <div className="flex flex-col gap-0.5 px-1 pb-2">{filteredNodes.map((a) => renderRow(a))}</div>
                     </SidebarGroupContent>
                 </SidebarGroup>
 
@@ -98,7 +98,7 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: DiagramaA
                 <SidebarGroup>
                     <SidebarGroupLabel className="px-1"><SidebarSectionLabel label="Acciones" /></SidebarGroupLabel>
                     <SidebarGroupContent>
-                        <div className="grid grid-cols-2 gap-2 px-1 pb-2">{filteredAcciones.map((a) => renderTile(a))}</div>
+                        <div className="flex flex-col gap-0.5 px-1 pb-2">{filteredAcciones.map((a) => renderRow(a))}</div>
                     </SidebarGroupContent>
                 </SidebarGroup>
             </SidebarContent>
