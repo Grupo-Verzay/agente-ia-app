@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { Handle, Position, useConnection, useNodeConnections } from '@xyflow/react';
-import { MessageSquareIcon, Trash2, Zap, StickyNote } from 'lucide-react';
+import { MessageSquareIcon, Trash2, Zap, StickyNote, GitFork } from 'lucide-react';
 import { CARD_ACTIONS } from '@/types/workflow-node';
 import { SourceDotHandle } from './SourceDotHandle';
 
 const NOTA_CARD_ACTION = { icon: StickyNote, bg: 'bg-amber-500', label: 'Nota' };
+// El icono "Brain" de Workflow no se lee bien a este tamano (parece una
+// mancha) -en Diagramas la decision se ve como una bifurcacion.
+const INTENTION_CARD_ACTION = { icon: GitFork, bg: 'bg-black', label: 'Decisión' };
 
 // Color del icono por tipo -el cuadro del nodo es blanco/tarjeta, el color
 // va en el icono, igual que en la maqueta aprobada-. Valores fijos (no
@@ -73,7 +76,11 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const [content, setContent] = useState(data.content);
     const size = data.size ?? 'md';
     const t = SIZE_TOKENS[size];
-    const currentCardAction = data.tipo === 'nota' ? NOTA_CARD_ACTION : CARD_ACTIONS.find((a) => a.type === data.tipo);
+    const currentCardAction = data.tipo === 'nota'
+        ? NOTA_CARD_ACTION
+        : data.tipo === 'intention'
+            ? INTENTION_CARD_ACTION
+            : CARD_ACTIONS.find((a) => a.type === data.tipo);
     const Icon = currentCardAction?.icon ?? MessageSquareIcon;
     const isIntention = data.tipo === 'intention';
 
