@@ -29,12 +29,15 @@ import { CustomEdge } from './CustomEdge';
 import { FlowNode, type FlowNodeData } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
 import { InlineAddNode } from './InlineAddNode';
+import { FlowSidebarTrigger } from './FlowSidebar';
 
 // COL_W / ROW_H son la separacion con la que se COLOCAN los nodos: al crear
 // uno nuevo y al darle a "Ordenar". Ya no atan al nodo una vez creado: el
 // diagrama se arrastra libremente y solo se ajusta a una cuadricula fina
 // (SNAP) para que las cosas queden alineadas sin pelear con el mouse.
-const COL_W = 220;
+// 170 y no menos: el nodo mediano mide 116 px de ancho, asi que bajar de ahi
+// los pegaria unos con otros en vez de solo acercarlos.
+const COL_W = 170;
 const ROW_H = 160;
 const SNAP = 10;
 
@@ -367,13 +370,22 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           minZoom={0.05}
         >
           <Background />
-          <Controls fitViewOptions={{ padding: 0.28 }} />
+          <Controls
+            fitViewOptions={{ padding: 0.28 }}
+            className="overflow-hidden !rounded-xl !border !border-border !bg-background !shadow-lg [&>button+button]:!border-t [&>button+button]:!border-border [&>button]:!h-9 [&>button]:!w-9 [&>button]:!border-0 [&>button]:!bg-transparent [&>button]:!text-foreground [&>button:hover]:!bg-accent [&_svg]:!h-3.5 [&_svg]:!w-3.5 [&_svg]:!max-h-none [&_svg]:!max-w-none [&_svg]:!fill-current"
+          />
 
           <Panel position="top-center">
             <Button onClick={handleAutoLayout} variant="outline" size="sm" className="h-8 gap-2 bg-background/80 shadow-sm backdrop-blur" title="Ordenar el diagrama en carriles horizontales">
               <LayoutGrid className="h-4 w-4" />
               <span className="text-xs font-medium">Ordenar</span>
             </Button>
+          </Panel>
+          {/* La X va anclada al lienzo, no al contenedor de fuera: el lienzo
+              se encoge cuando se abre el panel, asi que el boton queda a su
+              lado y no montado encima. Igual que en Workflow. */}
+          <Panel position="top-right">
+            <FlowSidebarTrigger />
           </Panel>
         </ReactFlow>
 
