@@ -98,6 +98,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           label: n.label,
           content: n.content,
           totalNodes: initialNodesDB.length,
+          onChangeLabel: () => {},
           onChangeContent: () => {},
           onDelete: () => {},
         },
@@ -136,6 +137,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const onChangeLabel = useCallback((nodeId: string, label: string) => {
+    setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, label } } : n)));
+  }, [setNodes]);
+
   const onChangeContent = useCallback((nodeId: string, content: string) => {
     setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, content } } : n)));
   }, [setNodes]);
@@ -148,7 +153,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   // Cada nodo necesita las funciones de arriba enganchadas (no existen todavia
   // cuando se arma rawInitialNodes). Se inyectan aqui, una vez.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeContent, onDelete: onDeleteNode } })));
+    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onDelete: onDeleteNode } })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -235,6 +240,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           label: item.label,
           content: '',
           totalNodes: nds.length + 1,
+          onChangeLabel,
           onChangeContent,
           onDelete: onDeleteNode,
         },
@@ -253,7 +259,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     }
     lastEdgeTargetRef.current = id;
     toast.success(connected ? 'Nodo creado y conectado' : 'Nodo creado');
-  }, [nextFreeX, onChangeContent, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
 
   const addNodeFromSource: AddNodeFn = useCallback(({ sourceId, sourceHandle, action }) => {
     const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -271,6 +277,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           label: action.label,
           content: '',
           totalNodes: nds.length + 1,
+          onChangeLabel,
           onChangeContent,
           onDelete: onDeleteNode,
         },
@@ -281,7 +288,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setEdges((eds) => eds.concat({ id: edgeId, source: sourceId, target: id, sourceHandle, targetHandle: 'in', type: 'customEdge' }));
     lastEdgeTargetRef.current = id;
     toast.success('Nodo creado y conectado');
-  }, [nextFreeX, onChangeContent, onDeleteNode, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onDeleteNode, setEdges, setNodes]);
 
   const onDragOver = useCallback((evt: React.DragEvent) => {
     evt.preventDefault();

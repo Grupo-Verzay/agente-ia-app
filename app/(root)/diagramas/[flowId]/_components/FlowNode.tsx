@@ -15,6 +15,7 @@ export type FlowNodeData = {
     label: string;
     content: string;
     totalNodes: number;
+    onChangeLabel: (nodeId: string, label: string) => void;
     onChangeContent: (nodeId: string, content: string) => void;
     onDelete: (nodeId: string) => void;
     // Index signature: React Flow exige que el `data` de un Node cumpla
@@ -37,6 +38,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const incoming = useNodeConnections({ handleType: 'target', handleId: 'in' });
     const isTrigger = incoming.length === 0;
 
+    const [label, setLabel] = useState(data.label);
     const [content, setContent] = useState(data.content);
     const currentCardAction = data.tipo === 'nota' ? NOTA_CARD_ACTION : CARD_ACTIONS.find((a) => a.type === data.tipo);
     const Icon = currentCardAction?.icon ?? MessageSquareIcon;
@@ -67,9 +69,16 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                         <Icon className="h-4 w-4 text-white" />
                     </span>
                     <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13.5px] font-semibold leading-tight text-foreground">
-                            {data.label}
-                        </span>
+                        <input
+                            value={label}
+                            onChange={(e) => {
+                                setLabel(e.target.value);
+                                data.onChangeLabel(id, e.target.value);
+                            }}
+                            placeholder="Nombre del paso"
+                            title="Nombre del paso"
+                            className="nodrag w-full truncate border-0 bg-transparent p-0 text-[13.5px] font-semibold leading-tight text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0"
+                        />
                         <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
                             {currentCardAction?.label ?? data.tipo}
                         </span>
