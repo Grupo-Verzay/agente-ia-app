@@ -11,6 +11,7 @@ import { SourceDotHandle } from './SourceDotHandle';
 // clases de Tailwind) para no depender de que el purgador las detecte.
 // Debe cubrir los mismos tipos que diagrama-node-types.ts.
 const ICON_COLOR: Record<string, string> = {
+    inicio: '#10b981',
     text: '#6b7280',
     image: '#3b82f6',
     video: '#ef4444',

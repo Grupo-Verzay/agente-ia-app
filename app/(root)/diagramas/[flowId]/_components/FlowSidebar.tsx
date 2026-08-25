@@ -80,8 +80,12 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: DiagramaA
         );
     };
 
+    // El fondo se pinta aqui y no se hereda de `bg-sidebar`: esa clase apunta
+    // a --sidebar-background, una variable que no esta definida en ninguna
+    // hoja del proyecto, asi que resuelve a transparente y el lienzo se veia
+    // por detras del panel.
     return (
-        <Sidebar side="right" collapsible="offcanvas" className="border-l">
+        <Sidebar side="right" collapsible="offcanvas" className="border-l bg-background shadow-lg">
             <SidebarHeader className="p-3">
                 <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nodo..." className="h-9" />
             </SidebarHeader>
