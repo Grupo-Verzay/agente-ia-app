@@ -29,7 +29,6 @@ import { CustomEdge } from './CustomEdge';
 import { FlowNode, type FlowNodeData } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
 import { InlineAddNode } from './InlineAddNode';
-import { FlowSidebarTrigger } from './FlowSidebar';
 
 // COL_W / ROW_H son la separacion con la que se COLOCAN los nodos: al crear
 // uno nuevo y al darle a "Ordenar". Ya no atan al nodo una vez creado: el
@@ -348,7 +347,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
 
   return (
     <FlowAddNodeProvider value={addNodeFromSource}>
-      <div ref={wrapperRef} className="relative w-full h-full max-h-[93vh]">
+      <div ref={wrapperRef} className="relative w-full h-full">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -380,12 +379,6 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
               <LayoutGrid className="h-4 w-4" />
               <span className="text-xs font-medium">Ordenar</span>
             </Button>
-          </Panel>
-          {/* La X va anclada al lienzo, no al contenedor de fuera: el lienzo
-              se encoge cuando se abre el panel, asi que el boton queda a su
-              lado y no montado encima. Igual que en Workflow. */}
-          <Panel position="top-right">
-            <FlowSidebarTrigger />
           </Panel>
         </ReactFlow>
 
