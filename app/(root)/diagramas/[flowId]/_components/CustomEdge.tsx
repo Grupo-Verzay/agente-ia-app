@@ -40,8 +40,8 @@ function CustomEdgeComponent(props: EdgeProps) {
             <BaseEdge
                 path={edgePath}
                 style={{
-                    stroke: selected ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.55)',
-                    strokeWidth: selected ? 3.25 : 2,
+                    stroke: selected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.4)',
+                    strokeWidth: selected ? 2.5 : 1.5,
                     filter: selected ? 'drop-shadow(0 0 6px hsl(var(--primary) / 0.45))' : 'none',
                     transition: 'stroke 180ms ease, stroke-width 180ms ease, filter 180ms ease',
                 }}

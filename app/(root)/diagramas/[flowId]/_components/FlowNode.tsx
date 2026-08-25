@@ -2,18 +2,14 @@
 
 import { useState } from 'react';
 import { Handle, Position, useConnection, useNodeConnections } from '@xyflow/react';
-import { MessageSquareIcon, Trash2, Zap, StickyNote, GitFork } from 'lucide-react';
-import { CARD_ACTIONS } from '@/types/workflow-node';
+import { MessageSquareIcon, Trash2, Zap } from 'lucide-react';
+import { diagramaActions } from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
-
-const NOTA_CARD_ACTION = { icon: StickyNote, bg: 'bg-amber-500', label: 'Nota' };
-// El icono "Brain" de Workflow no se lee bien a este tamano (parece una
-// mancha) -en Diagramas la decision se ve como una bifurcacion.
-const INTENTION_CARD_ACTION = { icon: GitFork, bg: 'bg-black', label: 'Decisión' };
 
 // Color del icono por tipo -el cuadro del nodo es blanco/tarjeta, el color
 // va en el icono, igual que en la maqueta aprobada-. Valores fijos (no
 // clases de Tailwind) para no depender de que el purgador las detecte.
+// Debe cubrir los mismos tipos que diagrama-node-types.ts.
 const ICON_COLOR: Record<string, string> = {
     text: '#6b7280',
     image: '#3b82f6',
@@ -23,6 +19,10 @@ const ICON_COLOR: Record<string, string> = {
     intention: '#111827',
     node_pause: '#0ea5e9',
     nota: '#f59e0b',
+    sheets_write: '#059669',
+    sheets_read: '#059669',
+    notificacion: '#8b5cf6',
+    solicitud: '#6366f1',
 };
 
 export type FlowNodeSize = 'sm' | 'md' | 'lg';
@@ -76,11 +76,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const [content, setContent] = useState(data.content);
     const size = data.size ?? 'md';
     const t = SIZE_TOKENS[size];
-    const currentCardAction = data.tipo === 'nota'
-        ? NOTA_CARD_ACTION
-        : data.tipo === 'intention'
-            ? INTENTION_CARD_ACTION
-            : CARD_ACTIONS.find((a) => a.type === data.tipo);
+    const currentCardAction = diagramaActions.find((a) => a.type === data.tipo);
     const Icon = currentCardAction?.icon ?? MessageSquareIcon;
     const isIntention = data.tipo === 'intention';
 
@@ -99,7 +95,14 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                     position={Position.Left}
                     isConnectable={!connection.inProgress || isTarget}
                     isConnectableStart={false}
-                    style={{ width: 14, height: 14, borderRadius: 9999 }}
+                    style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 9999,
+                        background: 'hsl(var(--card))',
+                        border: '1.8px solid hsl(var(--border))',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                    }}
                 />
 
                 <div
