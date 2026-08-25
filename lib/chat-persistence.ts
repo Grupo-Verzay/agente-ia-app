@@ -731,6 +731,68 @@ export async function marcarMensajeComoEliminado(params: {
   `.catch(() => {});
 }
 
+/**
+ * Borra un mensaje DE VERDAD: la fila desaparece, sin dejar el aviso
+ * "Eliminado" ni rastro de su contenido.
+ *
+ * Distinto a marcarMensajeComoEliminado (que conserva el contenido y solo lo
+ * marca), que es lo correcto cuando el CLIENTE borra su propio mensaje en
+ * WhatsApp: ahí sí hay que reflejar que eso pasó. Este otro lo usa el
+ * administrador desde el panel, donde borrar significa borrar, no dejar una
+ * marca que además puede confundirse con un mensaje distinto que diga lo
+ * mismo (dos mensajes iguales, uno se borra, el otro no tiene nada que ver).
+ */
+export async function eliminarMensajeDelTodo(params: {
+  userId: string;
+  instanceName: string;
+  remoteJid: string;
+  messageId: string;
+  fromMe: boolean;
+}): Promise<void> {
+  const { userId, instanceName, remoteJid, messageId, fromMe } = params;
+  if (!userId || !instanceName || !remoteJid || !messageId) return;
+
+  try {
+    await db.$executeRaw`
+      DELETE FROM "chat_messages"
+      WHERE "userId" = ${userId}
+        AND "instanceName" = ${instanceName}
+        AND "remoteJid" = ${remoteJid}
+        AND "messageId" = ${messageId}
+        AND "fromMe" = ${fromMe}
+    `;
+
+    // Si era el ultimo mensaje de la conversacion, la vista previa de la lista
+    // (chat_conversations) queda apuntando a una fila que ya no existe. Se
+    // recalcula desde el mensaje que ahora queda de ultimo, si hay alguno.
+    await db.$executeRaw`
+      UPDATE "chat_conversations" c SET
+        "lastMessageId" = m."messageId",
+        "lastMessageFromMe" = m."fromMe",
+        "lastMessageType" = m."messageType",
+        "lastMessageContent" = m."content",
+        "lastMessageMediaUrl" = m."mediaUrl",
+        "lastMessageRaw" = m."raw",
+        "lastMessageTimestamp" = m."messageTimestamp",
+        "lastMessageDeleted" = m."deleted",
+        "updatedAt" = NOW()
+      FROM LATERAL (
+        SELECT "messageId", "fromMe", "messageType", "content", "mediaUrl", "raw", "messageTimestamp", "deleted"
+        FROM "chat_messages"
+        WHERE "userId" = c."userId" AND "instanceName" = c."instanceName" AND "remoteJid" = c."remoteJid"
+        ORDER BY "messageTimestamp" DESC, "id" DESC
+        LIMIT 1
+      ) m
+      WHERE c."userId" = ${userId}
+        AND c."instanceName" = ${instanceName}
+        AND c."remoteJid" = ${remoteJid}
+        AND c."lastMessageId" = ${messageId}
+    `.catch(() => {});
+  } catch (error) {
+    console.error('[eliminarMensajeDelTodo]', error);
+  }
+}
+
 export async function persistChatMessage(input: PersistChatMessageInput) {
   if (!input.userId || !input.instanceName || !input.remoteJid) return;
   if (
