@@ -139,6 +139,16 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
 
     return (
         <div className={`group relative ${t.wrapper} text-center`}>
+            {/* El nombre va ARRIBA del cuadro y se edita ahi mismo: es un input
+                sin borde que se ve como texto hasta que se le hace foco. */}
+            <input
+                value={data.label}
+                onChange={(e) => data.onChangeLabel(id, e.target.value)}
+                placeholder={currentCardAction?.label ?? 'Nombre del paso'}
+                title="Nombre del paso (se puede editar aquí)"
+                className={`nodrag mb-1.5 w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-center font-semibold leading-tight text-foreground outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground/70 hover:border-border focus:border-primary focus-visible:ring-0 ${t.title}`}
+            />
+
             <div className={`relative mx-auto ${t.box}`}>
                 {isTrigger && !isInicio && (
                     <span
@@ -214,17 +224,17 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 )}
             </div>
 
-            <div className="nodrag cursor-pointer" onClick={abrir} title="Clic para escribir el texto de este paso">
-                <p className={`mt-2.5 w-full truncate font-semibold leading-tight text-foreground ${t.title}`}>
-                    {data.label || 'Paso sin nombre'}
-                </p>
+            {/* Debajo del cuadro solo se asoma el texto cuando lo hay: un nodo
+                vacio no lleva ningun aviso, para no llenar el lienzo de ruido. */}
+            {data.content && (
                 <p
-                    className={`mt-0.5 line-clamp-2 w-full leading-tight ${t.sub} ${data.content ? 'text-muted-foreground' : 'italic text-muted-foreground/70'
-                        }`}
+                    onClick={abrir}
+                    title="Clic para editar el texto de este paso"
+                    className={`nodrag mt-1.5 line-clamp-2 w-full cursor-pointer leading-tight text-muted-foreground ${t.sub}`}
                 >
-                    {data.content || 'Sin texto todavía'}
+                    {data.content}
                 </p>
-            </div>
+            )}
 
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent className="nodrag nowheel sm:max-w-lg">

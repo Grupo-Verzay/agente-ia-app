@@ -14,7 +14,6 @@ import {
   Controls,
   Panel,
   Position,
-  OnNodeDrag,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -31,16 +30,13 @@ import { FlowNode, type FlowNodeData } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
 import { InlineAddNode } from './InlineAddNode';
 
-// Cuadricula y comportamiento de carriles heredados de Workflow (ver
-// WorkflowCanvas.tsx para el original), pero con el carril mas estrecho: los
-// nodos de un diagrama son cuadraditos de ~116 px, no las tarjetas anchas de
-// Workflow, asi que con el carril de 350 la linea entre dos nodos salia mas
-// larga que los propios nodos. NODE_W es solo el respaldo de ancho cuando el
-// nodo aun no se ha medido: se ajusta al mayor de los tres tamanos (lg) para
-// que el hueco calculado no salga negativo.
+// COL_W / ROW_H son la separacion con la que se COLOCAN los nodos: al crear
+// uno nuevo y al darle a "Ordenar". Ya no atan al nodo una vez creado: el
+// diagrama se arrastra libremente y solo se ajusta a una cuadricula fina
+// (SNAP) para que las cosas queden alineadas sin pelear con el mouse.
 const COL_W = 220;
 const ROW_H = 160;
-const NODE_W = 148;
+const SNAP = 10;
 
 function snapMultiple(v: number, step: number) {
   return Math.round(v / step) * step;
@@ -89,8 +85,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   const rawInitialNodes: Node<FlowNodeData>[] = useMemo(() => {
     return initialNodesDB.map((n, i) => {
       const hasPos = n.posX !== 0 || n.posY !== 0;
+      // Se respeta la posicion guardada tal cual -antes se redondeaba a la
+      // cuadricula gruesa y al recargar los nodos saltaban de sitio-.
       const position = hasPos
-        ? { x: snapMultiple(n.posX, COL_W), y: Math.max(0, snapMultiple(n.posY, ROW_H)) }
+        ? { x: snapMultiple(n.posX, SNAP), y: snapMultiple(n.posY, SNAP) }
         : { x: i * COL_W, y: 0 };
 
       return {
@@ -184,40 +182,6 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
 
     setNodes((nds) => nds.map((n) => (next.has(n.id) ? { ...n, position: next.get(n.id)! } : n)));
     toast.success('Diagrama ordenado. Recuerda darle a Guardar.');
-  }, [setNodes]);
-
-  const onNodeDragStop: OnNodeDrag = useCallback((_, node) => {
-    const { id } = node;
-    let x = node.position.x;
-    let y = node.position.y;
-
-    const others = nodesRef.current.filter((o) => o.id !== id);
-    const myH = node.measured?.height ?? 200;
-
-    if (others.length) {
-      let nearest = others[0];
-      let bestD = Infinity;
-      for (const o of others) {
-        const d = Math.hypot(o.position.x - x, o.position.y - y);
-        if (d < bestD) { bestD = d; nearest = o; }
-      }
-
-      const dx = x - nearest.position.x;
-      const dy = y - nearest.position.y;
-      const h = nearest.measured?.height ?? 200;
-      const w = nearest.measured?.width ?? NODE_W;
-      const gap = COL_W - w;
-
-      if (Math.abs(dx) >= Math.abs(dy)) {
-        y = nearest.position.y;
-        x = nearest.position.x + (dx >= 0 ? COL_W : -COL_W);
-      } else {
-        x = nearest.position.x;
-        y = dy >= 0 ? nearest.position.y + h + gap : nearest.position.y - myH - gap;
-      }
-    }
-
-    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { x, y } } : n)));
   }, [setNodes]);
 
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
@@ -379,11 +343,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onInit={(instance) => (rfRef.current = instance)}
           defaultEdgeOptions={{ type: 'customEdge' }}
           connectionLineStyle={{ stroke: 'hsl(var(--primary) / 0.65)', strokeWidth: 2.5 }}
-          onNodeDragStop={onNodeDragStop}
           onDragOver={onDragOver}
           onDrop={onDrop}
           snapToGrid
-          snapGrid={[COL_W, ROW_H]}
+          snapGrid={[SNAP, SNAP]}
           fitView
           fitViewOptions={{ padding: 0.28 }}
           colorMode={isDark ? 'dark' : 'light'}
