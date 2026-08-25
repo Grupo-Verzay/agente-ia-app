@@ -37,9 +37,9 @@ const SIZE_TOKENS: Record<FlowNodeSize, {
     title: string;
     sub: string;
 }> = {
-    sm: { wrapper: 'w-[92px]', box: 'h-11 w-11 rounded-[10px]', iconSvg: 'h-4 w-4', title: 'text-[10px]', sub: 'text-[9.5px]' },
-    md: { wrapper: 'w-[116px]', box: 'h-[58px] w-[58px] rounded-[14px]', iconSvg: 'h-5 w-5', title: 'text-[11.5px]', sub: 'text-[10.5px]' },
-    lg: { wrapper: 'w-[148px]', box: 'h-[74px] w-[74px] rounded-[18px]', iconSvg: 'h-6 w-6', title: 'text-[13px]', sub: 'text-xs' },
+    sm: { wrapper: 'w-[92px]', box: 'h-11 w-11 rounded-[10px]', iconSvg: 'h-[18px] w-[18px]', title: 'text-[10px]', sub: 'text-[9.5px]' },
+    md: { wrapper: 'w-[116px]', box: 'h-[58px] w-[58px] rounded-[14px]', iconSvg: 'h-[23px] w-[23px]', title: 'text-[11.5px]', sub: 'text-[10.5px]' },
+    lg: { wrapper: 'w-[148px]', box: 'h-[74px] w-[74px] rounded-[18px]', iconSvg: 'h-[29px] w-[29px]', title: 'text-[13px]', sub: 'text-xs' },
 };
 
 export type FlowNodeData = {
@@ -84,8 +84,11 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
         <div className={`group relative ${t.wrapper} text-center`}>
             <div className={`relative mx-auto ${t.box}`}>
                 {isTrigger && (
-                    <span className="absolute -left-2 -top-2 z-10 flex h-5 w-5 items-center justify-center rounded-md border-2 border-background bg-amber-500 shadow-md">
-                        <Zap className="h-2.5 w-2.5 fill-white text-white" />
+                    <span
+                        className="absolute -left-2.5 top-1/2 z-10 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full border-2 border-background bg-red-500"
+                        style={{ boxShadow: '0 2px 6px rgba(20,24,29,0.2)' }}
+                    >
+                        <Zap className="h-2 w-2 fill-white text-white" />
                     </span>
                 )}
 
@@ -106,9 +109,10 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 />
 
                 <div
-                    className={`flex h-full w-full items-center justify-center border border-border/70 bg-card shadow-sm ${t.box}`}
+                    className={`flex h-full w-full items-center justify-center border border-border/70 bg-card ${t.box}`}
+                    style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)' }}
                 >
-                    <Icon className={t.iconSvg} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
+                    <Icon className={t.iconSvg} strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
                 </div>
 
                 {/* barra de acciones: oculta hasta que se pasa el mouse por el nodo */}
