@@ -62,9 +62,9 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
 
                 <div className="flex items-center gap-2 p-3">
                     <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] ${currentCardAction?.bg ?? 'bg-gray-500'}`}
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${currentCardAction?.bg ?? 'bg-gray-500'}`}
                     >
-                        <Icon className="h-5 w-5 text-white" />
+                        <Icon className="h-4 w-4 text-white" />
                     </span>
                     <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13.5px] font-semibold leading-tight text-foreground">
@@ -86,7 +86,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                     </Button>
                 </div>
 
-                <div className="border-t border-border/60 p-3 pt-2.5">
+                <div className="px-3 pb-3">
                     <Textarea
                         value={content}
                         onChange={(e) => {
@@ -94,7 +94,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                             data.onChangeContent(id, e.target.value);
                         }}
                         placeholder="Texto o nota de este paso..."
-                        className="min-h-[64px] resize-none text-sm nodrag"
+                        className="nodrag min-h-[40px] resize-none rounded-lg border-0 bg-muted/50 px-2.5 py-2 text-xs leading-relaxed shadow-none placeholder:italic placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-primary/25 focus-visible:ring-offset-0"
                     />
                 </div>
             </div>
