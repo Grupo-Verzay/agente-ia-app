@@ -70,9 +70,11 @@ export function FlowSidebar({ onCreateNode }: { onCreateNode: (action: DiagramaA
                 draggable
                 onDragStart={(e) => onDragStart(e, action)}
                 onClick={() => onClickCreate(action)}
-                className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border/70 bg-background p-3 text-center transition hover:border-primary/50 hover:bg-accent"
+                className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border/70 bg-background p-3 text-center transition hover:border-primary/50 hover:bg-accent"
             >
-                <Icon className={`h-5 w-5 ${action.iconClassName ?? ''}`} />
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${action.bg ?? 'bg-gray-500'}`}>
+                    <Icon className="h-4 w-4 text-white" />
+                </span>
                 <span className="text-[11px] font-medium leading-tight">{action.label}</span>
             </button>
         );

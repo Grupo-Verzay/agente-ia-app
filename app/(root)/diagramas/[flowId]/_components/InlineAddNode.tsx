@@ -38,9 +38,11 @@ function ActionRow({
             type="button"
             variant="outline"
             onClick={() => onPick(action)}
-            className="flex w-full items-center justify-start gap-2 text-sm"
+            className="flex w-full items-center justify-start gap-2.5 text-sm"
         >
-            <Icon className={`h-4 w-4 ${action.iconClassName ?? ''}`} />
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${action.bg ?? 'bg-gray-500'}`}>
+                <Icon className="h-3.5 w-3.5 text-white" />
+            </span>
             <span className="truncate">{action.label}</span>
         </Button>
     );
