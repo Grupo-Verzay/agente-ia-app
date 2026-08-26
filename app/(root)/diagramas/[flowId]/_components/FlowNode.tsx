@@ -15,7 +15,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { diagramaActions } from './diagrama-node-types';
+import {
+    diagramaActions,
+    LIBRE_COLORES,
+    LIBRE_ICONOS,
+    LIBRE_LARGO_MAX,
+    LIBRE_LARGO_MIN,
+    LIBRE_POR_DEFECTO,
+} from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
 
 // Color del icono por tipo -el cuadro del nodo es blanco/tarjeta, el color
@@ -91,6 +98,7 @@ const CONTENT_HINT: Record<string, { label: string; placeholder: string }> = {
     menu: { label: 'Qué opciones se le dan', placeholder: 'Ej: 1) Comprar  2) Preguntar  3) Hablar con un asesor' },
     tarea: { label: 'Qué tarea se crea y para quién', placeholder: 'Ej: llamar al cliente mañana' },
     campana: { label: 'Qué campaña sale', placeholder: 'Ej: la promoción de fin de mes' },
+    libre: { label: 'Qué pasa en este paso', placeholder: 'Este nodo no trae nada decidido: el icono, el color y el largo se eligen abajo' },
     fin: { label: 'Cómo termina', placeholder: 'Ej: el cliente ya compró y se cierra la conversación' },
 };
 
@@ -124,15 +132,40 @@ const WIDE_TOKENS: Record<FlowNodeSize, { wrapper: string; box: string; pad: str
     lg: { wrapper: 'w-[244px]', box: 'h-[74px] w-[170px] rounded-[18px]', pad: 'justify-start pl-5' },
 };
 
+// El nodo Libre se dibuja con estilos en linea, no con clases: su largo es un
+// numero que elige el usuario y Tailwind no puede generar una clase por cada
+// valor posible. Estas son las mismas medidas de SIZE_TOKENS, en px.
+const SIZE_PX: Record<FlowNodeSize, { caja: number; radio: number; icono: number; letra: number }> = {
+    sm: { caja: 44, radio: 10, icono: 18, letra: 13 },
+    md: { caja: 58, radio: 14, icono: 23, letra: 17 },
+    lg: { caja: 74, radio: 18, icono: 29, letra: 22 },
+};
+
+/** Lo que el nodo Libre guarda ademas de nombre, texto y tamano. */
+export type LibreAjustes = {
+    modo: 'icono' | 'texto';
+    icono: string;
+    color: string;
+    largo: number;
+    dentro: string;
+};
+
 export type FlowNodeData = {
     tipo: string;
     label: string;
     content: string;
     size?: FlowNodeSize;
+    // Solo del nodo Libre. Ausentes en el resto, que traen icono y color fijos.
+    modo?: 'icono' | 'texto';
+    icono?: string;
+    color?: string;
+    largo?: number;
+    dentro?: string;
     totalNodes: number;
     onChangeLabel: (nodeId: string, label: string) => void;
     onChangeContent: (nodeId: string, content: string) => void;
     onChangeSize: (nodeId: string, size: FlowNodeSize) => void;
+    onChangeLibre: (nodeId: string, ajustes: LibreAjustes) => void;
     onDuplicate: (nodeId: string) => void;
     onDelete: (nodeId: string) => void;
     // Index signature: React Flow exige que el `data` de un Node cumpla
@@ -162,6 +195,13 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     // para poder cerrar sin haber ensuciado el nodo.
     const [draftLabel, setDraftLabel] = useState(data.label);
     const [draftContent, setDraftContent] = useState(data.content);
+    const [draftLibre, setDraftLibre] = useState<LibreAjustes>({
+        modo: data.modo ?? LIBRE_POR_DEFECTO.modo,
+        icono: data.icono ?? LIBRE_POR_DEFECTO.icono,
+        color: data.color ?? LIBRE_POR_DEFECTO.color,
+        largo: data.largo ?? LIBRE_POR_DEFECTO.largo,
+        dentro: data.dentro ?? LIBRE_POR_DEFECTO.dentro,
+    });
 
     const size = data.size ?? 'md';
     const t = SIZE_TOKENS[size];
@@ -176,6 +216,24 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const isFin = data.tipo === 'fin';
     // Decision reusa la caja de siempre pero en version rectangular, para que
     // los dos conectores de salida no se le monten encima al icono.
+    const isLibre = data.tipo === 'libre';
+    const px = SIZE_PX[size];
+    const libre: LibreAjustes = {
+        modo: data.modo ?? LIBRE_POR_DEFECTO.modo,
+        icono: data.icono ?? LIBRE_POR_DEFECTO.icono,
+        color: data.color ?? LIBRE_POR_DEFECTO.color,
+        largo: data.largo ?? LIBRE_POR_DEFECTO.largo,
+        dentro: data.dentro ?? LIBRE_POR_DEFECTO.dentro,
+    };
+    const anchoLibre = Math.round((px.caja * libre.largo) / 100);
+    const IconoLibre = (LIBRE_ICONOS.find((i) => i.id === libre.icono) ?? LIBRE_ICONOS[0]).icon;
+    // El wrapper del nodo Libre acompana a su caja: si la caja se estira y el
+    // wrapper no, el nombre y el texto se quedan encajonados en 116 px.
+    const estiloWrapper = isLibre ? { width: Math.max(anchoLibre + 16, 92) } : undefined;
+    const estiloCaja = isLibre
+        ? { width: anchoLibre, height: px.caja, borderRadius: px.radio }
+        : undefined;
+
     const caja = isIntention
         ? WIDE_TOKENS[size]
         : { wrapper: t.wrapper, box: t.box, pad: 'justify-center' };
@@ -184,17 +242,19 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const abrir = () => {
         setDraftLabel(data.label);
         setDraftContent(data.content);
+        setDraftLibre(libre);
         setOpen(true);
     };
 
     const guardar = () => {
         data.onChangeLabel(id, draftLabel.trim() || currentCardAction?.label || 'Paso');
         data.onChangeContent(id, draftContent);
+        if (isLibre) data.onChangeLibre(id, draftLibre);
         setOpen(false);
     };
 
     return (
-        <div className={`group relative ${caja.wrapper} text-center`}>
+        <div className={`group relative ${isLibre ? '' : caja.wrapper} text-center`} style={estiloWrapper}>
             {/* El nombre va ARRIBA del cuadro y se edita ahi mismo: es un input
                 sin borde que se ve como texto hasta que se le hace foco. */}
             <input
@@ -205,7 +265,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 className={`nodrag mb-1.5 w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-center font-semibold leading-tight text-foreground outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground/70 hover:border-border focus:border-primary focus-visible:ring-0 ${t.title}`}
             />
 
-            <div className={`relative mx-auto ${caja.box}`}>
+            <div className={`relative mx-auto ${isLibre ? '' : caja.box}`} style={estiloCaja}>
                 {isTrigger && !isInicio && (
                     <span
                         className="absolute -left-2.5 top-1/2 z-10 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full border-2 border-background bg-red-500"
@@ -244,10 +304,26 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                             abrir();
                         }
                     }}
-                    className={`flex h-full w-full cursor-pointer items-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${caja.pad} ${caja.box}`}
-                    style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)' }}
+                    className={`flex h-full w-full cursor-pointer items-center justify-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${isLibre ? '' : `${caja.pad} ${caja.box}`}`}
+                    style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)', ...(isLibre ? { borderRadius: px.radio } : null) }}
                 >
-                    <Icon className={t.iconSvg} strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
+                    {isLibre ? (
+                        libre.modo === 'texto' ? (
+                            <span
+                                className="px-1.5 text-center font-bold leading-tight"
+                                style={{ color: libre.color, fontSize: px.letra, overflowWrap: 'anywhere' }}
+                            >
+                                {libre.dentro || '...'}
+                            </span>
+                        ) : (
+                            <IconoLibre
+                                strokeWidth={1.8}
+                                style={{ color: libre.color, width: px.icono, height: px.icono }}
+                            />
+                        )
+                    ) : (
+                        <Icon className={t.iconSvg} strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
+                    )}
                 </div>
 
                 {/* barra de acciones: oculta hasta que se pasa el mouse por el nodo */}
@@ -305,7 +381,11 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                 <DialogContent className="nodrag nowheel sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Icon className="h-4 w-4" strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
+                            {isLibre ? (
+                                <IconoLibre className="h-4 w-4" strokeWidth={1.8} style={{ color: libre.color }} />
+                            ) : (
+                                <Icon className="h-4 w-4" strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
+                            )}
                             {data.label || currentCardAction?.label || 'Paso'}
                         </DialogTitle>
                         <DialogDescription>
@@ -331,10 +411,113 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                                 value={draftContent}
                                 onChange={(e) => setDraftContent(e.target.value)}
                                 placeholder={hint.placeholder}
-                                rows={6}
+                                rows={isLibre ? 3 : 6}
                                 autoFocus
                             />
                         </div>
+
+                        {isLibre && (
+                            <div className="space-y-4 rounded-md border border-border/70 bg-muted/30 p-3">
+                                <div className="space-y-1.5">
+                                    <Label>Dentro de la caja</Label>
+                                    <div className="flex gap-1.5">
+                                        {(['icono', 'texto'] as const).map((m) => (
+                                            <Button
+                                                key={m}
+                                                type="button"
+                                                size="sm"
+                                                variant={draftLibre.modo === m ? 'default' : 'outline'}
+                                                className="h-7 flex-1 text-xs capitalize"
+                                                onClick={() => setDraftLibre((v) => ({ ...v, modo: m }))}
+                                            >
+                                                {m}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {draftLibre.modo === 'texto' ? (
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor={`dentro-${id}`}>Texto de la caja</Label>
+                                        <Input
+                                            id={`dentro-${id}`}
+                                            value={draftLibre.dentro}
+                                            maxLength={12}
+                                            onChange={(e) => setDraftLibre((v) => ({ ...v, dentro: e.target.value }))}
+                                            placeholder="Ej: 1, OK, 24 h"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        <Label>Icono</Label>
+                                        <div className="grid grid-cols-8 gap-1">
+                                            {LIBRE_ICONOS.map((ico) => {
+                                                const Ico = ico.icon;
+                                                const elegido = ico.id === draftLibre.icono;
+                                                return (
+                                                    <button
+                                                        key={ico.id}
+                                                        type="button"
+                                                        title={ico.label}
+                                                        aria-label={ico.label}
+                                                        aria-pressed={elegido}
+                                                        onClick={() => setDraftLibre((v) => ({ ...v, icono: ico.id }))}
+                                                        className={`flex aspect-square items-center justify-center rounded border transition-colors ${elegido
+                                                            ? 'border-primary bg-primary/10'
+                                                            : 'border-border bg-background hover:border-primary/50'
+                                                            }`}
+                                                    >
+                                                        <Ico
+                                                            className="h-4 w-4"
+                                                            strokeWidth={1.8}
+                                                            style={elegido ? { color: draftLibre.color } : undefined}
+                                                        />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1.5">
+                                    <Label>Color</Label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {LIBRE_COLORES.map((c) => (
+                                            <button
+                                                key={c}
+                                                type="button"
+                                                title={c}
+                                                aria-label={`Color ${c}`}
+                                                aria-pressed={c === draftLibre.color}
+                                                onClick={() => setDraftLibre((v) => ({ ...v, color: c }))}
+                                                className={`h-6 w-6 rounded-full border-2 ring-1 ring-inset ring-black/10 ${c === draftLibre.color ? 'border-foreground' : 'border-transparent'
+                                                    }`}
+                                                style={{ background: c }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor={`largo-${id}`}>
+                                        Largo de la caja
+                                        <span className="ml-2 font-normal tabular-nums text-muted-foreground">
+                                            {draftLibre.largo === 100 ? 'cuadrada' : `${(draftLibre.largo / 100).toFixed(2)}×`}
+                                        </span>
+                                    </Label>
+                                    <input
+                                        id={`largo-${id}`}
+                                        type="range"
+                                        min={LIBRE_LARGO_MIN}
+                                        max={LIBRE_LARGO_MAX}
+                                        step={5}
+                                        value={draftLibre.largo}
+                                        onChange={(e) => setDraftLibre((v) => ({ ...v, largo: Number(e.target.value) }))}
+                                        className="w-full accent-primary"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>
