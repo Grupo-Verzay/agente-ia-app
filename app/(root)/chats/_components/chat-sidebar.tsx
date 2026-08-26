@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Inbox, Trash2, Users, UserX, Check, SquarePen, MessageCircle, PanelLeftClose, RefreshCw } from "lucide-react";
+import { Inbox, Trash2, Users, UserX, Check, MessageCircle, PanelLeftClose, RefreshCw } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
@@ -899,7 +899,7 @@ export function ChatSidebar({
           className="sticky top-0 z-10 flex flex-col justify-center space-y-1.5 overflow-hidden border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:space-y-2 sm:px-3"
           style={{ height: '5.125rem' }}
         >
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] items-center gap-2">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
             <ChatSearchBar
               value={q}
               onChange={setQ}
@@ -918,16 +918,6 @@ export function ChatSidebar({
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:h-8 sm:w-8"
               >
                 <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-              </button>
-            )}
-            {onCompose && (
-              <button
-                type="button"
-                onClick={onCompose}
-                title="Nuevo mensaje"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
-              >
-                <SquarePen className="h-3.5 w-3.5" />
               </button>
             )}
             {showAdvisorFilter && (
@@ -1004,6 +994,7 @@ export function ChatSidebar({
             onTabChange={handleTabChange}
             tabCounts={tabCounts}
             showMine={!!currentAdvisorId}
+            onCompose={onCompose}
             rightSlot={allTags.length > 0 ? (
               <TagFilterPanel
                 tags={allTags}
