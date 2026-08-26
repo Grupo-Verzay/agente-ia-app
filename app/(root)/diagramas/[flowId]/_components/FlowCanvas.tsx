@@ -30,15 +30,12 @@ import { FlowNode, type FlowNodeData } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
 import { InlineAddNode } from './InlineAddNode';
 
-// COL_W / ROW_H son la separacion con la que se COLOCAN los nodos: al crear
-// uno nuevo, al duplicar y al darle a "Ordenar". Siempre la misma, para que
-// un diagrama recien armado quede parejo sin tener que cuadrarlo a mano.
-// 220 y no menos: el nodo mas ancho -Decision, que lleva tres etiquetas de
-// salida- mide 196 px, asi que por debajo de eso se montarian unos con otros.
-// Es el mismo valor que ANCHO_DE_CARRIL en actions/flow-actions.ts: si aqui
-// se cambia, alla tambien.
-const COL_W = 220;
-const ROW_H = 160;
+// Separacion de referencia entre dos nodos medianos, de borde a borde de la
+// caja anterior a la siguiente. Solo se usa para repartir de entrada nodos
+// que nunca se han movido; el hueco de verdad lo pone AIRE_X, que se mide
+// contra el ancho real de cada nodo. Es el mismo valor que ANCHO_DE_CARRIL
+// en actions/flow-actions.ts: si aqui se cambia, alla tambien.
+const COL_W = 168;
 const SNAP = 10;
 
 // Mover el diagrama es libre: solo se ajusta a una cuadricula fina para que
@@ -54,9 +51,10 @@ const ANCHO: Record<string, number> = { sm: 92, md: 116, lg: 148 };
 const ANCHO_DECISION: Record<string, number> = { sm: 152, md: 196, lg: 244 };
 const ALTO: Record<string, number> = { sm: 86, md: 104, lg: 126 };
 
-// El aire que se le deja alrededor a cada nodo. Con 104 de holgura, dos
-// nodos medianos seguidos quedan justo a COL_W de distancia.
-const AIRE_X = 104;
+// El hueco que queda entre dos nodos, de borde a borde. Se mide contra el
+// ancho real de cada uno, asi que el hueco se ve igual entre dos nodos
+// medianos que al lado de una Decision, que es casi el doble de ancha.
+const AIRE_X = 52;
 const AIRE_Y = 56;
 
 function anchoDe(n: Node<FlowNodeData>) {
@@ -278,7 +276,12 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
       .sort((a, b) => a.x - b.x);
 
     const next = new Map<string, { x: number; y: number }>();
-    ordered.forEach((w, i) => next.set(w.id, { x: i * COL_W, y: 0 }));
+    let x = 0;
+    ordered.forEach((w) => {
+      const nodo = current.find((n) => n.id === w.id)!;
+      next.set(w.id, { x: snapMultiple(x, SNAP), y: 0 });
+      x += anchoDe(nodo) + AIRE_X;
+    });
 
     setNodes((nds) => nds.map((n) => (next.has(n.id) ? { ...n, position: next.get(n.id)! } : n)));
     toast.success('Diagrama ordenado. Recuerda darle a Guardar.');
@@ -299,9 +302,13 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     return libre ?? candidates[0];
   }, []);
 
+  // Donde cae el proximo nodo: pegado al borde derecho del que mas se
+  // adentra, mas el hueco de siempre. Va por borde y no por carril fijo para
+  // que el hueco se vea igual venga detras de un nodo normal o de una
+  // Decision, que es casi el doble de ancha.
   const nextFreeX = useCallback(() => {
-    const xs = nodesRef.current.map((n) => n.position.x);
-    return xs.length ? Math.max(...xs) + COL_W : 0;
+    const bordes = nodesRef.current.map((n) => n.position.x + anchoDe(n));
+    return bordes.length ? snapMultiple(Math.max(...bordes) + AIRE_X, SNAP) : 0;
   }, []);
 
   const createFromItem = useCallback((item: PaletteItem) => {
