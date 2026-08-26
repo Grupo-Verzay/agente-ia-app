@@ -42,6 +42,7 @@ const ICON_COLOR: Record<string, string> = {
     seguimiento: '#8b5cf6',
     llamada_ia: '#d946ef',
     automatizacion: '#06b6d4',
+    devolver: '#a855f7',
 };
 
 // Que se le pide escribir al usuario en cada tipo de nodo. El texto del nodo
@@ -68,6 +69,7 @@ const CONTENT_HINT: Record<string, { label: string; placeholder: string }> = {
     seguimiento: { label: 'Cuándo y qué se recuerda', placeholder: 'Ej: a los 2 días, recordarle la cotización' },
     llamada_ia: { label: 'Para qué se llama al cliente', placeholder: 'Ej: confirmar la cita por teléfono' },
     automatizacion: { label: 'Qué se hace automáticamente', placeholder: 'Ej: marcar el contacto como contactado' },
+    devolver: { label: 'A qué paso se devuelve y por qué', placeholder: 'Ej: si no entendió, volver a preguntarle la ciudad' },
 };
 
 const DEFAULT_HINT = { label: 'Texto de este paso', placeholder: 'Escribe aquí lo que pasa en este paso' };
