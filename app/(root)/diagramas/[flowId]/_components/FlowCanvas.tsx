@@ -35,7 +35,7 @@ import { InlineAddNode } from './InlineAddNode';
 // que nunca se han movido; el hueco de verdad lo pone AIRE_X, que se mide
 // contra el ancho real de cada nodo. Es el mismo valor que ANCHO_DE_CARRIL
 // en actions/flow-actions.ts: si aqui se cambia, alla tambien.
-const COL_W = 168;
+const COL_W = 132;
 const SNAP = 10;
 
 // Mover el diagrama es libre: solo se ajusta a una cuadricula fina para que
@@ -54,7 +54,14 @@ const ALTO: Record<string, number> = { sm: 86, md: 104, lg: 126 };
 // El hueco que queda entre dos nodos, de borde a borde. Se mide contra el
 // ancho real de cada uno, asi que el hueco se ve igual entre dos nodos
 // medianos que al lado de una Decision, que es casi el doble de ancha.
-const AIRE_X = 52;
+//
+// Ojo: NO es el hueco que se ve. La caja de un nodo mediano mide 116 px
+// porque debajo le tiene que caber el nombre, pero el cuadro que se ve es de
+// 58; entre los dos cuadros quedan siempre 58 px mas que este numero. Con 16
+// se ven 74. Por debajo de 0 los nombres empezarian a montarse unos con
+// otros, asi que ese es el piso mientras el nombre siga yendo encima del
+// cuadro y no dentro.
+const AIRE_X = 16;
 const AIRE_Y = 56;
 
 function anchoDe(n: Node<FlowNodeData>) {

@@ -126,7 +126,7 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
  * coincidir con COL_W de ese mismo archivo, para que los dos nodos caigan ya
  * alineados en la cuadricula: si alla se cambia el carril, aqui tambien.
  */
-const ANCHO_DE_CARRIL = 168;
+const ANCHO_DE_CARRIL = 132;
 
 function grafoInicial(flowId: string) {
   const inicioId = `n_${flowId}_inicio`;
