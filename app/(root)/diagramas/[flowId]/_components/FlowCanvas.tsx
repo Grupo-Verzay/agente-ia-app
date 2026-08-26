@@ -192,6 +192,8 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
     const node = nodesRef.current.find((n) => n.id === sourceId);
     const tipo = node?.data?.tipo ?? '';
+    // Fin no tiene salida, asi que nada se le cuelga detras.
+    if (tipo === 'fin') return null;
     const candidates = tipo === 'intention' ? ['yes', 'variante', 'no'] : ['out'];
     const libre = candidates.find(
       (h) => !edgesRef.current.some((e) => e.source === sourceId && (e.sourceHandle ?? 'out') === h),
