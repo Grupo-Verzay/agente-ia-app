@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { FinanceAccountType, FinanceTxStatus, FinanceTxType, Prisma } from '@prisma/client';
+import { FinanceAccount, FinanceAccountType, FinanceCategory, FinanceCurrency, FinanceTxStatus, FinanceTxType, Prisma } from '@prisma/client';
 
 type AttachmentInput = {
   url: string;
@@ -16,12 +16,26 @@ interface OperationResponse<T = unknown> {
   data?: T;
 }
 
-function serializeTx(tx: any) {
+/**
+ * Pasa a texto lo que no viaja del servidor al navegador: los Decimal de
+ * Prisma y las fechas. Va con generico y no con `any` para no perder por el
+ * camino el resto de columnas, que era lo que dejaba a quien llamaba sin
+ * saber que venia dentro.
+ */
+function serializeTx<T extends {
+  amount?: unknown;
+  extra?: unknown;
+  discount?: unknown;
+  occurredAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+  deletedAt?: Date | string | null;
+}>(tx: T) {
   return {
     ...tx,
-    amount: tx.amount?.toString?.() ?? String(tx.amount ?? '0'),
-    extra: tx.extra?.toString?.() ?? String(tx.extra ?? '0'),
-    discount: tx.discount?.toString?.() ?? String(tx.discount ?? '0'),
+    amount: String(tx.amount ?? '0'),
+    extra: String(tx.extra ?? '0'),
+    discount: String(tx.discount ?? '0'),
     occurredAt: tx.occurredAt ? new Date(tx.occurredAt).toISOString() : null,
     createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
     updatedAt: tx.updatedAt ? new Date(tx.updatedAt).toISOString() : null,
@@ -87,7 +101,18 @@ export async function ensureFinanceSalesDefaults(userId: string): Promise<Operat
   }
 }
 
-export async function getAllSales(userId: string): Promise<OperationResponse<Record<string, unknown>[]>> {
+/** Una venta tal y como sale de `getAllSales`, ya lista para el navegador. */
+export type VentaSerializada = ReturnType<typeof serializeTx<Prisma.FinanceTransactionGetPayload<{
+  include: {
+    account: true;
+    category: true;
+    currency: true;
+    attachments: true;
+    session: { select: { id: true; pushName: true; remoteJid: true } };
+  };
+}>>>;
+
+export async function getAllSales(userId: string): Promise<OperationResponse<VentaSerializada[]>> {
   try {
     await ensureFinanceSalesDefaults(userId);
 
@@ -127,7 +152,7 @@ export async function getAllSales(userId: string): Promise<OperationResponse<Rec
 
 export async function getSalesMeta(
   userId: string
-): Promise<OperationResponse<{ accounts: unknown[]; categories: unknown[]; currencies: unknown[] }>> {
+): Promise<OperationResponse<{ accounts: FinanceAccount[]; categories: FinanceCategory[]; currencies: FinanceCurrency[] }>> {
   try {
     await ensureFinanceSalesDefaults(userId);
 

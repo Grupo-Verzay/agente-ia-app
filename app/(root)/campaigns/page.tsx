@@ -36,6 +36,9 @@ const CampaignsPage = async () => {
   const effectiveId = user.effectiveId;
 
   // Obtener API Key
+  if (!user.apiKeyId) {
+    return <strong className="text-red-500">No se encontró una API Key válida.</strong>
+  }
   const resApikey = await getApiKeyById(user.apiKeyId)
   if (!resApikey.success || !hasApiKey(resApikey)) {
     console.error("[REMINDERS_PAGE] No se encontró una API Key válida para el usuario.")

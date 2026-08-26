@@ -523,7 +523,12 @@ export async function publishPrompt(input: z.infer<typeof PublishSchema>) {
 
         return result;
     } catch (e) {
-        const msg = e?.errors ? JSON.stringify(e.errors) : (e?.message ?? "Error al publicar prompt");
+        // Lo que cae aqui puede ser cualquier cosa, no solo un Error: se mira
+        // que trae antes de leerlo en vez de darlo por hecho.
+        const fallo = e as { errors?: unknown; message?: unknown };
+        const msg = fallo?.errors
+            ? JSON.stringify(fallo.errors)
+            : (typeof fallo?.message === "string" ? fallo.message : "Error al publicar prompt");
         return { ok: false, error: msg } as Fail;
     }
 }

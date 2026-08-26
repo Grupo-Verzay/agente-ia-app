@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from "react";
+import type { CurrentUser } from '@/lib/auth';
 import { useRouter } from "next/navigation";
 import { agregarApi, editarApiKey, eliminarApiKey } from "@/actions/api-action";
 import { DialogApiKeyType } from "../connection-types";
@@ -13,7 +14,7 @@ import { toast } from "sonner";
 
 interface Props {
     searchParams: { [key: string]: string | undefined },
-    user: User
+    user: CurrentUser
     apiKeys: ApiKey[]
 };
 

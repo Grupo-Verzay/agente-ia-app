@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useEffect, useState, useTransition } from "react";
+import type { CurrentUser } from '@/lib/auth';
 import { useSortable } from "@dnd-kit/sortable";
 import { useRouter } from 'next/navigation';
 import { User, WorkflowNode } from "@prisma/client";
@@ -42,7 +43,7 @@ import { NodeDocumentViewer } from "@/components/shared/NodeDocumentViewer";
 interface Props {
   workflowId: string;
   nodes: WorkflowNode;
-  user: User;
+  user: CurrentUser;
 };
 
 const MAX_MESSAGE_LENGTH = 1000;

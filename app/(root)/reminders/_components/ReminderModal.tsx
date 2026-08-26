@@ -2,6 +2,7 @@
 "use client"
 
 import { AnimatePresence, motion } from "framer-motion"
+import type { CurrentUser } from '@/lib/auth';
 import { useReminderDialogStore, closeDialog } from "@/stores"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,7 @@ import { CreateReminderSkeleton, ReminderForm } from "./"
 import { ApiKey, Session, Workflow, User, Instancia } from "@prisma/client"
 
 interface ReminderModalProps {
-    user: User
+    user: CurrentUser
     apiKey: ApiKey | null
     leads: Session[]
     workflows: Workflow[]

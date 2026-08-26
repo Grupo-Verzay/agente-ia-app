@@ -202,9 +202,12 @@ export async function getAvailableInstances(): Promise<{
         db.user.findMany({ where: { demoResellerId: user.id }, select: { id: true } }),
         db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
       ])
-      ownerIds = new Set<string>([user.id])
-      demoClients.forEach((c) => ownerIds.add(c.id))
-      assignments.forEach((a) => { if (a.userId) ownerIds.add(a.userId) })
+      // En una variable propia y no sobre `ownerIds`: al ser un `let` que
+      // empieza en null, TypeScript no daba por hecho que aqui ya tenia valor.
+      const mios = new Set<string>([user.id])
+      demoClients.forEach((c) => mios.add(c.id))
+      assignments.forEach((a) => { if (a.userId) mios.add(a.userId) })
+      ownerIds = mios
 
       const myInstancias = await db.instancia.findMany({
         where: { userId: { in: Array.from(ownerIds) } },

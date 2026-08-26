@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { CurrentUser } from '@/lib/auth';
 import { GuideUrl as Guide, User } from '@prisma/client';
 import { getAllGuides, createGuide, updateGuide, deleteGuide } from '@/actions/guide-actions';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog';
 import Header from '@/components/shared/header';
 
-export const MainTutorial = ({ user }: { user: User }) => {
+export const MainTutorial = ({ user }: { user: CurrentUser }) => {
     const { modules } = useModuleStore();
 
     const [guides, setGuides] = useState<Guide[]>([]);

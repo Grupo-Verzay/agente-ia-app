@@ -68,9 +68,14 @@ export function useSendMessageWithHistory({
                 });
 
                 if (result?.success === false) {
-                    options?.onError?.(
-                        result.error ?? result.message ?? 'No se pudo enviar el mensaje.',
-                    );
+                    // El fallo llega unas veces en `error` y otras en `message`,
+                    // y no siempre como texto.
+                    const fallo = result as { error?: unknown; message?: unknown };
+                    const motivo =
+                        (typeof fallo.error === 'string' && fallo.error) ||
+                        (typeof fallo.message === 'string' && fallo.message) ||
+                        'No se pudo enviar el mensaje.';
+                    options?.onError?.(motivo);
                     return;
                 }
 

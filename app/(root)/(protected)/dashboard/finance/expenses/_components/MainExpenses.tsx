@@ -363,13 +363,19 @@ export default function MainExpenses({
           description: form.description?.trim() || null,
         };
 
-        const res = editing
-          ? await updateExpense(editing.id, userId, payload)
-          : await createExpense(payload);
-
-        if (!res.success) return toast.error(res.message);
-
-        const txId = editing ? editing.id : res.data?.id;
+        // Separado en dos ramas a proposito: solo `createExpense` devuelve el
+        // id del gasto -al editar ya se tiene-, y mezclando las dos llamadas
+        // en una sola linea no habia forma de saber cual de las dos habia sido.
+        let txId: string | undefined;
+        if (editing) {
+          const res = await updateExpense(editing.id, userId, payload);
+          if (!res.success) return toast.error(res.message);
+          txId = editing.id;
+        } else {
+          const res = await createExpense(payload);
+          if (!res.success) return toast.error(res.message);
+          txId = res.data?.id;
+        }
 
         const newOnes = attachments.filter((a) => a.isNew);
         if (txId && newOnes.length) {

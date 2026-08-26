@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import type { CurrentUser } from '@/lib/auth';
 import { ModuleWithItems } from '@/schema/module';
 import { ThemeApp, User } from '@prisma/client'
 import { useModuleStore, UserIntegrationItem } from '@/stores/modules/useModuleStore';
@@ -16,7 +17,7 @@ import { getAccessDeniedMessage } from '@/lib/permissions';
 interface AppInitializerInterface {
     onReseller: ResellerInfoResponse
     modules: ModuleWithItems[]
-    user: User
+    user: CurrentUser
     navPrefs: UserNavPref[]
     userIntegrations: UserIntegrationItem[]
     initialTheme: ThemeApp

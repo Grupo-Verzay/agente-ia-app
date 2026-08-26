@@ -25,7 +25,7 @@ import { getAvailableSlots } from "@/actions/getAvailableSlots-actions";
 import { getNotificationContacts } from "@/actions/notification-contacts-actions";
 import { createSeguimiento } from "@/actions/seguimientos-actions";
 import { registerSession } from "@/actions/session-action";
-import { ScheduleInterface } from "@/schema/schema";
+import { ScheduleInterface, UserConServicios } from "@/schema/schema";
 import { SeguimientoInput } from "@/schema/seguimientos";
 import {
     formatDateLabel,
@@ -57,7 +57,9 @@ function splitPhonePrefix(fullPhone: string, countries?: ScheduleInterface['coun
     return { areaCode: '', localPhone: digits };
 }
 
-interface SchedulePageClientProps extends ScheduleInterface {
+interface SchedulePageClientProps extends Omit<ScheduleInterface, 'user'> {
+    // La pagina publica hace su propia consulta y si trae los servicios.
+    user: UserConServicios;
     questions?: BookingQuestionItem[];
 }
 

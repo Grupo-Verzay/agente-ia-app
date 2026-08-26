@@ -608,12 +608,18 @@ export const createUserWithPausar = async (
 
     // apiKeyId vacío ("") no es una FK válida → normalizar a null.
     if (!userFields.apiKeyId) userFields.apiKeyId = null;
+    // `contactFieldsConfig` es una columna JSON, y ahi Prisma no acepta `null`
+    // a secas: hay que decirle con `DbNull` que se quiere guardar NULL.
+    const contactFieldsConfig =
+      userFields.contactFieldsConfig === null || userFields.contactFieldsConfig === undefined
+        ? Prisma.DbNull
+        : (userFields.contactFieldsConfig as Prisma.InputJsonValue);
     // apiUrl no puede ir vacío (columna con default de plataforma).
     if (!userFields.apiUrl) userFields.apiUrl = 'https://api.openAI.co';
 
     // 1. Crear el usuario
     const user = await db.user.create({
-      data: userFields,
+      data: { ...userFields, contactFieldsConfig },
     });
 
     // 1b. Si se consumió un pool de licencias, crear los créditos IA del plan.
@@ -789,6 +795,9 @@ export async function deleteUser(id: string) {
 
 export async function getUserAppointmentUrl() {
   const user = await currentUser();
+  // Sin sesion no hay enlace que dar: antes se armaba uno con "undefined"
+  // dentro y se le entregaba igual a quien lo pidiera.
+  if (!user) return null;
   return `https://agente.ia-app.com/schedule/${user.id}`
 }
 

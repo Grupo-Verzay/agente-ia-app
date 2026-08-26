@@ -1,6 +1,7 @@
 'use client'
 
 import FormInstance from '@/components/form-Instance'
+import type { CurrentUser } from '@/lib/auth';
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import QRCodeGenerator from "@/components/form-qr";
 import EnableToggleButton from "@/components/button-bot";
@@ -10,7 +11,7 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 
 interface propsMainDashboard {
-    user: User
+    user: CurrentUser
 }
 
 export const MainDashboard = ({ user }: propsMainDashboard) => {

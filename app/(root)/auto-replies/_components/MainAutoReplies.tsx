@@ -1,4 +1,5 @@
 import { QuickReply, User, Workflow } from "@prisma/client";
+import type { CurrentUser } from '@/lib/auth';
 'use client';
 
 import { useMemo, useState } from "react";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { getQuickReplyCategoryLabel, normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 
 interface Props {
-  user: User;
+  user: CurrentUser;
   Workflows: Workflow[];
   autoReplies: QuickReply[];
 }

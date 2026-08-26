@@ -1,10 +1,9 @@
 import { UnderConstruction } from "@/components/custom/UnderConstruction";
 import { MainTemplate } from "../(protected)/admin/templates/_components";
 import { currentUser } from "@/lib/auth";
-import { User } from "@prisma/client";
 
 export default async function TemplatesPage() {
-    const user = await currentUser() as User;
+    const user = await currentUser();
 
     if (!user) return;
 

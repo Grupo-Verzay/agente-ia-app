@@ -8,6 +8,7 @@ import {
     useSensors,
     DragEndEvent,
 } from '@dnd-kit/core'
+import type { CurrentUser } from '@/lib/auth';
 import {
     SortableContext,
     arrayMove,
@@ -22,7 +23,7 @@ import { NodeCard } from './NodeCard'
 interface SortableNodeListProps {
     nodes: WorkflowNode[]
     workflowId: string
-    user: User
+    user: CurrentUser
 }
 
 export const SortableNodeList = ({ nodes, workflowId, user }: SortableNodeListProps) => {

@@ -9,6 +9,7 @@ import {
   patchFaqSection,
   patchProductsSection,
   patchExtrasSection,
+  patchBusinessAndFirma,
   patchManagementSection,
 } from "./system-prompt-actions";
 import { buildFirmaBlock, formatFirmaName } from "@/app/(root)/ai/_components/helpers/firmaTemplate";
@@ -136,14 +137,18 @@ export async function applyInstructionAction(input: {
 
     if (sectionKey === "firma") {
       const agentName = mainMessage.trim();
-      result = await patchExtrasSection({
+      // La firma NO vive en extras: se guarda junto a los datos del negocio.
+      // Esto iba a `patchExtrasSection`, que solo mira `steps` -su propio
+      // comentario lo dice-, asi que los tres campos de firma se perdian por
+      // el camino y activar la firma desde aqui no hacia nada.
+      result = await patchBusinessAndFirma({
         promptId,
         version: promptVersion,
-        data: {
+        business: (sections.business ?? {}) as Parameters<typeof patchBusinessAndFirma>[0]["business"],
+        firma: {
           firmaEnabled: true,
           firmaName: formatFirmaName(agentName),
           firmaText: buildFirmaBlock(agentName),
-          steps: extrasData.steps ?? extrasData.items ?? [],
         },
       });
     } else {
@@ -163,15 +168,12 @@ export async function applyInstructionAction(input: {
           result = await patchProductsSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
           break;
         case "extras":
+          // Solo los pasos: la firma la conserva el merge de `patchSection`,
+          // no hay que reenviarla -y de hecho aqui se ignoraba-.
           result = await patchExtrasSection({
             promptId,
             version: promptVersion,
-            data: {
-              firmaEnabled: extrasData.firmaEnabled ?? false,
-              firmaText: extrasData.firmaText ?? "",
-              firmaName: extrasData.firmaName ?? "",
-              steps: updatedSteps,
-            },
+            data: { steps: updatedSteps },
           });
           break;
         case "management":

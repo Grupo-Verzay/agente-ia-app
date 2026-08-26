@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from "react";
+import type { CurrentUser } from '@/lib/auth';
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +19,10 @@ import { createRR } from "@/actions/rr-actions";
 import { toast } from "sonner";
 import { ReplyTypeSelector, ReplyType } from "./ReplyTypeSelector";
 import { Separator } from "@/components/ui/separator";
-import { DEFAULT_QUICK_REPLY_CATEGORY, QUICK_REPLY_CATEGORIES } from "@/lib/quick-reply-categories";
+import { normalizeQuickReplyCategory, DEFAULT_QUICK_REPLY_CATEGORY, QUICK_REPLY_CATEGORIES } from "@/lib/quick-reply-categories";
 
 interface AutoReplies {
-    user: User;
+    user: CurrentUser;
     Workflows: Workflow[];
     onSuccessClose?: () => void;
 };
@@ -134,7 +135,13 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                     <Label htmlFor="category" className="text-sm font-medium">
                         Categoria
                     </Label>
-                    <Select value={category} onValueChange={setCategory} disabled={loading}>
+                    {/* El Select entrega un string suelto; la categoria se normaliza
+                        para que siga siendo una de las validas. */}
+                    <Select
+                        value={category}
+                        onValueChange={(v) => setCategory(normalizeQuickReplyCategory(v))}
+                        disabled={loading}
+                    >
                         <SelectTrigger id="category">
                             <SelectValue placeholder="Selecciona una categoria..." />
                         </SelectTrigger>

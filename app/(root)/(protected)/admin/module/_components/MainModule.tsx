@@ -38,10 +38,12 @@ export const MainModule = () => {
         requiresPremium: moduleComponent.requiresPremium,
         showInSidebar: moduleComponent.showInSidebar ?? true,
         allowedPlans: moduleComponent.allowedPlans,
+        lockedPlans: moduleComponent.lockedPlans ?? [],
         items: moduleComponent.moduleItems.map(item => ({
             url: item.url,
             title: item.title,
             customUrl: item.customUrl ?? undefined,
+            lockedPlans: item.lockedPlans ?? [],
         }))
     });
 

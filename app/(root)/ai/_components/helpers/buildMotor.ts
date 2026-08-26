@@ -8,10 +8,15 @@ function extractTransitionCondition(step: Step, idx: number): string {
     if (reglaMatch) return reglaMatch[1].replace(/\.$/, '').trim();
 
     // "Avanza … cuando …" en la NOTA DE CONTROL (tercer elemento de texto)
+    // El `find` dice que devuelve, si no el elemento sale sin forma: la lista
+    // admite tambien elementos de prompts antiguos, que no tienen `text`.
     const notaEl = (step.elements ?? []).find(
-        (el) => el.kind === 'text' && 'text' in el && typeof el.text === 'string' && el.text.includes('NOTA DE CONTROL')
+        (el): el is { id: string; kind: 'text'; text: string } =>
+            (el as { kind?: unknown }).kind === 'text' &&
+            typeof (el as { text?: unknown }).text === 'string' &&
+            (el as { text: string }).text.includes('NOTA DE CONTROL')
     );
-    if (notaEl && notaEl.kind === 'text' && notaEl.text) {
+    if (notaEl?.text) {
         const m = notaEl.text.match(/[Aa]vanza?\s+(?:a\s+P\d+\s+)?cuando\s+([^.\n]+)/i);
         if (m) return m[1].trim();
     }

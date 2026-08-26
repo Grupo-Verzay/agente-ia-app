@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+import type { VentaSerializada } from '@/actions/finance-sales-actions';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,14 +10,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import { Pencil, Trash2, Eye } from 'lucide-react';
 
-export type SaleTxRow = {
-  id: string;
-  title?: string | null;
-  currencyCode?: string | null;
-  occurredAt?: string | null;
-  amount?: string | null;
-  [key: string]: unknown;
-};
+/**
+ * Una fila de la tabla de ventas es, literalmente, lo que devuelve
+ * `getAllSales`. Antes era un tipo suelto con `[key: string]: unknown`, asi
+ * que cualquier columna que no estuviera en la lista corta salia como
+ * `unknown` y no se podia ni pintar: de ahi salian ocho errores en la
+ * pantalla de ventas.
+ */
+export type SaleTxRow = VentaSerializada;
 
 type BuildColsArgs = {
   onEdit: (row: SaleTxRow) => void;

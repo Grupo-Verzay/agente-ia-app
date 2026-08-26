@@ -13,7 +13,7 @@ import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
-import { DataSubtype, ElementFunction, ElementItem, FqaBuilderProps, PRESETS, QaItem, StepTraining } from "@/types/agentAi";
+import { PedidoFunctionEl, DataSubtype, ElementFunction, ElementItem, FqaBuilderProps, PRESETS, QaItem, StepTraining } from "@/types/agentAi";
 import { Workflow } from "@prisma/client";
 
 import { useFaqAutosave, AutosaveStatus } from "./hooks/useFaqAutosave";
@@ -50,14 +50,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-function isPedidoFn(el: ElementItem): el is {
-    id: string;
-    kind: "function";
-    fn: "captura_datos";
-    subtype?: "Pedidos" | "Solicitudes" | "Reclamos" | "Reservas" | "Citas";
-    prompt?: string;
-    fields?: string[];
-} {
+// Se reusa el tipo que ya existe en vez de repetirlo aqui a medias: el que
+// habia declaraba `subtype` y `prompt` como opcionales, y asi no era un
+// elemento de funcion valido, que es lo que TypeScript exige para poder
+// afirmar que un elemento es de este tipo.
+function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
     return el.kind === "function" && (el as ElementFunction).fn === "captura_datos" && (el as ElementFunction & { subtype?: string }).subtype === "Pedidos";
 }
 

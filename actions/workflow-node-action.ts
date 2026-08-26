@@ -461,6 +461,7 @@ export async function createWorkflowEdge(params: {
   targetHandle?: string | null;
 }) {
   const user = await currentUser();
+  if (!user) return { success: false, message: "No autenticado." };
 
   const { workflowId, sourceId, targetId } = params;
 
@@ -512,6 +513,7 @@ export async function deleteWorkflowEdge(params: {
   edgeId: string;
 }) {
   const user = await currentUser();
+  if (!user) return { success: false, message: "No autenticado." };
   const { workflowId, edgeId } = params;
 
   //  validar ownership del workflow

@@ -2,10 +2,9 @@ import { MainTemplate } from "./_components";
 import AccessDenied from "@/app/AccessDenied";
 import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
-import { User } from "@prisma/client";
 
 export default async function TemplatesPage() {
-  const user = await currentUser() as User;
+  const user = await currentUser();
 
   if (!user || !isAdminLike(user.role)) {
     return <AccessDenied />;

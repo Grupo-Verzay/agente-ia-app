@@ -15,6 +15,9 @@ const TutorialPage = async ({ searchParams }: Props) => {
     //     return <AccessDenied />;
     // };
 
+    // Sin sesion no hay nada que enseñar aqui.
+    if (!user) return null;
+
     return (
         <MainTutorial user={user} />
     );

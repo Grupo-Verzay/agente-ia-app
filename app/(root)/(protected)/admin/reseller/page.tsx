@@ -33,7 +33,6 @@ const ResellerPage = async ({ searchParams }: Props) => {
     return (
         <MainReseller
             searchParams={searchParams}
-            user={user}
             resellers={resellers}
             defaultResellerId={defaultResellerId}
         />

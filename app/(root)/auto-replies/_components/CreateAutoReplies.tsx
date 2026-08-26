@@ -1,13 +1,14 @@
 'use client'
 
 import { User, Workflow } from '@prisma/client';
+import type { CurrentUser } from '@/lib/auth';
 
 import { Layers2Icon } from 'lucide-react';
 import { CardCreateRr } from './';
 import { GenericEditDialog } from '@/components/shared/GenericEditDialog';
 
 interface AutoReplies {
-    user: User;
+    user: CurrentUser;
     Workflows: Workflow[];
     triggerText: string;
 };

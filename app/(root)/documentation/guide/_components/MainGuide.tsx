@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import type { CurrentUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -21,7 +22,7 @@ import { Edit2Icon, Eye, Pencil, Search, Trash2 } from 'lucide-react'
 import Header from '@/components/shared/header'
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog'
 interface MainGuideProps {
-  user: User
+  user: CurrentUser
 }
 
 type ManualClient = {

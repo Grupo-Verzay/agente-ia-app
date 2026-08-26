@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { Plan } from "@prisma/client";
@@ -280,8 +281,10 @@ export async function updateResellerProfile(data: {
       videoUrl: data.videoUrl || null,
       ctaHeadline: data.ctaHeadline || null,
       ctaSubtitle: data.ctaSubtitle || null,
-      testimonials: data.testimonials ?? null,
-      stats: data.stats ?? null,
+      // Prisma no acepta `null` a secas en una columna JSON: `DbNull` es la
+      // forma de decirle que se quiere guardar NULL en la base.
+      testimonials: data.testimonials ?? Prisma.DbNull,
+      stats: data.stats ?? Prisma.DbNull,
       showAssistanceIA: data.showAssistanceIA ?? true,
       showAssistanceHUMANO: data.showAssistanceHUMANO ?? true,
       showBillingMonthly: data.showBillingMonthly ?? true,

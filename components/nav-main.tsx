@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { CurrentUser } from '@/lib/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, ChevronRight, Lock } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
@@ -30,7 +31,7 @@ import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Settings2 } from 'lucide-react';
 import { getVisibleSidebarModules, PANEL_ROUTES, CLIENT_PANEL_ROUTE } from '@/lib/sidebar-modules';
 
-export function NavMain({ user }: { user: User }) {
+export function NavMain({ user }: { user: CurrentUser }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl, userIntegrations } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();

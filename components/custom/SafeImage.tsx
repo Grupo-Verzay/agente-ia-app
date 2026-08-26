@@ -29,6 +29,17 @@ function canUseNextImage(src: string) {
     }
 }
 
+/**
+ * `width`/`height` llegan como los acepta un `<img>` -numero o texto-, pero el
+ * `<Image>` de Next solo admite numero. Solo se usa cuando ya se comprobo que
+ * los dos son numeros, asi que el `undefined` de vuelta no llega a pasar.
+ */
+function aNumero(v: string | number | undefined): number | undefined {
+    if (typeof v === "number") return v;
+    if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
+    return undefined;
+}
+
 export function SafeImage({
     src,
     alt,
@@ -78,8 +89,8 @@ export function SafeImage({
                 priority={priority}
                 quality={quality}
                 unoptimized
-                width={width}
-                height={height}
+                width={aNumero(width)}
+                height={aNumero(height)}
             />
         );
     }

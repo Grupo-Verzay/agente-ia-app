@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { PaymentMethodType, SubscriptionStatus } from "@prisma/client";
+import { SubscriptionStatus } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
 import { revalidatePath } from "next/cache";

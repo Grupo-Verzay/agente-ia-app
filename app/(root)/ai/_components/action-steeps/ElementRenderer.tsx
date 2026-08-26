@@ -50,7 +50,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     if (el.kind === "function" && el.fn === "captura_datos") {
         return (
             <CapturaDatosCard
-                el={el as PedidoFunctionEl}
+                el={el}
                 onRemove={() => removeElement(stepId, el.id)}
                 onAddField={(f) => addPedidoField(stepId, el.id, f)}
                 onRemoveField={(f) => removePedidoField(stepId, el.id, f)}
@@ -64,7 +64,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     if (el.kind === "function" && el.fn === "actualizar_datos") {
         return (
             <ActualizarDatosCard
-                el={el as PedidoFunctionEl}
+                el={el}
                 onRemove={() => removeElement(stepId, el.id)}
                 onAddField={(f) => addPedidoField(stepId, el.id, f)}
                 onRemoveField={(f) => removePedidoField(stepId, el.id, f)}
@@ -112,7 +112,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     return (
         <ConsultaDatosCard
             isManagement={isManagement}
-            el={el as PropsConsultaDatos['el']}
+            el={el}
             onRemove={() => removeElement(stepId, el.id)}
             onAddField={(f) => addPedidoField(stepId, el.id, f)}
             onRemoveField={(f) => removePedidoField(stepId, el.id, f)}

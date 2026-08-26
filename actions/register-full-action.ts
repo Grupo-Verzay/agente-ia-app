@@ -278,7 +278,10 @@ async function createInstanceForUser(
    Main server action
 ───────────────────────────────────────── */
 export async function fullRegisterAction(
-  values: z.infer<typeof fullRegisterSchema>,
+  // `z.input` y no `z.infer`: quien llama manda lo que tiene, y los campos con
+  // valor por defecto los rellena el propio `safeParse` de aqui abajo. Con
+  // `z.infer` se le exigian al formulario campos que el esquema ya sabe poner.
+  values: z.input<typeof fullRegisterSchema>,
   apiKeyRef?: string,
   affiliateCode?: string,
   resellerSlug?: string,
