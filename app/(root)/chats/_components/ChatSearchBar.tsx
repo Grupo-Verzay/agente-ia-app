@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X, ChevronDown, Check, RefreshCw } from "lucide-react";
+import { Search, X, ChevronDown, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -29,8 +29,6 @@ type ChatSearchBarProps = {
   selectedChannel?: string | null;
   channelCounts?: Record<string, number>;
   onChannelChange?: (channel: string | null) => void;
-  onRefresh?: () => Promise<void>;
-  isRefreshing?: boolean;
 };
 
 export function ChatSearchBar({
@@ -41,8 +39,6 @@ export function ChatSearchBar({
   selectedChannel,
   channelCounts = {},
   onChannelChange,
-  onRefresh,
-  isRefreshing,
 }: ChatSearchBarProps) {
   const hasChannels = channels.length > 1;
   const activeChannel = channels.find((ch) => ch.instanceName === selectedChannel);
@@ -58,9 +54,10 @@ export function ChatSearchBar({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-2.5"
+              title={activeLabel}
+              className="inline-flex h-8 min-w-[56px] max-w-[104px] items-center gap-0.5 rounded-full px-2 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-2.5"
             >
-              <span className="max-w-[52px] truncate sm:max-w-[90px]">{activeLabel}</span>
+              <span className="min-w-0 flex-1 truncate text-left">{activeLabel}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
@@ -123,7 +120,7 @@ export function ChatSearchBar({
         <span className="shrink-0 text-sm font-bold tracking-tight text-foreground">Chats</span>
       )}
 
-      <div className="relative min-w-0 flex-1">
+      <div className="relative min-w-[36px] flex-1">
         <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={value}
@@ -143,18 +140,6 @@ export function ChatSearchBar({
           </button>
         )}
       </div>
-
-      {onRefresh && (
-        <button
-          type="button"
-          disabled={isRefreshing}
-          onClick={() => void onRefresh()}
-          title="Actualizar chats"
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:h-8 sm:w-8"
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-        </button>
-      )}
     </div>
   );
 }
