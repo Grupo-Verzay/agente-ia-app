@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   MousePointerClick,
   Music,
+  RefreshCw,
   Video,
   Workflow,
   Zap,
@@ -96,6 +97,7 @@ export const diagramaLogicActions: DiagramaAction[] = [
   { type: 'seguimiento', label: 'Seguimiento', icon: History, bg: 'bg-violet-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'llamada_ia', label: 'Llamada IA', icon: PhoneAi, bg: 'bg-fuchsia-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'automatizacion', label: 'Automatización', icon: Zap, bg: 'bg-cyan-500', iconClassName: 'h-4 w-4 text-white' },
+  { type: 'devolver', label: 'Devolver paso', icon: RefreshCw, bg: 'bg-purple-500', iconClassName: 'h-4 w-4 text-white' },
 ];
 
 export const diagramaActions: DiagramaAction[] = [
