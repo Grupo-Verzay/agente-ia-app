@@ -78,6 +78,11 @@ const AIRE_Y = 16;
 // poco mas y se salen del carril; es el unico caso.
 const CARRIL_Y = 120;
 
+// Hasta que distancia tira el iman de la altura recta al soltar un nodo. Mas
+// de medio carril seria peor el remedio: un nodo que se quiso mover de fila
+// volveria solo a la de antes.
+const IMAN = 44;
+
 // A que franja pertenece una altura. `hacia` fuerza la de arriba o la de
 // abajo cuando lo que se busca es escaparse de otro nodo y redondear al mas
 // cercano lo devolveria encima.
@@ -87,11 +92,36 @@ function alCarril(y: number, hacia: 'cerca' | 'arriba' | 'abajo' = 'cerca') {
   return franja * CARRIL_Y;
 }
 
-// Cuantos carriles se desvia el nodo que cuelga de cada salida. Decision
-// saca tres y se leen de arriba abajo: el que cuelga del Si sube un carril,
-// el de Variante sigue derecho -su linea queda recta- y el del No baja uno.
-// Cualquier otra salida no desvia nada.
-const CARRIL_DE_SALIDA: Record<string, number> = { yes: -1, variante: 0, no: 1, out: 0 };
+// A que altura de la caja esta cada punto de salida, en tanto por uno. Tiene
+// que ir de la mano con los `topPct` de FlowNode.tsx.
+const ALTO_DEL_PUERTO: Record<string, number> = { yes: 0.16, variante: 0.5, no: 0.84, out: 0.5 };
+
+// Alto del cuadro y del nombre que lleva encima, por tamaño. Con esto se sabe
+// a que altura exacta cae un punto de salida y a que altura entra el nodo
+// siguiente, que es lo que hace falta para que la linea salga recta.
+const ALTO_CAJA: Record<string, number> = { sm: 44, md: 58, lg: 74 };
+const ALTO_NOMBRE: Record<string, number> = { sm: 25, md: 26, lg: 28 };
+
+function tamañoDe(n: Node<FlowNodeData>) {
+  return (n.data?.size ?? 'md') as string;
+}
+
+/**
+ * Cuanto hay que bajar -o subir, si sale negativo- el nodo que cuelga de una
+ * salida para que la linea entre los dos salga recta.
+ *
+ * El nodo entra siempre por el centro de su cuadro, pero sale por el punto
+ * que le toque: arriba en el Si, en medio en Variante, abajo en el No. La
+ * cuenta es la distancia entre esas dos alturas, y sale bien aunque los dos
+ * nodos sean de distinto tamaño.
+ */
+function desvioDeSalida(origen: Node<FlowNodeData>, salida: string, destino: Node<FlowNodeData>) {
+  const a = tamañoDe(origen);
+  const b = tamañoDe(destino);
+  const puerto = ALTO_NOMBRE[a] + ALTO_CAJA[a] * (ALTO_DEL_PUERTO[salida] ?? 0.5);
+  const entrada = ALTO_NOMBRE[b] + ALTO_CAJA[b] / 2;
+  return puerto - entrada;
+}
 
 function anchoDe(n: Node<FlowNodeData>) {
   const size = (n.data?.size ?? 'md') as string;
@@ -312,10 +342,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
    * caminos vuelven a juntarse gana el mas largo, para que el nodo comun no
    * se monte con nadie.
    *
-   * La fila la manda la salida de la que cuelga cada nodo: el del Si va un
-   * carril arriba de quien lo cuelga, el de Variante a la misma altura -su
-   * linea queda recta- y el del No uno abajo. Cuando dos ramas se pisan, la
-   * de mas abajo se corre entera hacia abajo lo justo.
+   * El alto lo manda el punto de salida del que cuelga cada nodo: se coloca
+   * a la altura exacta de ese punto, para que la linea salga recta. Cuando
+   * dos ramas no caben a la vez se separan y el grupo se vuelve a centrar,
+   * que es de donde sale el abanico de una Decision con sus tres caminos.
    */
   const handleAutoLayout = useCallback(() => {
     const current = nodesRef.current;
@@ -373,44 +403,57 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     raices.forEach((id) => { if (!enArbol.has(id)) { troncos.push(id); construir(id); } });
     current.forEach((n) => { if (!enArbol.has(n.id)) { troncos.push(n.id); construir(n.id); } });
 
-    // --- fila: cada hijo va al carril que le pide SU salida ---
+    // --- alto: cada hijo a la altura exacta de SU punto de salida ---
     //
-    // Antes el padre se centraba entre su primer y su ultimo hijo, sin mirar
-    // de que salida colgaba cada uno. En una Decision con una sola rama eso
-    // dejaba al hijo a la misma altura del padre aunque colgara del "Si", que
-    // es justo lo que se veia torcido. Ahora manda la salida: el del Si va un
-    // carril arriba del padre, el de Variante a la misma altura y el del No
-    // uno abajo. Si dos ramas se pisan, la de mas abajo se corre hacia abajo
-    // lo justo, que es la unica forma de respetar la salida sin encimar nada.
+    // Un nodo entra por el centro de su cuadro y sale por el punto que le
+    // toque, asi que para que la linea salga recta hay que bajarlo o subirlo
+    // esa diferencia. Con un solo hijo la linea queda perfectamente recta.
     //
-    // `colocarRel` devuelve las filas de un subarbol contadas DESDE su propio
-    // nodo, que queda en 0, junto con hasta donde llega por arriba y por
-    // abajo. Asi cada rama se puede correr entera de una pieza.
-    const colocarRel = (id: string): { min: number; max: number; filas: Map<string, number> } => {
-      const filas = new Map<string, number>([[id, 0]]);
-      let min = 0;
-      let max = 0;
-      let ocupadoHasta = -Infinity;
+    // Tres hijos a la altura de sus tres puntos no caben -entre el Si y el No
+    // hay 40 px y un nodo mide 104-, asi que cuando se pisan se separan hacia
+    // abajo lo justo y luego el grupo entero se vuelve a centrar donde estaba.
+    // De ahi sale el abanico simetrico de siempre en una Decision con sus tres
+    // caminos, y la linea recta en cuanto solo hay uno.
+    const porId = new Map(current.map((n) => [n.id, n]));
 
-      (hijosArbol.get(id) ?? []).forEach((h) => {
-        const rama = colocarRel(h);
-        let en = CARRIL_DE_SALIDA[salidaDe.get(h) ?? 'out'] ?? 0;
-        if (en + rama.min <= ocupadoHasta) en += ocupadoHasta + 1 - (en + rama.min);
-        ocupadoHasta = en + rama.max;
-        rama.filas.forEach((f, k) => filas.set(k, f + en));
-        min = Math.min(min, en + rama.min);
-        max = Math.max(max, en + rama.max);
+    const colocarRel = (id: string): { min: number; max: number; alturas: Map<string, number> } => {
+      const nodo = porId.get(id)!;
+      const alturas = new Map<string, number>([[id, 0]]);
+      let min = 0;
+      let max = altoDe(nodo);
+
+      const hs = hijosArbol.get(id) ?? [];
+      if (!hs.length) return { min, max, alturas };
+
+      const ramas = hs.map((h) => ({
+        rama: colocarRel(h),
+        en: desvioDeSalida(nodo, salidaDe.get(h) ?? 'out', porId.get(h)!),
+      }));
+
+      const centroAntes = (ramas[0].en + ramas[ramas.length - 1].en) / 2;
+      for (let i = 1; i < ramas.length; i++) {
+        const tope = ramas[i - 1].en + ramas[i - 1].rama.max + AIRE_Y;
+        if (ramas[i].en + ramas[i].rama.min < tope) ramas[i].en = tope - ramas[i].rama.min;
+      }
+      const centroDespues = (ramas[0].en + ramas[ramas.length - 1].en) / 2;
+      const ajuste = centroAntes - centroDespues;
+
+      ramas.forEach(({ rama, en }) => {
+        const desde = en + ajuste;
+        rama.alturas.forEach((d, k) => alturas.set(k, d + desde));
+        min = Math.min(min, desde + rama.min);
+        max = Math.max(max, desde + rama.max);
       });
 
-      return { min, max, filas };
+      return { min, max, alturas };
     };
 
-    const fila = new Map<string, number>();
+    const alturaDe = new Map<string, number>();
     let siguienteBanda = 0;
     troncos.forEach((id) => {
       const rama = colocarRel(id);
-      rama.filas.forEach((f, k) => fila.set(k, siguienteBanda + f - rama.min));
-      siguienteBanda += rama.max - rama.min + 1;
+      rama.alturas.forEach((d, k) => alturaDe.set(k, Math.round(siguienteBanda + d - rama.min)));
+      siguienteBanda += rama.max - rama.min + AIRE_Y;
     });
 
     // --- a pixeles: el ancho de cada columna lo pone su nodo mas ancho ---
@@ -431,7 +474,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         ...n,
         position: {
           x: xDeColumna.get(columna.get(n.id) ?? 0) ?? 0,
-          y: (fila.get(n.id) ?? 0) * CARRIL_Y,
+          y: alturaDe.get(n.id) ?? 0,
         },
       })),
     );
@@ -530,11 +573,17 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
       const junto = origen
         ? {
             x: snapMultiple(origen.position.x + anchoDe(origen) + AIRE_X, SNAP),
-            y: origen.position.y + (CARRIL_DE_SALIDA[sourceHandle] ?? 0) * CARRIL_Y,
+            y: Math.round(origen.position.y + desvioDeSalida(origen, sourceHandle, nuevo)),
           }
         : { x: nextFreeX(), y: 0 };
 
-      nuevo.position = separar(nuevo, nds, junto);
+      // `separar` redondea a la cuadricula de 10, que desalinearia la linea por
+      // unos pocos pixeles. Solo aparta si de verdad hace falta, asi que si no
+      // aparto nada -mas alla de ese redondeo- se deja la altura exacta.
+      const apartado = separar(nuevo, nds, junto);
+      const loMovio =
+        Math.abs(apartado.x - junto.x) >= SNAP || Math.abs(apartado.y - junto.y) >= SNAP;
+      nuevo.position = loMovio ? apartado : junto;
       return nds.concat(nuevo);
     });
 
@@ -592,13 +641,33 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   const onNodeDragStop = useCallback((_evt: unknown, nodo: Node<FlowNodeData>) => {
     setNodes((nds) => {
       const otros = nds.filter((n) => n.id !== nodo.id);
-      // La altura salta al carril mas cercano; el lado a lo ancho se respeta
-      // tal cual quedo. Asi las filas se alinean solas sin quitarle libertad
-      // al movimiento horizontal.
-      const enCarril = { x: nodo.position.x, y: alCarril(nodo.position.y) };
-      const libre = separar(nodo, otros, enCarril);
-      if (libre.x === nodo.position.x && libre.y === nodo.position.y) return nds;
-      return nds.map((n) => (n.id === nodo.id ? { ...n, position: libre } : n));
+
+      // Al soltar, la altura se cuadra sola. Primero se mira si el nodo viene
+      // de un punto de salida: si se solto cerca de la altura que deja la
+      // linea recta, se pega ahi. Es lo que se busca al mover un nodo que
+      // cuelga de una Decision, y el carril de al lado lo estropearia por unos
+      // pocos pixeles. Si no viene de ningun punto -o se solto lejos-, cae al
+      // carril mas cercano, que es lo que alinea las filas entre si.
+      const entrante = edgesRef.current.find((e) => e.target === nodo.id);
+      const origen = entrante ? nds.find((n) => n.id === entrante.source) : undefined;
+      const recto = origen
+        ? Math.round(origen.position.y + desvioDeSalida(origen, entrante!.sourceHandle ?? 'out', nodo))
+        : null;
+
+      const destino =
+        recto !== null && Math.abs(recto - nodo.position.y) <= IMAN
+          ? { x: nodo.position.x, y: recto }
+          : { x: nodo.position.x, y: alCarril(nodo.position.y) };
+
+      // `separar` redondea a la cuadricula; si no aparto nada se respeta la
+      // altura exacta, que es la que deja la linea recta.
+      const apartado = separar(nodo, otros, destino);
+      const loMovio =
+        Math.abs(apartado.x - destino.x) >= SNAP || Math.abs(apartado.y - destino.y) >= SNAP;
+      const fin = loMovio ? apartado : destino;
+
+      if (fin.x === nodo.position.x && fin.y === nodo.position.y) return nds;
+      return nds.map((n) => (n.id === nodo.id ? { ...n, position: fin } : n));
     });
   }, [setNodes]);
 
