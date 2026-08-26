@@ -157,19 +157,14 @@ function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
     .find(Boolean);
 }
 
-// Mismo criterio que en chats-client.tsx: revive con cualquier mensaje posterior
-// al borrado, entrante o saliente. Exigir que fuera entrante hacía que la
-// conversación se ocultara justo al responderle.
+// Mismo criterio que en chats-client.tsx: la marca de borrado manda y la
+// conversacion no revive sola con los mensajes que lleguen despues. Vuelve
+// solo si se restaura a mano desde la pestana Eliminados.
 function isChatDeletedByPreference(
-  chat: ChatData,
+  _chat: ChatData,
   preference?: ChatConversationPreferenceMap[string],
 ) {
-  if (!preference?.deletedAt) return false;
-
-  const deletedAtMs = new Date(preference.deletedAt).getTime();
-  const lastMessageMs = (chat.lastMessage?.messageTimestamp ?? 0) * 1000;
-
-  return !(lastMessageMs > deletedAtMs);
+  return Boolean(preference?.deletedAt);
 }
 
 type ChatSidebarProps = {

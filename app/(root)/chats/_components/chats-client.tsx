@@ -388,23 +388,18 @@ function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
 }
 
 /**
- * Una conversación eliminada vuelve a la lista en cuanto hay CUALQUIER mensaje
- * posterior al borrado, lo escriba el contacto o lo escribamos nosotros.
+ * Una conversacion eliminada sigue eliminada, aunque despues lleguen mensajes
+ * nuevos.
  *
- * Antes solo revivía si el último mensaje era ENTRANTE, y eso la hacía
- * desaparecer sola: el contacto escribía (volvía a la lista), el asesor
- * respondía, y con esa respuesta el último mensaje pasaba a ser saliente → la
- * conversación se ocultaba otra vez en el siguiente refresco, incluso con el
- * chat abierto, hasta que el contacto volviera a escribir. Una conversación en
- * la que se acaba de responder está viva por definición.
+ * Antes revivia con cualquier mensaje posterior al borrado. Como la lista se
+ * lee de WhatsApp y no de la base -borrar no borra la conversacion de la
+ * linea-, bastaba con que el contacto volviera a escribir para que
+ * reapareciera sola en la lista principal: se eliminaba, se recargaba la
+ * pagina y ahi estaba otra vez. Ahora la marca de borrado manda, y la
+ * conversacion solo vuelve si se restaura a mano desde la pestana Eliminados.
  */
-function isChatDeletedByPreference(chat: ChatData, preference?: ChatConversationPreference) {
-  if (!preference?.deletedAt) return false;
-
-  const deletedAtMs = new Date(preference.deletedAt).getTime();
-  const lastMessageMs = (chat.lastMessage?.messageTimestamp ?? 0) * 1000;
-
-  return !(lastMessageMs > deletedAtMs);
+function isChatDeletedByPreference(_chat: ChatData, preference?: ChatConversationPreference) {
+  return Boolean(preference?.deletedAt);
 }
 
 function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
