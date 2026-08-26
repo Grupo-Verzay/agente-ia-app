@@ -21,9 +21,13 @@ export interface FlowSummary {
   description: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Cuantos nodos tiene dibujados. Para que la tarjeta del listado diga algo. */
+  nodeCount: number;
 }
 
-export interface FlowDetail extends FlowSummary {
+// Al abrir un diagrama vienen los nodos enteros, asi que contarlos aparte
+// sobra: `nodeCount` es solo para el listado.
+export interface FlowDetail extends Omit<FlowSummary, "nodeCount"> {
   nodes: unknown[];
   edges: unknown[];
 }
@@ -80,8 +84,12 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
   try {
     const userId = await requireUserId();
     await ensureFlowTable();
+    // El conteo se hace en la base y no trayendo los nodos: el listado solo
+    // necesita el numero, y un diagrama grande son varios kB de JSON por fila.
+    // El CASE es por si algun diagrama viejo guardo algo que no es una lista.
     const rows = await db.$queryRaw<FlowSummary[]>`
-      SELECT "id", "name", "description", "createdAt", "updatedAt"
+      SELECT "id", "name", "description", "createdAt", "updatedAt",
+             CASE WHEN jsonb_typeof("nodes") = 'array' THEN jsonb_array_length("nodes") ELSE 0 END AS "nodeCount"
       FROM "flows"
       WHERE "userId" = ${userId}
       ORDER BY "updatedAt" DESC
@@ -187,7 +195,8 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
     const rows = await db.$queryRaw<FlowSummary[]>`
       INSERT INTO "flows" ("id", "userId", "name", "nodes", "edges")
       VALUES (${id}, ${userId}, ${trimmed}, ${nodesJson}::jsonb, ${edgesJson}::jsonb)
-      RETURNING "id", "name", "description", "createdAt", "updatedAt"
+      RETURNING "id", "name", "description", "createdAt", "updatedAt",
+                jsonb_array_length("nodes") AS "nodeCount"
     `;
     return { success: true, data: rows[0] };
   } catch (error) {

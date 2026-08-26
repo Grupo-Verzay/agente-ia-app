@@ -3,14 +3,13 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Plus } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
 import "@xyflow/react/dist/style.css";
 import { ReactFlowProvider } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
 
 import { saveFlowGraphAction } from '@/actions/flow-actions';
 import { FlowCanvas, type FlowCanvasHandle, type FlowGraphNode, type FlowGraphEdge } from './FlowCanvas';
-import { InlineAddNode } from './InlineAddNode';
 
 interface FlowEditorClientProps {
   flowId: string;
@@ -52,18 +51,16 @@ export function FlowEditorClient({ flowId, flowName, initialNodes, initialEdges 
         <span className="max-w-[180px] truncate text-sm font-semibold">{flowName}</span>
       </div>
 
-      <div className="absolute right-3 top-3 z-30 flex items-center gap-2">
-        <InlineAddNode
-          totalNodes={initialNodes.length}
-          side="left"
-          onPickAction={(action) => canvasRef.current?.createAtCenter(action)}
-          trigger={
-            <Button size="icon" className="h-9 w-9 rounded-full shadow-md" title="Agregar nodo">
-              <Plus className="h-5 w-5" />
-            </Button>
-          }
-        />
-        <Button size="sm" className="h-9 gap-2 rounded-full shadow-md" onClick={handleSave} disabled={saving}>
+      {/* Verde fijo y no el color de la App: Guardar es lo unico que deja
+          huella de este lienzo, asi que se busca a ojo y conviene que no se
+          confunda con el azul de los conectores. */}
+      <div className="absolute right-3 top-3 z-30">
+        <Button
+          size="sm"
+          className="h-9 gap-2 rounded-full bg-green-600 text-white shadow-md hover:bg-green-700"
+          onClick={handleSave}
+          disabled={saving}
+        >
           <Save className="h-4 w-4" />
           {saving ? 'Guardando...' : 'Guardar'}
         </Button>
