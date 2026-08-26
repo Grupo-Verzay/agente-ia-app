@@ -89,13 +89,15 @@ const SIZE_TOKENS: Record<FlowNodeSize, {
     lg: { wrapper: 'w-[148px]', box: 'h-[74px] w-[74px] rounded-[18px]', iconSvg: 'h-[29px] w-[29px]', title: 'text-[13px]', sub: 'text-xs' },
 };
 
-// El nodo de Decision saca DOS conectores por su lado derecho, con sus
-// etiquetas "Si"/"No". En un cuadrado se le montan encima del icono, asi que
-// para ese tipo la caja es un rectangulo: mismo alto, mas ancho.
-const WIDE_TOKENS: Record<FlowNodeSize, { wrapper: string; box: string }> = {
-    sm: { wrapper: 'w-[128px]', box: 'h-11 w-[72px] rounded-[10px]' },
-    md: { wrapper: 'w-[164px]', box: 'h-[58px] w-[102px] rounded-[14px]' },
-    lg: { wrapper: 'w-[204px]', box: 'h-[74px] w-[130px] rounded-[18px]' },
+// El nodo de Decision saca TRES conectores por su lado derecho, con sus
+// etiquetas "Si", "Variante" y "No". En un cuadrado se le montan encima del
+// icono, asi que para ese tipo la caja es un rectangulo: mismo alto, mas
+// ancho, y el icono se corre a la izquierda (`pad`) para dejarle su propia
+// columna a las etiquetas, que son tres y una es larga.
+const WIDE_TOKENS: Record<FlowNodeSize, { wrapper: string; box: string; pad: string }> = {
+    sm: { wrapper: 'w-[152px]', box: 'h-11 w-[95px] rounded-[10px]', pad: 'justify-start pl-3' },
+    md: { wrapper: 'w-[196px]', box: 'h-[58px] w-[134px] rounded-[14px]', pad: 'justify-start pl-4' },
+    lg: { wrapper: 'w-[244px]', box: 'h-[74px] w-[170px] rounded-[18px]', pad: 'justify-start pl-5' },
 };
 
 export type FlowNodeData = {
@@ -146,7 +148,9 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     const isInicio = data.tipo === 'inicio';
     // Decision reusa la caja de siempre pero en version rectangular, para que
     // los dos conectores de salida no se le monten encima al icono.
-    const caja = isIntention ? WIDE_TOKENS[size] : { wrapper: t.wrapper, box: t.box };
+    const caja = isIntention
+        ? WIDE_TOKENS[size]
+        : { wrapper: t.wrapper, box: t.box, pad: 'justify-center' };
     const hint = CONTENT_HINT[data.tipo] ?? DEFAULT_HINT;
 
     const abrir = () => {
@@ -212,7 +216,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                             abrir();
                         }
                     }}
-                    className={`flex h-full w-full cursor-pointer items-center justify-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${caja.box}`}
+                    className={`flex h-full w-full cursor-pointer items-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${caja.pad} ${caja.box}`}
                     style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)' }}
                 >
                     <Icon className={t.iconSvg} strokeWidth={1.8} style={{ color: ICON_COLOR[data.tipo] ?? '#6b7280' }} />
@@ -240,8 +244,9 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
 
                 {isIntention ? (
                     <>
-                        <SourceDotHandle id="yes" label="Sí" topPct={20} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
-                        <SourceDotHandle id="no" label="No" topPct={80} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
+                        <SourceDotHandle id="yes" label="Sí" topPct={16} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
+                        <SourceDotHandle id="variante" label="Variante" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
+                        <SourceDotHandle id="no" label="No" topPct={84} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
                     </>
                 ) : (
                     <SourceDotHandle id="out" label="" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
