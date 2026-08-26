@@ -43,6 +43,17 @@ const ICON_COLOR: Record<string, string> = {
     llamada_ia: '#d946ef',
     automatizacion: '#06b6d4',
     devolver: '#a855f7',
+    escalar: '#65a30d',
+    link: '#1d4ed8',
+    recordatorio: '#ec4899',
+    cita: '#16a34a',
+    etiqueta: '#475569',
+    cotizacion: '#b45309',
+    pago: '#be123c',
+    menu: '#4338ca',
+    tarea: '#7c3aed',
+    campana: '#ea580c',
+    fin: '#dc2626',
 };
 
 // Que se le pide escribir al usuario en cada tipo de nodo. El texto del nodo
@@ -70,6 +81,17 @@ const CONTENT_HINT: Record<string, { label: string; placeholder: string }> = {
     llamada_ia: { label: 'Para qué se llama al cliente', placeholder: 'Ej: confirmar la cita por teléfono' },
     automatizacion: { label: 'Qué se hace automáticamente', placeholder: 'Ej: marcar el contacto como contactado' },
     devolver: { label: 'A qué paso se devuelve y por qué', placeholder: 'Ej: si no entendió, volver a preguntarle la ciudad' },
+    escalar: { label: 'Cuándo pasa a una persona y a quién', placeholder: 'Ej: si pide descuento, pasa al asesor de ventas' },
+    link: { label: 'Qué enlace se manda', placeholder: 'Ej: el enlace del catálogo en línea' },
+    recordatorio: { label: 'Qué se recuerda y cuándo', placeholder: 'Ej: un día antes, recordarle la cita' },
+    cita: { label: 'Qué cita se agenda', placeholder: 'Ej: se le agenda visita con el asesor' },
+    etiqueta: { label: 'Qué etiqueta se le pone', placeholder: 'Ej: marcarlo como "Interesado"' },
+    cotizacion: { label: 'Qué se cotiza', placeholder: 'Ej: se le manda la cotización del producto que pidió' },
+    pago: { label: 'Qué se le cobra', placeholder: 'Ej: se le manda el enlace de pago del anticipo' },
+    menu: { label: 'Qué opciones se le dan', placeholder: 'Ej: 1) Comprar  2) Preguntar  3) Hablar con un asesor' },
+    tarea: { label: 'Qué tarea se crea y para quién', placeholder: 'Ej: llamar al cliente mañana' },
+    campana: { label: 'Qué campaña sale', placeholder: 'Ej: la promoción de fin de mes' },
+    fin: { label: 'Cómo termina', placeholder: 'Ej: el cliente ya compró y se cierra la conversación' },
 };
 
 const DEFAULT_HINT = { label: 'Texto de este paso', placeholder: 'Escribe aquí lo que pasa en este paso' };
@@ -148,6 +170,9 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
     // El nodo de arranque no recibe nada: ni la chincheta roja de "aqui entra
     // la conversacion" -el arranque ya es el- ni el conector de entrada.
     const isInicio = data.tipo === 'inicio';
+    // Fin es la pareja de Inicio: no saca conector, porque despues de un
+    // final no cuelga nada.
+    const isFin = data.tipo === 'fin';
     // Decision reusa la caja de siempre pero en version rectangular, para que
     // los dos conectores de salida no se le monten encima al icono.
     const caja = isIntention
@@ -244,7 +269,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                     </button>
                 </div>
 
-                {isIntention ? (
+                {isFin ? null : isIntention ? (
                     <>
                         <SourceDotHandle id="yes" label="Sí" topPct={16} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
                         <SourceDotHandle id="variante" label="Variante" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
