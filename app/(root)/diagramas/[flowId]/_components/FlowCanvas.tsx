@@ -31,17 +31,90 @@ import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
 import { InlineAddNode } from './InlineAddNode';
 
 // COL_W / ROW_H son la separacion con la que se COLOCAN los nodos: al crear
-// uno nuevo y al darle a "Ordenar". Ya no atan al nodo una vez creado: el
-// diagrama se arrastra libremente y solo se ajusta a una cuadricula fina
-// (SNAP) para que las cosas queden alineadas sin pelear con el mouse.
-// 170 y no menos: el nodo mediano mide 116 px de ancho, asi que bajar de ahi
-// los pegaria unos con otros en vez de solo acercarlos.
-const COL_W = 170;
+// uno nuevo, al duplicar y al darle a "Ordenar". Siempre la misma, para que
+// un diagrama recien armado quede parejo sin tener que cuadrarlo a mano.
+// 220 y no menos: el nodo mas ancho -Decision, que lleva tres etiquetas de
+// salida- mide 196 px, asi que por debajo de eso se montarian unos con otros.
+// Es el mismo valor que ANCHO_DE_CARRIL en actions/flow-actions.ts: si aqui
+// se cambia, alla tambien.
+const COL_W = 220;
 const ROW_H = 160;
 const SNAP = 10;
 
+// Mover el diagrama es libre: solo se ajusta a una cuadricula fina para que
+// las cosas queden alineadas sin pelear con el mouse.
 function snapMultiple(v: number, step: number) {
   return Math.round(v / step) * step;
+}
+
+// Cuanto mide cada nodo en pantalla. Tiene que ir de la mano con SIZE_TOKENS
+// y WIDE_TOKENS de FlowNode.tsx: es lo que se usa para saber si dos nodos se
+// estan tocando.
+const ANCHO: Record<string, number> = { sm: 92, md: 116, lg: 148 };
+const ANCHO_DECISION: Record<string, number> = { sm: 152, md: 196, lg: 244 };
+const ALTO: Record<string, number> = { sm: 86, md: 104, lg: 126 };
+
+// El aire que se le deja alrededor a cada nodo. Con 104 de holgura, dos
+// nodos medianos seguidos quedan justo a COL_W de distancia.
+const AIRE_X = 104;
+const AIRE_Y = 56;
+
+function anchoDe(n: Node<FlowNodeData>) {
+  const size = (n.data?.size ?? 'md') as string;
+  return n.data?.tipo === 'intention' ? ANCHO_DECISION[size] : ANCHO[size];
+}
+
+function altoDe(n: Node<FlowNodeData>) {
+  return ALTO[(n.data?.size ?? 'md') as string];
+}
+
+/**
+ * Corre el nodo lo justo para que no quede pegado a ninguno de los otros.
+ *
+ * El diagrama se mueve a gusto, pero dos nodos encimados no se leen: al
+ * soltar uno donde ya hay otro se aparta por el lado que menos lo desvie de
+ * donde lo dejo el mouse. Se repite unas cuantas veces porque apartarlo de
+ * uno puede acercarlo a un tercero.
+ */
+function separar(
+  movido: Node<FlowNodeData>,
+  otros: Node<FlowNodeData>[],
+  desde: { x: number; y: number },
+): { x: number; y: number } {
+  const anchoA = anchoDe(movido);
+  const altoA = altoDe(movido);
+  let { x, y } = desde;
+
+  for (let vuelta = 0; vuelta < 12; vuelta++) {
+    const choque = otros.find((o) => {
+      const anchoB = anchoDe(o);
+      const altoB = altoDe(o);
+      // Cada nodo reclama su tamaño mas el aire de rodearlo. Se cuenta una
+      // sola vez y no una por nodo, para que la holgura sea la misma se
+      // mueva hacia donde se mueva.
+      return (
+        x < o.position.x + anchoB + AIRE_X && o.position.x < x + anchoA + AIRE_X &&
+        y < o.position.y + altoB + AIRE_Y && o.position.y < y + altoA + AIRE_Y
+      );
+    });
+    if (!choque) break;
+
+    // Las cuatro salidas posibles; se toma la que menos lo desvie de donde
+    // lo dejo el mouse.
+    const salidas = [
+      { x: choque.position.x - anchoA - AIRE_X, y },
+      { x: choque.position.x + anchoDe(choque) + AIRE_X, y },
+      { x, y: choque.position.y - altoA - AIRE_Y },
+      { x, y: choque.position.y + altoDe(choque) + AIRE_Y },
+    ];
+    const mejor = salidas.reduce((a, b) =>
+      Math.hypot(a.x - desde.x, a.y - desde.y) <= Math.hypot(b.x - desde.x, b.y - desde.y) ? a : b,
+    );
+    x = mejor.x;
+    y = mejor.y;
+  }
+
+  return { x: snapMultiple(x, SNAP), y: snapMultiple(y, SNAP) };
 }
 
 export interface FlowGraphNode {
@@ -108,6 +181,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onChangeLabel: () => {},
           onChangeContent: () => {},
           onChangeSize: () => {},
+          onDuplicate: () => {},
           onDelete: () => {},
         },
       } satisfies Node<FlowNodeData>;
@@ -157,6 +231,30 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, size } } : n)));
   }, [setNodes]);
 
+  // Duplicar: la copia sale justo debajo del original -es donde se espera
+  // ver algo que se acaba de copiar- y, si ahi ya hay alguien, `separar` la
+  // corre a la primera posicion libre. Sale sin conexiones: es una copia del
+  // paso, no del sitio que ocupaba en el proceso.
+  const onDuplicateNode = useCallback((nodeId: string) => {
+    setNodes((nds) => {
+      const original = nds.find((n) => n.id === nodeId);
+      if (!original) return nds;
+
+      const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const copia: Node<FlowNodeData> = {
+        ...original,
+        id,
+        selected: false,
+        dragging: false,
+        position: { x: original.position.x, y: original.position.y + altoDe(original) + AIRE_Y },
+        data: { ...original.data },
+      };
+      copia.position = separar(copia, nds, copia.position);
+      return nds.concat(copia).map((n) => ({ ...n, data: { ...n.data, totalNodes: nds.length + 1 } }));
+    });
+    toast.success('Nodo duplicado');
+  }, [setNodes]);
+
   const onDeleteNode = useCallback((nodeId: string) => {
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
@@ -165,7 +263,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   // Cada nodo necesita las funciones de arriba enganchadas (no existen todavia
   // cuando se arma rawInitialNodes). Se inyectan aqui, una vez.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onChangeSize, onDelete: onDeleteNode } })));
+    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onChangeSize, onDuplicate: onDuplicateNode, onDelete: onDeleteNode } })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -226,6 +324,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onChangeLabel,
           onChangeContent,
           onChangeSize,
+          onDuplicate: onDuplicateNode,
           onDelete: onDeleteNode,
         },
       } satisfies Node<FlowNodeData>),
@@ -243,7 +342,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     }
     lastEdgeTargetRef.current = id;
     toast.success(connected ? 'Nodo creado y conectado' : 'Nodo creado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDuplicateNode, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
 
   const addNodeFromSource: AddNodeFn = useCallback(({ sourceId, sourceHandle, action }) => {
     const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -265,6 +364,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onChangeLabel,
           onChangeContent,
           onChangeSize,
+          onDuplicate: onDuplicateNode,
           onDelete: onDeleteNode,
         },
       } satisfies Node<FlowNodeData>),
@@ -274,7 +374,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setEdges((eds) => eds.concat({ id: edgeId, source: sourceId, target: id, sourceHandle, targetHandle: 'in', type: 'customEdge' }));
     lastEdgeTargetRef.current = id;
     toast.success('Nodo creado y conectado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDeleteNode, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onDuplicateNode, onDeleteNode, setEdges, setNodes]);
 
   const onDragOver = useCallback((evt: React.DragEvent) => {
     evt.preventDefault();
@@ -319,6 +419,17 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     }),
   }), [createAtCenter]);
 
+  // Al soltar un nodo se comprueba que no haya quedado encima de otro. Si
+  // quedo pegado se corre lo justo; si lo soltaron en un hueco, no se toca.
+  const onNodeDragStop = useCallback((_evt: unknown, nodo: Node<FlowNodeData>) => {
+    setNodes((nds) => {
+      const otros = nds.filter((n) => n.id !== nodo.id);
+      const libre = separar(nodo, otros, nodo.position);
+      if (libre.x === nodo.position.x && libre.y === nodo.position.y) return nds;
+      return nds.map((n) => (n.id === nodo.id ? { ...n, position: libre } : n));
+    });
+  }, [setNodes]);
+
   const onConnect: OnConnect = useCallback((params) => {
     if (!params.source || !params.target) return;
     const sourceHandle = params.sourceHandle ?? 'out';
@@ -355,6 +466,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
           onInit={(instance) => (rfRef.current = instance)}
           defaultEdgeOptions={{ type: 'customEdge' }}
