@@ -62,7 +62,13 @@ const ALTO: Record<string, number> = { sm: 86, md: 104, lg: 126 };
 // otros, asi que ese es el piso mientras el nombre siga yendo encima del
 // cuadro y no dentro.
 const AIRE_X = 16;
-const AIRE_Y = 56;
+// A lo alto vale el mismo numero, para que el diagrama respire igual en los
+// dos sentidos. Aqui el hueco que se ve son unos 46 px mas que este numero,
+// pero a diferencia de los lados casi todo ese sobrante esta ocupado: el
+// texto que se asoma bajo el nodo de arriba y el nombre del de abajo. Por
+// eso el piso practico son unos 8: en 0 el texto de uno tocaria el nombre
+// del otro.
+const AIRE_Y = 16;
 
 function anchoDe(n: Node<FlowNodeData>) {
   const size = (n.data?.size ?? 'md') as string;
