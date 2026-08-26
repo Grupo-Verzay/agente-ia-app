@@ -21,7 +21,7 @@ export type SidebarContact = {
   hasNotes?: boolean;
 };
 
-export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "deleted";
+export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "resolved" | "deleted";
 
 export type TabCounts = Record<TabKey, number>;
 

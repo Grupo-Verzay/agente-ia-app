@@ -97,6 +97,19 @@ function claveDeChatVisto(instanceName: string | undefined, remoteJid: string): 
 // nada la borraba nunca.
 const MAX_CHATS_VISTOS = 1000;
 
+/**
+ * Una conversación resuelta. Se guarda como `status = false` en la sesión, que
+ * es lo que deja `resolveSession` al aplicar la macro de "Resolver
+ * conversación". Sale de la lista normal y se va a su propia pestaña, como los
+ * archivados; vuelve sola en cuanto el cliente escribe otra vez.
+ *
+ * `status` indefinido -un chat que todavía no tiene sesión creada- NO cuenta
+ * como resuelto: se comprueba contra `false` a propósito.
+ */
+function esResuelta(c: SidebarContact): boolean {
+  return c.chatSession?.status === false;
+}
+
 const SIDEBAR_VIRTUALIZE_AFTER = 50;
 const SIDEBAR_OVERSCAN_ITEMS = 10;
 // Alturas estimadas (px). Los contactos con sesión CRM muestran una fila de
@@ -442,13 +455,14 @@ export function ChatSidebar({
   }, [contacts]);
 
   const tabCounts = useMemo<TabCounts>(() => {
-    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
+    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived && !esResuelta(c));
     return {
       all: active.length,
       mine: myChats.length,
       dm: active.filter((c) => !c.isGroup).length,
       groups: active.filter((c) => c.isGroup).length,
       archived: contacts.filter((c) => !c.isDeleted && c.isArchived).length,
+      resolved: contacts.filter((c) => !c.isDeleted && esResuelta(c)).length,
       deleted: contacts.filter((c) => c.isDeleted).length,
     };
   }, [contacts, myChats]);
@@ -471,7 +485,7 @@ export function ChatSidebar({
   const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
 
   const filterCounts = useMemo(() => {
-    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
+    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived && !esResuelta(c));
     return {
       unread: active.filter((c) => c.isUnreadLocal).length,
       starred: active.filter((c) => starredJids.has(c.id)).length,
@@ -524,8 +538,10 @@ export function ChatSidebar({
 
     if (tab === "archived") {
       list = list.filter((c) => c.isArchived);
+    } else if (tab === "resolved") {
+      list = list.filter((c) => esResuelta(c));
     } else {
-      list = list.filter((c) => !c.isArchived);
+      list = list.filter((c) => !c.isArchived && !esResuelta(c));
       if (tab === "dm") list = list.filter((c) => !c.isGroup);
       if (tab === "groups") list = list.filter((c) => c.isGroup);
       if (tab === "mine") list = list.filter((c) => c.chatSession?.assignedAdvisorId === currentAdvisorId);
@@ -868,9 +884,11 @@ export function ChatSidebar({
   const emptyMessage =
     tab === "archived"
       ? "No hay chats archivados que coincidan con el filtro."
-      : tab === "deleted"
-        ? "No hay chats eliminados."
-        : "No hay chats que coincidan con el filtro.";
+      : tab === "resolved"
+        ? "No hay conversaciones resueltas."
+        : tab === "deleted"
+          ? "No hay chats eliminados."
+          : "No hay chats que coincidan con el filtro.";
 
   return (
     <>
