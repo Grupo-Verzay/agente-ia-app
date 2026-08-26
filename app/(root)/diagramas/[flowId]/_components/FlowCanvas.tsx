@@ -87,6 +87,12 @@ function alCarril(y: number, hacia: 'cerca' | 'arriba' | 'abajo' = 'cerca') {
   return franja * CARRIL_Y;
 }
 
+// Cuantos carriles se desvia el nodo que cuelga de cada salida. Decision
+// saca tres y se leen de arriba abajo: el que cuelga del Si sube un carril,
+// el de Variante sigue derecho -su linea queda recta- y el del No baja uno.
+// Cualquier otra salida no desvia nada.
+const CARRIL_DE_SALIDA: Record<string, number> = { yes: -1, variante: 0, no: 1, out: 0 };
+
 function anchoDe(n: Node<FlowNodeData>) {
   const size = (n.data?.size ?? 'md') as string;
   return n.data?.tipo === 'intention' ? ANCHO_DECISION[size] : ANCHO[size];
@@ -302,24 +308,25 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   /**
    * Reparte el diagrama en columnas y filas siguiendo las lineas.
    *
-   * Antes ponia todo en una sola fila larga por orden de posicion, que en un
-   * diagrama con caminos -una Decision que abre tres- no decia nada. Ahora
-   * cada nodo cae en la columna que le toca segun lo lejos que este del
-   * arranque, y cada camino que se abre se lleva su propia fila: el primero
-   * sigue por la fila del padre y los demas bajan a una nueva. Asi un
-   * diagrama ramificado se lee como un arbol acostado.
+   * La columna sale de lo lejos que este el nodo del arranque; cuando dos
+   * caminos vuelven a juntarse gana el mas largo, para que el nodo comun no
+   * se monte con nadie.
+   *
+   * La fila se reparte como un arbol acostado: cada rama se lleva su banda de
+   * filas y el nodo que la abre se coloca en medio de sus hijos. En una
+   * Decision eso deja el camino de Variante en linea recta y los de Si y No
+   * arriba y abajo, que es como se leen sus tres salidas.
    */
   const handleAutoLayout = useCallback(() => {
     const current = nodesRef.current;
     if (!current.length) return;
 
-    // Salidas de cada nodo, en el orden en que se leen: primero Si, luego
-    // Variante, luego No. Sin esto el reparto dependeria del orden en que se
-    // hayan dibujado las lineas.
+    // Salidas de cada nodo en el orden en que se leen -Si, Variante, No-, y no
+    // en el orden en que se dibujaron las lineas.
     const ORDEN_SALIDA: Record<string, number> = { yes: 0, variante: 1, no: 2, out: 0 };
     const hijos = new Map<string, string[]>();
     const conEntrada = new Set<string>();
-    [...edgesRef.current]
+    Array.from(edgesRef.current)
       .sort((a, b) => (ORDEN_SALIDA[a.sourceHandle ?? 'out'] ?? 0) - (ORDEN_SALIDA[b.sourceHandle ?? 'out'] ?? 0))
       .forEach((e) => {
         if (!hijos.has(e.source)) hijos.set(e.source, []);
@@ -327,40 +334,68 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         conEntrada.add(e.target);
       });
 
-    const columna = new Map<string, number>();
-    const fila = new Map<string, number>();
-    const visto = new Set<string>();
-    let ultimaFila = -1;
-
-    // Recorrido en profundidad. Un nodo al que ya se llego no se recoloca,
-    // solo se empuja a la derecha si por este camino queda mas lejos del
-    // arranque: asi dos caminos que vuelven a juntarse no se montan.
-    const recorrer = (id: string, col: number, enFila: number) => {
-      if (visto.has(id)) {
-        columna.set(id, Math.max(columna.get(id) ?? 0, col));
-        return;
-      }
-      visto.add(id);
-      columna.set(id, col);
-      fila.set(id, enFila);
-      (hijos.get(id) ?? []).forEach((h, i) => {
-        recorrer(h, col + 1, i === 0 ? enFila : ++ultimaFila);
-      });
-    };
-
-    // Se arranca por los nodos a los que no llega ninguna linea. Lo que quede
-    // suelto -o dentro de un bucle cerrado- se coloca despues, en su propia
-    // fila, para que no se pierda ninguno.
-    current
+    const raices = current
       .filter((n) => !conEntrada.has(n.id))
       .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
-      .forEach((n) => recorrer(n.id, 0, ++ultimaFila));
-    current.forEach((n) => {
-      if (!visto.has(n.id)) recorrer(n.id, 0, ++ultimaFila);
+      .map((n) => n.id);
+
+    // --- columna: la distancia mas larga hasta el arranque ---
+    const columna = new Map<string, number>();
+    const enCamino = new Set<string>();
+    const medirColumna = (id: string, col: number) => {
+      if (enCamino.has(id)) return; // bucle cerrado: no se sigue
+      if ((columna.get(id) ?? -1) >= col) return;
+      columna.set(id, col);
+      enCamino.add(id);
+      (hijos.get(id) ?? []).forEach((h) => medirColumna(h, col + 1));
+      enCamino.delete(id);
+    };
+    raices.forEach((id) => medirColumna(id, 0));
+    current.forEach((n) => { if (!columna.has(n.id)) medirColumna(n.id, 0); });
+
+    // --- arbol: cada nodo cuelga del primer camino que lo alcanza ---
+    const hijosArbol = new Map<string, string[]>();
+    const enArbol = new Set<string>();
+    const construir = (id: string) => {
+      enArbol.add(id);
+      (hijos.get(id) ?? []).forEach((h) => {
+        if (enArbol.has(h)) return; // ya cuelga de otro, o cierra un bucle
+        if (!hijosArbol.has(id)) hijosArbol.set(id, []);
+        hijosArbol.get(id)!.push(h);
+        construir(h);
+      });
+    };
+    const troncos: string[] = [];
+    raices.forEach((id) => { if (!enArbol.has(id)) { troncos.push(id); construir(id); } });
+    current.forEach((n) => { if (!enArbol.has(n.id)) { troncos.push(n.id); construir(n.id); } });
+
+    // --- fila: cada rama se lleva su banda y el padre se centra en ella ---
+    const cuantasFilas = new Map<string, number>();
+    const pesar = (id: string): number => {
+      const hs = hijosArbol.get(id) ?? [];
+      const n = hs.length ? hs.reduce((suma, h) => suma + pesar(h), 0) : 1;
+      cuantasFilas.set(id, n);
+      return n;
+    };
+    troncos.forEach(pesar);
+
+    const fila = new Map<string, number>();
+    const colocar = (id: string, desde: number) => {
+      const hs = hijosArbol.get(id) ?? [];
+      if (!hs.length) { fila.set(id, desde); return; }
+      let f = desde;
+      hs.forEach((h) => { colocar(h, f); f += cuantasFilas.get(h) ?? 1; });
+      const primero = fila.get(hs[0])!;
+      const ultimo = fila.get(hs[hs.length - 1])!;
+      fila.set(id, Math.round((primero + ultimo) / 2));
+    };
+    let siguienteBanda = 0;
+    troncos.forEach((id) => {
+      colocar(id, siguienteBanda);
+      siguienteBanda += cuantasFilas.get(id) ?? 1;
     });
 
-    // El ancho de cada columna lo pone su nodo mas ancho, para que el hueco
-    // entre columnas se vea igual aunque una lleve una Decision.
+    // --- a pixeles: el ancho de cada columna lo pone su nodo mas ancho ---
     const anchoDeColumna = new Map<number, number>();
     current.forEach((n) => {
       const col = columna.get(n.id) ?? 0;
@@ -385,9 +420,6 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     toast.success('Diagrama ordenado. Recuerda darle a Guardar.');
   }, [setNodes]);
 
-  // Por que salida engancha el nodo que se acaba de crear. Se prefiere una
-  // libre -en Decision, Si, luego Variante y luego No- pero si ya estan usadas
-  // se cuelga igual de la primera: un punto de salida admite varias lineas.
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
     const node = nodesRef.current.find((n) => n.id === sourceId);
     const tipo = node?.data?.tipo ?? '';
@@ -451,13 +483,16 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
 
   const addNodeFromSource: AddNodeFn = useCallback(({ sourceId, sourceHandle, action }) => {
     const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const pos = { x: nextFreeX(), y: 0 };
 
-    setNodes((nds) =>
-      nds.concat({
+    setNodes((nds) => {
+      // El nodo nace justo a la derecha del que lo cuelga y en el carril que
+      // le toca a esa salida, para que la linea salga derecha en vez de
+      // cruzar medio lienzo. Si el sitio ya esta ocupado, `separar` lo corre.
+      const origen = nds.find((n) => n.id === sourceId);
+      const nuevo: Node<FlowNodeData> = {
         id,
         type: 'flowNode',
-        position: pos,
+        position: { x: 0, y: 0 },
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
         data: {
@@ -472,8 +507,18 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onDuplicate: onDuplicateNode,
           onDelete: onDeleteNode,
         },
-      } satisfies Node<FlowNodeData>),
-    );
+      };
+
+      const junto = origen
+        ? {
+            x: snapMultiple(origen.position.x + anchoDe(origen) + AIRE_X, SNAP),
+            y: origen.position.y + (CARRIL_DE_SALIDA[sourceHandle] ?? 0) * CARRIL_Y,
+          }
+        : { x: nextFreeX(), y: 0 };
+
+      nuevo.position = separar(nuevo, nds, junto);
+      return nds.concat(nuevo);
+    });
 
     const edgeId = `e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     setEdges((eds) => eds.concat({ id: edgeId, source: sourceId, target: id, sourceHandle, targetHandle: 'in', type: 'customEdge' }));
