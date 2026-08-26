@@ -606,6 +606,12 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
     // reescribía en cada mensaje, así que un entrante con el nombre de la línea
     // borraba el bueno una y otra vez.
     const nombreAEscribir = esNombreBueno(existing.pushName) ? undefined : cleanPushName || undefined;
+    // Una conversacion resuelta se guarda apagada (`status = false`) y sale de
+    // la lista de chats. Si el CLIENTE vuelve a escribir se reabre sola: el
+    // asunto no estaba cerrado. Solo con un entrante -que el asesor conteste en
+    // una resuelta no la reabre, igual que responder a un correo archivado no
+    // lo desarchiva.
+    const reabrir = input.fromMe ? undefined : true;
     try {
       await db.session.update({
         where: { id: existing.id },
@@ -614,6 +620,7 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
           remoteJidAlt,
           pushName: nombreAEscribir,
           instanceId,
+          status: reabrir,
           updatedAt: new Date(),
         },
       });
@@ -633,6 +640,10 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
             data: {
               remoteJidAlt,
               pushName: nombreAEscribir,
+              // Tambien aqui: por este camino pasan los chats con el JID
+              // duplicado, y si no se reabre se quedarian resueltos para
+              // siempre aunque el cliente siguiera escribiendo.
+              status: reabrir,
               updatedAt: new Date(),
             },
           })

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { ComponentType } from "react";
-import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, Star } from "lucide-react";
+import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +46,7 @@ const GROUPS_COLOR = "#28A745";
 
 export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "deleted" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
+  const isOverflowActive = tab === "archived" || tab === "resolved" || tab === "deleted" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
     const count = tabCounts[key];
     const isActive = tab === key;
@@ -251,6 +251,18 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             </span>
             {tabCounts.archived > 0 && (
               <span className="text-[10px] text-muted-foreground">{tabCounts.archived}</span>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => onTabChange("resolved")}
+            className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
+          >
+            <span className="flex items-center gap-1.5 text-xs">
+              <CheckCheck className="h-3 w-3 text-muted-foreground shrink-0" />
+              Resueltos
+            </span>
+            {tabCounts.resolved > 0 && (
+              <span className="text-[10px] text-muted-foreground">{tabCounts.resolved}</span>
             )}
           </DropdownMenuItem>
           <DropdownMenuItem
