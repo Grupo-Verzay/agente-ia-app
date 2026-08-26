@@ -1,11 +1,12 @@
 ﻿"use client";
 
 import type { ComponentType } from "react";
-import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star } from "lucide-react";
+import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,9 @@ type ChatTabBarProps = {
   clientActiveCount?: number;
   clientInactiveCount?: number;
   serviceTypeFilter?: ServiceType | null;
+  /** Abrir el diálogo de conversación nueva. Vive aquí y no en la fila de
+   *  arriba porque casi no se usa y allá le quitaba ancho al buscador. */
+  onCompose?: () => void;
   onSetServiceType?: (v: ServiceType) => void;
   iaCount?: number;
   humanCount?: number;
@@ -44,7 +48,7 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
 
 const GROUPS_COLOR = "#28A745";
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "resolved" || tab === "deleted" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
@@ -146,6 +150,18 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44 p-1">
+          {onCompose && (
+            <>
+              <DropdownMenuItem
+                onSelect={onCompose}
+                className="flex items-center gap-1.5 cursor-pointer py-1 text-xs"
+              >
+                <SquarePen className="h-3 w-3 shrink-0 text-muted-foreground" />
+                Nuevo mensaje
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {onToggleStarred && (
             <DropdownMenuItem
               onSelect={onToggleStarred}
