@@ -14,15 +14,14 @@ export const SourceDotHandle = (props: {
     const { id, topPct, label, active, connectableStart, totalNodes } = props;
 
     const nodeId = useNodeId();
-    const connections = useNodeConnections({ handleType: "source", handleId: id });
-    const isFree = connections.length === 0;
-
-    // Un nodo de Decision tiene dos salidas. En cuanto una esta conectada, el
-    // "+" de la otra se queda flotando al lado del nodo y ensucia el lienzo:
-    // a partir de ahi solo aparece al pasar el mouse por el nodo, que es
-    // cuando de verdad se busca.
+    // Un punto de salida no se "gasta": de el pueden colgar varios nodos, asi
+    // que el "+" sigue estando aunque ya tenga lineas. Lo que cambia es cuando
+    // se ve: en un nodo sin salidas esta a la vista, para que se note por
+    // donde se sigue; en cuanto el nodo ya tiene por donde seguir, el "+" se
+    // esconde y solo aparece al pasar el mouse, para no llenar el lienzo de
+    // botones flotantes.
     const salidasDelNodo = useNodeConnections({ handleType: "source" });
-    const soloAlPasarElMouse = isFree && salidasDelNodo.length > 0;
+    const soloAlPasarElMouse = salidasDelNodo.length > 0;
 
     return (
         <div
@@ -58,7 +57,7 @@ export const SourceDotHandle = (props: {
                 </div>
             ) : null}
 
-            {isFree && nodeId ? (
+            {nodeId ? (
                 <div
                     className={`absolute left-10 top-1/2 -translate-y-1/2 ${soloAlPasarElMouse
                         ? "opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"

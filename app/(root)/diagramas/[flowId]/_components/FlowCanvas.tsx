@@ -186,15 +186,17 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     toast.success('Diagrama ordenado. Recuerda darle a Guardar.');
   }, [setNodes]);
 
+  // Por que salida engancha el nodo que se acaba de crear. Se prefiere una
+  // libre -en Decision, primero Si y luego No- pero si ya estan todas usadas
+  // se cuelga igual de la primera: un punto de salida admite varias lineas.
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
     const node = nodesRef.current.find((n) => n.id === sourceId);
     const tipo = node?.data?.tipo ?? '';
     const candidates = tipo === 'intention' ? ['yes', 'no'] : ['out'];
-    for (const h of candidates) {
-      const occupied = edgesRef.current.some((e) => e.source === sourceId && (e.sourceHandle ?? 'out') === h);
-      if (!occupied) return h;
-    }
-    return null;
+    const libre = candidates.find(
+      (h) => !edgesRef.current.some((e) => e.source === sourceId && (e.sourceHandle ?? 'out') === h),
+    );
+    return libre ?? candidates[0];
   }, []);
 
   const nextFreeX = useCallback(() => {
@@ -320,9 +322,19 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     const sourceHandle = params.sourceHandle ?? 'out';
     const targetHandle = params.targetHandle ?? 'in';
 
-    const exists = edgesRef.current.some((e) => e.source === params.source && e.sourceHandle === sourceHandle);
-    if (exists) {
-      toast.info('Ese punto de salida ya está ocupado.');
+    // De un mismo punto de salida pueden salir varias lineas: asi se dibuja
+    // que de un paso arrancan dos caminos a la vez, o que dos pasos distintos
+    // llegan al mismo sitio. Lo unico que no se repite es la misma linea
+    // exacta entre los mismos dos puntos, que no se veria como dos.
+    const repetida = edgesRef.current.some(
+      (e) =>
+        e.source === params.source &&
+        (e.sourceHandle ?? 'out') === sourceHandle &&
+        e.target === params.target &&
+        (e.targetHandle ?? 'in') === targetHandle,
+    );
+    if (repetida) {
+      toast.info('Esos dos nodos ya están conectados por ahí.');
       return;
     }
 
