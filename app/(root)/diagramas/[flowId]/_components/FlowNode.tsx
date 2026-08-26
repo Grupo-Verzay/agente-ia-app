@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Handle, Position, useConnection, useNodeConnections } from '@xyflow/react';
-import { MessageSquareIcon, Trash2, Zap } from 'lucide-react';
+import { Copy, MessageSquareIcon, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -133,6 +133,7 @@ export type FlowNodeData = {
     onChangeLabel: (nodeId: string, label: string) => void;
     onChangeContent: (nodeId: string, content: string) => void;
     onChangeSize: (nodeId: string, size: FlowNodeSize) => void;
+    onDuplicate: (nodeId: string) => void;
     onDelete: (nodeId: string) => void;
     // Index signature: React Flow exige que el `data` de un Node cumpla
     // Record<string, unknown>.
@@ -258,6 +259,14 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                         className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-[9px] font-semibold text-muted-foreground shadow-sm hover:border-primary/50 hover:text-primary"
                     >
                         {SIZE_LABEL[size]}
+                    </button>
+                    <button
+                        type="button"
+                        title="Duplicar nodo"
+                        onClick={() => data.onDuplicate(id)}
+                        className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm hover:border-primary/50 hover:text-primary"
+                    >
+                        <Copy className="h-2.5 w-2.5" />
                     </button>
                     <button
                         type="button"
