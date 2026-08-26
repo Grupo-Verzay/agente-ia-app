@@ -4,9 +4,14 @@
  *
  * `secretEncryptedMessage` es el que deja una EDICIÓN (y también los votos de una
  * encuesta): su contenido va cifrado con una clave derivada del mensaje original,
- * así que ni Evolution ni la plataforma pueden abrirlo. Los otros tres son
+ * así que ni Evolution ni la plataforma pueden abrirlo. Los otros son
  * fontanería del protocolo —reparto de claves de grupo, metadatos de contexto,
- * el voto cifrado de una encuesta— y tampoco tienen texto.
+ * el voto cifrado de una encuesta, fijar y desfijar— y tampoco tienen texto.
+ *
+ * `pinInChatMessage` es el que deja FIJAR o desfijar un mensaje. No trae el
+ * mensaje fijado ni quién lo fijó: solo un puntero al original, que ya está más
+ * arriba en la conversación. Salía como una burbuja "[Mensaje
+ * pinInChatMessage]" en mitad del chat.
  *
  * Se guardaban y salían en el chat como una burbuja "[Mensaje
  * secretEncryptedMessage]" justo debajo del mensaje editado. No hay contenido que
@@ -18,6 +23,7 @@ const SOBRES_SIN_CONTENIDO = new Set([
   'pollUpdateMessage',
   'senderKeyDistributionMessage',
   'messageContextInfo',
+  'pinInChatMessage',
 ]);
 
 export function esSobreInternoDeWhatsapp(messageType?: string | null): boolean {
