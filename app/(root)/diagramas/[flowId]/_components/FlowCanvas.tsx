@@ -70,6 +70,23 @@ const AIRE_X = 16;
 // del otro.
 const AIRE_Y = 16;
 
+// Alto del carril: los nodos no flotan a cualquier altura, caen siempre en
+// una de estas franjas, para que las filas de un diagrama queden alineadas
+// entre si sin tener que cuadrarlas a mano. Va calculado sobre el nodo
+// mediano, que es el que sale por defecto (104 de alto + AIRE_Y). Dos nodos
+// grandes seguidos no le caben justos, asi que a esos `separar` los aparta un
+// poco mas y se salen del carril; es el unico caso.
+const CARRIL_Y = 120;
+
+// A que franja pertenece una altura. `hacia` fuerza la de arriba o la de
+// abajo cuando lo que se busca es escaparse de otro nodo y redondear al mas
+// cercano lo devolveria encima.
+function alCarril(y: number, hacia: 'cerca' | 'arriba' | 'abajo' = 'cerca') {
+  const n = y / CARRIL_Y;
+  const franja = hacia === 'arriba' ? Math.floor(n) : hacia === 'abajo' ? Math.ceil(n) : Math.round(n);
+  return franja * CARRIL_Y;
+}
+
 function anchoDe(n: Node<FlowNodeData>) {
   const size = (n.data?.size ?? 'md') as string;
   return n.data?.tipo === 'intention' ? ANCHO_DECISION[size] : ANCHO[size];
@@ -115,8 +132,8 @@ function separar(
     const salidas = [
       { x: choque.position.x - anchoA - AIRE_X, y },
       { x: choque.position.x + anchoDe(choque) + AIRE_X, y },
-      { x, y: choque.position.y - altoA - AIRE_Y },
-      { x, y: choque.position.y + altoDe(choque) + AIRE_Y },
+      { x, y: alCarril(choque.position.y - altoA - AIRE_Y, 'arriba') },
+      { x, y: alCarril(choque.position.y + altoDe(choque) + AIRE_Y, 'abajo') },
     ];
     const mejor = salidas.reduce((a, b) =>
       Math.hypot(a.x - desde.x, a.y - desde.y) <= Math.hypot(b.x - desde.x, b.y - desde.y) ? a : b,
@@ -257,7 +274,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         id,
         selected: false,
         dragging: false,
-        position: { x: original.position.x, y: original.position.y + altoDe(original) + AIRE_Y },
+        position: { x: original.position.x, y: alCarril(original.position.y + altoDe(original) + AIRE_Y, 'abajo') },
         data: { ...original.data },
       };
       copia.position = separar(copia, nds, copia.position);
@@ -282,21 +299,89 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   const nodeTypes: NodeTypes = useMemo(() => ({ flowNode: FlowNode as any }), []);
   const edgeTypes = useMemo(() => ({ customEdge: CustomEdge }), []);
 
+  /**
+   * Reparte el diagrama en columnas y filas siguiendo las lineas.
+   *
+   * Antes ponia todo en una sola fila larga por orden de posicion, que en un
+   * diagrama con caminos -una Decision que abre tres- no decia nada. Ahora
+   * cada nodo cae en la columna que le toca segun lo lejos que este del
+   * arranque, y cada camino que se abre se lleva su propia fila: el primero
+   * sigue por la fila del padre y los demas bajan a una nueva. Asi un
+   * diagrama ramificado se lee como un arbol acostado.
+   */
   const handleAutoLayout = useCallback(() => {
     const current = nodesRef.current;
-    const ordered = current
-      .map((n) => ({ id: n.id, x: n.position.x }))
-      .sort((a, b) => a.x - b.x);
+    if (!current.length) return;
 
-    const next = new Map<string, { x: number; y: number }>();
-    let x = 0;
-    ordered.forEach((w) => {
-      const nodo = current.find((n) => n.id === w.id)!;
-      next.set(w.id, { x: snapMultiple(x, SNAP), y: 0 });
-      x += anchoDe(nodo) + AIRE_X;
+    // Salidas de cada nodo, en el orden en que se leen: primero Si, luego
+    // Variante, luego No. Sin esto el reparto dependeria del orden en que se
+    // hayan dibujado las lineas.
+    const ORDEN_SALIDA: Record<string, number> = { yes: 0, variante: 1, no: 2, out: 0 };
+    const hijos = new Map<string, string[]>();
+    const conEntrada = new Set<string>();
+    [...edgesRef.current]
+      .sort((a, b) => (ORDEN_SALIDA[a.sourceHandle ?? 'out'] ?? 0) - (ORDEN_SALIDA[b.sourceHandle ?? 'out'] ?? 0))
+      .forEach((e) => {
+        if (!hijos.has(e.source)) hijos.set(e.source, []);
+        hijos.get(e.source)!.push(e.target);
+        conEntrada.add(e.target);
+      });
+
+    const columna = new Map<string, number>();
+    const fila = new Map<string, number>();
+    const visto = new Set<string>();
+    let ultimaFila = -1;
+
+    // Recorrido en profundidad. Un nodo al que ya se llego no se recoloca,
+    // solo se empuja a la derecha si por este camino queda mas lejos del
+    // arranque: asi dos caminos que vuelven a juntarse no se montan.
+    const recorrer = (id: string, col: number, enFila: number) => {
+      if (visto.has(id)) {
+        columna.set(id, Math.max(columna.get(id) ?? 0, col));
+        return;
+      }
+      visto.add(id);
+      columna.set(id, col);
+      fila.set(id, enFila);
+      (hijos.get(id) ?? []).forEach((h, i) => {
+        recorrer(h, col + 1, i === 0 ? enFila : ++ultimaFila);
+      });
+    };
+
+    // Se arranca por los nodos a los que no llega ninguna linea. Lo que quede
+    // suelto -o dentro de un bucle cerrado- se coloca despues, en su propia
+    // fila, para que no se pierda ninguno.
+    current
+      .filter((n) => !conEntrada.has(n.id))
+      .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
+      .forEach((n) => recorrer(n.id, 0, ++ultimaFila));
+    current.forEach((n) => {
+      if (!visto.has(n.id)) recorrer(n.id, 0, ++ultimaFila);
     });
 
-    setNodes((nds) => nds.map((n) => (next.has(n.id) ? { ...n, position: next.get(n.id)! } : n)));
+    // El ancho de cada columna lo pone su nodo mas ancho, para que el hueco
+    // entre columnas se vea igual aunque una lleve una Decision.
+    const anchoDeColumna = new Map<number, number>();
+    current.forEach((n) => {
+      const col = columna.get(n.id) ?? 0;
+      anchoDeColumna.set(col, Math.max(anchoDeColumna.get(col) ?? 0, anchoDe(n)));
+    });
+    const xDeColumna = new Map<number, number>();
+    let x = 0;
+    Array.from(anchoDeColumna.keys()).sort((a, b) => a - b).forEach((col) => {
+      xDeColumna.set(col, snapMultiple(x, SNAP));
+      x += anchoDeColumna.get(col)! + AIRE_X;
+    });
+
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        position: {
+          x: xDeColumna.get(columna.get(n.id) ?? 0) ?? 0,
+          y: (fila.get(n.id) ?? 0) * CARRIL_Y,
+        },
+      })),
+    );
     toast.success('Diagrama ordenado. Recuerda darle a Guardar.');
   }, [setNodes]);
 
@@ -444,7 +529,11 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   const onNodeDragStop = useCallback((_evt: unknown, nodo: Node<FlowNodeData>) => {
     setNodes((nds) => {
       const otros = nds.filter((n) => n.id !== nodo.id);
-      const libre = separar(nodo, otros, nodo.position);
+      // La altura salta al carril mas cercano; el lado a lo ancho se respeta
+      // tal cual quedo. Asi las filas se alinean solas sin quitarle libertad
+      // al movimiento horizontal.
+      const enCarril = { x: nodo.position.x, y: alCarril(nodo.position.y) };
+      const libre = separar(nodo, otros, enCarril);
       if (libre.x === nodo.position.x && libre.y === nodo.position.y) return nds;
       return nds.map((n) => (n.id === nodo.id ? { ...n, position: libre } : n));
     });
