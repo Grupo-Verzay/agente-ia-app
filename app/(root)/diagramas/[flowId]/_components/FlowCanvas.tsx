@@ -187,12 +187,12 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   }, [setNodes]);
 
   // Por que salida engancha el nodo que se acaba de crear. Se prefiere una
-  // libre -en Decision, primero Si y luego No- pero si ya estan todas usadas
+  // libre -en Decision, Si, luego Variante y luego No- pero si ya estan usadas
   // se cuelga igual de la primera: un punto de salida admite varias lineas.
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
     const node = nodesRef.current.find((n) => n.id === sourceId);
     const tipo = node?.data?.tipo ?? '';
-    const candidates = tipo === 'intention' ? ['yes', 'no'] : ['out'];
+    const candidates = tipo === 'intention' ? ['yes', 'variante', 'no'] : ['out'];
     const libre = candidates.find(
       (h) => !edgesRef.current.some((e) => e.source === sourceId && (e.sourceHandle ?? 'out') === h),
     );
