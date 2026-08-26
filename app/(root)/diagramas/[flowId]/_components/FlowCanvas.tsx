@@ -312,10 +312,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
    * caminos vuelven a juntarse gana el mas largo, para que el nodo comun no
    * se monte con nadie.
    *
-   * La fila se reparte como un arbol acostado: cada rama se lleva su banda de
-   * filas y el nodo que la abre se coloca en medio de sus hijos. En una
-   * Decision eso deja el camino de Variante en linea recta y los de Si y No
-   * arriba y abajo, que es como se leen sus tres salidas.
+   * La fila la manda la salida de la que cuelga cada nodo: el del Si va un
+   * carril arriba de quien lo cuelga, el de Variante a la misma altura -su
+   * linea queda recta- y el del No uno abajo. Cuando dos ramas se pisan, la
+   * de mas abajo se corre entera hacia abajo lo justo.
    */
   const handleAutoLayout = useCallback(() => {
     const current = nodesRef.current;
@@ -325,12 +325,14 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     // en el orden en que se dibujaron las lineas.
     const ORDEN_SALIDA: Record<string, number> = { yes: 0, variante: 1, no: 2, out: 0 };
     const hijos = new Map<string, string[]>();
+    const porSalida = new Map<string, string>();
     const conEntrada = new Set<string>();
     Array.from(edgesRef.current)
       .sort((a, b) => (ORDEN_SALIDA[a.sourceHandle ?? 'out'] ?? 0) - (ORDEN_SALIDA[b.sourceHandle ?? 'out'] ?? 0))
       .forEach((e) => {
         if (!hijos.has(e.source)) hijos.set(e.source, []);
         hijos.get(e.source)!.push(e.target);
+        porSalida.set(`${e.source}>${e.target}`, e.sourceHandle ?? 'out');
         conEntrada.add(e.target);
       });
 
@@ -355,6 +357,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
 
     // --- arbol: cada nodo cuelga del primer camino que lo alcanza ---
     const hijosArbol = new Map<string, string[]>();
+    const salidaDe = new Map<string, string>();
     const enArbol = new Set<string>();
     const construir = (id: string) => {
       enArbol.add(id);
@@ -362,6 +365,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         if (enArbol.has(h)) return; // ya cuelga de otro, o cierra un bucle
         if (!hijosArbol.has(id)) hijosArbol.set(id, []);
         hijosArbol.get(id)!.push(h);
+        salidaDe.set(h, porSalida.get(`${id}>${h}`) ?? 'out');
         construir(h);
       });
     };
@@ -369,30 +373,44 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     raices.forEach((id) => { if (!enArbol.has(id)) { troncos.push(id); construir(id); } });
     current.forEach((n) => { if (!enArbol.has(n.id)) { troncos.push(n.id); construir(n.id); } });
 
-    // --- fila: cada rama se lleva su banda y el padre se centra en ella ---
-    const cuantasFilas = new Map<string, number>();
-    const pesar = (id: string): number => {
-      const hs = hijosArbol.get(id) ?? [];
-      const n = hs.length ? hs.reduce((suma, h) => suma + pesar(h), 0) : 1;
-      cuantasFilas.set(id, n);
-      return n;
+    // --- fila: cada hijo va al carril que le pide SU salida ---
+    //
+    // Antes el padre se centraba entre su primer y su ultimo hijo, sin mirar
+    // de que salida colgaba cada uno. En una Decision con una sola rama eso
+    // dejaba al hijo a la misma altura del padre aunque colgara del "Si", que
+    // es justo lo que se veia torcido. Ahora manda la salida: el del Si va un
+    // carril arriba del padre, el de Variante a la misma altura y el del No
+    // uno abajo. Si dos ramas se pisan, la de mas abajo se corre hacia abajo
+    // lo justo, que es la unica forma de respetar la salida sin encimar nada.
+    //
+    // `colocarRel` devuelve las filas de un subarbol contadas DESDE su propio
+    // nodo, que queda en 0, junto con hasta donde llega por arriba y por
+    // abajo. Asi cada rama se puede correr entera de una pieza.
+    const colocarRel = (id: string): { min: number; max: number; filas: Map<string, number> } => {
+      const filas = new Map<string, number>([[id, 0]]);
+      let min = 0;
+      let max = 0;
+      let ocupadoHasta = -Infinity;
+
+      (hijosArbol.get(id) ?? []).forEach((h) => {
+        const rama = colocarRel(h);
+        let en = CARRIL_DE_SALIDA[salidaDe.get(h) ?? 'out'] ?? 0;
+        if (en + rama.min <= ocupadoHasta) en += ocupadoHasta + 1 - (en + rama.min);
+        ocupadoHasta = en + rama.max;
+        rama.filas.forEach((f, k) => filas.set(k, f + en));
+        min = Math.min(min, en + rama.min);
+        max = Math.max(max, en + rama.max);
+      });
+
+      return { min, max, filas };
     };
-    troncos.forEach(pesar);
 
     const fila = new Map<string, number>();
-    const colocar = (id: string, desde: number) => {
-      const hs = hijosArbol.get(id) ?? [];
-      if (!hs.length) { fila.set(id, desde); return; }
-      let f = desde;
-      hs.forEach((h) => { colocar(h, f); f += cuantasFilas.get(h) ?? 1; });
-      const primero = fila.get(hs[0])!;
-      const ultimo = fila.get(hs[hs.length - 1])!;
-      fila.set(id, Math.round((primero + ultimo) / 2));
-    };
     let siguienteBanda = 0;
     troncos.forEach((id) => {
-      colocar(id, siguienteBanda);
-      siguienteBanda += cuantasFilas.get(id) ?? 1;
+      const rama = colocarRel(id);
+      rama.filas.forEach((f, k) => fila.set(k, siguienteBanda + f - rama.min));
+      siguienteBanda += rama.max - rama.min + 1;
     });
 
     // --- a pixeles: el ancho de cada columna lo pone su nodo mas ancho ---
