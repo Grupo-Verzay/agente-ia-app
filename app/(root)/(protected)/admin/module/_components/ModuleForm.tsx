@@ -341,7 +341,7 @@ export const ModuleForm = ({
                             </div>
                         </SortableContext>
                     </DndContext>
-                    <Button type="button" variant="outline" onClick={() => append({ url: "", title: "" })}>
+                    <Button type="button" variant="outline" onClick={() => append({ url: "", title: "", lockedPlans: [] })}>
                         Agregar submódulo
                     </Button>
                 </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { CurrentUser } from '@/lib/auth';
 import { toast } from 'sonner';
 import { Phone } from 'lucide-react';
 import type { User, WorkflowNode } from '@prisma/client';
@@ -57,7 +58,7 @@ export function AutomationNodeConfig({
   user,
 }: {
   node: WorkflowNode;
-  user: User;
+  user: CurrentUser;
 }) {
   const tipo = node.tipo as AutomationActionType;
 

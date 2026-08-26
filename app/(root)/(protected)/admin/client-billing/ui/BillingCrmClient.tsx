@@ -910,7 +910,7 @@ export function BillingCrmClient({
                                                     <div className="grid gap-1">
                                                         <label className="text-muted-foreground">Precio</label>
                                                         <Input
-                                                            value={dialog.form.price}
+                                                            value={dialog.form.price ?? ''}
                                                             onChange={(e) =>
                                                                 setDialog((s) => ({
                                                                     ...s,

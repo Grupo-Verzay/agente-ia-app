@@ -89,7 +89,7 @@ export async function getMyForms(): Promise<{ success: boolean; forms?: FormData
     return {
       success: true,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      forms: forms.map((f: any) => ({
+      forms: forms.map((f) => ({
         id: f.id,
         title: f.title,
         slug: f.slug,

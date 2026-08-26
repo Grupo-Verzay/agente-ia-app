@@ -484,6 +484,14 @@ export type UpdatePedidoFunctionEl = ElementFunction & {
     fields?: string[]; // ← campos adicionales (cc, name, etc.)
 };
 
+/**
+ * Los tres elementos de datos -pedir, consultar y actualizar- tienen la misma
+ * forma y solo se distinguen por `fn`. Las tres tarjetas que los pintan
+ * comparten props, asi que estas admiten cualquiera de los tres: antes decian
+ * solo el de pedir y las otras dos entraban a la fuerza.
+ */
+export type ElementoDeDatos = PedidoFunctionEl | CapturePedidoFunctionEl | UpdatePedidoFunctionEl;
+
 export type ElementText = {
     id: string;
     kind: "text";
@@ -681,7 +689,7 @@ export type PropsTextRule = {
 };
 
 export type PropsDataCapture = {
-    el: PedidoFunctionEl | (PedidoFunctionEl & { subtype: "Solicitudes" | "Reclamos" | "Reservas" | "Citas" });
+    el: ElementoDeDatos;
     onRemove: () => void;
     onAddField: (field: string) => void;
     onRemoveField: (field: string) => void;
@@ -712,7 +720,7 @@ type El = {
 };
 
 export type PropsConsultaDatos = {
-    el: PedidoFunctionEl | (PedidoFunctionEl & { subtype: "Solicitudes" | "Reclamos" | "Reservas" | "Citas" });
+    el: ElementoDeDatos;
     onRemove: () => void;
     onAddField: (field: string) => void;
     onRemoveField: (field: string) => void;
@@ -770,11 +778,19 @@ export type FnCommon = {
 
 export type AnyElement = TextElement | FnCommon;
 
+/**
+ * El tercer tipo de elemento que el esquema si acepta: lo que venga de un
+ * prompt antiguo, guardado tal cual. `AnyElement` a proposito NO lo incluye,
+ * para que el `switch` por `kind` siga estrechando; aparece solo aqui, que es
+ * por donde entra un borrador ya validado.
+ */
+export type ElementoLegado = { [clave: string]: unknown };
+
 export type Step = {
     id: string;
     title?: string;
     mainMessage?: string;
-    elements?: AnyElement[];
+    elements?: (AnyElement | ElementoLegado)[];
 };
 
 export type DraftLike = {

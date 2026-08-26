@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PedidoFunctionEl } from "@/types/agentAi";
+import { ElementoDeDatos } from "@/types/agentAi";
 import { useEffect, useState } from "react";
 import { CopyIcon, ExternalLink, SaveIcon, Loader2 } from "lucide-react"; // 👈 NUEVO: Loader2
 import { getUserAppointmentUrl } from "@/actions/userClientDataActions";
@@ -19,7 +19,9 @@ export const PedidoFieldsEditor = ({
 }: {
     stepId: string;
     elId: string;
-    element: PedidoFunctionEl;
+    // Las tres tarjetas de datos -pedir, consultar y actualizar- usan este
+    // editor, y las tres traen la misma forma de elemento.
+    element: ElementoDeDatos;
     onAdd: (field: string) => void;
     onRemove: (field: string) => void;
 }) => {

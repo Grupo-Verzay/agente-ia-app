@@ -30,7 +30,6 @@ import { PLAN_LEVEL_LABELS } from "@/types/plans"
 
 interface Props {
   searchParams: { [key: string]: string | undefined }
-  user: User[]
   resellers: User[]
   defaultResellerId: string
 }
@@ -38,7 +37,7 @@ interface Props {
 type Client = User
 type TabType = "clientes" | "licencias"
 
-export const MainReseller = ({ searchParams, user, resellers, defaultResellerId }: Props) => {
+export const MainReseller = ({ searchParams, resellers, defaultResellerId }: Props) => {
   const router = useRouter()
   const [tab, setTab] = useState<TabType>("clientes")
 

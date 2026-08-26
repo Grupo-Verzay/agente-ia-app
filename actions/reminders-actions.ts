@@ -3,7 +3,7 @@
 import { db } from "@/lib/db"
 import { z } from "zod"
 import { formValuesReminderSchema, ReminderDeliverySummary, reminderSchema } from "@/schema/reminder"
-import { Prisma } from "@prisma/client"
+import { Prisma, Reminders } from "@prisma/client"
 import { parse as parseDate, format, isValid, addSeconds } from "date-fns"
 
 // â”€â”€â”€ Helpers de campaÃ±a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -45,10 +45,15 @@ function applyVariables(message: string, name: string, phone: string): string {
         .replace(/\{\{fecha\}\}/gi, today);
 }
 
-export interface ReminderResponse {
+/**
+ * `data` va con tipo por parametro. Antes era `unknown` a secas y quien
+ * llamaba no podia leer lo que venia dentro sin que TypeScript se quejara
+ * -de ahi salian varios errores- ni sabia que esperar sin abrir esta funcion.
+ */
+export interface ReminderResponse<T = unknown> {
     success: boolean
     message: string
-    data?: unknown
+    data?: T
 }
 
 /**
@@ -155,7 +160,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
 /**
  * Obtener todos los recordatorios de un usuario
  */
-export async function getRemindersByUserId(userId: string): Promise<ReminderResponse> {
+export async function getRemindersByUserId(userId: string): Promise<ReminderResponse<Reminders[]>> {
     if (!userId) {
         return {
             success: false,
@@ -183,7 +188,7 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
     }
 }
 
-export async function getCampaignsByUserId(userId: string): Promise<ReminderResponse> {
+export async function getCampaignsByUserId(userId: string): Promise<ReminderResponse<Reminders[]>> {
     if (!userId) {
         return {
             success: false,

@@ -382,7 +382,7 @@ export default function MainFinanceAccounts({
           occurredAt: s.occurredAt,
           title: s.title || 'Venta',
           amount: calcSaleTotal(s),
-          currencyCode: s.currencyCode || ledgerAccount.currencyCode,
+          currencyCode: s.currencyCode || ledgerAccount.currencyCode || defaultCurrencyCode,
           raw: s,
         })) || [];
 
@@ -395,7 +395,7 @@ export default function MainFinanceAccounts({
           occurredAt: e.occurredAt,
           title: e.title || 'Gasto',
           amount: toAmountNumber(e.amount),
-          currencyCode: e.currencyCode || ledgerAccount.currencyCode,
+          currencyCode: e.currencyCode || ledgerAccount.currencyCode || defaultCurrencyCode,
           raw: e,
         })) || [];
 

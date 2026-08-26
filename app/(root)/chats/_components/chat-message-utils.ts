@@ -391,7 +391,16 @@ function isDeletedMessage(messageType: string | undefined, messageData: Record<s
 }
 
 export function resolveEvolutionMessageStatus(message: EvolutionMessage): string {
-  const updates = Array.isArray(message.MessageUpdate) ? message.MessageUpdate : [];
+  // Lo que manda la pasarela de WhatsApp, que no siempre trae lo mismo: se
+  // declara lo que se lee de ahi en vez de dejarlo sin forma.
+  type ActualizacionDeMensaje = {
+    status?: unknown;
+    messageStatus?: unknown;
+    update?: { status?: unknown; messageStatus?: unknown };
+  };
+  const updates: ActualizacionDeMensaje[] = Array.isArray(message.MessageUpdate)
+    ? (message.MessageUpdate as ActualizacionDeMensaje[])
+    : [];
 
   for (let i = updates.length - 1; i >= 0; i--) {
     const candidate = updates[i];

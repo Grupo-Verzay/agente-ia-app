@@ -517,6 +517,18 @@ export type MessageContent = {
       renderLargerThumbnail?: boolean;
     };
   };
+  // Respuesta a un boton o a un flujo de WhatsApp. La barra de chats ya la
+  // pintaba, pero no estaba declarada aqui.
+  interactiveResponseMessage?: {
+    body?: { text?: string };
+    nativeFlowResponseMessage?: { name?: string; paramsJson?: string };
+  };
+  // Llamada de voz de la API de Meta.
+  metaCall?: {
+    duration?: number | string;
+    direction?: string;
+    status?: string;
+  };
 };
 
 export type EvolutionMessage = {

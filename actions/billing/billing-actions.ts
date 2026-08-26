@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { BillingUpsertInput, ResponseFormat } from "@/types/billing";
+import { BillingUpsertInput, ResponseFormat, UserBilling } from "@/types/billing";
 import { createInstanceInternal, deleteInstanceInternal } from "@/actions/api-action";
 
 import {
@@ -143,7 +143,7 @@ async function runManualStatusSideEffects(args: {
 
 export async function getUserBillingByUserId(
     userId: string
-): Promise<ResponseFormat<unknown>> {
+): Promise<ResponseFormat<UserBilling | null>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
@@ -623,7 +623,7 @@ export async function bulkSyncActiveClientSessions(): Promise<ResponseFormat<{ u
             data: { clientStatus: "ACTIVO", serviceType: "HUMANO" },
         });
 
-        return { success: true, data: { updated: result.count } };
+        return { success: true, message: "Chats sincronizados.", data: { updated: result.count } };
     } catch (error) {
         console.error("[bulkSyncActiveClientSessions]", error);
         return { success: false, message: "Error al sincronizar chats." };

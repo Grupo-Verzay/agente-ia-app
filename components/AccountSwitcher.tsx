@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import type { CurrentUser } from '@/lib/auth';
 import { ChevronsUpDown, Check, Plus, Loader2, Users, Trash2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -59,7 +60,7 @@ function getAccountCountLabel(count: number) {
   return count === 1 ? "1 cuenta" : `${count} cuentas`;
 }
 
-function getSwitcherRoleLabel(user: User, currentRole: "agente" | "administrador" | null) {
+function getSwitcherRoleLabel(user: CurrentUser, currentRole: "agente" | "administrador" | null) {
   if (currentRole) return getAdvisorRoleLabel(currentRole);
   if (user.advisorRole) return getAdvisorRoleLabel(user.advisorRole);
   if (user.role === "admin" || user.role === "super_admin" || user.role === "reseller") return "Administrador";
@@ -99,7 +100,7 @@ function AccountListAvatar({
 }
 
 interface AccountSwitcherProps {
-  user: User;
+  user: CurrentUser;
   resellerImage?: string | null;
   variant?: "sidebar" | "card";
 }

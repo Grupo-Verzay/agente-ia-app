@@ -1,4 +1,5 @@
 import { User, WorkflowNode } from "@prisma/client";
+import type { CurrentUser } from '@/lib/auth';
 
 import {
   FileText,
@@ -94,7 +95,7 @@ export type PropsWorkflowCanvas = {
   nodesDB: WorkflowNodeDB[];
   edgesDB?: WorkflowEdgeDB[];
   workflowId: string;
-  user: User;
+  user: CurrentUser;
 
   registerCreateNode?: (fn: (action: import('@/types/workflow-node').Action) => void) => void;
 };
@@ -102,7 +103,7 @@ export type PropsWorkflowCanvas = {
 export type CustomNodeData = {
   nodeDB: WorkflowNodeDB; // cambiar a tu DTO real
   workflowId: string;
-  user: User;
+  user: CurrentUser;
   totalNodes: number;
   seguimientoNodes: number;
 };
@@ -110,7 +111,7 @@ export type CustomNodeData = {
 export interface PropsNodeCard {
   workflowId: string;
   nodes: WorkflowNode;
-  user: User;
+  user: CurrentUser;
   targetHandle?: ReactNode;
 }
 

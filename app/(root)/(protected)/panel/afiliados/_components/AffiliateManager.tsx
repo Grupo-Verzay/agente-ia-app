@@ -43,7 +43,11 @@ export function AffiliateManager({
 }) {
   const [affiliates, setAffiliates] = useState(initialAffiliates);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<Awaited<ReturnType<typeof getAffiliateDetailAction>>["data"] | null>(null);
+  const [detail, setDetail] = useState<
+    // Solo la rama de exito tiene `data`: la de error lleva `message`, y
+    // preguntandole a la union entera no se sacaba nada.
+    Extract<Awaited<ReturnType<typeof getAffiliateDetailAction>>, { success: true }>["data"] | null
+  >(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [createUserId, setCreateUserId] = useState("");

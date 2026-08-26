@@ -173,10 +173,15 @@ function ServiceFormDialog({
                 res = await updateTeamService(initial!.id, values);
             }
             if (res.success && res.data) {
-                const data = res.data as TeamService;
+                // La fila de la base guarda los recordatorios como JSON crudo y no
+                // trae los miembros -son una tabla aparte-, asi que esos dos se
+                // ponen a mano en vez de forzar el tipo de toda la fila.
+                const fila = res.data;
                 const svc: TeamService = {
-                    ...(initial ?? { id: data.id, isActive: true, order: 0, members: [], remindersConfig: null }),
-                    ...data,
+                    ...(initial ?? { id: fila.id, isActive: true, order: 0, members: [], remindersConfig: null }),
+                    ...fila,
+                    remindersConfig: (fila.remindersConfig as ServiceReminder[] | null) ?? null,
+                    members: initial?.members ?? [],
                 };
                 onSaved(svc);
                 toast.success(mode === 'create' ? 'Servicio creado' : 'Servicio actualizado');

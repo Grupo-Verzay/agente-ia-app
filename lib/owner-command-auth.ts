@@ -118,11 +118,13 @@ export type GuardResult<TBody> =
 
 /**
  * Guardia común para los endpoints /api/owner/*: valida el secreto compartido,
- * parsea y valida el body con `schema` (que debe extender ownerBaseSchema) y
+ * parsea y valida el body con `schema` (que debe extender ownerBaseSchema; vale
+ * cualquier esquema de Zod, tambien uno con `.refine()`, porque aqui solo se le
+ * pide `safeParse`) y
  * resuelve/verifica la identidad del dueño. Devuelve el dueño y el body ya
  * validado, o una respuesta HTTP de error lista para retornar.
  */
-export async function guardOwnerRequest<T extends z.ZodObject<any>>(
+export async function guardOwnerRequest<T extends z.ZodTypeAny>(
   request: Request,
   schema: T,
 ): Promise<GuardResult<z.infer<T>>> {

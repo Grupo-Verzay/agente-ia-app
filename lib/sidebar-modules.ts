@@ -1,4 +1,5 @@
 import type { User } from '@prisma/client';
+import type { CurrentUser } from '@/lib/auth';
 import type { ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
 
@@ -21,7 +22,7 @@ const AGENT_HIDDEN_ROUTES = ['/equipo', '/sessions', '/crm', '/asesores'];
  * evitar duplicados y órdenes inconsistentes.
  */
 export function getVisibleSidebarModules(
-    user: User,
+    user: CurrentUser,
     modules: ModuleWithItems[],
 ): ModuleWithItems[] {
     const isAdvisor = !!user.ownerId;

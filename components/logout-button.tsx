@@ -1,6 +1,7 @@
 'use client'
 
 import { User } from '@prisma/client'
+import type { CurrentUser } from '@/lib/auth';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,7 +15,7 @@ import { PLAN_LEVEL_LABELS } from '@/types/plans'
 import { UserLogoAvatar } from '@/components/shared/UserLogoAvatar'
 
 type LogoutButtonProps = {
-  user: User | null
+  user: CurrentUser | null
   resellerImage?: string | null;
   resellerCompany?: string | null;
   /**

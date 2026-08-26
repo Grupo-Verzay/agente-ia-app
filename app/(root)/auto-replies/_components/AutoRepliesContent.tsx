@@ -1,8 +1,9 @@
 import { QuickReply, User, Workflow } from '@prisma/client';
+import type { CurrentUser } from '@/lib/auth';
 import { MainAutoReplies } from './MainAutoReplies';
 
 interface Props {
-    user: User;
+    user: CurrentUser;
     workflows: Workflow[];
     autoReplies: QuickReply[];
 }

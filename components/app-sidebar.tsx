@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react";
+import type { CurrentUser } from '@/lib/auth';
 import { User } from "@prisma/client"
 
 import { NavMain } from "@/components/nav-main"
@@ -23,14 +24,14 @@ import { ResellerInfoResponse } from "@/schema/reseller"
 import { usePathname } from "next/navigation"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-    user: User;
+    user: CurrentUser;
     resellerImage?: string | null;
     resellerCompany?: string | null;
     /** Nombre que le pone SU marca al nivel de plan de la cuenta. */
     planLabel?: string | null;
 }
 
-function SidebarFooterContent({ user, resellerImage, resellerCompany, planLabel }: { user: User; resellerImage?: string | null; resellerCompany?: string | null; planLabel?: string | null }) {
+function SidebarFooterContent({ user, resellerImage, resellerCompany, planLabel }: { user: CurrentUser; resellerImage?: string | null; resellerCompany?: string | null; planLabel?: string | null }) {
     const { state } = useSidebar();
     const collapsed = state === "collapsed";
 

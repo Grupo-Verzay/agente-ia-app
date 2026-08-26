@@ -59,9 +59,14 @@ export async function createService(
             const remindersRes = await getRemindersByUserId(data.userId);
             const hasReminders =
                 remindersRes.success && remindersRes.data && remindersRes.data.length > 0;
-            if (!hasReminders) {
-                const user = await currentUser();
+            const user = await currentUser();
+            const instancia = user?.instancias?.[0];
 
+            // Los recordatorios por defecto necesitan una instancia conectada
+            // y las credenciales del dueño. Antes se daban por hechas y, sin
+            // ellas, esto reventaba y se perdia el servicio recien creado; son
+            // un extra, asi que si no estan el servicio se crea igual.
+            if (!hasReminders && user && instancia && user.apiKey) {
                 const reminderResults = [];
 
                 for (const tpl of DEFAULT_REMINDERS_TEMPLATES) {
@@ -70,7 +75,7 @@ export async function createService(
                         description: tpl.description,
                         time: tpl.time,
                         isSchedule: true,
-                        instanceName: user.instancias[0].instanceName,
+                        instanceName: instancia.instanceName,
                         serverUrl: user.apiKey.url,
                         apikey: user.apiKey.key,
                         userId: user.id,

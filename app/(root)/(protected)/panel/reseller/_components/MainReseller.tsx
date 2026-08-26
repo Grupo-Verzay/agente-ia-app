@@ -31,14 +31,13 @@ import { MetricCard } from "@/components/custom/MetricCard"
 
 interface Props {
   searchParams: { [key: string]: string | undefined }
-  user: User[]
   resellers: User[]
   defaultResellerId: string
 }
 
 type Client = User
 
-export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
+export const MainReseller = ({ resellers, defaultResellerId }: Props) => {
   const router = useRouter()
 
   const [selectedReseller, setSelectedReseller] = useState<string>(defaultResellerId)
@@ -186,7 +185,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
         <MetricCard
           icon={<Users className="h-3.5 w-3.5" />}
           label="Total clientes"
-          value={user.length}
+          value={assignedClients.length + unassignedClients.length}
           helper="Total de clientes en la plataforma"
           color="#8B5CF6"
         />

@@ -1,13 +1,13 @@
 // Tipos mínimos que el componente necesita
 import { Country } from '@/components/custom/CountryCodeSelect';
-import { UserWithApiKeys } from '@/schema/schema';
+import { UserConServicios } from '@/schema/schema';
 import { AppointmentStatus } from "@prisma/client";
 
 export interface ServiceInterface {
     selectedService: string;
     setSelectedService: (serviceId: string) => void; // compatible con <Select onValueChange />
     setStep: (step: number) => void;
-    user: UserWithApiKeys;
+    user: UserConServicios;
 }
 
 // Tipos auxiliares
@@ -46,7 +46,7 @@ export interface DateHourInterface {
     timezone: string;
     serverTimeZone: string;
     slotDuration: number;
-    user: UserWithApiKeys;
+    user: UserConServicios;
 
 }
 
@@ -73,7 +73,7 @@ export interface ScheduleFormInterface {
 
 export interface SummaryComponentInterface {
     // datos base
-    user: UserWithApiKeys;
+    user: UserConServicios;
     timezone: string;
 
     // datos del cliente

@@ -224,6 +224,7 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   scrape_web: 'Consultar web',
   consultar_inventario: 'Consultar inventario',
   crear_cotizacion: 'Crear cotización',
+  client_validation: 'Validación de cliente',
 };
 
 function ToolCard({

@@ -8,6 +8,12 @@ const DEFAULTS: Required<Omit<BuildCfg, "sectionPrefix">> & { sectionPrefix: str
     includeSignature: false,
     signatureSeparator: "\n\n---\n\n",
     renderMode: "full" as const,
+    // Estas dos se sumaron a BuildCfg despues y aqui no estaban, asi que el
+    // objeto no cumplia lo que prometia su propio tipo. Las cinco
+    // configuraciones que existen las pasan siempre, asi que estos textos son
+    // solo el respaldo para una que no lo hiciera.
+    mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL ${n}:`,
+    elementsLabel: (n: number) => `ELEMENTOS ${n}:`,
 };
 
 function trim(s?: string | null) {

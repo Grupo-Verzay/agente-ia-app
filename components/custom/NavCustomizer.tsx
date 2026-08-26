@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { CurrentUser } from '@/lib/auth';
 import { Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -26,7 +27,7 @@ interface NavPrefRow {
     sortOrder: number
 }
 
-export function NavCustomizer({ user }: { user: User }) {
+export function NavCustomizer({ user }: { user: CurrentUser }) {
     const { modules, navPrefs, setNavPrefs } = useModuleStore()
     const [open, setOpen] = useState(false)
     const [rows, setRows] = useState<NavPrefRow[]>([])

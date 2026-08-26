@@ -236,7 +236,9 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                 toast.success('Guardado', { id: field });
             }
         } catch (error) {
-            toast.error(error?.errors?.[0]?.message || 'Error de validación', { id: field });
+            // Lo que cae aqui no tiene por que ser un error de validacion.
+            const fallo = error as { errors?: { message?: string }[] };
+            toast.error(fallo?.errors?.[0]?.message || 'Error de validación', { id: field });
         } finally {
             setLoadingField(null);
         }

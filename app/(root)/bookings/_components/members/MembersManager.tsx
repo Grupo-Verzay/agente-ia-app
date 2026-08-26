@@ -261,11 +261,15 @@ function MemberFormDialog({
                 res = await updateTeamMember(initial!.id, values);
             }
             if (res.success && res.data) {
-                const data = res.data as Member;
+                // La fila que devuelve la base no trae ni los horarios ni los
+                // servicios -son tablas aparte-, asi que esos se conservan de
+                // lo que ya habia en pantalla en vez de forzar el tipo.
+                const fila = res.data;
                 const member: Member = {
-                    ...(initial ?? { id: data.id, isActive: true, services: [] }),
-                    ...data,
+                    ...(initial ?? { id: fila.id, isActive: true, services: [] }),
+                    ...fila,
                     availability: initial?.availability ?? [],
+                    services: initial?.services ?? [],
                 };
                 onSaved(member);
                 toast.success(mode === 'create' ? 'Especialista creado' : 'Especialista actualizado');

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import type { CurrentUser } from '@/lib/auth';
 import { BotMessageSquare } from 'lucide-react';
 import { useResellerStore } from '@/stores/resellers/resellerStore';
 import { SidebarMenu, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -13,7 +14,7 @@ import { Avatar, AvatarImage } from './ui/avatar';
 import { Skeleton } from './ui/skeleton';
 
 interface TeamSwitcherProps {
-    user: User;
+    user: CurrentUser;
 }
 
 export function TeamSwitcher({ user }: TeamSwitcherProps) {

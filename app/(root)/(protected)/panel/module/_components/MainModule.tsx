@@ -32,6 +32,8 @@ export const MainModule = () => {
     const normalizeModule = (moduleComponent: ModuleWithItems): FormModuleValues => ({
         id: moduleComponent.id,
         label: moduleComponent.label,
+        // Sin esto, al editar un modulo contenedor se guardaba como si no lo fuera.
+        isContainer: moduleComponent.isContainer ?? false,
         route: moduleComponent.route,
         customUrl: moduleComponent.customUrl ?? '',
         icon: moduleComponent.icon,

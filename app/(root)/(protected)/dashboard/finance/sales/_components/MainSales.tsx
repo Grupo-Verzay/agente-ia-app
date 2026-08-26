@@ -55,7 +55,7 @@ import { cn } from '@/lib/utils';
 
 type FinAccount  = { id: string; name: string; isDefault: boolean };
 type FinCategory = { id: string; name: string };
-type FinCurrency = { code: string; symbol?: string | null; name?: string | null };
+type FinCurrency = { code: string; symbol?: string | null; name?: string | null; decimals?: number | null };
 type FinProduct  = { id: string; title: string; price?: number | string | null };
 type ContactOption = { id: number; pushName?: string | null; remoteJid: string };
 
@@ -405,9 +405,12 @@ export default function MainSales({
   const openEdit = (row: SaleTxRow) => {
     setEditing(row);
 
-    const inferredProductId = (row.productId as string | null) ?? products.find((p) => p.title === row.title)?.id ?? null;
-    const inferredContactName = (row.counterparty as string) ?? '';
-    const inferredContactJid = (row.reference as string) ?? '';
+    // La venta no guarda de que producto salio -la tabla de movimientos no
+    // tiene esa columna-, asi que se deduce por el concepto. Antes se leia
+    // primero `row.productId`, que no existe y siempre venia vacio.
+    const inferredProductId = products.find((p) => p.title === row.title)?.id ?? null;
+    const inferredContactName = row.counterparty ?? '';
+    const inferredContactJid = row.reference ?? '';
 
     // mantiene moneda del registro (solo lectura)
     setForm({
@@ -501,13 +504,19 @@ export default function MainSales({
           reference: form.contactJid?.trim() || null,
         };
 
-        const res = editing
-          ? await updateSale(editing.id, userId, payload)
-          : await createSale(payload);
-
-        if (!res.success) return toast.error(res.message);
-
-        const txId = editing ? editing.id : res.data?.id;
+        // Separado en dos ramas a proposito: solo `createSale` devuelve el id
+        // de la venta -al editar ya se tiene-, y mezclando las dos llamadas en
+        // una sola linea no habia forma de saber cual de las dos habia sido.
+        let txId: string | undefined;
+        if (editing) {
+          const res = await updateSale(editing.id, userId, payload);
+          if (!res.success) return toast.error(res.message);
+          txId = editing.id;
+        } else {
+          const res = await createSale(payload);
+          if (!res.success) return toast.error(res.message);
+          txId = res.data?.id;
+        }
 
         const newOnes = attachments.filter((a) => a.isNew);
         if (txId && newOnes.length) {

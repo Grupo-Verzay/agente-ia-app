@@ -1,5 +1,7 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
+
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
@@ -230,40 +232,39 @@ export async function savePlatformBillingMessages(
   }
 }
 
-export async function updateSiteConfig(data: SiteConfigData): Promise<{ success: boolean; message: string }> {
+export async function updateSiteConfig(data: Partial<SiteConfigData>): Promise<{ success: boolean; message: string }> {
   try {
     const user = await currentUser();
     if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
       return { success: false, message: "No autorizado" };
     }
-    const payload = {
-      whatsappNumber: data.whatsappNumber || null,
-      meetingUrl: data.meetingUrl || null,
-      sheetsUrl: data.sheetsUrl || null,
-      primaryColor: data.primaryColor || null,
-      bgColor: data.bgColor || null,
-      headline: data.headline || null,
-      subheadline: data.subheadline || null,
-      logoUrl: data.logoUrl || null,
-      faviconUrl: data.faviconUrl || null,
-      brandName: data.brandName || null,
-      instagram: data.instagram || null,
-      facebook: data.facebook || null,
-      videoUrl: data.videoUrl || null,
-      ctaHeadline: data.ctaHeadline || null,
-      ctaSubtitle: data.ctaSubtitle || null,
-      testimonials: data.testimonials ?? null,
-      stats: data.stats ?? null,
-      resellerWhatsappNumber: data.resellerWhatsappNumber || null,
-      resellerLogoUrl: data.resellerLogoUrl || null,
-      resellerMeetingUrl: data.resellerMeetingUrl || null,
-      showAssistanceIA: data.showAssistanceIA ?? true,
-      showAssistanceHUMANO: data.showAssistanceHUMANO ?? true,
-      showFreeTrial: data.showFreeTrial ?? true,
-      showBillingMonthly: data.showBillingMonthly ?? true,
-      showBillingQuarterly: data.showBillingQuarterly ?? true,
-      showBillingYearly: data.showBillingYearly ?? true,
-    };
+    // Solo se escriben las claves que llegan. Antes se armaba el payload
+    // entero con `data.loQueSea || null`, asi que guardar la portada -que no
+    // manda `faviconUrl` ni `brandName`- dejaba en NULL el favicon y el nombre
+    // de marca de la plataforma, que se configuran por otro lado.
+    const CLAVES_TEXTO = [
+      'whatsappNumber', 'meetingUrl', 'sheetsUrl', 'primaryColor', 'bgColor',
+      'headline', 'subheadline', 'logoUrl', 'faviconUrl', 'brandName',
+      'instagram', 'facebook', 'videoUrl', 'ctaHeadline', 'ctaSubtitle',
+      'resellerWhatsappNumber', 'resellerLogoUrl', 'resellerMeetingUrl',
+    ] as const;
+    const CLAVES_SI_NO = [
+      'showAssistanceIA', 'showAssistanceHUMANO', 'showFreeTrial',
+      'showBillingMonthly', 'showBillingQuarterly', 'showBillingYearly',
+    ] as const;
+
+    const payload: Record<string, unknown> = {};
+    for (const clave of CLAVES_TEXTO) {
+      if (clave in data) payload[clave] = data[clave] || null;
+    }
+    for (const clave of CLAVES_SI_NO) {
+      if (clave in data) payload[clave] = data[clave] ?? true;
+    }
+    // Prisma no acepta `null` a secas en una columna JSON: `DbNull` es la
+    // forma de decirle que se quiere guardar NULL en la base.
+    if ('testimonials' in data) payload.testimonials = data.testimonials ?? Prisma.DbNull;
+    if ('stats' in data) payload.stats = data.stats ?? Prisma.DbNull;
+
     await db.siteConfig.upsert({
       where: { id: 1 },
       update: payload,
