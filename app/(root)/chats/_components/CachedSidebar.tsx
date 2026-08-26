@@ -68,23 +68,23 @@ export function CachedSidebar() {
       <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur">
         {/* Toolbar estático — mismas clases/medidas que el real (ChatSearchBar + tabs) */}
         <div className="sticky top-0 z-10 space-y-1.5 border-b border-border bg-background/80 px-2 py-2 backdrop-blur sm:space-y-2 sm:px-3">
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
-            {/* Réplica de ChatSearchBar: "Todos ▾" + buscador + refrescar */}
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] items-center gap-2">
+            {/* Réplica de ChatSearchBar: "Todos ▾" + buscador */}
             <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-              <span className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-sm font-semibold tracking-tight text-foreground sm:gap-1 sm:px-2.5">
-                <span className="max-w-[52px] truncate sm:max-w-[90px]">Todos</span>
+              <span className="inline-flex h-8 min-w-[56px] max-w-[104px] items-center gap-0.5 rounded-full px-2 text-sm font-semibold tracking-tight text-foreground sm:gap-1 sm:px-2.5">
+                <span className="min-w-0 flex-1 truncate text-left">Todos</span>
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </span>
-              <div className="relative min-w-0 flex-1">
+              <div className="relative min-w-[36px] flex-1">
                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <div className="flex h-7 items-center rounded-full border border-input bg-background pl-7 pr-7 text-xs text-muted-foreground sm:text-sm">
                   Buscar...
                 </div>
               </div>
-              <ToolbarIcon>
-                <RefreshCw className="h-3.5 w-3.5" />
-              </ToolbarIcon>
             </div>
+            <ToolbarIcon>
+              <RefreshCw className="h-3.5 w-3.5" />
+            </ToolbarIcon>
             <ToolbarIcon>
               <SquarePen className="h-3.5 w-3.5" />
             </ToolbarIcon>
