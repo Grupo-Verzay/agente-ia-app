@@ -36,6 +36,7 @@ import {
     DropdownMenuContent,
     DropdownMenuGroup,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
@@ -433,7 +434,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 onClick={() => setShowPromptChat(true)}
                             >
                                 <Bot className="h-4 w-4" />
-                                <span className="hidden sm:inline">IA Prompts</span>
+                                <span className="hidden sm:inline">IA</span>
                             </Button>
 
                             <Button
@@ -446,27 +447,33 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 <span className="hidden sm:inline">Voz</span>
                             </Button>
 
-                            <span
-                                title={`~${estimatedTokens.toLocaleString()} tokens estimados del prompt completo`}
-                                className={[
-                                    "hidden sm:inline-flex items-center h-9 rounded-md border px-3 text-xs font-medium tabular-nums select-none cursor-default",
-                                    estimatedTokens < 5000
-                                        ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-                                        : estimatedTokens < 10000
-                                        ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400"
-                                        : "border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-400",
-                                ].join(" ")}
-                            >
-                                ~{estimatedTokens.toLocaleString()} tk
-                            </span>
-
                             <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" aria-label="Open menu" size="icon">
                                         <MoreVertical />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-48" align="end">
+                                <DropdownMenuContent className="w-56" align="end">
+                                    {/* El tamaño del prompt no es una accion, es un dato: va
+                                        arriba y sin poder pincharse, para no ocupar sitio en la
+                                        barra. El color avisa cuando se esta yendo de largo. */}
+                                    <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                                        <span className="text-xs text-muted-foreground">Tamaño del prompt</span>
+                                        <span
+                                            title="Tokens estimados del prompt completo"
+                                            className={[
+                                                "rounded-md border px-1.5 py-0.5 text-xs font-medium tabular-nums",
+                                                estimatedTokens < 5000
+                                                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+                                                    : estimatedTokens < 10000
+                                                    ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400"
+                                                    : "border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-400",
+                                            ].join(" ")}
+                                        >
+                                            ~{estimatedTokens.toLocaleString()} tk
+                                        </span>
+                                    </div>
+                                    <DropdownMenuSeparator />
                                     <DropdownMenuGroup>
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
                                             <BarChart2 className="mr-2 h-4 w-4" />
