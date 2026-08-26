@@ -18,13 +18,19 @@ import {
   Image as ImageIcon,
   Link,
   ListChecks,
+  MapPin,
   Megaphone,
   MousePointerClick,
   Music,
   ReceiptText,
   RefreshCw,
   SquareCheckBig,
+  Shapes,
+  ShoppingCart,
+  Star,
   Tag,
+  Truck,
+  User,
   Video,
   Workflow,
   Zap,
@@ -122,7 +128,66 @@ export const diagramaLogicActions: DiagramaAction[] = [
   // Fin: la pareja de Inicio. Es el unico nodo sin conector de salida -nada
   // cuelga despues de un final-, igual que Inicio es el unico sin entrada.
   { type: 'fin', label: 'Fin', icon: CircleStop, bg: 'bg-red-600', iconClassName: 'h-4 w-4 text-white' },
+  // Libre: el unico nodo que no trae nada decidido. Icono, color, largo y lo
+  // que va dentro de la caja se eligen en su modal. Ver LIBRE_ICONOS.
+  { type: 'libre', label: 'Libre', icon: Shapes, bg: 'bg-zinc-700', iconClassName: 'h-4 w-4 text-white' },
 ];
+
+/**
+ * Catalogo de iconos del nodo Libre.
+ *
+ * Es una lista corta a proposito: la gracia del nodo Libre es elegir rapido,
+ * no bucear en las mil y pico de lucide. `id` es lo que se guarda en la base,
+ * asi que no se renombra una vez publicado -si cambia, los nodos ya guardados
+ * se quedan sin icono-.
+ */
+export const LIBRE_ICONOS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'mensaje', label: 'Mensaje', icon: AlignLeft },
+  { id: 'imagen', label: 'Imagen', icon: ImageIcon },
+  { id: 'video', label: 'Video', icon: Video },
+  { id: 'archivo', label: 'Archivo', icon: File },
+  { id: 'audio', label: 'Audio', icon: Music },
+  { id: 'decision', label: 'Decisión', icon: GitFork },
+  { id: 'pausa', label: 'Pausa', icon: CirclePause },
+  { id: 'tabla', label: 'Hoja de cálculo', icon: FileSpreadsheet },
+  { id: 'lupa', label: 'Consulta', icon: FileSearch },
+  { id: 'campana', label: 'Aviso', icon: Bell },
+  { id: 'lista', label: 'Lista', icon: ClipboardList },
+  { id: 'telefono', label: 'Llamada', icon: Headset },
+  { id: 'lugar', label: 'Ubicación', icon: MapPin },
+  { id: 'agenda', label: 'Agenda', icon: CalendarCheck },
+  { id: 'tarjeta', label: 'Pago', icon: CreditCard },
+  { id: 'visto', label: 'Listo', icon: SquareCheckBig },
+  { id: 'estrella', label: 'Destacado', icon: Star },
+  { id: 'camion', label: 'Envío', icon: Truck },
+  { id: 'reloj', label: 'Espera', icon: AlarmClock },
+  { id: 'usuario', label: 'Persona', icon: User },
+  { id: 'carrito', label: 'Compra', icon: ShoppingCart },
+  { id: 'etiqueta', label: 'Etiqueta', icon: Tag },
+  { id: 'link', label: 'Enlace', icon: Link },
+  { id: 'flujo', label: 'Flujo', icon: Workflow },
+];
+
+/**
+ * Colores del nodo Libre. Valores fijos y no clases de Tailwind: el color se
+ * guarda en la base y se aplica como `style`, asi que el purgador nunca lo ve.
+ */
+export const LIBRE_COLORES = [
+  '#6b7280', '#2563eb', '#0ea5e9', '#059669', '#22c55e', '#eab308',
+  '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#6366f1', '#111827',
+];
+
+export const LIBRE_POR_DEFECTO = {
+  modo: 'icono' as const,
+  icono: 'mensaje',
+  color: '#6b7280',
+  // Porcentaje del alto de la caja: 100 = cuadrada.
+  largo: 100,
+  dentro: '',
+};
+
+export const LIBRE_LARGO_MIN = 100;
+export const LIBRE_LARGO_MAX = 320;
 
 export const diagramaActions: DiagramaAction[] = [
   diagramaInicioAction,
