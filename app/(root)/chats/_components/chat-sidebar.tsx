@@ -160,6 +160,11 @@ function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
 // Mismo criterio que en chats-client.tsx: la marca de borrado manda y la
 // conversacion no revive sola con los mensajes que lleguen despues. Vuelve
 // solo si se restaura a mano desde la pestana Eliminados.
+// Fecha en palabras, para que el aviso se lea de corrido: "3 de mayo de 2026".
+function formatDiaLargo(fecha: Date) {
+    return fecha.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
+}
+
 function isChatDeletedByPreference(
   _chat: ChatData,
   preference?: ChatConversationPreferenceMap[string],
@@ -281,7 +286,8 @@ export function ChatSidebar({
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // Borrado por fecha: corta por el ultimo mensaje de cada conversacion.
   const [dateDeleteOpen, setDateDeleteOpen] = useState(false);
-  const [dateCutoff, setDateCutoff] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
   const [starredJidsArray, setStarredJidsArray] = useState<string[]>([]);
   const [starredOnly, setStarredOnly] = useState(false);
@@ -789,20 +795,36 @@ export function ChatSidebar({
    * tienen fecha de ultimo mensaje tampoco entran: sin fecha no se puede
    * afirmar que sean viejas.
    */
-  const contactosAntesDelCorte = useMemo(() => {
-    if (!dateCutoff) return [] as SidebarContact[];
-    const corte = new Date(`${dateCutoff}T00:00:00`).getTime();
-    if (Number.isNaN(corte)) return [] as SidebarContact[];
-    return contacts.filter((c) => !c.isDeleted && !c.isPinned && c.ts > 0 && c.ts < corte);
-  }, [contacts, dateCutoff]);
+  const contactosEnElRango = useMemo(() => {
+    if (!dateFrom && !dateTo) return [] as SidebarContact[];
+
+    // Desde vacio = desde la primera conversacion. Hasta vacio = hasta hoy.
+    // El "hasta" incluye el dia entero, no se corta a medianoche.
+    const desde = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : -Infinity;
+    const hasta = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : Infinity;
+    if (Number.isNaN(desde) || Number.isNaN(hasta) || desde > hasta) return [] as SidebarContact[];
+
+    return contacts.filter(
+      (c) => !c.isDeleted && !c.isPinned && c.ts > 0 && c.ts >= desde && c.ts <= hasta,
+    );
+  }, [contacts, dateFrom, dateTo]);
+
+  // El rango real de lo que hay, para que se sepa que fechas tiene sentido
+  // escribir en vez de adivinar.
+  const rangoDisponible = useMemo(() => {
+    const fechas = contacts.filter((c) => !c.isDeleted && c.ts > 0).map((c) => c.ts);
+    if (fechas.length === 0) return null;
+    return { desde: new Date(Math.min(...fechas)), hasta: new Date(Math.max(...fechas)) };
+  }, [contacts]);
 
   const handleDeleteByDate = useCallback(async () => {
-    if (!onBulkDelete || contactosAntesDelCorte.length === 0) return;
-    await onBulkDelete(contactosAntesDelCorte.map((c) => c.id));
+    if (!onBulkDelete || contactosEnElRango.length === 0) return;
+    await onBulkDelete(contactosEnElRango.map((c) => c.id));
     setDateDeleteOpen(false);
-    setDateCutoff("");
+    setDateFrom("");
+    setDateTo("");
     clearSelection();
-  }, [onBulkDelete, contactosAntesDelCorte, clearSelection]);
+  }, [onBulkDelete, contactosEnElRango, clearSelection]);
 
   const handleBulkDelete = useCallback(async () => {
     if (!onBulkDelete || selectedJidsArray.length === 0) return;
@@ -1193,40 +1215,92 @@ export function ChatSidebar({
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar por fecha</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminan las conversaciones cuyo ultimo mensaje sea anterior a
-              la fecha que elija. Las ancladas no se tocan.
+              Se eliminan las conversaciones cuyo último mensaje caiga dentro
+              del rango. Las ancladas no se tocan.
+              {rangoDisponible && (
+                <>
+                  {" "}Hay conversaciones desde el{" "}
+                  <span className="font-medium text-foreground">
+                    {formatDiaLargo(rangoDisponible.desde)}
+                  </span>{" "}
+                  hasta el{" "}
+                  <span className="font-medium text-foreground">
+                    {formatDiaLargo(rangoDisponible.hasta)}
+                  </span>.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="space-y-2 py-1">
-            <label htmlFor="corte-fecha" className="text-sm font-medium">
-              Eliminar todo lo anterior a
-            </label>
-            <input
-              id="corte-fecha"
-              type="date"
-              value={dateCutoff}
-              max={hoyISO}
-              onChange={(e) => setDateCutoff(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-            <p className="text-sm text-muted-foreground">
-              {!dateCutoff
-                ? "Elija una fecha para ver cuantas conversaciones entran."
-                : contactosAntesDelCorte.length === 0
-                  ? "Ninguna conversacion es anterior a esa fecha."
-                  : `Entran ${contactosAntesDelCorte.length} conversacion${contactosAntesDelCorte.length !== 1 ? "es" : ""}.`}
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label htmlFor="fecha-desde" className="text-sm font-medium">
+                  Desde
+                </label>
+                <input
+                  id="fecha-desde"
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || hoyISO}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="fecha-hasta" className="text-sm font-medium">
+                  Hasta
+                </label>
+                <input
+                  id="fecha-hasta"
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  max={hoyISO}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Deje <span className="font-medium">Desde</span> vacío para empezar
+              por la más antigua, o <span className="font-medium">Hasta</span>{" "}
+              vacío para llegar hasta hoy.
             </p>
+
+            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+              {!dateFrom && !dateTo
+                ? "Elija al menos una fecha para ver cuántas conversaciones entran."
+                : contactosEnElRango.length === 0
+                  ? "Ninguna conversación cae en ese rango."
+                  : (
+                    <>
+                      Se eliminarán{" "}
+                      <span className="font-semibold text-foreground">
+                        {contactosEnElRango.length}
+                      </span>{" "}
+                      conversación{contactosEnElRango.length !== 1 ? "es" : ""}, del{" "}
+                      <span className="font-medium text-foreground">
+                        {formatDiaLargo(new Date(Math.min(...contactosEnElRango.map((c) => c.ts))))}
+                      </span>{" "}
+                      al{" "}
+                      <span className="font-medium text-foreground">
+                        {formatDiaLargo(new Date(Math.max(...contactosEnElRango.map((c) => c.ts))))}
+                      </span>.
+                    </>
+                  )}
+            </div>
           </div>
 
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
-              disabled={contactosAntesDelCorte.length === 0}
+              disabled={contactosEnElRango.length === 0}
               onClick={() => void handleDeleteByDate()}
             >
-              Eliminar {contactosAntesDelCorte.length || ""}
+              Eliminar {contactosEnElRango.length || ""}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
