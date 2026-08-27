@@ -279,6 +279,9 @@ export function ChatSidebar({
   );
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  // Borrado por fecha: corta por el ultimo mensaje de cada conversacion.
+  const [dateDeleteOpen, setDateDeleteOpen] = useState(false);
+  const [dateCutoff, setDateCutoff] = useState("");
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
   const [starredJidsArray, setStarredJidsArray] = useState<string[]>([]);
   const [starredOnly, setStarredOnly] = useState(false);
@@ -407,6 +410,7 @@ export function ChatSidebar({
           pinnedAtMs: preference?.pinnedAt ? new Date(preference.pinnedAt).getTime() : 0,
           isArchived: Boolean(preference?.isArchived),
           isDeleted: isChatDeletedByPreference(chat, preference),
+          isPurged: Boolean(preference?.purgedAt),
           instanceName: chat.instanceName,
           instanceDisplayName: chat.instanceName
             ? instanceLabelMap.get(chat.instanceName) ?? getInstanceDisplayName(chat.instanceName)
@@ -460,13 +464,15 @@ export function ChatSidebar({
       groups: active.filter((c) => c.isGroup).length,
       archived: contacts.filter((c) => !c.isDeleted && c.isArchived).length,
       resolved: contacts.filter((c) => !c.isDeleted && esResuelta(c)).length,
-      deleted: contacts.filter((c) => c.isDeleted).length,
+      deleted: contacts.filter((c) => c.isDeleted && !c.isPurged).length,
     };
   }, [contacts, myChats]);
 
 
   const deletedContacts = useMemo(() => {
-    let list = contacts.filter((c) => c.isDeleted);
+    // Los ya purgados siguen eliminados -y por tanto ocultos-, pero no se
+    // listan: no queda nada suyo que borrar y la pestana se volvia un cajon.
+    let list = contacts.filter((c) => c.isDeleted && !c.isPurged);
     if (q.trim()) {
       const term = q.trim().toLowerCase();
       list = list.filter(
@@ -773,6 +779,31 @@ export function ChatSidebar({
     clearSelection();
   }, [onBulkArchive, selectedJidsArray, clearSelection]);
 
+  const hoyISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  /**
+   * Conversaciones cuyo ultimo mensaje es anterior al corte.
+   *
+   * Se excluyen las ancladas -anclar es justo decir "esta me importa"- y las
+   * que ya estan eliminadas, que no hay que volver a eliminar. Las que no
+   * tienen fecha de ultimo mensaje tampoco entran: sin fecha no se puede
+   * afirmar que sean viejas.
+   */
+  const contactosAntesDelCorte = useMemo(() => {
+    if (!dateCutoff) return [] as SidebarContact[];
+    const corte = new Date(`${dateCutoff}T00:00:00`).getTime();
+    if (Number.isNaN(corte)) return [] as SidebarContact[];
+    return contacts.filter((c) => !c.isDeleted && !c.isPinned && c.ts > 0 && c.ts < corte);
+  }, [contacts, dateCutoff]);
+
+  const handleDeleteByDate = useCallback(async () => {
+    if (!onBulkDelete || contactosAntesDelCorte.length === 0) return;
+    await onBulkDelete(contactosAntesDelCorte.map((c) => c.id));
+    setDateDeleteOpen(false);
+    setDateCutoff("");
+    clearSelection();
+  }, [onBulkDelete, contactosAntesDelCorte, clearSelection]);
+
   const handleBulkDelete = useCallback(async () => {
     if (!onBulkDelete || selectedJidsArray.length === 0) return;
     await onBulkDelete(selectedJidsArray);
@@ -1017,6 +1048,7 @@ export function ChatSidebar({
             onSetServiceType={clientValidationEnabled ? (v) => setServiceTypeFilter((prev) => prev === v ? null : v) : undefined}
             iaCount={filterCounts.ia}
             humanCount={filterCounts.human}
+            onDeleteByDate={canDeleteChats && onBulkDelete ? () => setDateDeleteOpen(true) : undefined}
           />
 
           {selectedJids.size > 0 && (
@@ -1057,7 +1089,7 @@ export function ChatSidebar({
                       type="button"
                       onClick={() => {
                         const seguro = window.confirm(
-                          `Se van a borrar por completo ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSi la conversación sigue en el WhatsApp del teléfono y el cliente vuelve a escribir, el contacto se crea de nuevo.\n\n¿Continuar?`,
+                          `Se va a borrar el rastro de ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSiguen eliminados y fuera de la lista; solo dejan de aparecer aquí.\n\n¿Continuar?`,
                         );
                         if (seguro) void onPurgeDeleted();
                       }}
@@ -1155,6 +1187,50 @@ export function ChatSidebar({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={dateDeleteOpen} onOpenChange={setDateDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar por fecha</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminan las conversaciones cuyo ultimo mensaje sea anterior a
+              la fecha que elija. Las ancladas no se tocan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2 py-1">
+            <label htmlFor="corte-fecha" className="text-sm font-medium">
+              Eliminar todo lo anterior a
+            </label>
+            <input
+              id="corte-fecha"
+              type="date"
+              value={dateCutoff}
+              max={hoyISO}
+              onChange={(e) => setDateCutoff(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+            />
+            <p className="text-sm text-muted-foreground">
+              {!dateCutoff
+                ? "Elija una fecha para ver cuantas conversaciones entran."
+                : contactosAntesDelCorte.length === 0
+                  ? "Ninguna conversacion es anterior a esa fecha."
+                  : `Entran ${contactosAntesDelCorte.length} conversacion${contactosAntesDelCorte.length !== 1 ? "es" : ""}.`}
+            </p>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={contactosAntesDelCorte.length === 0}
+              onClick={() => void handleDeleteByDate()}
+            >
+              Eliminar {contactosAntesDelCorte.length || ""}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => !open && setBulkDeleteOpen(false)}>
         <AlertDialogContent>

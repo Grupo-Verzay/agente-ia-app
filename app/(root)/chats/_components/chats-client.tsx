@@ -1933,10 +1933,15 @@ export function ChatsClient({
       return;
     }
 
+    // Las marcas de borrado NO se quitan: son lo unico que mantiene esas
+    // conversaciones fuera de la lista. Solo se dan por purgadas.
+    const ahora = new Date().toISOString();
     setChatPreferences((prev) => {
-      const next: typeof prev = {};
+      const next = { ...prev };
       for (const [jid, pref] of Object.entries(prev)) {
-        if (!pref?.deletedAt) next[jid] = pref;
+        if (pref?.deletedAt && !pref.purgedAt) {
+          next[jid] = { ...pref, purgedAt: ahora, isPurged: true };
+        }
       }
       return next;
     });

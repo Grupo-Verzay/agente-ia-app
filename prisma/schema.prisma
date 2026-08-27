@@ -562,6 +562,11 @@ model ChatConversationPreference {
   pinnedAt   DateTime?
   archivedAt DateTime?
   deletedAt  DateTime?
+  // Ya se limpio el rastro de este contacto. Aparte de deletedAt: esa marca
+  // es la que lo mantiene fuera de la lista de Chats y no se quita nunca
+  // -la conversacion sigue viva en WhatsApp y volveria sola-; purgedAt solo
+  // dice que no queda nada que borrar, para sacarlo de la pestana Eliminados.
+  purgedAt   DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -570,6 +575,7 @@ model ChatConversationPreference {
   @@index([userId, pinnedAt])
   @@index([userId, archivedAt])
   @@index([userId, deletedAt])
+  @@index([userId, purgedAt])
 }
 
 model ChatMessage {

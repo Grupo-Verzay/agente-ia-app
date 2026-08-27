@@ -19,6 +19,7 @@ const chatConversationPreferenceTable = db.chatConversationPreference as unknown
       pinnedAt: Date | null;
       archivedAt: Date | null;
       deletedAt: Date | null;
+      purgedAt: Date | null;
     }>
   >;
   upsert: (args: unknown) => Promise<{
@@ -26,7 +27,9 @@ const chatConversationPreferenceTable = db.chatConversationPreference as unknown
     pinnedAt: Date | null;
     archivedAt: Date | null;
     deletedAt: Date | null;
+    purgedAt: Date | null;
   }>;
+  updateMany: (args: unknown) => Promise<{ count: number }>;
   deleteMany: (args: unknown) => Promise<{ count: number }>;
 };
 
@@ -60,6 +63,7 @@ function mapPreference(
     pinnedAt: Date | null;
     archivedAt: Date | null;
     deletedAt: Date | null;
+    purgedAt?: Date | null;
   },
 ): ChatConversationPreference {
   return {
@@ -67,9 +71,11 @@ function mapPreference(
     pinnedAt: preference.pinnedAt?.toISOString() ?? null,
     archivedAt: preference.archivedAt?.toISOString() ?? null,
     deletedAt: preference.deletedAt?.toISOString() ?? null,
+    purgedAt: preference.purgedAt?.toISOString() ?? null,
     isPinned: Boolean(preference.pinnedAt),
     isArchived: Boolean(preference.archivedAt),
     isDeleted: Boolean(preference.deletedAt),
+    isPurged: Boolean(preference.purgedAt),
   };
 }
 
@@ -111,6 +117,7 @@ async function upsertPreference(
     pinnedAt?: Date | null;
     archivedAt?: Date | null;
     deletedAt?: Date | null;
+    purgedAt?: Date | null;
   },
 ): Promise<ChatConversationPreference> {
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
@@ -129,6 +136,7 @@ async function upsertPreference(
       pinnedAt: data.pinnedAt ?? null,
       archivedAt: data.archivedAt ?? null,
       deletedAt: data.deletedAt ?? null,
+      purgedAt: data.purgedAt ?? null,
     },
   });
 
@@ -146,9 +154,11 @@ function deletedPreference(remoteJid: string): ChatConversationPreference {
     pinnedAt: null,
     archivedAt: null,
     deletedAt: now,
+    purgedAt: now,
     isPinned: false,
     isArchived: false,
     isDeleted: true,
+    isPurged: true,
   };
 }
 
@@ -292,6 +302,7 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
         pinnedAt: null,
         archivedAt: null,
         deletedAt,
+        purgedAt: deletedAt,
       },
       create: {
         userId,
@@ -299,6 +310,7 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
         pinnedAt: null,
         archivedAt: null,
         deletedAt,
+        purgedAt: deletedAt,
       },
     });
     deletedPreferenceRow = mapPreference(preference);
@@ -381,6 +393,7 @@ export async function setChatArchivedAction(
     const data = await upsertPreference(parsed.userId, parsed.remoteJid, {
       archivedAt: parsed.archived ? new Date() : null,
       deletedAt: null,
+      purgedAt: null,
     });
 
     return {
@@ -420,17 +433,20 @@ export async function deleteChatConversationAction(
 }
 
 /**
- * Vacia la pestana Eliminados: vuelve a limpiar cada contacto marcado como
- * borrado y quita su marca, para que la lista quede en cero.
+ * Vacia la pestana Eliminados: limpia el rastro que quede de cada contacto
+ * marcado y los da por purgados, para que la lista quede en cero.
  *
- * Se repite la limpieza en vez de solo borrar las marcas porque entre el
- * borrado y el vaciado el contacto pudo haber vuelto -si el cliente escribio,
- * la linea recreo la ficha y los mensajes-. Quitar la marca sin limpiar
- * primero devolveria esas conversaciones a la lista principal.
+ * NO se borra la marca de eliminado, y no se debe borrar nunca. La lista de
+ * Chats se lee de la linea de WhatsApp, no de esta base: mientras la
+ * conversacion siga viva en el telefono, esa marca es lo unico que la
+ * mantiene fuera de la vista. Borrarla devuelve de golpe todas las
+ * conversaciones a la lista principal, que es exactamente lo que no se
+ * quiere. Por eso existe purgedAt aparte: dice "aqui ya no queda nada que
+ * borrar" sin destapar nada.
  *
- * Lo que la App no puede tocar es el WhatsApp del telefono: si la
- * conversacion sigue viva alli y el cliente vuelve a escribir, el contacto se
- * crea de nuevo. Para que no reaparezca hay que borrarla tambien en WhatsApp.
+ * Se repite la limpieza en vez de darlos por limpios porque entre el borrado
+ * y el vaciado el contacto pudo haber vuelto: si el cliente escribio, la
+ * linea recreo la ficha y los mensajes.
  */
 export async function purgeDeletedChatsAction(
   input: { userId: string },
@@ -440,7 +456,7 @@ export async function purgeDeletedChatsAction(
     await assertCanDeleteChats(userId);
 
     const marcados = await chatConversationPreferenceTable.findMany({
-      where: { userId, deletedAt: { not: null } },
+      where: { userId, deletedAt: { not: null }, purgedAt: null },
       select: { remoteJid: true },
     });
 
@@ -448,8 +464,9 @@ export async function purgeDeletedChatsAction(
       await hardDeleteLocalChat(userId, remoteJid);
     }
 
-    const { count } = await chatConversationPreferenceTable.deleteMany({
-      where: { userId, deletedAt: { not: null } },
+    const { count } = await chatConversationPreferenceTable.updateMany({
+      where: { userId, deletedAt: { not: null }, purgedAt: null },
+      data: { purgedAt: new Date() },
     });
 
     invalidatePersistedInboxCache();
@@ -458,15 +475,15 @@ export async function purgeDeletedChatsAction(
     return {
       success: true,
       message: count > 0
-        ? `${count} chat${count !== 1 ? "s" : ""} eliminado${count !== 1 ? "s" : ""} por completo.`
-        : "No habia chats eliminados.",
+        ? `${count} chat${count !== 1 ? "s" : ""} limpiado${count !== 1 ? "s" : ""} por completo.`
+        : "No quedaba nada por limpiar.",
       data: { purged: count },
     };
   } catch (error) {
     console.error("[purgeDeletedChatsAction]", error);
     return {
       success: false,
-      message: error instanceof Error ? error.message : "No se pudieron eliminar por completo los chats.",
+      message: error instanceof Error ? error.message : "No se pudieron limpiar los chats eliminados.",
     };
   }
 }
@@ -480,6 +497,7 @@ export async function restoreChatConversationAction(
 
     const data = await upsertPreference(parsed.userId, parsed.remoteJid, {
       deletedAt: null,
+      purgedAt: null,
     });
 
     return {
@@ -513,6 +531,7 @@ export async function bulkArchiveChatsAction(
         upsertPreference(parsed.userId, remoteJid, {
           archivedAt: input.archived ? new Date() : null,
           deletedAt: null,
+          purgedAt: null,
         }),
       ),
     );
