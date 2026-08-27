@@ -178,6 +178,7 @@ type ChatSidebarProps = {
   onClientStatusChange?: (remoteJid: string, value: import("@/types/session").ClientStatus | null) => void;
   clientValidationEnabled?: boolean;
   onRestoreChat?: (remoteJid: string) => void | Promise<void>;
+  onPurgeDeleted?: () => void | Promise<void>;
   onSelectRemoteJid?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
   onPrefetchRemoteJid?: (remoteJid: string, instanceName?: string) => void;
   onTogglePin?: (remoteJid: string, isPinned: boolean) => void | Promise<void>;
@@ -221,6 +222,7 @@ export function ChatSidebar({
   onClientStatusChange,
   clientValidationEnabled = false,
   onRestoreChat,
+  onPurgeDeleted,
   onSelectRemoteJid,
   onPrefetchRemoteJid,
   onTogglePin,
@@ -1045,10 +1047,26 @@ export function ChatSidebar({
           {tab === "deleted" ? (
             deletedContacts.length > 0 ? (
               <div className="flex flex-col gap-1">
-                <p className="px-2 py-1 text-xs text-muted-foreground">
-                  {deletedContacts.length} chat{deletedContacts.length !== 1 ? "s" : ""}{" "}
-                  eliminado{deletedContacts.length !== 1 ? "s" : ""}
-                </p>
+                <div className="flex items-center justify-between gap-2 px-2 py-1">
+                  <p className="text-xs text-muted-foreground">
+                    {deletedContacts.length} chat{deletedContacts.length !== 1 ? "s" : ""}{" "}
+                    eliminado{deletedContacts.length !== 1 ? "s" : ""}
+                  </p>
+                  {onPurgeDeleted && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const seguro = window.confirm(
+                          `Se van a borrar por completo ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSi la conversación sigue en el WhatsApp del teléfono y el cliente vuelve a escribir, el contacto se crea de nuevo.\n\n¿Continuar?`,
+                        );
+                        if (seguro) void onPurgeDeleted();
+                      }}
+                      className="shrink-0 text-xs font-medium text-destructive hover:underline"
+                    >
+                      Vaciar
+                    </button>
+                  )}
+                </div>
                 {deletedContacts.map((contact) => (
                   <DeletedContactItem
                     key={contact.id}

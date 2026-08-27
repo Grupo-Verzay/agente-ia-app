@@ -152,6 +152,73 @@ function deletedPreference(remoteJid: string): ChatConversationPreference {
   };
 }
 
+/**
+ * Borra lo que queda de un contacto FUERA de su ficha de sesion.
+ *
+ * Al eliminar un chat se borra la sesion, y con ella caen en cascada citas,
+ * notas, tareas, etiquetas, seguimientos del CRM y estado de flujos. Pero hay
+ * tablas que no cuelgan de la sesion sino del numero, y sobrevivian al
+ * borrado: los datos que la IA le habia capturado al cliente, la cola de
+ * seguimientos, el historico archivado del CRM, el bloqueo antiflood y la
+ * copia local de contactos y mensajes de la linea.
+ *
+ * Las tablas de la linea (baileys) se acotan a las instancias del propio
+ * usuario: la clave de esas tablas es el nombre de instancia, no el usuario,
+ * asi que sin ese filtro se estaria borrando el contacto de otra cuenta que
+ * hable con el mismo numero.
+ */
+async function purgarRastroDelContacto(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  candidates: string[],
+) {
+  await tx.$executeRaw`
+    DELETE FROM "external_client_data"
+    WHERE "userId" = ${userId} AND "remoteJid" IN (${Prisma.join(candidates)})
+  `;
+
+  await tx.$executeRaw`
+    DELETE FROM "crm_follow_ups_archive"
+    WHERE "userId" = ${userId} AND "remoteJid" IN (${Prisma.join(candidates)})
+  `;
+
+  const instancias = await tx.instancia.findMany({
+    where: { userId },
+    select: { instanceName: true },
+  });
+  const nombres = instancias
+    .map((i) => i.instanceName)
+    .filter((nombre): nombre is string => Boolean(nombre));
+
+  if (nombres.length === 0) return;
+
+  await tx.$executeRaw`
+    DELETE FROM "AntifloodBlock"
+    WHERE "instanceName" IN (${Prisma.join(nombres)})
+      AND "remoteJid" IN (${Prisma.join(candidates)})
+  `;
+
+  await tx.$executeRaw`
+    DELETE FROM "seguimientos"
+    WHERE "instancia" IN (${Prisma.join(nombres)})
+      AND "remoteJid" IN (${Prisma.join(candidates)})
+  `;
+
+  // baileys_messages cae en cascada con su contacto, pero puede haber filas
+  // sueltas de un contacto que ya no existe.
+  await tx.$executeRaw`
+    DELETE FROM "baileys_messages"
+    WHERE "instanceName" IN (${Prisma.join(nombres)})
+      AND "remoteJid" IN (${Prisma.join(candidates)})
+  `;
+
+  await tx.$executeRaw`
+    DELETE FROM "baileys_contacts"
+    WHERE "instanceName" IN (${Prisma.join(nombres)})
+      AND "remoteJid" IN (${Prisma.join(candidates)})
+  `;
+}
+
 async function hardDeleteLocalChat(userId: string, remoteJid: string) {
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
   const candidates = buildWhatsAppJidCandidates(normalizedRemoteJid);
@@ -211,6 +278,8 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
           OR "senderPn" IN (${Prisma.join(candidates)})
         )
     `;
+
+    await purgarRastroDelContacto(tx, userId, candidates);
 
     const preference = await tx.chatConversationPreference.upsert({
       where: {
@@ -346,6 +415,58 @@ export async function deleteChatConversationAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : "No se pudo eliminar el chat.",
+    };
+  }
+}
+
+/**
+ * Vacia la pestana Eliminados: vuelve a limpiar cada contacto marcado como
+ * borrado y quita su marca, para que la lista quede en cero.
+ *
+ * Se repite la limpieza en vez de solo borrar las marcas porque entre el
+ * borrado y el vaciado el contacto pudo haber vuelto -si el cliente escribio,
+ * la linea recreo la ficha y los mensajes-. Quitar la marca sin limpiar
+ * primero devolveria esas conversaciones a la lista principal.
+ *
+ * Lo que la App no puede tocar es el WhatsApp del telefono: si la
+ * conversacion sigue viva alli y el cliente vuelve a escribir, el contacto se
+ * crea de nuevo. Para que no reaparezca hay que borrarla tambien en WhatsApp.
+ */
+export async function purgeDeletedChatsAction(
+  input: { userId: string },
+): Promise<ChatPreferenceResponse<{ purged: number }>> {
+  try {
+    const userId = z.string().trim().min(1).parse(input.userId);
+    await assertCanDeleteChats(userId);
+
+    const marcados = await chatConversationPreferenceTable.findMany({
+      where: { userId, deletedAt: { not: null } },
+      select: { remoteJid: true },
+    });
+
+    for (const { remoteJid } of marcados) {
+      await hardDeleteLocalChat(userId, remoteJid);
+    }
+
+    const { count } = await chatConversationPreferenceTable.deleteMany({
+      where: { userId, deletedAt: { not: null } },
+    });
+
+    invalidatePersistedInboxCache();
+    revalidatePath("/chats");
+
+    return {
+      success: true,
+      message: count > 0
+        ? `${count} chat${count !== 1 ? "s" : ""} eliminado${count !== 1 ? "s" : ""} por completo.`
+        : "No habia chats eliminados.",
+      data: { purged: count },
+    };
+  } catch (error) {
+    console.error("[purgeDeletedChatsAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudieron eliminar por completo los chats.",
     };
   }
 }

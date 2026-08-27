@@ -7,6 +7,7 @@ import {
   bulkDeleteChatsAction,
   bulkPinChatsAction,
   deleteChatConversationAction,
+  purgeDeletedChatsAction,
   restoreChatConversationAction,
   setChatArchivedAction,
   toggleChatPinAction,
@@ -1921,6 +1922,27 @@ export function ChatsClient({
     [applyChatPreference, userId],
   );
 
+  // Vaciar la pestana Eliminados: limpia el rastro de cada contacto marcado y
+  // quita la marca, asi que la lista queda en cero. Los chats no vuelven a la
+  // lista principal salvo que el cliente escriba de nuevo desde WhatsApp.
+  const handlePurgeDeleted = useCallback(async () => {
+    const result = await purgeDeletedChatsAction({ userId });
+
+    if (!result.success) {
+      toast.error(result.message || "No se pudieron eliminar por completo los chats.");
+      return;
+    }
+
+    setChatPreferences((prev) => {
+      const next: typeof prev = {};
+      for (const [jid, pref] of Object.entries(prev)) {
+        if (!pref?.deletedAt) next[jid] = pref;
+      }
+      return next;
+    });
+    toast.success(result.message);
+  }, [userId]);
+
   const handleBulkArchive = useCallback(
     async (remoteJids: string[], archived: boolean) => {
       const result = await bulkArchiveChatsAction({ userId, remoteJids, archived });
@@ -2361,6 +2383,7 @@ export function ChatsClient({
           onClientStatusChange={handleClientStatusChange}
           clientValidationEnabled={clientValidationEnabled}
           onRestoreChat={handleRestoreChat}
+          onPurgeDeleted={handlePurgeDeleted}
           onSelectRemoteJid={handleSelectFromSidebar}
           onPrefetchRemoteJid={prefetchChat}
           onTogglePin={handleToggleChatPin}
