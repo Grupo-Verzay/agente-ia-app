@@ -5,6 +5,8 @@ export type SidebarContact = {
   chatSession: ChatContactSessionMap[string] | null;
   isArchived: boolean;
   isDeleted: boolean;
+  // Eliminado y ya sin rastro: sigue oculto, pero no se lista en Eliminados.
+  isPurged: boolean;
   isGroup: boolean;
   isPinned: boolean;
   isUnreadLocal: boolean;

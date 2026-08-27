@@ -407,6 +407,7 @@ export function ChatSidebar({
           pinnedAtMs: preference?.pinnedAt ? new Date(preference.pinnedAt).getTime() : 0,
           isArchived: Boolean(preference?.isArchived),
           isDeleted: isChatDeletedByPreference(chat, preference),
+          isPurged: Boolean(preference?.purgedAt),
           instanceName: chat.instanceName,
           instanceDisplayName: chat.instanceName
             ? instanceLabelMap.get(chat.instanceName) ?? getInstanceDisplayName(chat.instanceName)
@@ -460,13 +461,15 @@ export function ChatSidebar({
       groups: active.filter((c) => c.isGroup).length,
       archived: contacts.filter((c) => !c.isDeleted && c.isArchived).length,
       resolved: contacts.filter((c) => !c.isDeleted && esResuelta(c)).length,
-      deleted: contacts.filter((c) => c.isDeleted).length,
+      deleted: contacts.filter((c) => c.isDeleted && !c.isPurged).length,
     };
   }, [contacts, myChats]);
 
 
   const deletedContacts = useMemo(() => {
-    let list = contacts.filter((c) => c.isDeleted);
+    // Los ya purgados siguen eliminados -y por tanto ocultos-, pero no se
+    // listan: no queda nada suyo que borrar y la pestana se volvia un cajon.
+    let list = contacts.filter((c) => c.isDeleted && !c.isPurged);
     if (q.trim()) {
       const term = q.trim().toLowerCase();
       list = list.filter(
@@ -1057,7 +1060,7 @@ export function ChatSidebar({
                       type="button"
                       onClick={() => {
                         const seguro = window.confirm(
-                          `Se van a borrar por completo ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSi la conversación sigue en el WhatsApp del teléfono y el cliente vuelve a escribir, el contacto se crea de nuevo.\n\n¿Continuar?`,
+                          `Se va a borrar el rastro de ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSiguen eliminados y fuera de la lista; solo dejan de aparecer aquí.\n\n¿Continuar?`,
                         );
                         if (seguro) void onPurgeDeleted();
                       }}
