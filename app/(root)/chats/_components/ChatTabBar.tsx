@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { ComponentType } from "react";
-import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen } from "lucide-react";
+import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +39,8 @@ type ChatTabBarProps = {
   onSetServiceType?: (v: ServiceType) => void;
   iaCount?: number;
   humanCount?: number;
+  /** Abre el diálogo de borrado por fecha. Sin permiso para eliminar, no llega. */
+  onDeleteByDate?: () => void;
 };
 
 const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?: string }>; color: string }[] = [
@@ -48,7 +50,7 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
 
 const GROUPS_COLOR = "#28A745";
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "resolved" || tab === "deleted" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
@@ -293,6 +295,18 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
               <span className="text-[10px] text-muted-foreground">{tabCounts.deleted}</span>
             )}
           </DropdownMenuItem>
+          {onDeleteByDate && (
+            <>
+              <div className="my-1 border-t border-border/50" />
+              <DropdownMenuItem
+                onSelect={() => onDeleteByDate()}
+                className="flex cursor-pointer items-center gap-1.5 py-1 text-xs text-destructive focus:text-destructive"
+              >
+                <CalendarClock className="h-3 w-3 shrink-0" />
+                Eliminar por fecha...
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
