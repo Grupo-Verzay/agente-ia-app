@@ -79,6 +79,36 @@ function mapPreference(
   };
 }
 
+/**
+ * Se asegura de que exista la columna purgedAt antes de tocar la tabla.
+ *
+ * La App no corre migraciones al desplegar -igual que chat_messages y
+ * chat_conversations, que se auto-provisionan en lib/chat-persistence.ts-, asi
+ * que la columna del ultimo cambio llego al codigo pero no a la base y todas
+ * las acciones de Chats se caian con "column purgedAt does not exist".
+ *
+ * Se crea aqui, una sola vez por proceso y de forma idempotente. Si falla se
+ * olvida la promesa, para que el siguiente intento lo vuelva a probar en vez
+ * de arrastrar el error para siempre.
+ */
+let asegurarColumnaPurgedAt: Promise<void> | null = null;
+
+async function ensurePurgedAtColumn(): Promise<void> {
+  asegurarColumnaPurgedAt ??= (async () => {
+    await db.$executeRawUnsafe(
+      'ALTER TABLE "ChatConversationPreference" ADD COLUMN IF NOT EXISTS "purgedAt" TIMESTAMP(3)',
+    );
+    await db.$executeRawUnsafe(
+      'CREATE INDEX IF NOT EXISTS "ChatConversationPreference_userId_purgedAt_idx" ON "ChatConversationPreference" ("userId", "purgedAt")',
+    );
+  })().catch((error) => {
+    asegurarColumnaPurgedAt = null;
+    throw error;
+  });
+
+  return asegurarColumnaPurgedAt;
+}
+
 async function assertAuthorized(userId: string) {
   const user = await currentUser();
   if (!user || user.id !== userId) {
@@ -120,6 +150,7 @@ async function upsertPreference(
     purgedAt?: Date | null;
   },
 ): Promise<ChatConversationPreference> {
+  await ensurePurgedAtColumn();
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
 
   const preference = await chatConversationPreferenceTable.upsert({
@@ -230,6 +261,7 @@ async function purgarRastroDelContacto(
 }
 
 async function hardDeleteLocalChat(userId: string, remoteJid: string) {
+  await ensurePurgedAtColumn();
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
   const candidates = buildWhatsAppJidCandidates(normalizedRemoteJid);
   const deletedAt = new Date();
@@ -334,6 +366,7 @@ export async function getChatConversationPreferencesByUserId(
       await assertCanDeleteChats(targetUserId);
     }
 
+    await ensurePurgedAtColumn();
     const preferences = await chatConversationPreferenceTable.findMany({
       where: { userId: targetUserId },
     });
@@ -455,6 +488,7 @@ export async function purgeDeletedChatsAction(
     const userId = z.string().trim().min(1).parse(input.userId);
     await assertCanDeleteChats(userId);
 
+    await ensurePurgedAtColumn();
     const marcados = await chatConversationPreferenceTable.findMany({
       where: { userId, deletedAt: { not: null }, purgedAt: null },
       select: { remoteJid: true },
