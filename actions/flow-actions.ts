@@ -11,6 +11,8 @@
 // migraciones, pero SI puede crear sus propias tablas nuevas en tiempo de
 // ejecucion, de forma idempotente.
 
+import { revalidatePath } from "next/cache";
+
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
@@ -250,6 +252,14 @@ export async function saveFlowGraphAction(
       UPDATE "flows" SET "nodes" = ${nodesJson}::jsonb, "edges" = ${edgesJson}::jsonb, "updatedAt" = NOW()
       WHERE "userId" = ${userId} AND "id" = ${flowId}
     `;
+
+    // Sin esto el diagrama se guarda pero al salir y volver a entrar se ve
+    // como estaba: la pagina es de servidor y Next sigue sirviendo la copia
+    // que tenia en cache. Recargar a mano la saltaba, y de ahi la sensacion
+    // de que el boton no habia hecho nada.
+    revalidatePath(`/diagramas/${flowId}`);
+    revalidatePath("/diagramas");
+
     return { success: true, data: null };
   } catch (error) {
     console.error("[saveFlowGraphAction]", error);
