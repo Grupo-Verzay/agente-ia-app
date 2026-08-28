@@ -33,15 +33,12 @@ export async function obtenerEnlacePagoCliente(
             userId,
         );
 
-        const url = await enlaceDePagoDe(objetivo);
-        if (!url) {
-            return {
-                success: false,
-                message: "No se pudo generar el enlace. Revisa que el cliente tenga facturación.",
-            };
+        const enlace = await enlaceDePagoDe(objetivo);
+        if ("error" in enlace) {
+            return { success: false, message: enlace.error };
         }
 
-        return { success: true, message: "Enlace listo.", url };
+        return { success: true, message: "Enlace listo.", url: enlace.url };
     } catch (error) {
         return {
             success: false,
