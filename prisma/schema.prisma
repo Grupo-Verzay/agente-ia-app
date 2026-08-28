@@ -1052,10 +1052,6 @@ model UserBilling {
   lastInstanceName       String?
   licenseDays            Int?
   preDeleteWarnedAt      DateTime?
-  // Codigo corto del enlace de pago del cliente: agente.ia-app.com/p/K7M2QX.
-  // Va aparte del userId a proposito -no expone el identificador interno y se
-  // puede rotar si un enlace se filtra-. Se genera la primera vez que se pide.
-  payCode                String?             @unique
   user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([dueDate])
