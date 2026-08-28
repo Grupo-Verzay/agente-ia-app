@@ -41,7 +41,22 @@ export interface EnlacePagoResult {
 export async function crearEnlacePagoRenovacion(): Promise<EnlacePagoResult> {
   const user = await currentUser();
   if (!user) return { success: false, message: "No autorizado." };
+  return construirEnlaceWompi(user.id, user.email ?? null, user.plan ?? null);
+}
 
+/**
+ * El armado del enlace, sin sesión.
+ *
+ * Vive aparte porque ahora hay dos caminos que llegan aquí: el botón de renovar
+ * dentro de la App -que sí tiene sesión- y el enlace corto /p/{codigo} que le
+ * llega al cliente por WhatsApp, donde no hay nadie con sesión iniciada. Los
+ * dos tienen que cobrar exactamente lo mismo, así que el cálculo es uno solo.
+ */
+export async function construirEnlaceWompi(
+  userId: string,
+  email: string | null,
+  planPorDefecto: string | null,
+): Promise<EnlacePagoResult> {
   const publicKey = process.env.WOMPI_PUBLIC_KEY?.trim();
   const integritySecret = process.env.WOMPI_INTEGRITY_SECRET?.trim();
   if (!publicKey || !integritySecret) {
@@ -56,7 +71,7 @@ export async function crearEnlacePagoRenovacion(): Promise<EnlacePagoResult> {
   // periodicidad propia, y cobrarles el de lista sería cobrarles de más o de
   // menos. Renovar es pagar lo tuyo.
   const facturacion = await db.userBilling.findUnique({
-    where: { userId: user.id },
+    where: { userId },
     select: { price: true, currencyCode: true, serviceName: true },
   });
 
@@ -73,7 +88,7 @@ export async function crearEnlacePagoRenovacion(): Promise<EnlacePagoResult> {
   // con decimales genere un monto inválido y el enlace muera al abrirse.
   const centavos = Math.round(precio * 100);
 
-  const planCode = (facturacion.serviceName || user.plan || "servicio")
+  const planCode = (facturacion.serviceName || planPorDefecto || "servicio")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -82,7 +97,7 @@ export async function crearEnlacePagoRenovacion(): Promise<EnlacePagoResult> {
     // trozo del identificador.
     .replace(/[^a-z0-9]/g, "");
 
-  const referencia = construirReferencia(user.id, planCode || "servicio");
+  const referencia = construirReferencia(userId, planCode || "servicio");
   const firma = firmarIntegridad(referencia, centavos, moneda, integritySecret);
 
   const url = new URL("https://checkout.wompi.co/p/");
@@ -91,7 +106,7 @@ export async function crearEnlacePagoRenovacion(): Promise<EnlacePagoResult> {
   url.searchParams.set("amount-in-cents", String(centavos));
   url.searchParams.set("reference", referencia);
   url.searchParams.set("signature:integrity", firma);
-  if (user.email) url.searchParams.set("customer-data:email", user.email);
+  if (email) url.searchParams.set("customer-data:email", email);
   const redirect = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (redirect) url.searchParams.set("redirect-url", `${redirect.replace(/\/+$/, "")}/profile`);
 

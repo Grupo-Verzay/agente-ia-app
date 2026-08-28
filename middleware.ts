@@ -12,6 +12,11 @@ const apiAdminPrefix = "/api/admin";
 // Modo Dueño por WhatsApp: el backend llama estos endpoints máquina-a-máquina
 // (sin sesión de usuario); su seguridad es el secreto OWNER_COMMANDS_KEY.
 const apiOwnerPrefix = "/api/owner";
+// Pagos: los llama la pasarela, no un navegador con sesión. Sin esto el aviso
+// de Wompi recibe una redirección al login en vez del webhook, y el pago se
+// pierde. Cada uno trae su propia seguridad: /confirm pide CRON_SECRET y
+// /wompi verifica la firma del evento.
+const apiPaymentPrefix = "/api/payment";
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -38,6 +43,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiSchedulePrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiAdminPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiOwnerPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiPaymentPrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
@@ -48,7 +54,11 @@ export default auth((req) => {
     currentPath.startsWith("/schedule/") ||
     currentPath.startsWith("/r/") ||
     // Enlace corto de venta (/plan/4): lo abre un cliente que aún no existe.
-    currentPath.startsWith("/plan/");
+    currentPath.startsWith("/plan/") ||
+    // Enlace corto de pago (/p/K7M2QX): le llega al cliente por WhatsApp y lo
+    // abre sin sesión. Mandarlo al login sería pedirle que se registre para
+    // poder pagar.
+    currentPath.startsWith("/p/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {
