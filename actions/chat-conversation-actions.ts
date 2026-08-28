@@ -354,72 +354,28 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
   return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid);
 }
 
-/**
- * Ids de todas las cuentas asociadas al usuario actual: la activa, su sesión
- * real, las cuentas que tiene vinculadas y aquellas de las que él es vinculado.
- *
- * Se derivan aquí, en el servidor, a propósito: es el mismo conjunto con el que
- * la bandeja lee los chats, y no puede venir del cliente porque entonces
- * bastaría con mandar ids ajenos para leer preferencias de otro.
- */
-async function getAssociatedAccountIds(user: {
-  id: string;
-  ownerId?: string | null;
-  effectiveId?: string;
-  sessionUserId?: string;
-}): Promise<string[]> {
-  const activeId = user.ownerId ?? user.id;
-  const sessionId = user.sessionUserId ?? user.id;
-  const ids = new Set<string>([activeId, sessionId, user.id]);
-
-  try {
-    const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT la."linked_user_id" AS id
-      FROM "linked_accounts" la
-      WHERE la."master_user_id" IN (${Prisma.join([activeId, sessionId])})
-      UNION
-      SELECT la."master_user_id" AS id
-      FROM "linked_accounts" la
-      WHERE la."linked_user_id" IN (${Prisma.join([activeId, sessionId])})
-    `;
-    for (const row of rows) if (row.id) ids.add(row.id);
-  } catch {
-    // Sin la tabla de vinculadas seguimos con la cuenta activa: es el
-    // comportamiento de antes, nunca menos preferencias de las que ya había.
-  }
-
-  return Array.from(ids);
-}
-
-/**
- * Preferencias (fijado, archivado, borrado) de TODAS las cuentas asociadas,
- * fusionadas por chat.
- *
- * La bandeja lee los chats de todas las cuentas asociadas pero las preferencias
- * se leían de una sola, la activa. Resultado: lo que borrabas desde una cuenta
- * reaparecía —y volvía a contarse en el número de cada línea— al entrar desde
- * otra. Un mismo chat sale una vez por cuenta, así que al fusionar gana el que
- * esté borrado, y entre dos iguales el más reciente.
- */
-export async function getChatConversationPreferencesForAssociatedAccounts(): Promise<
-  ChatPreferenceResponse<ChatConversationPreferenceMap>
-> {
+export async function getChatConversationPreferencesByUserId(
+  _userId?: string,
+): Promise<ChatPreferenceResponse<ChatConversationPreferenceMap>> {
   try {
     const user = await currentUser();
     if (!user?.id) throw new Error("No autorizado.");
 
+    const targetUserId = _userId?.trim() || user.ownerId || user.id;
+    if (targetUserId !== user.id && targetUserId !== user.ownerId) {
+      await assertCanDeleteChats(targetUserId);
+    }
+
     await ensurePurgedAtColumn();
-    const userIds = await getAssociatedAccountIds(user);
     const preferences = await chatConversationPreferenceTable.findMany({
-      where: { userId: { in: userIds } },
+      where: { userId: targetUserId },
     });
 
-    const data = preferences.reduce<ChatConversationPreferenceMap>((acc, item) => {
-      const mapped = mapPreference(item);
-      const previous = acc[item.remoteJid];
-      acc[item.remoteJid] = previous ? mergePreferences(previous, mapped) : mapped;
-      return acc;
-    }, {});
+    const data = preferences
+      .reduce<ChatConversationPreferenceMap>((acc, item) => {
+        acc[item.remoteJid] = mapPreference(item);
+        return acc;
+      }, {});
 
     return {
       success: true,
@@ -427,41 +383,12 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
       data,
     };
   } catch (error) {
-    console.error("[getChatConversationPreferencesForAssociatedAccounts]", error);
+    console.error("[getChatConversationPreferencesByUserId]", error);
     return {
       success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "No se pudieron cargar las preferencias de chats.",
+      message: error instanceof Error ? error.message : "No se pudieron cargar las preferencias de chats.",
     };
   }
-}
-
-/** Para cada marca, la fecha más reciente de las dos. Ausente = sin marca. */
-function mergePreferences(
-  a: ChatConversationPreference,
-  b: ChatConversationPreference,
-): ChatConversationPreference {
-  const latest = (x: string | null, y: string | null) =>
-    !x ? y : !y ? x : x >= y ? x : y;
-
-  const pinnedAt = latest(a.pinnedAt, b.pinnedAt);
-  const archivedAt = latest(a.archivedAt, b.archivedAt);
-  const deletedAt = latest(a.deletedAt, b.deletedAt);
-  const purgedAt = latest(a.purgedAt, b.purgedAt);
-
-  return {
-    remoteJid: a.remoteJid,
-    pinnedAt,
-    archivedAt,
-    deletedAt,
-    purgedAt,
-    isPinned: Boolean(pinnedAt),
-    isArchived: Boolean(archivedAt),
-    isDeleted: Boolean(deletedAt),
-    isPurged: Boolean(purgedAt),
-  };
 }
 
 export async function toggleChatPinAction(
