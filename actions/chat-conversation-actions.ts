@@ -7,6 +7,7 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import { invalidatePersistedInboxCache } from "@/lib/chat-persistence";
+import { chatPreferenceKey } from "@/lib/chat-preference-key";
 import type {
   ChatConversationPreference,
   ChatConversationPreferenceMap,
@@ -15,6 +16,9 @@ import type {
 const chatConversationPreferenceTable = db.chatConversationPreference as unknown as {
   findMany: (args: unknown) => Promise<
     Array<{
+      // Solo viene cuando se pide en el select; se necesita para indexar la
+      // preferencia por la cuenta dueña de la línea.
+      userId?: string;
       remoteJid: string;
       pinnedAt: Date | null;
       archivedAt: Date | null;
@@ -109,9 +113,23 @@ async function ensurePurgedAtColumn(): Promise<void> {
   return asegurarColumnaPurgedAt;
 }
 
+/**
+ * La preferencia se guarda bajo la cuenta DUEÑA de la línea del chat, no bajo
+ * la que se esté mirando: la bandeja enseña las líneas de todas las cuentas
+ * asociadas, y si la marca cayera en la cuenta activa, al leerla bajo la dueña
+ * no se aplicaría y el chat no desaparecería.
+ *
+ * Así que se acepta cualquiera de las cuentas asociadas —que se calculan aquí,
+ * nunca con lo que mande el cliente— en vez de solo la activa.
+ */
 async function assertAuthorized(userId: string) {
   const user = await currentUser();
-  if (!user || user.id !== userId) {
+  if (!user?.id) {
+    throw new Error("No autorizado.");
+  }
+
+  const allowed = await getAssociatedAccountIds(user);
+  if (!allowed.includes(userId)) {
     throw new Error("No autorizado.");
   }
 }
@@ -354,28 +372,75 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
   return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid);
 }
 
-export async function getChatConversationPreferencesByUserId(
-  _userId?: string,
-): Promise<ChatPreferenceResponse<ChatConversationPreferenceMap>> {
+/**
+ * Ids de todas las cuentas asociadas al usuario actual: la activa, su sesión
+ * real, las que tiene vinculadas y aquellas de las que él es el vinculado.
+ *
+ * Se derivan aquí, en el servidor, a propósito: no pueden venir del cliente
+ * porque entonces bastaría con mandar ids ajenos para leer o escribir
+ * preferencias de otro.
+ */
+async function getAssociatedAccountIds(user: {
+  id: string;
+  ownerId?: string | null;
+  sessionUserId?: string;
+}): Promise<string[]> {
+  const activeId = user.ownerId ?? user.id;
+  const sessionId = user.sessionUserId ?? user.id;
+  const ids = new Set<string>([activeId, sessionId, user.id]);
+
+  try {
+    const rows = await db.$queryRaw<{ id: string }[]>`
+      SELECT la."linked_user_id" AS id
+      FROM "linked_accounts" la
+      WHERE la."master_user_id" IN (${Prisma.join([activeId, sessionId])})
+      UNION
+      SELECT la."master_user_id" AS id
+      FROM "linked_accounts" la
+      WHERE la."linked_user_id" IN (${Prisma.join([activeId, sessionId])})
+    `;
+    for (const row of rows) if (row.id) ids.add(row.id);
+  } catch {
+    // Sin la tabla de vinculadas seguimos con la cuenta activa.
+  }
+
+  return Array.from(ids);
+}
+
+/**
+ * Preferencias de todas las cuentas asociadas, indexadas por `cuenta::número`.
+ *
+ * La bandeja lee los chats de todas las cuentas asociadas; las preferencias
+ * tienen que acompañar ese alcance o lo borrado desde otra cuenta reaparece y
+ * vuelve a sumar en el contador de su línea. Y van con la cuenta en la clave
+ * para que la marca se aplique SOLO a los chats de esa línea.
+ */
+export async function getChatConversationPreferencesForAssociatedAccounts(): Promise<
+  ChatPreferenceResponse<ChatConversationPreferenceMap>
+> {
   try {
     const user = await currentUser();
     if (!user?.id) throw new Error("No autorizado.");
 
-    const targetUserId = _userId?.trim() || user.ownerId || user.id;
-    if (targetUserId !== user.id && targetUserId !== user.ownerId) {
-      await assertCanDeleteChats(targetUserId);
-    }
-
     await ensurePurgedAtColumn();
+    const userIds = await getAssociatedAccountIds(user);
     const preferences = await chatConversationPreferenceTable.findMany({
-      where: { userId: targetUserId },
+      where: { userId: { in: userIds } },
+      select: {
+        userId: true,
+        remoteJid: true,
+        pinnedAt: true,
+        archivedAt: true,
+        deletedAt: true,
+        purgedAt: true,
+      },
     });
 
-    const data = preferences
-      .reduce<ChatConversationPreferenceMap>((acc, item) => {
-        acc[item.remoteJid] = mapPreference(item);
-        return acc;
-      }, {});
+    const data = preferences.reduce<ChatConversationPreferenceMap>((acc, item) => {
+      if (!item.userId) return acc;
+      acc[chatPreferenceKey(item.userId, item.remoteJid)] = mapPreference(item);
+      return acc;
+    }, {});
 
     return {
       success: true,
@@ -383,10 +448,13 @@ export async function getChatConversationPreferencesByUserId(
       data,
     };
   } catch (error) {
-    console.error("[getChatConversationPreferencesByUserId]", error);
+    console.error("[getChatConversationPreferencesForAssociatedAccounts]", error);
     return {
       success: false,
-      message: error instanceof Error ? error.message : "No se pudieron cargar las preferencias de chats.",
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudieron cargar las preferencias de chats.",
     };
   }
 }
