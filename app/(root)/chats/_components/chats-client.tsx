@@ -648,6 +648,15 @@ export function ChatsClient({
   // (antes 6s) y además sincroniza/persiste con Evolution periódicamente.
   const BASE_INTERVAL = 20000;
   const MAX_BACKOFF = 45000;
+  // Cuando se refresco la lista por ultima vez, para que volver a la ventana no
+  // dispare una consulta por cada clic.
+  const ultimoRefrescoRef = useRef(0);
+  // El ciclo de la lista necesita poder disparar el sondeo del chat abierto. Va
+  // por ref y no por dependencia: el sondeo se recrea con cada cambio de
+  // seleccion, y meterlo en las dependencias reiniciaria el ciclo de la lista.
+  const pollRef = useRef<((jid: string, aliases?: string[]) => Promise<void>) | null>(null);
+  const currentContactRef = useRef<ChatData | undefined>(undefined);
+  const ESPERA_MINIMA_ENTRE_REFRESCOS = 3000;
   // Cuanto se espera como MAXIMO por una consulta de mensajes antes de darla
   // por perdida.
   //
@@ -1320,6 +1329,9 @@ export function ChatsClient({
     },
     [apiKeyData, instanceName, mergeMessages, warmMessagesAction],
   );
+
+  pollRef.current = pollAndCompareMessages;
+  currentContactRef.current = currentContact;
 
   // Precalienta el historial de una conversación (página 1, solo local) y lo
   // deja en el cache en memoria SIN cambiar la selección ni la UI. Se dispara al
@@ -2238,6 +2250,41 @@ export function ChatsClient({
     [userId, chatSessions, allTags],
   );
 
+  /**
+   * Si la lista trae para el chat ABIERTO un mensaje mas nuevo que el ultimo que
+   * se esta viendo, refresca la conversacion en el acto.
+   *
+   * La queja era exactamente esta: en la columna izquierda aparecia la nota de
+   * voz de las 5:48 y la conversacion abierta seguia en las 5:20, minutos
+   * despues. La lista y la conversacion se traen por caminos distintos
+   * -findChats y findMessages-, cada una con su propio ciclo, y cuando el de la
+   * conversacion se atrasa nadie los reconcilia: quedan dos verdades en la misma
+   * pantalla y hay que recargar.
+   *
+   * La lista es la fuente que se ve llegar primero, asi que se usa de aviso. No
+   * sustituye al sondeo -sigue siendo quien trae los mensajes-, solo le dice
+   * "hay algo nuevo, ve ya" en vez de esperar su turno.
+   */
+  const avisarSiLaListaVaPorDelante = useCallback((frescos: ChatData[]) => {
+    const jid = selectedJidRef.current;
+    if (!jid) return;
+
+    const aliases = currentContactRef.current?.aliases;
+    const suyo = frescos.find(
+      (c) => c.remoteJid === jid || c.aliases?.includes(jid) || aliases?.includes(c.remoteJid),
+    );
+    const enLaLista = suyo?.lastMessage?.messageTimestamp ?? 0;
+    if (!enLaLista) return;
+
+    const enPantalla = messagesRef.current.reduce(
+      (max, m) => Math.max(max, m.messageTimestamp ?? 0),
+      0,
+    );
+    if (enLaLista <= enPantalla) return;
+
+    void pollRef.current?.(jid, aliases);
+  }, []);
+
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -2256,6 +2303,7 @@ export function ChatsClient({
         return;
       }
 
+      ultimoRefrescoRef.current = Date.now();
       try {
         const result = await refetchAllInstances();
         if (result.success) {
@@ -2263,6 +2311,7 @@ export function ChatsClient({
           aplicarChatsFrescos(filtered);
           if (filtered.success) {
             await refreshChatSessions(filtered.data);
+            avisarSiLaListaVaPorDelante(filtered.data);
           }
         }
       } catch {
@@ -2288,11 +2337,47 @@ export function ChatsClient({
       void loop();
     }, INITIAL_CHAT_SYNC_DELAY_MS);
 
+    // Al volver a la pestana -o a la ventana- se refresca YA, sin esperar al
+    // siguiente turno del reloj.
+    //
+    // Esta es la razon de que hubiera que recargar la pagina para ver un mensaje
+    // recien llegado. Mientras la pestana esta de fondo el ciclo se salta el
+    // refresco a proposito -para no golpear Evolution sin que nadie mire-, y
+    // ademas el navegador frena los temporizadores de las pestanas ocultas. Al
+    // volver no habia nada que dijera "ya estoy aqui, actualiza": tocaba esperar
+    // a que venciera un temporizador frenado. Y el trabajo real es justamente
+    // ese: escribir en WhatsApp y volver a la App.
+    //
+    // Se escuchan las dos senales porque cubren casos distintos: visibilitychange
+    // para cambiar de pestana o minimizar, y focus para pasar de otra ventana
+    // -WhatsApp Desktop, por ejemplo- a la del navegador, donde la pestana nunca
+    // llego a estar oculta.
+    const alVolver = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      // Sin esta guarda, alternar ventanas a golpes dispararia una consulta a
+      // Evolution por cada clic.
+      if (Date.now() - ultimoRefrescoRef.current < ESPERA_MINIMA_ENTRE_REFRESCOS) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      void loop();
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", alVolver);
+      window.addEventListener("focus", alVolver);
+    }
+
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", alVolver);
+        window.removeEventListener("focus", alVolver);
+      }
     };
-  }, [refetchAllInstances, refreshChatSessions]);
+  }, [avisarSiLaListaVaPorDelante, refetchAllInstances, refreshChatSessions]);
 
   useEffect(() => {
     if (pollingRef.current) {
