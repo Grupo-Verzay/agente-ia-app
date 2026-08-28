@@ -271,17 +271,15 @@ export function CallsCrmClient({
   // En modo embebido las 4 tarjetas se pintan en el slot superior del dashboard.
   useEffect(() => { onKpisChange?.(kpis); }, [kpis, onKpisChange]);
 
-  // Últimos números marcados (únicos) para rellamada rápida.
-  const recentDials = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { phone: string; name?: string }[] = [];
+  // Última llamada (entrante o saliente) para rellamada rápida. Las llamadas
+  // llegan ordenadas por fecha descendente, así que la primera válida es la
+  // más reciente.
+  const recentDials = useMemo<{ phone: string; name?: string }[]>(() => {
     for (const c of data?.calls ?? []) {
-      if (!/\d{6,}/.test(c.phone) || seen.has(c.phone)) continue;
-      seen.add(c.phone);
-      out.push({ phone: c.phone, name: c.contactName ?? undefined });
-      if (out.length >= 5) break;
+      if (!/\d{6,}/.test(c.phone)) continue;
+      return [{ phone: c.phone, name: c.contactName ?? undefined }];
     }
-    return out;
+    return [];
   }, [data]);
 
   const visibleCalls = useMemo(() => {
@@ -458,7 +456,7 @@ export function CallsCrmClient({
             Llamar con IA
           </Button>
 
-          {/* Rellamada rápida: últimos números marcados */}
+          {/* Rellamada rápida: la última llamada */}
           {recentDials.length > 0 && (
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:justify-end">
               <span className="text-xs font-medium text-muted-foreground">Rellamar:</span>

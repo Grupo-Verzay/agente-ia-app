@@ -16,6 +16,7 @@ export default async function TagsPage() {
     return (
         <TagsPageClient
             userId={user.effectiveId}
+            advisorRole={user.advisorRole ?? null}
             allTags={allTags.map((t) => ({
                 id: t.id,
                 name: t.name,

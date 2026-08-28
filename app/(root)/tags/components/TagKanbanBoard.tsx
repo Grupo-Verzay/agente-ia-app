@@ -18,12 +18,24 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Loader2, RefreshCw, User, Users, Bell, Tag, Clock,
-    X, Search, Sparkles, TrendingUp, Settings2,
+    X, Search, Sparkles, TrendingUp, Settings2, Check, CheckSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { assignTagToSessionAction, removeTagFromSessionAction } from '@/actions/tag-actions';
+import { bulkDeleteChatsAction } from '@/actions/chat-conversation-actions';
+import { BulkActionBar } from '@/app/(root)/chats/_components/BulkActionBar';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
 import type { SimpleTag } from '@/types/session';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -108,23 +120,48 @@ function TagKanbanCardItem({
     isDragging = false,
     onScore,
     scoring = false,
+    selected = false,
+    onToggleSelect,
 }: {
     card: KanbanCard;
     currentTagId: number | null;
     isDragging?: boolean;
     onScore?: (id: number) => void;
     scoring?: boolean;
+    selected?: boolean;
+    onToggleSelect?: (id: number) => void;
 }) {
     const ago = timeAgo(card.leadStatusUpdatedAt);
     const otherTags = card.tags.filter((t) => t.id !== currentTagId);
 
     return (
         <div className={cn(
-            'bg-background rounded-lg border border-border p-3 shadow-sm space-y-2 select-none',
+            'bg-background rounded-lg border p-3 shadow-sm space-y-2 select-none',
+            selected ? 'border-primary ring-1 ring-primary/40 bg-primary/5' : 'border-border',
             isDragging && 'opacity-80 shadow-lg rotate-1 scale-105',
         )}>
             <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
+                    {onToggleSelect ? (
+                        // pointerDown detenido: si no, dnd-kit arranca el arrastre y la
+                        // casilla nunca llega a recibir el clic.
+                        <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={selected}
+                            aria-label={selected ? `Deseleccionar ${card.pushName}` : `Seleccionar ${card.pushName}`}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); onToggleSelect(card.id); }}
+                            className={cn(
+                                'w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors',
+                                selected
+                                    ? 'bg-primary border-primary text-primary-foreground'
+                                    : 'border-muted-foreground/40 hover:border-primary',
+                            )}
+                        >
+                            {selected && <Check className="h-3 w-3" />}
+                        </button>
+                    ) : null}
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <User className="h-3.5 w-3.5 text-primary" />
                     </div>
@@ -219,11 +256,15 @@ function DraggableCard({
     fromTagId,
     onScore,
     scoring,
+    selected,
+    onToggleSelect,
 }: {
     card: KanbanCard;
     fromTagId: number | null;
     onScore?: (id: number) => void;
     scoring?: boolean;
+    selected?: boolean;
+    onToggleSelect?: (id: number) => void;
 }) {
     const draggableId = `${card.id}-${fromTagId ?? 'none'}`;
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -237,7 +278,15 @@ function DraggableCard({
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <TagKanbanCardItem card={card} currentTagId={fromTagId} isDragging={isDragging} onScore={onScore} scoring={scoring} />
+            <TagKanbanCardItem
+                card={card}
+                currentTagId={fromTagId}
+                isDragging={isDragging}
+                onScore={onScore}
+                scoring={scoring}
+                selected={selected}
+                onToggleSelect={onToggleSelect}
+            />
         </div>
     );
 }
@@ -250,16 +299,23 @@ function TagKanbanColumn({
     userId,
     onScore,
     scoringIds,
+    selectedIds,
+    onToggleSelect,
+    onToggleSelectColumn,
 }: {
     col: TagColumn;
     cards: KanbanCard[];
     userId: string;
     onScore?: (id: number) => void;
     scoringIds?: Set<number>;
+    selectedIds?: Set<number>;
+    onToggleSelect?: (id: number) => void;
+    onToggleSelectColumn?: (ids: number[]) => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: columnDropId(col.id) });
     const headerColor = col.color ?? DEFAULT_TAG_COLOR;
     const [automationsOpen, setAutomationsOpen] = useState(false);
+    const allSelectedInColumn = cards.length > 0 && cards.every((c) => selectedIds?.has(c.id));
 
     return (
         <div
@@ -278,6 +334,15 @@ function TagKanbanColumn({
                     <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
                         {cards.length}
                     </Badge>
+                    {onToggleSelectColumn && cards.length > 0 && (
+                        <button
+                            onClick={() => onToggleSelectColumn(cards.map((c) => c.id))}
+                            className="p-0.5 rounded hover:bg-white/20 transition-colors"
+                            title={allSelectedInColumn ? 'Deseleccionar esta columna' : 'Seleccionar esta columna'}
+                        >
+                            <CheckSquare className={cn('h-3.5 w-3.5', allSelectedInColumn ? 'text-white' : 'text-white/80')} />
+                        </button>
+                    )}
                     <button
                         onClick={() => setAutomationsOpen(true)}
                         className="p-0.5 rounded hover:bg-white/20 transition-colors"
@@ -314,6 +379,8 @@ function TagKanbanColumn({
                         fromTagId={col.id}
                         onScore={onScore}
                         scoring={scoringIds?.has(card.id)}
+                        selected={selectedIds?.has(card.id)}
+                        onToggleSelect={onToggleSelect}
                     />
                 ))}
                 {cards.length === 0 && (
@@ -330,12 +397,14 @@ function TagKanbanColumn({
 
 export function TagKanbanBoard({
     userId,
+    advisorRole = null,
     initialTags,
     selectedScoreRanges = new Set(),
     onScoreCountsChange,
     onTagCountsChange,
 }: {
     userId: string;
+    advisorRole?: string | null;
     initialTags: SimpleTag[];
     selectedScoreRanges?: Set<string>;
     onScoreCountsChange?: (counts: Record<string, number>) => void;
@@ -347,7 +416,14 @@ export function TagKanbanBoard({
     const [searchQuery, setSearchQuery] = useState('');
     const [scoringIds, setScoringIds] = useState<Set<number>>(new Set());
     const [scoringAll, setScoringAll] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+    const [bulkBusy, setBulkBusy] = useState(false);
     const pendingRef = useRef(false);
+
+    // Mismo criterio que en Chats: un agente no puede eliminar. El servidor lo
+    // vuelve a comprobar en bulkDeleteChatsAction; esto solo evita ofrecerlo.
+    const canDelete = advisorRole !== 'agente';
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -450,6 +526,79 @@ export function TagKanbanBoard({
         }
         setScoringAll(false);
     }, [loadCards]);
+
+    // ─── Selección múltiple ───────────────────────────────────────────────────
+
+    const toggleSelect = useCallback((id: number) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+    // Selecciona los ids dados; si ya estaban todos, los quita (mismo botón).
+    const toggleSelectMany = useCallback((ids: number[]) => {
+        setSelectedIds((prev) => {
+            const allIn = ids.length > 0 && ids.every((id) => prev.has(id));
+            const next = new Set(prev);
+            for (const id of ids) {
+                if (allIn) next.delete(id); else next.add(id);
+            }
+            return next;
+        });
+    }, []);
+
+    const handleBulkAddTag = useCallback(async (tagId: number) => {
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+        setBulkBusy(true);
+        const results = await Promise.all(
+            ids.map((id) => assignTagToSessionAction({ userId, sessionId: id, tagId })),
+        );
+        const ok = results.filter((r) => r.success).length;
+        const tag = initialTags.find((t) => t.id === tagId);
+        if (ok > 0 && tag) {
+            setCards((prev) => prev.map((c) => {
+                if (!selectedIds.has(c.id) || c.tags.some((t) => t.id === tagId)) return c;
+                return {
+                    ...c,
+                    tags: [...c.tags, { id: tag.id, name: tag.name, color: tag.color ?? null, slug: tag.slug }],
+                };
+            }));
+        }
+        setBulkBusy(false);
+        clearSelection();
+        if (ok === ids.length) {
+            toast.success(`${ok} contacto${ok !== 1 ? 's' : ''} etiquetado${ok !== 1 ? 's' : ''}.`);
+        } else {
+            toast.error(`Se etiquetaron ${ok} de ${ids.length}. Actualiza el tablero para ver el estado real.`);
+            await loadCards();
+        }
+    }, [selectedIds, userId, initialTags, clearSelection, loadCards]);
+
+    const handleBulkDelete = useCallback(async () => {
+        const selected = cards.filter((c) => selectedIds.has(c.id));
+        if (selected.length === 0) return;
+        setBulkBusy(true);
+        const res = await bulkDeleteChatsAction({
+            userId,
+            remoteJids: selected.map((c) => c.remoteJid),
+        });
+        setBulkBusy(false);
+        if (!res.success) {
+            toast.error(res.message || 'No se pudieron eliminar los contactos.');
+            return;
+        }
+        setCards((prev) => prev.filter((c) => !selectedIds.has(c.id)));
+        setBulkDeleteOpen(false);
+        clearSelection();
+        toast.success(res.message);
+        // Recarga para reflejar los contadores de las píldoras superiores.
+        await loadCards();
+    }, [cards, selectedIds, userId, clearSelection, loadCards]);
 
     const handleDragStart = (e: DragStartEvent) => {
         const data = e.active.data.current as DragData | undefined;
@@ -559,6 +708,19 @@ export function TagKanbanBoard({
                 </div>
             </div>
 
+            {/* Barra de acciones en lote — solo con algo seleccionado */}
+            {selectedIds.size > 0 && (
+                <BulkActionBar
+                    count={selectedIds.size}
+                    totalCount={filteredCards.length}
+                    onClear={clearSelection}
+                    onSelectAll={() => toggleSelectMany(filteredCards.map((c) => c.id))}
+                    onAddTag={initialTags.length > 0 ? handleBulkAddTag : undefined}
+                    onDelete={canDelete ? () => setBulkDeleteOpen(true) : undefined}
+                    allTags={initialTags}
+                />
+            )}
+
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                 <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
@@ -571,6 +733,9 @@ export function TagKanbanBoard({
                                 userId={userId}
                                 onScore={handleScore}
                                 scoringIds={scoringIds}
+                                selectedIds={selectedIds}
+                                onToggleSelect={toggleSelect}
+                                onToggleSelectColumn={toggleSelectMany}
                             />
                         ))}
                     </div>
@@ -584,6 +749,28 @@ export function TagKanbanBoard({
                     )}
                 </DragOverlay>
             </DndContext>
+
+            <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => !open && setBulkDeleteOpen(false)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Eliminar contactos</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {`Se eliminarán ${selectedIds.size} contacto${selectedIds.size !== 1 ? 's' : ''} por completo: su conversación, sus mensajes y su ficha en el CRM, junto con sus notas, tareas y seguimientos. No se puede deshacer. Si el cliente vuelve a escribir, entrará como una conversación nueva.`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={bulkBusy}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700"
+                            disabled={bulkBusy}
+                            onClick={(e) => { e.preventDefault(); void handleBulkDelete(); }}
+                        >
+                            {bulkBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                            Eliminar {selectedIds.size} contacto{selectedIds.size !== 1 ? 's' : ''}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

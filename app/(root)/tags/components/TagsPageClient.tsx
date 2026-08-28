@@ -27,9 +27,11 @@ const DEFAULT_TAG_COLOR = '#64748B';
 
 export function TagsPageClient({
     userId,
+    advisorRole = null,
     allTags,
 }: {
     userId: string;
+    advisorRole?: string | null;
     allTags: SimpleTag[];
 }) {
     const [view, setView] = useState<View>('kanban');
@@ -173,6 +175,7 @@ export function TagsPageClient({
                     <div className="flex-1 min-h-0 flex flex-col">
                         <TagKanbanBoard
                             userId={userId}
+                            advisorRole={advisorRole}
                             initialTags={tags}
                             selectedScoreRanges={selectedScoreRanges}
                             onScoreCountsChange={setScoreCounts}

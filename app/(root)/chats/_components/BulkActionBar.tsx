@@ -18,7 +18,8 @@ type BulkActionBarProps = {
   totalCount: number;
   onClear: () => void;
   onSelectAll: () => void;
-  onArchive: (archived: boolean) => void;
+  /** Omitir para ocultar el archivado (el Kanban de etiquetas no lo usa). */
+  onArchive?: (archived: boolean) => void;
   onDelete?: () => void;
   onPin?: (pin: boolean) => void;
   onMarkRead?: (read: boolean) => void;
@@ -152,31 +153,33 @@ export function BulkActionBar({
           </DropdownMenu>
         )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              title="Archivar / Desarchivar"
-            >
-              <Archive className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              ARCHIVAR CHATS
-            </p>
-            <DropdownMenuItem onSelect={() => onArchive(true)}>
-              <Archive className="h-3.5 w-3.5" />
-              Archivar chats
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onArchive(false)}>
-              <Archive className="h-3.5 w-3.5 opacity-40" />
-              Desarchivar chats
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {onArchive && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                title="Archivar / Desarchivar"
+              >
+                <Archive className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                ARCHIVAR CHATS
+              </p>
+              <DropdownMenuItem onSelect={() => onArchive(true)}>
+                <Archive className="h-3.5 w-3.5" />
+                Archivar chats
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onArchive(false)}>
+                <Archive className="h-3.5 w-3.5 opacity-40" />
+                Desarchivar chats
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {isOwnerOrAdmin && onAssignAdvisor && (advisors?.length ?? 0) > 0 && (
           <DropdownMenu>
