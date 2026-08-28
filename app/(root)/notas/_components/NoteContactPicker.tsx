@@ -66,7 +66,7 @@ export function NoteContactPicker({ open, onClose, onSelect, userId }: Props) {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{c.pushName}</p>
-                <p className="text-xs text-muted-foreground">{fmtPhone(c.remoteJid)}</p>
+                <p className="truncate text-xs text-muted-foreground">{fmtPhone(c.remoteJid)}</p>
               </div>
             </button>
           ))}

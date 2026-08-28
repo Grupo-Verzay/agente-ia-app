@@ -355,7 +355,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     <Phone className="w-3 h-3 shrink-0" />
-                                                    {fmtPhone(appt.session.remoteJid)}
+                                                    <span className="truncate">{fmtPhone(appt.session.remoteJid)}</span>
                                                 </Link>
 
                                                 <span
@@ -417,7 +417,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     <Phone className="w-3 h-3 shrink-0" />
-                                                    {fmtPhone(appt.session.remoteJid)}
+                                                    <span className="truncate">{fmtPhone(appt.session.remoteJid)}</span>
                                                 </Link>
 
                                                 <span
@@ -477,7 +477,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                                         onClick={(e) => e.stopPropagation()}
                                                     >
                                                         <Phone className="w-3 h-3 shrink-0" />
-                                                        {fmtPhone(appt.session.remoteJid)}
+                                                        <span className="truncate">{fmtPhone(appt.session.remoteJid)}</span>
                                                     </Link>
 
                                                     <span
@@ -587,7 +587,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Telefono:</strong>
-                                                {fmtPhone(currentAppointment.session.remoteJid) || "No disponible"}
+                                                <span className="whitespace-nowrap">{fmtPhone(currentAppointment.session.remoteJid) || "No disponible"}</span>
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 {currentAppointment.service && (

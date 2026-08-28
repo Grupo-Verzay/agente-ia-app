@@ -238,7 +238,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
             onClick={() => onNavigateToChat(remoteJid)}
             className="min-w-[80px] cursor-pointer text-blue-600 hover:text-blue-800 transition-colors"
           >
-            <p className="font-medium">{phone}</p>
+            <p className="whitespace-nowrap font-medium">{phone}</p>
             {/* <p className="text-xs text-muted-foreground">
               {row.original.instanceId}
             </p> */}

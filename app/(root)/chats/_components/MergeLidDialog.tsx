@@ -138,7 +138,7 @@ export function MergeLidDialog({ open, onOpenChange, lidJid, instanceName }: Mer
                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">+</span>
                       <span className="min-w-0">
                         <span className="block text-sm font-medium">Unir con este número</span>
-                        <span className="block text-xs text-muted-foreground">{fmtPhone(queryDigits) || `+${queryDigits}`}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{fmtPhone(queryDigits) || `+${queryDigits}`}</span>
                       </span>
                     </button>
                   </li>
