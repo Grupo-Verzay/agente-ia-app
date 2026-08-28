@@ -161,7 +161,6 @@ export type FlowNodeData = {
     color?: string;
     largo?: number;
     dentro?: string;
-    totalNodes: number;
     onChangeLabel: (nodeId: string, label: string) => void;
     onChangeContent: (nodeId: string, content: string) => void;
     onChangeSize: (nodeId: string, size: FlowNodeSize) => void;
@@ -356,12 +355,12 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
 
                 {isFin ? null : isIntention ? (
                     <>
-                        <SourceDotHandle id="yes" label="Sí" topPct={16} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
-                        <SourceDotHandle id="variante" label="Variante" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
-                        <SourceDotHandle id="no" label="No" topPct={84} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
+                        <SourceDotHandle id="yes" label="Sí" topPct={16} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
+                        <SourceDotHandle id="variante" label="Variante" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
+                        <SourceDotHandle id="no" label="No" topPct={84} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
                     </>
                 ) : (
-                    <SourceDotHandle id="out" label="" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} totalNodes={data.totalNodes} />
+                    <SourceDotHandle id="out" label="" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
                 )}
             </div>
 

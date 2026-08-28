@@ -9,9 +9,8 @@ export const SourceDotHandle = (props: {
     label: string;
     active: boolean;
     connectableStart: boolean;
-    totalNodes: number;
 }) => {
-    const { id, topPct, label, active, connectableStart, totalNodes } = props;
+    const { id, topPct, label, active, connectableStart } = props;
 
     const nodeId = useNodeId();
     // Un punto de salida no se "gasta": de el pueden colgar varios nodos, asi
@@ -64,7 +63,7 @@ export const SourceDotHandle = (props: {
                         : ""
                         }`}
                 >
-                    <InlineAddNode sourceId={nodeId} sourceHandle={id} totalNodes={totalNodes} />
+                    <InlineAddNode sourceId={nodeId} sourceHandle={id} />
                 </div>
             ) : null}
         </div>
