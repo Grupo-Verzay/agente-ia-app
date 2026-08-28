@@ -53,7 +53,8 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 
-import { ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, ExternalLink, Search, Trash2 } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Ellipsis, ExternalLink, Link as LinkIcon, Search, Trash2 } from "lucide-react";
+import { obtenerEnlacePagoCliente } from "@/actions/billing/pay-link-actions";
 import { useRouter } from "next/navigation";
 import { deleteUser } from "@/actions/userClientDataActions";
 
@@ -99,6 +100,56 @@ export function BillingCrmClient({
     const router = useRouter();
     const [data, setData] = useState<ClientRow[]>(initial.data ?? []);
     const [dialog, setDialog] = useState<EditDialogState>(emptyDialog);
+    const [pidiendoEnlace, setPidiendoEnlace] = useState(false);
+
+    /**
+     * El enlace de este cliente, al portapapeles, para mandárselo por chat.
+     *
+     * Es el mismo que pone el botón del modal: un solo enlace por cliente, no
+     * uno por sitio desde donde se pida.
+     */
+    const copiarEnlaceDePago = async (userId: string) => {
+        const res = await obtenerEnlacePagoCliente(userId);
+        if (!res.success || !res.url) {
+            toast.error(res.message);
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(res.url);
+            toast.success("Link copiado.");
+        } catch {
+            // Sin permiso de portapapeles -pasa fuera de HTTPS o en algunos
+            // navegadores-. Mostrarlo es mejor que no dar nada.
+            toast.info(res.url);
+        }
+    };
+
+    /**
+     * Pone en "Medio de pago" el enlace propio de este cliente.
+     *
+     * Se escribe en el formulario y no se guarda solo: quien edita puede querer
+     * dejarlo junto a la cuenta bancaria, o arrepentirse y cancelar.
+     */
+    const usarEnlaceDePago = async () => {
+        const userId = dialog.user?.id;
+        if (!userId || pidiendoEnlace) return;
+
+        setPidiendoEnlace(true);
+        try {
+            const res = await obtenerEnlacePagoCliente(userId);
+            if (!res.success || !res.url) {
+                toast.error(res.message);
+                return;
+            }
+            setDialog((s) => ({
+                ...s,
+                form: { ...s.form, paymentNotes: `\u{1F449} ${res.url}` },
+            }));
+            toast.success("Link de pago puesto en el campo.");
+        } finally {
+            setPidiendoEnlace(false);
+        }
+    };
     const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; userId: string; name: string }>({ open: false, userId: "", name: "" });
     const [deleting, setDeleting] = useState(false);
 
@@ -622,6 +673,11 @@ export function BillingCrmClient({
                                         Editar pagos
                                     </DropdownMenuItem>
 
+                                    <DropdownMenuItem onClick={() => void copiarEnlaceDePago(u.id)}>
+                                        <Copy className="mr-2 h-3.5 w-3.5" />
+                                        Copiar link de pago
+                                    </DropdownMenuItem>
+
                                     <DropdownMenuItem onClick={() => router.push(`/panel/clientes?search=${encodeURIComponent(u.email ?? "")}`)}>
                                         <ExternalLink className="mr-2 h-3.5 w-3.5" />
                                         Ver en Clientes
@@ -954,9 +1010,25 @@ export function BillingCrmClient({
                                                 </div>
 
                                                 <div className="grid gap-1">
-                                                    <label className="text-muted-foreground">
-                                                        Medio de pago
-                                                    </label>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-muted-foreground">
+                                                            Medio de pago
+                                                        </label>
+                                                        {/* Llena el campo con el enlace propio de este cliente. Se
+                                                            pone a mano y no solo porque hay cuentas que pagan por
+                                                            transferencia y ahí el enlace estorba. */}
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={pidiendoEnlace}
+                                                            onClick={() => void usarEnlaceDePago()}
+                                                            className="h-7 gap-1.5 px-2 text-xs"
+                                                        >
+                                                            <LinkIcon className="h-3 w-3" />
+                                                            {pidiendoEnlace ? "Generando..." : "Usar link de pago"}
+                                                        </Button>
+                                                    </div>
                                                     <Textarea
                                                         value={dialog.form.paymentNotes}
                                                         onChange={(e) =>
