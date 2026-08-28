@@ -169,7 +169,7 @@ function TagKanbanCardItem({
                         <p className="app-item-title truncate leading-tight">{card.pushName}</p>
                         <Link
                             href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
-                            className="text-[11px] text-primary hover:underline block"
+                            className="block truncate text-[11px] text-primary hover:underline"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {fmtPhone(card.remoteJid)}
