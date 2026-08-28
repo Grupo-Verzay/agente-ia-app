@@ -648,6 +648,10 @@ export function ChatsClient({
   // (antes 6s) y además sincroniza/persiste con Evolution periódicamente.
   const BASE_INTERVAL = 20000;
   const MAX_BACKOFF = 45000;
+  // Cuando se refresco la lista por ultima vez, para que volver a la ventana no
+  // dispare una consulta por cada clic.
+  const ultimoRefrescoRef = useRef(0);
+  const ESPERA_MINIMA_ENTRE_REFRESCOS = 3000;
   // Cuanto se espera como MAXIMO por una consulta de mensajes antes de darla
   // por perdida.
   //
@@ -2256,6 +2260,7 @@ export function ChatsClient({
         return;
       }
 
+      ultimoRefrescoRef.current = Date.now();
       try {
         const result = await refetchAllInstances();
         if (result.success) {
@@ -2288,9 +2293,45 @@ export function ChatsClient({
       void loop();
     }, INITIAL_CHAT_SYNC_DELAY_MS);
 
+    // Al volver a la pestana -o a la ventana- se refresca YA, sin esperar al
+    // siguiente turno del reloj.
+    //
+    // Esta es la razon de que hubiera que recargar la pagina para ver un mensaje
+    // recien llegado. Mientras la pestana esta de fondo el ciclo se salta el
+    // refresco a proposito -para no golpear Evolution sin que nadie mire-, y
+    // ademas el navegador frena los temporizadores de las pestanas ocultas. Al
+    // volver no habia nada que dijera "ya estoy aqui, actualiza": tocaba esperar
+    // a que venciera un temporizador frenado. Y el trabajo real es justamente
+    // ese: escribir en WhatsApp y volver a la App.
+    //
+    // Se escuchan las dos senales porque cubren casos distintos: visibilitychange
+    // para cambiar de pestana o minimizar, y focus para pasar de otra ventana
+    // -WhatsApp Desktop, por ejemplo- a la del navegador, donde la pestana nunca
+    // llego a estar oculta.
+    const alVolver = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      // Sin esta guarda, alternar ventanas a golpes dispararia una consulta a
+      // Evolution por cada clic.
+      if (Date.now() - ultimoRefrescoRef.current < ESPERA_MINIMA_ENTRE_REFRESCOS) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      void loop();
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", alVolver);
+      window.addEventListener("focus", alVolver);
+    }
+
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", alVolver);
+        window.removeEventListener("focus", alVolver);
+      }
     };
   }, [refetchAllInstances, refreshChatSessions]);
 
