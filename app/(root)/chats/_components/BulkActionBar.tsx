@@ -58,44 +58,51 @@ export function BulkActionBar({
   const allSelected = count === totalCount && totalCount > 0;
 
   return (
-    // Dos renglones y no uno: en el ancho de la barra lateral, la cuenta y los
-    // seis botones no caben en una linea sin aplastarse unos con otros.
-    <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2 py-2">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <button
-          type="button"
-          onClick={onClear}
-          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-          title="Limpiar selección"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+    // Un solo renglon. La cuenta va en pastilla, como los contadores de las
+    // pestanas de arriba, para que se lea como numero y no como un icono mas
+    // de la fila. Y "seleccionar todos" se queda junto a ella y no al lado de
+    // la papelera: son dos botones pequenos, uno marca los 141 chats y el otro
+    // los borra, y un clic corrido ahi sale caro.
+    <div className="flex min-w-0 items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 px-1.5 py-1">
+      <button
+        type="button"
+        onClick={onClear}
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+        title="Quitar selección"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
 
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-          {count} seleccionado{count !== 1 ? "s" : ""}
-        </span>
+      <span
+        className="inline-grid h-6 min-w-[1.5rem] shrink-0 place-items-center rounded-full bg-primary px-1.5 text-xs font-bold tabular-nums text-primary-foreground"
+        title={`${count} chat${count !== 1 ? "s" : ""} seleccionado${count !== 1 ? "s" : ""}`}
+      >
+        {count}
+      </span>
 
-        <button
-          type="button"
-          onClick={onSelectAll}
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:bg-background",
-            allSelected ? "text-primary" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <CheckSquare className="h-3.5 w-3.5" />
-          {allSelected ? "Ninguno" : `Todos${totalCount > 0 ? ` (${totalCount})` : ""}`}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onSelectAll}
+        title={allSelected ? "Quitar la selección" : `Seleccionar los ${totalCount}`}
+        className={cn(
+          "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-background",
+          allSelected ? "text-primary" : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <CheckSquare className="h-3.5 w-3.5" />
+      </button>
 
-      <div className="flex items-center gap-0.5">
+      <span className="mx-0.5 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+
+      <div className="flex min-w-0 flex-1 items-center gap-0.5">
+
         {onMarkRead && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-7 w-7"
                 title="Marcar como leído / no leído"
               >
                 <MailOpen className="h-4 w-4" />
@@ -123,7 +130,7 @@ export function BulkActionBar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-7 w-7"
                 title="Anclar / Desanclar"
               >
                 <Pin className="h-4 w-4" />
@@ -150,7 +157,7 @@ export function BulkActionBar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               title="Archivar / Desarchivar"
             >
               <Archive className="h-4 w-4" />
@@ -177,7 +184,7 @@ export function BulkActionBar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-7 w-7"
                 title="Asignar asesor"
               >
                 <Users className="h-4 w-4" />
@@ -215,7 +222,7 @@ export function BulkActionBar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-7 w-7"
                 title="Agregar etiqueta"
               >
                 <Tag className="h-4 w-4" />
@@ -239,11 +246,11 @@ export function BulkActionBar({
 
         {onDelete && (
           <>
-            <span className="ml-auto h-5 w-px bg-border" aria-hidden="true" />
+            <span className="flex-1" aria-hidden="true" />
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
+              className="h-7 w-7 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
               title="Eliminar chats"
               onClick={onDelete}
             >
