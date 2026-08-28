@@ -102,15 +102,32 @@ export function detectCommitment(text: string, now = new Date(), context = ""): 
   return { kind: rule.kind, title: rule.title, type: rule.type, dueDate, sourceText: text };
 }
 
+const REGLAS_PROMESA_CLIENTE = [
+  { pattern: /\b(?:pago|pagare|te\s+pago|le\s+pago)\b/, title: "Cliente prometió realizar el pago" },
+  { pattern: /\b(?:te|le)\s+(?:confirmo|confirmare)\b/, title: "Cliente prometió confirmar" },
+  { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b.*\b(?:documento|documentos|soporte|comprobante|informacion)\b/, title: "Cliente prometió enviar documentos" },
+  { pattern: /\b(?:te|le)\s+(?:llamo|llamare|escribo|escribire)\b/, title: "Cliente prometió volver a contactar" },
+];
+
+/**
+ * Solo mira si el texto SUENA a una promesa, sin fechas ni relojes.
+ *
+ * Es el filtro barato que corre en el navegador antes de llamar al servidor:
+ * de cada tanda de mensajes que entra, la inmensa mayoria no promete nada, y
+ * hasta ahora cada uno de ellos gastaba dos consultas a la base para acabar
+ * descubriendolo. Deliberadamente NO parsea la fecha: eso depende del reloj y
+ * de la zona horaria de quien mire, y esa parte se deja al servidor, que es
+ * quien decide de verdad si se crea la tarea.
+ */
+export function mencionaUnaPromesa(text: string): boolean {
+  const clean = normalizeText(text).replace(/\s+/g, " ").trim();
+  if (!clean) return false;
+  return REGLAS_PROMESA_CLIENTE.some((item) => item.pattern.test(clean));
+}
+
 export function detectClientPromise(text: string, now = new Date()): DetectedCommitment | null {
   const clean = normalizeText(text).replace(/\s+/g, " ").trim();
-  const rules = [
-    { pattern: /\b(?:pago|pagare|te\s+pago|le\s+pago)\b/, title: "Cliente prometió realizar el pago" },
-    { pattern: /\b(?:te|le)\s+(?:confirmo|confirmare)\b/, title: "Cliente prometió confirmar" },
-    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b.*\b(?:documento|documentos|soporte|comprobante|informacion)\b/, title: "Cliente prometió enviar documentos" },
-    { pattern: /\b(?:te|le)\s+(?:llamo|llamare|escribo|escribire)\b/, title: "Cliente prometió volver a contactar" },
-  ];
-  const rule = rules.find((item) => item.pattern.test(clean));
+  const rule = REGLAS_PROMESA_CLIENTE.find((item) => item.pattern.test(clean));
   if (!rule) return null;
   const dueDate = parseDueDate(clean, now);
   if (!dueDate) return null;

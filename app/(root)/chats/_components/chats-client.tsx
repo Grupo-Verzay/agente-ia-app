@@ -20,6 +20,7 @@ import { sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-cha
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
 import { useChatsRealtime, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
+import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
   EvolutionMessage,
@@ -2425,7 +2426,14 @@ export function ChatsClient({
       const isOpenChat =
         jid && (jid === selectedJid || currentContact?.aliases?.includes(jid));
       const m = payload.message;
-      if (m && !m.fromMe && m.content) {
+      // El filtro barato va PRIMERO. Antes se llamaba al servidor por cada
+      // mensaje que entraba -y con varios asesores con la pantalla abierta, por
+      // cada uno de ellos- para que alla se hicieran dos consultas a la base y
+      // casi siempre se concluyera que el texto no prometia nada. Esas consultas
+      // hacen cola con las que traen los mensajes y abren los chats, que es
+      // justo lo que se sentia lento. Mirar el texto aqui no cuesta nada, y el
+      // servidor vuelve a comprobarlo antes de crear la tarea.
+      if (m && !m.fromMe && m.content && mencionaUnaPromesa(m.content)) {
         const promiseSession = chatSessions[jid] ?? Object.values(chatSessions).find(
           (session) =>
             session?.remoteJid === jid ||
