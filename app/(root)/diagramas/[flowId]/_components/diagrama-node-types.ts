@@ -54,6 +54,12 @@ export interface DiagramaAction {
   icon: LucideIcon;
   bg?: string;
   iconClassName?: string;
+  /**
+   * Palabras por las que tambien se encuentra en el buscador, ademas del
+   * nombre. Sirven para los sinonimos y para los nombres viejos: quien
+   * escriba "pausa" o "cobro" sigue llegando al nodo que se renombro.
+   */
+  keywords?: string;
 }
 
 /**
@@ -90,47 +96,67 @@ export const diagramaInicioAction: DiagramaAction = {
   iconClassName: 'h-4 w-4 text-white',
 };
 
-export const diagramaContentActions: DiagramaAction[] = [
+/**
+ * Los que se usan a diario, arriba del panel. El orden es el del recorrido de
+ * una conversacion, no el alfabetico: es el orden en que se van necesitando
+ * al armar un flujo.
+ */
+export const diagramaPrincipalActions: DiagramaAction[] = [
+  // Libre: el unico nodo que no trae nada decidido. Icono, color, largo y lo
+  // que va dentro de la caja se eligen en su modal. Ver LIBRE_ICONOS.
+  { type: 'libre', label: 'Libre', icon: Shapes, bg: 'bg-zinc-700', iconClassName: 'h-4 w-4 text-white', keywords: 'personalizado a medida' },
+  // Decision: el unico nodo rectangular. Sale por tres conectores, para poder
+  // dibujar que pasa cuando la respuesta no es la esperada.
+  { type: 'intention', label: 'Decisión', icon: GitFork, bg: 'bg-black', iconClassName: 'h-4 w-4 text-white', keywords: 'si no condicion pregunta bifurcacion' },
+  { type: 'campana', label: 'Campaña', icon: Megaphone, bg: 'bg-orange-600', iconClassName: 'h-4 w-4 text-white', keywords: 'promocion masivo difusion' },
+  { type: 'paso', label: 'Ejecutar Paso', icon: Stairs, bg: 'bg-rose-500', iconClassName: 'h-4 w-4 text-white', keywords: 'paso etapa generico' },
+  { type: 'flujo', label: 'Ejecutar flujo', icon: Workflow, bg: 'bg-teal-600', iconClassName: 'h-4 w-4 text-white', keywords: 'lanzar automatizacion' },
+  { type: 'sheets_read', label: 'Consultar datos', icon: FileSearch, bg: 'bg-emerald-600', iconClassName: 'h-4 w-4 text-white', keywords: 'consultar sheets hoja calculo buscar google' },
+  { type: 'nota', label: 'Agregar una nota', icon: Book, bg: 'bg-amber-500', iconClassName: 'h-4 w-4 text-white', keywords: 'nota interna recordar apunte' },
+  { type: 'cta', label: 'Llamado a la acción', icon: MousePointerClick, bg: 'bg-orange-500', iconClassName: 'h-4 w-4 text-white', keywords: 'cta llamada boton invitar' },
+  { type: 'node_pause', label: 'Esperar una respuesta', icon: CirclePause, bg: 'bg-sky-500', iconClassName: 'h-4 w-4 text-white', keywords: 'pausa esperar detener' },
+  // Fin: la pareja de Inicio. Es el unico nodo sin conector de salida -nada
+  // cuelga despues de un final-, igual que Inicio es el unico sin entrada.
+  { type: 'fin', label: 'Finalización del proceso', icon: CircleStop, bg: 'bg-red-600', iconClassName: 'h-4 w-4 text-white', keywords: 'fin terminar cerrar final' },
+];
+
+/**
+ * El resto, ordenadas por el momento de la conversacion en que aparecen:
+ * primero lo que el cliente ve, despues el cierre, y al final lo que pasa por
+ * detras y el cliente no ve.
+ */
+export const diagramaAccionActions: DiagramaAction[] = [
+  { type: 'menu', label: 'Menú de opciones', icon: ListChecks, bg: 'bg-indigo-700', iconClassName: 'h-4 w-4 text-white', keywords: 'lista elegir opciones' },
+  { type: 'solicitud', label: 'Tomar solicitud', icon: ClipboardList, bg: 'bg-indigo-500', iconClassName: 'h-4 w-4 text-white', keywords: 'datos formulario pedido' },
+  { type: 'cotizacion', label: 'Enviar cotización', icon: ReceiptText, bg: 'bg-amber-700', iconClassName: 'h-4 w-4 text-white', keywords: 'precio presupuesto' },
+  { type: 'pago', label: 'Enviar medio de pago', icon: CreditCard, bg: 'bg-rose-700', iconClassName: 'h-4 w-4 text-white', keywords: 'cobro pago pagar dinero' },
+  { type: 'cita', label: 'Agendar la cita', icon: CalendarCheck, bg: 'bg-green-600', iconClassName: 'h-4 w-4 text-white', keywords: 'calendario reservar agenda' },
+  { type: 'link', label: 'Enviar link acción', icon: Link, bg: 'bg-blue-700', iconClassName: 'h-4 w-4 text-white', keywords: 'enlace url' },
+  { type: 'sheets_write', label: 'Registrar datos', icon: FileSpreadsheet, bg: 'bg-emerald-600', iconClassName: 'h-4 w-4 text-white', keywords: 'registrar sheets hoja calculo guardar google' },
+  { type: 'notificacion', label: 'Notificar asesor', icon: Bell, bg: 'bg-yellow-500', iconClassName: 'h-4 w-4 text-white', keywords: 'notificacion avisar alerta' },
+  { type: 'escalar', label: 'Escalar a humano', icon: Headset, bg: 'bg-lime-600', iconClassName: 'h-4 w-4 text-white', keywords: 'asesor persona pasar' },
+  { type: 'seguimiento', label: 'Activar seguimiento', icon: History, bg: 'bg-violet-500', iconClassName: 'h-4 w-4 text-white', keywords: 'seguimiento recordar despues insistir' },
+  { type: 'automatizacion', label: 'Iniciar automatización', icon: Zap, bg: 'bg-cyan-500', iconClassName: 'h-4 w-4 text-white', keywords: 'automatizacion automatico proceso' },
+];
+
+/**
+ * Tipos que ya no se ofrecen al agregar un nodo, pero que siguen definidos.
+ *
+ * Se sacaron del panel por poco uso, no se borraron: los diagramas que ya los
+ * tienen dibujados los siguen mostrando con su icono y su color. Si se
+ * quitaran de aqui, esos nodos apareceran con el icono generico.
+ */
+export const diagramaRetiredActions: DiagramaAction[] = [
   { type: 'text', label: 'Texto', icon: AlignLeft, bg: 'bg-gray-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'image', label: 'Imagen', icon: ImageIcon, bg: 'bg-blue-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'video', label: 'Video', icon: Video, bg: 'bg-red-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'document', label: 'Documento', icon: File, bg: 'bg-yellow-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'audio', label: 'Audio', icon: Music, bg: 'bg-green-500', iconClassName: 'h-4 w-4 text-white' },
-];
-
-export const diagramaLogicActions: DiagramaAction[] = [
-  { type: 'node_pause', label: 'Pausa', icon: CirclePause, bg: 'bg-sky-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'nota', label: 'Nota', icon: Book, bg: 'bg-amber-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'sheets_write', label: 'Registrar en Sheets', icon: FileSpreadsheet, bg: 'bg-emerald-600', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'sheets_read', label: 'Consultar Sheets', icon: FileSearch, bg: 'bg-emerald-600', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'notificacion', label: 'Notificación', icon: Bell, bg: 'bg-yellow-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'solicitud', label: 'Tomar solicitud', icon: ClipboardList, bg: 'bg-indigo-500', iconClassName: 'h-4 w-4 text-white' },
-  // Decision: el unico nodo rectangular. Sale por dos conectores, Si y No,
-  // para poder dibujar que pasa cuando la respuesta no es la esperada.
-  { type: 'intention', label: 'Decisión', icon: GitFork, bg: 'bg-black', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'flujo', label: 'Ejecutar flujo', icon: Workflow, bg: 'bg-teal-600', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'cta', label: 'Llamada a la acción', icon: MousePointerClick, bg: 'bg-orange-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'paso', label: 'Paso', icon: Stairs, bg: 'bg-rose-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'seguimiento', label: 'Seguimiento', icon: History, bg: 'bg-violet-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'llamada_ia', label: 'Llamada IA', icon: PhoneAi, bg: 'bg-fuchsia-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'automatizacion', label: 'Automatización', icon: Zap, bg: 'bg-cyan-500', iconClassName: 'h-4 w-4 text-white' },
   { type: 'devolver', label: 'Devolver paso', icon: RefreshCw, bg: 'bg-purple-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'escalar', label: 'Escalar a humano', icon: Headset, bg: 'bg-lime-600', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'link', label: 'Enviar link', icon: Link, bg: 'bg-blue-700', iconClassName: 'h-4 w-4 text-white' },
   { type: 'recordatorio', label: 'Recordatorio', icon: AlarmClock, bg: 'bg-pink-500', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'cita', label: 'Agendar cita', icon: CalendarCheck, bg: 'bg-green-600', iconClassName: 'h-4 w-4 text-white' },
   { type: 'etiqueta', label: 'Etiquetar', icon: Tag, bg: 'bg-slate-600', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'cotizacion', label: 'Enviar cotización', icon: ReceiptText, bg: 'bg-amber-700', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'pago', label: 'Cobro', icon: CreditCard, bg: 'bg-rose-700', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'menu', label: 'Menú de opciones', icon: ListChecks, bg: 'bg-indigo-700', iconClassName: 'h-4 w-4 text-white' },
   { type: 'tarea', label: 'Crear tarea', icon: SquareCheckBig, bg: 'bg-violet-600', iconClassName: 'h-4 w-4 text-white' },
-  { type: 'campana', label: 'Campaña', icon: Megaphone, bg: 'bg-orange-600', iconClassName: 'h-4 w-4 text-white' },
-  // Fin: la pareja de Inicio. Es el unico nodo sin conector de salida -nada
-  // cuelga despues de un final-, igual que Inicio es el unico sin entrada.
-  { type: 'fin', label: 'Fin', icon: CircleStop, bg: 'bg-red-600', iconClassName: 'h-4 w-4 text-white' },
-  // Libre: el unico nodo que no trae nada decidido. Icono, color, largo y lo
-  // que va dentro de la caja se eligen en su modal. Ver LIBRE_ICONOS.
-  { type: 'libre', label: 'Libre', icon: Shapes, bg: 'bg-zinc-700', iconClassName: 'h-4 w-4 text-white' },
 ];
 
 /**
@@ -189,8 +215,14 @@ export const LIBRE_POR_DEFECTO = {
 export const LIBRE_LARGO_MIN = 100;
 export const LIBRE_LARGO_MAX = 320;
 
+/**
+ * Todos los tipos que el lienzo sabe dibujar, ofrecidos o no. Es de donde
+ * FlowNode saca el icono y el color de cada nodo, asi que tiene que incluir
+ * tambien los retirados.
+ */
 export const diagramaActions: DiagramaAction[] = [
   diagramaInicioAction,
-  ...diagramaContentActions,
-  ...diagramaLogicActions,
+  ...diagramaPrincipalActions,
+  ...diagramaAccionActions,
+  ...diagramaRetiredActions,
 ];

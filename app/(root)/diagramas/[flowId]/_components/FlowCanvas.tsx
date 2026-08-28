@@ -253,7 +253,6 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           color: n.color,
           largo: n.largo,
           dentro: n.dentro,
-          totalNodes: initialNodesDB.length,
           onChangeLabel: () => {},
           onChangeContent: () => {},
           onChangeSize: () => {},
@@ -331,7 +330,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         data: { ...original.data },
       };
       copia.position = separar(copia, nds, copia.position);
-      return nds.concat(copia).map((n) => ({ ...n, data: { ...n.data, totalNodes: nds.length + 1 } }));
+      return nds.concat(copia);
     });
     toast.success('Nodo duplicado');
   }, [setNodes]);
@@ -535,7 +534,6 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           label: item.label,
           content: '',
           size: 'md',
-          totalNodes: nds.length + 1,
           onChangeLabel,
           onChangeContent,
           onChangeSize,
@@ -579,7 +577,6 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           label: action.label,
           content: '',
           size: 'md',
-          totalNodes: nds.length + 1,
           onChangeLabel,
           onChangeContent,
           onChangeSize,
@@ -763,7 +760,6 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
               <InlineAddNode
-                totalNodes={0}
                 side="bottom"
                 onPickAction={(action) => createAtCenter(action)}
                 trigger={

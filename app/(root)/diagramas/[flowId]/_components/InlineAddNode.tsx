@@ -1,18 +1,23 @@
 'use client';
 
 import type React from 'react';
-import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Search, X } from 'lucide-react';
 
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { DiagramaAction } from './diagrama-node-types';
-import { diagramaContentActions, diagramaLogicActions } from './diagrama-node-types';
+import { diagramaAccionActions, diagramaPrincipalActions } from './diagrama-node-types';
 import { useAddNode } from './FlowAddNodeContext';
+
+/** Sin tildes y en minúsculas, para que "cotización" se encuentre con "cotizacion". */
+function normalizar(texto: string) {
+    return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 
 function SectionDivider({ label }: { label: string }) {
     return (
@@ -27,38 +32,45 @@ function SectionDivider({ label }: { label: string }) {
 
 function ActionRow({
     action,
+    activa,
     onPick,
+    onHover,
 }: {
     action: DiagramaAction;
+    activa: boolean;
     onPick: (a: DiagramaAction) => void;
+    onHover: () => void;
 }) {
     const Icon = action.icon;
     return (
-        <Button
+        <button
             type="button"
-            variant="outline"
+            role="option"
+            aria-selected={activa}
             onClick={() => onPick(action)}
-            className="flex w-full items-center justify-start gap-2.5 text-sm"
+            onMouseEnter={onHover}
+            className={`flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-left text-sm transition-colors ${activa
+                ? 'border-primary bg-primary/10 font-medium'
+                : 'border-input bg-background hover:bg-accent'
+                }`}
         >
             <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${action.bg ?? 'bg-gray-500'}`}>
                 <Icon className="h-3.5 w-3.5 text-white" />
             </span>
             <span className="truncate">{action.label}</span>
-        </Button>
+        </button>
     );
 }
 
 export function InlineAddNode({
     sourceId,
     sourceHandle,
-    totalNodes,
     onPickAction,
     side = 'right',
     trigger,
 }: {
     sourceId?: string;
     sourceHandle?: string;
-    totalNodes: number;
     /**
      * Qué hacer con la acción elegida. Sin esto, se engancha al nodo de origen,
      * que es lo de siempre. El lienzo vacío no tiene de dónde colgar el primer
@@ -71,6 +83,45 @@ export function InlineAddNode({
 }) {
     const addNode = useAddNode();
     const [open, setOpen] = useState(false);
+    const [busqueda, setBusqueda] = useState('');
+    // Cuál está resaltada. Se mueve con las flechas y Enter la agrega, para
+    // poder poner un nodo sin soltar el teclado.
+    const [activa, setActiva] = useState(0);
+    const listaRef = useRef<HTMLDivElement>(null);
+
+    const consulta = normalizar(busqueda.trim());
+
+    const filtrar = (lista: DiagramaAction[]) =>
+        consulta
+            ? lista.filter(
+                (a) =>
+                    normalizar(a.label).includes(consulta) ||
+                    normalizar(a.keywords ?? '').includes(consulta),
+            )
+            : lista;
+
+    const principales = useMemo(() => filtrar(diagramaPrincipalActions), [consulta]);
+    const acciones = useMemo(() => filtrar(diagramaAccionActions), [consulta]);
+    // El recorrido con flechas ignora los encabezados: es la lista de arriba
+    // seguida de la de abajo, tal como se ven.
+    const visibles = useMemo(() => [...principales, ...acciones], [principales, acciones]);
+
+    useEffect(() => setActiva(0), [consulta]);
+
+    // Al abrir se empieza de cero: sin filtro y con la primera resaltada.
+    useEffect(() => {
+        if (!open) {
+            setBusqueda('');
+            setActiva(0);
+        }
+    }, [open]);
+
+    // Que la resaltada nunca se quede fuera de la parte visible del panel.
+    useEffect(() => {
+        listaRef.current
+            ?.querySelector('[aria-selected="true"]')
+            ?.scrollIntoView({ block: 'nearest' });
+    }, [activa, consulta]);
 
     if (!onPickAction && !addNode) return null;
 
@@ -82,6 +133,21 @@ export function InlineAddNode({
         }
         if (sourceId && sourceHandle) void addNode?.({ sourceId, sourceHandle, action });
     };
+
+    const alTeclear = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setActiva((i) => Math.min(i + 1, visibles.length - 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActiva((i) => Math.max(i - 1, 0));
+        } else if (e.key === 'Enter' && visibles[activa]) {
+            e.preventDefault();
+            pick(visibles[activa]);
+        }
+    };
+
+    const indiceDe = (action: DiagramaAction) => visibles.findIndex((a) => a.type === action.type);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -107,23 +173,72 @@ export function InlineAddNode({
                 className="nodrag nopan h-[410px] w-[320px] overflow-hidden p-0"
             >
                 <div className="flex h-full flex-col">
-                    <div className="shrink-0 p-4 pb-3">
+                    <div className="shrink-0 space-y-2 border-b p-4 pb-3">
                         <p className="text-sm font-bold text-foreground">Selecciona una acción</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{`Nodos en el diagrama: ${totalNodes}`}</p>
+
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                autoFocus
+                                value={busqueda}
+                                onChange={(e) => setBusqueda(e.target.value)}
+                                onKeyDown={alTeclear}
+                                placeholder="Buscar nodo..."
+                                aria-label="Buscar nodo"
+                                className="h-9 pl-8 pr-8"
+                            />
+                            {busqueda && (
+                                <button
+                                    type="button"
+                                    onClick={() => setBusqueda('')}
+                                    aria-label="Limpiar búsqueda"
+                                    className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {consulta && (
+                            <p className="text-xs text-muted-foreground">
+                                {visibles.length} de {diagramaPrincipalActions.length + diagramaAccionActions.length} tipos
+                            </p>
+                        )}
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-2">
-                        <div className="flex flex-col gap-2">
-                            <SectionDivider label="Nodos" />
-                            {diagramaContentActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} />
-                            ))}
+                    <div ref={listaRef} role="listbox" aria-label="Tipos de nodo" className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-2">
+                        {visibles.length === 0 ? (
+                            <p className="px-1 py-8 text-center text-sm text-muted-foreground">
+                                Ningún nodo se llama{' '}
+                                <span className="font-medium text-foreground">{busqueda.trim()}</span>.
+                                <br />
+                                Pruebe con otra palabra.
+                            </p>
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {principales.length > 0 && <SectionDivider label="Principales" />}
+                                {principales.map((action) => (
+                                    <ActionRow
+                                        key={action.type}
+                                        action={action}
+                                        activa={indiceDe(action) === activa}
+                                        onPick={pick}
+                                        onHover={() => setActiva(indiceDe(action))}
+                                    />
+                                ))}
 
-                            <SectionDivider label="Acciones" />
-                            {diagramaLogicActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} />
-                            ))}
-                        </div>
+                                {acciones.length > 0 && <SectionDivider label="Acciones" />}
+                                {acciones.map((action) => (
+                                    <ActionRow
+                                        key={action.type}
+                                        action={action}
+                                        activa={indiceDe(action) === activa}
+                                        onPick={pick}
+                                        onHover={() => setActiva(indiceDe(action))}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </PopoverContent>
