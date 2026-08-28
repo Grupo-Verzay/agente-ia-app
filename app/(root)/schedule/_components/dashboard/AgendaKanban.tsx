@@ -72,7 +72,7 @@ function AgendaCardItem({ card, isDragging = false }: { card: AgendaKanbanCard; 
                     </p>
                     <Link
                         href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
-                        className="text-[11px] text-primary hover:underline block"
+                        className="block truncate text-[11px] text-primary hover:underline"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {fmtPhone(card.remoteJid)}
