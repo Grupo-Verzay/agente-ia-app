@@ -9,7 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, GripVertical, ChevronDown, Copy, MousePointerClick, ArrowRight } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, Copy, MousePointerClick, ArrowRight, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StepTemplatePicker } from "./StepTemplatePicker";
 import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
 
@@ -37,7 +43,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 import {
@@ -192,6 +197,10 @@ export function TrainingBuilder({
   );
 
   const [expandedMotor, setExpandedMotor] = useState<Set<string>>(new Set());
+  // Paso cuyo borrado se esta confirmando. El aviso vive fuera del listado
+  // porque se abre desde el menu de los tres puntos: si el disparador
+  // estuviera dentro del menu, al cerrarse el menu se llevaria el aviso.
+  const [pasoAEliminar, setPasoAEliminar] = useState<string | null>(null);
   const toggleMotor = useCallback((id: string) => {
     setExpandedMotor((prev) => {
       const next = new Set(prev);
@@ -672,49 +681,38 @@ export function TrainingBuilder({
                                     style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
                                   />
                                 </button>
-                                {!lockWelcome && (
-                                  <button
-                                    type="button"
-                                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-                                    onClick={() => duplicateStep(step.id)}
-                                    title="Duplicar paso"
-                                  >
-                                    <Copy className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
+                                {/* Copiar y eliminar, detras de los tres puntos: en la
+                                    fila solo queda el chevron, y el boton rojo deja de
+                                    estar a un clic de distancia por accidente. */}
+                                <DropdownMenu modal={false}>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+                                      title="Más opciones"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-40">
+                                    {!lockWelcome && (
+                                      <DropdownMenuItem onSelect={() => duplicateStep(step.id)}>
+                                        <Copy className="mr-2 h-4 w-4" />
+                                        Copiar
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onSelect={() => setPasoAEliminar(step.id)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Eliminar
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
 
-                              {/* Eliminar */}
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <button
-                                    type="button"
-                                    className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
-                                    title="Eliminar paso"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Eliminar entrenamiento</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      ¿Seguro que quieres eliminar este entrenamiento? Esta
-                                      acción no se puede deshacer.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      className="bg-red-600 hover:bg-red-700"
-                                      onClick={() => removeStep(step.id)}
-                                    >
-                                      Eliminar
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
                             </div>
 
                             {/* ---- Contenido colapsable (animado con grid trick) ---- */}
@@ -951,6 +949,31 @@ export function TrainingBuilder({
           </Button>
         </CardFooter>
       )}
+
+      {/* Aviso de borrado, uno solo para todo el listado: lo abre el menu de
+          los tres puntos del paso guardado en `pasoAEliminar`. */}
+      <AlertDialog open={pasoAEliminar !== null} onOpenChange={(abierto) => !abierto && setPasoAEliminar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar entrenamiento</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que quieres eliminar este entrenamiento? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (pasoAEliminar) removeStep(pasoAEliminar);
+                setPasoAEliminar(null);
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

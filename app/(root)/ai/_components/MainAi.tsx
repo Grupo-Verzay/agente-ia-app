@@ -428,25 +428,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     onManualSave={handleManualSaveCurrent}
                                 />
 
-                            <Button
-                                variant="outline"
-                                className="gap-2 h-9 bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 hover:text-primary hover:border-primary/50"
-                                onClick={() => setShowPromptChat(true)}
-                            >
-                                <Bot className="h-4 w-4" />
-                                <span className="hidden sm:inline">IA</span>
-                            </Button>
-
-                            <Button
-                                variant="outline"
-                                className="gap-2 h-9"
-                                onClick={() => setShowVoice(true)}
-                                title="Voz del agente (notas de voz)"
-                            >
-                                <Mic className="h-4 w-4" />
-                                <span className="hidden sm:inline">Voz</span>
-                            </Button>
-
                             <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" aria-label="Open menu" size="icon">
@@ -475,6 +456,18 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     </div>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuGroup>
+                                        {/* IA y Voz vivian en la barra; se movieron aqui para
+                                            dejar arriba solo Guardar, que es lo que se usa a
+                                            cada rato. */}
+                                        <DropdownMenuItem onSelect={() => setShowPromptChat(true)}>
+                                            <Bot className="mr-2 h-4 w-4 text-primary" />
+                                            IA Prompts
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => setShowVoice(true)}>
+                                            <Mic className="mr-2 h-4 w-4" />
+                                            Voz del agente
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
                                             <BarChart2 className="mr-2 h-4 w-4" />
                                             Métricas del agente
