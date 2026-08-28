@@ -20,7 +20,7 @@ import {
   sendManualWorkflowAction,
   warmChatMessagesAction,
 } from "@/actions/chat-manual-actions";
-import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
+import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
 import {
   fetchChatsFromBaileys,
   findMessagesFromBaileys,
@@ -454,7 +454,7 @@ export default async function ChatsPage({
     (async () => {
       const t = performance.now();
       try {
-        return await getChatConversationPreferencesByUserId(effectiveOwnerId);
+        return await getChatConversationPreferencesForAssociatedAccounts();
       } finally {
         __msPrefs = performance.now() - t;
       }

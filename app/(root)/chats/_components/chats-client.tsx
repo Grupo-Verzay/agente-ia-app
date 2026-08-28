@@ -47,6 +47,7 @@ import {
   isLidJid,
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
+import { chatPreferenceKey } from "@/lib/chat-preference-key";
 import { avatarSrcFor } from "@/lib/avatar";
 import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
@@ -341,15 +342,26 @@ function getChatIdentityCandidates(chat: ChatData) {
   ]);
 }
 
-function getPreferenceForChat(chat: ChatData, preferences: ChatConversationPreferenceMap) {
+// Las preferencias van indexadas por «cuenta::número» (ver lib/chat-preference-key):
+// la bandeja enseña las líneas de todas las cuentas asociadas y la marca debe
+// aplicarse solo a los chats de SU línea, no a cualquiera con el mismo número.
+function getPreferenceForChat(
+  chat: ChatData,
+  preferences: ChatConversationPreferenceMap,
+  ownerUserId: string,
+) {
   return getChatIdentityCandidates(chat)
-    .map((candidate) => preferences[candidate])
+    .map((candidate) => preferences[chatPreferenceKey(ownerUserId, candidate)])
     .find(Boolean);
 }
 
-function getPreferenceForJid(remoteJid: string, preferences: ChatConversationPreferenceMap) {
+function getPreferenceForJid(
+  remoteJid: string,
+  preferences: ChatConversationPreferenceMap,
+  ownerUserId: string,
+) {
   return buildWhatsAppJidCandidates(remoteJid)
-    .map((candidate) => preferences[candidate])
+    .map((candidate) => preferences[chatPreferenceKey(ownerUserId, candidate)])
     .find(Boolean);
 }
 
@@ -722,6 +734,25 @@ export function ChatsClient({
     [getMessageKey],
   );
 
+  /**
+   * Cuenta dueña de cada línea. Las instancias propias no traen `linkedUserId`
+   * porque son de la cuenta activa; las de cuentas vinculadas sí.
+   */
+  const instanceOwners = useMemo(() => {
+    const owners: Record<string, string> = {};
+    for (const inst of instancias) {
+      if (inst.instanceName) owners[inst.instanceName] = inst.linkedUserId ?? userId;
+    }
+    return owners;
+  }, [instancias, userId]);
+
+  const ownerForChat = useCallback(
+    (chat: { instanceName?: string | null } | undefined) =>
+      (chat?.instanceName ? instanceOwners[chat.instanceName] : undefined) ?? userId,
+    [instanceOwners, userId],
+  );
+
+
   const contacts = useMemo(() => {
     if (!currentChatsResult.success) return [];
     const all = currentChatsResult.data.filter(
@@ -740,6 +771,40 @@ export function ChatsClient({
   }, [currentChatsResult, contacts]);
 
   /**
+   * Igual que ownerForChat pero partiendo del número: los manejadores de
+   * anclar/archivar/borrar reciben el remoteJid, así que hay que localizar el
+   * chat para saber de qué línea —y por tanto de qué cuenta— es.
+   */
+  const ownerForJid = useCallback(
+    (remoteJid: string) =>
+      ownerForChat(
+        contacts.find(
+          (chat) => chat.remoteJid === remoteJid || chat.aliases?.includes(remoteJid),
+        ),
+      ),
+    [contacts, ownerForChat],
+  );
+
+  /**
+   * Una selección múltiple puede mezclar líneas de cuentas distintas, y cada
+   * marca va bajo la cuenta de su línea. Se agrupa para hacer una llamada por
+   * cuenta en vez de una sola con todo mezclado.
+   */
+  const groupJidsByOwner = useCallback(
+    (remoteJids: string[]) => {
+      const groups = new Map<string, string[]>();
+      for (const jid of remoteJids) {
+        const owner = ownerForJid(jid);
+        const list = groups.get(owner);
+        if (list) list.push(jid);
+        else groups.set(owner, [jid]);
+      }
+      return Array.from(groups.entries());
+    },
+    [ownerForJid],
+  );
+
+  /**
    * Cuantas conversaciones tiene cada linea.
    *
    * Cuenta lo mismo que se ve en la lista: sin eliminadas ni archivadas. Antes
@@ -752,12 +817,12 @@ export function ChatsClient({
     const counts: Record<string, number> = {};
     for (const chat of currentChatsResult.data) {
       if (!chat.instanceName) continue;
-      const preference = getPreferenceForChat(chat, chatPreferences);
+      const preference = getPreferenceForChat(chat, chatPreferences, ownerForChat(chat));
       if (isChatDeletedByPreference(chat, preference) || preference?.isArchived) continue;
       counts[chat.instanceName] = (counts[chat.instanceName] ?? 0) + 1;
     }
     return counts;
-  }, [currentChatsResult, chatPreferences]);
+  }, [currentChatsResult, chatPreferences, ownerForChat]);
 
   const filteredSidebarResult = useMemo((): FetchChatsResult => {
     if (!selectedChannel || !sidebarResult.success) return sidebarResult;
@@ -772,10 +837,10 @@ export function ChatsClient({
   const visibleContacts = useMemo(
     () =>
       contacts.filter((contact) => {
-        const preference = getPreferenceForChat(contact, chatPreferences);
+        const preference = getPreferenceForChat(contact, chatPreferences, ownerForChat(contact));
         return !isChatDeletedByPreference(contact, preference) && !preference?.isArchived;
       }),
-    [chatPreferences, contacts],
+    [chatPreferences, contacts, ownerForChat],
   );
 
   const currentContact = useMemo(() => {
@@ -796,11 +861,11 @@ export function ChatsClient({
   const currentPreference = useMemo(
     () =>
       currentContact
-        ? getPreferenceForChat(currentContact, chatPreferences)
+        ? getPreferenceForChat(currentContact, chatPreferences, ownerForChat(currentContact))
         : selectedJid
-          ? getPreferenceForJid(selectedJid, chatPreferences)
+          ? getPreferenceForJid(selectedJid, chatPreferences, ownerForJid(selectedJid))
           : undefined,
-    [chatPreferences, currentContact, selectedJid],
+    [chatPreferences, currentContact, selectedJid, ownerForChat, ownerForJid],
   );
 
   const header = useMemo(() => {
@@ -1030,12 +1095,15 @@ export function ChatsClient({
     }
   }, [refetchAllInstances, refreshChatSessions]);
 
-  const applyChatPreference = useCallback((preference: ChatConversationPreference) => {
-    setChatPreferences((previous) => ({
-      ...previous,
-      [preference.remoteJid]: preference,
-    }));
-  }, []);
+  const applyChatPreference = useCallback(
+    (preference: ChatConversationPreference, ownerUserId: string) => {
+      setChatPreferences((previous) => ({
+        ...previous,
+        [chatPreferenceKey(ownerUserId, preference.remoteJid)]: preference,
+      }));
+    },
+    [],
+  );
 
   const handleSessionResolved = useCallback(
     (remoteJid: string, session: Session | null) => {
@@ -1833,8 +1901,10 @@ export function ChatsClient({
 
   const handleToggleChatPin = useCallback(
     async (remoteJid: string, isPinned: boolean) => {
+      // Bajo la cuenta DUEÑA de la línea, no bajo la que se esté mirando.
+      const ownerUserId = ownerForJid(remoteJid);
       const result = await toggleChatPinAction({
-        userId,
+        userId: ownerUserId,
         remoteJid,
         isPinned,
       });
@@ -1844,16 +1914,17 @@ export function ChatsClient({
         return;
       }
 
-      applyChatPreference(result.data);
+      applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, userId],
+    [applyChatPreference, ownerForJid],
   );
 
   const handleArchiveChat = useCallback(
     async (remoteJid: string, archived: boolean) => {
+      const ownerUserId = ownerForJid(remoteJid);
       const result = await setChatArchivedAction({
-        userId,
+        userId: ownerUserId,
         remoteJid,
         archived,
       });
@@ -1863,7 +1934,7 @@ export function ChatsClient({
         return;
       }
 
-      applyChatPreference(result.data);
+      applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
 
       if (archived && selectedJid === remoteJid) {
@@ -1872,13 +1943,14 @@ export function ChatsClient({
         setInfo(undefined);
       }
     },
-    [applyChatPreference, selectedJid, userId],
+    [applyChatPreference, ownerForJid, selectedJid],
   );
 
   const handleDeleteChat = useCallback(
     async (remoteJid: string) => {
+      const ownerUserId = ownerForJid(remoteJid);
       const result = await deleteChatConversationAction({
-        userId,
+        userId: ownerUserId,
         remoteJid,
       });
 
@@ -1901,7 +1973,7 @@ export function ChatsClient({
         for (const candidate of Array.from(deletedCandidates)) delete next[candidate];
         return next;
       });
-      applyChatPreference(result.data);
+      applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
 
       if (selectedJid === remoteJid) {
@@ -1910,13 +1982,14 @@ export function ChatsClient({
         setInfo(undefined);
       }
     },
-    [applyChatPreference, selectedJid, userId],
+    [applyChatPreference, ownerForJid, selectedJid],
   );
 
   const handleRestoreChat = useCallback(
     async (remoteJid: string) => {
+      const ownerUserId = ownerForJid(remoteJid);
       const result = await restoreChatConversationAction({
-        userId,
+        userId: ownerUserId,
         remoteJid,
       });
 
@@ -1925,10 +1998,10 @@ export function ChatsClient({
         return;
       }
 
-      applyChatPreference(result.data);
+      applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, userId],
+    [applyChatPreference, ownerForJid],
   );
 
   // Vaciar la pestana Eliminados: limpia el rastro de cada contacto marcado y
@@ -1959,14 +2032,25 @@ export function ChatsClient({
 
   const handleBulkArchive = useCallback(
     async (remoteJids: string[], archived: boolean) => {
-      const result = await bulkArchiveChatsAction({ userId, remoteJids, archived });
-      if (!result.success || !result.data) {
-        toast.error(result.message || "No se pudieron archivar los chats.");
+      const groups = groupJidsByOwner(remoteJids);
+      const results = await Promise.all(
+        groups.map(async ([ownerUserId, jids]) => ({
+          ownerUserId,
+          result: await bulkArchiveChatsAction({ userId: ownerUserId, remoteJids: jids, archived }),
+        })),
+      );
+      const ok = results.filter(({ result }) => result.success && result.data);
+      if (ok.length === 0) {
+        toast.error(results[0]?.result.message || "No se pudieron archivar los chats.");
         return;
       }
       setChatPreferences((prev) => {
         const next = { ...prev };
-        for (const pref of result.data!) next[pref.remoteJid] = pref;
+        for (const { ownerUserId, result } of ok) {
+          for (const pref of result.data!) {
+            next[chatPreferenceKey(ownerUserId, pref.remoteJid)] = pref;
+          }
+        }
         return next;
       });
       if (archived && remoteJids.includes(selectedJid)) {
@@ -1974,16 +2058,23 @@ export function ChatsClient({
         setMessages([]);
         setInfo(undefined);
       }
-      toast.success(result.message);
+      toast.success(ok[0].result.message);
     },
-    [userId, selectedJid],
+    [groupJidsByOwner, selectedJid],
   );
 
   const handleBulkDelete = useCallback(
     async (remoteJids: string[]) => {
-      const result = await bulkDeleteChatsAction({ userId, remoteJids });
-      if (!result.success || !result.data) {
-        toast.error(result.message || "No se pudieron eliminar los chats.");
+      const groups = groupJidsByOwner(remoteJids);
+      const results = await Promise.all(
+        groups.map(async ([ownerUserId, jids]) => ({
+          ownerUserId,
+          result: await bulkDeleteChatsAction({ userId: ownerUserId, remoteJids: jids }),
+        })),
+      );
+      const ok = results.filter(({ result }) => result.success && result.data);
+      if (ok.length === 0) {
+        toast.error(results[0]?.result.message || "No se pudieron eliminar los chats.");
         return;
       }
       const deletedJids = new Set(remoteJids.flatMap((jid) => buildWhatsAppJidCandidates(jid)));
@@ -2002,7 +2093,11 @@ export function ChatsClient({
       });
       setChatPreferences((prev) => {
         const next = { ...prev };
-        for (const pref of result.data!) next[pref.remoteJid] = pref;
+        for (const { ownerUserId, result } of ok) {
+          for (const pref of result.data!) {
+            next[chatPreferenceKey(ownerUserId, pref.remoteJid)] = pref;
+          }
+        }
         return next;
       });
       if (buildWhatsAppJidCandidates(selectedJid).some((candidate) => deletedJids.has(candidate))) {
@@ -2010,26 +2105,37 @@ export function ChatsClient({
         setMessages([]);
         setInfo(undefined);
       }
-      toast.success(result.message);
+      toast.success(ok[0].result.message);
     },
-    [userId, selectedJid],
+    [groupJidsByOwner, selectedJid],
   );
 
   const handleBulkPin = useCallback(
     async (remoteJids: string[], isPinned: boolean) => {
-      const result = await bulkPinChatsAction({ userId, remoteJids, isPinned });
-      if (!result.success || !result.data) {
-        toast.error(result.message || "No se pudo actualizar el anclado.");
+      const groups = groupJidsByOwner(remoteJids);
+      const results = await Promise.all(
+        groups.map(async ([ownerUserId, jids]) => ({
+          ownerUserId,
+          result: await bulkPinChatsAction({ userId: ownerUserId, remoteJids: jids, isPinned }),
+        })),
+      );
+      const ok = results.filter(({ result }) => result.success && result.data);
+      if (ok.length === 0) {
+        toast.error(results[0]?.result.message || "No se pudo actualizar el anclado.");
         return;
       }
       setChatPreferences((prev) => {
         const next = { ...prev };
-        for (const pref of result.data!) next[pref.remoteJid] = pref;
+        for (const { ownerUserId, result } of ok) {
+          for (const pref of result.data!) {
+            next[chatPreferenceKey(ownerUserId, pref.remoteJid)] = pref;
+          }
+        }
         return next;
       });
-      toast.success(result.message);
+      toast.success(ok[0].result.message);
     },
-    [userId],
+    [groupJidsByOwner],
   );
 
   const handleBulkAssignAdvisor = useCallback(
@@ -2410,6 +2516,7 @@ export function ChatsClient({
           instancias={instancias}
           selectedChannel={selectedChannel}
           channelCounts={channelCounts}
+          resolveChatOwnerId={ownerForChat}
           onChannelChange={handleChannelChange}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}

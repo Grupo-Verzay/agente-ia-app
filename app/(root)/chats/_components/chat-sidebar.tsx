@@ -30,6 +30,7 @@ import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
+import { chatPreferenceKey } from "@/lib/chat-preference-key";
 import type { ChatContactSessionMap, SimpleTag, ClientStatus, ServiceType } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import {
@@ -136,9 +137,15 @@ function getChatIdentityCandidates(chat: ChatData) {
   ]);
 }
 
-function getPreferenceForChat(chat: ChatData, preferences: ChatConversationPreferenceMap) {
+// Indexadas por «cuenta::número»: la marca es de la línea del chat, no de
+// cualquier chat que comparta el número. Ver lib/chat-preference-key.
+function getPreferenceForChat(
+  chat: ChatData,
+  preferences: ChatConversationPreferenceMap,
+  ownerUserId: string,
+) {
   return getChatIdentityCandidates(chat)
-    .map((candidate) => preferences[candidate])
+    .map((candidate) => preferences[chatPreferenceKey(ownerUserId, candidate)])
     .find(Boolean);
 }
 
@@ -197,6 +204,8 @@ type ChatSidebarProps = {
   instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
   selectedChannel?: string | null;
   channelCounts?: Record<string, number>;
+  /** Cuenta dueña de la línea del chat, para resolver su preferencia. */
+  resolveChatOwnerId?: (chat: { instanceName?: string | null }) => string;
   onChannelChange?: (channel: string | null) => void;
   onRefresh?: () => Promise<void>;
   isRefreshing?: boolean;
@@ -241,6 +250,7 @@ export function ChatSidebar({
   selectedInstanceName,
   selectedChannel,
   channelCounts,
+  resolveChatOwnerId,
   onChannelChange,
   onRefresh,
   isRefreshing,
@@ -390,7 +400,11 @@ export function ChatSidebar({
         const isRead =
           !isForcedUnread &&
           (wasSeenPreviously || lastMsgData.fromMe || isSelected || (!hasUnreadFromServer && !hasLocalPending));
-        const preference = getPreferenceForChat(chat, chatPreferences);
+        const preference = getPreferenceForChat(
+          chat,
+          chatPreferences,
+          resolveChatOwnerId?.(chat) ?? "",
+        );
         const chatSession = getSessionForChat(chat, chatSessions) ?? null;
 
         return {
