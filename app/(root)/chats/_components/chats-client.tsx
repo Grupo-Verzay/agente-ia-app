@@ -739,16 +739,25 @@ export function ChatsClient({
     return { ...currentChatsResult, data: contacts };
   }, [currentChatsResult, contacts]);
 
+  /**
+   * Cuantas conversaciones tiene cada linea.
+   *
+   * Cuenta lo mismo que se ve en la lista: sin eliminadas ni archivadas. Antes
+   * contaba todo lo que devolvia WhatsApp, asi que despues de limpiar cientos
+   * de chats el numero de la linea seguia igual de alto y no cuadraba con
+   * nada.
+   */
   const channelCounts = useMemo((): Record<string, number> => {
     if (!currentChatsResult.success) return {};
     const counts: Record<string, number> = {};
     for (const chat of currentChatsResult.data) {
-      if (chat.instanceName) {
-        counts[chat.instanceName] = (counts[chat.instanceName] ?? 0) + 1;
-      }
+      if (!chat.instanceName) continue;
+      const preference = getPreferenceForChat(chat, chatPreferences);
+      if (isChatDeletedByPreference(chat, preference) || preference?.isArchived) continue;
+      counts[chat.instanceName] = (counts[chat.instanceName] ?? 0) + 1;
     }
     return counts;
-  }, [currentChatsResult]);
+  }, [currentChatsResult, chatPreferences]);
 
   const filteredSidebarResult = useMemo((): FetchChatsResult => {
     if (!selectedChannel || !sidebarResult.success) return sidebarResult;
