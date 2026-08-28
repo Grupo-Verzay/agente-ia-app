@@ -1,7 +1,7 @@
 "use client";
 
 import { FC } from "react";
-import { MoreVertical, Trash2 } from "lucide-react";
+import { Braces, MoreVertical, Trash2 } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -18,10 +18,12 @@ import {
  * accidente y ademas se repetia en las siete tarjetas. Aqui esta una sola vez
  * y borrar queda un paso mas adentro.
  */
-export const ElementMenu: FC<{ onRemove: () => void; label?: string }> = ({
-    onRemove,
-    label = "Eliminar",
-}) => (
+export const ElementMenu: FC<{
+    onRemove: () => void;
+    label?: string;
+    /** Solo lo pasa Regla/parametro: abre el listado de variables del sistema. */
+    onVariables?: () => void;
+}> = ({ onRemove, label = "Eliminar", onVariables }) => (
     <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
             <button
@@ -32,7 +34,13 @@ export const ElementMenu: FC<{ onRemove: () => void; label?: string }> = ({
                 <MoreVertical className="h-4 w-4" />
             </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuContent align="end" className="w-44">
+            {onVariables && (
+                <DropdownMenuItem onSelect={onVariables}>
+                    <Braces className="mr-2 h-4 w-4" />
+                    Variables
+                </DropdownMenuItem>
+            )}
             <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onSelect={onRemove}
