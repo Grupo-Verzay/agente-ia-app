@@ -648,6 +648,17 @@ export function ChatsClient({
   // (antes 6s) y además sincroniza/persiste con Evolution periódicamente.
   const BASE_INTERVAL = 20000;
   const MAX_BACKOFF = 45000;
+  // Cuanto se espera como MAXIMO por una consulta de mensajes antes de darla
+  // por perdida.
+  //
+  // Sin este techo, una consulta que no volvia nunca -el servidor tardando, la
+  // red movil cortada a mitad- dejaba la conversacion abierta CONGELADA para
+  // siempre: el guardia de "ya hay una en vuelo" se quedaba puesto y ningun
+  // sondeo posterior llegaba a salir. La lista lateral seguia actualizandose
+  // por su cuenta, asi que se veia el mensaje nuevo en la lista y no dentro del
+  // chat. Pasado este tiempo la damos por fallida, entra el backoff y se
+  // reintenta.
+  const ESPERA_MAXIMA_DEL_SONDEO = 15000;
 
   const getMessageKey = useCallback((message: EvolutionMessage) => {
     return (
@@ -1262,11 +1273,16 @@ export function ChatsClient({
         const effectiveInstanceName = activeSet?.instanceName ?? instanceName;
         const effectiveApiKeyData = activeSet?.instanceType === "baileys" ? undefined : apiKeyData;
 
-        const result = await effectiveWarmMessages(remoteJid, {
-          page: 1,
-          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-          remoteJidAliases,
-        });
+        const result = await Promise.race([
+          effectiveWarmMessages(remoteJid, {
+            page: 1,
+            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+            remoteJidAliases,
+          }),
+          new Promise<never>((_, rechazar) =>
+            setTimeout(() => rechazar(new Error("El sondeo tardo demasiado.")), ESPERA_MAXIMA_DEL_SONDEO),
+          ),
+        ]);
 
         if (result?.success) {
           const nextMessages = result.data || [];
@@ -2240,16 +2256,23 @@ export function ChatsClient({
         return;
       }
 
-      const result = await refetchAllInstances();
-      if (result.success) {
-        const filtered = filterChatList(result, lidPhoneMap);
-        aplicarChatsFrescos(filtered);
-        if (filtered.success) {
-          await refreshChatSessions(filtered.data);
+      try {
+        const result = await refetchAllInstances();
+        if (result.success) {
+          const filtered = filterChatList(result, lidPhoneMap);
+          aplicarChatsFrescos(filtered);
+          if (filtered.success) {
+            await refreshChatSessions(filtered.data);
+          }
         }
+      } catch {
+        // Se reintenta en la vuelta siguiente.
+      } finally {
+        // Igual que el sondeo del chat abierto: la vuelta siguiente se programa
+        // pase lo que pase, para que una consulta caida no deje la lista sin
+        // refrescarse hasta recargar la pagina.
+        if (!stopped) timer = setTimeout(loop, listInterval);
       }
-
-      timer = setTimeout(loop, listInterval);
     };
 
     // El refresco arranca SIEMPRE, también cuando la carga inicial falló.
@@ -2282,17 +2305,33 @@ export function ChatsClient({
     const tick = async () => {
       if (stopped) return;
 
-      if (selectedJid) {
-        if (messagesRef.current.length === 0 && !loading) {
-          await handleSelectFromSidebar(selectedJid);
-        } else {
-          await pollAndCompareMessages(selectedJid, currentContact?.aliases);
+      try {
+        if (selectedJid) {
+          const trabajo = messagesRef.current.length === 0 && !loading
+            ? handleSelectFromSidebar(selectedJid)
+            : pollAndCompareMessages(selectedJid, currentContact?.aliases);
+          void trabajo.catch(() => {});
+
+          // Vigilante: si el trabajo no vuelve, el ciclo sigue igual. Un `await`
+          // a secas sobre algo que no termina nunca deja este `try` abierto para
+          // siempre -y con el, el `finally` de abajo sin ejecutarse-, que es
+          // justo como se congelaba la conversacion.
+          await Promise.race([
+            trabajo,
+            new Promise<void>((seguir) => setTimeout(seguir, ESPERA_MAXIMA_DEL_SONDEO + 5000)),
+          ]);
+        }
+      } finally {
+        // La siguiente vuelta se programa PASE LO QUE PASE. Antes se programaba
+        // despues del await, asi que una consulta que fallara o no volviera se
+        // llevaba por delante el ciclo entero: la conversacion abierta dejaba de
+        // refrescarse hasta cambiar de chat o recargar la pagina.
+        if (!stopped) {
+          const base = realtimeConnectedRef.current ? BASE_INTERVAL : REALTIME_OFF_MSG_INTERVAL_MS;
+          const wait = backoffRef.current > 0 ? backoffRef.current : base;
+          pollingRef.current = setTimeout(() => void tick(), wait);
         }
       }
-
-      const base = realtimeConnectedRef.current ? BASE_INTERVAL : REALTIME_OFF_MSG_INTERVAL_MS;
-      const wait = backoffRef.current > 0 ? backoffRef.current : base;
-      pollingRef.current = setTimeout(() => void tick(), wait);
     };
 
     if (selectedJid) {
