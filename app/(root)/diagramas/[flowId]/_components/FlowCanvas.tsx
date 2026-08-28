@@ -214,10 +214,16 @@ export interface FlowCanvasHandle {
 interface FlowCanvasProps {
   initialNodes: FlowGraphNode[];
   initialEdges: FlowGraphEdge[];
+  /**
+   * Aviso de que algo se movio en el lienzo. Quien lo recibe decide cuando
+   * guardar; aqui solo se avisa. No se dispara en el primer render, que es
+   * solo pintar lo que venia de la base.
+   */
+  onGraphChange?: () => void;
 }
 
 export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCanvas(
-  { initialNodes: initialNodesDB, initialEdges: initialEdgesDB },
+  { initialNodes: initialNodesDB, initialEdges: initialEdgesDB, onGraphChange },
   ref,
 ) {
   const { resolvedTheme } = useTheme();
@@ -288,6 +294,17 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   const edgesRef = useRef<Edge[]>(edges);
   useEffect(() => { edgesRef.current = edges; }, [edges]);
+
+  // Aviso de cambio. El primer pase es la carga inicial y no cuenta: si
+  // contara, abrir un diagrama y no tocar nada ya lo daria por modificado.
+  const yaSePinto = useRef(false);
+  useEffect(() => {
+    if (!yaSePinto.current) {
+      yaSePinto.current = true;
+      return;
+    }
+    onGraphChange?.();
+  }, [nodes, edges, onGraphChange]);
 
   useEffect(() => {
     const sorted = [...initialNodesDB];
