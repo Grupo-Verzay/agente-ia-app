@@ -122,7 +122,7 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
 
 /**
  * Los dos nodos con los que nace todo diagrama nuevo, ya conectados: el que
- * marca el arranque y el primer mensaje al cliente.
+ * marca el arranque y la primera bifurcacion.
  *
  * Un lienzo en blanco no dice por donde se empieza a leer, y estos diagramas
  * se le muestran al cliente. Se siembran aqui, al crear, y no en el lienzo,
@@ -136,9 +136,14 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
  */
 const ANCHO_DE_CARRIL = 132;
 
+// El segundo nodo del diagrama nuevo va mas lejos que un carril normal:
+// Decision es rectangular -saca tres conectores con sus etiquetas- y con la
+// separacion de siempre le rozaba el hombro al de Inicio.
+const SEPARACION_INICIAL = 220;
+
 function grafoInicial(flowId: string) {
   const inicioId = `n_${flowId}_inicio`;
-  const bienvenidaId = `n_${flowId}_bienvenida`;
+  const decisionId = `n_${flowId}_decision`;
 
   return {
     nodes: [
@@ -152,11 +157,11 @@ function grafoInicial(flowId: string) {
         size: "md" as const,
       },
       {
-        id: bienvenidaId,
-        tipo: "text",
-        label: "Bienvenida",
+        id: decisionId,
+        tipo: "intention",
+        label: "Decisión",
         content: "",
-        posX: ANCHO_DE_CARRIL,
+        posX: SEPARACION_INICIAL,
         posY: 0,
         size: "md" as const,
       },
@@ -165,7 +170,7 @@ function grafoInicial(flowId: string) {
       {
         id: `e_${flowId}_inicio`,
         sourceId: inicioId,
-        targetId: bienvenidaId,
+        targetId: decisionId,
         sourceHandle: "out",
         targetHandle: "in",
       },

@@ -304,7 +304,7 @@ export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
                             abrir();
                         }
                     }}
-                    className={`flex h-full w-full cursor-pointer items-center justify-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${isLibre ? '' : `${caja.pad} ${caja.box}`}`}
+                    className={`flex h-full w-full cursor-pointer items-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${isLibre ? 'justify-center' : `${caja.pad} ${caja.box}`}`}
                     style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)', ...(isLibre ? { borderRadius: px.radio } : null) }}
                 >
                     {isLibre ? (
