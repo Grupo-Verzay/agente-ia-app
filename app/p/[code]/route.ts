@@ -17,7 +17,8 @@ import { clientePorCodigo } from "@/lib/pay-code";
 
 /** Se manda a la App con un motivo, para poder decirle algo al cliente. */
 function aLaApp(motivo: string) {
-    const base = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/+$/, "") ?? "";
+    // Mismo respaldo que urlDePago: la variable puede no estar en el build.
+    const base = (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://agente.ia-app.com").replace(/\/+$/, "");
     return NextResponse.redirect(`${base}/profile?pago=${motivo}`, { status: 302 });
 }
 

@@ -82,21 +82,41 @@ export async function clientePorCodigo(codigo: string): Promise<string | null> {
     return encontrados[0].userId;
 }
 
-/** La direccion publica del enlace, o null si no hay dominio configurado. */
-export function urlDePago(codigo: string): string | null {
-    const base = process.env.NEXT_PUBLIC_APP_URL?.trim();
-    if (!base) return null;
+/**
+ * La direccion publica del enlace.
+ *
+ * NEXT_PUBLIC_APP_URL no siempre esta puesta -no figura ni en .env.example- y
+ * ademas Next la incrusta al compilar, asi que si falto en el build no aparece
+ * por mucho que se agregue despues al entorno. El dominio de respaldo es el
+ * mismo que ya usa actions/affiliate-actions.ts por esta misma razon.
+ */
+export function urlDePago(codigo: string): string {
+    const base = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://agente.ia-app.com";
     return `${base.replace(/\/+$/, "")}/p/${codigo}`;
 }
 
-/** El enlace listo para pegar en la ficha del cliente o mandar por chat. */
-export async function enlaceDePagoDe(userId: string): Promise<string | null> {
+/**
+ * El enlace listo para pegar en la ficha del cliente o mandar por chat.
+ *
+ * Devuelve el motivo cuando no se puede: "sin facturacion" y "sin secreto" se
+ * arreglan de formas distintas, y un mensaje unico manda a revisar lo que no es
+ * -que fue justo lo que paso la primera vez que se probo el boton-.
+ */
+export async function enlaceDePagoDe(
+    userId: string,
+): Promise<{ url: string } | { error: string }> {
     const existe = await db.userBilling.findUnique({
         where: { userId },
         select: { userId: true },
     });
-    if (!existe) return null;
+    if (!existe) {
+        return { error: "Este cliente no tiene facturación configurada." };
+    }
 
     const codigo = codigoDe(userId);
-    return codigo ? urlDePago(codigo) : null;
+    if (!codigo) {
+        return { error: "Falta AUTH_SECRET en el servidor; sin eso no se puede firmar el enlace." };
+    }
+
+    return { url: urlDePago(codigo) };
 }
