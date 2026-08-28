@@ -3,8 +3,7 @@
 
 import { FC, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Trash2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { PedidoFieldsEditor } from "../";
 import { DataSubtype, ElementoDeDatos, PropsConsultaDatos, SUBTYPE_OPTIONS } from "@/types/agentAi";
 import {
@@ -14,6 +13,7 @@ import {
     SelectContent,
     SelectItem,
 } from "@/components/ui/select";
+import { ElementMenu } from "./ElementMenu";
 
 export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
     el,
@@ -40,7 +40,7 @@ export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
 
     return (
         <Card className="bg-muted/20 border-muted/60">
-            <CardHeader className="py-3 flex-row items-center justify-between gap-2">
+            <CardHeader className="py-2 flex-row items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                     <CardTitle className="text-md uppercase">Consulta de datos</CardTitle>
 
@@ -63,9 +63,7 @@ export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
                 </div>
 
                 {!isManagement && (
-                    <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <ElementMenu onRemove={onRemove} />
                 )}
             </CardHeader>
 

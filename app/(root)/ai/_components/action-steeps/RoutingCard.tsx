@@ -21,6 +21,7 @@ import {
     CommandList,
 } from "@/components/ui/command";
 import { PropsRouting, RoutingRule } from "@/types/agentAi";
+import { ElementMenu } from "./ElementMenu";
 
 export const RoutingCard: FC<PropsRouting> = ({
     el,
@@ -59,7 +60,7 @@ export const RoutingCard: FC<PropsRouting> = ({
 
     return (
         <Card className="bg-muted/20 border-muted/60">
-            <CardHeader className="py-3 flex-row items-center justify-between gap-2">
+            <CardHeader className="py-2 flex-row items-center justify-between gap-2">
                 <button
                     type="button"
                     onClick={() => setExpanded((v) => !v)}
@@ -77,14 +78,7 @@ export const RoutingCard: FC<PropsRouting> = ({
                     <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground ml-auto transition-transform ${expanded ? "rotate-180" : ""}`} />
                 </button>
                 {!isManagement && (
-                    <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={onRemove}
-                        className="shrink-0"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <ElementMenu onRemove={onRemove} />
                 )}
             </CardHeader>
 

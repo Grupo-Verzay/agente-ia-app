@@ -3,24 +3,22 @@
 
 import { FC } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Trash2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PropsNotifyAsesor } from "@/types/agentAi";
+import { ElementMenu } from "./ElementMenu";
 
 export const NotificarAsesorCard: FC<PropsNotifyAsesor> = ({ el, onRemove, isManagement }) => {
     return (
         <Card className="bg-muted/20 border-muted/60">
-            <CardHeader className="py-3 flex-row items-center justify-between">
+            <CardHeader className="py-2 px-3 flex-row items-center justify-between">
                 <CardTitle className="text-md uppercase">Notificar asesor</CardTitle>
                 {!isManagement && (
-                    <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <ElementMenu onRemove={onRemove} />
                 )}
             </CardHeader>
 
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 px-3 pb-3 pt-0">
                 <Input value={el.notificationNumber ?? ""} readOnly placeholder="No disponible" />
             </CardContent>
         </Card>

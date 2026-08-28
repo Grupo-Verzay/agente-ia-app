@@ -11,9 +11,10 @@ import {
 import {
     Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
-import { Check, ChevronsUpDown, Plus, SquareArrowOutUpRight, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, SquareArrowOutUpRight } from "lucide-react";
 import { PropsExecuteFlow } from "@/types/agentAi";
 import { getWorkflowEditorPath } from "@/types/workflow";
+import { ElementMenu } from "./ElementMenu";
 
 export const EjecutarFlujoCard: FC<PropsExecuteFlow> = ({ el, flows, onRemove, onSelectFlow, isManagement }) => {
     // El elemento guarda el id y el nombre, no el flujo entero, asi que para
@@ -29,16 +30,14 @@ export const EjecutarFlujoCard: FC<PropsExecuteFlow> = ({ el, flows, onRemove, o
 
     return (
         <Card className="bg-muted/20 border-muted/60">
-            <CardHeader className="py-3 flex-row items-center justify-between">
+            <CardHeader className="py-2 px-3 flex-row items-center justify-between">
                 <CardTitle className="text-md uppercase">Ejecutar flujo</CardTitle>
                 {!isManagement && (
-                    <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <ElementMenu onRemove={onRemove} />
                 )}
             </CardHeader>
 
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 px-3 pb-3 pt-0">
                 {flows.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No hay flujos</p>
                 ) : (
