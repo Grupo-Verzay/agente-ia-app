@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
-import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
+import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import { getChatContactSessions } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
@@ -137,9 +137,7 @@ export async function loadChatBootstrapData(
     descriptors.length
       ? settle(getChatContactSessions(sessionUserIds, descriptors))
       : Promise.resolve(null),
-    // Todas las cuentas asociadas, no solo la activa: la bandeja trae los chats
-    // de todas, así que las marcas de borrado tienen que venir del mismo sitio.
-    settle(getChatConversationPreferencesForAssociatedAccounts()),
+    settle(getChatConversationPreferencesByUserId(effectiveOwnerId)),
     settle(getWorkFlowByUserIds(sessionUserIds)),
     settle(getAllRRsByUserIds(sessionUserIds)),
     settle(getTeamAdvisorInfos()),

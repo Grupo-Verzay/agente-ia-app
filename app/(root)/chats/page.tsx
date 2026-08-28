@@ -20,7 +20,7 @@ import {
   sendManualWorkflowAction,
   warmChatMessagesAction,
 } from "@/actions/chat-manual-actions";
-import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
+import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import {
   fetchChatsFromBaileys,
   findMessagesFromBaileys,
@@ -454,9 +454,7 @@ export default async function ChatsPage({
     (async () => {
       const t = performance.now();
       try {
-        // Todas las cuentas asociadas: los chats se leen con ese mismo alcance
-        // (allSessionUserIds), así que las marcas de borrado deben acompañarlo.
-        return await getChatConversationPreferencesForAssociatedAccounts();
+        return await getChatConversationPreferencesByUserId(effectiveOwnerId);
       } finally {
         __msPrefs = performance.now() - t;
       }
