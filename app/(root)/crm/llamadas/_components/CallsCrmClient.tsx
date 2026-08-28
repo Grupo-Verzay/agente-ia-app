@@ -955,7 +955,7 @@ function CallTableRow({
           type="button"
           onClick={onOpenChat}
           title="Abrir chat del contacto"
-          className="font-medium tabular-nums hover:text-blue-600 hover:underline"
+          className="whitespace-nowrap font-medium tabular-nums hover:text-blue-600 hover:underline"
         >
           {formatPhone(call.phone)}
         </button>

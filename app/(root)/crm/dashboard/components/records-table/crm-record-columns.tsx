@@ -103,7 +103,7 @@ export function createCrmRecordColumns({
                         )}
                         onClick={() => onNavigateToChat?.(row.original.session.remoteJid)}
                     >
-                        <p className="font-medium">{whatsapp}</p>
+                        <p className="whitespace-nowrap font-medium">{whatsapp}</p>
                     </div>
                 );
             },

@@ -704,7 +704,7 @@ function TaskCard({
                 className={cn("flex items-center gap-1 text-left w-fit", task.contactJid && "text-blue-600 hover:underline cursor-pointer")}>
                 <Phone className="h-3 w-3 shrink-0" />
                 <span className="truncate max-w-[140px]">{task.contactName}</span>
-                {task.contactJid && <span className="shrink-0 text-muted-foreground">· {fmtPhone(task.contactJid)}</span>}
+                {task.contactJid && <span className="shrink-0 whitespace-nowrap text-muted-foreground">· {fmtPhone(task.contactJid)}</span>}
               </button>
             )}
             {/* Fila 3: asesor */}

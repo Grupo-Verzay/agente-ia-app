@@ -125,7 +125,7 @@ export const SelectMultipleComboBox = ({ leads, onSelect, onLeadCreated, initial
                                     >
                                         <div className="flex min-w-0 flex-col">
                                             <span className="font-medium">{leadName}</span>
-                                            <span className="text-muted-foreground text-xs">{leadPhone}</span>
+                                            <span className="whitespace-nowrap text-muted-foreground text-xs">{leadPhone}</span>
                                         </div>
                                         <Check className={cn("ml-auto", isSelected ? "opacity-100" : "opacity-0")} />
                                     </CommandItem>

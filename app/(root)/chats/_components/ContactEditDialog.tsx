@@ -54,7 +54,7 @@ export const ContactEditDialog: React.FC<ContactEditDialogProps> = ({
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Vista previa</p>
           <div className="mt-3 space-y-1">
             <p className="text-base font-semibold text-foreground">{draft.trim() || 'Sin nombre'}</p>
-            {phoneLabel && <p className="text-xs text-muted-foreground">{phoneLabel}</p>}
+            {phoneLabel && <p className="truncate text-xs text-muted-foreground">{phoneLabel}</p>}
             <p className="text-xs text-muted-foreground">
               Nombre actual:{' '}
               <span className="font-medium text-foreground/80">{currentName || 'Sin nombre'}</span>
