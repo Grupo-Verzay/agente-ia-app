@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
 import { construirEnlaceWompi } from "@/actions/billing/wompi-checkout-actions";
+import { clientePorCodigo } from "@/lib/pay-code";
 
 /**
  * Enlace corto de pago: /p/K7M2QX.
@@ -27,27 +28,28 @@ export async function GET(
     const codigo = (params.code ?? "").trim().toUpperCase();
     if (!codigo) return aLaApp("codigo-invalido");
 
-    const facturacion = await db.userBilling.findUnique({
-        where: { payCode: codigo },
-        select: { userId: true, user: { select: { email: true, plan: true } } },
-    });
-
-    if (!facturacion) {
+    const userId = await clientePorCodigo(codigo);
+    if (!userId) {
         console.warn(`[pago] Código desconocido: ${codigo}.`);
         return aLaApp("codigo-invalido");
     }
 
+    const cliente = await db.user.findUnique({
+        where: { id: userId },
+        select: { email: true, plan: true },
+    });
+
     const enlace = await construirEnlaceWompi(
-        facturacion.userId,
-        facturacion.user?.email ?? null,
-        facturacion.user?.plan ?? null,
+        userId,
+        cliente?.email ?? null,
+        cliente?.plan ?? null,
     );
 
     if (!enlace.success || !enlace.url) {
         // Sin precio configurado, o sin las llaves de Wompi. Mandarlo a un
         // checkout roto seria peor que mandarlo a la App, donde ve su estado y
         // tiene el boton de escribir por WhatsApp.
-        console.error(`[pago] ${codigo} (${facturacion.userId}): ${enlace.message}`);
+        console.error(`[pago] ${codigo} (${userId}): ${enlace.message}`);
         return aLaApp("no-disponible");
     }
 
