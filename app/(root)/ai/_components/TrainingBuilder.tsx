@@ -696,12 +696,13 @@ export function TrainingBuilder({
                                     </button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" className="w-40">
-                                    {!lockWelcome && (
-                                      <DropdownMenuItem onSelect={() => duplicateStep(step.id)}>
-                                        <Copy className="mr-2 h-4 w-4" />
-                                        Copiar
-                                      </DropdownMenuItem>
-                                    )}
+                                    {/* Copiar tambien en el paso de bienvenida: la copia
+                                        se llama "(COPIA)", asi que deja de coincidir con el
+                                        titulo reservado y nace como un paso normal. */}
+                                    <DropdownMenuItem onSelect={() => duplicateStep(step.id)}>
+                                      <Copy className="mr-2 h-4 w-4" />
+                                      Copiar
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem
                                       className="text-destructive focus:text-destructive"
                                       onSelect={() => setPasoAEliminar(step.id)}
