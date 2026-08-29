@@ -1707,6 +1707,21 @@ export function ChatsClient({
         });
       };
 
+      // El interruptor de la IA se apaga EN PANTALLA de una vez.
+      //
+      // El servidor ya pausa la sesion al enviar (pausarIaPorIntervencionHumana),
+      // pero el interruptor lee chatSessions, que solo se rehace en el refresco
+      // de la lista. Hasta entonces se veia encendido despues de haber escrito,
+      // y no habia forma de distinguir "no se apago" de "todavia no se ve".
+      //
+      // Es solo la vista: quien manda sigue siendo lo que quedo en la base, y el
+      // siguiente refresco lo confirma.
+      setChatSessions((prev) => {
+        const sesion = prev[selectedJid];
+        if (!sesion || sesion.status === false) return prev;
+        return { ...prev, [selectedJid]: { ...sesion, status: false } };
+      });
+
       // 1) Optimista INMEDIATO (antes de subir a Evolution): la burbuja aparece ya
       //    —con su imagen / nota de voz y un relojito "pendiente"— en lugar del viejo
       //    cuadro gris "Enviando...". Lleva un id local- para reconciliarlo luego.
