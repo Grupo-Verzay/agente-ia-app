@@ -59,7 +59,16 @@ export const ModulesDialog = ({ open, setOpen, handleModules, user, allModules }
                 const isEnabled = enabledModuleIds.includes(mod.id);
                 return (
                   <div key={mod.id} className="flex items-center justify-between gap-2 pr-2">
-                    <Label className="text-xs text-foreground">{mod.label}</Label>
+                    {/* La ruta debajo del nombre: hay módulos distintos que se
+                        llaman igual (dos "Panel", uno /panel y otro
+                        /client-panel) y sin la ruta las dos filas son
+                        indistinguibles, así que se apaga la que no era. */}
+                    <Label className="flex min-w-0 flex-col text-xs text-foreground">
+                      <span className="truncate">{mod.label}</span>
+                      <span className="truncate font-normal text-[10px] text-muted-foreground">
+                        {mod.route}
+                      </span>
+                    </Label>
                     <Switch
                       checked={isEnabled}
                       onCheckedChange={(val) =>
