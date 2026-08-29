@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { HomeIcon, RocketLaunchIcon, SparklesIcon, ChartBarIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import { HomeIcon, RocketLaunchIcon, ChartBarIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 import { iconMap, ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
 import { isAdminLike } from '@/lib/rbac';
@@ -173,10 +173,6 @@ export function MainHome({
 
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
-            <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
-              <SparklesIcon className="h-4 w-4" />
-              Workspace Home
-            </p>
             <h1 className="text-3xl font-black tracking-tight md:text-5xl">
               Bienvenido:
               <span className="block">{displayName}</span>
