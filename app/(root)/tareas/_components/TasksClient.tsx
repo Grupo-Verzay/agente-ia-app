@@ -32,7 +32,7 @@ import {
 import { TaskTypeAutomationsPanel } from "@/app/(root)/crm/rules/components/TaskTypeAutomationsPanel";
 import { cn } from "@/lib/utils";
 import { fmtPhone } from "@/lib/whatsapp-jid";
-import { TASK_TYPES, type TaskData } from "@/lib/task-types";
+import { TASK_TYPES, isTaskOpen, type TaskData } from "@/lib/task-types";
 import { MetricCard } from "@/components/custom/MetricCard";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import {
@@ -167,11 +167,11 @@ export function TasksClient({ userId, userName }: Props) {
     return GROUP_ORDER.filter((g) => map[g]?.length).map((g) => ({ label: g, items: map[g] }));
   }, [filteredTasks]);
 
-  const pending = tasks.filter((t) => t.status === "pending").length;
+  const pending = tasks.filter((t) => isTaskOpen(t.status)).length;
   const done = tasks.filter((t) => t.status === "done").length;
-  const overdue = tasks.filter((t) => t.status === "pending" && new Date(t.dueDate) < new Date()).length;
+  const overdue = tasks.filter((t) => isTaskOpen(t.status) && new Date(t.dueDate) < new Date()).length;
   const dueToday = tasks.filter((t) => {
-    if (t.status !== "pending") return false;
+    if (!isTaskOpen(t.status)) return false;
     const d = new Date(t.dueDate);
     const now = new Date();
     return d >= now && d <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
@@ -468,7 +468,7 @@ function KanbanView({ tasks, allTypes, userId, onComplete, onCancel, onDelete }:
         <div className="flex gap-3 h-full" style={{ width: "max-content", minWidth: "100%" }}>
           {columns.map(({ type, items }) => {
             const col = TASK_COL[type] ?? TASK_COL["Otros"];
-            const pendingItems = items.filter((t) => t.status === "pending");
+            const pendingItems = items.filter((t) => isTaskOpen(t.status));
             const doneItems    = items.filter((t) => t.status === "done");
 
             return (

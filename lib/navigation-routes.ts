@@ -33,6 +33,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/ia" },
     { route: "/tags" },
     { route: "/tareas" },
+    { route: "/proyectos" },
     { route: "/ai" },
     { route: "/ai-image" },
     { route: "/products" },

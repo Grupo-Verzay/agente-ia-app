@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export type AuditEntityType = "crm" | "appointment" | "note" | "task";
+export type AuditEntityType = "crm" | "appointment" | "note" | "task" | "project";
 export type AuditAction =
   | "created"
   | "updated"

@@ -67,6 +67,8 @@ const createSchema = z.object({
   type: z.string().min(1),
   dueDate: z.string().min(1),
   sendWhatsApp: z.boolean().optional(),
+  /** Proyecto al que pertenece. Sin esto la tarea nace suelta, como siempre. */
+  projectId: z.number().int().positive().optional(),
 });
 
 const nextTaskSchema = z.object({
@@ -103,6 +105,7 @@ export async function createTaskAction(
         dueDate: new Date(parsed.dueDate),
         status: "pending",
         createdById: user.id,
+        projectId: parsed.projectId ?? null,
       },
     });
 
