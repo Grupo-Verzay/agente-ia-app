@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TableIcon, Save, Loader2, Sheet, Pencil } from 'lucide-react';
+import { TableIcon, Save, Loader2, Sheet, Pencil, ExternalLink, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -13,19 +13,39 @@ interface Props {
   initialRegistroName?: string | null;
 }
 
-function getEmbedUrl(url: string): string | null {
+function getSheetId(url: string): string | null {
   if (!url) return null;
   const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (!match) return null;
-  const id = match[1];
-  return `https://docs.google.com/spreadsheets/d/${id}/edit?rm=minimal`;
+  return match ? match[1] : null;
+}
+
+function getEmbedUrl(url: string): string | null {
+  const id = getSheetId(url);
+  return id ? `https://docs.google.com/spreadsheets/d/${id}/edit?rm=minimal` : null;
+}
+
+/** La hoja de verdad, sin el `rm=minimal` del incrustado: es el link que se
+ *  abre en otra pestana y el que se copia. */
+function getOpenUrl(url: string): string | null {
+  const id = getSheetId(url);
+  return id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : null;
 }
 
 export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
   const [url, setUrl] = useState(initialSheetsUrl ?? '');
   const [saved, setSaved] = useState(!!initialSheetsUrl);
   const [saving, setSaving] = useState(false);
+  const [copiado, setCopiado] = useState(false);
   const embedUrl = saved ? getEmbedUrl(url) : null;
+  const openUrl = saved ? getOpenUrl(url) : null;
+
+  async function copiarLink() {
+    if (!openUrl) return;
+    await navigator.clipboard.writeText(openUrl);
+    setCopiado(true);
+    toast.success('Link copiado');
+    setTimeout(() => setCopiado(false), 2000);
+  }
 
   async function handleSave() {
     if (!url.trim()) {
@@ -88,14 +108,42 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
             className="h-full w-full"
             title="Google Sheets"
           />
-          {/* Botón sutil para cambiar hoja */}
-          <button
-            onClick={() => { setSaved(false); setUrl(''); }}
-            title="Cambiar hoja de cálculo"
-            className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md border bg-background/80 backdrop-blur-sm px-2 py-1 text-xs text-muted-foreground transition-all opacity-30 hover:opacity-100 hover:text-foreground"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
+          {/* Abrir, copiar el link y cambiar de hoja. El link no se veia por
+              ningun lado: la hoja se mostraba incrustada y para saber cual era
+              habia que ir a buscarla a Drive. */}
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md border bg-background/80 px-1 py-1 backdrop-blur-sm transition-opacity opacity-40 hover:opacity-100">
+            {openUrl && (
+              <>
+                <a
+                  href={openUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir en Google Sheets"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Abrir
+                </a>
+                <button
+                  onClick={copiarLink}
+                  title="Copiar el link de la hoja"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {copiado ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                  Copiar link
+                </button>
+              </>
+            )}
+            {/* Cambiar de hoja deja la URL actual en el campo, no lo vacia: asi
+                se puede ver cual esta puesta y volver atras sin perderla. */}
+            <button
+              onClick={() => setSaved(false)}
+              title="Cambiar hoja de cálculo"
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-12 text-muted-foreground">
