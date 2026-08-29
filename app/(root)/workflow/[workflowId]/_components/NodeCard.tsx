@@ -2,7 +2,8 @@
 
 import { ChangeEvent, useEffect, useState, useTransition } from "react";
 import { useRouter } from 'next/navigation';
-import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled, updateNodeNotifyPhones } from "@/actions/workflow-node-action";
+import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled, updateNodeNotifyPhones, updateNodeMenuOptions } from "@/actions/workflow-node-action";
+import { MAX_OPCIONES_MENU, buildMenuPreview, parseMenuOptions } from "@/lib/workflow-menu";
 import { ACCEPT_TYPES, getAcceptTypeString, optimizeFile, validateFileType } from "../helpers";
 import { NodeActions } from "./NodeActions";
 import { Card, CardHeader, CardFooter, CardContent } from "@/components/ui/card";
@@ -30,6 +31,10 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const [telefonosNotificar, setTelefonosNotificar] = useState(
     (nodes as { notifyPhones?: string | null }).notifyPhones ?? '',
   );
+  // Nodo "Menu": las opciones, una por linea.
+  const [opcionesMenu, setOpcionesMenu] = useState(
+    (nodes as { menuOptions?: string | null }).menuOptions ?? '',
+  );
   const [delay, setDelay] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null);
@@ -47,6 +52,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const isIntention = nodeType === 'intention';
   const isPauseNode = nodeType === 'node_pause';
   const isNotifyNode = nodeType === 'nodo-notify';
+  const isMenuNode = nodeType === 'menu';
   const isAutomationNode = isAutomationNodeType(nodeType);
   const hasContent = nodeType === 'text' ? !!message : !!nodes.url;
   const currentAction = ACTIONS.find((a) => a.type === nodeType);
@@ -100,6 +106,22 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
       return;
     }
     toast.success(res.message);
+    router.refresh();
+  };
+
+  const guardarOpcionesMenu = async () => {
+    const anterior = (nodes as { menuOptions?: string | null }).menuOptions ?? '';
+    if (opcionesMenu.trim() === anterior.trim()) return;
+
+    const res = await updateNodeMenuOptions(nodes.id, opcionesMenu);
+    if (!res.success) {
+      toast.error(res.message);
+      setOpcionesMenu(anterior);
+      return;
+    }
+    toast.success(res.message);
+    // Hace falta refrescar: al cambiar el numero de opciones cambian los
+    // conectores del nodo, y se dibujan a partir de lo guardado.
     router.refresh();
   };
 
@@ -264,11 +286,22 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
     }
   };
 
-  const handleChangeMessages = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    if (!e?.target) return;
-    const { value } = e.target;
+  /** El texto del mensaje, con su tope de largo. */
+  const aplicarMensaje = (value: string) => {
     if (value.length > MAX_MESSAGE_LENGTH) return toast.info(`El mensaje excede ${MAX_MESSAGE_LENGTH} caracteres`);
     setMessage(value);
+  };
+
+  const handleChangeMessages = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    if (!e?.target) return;
+    aplicarMensaje(e.target.value);
+  };
+
+  // La pregunta del menu se escribe en un <input>, no en un <textarea>, asi que
+  // necesita su propio manejador; el tope de largo es el mismo.
+  const alEscribirPreguntaMenu = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!e?.target) return;
+    aplicarMensaje(e.target.value);
   };
 
   const fileInputId = `file-input-${nodes.id}`; //  ID único por nodo
@@ -353,6 +386,54 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
                 onBlur={handleOnBlurTime}
                 currentValue={nodes.delay || "minutes-0"}
               />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (isMenuNode) {
+      const opciones = parseMenuOptions(opcionesMenu);
+      return (
+        <div className="nodrag flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Pregunta</Label>
+            <Input
+              value={message}
+              onChange={alEscribirPreguntaMenu}
+              onBlur={() => handleSave()}
+              placeholder="Ej: ¿En qué te podemos ayudar?"
+              className="h-8 text-sm"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Opciones — una por línea</Label>
+            <textarea
+              value={opcionesMenu}
+              onChange={(e) => setOpcionesMenu(e.target.value)}
+              onBlur={guardarOpcionesMenu}
+              rows={4}
+              placeholder={'Ventas\nSoporte\nHorarios'}
+              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-primary"
+            />
+            {/* La numeracion la pone el sistema, no se escribe: asi el numero
+                que ve el cliente y el conector del nodo son siempre el mismo. */}
+            <p className="text-[11px] text-muted-foreground">
+              {opciones.length === 0
+                ? 'Sin opciones el menú no puede ramificar.'
+                : `${opciones.length} de ${MAX_OPCIONES_MENU}. El número lo pone el sistema.`}
+            </p>
+          </div>
+
+          {opciones.length > 0 && (
+            <div className="rounded-md border border-dashed border-border bg-muted/40 p-2">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Así lo recibe el cliente
+              </p>
+              <p className="whitespace-pre-wrap text-xs text-foreground">
+                {buildMenuPreview(message ?? '', opciones)}
+              </p>
             </div>
           )}
         </div>
@@ -489,7 +570,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
         <CardContent className="p-4">
           {renderContent()}
 
-          {!isNotifyNode && !isPauseNode && !isAutomationNode && nodeType !== 'guardar-ficha' && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
+          {!isNotifyNode && !isMenuNode && !isPauseNode && !isAutomationNode && nodeType !== 'guardar-ficha' && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
             <div className="flex w-full mt-2 nodrag">
               <GenericTextarea
                 fileType={baseType}

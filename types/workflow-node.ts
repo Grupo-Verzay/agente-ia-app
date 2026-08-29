@@ -20,6 +20,7 @@ import {
   Bot,
   Webhook,
   Phone,
+  ListOrdered,
 } from "lucide-react";
 
 import { LucideIcon } from "lucide-react";
@@ -33,6 +34,7 @@ export type WorkflowNodeType =
   | "audio"
   | "node_pause"
   | "nodo-notify"
+  | "menu"
   | "intention"
   | "guardar-ficha"
   | AutomationActionType
@@ -134,7 +136,7 @@ export const PALETTE: PaletteItem[] = [
 ];
 
 // Tipos base (acciones generales)
-export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify" | "intention" | "guardar-ficha" | AutomationActionType;
+export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify" | "intention" | "menu" | "guardar-ficha" | AutomationActionType;
 
 // Tipos de seguimiento (prefijo "seguimiento-")
 export type SeguimientoActionType =
@@ -174,6 +176,7 @@ export const baseActions: Action[] = [
   { type: "node_pause", label: "Pausar", icon: OctagonPause, iconClassName: `text-blue-500` },
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, iconClassName: `text-yellow-500` },
   { type: "intention", label: "Intención", icon: Brain, iconClassName: "text-cyan-500" },
+  { type: "menu", label: "Menú de opciones", icon: ListOrdered, iconClassName: "text-orange-500" },
   { type: "guardar-ficha", label: "Guardar ficha", icon: FileSpreadsheet, iconClassName: "text-teal-600" },
 ];
 
@@ -204,7 +207,7 @@ export const nodeActions: Action[] = baseActions.filter((a) =>
   ['text', 'image', 'video', 'document', 'audio'].includes(a.type)
 );
 export const accionActions: Action[] = baseActions.filter((a) =>
-  ['node_pause', 'nodo-notify', 'intention', 'guardar-ficha'].includes(a.type)
+  ['node_pause', 'nodo-notify', 'intention', 'menu', 'guardar-ficha'].includes(a.type)
 );
 
 export const cardBaseActions: Action[] = [
@@ -216,6 +219,7 @@ export const cardBaseActions: Action[] = [
   { type: "node_pause", label: "Pausar", icon: OctagonPause, bg: "bg-blue-500", iconClassName: "h-4 w-4 text-white" },
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, bg: "bg-yellow-500", iconClassName: "h-4 w-4 text-white" },
   { type: "intention", label: "Intención", icon: Brain, bg: "bg-black", iconClassName: "h-4 w-4 text-white" },
+  { type: "menu", label: "Menú de opciones", icon: ListOrdered, bg: "bg-orange-500", iconClassName: "h-4 w-4 text-white" },
   { type: "guardar-ficha", label: "Guardar ficha", icon: FileSpreadsheet, bg: "bg-teal-600", iconClassName: "h-4 w-4 text-white" },
 ];
 
