@@ -1,5 +1,5 @@
 import type { Plan } from '@prisma/client';
-import { isSuperAdmin } from '@/lib/rbac';
+import { isAdmin, isSuperAdmin } from '@/lib/rbac';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 
 /** Submódulos que solo tienen sentido para un reseller. */
@@ -20,19 +20,24 @@ type PanelTabSource = {
 
 /**
  * ¿A esta cuenta le aplican los bloqueos por plan de los módulos?
- *
- * El super admin es el dueño de la plataforma y no se filtra; los asesores
- * heredan el acceso de su cuenta dueña, y una prueba activa lo abre todo
- * mientras dura.
  */
 export function aplicaBloqueoPorPlan(user: {
     role?: string | null;
     ownerId?: string | null;
     trialEndsAt?: Date | null;
 }): boolean {
+    // El super admin es el dueño de la plataforma: nada lo limita.
+    if (isSuperAdmin(user.role)) return false;
+
+    // Un administrador es del equipo, no un cliente. Las dos excepciones de
+    // abajo son de clientes -el asesor hereda del dueño de su cuenta, y la
+    // prueba abre todo mientras dura- y aplicarselas dejaba sin efecto lo que
+    // se marca en el editor de modulos, que es justo como se le da acceso.
+    if (isAdmin(user.role)) return true;
+
     const esAsesor = !!user.ownerId;
     const enPrueba = !!user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
-    return !isSuperAdmin(user.role) && !esAsesor && !enPrueba;
+    return !esAsesor && !enPrueba;
 }
 
 /**
