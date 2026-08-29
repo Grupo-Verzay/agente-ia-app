@@ -1238,6 +1238,9 @@ model WorkflowNode {
   // workflow_notify_phones del BACKEND; aqui solo se replica para poder leerla
   // y escribirla (este servicio no corre migraciones).
   notifyPhones          String?                @map("notify_phones")
+  // Nodo "Menu": una opcion por linea, en orden. La linea N sale por "opt-N".
+  // La crea la migracion workflow_menu_options del BACKEND.
+  menuOptions           String?                @map("menu_options")
   sessionWorkflowStates SessionWorkflowState[]
   outgoingEdges         WorkflowEdge[]         @relation("EdgeSource")
   incomingEdges         WorkflowEdge[]         @relation("EdgeTarget")

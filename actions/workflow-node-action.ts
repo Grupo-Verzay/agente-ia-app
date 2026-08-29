@@ -2,6 +2,7 @@
 import { buildLinearExecutionOrder } from "@/app/(root)/workflow/[workflowId]/helpers/buildLinearExecutionOrder";
 import { auth } from "@/auth";
 import { currentUser } from "@/lib/auth";
+import { parseMenuOptions } from "@/lib/workflow-menu";
 import { db } from "@/lib/db";
 import { minioClient } from "@/lib/minio";
 import { createNodeflowSchema, createNodeflowSchemaType } from "@/schema/nodeflow";
@@ -327,6 +328,50 @@ export async function updateNodeNotifyPhones(nodeId: string, notifyPhones: strin
     return {
       success: false,
       message: 'Ocurrió un error al guardar los números.',
+    };
+  }
+}
+
+/**
+ * Las opciones de un nodo "Menu": una por linea, en orden.
+ *
+ * De aqui salen dos cosas que tienen que cuadrar: los conectores que se dibujan
+ * y las ramas que el motor elige al ejecutar. Por eso se guarda ya recortado a
+ * MAX_OPCIONES_MENU con la MISMA regla que usa el backend, en vez de dejar
+ * lineas de mas guardadas que en pantalla no tendrian conector.
+ */
+export async function updateNodeMenuOptions(nodeId: string, menuOptions: string) {
+  try {
+    if (!nodeId) {
+      return { success: false, message: 'Parámetros inválidos.' };
+    }
+
+    const user = await currentUser();
+    if (!user?.id) {
+      return { success: false, message: 'No autorizado.' };
+    }
+
+    const opciones = parseMenuOptions(menuOptions);
+
+    // Mismo guardian que el resto: que el nodo sea de un flujo del usuario.
+    const { count } = await db.workflowNode.updateMany({
+      where: {
+        id: nodeId,
+        workflow: { userId: user.ownerId ?? user.id },
+      },
+      data: { menuOptions: opciones.length ? opciones.join('\n') : null },
+    });
+
+    if (count === 0) {
+      return { success: false, message: 'No se encontró el nodo.' };
+    }
+
+    return { success: true, message: 'Opciones actualizadas.' };
+  } catch (error) {
+    console.error('Error updateNodeMenuOptions', error);
+    return {
+      success: false,
+      message: 'Ocurrió un error al guardar las opciones.',
     };
   }
 }
