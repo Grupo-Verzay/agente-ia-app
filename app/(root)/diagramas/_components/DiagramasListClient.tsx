@@ -50,7 +50,10 @@ function cuandoSeTocó(fecha: Date | string): string {
   return `Editado el ${d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}`;
 }
 
-export function DiagramasListClient() {
+export function DiagramasListClient({ canManage }: {
+  /** Dueño o administrador. Un agente consulta los diagramas, no los gestiona. */
+  canManage: boolean;
+}) {
   const router = useRouter();
   const [flows, setFlows] = useState<FlowSummary[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -118,10 +121,12 @@ export function DiagramasListClient() {
             )}
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Nuevo
-        </Button>
+        {canManage && (
+          <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Nuevo
+          </Button>
+        )}
       </div>
 
       {flows === null ? (
@@ -140,10 +145,12 @@ export function DiagramasListClient() {
               un cliente cómo va a funcionar su atención.
             </p>
           </div>
-          <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Crear el primero
-          </Button>
+          {canManage && (
+            <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Crear el primero
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -163,6 +170,7 @@ export function DiagramasListClient() {
                 {/* En pantalla grande las acciones solo salen al pasar el mouse,
                     para que la rejilla se lea limpia; en tactil no hay mouse que
                     pasar, asi que ahi se quedan siempre puestas. */}
+                {canManage && (
                 <div className="flex shrink-0 gap-0.5 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
                   <Button
                     variant="ghost"
@@ -190,6 +198,7 @@ export function DiagramasListClient() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
+                )}
               </CardHeader>
               <CardContent className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="rounded-md bg-muted px-1.5 py-0.5 font-medium tabular-nums text-foreground/70">

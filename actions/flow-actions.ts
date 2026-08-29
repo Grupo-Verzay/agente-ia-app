@@ -14,6 +14,7 @@
 import { revalidatePath } from "next/cache";
 
 import { currentUser } from "@/lib/auth";
+import { canManageWorkspace } from "@/lib/workspace-roles";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 
@@ -79,6 +80,21 @@ async function requireUserId(): Promise<string> {
   const user = await currentUser();
   const userId = user?.effectiveId ?? user?.id;
   if (!userId) throw new Error("No autenticado.");
+  return userId;
+}
+
+/**
+ * Crear y borrar diagramas queda para el dueño de la cuenta y los
+ * administradores de su equipo; un agente los consulta. Mismo reparto que en
+ * Proyectos, para no tener dos reglas distintas para lo mismo.
+ */
+async function requireFlowManagerId(): Promise<string> {
+  const user = await currentUser();
+  const userId = user?.effectiveId ?? user?.id;
+  if (!user || !userId) throw new Error("No autenticado.");
+  if (!canManageWorkspace(user)) {
+    throw new Error("Solo el dueño o un administrador puede gestionar diagramas.");
+  }
   return userId;
 }
 
@@ -185,7 +201,7 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
   if (!trimmed) return { success: false, message: "El nombre es obligatorio." };
 
   try {
-    const userId = await requireUserId();
+    const userId = await requireFlowManagerId();
     await ensureFlowTable();
 
     const existing = await db.$queryRaw<{ id: string }[]>`
@@ -269,7 +285,7 @@ export async function saveFlowGraphAction(
 
 export async function deleteFlowAction(flowId: string): Promise<ActionResult<null>> {
   try {
-    const userId = await requireUserId();
+    const userId = await requireFlowManagerId();
     await ensureFlowTable();
     await db.$executeRaw`DELETE FROM "flows" WHERE "userId" = ${userId} AND "id" = ${flowId}`;
     return { success: true, data: null };
