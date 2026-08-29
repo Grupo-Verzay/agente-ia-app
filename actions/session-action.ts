@@ -1,6 +1,7 @@
 ﻿'use server'
 
 import { db } from '@/lib/db'
+import { obtenerResueltas } from '@/lib/session-resolved'
 import { registerSessionSchema } from '@/schema/session';
 import { AppointmentStatus, Prisma, Session as PrismaSession } from '@prisma/client';
 import { z } from 'zod';
@@ -127,6 +128,7 @@ function mapChatContactSessionSummary(
   seguimientosTipos?: { tipo: string; count: number }[],
   latestAppointmentStatus?: AppointmentStatus | null,
   reminderCount?: number,
+  resolvedAt?: number | null,
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
 
@@ -149,6 +151,7 @@ function mapChatContactSessionSummary(
     assignedAdvisorId: session.assignedAdvisorId ?? null,
     status: mappedSession.status,
     agentDisabled: mappedSession.agentDisabled,
+    resolvedAt: resolvedAt ?? null,
   };
 }
 
@@ -492,6 +495,10 @@ export async function getChatContactSessions(
     }
 
     const sessionIds = sessions.map((s) => s.id);
+    // Que conversaciones estan marcadas como resueltas. Va aparte porque la
+    // columna no esta en schema.prisma (se crea en caliente), asi que el
+    // findMany de arriba no la trae.
+    const resueltasMap = await obtenerResueltas(sessionIds);
     const appointmentsRaw = sessionIds.length
       ? await db.appointment.findMany({
           where: { sessionId: { in: sessionIds } },
@@ -581,6 +588,7 @@ export async function getChatContactSessions(
           Object.entries(seg?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
           appointmentStatusMap.get(preferredSession.id) ?? null,
           recordatoriosMap.get(preferredSession.remoteJid) ?? 0,
+          resueltasMap.get(preferredSession.id) ?? null,
         );
       }
 
@@ -607,6 +615,7 @@ export async function getChatContactSessions(
             Object.entries(segLinea?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
             appointmentStatusMap.get(sesionDeSuLinea.id) ?? null,
             recordatoriosMap.get(sesionDeSuLinea.remoteJid) ?? 0,
+            resueltasMap.get(sesionDeSuLinea.id) ?? null,
           );
         }
       }
