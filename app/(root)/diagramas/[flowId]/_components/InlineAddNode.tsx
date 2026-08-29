@@ -168,9 +168,11 @@ export function InlineAddNode({
                 side={side}
                 align="center"
                 sideOffset={12}
-                collisionPadding={12}
+                collisionPadding={16}
                 onClick={(e) => e.stopPropagation()}
-                className="nodrag nopan h-[410px] w-[320px] overflow-hidden p-0"
+                // Igual que en el creador de flujos: con alto fijo, cerca del
+                // borde de arriba el panel se salía y escondía el buscador.
+                className="nodrag nopan h-[410px] max-h-[var(--radix-popover-content-available-height)] w-[320px] overflow-hidden p-0"
             >
                 <div className="flex h-full flex-col">
                     <div className="shrink-0 space-y-2 border-b p-4 pb-3">
