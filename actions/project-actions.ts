@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
-import type { TaskData, TaskStatus } from "@/lib/task-types";
+import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 
 type Result<T> = { success: boolean; message: string; data?: T };
 
@@ -41,13 +41,16 @@ function toProjectData(
     dueDate: Date | null;
     createdAt: Date;
     members: { userId: string }[];
-    tasks: { status: string }[];
+    tasks: { status: string; dueDate: Date }[];
   },
   people: Map<string, { name: string | null; email: string | null }>,
 ): ProjectData {
   const taskCounts: Record<string, number> = {};
+  const now = Date.now();
+  let overdueTasks = 0;
   for (const task of project.tasks) {
     taskCounts[task.status] = (taskCounts[task.status] ?? 0) + 1;
+    if (isTaskOpen(task.status) && task.dueDate.getTime() < now) overdueTasks += 1;
   }
 
   return {
@@ -66,6 +69,7 @@ function toProjectData(
       email: people.get(member.userId)?.email ?? null,
     })),
     taskCounts,
+    overdueTasks,
     createdAt: project.createdAt.toISOString(),
   };
 }
@@ -91,7 +95,7 @@ export async function listProjectsAction(): Promise<Result<ProjectData[]>> {
       where: { ownerId },
       include: {
         members: { select: { userId: true } },
-        tasks: { select: { status: true } },
+        tasks: { select: { status: true, dueDate: true } },
       },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     });
@@ -180,7 +184,7 @@ export async function saveProjectAction(
       where: { id: projectId },
       include: {
         members: { select: { userId: true } },
-        tasks: { select: { status: true } },
+        tasks: { select: { status: true, dueDate: true } },
       },
     });
     const people = await loadPeople([saved.leadId ?? "", ...saved.members.map((m) => m.userId)]);
