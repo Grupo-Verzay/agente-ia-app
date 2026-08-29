@@ -195,6 +195,53 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         return () => obs.disconnect();
     }, []);
 
+    /* ---------- Si queda algo sin guardar ----------
+     *
+     * Cada pestana empuja lo suyo a `values` segun se edita (cada builder hace
+     * handleChange("training" | "faq" | ...)), asi que `values` es el estado en
+     * vivo de toda la pantalla. Comparandolo con una foto de lo ultimo que se
+     * guardo se sabe si falta mandar algo, sin tener que tocar los seis builders.
+     *
+     * Salvedad: Perfil avisa al SALIR de cada campo, no en cada tecla, asi que
+     * mientras se escribe en un campo de Perfil el boton tarda en ponerse verde
+     * hasta que se pasa al siguiente.
+     */
+    // Se memoiza: `values` lleva el texto entero de las seis pestanas, y
+    // serializarlo en cada render de esta pantalla se paga caro para nada.
+    const firmaActual = useMemo(() => JSON.stringify(values), [values]);
+    const firmaGuardadaRef = useRef(firmaActual);
+    const firmaActualRef = useRef(firmaActual);
+    firmaActualRef.current = firmaActual;
+    const [hayCambios, setHayCambios] = useState(false);
+
+    // Margen de arranque. Al abrir la pantalla cada builder reconstruye su texto
+    // y lo empuja a `values`, asi que la firma cambia sola sin que nadie haya
+    // escrito nada. Sin esta ventana el boton salia verde nada mas entrar y
+    // dejaba de significar algo. Dentro de ella se mueve la foto en vez de
+    // marcar cambios; despues, cualquier cambio ya es de una persona.
+    const montadoEnRef = useRef(Date.now());
+    const MARGEN_DE_ARRANQUE = 2500;
+
+    useEffect(() => {
+        if (firmaActual === firmaGuardadaRef.current) {
+            setHayCambios(false);
+            return;
+        }
+        if (Date.now() - montadoEnRef.current < MARGEN_DE_ARRANQUE) {
+            firmaGuardadaRef.current = firmaActual;
+            return;
+        }
+        setHayCambios(true);
+    }, [firmaActual]);
+
+    const alGuardar = useCallback(() => {
+        // La foto se toma AL TERMINAR de guardar, no al empezar: si alguien
+        // escribio mientras se guardaba, ese cambio sigue pendiente y el boton
+        // tiene que seguir en verde.
+        firmaGuardadaRef.current = firmaActualRef.current;
+        setHayCambios(false);
+    }, []);
+
     const saveHandlersRef = useRef<Record<string, () => Promise<void>>>({});
 
     const registerSaveHandler = useCallback((key: string, handler: () => Promise<void>) => {
@@ -357,7 +404,11 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                         >
                             <ArrowRight />
                         </Button>
-                        <div className="flex items-center gap-2 shrink-0">
+                        {/* Separado de las pestanas con una linea: pegado a "Gestion"
+                            se leia como una pestana mas, y quedaba a un clic de
+                            distancia de la ultima. Las pestanas sirven para moverse;
+                            Guardar hace algo. No deberian tocarse. */}
+                        <div className="flex items-center gap-2 shrink-0 border-l border-border/60 pl-2 ml-1">
                             <PromptToolbar
                                     promptId={promptMeta.id}
                                     version={promptVersion}
@@ -426,6 +477,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     revalidatePath="/ia"
                                     revisions={[]}
                                     onManualSave={handleManualSaveCurrent}
+                                    hasChanges={hayCambios}
+                                    onSaved={alGuardar}
                                 />
 
                             <DropdownMenu modal={false}>
