@@ -32,7 +32,7 @@ export const WORKFLOW_FEATURES: WorkflowFeature[] = [
   { key: "image", label: "Imagen", group: "Nodos" },
   { key: "video", label: "Video", group: "Nodos" },
   { key: "document", label: "Documento", group: "Nodos" },
-  { key: "audio", label: "Audio", group: "Nodos" },
+  { key: "audio", label: "Nota de voz", group: "Nodos" },
   // Acciones
   { key: "node_pause", label: "Pausar", group: "Acciones" },
   { key: "nodo-notify", label: "Notificar", group: "Acciones" },
@@ -53,7 +53,7 @@ export const WORKFLOW_FEATURES: WorkflowFeature[] = [
   { key: "seguimiento-image", label: "Imagen", group: "Seguimientos" },
   { key: "seguimiento-video", label: "Video", group: "Seguimientos" },
   { key: "seguimiento-document", label: "Documento", group: "Seguimientos" },
-  { key: "seguimiento-audio", label: "Audio", group: "Seguimientos" },
+  { key: "seguimiento-audio", label: "Nota de voz", group: "Seguimientos" },
 ];
 
 const VALID_FEATURE_KEYS = new Set(WORKFLOW_FEATURES.map((f) => f.key));

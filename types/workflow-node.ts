@@ -129,7 +129,7 @@ export type PaletteItem = {
 export const PALETTE: PaletteItem[] = [
   { type: "customNode", label: "Texto", nodeTipo: "texto" },
   { type: "customNode", label: "Imagen", nodeTipo: "imagen" },
-  { type: "customNode", label: "Audio", nodeTipo: "audio" },
+  { type: "customNode", label: "Nota de voz", nodeTipo: "audio" },
   { type: "customNode", label: "Documento", nodeTipo: "documento" },
   { type: "customNode", label: "Intención", nodeTipo: "intention" },
   { type: "customNode", label: "Seguimiento Video", nodeTipo: "seguimiento-video" },
@@ -162,6 +162,8 @@ export interface Action {
   icon: LucideIcon;
   bg?: string;
   iconClassName?: string;
+  /** Sinónimos para el buscador, cuando la etiqueta no es lo que uno teclea. */
+  keywords?: string;
 }
 
 const stylesSeguimiento = "text-purple-700";
@@ -172,7 +174,7 @@ export const baseActions: Action[] = [
   { type: "image", label: "Imagen", icon: ImageIcon, iconClassName: `text-blue-500` },
   { type: "video", label: "Video", icon: Video, iconClassName: `text-red-500` },
   { type: "document", label: "Documento", icon: File, iconClassName: `text-gray-500` },
-  { type: "audio", label: "Audio", icon: Music, iconClassName: `text-green-500` },
+  { type: "audio", label: "Nota de voz", icon: Music, iconClassName: `text-green-500`, keywords: "audio" },
   { type: "node_pause", label: "Pausar", icon: OctagonPause, iconClassName: `text-blue-500` },
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, iconClassName: `text-yellow-500` },
   { type: "intention", label: "Intención", icon: Brain, iconClassName: "text-cyan-500" },
@@ -186,7 +188,7 @@ export const seguimientoActions: Action[] = [
   { type: "seguimiento-image", label: "Imagen", icon: ImageIcon, iconClassName: `text-blue-500` },
   { type: "seguimiento-video", label: "Video", icon: Video, iconClassName: `text-red-500` },
   { type: "seguimiento-document", label: "Documento", icon: File, iconClassName: `text-gray-500` },
-  { type: "seguimiento-audio", label: "Audio", icon: Music, iconClassName: `text-green-500` },
+  { type: "seguimiento-audio", label: "Nota de voz", icon: Music, iconClassName: `text-green-500`, keywords: "audio" },
 ];
 
 //  Acciones de automatización (efecto CRM: mismas del Kanban)
@@ -206,16 +208,20 @@ export const automationActions: Action[] = [
 export const nodeActions: Action[] = baseActions.filter((a) =>
   ['text', 'image', 'video', 'document', 'audio'].includes(a.type)
 );
-export const accionActions: Action[] = baseActions.filter((a) =>
-  ['node_pause', 'nodo-notify', 'intention', 'menu', 'guardar-ficha'].includes(a.type)
-);
+// El orden de la lista manda: `filter` conservaba el de baseActions, así que
+// mover una acción en el panel obligaba a moverla también allí, donde el orden
+// no significa nada.
+const ORDEN_ACCIONES = ['node_pause', 'nodo-notify', 'intention', 'guardar-ficha', 'menu'] as const;
+export const accionActions: Action[] = ORDEN_ACCIONES
+  .map((type) => baseActions.find((a) => a.type === type))
+  .filter((a): a is Action => !!a);
 
 export const cardBaseActions: Action[] = [
   { type: "text", label: "Texto", icon: FileText, bg: "bg-gray-500", iconClassName: "h-4 w-4 text-white" },
   { type: "image", label: "Imagen", icon: ImageIcon, bg: "bg-blue-500", iconClassName: "h-4 w-4 text-white" },
   { type: "video", label: "Video", icon: Video, bg: "bg-red-500", iconClassName: "h-4 w-4 text-white" },
   { type: "document", label: "Documento", icon: File, bg: "bg-yellow-500", iconClassName: "h-4 w-4 text-white" },
-  { type: "audio", label: "Audio", icon: Music, bg: "bg-green-500", iconClassName: "h-4 w-4 text-white" },
+  { type: "audio", label: "Nota de voz", icon: Music, bg: "bg-green-500", iconClassName: "h-4 w-4 text-white" },
   { type: "node_pause", label: "Pausar", icon: OctagonPause, bg: "bg-blue-500", iconClassName: "h-4 w-4 text-white" },
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, bg: "bg-yellow-500", iconClassName: "h-4 w-4 text-white" },
   { type: "intention", label: "Intención", icon: Brain, bg: "bg-black", iconClassName: "h-4 w-4 text-white" },
@@ -228,7 +234,7 @@ export const cardSeguimientoActions: Action[] = [
   { type: "seguimiento-image", label: "Imagen", icon: ImageIcon, bg: "bg-blue-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
   { type: "seguimiento-video", label: "Video", icon: Video, bg: "bg-red-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
   { type: "seguimiento-document", label: "Documento", icon: File, bg: "bg-gray-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
-  { type: "seguimiento-audio", label: "Audio", icon: Music, bg: "bg-green-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
+  { type: "seguimiento-audio", label: "Nota de voz", icon: Music, bg: "bg-green-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
 ];
 
 export const cardAutomationActions: Action[] = [

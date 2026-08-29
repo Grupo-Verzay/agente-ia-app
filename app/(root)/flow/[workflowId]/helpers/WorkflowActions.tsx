@@ -17,7 +17,7 @@ export const baseActions: Action[] = [
     { type: "image", label: "Imagen", icon: <ImageIcon className={`${iconSize} text-blue-500`} /> },
     { type: "video", label: "Video", icon: <Video className={`${iconSize} text-red-500`} /> },
     { type: "document", label: "Documento", icon: <File className={`${iconSize} text-gray-500`} /> },
-    { type: "audio", label: "Audio", icon: <Music className={`${iconSize} text-green-500`} /> },
+    { type: "audio", label: "Nota de voz", icon: <Music className={`${iconSize} text-green-500`} /> },
     { type: "node_pause", label: "Pausar", icon: <OctagonPause className={`${iconSize} text-blue-500`} /> },
     { type: "nodo-notify", label: "Notificar", icon: <MessageCircle className={`${iconSize} text-yellow-500`} /> },
     { type: "guardar-ficha", label: "Guardar ficha", icon: <FileSpreadsheet className={`${iconSize} text-teal-600`} /> },
@@ -28,7 +28,7 @@ const legacySeguimientoActions: Action[] = [
     { type: "seguimiento-image", label: "Imagen", icon: <ImageIcon className={`${iconSize} text-blue-500`} /> },
     { type: "seguimiento-video", label: "Video", icon: <Video className={`${iconSize} text-red-500`} /> },
     { type: "seguimiento-document", label: "Documento", icon: <File className={`${iconSize} text-gray-500`} /> },
-    { type: "seguimiento-audio", label: "Audio", icon: <Music className={`${iconSize} text-green-500`} /> },
+    { type: "seguimiento-audio", label: "Nota de voz", icon: <Music className={`${iconSize} text-green-500`} /> },
 ];
 
 export const seguimientoActions: Action[] = legacySeguimientoActions;
@@ -38,7 +38,7 @@ export const cardBaseActions: Action[] = [
     { type: "image", label: "Imagen", icon: <ImageIcon className={`text-white`} />, bg: "bg-blue-500" },
     { type: "video", label: "Video", icon: <Video className={`text-white`} />, bg: "bg-red-500" },
     { type: "document", label: "Documento", icon: <File className={` text-white`} />, bg: "bg-yellow-500" },
-    { type: "audio", label: "Audio", icon: <Music className={`text-white`} />, bg: "bg-green-500" },
+    { type: "audio", label: "Nota de voz", icon: <Music className={`text-white`} />, bg: "bg-green-500" },
     { type: "node_pause", label: "Pausar", icon: <OctagonPause className={`text-white`} />, bg: "bg-blue-500" },
     { type: "nodo-notify", label: "Notificar", icon: <MessageCircle className={`text-white`} />, bg: "bg-yellow-500" },
     { type: "guardar-ficha", label: "Guardar ficha", icon: <FileSpreadsheet className={`text-white`} />, bg: "bg-teal-600" },
@@ -49,7 +49,7 @@ export const cardSeguimientoActions: Action[] = [
     { type: "seguimiento-image", label: "Imagen", icon: <ImageIcon className="text-white" />, bg: "bg-blue-500" },
     { type: "seguimiento-video", label: "Video", icon: <Video className="text-white" />, bg: "bg-red-500" },
     { type: "seguimiento-document", label: "Documento", icon: <File className="text-white" />, bg: "bg-gray-500" },
-    { type: "seguimiento-audio", label: "Audio", icon: <Music className="text-white" />, bg: "bg-green-500" },
+    { type: "seguimiento-audio", label: "Nota de voz", icon: <Music className="text-white" />, bg: "bg-green-500" },
 ];
 
 export { legacySeguimientoActions };
