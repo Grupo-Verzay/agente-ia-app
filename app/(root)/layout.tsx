@@ -259,7 +259,8 @@ export default async function RootGroupLayout({
         }
     }
 
-    // Rutas bloqueadas para el plan actual (visibles en sidebar pero sin acceso)
+    // Rutas bloqueadas para el plan actual. Al cliente se le muestran con candado
+    // y sin acceso; al equipo interno se le esconden del menú (ver nav-main).
     const isAdvisor = !!user.ownerId;
     const lockedRoutes: string[] = aplicaBloqueoPorPlan(user)
         ? [
