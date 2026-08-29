@@ -269,9 +269,58 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
   }
 }
 
+const editTaskSchema = z.object({
+  taskId: z.number().int().positive(),
+  title: z.string().trim().min(1, "La tarea necesita un título."),
+  type: z.string().trim().min(1),
+  dueDate: z.string().min(1),
+  assignedToId: z.string().trim().min(1),
+});
+
+/**
+ * Editar una tarjeta del tablero. El estado no se toca aquí: para eso está
+ * arrastrarla de columna (moveProjectTaskAction).
+ */
+export async function updateProjectTaskAction(
+  input: z.infer<typeof editTaskSchema>,
+): Promise<Result<null>> {
+  try {
+    const { ownerId } = await getAuth();
+    const parsed = editTaskSchema.parse(input);
+
+    // El nombre se guarda junto a la tarea (como en createTaskAction) para que
+    // la tarjeta siga diciendo quién es aunque esa persona salga del equipo.
+    const assignee = await db.user.findUnique({
+      where: { id: parsed.assignedToId },
+      select: { name: true, email: true },
+    });
+
+    const updated = await db.task.updateMany({
+      where: { id: parsed.taskId, ownerId },
+      data: {
+        title: parsed.title,
+        type: parsed.type,
+        dueDate: new Date(parsed.dueDate),
+        assignedToId: parsed.assignedToId,
+        assignedToName: assignee?.name ?? assignee?.email ?? null,
+      },
+    });
+    if (updated.count === 0) throw new Error("Tarea no encontrada.");
+
+    revalidatePath("/proyectos");
+    return { success: true, message: "Tarea actualizada." };
+  } catch (error) {
+    console.error("[updateProjectTaskAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo guardar la tarea.",
+    };
+  }
+}
+
 const moveSchema = z.object({
   taskId: z.number().int().positive(),
-  status: z.enum(["pending", "in_progress", "done"]),
+  status: z.enum(["pending", "in_progress", "in_review", "done", "cancelled"]),
 });
 
 /** Arrastrar una tarjeta de columna: solo cambia el estado. */

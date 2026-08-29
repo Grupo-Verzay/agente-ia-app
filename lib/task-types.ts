@@ -9,15 +9,16 @@ export const TASK_TYPES = [
 export type TaskType = (typeof TASK_TYPES)[number];
 
 /**
- * `in_progress` nace con el tablero de Proyectos, que necesita una columna
- * intermedia. En la pantalla de Tareas cuenta como pendiente: es trabajo sin
- * terminar, y tratarlo de otro modo lo haría desaparecer de los avisos.
+ * `in_progress` e `in_review` nacen con el tablero de Proyectos, que necesita
+ * etapas intermedias. En la pantalla de Tareas cuentan como pendientes: son
+ * trabajo sin terminar, y tratarlos de otro modo los haría desaparecer de los
+ * contadores y de los vencidos.
  */
-export type TaskStatus = "pending" | "in_progress" | "done" | "cancelled";
+export type TaskStatus = "pending" | "in_progress" | "in_review" | "done" | "cancelled";
 
 /** Sin terminar: lo que aún pide atención. */
 export function isTaskOpen(status: string) {
-  return status === "pending" || status === "in_progress";
+  return status === "pending" || status === "in_progress" || status === "in_review";
 }
 
 export type TaskData = {
