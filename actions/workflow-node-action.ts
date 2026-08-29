@@ -346,6 +346,62 @@ export async function updateNodeNotifyPhones(nodeId: string, notifyPhones: strin
 }
 
 /**
+ * El texto de un nodo "Notificar": el titulo del aviso y su descripcion.
+ *
+ * Van juntos porque se escriben juntos y el aviso no se entiende con uno solo.
+ * Vacios no rompen nada: el backend pone "Notificacion" y, si tampoco hay
+ * descripcion, el resumen del ultimo registro de la conversacion.
+ *
+ * El titulo se acota corto a proposito: es el encabezado en negrita del
+ * WhatsApp del asesor, no el sitio para contar el caso.
+ */
+export async function updateNodeNotifyText(
+  nodeId: string,
+  notifyTitle: string,
+  message: string,
+) {
+  try {
+    if (!nodeId) {
+      return { success: false, message: 'Parámetros inválidos.' };
+    }
+
+    const user = await currentUser();
+    if (!user?.id) {
+      return { success: false, message: 'No autorizado.' };
+    }
+
+    const titulo = notifyTitle.trim().slice(0, 80);
+    const cuerpo = message.trim().slice(0, 900);
+
+    // Mismo guardian que el resto: que el nodo sea de un flujo del usuario.
+    const { count } = await db.workflowNode.updateMany({
+      where: {
+        id: nodeId,
+        workflow: { userId: user.ownerId ?? user.id },
+      },
+      data: {
+        notifyTitle: titulo || null,
+        // `message` no admite null en el esquema: vacio es la cadena vacia, y
+        // el backend la trata igual que si no hubiera nada.
+        message: cuerpo,
+      },
+    });
+
+    if (count === 0) {
+      return { success: false, message: 'No se encontró el nodo.' };
+    }
+
+    return { success: true, message: 'Aviso actualizado.' };
+  } catch (error) {
+    console.error('Error updateNodeNotifyText', error);
+    return {
+      success: false,
+      message: 'Ocurrió un error al guardar el aviso.',
+    };
+  }
+}
+
+/**
  * Las opciones de un nodo "Menu": una por linea, en orden.
  *
  * De aqui salen dos cosas que tienen que cuadrar: los conectores que se dibujan
