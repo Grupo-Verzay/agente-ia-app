@@ -249,14 +249,15 @@ export default async function RootGroupLayout({
                 const allowedIds = new Set(userModuleRecords.map(r => r.A));
                 modules = allModules.filter(m => allowedIds.has(m.id));
             }
-            const isAdvisor = !!user.ownerId;
             const userPlan = user!.plan;
             const esAdmin = isAdmin(user?.role);
+            // Mismo criterio que las rutas bloqueadas y que el sidebar: una sola
+            // regla decide a quién le aplica el plan.
+            const filtraPorPlan = aplicaBloqueoPorPlan(user);
             modules = modules.filter(m => {
                 // "Solo Admin" sigue siendo para los administradores.
                 if (m.adminOnly && !esAdmin) return false;
-                // Asesores y usuarios en prueba activa no se filtran por plan
-                if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
+                if (filtraPorPlan && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
                 return true;
             });
         }

@@ -1,7 +1,7 @@
 // utils/access.ts
 import { Plan } from '@prisma/client';
 import type { ModuleWithItems } from '@/schema/module';
-import { isAdminOrReseller, isSuperAdmin } from '@/lib/rbac';
+import { isAdmin, isAdminOrReseller, isSuperAdmin } from '@/lib/rbac';
 
 function normalizePath(p?: string | null) {
   const s = (p ?? '').trim();
@@ -90,9 +90,9 @@ export function canAccessRoute({
 
   // Del filtro por plan solo queda fuera el super admin: es el dueño de la
   // plataforma y es quien decide, desde el editor de módulos, qué ve cada quien.
-  // Los administradores SÍ se filtran, para que los "Planes permitidos" de cada
-  // módulo también signifiquen algo para ellos.
-  const exentoDePlan = isAdvisor || isSuperAdmin(userRole);
+  // Un administrador SÍ se filtra aunque sea asesor de otra cuenta: es del
+  // equipo, y su acceso se define en el editor de módulos, no heredándolo.
+  const exentoDePlan = isSuperAdmin(userRole) || (isAdvisor && !isAdmin(userRole));
 
   if (!exentoDePlan && link.allowedPlans?.length && !link.allowedPlans.includes(userPlan)) {
     return { allowed: false as const, reason: 'invalid_plan' as const };
