@@ -112,6 +112,14 @@ export type ChatContactSessionSummary = {
   assignedAdvisorId?: string | null;
   status?: boolean;
   agentDisabled?: boolean;
+  /**
+   * Cuando se marco como resuelta (milisegundos), o null si no lo esta.
+   *
+   * Va aparte de `status` a proposito: ese se apaga tambien cuando un asesor
+   * responde, para callar a la IA, y usarlo como "resuelta" sacaba de la lista
+   * cualquier chat contestado.
+   */
+  resolvedAt?: number | null;
 };
 
 export type ChatContactSessionMap = Record<string, ChatContactSessionSummary>;

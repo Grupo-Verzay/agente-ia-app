@@ -99,16 +99,26 @@ function claveDeChatVisto(instanceName: string | undefined, remoteJid: string): 
 const MAX_CHATS_VISTOS = 1000;
 
 /**
- * Una conversación resuelta. Se guarda como `status = false` en la sesión, que
- * es lo que deja `resolveSession` al aplicar la macro de "Resolver
- * conversación". Sale de la lista normal y se va a su propia pestaña, como los
- * archivados; vuelve sola en cuanto el cliente escribe otra vez.
+ * Una conversación resuelta.
  *
- * `status` indefinido -un chat que todavía no tiene sesión creada- NO cuenta
- * como resuelto: se comprueba contra `false` a propósito.
+ * Se mira `resolvedAt`, la marca que deja "Resolver conversación", y NO
+ * `status === false` como antes. Ese campo tambien lo apaga la App cada vez que
+ * un asesor responde -para que la IA no conteste encima del asesor-, asi que
+ * usarlo aqui hacia que contestarle a un cliente marcara el chat como resuelto y
+ * lo sacara de la lista sin que nadie le diera a resolver.
+ *
+ * Sigue volviendo sola cuando el cliente escribe: si el ultimo mensaje es
+ * posterior a la marca, deja de contar como resuelta. Se compara aqui en vez de
+ * borrar la marca en la base porque quien recibe los mensajes nuevos es
+ * api-webhook, en otro repositorio; asi la vuelta no depende de que alla se
+ * cambie nada.
  */
 function esResuelta(c: SidebarContact): boolean {
-  return c.chatSession?.status === false;
+  const resueltaEn = c.chatSession?.resolvedAt;
+  if (!resueltaEn) return false;
+
+  // `ts` ya viene en milisegundos (epochToMs), igual que la marca.
+  return c.ts <= resueltaEn;
 }
 
 const SIDEBAR_VIRTUALIZE_AFTER = 50;

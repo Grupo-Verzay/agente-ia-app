@@ -1,6 +1,7 @@
 "use server";
 
 import { currentUser } from "@/lib/auth";
+import { marcarSesionResuelta } from "@/lib/session-resolved";
 import { db } from "@/lib/db";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
@@ -330,7 +331,11 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
     reason: "resolved",
   }).catch((error) => console.error("[resolveSession intelligence]", error));
 
+  // status = false sigue apagando la IA (api-webhook lee ese campo y no se puede
+  // tocar desde aqui). Lo NUEVO es resolved_at: es la marca que de verdad dice
+  // "resuelta", porque status tambien se apaga solo con que un asesor responda.
   await db.$executeRaw`UPDATE "Session" SET status = false WHERE id = ${sessionId}`;
+  await marcarSesionResuelta(sessionId);
   await logAssignment(sessionId, assignedAdvisorId, user.id, "resolved");
 
   return { success: true, message: "Conversación resuelta." };
