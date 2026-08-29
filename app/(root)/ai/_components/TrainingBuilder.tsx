@@ -681,37 +681,33 @@ export function TrainingBuilder({
                                     style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
                                   />
                                 </button>
-                                {/* Copiar y eliminar, detras de los tres puntos: en la
-                                    fila solo queda el chevron, y el boton rojo deja de
-                                    estar a un clic de distancia por accidente. */}
-                                <DropdownMenu modal={false}>
-                                  <DropdownMenuTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-                                      title="Más opciones"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <MoreVertical className="h-4 w-4" />
-                                    </button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-40">
-                                    {/* Copiar tambien en el paso de bienvenida: la copia
-                                        se llama "(COPIA)", asi que deja de coincidir con el
-                                        titulo reservado y nace como un paso normal. */}
-                                    <DropdownMenuItem onSelect={() => duplicateStep(step.id)}>
-                                      <Copy className="mr-2 h-4 w-4" />
-                                      Copiar
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      className="text-destructive focus:text-destructive"
-                                      onSelect={() => setPasoAEliminar(step.id)}
-                                    >
-                                      <Trash2 className="mr-2 h-4 w-4" />
-                                      Eliminar
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                {/* Copiar y eliminar a la vista, igual que en Extras: los
+                                    dos listados son lo mismo -tarjetas que se arrastran,
+                                    copian y borran-, y tenerlos distintos obligaba a
+                                    recordar cual llevaba menu y cual no.
+
+                                    Copiar tambien en el paso de bienvenida: la copia se
+                                    llama "(COPIA)", asi que deja de coincidir con el
+                                    titulo reservado y nace como un paso normal. */}
+                                <button
+                                  type="button"
+                                  className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+                                  onClick={() => duplicateStep(step.id)}
+                                  title="Duplicar paso"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
+                                  title="Eliminar paso"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPasoAEliminar(step.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                               </div>
 
                             </div>
