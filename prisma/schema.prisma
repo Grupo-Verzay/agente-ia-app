@@ -1233,6 +1233,11 @@ model WorkflowNode {
   followUpMode          String                 @default("static")
   followUpPrompt        String?
   aiEnabled             Boolean                @default(false)
+  // Nodo "Notificar": a quien avisar, separados por coma. Vacio = se usan los
+  // numeros de notificacion de la cuenta. La columna la crea la migracion
+  // workflow_notify_phones del BACKEND; aqui solo se replica para poder leerla
+  // y escribirla (este servicio no corre migraciones).
+  notifyPhones          String?                @map("notify_phones")
   sessionWorkflowStates SessionWorkflowState[]
   outgoingEdges         WorkflowEdge[]         @relation("EdgeSource")
   incomingEdges         WorkflowEdge[]         @relation("EdgeTarget")
