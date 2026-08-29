@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { getAllModules } from "@/actions/module-actions";
 import { getRouteAccess } from "@/utils/access";
-import { isAdmin, isAdminOrReseller } from "@/lib/rbac";
+import { isAdmin, isSuperAdmin } from "@/lib/rbac";
 import type { ModuleWithItems } from "@/schema/module";
 
 type LandingUser = {
@@ -25,7 +25,7 @@ const LANDING_PREFERENCE = ["/crm/dashboard", "/chats"];
 /** Módulos visibles para el usuario (mismo gating rol/plan/asignaciones del layout). */
 async function getVisibleModules(user: LandingUser): Promise<ModuleWithItems[]> {
   const allModules = (await getAllModules()).data ?? [];
-  if (isAdmin(user.role)) return allModules;
+  if (isSuperAdmin(user.role)) return allModules;
 
   const isAdvisor = !!user.ownerId;
   const isActiveTrial = !!user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
@@ -44,13 +44,12 @@ async function getVisibleModules(user: LandingUser): Promise<ModuleWithItems[]> 
       const allowedIds = new Set(userModuleRecords.map((r) => r.A));
       modules = allModules.filter((m) => allowedIds.has(m.id));
     }
-    if (!isAdminOrReseller(user.role)) {
-      modules = modules.filter((m) => {
-        if (m.adminOnly) return false;
-        if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(user.plan)) return false;
-        return true;
-      });
-    }
+    const esAdmin = isAdmin(user.role);
+    modules = modules.filter((m) => {
+      if (m.adminOnly && !esAdmin) return false;
+      if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(user.plan)) return false;
+      return true;
+    });
   }
   return modules;
 }
@@ -63,7 +62,7 @@ function canUseRoute(route: string, modules: ModuleWithItems[], user: LandingUse
   if (normRoute(m.route) === "/") return false;
   const isAdvisor = !!user.ownerId;
   const isActiveTrial = !!user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
-  if (!isAdmin(user.role) && !isAdvisor && !isActiveTrial && (m as any).lockedPlans?.includes(user.plan)) {
+  if (!isSuperAdmin(user.role) && !isAdvisor && !isActiveTrial && (m as any).lockedPlans?.includes(user.plan)) {
     return false;
   }
   return true;
