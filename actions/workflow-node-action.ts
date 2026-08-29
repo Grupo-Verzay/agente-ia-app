@@ -284,6 +284,53 @@ export async function updateNodeAiEnabled(nodeId: string, aiEnabled: boolean) {
   }
 }
 
+/**
+ * A quien avisa un nodo "Notificar": los numeros escritos en el propio nodo.
+ *
+ * Se guardan tal cual los escribio una persona, separados por coma. Quien
+ * decide que es un numero valido es el backend al enviar; aqui solo se acota el
+ * largo para que nadie pegue un texto entero en el campo.
+ *
+ * Vacio = el nodo vuelve a avisar a los numeros de notificacion de la cuenta,
+ * que es como se comportaba antes de existir esto.
+ */
+export async function updateNodeNotifyPhones(nodeId: string, notifyPhones: string) {
+  try {
+    if (!nodeId) {
+      return { success: false, message: 'Parámetros inválidos.' };
+    }
+
+    const user = await currentUser();
+    if (!user?.id) {
+      return { success: false, message: 'No autorizado.' };
+    }
+
+    const limpio = notifyPhones.trim().slice(0, 500);
+
+    // Que el nodo sea de un flujo del usuario. Sin esto bastaria con mandar el
+    // id de un nodo ajeno para cambiar a quien avisa el flujo de otra cuenta.
+    const { count } = await db.workflowNode.updateMany({
+      where: {
+        id: nodeId,
+        workflow: { userId: user.ownerId ?? user.id },
+      },
+      data: { notifyPhones: limpio || null },
+    });
+
+    if (count === 0) {
+      return { success: false, message: 'No se encontró el nodo.' };
+    }
+
+    return { success: true, message: 'Números actualizados.' };
+  } catch (error) {
+    console.error('Error updateNodeNotifyPhones', error);
+    return {
+      success: false,
+      message: 'Ocurrió un error al guardar los números.',
+    };
+  }
+}
+
 // Método para eliminar un nodo
 export async function deleteNode(nodeId: string, workflowId: string) {
   try {

@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useState, useTransition } from "react";
 import { useRouter } from 'next/navigation';
-import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled } from "@/actions/workflow-node-action";
+import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled, updateNodeNotifyPhones } from "@/actions/workflow-node-action";
 import { ACCEPT_TYPES, getAcceptTypeString, optimizeFile, validateFileType } from "../helpers";
 import { NodeActions } from "./NodeActions";
 import { Card, CardHeader, CardFooter, CardContent } from "@/components/ui/card";
@@ -26,6 +26,10 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState(nodes.message);
+  // Nodo "Notificar": a quien avisa este nodo en concreto.
+  const [telefonosNotificar, setTelefonosNotificar] = useState(
+    (nodes as { notifyPhones?: string | null }).notifyPhones ?? '',
+  );
   const [delay, setDelay] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null);
@@ -77,6 +81,26 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
       setLoading(false);
       router.refresh();
     }
+  };
+
+  /**
+   * Guarda al salir del campo, no en cada tecla: escribir un numero son doce
+   * pulsaciones y no hacen falta doce escrituras en la base.
+   */
+  const guardarTelefonosNotificar = async () => {
+    const anterior = (nodes as { notifyPhones?: string | null }).notifyPhones ?? '';
+    if (telefonosNotificar.trim() === anterior.trim()) return;
+
+    const res = await updateNodeNotifyPhones(nodes.id, telefonosNotificar);
+    if (!res.success) {
+      toast.error(res.message);
+      // Se vuelve a lo que habia: dejar en pantalla algo que no se guardo es
+      // peor que perder lo tecleado, porque parece guardado.
+      setTelefonosNotificar(anterior);
+      return;
+    }
+    toast.success(res.message);
+    router.refresh();
   };
 
   const handleSave = () => {
@@ -336,13 +360,28 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
     }
 
     if (isNotifyNode) return (
-      <div className="flex flex-1 justify-center">
-        <Badge variant="secondary">
-          <Phone className="w-3.5 h-3.5 mr-1.5" />
-          <p className="text-muted-foreground text-sm">
-            {user.notificationNumber}
-          </p>
-        </Badge>
+      <div className="nodrag flex flex-col gap-1.5">
+        <Label className="text-xs">Avisar a</Label>
+        <Input
+          value={telefonosNotificar}
+          onChange={(e) => setTelefonosNotificar(e.target.value)}
+          onBlur={guardarTelefonosNotificar}
+          placeholder={user.notificationNumber ?? 'Ej: 573001234567'}
+          className="h-8 text-sm"
+        />
+        {/* Vacio no es un error: el nodo cae en los numeros de la cuenta, que es
+            como se comportaba antes de poder escribirlos aqui. Se dice, para que
+            nadie crea que dejarlo en blanco apaga el aviso. */}
+        <p className="text-[11px] text-muted-foreground">
+          {telefonosNotificar.trim()
+            ? 'Separa varios con coma.'
+            : (
+              <span className="inline-flex items-center gap-1">
+                <Phone className="h-3 w-3 shrink-0" />
+                Vacío: avisa a los números de la cuenta.
+              </span>
+            )}
+        </p>
       </div>
     );
 
