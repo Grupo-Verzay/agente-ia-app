@@ -6,7 +6,7 @@ import { currentUser } from "@/lib/auth";
 import { getResellerProfileForUser } from "@/actions/reseller-action";
 import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { getAllModules } from "@/actions/module-actions";
-import { isAdmin, isAdminOrReseller } from "@/lib/rbac";
+import { isAdmin, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import type { ThemeApp } from "@prisma/client";
@@ -179,9 +179,9 @@ export default async function RootGroupLayout({
             user.plan,
             user.role === 'reseller' ? user.id : user.demoResellerId ?? null,
         ).catch(() => null),
-        // Módulos asignados a mano. Solo aplican a cuentas que no son admin ni
-        // reseller; para las demás no se pide nada.
-        (!isAdmin(user.role) && user.role !== 'reseller')
+        // Módulos asignados a mano. No aplican al super admin (ve todo) ni a los
+        // resellers; para esas dos no se pide nada.
+        (!isSuperAdmin(user.role) && user.role !== 'reseller')
             ? db.userModule.findMany({ where: { B: user.id }, select: { A: true } })
             : Promise.resolve([] as { A: string }[]),
     ]);
@@ -225,8 +225,13 @@ export default async function RootGroupLayout({
             ? porFechaDeCreacion(allModules.find((m) => m.route === "/reseller-panel"))
             : null;
 
+    // Solo el super admin ve TODOS los módulos sin filtrar: es el dueño de la
+    // plataforma. Los administradores pasan por el mismo filtro que las demás
+    // cuentas (módulos habilitados + planes permitidos), que es justo lo que se
+    // configura en el editor de módulos; lo único que no les aplica es
+    // "Solo Admin", que precisamente es para ellos.
     let modules = allModules;
-    if (!isAdmin(user?.role)) {
+    if (!isSuperAdmin(user?.role)) {
         if (user.role === 'reseller') {
             // Resellers: filtrado por plan (igual que usuarios regulares) sin restricción adminOnly
             const userPlan = user.plan;
@@ -240,23 +245,22 @@ export default async function RootGroupLayout({
                 const allowedIds = new Set(userModuleRecords.map(r => r.A));
                 modules = allModules.filter(m => allowedIds.has(m.id));
             }
-            // Para usuarios regulares (no reseller), filtrar por adminOnly y plan
-            if (!isAdminOrReseller(user?.role)) {
-                const isAdvisor = !!user.ownerId;
-                const userPlan = user!.plan;
-                modules = modules.filter(m => {
-                    if (m.adminOnly) return false;
-                    // Asesores y usuarios en prueba activa no se filtran por plan
-                    if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
-                    return true;
-                });
-            }
+            const isAdvisor = !!user.ownerId;
+            const userPlan = user!.plan;
+            const esAdmin = isAdmin(user?.role);
+            modules = modules.filter(m => {
+                // "Solo Admin" sigue siendo para los administradores.
+                if (m.adminOnly && !esAdmin) return false;
+                // Asesores y usuarios en prueba activa no se filtran por plan
+                if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
+                return true;
+            });
         }
     }
 
     // Rutas bloqueadas para el plan actual (visibles en sidebar pero sin acceso)
     const isAdvisor = !!user.ownerId;
-    const lockedRoutes: string[] = (!isAdmin(user?.role) && !isAdvisor && !isActiveTrial)
+    const lockedRoutes: string[] = (!isSuperAdmin(user?.role) && !isAdvisor && !isActiveTrial)
         ? [
             ...modules
                 .filter(m => (m as any).lockedPlans?.includes(user.plan))
