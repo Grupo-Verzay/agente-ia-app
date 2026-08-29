@@ -43,5 +43,7 @@ export type ProjectData = {
   members: ProjectMemberData[];
   /** Cuántas tareas tiene, por estado del tablero. */
   taskCounts: Record<string, number>;
+  /** Tareas sin terminar cuya fecha ya pasó. Lo que hay que mirar primero. */
+  overdueTasks: number;
   createdAt: string;
 };
