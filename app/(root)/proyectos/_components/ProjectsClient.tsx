@@ -94,9 +94,12 @@ const DUE_TONES = {
 export function ProjectsClient({
   userId,
   team,
+  canManage,
 }: {
   userId: string;
   team: AdvisorInfo[];
+  /** Dueño o administrador. Un agente participa, pero no crea ni borra. */
+  canManage: boolean;
 }) {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +173,7 @@ export function ProjectsClient({
         project={openProject}
         team={team}
         userId={userId}
+        canManage={canManage}
         onBack={() => setOpenProjectId(null)}
         onProjectChanged={load}
       />
@@ -267,9 +271,11 @@ export function ProjectsClient({
 
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" /> Nuevo
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" /> Nuevo
+            </Button>
+          )}
         </div>
       </ModuleToolbar>
 
@@ -286,11 +292,13 @@ export function ProjectsClient({
             </p>
             <p className="text-sm text-muted-foreground">
               {projects.length === 0
-                ? "Crea el primero y empieza a repartir tareas con tu equipo."
+                ? canManage
+                  ? "Crea el primero y empieza a repartir tareas con tu equipo."
+                  : "Cuando te añadan a uno, aparecerá aquí."
                 : "Prueba con otro texto o quita los filtros."}
             </p>
           </div>
-          {projects.length === 0 && (
+          {projects.length === 0 && canManage && (
             <Button onClick={() => setCreating(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nuevo proyecto
             </Button>
@@ -302,6 +310,7 @@ export function ProjectsClient({
             <ProjectCard
               key={project.id}
               project={project}
+              canManage={canManage}
               onOpen={() => setOpenProjectId(project.id)}
               onEdit={() => setEditing(project)}
               onDelete={() => setDeleteTarget(project)}
@@ -346,11 +355,13 @@ export function ProjectsClient({
 
 function ProjectCard({
   project,
+  canManage,
   onOpen,
   onEdit,
   onDelete,
 }: {
   project: ProjectData;
+  canManage: boolean;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -372,6 +383,7 @@ function ProjectCard({
     >
       {/* Quietas hasta que el puntero entra o llega el teclado: la papelera roja
           permanente era lo más llamativo de la tarjeta. */}
+      {canManage && (
       <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
         <Button
           variant="outline" size="icon" className="h-6 w-6"
@@ -389,9 +401,10 @@ function ProjectCard({
           <Trash2 className="h-3 w-3" />
         </Button>
       </div>
+      )}
 
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start gap-2 pr-14">
+        <div className={cn("flex items-start gap-2", canManage && "pr-14")}>
           <p className="min-w-0 flex-1 font-semibold leading-snug">{project.name}</p>
           <Badge variant="outline" className={cn("shrink-0 text-[10px] uppercase", STATUS_STYLES[project.status])}>
             {PROJECT_STATUS_LABELS[project.status]}

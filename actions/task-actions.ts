@@ -7,6 +7,7 @@ import { currentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 
 import type { TaskData, TaskStatus } from "@/lib/task-types";
+import { canManageWorkspace } from "@/lib/workspace-roles";
 
 async function getAuth() {
   const user = await currentUser();
@@ -83,6 +84,16 @@ export async function createTaskAction(
     const user = await getAuth();
     const parsed = createSchema.parse(input);
     const ownerId = user.ownerId ?? user.id;
+
+    // Dentro de un proyecto manda el reparto del equipo: el agente participa en
+    // lo que le asignan y no crea. Fuera de proyectos las tareas siguen igual
+    // que siempre, que es como funcionaba antes de que existieran.
+    if (parsed.projectId && !canManageWorkspace(user)) {
+      return {
+        success: false,
+        message: "Solo el dueño o un administrador puede crear tareas de un proyecto.",
+      };
+    }
     const assignedUser = parsed.assignedToName
       ? null
       : await db.user.findUnique({

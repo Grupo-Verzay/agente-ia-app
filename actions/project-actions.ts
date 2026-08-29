@@ -7,6 +7,7 @@ import { currentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
 import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
+import { canManageWorkspace } from "@/lib/workspace-roles";
 
 type Result<T> = { success: boolean; message: string; data?: T };
 
@@ -19,6 +20,19 @@ async function getAuth() {
   const user = await currentUser();
   if (!user?.id) throw new Error("No autorizado.");
   return { user, ownerId: user.ownerId ?? user.id };
+}
+
+/**
+ * Crear, editar o borrar proyectos y sus tareas es cosa del dueño de la cuenta
+ * y de los administradores de su equipo. Un agente participa: mueve lo que
+ * tiene asignado, pero no crea ni borra.
+ */
+async function requireManager() {
+  const auth = await getAuth();
+  if (!canManageWorkspace(auth.user)) {
+    throw new Error("Solo el dueño o un administrador puede gestionar proyectos.");
+  }
+  return auth;
 }
 
 /** El proyecto existe y es de esta cuenta. Devuelve el id validado. */
@@ -132,7 +146,7 @@ export async function saveProjectAction(
   input: z.infer<typeof upsertSchema>,
 ): Promise<Result<ProjectData>> {
   try {
-    const { user, ownerId } = await getAuth();
+    const { user, ownerId } = await requireManager();
     const parsed = upsertSchema.parse(input);
 
     const base = {
@@ -205,7 +219,7 @@ export async function saveProjectAction(
 
 export async function deleteProjectAction(projectId: number): Promise<Result<null>> {
   try {
-    const { user, ownerId } = await getAuth();
+    const { user, ownerId } = await requireManager();
     const project = await assertOwnProject(projectId, ownerId);
 
     // Las tareas NO se borran: la migración las deja sueltas (ON DELETE SET
@@ -289,7 +303,7 @@ export async function updateProjectTaskAction(
   input: z.infer<typeof editTaskSchema>,
 ): Promise<Result<null>> {
   try {
-    const { ownerId } = await getAuth();
+    const { ownerId } = await requireManager();
     const parsed = editTaskSchema.parse(input);
 
     // El nombre se guarda junto a la tarea (como en createTaskAction) para que
@@ -332,14 +346,26 @@ export async function moveProjectTaskAction(
   input: z.infer<typeof moveSchema>,
 ): Promise<Result<null>> {
   try {
-    const { ownerId } = await getAuth();
+    const { user, ownerId } = await getAuth();
     const parsed = moveSchema.parse(input);
 
+    // Un agente participa moviendo LO SUYO. Si no fuese asi, cualquiera podria
+    // dar por hecha la tarea de otro desde el tablero.
+    const where = canManageWorkspace(user)
+      ? { id: parsed.taskId, ownerId }
+      : { id: parsed.taskId, ownerId, assignedToId: user.id };
+
     const updated = await db.task.updateMany({
-      where: { id: parsed.taskId, ownerId },
+      where,
       data: { status: parsed.status },
     });
-    if (updated.count === 0) throw new Error("Tarea no encontrada.");
+    if (updated.count === 0) {
+      throw new Error(
+        canManageWorkspace(user)
+          ? "Tarea no encontrada."
+          : "Solo puedes mover las tareas que tienes asignadas.",
+      );
+    }
 
     revalidatePath("/proyectos");
     return { success: true, message: "Tarea actualizada." };

@@ -106,6 +106,8 @@ function BoardColumn({
   tasks,
   onAdd,
   onOpenTask,
+  canDrag,
+  canAdd,
 }: {
   status: string;
   label: string;
@@ -113,6 +115,8 @@ function BoardColumn({
   tasks: TaskData[];
   onAdd: () => void;
   onOpenTask: (task: TaskData) => void;
+  canDrag: (task: TaskData) => boolean;
+  canAdd: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -128,13 +132,15 @@ function BoardColumn({
         <span className="text-sm font-semibold uppercase text-white">{label}</span>
         <div className="flex items-center gap-1">
           <Badge className="border-0 bg-white/20 text-xs font-medium text-white">{tasks.length}</Badge>
-          <button
-            onClick={onAdd}
-            className="rounded p-0.5 transition-colors hover:bg-white/20"
-            title={`Añadir tarea en ${label}`}
-          >
-            <Plus className="h-3.5 w-3.5 text-white/90" />
-          </button>
+          {canAdd && (
+            <button
+              onClick={onAdd}
+              className="rounded p-0.5 transition-colors hover:bg-white/20"
+              title={`Añadir tarea en ${label}`}
+            >
+              <Plus className="h-3.5 w-3.5 text-white/90" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -146,7 +152,9 @@ function BoardColumn({
         )}
       >
         {tasks.map((task) => (
-          <DraggableTask key={task.id} task={task} onOpen={onOpenTask} />
+          canDrag(task)
+            ? <DraggableTask key={task.id} task={task} onOpen={onOpenTask} />
+            : <TaskCard key={task.id} task={task} />
         ))}
         {tasks.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground/40">
@@ -164,12 +172,15 @@ export function ProjectBoard({
   project,
   team,
   userId,
+  canManage,
   onBack,
   onProjectChanged,
 }: {
   project: ProjectData;
   team: AdvisorInfo[];
   userId: string;
+  /** Dueño o administrador. Un agente solo mueve las tareas que tiene asignadas. */
+  canManage: boolean;
   onBack: () => void;
   onProjectChanged: () => void;
 }) {
@@ -193,6 +204,12 @@ export function ProjectBoard({
   }, [project.id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Un agente participa moviendo lo suyo; el servidor lo vuelve a comprobar.
+  const puedeTocar = useCallback(
+    (task: TaskData) => canManage || task.assignedToId === userId,
+    [canManage, userId],
+  );
 
   const byColumn = useMemo(() => {
     const map: Record<string, TaskData[]> = {};
@@ -259,9 +276,11 @@ export function ProjectBoard({
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => void load()} title="Actualizar">
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
-          <Button size="sm" className="gap-1.5" onClick={() => setAddingTo("pending")}>
-            <Plus className="h-4 w-4" /> Nueva tarea
-          </Button>
+          {canManage && (
+            <Button size="sm" className="gap-1.5" onClick={() => setAddingTo("pending")}>
+              <Plus className="h-4 w-4" /> Nueva tarea
+            </Button>
+          )}
         </div>
       </div>
 
@@ -287,7 +306,9 @@ export function ProjectBoard({
                   color={col.color}
                   tasks={byColumn[col.status] ?? []}
                   onAdd={() => setAddingTo(col.status)}
-                  onOpenTask={setEditingTask}
+                  onOpenTask={(task) => { if (canManage) setEditingTask(task); }}
+                  canDrag={puedeTocar}
+                  canAdd={canManage}
                 />
               ))}
             </div>
