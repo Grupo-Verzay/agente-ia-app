@@ -48,24 +48,38 @@ export const SourceDotHandle = (props: {
                 }}
             />
 
-            {label ? (
-                <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 whitespace-nowrap">
-                    <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
+            {/* La etiqueta va FUERA de la tarjeta, a la derecha del punto, junto al
+                boton de agregar. Antes se dibujaba hacia adentro (right-6): con
+                "Si" y "No" cabia en el margen, pero el nodo de menu pone
+                "1) Ventas" y se montaba encima de los campos.
+
+                Se recorta a un ancho fijo para que los botones "+" de todas las
+                ramas queden alineados en la misma columna; la etiqueta completa
+                sigue disponible al pasar el raton.
+
+                Sin etiqueta -la salida normal de casi todos los nodos- el boton
+                se queda exactamente donde estaba. */}
+            <div
+                className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-2 ${label ? "left-6" : "left-10"}`}
+            >
+                {label ? (
+                    <span
+                        title={label}
+                        className="pointer-events-none max-w-[7.5rem] truncate text-[11px] font-medium text-zinc-600 dark:text-zinc-300"
+                    >
                         {label}
                     </span>
-                </div>
-            ) : null}
+                ) : null}
 
-            {isFree && nodeId ? (
-                <div className="absolute left-10 top-1/2 -translate-y-1/2">
+                {isFree && nodeId ? (
                     <InlineAddNode
                         sourceId={nodeId}
                         sourceHandle={id}
                         totalNodes={totalNodes}
                         seguimientoNodes={seguimientoNodes}
                     />
-                </div>
-            ) : null}
+                ) : null}
+            </div>
         </div>
     );
 };
