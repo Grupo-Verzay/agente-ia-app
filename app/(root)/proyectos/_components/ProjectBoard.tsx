@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/core";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Loader2, Plus, User, Calendar, RefreshCw, Users,
+  ArrowLeft, Loader2, Plus, User, Calendar, RefreshCw, Users, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +18,10 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { AdvisorInfo } from "@/actions/team-actions";
-import { createTaskAction } from "@/actions/task-actions";
-import { getProjectTasksAction, moveProjectTaskAction } from "@/actions/project-actions";
+import { createTaskAction, deleteTaskAction } from "@/actions/task-actions";
+import {
+  getProjectTasksAction, moveProjectTaskAction, updateProjectTaskAction,
+} from "@/actions/project-actions";
 import { BOARD_COLUMNS, type ProjectData } from "@/lib/project-types";
 import { TASK_TYPES, type TaskData } from "@/lib/task-types";
 
@@ -69,7 +71,7 @@ function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boole
   );
 }
 
-function DraggableTask({ task }: { task: TaskData }) {
+function DraggableTask({ task, onOpen }: { task: TaskData; onOpen: (task: TaskData) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(task.id),
     data: { task },
@@ -80,7 +82,16 @@ function DraggableTask({ task }: { task: TaskData }) {
     : undefined;
 
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      // El sensor exige mover 6px antes de arrastrar, asi que un clic limpio
+      // llega aqui y abre la tarjeta; soltarla tras arrastrar, no.
+      onClick={() => { if (!isDragging) onOpen(task); }}
+      className="cursor-grab active:cursor-grabbing"
+    >
       <TaskCard task={task} dragging={isDragging} />
     </div>
   );
@@ -94,12 +105,14 @@ function BoardColumn({
   color,
   tasks,
   onAdd,
+  onOpenTask,
 }: {
   status: string;
   label: string;
   color: string;
   tasks: TaskData[];
   onAdd: () => void;
+  onOpenTask: (task: TaskData) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -132,7 +145,9 @@ function BoardColumn({
           isOver && "bg-primary/5 ring-2 ring-inset ring-primary/30",
         )}
       >
-        {tasks.map((task) => <DraggableTask key={task.id} task={task} />)}
+        {tasks.map((task) => (
+          <DraggableTask key={task.id} task={task} onOpen={onOpenTask} />
+        ))}
         {tasks.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground/40">
             Sin tareas
@@ -162,6 +177,7 @@ export function ProjectBoard({
   const [loading, setLoading] = useState(true);
   const [activeTask, setActiveTask] = useState<TaskData | null>(null);
   const [addingTo, setAddingTo] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<TaskData | null>(null);
   const pendingRef = useRef(false);
 
   const sensors = useSensors(
@@ -182,10 +198,10 @@ export function ProjectBoard({
     const map: Record<string, TaskData[]> = {};
     for (const col of BOARD_COLUMNS) map[col.status] = [];
     for (const task of tasks) {
-      // Una tarea cancelada no es una etapa del tablero: se deja fuera para no
-      // ensuciar las columnas, pero sigue existiendo en la pantalla de Tareas.
-      if (task.status === "cancelled") continue;
-      (map[task.status] ??= []).push(task);
+      // Un estado que no tenga columna (por datos viejos) no se pierde: cae en
+      // «Por hacer» en vez de desaparecer del tablero sin dejar rastro.
+      const column = map[task.status] ? task.status : "pending";
+      map[column].push(task);
     }
     return map;
   }, [tasks]);
@@ -208,7 +224,7 @@ export function ProjectBoard({
     pendingRef.current = true;
     const res = await moveProjectTaskAction({
       taskId: task.id,
-      status: toStatus as "pending" | "in_progress" | "done",
+      status: toStatus as TaskData["status"],
     });
     pendingRef.current = false;
 
@@ -271,6 +287,7 @@ export function ProjectBoard({
                   color={col.color}
                   tasks={byColumn[col.status] ?? []}
                   onAdd={() => setAddingTo(col.status)}
+                  onOpenTask={setEditingTask}
                 />
               ))}
             </div>
@@ -286,56 +303,83 @@ export function ProjectBoard({
         </DndContext>
       )}
 
-      <NewTaskDialog
-        open={addingTo !== null}
+      <TaskDialog
+        open={addingTo !== null || editingTask !== null}
+        task={editingTask}
         projectId={project.id}
         initialStatus={addingTo ?? "pending"}
         team={team}
         userId={userId}
-        onClose={() => setAddingTo(null)}
-        onCreated={() => { setAddingTo(null); void load(); onProjectChanged(); }}
+        onClose={() => { setAddingTo(null); setEditingTask(null); }}
+        onSaved={() => {
+          setAddingTo(null);
+          setEditingTask(null);
+          void load();
+          onProjectChanged();
+        }}
       />
     </div>
   );
 }
 
-// ─── Alta de tarea ───────────────────────────────────────────────────────────
+// ─── Alta y edición de tarea ─────────────────────────────────────────────────
 
-function NewTaskDialog({
+function TaskDialog({
   open,
+  task,
   projectId,
   initialStatus,
   team,
   userId,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   open: boolean;
+  /** Con tarea, se edita. Sin ella, se crea. */
+  task: TaskData | null;
   projectId: number;
   initialStatus: string;
   team: AdvisorInfo[];
   userId: string;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>(TASK_TYPES[4]);
   const [assignedToId, setAssignedToId] = useState(userId);
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
+  // Se repuebla al abrir: si no, el formulario conserva lo de la tarjeta anterior.
   useEffect(() => {
     if (!open) return;
-    setTitle("");
-    setType(TASK_TYPES[4]);
-    setAssignedToId(userId);
+    setTitle(task?.title ?? "");
+    setType(task?.type ?? TASK_TYPES[4]);
+    setAssignedToId(task?.assignedToId ?? userId);
     // Por defecto, hoy: una tarea sin fecha no aparece en los avisos de Tareas.
-    setDueDate(new Date().toISOString().slice(0, 10));
-  }, [open, userId]);
+    setDueDate((task?.dueDate ?? new Date().toISOString()).slice(0, 10));
+  }, [open, task, userId]);
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!title.trim()) { toast.error("Ponle un título a la tarea."); return; }
     setSaving(true);
+
+    if (task) {
+      const res = await updateProjectTaskAction({
+        taskId: task.id,
+        title: title.trim(),
+        type,
+        dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
+        assignedToId,
+      });
+      setSaving(false);
+      if (!res.success) { toast.error(res.message); return; }
+      toast.success(res.message);
+      onSaved();
+      return;
+    }
+
     const res = await createTaskAction({
       assignedToId,
       title: title.trim(),
@@ -355,20 +399,30 @@ function NewTaskDialog({
     if (initialStatus !== "pending") {
       await moveProjectTaskAction({
         taskId: res.data.id,
-        status: initialStatus as "pending" | "in_progress" | "done",
+        status: initialStatus as TaskData["status"],
       });
     }
 
     setSaving(false);
     toast.success("Tarea creada.");
-    onCreated();
+    onSaved();
+  };
+
+  const handleDelete = async () => {
+    if (!task) return;
+    setDeleting(true);
+    const res = await deleteTaskAction(task.id);
+    setDeleting(false);
+    if (!res.success) { toast.error(res.message); return; }
+    toast.success("Tarea eliminada.");
+    onSaved();
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nueva tarea</DialogTitle>
+          <DialogTitle>{task ? "Editar tarea" : "Nueva tarea"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -424,11 +478,26 @@ function NewTaskDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleCreate()} disabled={saving} className="gap-2">
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Crear tarea
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          {task ? (
+            <Button
+              variant="ghost"
+              onClick={() => void handleDelete()}
+              disabled={saving || deleting}
+              className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Eliminar
+            </Button>
+          ) : <span />}
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={saving || deleting}>Cancelar</Button>
+            <Button onClick={() => void handleSave()} disabled={saving || deleting} className="gap-2">
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {task ? "Guardar" : "Crear tarea"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
