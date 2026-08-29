@@ -266,15 +266,28 @@ export async function updateNodeAiEnabled(nodeId: string, aiEnabled: boolean) {
       };
     }
 
-    const updatedNode = await db.workflowNode.update({
-      where: { id: nodeId },
+    const user = await currentUser();
+    if (!user?.id) {
+      return { success: false, message: 'No autorizado.' };
+    }
+
+    // Mismo guardian que el resto: el id llega en el cuerpo, asi que sin esto
+    // se podia encender o apagar la IA de un flujo ajeno.
+    const { count } = await db.workflowNode.updateMany({
+      where: {
+        id: nodeId,
+        workflow: { userId: user.ownerId ?? user.id },
+      },
       data: { aiEnabled },
     });
+
+    if (count === 0) {
+      return { success: false, message: 'No se encontró el nodo.' };
+    }
 
     return {
       success: true,
       message: 'Configuración de IA actualizada con éxito.',
-      data: updatedNode,
     };
   } catch (error) {
     console.error('Error update node ai enabled', error);
@@ -786,12 +799,20 @@ export async function updateIntentionNodeConfig(params: {
     data.intentionMaxAttempts = n;
   }
 
-  const updated = await db.workflowNode.update({
-    where: { id: nodeId },
+  // Que el nodo sea de un flujo del usuario. Sin esto bastaba con mandar el id
+  // de un nodo ajeno para reescribir el mensaje y el prompt del flujo de otra
+  // cuenta: el id va en el cuerpo de la accion y el nodo se buscaba solo por el.
+  const { count } = await db.workflowNode.updateMany({
+    where: {
+      id: nodeId,
+      workflow: { userId: user.ownerId ?? user.id },
+    },
     data,
   });
 
-  return { success: true, message: "Configuración guardada", data: updated };
+  if (count === 0) return { success: false, message: "No se encontró el nodo." };
+
+  return { success: true, message: "Configuración guardada" };
 }
 
 export async function updateFollowUpNodeConfig(params: {

@@ -87,38 +87,60 @@ export const EmbeddingNode = ({ node }: Props) => {
         void save();
     };
 
+    /**
+     * La tarjeta ocupaba media pantalla: tres campos altos, cada uno con su
+     * parrafo de ayuda debajo, en un nodo que se mira dentro de un lienzo lleno
+     * de otros nodos.
+     *
+     * Se aprieta sin quitar nada:
+     *
+     * - Los campos arrancan bajos y CRECEN al escribir en ellos (field-sizing),
+     *   asi que ocupan lo que ocupa su contenido y no un alto fijo por si acaso.
+     * - La ayuda pasa a una sola linea corta por campo. Decia lo mismo tres
+     *   veces con mas palabras.
+     * - Los intentos van en la misma fila que su etiqueta, que es un numero de
+     *   dos digitos ocupando un renglon entero.
+     *
+     * Y las etiquetas dejan de arrastrar el nombre interno del campo
+     * -"(message)", "(intentionPrompt)"-: eso es como se llama en la base, no
+     * como se llama para quien arma el flujo.
+     */
     return (
-        <div className="space-y-4">
-            <div className="space-y-2">
-                <Label className="text-xs">Mensaje al usuario (message)</Label>
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+                <Label className="text-xs">Lo que se le pregunta al cliente</Label>
                 <Textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     onBlur={onBlurSave}
-                    placeholder="Ej: Perfecto. Por favor dime tu nombre y qué servicio necesitas."
-                    className="min-h-[90px]"
+                    rows={2}
+                    placeholder="Ej: Perfecto. Dime tu nombre y qué servicio necesitas."
+                    className="min-h-0 resize-y text-sm [field-sizing:content]"
                 />
-                <p className="text-[11px] text-muted-foreground">
-                    Este texto es lo que el bot le envía al usuario mientras el nodo está “esperando” respuesta.
-                </p>
             </div>
 
-            <div className="space-y-2">
-                <Label className="text-xs">Prompt del modelo (intentionPrompt)</Label>
+            <div className="flex flex-col gap-1.5">
+                <Label className="text-xs">Cómo decide la IA si contestó bien</Label>
                 <Textarea
                     value={intentionPrompt}
                     onChange={(e) => setIntentionPrompt(e.target.value)}
                     onBlur={onBlurSave}
-                    placeholder='Ej: Debes decidir si el usuario ya entregó su nombre y el servicio. Responde {"ok":true} o {"ok":false}.'
-                    className="min-h-[120px]"
+                    rows={2}
+                    placeholder={'Ej: Decide si ya dio su nombre y el servicio. Responde {"ok":true} o {"ok":false}.'}
+                    className="min-h-0 resize-y text-sm [field-sizing:content]"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                    Este prompt lo usa la IA para decidir <b>sí / no</b>. No se muestra al usuario.
+                    El cliente no ve este texto.
                 </p>
             </div>
 
-            <div className="space-y-2">
-                <Label className="text-xs">Cantidad máxima de intentos</Label>
+            <div className="flex items-center justify-between gap-3">
+                <Label className="text-xs">
+                    Intentos antes de rendirse
+                    <span className="mt-0.5 block font-normal text-[11px] text-muted-foreground">
+                        Después sale por la rama <b>No</b>.
+                    </span>
+                </Label>
                 <Input
                     type="number"
                     min={1}
@@ -126,11 +148,8 @@ export const EmbeddingNode = ({ node }: Props) => {
                     value={maxAttempts}
                     onChange={(e) => setMaxAttempts(Number(e.target.value))}
                     onBlur={onBlurSave}
-                    className="h-9"
+                    className="h-8 w-16 shrink-0 text-center text-sm"
                 />
-                <p className="text-[11px] text-muted-foreground">
-                    Si el usuario no cumple en estos intentos, se irá por la rama <b>No</b>.
-                </p>
             </div>
         </div>
     );
