@@ -40,17 +40,38 @@ function UpgradeScreen() {
   );
 }
 
+/** Sin oferta de compra: para quien no elige su plan (equipo interno). */
+function UnavailableScreen() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+        <Lock className="h-8 w-8 text-muted-foreground" />
+      </div>
+      <div className="max-w-md space-y-3">
+        <h1 className="text-2xl font-bold leading-tight">Sección no habilitada</h1>
+        <p className="text-muted-foreground">
+          Esta parte del panel no está habilitada para tu cuenta. Pídesela a quien
+          administra la plataforma.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function LockedRouteGuard({
   children,
   lockedRoutes,
+  canUpgrade = true,
 }: {
   children: React.ReactNode;
   lockedRoutes: string[];
+  /** false para el equipo interno: se le avisa, no se le vende. */
+  canUpgrade?: boolean;
 }) {
   const pathname = usePathname() ?? '';
   const isLocked = lockedRoutes.some(
     (route) => pathname === route || pathname.startsWith(route + '/'),
   );
-  if (isLocked) return <UpgradeScreen />;
+  if (isLocked) return canUpgrade ? <UpgradeScreen /> : <UnavailableScreen />;
   return <>{children}</>;
 }
