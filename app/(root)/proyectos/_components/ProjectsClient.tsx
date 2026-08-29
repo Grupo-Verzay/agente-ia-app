@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { MetricCard } from "@/components/custom/MetricCard";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -185,14 +186,19 @@ export function ProjectsClient({
 
   // ─── Lista de proyectos ────────────────────────────────────────────────────
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+    // Mismo contenedor que Clientes: sin padding propio, el contenido va pegado
+    // a los bordes del área de la pantalla.
+    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
 
       {/* Resumen arriba del todo, igual que en Clientes. La miga de pan ya dice
-          que esto es Proyectos, así que no se repite como título. */}
-      <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
+          que esto es Proyectos, así que no se repite como título.
+          La fila envolvente es la que hace que el flex-1 crezca a lo ancho; sin
+          ella, dentro de una columna, se comería toda la altura. */}
+      <div className="flex shrink-0 items-center justify-between">
+      <div className="container-stats mb-2 hidden flex-1 sm:flex sm:gap-4 sm:overflow-x-auto">
         <div className="min-w-0 sm:flex-1">
           <MetricCard
-            icon={<FolderKanban className="h-3.5 w-3.5" />}
+            icon={<FolderKanban className="h-4 w-4" />}
             label="Proyectos activos"
             value={summary.activos}
             color="#22C55E"
@@ -200,7 +206,7 @@ export function ProjectsClient({
         </div>
         <div className="min-w-0 sm:flex-1">
           <MetricCard
-            icon={<AlertCircle className="h-3.5 w-3.5" />}
+            icon={<AlertCircle className="h-4 w-4" />}
             label="Tareas vencidas"
             value={summary.vencidas}
             helper="Tareas sin terminar cuya fecha ya pasó."
@@ -209,7 +215,7 @@ export function ProjectsClient({
         </div>
         <div className="min-w-0 sm:flex-1">
           <MetricCard
-            icon={<Eye className="h-3.5 w-3.5" />}
+            icon={<Eye className="h-4 w-4" />}
             label="Esperando revisión"
             value={summary.revision}
             color="#A855F7"
@@ -217,7 +223,7 @@ export function ProjectsClient({
         </div>
         <div className="min-w-0 sm:flex-1">
           <MetricCard
-            icon={<ListTodo className="h-3.5 w-3.5" />}
+            icon={<ListTodo className="h-4 w-4" />}
             label="Tareas abiertas"
             value={summary.abiertas}
             color="#3B82F6"
@@ -225,9 +231,12 @@ export function ProjectsClient({
         </div>
       </div>
 
+      </div>
+
       {/* Buscador, filtros y la acción, en una sola fila. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-64">
+      <ModuleToolbar className="shrink-0">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
@@ -256,10 +265,13 @@ export function ProjectsClient({
           ))}
         </div>
 
-        <Button onClick={() => setCreating(true)} className="ml-auto h-9 gap-1.5">
-          <Plus className="h-4 w-4" /> Nuevo
-        </Button>
-      </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Nuevo
+          </Button>
+        </div>
+      </ModuleToolbar>
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -285,7 +297,7 @@ export function ProjectsClient({
           )}
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 items-stretch gap-3 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 items-stretch gap-3 overflow-y-auto pb-2 sm:grid-cols-2 lg:grid-cols-3">
           {visibleProjects.map((project) => (
             <ProjectCard
               key={project.id}
