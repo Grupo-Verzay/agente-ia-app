@@ -6,7 +6,8 @@ import { currentUser } from "@/lib/auth";
 import { getResellerProfileForUser } from "@/actions/reseller-action";
 import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { getAllModules } from "@/actions/module-actions";
-import { isAdmin, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
+import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
+import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import type { ThemeApp } from "@prisma/client";
@@ -260,7 +261,7 @@ export default async function RootGroupLayout({
 
     // Rutas bloqueadas para el plan actual (visibles en sidebar pero sin acceso)
     const isAdvisor = !!user.ownerId;
-    const lockedRoutes: string[] = (!isSuperAdmin(user?.role) && !isAdvisor && !isActiveTrial)
+    const lockedRoutes: string[] = aplicaBloqueoPorPlan(user)
         ? [
             ...modules
                 .filter(m => (m as any).lockedPlans?.includes(user.plan))
@@ -279,19 +280,19 @@ export default async function RootGroupLayout({
     // (Módulos/Prompt/Resellers/Monitoreo VPS/Plantillas). Sin esto, en rutas fuera
     // de /panel (ej. /dashboard/finance, /crm/dashboard) el reseller veía el tab-nav
     // admin. Admin/super_admin ven el panel admin; otros roles, ninguno.
-    const RESELLER_ONLY_URLS = ['/panel/mis-planes', '/panel/mi-landing'];
+    const bloqueaPorPlan = aplicaBloqueoPorPlan(user);
+    // Los administradores son colaboradores del equipo, no clientes: lo que su
+    // plan no alcanza se les esconde, no se les ofrece.
+    const ocultarBloqueadas = isAdminLike(user.role);
     const panelTabs = user.role === 'reseller'
-        ? (resellerModule?.moduleItems ?? []).map((item) => ({
-            url: resolveModuleItemDest(item.url, item.customUrl),
-            title: item.title,
-          }))
+        ? buildPanelTabs(resellerModule?.moduleItems ?? [], { plan: user.plan, bloqueaPorPlan })
         : isAdminOrReseller(user.role)
-            ? (panelModule?.moduleItems ?? [])
-                .filter((item) => !RESELLER_ONLY_URLS.includes(item.url.replace("/admin/", "/panel/")))
-                .map((item) => ({
-                    url: resolveModuleItemDest(item.url, item.customUrl),
-                    title: item.title,
-                }))
+            ? buildPanelTabs(panelModule?.moduleItems ?? [], {
+                plan: user.plan,
+                bloqueaPorPlan,
+                excluirSoloReseller: true,
+                ocultarBloqueadas,
+            })
             : [];
     const clientPanelTabs = !isAdminOrReseller(user.role) ? getClientPanelTabs(modules) : [];
 
@@ -307,7 +308,7 @@ export default async function RootGroupLayout({
                         <PanelAwareTabNav tabs={clientPanelTabs} excludePanelRoutes panelRoutes={["/client-panel"]} />
                         <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-0 sm:p-1">
                             <div className="app-module-content flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-none border-0 sm:rounded-md sm:border sm:border-border/70">
-                                <LockedRouteGuard lockedRoutes={lockedRoutes}>
+                                <LockedRouteGuard lockedRoutes={lockedRoutes} canUpgrade={!isAdminLike(user.role)}>
                                     {children}
                                 </LockedRouteGuard>
                             </div>

@@ -30,6 +30,8 @@ import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Settings2 } from 'lucide-react';
 import { getVisibleSidebarModules, PANEL_ROUTES, CLIENT_PANEL_ROUTE } from '@/lib/sidebar-modules';
+import { aplicaBloqueoPorPlan } from '@/lib/panel-tabs';
+import { isAdminLike } from '@/lib/rbac';
 
 export function NavMain({ user }: { user: CurrentUser }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl, userIntegrations } = useModuleStore();
@@ -40,6 +42,12 @@ export function NavMain({ user }: { user: CurrentUser }) {
     const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
 
     const isAdvisor = !!user.ownerId;
+    // Mismo criterio que el guardián de rutas del layout: sin esto el sidebar
+    // pinta candados sobre rutas a las que la cuenta sí entra.
+    const bloqueaPorPlan = aplicaBloqueoPorPlan(user);
+    // Los administradores son del equipo, no clientes: no compran plan, así que
+    // el candado no los manda a la pantalla de planes.
+    const puedeMejorarPlan = !isAdminLike(user.role);
 
     const [openModuleId, setOpenModuleId] = useState<string | null>(null);
     useEffect(() => { setOpenModuleId(null); }, [pathname]);
@@ -68,14 +76,20 @@ export function NavMain({ user }: { user: CurrentUser }) {
                 isActive = pathname === link.route || pathname.startsWith(link.route + '/');
             }
 
-            const isLocked = !isAdvisor && (link as any).lockedPlans?.includes(user.plan);
+            const isLocked = bloqueaPorPlan && (link as any).lockedPlans?.includes(user.plan);
             return { ...link, isActive, isHidden, displayLabel, sortOrder, isLocked };
         })
-        .filter(link => !link.isHidden)
+        // Al equipo interno no se le pintan candados: lo que su plan no alcanza
+        // desaparece del menú, igual que las pestañas del panel.
+        .filter(link => !link.isHidden && !(link.isLocked && !puedeMejorarPlan))
         .sort((a, b) => a.sortOrder - b.sortOrder);
 
     const handleRoute = (label: string, targetRoute: string, customUrl?: string | null, isLocked?: boolean) => {
-        if (isLocked) { router.push('/planes'); if (isMobile) setOpenMobile(false); return; }
+        if (isLocked) {
+            if (puedeMejorarPlan) router.push('/planes');
+            if (isMobile) setOpenMobile(false);
+            return;
+        }
         setLabelModule(label)
         // Mantener el store por compatibilidad, pero la URL a embeber viaja en el
         // query param (?u=) para que /canva sea stateless (sobrevive recargas y

@@ -1,9 +1,9 @@
 import { currentUser } from "@/lib/auth";
-import { isAdminOrReseller } from "@/lib/rbac";
+import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
 import AccessDenied from "@/app/AccessDenied";
 import { db } from "@/lib/db";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
-import { resolveModuleItemDest } from "@/lib/canva-embed";
+import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
     const user = await currentUser();
@@ -22,23 +22,17 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             : Promise.resolve(null),
     ]);
 
-    const RESELLER_ONLY_URLS = ['/panel/mis-planes', '/panel/mi-landing'];
-    const allTabs = (panelModule?.moduleItems ?? [])
-        .filter((item) => !RESELLER_ONLY_URLS.includes(item.url.replace("/admin/", "/panel/")))
-        .map((item) => ({
-            url: resolveModuleItemDest(item.url, item.customUrl),
-            title: item.title,
-        }));
-
-    const resellerExtraTabs = (resellerModule?.moduleItems ?? []).map((item) => ({
-        url: resolveModuleItemDest(item.url, item.customUrl),
-        title: item.title,
-    }));
-
+    const bloqueaPorPlan = aplicaBloqueoPorPlan(user);
     const panelTabs =
         user.role === 'reseller'
-            ? [...resellerExtraTabs]
-            : [...allTabs];
+            ? buildPanelTabs(resellerModule?.moduleItems ?? [], { plan: user.plan, bloqueaPorPlan })
+            : buildPanelTabs(panelModule?.moduleItems ?? [], {
+                plan: user.plan,
+                bloqueaPorPlan,
+                excluirSoloReseller: true,
+                // Equipo interno: lo que su plan no alcanza no se muestra.
+                ocultarBloqueadas: isAdminLike(user.role),
+            });
 
     return (
         <div className="flex h-full min-w-0 w-full flex-col">
