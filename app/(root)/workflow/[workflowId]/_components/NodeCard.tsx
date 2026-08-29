@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useState, useTransition } from "react";
 import { useRouter } from 'next/navigation';
-import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled, updateNodeNotifyPhones, updateNodeMenuOptions } from "@/actions/workflow-node-action";
+import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled, updateNodeNotifyPhones, updateNodeNotifyText, updateNodeMenuOptions } from "@/actions/workflow-node-action";
 import { MAX_OPCIONES_MENU, buildMenuPreview, parseMenuOptions } from "@/lib/workflow-menu";
 import { ACCEPT_TYPES, getAcceptTypeString, optimizeFile, validateFileType } from "../helpers";
 import { NodeActions } from "./NodeActions";
@@ -12,6 +12,7 @@ import { MessageSquareIcon, Phone, UploadIcon } from "lucide-react";
 import { TimeInput } from "@/components/shared/TimeInput";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { GenericTextarea } from "@/components/shared/GenericTextarea";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +31,12 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   // Nodo "Notificar": a quien avisa este nodo en concreto.
   const [telefonosNotificar, setTelefonosNotificar] = useState(
     (nodes as { notifyPhones?: string | null }).notifyPhones ?? '',
+  );
+  // Nodo "Notificar": lo que se le dice al asesor. El titulo es el encabezado
+  // del WhatsApp que recibe; el cuerpo va en `message`, la misma columna del
+  // nodo de texto.
+  const [tituloAviso, setTituloAviso] = useState(
+    (nodes as { notifyTitle?: string | null }).notifyTitle ?? '',
   );
   // Nodo "Menu": las opciones, una por linea.
   const [opcionesMenu, setOpcionesMenu] = useState(
@@ -103,6 +110,28 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
       // Se vuelve a lo que habia: dejar en pantalla algo que no se guardo es
       // peor que perder lo tecleado, porque parece guardado.
       setTelefonosNotificar(anterior);
+      return;
+    }
+    toast.success(res.message);
+    router.refresh();
+  };
+
+  /** Titulo y cuerpo del aviso, guardados juntos al salir del campo. */
+  const guardarTextoAviso = async () => {
+    const tituloAnterior = (nodes as { notifyTitle?: string | null }).notifyTitle ?? '';
+    const cuerpoAnterior = nodes.message ?? '';
+    if (
+      tituloAviso.trim() === tituloAnterior.trim() &&
+      (message ?? '').trim() === cuerpoAnterior.trim()
+    ) {
+      return;
+    }
+
+    const res = await updateNodeNotifyText(nodes.id, tituloAviso, message ?? '');
+    if (!res.success) {
+      toast.error(res.message);
+      setTituloAviso(tituloAnterior);
+      setMessage(cuerpoAnterior);
       return;
     }
     toast.success(res.message);
@@ -462,6 +491,32 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
                 Vacío: avisa a los números de la cuenta.
               </span>
             )}
+        </p>
+
+        <Label className="mt-1 text-xs">Título del aviso</Label>
+        <Input
+          value={tituloAviso}
+          onChange={(e) => setTituloAviso(e.target.value)}
+          onBlur={guardarTextoAviso}
+          maxLength={80}
+          placeholder="Notificación"
+          className="h-8 text-sm"
+        />
+
+        <Label className="mt-1 text-xs">Mensaje</Label>
+        <Textarea
+          value={message ?? ''}
+          onChange={(e) => setMessage(e.target.value)}
+          onBlur={guardarTextoAviso}
+          maxLength={900}
+          rows={2}
+          placeholder="Revisa el chat de ese contacto."
+          className="min-h-[56px] resize-y text-sm"
+        />
+        {/* Las variables las resuelve el backend al enviar, que es cuando se
+            sabe de quien es la conversacion. */}
+        <p className="text-[11px] text-muted-foreground">
+          Puedes usar {'{nombre}'} y {'{telefono}'}.
         </p>
       </div>
     );
