@@ -36,10 +36,14 @@ async function getVisibleModules(user: LandingUser): Promise<ModuleWithItems[]> 
       (m) => !m.adminOnly && !(m.allowedPlans?.length && !m.allowedPlans.includes(user.plan)),
     );
   } else {
-    const userModuleRecords = await db.userModule.findMany({
-      where: { B: user.id },
-      select: { A: true },
-    });
+    // "Módulos habilitados" es para clientes; al equipo interno no le aplica.
+    // Mismo criterio que el layout.
+    const userModuleRecords = isAdmin(user.role)
+      ? []
+      : await db.userModule.findMany({
+          where: { B: user.id },
+          select: { A: true },
+        });
     if (userModuleRecords.length > 0) {
       const allowedIds = new Set(userModuleRecords.map((r) => r.A));
       modules = allModules.filter((m) => allowedIds.has(m.id));

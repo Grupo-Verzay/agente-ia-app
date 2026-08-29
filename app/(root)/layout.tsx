@@ -180,9 +180,12 @@ export default async function RootGroupLayout({
             user.plan,
             user.role === 'reseller' ? user.id : user.demoResellerId ?? null,
         ).catch(() => null),
-        // Módulos asignados a mano. No aplican al super admin (ve todo) ni a los
-        // resellers; para esas dos no se pide nada.
-        (!isSuperAdmin(user.role) && user.role !== 'reseller')
+        // "Módulos habilitados": la lista que se marca cliente por cliente. Es
+        // para CLIENTES. Al equipo interno -admin y super admin- no le aplica:
+        // lo que ellos ven se decide por rol y plan en el editor de módulos, y
+        // hacerles caso a estas filas escondía módulos que en el editor estaban
+        // activos para todos los niveles, sin nada en pantalla que lo explicara.
+        (!isAdminLike(user.role) && user.role !== 'reseller')
             ? db.userModule.findMany({ where: { B: user.id }, select: { A: true } })
             : Promise.resolve([] as { A: string }[]),
     ]);
