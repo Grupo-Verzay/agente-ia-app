@@ -16,6 +16,7 @@ import {
   Headset,
   History,
   Image as ImageIcon,
+  Lightbulb,
   Link,
   ListChecks,
   MapPin,
@@ -102,6 +103,11 @@ export const diagramaInicioAction: DiagramaAction = {
  * al armar un flujo.
  */
 export const diagramaPrincipalActions: DiagramaAction[] = [
+  // Idea: la nota suelta del lienzo. No es un paso del proceso -no lleva
+  // nombre encima ni icono fijo-: es una caja donde se escribe directamente,
+  // se estira desde su esquina y se pinta de un color. Va primera porque es
+  // con la que se empieza a pensar el diagrama, antes de saber los pasos.
+  { type: 'idea', label: 'Idea', icon: Lightbulb, bg: 'bg-yellow-400', iconClassName: 'h-4 w-4 text-white', keywords: 'nota post-it apunte texto libre pizarra' },
   // Libre: el unico nodo que no trae nada decidido. Icono, color, largo y lo
   // que va dentro de la caja se eligen en su modal. Ver LIBRE_ICONOS.
   { type: 'libre', label: 'Libre', icon: Shapes, bg: 'bg-zinc-700', iconClassName: 'h-4 w-4 text-white', keywords: 'personalizado a medida' },
@@ -226,3 +232,31 @@ export const diagramaActions: DiagramaAction[] = [
   ...diagramaAccionActions,
   ...diagramaRetiredActions,
 ];
+
+/* ── Nodo Idea ─────────────────────────────────────────────── */
+
+/**
+ * Emojis de la barra del nodo Idea. Se insertan dentro del texto, donde este
+ * el cursor: no son un icono aparte del nodo, son parte de lo escrito, asi
+ * que se pueden poner varios o ninguno.
+ */
+export const IDEA_EMOJIS = ['💡', '🎯', '💰', '👥', '⏰', '⚠️', '✅', '❓', '🤖', '🧑‍💻'];
+
+/**
+ * Colores del nodo Idea: se usan de fondo, no de icono, asi que son claros a
+ * proposito -el texto va encima en negro-. Valores fijos y no clases de
+ * Tailwind: el color se guarda en la base y se aplica como `style`.
+ */
+export const IDEA_COLORES = [
+  '#ffffff', '#fef3c7', '#dcfce7', '#dbeafe', '#fce7f3', '#ede9fe',
+];
+
+export const IDEA_POR_DEFECTO = {
+  color: '#ffffff',
+  negrita: false,
+  ancho: 200,
+  alto: 96,
+};
+
+export const IDEA_ANCHO_MIN = 120;
+export const IDEA_ALTO_MIN = 64;

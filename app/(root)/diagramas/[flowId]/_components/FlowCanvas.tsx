@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { PaletteItem } from '@/types/workflow-node';
 import type { DiagramaAction } from './diagrama-node-types';
 import { CustomEdge } from './CustomEdge';
+import type { IdeaAjustes } from './IdeaNode';
 import { FlowNode, type FlowNodeData, type LibreAjustes } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
 import { InlineAddNode } from './InlineAddNode';
@@ -196,6 +197,10 @@ export interface FlowGraphNode {
   color?: string;
   largo?: number;
   dentro?: string;
+  // Solo del nodo Idea: negrita del texto y el tamano al que se estiro.
+  negrita?: boolean;
+  ancho?: number;
+  alto?: number;
 }
 
 export interface FlowGraphEdge {
@@ -259,10 +264,14 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           color: n.color,
           largo: n.largo,
           dentro: n.dentro,
+          negrita: n.negrita,
+          ancho: n.ancho,
+          alto: n.alto,
           onChangeLabel: () => {},
           onChangeContent: () => {},
           onChangeSize: () => {},
           onChangeLibre: () => {},
+          onChangeIdea: () => {},
           onDuplicate: () => {},
           onDelete: () => {},
         },
@@ -328,6 +337,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...ajustes } } : n)));
   }, [setNodes]);
 
+  const onChangeIdea = useCallback((nodeId: string, ajustes: IdeaAjustes) => {
+    setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...ajustes } } : n)));
+  }, [setNodes]);
+
   // Duplicar: la copia sale justo debajo del original -es donde se espera
   // ver algo que se acaba de copiar- y, si ahi ya hay alguien, `separar` la
   // corre a la primera posicion libre. Sale sin conexiones: es una copia del
@@ -360,7 +373,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   // Cada nodo necesita las funciones de arriba enganchadas (no existen todavia
   // cuando se arma rawInitialNodes). Se inyectan aqui, una vez.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onChangeSize, onChangeLibre, onDuplicate: onDuplicateNode, onDelete: onDeleteNode } })));
+    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, onChangeLabel, onChangeContent, onChangeSize, onChangeLibre, onChangeIdea, onDuplicate: onDuplicateNode, onDelete: onDeleteNode } })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -555,6 +568,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onChangeContent,
           onChangeSize,
           onChangeLibre,
+          onChangeIdea,
           onDuplicate: onDuplicateNode,
           onDelete: onDeleteNode,
         },
@@ -573,7 +587,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     }
     lastEdgeTargetRef.current = id;
     toast.success(connected ? 'Nodo creado y conectado' : 'Nodo creado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onChangeLibre, onDuplicateNode, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onChangeLibre, onChangeIdea, onDuplicateNode, onDeleteNode, pickAvailableSourceHandle, setEdges, setNodes]);
 
   const addNodeFromSource: AddNodeFn = useCallback(({ sourceId, sourceHandle, action }) => {
     const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -598,6 +612,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onChangeContent,
           onChangeSize,
           onChangeLibre,
+          onChangeIdea,
           onDuplicate: onDuplicateNode,
           onDelete: onDeleteNode,
         },
@@ -624,7 +639,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
     setEdges((eds) => eds.concat({ id: edgeId, source: sourceId, target: id, sourceHandle, targetHandle: 'in', type: 'customEdge' }));
     lastEdgeTargetRef.current = id;
     toast.success('Nodo creado y conectado');
-  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onChangeLibre, onDuplicateNode, onDeleteNode, setEdges, setNodes]);
+  }, [nextFreeX, onChangeLabel, onChangeContent, onChangeSize, onChangeLibre, onChangeIdea, onDuplicateNode, onDeleteNode, setEdges, setNodes]);
 
   const onDragOver = useCallback((evt: React.DragEvent) => {
     evt.preventDefault();
@@ -663,6 +678,9 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         color: n.data.color,
         largo: n.data.largo,
         dentro: n.data.dentro,
+        negrita: n.data.negrita,
+        ancho: n.data.ancho,
+        alto: n.data.alto,
       })),
       edges: edgesRef.current.map((e) => ({
         id: e.id,

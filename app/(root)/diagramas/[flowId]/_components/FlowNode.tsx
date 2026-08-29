@@ -24,6 +24,7 @@ import {
     LIBRE_POR_DEFECTO,
 } from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
+import { IdeaNode, type IdeaAjustes } from './IdeaNode';
 
 // Color del icono por tipo -el cuadro del nodo es blanco/tarjeta, el color
 // va en el icono, igual que en la maqueta aprobada-. Valores fijos (no
@@ -161,10 +162,15 @@ export type FlowNodeData = {
     color?: string;
     largo?: number;
     dentro?: string;
+    // Solo del nodo Idea: la nota se escribe dentro de la caja y se estira.
+    negrita?: boolean;
+    ancho?: number;
+    alto?: number;
     onChangeLabel: (nodeId: string, label: string) => void;
     onChangeContent: (nodeId: string, content: string) => void;
     onChangeSize: (nodeId: string, size: FlowNodeSize) => void;
     onChangeLibre: (nodeId: string, ajustes: LibreAjustes) => void;
+    onChangeIdea: (nodeId: string, ajustes: IdeaAjustes) => void;
     onDuplicate: (nodeId: string) => void;
     onDelete: (nodeId: string) => void;
     // Index signature: React Flow exige que el `data` de un Node cumpla
@@ -183,6 +189,14 @@ export type FlowNodeData = {
  * vista en reposo.
  */
 export function FlowNode({ id, data }: { id: string; data: FlowNodeData }) {
+    // La Idea no comparte nada con los demas nodos -ni nombre encima, ni icono,
+    // ni modal-, asi que se dibuja aparte en vez de llenar este de condiciones.
+    if (data.tipo === 'idea') return <IdeaNode id={id} data={data} />;
+
+    return <FlowNodePaso id={id} data={data} />;
+}
+
+function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
     const connection = useConnection();
     const isTarget = connection.inProgress && connection.fromNode?.id !== id;
     const isSourceActive = connection.inProgress && connection.fromNode?.id === id;
