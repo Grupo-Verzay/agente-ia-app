@@ -1,5 +1,6 @@
 import { type LucideIcon } from "lucide-react";
-import { extractWhatsAppDigits, fmtPhone } from "@/lib/whatsapp-jid";
+import { extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-visible";
 import { avatarSrcFor } from "@/lib/avatar";
 import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
 import type { ChatData } from "@/actions/chat-actions";
@@ -76,17 +77,25 @@ export function isBadContactName(name?: string | null): boolean {
   return /^\d{6,}$/.test(limpio);
 }
 
-export function nameFrom(chat: ChatData): string {
+export function nameFrom(chat: ChatData, advisorRole?: string | null): string {
   const name = chat.pushName?.trim();
   if (name && !isBadContactName(name)) return name;
 
   const jid = chat.remoteJid || "";
   // Sin nombre real: mostrar el número limpio (+57 300 123 4567) en vez del JID.
-  const phone = fmtPhone(jid);
+  //
+  // Este es el sitio por donde MAS numeros ve un agente: toda conversacion sin
+  // nombre guardado se lista por su numero. Por eso va tapado para quien no
+  // deba verlos, igual que en el resto de la pantalla.
+  const phone = telefonoParaMostrar(jid, advisorRole);
   if (phone) return phone;
 
+  // Los digitos crudos son el mismo numero sin formato, asi que tambien se
+  // esconden: dejarlos aqui haria inutil todo lo anterior.
   const digits = extractWhatsAppDigits(jid);
-  if (digits) return digits;
+  if (digits) {
+    return puedeVerTelefonoCompleto(advisorRole) ? digits : "Sin nombre";
+  }
 
   const base = jid.includes("@") ? jid.split("@")[0] : jid;
   return base || "Sin nombre";
