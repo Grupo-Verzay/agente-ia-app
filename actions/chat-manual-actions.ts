@@ -5,6 +5,7 @@ import type { ChatToolActionResult } from "@/types/chat";
 import { Prisma, type WorkflowNode } from "@prisma/client";
 
 import { currentUser } from "@/lib/auth";
+import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { db } from "@/lib/db";
 import { buildChatHistorySessionId } from "@/lib/chat-history/build-session-id";
 import { pausarIaPorIntervencionHumana } from "@/lib/human-takeover";
@@ -32,11 +33,23 @@ import {
 } from "./chat-actions";
 import { getExecutionNodesForWorkflow } from "./workflow-node-action";
 
+/**
+ * Con que linea y con que credenciales se habla con Evolution.
+ *
+ * `apiKeyData` puede venir vacio: la pagina no siempre sabe resolver la clave
+ * -a un asesor su propia cuenta no le da ninguna- y antes, cuando no la sabia,
+ * mandaba el contexto entero a null y se perdia hasta el nombre de la linea. El
+ * servidor se quedaba sin nada con lo que trabajar y contestaba "No hay
+ * instancia o API key configurada".
+ *
+ * Con el nombre de la linea basta: de ahi sale su cuenta, y de la cuenta su
+ * clave. Ver `resolverContexto`.
+ */
 type ChatActionContext = {
-  apiKeyData: {
+  apiKeyData?: {
     url: string;
     key: string;
-  };
+  } | null;
   instanceName: string;
 } | null;
 type SuccessfulFindMessagesResult = Extract<FindMessagesResult, { success: true }>;
@@ -297,8 +310,72 @@ async function sendOutgoingPayload(params: {
   return result;
 }
 
-function hasReadyContext(context: ChatActionContext): context is Exclude<ChatActionContext, null> {
+type ReadyChatActionContext = {
+  apiKeyData: { url: string; key: string };
+  instanceName: string;
+};
+
+function hasReadyContext(context: ChatActionContext): context is ReadyChatActionContext {
   return Boolean(context?.apiKeyData?.url && context?.apiKeyData?.key && context?.instanceName);
+}
+
+/**
+ * El contexto listo para usar: si falta la clave, se busca aqui.
+ *
+ * La clave es la de la CUENTA DUEÑA DE LA LINEA, no la de quien mira. Es la
+ * distincion que faltaba: un asesor colaborador no tiene cuenta propia con
+ * lineas -atiende las de otros-, asi que buscarle una clave suya no encuentra
+ * nada y se quedaba sin poder abrir ningun chat, aunque las lineas que atiende
+ * estuvieran perfectamente conectadas.
+ *
+ * Se comprueba que la linea sea de una de sus cuentas antes de entregar la
+ * clave. Sin eso bastaria con mandar el nombre de una linea ajena para hablar
+ * con Evolution en nombre de otro.
+ *
+ * El resultado se recuerda un rato: es una consulta por cada apertura de chat y
+ * el mapeo linea -> cuenta -> clave practicamente no cambia.
+ */
+const cacheDeClavePorLinea = new Map<string, { valor: { url: string; key: string } | null; at: number }>();
+const CLAVE_LINEA_TTL_MS = 5 * 60 * 1000;
+
+async function resolverContexto(context: ChatActionContext): Promise<ChatActionContext> {
+  if (hasReadyContext(context)) return context;
+  const instanceName = context?.instanceName?.trim();
+  if (!instanceName) return context;
+
+  const user = await currentUser();
+  if (!user?.id) return context;
+
+  const enCache = cacheDeClavePorLinea.get(instanceName);
+  if (enCache && Date.now() - enCache.at < CLAVE_LINEA_TTL_MS) {
+    return enCache.valor ? { apiKeyData: enCache.valor, instanceName } : context;
+  }
+
+  try {
+    const dueno = await resolveInstanceOwner(instanceName);
+    if (!dueno?.userId) return context;
+
+    const cuentas = await getAssociatedAccountIds(user);
+    if (!cuentas.includes(dueno.userId)) return context;
+
+    const cuenta = await db.user.findUnique({
+      where: { id: dueno.userId },
+      select: { apiKeyId: true },
+    });
+    const clave = cuenta?.apiKeyId
+      ? await db.apiKey.findUnique({
+          where: { id: cuenta.apiKeyId },
+          select: { url: true, key: true },
+        })
+      : null;
+
+    const valor = clave?.url && clave?.key ? { url: clave.url, key: clave.key } : null;
+    cacheDeClavePorLinea.set(instanceName, { valor, at: Date.now() });
+    return valor ? { apiKeyData: valor, instanceName } : context;
+  } catch (error) {
+    console.error("[resolverContexto]", error);
+    return context;
+  }
 }
 
 async function requireCurrentUser() {
@@ -467,6 +544,7 @@ export async function warmChatMessagesAction(
   remoteJid: string,
   options?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
 ): Promise<FindMessagesResult> {
+  context = await resolverContexto(context);
   const user = await currentUser();
   const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
   // Conjunto de cuentas bajo las que puede vivir el historial: el dueño resuelto
@@ -575,6 +653,7 @@ export async function refetchChatsManualAction(
     new Set([effectiveOwnerId, user?.ownerId, user?.id].filter(Boolean) as string[]),
   );
 
+  context = await resolverContexto(context);
   if (!hasReadyContext(context)) {
     if (readUserIds.length) {
       const persisted = await getPersistedInboxChats({ userIds: readUserIds });
@@ -661,6 +740,7 @@ export async function sendManualChatPayloadAction(
   remoteJid: string,
   payload: OutgoingMessagePayload,
 ): Promise<SendMessageResult> {
+  context = await resolverContexto(context);
   if (!hasReadyContext(context)) {
     return {
       success: false,
@@ -826,6 +906,7 @@ export async function sendManualWorkflowAction(
   remoteJid: string,
   workflowId: string,
 ): Promise<ChatToolActionResult> {
+  context = await resolverContexto(context);
   if (!hasReadyContext(context)) {
     return {
       success: false,
@@ -953,6 +1034,7 @@ export async function sendManualQuickReplyAction(
   remoteJid: string,
   quickReplyId: number,
 ): Promise<ChatToolActionResult> {
+  context = await resolverContexto(context);
   if (!hasReadyContext(context)) {
     return {
       success: false,
@@ -1061,6 +1143,7 @@ export async function reactToMessageAction(
   fromMe: boolean,
   emoji: string,
 ): Promise<{ success: boolean; message: string }> {
+  context = await resolverContexto(context);
   if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   await requireCurrentUser();
   return sendReaction(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe, emoji);
@@ -1072,6 +1155,7 @@ export async function deleteMessageAction(
   messageId: string,
   fromMe: boolean,
 ): Promise<{ success: boolean; message: string }> {
+  context = await resolverContexto(context);
   if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   const user = await requireCurrentUser();
   if (user.role !== "admin" && user.role !== "super_admin") {
@@ -1117,6 +1201,7 @@ export async function editMessageAction(
   messageId: string,
   newText: string,
 ): Promise<{ success: boolean; message: string }> {
+  context = await resolverContexto(context);
   if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   const user = await requireCurrentUser();
   if (user.role !== "admin" && user.role !== "super_admin") {
