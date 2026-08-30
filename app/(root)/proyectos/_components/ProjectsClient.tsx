@@ -381,31 +381,32 @@ function ProjectCard({
       className="group relative flex h-full cursor-pointer flex-col transition-colors hover:border-primary/50"
       onClick={onOpen}
     >
-      {/* Quietas hasta que el puntero entra o llega el teclado: la papelera roja
-          permanente era lo más llamativo de la tarjeta. */}
-      {canManage && (
-      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-        <Button
-          variant="outline" size="icon" className="h-6 w-6"
-          title="Editar" aria-label={`Editar ${project.name}`}
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="outline" size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-red-600"
-          title="Eliminar" aria-label={`Eliminar ${project.name}`}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
-      )}
-
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
-        <div className={cn("flex items-start gap-2", canManage && "pr-14")}>
+        <div className="flex items-start gap-2">
           <p className="min-w-0 flex-1 font-semibold leading-snug">{project.name}</p>
+          {/* Quietas hasta que el puntero entra o llega el teclado: la papelera
+              roja permanente era lo más llamativo de la tarjeta. Van en la fila,
+              antes del estado: así el estado se queda pegado a la derecha, en el
+              mismo sitio que le sale a un participante, que no tiene botones. */}
+          {canManage && (
+            <div className="flex shrink-0 gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+              <Button
+                variant="outline" size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-red-600"
+                title="Eliminar" aria-label={`Eliminar ${project.name}`}
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="outline" size="icon" className="h-6 w-6"
+                title="Editar" aria-label={`Editar ${project.name}`}
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
           <Badge variant="outline" className={cn("shrink-0 text-[10px] uppercase", STATUS_STYLES[project.status])}>
             {PROJECT_STATUS_LABELS[project.status]}
           </Badge>
