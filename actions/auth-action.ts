@@ -217,8 +217,21 @@ export async function impersonateUser(targetUserId: string) {
     select: { id: true, role: true },
   });
 
-  if (!realUser || !isAdminOrReseller(realUser.role)) {
-    return { success: false, message: "No autorizado" };
+  if (!realUser) return { success: false, message: "No autorizado" };
+
+  const esGestor = isAdminOrReseller(realUser.role);
+
+  // Un colaborador del equipo no tiene rol de gestión, pero sí puede entrar a
+  // los clientes que le asignaron: es justo para lo que se le pasan. Fuera de
+  // esa lista no entra a ninguno.
+  if (!esGestor) {
+    const asignado = await db.advisorClient
+      .findFirst({
+        where: { advisorUserId: realUser.id, clientUserId: targetUserId },
+        select: { id: true },
+      })
+      .catch(() => null);
+    if (!asignado) return { success: false, message: "No autorizado" };
   }
 
   const exists = await db.user.findUnique({
@@ -230,7 +243,7 @@ export async function impersonateUser(targetUserId: string) {
 
   // Los resellers (no admin) solo pueden entrar a SUS propios clientes:
   // ya sea asignados en la tabla `reseller` o creados como demo por ellos.
-  if (!isAdminLike(realUser.role)) {
+  if (esGestor && !isAdminLike(realUser.role)) {
     const ownsByAssignment = await db.reseller.findFirst({
       where: { userId: targetUserId, resellerid: realUser.id },
       select: { id: true },
