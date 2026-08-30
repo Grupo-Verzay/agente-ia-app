@@ -25,6 +25,8 @@ import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox"
 import { useEffect, useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { ApiKeyConfigurator } from "@/app/(root)/profile/_components/ApiKeyConfigurator"
+import { ToolsEditor } from "./ToolsEditor"
+import { UserBackupManager } from "@/components/backup/UserBackupManager"
 import { getIaCreditByUser } from "@/actions/actions-ia-credits"
 import { onTokensToCredits } from "@/utils/onTokensToCredits"
 interface Props {
@@ -153,6 +155,8 @@ export const EditDialog = ({
     { id: "webhookUrl",  label: "Webhook",      defaultValue: user.webhookUrl,    readOnly: false },
     { id: "apiKeyId",    label: "Evo Api",      defaultValue: user.apiKeyId,      readOnly: false },
     { id: "apiKeyIa",    label: "Api Key IA",   defaultValue: null,               readOnly: false },
+    { id: "tools",       label: "Herramientas", defaultValue: null,               readOnly: false },
+    { id: "backup",      label: "Backup",       defaultValue: null,               readOnly: false },
     { id: "timezone",    label: "Zona horaria", defaultValue: user.timezone,      readOnly: false },
   ];
 
@@ -162,7 +166,9 @@ export const EditDialog = ({
     // ahora es él quien paga los tokens de sus clientes con su propia clave de
     // IA, así que es quien tiene que poder ponerles tope. Solo se le siguen
     // ocultando los campos de infraestructura, que son de la plataforma.
-    const idsToRemove = ["apiKeyId", "webhookUrl", "apiKeyIa"]
+    // "tools" se va con ellos: en el menú tampoco lo veía el reseller. "backup"
+    // no, que ese sí lo tenía.
+    const idsToRemove = ["apiKeyId", "webhookUrl", "apiKeyIa", "tools"]
     fields = fields.filter(field => !idsToRemove.includes(field.id))
 
     const idsReadOnly = ["name", "email", "role", "plan"]
@@ -370,6 +376,18 @@ export const EditDialog = ({
           <div>
             <ApiKeyConfigurator userId={user.id} label="" showOrigin />
           </div>
+        );
+
+      case 'tools':
+        return <ToolsEditor userId={user.id} activo={openEditDialog} />;
+
+      case 'backup':
+        return (
+          <UserBackupManager
+            targetUserId={user.id}
+            subjectLabel={user.company || user.name || user.email || 'este usuario'}
+            onImported={() => setOpenEditDialog(false)}
+          />
         );
 
       default:

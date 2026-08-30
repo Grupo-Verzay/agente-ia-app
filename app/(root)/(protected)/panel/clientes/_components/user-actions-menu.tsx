@@ -28,6 +28,15 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
 
+    /**
+     * Quién manda sobre la cuenta del cliente. Un colaborador del equipo con
+     * clientes asignados no está en esta lista: a él se le pasa una cuenta para
+     * que entre a arreglarla, no para que la administre, así que solo le queda
+     * "Ingresar".
+     */
+    const puedeGestionar =
+        currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller'
+
     const handleUserDashboard = () => {
         if (!user.email || !user.password) {
             toast.error('No se puede iniciar sesión: el usuario no tiene credenciales válidas')
@@ -56,19 +65,33 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                    <DropdownMenuItem
-                        onClick={() => openDialogGetUserId(user.id, 'editar', true)}
-                    >
-                        Editar
-                    </DropdownMenuItem>
-                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
+                    {puedeGestionar &&
                         <DropdownMenuItem
-                            onClick={() => openDialogGetUserId(user.id, 'tools', true,)}
+                            onClick={() => openDialogGetUserId(user.id, 'editar', true)}
                         >
-                            Tools
+                            Editar
                         </DropdownMenuItem>
                     }
-                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
+                    {puedeGestionar &&
+                        <DropdownMenuItem
+                            onClick={() => openDialogGetUserId(user.id, 'modules', true)}
+                        >
+                            Módulos
+                        </DropdownMenuItem>
+                    }
+                    {/* Pasarle la cuenta a alguien del equipo. Se decide aquí,
+                        que es donde uno está mirando al cliente. */}
+                    {puedeGestionar &&
+                        <DropdownMenuItem
+                            onClick={() => openDialogGetUserId(user.id, 'asignar', true)}
+                        >
+                            Asignar a
+                        </DropdownMenuItem>
+                    }
+                    {/* Mover un cliente de una licencia a otra. Solo tiene sentido
+                        para el reseller: es quien tiene bolsas de licencias, y la
+                        pantalla no hace nada con un cliente que no es suyo. */}
+                    {currentUserRol === 'reseller' &&
                         <DropdownMenuItem
                             onClick={() => openDialogGetUserId(user.id, 'plan', true)}
                         >
@@ -76,31 +99,11 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                         </DropdownMenuItem>
                     }
                     <DropdownMenuItem
-                        onClick={() => openDialogGetUserId(user.id, 'modules', true)}
-                    >
-                        Módulos
-                    </DropdownMenuItem>
-                    {/* Pasarle la cuenta a alguien del equipo. Se decide aquí,
-                        que es donde uno está mirando al cliente. */}
-                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
-                        <DropdownMenuItem
-                            onClick={() => openDialogGetUserId(user.id, 'asignar', true)}
-                        >
-                            Asignar a
-                        </DropdownMenuItem>
-                    }
-                    <DropdownMenuItem
-                        onClick={() => openDialogGetUserId(user.id, 'backup', true)}
-                    >
-                        Backup
-                    </DropdownMenuItem>
-
-<DropdownMenuItem
                         onClick={() => handleUserDashboard()}
                     >
                         Ingresar
                     </DropdownMenuItem>
-                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
+                    {puedeGestionar &&
                         <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
