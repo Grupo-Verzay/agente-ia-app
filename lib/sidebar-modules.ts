@@ -37,15 +37,18 @@ export function getVisibleSidebarModules(
     // /reseller-panel y /client-panel. Todas se llaman "Panel", y puede haber
     // más de una fila para la misma. En el sidebar va UNA: la que corresponde
     // al rol. Sin esto salían dos entradas "Panel", una encima de la otra.
-    const rutasDelPanelDelRol =
+    // Se elige por lo que la persona REALMENTE tiene, no por su rol a secas:
+    // `modules` ya viene filtrado por rol, plan y permisos, así que si el panel
+    // del equipo sigue ahí es porque puede entrar —aunque sea un agente al que
+    // solo se le concedieron dos apartados—. Si no lo tiene, le toca el de
+    // cliente.
+    const candidatosDePanel =
         user.role === 'reseller'
             ? ['/reseller-panel']
-            : isAdminLike(user.role)
-                ? PANEL_ROUTES
-                : [CLIENT_PANEL_ROUTE];
-    const panelDelRol = modules.find(
-        (m) => m.showInSidebar && rutasDelPanelDelRol.includes(m.route),
-    );
+            : [...PANEL_ROUTES, CLIENT_PANEL_ROUTE];
+    const panelDelRol = candidatosDePanel
+        .map((route) => modules.find((m) => m.showInSidebar && m.route === route))
+        .find(Boolean);
     const esVarianteDePanel = (route: string) =>
         PANEL_ROUTES.includes(route) || route === '/reseller-panel' || route === CLIENT_PANEL_ROUTE;
 
