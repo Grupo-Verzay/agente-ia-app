@@ -61,17 +61,23 @@ function UnavailableScreen() {
 export function LockedRouteGuard({
   children,
   lockedRoutes,
+  deniedRoutes = [],
   canUpgrade = true,
 }: {
   children: React.ReactNode;
   lockedRoutes: string[];
+  /**
+   * Quitadas a esta persona en sus permisos. No es cuestión de plan, así que
+   * aquí nunca se ofrece mejorarlo: mejorarlo no lo desbloquearía.
+   */
+  deniedRoutes?: string[];
   /** false para el equipo interno: se le avisa, no se le vende. */
   canUpgrade?: boolean;
 }) {
   const pathname = usePathname() ?? '';
-  const isLocked = lockedRoutes.some(
-    (route) => pathname === route || pathname.startsWith(route + '/'),
-  );
-  if (isLocked) return canUpgrade ? <UpgradeScreen /> : <UnavailableScreen />;
+  const cubre = (route: string) => pathname === route || pathname.startsWith(route + '/');
+
+  if (deniedRoutes.some(cubre)) return <UnavailableScreen />;
+  if (lockedRoutes.some(cubre)) return canUpgrade ? <UpgradeScreen /> : <UnavailableScreen />;
   return <>{children}</>;
 }

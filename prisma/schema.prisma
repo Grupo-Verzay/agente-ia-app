@@ -826,6 +826,10 @@ model User {
   googleCalendarSyncEnabled          Boolean                      @default(false) @map("google_calendar_sync_enabled")
   ownerId                            String?                      @map("owner_id")
   advisorRole                        String?                      @map("advisor_role")
+  // Submodulos que esta persona NO ve, por id y separados por coma. Vacio = no
+  // se le quita nada. La crea la migracion advisor_denied_module_items del
+  // BACKEND; aqui solo se replica (este servicio no corre migraciones).
+  deniedModuleItems                  String?                      @map("denied_module_items")
   advisorAvailable                   Boolean                      @default(true) @map("advisor_available")
   autoAssignEnabled                  Boolean                      @default(false) @map("auto_assign_enabled")
   autoAssignMaxChats                 Int                          @default(5) @map("auto_assign_max_chats")

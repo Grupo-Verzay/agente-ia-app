@@ -34,6 +34,8 @@ const USER_SELECT = {
     delSeguimiento: true,
     ownerId: true,
     advisorRole: true,
+    // Los submódulos que se le quitaron a esta persona (ver lib/permisos.ts).
+    deniedModuleItems: true,
     preferredCurrencyCode: true,
     trialEndsAt: true,
     // El layout los necesita en CADA navegación (tema de la interfaz y con qué
@@ -85,7 +87,7 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
 
     const realUser = await db.user.findUnique({
         where: { id: session.user.id },
-        select: { id: true, role: true },
+        select: { id: true, role: true, deniedModuleItems: true },
     });
 
     if (!realUser) return null;
@@ -155,6 +157,10 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
                 ...u,
                 ownerId: effectiveUserId === realUser.id ? null : effectiveUserId,
                 advisorRole: accountRole,
+                // Los permisos son de la PERSONA, no de la cuenta en la que
+                // entra: aquí `u` es la fila de la cuenta dueña, así que sus
+                // negados taparían los de quien de verdad está mirando.
+                deniedModuleItems: realUser.deniedModuleItems,
                 effectiveId: effectiveUserId,
                 sessionUserId: realUser.id,
             };
