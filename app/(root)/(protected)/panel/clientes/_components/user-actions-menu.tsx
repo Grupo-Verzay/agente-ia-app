@@ -80,6 +80,15 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                     >
                         Módulos
                     </DropdownMenuItem>
+                    {/* Pasarle la cuenta a alguien del equipo. Se decide aquí,
+                        que es donde uno está mirando al cliente. */}
+                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
+                        <DropdownMenuItem
+                            onClick={() => openDialogGetUserId(user.id, 'asignar', true)}
+                        >
+                            Asignar a
+                        </DropdownMenuItem>
+                    }
                     <DropdownMenuItem
                         onClick={() => openDialogGetUserId(user.id, 'backup', true)}
                     >

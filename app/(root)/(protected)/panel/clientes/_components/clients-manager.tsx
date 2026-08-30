@@ -15,7 +15,7 @@ import {
 import { autoConfigureUserAi } from '@/actions/userAiconfig-actions';
 import { createIaCreditForUser, rechargeIaCredit } from '@/actions/actions-ia-credits';
 import { onCreditsToTokens } from '@/utils/onTokensToCredits';
-import { CreateDialog, DeleteDialog, ToolsDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog } from './';
+import { CreateDialog, DeleteDialog, ToolsDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog, ClientAdvisorsDialog } from './';
 import { PlanDialog } from '@/components/shared/PlanDialog';
 import { ApiKey } from '@prisma/client';
 import { UserFormValues } from '@/schema/user';
@@ -31,7 +31,7 @@ import { ModulesDialog } from '@/components/shared/ModulesDialog';
 import type { ResellerPoolOption } from '../helpers/getClientsPageData';
 
 
-export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules' | 'plan'
+export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules' | 'plan' | 'asignar'
 
 interface Props {
     users: ClientInterface[],
@@ -54,6 +54,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openBackupDialog, setOpenBackupDialog] = useState(false);
     const [openModulesDialog, setOpenModulesDialog] = useState(false);
     const [openPlanDialog, setOpenPlanDialog] = useState(false);
+    const [openAsignarDialog, setOpenAsignarDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
 
@@ -242,6 +243,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         if (dialog === 'backup') return setOpenBackupDialog(state);
         if (dialog === 'modules') return setOpenModulesDialog(state);
         if (dialog === 'plan') return setOpenPlanDialog(state);
+        if (dialog === 'asignar') return setOpenAsignarDialog(state);
     };
 
     const openCreateDialogUser = () => {
@@ -382,6 +384,15 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     openBackupDialog={openBackupDialog}
                     setOpenBackupDialog={setOpenBackupDialog}
                     user={user}
+                />
+            )}
+            {/* Asignar a alguien del equipo */}
+            {user && (
+                <ClientAdvisorsDialog
+                    open={openAsignarDialog}
+                    setOpen={setOpenAsignarDialog}
+                    clientId={user.id}
+                    clientName={user.company || user.name || user.email}
                 />
             )}
             {/* Módulos */}
