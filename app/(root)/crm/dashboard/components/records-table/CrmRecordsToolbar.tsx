@@ -23,6 +23,7 @@ import type { RegistroWithSession } from "@/types/session";
 import { CRM_TABLE_COLUMN_LABELS } from "./constants";
 import { CrmRecordsAdvancedFilters } from "./CrmRecordsAdvancedFilters";
 import type { CrmDashboardTab, CrmTableColumnId } from "./types";
+import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
 
 export function CrmRecordsToolbar({
     table,
@@ -126,21 +127,23 @@ export function CrmRecordsToolbar({
                                 })}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 gap-2 max-sm:w-9 max-sm:px-0"
-                                onClick={onExportClick}
-                            >
-                                <Download className="h-4 w-4 shrink-0" />
-                                <span className="hidden sm:inline">Exportar</span>
-                                <span className="sr-only sm:hidden">Exportar</span>
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">Exportar a Excel</TooltipContent>
-                    </Tooltip>
+                    {EXPORTACION_DE_CLIENTES_HABILITADA && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 gap-2 max-sm:w-9 max-sm:px-0"
+                                    onClick={onExportClick}
+                                >
+                                    <Download className="h-4 w-4 shrink-0" />
+                                    <span className="hidden sm:inline">Exportar</span>
+                                    <span className="sr-only sm:hidden">Exportar</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">Exportar a Excel</TooltipContent>
+                        </Tooltip>
+                    )}
                     </div>
                 </div>
 

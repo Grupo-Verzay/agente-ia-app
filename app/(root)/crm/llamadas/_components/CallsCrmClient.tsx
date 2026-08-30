@@ -68,6 +68,7 @@ import { startBotCallAction } from '@/actions/voicebot-actions';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { CallDialog } from '../../../chats/_components/CallDialog';
 import { CallDetailDialog } from './CallDetailDialog';
+import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
 
 const DAY_OPTIONS = [
   { label: '7 días', value: 7 },
@@ -384,16 +385,18 @@ export function CallsCrmClient({
               </button>
             ))}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5"
-            onClick={handleExport}
-            disabled={visibleCalls.length === 0}
-          >
-            <Download className="h-4 w-4 shrink-0" />
-            <span className="truncate">Exportar</span>
-          </Button>
+          {EXPORTACION_DE_CLIENTES_HABILITADA && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              onClick={handleExport}
+              disabled={visibleCalls.length === 0}
+            >
+              <Download className="h-4 w-4 shrink-0" />
+              <span className="truncate">Exportar</span>
+            </Button>
+          )}
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} title="Actualizar">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
