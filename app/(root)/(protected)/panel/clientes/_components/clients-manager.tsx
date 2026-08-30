@@ -15,7 +15,7 @@ import {
 import { autoConfigureUserAi } from '@/actions/userAiconfig-actions';
 import { createIaCreditForUser, rechargeIaCredit } from '@/actions/actions-ia-credits';
 import { onCreditsToTokens } from '@/utils/onTokensToCredits';
-import { CreateDialog, DeleteDialog, ToolsDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog, ClientAdvisorsDialog } from './';
+import { CreateDialog, DeleteDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, ClientAdvisorsDialog } from './';
 import { PlanDialog } from '@/components/shared/PlanDialog';
 import { ApiKey } from '@prisma/client';
 import { UserFormValues } from '@/schema/user';
@@ -31,7 +31,7 @@ import { ModulesDialog } from '@/components/shared/ModulesDialog';
 import type { ResellerPoolOption } from '../helpers/getClientsPageData';
 
 
-export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules' | 'plan' | 'asignar'
+export type DialogType = 'editar' | 'evo' | 'delete' | 'modules' | 'plan' | 'asignar'
 
 interface Props {
     users: ClientInterface[],
@@ -48,10 +48,8 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const router = useRouter();
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
-    const [openToolsDialog, setOpenToolsDialog] = useState(false);
     const [openEvoDialog, setOpenEvoDialog] = useState(false);
     const [openEditDialog, setOpenEditDialog] = useState(false);
-    const [openBackupDialog, setOpenBackupDialog] = useState(false);
     const [openModulesDialog, setOpenModulesDialog] = useState(false);
     const [openPlanDialog, setOpenPlanDialog] = useState(false);
     const [openAsignarDialog, setOpenAsignarDialog] = useState(false);
@@ -236,11 +234,9 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         const currentUser = users.filter(user => user.id === userId)[0];
         setCurrentUser(currentUser);
 
-        if (dialog === 'tools') return setOpenToolsDialog(state);
         if (dialog === 'evo') return setOpenEvoDialog(state);
         if (dialog === 'delete') return setOpenDeleteDialog(state);
         if (dialog === 'editar') return setOpenEditDialog(state);
-        if (dialog === 'backup') return setOpenBackupDialog(state);
         if (dialog === 'modules') return setOpenModulesDialog(state);
         if (dialog === 'plan') return setOpenPlanDialog(state);
         if (dialog === 'asignar') return setOpenAsignarDialog(state);
@@ -363,26 +359,11 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     user={user}
                 />
             )}
-            {/* Tools */}
-            {user && (
-                <ToolsDialog
-                    openToolsDialog={openToolsDialog}
-                    setOpenToolsDialog={setOpenToolsDialog}
-                    user={user}
-                />
-            )}
             {/* EVO */}
             {user && (
                 <EvoDialog
                     openEvoDialog={openEvoDialog}
                     setOpenEvoDialog={setOpenEvoDialog}
-                    user={user}
-                />
-            )}
-            {user && (
-                <UserBackupDialog
-                    openBackupDialog={openBackupDialog}
-                    setOpenBackupDialog={setOpenBackupDialog}
                     user={user}
                 />
             )}
