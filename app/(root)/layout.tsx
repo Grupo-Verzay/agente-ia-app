@@ -291,14 +291,31 @@ export default async function RootGroupLayout({
         mandaLoPermitido: mandaLoConcedido,
     });
 
-    // De los paneles, uno solo: el que le toca. Se elige por lo que le queda
-    // -no por el rol a secas-, así que a un agente con apartados dados en el
-    // panel del equipo le toca ese. Los otros no son suyos y salen de en medio:
-    // si no, sus apartados le abrían pestañas y rutas que nadie le dio, porque
-    // en la pantalla de Permisos ni siquiera se listan para poder quitarlos.
+    // De los paneles, uno solo: el que le toca. Los otros salen de en medio, que
+    // si no sus apartados le abrían pestañas y rutas que nadie le dio —en la
+    // pantalla de Permisos ni se listan para poder quitarlos—.
+    //
+    // Cuál le toca lo dice la CUENTA, no lo primero que se encuentre. Antes se
+    // probaba /panel, /admin y /client-panel en ese orden y se quedaba con el
+    // primero que estuviera: como el Panel de administración está abierto a
+    // todos los planes y no es "Solo Admin", a un cliente final le entraba ese y
+    // veía Informes, Clientes, Resellers y Finanzas en vez de su propio panel.
+    //
+    // A quien trabaja en una cuenta ajena le toca el panel de ESA cuenta: un
+    // agente de una cuenta de administración usa el del equipo, aunque su propio
+    // rol sea el de un usuario cualquiera.
     const VARIANTES_DE_PANEL = [...PANEL_ROUTES, '/reseller-panel', CLIENT_PANEL_ROUTE];
+    const rolDeLaCuenta = user.ownerId
+        ? (await db.user
+            .findUnique({ where: { id: user.ownerId }, select: { role: true } })
+            .catch(() => null))?.role ?? user.role
+        : user.role;
     const candidatosDePanel =
-        user.role === 'reseller' ? ['/reseller-panel'] : [...PANEL_ROUTES, CLIENT_PANEL_ROUTE];
+        rolDeLaCuenta === 'reseller'
+            ? ['/reseller-panel']
+            : isAdminLike(rolDeLaCuenta)
+                ? [...PANEL_ROUTES]
+                : [CLIENT_PANEL_ROUTE];
     const suPanelId =
         candidatosDePanel
             .map((route) => modules.find((m) => m.route === route))
