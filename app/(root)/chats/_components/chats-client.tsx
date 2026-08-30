@@ -501,6 +501,8 @@ interface ChatsClientProps {
   advisors?: AdvisorInfo[];
   currentAdvisorId?: string;
   advisorRole?: string | null;
+  /** Si un agente ve la bolsa sin dueño, de donde salen las que "Toma". */
+  canTakeUnassigned?: boolean;
   assignAdvisorAction?: (sessionId: number, advisorId: string | null) => Promise<{ success: boolean; message?: string; warning?: string }>;
   takeSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   releaseSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
@@ -526,6 +528,7 @@ export function ChatsClient({
   advisors: initialAdvisors = [],
   currentAdvisorId,
   advisorRole,
+  canTakeUnassigned = true,
   assignAdvisorAction,
   takeSessionAction,
   releaseSessionAction,
@@ -782,9 +785,12 @@ export function ChatsClient({
     if (advisorRole !== "agente" || !currentAdvisorId) return all;
     return all.filter((chat) => {
       const session = getSessionForChat(chat, chatSessions);
-      return !session?.assignedAdvisorId || session.assignedAdvisorId === currentAdvisorId;
+      if (session?.assignedAdvisorId === currentAdvisorId) return true;
+      // La bolsa sin dueño es de donde salen las que "Toma". Quien no tenga ese
+      // permiso solo ve lo que le hayan asignado.
+      return canTakeUnassigned && !session?.assignedAdvisorId;
     });
-  }, [currentChatsResult, advisorRole, currentAdvisorId, chatSessions]);
+  }, [currentChatsResult, advisorRole, currentAdvisorId, canTakeUnassigned, chatSessions]);
 
   const sidebarResult = useMemo((): FetchChatsResult => {
     if (!currentChatsResult.success) return currentChatsResult;

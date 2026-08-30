@@ -73,6 +73,7 @@ export function canAccessRoute({
   modules,
   label,
   isAdvisor = false,
+  tieneConcedidos = false,
 }: {
   route: string;
   userRole: string;
@@ -80,11 +81,17 @@ export function canAccessRoute({
   modules: ModuleWithItems[];
   label: string;
   isAdvisor?: boolean;
+  /**
+   * Esta persona tiene concedido algún apartado suelto dentro de un módulo
+   * "Solo Admin". Entonces el módulo no se le cierra entero: entra, y adentro
+   * solo están los apartados que se le dieron.
+   */
+  tieneConcedidos?: boolean;
 }) {
   const link = getRouteAccess(route, modules, { label });
   if (!link) return { allowed: true as const };
 
-  if (link.adminOnly && !isAdminOrReseller(userRole)) {
+  if (link.adminOnly && !isAdminOrReseller(userRole) && !tieneConcedidos) {
     return { allowed: false as const, reason: 'admin_only' as const };
   }
 
