@@ -812,6 +812,127 @@ export async function setAdvisorClients(
   };
 }
 
+export type MiembroAsignable = {
+  id: string;
+  name: string | null;
+  email: string;
+  advisorRole: string | null;
+  asignado: boolean;
+};
+
+/**
+ * ¿Este cliente es de esta cuenta? Se pregunta por uno solo, así que se
+ * consulta por uno solo: traerse la cartera entera para mirar si está dentro
+ * sale caro en la cuenta de un admin, que los tiene todos.
+ */
+async function esClienteDeLaCuenta(
+  owner: { id: string; role: string },
+  clientId: string,
+): Promise<boolean> {
+  const base = { id: clientId, role: { in: ["user", "affiliate"] as Role[] } };
+
+  if (isAdminLike(owner.role)) {
+    return !!(await db.user.findFirst({ where: base, select: { id: true } }));
+  }
+
+  const suyo = await db.user.findFirst({
+    where: {
+      ...base,
+      OR: [
+        { demoResellerId: owner.id },
+        { reseller_reseller_userIdToUser: { some: { resellerid: owner.id } } },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!suyo;
+}
+
+/**
+ * Al revés que `getAdvisorClients`: partiendo de un cliente, quién del equipo
+ * lo tiene. Es lo que se usa desde el listado de Clientes, que es donde se está
+ * mirando cuando uno decide a quién pasarle esa cuenta.
+ */
+export async function getClientAdvisors(
+  clientId: string,
+): Promise<ActionResult<MiembroAsignable[]>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  if (!(await esClienteDeLaCuenta(owner, clientId))) {
+    return { success: false, message: "Cliente no encontrado." };
+  }
+
+  const [equipo, asignados] = await Promise.all([
+    getTeamAdvisors(),
+    db.advisorClient.findMany({
+      where: { clientUserId: clientId, ownerUserId: owner.id },
+      select: { advisorUserId: true },
+    }),
+  ]);
+
+  const yaTiene = new Set(asignados.map((a) => a.advisorUserId));
+
+  return {
+    success: true,
+    data: (equipo.success ? equipo.data ?? [] : []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      advisorRole: m.advisorRole,
+      asignado: yaTiene.has(m.id),
+    })),
+  };
+}
+
+export async function setClientAdvisors(
+  clientId: string,
+  advisorIds: string[],
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  if (!(await esClienteDeLaCuenta(owner, clientId))) {
+    return { success: false, message: "Cliente no encontrado." };
+  }
+
+  // Solo gente del equipo de esta cuenta: lo que llegue del navegador no decide
+  // a quién se le abre la cuenta de un cliente.
+  const equipo = await getTeamAdvisors();
+  const delEquipo = new Set((equipo.success ? equipo.data ?? [] : []).map((m) => m.id));
+  const validos = [...new Set(advisorIds)].filter((id) => delEquipo.has(id));
+
+  try {
+    await db.$transaction([
+      db.advisorClient.deleteMany({
+        where: { clientUserId: clientId, ownerUserId: owner.id },
+      }),
+      ...(validos.length
+        ? [
+            db.advisorClient.createMany({
+              data: validos.map((advisorUserId) => ({
+                advisorUserId,
+                clientUserId: clientId,
+                ownerUserId: owner.id,
+              })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+    ]);
+  } catch (error) {
+    console.error("setClientAdvisors error:", error);
+    return { success: false, message: "No se pudo guardar la asignación." };
+  }
+
+  return {
+    success: true,
+    message: validos.length
+      ? `Asignado a ${validos.length} ${validos.length === 1 ? "persona" : "personas"}.`
+      : "Sin nadie asignado.",
+  };
+}
+
 /**
  * Los clientes sobre los que manda esta cuenta. Un admin los tiene todos; un
  * reseller, los suyos —los que creó como demo y los que le asignaron—.
