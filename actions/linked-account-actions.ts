@@ -126,24 +126,38 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
           : null
         : currentMembership[0]?.role ?? legacyCurrent[0]?.role ?? null;
 
-    const scopeAccountId = currentAccount?.id ?? activeAccountId;
-    const outgoingRows = scopeAccountId
-      ? await db.$queryRaw<LinkedAccountInfo[]>`
-          SELECT la.id,
-                 la."linked_user_id" AS "accountUserId",
-                 la.role,
-                 la.label,
-                 u.name,
-                 u.email,
-                 u.company,
-                 u.image,
-                 u.plan
-          FROM "linked_accounts" la
-          JOIN "User" u ON u.id = la."linked_user_id"
-          WHERE la."master_user_id" = ${scopeAccountId}
-          ORDER BY la."createdAt" ASC
-        `
-      : [];
+    /**
+     * Las cuentas que uno mismo vinculó bajo SU cuenta.
+     *
+     * Se busca por `realUserId` -quién está sentado delante- y no por la cuenta
+     * activa. Es la diferencia entre "cuentas donde yo puedo entrar" y "cuentas
+     * vinculadas a esta empresa", que no son lo mismo.
+     *
+     * Con la cuenta activa, a un asesor de Grupo Verzay se le listaban las otras
+     * cuentas de Grupo Verzay -sus hermanas, no las suyas-. Aparecían en el
+     * menú, se podían pulsar, y al pulsarlas salía "Cuenta no vinculada":
+     * `switchToAccount` sí comprueba el vínculo contra `realUserId`, así que
+     * dejaba fuera justo lo que el menú acababa de ofrecer.
+     *
+     * Buscando por `realUserId` la lista queda igual a lo que el cambio de
+     * cuenta acepta de verdad. Para un dueño en su propia cuenta no cambia nada:
+     * ahí las dos cosas son la misma.
+     */
+    const outgoingRows = await db.$queryRaw<LinkedAccountInfo[]>`
+      SELECT la.id,
+             la."linked_user_id" AS "accountUserId",
+             la.role,
+             la.label,
+             u.name,
+             u.email,
+             u.company,
+             u.image,
+             u.plan
+      FROM "linked_accounts" la
+      JOIN "User" u ON u.id = la."linked_user_id"
+      WHERE la."master_user_id" = ${realUserId}
+      ORDER BY la."createdAt" ASC
+    `;
 
     const accessibleAccountsMap = new Map<string, LinkedAccountInfo>();
     for (const row of incomingRows) {
