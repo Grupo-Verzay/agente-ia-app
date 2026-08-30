@@ -1,7 +1,7 @@
 "use server";
 
 import { currentUser } from "@/lib/auth";
-import { marcarSesionResuelta } from "@/lib/session-resolved";
+import { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
 import { db } from "@/lib/db";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
@@ -339,6 +339,35 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   await logAssignment(sessionId, assignedAdvisorId, user.id, "resolved");
 
   return { success: true, message: "Conversación resuelta." };
+}
+
+/**
+ * Devuelve la conversación a la bandeja: quita la marca de resuelta.
+ *
+ * Quien puede resolver puede reabrir —el dueño de la cuenta o el asesor que la
+ * tiene asignada—, que es la misma comprobación de `resolveSession`.
+ *
+ * No toca `status`: ese es el interruptor de la IA y tiene su propio mando.
+ */
+export async function reopenSession(sessionId: number): Promise<{ success: boolean; message?: string }> {
+  const user = await currentUser();
+  if (!user?.id) return { success: false, message: "No autorizado." };
+
+  const rows = await db.$queryRaw<{ userId: string; assignedAdvisorId: string | null }[]>`
+    SELECT "userId", assigned_advisor_id AS "assignedAdvisorId"
+    FROM "Session" WHERE id = ${sessionId}
+  `;
+  if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
+
+  const { userId: ownerId, assignedAdvisorId } = rows[0];
+  const isOwner = user.id === ownerId;
+  const isAssigned = user.id === assignedAdvisorId;
+  if (!isOwner && !isAssigned) return { success: false, message: "No autorizado." };
+
+  await reabrirSesion(sessionId);
+  await logAssignment(sessionId, assignedAdvisorId, user.id, "reopened");
+
+  return { success: true, message: "Conversación reabierta." };
 }
 
 export async function getAssignmentHistory(sessionId: number): Promise<AssignmentLogEntry[]> {

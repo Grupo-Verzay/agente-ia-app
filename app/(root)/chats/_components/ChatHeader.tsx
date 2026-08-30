@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,7 @@ import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { MacrosMenu } from './MacrosMenu';
 import { SessionTagsCombobox } from '../../tags/components/SessionTagsCombobox';
 import { LeadStatusSelect } from './LeadStatusSelect';
-import { resolveSession } from '@/actions/advisor-assign-actions';
+import { reopenSession, resolveSession } from '@/actions/advisor-assign-actions';
 import { addSessionParticipantAction } from '@/actions/collab-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
@@ -86,6 +86,10 @@ interface ChatHeaderProps {
   currentAdvisorId?: string;
   advisorRole?: string | null;
   assignedAdvisorId?: string | null;
+  /** Cuando se marco como resuelta (ms), o null si sigue abierta. */
+  resolvedAt?: number | null;
+  /** Aviso de que se reabrio, para que la lista la saque de "Resueltos". */
+  onSessionReopened?: () => void;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
   onRunMacro?: (macroId: string) => Promise<void>;
@@ -117,6 +121,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   currentAdvisorId,
   advisorRole,
   assignedAdvisorId,
+  resolvedAt,
+  onSessionReopened,
   onAssignAdvisor,
   onNewMessage,
   onRunMacro,
@@ -148,11 +154,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const isAgent = !!advisorRole;
   const isOwnerLike = !advisorRole || advisorRole === 'administrador';
   const isMySession = !!assignedAdvisorId && currentAdvisorId === assignedAdvisorId;
-  const canResolve = !!session && (isOwnerLike || isMySession);
+  // Resolver y reabrir son la misma decision en los dos sentidos, asi que las
+  // toma la misma gente. Nunca se ofrecen las dos a la vez: la conversacion o
+  // esta resuelta o no lo esta.
+  const estaResuelta = !!resolvedAt;
+  const puedeCerrarOAbrir = !!session && (isOwnerLike || isMySession);
+  const canResolve = puedeCerrarOAbrir && !estaResuelta;
+  const canReopen = puedeCerrarOAbrir && estaResuelta;
   const canLiberate = isMySession;
   const canTake = !assignedAdvisorId;
   const otherAdvisors = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
-  const showLifecycleButton = session && (canResolve || canLiberate || canTake);
+  const showLifecycleButton = session && (canResolve || canReopen || canLiberate || canTake);
 
   const handleResolve = async () => {
     if (!session?.id || resolving) return;
@@ -161,6 +173,28 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     setResolving(false);
     if (!res.success) { toast.error(res.message ?? 'Error al resolver.'); return; }
     toast.success('Conversación resuelta.');
+    onSessionMutate();
+    await onSessionRefresh();
+  };
+
+  /**
+   * Devuelve la conversacion a la bandeja.
+   *
+   * Faltaba el camino de vuelta: una vez resuelta se quedaba en "Resueltos"
+   * salvo que el cliente volviera a escribir. "Liberar conversacion" no servia
+   * -eso solo quita el asesor asignado- y por eso parecia que no hacia nada.
+   *
+   * No se toca el interruptor de la IA: reabrir para revisar algo no deberia
+   * ponerla a contestar sin que nadie se lo pida.
+   */
+  const handleReopen = async () => {
+    if (!session?.id || resolving) return;
+    setResolving(true);
+    const res = await reopenSession(session.id);
+    setResolving(false);
+    if (!res.success) { toast.error(res.message ?? 'Error al reabrir.'); return; }
+    toast.success('Conversación reabierta.');
+    onSessionReopened?.();
     onSessionMutate();
     await onSessionRefresh();
   };
@@ -279,7 +313,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             Tomar conversación
           </DropdownMenuItem>
         )}
-        {canTake && (canLiberate || canResolve) && (
+        {canTake && (canLiberate || canResolve || canReopen) && (
           <div className="my-1 border-t border-border/50" />
         )}
 
@@ -349,6 +383,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           >
             <CheckCircle className="h-3.5 w-3.5 shrink-0" />
             Resolver conversación
+          </DropdownMenuItem>
+        )}
+        {canReopen && (
+          <DropdownMenuItem
+            onSelect={() => void handleReopen()}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+            Reabrir conversación
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

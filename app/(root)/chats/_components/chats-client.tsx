@@ -1151,6 +1151,12 @@ export function ChatsClient({
         if (!mapped.customName && prevCustomName) {
           mapped.customName = prevCustomName;
         }
+        // `resolvedAt` no viaja en el registro de Prisma: la columna existe en la
+        // base pero a propósito no está declarada en schema.prisma (ver
+        // lib/session-resolved.ts). Sin esto, cualquier refresco de la sesión
+        // borraba la marca de la memoria y la conversación se salía sola de
+        // "Resueltos" hasta la siguiente recarga completa.
+        mapped.resolvedAt = previous[remoteJid]?.resolvedAt ?? null;
         return { ...previous, [remoteJid]: mapped };
       });
     },
@@ -1185,6 +1191,23 @@ export function ChatsClient({
         const current = previous[remoteJid];
         if (!current) return previous;
         return { ...previous, [remoteJid]: { ...current, clientStatus: value } };
+      });
+    },
+    [],
+  );
+
+  /**
+   * La conversación se reabrió: quitar la marca en memoria.
+   *
+   * Sin esto la fila se quedaría en "Resueltos" hasta recargar, que es
+   * justamente lo que se veía al intentar sacarla de ahí con "Liberar".
+   */
+  const handleSessionReopened = useCallback(
+    (remoteJid: string) => {
+      setChatSessions((previous) => {
+        const current = previous[remoteJid];
+        if (!current) return previous;
+        return { ...previous, [remoteJid]: { ...current, resolvedAt: null } };
       });
     },
     [],
@@ -2729,6 +2752,8 @@ export function ChatsClient({
             currentAdvisorId={currentAdvisorId}
             advisorRole={advisorRole}
             assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
+            resolvedAt={currentContactSession?.resolvedAt ?? null}
+            onSessionReopened={() => handleSessionReopened(selectedJid)}
             onAssignAdvisor={
               assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
                 ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId)
