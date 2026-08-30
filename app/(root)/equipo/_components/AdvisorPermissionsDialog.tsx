@@ -41,6 +41,12 @@ export function AdvisorPermissionsDialog({
   advisorName: string;
 }) {
   const [modules, setModules] = useState<ModuleWithItems[]>([]);
+  const [quienEs, setQuienEs] = useState<{
+    email: string;
+    role: string;
+    advisorRole: string | null;
+    esDeLaCuenta: boolean;
+  } | null>(null);
   const [visibles, setVisibles] = useState<Set<string>>(new Set());
   const [tomarSinAsignar, setTomarSinAsignar] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -75,6 +81,7 @@ export function AdvisorPermissionsDialog({
         }
         setVisibles(encendidos);
         setTomarSinAsignar(p?.canTakeUnassigned ?? true);
+        setQuienEs(p?.quienEs ?? null);
       })
       .finally(() => setLoading(false));
   }, [open, advisorId]);
@@ -143,6 +150,12 @@ export function AdvisorPermissionsDialog({
           <DialogDescription>
             Lo que apagues no lo ve, ni entrando por la dirección directa.
           </DialogDescription>
+          {quienEs && (
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {quienEs.email} · rol de plataforma: <b>{quienEs.role || "—"}</b> · en esta cuenta:{" "}
+              <b>{quienEs.advisorRole ?? (quienEs.esDeLaCuenta ? "agente" : "cuenta vinculada")}</b>
+            </p>
+          )}
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
