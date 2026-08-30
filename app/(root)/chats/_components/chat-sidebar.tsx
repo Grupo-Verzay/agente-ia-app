@@ -400,7 +400,11 @@ export function ChatSidebar({
       .map((chat) => {
         const ts = epochToMs(chat.lastMessage?.messageTimestamp);
         const lastMsgData = lastTextFrom(chat);
-        const isSelected = chat.remoteJid === selectedJid;
+        // Abierto es ESTA conversacion, no cualquiera con el mismo numero: si
+        // no, abrir la de Ventas daba por leida la de Atencion.
+        const isSelected =
+          chat.remoteJid === selectedJid &&
+          (selectedInstanceName == null || chat.instanceName === selectedInstanceName);
         const wasSeenPreviously = lastMsgData.id
           ? isMessageSeen(chat.remoteJid, lastMsgData.id, chat.instanceName, ts)
           : false;
@@ -454,14 +458,35 @@ export function ChatSidebar({
         return b.ts - a.ts;
       })
       .filter((() => {
-        const seen = new Set<string>();
+        /**
+         * Una fila por LINEA y numero, no una por numero.
+         *
+         * Esta red de seguridad quitaba filas repetidas mirando solo el numero,
+         * y con varias lineas eso no es un repetido: es el mismo cliente
+         * escribiendole a Ventas y a Atencion, que son dos conversaciones
+         * distintas. Se quedaba la mas reciente y la otra desaparecia, asi que
+         * un cliente que estaba en Ventas "se pasaba" a Atencion en cuanto
+         * llegaba un mensaje por ahi -y de ahi a Notificaciones-, arrastrando
+         * lo que se viera de el.
+         *
+         * El resto de la pantalla ya trabaja por linea: la lista que llega aqui
+         * viene deduplicada por instancia (dedupeAndSortChats en
+         * chats-client.tsx), la sesion se busca con la llave `linea::numero`, y
+         * al abrir un chat se manda tambien la linea. Era este filtro, el
+         * ultimo, el que volvia a juntarlas.
+         *
+         * Los grupos si se unifican entre lineas, igual que alli: un grupo es el
+         * mismo sitio se entre por donde se entre.
+         */
+        const vistos = new Set<string>();
         return (c: SidebarContact) => {
-          if (seen.has(c.id)) return false;
-          seen.add(c.id);
+          const clave = c.isGroup ? c.id : `${c.instanceName ?? ""}::${c.id}`;
+          if (vistos.has(clave)) return false;
+          vistos.add(clave);
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, instancias, isMessageSeen, notedSessionIds, result, selectedJid]);
+  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, instancias, isMessageSeen, notedSessionIds, result, selectedInstanceName, selectedJid]);
 
   /**
    * Las conversaciones de este asesor que siguen abiertas.
@@ -719,7 +744,14 @@ export function ChatSidebar({
   React.useEffect(() => {
     if (!selectedJid) return;
 
-    const el = document.querySelector(`[data-chat-id="${selectedJid}"]`);
+    // Dos filas pueden compartir numero -una por linea-, asi que se busca
+    // tambien por linea para no desplazarse hasta la que no es.
+    const selectorLinea = selectedInstanceName
+      ? `[data-chat-instance="${selectedInstanceName}"]`
+      : "";
+    const el =
+      document.querySelector(`[data-chat-id="${selectedJid}"]${selectorLinea}`) ??
+      document.querySelector(`[data-chat-id="${selectedJid}"]`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "nearest" });
       return;
@@ -728,14 +760,18 @@ export function ChatSidebar({
     // Item fuera de la ventana virtualizada: desplazar el contenedor hasta su
     // posición estimada para que se renderice y quede visible.
     const list = filteredRef.current;
-    const index = list.findIndex((c) => c.id === selectedJid);
+    const index = list.findIndex(
+      (c) =>
+        c.id === selectedJid &&
+        (selectedInstanceName == null || c.instanceName === selectedInstanceName),
+    );
     if (index < 0) return;
     const container = listScrollRef.current;
     if (!container) return;
     let offset = 0;
     for (let i = 0; i < index; i++) offset += estimateSidebarItemHeight(list[i]);
     container.scrollTo({ top: Math.max(0, offset - 100), behavior: "smooth" });
-  }, [selectedJid]);
+  }, [selectedInstanceName, selectedJid]);
 
   React.useEffect(() => {
     try {
@@ -1185,7 +1221,7 @@ export function ChatSidebar({
               )}
               {listVirtual.items.map((contact) => (
               <ChatContactItem
-                key={contact.id}
+                key={`${contact.instanceName ?? ""}::${contact.id}`}
                 contact={contact}
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
