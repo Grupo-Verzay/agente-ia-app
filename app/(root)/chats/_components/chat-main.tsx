@@ -104,6 +104,10 @@ type ChatMainProps = {
   currentAdvisorId?: string;
   advisorRole?: string | null;
   assignedAdvisorId?: string | null;
+  /** Cuando se marco como resuelta (ms), o null si sigue abierta. */
+  resolvedAt?: number | null;
+  /** Aviso de que se reabrio, para que la lista la saque de "Resueltos". */
+  onSessionReopened?: () => void;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
   onLoadOlderMessages?: () => Promise<void>;
@@ -139,6 +143,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   currentAdvisorId,
   advisorRole,
   assignedAdvisorId,
+  resolvedAt,
+  onSessionReopened,
   onAssignAdvisor,
   onNewMessage,
   onLoadOlderMessages,
@@ -974,6 +980,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         currentAdvisorId={currentAdvisorId}
         advisorRole={advisorRole}
         assignedAdvisorId={assignedAdvisorId}
+        resolvedAt={resolvedAt}
+        onSessionReopened={onSessionReopened}
         onAssignAdvisor={onAssignAdvisor}
         onNewMessage={onNewMessage}
         onRunMacro={handleRunMacro}

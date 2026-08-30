@@ -33,6 +33,7 @@ const ACTION_LABELS: Record<string, string> = {
   bulk_assigned: 'Auto-asignado',
   transferred: 'Transferido',
   resolved: 'Resuelto',
+  reopened: 'Reabierto',
 };
 
 interface AdvisorAssignBadgeProps {
