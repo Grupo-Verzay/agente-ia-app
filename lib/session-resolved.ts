@@ -80,3 +80,21 @@ export async function obtenerResueltas(
 
     return salida;
 }
+
+/**
+ * Deshace la marca: la conversación vuelve a la bandeja.
+ *
+ * Hace falta un camino de vuelta. Antes, una vez resuelta, la conversación se
+ * quedaba en "Resueltos" para siempre salvo que el cliente volviera a escribir,
+ * y "Liberar conversación" no servía para sacarla de ahí: eso solo quita el
+ * asesor asignado, no la marca de resuelta. Son dos cosas distintas y se
+ * confundían por no haber botón para la segunda.
+ *
+ * A propósito NO se toca `status`. Ese es el interruptor de la IA, tiene su
+ * propio mando en la cabecera del chat, y reabrir para revisar algo no debería
+ * poner a la IA a contestar sin que nadie lo haya pedido.
+ */
+export async function reabrirSesion(sessionId: number): Promise<void> {
+    await ensureResolvedAtColumn();
+    await db.$executeRaw`UPDATE "Session" SET resolved_at = NULL WHERE id = ${sessionId}`;
+}

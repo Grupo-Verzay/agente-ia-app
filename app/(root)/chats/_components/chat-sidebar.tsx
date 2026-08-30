@@ -463,15 +463,30 @@ export function ChatSidebar({
       })());
   }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, instancias, isMessageSeen, notedSessionIds, result, selectedJid]);
 
+  /**
+   * Las conversaciones de este asesor que siguen abiertas.
+   *
+   * Las resueltas quedan fuera. De aquí sale el contador de la pestaña "Mías",
+   * que marcaba 2 teniendo una sola pendiente y la otra ya resuelta: la lista
+   * sí las escondía -el filtro de la pestaña quita las resueltas-, pero el
+   * número se contaba antes de ese filtro y no cuadraban.
+   */
   const myChats = useMemo(() => {
     if (!currentAdvisorId) return [];
     return contacts
-      .filter((c) => !c.isDeleted && !c.isArchived && c.chatSession?.assignedAdvisorId === currentAdvisorId)
+      .filter(
+        (c) =>
+          !c.isDeleted &&
+          !c.isArchived &&
+          !esResuelta(c) &&
+          c.chatSession?.assignedAdvisorId === currentAdvisorId,
+      )
       .sort((a, b) => b.ts - a.ts);
   }, [contacts, currentAdvisorId]);
 
   const advisorCounts = useMemo(() => {
-    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
+    // Igual que arriba: lo resuelto ya no está pendiente de nadie.
+    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived && !esResuelta(c));
     const countMap: Record<string, number> = {};
     let unassigned = 0;
     for (const c of active) {
