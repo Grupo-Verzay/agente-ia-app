@@ -155,10 +155,21 @@ function ChatContactItemBase({
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
   const apptStatus = contact.chatSession?.latestAppointmentStatus;
-  const currentAdvisor = currentAdvisorId
-    ? advisors?.find((advisor) => advisor.id === currentAdvisorId)
-    : null;
-  const canAssignToMe = !!currentAdvisorId && contact.chatSession?.assignedAdvisorId !== currentAdvisorId;
+  /**
+   * El menu de asignar sale con UNA sola fila para uno mismo.
+   *
+   * Antes salia dos veces: "Asignarme (Grupo Verzay)" arriba y "Grupo Verzay"
+   * otra vez en la lista de abajo, porque la lista de asesores incluye tambien
+   * a quien esta mirando. Dos filas que hacen exactamente lo mismo.
+   *
+   * Asi que uno sale de la lista de abajo, y su fila es siempre "Asignarme" -sin
+   * repetir el nombre entre parentesis, que uno ya sabe como se llama-. Se
+   * muestra tambien cuando la conversacion ya es suya, con la marca de visto:
+   * es donde se ve que la tiene uno.
+   */
+  const asignable = !!currentAdvisorId;
+  const yaEsMia = contact.chatSession?.assignedAdvisorId === currentAdvisorId;
+  const otrosAsesores = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
 
   const MAX_BADGES = 6;
 
@@ -555,21 +566,17 @@ function ChatContactItemBase({
                     <DropdownMenuItem onSelect={() => onAssignAdvisor(contact.id, null)}>
                       <span className="text-sm text-muted-foreground">Sin asignar</span>
                     </DropdownMenuItem>
-                    {canAssignToMe && (
+                    {asignable && (
                       <DropdownMenuItem
                         onSelect={() => onAssignAdvisor(contact.id, currentAdvisorId!)}
                         className="flex items-center justify-between gap-2"
                       >
-                        <span className="truncate text-sm">
-                          Asignarme{currentAdvisor?.name ? ` (${currentAdvisor.name})` : ''}
-                        </span>
-                        {contact.chatSession?.assignedAdvisorId === currentAdvisorId && (
-                          <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                        )}
+                        <span className="truncate text-sm">Asignarme</span>
+                        {yaEsMia && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSeparator />
-                    {advisors.map((a) => (
+                    {asignable && otrosAsesores.length > 0 && <DropdownMenuSeparator />}
+                    {otrosAsesores.map((a) => (
                       <DropdownMenuItem
                         key={a.id}
                         onSelect={() => onAssignAdvisor(contact.id, a.id)}
