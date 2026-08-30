@@ -145,12 +145,25 @@ async function assertCanDeleteChats(userId: string) {
   if (user.ownerId === userId && user.advisorRole === "administrador") return;
 
   const realUserId = user.sessionUserId ?? user.id;
+
+  // El vinculo vale en las DOS direcciones, igual que para cambiar de cuenta:
+  //
+  //   - A uno lo metieron en esa cuenta como administrador.
+  //   - O esa cuenta la metio uno bajo la suya, y entonces uno es el que manda
+  //     ahi: es quien la vinculo.
+  //
+  // Faltaba la segunda, y es la del dueño de varias cuentas -el caso normal-.
+  // Podia entrar en Verzay Ventas desde el menu de cuentas, ver sus chats
+  // eliminados en la lista... y no poder limpiarlos: la comprobacion solo
+  // miraba la direccion contraria. `switchToAccount` ya aceptaba las dos.
   const link = await db.$queryRaw<{ id: string }[]>`
     SELECT id
     FROM "linked_accounts"
-    WHERE "master_user_id" = ${userId}
-      AND "linked_user_id" = ${realUserId}
-      AND role = 'administrador'::"LinkedAccountRole"
+    WHERE ("master_user_id" = ${userId}
+           AND "linked_user_id" = ${realUserId}
+           AND role = 'administrador'::"LinkedAccountRole")
+       OR ("master_user_id" = ${realUserId}
+           AND "linked_user_id" = ${userId})
     LIMIT 1
   `.catch(() => []);
 
@@ -538,12 +551,14 @@ export async function purgeDeletedChatsAction(
 
     await ensurePurgedAtColumn();
     let count = 0;
+    let saltadas = 0;
 
     for (const cuenta of cuentas) {
       if (cuenta !== userId) {
         try {
           await assertCanDeleteChats(cuenta);
         } catch {
+          saltadas++;
           continue;
         }
       }
@@ -567,11 +582,17 @@ export async function purgeDeletedChatsAction(
     invalidatePersistedInboxCache();
     revalidatePath("/chats");
 
+    // El aviso dice lo que de verdad paso. "No quedaba nada por limpiar"
+    // mientras la lista enseñaba 61 era el mensaje que despistaba: no es que no
+    // quedara nada, es que estaba en cuentas que no se tocaron.
+    const enCuentasAjenas =
+      saltadas > 0 ? ` Quedan chats en ${saltadas} cuenta${saltadas !== 1 ? "s" : ""} donde no se puede limpiar.` : "";
+
     return {
       success: true,
-      message: count > 0
+      message: (count > 0
         ? `${count} chat${count !== 1 ? "s" : ""} limpiado${count !== 1 ? "s" : ""} por completo.`
-        : "No quedaba nada por limpiar.",
+        : "No quedaba nada por limpiar.") + enCuentasAjenas,
       data: { purged: count },
     };
   } catch (error) {
