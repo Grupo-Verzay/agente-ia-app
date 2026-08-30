@@ -16,6 +16,7 @@ import type { ChatData } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatWorkflowOption } from '@/types/chat';
 import { TemplatePickerDialog } from './TemplatePickerDialog';
 import { sendMetaTemplate, type MetaTemplateOption } from '@/actions/channel-chat-actions';
+import { telefonoParaMostrar } from '@/lib/telefono-visible';
 
 type Instancia = {
   instanceName: string;
@@ -36,7 +37,7 @@ interface Props {
   workflows?: ChatWorkflowOption[];
 }
 
-export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies = [], workflows = [] }: Props) {
+export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies = [], workflows = [], advisorRole }: Props & { advisorRole?: string | null }) {
   const [phone, setPhone] = React.useState('');
   const [selectedJid, setSelectedJid] = React.useState('');
   const [selectedContactName, setSelectedContactName] = React.useState('');
@@ -223,10 +224,10 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
 
   const handleSelectContact = (contact: ChatData) => {
     const phoneLabel =
-      fmtPhone(contact.remoteJid) ||
-      fmtPhone(contact.remoteJidAlt) ||
-      fmtPhone(contact.senderPn) ||
-      (contact.aliases ?? []).map((alias) => fmtPhone(alias)).find(Boolean) ||
+      telefonoParaMostrar(contact.remoteJid, advisorRole) ||
+      telefonoParaMostrar(contact.remoteJidAlt, advisorRole) ||
+      telefonoParaMostrar(contact.senderPn, advisorRole) ||
+      (contact.aliases ?? []).map((alias) => telefonoParaMostrar(alias, advisorRole)).find(Boolean) ||
       '';
     const name = contact.pushName?.trim() || phoneLabel || contact.remoteJid;
     setSelectedJid(contact.remoteJid);
@@ -328,10 +329,10 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                         <CommandGroup heading="Contactos recientes">
                           {filteredContacts.map((contact) => {
                             const phoneStr =
-                              fmtPhone(contact.remoteJid) ||
-                              fmtPhone(contact.remoteJidAlt) ||
-                              fmtPhone(contact.senderPn) ||
-                              (contact.aliases ?? []).map((alias) => fmtPhone(alias)).find(Boolean) ||
+                              telefonoParaMostrar(contact.remoteJid, advisorRole) ||
+                              telefonoParaMostrar(contact.remoteJidAlt, advisorRole) ||
+                              telefonoParaMostrar(contact.senderPn, advisorRole) ||
+                              (contact.aliases ?? []).map((alias) => telefonoParaMostrar(alias, advisorRole)).find(Boolean) ||
                               '';
                             const name = contact.pushName?.trim() || phoneStr || contact.remoteJid;
                             return (

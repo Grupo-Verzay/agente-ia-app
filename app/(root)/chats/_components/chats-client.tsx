@@ -2799,6 +2799,7 @@ export function ChatsClient({
         initialContact={composeInitialContact}
         quickReplies={quickReplies}
         workflows={workflows}
+        advisorRole={advisorRole}
       />
     )}
     <CommitmentTaskDialog
