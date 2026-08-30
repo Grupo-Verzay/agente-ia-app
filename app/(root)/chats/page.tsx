@@ -604,16 +604,18 @@ export default async function ChatsPage({
     instanceActionSets = fetchPlans.map((plan) => {
       const inst = plan.instancia;
       const isBaileysInst = plan.isBaileys;
-      const instActionCtx =
-        !isBaileysInst && claveDeLaLinea(inst)
-          ? {
-              apiKeyData: {
-                url: claveDeLaLinea(inst)!.url,
-                key: claveDeLaLinea(inst)!.key,
-              },
-              instanceName: inst.instanceName,
-            }
-          : null;
+      // Si aqui no se resuelve la clave, se manda IGUAL el nombre de la linea:
+      // el servidor sabe de que cuenta es y puede buscarla el (resolverContexto
+      // en chat-manual-actions). Antes se mandaba null y se perdia tambien la
+      // linea, asi que alla no quedaba nada con lo que trabajar y contestaba
+      // "No hay instancia o API key configurada para cargar mensajes".
+      const claveInst = claveDeLaLinea(inst);
+      const instActionCtx = isBaileysInst
+        ? null
+        : {
+            apiKeyData: claveInst ? { url: claveInst.url, key: claveInst.key } : null,
+            instanceName: inst.instanceName,
+          };
       return {
         instanceName: inst.instanceName,
         instanceType: inst.instanceType ?? undefined,
@@ -640,16 +642,18 @@ export default async function ChatsPage({
     instanceActionSets = fetchPlans.map((plan) => {
       const inst = plan.instancia;
       const isBaileysInst = plan.isBaileys;
-      const instActionCtx =
-        !isBaileysInst && claveDeLaLinea(inst)
-          ? {
-              apiKeyData: {
-                url: claveDeLaLinea(inst)!.url,
-                key: claveDeLaLinea(inst)!.key,
-              },
-              instanceName: inst.instanceName,
-            }
-          : null;
+      // Si aqui no se resuelve la clave, se manda IGUAL el nombre de la linea:
+      // el servidor sabe de que cuenta es y puede buscarla el (resolverContexto
+      // en chat-manual-actions). Antes se mandaba null y se perdia tambien la
+      // linea, asi que alla no quedaba nada con lo que trabajar y contestaba
+      // "No hay instancia o API key configurada para cargar mensajes".
+      const claveInst = claveDeLaLinea(inst);
+      const instActionCtx = isBaileysInst
+        ? null
+        : {
+            apiKeyData: claveInst ? { url: claveInst.url, key: claveInst.key } : null,
+            instanceName: inst.instanceName,
+          };
       return {
         instanceName: inst.instanceName,
         instanceType: inst.instanceType ?? undefined,
@@ -670,6 +674,38 @@ export default async function ChatsPage({
           : refetchChatsManualAction.bind(null, instActionCtx),
       } satisfies InstanceActionSet;
     });
+  }
+
+  /* ─── Lineas sin clave resuelta aqui: se les da su juego de acciones igual ───
+   *
+   * `fetchPlans` deja fuera las lineas cuya clave no se resolvio, y con razon:
+   * de esa lista sale la descarga de chats, que la necesita. Pero de la MISMA
+   * lista salian los juegos de acciones, asi que esas lineas se quedaban sin
+   * ninguno y al abrir un chat suyo el cliente caia al juego general de la
+   * pagina -el de la linea seleccionada-, que para un asesor suele estar vacio.
+   * De ahi el "No hay instancia o API key configurada para cargar mensajes".
+   *
+   * Se les arma su juego con el nombre de la linea y sin clave: el servidor la
+   * busca (resolverContexto en chat-manual-actions). Lo suyo se abre y se
+   * responde aunque esta pagina no supiera con que clave hacerlo.
+   */
+  const lineasEvolutionSinPlan = instancias.filter(
+    (inst) =>
+      (inst.instanceType === "Whatsapp" || inst.instanceType == null) &&
+      !isBaileysRuntimeInstance(inst) &&
+      !instanceActionSets.some((set) => set.instanceName === inst.instanceName),
+  );
+  for (const inst of lineasEvolutionSinPlan) {
+    const ctxSinClave = { apiKeyData: null, instanceName: inst.instanceName };
+    instanceActionSets.push({
+      instanceName: inst.instanceName,
+      instanceType: inst.instanceType ?? undefined,
+      warmMessages: warmChatMessagesAction.bind(null, ctxSinClave),
+      sendText: sendManualChatPayloadAction.bind(null, ctxSinClave),
+      sendWorkflow: sendManualWorkflowAction.bind(null, ctxSinClave),
+      sendQuickReply: sendManualQuickReplyAction.bind(null, ctxSinClave),
+      refetchChats: refetchChatsManualAction.bind(null, ctxSinClave),
+    } satisfies InstanceActionSet);
   }
 
   // Canales que viven en el store unificado (Telegram, Meta). Se agregan SIEMPRE,
@@ -740,9 +776,11 @@ export default async function ChatsPage({
   // para no cambiar nada en el caso de siempre (un dueño con su unica linea).
   const claveActiva = whatsappInstancia ? claveDeLaLinea(whatsappInstancia) ?? apiKey : apiKey;
   const actionContext =
-    whatsappInstancia && claveActiva && !isBaileys
+    whatsappInstancia && !isBaileys
       ? {
-          apiKeyData: { url: claveActiva.url, key: claveActiva.key },
+          // Igual que arriba: sin clave se manda la linea a secas y el servidor
+          // la resuelve.
+          apiKeyData: claveActiva ? { url: claveActiva.url, key: claveActiva.key } : null,
           instanceName: whatsappInstancia.instanceName,
         }
       : null;
