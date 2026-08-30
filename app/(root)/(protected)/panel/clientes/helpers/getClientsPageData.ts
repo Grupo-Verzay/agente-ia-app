@@ -36,10 +36,24 @@ export async function getClientsPageData(): Promise<
     try {
         const user = await currentUser();
         if (!user) return { success: false, message: "No autorizado." };
-        if (!isAdminOrReseller(user.role)) return { success: false, message: "No autorizado." };
+
+        // Un colaborador del equipo no tiene rol de admin, pero puede tener
+        // clientes asignados: entonces ve esos y solo esos. Es lo que le permite
+        // entrar a arreglar una cuenta concreta sin abrirle la plataforma.
+        const asignados = isAdminOrReseller(user.role)
+            ? []
+            : await db.advisorClient
+                .findMany({ where: { advisorUserId: user.id }, select: { clientUserId: true } })
+                .catch(() => []);
+
+        if (!isAdminOrReseller(user.role) && asignados.length === 0) {
+            return { success: false, message: "No autorizado." };
+        }
 
         let usersPromise;
-        if (user.role === "reseller") {
+        if (asignados.length > 0) {
+            usersPromise = getEnrichedClients({ userIds: asignados.map((a) => a.clientUserId) });
+        } else if (user.role === "reseller") {
             // Combinar sistema viejo (reseller table) y nuevo (demoResellerId)
             const [oldAssignments, newClients] = await Promise.all([
                 db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),

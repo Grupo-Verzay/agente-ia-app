@@ -1129,6 +1129,24 @@ model VerificationToken {
   expires    DateTime
 }
 
+/// Clientes que le tocan a una persona del equipo: su listado muestra solo
+/// esos y solo a esos puede entrar. `ownerUserId` es la cuenta que asignó, para
+/// no mezclar carteras cuando la misma persona colabora con dos cuentas.
+/// La tabla la crea la migración advisor_clients del BACKEND.
+model AdvisorClient {
+  id            String   @id @default(uuid())
+  advisorUserId String   @map("advisor_user_id")
+  clientUserId  String   @map("client_user_id")
+  ownerUserId   String   @map("owner_user_id")
+  createdAt     DateTime @default(now())
+
+  @@unique([advisorUserId, clientUserId], map: "advisor_clients_advisor_client_key")
+  @@index([advisorUserId])
+  @@index([clientUserId])
+  @@index([ownerUserId])
+  @@map("advisor_clients")
+}
+
 model LinkedAccount {
   id           String            @id @default(uuid())
   masterUserId String            @map("master_user_id")
