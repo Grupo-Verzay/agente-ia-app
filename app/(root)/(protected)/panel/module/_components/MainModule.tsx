@@ -6,7 +6,6 @@ import { useEffect, useState, useTransition } from 'react';
 import { Input } from '@/components/ui/input';
 import { Search, X, LayoutGrid, Eye, EyeOff, Layers, Plus } from 'lucide-react';
 import { ModuleCardSkeleton } from './ModuleCardSkeleton';
-import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { toast } from 'sonner';
 import { FormModuleValues, ModuleWithItems } from '@/schema/module'
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -18,9 +17,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { MetricCard } from '@/components/custom/MetricCard';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-export const MainModule = () => {
+export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithItems[] }) => {
     const router = useRouter();
-    const { modules } = useModuleStore();
+    // Los de la plataforma entera, que llegan del servidor. NO los del menú
+    // lateral: ese va filtrado por persona y aquí se configuran todos.
+    const modules = todosLosModulos;
 
     const [search, setSearch] = useState('');
     const [filteredModules, setFilteredModules] = useState<ModuleWithItems[]>([]);
