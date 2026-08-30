@@ -1,8 +1,11 @@
 'use server'
 
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import type { NoteFolder, UserNote } from '@prisma/client'
 import { getAuditActorId, writeAuditLog } from './audit-log-actions'
+import { currentUser } from '@/lib/auth'
+import { getAssociatedAccountIds } from '@/lib/cuentas-asociadas'
 
 export type NoteFolderWithCount = NoteFolder & { _count: { notes: number } }
 export type UserNoteListItem = Pick<
@@ -313,24 +316,44 @@ export async function deleteNote(id: string, userId: string) {
 // Cuentas del mismo equipo (linked_accounts): el master del grupo + todos sus
 // miembros. Toma como referencia la cuenta `accountId` (puede ser el master o
 // un miembro). Devuelve los ids (incluye a `accountId`).
+/**
+ * El equipo de una cuenta: con quien se puede compartir una nota.
+ *
+ * Son cuatro cosas, y antes solo se miraba media:
+ *
+ *   - La cuenta misma.
+ *   - Su cuenta dueña, si es que trabaja para otra.
+ *   - Sus ASESORES: las personas que uno dio de alta dentro de la cuenta
+ *     (`User.owner_id`). Estos no salian nunca, y son justamente el equipo
+ *     de todos los dias. No estan en `linked_accounts` -esa tabla es para
+ *     vincular cuentas enteras, no para las personas de dentro-, asi que la
+ *     consulta anterior no los veia.
+ *   - Las cuentas vinculadas, EN LAS DOS DIRECCIONES: las que uno vinculo
+ *     bajo la suya y aquellas bajo las que a uno lo vincularon.
+ *
+ * Antes se subia primero a un "master" -el primer `master_user_id` que
+ * apareciera, con un LIMIT 1 sin orden- y el equipo se armaba a partir de ESE.
+ * Con Grupo Verzay eso daba una sola cuenta: subia a la que estuviera de
+ * padre y listaba lo suyo, dejando fuera las hermanas y a todos los asesores.
+ * Se quita ese salto: el equipo se arma alrededor de la cuenta que pregunta.
+ */
 async function getTeamIds(accountId: string): Promise<string[]> {
   try {
     const rows = await db.$queryRaw<{ id: string }[]>`
-      WITH master AS (
-        SELECT COALESCE(
-          (SELECT "master_user_id" FROM "linked_accounts" WHERE "linked_user_id" = ${accountId} LIMIT 1),
-          ${accountId}
-        ) AS id
-      ),
-      team AS (
-        SELECT id FROM master
-        UNION
-        SELECT "linked_user_id" AS id FROM "linked_accounts"
-        WHERE "master_user_id" = (SELECT id FROM master)
-      )
-      SELECT id FROM team
+      SELECT ${accountId} AS id
+      UNION
+      SELECT "owner_id" AS id FROM "User"
+      WHERE id = ${accountId} AND "owner_id" IS NOT NULL
+      UNION
+      SELECT id FROM "User" WHERE "owner_id" = ${accountId}
+      UNION
+      SELECT "linked_user_id" AS id FROM "linked_accounts"
+      WHERE "master_user_id" = ${accountId}
+      UNION
+      SELECT "master_user_id" AS id FROM "linked_accounts"
+      WHERE "linked_user_id" = ${accountId}
     `
-    return rows.map(r => r.id)
+    return rows.map(r => r.id).filter(Boolean)
   } catch {
     return [accountId]
   }
@@ -339,23 +362,26 @@ async function getTeamIds(accountId: string): Promise<string[]> {
 // Otras cuentas del equipo con las que se puede compartir (excluye a uno mismo).
 export async function getTeamAccounts(accountId: string): Promise<{ success: boolean; data: TeamAccount[]; error?: string }> {
   try {
+    // La cuenta viene del navegador, asi que hay que comprobar que sea de quien
+    // pregunta. Sin esto, mandando el id de una cuenta ajena se sacaba su lista
+    // de gente con nombre y correo.
+    const user = await currentUser()
+    if (!user?.id) return { success: false, data: [], error: 'No autorizado.' }
+    const propias = await getAssociatedAccountIds(user)
+    if (!propias.includes(accountId)) {
+      return { success: false, data: [], error: 'No autorizado.' }
+    }
+
+    // Se arma con la MISMA lista que luego deja compartir (`setNoteShare`).
+    // Antes eran dos consultas gemelas y bastaba con que se separaran para
+    // ofrecer a alguien y luego rechazarlo.
+    const ids = (await getTeamIds(accountId)).filter(id => id !== accountId)
+    if (ids.length === 0) return { success: true, data: [] }
+
     const rows = await db.$queryRaw<TeamAccount[]>`
-      WITH master AS (
-        SELECT COALESCE(
-          (SELECT "master_user_id" FROM "linked_accounts" WHERE "linked_user_id" = ${accountId} LIMIT 1),
-          ${accountId}
-        ) AS id
-      ),
-      team AS (
-        SELECT id FROM master
-        UNION
-        SELECT "linked_user_id" AS id FROM "linked_accounts"
-        WHERE "master_user_id" = (SELECT id FROM master)
-      )
       SELECT u.id, u.name, u.email
-      FROM team t
-      JOIN "User" u ON u.id = t.id
-      WHERE u.id <> ${accountId}
+      FROM "User" u
+      WHERE u.id IN (${Prisma.join(ids)})
       ORDER BY u.name ASC NULLS LAST, u.email ASC
     `
     return { success: true, data: rows }

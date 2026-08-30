@@ -210,7 +210,7 @@ type ChatSidebarProps = {
   advisors?: AdvisorInfo[];
   advisorRole?: string | null;
   currentAdvisorId?: string;
-  onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
+  onAssignAdvisor?: (remoteJid: string, advisorId: string | null, instanceName?: string | null) => Promise<void>;
   instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
   selectedChannel?: string | null;
   channelCounts?: Record<string, number>;
