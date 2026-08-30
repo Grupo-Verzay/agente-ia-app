@@ -23,15 +23,30 @@ interface Props {
   allModules: ModuleWithItems[];
 }
 
+/** Las variantes de "Panel": del equipo, del reseller y del cliente. */
+const PANEL_ROUTES = ["/panel", "/admin", "/reseller-panel", "/client-panel"];
+
 export const ModulesDialog = ({ open, setOpen, handleModules, user, allModules }: Props) => {
   const [enabledModuleIds, setEnabledModuleIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // De los tres módulos llamados "Panel" solo se lista el que le toca a esta
+  // cuenta por su rol. Los otros dos no los ve nunca, así que ponerlos aquí solo
+  // deja tres filas iguales sin forma de saber cuál es cuál.
+  const suPanel = ["admin", "super_admin"].includes(user.role)
+    ? ["/panel", "/admin"]
+    : user.role === "reseller"
+      ? ["/reseller-panel"]
+      : ["/client-panel"];
+  const modules = allModules.filter(
+    (m) => !PANEL_ROUTES.includes(m.route) || suPanel.includes(m.route),
+  );
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     getUserModuleIds(user.id).then((res) => {
-      setEnabledModuleIds(res.data.length > 0 ? res.data : allModules.map((m) => m.id));
+      setEnabledModuleIds(res.data.length > 0 ? res.data : modules.map((m) => m.id));
       setLoading(false);
     });
   }, [user.id, open, allModules]);
@@ -49,13 +64,13 @@ export const ModulesDialog = ({ open, setOpen, handleModules, user, allModules }
           </p>
           {loading ? (
             <span className="text-sm text-muted-foreground">Cargando módulos...</span>
-          ) : allModules.length === 0 ? (
+          ) : modules.length === 0 ? (
             <span className="text-sm text-muted-foreground">
               No hay módulos disponibles.
             </span>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {allModules.map((mod) => {
+              {modules.map((mod) => {
                 const isEnabled = enabledModuleIds.includes(mod.id);
                 return (
                   <div key={mod.id} className="flex items-center justify-between gap-2 pr-2">
