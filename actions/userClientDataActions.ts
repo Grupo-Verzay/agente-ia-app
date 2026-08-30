@@ -58,6 +58,26 @@ const assignNonBooleanFields = (fd: FormData, target: Record<string, any>) => {
     });
 };
 
+/**
+ * A qué clientes puede asomarse quien está pidiendo.
+ *
+ * `null` = sin límite (admin o reseller, que ya se acotan por otro lado). Un
+ * conjunto = solo esos, que es el caso del colaborador con clientes asignados.
+ * Y si no es ninguna de las dos cosas, no pasa.
+ */
+const clientesPermitidos = async (): Promise<Set<string> | null> => {
+  const me = await currentUser();
+  if (!me) throw new Error("No autorizado.");
+  if (isAdminOrReseller(me.role)) return null;
+
+  const asignados = await db.advisorClient
+    .findMany({ where: { advisorUserId: me.id }, select: { clientUserId: true } })
+    .catch(() => []);
+
+  if (asignados.length === 0) throw new Error("No autorizado.");
+  return new Set(asignados.map((a) => a.clientUserId));
+};
+
 const ensureAdminOrResellerUser = async () => {
   const me = await currentUser();
   if (!me || !isAdminOrReseller(me.role)) {
@@ -78,12 +98,15 @@ const ensureSelfOrAdmin = async (targetUserId: string) => {
 
 export async function getEnrichedClients(filter?: FilterOptions): Promise<ClientResponse<ClientInterface[]>> {
   try {
-    await ensureAdminOrResellerUser();
+    // Un colaborador del equipo no tiene rol de admin, pero puede tener clientes
+    // asignados: entonces lee, y solo los suyos. Se acota aquí y no en quien
+    // llama, para que ninguna pantalla pueda pedir de más por descuido.
+    const soloEstos = await clientesPermitidos();
 
     let userIds: string[] | undefined;
 
     if (filter?.userIds) {
-      userIds = filter.userIds;
+      userIds = soloEstos ? filter.userIds.filter((id) => soloEstos.has(id)) : filter.userIds;
       if (!userIds.length) return { success: true, message: "Sin clientes.", data: [] };
     } else if (filter?.resellerId) {
       // Los clientes de un reseller llegan por dos caminos: la tabla `reseller`
@@ -114,6 +137,12 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           data: [],
         };
       }
+    }
+
+    // Sin filtro pedido, un colaborador ve su cartera y nada más.
+    if (!userIds && soloEstos) {
+      userIds = [...soloEstos];
+      if (!userIds.length) return { success: true, message: "Sin clientes.", data: [] };
     }
 
     // Para el panel de admin: excluir clientes asignados a CUALQUIER reseller,
