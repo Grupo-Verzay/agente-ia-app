@@ -7,6 +7,7 @@ import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
 import { getAllModules } from "@/actions/module-actions";
 import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
+import { parseDeniedItems, serializeDeniedItems } from "@/lib/permisos";
 
 export type ModuleOption = { id: string; label: string };
 export type AdvisorRow = {
@@ -183,6 +184,51 @@ export async function updateAdvisorRole(advisorId: string, role: "agente" | "adm
     await db.$executeRaw`UPDATE "User" SET advisor_role = ${role} WHERE id = ${advisorId}`;
   }
   return { success: true, message: "Rol actualizado." };
+}
+
+/**
+ * Los submódulos que se le quitan a una persona del equipo.
+ *
+ * El rol decide bloques enteros; esto es el ajuste fino encima: "sí entra al
+ * Panel, pero no a Finanzas". Se guarda en la persona, no en la cuenta: si
+ * mañana entra a otra cuenta, se le respeta lo mismo.
+ */
+export async function updateAdvisorDeniedItems(
+  advisorId: string,
+  deniedItemIds: string[],
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  // Solo ids que existen: así una lista vieja no acumula basura cuando se borra
+  // un submódulo, y de paso no se guarda lo que llegue del navegador sin mirar.
+  const existentes = deniedItemIds.length
+    ? await db.moduleItem.findMany({
+        where: { id: { in: deniedItemIds } },
+        select: { id: true },
+      })
+    : [];
+
+  const valor = serializeDeniedItems(existentes.map((i) => i.id));
+
+  await db.$executeRaw`UPDATE "User" SET denied_module_items = ${valor} WHERE id = ${advisorId}`;
+  return { success: true, message: "Permisos actualizados." };
+}
+
+export async function getAdvisorDeniedItems(advisorId: string): Promise<ActionResult<string[]>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  const rows = await db.$queryRaw<{ denied: string | null }[]>`
+    SELECT denied_module_items AS denied FROM "User" WHERE id = ${advisorId} LIMIT 1
+  `;
+  return { success: true, data: [...parseDeniedItems(rows[0]?.denied)] };
 }
 
 export async function toggleAdvisorAvailability(advisorId: string, available: boolean): Promise<ActionResult> {

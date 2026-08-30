@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2 } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2, ShieldCheck } from "lucide-react";
+import { AdvisorPermissionsDialog } from "./AdvisorPermissionsDialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,6 +204,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
   const [resetLinksOpen, setResetLinksOpen] = useState(false);
   const [releaseTarget, setReleaseTarget] = useState<AdvisorRow | null>(null);
+  const [permisosTarget, setPermisosTarget] = useState<{ id: string; name: string } | null>(null);
 
   async function refreshAdvisors() {
     const list = await safeInvoke("refreshAdvisors", () => getTeamAdvisors());
@@ -593,6 +595,17 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                               <LayoutGrid className="w-4 h-4 mr-2" />
                               Módulos
                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setPermisosTarget({
+                                  id: advisor.id,
+                                  name: advisor.name ?? advisor.email,
+                                })
+                              }
+                            >
+                              <ShieldCheck className="w-4 h-4 mr-2" />
+                              Permisos
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setPwForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, newPassword: "" })}>
                               <KeyRound className="w-4 h-4 mr-2" />
                               Cambiar contraseña
@@ -857,6 +870,16 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Qué apartados ve esta persona dentro de la cuenta */}
+      {permisosTarget && (
+        <AdvisorPermissionsDialog
+          open={Boolean(permisosTarget)}
+          setOpen={(open) => !open && setPermisosTarget(null)}
+          advisorId={permisosTarget.id}
+          advisorName={permisosTarget.name}
+        />
+      )}
     </div>
   );
 }

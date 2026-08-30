@@ -8,6 +8,7 @@ import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
+import { aplicarPermisos, parseDeniedItems } from "@/lib/permisos";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import type { ThemeApp } from "@prisma/client";
@@ -221,14 +222,6 @@ export default async function RootGroupLayout({
             }
             : null;
 
-    const panelModule = porFechaDeCreacion(
-        allModules.find((m) => m.route === "/panel" || m.route === "/admin"),
-    );
-    const resellerModule =
-        user.role === 'reseller'
-            ? porFechaDeCreacion(allModules.find((m) => m.route === "/reseller-panel"))
-            : null;
-
     // Solo el super admin ve TODOS los módulos sin filtrar: es el dueño de la
     // plataforma. Los administradores pasan por el mismo filtro que las demás
     // cuentas (módulos habilitados + planes permitidos), que es justo lo que se
@@ -262,6 +255,31 @@ export default async function RootGroupLayout({
             });
         }
     }
+
+    // Permisos por persona: los submódulos que se le quitaron a quien está
+    // mirando. Se aplica DESPUÉS del rol y del plan, y sobre `modules`, que es
+    // de donde salen el menú, las pestañas del panel y la pantalla de inicio:
+    // así no hay que acordarse de filtrarlo en cada sitio.
+    const negados = parseDeniedItems(user.deniedModuleItems);
+    // Las rutas se sacan ANTES de filtrar: después ya no están en `modules`, y
+    // sin ellas el que sabe la URL entraba igual.
+    const rutasNegadas = allModules.flatMap(m =>
+        (m.moduleItems ?? [])
+            .filter(item => negados.has(item.id))
+            .map(item => item.url.replace('/admin/', '/panel/')),
+    );
+    modules = aplicarPermisos(modules, negados);
+
+    // Las pestañas del panel salen de `modules`, ya filtrado por rol, plan y
+    // permisos. Antes salían de `allModules`: una pestaña quitada a la persona
+    // seguía apareciendo arriba.
+    const panelModule = porFechaDeCreacion(
+        modules.find((m) => m.route === "/panel" || m.route === "/admin"),
+    );
+    const resellerModule =
+        user.role === 'reseller'
+            ? porFechaDeCreacion(modules.find((m) => m.route === "/reseller-panel"))
+            : null;
 
     // Rutas bloqueadas para el plan actual. Al cliente se le muestran con candado
     // y sin acceso; al equipo interno se le esconden del menú (ver nav-main).
@@ -313,7 +331,11 @@ export default async function RootGroupLayout({
                         <PanelAwareTabNav tabs={clientPanelTabs} excludePanelRoutes panelRoutes={["/client-panel"]} />
                         <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-0 sm:p-1">
                             <div className="app-module-content flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-none border-0 sm:rounded-md sm:border sm:border-border/70">
-                                <LockedRouteGuard lockedRoutes={lockedRoutes} canUpgrade={!isAdminLike(user.role)}>
+                                <LockedRouteGuard
+                                    lockedRoutes={lockedRoutes}
+                                    deniedRoutes={rutasNegadas}
+                                    canUpgrade={!isAdminLike(user.role)}
+                                >
                                     {children}
                                 </LockedRouteGuard>
                             </div>
