@@ -53,6 +53,7 @@ import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
 import dynamic from 'next/dynamic';
+import { puedeVerTelefonoCompleto, telefonoParaMostrar } from '@/lib/telefono-visible';
 
 // Notas nativas dentro del chat (pestaña "Notas"). Carga diferida: el editor
 // (BlockNote) solo se descarga cuando el usuario abre la pestaña, para no
@@ -302,23 +303,30 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   // caso mostramos el número limpio (+57 300 123 4567) en vez del JID.
   const contactJid = info?.remoteJid || session?.remoteJid || '';
   const rawContactName = header.name || session?.pushName?.trim() || '';
+  // Cuando el contacto no tiene nombre guardado, su "nombre" es el numero. Va
+  // tapado para quien no deba verlo, igual que en la lista: si no, bastaba con
+  // abrir el chat para leerlo entero.
   const displayedContactName =
     rawContactName.toLowerCase().endsWith('@s.whatsapp.net')
-      ? fmtPhone(rawContactName) || rawContactName.split('@')[0]
+      ? telefonoParaMostrar(rawContactName, advisorRole) || rawContactName.split('@')[0]
       : rawContactName && rawContactName === extractWhatsAppDigits(contactJid)
-      ? fmtPhone(contactJid) || rawContactName
+      ? telefonoParaMostrar(contactJid, advisorRole) || rawContactName
       : rawContactName;
   const assignedAdvisorName = useMemo(() => {
     if (!advisors?.length) return 'Asesor';
     return advisors.find((a) => a.id === assignedAdvisorId)?.name ?? 'Asesor';
   }, [assignedAdvisorId, advisors]);
-  const displayedWhatsapp = session
+  // El numero que se muestra en la ficha del contacto y en el panel lateral.
+  const whatsappCrudo = session
     ? getDisplayWhatsappFromSession(session)
     : info?.remoteJid?.toLowerCase().endsWith('@lid')
       ? ''
       : info?.remoteJid?.includes('@')
         ? info.remoteJid.split('@')[0]
         : info?.remoteJid || '';
+  const displayedWhatsapp = puedeVerTelefonoCompleto(advisorRole)
+    ? whatsappCrudo
+    : telefonoParaMostrar(whatsappCrudo, advisorRole);
 
   /* ─── Message list ─── */
   const reversed = useMemo(() => messages.slice().reverse(), [messages]);

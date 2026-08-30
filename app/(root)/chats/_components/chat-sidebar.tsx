@@ -426,7 +426,7 @@ export function ChatSidebar({
             if (custom && !isBadContactName(custom)) return custom;
             const push = s?.pushName?.trim();
             if (push && !isBadContactName(push)) return push;
-            return nameFrom(chat);
+            return nameFrom(chat, advisorRole);
           })(),
           avatarSrc: avatarFrom(chat),
           lastMessage: lastMsgData.text,
