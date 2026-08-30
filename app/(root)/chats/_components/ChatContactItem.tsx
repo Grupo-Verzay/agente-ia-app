@@ -107,7 +107,7 @@ type ChatContactItemProps = {
   advisors?: AdvisorInfo[];
   advisorRole?: string | null;
   currentAdvisorId?: string;
-  onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
+  onAssignAdvisor?: (remoteJid: string, advisorId: string | null, instanceName?: string | null) => Promise<void>;
   showInstanceBadge?: boolean;
   isChecked?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -195,7 +195,7 @@ function ChatContactItemBase({
           advisorRole={advisorRole}
           currentAdvisorId={currentAdvisorId}
           sessionId={contact.chatSession.id}
-          onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
+          onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id, contact.instanceName) : undefined}
           size="sm"
         />
       );
@@ -564,12 +564,12 @@ function ChatContactItemBase({
                     Asignar agente
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="w-48">
-                    <DropdownMenuItem onSelect={() => onAssignAdvisor(contact.id, null)}>
+                    <DropdownMenuItem onSelect={() => onAssignAdvisor(contact.id, null, contact.instanceName)}>
                       <span className="text-sm text-muted-foreground">Sin asignar</span>
                     </DropdownMenuItem>
                     {asignable && (
                       <DropdownMenuItem
-                        onSelect={() => onAssignAdvisor(contact.id, currentAdvisorId!)}
+                        onSelect={() => onAssignAdvisor(contact.id, currentAdvisorId!, contact.instanceName)}
                         className="flex items-center justify-between gap-2"
                       >
                         <span className="truncate text-sm">Asignarme</span>
@@ -580,7 +580,7 @@ function ChatContactItemBase({
                     {otrosAsesores.map((a) => (
                       <DropdownMenuItem
                         key={a.id}
-                        onSelect={() => onAssignAdvisor(contact.id, a.id)}
+                        onSelect={() => onAssignAdvisor(contact.id, a.id, contact.instanceName)}
                         className="flex items-center justify-between gap-2"
                       >
                         <span className="truncate text-sm">{a.name ?? a.email}</span>
