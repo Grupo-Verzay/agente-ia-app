@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2, ShieldCheck, Building2 } from "lucide-react";
 import { AdvisorPermissionsDialog } from "./AdvisorPermissionsDialog";
+import { AdvisorClientsDialog } from "./AdvisorClientsDialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [resetLinksOpen, setResetLinksOpen] = useState(false);
   const [releaseTarget, setReleaseTarget] = useState<AdvisorRow | null>(null);
   const [permisosTarget, setPermisosTarget] = useState<{ id: string; name: string } | null>(null);
+  const [clientesTarget, setClientesTarget] = useState<{ id: string; name: string } | null>(null);
 
   async function refreshAdvisors() {
     const list = await safeInvoke("refreshAdvisors", () => getTeamAdvisors());
@@ -606,6 +608,17 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                               <ShieldCheck className="w-4 h-4 mr-2" />
                               Permisos
                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setClientesTarget({
+                                  id: advisor.id,
+                                  name: advisor.name ?? advisor.email,
+                                })
+                              }
+                            >
+                              <Building2 className="w-4 h-4 mr-2" />
+                              Clientes asignados
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setPwForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, newPassword: "" })}>
                               <KeyRound className="w-4 h-4 mr-2" />
                               Cambiar contraseña
@@ -878,6 +891,16 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           setOpen={(open) => !open && setPermisosTarget(null)}
           advisorId={permisosTarget.id}
           advisorName={permisosTarget.name}
+        />
+      )}
+
+      {/* Los clientes a los que puede entrar a configurar */}
+      {clientesTarget && (
+        <AdvisorClientsDialog
+          open={Boolean(clientesTarget)}
+          setOpen={(open) => !open && setClientesTarget(null)}
+          advisorId={clientesTarget.id}
+          advisorName={clientesTarget.name}
         />
       )}
     </div>

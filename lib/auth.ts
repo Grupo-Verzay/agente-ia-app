@@ -122,6 +122,17 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
             owns = !!assignment;
         }
         if (owns) effectiveUserId = impersonateId;
+    } else if (impersonateId) {
+        // Colaborador del equipo: solo a los clientes que le asignaron. Es el
+        // caso de quien tiene que entrar a arreglar una cuenta concreta sin
+        // que haya que darle rol de admin y con él la plataforma entera.
+        const asignado = await db.advisorClient
+            .findFirst({
+                where: { advisorUserId: realUser.id, clientUserId: impersonateId },
+                select: { id: true },
+            })
+            .catch(() => null);
+        if (asignado) effectiveUserId = impersonateId;
     } else if (activeAccountId && activeAccountId !== realUser.id) {
         try {
             const membership = await db.$queryRaw<{ role: AccountRole }[]>`

@@ -9,6 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
 import { parseItemIds, serializeItemIds } from "@/lib/permisos";
 import { isAdminLike } from "@/lib/rbac";
+import type { Role } from "@prisma/client";
 
 export type ModuleOption = { id: string; label: string };
 export type AdvisorRow = {
@@ -723,6 +724,125 @@ export async function saveAutoAssignSettings(input: {
   }
 
   return { success: true, message: "Configuración guardada." };
+}
+
+export type ClienteAsignable = {
+  id: string;
+  name: string | null;
+  email: string;
+  company: string;
+  asignado: boolean;
+};
+
+/**
+ * Los clientes de la cuenta, marcando cuáles le tocan a esta persona.
+ *
+ * Con uno asignado, su listado de Clientes muestra solo esos y puede entrar a
+ * configurarlos. Es lo que antes obligaba a darle rol de admin —y con él la
+ * plataforma entera— para que pudiera arreglar la cuenta de un cliente.
+ */
+export async function getAdvisorClients(
+  advisorId: string,
+): Promise<ActionResult<ClienteAsignable[]>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  const [clientes, asignados] = await Promise.all([
+    clientesDeLaCuenta(owner),
+    db.advisorClient.findMany({
+      where: { advisorUserId: advisorId, ownerUserId: owner.id },
+      select: { clientUserId: true },
+    }),
+  ]);
+
+  const yaTiene = new Set(asignados.map((a) => a.clientUserId));
+
+  return {
+    success: true,
+    data: clientes.map((c) => ({ ...c, asignado: yaTiene.has(c.id) })),
+  };
+}
+
+export async function setAdvisorClients(
+  advisorId: string,
+  clientIds: string[],
+): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  // Solo clientes sobre los que esta cuenta manda: lo que llegue del navegador
+  // no decide a qué cuentas ajenas se entra.
+  const suyos = new Set((await clientesDeLaCuenta(owner)).map((c) => c.id));
+  const validos = [...new Set(clientIds)].filter((id) => suyos.has(id));
+
+  try {
+    await db.$transaction([
+      db.advisorClient.deleteMany({
+        where: { advisorUserId: advisorId, ownerUserId: owner.id },
+      }),
+      ...(validos.length
+        ? [
+            db.advisorClient.createMany({
+              data: validos.map((clientUserId) => ({
+                advisorUserId: advisorId,
+                clientUserId,
+                ownerUserId: owner.id,
+              })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+    ]);
+  } catch (error) {
+    console.error("setAdvisorClients error:", error);
+    return { success: false, message: "No se pudieron guardar los clientes." };
+  }
+
+  return {
+    success: true,
+    message: validos.length
+      ? `${validos.length} cliente${validos.length === 1 ? "" : "s"} asignado${validos.length === 1 ? "" : "s"}.`
+      : "Sin clientes asignados.",
+  };
+}
+
+/**
+ * Los clientes sobre los que manda esta cuenta. Un admin los tiene todos; un
+ * reseller, los suyos —los que creó como demo y los que le asignaron—.
+ */
+async function clientesDeLaCuenta(owner: { id: string; role: string }) {
+  const base = { role: { in: ["user", "affiliate"] as Role[] } };
+
+  if (isAdminLike(owner.role)) {
+    return db.user.findMany({
+      where: base,
+      select: { id: true, name: true, email: true, company: true },
+      orderBy: { company: "asc" },
+    });
+  }
+
+  const asignados = await db.reseller.findMany({
+    where: { resellerid: owner.id },
+    select: { userId: true },
+  });
+  const idsAsignados = asignados
+    .map((a) => a.userId)
+    .filter((id): id is string => !!id);
+
+  return db.user.findMany({
+    where: {
+      ...base,
+      OR: [{ demoResellerId: owner.id }, { id: { in: idsAsignados } }],
+    },
+    select: { id: true, name: true, email: true, company: true },
+    orderBy: { company: "asc" },
+  });
 }
 
 export async function getOwnerModules(): Promise<ActionResult<ModuleOption[]>> {
