@@ -9,6 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
+import { PANEL_ROUTES, CLIENT_PANEL_ROUTE } from "@/lib/sidebar-modules";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import type { ThemeApp } from "@prisma/client";
@@ -284,24 +285,51 @@ export default async function RootGroupLayout({
     // paneles, cada uno con su propia fila—, así que se tapa solo la que no le
     // quede abierta por NINGÚN lado: si no, apagarla en el panel del cliente
     // cerraba la que se le acababa de dar en el del equipo.
+    modules = aplicarPermisos(modules, {
+        denied: negados,
+        granted: concedidos,
+        mandaLoPermitido: mandaLoConcedido,
+    });
+
+    // De los paneles, uno solo: el que le toca. Se elige por lo que le queda
+    // -no por el rol a secas-, así que a un agente con apartados dados en el
+    // panel del equipo le toca ese. Los otros no son suyos y salen de en medio:
+    // si no, sus apartados le abrían pestañas y rutas que nadie le dio, porque
+    // en la pantalla de Permisos ni siquiera se listan para poder quitarlos.
+    const VARIANTES_DE_PANEL = [...PANEL_ROUTES, '/reseller-panel', CLIENT_PANEL_ROUTE];
+    const candidatosDePanel =
+        user.role === 'reseller' ? ['/reseller-panel'] : [...PANEL_ROUTES, CLIENT_PANEL_ROUTE];
+    const suPanelId =
+        candidatosDePanel
+            .map((route) => modules.find((m) => m.route === route))
+            .find(Boolean)?.id ?? null;
+    const esPanelAjeno = (m: { id: string; route: string }) =>
+        VARIANTES_DE_PANEL.includes(m.route) && m.id !== suPanelId;
+
+    modules = modules.filter((m) => !esPanelAjeno(m));
+
+    // Las rutas tapadas se sacan de TODOS los módulos, no de `modules`: ahí ya
+    // no están, y sin ellas el que sabe la URL entraba igual.
+    //
+    // Una misma ruta aparece en varios módulos —"Diagramas" está en los tres
+    // paneles, cada uno con su propia fila—, así que se tapa solo la que no le
+    // quede abierta por NINGÚN lado: si no, apagarla en el panel del cliente
+    // cerraba la que se le acababa de dar en el del equipo.
     const rutasAbiertas = new Set<string>();
     const rutasCerradas = new Set<string>();
     for (const m of allModules) {
         for (const item of m.moduleItems ?? []) {
             const ruta = item.url.replace('/admin/', '/panel/');
             const laVe =
-                mandaLoConcedido && m.adminOnly
-                    ? concedidos.has(item.id)
-                    : !negados.has(item.id);
+                esPanelAjeno(m)
+                    ? false
+                    : mandaLoConcedido && m.adminOnly
+                        ? concedidos.has(item.id)
+                        : !negados.has(item.id);
             (laVe ? rutasAbiertas : rutasCerradas).add(ruta);
         }
     }
     const rutasNegadas = [...rutasCerradas].filter(ruta => !rutasAbiertas.has(ruta));
-    modules = aplicarPermisos(modules, {
-        denied: negados,
-        granted: concedidos,
-        mandaLoPermitido: mandaLoConcedido,
-    });
 
     // Las pestañas del panel salen de `modules`, ya filtrado por rol, plan y
     // permisos. Antes salían de `allModules`: una pestaña quitada a la persona
