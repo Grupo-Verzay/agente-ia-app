@@ -872,10 +872,20 @@ export function ChatsClient({
 
   const currentContact = useMemo(() => {
     if (!contacts.length || !selectedJid) return undefined;
-    return contacts.find(
-      (contact) => contact.remoteJid === selectedJid || contact.aliases?.includes(selectedJid),
+    // El mismo numero puede tener conversacion en varias lineas. Buscar solo
+    // por numero devolvia la primera que apareciera -no la que esta abierta-,
+    // y de ahi salia TODO lo demas: la sesion, el asesor asignado, las
+    // etiquetas. Por eso al pasarle un chat de Pruebas a un asesor le llegaba
+    // como de Atencion: se estaba tocando la sesion de otra linea.
+    const coincidePorNumero = (contact: (typeof contacts)[number]) =>
+      contact.remoteJid === selectedJid || contact.aliases?.includes(selectedJid);
+
+    return (
+      (selectedInstanceName
+        ? contacts.find((c) => c.instanceName === selectedInstanceName && coincidePorNumero(c))
+        : undefined) ?? contacts.find(coincidePorNumero)
     );
-  }, [contacts, selectedJid]);
+  }, [contacts, selectedInstanceName, selectedJid]);
 
   const currentContactSession = useMemo(() => {
     if (currentContact) return getSessionForChat(currentContact, chatSessions);
@@ -1213,13 +1223,39 @@ export function ChatsClient({
     [],
   );
 
+  /**
+   * La sesion de ESTA linea, no la del numero.
+   *
+   * `chatSessions` guarda dos entradas por contacto: una bajo el numero a
+   * secas -la "global", la que gana al comparar entre lineas- y otra bajo
+   * `linea::numero`. Las acciones que ESCRIBEN usaban la global, asi que
+   * asignar un asesor desde Pruebas podia terminar tocando la sesion de
+   * Atencion. Son lineas independientes y no tienen por que mezclarse.
+   */
+  const sesionDeLaLinea = useCallback(
+    (remoteJid: string, instanceName?: string | null) => {
+      if (instanceName) {
+        const deLaLinea = chatSessions[`${instanceName}::${remoteJid}`];
+        if (deLaLinea) return deLaLinea;
+      }
+      return chatSessions[remoteJid];
+    },
+    [chatSessions],
+  );
+
   const handleAssignAdvisor = useCallback(
-    async (remoteJid: string, advisorId: string | null) => {
-      const sessionSummary = chatSessions[remoteJid];
+    async (remoteJid: string, advisorId: string | null, instanceName?: string | null) => {
+      const sessionSummary = sesionDeLaLinea(remoteJid, instanceName);
       if (!sessionSummary?.id) {
         toast.error("No hay sesión CRM para asignar.");
         return;
       }
+      // El estado en memoria se actualiza bajo LA MISMA llave de la que salio,
+      // para que la insignia cambie en la fila correcta y no en su gemela.
+      const claveEnMemoria =
+        instanceName && chatSessions[`${instanceName}::${remoteJid}`]
+          ? `${instanceName}::${remoteJid}`
+          : remoteJid;
 
       if (advisorRole === "agente") {
         if (advisorId === null) {
@@ -1229,7 +1265,7 @@ export function ChatsClient({
           if (!res.success) { toast.error(res.message ?? "Error al liberar."); return; }
           setChatSessions((prev) => ({
             ...prev,
-            [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: null },
+            [claveEnMemoria]: { ...prev[claveEnMemoria]!, assignedAdvisorId: null },
           }));
           toast.success("Conversación liberada.");
         } else if (advisorId !== currentAdvisorId) {
@@ -1239,7 +1275,7 @@ export function ChatsClient({
           if (!res.success) { toast.error(res.message ?? "Error al transferir."); return; }
           setChatSessions((prev) => ({
             ...prev,
-            [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: advisorId },
+            [claveEnMemoria]: { ...prev[claveEnMemoria]!, assignedAdvisorId: advisorId },
           }));
           toast.success("Conversación transferida.");
         } else {
@@ -1249,7 +1285,7 @@ export function ChatsClient({
           if (!res.success) { toast.error(res.message ?? "Error al tomar la conversación."); return; }
           setChatSessions((prev) => ({
             ...prev,
-            [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: currentAdvisorId ?? null },
+            [claveEnMemoria]: { ...prev[claveEnMemoria]!, assignedAdvisorId: currentAdvisorId ?? null },
           }));
           toast.success("Conversación tomada.");
         }
@@ -1259,7 +1295,7 @@ export function ChatsClient({
         if (!res.success) { toast.error(res.message ?? "Error al asignar."); return; }
         setChatSessions((prev) => ({
           ...prev,
-          [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: advisorId },
+          [claveEnMemoria]: { ...prev[claveEnMemoria]!, assignedAdvisorId: advisorId },
         }));
         if (res.warning) toast.warning(res.warning);
         if (advisorId) {
@@ -1270,7 +1306,7 @@ export function ChatsClient({
         }
       }
     },
-    [chatSessions, advisorRole, advisors, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction, transferSessionAction],
+    [chatSessions, sesionDeLaLinea, advisorRole, advisors, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction, transferSessionAction],
   );
 
   const handleSessionRename = useCallback((jid: string, name: string) => {
@@ -2756,7 +2792,7 @@ export function ChatsClient({
             onSessionReopened={() => handleSessionReopened(selectedJid)}
             onAssignAdvisor={
               assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
-                ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId)
+                ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId, selectedInstanceName)
                 : undefined
             }
             onNewMessage={instanceActionSets && instanceActionSets.length > 0 ? handleNewMessageForContact : undefined}
