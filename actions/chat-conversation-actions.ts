@@ -514,6 +514,16 @@ export async function deleteChatConversationAction(
  * Se repite la limpieza en vez de darlos por limpios porque entre el borrado
  * y el vaciado el contacto pudo haber vuelto: si el cliente escribio, la
  * linea recreo la ficha y los mensajes.
+ *
+ * Va por TODAS las cuentas asociadas, no solo por la activa. La pestana
+ * Eliminados junta lo de todas -las marcas se leen con ese alcance-, asi que
+ * limpiar solo una dejaba el resto intacto en la base: la lista se veia vacia
+ * por el apaño de pantalla y al recargar volvian los mismos chats. El aviso
+ * decia 61 y se limpiaban los de una cuenta.
+ *
+ * Cada cuenta se comprueba por separado con `assertCanDeleteChats`. Si en
+ * alguna no se manda, se salta y se sigue con las demas: se limpia lo que se
+ * pueda, nunca lo que no se deba.
  */
 export async function purgeDeletedChatsAction(
   input: { userId: string },
@@ -522,20 +532,37 @@ export async function purgeDeletedChatsAction(
     const userId = z.string().trim().min(1).parse(input.userId);
     await assertCanDeleteChats(userId);
 
+    const user = await currentUser();
+    const asociadas = user ? await getAssociatedAccountIds(user) : [];
+    const cuentas = [userId, ...asociadas.filter((id) => id !== userId)];
+
     await ensurePurgedAtColumn();
-    const marcados = await chatConversationPreferenceTable.findMany({
-      where: { userId, deletedAt: { not: null }, purgedAt: null },
-      select: { remoteJid: true },
-    });
+    let count = 0;
 
-    for (const { remoteJid } of marcados) {
-      await hardDeleteLocalChat(userId, remoteJid);
+    for (const cuenta of cuentas) {
+      if (cuenta !== userId) {
+        try {
+          await assertCanDeleteChats(cuenta);
+        } catch {
+          continue;
+        }
+      }
+
+      const marcados = await chatConversationPreferenceTable.findMany({
+        where: { userId: cuenta, deletedAt: { not: null }, purgedAt: null },
+        select: { remoteJid: true },
+      });
+
+      for (const { remoteJid } of marcados) {
+        await hardDeleteLocalChat(cuenta, remoteJid);
+      }
+
+      const limpiados = await chatConversationPreferenceTable.updateMany({
+        where: { userId: cuenta, deletedAt: { not: null }, purgedAt: null },
+        data: { purgedAt: new Date() },
+      });
+      count += limpiados.count;
     }
-
-    const { count } = await chatConversationPreferenceTable.updateMany({
-      where: { userId, deletedAt: { not: null }, purgedAt: null },
-      data: { purgedAt: new Date() },
-    });
 
     invalidatePersistedInboxCache();
     revalidatePath("/chats");
