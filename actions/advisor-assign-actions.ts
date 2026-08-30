@@ -2,6 +2,7 @@
 
 import { currentUser } from "@/lib/auth";
 import { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
+import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { db } from "@/lib/db";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
@@ -310,6 +311,35 @@ export async function transferSession(
   return { success: true };
 }
 
+/**
+ * ¿Puede esta persona cerrar o reabrir esta conversación?
+ *
+ * Sí cuando la sesión es de UNA DE SUS CUENTAS -la activa o cualquiera
+ * vinculada- y manda en ella; o cuando es el asesor que la tiene asignada.
+ *
+ * Antes se exigía que la sesión fuera de la cuenta activa y de ninguna otra.
+ * Pero la bandeja enseña los chats de TODAS las cuentas asociadas, así que un
+ * dueño con cuentas vinculadas abría sin problema una conversación de Ventas
+ * estando en Grupo Verzay y, al darle a resolver o reabrir, le salía
+ * "No autorizado": la pantalla y la comprobación no medían lo mismo.
+ *
+ * Se alinea con lo que la bandeja ya deja leer, ni más ni menos. Y solo por el
+ * lado de dueño: un agente sigue necesitando tenerla asignada, que no se toca.
+ */
+async function puedeCerrarOReabrir(
+  user: { id: string; ownerId?: string | null; advisorRole?: string | null; sessionUserId?: string },
+  sesion: { userId: string; assignedAdvisorId: string | null },
+): Promise<boolean> {
+  if (user.id === sesion.assignedAdvisorId) return true;
+
+  // Un agente manda en lo suyo, no en la cuenta.
+  const mandaEnLaCuenta = !user.ownerId || user.advisorRole === "administrador";
+  if (!mandaEnLaCuenta) return false;
+
+  const cuentas = await getAssociatedAccountIds(user);
+  return cuentas.includes(sesion.userId);
+}
+
 export async function resolveSession(sessionId: number): Promise<{ success: boolean; message?: string }> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
@@ -321,9 +351,9 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
 
   const { userId: ownerId, assignedAdvisorId } = rows[0];
-  const isOwner = user.id === ownerId;
-  const isAssigned = user.id === assignedAdvisorId;
-  if (!isOwner && !isAssigned) return { success: false, message: "No autorizado." };
+  if (!(await puedeCerrarOReabrir(user, { userId: ownerId, assignedAdvisorId }))) {
+    return { success: false, message: "No autorizado." };
+  }
 
   await generateConversationIntelligence({
     sessionId,
@@ -360,9 +390,9 @@ export async function reopenSession(sessionId: number): Promise<{ success: boole
   if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
 
   const { userId: ownerId, assignedAdvisorId } = rows[0];
-  const isOwner = user.id === ownerId;
-  const isAssigned = user.id === assignedAdvisorId;
-  if (!isOwner && !isAssigned) return { success: false, message: "No autorizado." };
+  if (!(await puedeCerrarOReabrir(user, { userId: ownerId, assignedAdvisorId }))) {
+    return { success: false, message: "No autorizado." };
+  }
 
   await reabrirSesion(sessionId);
   await logAssignment(sessionId, assignedAdvisorId, user.id, "reopened");

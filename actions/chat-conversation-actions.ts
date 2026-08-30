@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import { invalidatePersistedInboxCache } from "@/lib/chat-persistence";
 import { chatPreferenceKey } from "@/lib/chat-preference-key";
+import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import type {
   ChatConversationPreference,
   ChatConversationPreferenceMap,
@@ -370,41 +371,6 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
 
   revalidatePath("/chats");
   return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid);
-}
-
-/**
- * Ids de todas las cuentas asociadas al usuario actual: la activa, su sesión
- * real, las que tiene vinculadas y aquellas de las que él es el vinculado.
- *
- * Se derivan aquí, en el servidor, a propósito: no pueden venir del cliente
- * porque entonces bastaría con mandar ids ajenos para leer o escribir
- * preferencias de otro.
- */
-async function getAssociatedAccountIds(user: {
-  id: string;
-  ownerId?: string | null;
-  sessionUserId?: string;
-}): Promise<string[]> {
-  const activeId = user.ownerId ?? user.id;
-  const sessionId = user.sessionUserId ?? user.id;
-  const ids = new Set<string>([activeId, sessionId, user.id]);
-
-  try {
-    const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT la."linked_user_id" AS id
-      FROM "linked_accounts" la
-      WHERE la."master_user_id" IN (${Prisma.join([activeId, sessionId])})
-      UNION
-      SELECT la."master_user_id" AS id
-      FROM "linked_accounts" la
-      WHERE la."linked_user_id" IN (${Prisma.join([activeId, sessionId])})
-    `;
-    for (const row of rows) if (row.id) ids.add(row.id);
-  } catch {
-    // Sin la tabla de vinculadas seguimos con la cuenta activa.
-  }
-
-  return Array.from(ids);
 }
 
 /**
