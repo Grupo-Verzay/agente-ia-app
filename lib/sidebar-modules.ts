@@ -3,6 +3,7 @@ import type { CurrentUser } from '@/lib/auth';
 import type { ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
 import { isAdminLike } from '@/lib/rbac';
+import { parseItemIds } from '@/lib/permisos';
 
 // Rutas de panel administrativo y del panel del cliente. Se mantienen aquí para
 // que el sidebar (NavMain) y el personalizador de menú (NavCustomizer) usen
@@ -30,6 +31,7 @@ export function getVisibleSidebarModules(
     // Agente = cuenta vinculada SIN rol administrador. Los administradores de una
     // cuenta vinculada tienen los mismos accesos que el dueño de esa cuenta.
     const isAgente = isAdvisor && user.advisorRole !== 'administrador';
+    const concedidos = parseItemIds(user.grantedModuleItems);
 
     // El "Panel" existe en variantes: /panel y /admin (el del equipo),
     // /reseller-panel y /client-panel. Todas se llaman "Panel", y puede haber
@@ -67,6 +69,10 @@ export function getVisibleSidebarModules(
                 modules,
                 label: link.label,
                 isAdvisor,
+                // Los apartados que llegan aquí ya vienen filtrados por permisos
+                // (ver el layout): si un módulo "Solo Admin" conserva alguno, es
+                // porque a esta persona se le concedió.
+                tieneConcedidos: concedidos.size > 0 && (link.moduleItems ?? []).some((it) => concedidos.has(it.id)),
             });
             if (!access.allowed) return false;
             return true;

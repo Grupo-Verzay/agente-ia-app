@@ -8,7 +8,7 @@ import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
-import { aplicarPermisos, parseDeniedItems } from "@/lib/permisos";
+import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import type { ThemeApp } from "@prisma/client";
@@ -227,6 +227,19 @@ export default async function RootGroupLayout({
     // cuentas (módulos habilitados + planes permitidos), que es justo lo que se
     // configura en el editor de módulos; lo único que no les aplica es
     // "Solo Admin", que precisamente es para ellos.
+    // Permisos de la persona que está mirando. Se leen aquí arriba porque uno de
+    // ellos —lo concedido— es una excepción a "Solo Admin": sin mirarlo, el
+    // módulo se caería antes de llegar a aplicarlos.
+    const negados = parseItemIds(user.deniedModuleItems);
+    const concedidos = parseItemIds(user.grantedModuleItems);
+    // A un agente no le vale el rol de la cuenta en la que entra: al cambiarse a
+    // una cuenta vinculada hereda el rol del dueño, y sin esto un agente veía el
+    // panel de administración entero.
+    const esAgente = !!user.ownerId && user.advisorRole !== 'administrador';
+    const mandaLoConcedido = esAgente || !isAdminOrReseller(user.role);
+    const tieneConcedidos = (m: { moduleItems?: { id: string }[] | null }) =>
+        (m.moduleItems ?? []).some((it) => concedidos.has(it.id));
+
     let modules = allModules;
     if (!isSuperAdmin(user?.role)) {
         if (user.role === 'reseller') {
@@ -243,32 +256,43 @@ export default async function RootGroupLayout({
                 modules = allModules.filter(m => allowedIds.has(m.id));
             }
             const userPlan = user!.plan;
-            const esAdmin = isAdmin(user?.role);
+            // Un agente de una cuenta vinculada hereda el rol del dueño. Sin
+            // descontarlo aquí, "Solo Admin" no lo frenaba y veía el panel de
+            // administración entero.
+            const esAdmin = isAdmin(user?.role) && !esAgente;
             // Mismo criterio que las rutas bloqueadas y que el sidebar: una sola
             // regla decide a quién le aplica el plan.
             const filtraPorPlan = aplicaBloqueoPorPlan(user);
             modules = modules.filter(m => {
-                // "Solo Admin" sigue siendo para los administradores.
-                if (m.adminOnly && !esAdmin) return false;
+                // "Solo Admin" sigue siendo para los administradores, salvo los
+                // apartados sueltos que se le hayan concedido a esta persona.
+                if (m.adminOnly && !esAdmin && !tieneConcedidos(m)) return false;
                 if (filtraPorPlan && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
                 return true;
             });
         }
     }
 
-    // Permisos por persona: los submódulos que se le quitaron a quien está
-    // mirando. Se aplica DESPUÉS del rol y del plan, y sobre `modules`, que es
-    // de donde salen el menú, las pestañas del panel y la pantalla de inicio:
-    // así no hay que acordarse de filtrarlo en cada sitio.
-    const negados = parseDeniedItems(user.deniedModuleItems);
-    // Las rutas se sacan ANTES de filtrar: después ya no están en `modules`, y
-    // sin ellas el que sabe la URL entraba igual.
+    // Se aplican DESPUÉS del rol y del plan, y sobre `modules`, que es de donde
+    // salen el menú, las pestañas del panel y la pantalla de inicio: así no hay
+    // que acordarse de filtrarlo en cada sitio.
+    //
+    // Las rutas tapadas se sacan ANTES de filtrar: después ya no están en
+    // `modules`, y sin ellas el que sabe la URL entraba igual.
     const rutasNegadas = allModules.flatMap(m =>
         (m.moduleItems ?? [])
-            .filter(item => negados.has(item.id))
+            .filter(item =>
+                mandaLoConcedido && m.adminOnly
+                    ? !concedidos.has(item.id)
+                    : negados.has(item.id),
+            )
             .map(item => item.url.replace('/admin/', '/panel/')),
     );
-    modules = aplicarPermisos(modules, negados);
+    modules = aplicarPermisos(modules, {
+        denied: negados,
+        granted: concedidos,
+        mandaLoPermitido: mandaLoConcedido,
+    });
 
     // Las pestañas del panel salen de `modules`, ya filtrado por rol, plan y
     // permisos. Antes salían de `allModules`: una pestaña quitada a la persona

@@ -830,6 +830,12 @@ model User {
   // se le quita nada. La crea la migracion advisor_denied_module_items del
   // BACKEND; aqui solo se replica (este servicio no corre migraciones).
   deniedModuleItems                  String?                      @map("denied_module_items")
+  // Apartados que esta persona SI ve aunque su rol los tape (los de modulos
+  // "Solo Admin"). Lista de permitidos, al reves que la de arriba.
+  grantedModuleItems                 String?                      @map("granted_module_items")
+  // Si el agente ve la bolsa de conversaciones sin dueño. Las dos las crea la
+  // migracion advisor_permissions del BACKEND.
+  canTakeUnassigned                  Boolean                      @default(true) @map("can_take_unassigned")
   advisorAvailable                   Boolean                      @default(true) @map("advisor_available")
   autoAssignEnabled                  Boolean                      @default(false) @map("auto_assign_enabled")
   autoAssignMaxChats                 Int                          @default(5) @map("auto_assign_max_chats")

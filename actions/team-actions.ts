@@ -7,7 +7,7 @@ import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
 import { getAllModules } from "@/actions/module-actions";
 import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
-import { parseDeniedItems, serializeDeniedItems } from "@/lib/permisos";
+import { parseItemIds, serializeItemIds } from "@/lib/permisos";
 
 export type ModuleOption = { id: string; label: string };
 export type AdvisorRow = {
@@ -193,9 +193,18 @@ export async function updateAdvisorRole(advisorId: string, role: "agente" | "adm
  * Panel, pero no a Finanzas". Se guarda en la persona, no en la cuenta: si
  * mañana entra a otra cuenta, se le respeta lo mismo.
  */
-export async function updateAdvisorDeniedItems(
+export type AdvisorPermissions = {
+  /** Apartados quitados en los módulos normales. */
+  denied: string[];
+  /** Apartados dados dentro de los módulos "Solo Admin". */
+  granted: string[];
+  /** Si ve la bolsa de conversaciones sin dueño, de donde salen las que toma. */
+  canTakeUnassigned: boolean;
+};
+
+export async function updateAdvisorPermissions(
   advisorId: string,
-  deniedItemIds: string[],
+  permisos: AdvisorPermissions,
 ): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
@@ -204,31 +213,60 @@ export async function updateAdvisorDeniedItems(
   if (!found) return { success: false, message: "Asesor no encontrado." };
 
   // Solo ids que existen: así una lista vieja no acumula basura cuando se borra
-  // un submódulo, y de paso no se guarda lo que llegue del navegador sin mirar.
-  const existentes = deniedItemIds.length
-    ? await db.moduleItem.findMany({
-        where: { id: { in: deniedItemIds } },
-        select: { id: true },
-      })
-    : [];
+  // un apartado, y de paso no se guarda lo que llegue del navegador sin mirar.
+  const pedidos = [...new Set([...permisos.denied, ...permisos.granted])];
+  const existentes = pedidos.length
+    ? new Set(
+        (
+          await db.moduleItem.findMany({
+            where: { id: { in: pedidos } },
+            select: { id: true },
+          })
+        ).map((i) => i.id),
+      )
+    : new Set<string>();
 
-  const valor = serializeDeniedItems(existentes.map((i) => i.id));
+  const denied = serializeItemIds(permisos.denied.filter((id) => existentes.has(id)));
+  const granted = serializeItemIds(permisos.granted.filter((id) => existentes.has(id)));
 
-  await db.$executeRaw`UPDATE "User" SET denied_module_items = ${valor} WHERE id = ${advisorId}`;
+  await db.$executeRaw`
+    UPDATE "User"
+    SET denied_module_items = ${denied},
+        granted_module_items = ${granted},
+        can_take_unassigned = ${permisos.canTakeUnassigned}
+    WHERE id = ${advisorId}
+  `;
   return { success: true, message: "Permisos actualizados." };
 }
 
-export async function getAdvisorDeniedItems(advisorId: string): Promise<ActionResult<string[]>> {
+export async function getAdvisorPermissions(
+  advisorId: string,
+): Promise<ActionResult<AdvisorPermissions>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
   const found = await findAdvisorRaw(advisorId, owner.id);
   if (!found) return { success: false, message: "Asesor no encontrado." };
 
-  const rows = await db.$queryRaw<{ denied: string | null }[]>`
-    SELECT denied_module_items AS denied FROM "User" WHERE id = ${advisorId} LIMIT 1
+  const rows = await db.$queryRaw<
+    { denied: string | null; granted: string | null; canTake: boolean | null }[]
+  >`
+    SELECT denied_module_items AS denied,
+           granted_module_items AS granted,
+           can_take_unassigned AS "canTake"
+    FROM "User"
+    WHERE id = ${advisorId}
+    LIMIT 1
   `;
-  return { success: true, data: [...parseDeniedItems(rows[0]?.denied)] };
+
+  return {
+    success: true,
+    data: {
+      denied: [...parseItemIds(rows[0]?.denied)],
+      granted: [...parseItemIds(rows[0]?.granted)],
+      canTakeUnassigned: rows[0]?.canTake ?? true,
+    },
+  };
 }
 
 export async function toggleAdvisorAvailability(advisorId: string, available: boolean): Promise<ActionResult> {

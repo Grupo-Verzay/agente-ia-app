@@ -302,7 +302,13 @@ export default async function ChatsPage({
     ...sessionUserInstancias,
   ].filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
 
-  const instancias = [...ownInstancias, ...linkedInstancias];
+  // Un agente trabaja en UNA cuenta: no se le juntan las líneas de las cuentas
+  // vinculadas. Sin esto veía los chats de todas ellas mezclados, y ni siquiera
+  // eran de la cuenta en la que está.
+  const esAgenteDeLaCuenta = !!user?.ownerId && user?.advisorRole !== "administrador";
+  const instancias = esAgenteDeLaCuenta
+    ? ownInstancias
+    : [...ownInstancias, ...linkedInstancias];
   const baileysRuntimeNames = new Set(
     instancias.filter((inst) => inst.instanceType === "baileys").map((inst) => inst.instanceName),
   );
@@ -731,6 +737,7 @@ export default async function ChatsPage({
       advisors={initialAdvisors}
       currentAdvisorId={currentAdvisorId}
       advisorRole={advisorRole}
+      canTakeUnassigned={user?.canTakeUnassigned ?? true}
       assignAdvisorAction={assignAdvisorAction}
       takeSessionAction={takeSessionAction}
       releaseSessionAction={releaseSessionAction}
