@@ -368,17 +368,21 @@ export default async function RootGroupLayout({
     // Los administradores son colaboradores del equipo, no clientes: lo que su
     // plan no alcanza se les esconde, no se les ofrece.
     const ocultarBloqueadas = isAdminLike(user.role);
+    // Las pestañas salen del panel que le quedó, no de su rol: a quien se le
+    // dieron apartados sueltos del panel del equipo le hacen la misma falta que
+    // a un administrador. Sin esto, entraba a un apartado y se quedaba sin barra
+    // arriba, sin forma de pasar al siguiente.
     const panelTabs = user.role === 'reseller'
         ? buildPanelTabs(resellerModule?.moduleItems ?? [], { plan: user.plan, bloqueaPorPlan })
-        : isAdminOrReseller(user.role)
-            ? buildPanelTabs(panelModule?.moduleItems ?? [], {
-                plan: user.plan,
-                bloqueaPorPlan,
-                excluirSoloReseller: true,
-                ocultarBloqueadas,
-            })
-            : [];
-    const clientPanelTabs = !isAdminOrReseller(user.role) ? getClientPanelTabs(modules) : [];
+        : buildPanelTabs(panelModule?.moduleItems ?? [], {
+            plan: user.plan,
+            bloqueaPorPlan,
+            excluirSoloReseller: true,
+            ocultarBloqueadas,
+        });
+    // El panel del cliente ya se descartó arriba si no era el suyo, así que
+    // aquí solo queda cuando de verdad le toca.
+    const clientPanelTabs = getClientPanelTabs(modules);
 
     return (
         <>
