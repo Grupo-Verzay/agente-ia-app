@@ -160,17 +160,23 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
     }).then(async (u): Promise<CurrentUser | null> => {
         if (!u) return null;
 
+        // Los permisos son de la PERSONA, no de la cuenta que esté mirando.
+        // Cuando se entra a otra cuenta, `u` es la fila de ESA cuenta, y sus
+        // permisos —normalmente vacíos— tapaban los de quien de verdad está
+        // sentado delante: por eso alguien con apartados concedidos llegaba a
+        // la pantalla sin ninguno. Se ponen aquí, para todos los caminos.
+        const permisosDeLaPersona = {
+            deniedModuleItems: realUser.deniedModuleItems,
+            grantedModuleItems: realUser.grantedModuleItems,
+            canTakeUnassigned: realUser.canTakeUnassigned,
+        };
+
         if (fromMembership) {
             return {
                 ...u,
+                ...permisosDeLaPersona,
                 ownerId: effectiveUserId === realUser.id ? null : effectiveUserId,
                 advisorRole: accountRole,
-                // Los permisos son de la PERSONA, no de la cuenta en la que
-                // entra: aquí `u` es la fila de la cuenta dueña, así que los
-                // suyos taparían los de quien de verdad está mirando.
-                deniedModuleItems: realUser.deniedModuleItems,
-                grantedModuleItems: realUser.grantedModuleItems,
-                canTakeUnassigned: realUser.canTakeUnassigned,
                 effectiveId: effectiveUserId,
                 sessionUserId: realUser.id,
             };
@@ -190,11 +196,22 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
                 },
             });
             if (ownerCreds) {
-                return { ...u, ...ownerCreds, effectiveId: u.ownerId, sessionUserId: realUser.id };
+                return {
+                    ...u,
+                    ...ownerCreds,
+                    ...permisosDeLaPersona,
+                    effectiveId: u.ownerId,
+                    sessionUserId: realUser.id,
+                };
             }
         }
 
-        return { ...u, effectiveId: u.ownerId ?? u.id, sessionUserId: realUser.id };
+        return {
+            ...u,
+            ...permisosDeLaPersona,
+            effectiveId: u.ownerId ?? u.id,
+            sessionUserId: realUser.id,
+        };
     });
 
     if (request) {
