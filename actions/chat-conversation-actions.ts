@@ -145,12 +145,25 @@ async function assertCanDeleteChats(userId: string) {
   if (user.ownerId === userId && user.advisorRole === "administrador") return;
 
   const realUserId = user.sessionUserId ?? user.id;
+
+  // El vinculo vale en las DOS direcciones, igual que para cambiar de cuenta:
+  //
+  //   - A uno lo metieron en esa cuenta como administrador.
+  //   - O esa cuenta la metio uno bajo la suya, y entonces uno es el que manda
+  //     ahi: es quien la vinculo.
+  //
+  // Faltaba la segunda, y es la del dueño de varias cuentas -el caso normal-.
+  // Podia entrar en Verzay Ventas desde el menu de cuentas, ver sus chats
+  // eliminados en la lista... y no poder limpiarlos: la comprobacion solo
+  // miraba la direccion contraria. `switchToAccount` ya aceptaba las dos.
   const link = await db.$queryRaw<{ id: string }[]>`
     SELECT id
     FROM "linked_accounts"
-    WHERE "master_user_id" = ${userId}
-      AND "linked_user_id" = ${realUserId}
-      AND role = 'administrador'::"LinkedAccountRole"
+    WHERE ("master_user_id" = ${userId}
+           AND "linked_user_id" = ${realUserId}
+           AND role = 'administrador'::"LinkedAccountRole")
+       OR ("master_user_id" = ${realUserId}
+           AND "linked_user_id" = ${userId})
     LIMIT 1
   `.catch(() => []);
 
@@ -514,6 +527,16 @@ export async function deleteChatConversationAction(
  * Se repite la limpieza en vez de darlos por limpios porque entre el borrado
  * y el vaciado el contacto pudo haber vuelto: si el cliente escribio, la
  * linea recreo la ficha y los mensajes.
+ *
+ * Va por TODAS las cuentas asociadas, no solo por la activa. La pestana
+ * Eliminados junta lo de todas -las marcas se leen con ese alcance-, asi que
+ * limpiar solo una dejaba el resto intacto en la base: la lista se veia vacia
+ * por el apaño de pantalla y al recargar volvian los mismos chats. El aviso
+ * decia 61 y se limpiaban los de una cuenta.
+ *
+ * Cada cuenta se comprueba por separado con `assertCanDeleteChats`. Si en
+ * alguna no se manda, se salta y se sigue con las demas: se limpia lo que se
+ * pueda, nunca lo que no se deba.
  */
 export async function purgeDeletedChatsAction(
   input: { userId: string },
@@ -522,29 +545,54 @@ export async function purgeDeletedChatsAction(
     const userId = z.string().trim().min(1).parse(input.userId);
     await assertCanDeleteChats(userId);
 
+    const user = await currentUser();
+    const asociadas = user ? await getAssociatedAccountIds(user) : [];
+    const cuentas = [userId, ...asociadas.filter((id) => id !== userId)];
+
     await ensurePurgedAtColumn();
-    const marcados = await chatConversationPreferenceTable.findMany({
-      where: { userId, deletedAt: { not: null }, purgedAt: null },
-      select: { remoteJid: true },
-    });
+    let count = 0;
+    let saltadas = 0;
 
-    for (const { remoteJid } of marcados) {
-      await hardDeleteLocalChat(userId, remoteJid);
+    for (const cuenta of cuentas) {
+      if (cuenta !== userId) {
+        try {
+          await assertCanDeleteChats(cuenta);
+        } catch {
+          saltadas++;
+          continue;
+        }
+      }
+
+      const marcados = await chatConversationPreferenceTable.findMany({
+        where: { userId: cuenta, deletedAt: { not: null }, purgedAt: null },
+        select: { remoteJid: true },
+      });
+
+      for (const { remoteJid } of marcados) {
+        await hardDeleteLocalChat(cuenta, remoteJid);
+      }
+
+      const limpiados = await chatConversationPreferenceTable.updateMany({
+        where: { userId: cuenta, deletedAt: { not: null }, purgedAt: null },
+        data: { purgedAt: new Date() },
+      });
+      count += limpiados.count;
     }
-
-    const { count } = await chatConversationPreferenceTable.updateMany({
-      where: { userId, deletedAt: { not: null }, purgedAt: null },
-      data: { purgedAt: new Date() },
-    });
 
     invalidatePersistedInboxCache();
     revalidatePath("/chats");
 
+    // El aviso dice lo que de verdad paso. "No quedaba nada por limpiar"
+    // mientras la lista enseñaba 61 era el mensaje que despistaba: no es que no
+    // quedara nada, es que estaba en cuentas que no se tocaron.
+    const enCuentasAjenas =
+      saltadas > 0 ? ` Quedan chats en ${saltadas} cuenta${saltadas !== 1 ? "s" : ""} donde no se puede limpiar.` : "";
+
     return {
       success: true,
-      message: count > 0
+      message: (count > 0
         ? `${count} chat${count !== 1 ? "s" : ""} limpiado${count !== 1 ? "s" : ""} por completo.`
-        : "No quedaba nada por limpiar.",
+        : "No quedaba nada por limpiar.") + enCuentasAjenas,
       data: { purged: count },
     };
   } catch (error) {
