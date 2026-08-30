@@ -8,6 +8,7 @@ import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions"
 import { getAllModules } from "@/actions/module-actions";
 import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
 import { parseItemIds, serializeItemIds } from "@/lib/permisos";
+import { isAdminLike } from "@/lib/rbac";
 
 export type ModuleOption = { id: string; label: string };
 export type AdvisorRow = {
@@ -200,11 +201,32 @@ export type AdvisorPermissions = {
   granted: string[];
   /** Si ve la bolsa de conversaciones sin dueño, de donde salen las que toma. */
   canTakeUnassigned: boolean;
+  /**
+   * El panel de ESTA cuenta. Hay tres módulos llamados "Panel" —el del equipo,
+   * el del reseller y el del cliente— y en la pantalla solo tiene sentido el de
+   * la cuenta que está dando el acceso: es el que la persona va a heredar.
+   */
+  panelRoute: string | null;
 };
+
+/** La variante de "Panel" que le corresponde a la cuenta, por su rol. */
+async function panelDeLaCuenta(role: string): Promise<string | null> {
+  const rutas = isAdminLike(role)
+    ? ["/panel", "/admin"]
+    : role === "reseller"
+      ? ["/reseller-panel"]
+      : ["/client-panel"];
+
+  const panel = await db.module.findFirst({
+    where: { route: { in: rutas } },
+    select: { route: true },
+  });
+  return panel?.route ?? null;
+}
 
 export async function updateAdvisorPermissions(
   advisorId: string,
-  permisos: AdvisorPermissions,
+  permisos: Omit<AdvisorPermissions, "panelRoute">,
 ): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
@@ -265,6 +287,7 @@ export async function getAdvisorPermissions(
       denied: [...parseItemIds(rows[0]?.denied)],
       granted: [...parseItemIds(rows[0]?.granted)],
       canTakeUnassigned: rows[0]?.canTake ?? true,
+      panelRoute: await panelDeLaCuenta(owner.role),
     },
   };
 }

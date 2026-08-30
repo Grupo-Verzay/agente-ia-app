@@ -279,15 +279,24 @@ export default async function RootGroupLayout({
     //
     // Las rutas tapadas se sacan ANTES de filtrar: después ya no están en
     // `modules`, y sin ellas el que sabe la URL entraba igual.
-    const rutasNegadas = allModules.flatMap(m =>
-        (m.moduleItems ?? [])
-            .filter(item =>
+    //
+    // Una misma ruta aparece en varios módulos —"Diagramas" está en los tres
+    // paneles, cada uno con su propia fila—, así que se tapa solo la que no le
+    // quede abierta por NINGÚN lado: si no, apagarla en el panel del cliente
+    // cerraba la que se le acababa de dar en el del equipo.
+    const rutasAbiertas = new Set<string>();
+    const rutasCerradas = new Set<string>();
+    for (const m of allModules) {
+        for (const item of m.moduleItems ?? []) {
+            const ruta = item.url.replace('/admin/', '/panel/');
+            const laVe =
                 mandaLoConcedido && m.adminOnly
-                    ? !concedidos.has(item.id)
-                    : negados.has(item.id),
-            )
-            .map(item => item.url.replace('/admin/', '/panel/')),
-    );
+                    ? concedidos.has(item.id)
+                    : !negados.has(item.id);
+            (laVe ? rutasAbiertas : rutasCerradas).add(ruta);
+        }
+    }
+    const rutasNegadas = [...rutasCerradas].filter(ruta => !rutasAbiertas.has(ruta));
     modules = aplicarPermisos(modules, {
         denied: negados,
         granted: concedidos,

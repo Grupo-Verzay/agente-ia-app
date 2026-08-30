@@ -18,6 +18,9 @@ import { getAllModules } from "@/actions/module-actions";
 import { getAdvisorPermissions, updateAdvisorPermissions } from "@/actions/team-actions";
 import type { ModuleWithItems } from "@/schema/module";
 
+/** Las variantes de "Panel": del equipo, del reseller y del cliente. */
+const PANEL_ROUTES = ["/panel", "/admin", "/reseller-panel", "/client-panel"];
+
 /**
  * Qué ve una persona del equipo dentro de la cuenta.
  *
@@ -48,10 +51,16 @@ export function AdvisorPermissionsDialog({
     setLoading(true);
     Promise.all([getAllModules(), getAdvisorPermissions(advisorId)])
       .then(([mods, permisos]) => {
-        const conApartados = (mods.data ?? []).filter((m) => (m.moduleItems ?? []).length > 0);
-        setModules(conApartados);
-
         const p = permisos.success ? permisos.data : undefined;
+
+        // De los tres módulos llamados "Panel" solo se muestra el de esta
+        // cuenta: es el que la persona hereda al entrar. Los otros dos no le
+        // llegan nunca, así que ponerlos aquí solo confunde.
+        const otrosPaneles = PANEL_ROUTES.filter((r) => r !== p?.panelRoute);
+        const conApartados = (mods.data ?? []).filter(
+          (m) => (m.moduleItems ?? []).length > 0 && !otrosPaneles.includes(m.route),
+        );
+        setModules(conApartados);
         const negados = new Set(p?.denied ?? []);
         const concedidos = new Set(p?.granted ?? []);
 
