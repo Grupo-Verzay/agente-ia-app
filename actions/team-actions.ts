@@ -221,6 +221,9 @@ export type AdvisorPermissions = {
   };
 };
 
+/** Las variantes de "Panel": del equipo, del reseller y del cliente. */
+const PANEL_ROUTES = ["/panel", "/admin", "/reseller-panel", "/client-panel"];
+
 /** La variante de "Panel" que le corresponde a la cuenta, por su rol. */
 async function panelDeLaCuenta(role: string): Promise<string | null> {
   const rutas = isAdminLike(role)
@@ -732,8 +735,15 @@ export async function getOwnerModules(): Promise<ActionResult<ModuleOption[]>> {
   const ownerIds = await getUserModuleIds(owner.id);
   const enabledIds = new Set(ownerIds.data);
 
+  // Los tres módulos llamados "Panel" son de roles distintos, y a la gente de
+  // una cuenta solo le llega el de esa cuenta. Como aquí ya se descartan los
+  // "Solo Admin", el del equipo no está: en una cuenta de admin no queda
+  // ninguno, y el acceso al Panel se da desde Permisos, apartado por apartado.
+  const suPanel = await panelDeLaCuenta(owner.role);
+
   const modules = allRes.data
     .filter((m) => !m.adminOnly && (enabledIds.size === 0 || enabledIds.has(m.id)))
+    .filter((m) => !PANEL_ROUTES.includes(m.route) || m.route === suPanel)
     .map((m) => ({ id: m.id, label: m.label }));
 
   return { success: true, data: modules };

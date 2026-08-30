@@ -12,7 +12,13 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     // que puede abrir dentro lo decide el guardián de rutas del layout raíz, que
     // tapa uno por uno los que no se le dieron.
     const conConcedidos = parseItemIds(user?.grantedModuleItems).size > 0;
-    if (!user || (!isAdminOrReseller(user.role) && !conConcedidos)) return <AccessDenied />;
+    if (!user || (!isAdminOrReseller(user.role) && !conConcedidos)) {
+        return (
+            <AccessDenied
+                detalle={`layout · rol ${user?.role ?? "?"} · equipo ${user?.advisorRole ?? "—"} · concedidos ${parseItemIds(user?.grantedModuleItems).size} · sesión ${user?.sessionUserId?.slice(0, 8) ?? "?"} · viendo ${user?.effectiveId?.slice(0, 8) ?? "?"}`}
+            />
+        );
+    }
 
     const [panelModule, resellerModule] = await Promise.all([
         db.module.findFirst({

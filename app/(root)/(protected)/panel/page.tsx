@@ -17,7 +17,13 @@ export default async function PanelPage() {
     const esAgente = !!user.ownerId && user.advisorRole !== "administrador";
     const mandaLoConcedido = esAgente || !isAdminOrReseller(user.role);
 
-    if (!isAdminLike(user.role) && concedidos.size === 0) return <AccessDenied />;
+    if (!isAdminLike(user.role) && concedidos.size === 0) {
+        return (
+            <AccessDenied
+                detalle={`portada · rol ${user.role} · equipo ${user.advisorRole ?? "—"} · concedidos 0 · sesión ${user.sessionUserId.slice(0, 8)} · viendo ${user.effectiveId.slice(0, 8)}`}
+            />
+        );
+    }
 
     const panelModule = await db.module.findFirst({
         where: { route: { in: ["/panel", "/admin"] } },
