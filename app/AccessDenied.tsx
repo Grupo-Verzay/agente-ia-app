@@ -4,7 +4,12 @@ import { ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 
-function AccessDenied() {
+/**
+ * `detalle` lo pone quien deniega, con el dato que explica el corte. Sin él la
+ * pantalla solo dice "no puedes", y desde fuera no hay manera de saber cuál de
+ * las condiciones falló.
+ */
+function AccessDenied({ detalle }: { detalle?: string }) {
   const router = useRouter()
 
   return (
@@ -17,6 +22,11 @@ function AccessDenied() {
         <p className="text-sm text-muted-foreground mb-6">
           No tienes permisos para ver esta página. Si crees que es un error, contacta al administrador.
         </p>
+        {detalle && (
+          <p className="mb-6 rounded-lg bg-muted px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+            {detalle}
+          </p>
+        )}
         <Button variant="default" className="w-full" onClick={() => router.back()}>
           Volver atrás
         </Button>
