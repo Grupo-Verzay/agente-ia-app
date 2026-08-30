@@ -155,9 +155,18 @@ export function NavMain({ user }: { user: CurrentUser }) {
                     // Resellers (panel admin) van directo a /admin/clientes sin importar los sub-items
                     if (PANEL_ROUTES.includes(route) || route === '/reseller-panel' || route === CLIENT_PANEL_ROUTE) {
                         const firstSubItem = moduleItems[0];
+                        // El panel tiene su propia portada con los apartados que
+                        // la persona puede abrir; entrar directo al primero
+                        // dejaba fuera esa vista, y a quien solo tiene dos
+                        // concedidos le caia en uno sin saber que habia otro.
+                        // /reseller-panel no tiene portada: ahi se sigue entrando
+                        // al primer apartado.
+                        const tienePortada = PANEL_ROUTES.includes(route) || route === CLIENT_PANEL_ROUTE;
                         const firstDest = validateRouteAndRole
                             ? targetRoute
-                            : firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
+                            : tienePortada
+                                ? targetRoute
+                                : firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
                         return (
                             <SidebarMenuItem key={id}>
                                 <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl, isLocked)}>
