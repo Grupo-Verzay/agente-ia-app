@@ -63,7 +63,10 @@ export function AdvisorAssignBadge({
   const isAgent = advisorRole === 'agente';
   const isMySession = assignedAdvisorId === currentAdvisorId;
   const currentAdvisor = currentAdvisorId ? advisors.find((a) => a.id === currentAdvisorId) ?? null : null;
-  const canAssignToMe = !!currentAdvisorId && !isMySession;
+  // Una sola fila para uno mismo: "Asignarme" arriba, y fuera de la lista de
+  // abajo. Salia repetido porque `advisors` incluye a quien esta mirando.
+  const canAssignToMe = !!currentAdvisorId;
+  const otrosAsesores = advisors.filter((a) => a.id !== currentAdvisorId);
   const hasAssignment = !!assignedAdvisorId;
 
   const isPill = size === 'sm';
@@ -226,7 +229,10 @@ export function AdvisorAssignBadge({
           <button
             type="button"
             onClick={() => void handleAssign(currentAdvisorId ?? null)}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+            className={cn(
+              'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors',
+              isMySession && 'font-semibold text-primary',
+            )}
           >
             <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(currentAdvisorId!))}>
               {currentAdvisor ? initials(currentAdvisor) : 'Yo'}
@@ -235,9 +241,9 @@ export function AdvisorAssignBadge({
           </button>
         )}
 
-        {canAssignToMe && <div className="my-1 border-t border-border/50" />}
+        {canAssignToMe && otrosAsesores.length > 0 && <div className="my-1 border-t border-border/50" />}
 
-        {advisors.map((a) => (
+        {otrosAsesores.map((a) => (
           <button
             key={a.id}
             type="button"
