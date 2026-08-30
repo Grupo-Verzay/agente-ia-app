@@ -207,6 +207,18 @@ export type AdvisorPermissions = {
    * la cuenta que está dando el acceso: es el que la persona va a heredar.
    */
   panelRoute: string | null;
+  /**
+   * Quién es esta persona a ojos del servidor. Se muestra en la pantalla porque
+   * es lo que explica por qué ve o no ve algo: el rol de plataforma decide si
+   * los módulos "Solo Admin" le están abiertos de por sí, y el de equipo si
+   * hereda los accesos de la cuenta.
+   */
+  quienEs: {
+    email: string;
+    role: string;
+    advisorRole: string | null;
+    esDeLaCuenta: boolean;
+  };
 };
 
 /** La variante de "Panel" que le corresponde a la cuenta, por su rol. */
@@ -226,7 +238,7 @@ async function panelDeLaCuenta(role: string): Promise<string | null> {
 
 export async function updateAdvisorPermissions(
   advisorId: string,
-  permisos: Omit<AdvisorPermissions, "panelRoute">,
+  permisos: Omit<AdvisorPermissions, "panelRoute" | "quienEs">,
 ): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
@@ -281,13 +293,32 @@ export async function getAdvisorPermissions(
     LIMIT 1
   `;
 
+  // Se lee por el mismo camino que la sesión de esa persona (Prisma, no SQL a
+  // mano): si aquí sale una cosa y allí otra, es que no es la misma fila.
+  const fila = await db.user.findUnique({
+    where: { id: advisorId },
+    select: {
+      email: true,
+      role: true,
+      ownerId: true,
+      advisorRole: true,
+      grantedModuleItems: true,
+    },
+  });
+
   return {
     success: true,
     data: {
       denied: [...parseItemIds(rows[0]?.denied)],
-      granted: [...parseItemIds(rows[0]?.granted)],
+      granted: [...parseItemIds(fila?.grantedModuleItems ?? rows[0]?.granted)],
       canTakeUnassigned: rows[0]?.canTake ?? true,
       panelRoute: await panelDeLaCuenta(owner.role),
+      quienEs: {
+        email: fila?.email ?? "",
+        role: fila?.role ?? "",
+        advisorRole: fila?.advisorRole ?? null,
+        esDeLaCuenta: !!fila?.ownerId,
+      },
     },
   };
 }
