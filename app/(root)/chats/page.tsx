@@ -309,6 +309,48 @@ export default async function ChatsPage({
   const instancias = esAgenteDeLaCuenta
     ? ownInstancias
     : [...ownInstancias, ...linkedInstancias];
+
+  /* ─── La API key de CADA linea, no una sola para todas ───
+   *
+   * Antes se buscaba una unica clave, la de la cuenta que consta como dueña del
+   * usuario. Eso deja fuera el caso normal de un asesor: su propia cuenta no
+   * tiene ninguna linea conectada -no le hace falta, atiende las de otros-, asi
+   * que la busqueda no encontraba nada y se quedaba sin poder abrir NINGUN
+   * chat. Salia "No hay instancia o API key configurada para cargar mensajes"
+   * aunque las lineas que atiende estuvieran perfectamente conectadas.
+   *
+   * Cada Instancia sabe de que cuenta es (userId), asi que la clave se resuelve
+   * por linea. Un asesor vinculado a tres cuentas usa la clave de la cuenta a la
+   * que pertenece cada conversacion.
+   */
+  const cuentasConLinea = Array.from(
+    new Set(instancias.map((inst) => inst.userId).filter(Boolean) as string[]),
+  );
+  const duenosDeLinea = settleValue(
+    await settle(
+      db.user.findMany({
+        where: { id: { in: cuentasConLinea } },
+        select: { id: true, apiKeyId: true },
+      }),
+    ),
+  ) ?? [];
+  const idsDeClave = Array.from(
+    new Set(duenosDeLinea.map((d) => d.apiKeyId).filter(Boolean) as string[]),
+  );
+  const clavesPorId = new Map(
+    (
+      settleValue(
+        await settle(db.apiKey.findMany({ where: { id: { in: idsDeClave } } })),
+      ) ?? []
+    ).map((clave) => [clave.id, clave]),
+  );
+  const claveIdPorCuenta = new Map(duenosDeLinea.map((d) => [d.id, d.apiKeyId]));
+
+  /** La API key con la que se habla con Evolution para esta linea. */
+  const claveDeLaLinea = (instancia: { userId?: string | null }) => {
+    const claveId = instancia.userId ? claveIdPorCuenta.get(instancia.userId) : null;
+    return claveId ? clavesPorId.get(claveId) ?? null : null;
+  };
   const baileysRuntimeNames = new Set(
     instancias.filter((inst) => inst.instanceType === "baileys").map((inst) => inst.instanceName),
   );
@@ -418,9 +460,11 @@ export default async function ChatsPage({
         : {
             instanceName: inst.instanceName,
             instanceType: inst.instanceType,
-            status: apiKey ? "unknown" : "error",
-            label: apiKey ? "Configurada" : "Sin API",
-            message: apiKey ? "Lista para sincronizar." : "No hay API Key configurada.",
+            status: claveDeLaLinea(inst) ? "unknown" : "error",
+            label: claveDeLaLinea(inst) ? "Configurada" : "Sin API",
+            message: claveDeLaLinea(inst)
+              ? "Lista para sincronizar."
+              : "No hay API Key configurada.",
           },
   );
 
@@ -433,7 +477,7 @@ export default async function ChatsPage({
         inst.instanceType === "baileys" ||
         inst.instanceType == null,
     )
-    .filter((inst) => isBaileysRuntimeInstance(inst) || !!apiKey)
+    .filter((inst) => isBaileysRuntimeInstance(inst) || !!claveDeLaLinea(inst))
     .map((inst) => ({ instancia: inst, isBaileys: isBaileysRuntimeInstance(inst) }));
 
   let chatsResult: FetchChatsResult;
@@ -522,7 +566,7 @@ export default async function ChatsPage({
       fetchPlans.map((plan) =>
         plan.isBaileys
           ? fetchChatsFromBaileys(plan.instancia.instanceName)
-          : fetchChatsFromEvolution(apiKey!, plan.instancia.instanceName, {
+          : fetchChatsFromEvolution(claveDeLaLinea(plan.instancia)!, plan.instancia.instanceName, {
               timeoutMs: ESPERA_EVOLUTION_RENDER_MS,
             }),
       ),
@@ -561,8 +605,14 @@ export default async function ChatsPage({
       const inst = plan.instancia;
       const isBaileysInst = plan.isBaileys;
       const instActionCtx =
-        !isBaileysInst && apiKey
-          ? { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName: inst.instanceName }
+        !isBaileysInst && claveDeLaLinea(inst)
+          ? {
+              apiKeyData: {
+                url: claveDeLaLinea(inst)!.url,
+                key: claveDeLaLinea(inst)!.key,
+              },
+              instanceName: inst.instanceName,
+            }
           : null;
       return {
         instanceName: inst.instanceName,
@@ -591,8 +641,14 @@ export default async function ChatsPage({
       const inst = plan.instancia;
       const isBaileysInst = plan.isBaileys;
       const instActionCtx =
-        !isBaileysInst && apiKey
-          ? { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName: inst.instanceName }
+        !isBaileysInst && claveDeLaLinea(inst)
+          ? {
+              apiKeyData: {
+                url: claveDeLaLinea(inst)!.url,
+                key: claveDeLaLinea(inst)!.key,
+              },
+              instanceName: inst.instanceName,
+            }
           : null;
       return {
         instanceName: inst.instanceName,
@@ -680,9 +736,15 @@ export default async function ChatsPage({
 
   const advisorRole: string | null = user.advisorRole;
   const currentAdvisorId: string = user.id;
+  // La clave de la linea seleccionada, con respaldo en la de la cuenta propia
+  // para no cambiar nada en el caso de siempre (un dueño con su unica linea).
+  const claveActiva = whatsappInstancia ? claveDeLaLinea(whatsappInstancia) ?? apiKey : apiKey;
   const actionContext =
-    whatsappInstancia && apiKey && !isBaileys
-      ? { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName: whatsappInstancia.instanceName }
+    whatsappInstancia && claveActiva && !isBaileys
+      ? {
+          apiKeyData: { url: claveActiva.url, key: claveActiva.key },
+          instanceName: whatsappInstancia.instanceName,
+        }
       : null;
 
   const instanceNameForActions = whatsappInstancia?.instanceName ?? '';
@@ -728,7 +790,7 @@ export default async function ChatsPage({
       sendWorkflowAction={sendWorkflowAction}
       sendQuickReplyAction={sendQuickReplyAction}
       refetchChatsAction={refetchChatsAction}
-      apiKeyData={apiKey ? { url: apiKey.url, key: apiKey.key } : undefined}
+      apiKeyData={claveActiva ? { url: claveActiva.url, key: claveActiva.key } : undefined}
       instanceActionSets={instanceActionSets}
       instanceHealth={instanceHealth}
       allTags={[]}
