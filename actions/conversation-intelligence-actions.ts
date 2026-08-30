@@ -289,8 +289,28 @@ ${context.trim() || "Sin contexto"}`;
   }
 }
 
-function list(values?: string[]) {
-  return values?.filter(Boolean).map((value) => `- ${value}`).join("\n") || "- Sin información";
+/**
+ * Una linea del resumen, o nada si no hay que decir.
+ *
+ * La nota ocupaba media conversacion: cuatro apartados con su encabezado, cada
+ * uno con su lista de guiones, y los vacios escribiendo "- Sin informacion"
+ * -tres palabras para decir que no hay nada-. Se queda en dos o tres lineas:
+ * los valores van seguidos en una sola linea y el apartado que no tiene nada
+ * sencillamente no se escribe.
+ *
+ * Lo que se recorta es SOLO la nota. El perfil del cliente y las tareas de
+ * promesa se siguen guardando igual: eso no se lee aqui, se lee en su sitio.
+ */
+function linea(etiqueta: string, valores?: string[] | string | null): string | null {
+  const partes = (Array.isArray(valores) ? valores : [valores ?? ""])
+    .map((valor) => (valor ?? "").trim())
+    .filter(Boolean);
+  if (partes.length === 0) return null;
+
+  const texto = partes.join(" · ");
+  // Un solo valor larguisimo devolveria el ladrillo que se acaba de quitar.
+  const recortado = texto.length > 180 ? `${texto.slice(0, 177)}...` : texto;
+  return `${etiqueta}: ${recortado}`;
 }
 
 export async function generateConversationIntelligence(args: {
@@ -322,24 +342,29 @@ export async function generateConversationIntelligence(args: {
   if (!conversation) return { success: true, message: "Sin mensajes para resumir." };
 
   const result = await analyzeConversation(session.userId, conversation);
-  const fallback = messages.slice(-12)
-    .map((item) => `${item.fromMe ? "Asesor" : "Cliente"}: ${item.content ?? ""}`)
+  // Respaldo para cuando la IA no responde. Antes volcaba los ultimos doce
+  // mensajes enteros, que es el ladrillo mas grande de todos; con los ultimos
+  // cuatro recortados se entiende por donde iba la conversacion.
+  const fallback = messages.slice(-4)
+    .map((item) => {
+      const texto = (item.content ?? "").trim().replace(/\s+/g, " ");
+      const corto = texto.length > 90 ? `${texto.slice(0, 87)}...` : texto;
+      return `${item.fromMe ? "Asesor" : "Cliente"}: ${corto}`;
+    })
+    .filter((fila) => !fila.endsWith(": "))
     .join("\n");
-  const content = result
-    ? `RESUMEN IA · ${args.reason === "transferred" ? "Relevo de asesor" : "Conversación cerrada"}
-
-Qué pidió:
-${result.requested || "Sin información"}
-
-Objeciones:
-${list(result.objections)}
-
-Acuerdos:
-${list(result.agreements)}
-
-Próximos pasos:
-${list(result.nextSteps)}`
-    : `RESUMEN DE CONVERSACIÓN\n\n${fallback}`;
+  const titulo = `RESUMEN IA · ${args.reason === "transferred" ? "Relevo de asesor" : "Conversación cerrada"}`;
+  const lineas = result
+    ? [
+        linea("Pidió", result.requested),
+        linea("Acordado", result.agreements),
+        linea("Sigue", result.nextSteps),
+      ].filter(Boolean)
+    : [];
+  // Si la IA respondio pero sin sacar nada en claro, una nota con solo el
+  // titulo no dice nada: se cae al extracto de los ultimos mensajes.
+  const cuerpo = lineas.length > 0 ? lineas.join("\n") : fallback;
+  const content = cuerpo ? `${titulo}\n${cuerpo}` : titulo;
 
   const note = await db.internalNote.create({
     data: {

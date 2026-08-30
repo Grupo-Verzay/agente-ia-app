@@ -360,6 +360,7 @@ function ChatContactItemBase({
       ref={rowRef}
       role="listitem"
       data-chat-id={contact.id}
+      data-chat-instance={contact.instanceName ?? undefined}
       onMouseEnter={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
       onFocus={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
       onTouchStart={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
