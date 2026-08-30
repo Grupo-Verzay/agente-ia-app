@@ -102,10 +102,12 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
 
     let effectiveUserId = realUser.id;
     let fromMembership = false;
+    let porImpersonacion = false;
     let accountRole: AccountRole | null = null;
 
     if (impersonateId && isAdminLike(realUser.role)) {
         effectiveUserId = impersonateId;
+        porImpersonacion = true;
     } else if (impersonateId && isAdminOrReseller(realUser.role)) {
         // Reseller (no admin): solo puede actuar como uno de SUS clientes
         // (asignados en `reseller` o creados como demo por él).
@@ -121,7 +123,10 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
             });
             owns = !!assignment;
         }
-        if (owns) effectiveUserId = impersonateId;
+        if (owns) {
+            effectiveUserId = impersonateId;
+            porImpersonacion = true;
+        }
     } else if (impersonateId) {
         // Colaborador del equipo: solo a los clientes que le asignaron. Es el
         // caso de quien tiene que entrar a arreglar una cuenta concreta sin
@@ -132,7 +137,10 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
                 select: { id: true },
             })
             .catch(() => null);
-        if (asignado) effectiveUserId = impersonateId;
+        if (asignado) {
+            effectiveUserId = impersonateId;
+            porImpersonacion = true;
+        }
     } else if (activeAccountId && activeAccountId !== realUser.id) {
         try {
             const membership = await db.$queryRaw<{ role: AccountRole }[]>`
@@ -175,12 +183,24 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
         // Cuando se entra a otra cuenta, `u` es la fila de ESA cuenta, y sus
         // permisos —normalmente vacíos— tapaban los de quien de verdad está
         // sentado delante: por eso alguien con apartados concedidos llegaba a
-        // la pantalla sin ninguno. Se ponen aquí, para todos los caminos.
-        const permisosDeLaPersona = {
-            deniedModuleItems: realUser.deniedModuleItems,
-            grantedModuleItems: realUser.grantedModuleItems,
-            canTakeUnassigned: realUser.canTakeUnassigned,
-        };
+        // la pantalla sin ninguno.
+        //
+        // Salvo al ENTRAR como la cuenta, que es otra cosa: ahí se actúa como
+        // ella, con sus módulos y sus apartados. Los recortes propios acotan lo
+        // que uno hace en su cuenta, no lo que puede hacer dentro de una que le
+        // confiaron: el admin entra y la ve entera, y quien la tiene asignada
+        // tiene que poder hacer ahí lo mismo, que para eso se le pasó.
+        const permisosDeLaPersona = porImpersonacion
+            ? {
+                deniedModuleItems: u.deniedModuleItems,
+                grantedModuleItems: u.grantedModuleItems,
+                canTakeUnassigned: u.canTakeUnassigned,
+            }
+            : {
+                deniedModuleItems: realUser.deniedModuleItems,
+                grantedModuleItems: realUser.grantedModuleItems,
+                canTakeUnassigned: realUser.canTakeUnassigned,
+            };
 
         if (fromMembership) {
             return {
