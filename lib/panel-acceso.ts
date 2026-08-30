@@ -1,0 +1,47 @@
+import "server-only";
+
+import { db } from "@/lib/db";
+import { isAdminOrReseller } from "@/lib/rbac";
+import { parseItemIds } from "@/lib/permisos";
+import { PANEL_ROUTES } from "@/lib/sidebar-modules";
+
+type Persona = {
+    role: string;
+    ownerId?: string | null;
+    advisorRole?: string | null;
+    deniedModuleItems?: string | null;
+    grantedModuleItems?: string | null;
+};
+
+/**
+ * Los apartados del panel que esta persona puede abrir.
+ *
+ * Se calcula con la MISMA regla que el menú, y no con el rol: quien llegaba
+ * aquí por rol entraba, y a quien se le habían dado apartados sueltos se le
+ * cerraba la puerta antes de mirarlos. Además la regla no depende de que el
+ * módulo esté marcado "Solo Admin": si lo está, manda lo concedido; si no, lo
+ * que no se le haya quitado. Con la marca puesta o quitada, el resultado es el
+ * que se ve en la pantalla de Permisos.
+ *
+ * Devuelve null si no hay módulo de panel; lista vacía si no puede abrir nada.
+ */
+export async function apartadosDelPanel(persona: Persona) {
+    const panelModule = await db.module.findFirst({
+        where: { route: { in: PANEL_ROUTES } },
+        include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+    });
+    if (!panelModule) return null;
+
+    const concedidos = parseItemIds(persona.grantedModuleItems);
+    const negados = parseItemIds(persona.deniedModuleItems);
+    const esAgente = !!persona.ownerId && persona.advisorRole !== "administrador";
+    const mandaLoConcedido = esAgente || !isAdminOrReseller(persona.role);
+
+    const items = (panelModule.moduleItems ?? []).filter((item) =>
+        mandaLoConcedido && panelModule.adminOnly
+            ? concedidos.has(item.id)
+            : !negados.has(item.id),
+    );
+
+    return { panelModule, items };
+}
