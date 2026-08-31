@@ -768,13 +768,19 @@ export async function sendManualChatPayloadAction(
   // Guardamos el texto original antes de appendear firma
   const originalText = payload.kind === "text" ? payload.text.trim() : null;
 
-  // Prepend firma del asesor (al inicio) si está activa para esta sesión
-  if (payload.kind === "text" && user?.id) {
+  // Prepend firma del asesor (al inicio) si está activa para esta sesión.
+  //
+  // El TEXTO de la firma es de quien escribe —cada asesor firma con su nombre—,
+  // pero el interruptor vive en la conversación, y la conversación cuelga de la
+  // cuenta dueña de la LÍNEA. Se buscaba con `user.effectiveId`, que es la
+  // cuenta desde la que uno escribe: cuando la línea era de otra cuenta no
+  // encontraba la sesión y el mensaje salía sin firma, sin decir nada. Es el
+  // mismo `effectiveOwnerId` que usa el cierre de la conversación más abajo.
+  if (payload.kind === "text" && user?.id && effectiveOwnerId) {
     const signature = (user?.advisorSignature as string | null | undefined)?.trim();
     if (signature) {
-      const effectiveId = user.effectiveId;
       const sessionRow = await db.session.findFirst({
-        where: { userId: effectiveId, remoteJid },
+        where: { userId: effectiveOwnerId, remoteJid },
         select: { signatureEnabled: true },
       });
       if (sessionRow?.signatureEnabled) {
@@ -855,10 +861,26 @@ export async function toggleSessionSignatureAction(
     };
   }
 
-  const effectiveOwnerId = user.ownerId ?? user.id;
+  // El interruptor se guarda donde vive la conversación, que es la cuenta dueña
+  // de la línea y no siempre la de quien escribe. Se sacaba de `user.ownerId ??
+  // user.id`, así que al encenderlo desde una línea ajena se marcaban las
+  // sesiones de la cuenta equivocada: el interruptor se veía encendido y los
+  // mensajes seguían saliendo sin firma.
+  const sesion = await db.session.findUnique({
+    where: { id: sessionId },
+    select: { userId: true },
+  });
+  const cuentaDeLaConversacion = sesion?.userId ?? user.ownerId ?? user.id;
+
+  // Y solo sobre una cuenta a la que uno de verdad alcanza: el id de sesión
+  // llega del navegador.
+  const alcanza = await getAuthorizedAccountUserIds(user);
+  if (!alcanza.includes(cuentaDeLaConversacion)) {
+    return { success: false, message: "No autorizado." };
+  }
 
   await db.session.updateMany({
-    where: { userId: effectiveOwnerId },
+    where: { userId: cuentaDeLaConversacion },
     data: { signatureEnabled: enabled },
   });
 
