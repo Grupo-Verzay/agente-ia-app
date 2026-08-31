@@ -21,6 +21,7 @@ const DiagramaPage = async ({ params }: { params: { flowId: string } }) => {
         flowName={res.data.name}
         initialNodes={nodes}
         initialEdges={edges}
+        puedeEditar={res.data.puedeEditar}
       />
     </div>
   );

@@ -94,12 +94,9 @@ const DUE_TONES = {
 export function ProjectsClient({
   userId,
   team,
-  canManage,
 }: {
   userId: string;
   team: AdvisorInfo[];
-  /** Dueño o administrador. Un agente participa, pero no crea ni borra. */
-  canManage: boolean;
 }) {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -173,7 +170,7 @@ export function ProjectsClient({
         project={openProject}
         team={team}
         userId={userId}
-        canManage={canManage}
+        canManage={openProject.puedeGestionar}
         onBack={() => setOpenProjectId(null)}
         onProjectChanged={load}
       />
@@ -271,11 +268,11 @@ export function ProjectsClient({
 
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {canManage && (
-            <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
-              <Plus className="h-4 w-4" /> Nuevo
-            </Button>
-          )}
+          {/* Crear lo puede cualquiera del equipo: el proyecto queda a su
+              cargo. Lo de los demás sigue necesitando ser administrador. */}
+          <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Nuevo
+          </Button>
         </div>
       </ModuleToolbar>
 
@@ -292,13 +289,11 @@ export function ProjectsClient({
             </p>
             <p className="text-sm text-muted-foreground">
               {projects.length === 0
-                ? canManage
-                  ? "Crea el primero y empieza a repartir tareas con tu equipo."
-                  : "Cuando te añadan a uno, aparecerá aquí."
+                ? "Crea el primero y empieza a repartir tareas con tu equipo."
                 : "Prueba con otro texto o quita los filtros."}
             </p>
           </div>
-          {projects.length === 0 && canManage && (
+          {projects.length === 0 && (
             <Button onClick={() => setCreating(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nuevo proyecto
             </Button>
@@ -310,7 +305,7 @@ export function ProjectsClient({
             <ProjectCard
               key={project.id}
               project={project}
-              canManage={canManage}
+              canManage={project.puedeGestionar}
               onOpen={() => setOpenProjectId(project.id)}
               onEdit={() => setEditing(project)}
               onDelete={() => setDeleteTarget(project)}

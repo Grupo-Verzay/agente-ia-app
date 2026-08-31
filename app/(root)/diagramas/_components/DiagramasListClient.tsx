@@ -3,7 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Plus, Workflow as DiagramIcon, Trash2, Pencil, Loader2 } from 'lucide-react';
+import {
+  Plus,
+  Workflow as DiagramIcon,
+  Trash2,
+  Pencil,
+  Loader2,
+  Copy,
+  Lock,
+  Eye,
+  Users,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,12 +37,48 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+import {
   listFlowsAction,
   createFlowAction,
   renameFlowAction,
   deleteFlowAction,
+  duplicateFlowAction,
+  setFlowVisibilityAction,
   type FlowSummary,
 } from '@/actions/flow-actions';
+import type { FlowVisibility } from '@/lib/flow-visibility';
+
+/**
+ * Con quien se comparte cada diagrama, dicho en la pantalla. El icono va en la
+ * tarjeta para saberlo de un vistazo, sin abrir nada.
+ */
+const COMPARTIR: Record<FlowVisibility, { etiqueta: string; ayuda: string; icono: typeof Lock }> = {
+  privado: {
+    etiqueta: 'Privado',
+    ayuda: 'Solo tú lo ves',
+    icono: Lock,
+  },
+  lectura: {
+    etiqueta: 'Solo lectura',
+    ayuda: 'El equipo lo ve, no lo cambia',
+    icono: Eye,
+  },
+  edicion: {
+    etiqueta: 'Editable',
+    ayuda: 'El equipo puede cambiarlo',
+    icono: Users,
+  },
+};
 
 /**
  * "Hoy", "Ayer" o la fecha. Un listado de diagramas se mira para retomar el
@@ -50,10 +96,7 @@ function cuandoSeTocó(fecha: Date | string): string {
   return `Editado el ${d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}`;
 }
 
-export function DiagramasListClient({ canManage }: {
-  /** Dueño o administrador. Un agente consulta los diagramas, no los gestiona. */
-  canManage: boolean;
-}) {
+export function DiagramasListClient() {
   const router = useRouter();
   const [flows, setFlows] = useState<FlowSummary[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -62,6 +105,7 @@ export function DiagramasListClient({ canManage }: {
   const [renaming, setRenaming] = useState<FlowSummary | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleting, setDeleting] = useState<FlowSummary | null>(null);
+  const [duplicando, setDuplicando] = useState<string | null>(null);
 
   const load = async () => {
     const res = await listFlowsAction();
@@ -98,6 +142,23 @@ export function DiagramasListClient({ canManage }: {
     void load();
   };
 
+  const handleDuplicate = async (flow: FlowSummary) => {
+    setDuplicando(flow.id);
+    const res = await duplicateFlowAction(flow.id);
+    setDuplicando(null);
+    if (!res.success) return toast.error(res.message);
+    toast.success(`Se creó "${res.data.name}".`);
+    void load();
+  };
+
+  const handleVisibility = async (flow: FlowSummary, visibility: FlowVisibility) => {
+    if (visibility === flow.visibility) return;
+    const res = await setFlowVisibilityAction(flow.id, visibility);
+    if (!res.success) return toast.error(res.message);
+    toast.success(`Ahora es "${COMPARTIR[visibility].etiqueta.toLowerCase()}".`);
+    void load();
+  };
+
   const handleDelete = async () => {
     if (!deleting) return;
     const res = await deleteFlowAction(deleting.id);
@@ -121,12 +182,12 @@ export function DiagramasListClient({ canManage }: {
             )}
           </p>
         </div>
-        {canManage && (
-          <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Nuevo
-          </Button>
-        )}
+        {/* Crear lo puede cualquiera del equipo: el diagrama nace suyo y él
+            decide con quién lo comparte. */}
+        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+          <Plus className="h-4 w-4" />
+          Nuevo
+        </Button>
       </div>
 
       {flows === null ? (
@@ -145,12 +206,10 @@ export function DiagramasListClient({ canManage }: {
               un cliente cómo va a funcionar su atención.
             </p>
           </div>
-          {canManage && (
-            <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              Crear el primero
-            </Button>
-          )}
+          <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Crear el primero
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -170,41 +229,114 @@ export function DiagramasListClient({ canManage }: {
                 {/* En pantalla grande las acciones solo salen al pasar el mouse,
                     para que la rejilla se lea limpia; en tactil no hay mouse que
                     pasar, asi que ahi se quedan siempre puestas. */}
-                {canManage && (
                 <div className="flex shrink-0 gap-0.5 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+                  {flow.puedeEditar && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenaming(flow);
+                        setRenameValue(flow.name);
+                      }}
+                      title="Renombrar"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {/* Duplicar lo puede cualquiera que lo vea: la copia es suya y
+                      el original se queda intacto. Es la forma de partir de uno
+                      del equipo sin miedo a estropearlo. */}
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setRenaming(flow);
-                      setRenameValue(flow.name);
+                      void handleDuplicate(flow);
                     }}
-                    title="Renombrar"
+                    disabled={duplicando === flow.id}
+                    title="Duplicar"
                   >
-                    <Pencil className="h-3.5 w-3.5" />
+                    {duplicando === flow.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Copy className="h-3.5 w-3.5" />}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleting(flow);
-                    }}
-                    title="Eliminar"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {flow.puedeCompartir && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleting(flow);
+                      }}
+                      title="Eliminar"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
-                )}
               </CardHeader>
               <CardContent className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="rounded-md bg-muted px-1.5 py-0.5 font-medium tabular-nums text-foreground/70">
                   {flow.nodeCount === 1 ? '1 paso' : `${flow.nodeCount ?? 0} pasos`}
                 </span>
                 <span className="truncate">{cuandoSeTocó(flow.updatedAt)}</span>
+
+                {/* Con quién se comparte. Quien manda en el diagrama lo cambia
+                    desde aquí mismo; el resto solo lee en qué quedó. */}
+                {(() => {
+                  const compartir = COMPARTIR[flow.visibility] ?? COMPARTIR.edicion;
+                  const Icono = compartir.icono;
+
+                  if (!flow.puedeCompartir) {
+                    return (
+                      <span
+                        className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground/80"
+                        title={compartir.ayuda}
+                      >
+                        <Icono className="h-3 w-3" />
+                        {compartir.etiqueta}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted hover:text-foreground"
+                          title={compartir.ayuda}
+                        >
+                          <Icono className="h-3 w-3" />
+                          {compartir.etiqueta}
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuLabel>Con el equipo</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuRadioGroup
+                          value={flow.visibility}
+                          onValueChange={(v) => void handleVisibility(flow, v as FlowVisibility)}
+                        >
+                          {(Object.keys(COMPARTIR) as FlowVisibility[]).map((clave) => (
+                            <DropdownMenuRadioItem key={clave} value={clave}>
+                              <span className="flex flex-col">
+                                <span>{COMPARTIR[clave].etiqueta}</span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {COMPARTIR[clave].ayuda}
+                                </span>
+                              </span>
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))}

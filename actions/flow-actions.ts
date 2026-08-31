@@ -17,6 +17,7 @@ import { currentUser } from "@/lib/auth";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
+import { VISIBILIDADES, type FlowVisibility } from "@/lib/flow-visibility";
 
 export interface FlowSummary {
   id: string;
@@ -26,6 +27,13 @@ export interface FlowSummary {
   updatedAt: Date;
   /** Cuantos nodos tiene dibujados. Para que la tarjeta del listado diga algo. */
   nodeCount: number;
+  visibility: FlowVisibility;
+  /** Quien lo hizo. Nulo en los diagramas anteriores a esta funcion. */
+  createdById: string | null;
+  /** Si quien mira puede cambiarlo, o solo verlo. */
+  puedeEditar: boolean;
+  /** Si además decide con quién se comparte y puede eliminarlo. */
+  puedeCompartir: boolean;
 }
 
 // Al abrir un diagrama vienen los nodos enteros, asi que contarlos aparte
@@ -59,6 +67,15 @@ async function ensureFlowTable(): Promise<void> {
     await db.$executeRaw`
       ALTER TABLE "flows" ADD COLUMN IF NOT EXISTS "promptId" TEXT
     `;
+    // Quien lo hizo y con quien lo comparte. Las filas que ya existian se
+    // quedan en "edicion", que es como se comportaban: del equipo y editables.
+    // `createdById` nulo en ellas: no hay forma de saber quien las dibujo.
+    await db.$executeRaw`
+      ALTER TABLE "flows" ADD COLUMN IF NOT EXISTS "createdById" TEXT
+    `;
+    await db.$executeRaw`
+      ALTER TABLE "flows" ADD COLUMN IF NOT EXISTS "visibility" TEXT NOT NULL DEFAULT 'edicion'
+    `;
     await db.$executeRaw`
       CREATE UNIQUE INDEX IF NOT EXISTS "flows_user_name_unique" ON "flows" ("userId", "name")
     `;
@@ -84,35 +101,93 @@ async function requireUserId(): Promise<string> {
 }
 
 /**
- * Crear y borrar diagramas queda para el dueño de la cuenta y los
- * administradores de su equipo; un agente los consulta. Mismo reparto que en
- * Proyectos, para no tener dos reglas distintas para lo mismo.
+ * Los diagramas son de la CUENTA, pero cada uno tiene autor.
+ *
+ * `cuenta` es de quien cuelgan —lo que los mantiene juntos aunque cambie la
+ * gente—, y `persona` es quien está sentado delante: es lo que permite que un
+ * diagrama sea suyo y no de todo el equipo.
  */
-async function requireFlowManagerId(): Promise<string> {
+type Contexto = { cuenta: string; persona: string; gestiona: boolean };
+
+async function contexto(): Promise<Contexto> {
   const user = await currentUser();
-  const userId = user?.effectiveId ?? user?.id;
-  if (!user || !userId) throw new Error("No autenticado.");
-  if (!canManageWorkspace(user)) {
-    throw new Error("Solo el dueño o un administrador puede gestionar diagramas.");
-  }
-  return userId;
+  const cuenta = user?.effectiveId ?? user?.id;
+  if (!user || !cuenta) throw new Error("No autenticado.");
+  return {
+    cuenta,
+    persona: user.sessionUserId ?? user.id,
+    gestiona: canManageWorkspace(user),
+  };
+}
+
+/** Un diagrama privado solo lo ve su autor; el resto, todo el equipo. */
+function puedeVerlo(
+  flow: { visibility: string; createdById: string | null },
+  ctx: Contexto,
+): boolean {
+  return flow.visibility !== "privado" || flow.createdById === ctx.persona;
+}
+
+/**
+ * Cambiarlo lo puede su autor, quien gestiona la cuenta, y el equipo entero si
+ * está marcado como editable. En "lectura" se abre y se mira, nada más.
+ */
+function puedeEditarlo(
+  flow: { visibility: string; createdById: string | null },
+  ctx: Contexto,
+): boolean {
+  if (!puedeVerlo(flow, ctx)) return false;
+  if (ctx.gestiona) return true;
+  if (flow.createdById === ctx.persona) return true;
+  return flow.visibility === "edicion";
+}
+
+/** Solo su autor y quien gestiona la cuenta deciden con quién se comparte. */
+function puedeMandarEnEl(
+  flow: { visibility: string; createdById: string | null },
+  ctx: Contexto,
+): boolean {
+  return puedeVerlo(flow, ctx) && (ctx.gestiona || flow.createdById === ctx.persona);
+}
+
+type FilaDePermiso = { id: string; visibility: string; createdById: string | null };
+
+async function buscarFlow(flowId: string, cuenta: string): Promise<FilaDePermiso | null> {
+  const rows = await db.$queryRaw<FilaDePermiso[]>`
+    SELECT "id", "visibility", "createdById"
+    FROM "flows"
+    WHERE "userId" = ${cuenta} AND "id" = ${flowId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
 }
 
 export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
   try {
-    const userId = await requireUserId();
+    const ctx = await contexto();
     await ensureFlowTable();
     // El conteo se hace en la base y no trayendo los nodos: el listado solo
     // necesita el numero, y un diagrama grande son varios kB de JSON por fila.
     // El CASE es por si algun diagrama viejo guardo algo que no es una lista.
-    const rows = await db.$queryRaw<FlowSummary[]>`
-      SELECT "id", "name", "description", "createdAt", "updatedAt",
+    //
+    // Los privados de otros no salen de la base siquiera: filtrarlos despues
+    // significaria traerselos, y un privado que viaja al navegador ya no lo es.
+    const rows = await db.$queryRaw<Omit<FlowSummary, "puedeEditar" | "puedeCompartir">[]>`
+      SELECT "id", "name", "description", "createdAt", "updatedAt", "visibility", "createdById",
              CASE WHEN jsonb_typeof("nodes") = 'array' THEN jsonb_array_length("nodes") ELSE 0 END AS "nodeCount"
       FROM "flows"
-      WHERE "userId" = ${userId}
+      WHERE "userId" = ${ctx.cuenta}
+        AND ("visibility" <> 'privado' OR "createdById" = ${ctx.persona})
       ORDER BY "updatedAt" DESC
     `;
-    return { success: true, data: rows };
+    return {
+      success: true,
+      data: rows.map((row) => ({
+        ...row,
+        puedeEditar: puedeEditarlo(row, ctx),
+        puedeCompartir: puedeMandarEnEl(row, ctx),
+      })),
+    };
   } catch (error) {
     console.error("[listFlowsAction]", error);
     return { success: false, message: "No se pudieron obtener los flujos." };
@@ -121,17 +196,27 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
 
 export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDetail>> {
   try {
-    const userId = await requireUserId();
+    const ctx = await contexto();
     await ensureFlowTable();
-    const rows = await db.$queryRaw<FlowDetail[]>`
-      SELECT "id", "name", "description", "nodes", "edges", "createdAt", "updatedAt"
+    const rows = await db.$queryRaw<Omit<FlowDetail, "puedeEditar" | "puedeCompartir">[]>`
+      SELECT "id", "name", "description", "nodes", "edges", "createdAt", "updatedAt",
+             "visibility", "createdById"
       FROM "flows"
-      WHERE "userId" = ${userId} AND "id" = ${flowId}
+      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
       LIMIT 1
     `;
     const flow = rows[0];
-    if (!flow) return { success: false, message: "Flujo no encontrado." };
-    return { success: true, data: flow };
+    // Un privado ajeno se contesta igual que uno que no existe: decir "no
+    // puedes" ya revela que existe y de quien es.
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    return {
+      success: true,
+      data: {
+        ...flow,
+        puedeEditar: puedeEditarlo(flow, ctx),
+        puedeCompartir: puedeMandarEnEl(flow, ctx),
+      },
+    };
   } catch (error) {
     console.error("[getFlowAction]", error);
     return { success: false, message: "No se pudo obtener el flujo." };
@@ -201,11 +286,14 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
   if (!trimmed) return { success: false, message: "El nombre es obligatorio." };
 
   try {
-    const userId = await requireFlowManagerId();
+    // Crear lo puede cualquiera del equipo: el suyo es suyo, y con quien lo
+    // comparte lo decide el. Antes hacia falta ser dueño o administrador, asi
+    // que un colaborador no podia ni empezar uno.
+    const ctx = await contexto();
     await ensureFlowTable();
 
     const existing = await db.$queryRaw<{ id: string }[]>`
-      SELECT "id" FROM "flows" WHERE "userId" = ${userId} AND "name" = ${trimmed} LIMIT 1
+      SELECT "id" FROM "flows" WHERE "userId" = ${ctx.cuenta} AND "name" = ${trimmed} LIMIT 1
     `;
     if (existing.length > 0) {
       return { success: false, message: "Ya tienes un flujo con ese nombre." };
@@ -215,13 +303,13 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
     const grafo = grafoInicial(id);
     const nodesJson = JSON.stringify(grafo.nodes) as unknown as Prisma.InputJsonValue;
     const edgesJson = JSON.stringify(grafo.edges) as unknown as Prisma.InputJsonValue;
-    const rows = await db.$queryRaw<FlowSummary[]>`
-      INSERT INTO "flows" ("id", "userId", "name", "nodes", "edges")
-      VALUES (${id}, ${userId}, ${trimmed}, ${nodesJson}::jsonb, ${edgesJson}::jsonb)
-      RETURNING "id", "name", "description", "createdAt", "updatedAt",
+    const rows = await db.$queryRaw<Omit<FlowSummary, "puedeEditar" | "puedeCompartir">[]>`
+      INSERT INTO "flows" ("id", "userId", "name", "nodes", "edges", "createdById")
+      VALUES (${id}, ${ctx.cuenta}, ${trimmed}, ${nodesJson}::jsonb, ${edgesJson}::jsonb, ${ctx.persona})
+      RETURNING "id", "name", "description", "createdAt", "updatedAt", "visibility", "createdById",
                 jsonb_array_length("nodes") AS "nodeCount"
     `;
-    return { success: true, data: rows[0] };
+    return { success: true, data: { ...rows[0], puedeEditar: true, puedeCompartir: true } };
   } catch (error) {
     console.error("[createFlowAction]", error);
     return { success: false, message: "No se pudo crear el flujo." };
@@ -233,17 +321,23 @@ export async function renameFlowAction(flowId: string, name: string): Promise<Ac
   if (!trimmed) return { success: false, message: "El nombre es obligatorio." };
 
   try {
-    const userId = await requireUserId();
+    const ctx = await contexto();
     await ensureFlowTable();
 
+    const flow = await buscarFlow(flowId, ctx.cuenta);
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeEditarlo(flow, ctx)) {
+      return { success: false, message: "Este diagrama es de solo lectura." };
+    }
+
     const conflict = await db.$queryRaw<{ id: string }[]>`
-      SELECT "id" FROM "flows" WHERE "userId" = ${userId} AND "name" = ${trimmed} AND "id" != ${flowId} LIMIT 1
+      SELECT "id" FROM "flows" WHERE "userId" = ${ctx.cuenta} AND "name" = ${trimmed} AND "id" != ${flowId} LIMIT 1
     `;
     if (conflict.length > 0) return { success: false, message: "Ya tienes un flujo con ese nombre." };
 
     await db.$executeRaw`
       UPDATE "flows" SET "name" = ${trimmed}, "updatedAt" = NOW()
-      WHERE "userId" = ${userId} AND "id" = ${flowId}
+      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
     `;
     return { success: true, data: null };
   } catch (error) {
@@ -258,15 +352,23 @@ export async function saveFlowGraphAction(
   edges: unknown[],
 ): Promise<ActionResult<null>> {
   try {
-    const userId = await requireUserId();
+    const ctx = await contexto();
     await ensureFlowTable();
+
+    // Se comprueba aqui y no solo en la pantalla: el lienzo guarda solo, y un
+    // diagrama de lectura tiene que aguantar tambien si la llamada llega suelta.
+    const flow = await buscarFlow(flowId, ctx.cuenta);
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeEditarlo(flow, ctx)) {
+      return { success: false, message: "Este diagrama es de solo lectura." };
+    }
 
     const nodesJson = JSON.stringify(nodes) as unknown as Prisma.InputJsonValue;
     const edgesJson = JSON.stringify(edges) as unknown as Prisma.InputJsonValue;
 
     await db.$executeRaw`
       UPDATE "flows" SET "nodes" = ${nodesJson}::jsonb, "edges" = ${edgesJson}::jsonb, "updatedAt" = NOW()
-      WHERE "userId" = ${userId} AND "id" = ${flowId}
+      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
     `;
 
     // Sin esto el diagrama se guarda pero al salir y volver a entrar se ve
@@ -285,13 +387,134 @@ export async function saveFlowGraphAction(
 
 export async function deleteFlowAction(flowId: string): Promise<ActionResult<null>> {
   try {
-    const userId = await requireFlowManagerId();
+    const ctx = await contexto();
     await ensureFlowTable();
-    await db.$executeRaw`DELETE FROM "flows" WHERE "userId" = ${userId} AND "id" = ${flowId}`;
+
+    // Borrarlo es cosa de su autor y de quien gestiona la cuenta. Que el equipo
+    // pueda editar un diagrama no quiere decir que pueda hacerlo desaparecer.
+    const flow = await buscarFlow(flowId, ctx.cuenta);
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeMandarEnEl(flow, ctx)) {
+      return { success: false, message: "Solo quien lo creó o un administrador puede eliminarlo." };
+    }
+
+    await db.$executeRaw`DELETE FROM "flows" WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}`;
+    revalidatePath("/diagramas");
     return { success: true, data: null };
   } catch (error) {
     console.error("[deleteFlowAction]", error);
     return { success: false, message: "No se pudo eliminar el flujo." };
+  }
+}
+
+export async function setFlowVisibilityAction(
+  flowId: string,
+  visibility: FlowVisibility,
+): Promise<ActionResult<null>> {
+  if (!VISIBILIDADES.includes(visibility)) {
+    return { success: false, message: "Visibilidad no válida." };
+  }
+
+  try {
+    const ctx = await contexto();
+    await ensureFlowTable();
+
+    const flow = await buscarFlow(flowId, ctx.cuenta);
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeMandarEnEl(flow, ctx)) {
+      return { success: false, message: "Solo quien lo creó o un administrador puede cambiar esto." };
+    }
+
+    // Un diagrama de los de antes no tiene autor, y sin autor "privado" no
+    // significa nada: no habria nadie que pudiera volver a abrirlo. Al hacerlo
+    // privado se queda con quien lo esta marcando.
+    await db.$executeRaw`
+      UPDATE "flows"
+      SET "visibility" = ${visibility},
+          "createdById" = COALESCE("createdById", ${ctx.persona}),
+          "updatedAt" = NOW()
+      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
+    `;
+
+    revalidatePath("/diagramas");
+    return { success: true, data: null };
+  } catch (error) {
+    console.error("[setFlowVisibilityAction]", error);
+    return { success: false, message: "No se pudo cambiar la visibilidad." };
+  }
+}
+
+/**
+ * Un nombre libre a partir del original: "Ventas" -> "Ventas (copia)", y si ese
+ * ya esta cogido, "(copia 2)", "(copia 3)"... El nombre es unico por cuenta, asi
+ * que sin esto duplicar dos veces el mismo diagrama fallaba en la segunda.
+ */
+async function nombreLibre(base: string, cuenta: string): Promise<string> {
+  const usados = new Set(
+    (
+      await db.$queryRaw<{ name: string }[]>`
+        SELECT "name" FROM "flows" WHERE "userId" = ${cuenta}
+      `
+    ).map((r) => r.name),
+  );
+
+  // El nombre tiene un limite razonable: el original recortado deja sitio al
+  // sufijo, que si no la copia de una copia de una copia crece sin fin.
+  const raiz = base.replace(/\s*\(copia(?:\s+\d+)?\)$/i, "").slice(0, 120);
+
+  let candidato = `${raiz} (copia)`;
+  for (let n = 2; usados.has(candidato); n += 1) {
+    candidato = `${raiz} (copia ${n})`;
+  }
+  return candidato;
+}
+
+/**
+ * Una copia del diagrama, con sus nodos y conexiones tal cual, a nombre de quien
+ * la hace. Sirve para partir de uno que ya funciona sin miedo a estropearlo.
+ *
+ * La copia nace con la misma visibilidad que el original: quien duplica algo del
+ * equipo espera que la copia siga siendo del equipo, y quien duplica uno suyo
+ * privado no querria que de repente lo viera todo el mundo.
+ */
+export async function duplicateFlowAction(flowId: string): Promise<ActionResult<FlowSummary>> {
+  try {
+    const ctx = await contexto();
+    await ensureFlowTable();
+
+    const rows = await db.$queryRaw<
+      { name: string; description: string | null; visibility: string; createdById: string | null }[]
+    >`
+      SELECT "name", "description", "visibility", "createdById"
+      FROM "flows"
+      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
+      LIMIT 1
+    `;
+    const original = rows[0];
+    if (!original || !puedeVerlo(original, ctx)) {
+      return { success: false, message: "Flujo no encontrado." };
+    }
+
+    const id = `flow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const nombre = await nombreLibre(original.name, ctx.cuenta);
+
+    // Los nodos se copian dentro de la base: son varios kB de JSON que no hacen
+    // falta aqui para nada mas que volver a mandarlos.
+    const creado = await db.$queryRaw<Omit<FlowSummary, "puedeEditar" | "puedeCompartir">[]>`
+      INSERT INTO "flows" ("id", "userId", "name", "description", "nodes", "edges", "createdById", "visibility")
+      SELECT ${id}, ${ctx.cuenta}, ${nombre}, "description", "nodes", "edges", ${ctx.persona}, "visibility"
+      FROM "flows"
+      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
+      RETURNING "id", "name", "description", "createdAt", "updatedAt", "visibility", "createdById",
+                CASE WHEN jsonb_typeof("nodes") = 'array' THEN jsonb_array_length("nodes") ELSE 0 END AS "nodeCount"
+    `;
+    if (!creado[0]) return { success: false, message: "No se pudo duplicar el diagrama." };
+
+    revalidatePath("/diagramas");
+    return { success: true, data: { ...creado[0], puedeEditar: true, puedeCompartir: true } };
+  } catch (error) {
+    console.error("[duplicateFlowAction]", error);
+    return { success: false, message: "No se pudo duplicar el diagrama." };
   }
 }
 

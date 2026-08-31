@@ -8,6 +8,7 @@ import { writeAuditLog } from "@/actions/audit-log-actions";
 import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
 import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
+import { mandaEnElProyecto } from "@/lib/project-roles";
 
 type Result<T> = { success: boolean; message: string; data?: T };
 
@@ -22,15 +23,11 @@ async function getAuth() {
   return { user, ownerId: user.ownerId ?? user.id };
 }
 
-/**
- * Crear, editar o borrar proyectos y sus tareas es cosa del dueño de la cuenta
- * y de los administradores de su equipo. Un agente participa: mueve lo que
- * tiene asignado, pero no crea ni borra.
- */
-async function requireManager() {
+/** Como `mandaEnElProyecto`, pero cortando con un mensaje si la respuesta es no. */
+async function requireProjectManager(projectId: number) {
   const auth = await getAuth();
-  if (!canManageWorkspace(auth.user)) {
-    throw new Error("Solo el dueño o un administrador puede gestionar proyectos.");
+  if (!(await mandaEnElProyecto(auth.user, auth.ownerId, projectId))) {
+    throw new Error("Solo quien creó el proyecto o un administrador puede modificarlo.");
   }
   return auth;
 }
@@ -54,10 +51,13 @@ function toProjectData(
     leadId: string | null;
     dueDate: Date | null;
     createdAt: Date;
+    createdById: string;
     members: { userId: string }[];
     tasks: { status: string; dueDate: Date }[];
   },
   people: Map<string, { name: string | null; email: string | null }>,
+  /** Quien mira: para decir, proyecto a proyecto, si lo lleva él. */
+  quienMira: { id: string; gestionaLaCuenta: boolean },
 ): ProjectData {
   const taskCounts: Record<string, number> = {};
   const now = Date.now();
@@ -85,6 +85,9 @@ function toProjectData(
     taskCounts,
     overdueTasks,
     createdAt: project.createdAt.toISOString(),
+    createdById: project.createdById,
+    puedeGestionar:
+      quienMira.gestionaLaCuenta || project.createdById === quienMira.id,
   };
 }
 
@@ -103,7 +106,8 @@ async function loadPeople(ids: string[]) {
 
 export async function listProjectsAction(): Promise<Result<ProjectData[]>> {
   try {
-    const { ownerId } = await getAuth();
+    const { user, ownerId } = await getAuth();
+    const quienMira = { id: user.id, gestionaLaCuenta: canManageWorkspace(user) };
 
     const projects = await db.project.findMany({
       where: { ownerId },
@@ -121,7 +125,7 @@ export async function listProjectsAction(): Promise<Result<ProjectData[]>> {
     return {
       success: true,
       message: "Proyectos cargados.",
-      data: projects.map((p) => toProjectData(p, people)),
+      data: projects.map((p) => toProjectData(p, people, quienMira)),
     };
   } catch (error) {
     console.error("[listProjectsAction]", error);
@@ -146,8 +150,11 @@ export async function saveProjectAction(
   input: z.infer<typeof upsertSchema>,
 ): Promise<Result<ProjectData>> {
   try {
-    const { user, ownerId } = await requireManager();
     const parsed = upsertSchema.parse(input);
+    // Crear: cualquiera del equipo. Editar: quien manda en ese proyecto.
+    const { user, ownerId } = parsed.id
+      ? await requireProjectManager(parsed.id)
+      : await getAuth();
 
     const base = {
       name: parsed.name,
@@ -206,7 +213,10 @@ export async function saveProjectAction(
     return {
       success: true,
       message: parsed.id ? "Proyecto actualizado." : "Proyecto creado.",
-      data: toProjectData(saved, people),
+      data: toProjectData(saved, people, {
+        id: user.id,
+        gestionaLaCuenta: canManageWorkspace(user),
+      }),
     };
   } catch (error) {
     console.error("[saveProjectAction]", error);
@@ -219,7 +229,7 @@ export async function saveProjectAction(
 
 export async function deleteProjectAction(projectId: number): Promise<Result<null>> {
   try {
-    const { user, ownerId } = await requireManager();
+    const { user, ownerId } = await requireProjectManager(projectId);
     const project = await assertOwnProject(projectId, ownerId);
 
     // Las tareas NO se borran: la migración las deja sueltas (ON DELETE SET
@@ -303,8 +313,22 @@ export async function updateProjectTaskAction(
   input: z.infer<typeof editTaskSchema>,
 ): Promise<Result<null>> {
   try {
-    const { ownerId } = await requireManager();
+    const { user, ownerId } = await getAuth();
     const parsed = editTaskSchema.parse(input);
+
+    // Editar la tarjeta de un proyecto va con el proyecto: quien lo lleva puede,
+    // aunque no sea administrador de la cuenta.
+    const tarea = await db.task.findFirst({
+      where: { id: parsed.taskId, ownerId },
+      select: { projectId: true },
+    });
+    if (!tarea) throw new Error("Tarea no encontrada.");
+    const puede = tarea.projectId
+      ? await mandaEnElProyecto(user, ownerId, tarea.projectId)
+      : canManageWorkspace(user);
+    if (!puede) {
+      throw new Error("Solo quien lleva el proyecto o un administrador puede editar sus tareas.");
+    }
 
     // El nombre se guarda junto a la tarea (como en createTaskAction) para que
     // la tarjeta siga diciendo quién es aunque esa persona salga del equipo.
