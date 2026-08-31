@@ -9,6 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
 import { parseItemIds, serializeItemIds } from "@/lib/permisos";
 import { isAdminLike } from "@/lib/rbac";
+import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
 import type { Role } from "@prisma/client";
 
 export type ModuleOption = { id: string; label: string };
@@ -931,39 +932,6 @@ export async function setClientAdvisors(
       ? `Asignado a ${validos.length} ${validos.length === 1 ? "persona" : "personas"}.`
       : "Sin nadie asignado.",
   };
-}
-
-/**
- * Los clientes sobre los que manda esta cuenta. Un admin los tiene todos; un
- * reseller, los suyos —los que creó como demo y los que le asignaron—.
- */
-async function clientesDeLaCuenta(owner: { id: string; role: string }) {
-  const base = { role: { in: ["user", "affiliate"] as Role[] } };
-
-  if (isAdminLike(owner.role)) {
-    return db.user.findMany({
-      where: base,
-      select: { id: true, name: true, email: true, company: true },
-      orderBy: { company: "asc" },
-    });
-  }
-
-  const asignados = await db.reseller.findMany({
-    where: { resellerid: owner.id },
-    select: { userId: true },
-  });
-  const idsAsignados = asignados
-    .map((a) => a.userId)
-    .filter((id): id is string => !!id);
-
-  return db.user.findMany({
-    where: {
-      ...base,
-      OR: [{ demoResellerId: owner.id }, { id: { in: idsAsignados } }],
-    },
-    select: { id: true, name: true, email: true, company: true },
-    orderBy: { company: "asc" },
-  });
 }
 
 export async function getOwnerModules(): Promise<ActionResult<ModuleOption[]>> {
