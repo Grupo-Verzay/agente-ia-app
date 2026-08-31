@@ -659,6 +659,10 @@ export function ChatsClient({
   // seleccion, y meterlo en las dependencias reiniciaria el ciclo de la lista.
   const pollRef = useRef<((jid: string, aliases?: string[]) => Promise<void>) | null>(null);
   const currentContactRef = useRef<ChatData | undefined>(undefined);
+  const loadingRef = useRef(false);
+  const selectFromSidebarRef = useRef<
+    ((remoteJid: string, contactInstanceName?: string) => Promise<void>) | null
+  >(null);
   const ESPERA_MINIMA_ENTRE_REFRESCOS = 3000;
   // Cuanto se espera como MAXIMO por una consulta de mensajes antes de darla
   // por perdida.
@@ -1397,6 +1401,7 @@ export function ChatsClient({
 
   pollRef.current = pollAndCompareMessages;
   currentContactRef.current = currentContact;
+  loadingRef.current = loading;
 
   // Precalienta el historial de una conversación (página 1, solo local) y lo
   // deja en el cache en memoria SIN cambiar la selección ni la UI. Se dispara al
@@ -1749,6 +1754,8 @@ export function ChatsClient({
     },
     [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction, commitCache],
   );
+
+  selectFromSidebarRef.current = handleSelectFromSidebar;
 
   const handleSendAny = useCallback(
     async (payload: OutgoingMessagePayload) => {
@@ -2472,9 +2479,14 @@ export function ChatsClient({
 
       try {
         if (selectedJid) {
-          const trabajo = messagesRef.current.length === 0 && !loading
-            ? handleSelectFromSidebar(selectedJid)
-            : pollAndCompareMessages(selectedJid, currentContact?.aliases);
+          // Todo por referencia: lo que hace falta es lo ULTIMO que haya, y
+          // meterlo en las dependencias del efecto reiniciaba el ciclo en cada
+          // render (ver abajo).
+          const trabajo =
+            messagesRef.current.length === 0 && !loadingRef.current
+              ? selectFromSidebarRef.current?.(selectedJid) ?? Promise.resolve()
+              : pollRef.current?.(selectedJid, currentContactRef.current?.aliases) ??
+                Promise.resolve();
           void trabajo.catch(() => {});
 
           // Vigilante: si el trabajo no vuelve, el ciclo sigue igual. Un `await`
@@ -2526,13 +2538,21 @@ export function ChatsClient({
         document.removeEventListener("visibilitychange", onVisibility);
       }
     };
-  }, [
-    currentContact,
-    handleSelectFromSidebar,
-    loading,
-    pollAndCompareMessages,
-    selectedJid,
-  ]);
+    // SOLO el chat abierto. Antes tambien estaban `currentContact`, `loading`,
+    // `handleSelectFromSidebar` y `pollAndCompareMessages`, y todos ellos
+    // cambian de identidad cada vez que se refresca la LISTA -que es justo lo
+    // que pasa cuando entra un mensaje-.
+    //
+    // Cada cambio desmontaba este efecto y lo volvia a montar, y al montar la
+    // primera vuelta se programa a 10s. En una cuenta con movimiento la lista se
+    // refresca antes de esos 10s, asi que el temporizador se reiniciaba una y
+    // otra vez y el sondeo de la conversacion no llegaba a correr NUNCA: el
+    // mensaje aparecia arriba al instante y en la conversacion no salia hasta
+    // cambiar de chat o recargar. Cuanto mas movida la cuenta, peor.
+    //
+    // Ahora el ciclo vive mientras siga abierto el mismo chat, y lee lo demas
+    // por referencia.
+  }, [selectedJid]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
