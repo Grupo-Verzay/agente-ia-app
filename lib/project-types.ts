@@ -46,4 +46,11 @@ export type ProjectData = {
   /** Tareas sin terminar cuya fecha ya pasó. Lo que hay que mirar primero. */
   overdueTasks: number;
   createdAt: string;
+  /** Quién lo abrió. */
+  createdById: string;
+  /**
+   * Si quien mira lo lleva: puede editarlo, borrarlo y manejar sus tareas.
+   * Cierto para quien gestiona la cuenta y para quien creó el proyecto.
+   */
+  puedeGestionar: boolean;
 };

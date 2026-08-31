@@ -1307,6 +1307,10 @@ model Flow {
   description String?
   nodes       Json     @default("[]")
   edges       Json     @default("[]")
+  /// Quien lo dibujo. Nulo en los anteriores a la visibilidad por diagrama.
+  createdById String?
+  /// privado | lectura | edicion. Ver lib/flow-visibility.ts.
+  visibility  String   @default("edicion")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
-import { canManageWorkspace } from "@/lib/workspace-roles";
 import { ProjectsClient } from "./_components/ProjectsClient";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +16,6 @@ export default async function ProyectosPage() {
       <ProjectsClient
         userId={user.id}
         team={team.success ? team.data ?? [] : []}
-        canManage={canManageWorkspace(user)}
       />
     </div>
   );
