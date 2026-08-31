@@ -254,9 +254,12 @@ export const IDEA_COLORES = [
 export const IDEA_POR_DEFECTO = {
   color: '#ffffff',
   negrita: false,
-  ancho: 200,
-  alto: 96,
+  ancho: 190,
+  alto: 72,
 };
 
-export const IDEA_ANCHO_MIN = 120;
-export const IDEA_ALTO_MIN = 64;
+// Minimos de puro sentido practico, no de diseno: por debajo de esto el
+// tirador de la esquina es mas grande que la propia nota y ya no se puede
+// agarrar para volver a estirarla. La nota se encoge cuanto se quiera.
+export const IDEA_ANCHO_MIN = 24;
+export const IDEA_ALTO_MIN = 24;

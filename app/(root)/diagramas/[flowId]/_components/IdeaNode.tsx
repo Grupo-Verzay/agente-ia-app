@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Handle, NodeResizeControl, Position, useConnection } from '@xyflow/react';
 import { Bold, Copy, GripHorizontal, Pencil, Trash2 } from 'lucide-react';
 
@@ -13,6 +13,17 @@ import {
 } from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
 import type { FlowNodeData } from './FlowNode';
+
+/**
+ * Parte el texto en trozos normales y en negrita. La negrita se marca con
+ * `**asi**`, la misma convencion de WhatsApp y Markdown, para poder resaltar
+ * una palabra suelta en vez de la nota entera.
+ */
+function trozos(texto: string): { texto: string; negrita: boolean }[] {
+    const partes = texto.split(/\*\*([\s\S]+?)\*\*/g);
+    // split con grupo devuelve: [normal, negrita, normal, negrita, ...]
+    return partes.map((parte, i) => ({ texto: parte, negrita: i % 2 === 1 })).filter((p) => p.texto !== '');
+}
 
 /** Lo que el nodo Idea guarda ademas del texto. */
 export type IdeaAjustes = {
@@ -40,6 +51,14 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
     const isSourceActive = connection.inProgress && connection.fromNode?.id === id;
 
     const areaRef = useRef<HTMLTextAreaElement | null>(null);
+    // Mientras se escribe se ve el texto crudo, con sus `**`; al soltar el foco
+    // se ve ya formateado. Es la unica forma de tener negrita por palabra en
+    // una caja de texto: un textarea no sabe pintar parte de su contenido.
+    const [escribiendo, setEscribiendo] = useState(false);
+
+    useEffect(() => {
+        if (escribiendo) areaRef.current?.focus();
+    }, [escribiendo]);
 
     const ajustes: IdeaAjustes = {
         color: data.color ?? IDEA_POR_DEFECTO.color,
@@ -65,6 +84,27 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
         });
     };
 
+    /** Envuelve en `**` lo que este seleccionado. Sin seleccion, deja las dos
+     *  marcas puestas y el cursor en medio, listo para escribir dentro. */
+    const ponerNegrita = () => {
+        const texto = data.content ?? '';
+        const area = areaRef.current;
+        const desde = area?.selectionStart ?? texto.length;
+        const hasta = area?.selectionEnd ?? desde;
+        const dentro = texto.slice(desde, hasta);
+
+        data.onChangeContent(id, `${texto.slice(0, desde)}**${dentro}**${texto.slice(hasta)}`);
+        setEscribiendo(true);
+
+        // El cursor queda rodeando lo marcado, o entre las marcas si no habia
+        // nada seleccionado.
+        const inicio = desde + 2;
+        requestAnimationFrame(() => {
+            areaRef.current?.focus();
+            areaRef.current?.setSelectionRange(inicio, inicio + dentro.length);
+        });
+    };
+
     return (
         <div className="group relative" style={{ width: ajustes.ancho, height: ajustes.alto }}>
             {/* Barra de herramientas, flotando encima de la nota */}
@@ -87,17 +127,16 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
                     <button
                         type="button"
                         title="Escribir en la nota"
-                        onClick={() => areaRef.current?.focus()}
+                        onClick={() => setEscribiendo(true)}
                         className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                         type="button"
-                        title={ajustes.negrita ? 'Quitar negrita' : 'Poner en negrita'}
-                        onClick={() => cambiar({ negrita: !ajustes.negrita })}
-                        className={`flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-muted ${ajustes.negrita ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
-                            }`}
+                        title="Negrita: marca la palabra con **"
+                        onClick={ponerNegrita}
+                        className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         <Bold className="h-3.5 w-3.5" />
                     </button>
@@ -160,19 +199,35 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
             >
                 <div
                     title="Arrastrar la nota"
-                    className="flex h-4 shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+                    className="flex h-3 shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
                 >
-                    <GripHorizontal className="h-3 w-3" />
+                    <GripHorizontal className="h-2.5 w-2.5" />
                 </div>
 
-                <textarea
-                    ref={areaRef}
-                    value={data.content}
-                    onChange={(e) => data.onChangeContent(id, e.target.value)}
-                    placeholder="Escribe acá…"
-                    className="nodrag nowheel min-h-0 w-full flex-1 resize-none border-0 bg-transparent px-3 pb-2 text-[13px] leading-snug text-foreground outline-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
-                    style={{ fontWeight: ajustes.negrita ? 700 : 400 }}
-                />
+                {escribiendo ? (
+                    <textarea
+                        ref={areaRef}
+                        value={data.content}
+                        onChange={(e) => data.onChangeContent(id, e.target.value)}
+                        onBlur={() => setEscribiendo(false)}
+                        placeholder="Escribe acá…"
+                        className="nodrag nowheel min-h-0 w-full flex-1 resize-none border-0 bg-transparent px-2 pb-1.5 text-[13px] leading-snug text-foreground outline-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
+                        style={{ fontWeight: ajustes.negrita ? 700 : 400 }}
+                    />
+                ) : (
+                    <div
+                        onClick={() => setEscribiendo(true)}
+                        title="Clic para escribir"
+                        className="nodrag nowheel min-h-0 w-full flex-1 cursor-text overflow-auto whitespace-pre-wrap break-words px-2 pb-1.5 text-[13px] leading-snug text-foreground"
+                        style={{ fontWeight: ajustes.negrita ? 700 : 400 }}
+                    >
+                        {data.content
+                            ? trozos(data.content).map((trozo, i) =>
+                                trozo.negrita ? <strong key={i}>{trozo.texto}</strong> : <span key={i}>{trozo.texto}</span>
+                            )
+                            : <span className="text-muted-foreground/60">Escribe acá…</span>}
+                    </div>
+                )}
             </div>
 
             <SourceDotHandle
