@@ -138,6 +138,13 @@ const REALTIME_OFF_MSG_INTERVAL_MS = 6000;
 // entre esas peticiones: con movimiento fuerte no se golpea Evolution mas de una
 // vez y media por segundo, y el primer mensaje de una rafaga entra en el acto.
 const TOPE_ENTRE_SONDEOS_POR_AVISO = 1500;
+// Cuanto se fia la App de que el tiempo real esta trayendo lo que pasa. El
+// socket puede estar conectado y aun asi no llegar nada -mal enrutado, una linea
+// que no emite, el servidor caido del otro lado-, y en ese caso los intervalos
+// relajados dejan la lista hasta un minuto sin enterarse. Si en este rato no ha
+// entrado ningun aviso se vuelve a los intervalos agiles hasta que vuelva a
+// haberlos.
+const CONFIANZA_EN_TIEMPO_REAL_MS = 120000;
 const REALTIME_OFF_LIST_INTERVAL_MS = 15000;
 
 type ChatMessageInfo = {
@@ -632,6 +639,18 @@ export function ChatsClient({
   const backoffRef = useRef(0);
   // ¿El WebSocket de tiempo real está conectado? Ajusta el polling de respaldo.
   const realtimeConnectedRef = useRef(false);
+  // Cuando entro el ultimo aviso de tiempo real. Cero = todavia ninguno.
+  const ultimoAvisoEnVivoRef = useRef(0);
+  /**
+   * Si de verdad podemos apoyarnos en el tiempo real ahora mismo: hace falta
+   * socket conectado Y avisos recientes. Estar conectado no basta -eso solo dice
+   * que hay tuberia, no que venga agua por ella-.
+   */
+  const tiempoRealFiable = () =>
+    realtimeConnectedRef.current &&
+    ultimoAvisoEnVivoRef.current > 0 &&
+    Date.now() - ultimoAvisoEnVivoRef.current < CONFIANZA_EN_TIEMPO_REAL_MS;
+
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
   const activeActionSetRef = useRef<InstanceActionSet | null>(null);
   const selectedJidRef = useRef(selectedJid);
@@ -2383,7 +2402,7 @@ export function ChatsClient({
     const loop = async () => {
       if (stopped) return;
 
-      const listInterval = realtimeConnectedRef.current
+      const listInterval = tiempoRealFiable()
         ? LIST_SYNC_INTERVAL_MS
         : REALTIME_OFF_LIST_INTERVAL_MS;
 
@@ -2508,7 +2527,7 @@ export function ChatsClient({
         // llevaba por delante el ciclo entero: la conversacion abierta dejaba de
         // refrescarse hasta cambiar de chat o recargar la pagina.
         if (!stopped) {
-          const base = realtimeConnectedRef.current ? BASE_INTERVAL : REALTIME_OFF_MSG_INTERVAL_MS;
+          const base = tiempoRealFiable() ? BASE_INTERVAL : REALTIME_OFF_MSG_INTERVAL_MS;
           const wait = backoffRef.current > 0 ? backoffRef.current : base;
           pollingRef.current = setTimeout(() => void tick(), wait);
         }
@@ -2653,6 +2672,7 @@ export function ChatsClient({
     },
     onChatChanged: (payload) => {
       const jid = payload.remoteJid;
+      ultimoAvisoEnVivoRef.current = Date.now();
 
       // Pase lo que pase, si hay un chat abierto se le piden sus mensajes
       // enseguida.
