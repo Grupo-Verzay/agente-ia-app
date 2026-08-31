@@ -134,6 +134,10 @@ const LIST_SYNC_INTERVAL_MS = 60000;
 // configurado, usamos intervalos más ágiles para que igual se sienta en vivo.
 // Con el socket conectado se mantienen los intervalos relajados de arriba.
 const REALTIME_OFF_MSG_INTERVAL_MS = 6000;
+// Cada aviso de tiempo real pide los mensajes del chat abierto. Este es el tope
+// entre esas peticiones: con movimiento fuerte no se golpea Evolution mas de una
+// vez y media por segundo, y el primer mensaje de una rafaga entra en el acto.
+const TOPE_ENTRE_SONDEOS_POR_AVISO = 1500;
 const REALTIME_OFF_LIST_INTERVAL_MS = 15000;
 
 type ChatMessageInfo = {
@@ -2580,6 +2584,8 @@ export function ChatsClient({
   // Si el realtime no está configurado por entorno, el hook no hace nada y todo
   // sigue con el polling de fondo. Es puramente aditivo (acelerador).
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sondeoTrasAvisoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ultimoSondeoPorAvisoRef = useRef(0);
 
   // Inserta un mensaje entrante de texto en el chat abierto sin consultar a
   // Evolution. mergeMessages deduplica por key.id (los entrantes siempre traen
@@ -2647,6 +2653,55 @@ export function ChatsClient({
     },
     onChatChanged: (payload) => {
       const jid = payload.remoteJid;
+
+      // Pase lo que pase, si hay un chat abierto se le piden sus mensajes
+      // enseguida.
+      //
+      // Emparejar el aviso con la conversacion abierta por el identificador del
+      // contacto es fragil: un mismo numero llega unas veces como numero y otras
+      // como `@lid`, y puede estar en DOS lineas a la vez -Atencion y Pruebas-,
+      // asi que la fila que encuentra la lista no siempre es la que esta abierta.
+      // Cuando ese emparejamiento fallaba, el mensaje salia arriba al instante y
+      // en la conversacion no aparecia hasta el sondeo de respaldo.
+      //
+      // Preguntar por el chat que esta abierto no depende de acertar nada de eso.
+      // Va con una espera corta para que varios avisos seguidos -una rafaga de
+      // mensajes- se resuelvan en una sola consulta.
+      if (selectedJidRef.current) {
+        const sondearAhora = () => {
+          const abierto = selectedJidRef.current;
+          if (!abierto) return;
+
+          // Si ya hay una consulta en vuelo, la nuestra se descartaria sin mas
+          // -y esa puede haber salido ANTES de que llegara este mensaje, asi que
+          // volveria sin el-. Se reintenta en corto en vez de perderla.
+          if (inFlightRef.current) {
+            if (sondeoTrasAvisoRef.current) clearTimeout(sondeoTrasAvisoRef.current);
+            sondeoTrasAvisoRef.current = setTimeout(() => {
+              sondeoTrasAvisoRef.current = null;
+              sondearAhora();
+            }, 700);
+            return;
+          }
+
+          ultimoSondeoPorAvisoRef.current = Date.now();
+          void pollRef.current?.(abierto, currentContactRef.current?.aliases);
+        };
+
+        // Dispara YA y luego como mucho una vez cada tope. Un rebote a secas no
+        // vale: en una rafaga de mensajes se reprograma sin parar y no llega a
+        // correr nunca, que es el mismo fallo que tenia el sondeo de fondo.
+        const desde = Date.now() - ultimoSondeoPorAvisoRef.current;
+        if (desde >= TOPE_ENTRE_SONDEOS_POR_AVISO) {
+          sondearAhora();
+        } else if (!sondeoTrasAvisoRef.current) {
+          // Uno solo al final, para no perderse el ultimo de la rafaga.
+          sondeoTrasAvisoRef.current = setTimeout(() => {
+            sondeoTrasAvisoRef.current = null;
+            sondearAhora();
+          }, TOPE_ENTRE_SONDEOS_POR_AVISO - desde);
+        }
+      }
 
       // Los nombres de un mismo chat: un contacto puede llegar como numero o
       // como `@lid`, y el aviso no siempre trae el mismo que se abrio.
@@ -2732,6 +2787,9 @@ export function ChatsClient({
     return () => {
       if (realtimeRefreshTimerRef.current) {
         clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      if (sondeoTrasAvisoRef.current) {
+        clearTimeout(sondeoTrasAvisoRef.current);
       }
     };
   }, []);
