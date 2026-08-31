@@ -1318,6 +1318,23 @@ model Flow {
   @@map("flows")
 }
 
+/// A que OTRAS cuentas se les enseña un diagrama. Aparte de `Flow.visibility`,
+/// que reparte dentro del equipo de una misma cuenta: esto cruza a la cuenta de
+/// un cliente. La tabla la crea la App, como `flows`.
+model FlowShare {
+  id            String   @id
+  flowId        String
+  /// La cuenta que lo recibe.
+  accountUserId String
+  /// Quien lo compartio.
+  sharedById    String?
+  createdAt     DateTime @default(now())
+
+  @@unique([flowId, accountUserId])
+  @@index([accountUserId])
+  @@map("flow_shares")
+}
+
 model AiModel {
   id           String     @id @default(uuid())
   providerId   String

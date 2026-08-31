@@ -13,6 +13,8 @@ import {
   Lock,
   Eye,
   Users,
+  Share2,
+  Building2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -57,6 +59,7 @@ import {
   type FlowSummary,
 } from '@/actions/flow-actions';
 import type { FlowVisibility } from '@/lib/flow-visibility';
+import { CompartirConCuentasDialog } from './CompartirConCuentasDialog';
 
 /**
  * Con quien se comparte cada diagrama, dicho en la pantalla. El icono va en la
@@ -106,6 +109,7 @@ export function DiagramasListClient() {
   const [renameValue, setRenameValue] = useState('');
   const [deleting, setDeleting] = useState<FlowSummary | null>(null);
   const [duplicando, setDuplicando] = useState<string | null>(null);
+  const [compartiendo, setCompartiendo] = useState<FlowSummary | null>(null);
 
   const load = async () => {
     const res = await listFlowsAction();
@@ -267,6 +271,24 @@ export function DiagramasListClient() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      className={`h-7 w-7 ${flow.compartidoCon > 0
+                        ? 'text-primary hover:text-primary'
+                        : 'text-muted-foreground hover:text-foreground'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCompartiendo(flow);
+                      }}
+                      title={flow.compartidoCon > 0
+                        ? `Compartido con ${flow.compartidoCon} ${flow.compartidoCon === 1 ? 'cuenta' : 'cuentas'}`
+                        : 'Compartir con otras cuentas'}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {flow.puedeCompartir && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-7 w-7 text-muted-foreground hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -288,6 +310,21 @@ export function DiagramasListClient() {
                 {/* Con quién se comparte. Quien manda en el diagrama lo cambia
                     desde aquí mismo; el resto solo lee en qué quedó. */}
                 {(() => {
+                  // Uno recibido no dice su visibilidad -esa es del equipo de
+                  // quien lo hizo, y aqui no significa nada-, dice de donde
+                  // viene, que es lo unico que hace falta saber.
+                  if (flow.recibido) {
+                    return (
+                      <span
+                        className="ml-auto flex shrink-0 items-center gap-1 text-primary/80"
+                        title="Otra cuenta te lo está compartiendo. Puedes verlo y duplicarlo."
+                      >
+                        <Building2 className="h-3 w-3" />
+                        Compartido contigo
+                      </span>
+                    );
+                  }
+
                   const compartir = COMPARTIR[flow.visibility] ?? COMPARTIR.edicion;
                   const Icono = compartir.icono;
 
@@ -379,6 +416,16 @@ export function DiagramasListClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {compartiendo && (
+        <CompartirConCuentasDialog
+          open={!!compartiendo}
+          setOpen={(v) => !v && setCompartiendo(null)}
+          flowId={compartiendo.id}
+          flowName={compartiendo.name}
+          onSaved={() => void load()}
+        />
+      )}
 
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>

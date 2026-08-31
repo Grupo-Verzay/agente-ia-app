@@ -18,6 +18,7 @@ import { canManageWorkspace } from "@/lib/workspace-roles";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { VISIBILIDADES, type FlowVisibility } from "@/lib/flow-visibility";
+import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
 
 export interface FlowSummary {
   id: string;
@@ -34,6 +35,13 @@ export interface FlowSummary {
   puedeEditar: boolean;
   /** Si además decide con quién se comparte y puede eliminarlo. */
   puedeCompartir: boolean;
+  /**
+   * Llegó compartido desde OTRA cuenta. Se ve y se puede duplicar, nada más: el
+   * original es de quien lo hizo y no se toca desde fuera.
+   */
+  recibido: boolean;
+  /** A cuántas cuentas se lo está enseñando. Cero en los recibidos. */
+  compartidoCon: number;
 }
 
 // Al abrir un diagrama vienen los nodos enteros, asi que contarlos aparte
@@ -84,6 +92,25 @@ async function ensureFlowTable(): Promise<void> {
     `;
     await db.$executeRaw`
       CREATE INDEX IF NOT EXISTS "flows_user_updated_idx" ON "flows" ("userId", "updatedAt" DESC)
+    `;
+    // A qué OTRAS cuentas se les enseña un diagrama. Es cosa aparte de la
+    // visibilidad, que reparte dentro del equipo de una misma cuenta: aquí se
+    // cruza a la cuenta de un cliente, que no tiene nada que ver con el equipo.
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "flow_shares" (
+        "id" TEXT PRIMARY KEY,
+        "flowId" TEXT NOT NULL,
+        "accountUserId" TEXT NOT NULL,
+        "sharedById" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+      )
+    `;
+    await db.$executeRaw`
+      CREATE UNIQUE INDEX IF NOT EXISTS "flow_shares_flow_account_unique"
+      ON "flow_shares" ("flowId", "accountUserId")
+    `;
+    await db.$executeRaw`
+      CREATE INDEX IF NOT EXISTS "flow_shares_account_idx" ON "flow_shares" ("accountUserId")
     `;
   })().catch((error) => {
     ensurePromise = null;
@@ -166,26 +193,48 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
   try {
     const ctx = await contexto();
     await ensureFlowTable();
-    // El conteo se hace en la base y no trayendo los nodos: el listado solo
-    // necesita el numero, y un diagrama grande son varios kB de JSON por fila.
-    // El CASE es por si algun diagrama viejo guardo algo que no es una lista.
+    // Dos grupos en una sola consulta: los de esta cuenta, y los que otra
+    // cuenta le esta enseñando.
+    //
+    // El conteo de nodos se hace en la base y no trayendo los nodos: el listado
+    // solo necesita el numero, y un diagrama grande son varios kB de JSON por
+    // fila. El CASE es por si algun diagrama viejo guardo algo que no es una
+    // lista.
     //
     // Los privados de otros no salen de la base siquiera: filtrarlos despues
     // significaria traerselos, y un privado que viaja al navegador ya no lo es.
-    const rows = await db.$queryRaw<Omit<FlowSummary, "puedeEditar" | "puedeCompartir">[]>`
+    const rows = await db.$queryRaw<
+      (Omit<FlowSummary, "puedeEditar" | "puedeCompartir"> & { recibido: boolean })[]
+    >`
       SELECT "id", "name", "description", "createdAt", "updatedAt", "visibility", "createdById",
-             CASE WHEN jsonb_typeof("nodes") = 'array' THEN jsonb_array_length("nodes") ELSE 0 END AS "nodeCount"
-      FROM "flows"
+             CASE WHEN jsonb_typeof("nodes") = 'array' THEN jsonb_array_length("nodes") ELSE 0 END AS "nodeCount",
+             false AS "recibido",
+             (SELECT COUNT(*)::int FROM "flow_shares" s WHERE s."flowId" = f."id") AS "compartidoCon"
+      FROM "flows" f
       WHERE "userId" = ${ctx.cuenta}
         AND ("visibility" <> 'privado' OR "createdById" = ${ctx.persona})
+
+      UNION ALL
+
+      SELECT f."id", f."name", f."description", f."createdAt", f."updatedAt", f."visibility", f."createdById",
+             CASE WHEN jsonb_typeof(f."nodes") = 'array' THEN jsonb_array_length(f."nodes") ELSE 0 END AS "nodeCount",
+             true AS "recibido",
+             0 AS "compartidoCon"
+      FROM "flows" f
+      JOIN "flow_shares" s ON s."flowId" = f."id"
+      WHERE s."accountUserId" = ${ctx.cuenta}
+        AND f."userId" <> ${ctx.cuenta}
+
       ORDER BY "updatedAt" DESC
     `;
     return {
       success: true,
       data: rows.map((row) => ({
         ...row,
-        puedeEditar: puedeEditarlo(row, ctx),
-        puedeCompartir: puedeMandarEnEl(row, ctx),
+        // Lo recibido se mira y se duplica; cambiarlo o repartirlo es cosa de la
+        // cuenta que lo hizo.
+        puedeEditar: row.recibido ? false : puedeEditarlo(row, ctx),
+        puedeCompartir: row.recibido ? false : puedeMandarEnEl(row, ctx),
       })),
     };
   } catch (error) {
@@ -194,25 +243,62 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
   }
 }
 
+/** ¿A esta cuenta le están enseñando este diagrama? */
+async function leCompartieron(flowId: string, cuenta: string): Promise<boolean> {
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "flow_shares"
+    WHERE "flowId" = ${flowId} AND "accountUserId" = ${cuenta}
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
 export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDetail>> {
   try {
     const ctx = await contexto();
     await ensureFlowTable();
-    const rows = await db.$queryRaw<Omit<FlowDetail, "puedeEditar" | "puedeCompartir">[]>`
-      SELECT "id", "name", "description", "nodes", "edges", "createdAt", "updatedAt",
-             "visibility", "createdById"
-      FROM "flows"
-      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
+    const rows = await db.$queryRaw<
+      (Omit<FlowDetail, "puedeEditar" | "puedeCompartir" | "recibido" | "compartidoCon"> & {
+        userId: string;
+        compartidoCon: number;
+      })[]
+    >`
+      SELECT "id", "userId", "name", "description", "nodes", "edges", "createdAt", "updatedAt",
+             "visibility", "createdById",
+             (SELECT COUNT(*)::int FROM "flow_shares" s WHERE s."flowId" = f."id") AS "compartidoCon"
+      FROM "flows" f
+      WHERE "id" = ${flowId}
       LIMIT 1
     `;
     const flow = rows[0];
+    if (!flow) return { success: false, message: "Flujo no encontrado." };
+
+    // De otra cuenta: solo se abre si a esta se lo estan enseñando, y de lectura.
+    const recibido = flow.userId !== ctx.cuenta;
+    if (recibido) {
+      if (!(await leCompartieron(flowId, ctx.cuenta))) {
+        return { success: false, message: "Flujo no encontrado." };
+      }
+      return {
+        success: true,
+        data: {
+          ...flow,
+          recibido: true,
+          compartidoCon: 0,
+          puedeEditar: false,
+          puedeCompartir: false,
+        },
+      };
+    }
+
     // Un privado ajeno se contesta igual que uno que no existe: decir "no
     // puedes" ya revela que existe y de quien es.
-    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
     return {
       success: true,
       data: {
         ...flow,
+        recibido: false,
         puedeEditar: puedeEditarlo(flow, ctx),
         puedeCompartir: puedeMandarEnEl(flow, ctx),
       },
@@ -398,6 +484,7 @@ export async function deleteFlowAction(flowId: string): Promise<ActionResult<nul
       return { success: false, message: "Solo quien lo creó o un administrador puede eliminarlo." };
     }
 
+    await db.$executeRaw`DELETE FROM "flow_shares" WHERE "flowId" = ${flowId}`;
     await db.$executeRaw`DELETE FROM "flows" WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}`;
     revalidatePath("/diagramas");
     return { success: true, data: null };
@@ -483,38 +570,155 @@ export async function duplicateFlowAction(flowId: string): Promise<ActionResult<
     await ensureFlowTable();
 
     const rows = await db.$queryRaw<
-      { name: string; description: string | null; visibility: string; createdById: string | null }[]
+      {
+        userId: string;
+        name: string;
+        description: string | null;
+        visibility: string;
+        createdById: string | null;
+      }[]
     >`
-      SELECT "name", "description", "visibility", "createdById"
+      SELECT "userId", "name", "description", "visibility", "createdById"
       FROM "flows"
-      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
+      WHERE "id" = ${flowId}
       LIMIT 1
     `;
     const original = rows[0];
-    if (!original || !puedeVerlo(original, ctx)) {
+    if (!original) return { success: false, message: "Flujo no encontrado." };
+
+    // Uno recibido tambien se puede copiar: es la forma de que una cuenta se
+    // quede con el diagrama que le enseñaron y lo siga a su manera. La copia
+    // nace en SU cuenta, y como no es del equipo de quien lo hizo, nace privada.
+    const recibido = original.userId !== ctx.cuenta;
+    if (recibido) {
+      if (!(await leCompartieron(flowId, ctx.cuenta))) {
+        return { success: false, message: "Flujo no encontrado." };
+      }
+    } else if (!puedeVerlo(original, ctx)) {
       return { success: false, message: "Flujo no encontrado." };
     }
 
     const id = `flow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const nombre = await nombreLibre(original.name, ctx.cuenta);
+    const visibilidad = recibido ? "privado" : original.visibility;
 
     // Los nodos se copian dentro de la base: son varios kB de JSON que no hacen
     // falta aqui para nada mas que volver a mandarlos.
-    const creado = await db.$queryRaw<Omit<FlowSummary, "puedeEditar" | "puedeCompartir">[]>`
+    const creado = await db.$queryRaw<
+      (Omit<FlowSummary, "puedeEditar" | "puedeCompartir" | "recibido" | "compartidoCon">)[]
+    >`
       INSERT INTO "flows" ("id", "userId", "name", "description", "nodes", "edges", "createdById", "visibility")
-      SELECT ${id}, ${ctx.cuenta}, ${nombre}, "description", "nodes", "edges", ${ctx.persona}, "visibility"
+      SELECT ${id}, ${ctx.cuenta}, ${nombre}, "description", "nodes", "edges", ${ctx.persona}, ${visibilidad}
       FROM "flows"
-      WHERE "userId" = ${ctx.cuenta} AND "id" = ${flowId}
+      WHERE "id" = ${flowId}
       RETURNING "id", "name", "description", "createdAt", "updatedAt", "visibility", "createdById",
                 CASE WHEN jsonb_typeof("nodes") = 'array' THEN jsonb_array_length("nodes") ELSE 0 END AS "nodeCount"
     `;
     if (!creado[0]) return { success: false, message: "No se pudo duplicar el diagrama." };
 
     revalidatePath("/diagramas");
-    return { success: true, data: { ...creado[0], puedeEditar: true, puedeCompartir: true } };
+    return {
+      success: true,
+      data: {
+        ...creado[0],
+        recibido: false,
+        compartidoCon: 0,
+        puedeEditar: true,
+        puedeCompartir: true,
+      },
+    };
   } catch (error) {
     console.error("[duplicateFlowAction]", error);
     return { success: false, message: "No se pudo duplicar el diagrama." };
+  }
+}
+
+export type CuentaDestino = {
+  id: string;
+  name: string | null;
+  email: string;
+  company: string;
+  compartido: boolean;
+};
+
+/**
+ * A qué cuentas se les puede enseñar este diagrama, y a cuáles ya.
+ *
+ * Son las cuentas de cliente sobre las que manda quien pregunta: un admin las
+ * tiene todas; un reseller, las suyas. La misma lista que reparte clientes entre
+ * el equipo, para que no haya dos ideas de "mis cuentas".
+ */
+export async function getFlowShareTargetsAction(
+  flowId: string,
+): Promise<ActionResult<CuentaDestino[]>> {
+  try {
+    const user = await currentUser();
+    const ctx = await contexto();
+    await ensureFlowTable();
+
+    const flow = await buscarFlow(flowId, ctx.cuenta);
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeMandarEnEl(flow, ctx)) {
+      return { success: false, message: "Solo quien lo creó o un administrador puede compartirlo." };
+    }
+
+    const [cuentas, compartidas] = await Promise.all([
+      clientesDeLaCuenta({ id: ctx.cuenta, role: user?.role ?? "user" }),
+      db.$queryRaw<{ accountUserId: string }[]>`
+        SELECT "accountUserId" FROM "flow_shares" WHERE "flowId" = ${flowId}
+      `,
+    ]);
+
+    const yaTiene = new Set(compartidas.map((c) => c.accountUserId));
+    return {
+      success: true,
+      // La propia cuenta no se lista: ya lo tiene, y marcarla no querria decir nada.
+      data: cuentas
+        .filter((c) => c.id !== ctx.cuenta)
+        .map((c) => ({ ...c, compartido: yaTiene.has(c.id) })),
+    };
+  } catch (error) {
+    console.error("[getFlowShareTargetsAction]", error);
+    return { success: false, message: "No se pudieron cargar las cuentas." };
+  }
+}
+
+export async function setFlowSharesAction(
+  flowId: string,
+  accountIds: string[],
+): Promise<ActionResult<null>> {
+  try {
+    const user = await currentUser();
+    const ctx = await contexto();
+    await ensureFlowTable();
+
+    const flow = await buscarFlow(flowId, ctx.cuenta);
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeMandarEnEl(flow, ctx)) {
+      return { success: false, message: "Solo quien lo creó o un administrador puede compartirlo." };
+    }
+
+    // Solo cuentas sobre las que se manda de verdad: lo que llegue del navegador
+    // no decide a quien se le enseña un diagrama.
+    const cuentas = await clientesDeLaCuenta({ id: ctx.cuenta, role: user?.role ?? "user" });
+    const suyas = new Set(cuentas.map((c) => c.id));
+    const validas = [...new Set(accountIds)].filter((id) => id !== ctx.cuenta && suyas.has(id));
+
+    await db.$executeRaw`DELETE FROM "flow_shares" WHERE "flowId" = ${flowId}`;
+    for (const accountUserId of validas) {
+      const id = `fs_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      await db.$executeRaw`
+        INSERT INTO "flow_shares" ("id", "flowId", "accountUserId", "sharedById")
+        VALUES (${id}, ${flowId}, ${accountUserId}, ${ctx.persona})
+        ON CONFLICT ("flowId", "accountUserId") DO NOTHING
+      `;
+    }
+
+    revalidatePath("/diagramas");
+    return { success: true, data: null };
+  } catch (error) {
+    console.error("[setFlowSharesAction]", error);
+    return { success: false, message: "No se pudo guardar con quién se comparte." };
   }
 }
 
