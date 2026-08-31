@@ -125,7 +125,9 @@ const PREFETCH_TOP_CHATS = 14;
 const BACKFILL_CHATS = 50;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
-const SELECTED_CHAT_POLLING_DELAY_MS = 10000;
+// Primera vuelta del sondeo del chat abierto. Corta a proposito: es lo que
+// cubre el hueco entre abrir la conversacion y que empiece el ciclo.
+const SELECTED_CHAT_POLLING_DELAY_MS = 2000;
 // Intervalo de refresco de la lista de chats. Con el tiempo real activo, el
 // socket mantiene la frescura; el polling queda como FALLBACK a 60s (antes 20s)
 // para reconciliar si el WebSocket se cae. Reduce mucho la carga a Evolution+BD.
@@ -672,7 +674,15 @@ export function ChatsClient({
   // Poll de mensajes del chat abierto. Con el tiempo real activo, el socket
   // entrega los mensajes al instante; este poll queda como FALLBACK a 20s
   // (antes 6s) y además sincroniza/persiste con Evolution periódicamente.
-  const BASE_INTERVAL = 20000;
+  // Cada cuanto se le piden los mensajes al chat ABIERTO.
+  //
+  // Bajo a proposito, y bajo aunque el tiempo real diga que va bien. Es la red
+  // de seguridad: da igual por que camino falle -que el aviso no llegue, que no
+  // se empareje con el chat abierto, que el ciclo no arranque-, con esto la
+  // conversacion nunca se queda mas de unos segundos atras. Cuesta una consulta
+  // cada 5s por pestaña con un chat abierto, y ese precio es barato al lado de
+  // un asesor mirando una conversacion que no avanza.
+  const BASE_INTERVAL = 5000;
   const MAX_BACKOFF = 45000;
   // Cuando se refresco la lista por ultima vez, para que volver a la ventana no
   // dispare una consulta por cada clic.
