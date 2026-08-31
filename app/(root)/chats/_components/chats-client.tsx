@@ -2627,8 +2627,32 @@ export function ChatsClient({
     },
     onChatChanged: (payload) => {
       const jid = payload.remoteJid;
+
+      // Los nombres de un mismo chat: un contacto puede llegar como numero o
+      // como `@lid`, y el aviso no siempre trae el mismo que se abrio.
+      //
+      // Se preguntaba solo por `selectedJid` y por los alias del contacto, que
+      // es un juego mas corto que el que usa la lista -esa compara contra los
+      // alias de SU propia fila-. Cuando el aviso venia con la otra forma, la
+      // lista lo reconocia y la conversacion no: el mensaje aparecia arriba al
+      // instante y en la conversacion no salia hasta el sondeo de respaldo, a
+      // 20s y hasta 45s si venia de un fallo. De ahi la sensacion de minutos.
+      //
+      // Ahora se mira tambien la fila de la lista, que es la que tiene los
+      // alias completos: misma fuente para las dos mitades.
+      const filaAbierta =
+        selectedJid && currentChatsResult.success
+          ? currentChatsResult.data.find(
+              (c) => c.remoteJid === selectedJid || c.aliases?.includes(selectedJid),
+            )
+          : undefined;
       const isOpenChat =
-        jid && (jid === selectedJid || currentContact?.aliases?.includes(jid));
+        !!jid &&
+        (jid === selectedJid ||
+          !!currentContact?.aliases?.includes(jid) ||
+          filaAbierta?.remoteJid === jid ||
+          !!filaAbierta?.aliases?.includes(jid));
+
       const m = payload.message;
       // El filtro barato va PRIMERO. Antes se llamaba al servidor por cada
       // mensaje que entraba -y con varios asesores con la pantalla abierta, por
