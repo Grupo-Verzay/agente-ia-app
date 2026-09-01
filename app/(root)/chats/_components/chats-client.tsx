@@ -125,10 +125,14 @@ const PREFETCH_TOP_CHATS = 14;
 const BACKFILL_CHATS = 50;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
-// Intervalo de refresco de la lista de chats. Con el tiempo real activo, el
-// socket mantiene la frescura; el polling queda como FALLBACK a 60s (antes 20s)
-// para reconciliar si el WebSocket se cae. Reduce mucho la carga a Evolution+BD.
-const LIST_SYNC_INTERVAL_MS = 60000;
+// Intervalo de refresco de la lista de chats.
+//
+// Vuelve a 20s. Estuvo en 60s dando por hecho que el tiempo real mantendria la
+// frescura, y ese supuesto no se sostuvo: cuando el aviso instantaneo no
+// acertaba, la lista -y con ella la conversacion, que se apoya en su
+// salvavidas- se quedaba hasta un minuto atras. El tiempo real ADELANTA
+// trabajo; el reloj es quien responde de que las cosas se vean.
+const LIST_SYNC_INTERVAL_MS = 20000;
 // Polling ADAPTATIVO: si el WebSocket de tiempo real está caído o no
 // configurado, usamos intervalos más ágiles para que igual se sienta en vivo.
 // Con el socket conectado se mantienen los intervalos relajados de arriba.
@@ -1398,28 +1402,6 @@ export function ChatsClient({
 
         if (result?.success) {
           const nextMessages = result.data || [];
-          // TEMPORAL (diagnostico): una linea por consulta. Dice si el ciclo
-          // corre siquiera, con que identidades pregunta y que le devuelven.
-          // Se quita en cuanto se cierre el caso.
-          {
-            const masNuevo = nextMessages.reduce(
-              (max, m) => Math.max(max, m.messageTimestamp ?? 0),
-              0,
-            );
-            console.log("[chats] sondeo", {
-              pidio: remoteJid,
-              identidades: remoteJidAliases ?? [],
-              devueltos: nextMessages.length,
-              masNuevo: masNuevo ? new Date(masNuevo * 1000).toLocaleTimeString() : "—",
-              enPantalla: (() => {
-                const t = messagesRef.current.reduce(
-                  (max, m) => Math.max(max, m.messageTimestamp ?? 0),
-                  0,
-                );
-                return t ? new Date(t * 1000).toLocaleTimeString() : "—";
-              })(),
-            });
-          }
           if (areListsDifferent(messagesRef.current, nextMessages)) {
             setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo((currentInfo) => {
