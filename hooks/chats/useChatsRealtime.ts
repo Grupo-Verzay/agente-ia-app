@@ -52,7 +52,12 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
   }, [onConnectedChange]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      // Sin esto, un tiempo real apagado y un tiempo real roto se ven igual:
+      // nada en la consola y nada en la pestaña WS del navegador.
+      console.warn("[realtime] desactivado: la carga inicial de chats no vino bien");
+      return;
+    }
 
     let socket: Socket | null = null;
     let cancelled = false;
@@ -61,11 +66,22 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
     const fetchToken = async (): Promise<{ url: string; token: string } | null> => {
       try {
         const res = await fetch("/api/realtime/token", { cache: "no-store" });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          console.warn("[realtime] /api/realtime/token respondio", res.status);
+          return null;
+        }
         const data = await res.json();
-        if (!data?.enabled || !data?.url || !data?.token) return null;
+        if (!data?.enabled) {
+          console.warn("[realtime] apagado por entorno (falta REALTIME_URL o REALTIME_JWT_SECRET en la App)");
+          return null;
+        }
+        if (!data?.url || !data?.token) {
+          console.warn("[realtime] el token vino incompleto:", { url: !!data?.url, token: !!data?.token });
+          return null;
+        }
         return { url: data.url as string, token: data.token as string };
-      } catch {
+      } catch (error) {
+        console.warn("[realtime] no se pudo pedir el token:", error);
         return null;
       }
     };
@@ -73,6 +89,8 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
     const connect = async () => {
       const creds = await fetchToken();
       if (!creds || cancelled) return;
+
+      console.info("[realtime] conectando a", creds.url);
 
       socket = io(creds.url, {
         path: "/socket.io",
@@ -83,8 +101,20 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
         reconnectionDelayMax: 8000,
       });
 
-      socket.on("connect", () => notifyConnected(true));
-      socket.on("disconnect", () => notifyConnected(false));
+      socket.on("connect", () => {
+        console.info("[realtime] conectado");
+        notifyConnected(true);
+      });
+      socket.on("disconnect", (motivo) => {
+        // "io server disconnect" = el backend nos echa; casi siempre el token
+        // no le cuadra con su REALTIME_JWT_SECRET.
+        console.warn("[realtime] desconectado:", motivo);
+        notifyConnected(false);
+      });
+      // Sin este manejador, un socket que no llega a levantarse no deja rastro.
+      socket.on("connect_error", (error) => {
+        console.warn("[realtime] no se pudo conectar:", error?.message ?? error);
+      });
 
       socket.on("chat:changed", (payload: ChatChangedPayload) => {
         if (payload?.remoteJid) handlerRef.current?.(payload);
@@ -104,6 +134,7 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
       notifyConnected(false);
       socket?.off("connect");
       socket?.off("disconnect");
+      socket?.off("connect_error");
       socket?.off("chat:changed");
       socket?.disconnect();
       socket = null;
