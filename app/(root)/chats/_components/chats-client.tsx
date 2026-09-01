@@ -31,7 +31,7 @@ import type {
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
-import { isBadContactName } from "./chat-sidebar.utils";
+import { getChatIdentityCandidates, isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -350,18 +350,6 @@ function getChatSortTimestamp(chat: ChatData) {
   );
 }
 
-function getChatIdentityCandidates(chat: ChatData) {
-  return buildWhatsAppJidCandidates(chat.remoteJid, [
-    chat.remoteJidAlt,
-    chat.senderPn,
-    ...(chat.aliases ?? []),
-    chat.lastMessage?.key?.remoteJid,
-    chat.lastMessage?.key?.remoteJidAlt,
-    chat.lastMessage?.key?.senderPn,
-    chat.lastMessage?.senderPn,
-  ]);
-}
-
 // Las preferencias van indexadas por «cuenta::número» (ver lib/chat-preference-key):
 // la bandeja enseña las líneas de todas las cuentas asociadas y la marca debe
 // aplicarse solo a los chats de SU línea, no a cualquiera con el mismo número.
@@ -481,6 +469,115 @@ function dedupeAndSortChats(chats: ChatData[], lidMap?: LidPhoneMap) {
       if (messageKey) seenMessages.add(messageKey);
       return true;
     });
+}
+
+/**
+ * ¿La lista recién fusionada dice exactamente lo mismo que la que ya había?
+ *
+ * Casi todas las vueltas del reloj de la lista no traen novedad: se pregunta,
+ * llega lo mismo, y aun así se guardaba un array nuevo. Con eso, todo lo de
+ * abajo daba por hecho que algo había cambiado y se rehacía: miles de filas
+ * reconstruidas, contadores recontados y la columna repintada, cada veinte
+ * segundos, para acabar dibujando lo mismo.
+ *
+ * Se comparan solo los campos que se ven o que ordenan. Los objetos siempre
+ * llegan nuevos, así que comparar por identidad no serviría de nada.
+ */
+function mismaLista(a: ChatData[], b: ChatData[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x === y) continue;
+    if (
+      x.remoteJid !== y.remoteJid ||
+      x.instanceName !== y.instanceName ||
+      x.unreadCount !== y.unreadCount ||
+      x.pushName !== y.pushName ||
+      x.profilePicUrl !== y.profilePicUrl ||
+      x.updatedAt !== y.updatedAt ||
+      x.windowActive !== y.windowActive ||
+      x.lastMessage?.key?.id !== y.lastMessage?.key?.id ||
+      x.lastMessage?.messageTimestamp !== y.lastMessage?.messageTimestamp ||
+      // Las identidades cuentan aunque no se vean: con ellas se piden los
+      // mensajes del chat abierto, y quedarse con las de antes por creer que
+      // "no ha cambiado nada" es justo lo que devuelve una conversacion vacia.
+      x.remoteJidAlt !== y.remoteJidAlt ||
+      x.senderPn !== y.senderPn
+    ) {
+      return false;
+    }
+
+    const aliasX = x.aliases ?? [];
+    const aliasY = y.aliases ?? [];
+    if (aliasX.length !== aliasY.length) return false;
+    for (let j = 0; j < aliasX.length; j++) {
+      if (aliasX[j] !== aliasY[j]) return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * ¿Las fichas CRM recién traídas dicen lo mismo que las que ya había?
+ *
+ * Mismo motivo que `mismaLista`, y sin esto aquella no sirve de nada: las
+ * sesiones se vuelven a pedir en cada vuelta del reloj y se guardaba un objeto
+ * nuevo aunque viniera idéntico. Como de ahí salen el nombre, las etiquetas y
+ * las marcas de cada fila, ese objeto nuevo por sí solo obligaba a reconstruir
+ * la lista entera cada veinte segundos.
+ */
+function mismasSesiones(a: ChatContactSessionMap, b: ChatContactSessionMap) {
+  if (a === b) return true;
+
+  const clavesA = Object.keys(a);
+  if (clavesA.length !== Object.keys(b).length) return false;
+
+  for (const clave of clavesA) {
+    const x = a[clave];
+    const y = b[clave];
+    if (x === y) continue;
+    if (!y) return false;
+    if (
+      x.id !== y.id ||
+      x.customName !== y.customName ||
+      x.pushName !== y.pushName ||
+      x.leadStatus !== y.leadStatus ||
+      x.serviceType !== y.serviceType ||
+      x.clientStatus !== y.clientStatus ||
+      x.assignedAdvisorId !== y.assignedAdvisorId ||
+      x.status !== y.status ||
+      x.agentDisabled !== y.agentDisabled ||
+      x.resolvedAt !== y.resolvedAt ||
+      x.reminderCount !== y.reminderCount ||
+      x.pendingSeguimientos !== y.pendingSeguimientos ||
+      x.latestAppointmentStatus !== y.latestAppointmentStatus ||
+      x.flujos !== y.flujos
+    ) {
+      return false;
+    }
+
+    const etiquetasX = x.tags ?? [];
+    const etiquetasY = y.tags ?? [];
+    if (etiquetasX.length !== etiquetasY.length) return false;
+    for (let i = 0; i < etiquetasX.length; i++) {
+      if (etiquetasX[i].id !== etiquetasY[i].id || etiquetasX[i].name !== etiquetasY[i].name) {
+        return false;
+      }
+    }
+
+    const tiposX = x.seguimientosTipos ?? [];
+    const tiposY = y.seguimientosTipos ?? [];
+    if (tiposX.length !== tiposY.length) return false;
+    for (let i = 0; i < tiposX.length; i++) {
+      if (tiposX[i].tipo !== tiposY[i].tipo || tiposX[i].count !== tiposY[i].count) return false;
+    }
+  }
+
+  return true;
 }
 
 interface ChatsClientProps {
@@ -1061,7 +1158,9 @@ export function ChatsClient({
               next[jid] = { ...next[jid], customName: prev[jid].customName };
             }
           }
-          return next;
+          // Sin cambios, se queda el objeto de antes: es lo que permite que la
+          // lista no se reconstruya en las vueltas del reloj que no traen nada.
+          return mismasSesiones(next, prev) ? prev : next;
         });
       }
     },
@@ -1122,8 +1221,12 @@ export function ChatsClient({
     if (!algunaRespondio) {
       return { success: false, message: "Ninguna instancia respondió." };
     }
-    return { success: true, message: "OK", data: dedupeAndSortChats(allChats, lidPhoneMap) };
-  }, [instanceActionSets, refetchChatsAction, lidPhoneMap]);
+    // Sin deduplicar aqui: las dos personas que llaman a esto pasan el resultado
+    // por `filterChatList`, que hace exactamente lo mismo acto seguido. Eran dos
+    // ordenaciones y dos barridos de identidades sobre miles de chats en cada
+    // vuelta del reloj, para el mismo resultado.
+    return { success: true, message: "OK", data: allChats };
+  }, [instanceActionSets, refetchChatsAction]);
 
   /**
    * Aplica la lista recién traída SIN perder los chats que no vinieron en ella.
@@ -1144,19 +1247,11 @@ export function ChatsClient({
       if (!previo.success) return frescos;
       const fusionados = dedupeAndSortChats([...frescos.data, ...previo.data], lidPhoneMap);
 
-      // DIAGNÓSTICO TEMPORAL. Retirar cuando se localice la causa de los chats
-      // que desaparecen de la lista: dice QUÉ conversaciones estaban y ya no,
-      // para saber si las quita la fusión, el deduplicado o un filtro posterior.
-      const antes = new Set(previo.data.map((c) => c.remoteJid));
-      const despues = new Set(fusionados.map((c) => c.remoteJid));
-      const perdidos = Array.from(antes).filter((jid) => !despues.has(jid));
-      if (perdidos.length > 0) {
-        console.warn("[DIAG lista] desaparecen tras fusionar:", perdidos, {
-          previos: previo.data.length,
-          frescos: frescos.data.length,
-          fusionados: fusionados.length,
-        });
-      }
+      // Sin novedad, se devuelve LO MISMO que había: React no vuelve a dibujar
+      // y nada de lo de abajo se rehace. Es la vuelta mas comun del reloj -se
+      // pregunta cada veinte segundos y casi nunca hay nada nuevo- y era la que
+      // reconstruia miles de filas para acabar pintando lo de siempre.
+      if (mismaLista(fusionados, previo.data)) return previo;
 
       return { ...frescos, data: fusionados };
     });
