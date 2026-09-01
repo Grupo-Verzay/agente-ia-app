@@ -31,7 +31,7 @@ import type {
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
-import { epochToMs, isBadContactName } from "./chat-sidebar.utils";
+import { epochToMs, getChatIdentityCandidates, isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -360,18 +360,6 @@ function getChatSortTimestamp(chat: ChatData) {
     chat.lastMessage?.messageTimestamp ??
     (chat.updatedAt ? Math.floor(new Date(chat.updatedAt).getTime() / 1000) : 0)
   );
-}
-
-function getChatIdentityCandidates(chat: ChatData) {
-  return buildWhatsAppJidCandidates(chat.remoteJid, [
-    chat.remoteJidAlt,
-    chat.senderPn,
-    ...(chat.aliases ?? []),
-    chat.lastMessage?.key?.remoteJid,
-    chat.lastMessage?.key?.remoteJidAlt,
-    chat.lastMessage?.key?.senderPn,
-    chat.lastMessage?.senderPn,
-  ]);
 }
 
 // Las preferencias van indexadas por «cuenta::número» (ver lib/chat-preference-key):
@@ -1143,8 +1131,12 @@ export function ChatsClient({
     if (!algunaRespondio) {
       return { success: false, message: "Ninguna instancia respondió." };
     }
-    return { success: true, message: "OK", data: dedupeAndSortChats(allChats, lidPhoneMap) };
-  }, [instanceActionSets, refetchChatsAction, lidPhoneMap]);
+    // Sin deduplicar aqui: las dos personas que llaman a esto pasan el resultado
+    // por `filterChatList`, que hace exactamente lo mismo acto seguido. Eran dos
+    // ordenaciones y dos barridos de identidades sobre miles de chats en cada
+    // vuelta del reloj, para acabar en el mismo resultado.
+    return { success: true, message: "OK", data: allChats };
+  }, [instanceActionSets, refetchChatsAction]);
 
   /**
    * Aplica la lista recién traída SIN perder los chats que no vinieron en ella.
