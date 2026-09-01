@@ -51,28 +51,6 @@ navegador bloqueado, y mientras tanto no se dibuja nada ni corren los relojes.
   columna entera se repintaba. Si el manejador solo necesita consultarlos al
   pulsar, se leen por referencia (`contactsRef`, `chatSessionsRef`).
 
-## Chats: la vuelta que no trae nada no debe costar nada
-
-El reloj de la lista pregunta cada 20 s y **casi nunca hay novedad**. Aun así se
-guardaba un array nuevo, y con eso todo lo de abajo daba por hecho que algo había
-cambiado: miles de filas reconstruidas, contadores recontados y la columna
-repintada, para acabar dibujando lo mismo.
-
-- `aplicarChatsFrescos` devuelve **el objeto de antes** cuando `mismaLista` dice
-  que no hay cambio. React entonces ni siquiera vuelve a dibujar.
-- `refreshChatSessions` hace lo mismo con `mismasSesiones`. Sin esto lo anterior
-  no sirve de nada: de las sesiones salen el nombre, las etiquetas y las marcas
-  de cada fila, así que un objeto nuevo por sí solo obligaba a rehacerlo todo.
-- En esa comparación entran también `aliases`, `remoteJidAlt` y `senderPn`,
-  aunque no se vean. Con ellas se piden los mensajes del chat abierto: quedarse
-  con las de antes por creer que "no ha cambiado nada" es justo lo que devuelve
-  una conversación vacía (ver la regla de arriba).
-
-`dedupeAndSortChats` es caro —ordena y barre identidades— y se llamaba **tres
-veces por vuelta**, una de ellas sobre la lista duplicada. `refetchAllInstances`
-ya no deduplica: quien la llama pasa el resultado por `filterChatList`, que lo
-hace acto seguido.
-
 ## Chats: la regla de la lista no se recalcula al hacer scroll
 
 La virtualización mide con alturas estimadas. Esas medidas dependen **solo de la
