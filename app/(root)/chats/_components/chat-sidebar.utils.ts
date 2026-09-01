@@ -3,8 +3,11 @@ import { buildWhatsAppJidCandidates, extractWhatsAppDigits } from "@/lib/whatsap
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-visible";
 import { avatarSrcFor } from "@/lib/avatar";
 import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
+import { epochToMs } from "@/lib/epoch";
 import type { ChatData } from "@/actions/chat-actions";
 import type { ChatConversationPreference } from "@/types/chat";
+
+export { epochToMs };
 
 // Sin timeZone fijo: usa la zona horaria LOCAL del navegador de cada usuario
 // (México, R. Dominicana, etc.), no la de Colombia.
@@ -14,10 +17,6 @@ export const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("es-CO", {
   hour12: true,
 });
 
-export function epochToMs(epoch?: number): number {
-  if (!epoch) return 0;
-  return epoch < 2_000_000_000 ? epoch * 1000 : epoch;
-}
 
 const DIA_DE_LA_SEMANA = new Intl.DateTimeFormat("es", { weekday: "long" });
 const FECHA_CORTA = new Intl.DateTimeFormat("es", {

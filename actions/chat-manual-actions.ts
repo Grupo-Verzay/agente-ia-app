@@ -12,6 +12,7 @@ import { pausarIaPorIntervencionHumana } from "@/lib/human-takeover";
 import { esNodoDeAutomatizacion, ejecutarNodoDeAutomatizacion } from "@/lib/workflow-automation-nodes";
 import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
+import { epochToMs } from "@/lib/epoch";
 import {
   eliminarMensajeDelTodo,
   getDeletedLastMessageJids,
@@ -648,8 +649,16 @@ export async function warmChatMessagesAction(
     // Si la base tiene algo que Evolution no trajo -o algo mas nuevo-, manda la
     // base. Es el caso del contacto con varias identidades: la conversacion
     // salia vacia, o congelada, mientras el mensaje estaba guardado.
+    // En la MISMA unidad las dos partes. Se comparaba en crudo, y las dos listas
+    // vienen de sitios distintos: la nuestra sella en segundos
+    // (`dateToEpochSeconds`) y Evolution manda unas veces segundos y otras
+    // milisegundos. Con el mensaje nuevo guardado en segundos y los viejos de
+    // Evolution en milisegundos, los viejos salian mil veces mayores y ganaban:
+    // se devolvia la respuesta de Evolution SIN el mensaje, que se quedaba en la
+    // base sin llegar nunca a la pantalla. La conversacion se veia congelada
+    // mientras el mensaje ya estaba guardado.
     const masNuevo = (lista: { messageTimestamp?: number | null }[]) =>
-      lista.reduce((max, m) => Math.max(max, Number(m.messageTimestamp ?? 0)), 0);
+      lista.reduce((max, m) => Math.max(max, epochToMs(m.messageTimestamp)), 0);
 
     if (
       respaldoLocal?.data.length &&
