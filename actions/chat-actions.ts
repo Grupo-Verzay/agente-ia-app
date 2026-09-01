@@ -2,6 +2,7 @@
 
 import type { ApiKey } from '@prisma/client';
 import { Buffer } from 'buffer';
+import { epochToMs } from '@/lib/epoch';
 import {
   buildWhatsAppJidCandidates,
   normalizeWhatsAppConversationJid,
@@ -61,10 +62,6 @@ const normalizeFindMessagesPayload = (p: unknown) => {
   return { items: items as EvolutionMessage[], meta: {} };
 };
 const trimText = (value?: string | null) => value?.trim() ?? '';
-const epochToMs = (epoch?: number | null) => {
-  if (!epoch) return 0;
-  return epoch < 2_000_000_000 ? epoch * 1000 : epoch;
-};
 const normalizeComparableChatLabel = (value?: string | null) =>
   trimText(value)
     .normalize('NFD')
@@ -309,7 +306,10 @@ const buildEvolutionMessageFingerprint = (message: EvolutionMessage) => {
 
   return JSON.stringify([
     message.messageType ?? '',
-    message.messageTimestamp ?? 0,
+    // Normalizada: el MISMO mensaje puede llegar en segundos por un camino y en
+    // milisegundos por otro, y en crudo daba dos claves distintas -o sea, una
+    // burbuja repetida-.
+    epochToMs(message.messageTimestamp),
     message.key?.fromMe ?? false,
     content,
   ]);
