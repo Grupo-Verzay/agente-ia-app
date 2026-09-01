@@ -597,12 +597,35 @@ export async function warmChatMessagesAction(
     page === 1
       ? { ...options, pageSize: Math.max(options?.pageSize ?? 0, EVOLUTION_SYNC_WINDOW_SIZE) }
       : options;
-  const result = await findMessagesByRemoteJid(
-    context.apiKeyData,
-    context.instanceName,
-    remoteJid,
-    fetchOptions,
-  );
+  // Se le pregunta a Evolution y a NUESTRA base a la vez.
+  //
+  // Evolution responde por la identidad exacta que se le pide, y un contacto
+  // tiene varias -su numero, su `@lid`, su senderPn-. Si el mensaje entro por
+  // una y se pregunta por otra, contesta que si, correctamente, y con cero
+  // mensajes. Nuestra base guarda cada mensaje con todas sus identidades, asi
+  // que es la que sabe contestar cuando la otra se queda corta.
+  //
+  // En paralelo y no en fila: preguntar a la base es barato y asi no le suma
+  // espera a la apertura del chat, que es lo que se cuido al escribir esto.
+  const [result, respaldoLocal] = await Promise.all([
+    findMessagesByRemoteJid(
+      context.apiKeyData,
+      context.instanceName,
+      remoteJid,
+      fetchOptions,
+    ),
+    effectiveOwnerId
+      ? buildPersistedMessagesResult({
+          userIds: readUserIds,
+          instanceName: context.instanceName,
+          remoteJid,
+          aliases: options?.remoteJidAliases,
+          page,
+          pageSize,
+          message: "Mensajes cargados desde historial local.",
+        }).catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   if (result.success && effectiveOwnerId) {
     // Camino crítico de la PRIMERA apertura: se devuelve YA lo que respondió
@@ -621,22 +644,25 @@ export async function warmChatMessagesAction(
     }).catch(() => {
       // best-effort: si falla, la próxima sync/poll vuelve a intentarlo (idempotente).
     });
+
+    // Si la base tiene algo que Evolution no trajo -o algo mas nuevo-, manda la
+    // base. Es el caso del contacto con varias identidades: la conversacion
+    // salia vacia, o congelada, mientras el mensaje estaba guardado.
+    const masNuevo = (lista: { messageTimestamp?: number | null }[]) =>
+      lista.reduce((max, m) => Math.max(max, Number(m.messageTimestamp ?? 0)), 0);
+
+    if (
+      respaldoLocal?.data.length &&
+      (result.data.length === 0 || masNuevo(respaldoLocal.data) > masNuevo(result.data))
+    ) {
+      return respaldoLocal;
+    }
+
     return result;
   }
 
-  if (!result.success && effectiveOwnerId) {
-    const localResult = await buildPersistedMessagesResult({
-      userIds: readUserIds,
-      instanceName: context.instanceName,
-      remoteJid,
-      aliases: options?.remoteJidAliases,
-      page,
-      pageSize,
-      message: "Evolution no respondio; mensajes cargados desde historial local.",
-    });
-    if (localResult.data.length) {
-      return localResult;
-    }
+  if (!result.success && respaldoLocal?.data.length) {
+    return respaldoLocal;
   }
 
   return result;
