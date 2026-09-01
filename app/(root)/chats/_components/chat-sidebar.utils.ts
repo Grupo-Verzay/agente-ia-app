@@ -1,5 +1,5 @@
 import { type LucideIcon } from "lucide-react";
-import { extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { buildWhatsAppJidCandidates, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-visible";
 import { avatarSrcFor } from "@/lib/avatar";
 import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
@@ -29,6 +29,36 @@ export const FECHA_COMPLETA = new Intl.DateTimeFormat("es", {
   timeStyle: "short",
 });
 
+/**
+ * Todas las formas conocidas de nombrar al contacto de un chat.
+ *
+ * Cachea por el propio objeto del chat. La misma conversacion pasa por aqui
+ * varias veces en cada refresco -al deduplicar la lista, al fusionarla con la
+ * anterior y al armar cada fila-, y cada llamada montaba un `Set` y pasaba
+ * varias expresiones regulares. Con miles de chats eso se notaba. El objeto no
+ * cambia nunca, asi que la respuesta tampoco; cuando llega uno nuevo, el mapa es
+ * debil y el anterior se recoge solo.
+ */
+const IDENTIDADES_POR_CHAT = new WeakMap<ChatData, string[]>();
+
+export function getChatIdentityCandidates(chat: ChatData): string[] {
+  const guardado = IDENTIDADES_POR_CHAT.get(chat);
+  if (guardado) return guardado;
+
+  const candidatos = buildWhatsAppJidCandidates(chat.remoteJid, [
+    chat.remoteJidAlt,
+    chat.senderPn,
+    ...(chat.aliases ?? []),
+    chat.lastMessage?.key?.remoteJid,
+    chat.lastMessage?.key?.remoteJidAlt,
+    chat.lastMessage?.key?.senderPn,
+    chat.lastMessage?.senderPn,
+  ]);
+
+  IDENTIDADES_POR_CHAT.set(chat, candidatos);
+  return candidatos;
+}
+
 /** Medianoche de ese día, para comparar días y no horas. */
 function inicioDelDia(fecha: Date): number {
   return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getTime();
@@ -42,21 +72,59 @@ function inicioDelDia(fecha: Date): number {
  * reserva para hoy y el resto dice el día, como en WhatsApp: "Ayer", el nombre
  * del día dentro de la semana, y la fecha en adelante.
  */
+/**
+ * Lo ya formateado, para no volver a formatearlo.
+ *
+ * Esto se llama una vez por chat cada vez que se reconstruye la lista, y con
+ * miles de chats era de lo mas caro de la pasada: dos `Date` y un
+ * `Intl.DateTimeFormat` por fila, y formatear con `Intl` no es barato. La marca
+ * de un chat no cambia mientras no llegue otro mensaje, asi que la segunda vez
+ * ya esta hecha.
+ *
+ * Se vacia al cambiar el dia, porque lo de hoy pasa a leerse "Ayer" y lo de
+ * "Ayer" pasa a decir el nombre del dia. `finDeHoy` es el inicio del dia
+ * siguiente y no una suma de 24 horas, que en los cambios de hora no son 24.
+ */
+const HORAS_FORMATEADAS = new Map<number, string>();
+let inicioDeHoy = 0;
+let finDeHoy = 0;
+
 export function formatTimeFromEpoch(epoch?: number): string {
   const ms = epochToMs(epoch);
   if (!ms) return "";
 
-  const fecha = new Date(ms);
-  const dias = Math.round((inicioDelDia(new Date()) - inicioDelDia(fecha)) / 86_400_000);
+  const ahora = Date.now();
+  if (ahora >= finDeHoy || ahora < inicioDeHoy) {
+    inicioDeHoy = inicioDelDia(new Date(ahora));
+    finDeHoy = inicioDelDia(new Date(ahora + 86_400_000));
+    HORAS_FORMATEADAS.clear();
+  }
 
-  if (dias <= 0) return CHAT_TIME_FORMATTER.format(fecha);
-  if (dias === 1) return "Ayer";
-  if (dias < 7) {
+  const guardado = HORAS_FORMATEADAS.get(ms);
+  if (guardado !== undefined) return guardado;
+
+  const fecha = new Date(ms);
+  const dias = Math.round((inicioDeHoy - inicioDelDia(fecha)) / 86_400_000);
+
+  let texto: string;
+  if (dias <= 0) {
+    texto = CHAT_TIME_FORMATTER.format(fecha);
+  } else if (dias === 1) {
+    texto = "Ayer";
+  } else if (dias < 7) {
     // El nombre completo: "Mar" se confundía con el mes de marzo.
     const dia = DIA_DE_LA_SEMANA.format(fecha);
-    return dia.charAt(0).toUpperCase() + dia.slice(1);
+    texto = dia.charAt(0).toUpperCase() + dia.slice(1);
+  } else {
+    texto = FECHA_CORTA.format(fecha);
   }
-  return FECHA_CORTA.format(fecha);
+
+  // Tope por si esto acaba corriendo en el servidor, donde el proceso vive
+  // mucho mas que una pestana: se vacia y se vuelve a llenar, que sigue saliendo
+  // a cuenta.
+  if (HORAS_FORMATEADAS.size > 50_000) HORAS_FORMATEADAS.clear();
+  HORAS_FORMATEADAS.set(ms, texto);
+  return texto;
 }
 
 const BAD_NAMES = new Set(['você', 'voce', 'desconocido', '.', '']);
@@ -158,6 +226,34 @@ function normalizePreviewText(text: string): string {
   return labels[normalized] ?? value;
 }
 
+/**
+ * Tipos cuyo texto NO se toma de `message.conversation`: llevan su propia
+ * etiqueta ("Imagen", "Nota de voz"...).
+ *
+ * Estaba DENTRO de `lastTextFrom`, asi que se construia un `Set` de dieciseis
+ * cadenas por cada chat de la lista. Con miles de chats eran miles de `Set`
+ * identicos creados y tirados en cada reconstruccion, para consultarlos una vez
+ * cada uno. No depende de nada: se hace una sola vez.
+ */
+const TIPOS_CON_ETIQUETA_PROPIA = new Set([
+  "imageMessage",
+  "videoMessage",
+  "audioMessage",
+  "documentMessage",
+  "fileMessage",
+  "locationMessage",
+  "stickerMessage",
+  "lottieStickerMessage",
+  "reactionMessage",
+  "interactiveResponseMessage",
+  "meta_call",
+  "call",
+  "templateMessage",
+  "template",
+  "contactMessage",
+  "contactsArrayMessage",
+]);
+
 export function lastTextFrom(chat: ChatData): {
   text: string;
   messageType?: string;
@@ -168,24 +264,6 @@ export function lastTextFrom(chat: ChatData): {
   const type = chat.lastMessage?.messageType;
   const id = chat.lastMessage?.key.id ?? "";
   const fromMe = chat.lastMessage?.key.fromMe ?? false;
-  const typedPreviewTypes = new Set([
-    "imageMessage",
-    "videoMessage",
-    "audioMessage",
-    "documentMessage",
-    "fileMessage",
-    "locationMessage",
-    "stickerMessage",
-    "lottieStickerMessage",
-    "reactionMessage",
-    "interactiveResponseMessage",
-    "meta_call",
-    "call",
-    "templateMessage",
-    "template",
-    "contactMessage",
-    "contactsArrayMessage",
-  ]);
   let text = "";
 
   if (!msg) {
@@ -195,7 +273,7 @@ export function lastTextFrom(chat: ChatData): {
     // nadie: sin texto, en vez del nombre crudo del tipo. Los nuevos ya no se
     // guardan; esto cubre los que quedaron de antes.
     text = "";
-  } else if (msg.conversation && !typedPreviewTypes.has(type ?? "")) {
+  } else if (msg.conversation && !TIPOS_CON_ETIQUETA_PROPIA.has(type ?? "")) {
     text = normalizePreviewText(msg.conversation);
   } else {
     switch (type) {
