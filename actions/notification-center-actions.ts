@@ -47,6 +47,51 @@ const cleanJidNumber = (jid?: string | null) => {
   return raw || (jid ?? "");
 };
 
+/**
+ * ¿Esta cuenta ve alguna línea, propia o de una cuenta vinculada?
+ *
+ * El aviso de "Sin instancia de WhatsApp" se levantaba mirando SOLO las líneas
+ * colgadas de `ownerId`, y en un montaje con cuentas vinculadas eso no es lo que
+ * el usuario tiene delante: la bandeja trabaja con las líneas de todas las
+ * cuentas que ve (ver `allSessionUserIds` en la página de Chats). Una cuenta
+ * maestra sin líneas propias, operando las de sus clientes, recibía el aviso
+ * siendo falso.
+ *
+ * Y ese aviso es de los que NO se pueden apagar —describen algo roto, y
+ * esconderlos dejaría la cuenta muda sin que nadie lo recuerde—, así que uno
+ * falso se queda para siempre en la campanita tapando los de verdad.
+ *
+ * Solo se consulta cuando ya se sabe que no hay líneas propias: en el caso
+ * normal no cuesta nada.
+ */
+async function tieneAlgunaInstancia(ownerId: string): Promise<boolean> {
+  try {
+    const filas = await db.$queryRaw<{ id: string }[]>`
+      SELECT "owner_id" AS id FROM "User"
+      WHERE id = ${ownerId} AND "owner_id" IS NOT NULL
+      UNION
+      SELECT id FROM "User" WHERE "owner_id" = ${ownerId}
+      UNION
+      SELECT "linked_user_id" AS id FROM "linked_accounts"
+      WHERE "master_user_id" = ${ownerId}
+      UNION
+      SELECT "master_user_id" AS id FROM "linked_accounts"
+      WHERE "linked_user_id" = ${ownerId}
+    `;
+
+    const otras = filas.map((f) => f.id).filter((id): id is string => Boolean(id) && id !== ownerId);
+    if (otras.length === 0) return false;
+
+    const cuantas = await db.instancia.count({ where: { userId: { in: otras } } });
+    return cuantas > 0;
+  } catch {
+    // Ante la duda, no se avisa: un aviso falso que no se puede apagar molesta
+    // mas que quedarse sin el, y quien de verdad no tenga linea lo va a notar
+    // igual al intentar enviar.
+    return true;
+  }
+}
+
 export async function getNotificationCenterData(): Promise<{
   success: boolean;
   data: NotificationCenterData;
@@ -205,7 +250,7 @@ export async function getNotificationCenterData(): Promise<{
     }
 
     const connectionItems: NotificationCenterItem[] = [];
-    if (instances.length === 0) {
+    if (instances.length === 0 && !(await tieneAlgunaInstancia(ownerId))) {
       connectionItems.push({
         id: "connection-no-instance",
         kind: "connection",
