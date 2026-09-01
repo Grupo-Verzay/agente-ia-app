@@ -2533,12 +2533,30 @@ export function ChatsClient({
           const filtered = filterChatList(result, lidPhoneMap);
           aplicarChatsFrescos(filtered);
           if (filtered.success) {
-            await refreshChatSessions(filtered.data);
+            /**
+             * ANTES de pedir las sesiones, no despues.
+             *
+             * Estaba detras de `await refreshChatSessions(...)`, que es una
+             * consulta pesada: manda los descriptores de TODOS los chats de la
+             * cuenta -miles-. Si esa consulta fallaba o tardaba de mas, se
+             * saltaba al `catch` y este aviso no se ejecutaba NUNCA.
+             *
+             * El sintoma era exactamente el que costo dias encontrar: la lista
+             * se actualizaba -eso ya habia pasado, una linea mas arriba-, la
+             * conversacion no se enteraba, y en la consola no salia nada. Ni el
+             * aviso, porque no se llegaba a el; ni el error, porque el `catch`
+             * estaba mudo.
+             *
+             * No necesita las sesiones para nada: solo compara marcas de tiempo.
+             */
             avisarSiLaListaVaPorDelante(filtered.data);
+            await refreshChatSessions(filtered.data);
           }
         }
-      } catch {
-        // Se reintenta en la vuelta siguiente.
+      } catch (error) {
+        // Nunca mudo. Una vuelta que falla deja la lista sin refrescar y, hasta
+        // ahora, no dejaba el menor rastro de que hubiera pasado algo.
+        console.warn("[chats] la vuelta de la lista fallo:", error);
       } finally {
         // Igual que el sondeo del chat abierto: la vuelta siguiente se programa
         // pase lo que pase, para que una consulta caida no deje la lista sin
