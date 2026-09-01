@@ -451,119 +451,6 @@ function identidadesParaPedirMensajes(
   return Array.from(new Set([...getChatIdentityCandidates(contact), remoteJid].filter(Boolean)));
 }
 
-/**
- * ¿La lista recién fusionada dice exactamente lo mismo que la que ya había?
- *
- * Casi todas las vueltas del reloj no traen novedad: se pregunta, llega lo
- * mismo, y aun así se guardaba un array nuevo. Con eso, todo lo de abajo daba
- * por hecho que algo había cambiado y se rehacía: miles de filas reconstruidas,
- * contadores recontados y la columna repintada, cada veinte segundos, para
- * acabar dibujando lo mismo. Eso es lo que se siente como que la App "se pega".
- *
- * Se comparan los campos que se ven o que ordenan. Los objetos siempre llegan
- * nuevos, así que comparar por identidad no serviría de nada.
- *
- * CUIDADO con lo de abajo: `aliases`, `remoteJidAlt` y `senderPn` entran en la
- * comparación aunque no se vean en pantalla. Con ellas se piden los mensajes del
- * chat abierto, y quedarse con las de antes por creer que "no ha cambiado nada"
- * es exactamente lo que devuelve una conversación vacía. Ver las reglas de
- * identidades en CLAUDE.md.
- */
-function mismaLista(a: ChatData[], b: ChatData[]) {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-
-  for (let i = 0; i < a.length; i++) {
-    const x = a[i];
-    const y = b[i];
-    if (x === y) continue;
-    if (
-      x.remoteJid !== y.remoteJid ||
-      x.instanceName !== y.instanceName ||
-      x.unreadCount !== y.unreadCount ||
-      x.pushName !== y.pushName ||
-      x.profilePicUrl !== y.profilePicUrl ||
-      x.updatedAt !== y.updatedAt ||
-      x.windowActive !== y.windowActive ||
-      x.lastMessage?.key?.id !== y.lastMessage?.key?.id ||
-      x.lastMessage?.messageTimestamp !== y.lastMessage?.messageTimestamp ||
-      // Las identidades cuentan aunque no se vean.
-      x.remoteJidAlt !== y.remoteJidAlt ||
-      x.senderPn !== y.senderPn
-    ) {
-      return false;
-    }
-
-    const aliasX = x.aliases ?? [];
-    const aliasY = y.aliases ?? [];
-    if (aliasX.length !== aliasY.length) return false;
-    for (let j = 0; j < aliasX.length; j++) {
-      if (aliasX[j] !== aliasY[j]) return false;
-    }
-  }
-
-  return true;
-}
-
-/**
- * ¿Las fichas CRM recién traídas dicen lo mismo que las que ya había?
- *
- * Mismo motivo que `mismaLista`, y sin esto aquella no sirve de nada: las
- * sesiones se vuelven a pedir en cada vuelta del reloj y se guardaba un objeto
- * nuevo aunque viniera idéntico. Como de ahí salen el nombre, las etiquetas y
- * las marcas de cada fila, ese objeto nuevo por sí solo obligaba a reconstruir
- * la lista entera.
- */
-function mismasSesiones(a: ChatContactSessionMap, b: ChatContactSessionMap) {
-  if (a === b) return true;
-
-  const clavesA = Object.keys(a);
-  if (clavesA.length !== Object.keys(b).length) return false;
-
-  for (const clave of clavesA) {
-    const x = a[clave];
-    const y = b[clave];
-    if (x === y) continue;
-    if (!y) return false;
-    if (
-      x.id !== y.id ||
-      x.customName !== y.customName ||
-      x.pushName !== y.pushName ||
-      x.leadStatus !== y.leadStatus ||
-      x.serviceType !== y.serviceType ||
-      x.clientStatus !== y.clientStatus ||
-      x.assignedAdvisorId !== y.assignedAdvisorId ||
-      x.status !== y.status ||
-      x.agentDisabled !== y.agentDisabled ||
-      x.resolvedAt !== y.resolvedAt ||
-      x.reminderCount !== y.reminderCount ||
-      x.pendingSeguimientos !== y.pendingSeguimientos ||
-      x.latestAppointmentStatus !== y.latestAppointmentStatus ||
-      x.flujos !== y.flujos
-    ) {
-      return false;
-    }
-
-    const etiquetasX = x.tags ?? [];
-    const etiquetasY = y.tags ?? [];
-    if (etiquetasX.length !== etiquetasY.length) return false;
-    for (let i = 0; i < etiquetasX.length; i++) {
-      if (etiquetasX[i].id !== etiquetasY[i].id || etiquetasX[i].name !== etiquetasY[i].name) {
-        return false;
-      }
-    }
-
-    const tiposX = x.seguimientosTipos ?? [];
-    const tiposY = y.seguimientosTipos ?? [];
-    if (tiposX.length !== tiposY.length) return false;
-    for (let i = 0; i < tiposX.length; i++) {
-      if (tiposX[i].tipo !== tiposY[i].tipo || tiposX[i].count !== tiposY[i].count) return false;
-    }
-  }
-
-  return true;
-}
-
 function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
   return getChatIdentityCandidates(chat).some((candidate) => jids.has(candidate));
 }
@@ -1199,11 +1086,7 @@ export function ChatsClient({
               next[jid] = { ...next[jid], customName: prev[jid].customName };
             }
           }
-          // Sin cambios, se queda el objeto de antes. Sin esto, lo de
-          // `mismaLista` no sirve de nada: de las sesiones salen el nombre, las
-          // etiquetas y las marcas de cada fila, asi que un objeto nuevo por si
-          // solo ya obligaba a reconstruir la lista entera cada veinte segundos.
-          return mismasSesiones(next, prev) ? prev : next;
+          return next;
         });
       }
     },
@@ -1290,11 +1173,19 @@ export function ChatsClient({
       if (!previo.success) return frescos;
       const fusionados = dedupeAndSortChats([...frescos.data, ...previo.data], lidPhoneMap);
 
-      // Sin novedad, se devuelve LO MISMO que había: React no vuelve a dibujar y
-      // nada de lo de abajo se rehace. Es la vuelta más común del reloj —se
-      // pregunta cada veinte segundos y casi nunca hay nada nuevo— y era la que
-      // reconstruía miles de filas para acabar pintando lo de siempre.
-      if (mismaLista(fusionados, previo.data)) return previo;
+      // DIAGNÓSTICO TEMPORAL. Retirar cuando se localice la causa de los chats
+      // que desaparecen de la lista: dice QUÉ conversaciones estaban y ya no,
+      // para saber si las quita la fusión, el deduplicado o un filtro posterior.
+      const antes = new Set(previo.data.map((c) => c.remoteJid));
+      const despues = new Set(fusionados.map((c) => c.remoteJid));
+      const perdidos = Array.from(antes).filter((jid) => !despues.has(jid));
+      if (perdidos.length > 0) {
+        console.warn("[DIAG lista] desaparecen tras fusionar:", perdidos, {
+          previos: previo.data.length,
+          frescos: frescos.data.length,
+          fusionados: fusionados.length,
+        });
+      }
 
       return { ...frescos, data: fusionados };
     });
