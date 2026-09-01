@@ -28,6 +28,40 @@ Tres cosas concretas que hay que mantener:
 3. Si Evolution contesta corto, se tira de nuestra propia base, que guarda cada
    mensaje con todas sus identidades.
 
+## Chats: las marcas de tiempo, siempre en segundos
+
+Las marcas llegan en **dos unidades**. Evolution unas veces las da en segundos y
+otras en milisegundos, y el aviso de tiempo real reenvía la que le llegó sin
+tocarla (`realtimeTs` en `webhook.service.ts` del backend). Lo nuestro trabaja en
+segundos: los mensajes propios se sellan con `Date.now() / 1000`.
+
+**Todo lo que entre por el socket se pasa a segundos con `epochToMs(...)/1000`
+antes de guardarlo**, tanto el mensaje que se mete en la conversación como el
+`lastMessage` de la fila. Y **las comparaciones normalizan las dos partes** con
+`epochToMs`, nunca comparan en crudo.
+
+Esto costó una noche entera. Una marca en milisegundos entre otras en segundos es
+mil veces mayor que cualquiera, así que:
+
+- `avisarSiLaListaVaPorDelante` se rendía en su primera comparación **siempre**
+  para ese chat. La conversación se quedaba minutos atrás y **no salía ni un
+  aviso en la consola**, porque el aviso está después de esa comparación. Solo se
+  ponía al día cuando entraba el mensaje siguiente por otro camino, y de ahí la
+  sensación de ir siempre uno por detrás.
+- La fila se quedaba clavada arriba del todo, ordenada por una marca imposible.
+
+Que no haya avisos en la consola **no significa que no haya fallo**: puede
+significar que el detector no llega a ejecutarse.
+
+## Chats: buscar la fila por TODAS las identidades
+
+El aviso de tiempo real trae **una** de las identidades del contacto
+(`remoteJid`, `remoteJidAlt`, `senderPn`, `@lid`) y no tiene por qué ser la misma
+con la que está guardada la fila. Donde se busque el chat de un aviso hay que
+mirar las cuatro; con solo `remoteJid` y `aliases` el mensaje se perdía sin
+error: ni subía la fila, ni se marcaba como no leído, ni se avisaba a la
+conversación.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
