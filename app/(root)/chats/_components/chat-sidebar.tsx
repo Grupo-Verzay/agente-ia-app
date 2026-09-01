@@ -538,55 +538,100 @@ export function ChatSidebar({
   ]);
 
   /**
-   * Las conversaciones de este asesor que siguen abiertas.
+   * La lista actual, para consultarla desde los manejadores sin que estos
+   * cambien de identidad cada vez que llega un mensaje.
    *
-   * Las resueltas quedan fuera. De aquí sale el contador de la pestaña "Mías",
-   * que marcaba 2 teniendo una sola pendiente y la otra ya resuelta: la lista
-   * sí las escondía -el filtro de la pestaña quita las resueltas-, pero el
-   * número se contaba antes de ese filtro y no cuadraban.
+   * Tres de ellos -abrir, marcar leido, marcar sin leer- la tenian en sus
+   * dependencias solo para buscar un chat por su jid. Como `contacts` cambia en
+   * cada refresco, esos manejadores se rehacian, y con ellos se rehacian las
+   * props de TODAS las filas dibujadas: el `React.memo` de la fila no servia de
+   * nada y la columna entera se repintaba por cada mensaje que entraba.
    */
-  const myChats = useMemo(() => {
-    if (!currentAdvisorId) return [];
-    return contacts
-      .filter(
-        (c) =>
-          !c.isDeleted &&
-          !c.isArchived &&
-          !esResuelta(c) &&
-          c.chatSession?.assignedAdvisorId === currentAdvisorId,
-      )
-      .sort((a, b) => b.ts - a.ts);
-  }, [contacts, currentAdvisorId]);
+  const contactsRef = React.useRef(contacts);
+  React.useEffect(() => {
+    contactsRef.current = contacts;
+  }, [contacts]);
 
-  const advisorCounts = useMemo(() => {
-    // Igual que arriba: lo resuelto ya no está pendiente de nadie.
-    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived && !esResuelta(c));
+  const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
+
+  /**
+   * Todos los contadores, en UNA sola pasada.
+   *
+   * Antes eran cuatro memos y cada uno volvia a recorrer y a copiar la lista
+   * entera varias veces: mas de quince recorridos de miles de chats cada vez
+   * que llegaba un mensaje, solo para pintar unos numeros en la cabecera. Los
+   * numeros son exactamente los mismos; lo que cambia es que se cuentan de un
+   * tiron.
+   *
+   * Ojo con dos detalles que ya estaban y hay que respetar: archivadas y
+   * resueltas se solapan -una archivada que ademas esta resuelta suma en las
+   * dos pestanas-, y "Mias" deja fuera las resueltas, que es la razon de que
+   * ese contador marcara 2 teniendo una sola pendiente.
+   */
+  const conteos = useMemo(() => {
     const countMap: Record<string, number> = {};
     let unassigned = 0;
-    for (const c of active) {
+    let all = 0;
+    let mine = 0;
+    let dm = 0;
+    let groups = 0;
+    let archived = 0;
+    let resolved = 0;
+    let deleted = 0;
+    let unread = 0;
+    let starred = 0;
+    let notes = 0;
+    let clientActive = 0;
+    let clientInactive = 0;
+    let ia = 0;
+    let human = 0;
+
+    for (const c of contacts) {
+      if (c.isDeleted) {
+        // Las purgadas siguen eliminadas, pero ya no queda nada que listar.
+        if (!c.isPurged) deleted++;
+        continue;
+      }
+
+      const resuelta = esResuelta(c);
+      if (c.isArchived) archived++;
+      if (resuelta) resolved++;
+      if (c.isArchived || resuelta) continue;
+
+      // De aqui para abajo, solo las activas.
+      all++;
+      if (c.isGroup) groups++;
+      else dm++;
+
       const aid = c.chatSession?.assignedAdvisorId;
       if (aid) {
         countMap[aid] = (countMap[aid] ?? 0) + 1;
+        if (currentAdvisorId && aid === currentAdvisorId) mine++;
       } else {
         unassigned++;
       }
+
+      if (c.isUnreadLocal) unread++;
+      if (starredJids.has(c.id)) starred++;
+      if (c.hasNotes) notes++;
+
+      const estadoCliente = c.chatSession?.clientStatus;
+      if (estadoCliente === 'ACTIVO') clientActive++;
+      else if (estadoCliente === 'INACTIVO') clientInactive++;
+
+      const servicio = c.chatSession?.serviceType;
+      if (servicio === 'IA') ia++;
+      else if (servicio === 'HUMANO') human++;
     }
-    return { countMap, unassigned };
-  }, [contacts]);
 
-  const tabCounts = useMemo<TabCounts>(() => {
-    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived && !esResuelta(c));
     return {
-      all: active.length,
-      mine: myChats.length,
-      dm: active.filter((c) => !c.isGroup).length,
-      groups: active.filter((c) => c.isGroup).length,
-      archived: contacts.filter((c) => !c.isDeleted && c.isArchived).length,
-      resolved: contacts.filter((c) => !c.isDeleted && esResuelta(c)).length,
-      deleted: contacts.filter((c) => c.isDeleted && !c.isPurged).length,
+      advisorCounts: { countMap, unassigned },
+      tabCounts: { all, mine, dm, groups, archived, resolved, deleted } satisfies TabCounts,
+      filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human },
     };
-  }, [contacts, myChats]);
+  }, [contacts, currentAdvisorId, starredJids]);
 
+  const { advisorCounts, tabCounts, filterCounts } = conteos;
 
   const deletedContacts = useMemo(() => {
     // Los ya purgados siguen eliminados -y por tanto ocultos-, pero no se
@@ -603,21 +648,6 @@ export function ChatSidebar({
     }
     return list.slice().sort((a, b) => b.ts - a.ts);
   }, [contacts, q]);
-
-  const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
-
-  const filterCounts = useMemo(() => {
-    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived && !esResuelta(c));
-    return {
-      unread: active.filter((c) => c.isUnreadLocal).length,
-      starred: active.filter((c) => starredJids.has(c.id)).length,
-      notes: active.filter((c) => c.hasNotes).length,
-      clientActive: active.filter((c) => c.chatSession?.clientStatus === 'ACTIVO').length,
-      clientInactive: active.filter((c) => c.chatSession?.clientStatus === 'INACTIVO').length,
-      ia: active.filter((c) => c.chatSession?.serviceType === 'IA').length,
-      human: active.filter((c) => c.chatSession?.serviceType === 'HUMANO').length,
-    };
-  }, [contacts, starredJids]);
 
   const setUnreadCount = useChatUnreadStore((s) => s.setUnreadCount);
   useEffect(() => {
@@ -746,10 +776,27 @@ export function ChatSidebar({
     );
   }, [filtered]);
 
+  /**
+   * El navegador dispara `scroll` muchas mas veces de las que puede pintar. Una
+   * medida por fotograma basta y evita renders que se tiran a la basura antes
+   * de verse.
+   */
+  const scrollRafRef = React.useRef(0);
   const handleListScroll = useCallback(() => {
-    const el = listScrollRef.current;
-    if (el) setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = 0;
+      const el = listScrollRef.current;
+      if (el) setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+    });
   }, []);
+
+  React.useEffect(
+    () => () => {
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    },
+    [],
+  );
 
   // Inicializa/actualiza el viewport cuando cambia el contenido o el tamaño.
   React.useEffect(() => {
@@ -757,38 +804,72 @@ export function ChatSidebar({
     if (el) setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
   }, [filtered.length, tab]);
 
+  /**
+   * Donde empieza cada fila. Depende SOLO de la lista, no de por donde va el
+   * scroll.
+   *
+   * Estaba junto con el calculo de la ventana, asi que en cada evento de scroll
+   * se rehacian dos arrays de miles de posiciones y se volvian a sumar todas
+   * las alturas. Eso es lo que hacia que arrastrar la columna se sintiera
+   * pegajoso: el trabajo no estaba en pintar -eso ya iba acotado- sino en
+   * recalcular la regla entera sesenta veces por segundo.
+   *
+   * `offsets` lleva una posicion de mas: la ultima es el alto total, y asi el
+   * calculo de abajo no necesita casos especiales para el final de la lista.
+   */
+  const listMetrics = useMemo(() => {
+    if (filtered.length <= SIDEBAR_VIRTUALIZE_AFTER) return null;
+
+    const offsets = new Float64Array(filtered.length + 1);
+    let total = 0;
+    for (let i = 0; i < filtered.length; i++) {
+      offsets[i] = total;
+      total += estimateSidebarItemHeight(filtered[i]);
+    }
+    offsets[filtered.length] = total;
+    return { offsets, total };
+  }, [filtered]);
+
   // Ventana de items a renderizar (virtualización por estimación de altura).
+  // Con la regla ya hecha, encontrar los extremos es una busqueda binaria: da
+  // igual que haya cincuenta chats o cinco mil.
   const listVirtual = useMemo(() => {
-    if (filtered.length <= SIDEBAR_VIRTUALIZE_AFTER) {
+    if (!listMetrics) {
       return { beforeHeight: 0, afterHeight: 0, items: filtered };
     }
 
-    const heights = filtered.map(estimateSidebarItemHeight);
-    const offsets: number[] = [];
-    let totalHeight = 0;
-    for (const height of heights) {
-      offsets.push(totalHeight);
-      totalHeight += height;
-    }
-
+    const { offsets, total } = listMetrics;
+    const n = filtered.length;
     const viewportHeight = listViewport.height || 640;
     const from = Math.max(0, listViewport.scrollTop - viewportHeight);
     const to = listViewport.scrollTop + viewportHeight * 2;
 
-    let startIndex = offsets.findIndex((offset, index) => offset + heights[index] >= from);
-    if (startIndex === -1) startIndex = 0;
-    let endIndex = offsets.findIndex((offset) => offset > to);
-    if (endIndex === -1) endIndex = filtered.length;
+    // Primera fila que aun no ha terminado antes de `y`.
+    let lo = 0;
+    let hi = n;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (offsets[mid + 1] >= from) hi = mid;
+      else lo = mid + 1;
+    }
+    const startIndex = Math.max(0, lo - SIDEBAR_OVERSCAN_ITEMS);
 
-    startIndex = Math.max(0, startIndex - SIDEBAR_OVERSCAN_ITEMS);
-    endIndex = Math.min(filtered.length, endIndex + SIDEBAR_OVERSCAN_ITEMS);
+    // Primera fila que ya empieza pasada `to`; si no hay ninguna, el final.
+    lo = 0;
+    hi = n;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (offsets[mid] > to) hi = mid;
+      else lo = mid + 1;
+    }
+    const endIndex = Math.min(n, lo + SIDEBAR_OVERSCAN_ITEMS);
 
     return {
-      beforeHeight: offsets[startIndex] ?? 0,
-      afterHeight: Math.max(0, totalHeight - (offsets[endIndex] ?? totalHeight)),
+      beforeHeight: offsets[startIndex],
+      afterHeight: Math.max(0, total - offsets[endIndex]),
       items: filtered.slice(startIndex, endIndex),
     };
-  }, [filtered, listViewport.height, listViewport.scrollTop]);
+  }, [filtered, listMetrics, listViewport.height, listViewport.scrollTop]);
 
   React.useEffect(() => {
     if (!selectedJid) return;
@@ -864,14 +945,14 @@ export function ChatSidebar({
   const handleSelectJid = useCallback(
     (jid: string, lastMessageId: string, instanceName?: string) => {
       if (jid && lastMessageId) {
-        const contacto = contacts.find(
+        const contacto = contactsRef.current.find(
           (c) => c.id === jid && (!instanceName || c.instanceName === instanceName),
         );
         markMessageAsSeen(jid, lastMessageId, instanceName ?? contacto?.instanceName, contacto?.ts);
       }
       void onSelectRemoteJid?.(jid, instanceName);
     },
-    [contacts, markMessageAsSeen, onSelectRemoteJid],
+    [markMessageAsSeen, onSelectRemoteJid],
   );
 
   const handlePrefetchJid = useCallback(
@@ -965,7 +1046,7 @@ export function ChatSidebar({
 
   const handleBulkMarkRead = useCallback((read: boolean) => {
     for (const jid of selectedJidsArray) {
-      const contact = contacts.find((c) => c.id === jid);
+      const contact = contactsRef.current.find((c) => c.id === jid);
       if (read) {
         markMessageAsSeen(jid, contact?.lastMessageId ?? "", contact?.instanceName, contact?.ts);
       } else {
@@ -973,7 +1054,7 @@ export function ChatSidebar({
       }
     }
     clearSelection();
-  }, [selectedJidsArray, contacts, markMessageAsSeen, markMessageAsUnseen, clearSelection]);
+  }, [selectedJidsArray, markMessageAsSeen, markMessageAsUnseen, clearSelection]);
 
   const handleBulkAssignAdvisor = useCallback(async (advisorId: string | null) => {
     if (!onBulkAssignAdvisor || selectedJidsArray.length === 0) return;
@@ -1007,21 +1088,30 @@ export function ChatSidebar({
     }
   }, [renameTarget, renameDraft, chatSessions, onRefresh, onRenameSuccess, onSessionRename]);
 
+  // Mismo motivo que `contactsRef`: las sesiones llegan nuevas en cada refresco
+  // y estos dos manejadores solo las consultan al pulsar. Tenerlas en las
+  // dependencias les cambiaba la identidad cada veinte segundos, y con ella se
+  // repintaban todas las filas.
+  const chatSessionsRef = React.useRef(chatSessions);
+  React.useEffect(() => {
+    chatSessionsRef.current = chatSessions;
+  }, [chatSessions]);
+
   const handleResolve = useCallback(async (remoteJid: string) => {
-    const session = chatSessions[remoteJid];
+    const session = chatSessionsRef.current[remoteJid];
     if (!session?.id) { toast.error("Sin sesión CRM para resolver."); return; }
     const res = await resolveSession(session.id);
     if (res.success) toast.success("Conversación resuelta.");
     else toast.error(res.message ?? "Error al resolver.");
-  }, [chatSessions]);
+  }, []);
 
   const handleAssignTag = useCallback(async (remoteJid: string, tagId: number) => {
-    const session = chatSessions[remoteJid];
+    const session = chatSessionsRef.current[remoteJid];
     if (!session?.id) { toast.error("Sin sesión CRM para etiquetar."); return; }
     const res = await assignTagToSessionAction({ userId: session.userId, sessionId: session.id, tagId });
     if (res.success) toast.success("Etiqueta asignada.");
     else toast.error(res.message ?? "Error al asignar etiqueta.");
-  }, [chatSessions]);
+  }, []);
 
   // Callbacks estables para los items (necesarios para que React.memo de
   // ChatContactItem evite re-renders en cada poll).
@@ -1035,17 +1125,17 @@ export function ChatSidebar({
   );
   const handleItemMarkRead = useCallback(
     (id: string) => {
-      const c = contacts.find((x) => x.id === id);
+      const c = contactsRef.current.find((x) => x.id === id);
       if (c?.lastMessageId) markMessageAsSeen(id, c.lastMessageId, c.instanceName, c.ts);
     },
-    [contacts, markMessageAsSeen],
+    [markMessageAsSeen],
   );
   const handleItemMarkUnread = useCallback(
     (id: string) => {
-      const c = contacts.find((x) => x.id === id);
+      const c = contactsRef.current.find((x) => x.id === id);
       markMessageAsUnseen(id, c?.instanceName);
     },
-    [contacts, markMessageAsUnseen],
+    [markMessageAsUnseen],
   );
   const handleItemRenameRequest = useCallback(
     (contact: SidebarContact) => {

@@ -39,6 +39,33 @@ navegador bloqueado, y mientras tanto no se dibuja nada ni corren los relojes.
   `selectedJid` en las dependencias de lo caro, cada clic reconstruía miles de
   filas.
 - Los avisos de tiempo real se aplican **en tanda**, no uno por uno.
+- Los contadores de la cabecera (pestañas, filtros, asesores) salen de **una
+  sola** pasada, `conteos`. Eran cuatro `useMemo` y cada uno recorría y copiaba
+  la lista varias veces: más de quince recorridos de miles de chats por cada
+  mensaje que entraba, solo para pintar unos números. No volver a partirlos en
+  memos sueltos por comodidad.
+- Ningún manejador que se le pase a una fila puede llevar `contacts` ni
+  `chatSessions` en sus dependencias. Esos objetos llegan nuevos en cada
+  refresco, así que el manejador cambiaba de identidad, y con él cambiaban las
+  props de todas las filas: el `React.memo` de la fila dejaba de servir y la
+  columna entera se repintaba. Si el manejador solo necesita consultarlos al
+  pulsar, se leen por referencia (`contactsRef`, `chatSessionsRef`).
+
+## Chats: la regla de la lista no se recalcula al hacer scroll
+
+La virtualización mide con alturas estimadas. Esas medidas dependen **solo de la
+lista**, no de por dónde va el scroll, y por eso viven en `listMetrics` aparte de
+`listVirtual`.
+
+Estaban juntas, así que cada evento de `scroll` rehacía dos arrays de miles de
+posiciones y volvía a sumar todas las alturas. Arrastrar la columna se sentía
+pegajoso y no era por pintar —eso ya iba acotado— sino por rehacer la regla
+entera sesenta veces por segundo.
+
+Dos cosas que hay que mantener: la búsqueda de los extremos es **binaria** (con
+miles de chats, recorrer el array hasta encontrarlos cuesta lo mismo que no
+virtualizar), y el scroll se mide **una vez por fotograma** (`requestAnimationFrame`),
+porque el navegador dispara el evento muchas más veces de las que puede pintar.
 
 # Pendientes
 
