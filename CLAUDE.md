@@ -53,6 +53,43 @@ mil veces mayor que cualquiera, así que:
 Que no haya avisos en la consola **no significa que no haya fallo**: puede
 significar que el detector no llega a ejecutarse.
 
+## Chats: nada que detecte un fallo puede ir detrás de algo que falle
+
+`avisarSiLaListaVaPorDelante` —el que se da cuenta de que la lista tiene un
+mensaje que la conversación no— estaba **después** de
+`await refreshChatSessions(...)`, una consulta que manda los descriptores de
+todos los chats de la cuenta. Y el `catch` de esa vuelta estaba **mudo**.
+
+Resultado: si esa consulta fallaba o tardaba, se saltaba al `catch` y el detector
+**no llegaba a ejecutarse nunca**. La lista se actualizaba (eso pasa una línea
+antes), la conversación se quedaba horas atrás, y en la consola **no salía
+absolutamente nada** — ni el aviso, porque no se llegaba a él; ni el error,
+porque nadie lo escribía.
+
+Costó dos días de buscar en el sitio equivocado, pidiendo una consola que no
+podía decir nada.
+
+Dos reglas:
+
+1. **Lo que detecta un problema va primero**, antes de cualquier `await` que
+   pueda fallar. El detector solo compara marcas de tiempo: no necesita esperar
+   a nada.
+2. **Ningún `catch` vacío** en los ciclos de refresco. Un fallo silencioso ahí no
+   se nota como un error: se nota como una App lenta, que es mucho peor de
+   diagnosticar.
+
+## Chats: `contact.aliases` NO son todas las identidades
+
+Al pedir los mensajes se pasaba solo `contact.aliases`, y ese campo **viene vacío
+en la mayoría de los contactos**. Sin `remoteJidAlt`, sin `senderPn` y sin la
+identidad con la que llegó el último mensaje, se pregunta por una sola forma del
+contacto y la respuesta vuelve correcta y vacía.
+
+Se usa `identidadesParaPedirMensajes(contact, jid)`, que se apoya en
+`getChatIdentityCandidates`. En **todos** los caminos que pidan mensajes: abrir,
+el reloj del chat abierto, el aviso de tiempo real, la precarga y el refresco de
+fondo. Si se añade otro, va con esa función.
+
 ## Chats: buscar la fila por TODAS las identidades
 
 El aviso de tiempo real trae **una** de las identidades del contacto
