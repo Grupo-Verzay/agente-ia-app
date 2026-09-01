@@ -182,6 +182,13 @@ function formatDiaLargo(fecha: Date) {
     return fecha.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
 }
 
+/** Lo minimo que la pasada barata necesita de cada fila. */
+type LoParaNoLeido = {
+  _remoteJid: string;
+  _lastFromMe: boolean;
+  _hasUnreadFromServer: boolean;
+};
+
 function isChatDeletedByPreference(
   _chat: ChatData,
   preference?: ChatConversationPreferenceMap[string],
@@ -382,7 +389,18 @@ export function ChatSidebar({
     [seenMessages],
   );
 
-  const contacts = useMemo<SidebarContact[]>(() => {
+  /**
+   * La parte CARA de cada fila, y la unica que de verdad cuesta: resolver el
+   * nombre, la foto, la sesion y la marca de cada chat, ordenar y quitar
+   * repetidos.
+   *
+   * Va aparte a proposito. Antes esto se rehacia entero -miles de chats- cada
+   * vez que cambiaba algo tan barato como "cual esta abierto": abrir una
+   * conversacion reconstruia la lista completa, y de ahi que un clic tardara
+   * hasta un segundo. Lo que depende de la seleccion se aplica encima, en la
+   * pasada de abajo, que no toca nada de esto.
+   */
+  const contactosBase = useMemo(() => {
     if (!result.success) return [];
     const instanceLabelMap = new Map(
       instancias.map((inst) => [
@@ -400,20 +418,7 @@ export function ChatSidebar({
       .map((chat) => {
         const ts = epochToMs(chat.lastMessage?.messageTimestamp);
         const lastMsgData = lastTextFrom(chat);
-        // Abierto es ESTA conversacion, no cualquiera con el mismo numero: si
-        // no, abrir la de Ventas daba por leida la de Atencion.
-        const isSelected =
-          chat.remoteJid === selectedJid &&
-          (selectedInstanceName == null || chat.instanceName === selectedInstanceName);
-        const wasSeenPreviously = lastMsgData.id
-          ? isMessageSeen(chat.remoteJid, lastMsgData.id, chat.instanceName, ts)
-          : false;
         const hasUnreadFromServer = (chat.unreadCount ?? 0) > 0;
-        const hasLocalPending = inactiveAgentUnreadJids?.has(chat.remoteJid) ?? false;
-        const isForcedUnread = forcedUnreadJids.has(chat.remoteJid);
-        const isRead =
-          !isForcedUnread &&
-          (wasSeenPreviously || lastMsgData.fromMe || isSelected || (!hasUnreadFromServer && !hasLocalPending));
         const preference = getPreferenceForChat(
           chat,
           chatPreferences,
@@ -439,7 +444,8 @@ export function ChatSidebar({
           timestamp: formatTimeFromEpoch(chat.lastMessage?.messageTimestamp),
           ts,
           isGroup: isGroupJid(chat.remoteJid),
-          isUnreadLocal: (Boolean(lastMsgData.id) || hasLocalPending) && !isRead,
+          // Lo pone la pasada de abajo, que si sabe cual esta abierto.
+          isUnreadLocal: false,
           isPinned: Boolean(preference?.isPinned),
           pinnedAtMs: preference?.pinnedAt ? new Date(preference.pinnedAt).getTime() : 0,
           isArchived: Boolean(preference?.isArchived),
@@ -450,7 +456,12 @@ export function ChatSidebar({
             ? instanceLabelMap.get(chat.instanceName) ?? getInstanceDisplayName(chat.instanceName)
             : undefined,
           hasNotes: notedSessionIds.has(chatSession?.id ?? -1),
-        } satisfies SidebarContact;
+          // Para la pasada barata de abajo, que decide lo de "no leido" sin
+          // tener que volver a mirar el chat entero.
+          _remoteJid: chat.remoteJid,
+          _lastFromMe: lastMsgData.fromMe,
+          _hasUnreadFromServer: hasUnreadFromServer,
+        } satisfies SidebarContact & LoParaNoLeido;
       })
       .sort((a, b) => {
         if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
@@ -486,7 +497,45 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, instancias, isMessageSeen, notedSessionIds, result, selectedInstanceName, selectedJid]);
+  }, [chatPreferences, chatSessions, instancias, notedSessionIds, result]);
+
+  /**
+   * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la
+   * pasada cara sin rehacerla, asi que abrir un chat ya no cuesta reconstruir
+   * la lista entera.
+   */
+  const contacts = useMemo<SidebarContact[]>(() => {
+    return contactosBase.map((base) => {
+      // Abierto es ESTA conversacion, no cualquiera con el mismo numero: si no,
+      // abrir la de Ventas daba por leida la de Atencion.
+      const isSelected =
+        base._remoteJid === selectedJid &&
+        (selectedInstanceName == null || base.instanceName === selectedInstanceName);
+      const wasSeenPreviously = base.lastMessageId
+        ? isMessageSeen(base._remoteJid, base.lastMessageId, base.instanceName, base.ts)
+        : false;
+      const hasLocalPending = inactiveAgentUnreadJids?.has(base._remoteJid) ?? false;
+      const isForcedUnread = forcedUnreadJids.has(base._remoteJid);
+      const isRead =
+        !isForcedUnread &&
+        (wasSeenPreviously ||
+          base._lastFromMe ||
+          isSelected ||
+          (!base._hasUnreadFromServer && !hasLocalPending));
+      const isUnreadLocal = (Boolean(base.lastMessageId) || hasLocalPending) && !isRead;
+
+      // Mismo objeto si nada cambia: asi lo de abajo -filtros, contadores y las
+      // filas ya dibujadas- no se rehace por gusto.
+      return isUnreadLocal === base.isUnreadLocal ? base : { ...base, isUnreadLocal };
+    });
+  }, [
+    contactosBase,
+    forcedUnreadJids,
+    inactiveAgentUnreadJids,
+    isMessageSeen,
+    selectedInstanceName,
+    selectedJid,
+  ]);
 
   /**
    * Las conversaciones de este asesor que siguen abiertas.
