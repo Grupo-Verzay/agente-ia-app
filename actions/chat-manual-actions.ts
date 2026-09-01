@@ -577,6 +577,23 @@ export async function warmChatMessagesAction(
       });
       // localOnly siempre devuelve local (aunque vacío); localFirst solo si hay datos.
       if (localResult.data.length || options?.localOnly) {
+        // Este es el camino que puede dejar una conversación congelada durante
+        // horas sin que nadie se entere: se devuelve lo guardado y NO se le
+        // pregunta a Evolution. Con `localOnly`/`localFirst` es lo pedido y está
+        // bien. Pero si se llega aquí porque el contexto no tiene clave
+        // resuelta, el sondeo normal —que sí quiere lo último— acaba recibiendo
+        // siempre lo mismo, con `success: true` y sin un solo error.
+        if (!options?.localOnly && !options?.localFirst) {
+          console.warn(
+            "[chats] conversación servida SOLO desde la base: sin clave/instancia para preguntar a Evolution.",
+            {
+              remoteJid,
+              instancia: context?.instanceName ?? "(sin instancia)",
+              tieneClave: Boolean(context?.apiKeyData?.url && context?.apiKeyData?.key),
+              mensajes: localResult.data.length,
+            },
+          );
+        }
         return localResult;
       }
     }
