@@ -68,11 +68,23 @@ import type {
   SimpleTag,
 } from "@/types/session";
 
+/**
+ * El mensaje mas nuevo de la lista.
+ *
+ * Ordenaba con las marcas EN CRUDO, y no todas vienen en la misma unidad. Una
+ * sola en milisegundos entre otras en segundos es mil veces mayor que
+ * cualquiera, asi que se quedaba de "mas nuevo" para siempre: `areListsDifferent`
+ * comparaba contra ella, veia el mismo id una y otra vez, y decidia que no habia
+ * novedad. La conversacion dejaba de actualizarse aunque el mensaje nuevo
+ * estuviera ya en la respuesta.
+ */
 function getLastIdTimestamp(list: EvolutionMessage[]) {
   if (!list || list.length === 0) return { id: undefined as string | undefined, ts: 0 };
-  const sorted = [...list].sort((a, b) => (a.messageTimestamp ?? 0) - (b.messageTimestamp ?? 0));
+  const sorted = [...list].sort(
+    (a, b) => epochToMs(a.messageTimestamp) - epochToMs(b.messageTimestamp),
+  );
   const last = sorted[sorted.length - 1];
-  return { id: last?.key?.id, ts: last?.messageTimestamp ?? 0 };
+  return { id: last?.key?.id, ts: epochToMs(last?.messageTimestamp) };
 }
 
 function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
@@ -747,17 +759,22 @@ export function ChatsClient({
         }
         if (!isLocalOptimisticMessage(message)) {
           const content = getMessageContentForDedupe(message);
-          const timestamp = message.messageTimestamp ?? 0;
+          // En milisegundos, igual que la ventana de abajo. La burbuja
+          // provisional se sella en segundos (`Date.now()/1000`) y la respuesta
+          // de Evolution puede venir en milisegundos: comparadas en crudo, la
+          // diferencia era astronomica, la provisional no se retiraba nunca y
+          // quedaban DOS burbujas del mismo envio hasta recargar.
+          const timestamp = epochToMs(message.messageTimestamp);
           // Burbujas provisionales pendientes, de la más antigua a la más nueva:
           // así, con varios envíos seguidos, cada mensaje real reemplaza a la que
           // le corresponde por orden y no a una cualquiera.
           const provisionales = Array.from(map.entries())
             .filter(([, existing]) => isLocalOptimisticMessage(existing))
-            .sort((a, b) => (a[1].messageTimestamp ?? 0) - (b[1].messageTimestamp ?? 0));
+            .sort((a, b) => epochToMs(a[1].messageTimestamp) - epochToMs(b[1].messageTimestamp));
 
           for (const [key, existing] of provisionales) {
             if (existing.key?.fromMe !== message.key?.fromMe) continue;
-            if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
+            if (Math.abs(epochToMs(existing.messageTimestamp) - timestamp) > 180_000) continue;
             // NO se comparan los JID. Esta lista es SIEMPRE la del chat abierto, así
             // que una burbuja provisional que esté aquí es por fuerza de este mismo
             // contacto. Comparar los JID solo podía fallar: la provisional se crea
@@ -789,8 +806,12 @@ export function ChatsClient({
         }
         map.set(getMessageKey(message), message);
       }
+      // El orden de la conversacion. En crudo, un mensaje con la marca en
+      // milisegundos se clavaba arriba del todo por encima de todos los demas, y
+      // el que de verdad acababa de llegar quedaba debajo: parecia que no habia
+      // llegado.
       const resultado = Array.from(map.values()).sort((a, b) => {
-        const tsDiff = (b.messageTimestamp ?? 0) - (a.messageTimestamp ?? 0);
+        const tsDiff = epochToMs(b.messageTimestamp) - epochToMs(a.messageTimestamp);
         if (tsDiff !== 0) return tsDiff;
         return getMessageKey(b).localeCompare(getMessageKey(a));
       });

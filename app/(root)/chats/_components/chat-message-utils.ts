@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { esSobreInternoDeWhatsapp } from '@/lib/whatsapp-message-kinds';
+import { epochToMs } from './chat-sidebar.utils';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
@@ -638,7 +639,12 @@ export function toUIMessages(
       sender,
       content,
       avatarSrc: sender === 'user' ? '/placeholder.svg' : avatarUrl,
-      ts: ts ? ts * 1000 : undefined,
+      // Multiplicar por 1000 daba por hecho que la marca venia en segundos, y no
+      // siempre: cuando Evolution la manda en milisegundos, esto la convertia en
+      // una fecha del ano 56000. La burbuja se pintaba bajo un separador de
+      // fecha absurdo, lejos de donde el asesor la buscaba, y parecia que el
+      // mensaje no habia llegado. `epochToMs` acepta las dos unidades.
+      ts: epochToMs(ts) || undefined,
       media: media || undefined,
       status: isUser ? normalizeDeliveryState(resolveEvolutionMessageStatus(m)) : undefined,
       kind,
