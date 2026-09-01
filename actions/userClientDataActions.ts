@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { getIaCreditByUser } from './actions-ia-credits';
 import { inheritResellerAiConfig } from './userAiconfig-actions';
 import { currentUser } from '@/lib/auth';
+import { rehacerPromptsDeLaCuenta } from '@/lib/agent-prompt-refresh';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
 import { purgarCuentaEliminada } from '@/lib/purge-account.server';
 import { getRemindersByUserId } from './reminders-actions';
@@ -853,6 +854,11 @@ export async function updateUserVoiceSettings(
       return { success: false, message: 'Modelo de voz no válido.' };
     }
 
+    const antes = await db.user.findUnique({
+      where: { id: userId },
+      select: { enableVoiceResponses: true },
+    });
+
     await db.user.update({
       where: { id: userId },
       data: {
@@ -865,6 +871,15 @@ export async function updateUserVoiceSettings(
         ...(elevenLabsVoiceId !== undefined ? { elevenLabsVoiceId } : {}),
       } as Prisma.UserUpdateInput,
     });
+
+    // La firma del agente no se incluye cuando las respuestas salen en audio
+    // -si no, el agente empieza cada nota de voz diciendo su propio nombre-.
+    // Como ese texto se arma al guardar el prompt y no al leerlo, mover este
+    // interruptor obliga a rehacerlo; sin esto el cambio no se notaria hasta
+    // que alguien editara el prompt por otro motivo.
+    if (antes && antes.enableVoiceResponses !== enableVoiceResponses) {
+      await rehacerPromptsDeLaCuenta(userId, enableVoiceResponses);
+    }
 
     return { success: true, message: 'Configuración de voz actualizada.' };
   } catch (error) {
