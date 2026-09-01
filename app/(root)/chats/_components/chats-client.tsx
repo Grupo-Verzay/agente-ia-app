@@ -31,7 +31,12 @@ import type {
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
-import { epochToMs, getChatIdentityCandidates, isBadContactName } from "./chat-sidebar.utils";
+import {
+  epochToMs,
+  getChatIdentityCandidates,
+  isBadContactName,
+  isChatDeletedByPreference,
+} from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -418,21 +423,6 @@ function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
     contact?.remoteJid,
     selected,
   ]) || selected;
-}
-
-/**
- * Una conversacion eliminada sigue eliminada, aunque despues lleguen mensajes
- * nuevos.
- *
- * Antes revivia con cualquier mensaje posterior al borrado. Como la lista se
- * lee de WhatsApp y no de la base -borrar no borra la conversacion de la
- * linea-, bastaba con que el contacto volviera a escribir para que
- * reapareciera sola en la lista principal: se eliminaba, se recargaba la
- * pagina y ahi estaba otra vez. Ahora la marca de borrado manda, y la
- * conversacion solo vuelve si se restaura a mano desde la pestana Eliminados.
- */
-function isChatDeletedByPreference(_chat: ChatData, preference?: ChatConversationPreference) {
-  return Boolean(preference?.deletedAt);
 }
 
 function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
