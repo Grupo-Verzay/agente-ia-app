@@ -1865,13 +1865,37 @@ export function ChatsClient({
             remoteJidAliases,
             apiKeyData: effectiveApiKeyData,
           };
-          setMessages(openMessages);
+          /**
+           * Se FUSIONA con lo que ya hubiera, no se reemplaza.
+           *
+           * Esta respuesta puede tardar, y mientras viaja pueden llegar mensajes
+           * por tiempo real. Reemplazando, esos mensajes se borraban de la
+           * pantalla: aparecian, desaparecian, y volvian unos segundos despues
+           * cuando el reloj de la conversacion los traia de nuevo. El parpadeo
+           * era eso.
+           *
+           * La respuesta puede venir de nuestra base -es la apertura en modo
+           * `localFirst`-, y ahi el mensaje recien llegado todavia no esta:
+           * persistir es asincrono y va por detras.
+           *
+           * Fusionar aqui es seguro: al cambiar de chat, mas arriba se vacia la
+           * conversacion o se pone la de ESE chat, asi que lo que haya en
+           * `previas` es siempre de esta misma conversacion.
+           */
+          const mensajesParaMostrar = messagesRef.current.length
+            ? mergeMessages(messagesRef.current, openMessages)
+            : openMessages;
+
+          setMessages(mensajesParaMostrar);
           setInfo(nextInfo);
           // Solo cacheamos cuando hay contenido real: un cache vacío haría que la
           // próxima apertura tome la rama "cacheada" y muestre el chat en blanco.
+          //
+          // Y se cachea lo FUSIONADO, no lo que vino: guardar la respuesta pelada
+          // dejaria el parpadeo dentro del cache y volveria al reabrir el chat.
           if (hasMessages) {
             commitCache(cacheKey, {
-              messages: openMessages,
+              messages: mensajesParaMostrar,
               info: nextInfo,
             });
           }
