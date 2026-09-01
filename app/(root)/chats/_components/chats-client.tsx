@@ -425,6 +425,32 @@ function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
   ]) || selected;
 }
 
+/**
+ * TODAS las identidades con las que pedir los mensajes de un contacto.
+ *
+ * Aquí estaba el fallo que dejaba la conversación sin el mensaje que la lista sí
+ * mostraba. Se pedían los mensajes pasando únicamente `contact.aliases`, un
+ * campo que en la mayoría de los contactos viene vacío: ni `remoteJidAlt`, ni
+ * `senderPn`, ni la identidad con la que llegó el último mensaje.
+ *
+ * Y esas identidades importan. Un mismo contacto entra unas veces por su número
+ * y otras por su `@lid` —el webhook lo enseña: `addressingMode: "lid"`—. Si el
+ * mensaje entró por una y preguntamos por otra, tanto Evolution como nuestra
+ * base contestan que sí, correctamente, y con **cero mensajes**. La lista no se
+ * entera porque agrupa por conversación; la conversación sí, porque pregunta por
+ * identidad.
+ *
+ * `getChatIdentityCandidates` ya arma el conjunto completo y está cacheado.
+ * Es la regla 2 de CLAUDE.md, que este camino nunca cumplió.
+ */
+function identidadesParaPedirMensajes(
+  contact: ChatData | null | undefined,
+  remoteJid: string,
+): string[] {
+  if (!contact) return [remoteJid];
+  return Array.from(new Set([...getChatIdentityCandidates(contact), remoteJid].filter(Boolean)));
+}
+
 function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
   return getChatIdentityCandidates(chat).some((candidate) => jids.has(candidate));
 }
@@ -604,7 +630,7 @@ export function ChatsClient({
       ? {
           instanceName,
           remoteJid: initialSelectedJid,
-          remoteJidAliases: initialSelectedChat?.aliases,
+          remoteJidAliases: identidadesParaPedirMensajes(initialSelectedChat, initialSelectedJid),
           apiKeyData,
         }
       : undefined,
@@ -979,7 +1005,7 @@ export function ChatsClient({
         ...(currentInfo ?? {}),
         instanceName,
         remoteJid: first,
-        remoteJidAliases: firstContact.aliases,
+        remoteJidAliases: identidadesParaPedirMensajes(firstContact, first),
         apiKeyData,
       }));
 
@@ -1535,7 +1561,7 @@ export function ChatsClient({
           .effectiveWarmMessages(rj, {
             page: 1,
             pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-            remoteJidAliases: t.selectedContact?.aliases,
+            remoteJidAliases: identidadesParaPedirMensajes(t.selectedContact, rj),
             localFirst: true,
           })
           .then((result) => {
@@ -1556,7 +1582,7 @@ export function ChatsClient({
                 nextPage: result.nextPage,
                 instanceName: t.effectiveInstanceName,
                 remoteJid: rj,
-                remoteJidAliases: t.selectedContact?.aliases,
+                remoteJidAliases: identidadesParaPedirMensajes(t.selectedContact, rj),
                 apiKeyData: t.effectiveApiKeyData,
               },
             });
@@ -1632,7 +1658,7 @@ export function ChatsClient({
       ) ?? contacts.find(
         (contact) => contact.remoteJid === remoteJid || contact.aliases?.includes(remoteJid),
       );
-      const remoteJidAliases = selectedContact?.aliases;
+      const remoteJidAliases = identidadesParaPedirMensajes(selectedContact, remoteJid);
 
       const actionSet =
         instanceActionSets?.find((s) => s.instanceName === selectedContact?.instanceName) ?? null;
@@ -2408,7 +2434,7 @@ export function ChatsClient({
     const jid = selectedJidRef.current;
     if (!jid) return;
 
-    const aliases = currentContactRef.current?.aliases;
+    const aliases = identidadesParaPedirMensajes(currentContactRef.current, jid);
     // Se busca la fila por TODAS las formas de nombrar al contacto, no solo por
     // su `remoteJid`. El mensaje nuevo puede haber llegado bajo el `@lid` o bajo
     // el telefono, y entonces la fila que lo trae ya no se llama igual que el
@@ -2616,7 +2642,7 @@ export function ChatsClient({
         return;
       }
 
-      void pollRef.current?.(jid, currentContactRef.current?.aliases);
+      void pollRef.current?.(jid, identidadesParaPedirMensajes(currentContactRef.current, jid));
     };
 
     const id = setInterval(vuelta, INTERVALO_DEL_CHAT_ABIERTO);
@@ -2835,7 +2861,7 @@ export function ChatsClient({
           // se estaba pidiendo solo por las que ya conociamos del contacto. Si el
           // mensaje entro por otra, la consulta volvia sin el: ni fallaba ni
           // traia nada nuevo, asi que desde fuera parecia lentitud.
-          const identidades = [...(currentContactRef.current?.aliases ?? []), jid];
+          const identidades = [...identidadesParaPedirMensajes(currentContactRef.current, jid), jid];
 
           // Si ya hay una consulta en vuelo, la nuestra se descartaria sin mas
           // -y esa puede haber salido ANTES de que llegara este mensaje, asi que
