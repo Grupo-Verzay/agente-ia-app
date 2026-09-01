@@ -1,5 +1,5 @@
 import { type LucideIcon } from "lucide-react";
-import { extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { buildWhatsAppJidCandidates, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-visible";
 import { avatarSrcFor } from "@/lib/avatar";
 import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
@@ -29,6 +29,36 @@ export const FECHA_COMPLETA = new Intl.DateTimeFormat("es", {
   timeStyle: "short",
 });
 
+/**
+ * Todas las formas conocidas de nombrar al contacto de un chat.
+ *
+ * Cachea por el propio objeto del chat. La misma conversación pasa por aquí
+ * varias veces en cada refresco -al deduplicar la lista, al fusionarla con la
+ * anterior y al armar cada fila-, y cada llamada montaba un `Set` y pasaba
+ * varias expresiones regulares. Con miles de chats eso se notaba. El objeto no
+ * cambia nunca, así que la respuesta tampoco; cuando llega uno nuevo, el `Map`
+ * es débil y el anterior se recoge solo.
+ */
+const IDENTIDADES_POR_CHAT = new WeakMap<ChatData, string[]>();
+
+export function getChatIdentityCandidates(chat: ChatData): string[] {
+  const guardado = IDENTIDADES_POR_CHAT.get(chat);
+  if (guardado) return guardado;
+
+  const candidatos = buildWhatsAppJidCandidates(chat.remoteJid, [
+    chat.remoteJidAlt,
+    chat.senderPn,
+    ...(chat.aliases ?? []),
+    chat.lastMessage?.key?.remoteJid,
+    chat.lastMessage?.key?.remoteJidAlt,
+    chat.lastMessage?.key?.senderPn,
+    chat.lastMessage?.senderPn,
+  ]);
+
+  IDENTIDADES_POR_CHAT.set(chat, candidatos);
+  return candidatos;
+}
+
 /** Medianoche de ese día, para comparar días y no horas. */
 function inicioDelDia(fecha: Date): number {
   return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getTime();
@@ -42,21 +72,59 @@ function inicioDelDia(fecha: Date): number {
  * reserva para hoy y el resto dice el día, como en WhatsApp: "Ayer", el nombre
  * del día dentro de la semana, y la fecha en adelante.
  */
+/**
+ * Lo ya formateado, para no volver a formatearlo.
+ *
+ * Esto se llama una vez por chat cada vez que se reconstruye la lista, y en
+ * cuentas con miles de chats era de lo más caro de la pasada: dos `Date` y un
+ * `Intl.DateTimeFormat` por fila, y formatear con `Intl` no es barato. La marca
+ * de un chat no cambia mientras no llegue otro mensaje, así que la segunda vez
+ * ya está hecha.
+ *
+ * Se vacía al cambiar el día, porque lo de hoy pasa a leerse "Ayer" y lo de
+ * "Ayer" pasa a decir el nombre del día. `finDeHoy` se calcula como el inicio
+ * del día siguiente y no sumando 24 horas, que en los cambios de hora no son 24.
+ */
+const HORAS_FORMATEADAS = new Map<number, string>();
+let inicioDeHoy = 0;
+let finDeHoy = 0;
+
 export function formatTimeFromEpoch(epoch?: number): string {
   const ms = epochToMs(epoch);
   if (!ms) return "";
 
-  const fecha = new Date(ms);
-  const dias = Math.round((inicioDelDia(new Date()) - inicioDelDia(fecha)) / 86_400_000);
+  const ahora = Date.now();
+  if (ahora >= finDeHoy || ahora < inicioDeHoy) {
+    inicioDeHoy = inicioDelDia(new Date(ahora));
+    finDeHoy = inicioDelDia(new Date(ahora + 86_400_000));
+    HORAS_FORMATEADAS.clear();
+  }
 
-  if (dias <= 0) return CHAT_TIME_FORMATTER.format(fecha);
-  if (dias === 1) return "Ayer";
-  if (dias < 7) {
+  const guardado = HORAS_FORMATEADAS.get(ms);
+  if (guardado !== undefined) return guardado;
+
+  const fecha = new Date(ms);
+  const dias = Math.round((inicioDeHoy - inicioDelDia(fecha)) / 86_400_000);
+
+  let texto: string;
+  if (dias <= 0) {
+    texto = CHAT_TIME_FORMATTER.format(fecha);
+  } else if (dias === 1) {
+    texto = "Ayer";
+  } else if (dias < 7) {
     // El nombre completo: "Mar" se confundía con el mes de marzo.
     const dia = DIA_DE_LA_SEMANA.format(fecha);
-    return dia.charAt(0).toUpperCase() + dia.slice(1);
+    texto = dia.charAt(0).toUpperCase() + dia.slice(1);
+  } else {
+    texto = FECHA_CORTA.format(fecha);
   }
-  return FECHA_CORTA.format(fecha);
+
+  // Tope por si esto acaba corriendo en el servidor, donde el proceso vive
+  // mucho más que una pestaña: se vacía y se vuelve a llenar, que sigue
+  // saliendo a cuenta.
+  if (HORAS_FORMATEADAS.size > 50_000) HORAS_FORMATEADAS.clear();
+  HORAS_FORMATEADAS.set(ms, texto);
+  return texto;
 }
 
 const BAD_NAMES = new Set(['você', 'voce', 'desconocido', '.', '']);

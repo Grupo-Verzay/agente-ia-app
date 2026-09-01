@@ -76,6 +76,7 @@ import {
   isGroupJid,
   lastTextFrom,
   isBadContactName,
+  getChatIdentityCandidates,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
 import { saveSidebarCache } from "./chats-sidebar-cache";
@@ -133,18 +134,6 @@ function estimateSidebarItemHeight(contact: SidebarContact) {
   return contact.chatSession
     ? SIDEBAR_ITEM_HEIGHT_WITH_BADGES
     : SIDEBAR_ITEM_HEIGHT_PLAIN;
-}
-
-function getChatIdentityCandidates(chat: ChatData) {
-  return buildWhatsAppJidCandidates(chat.remoteJid, [
-    chat.remoteJidAlt,
-    chat.senderPn,
-    ...(chat.aliases ?? []),
-    chat.lastMessage?.key?.remoteJid,
-    chat.lastMessage?.key?.remoteJidAlt,
-    chat.lastMessage?.key?.senderPn,
-    chat.lastMessage?.senderPn,
-  ]);
 }
 
 // Indexadas por «cuenta::número»: la marca es de la línea del chat, no de
