@@ -31,7 +31,7 @@ import type {
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
-import { isBadContactName } from "./chat-sidebar.utils";
+import { epochToMs, isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -2406,14 +2406,45 @@ export function ChatsClient({
     if (!jid) return;
 
     const aliases = currentContactRef.current?.aliases;
+    // Se busca la fila por TODAS las formas de nombrar al contacto, no solo por
+    // su `remoteJid`. El mensaje nuevo puede haber llegado bajo el `@lid` o bajo
+    // el telefono, y entonces la fila que lo trae ya no se llama igual que el
+    // chat que hay abierto: sin esto no se encontraba, y este aviso se rendia en
+    // silencio justo cuando mas falta hacia.
     const suyo = frescos.find(
-      (c) => c.remoteJid === jid || c.aliases?.includes(jid) || aliases?.includes(c.remoteJid),
+      (c) =>
+        c.remoteJid === jid ||
+        c.remoteJidAlt === jid ||
+        c.senderPn === jid ||
+        c.aliases?.includes(jid) ||
+        aliases?.includes(c.remoteJid) ||
+        (c.remoteJidAlt ? aliases?.includes(c.remoteJidAlt) : false) ||
+        (c.senderPn ? aliases?.includes(c.senderPn) : false),
     );
-    const enLaLista = suyo?.lastMessage?.messageTimestamp ?? 0;
+
+    /**
+     * Las dos marcas, en la MISMA unidad.
+     *
+     * Se comparaban en crudo, y no vienen siempre igual: nuestra base las
+     * guarda en segundos, pero cuando el mensaje trae su copia original de
+     * Evolution se usa esa, que puede venir en milisegundos. Con la de la
+     * pantalla en milisegundos y la de la lista en segundos, la de la lista era
+     * siempre mil veces menor y esta funcion se rendia en la linea siguiente
+     * SIEMPRE, para ese chat.
+     *
+     * El efecto era justo el que se veia: la lista con el mensaje de hace un
+     * minuto, la conversacion seis minutos atras, y ni un aviso en la consola
+     * -porque el aviso esta despues de la comparacion que nunca se pasaba-. La
+     * conversacion solo se ponia al dia cuando entraba el mensaje siguiente por
+     * otro camino, y de ahi la sensacion de ir siempre uno por detras.
+     *
+     * `epochToMs` ya existia en el proyecto exactamente para esto.
+     */
+    const enLaLista = epochToMs(suyo?.lastMessage?.messageTimestamp);
     if (!enLaLista) return;
 
     const enPantalla = messagesRef.current.reduce(
-      (max, m) => Math.max(max, m.messageTimestamp ?? 0),
+      (max, m) => Math.max(max, epochToMs(m.messageTimestamp)),
       0,
     );
     if (enLaLista <= enPantalla) return;
@@ -2424,8 +2455,8 @@ export function ChatsClient({
     // esta en lo que devuelve el servidor, no en cada cuanto se pregunta-.
     console.warn("[chats] la lista va por delante de la conversacion", {
       jid,
-      enLaLista: new Date(enLaLista * 1000).toLocaleTimeString(),
-      enPantalla: enPantalla ? new Date(enPantalla * 1000).toLocaleTimeString() : "vacia",
+      enLaLista: new Date(enLaLista).toLocaleTimeString(),
+      enPantalla: enPantalla ? new Date(enPantalla).toLocaleTimeString() : "vacia",
     });
 
     // Las identidades de la FILA, no solo las del contacto abierto: la fila es
@@ -2648,11 +2679,27 @@ export function ChatsClient({
   const appendRealtimeMessage = useCallback(
     (payload: { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }) => {
       const m = payload.message;
+      /**
+       * La marca del aviso, pasada a SEGUNDOS antes de entrar.
+       *
+       * El aviso la manda tal como se la dio Evolution (`realtimeTs` en
+       * webhook.service.ts), y Evolution unas veces la da en segundos y otras en
+       * milisegundos. Todo lo demas de la conversacion trabaja en segundos -los
+       * mensajes propios se sellan con `Date.now()/1000`-, asi que colar aqui
+       * una en milisegundos envenenaba la lista: el mensaje mas nuevo pasaba a
+       * ser mil veces mayor que cualquier otro y las comparaciones de "hay algo
+       * mas reciente" dejaban de funcionar para ese chat.
+       *
+       * Ese era el fallo de fondo: la conversacion se quedaba minutos atras y no
+       * habia ni un aviso en la consola, porque el detector se rendia antes de
+       * llegar a avisar.
+       */
+      const tsEnSegundos = Math.floor(epochToMs(m.ts) / 1000);
       const evoMsg = {
         key: { id: m.id ?? undefined, fromMe: m.fromMe, remoteJid: payload.remoteJid },
         message: { conversation: m.content },
         messageType: m.messageType,
-        messageTimestamp: m.ts,
+        messageTimestamp: tsEnSegundos,
         pushName: m.pushName ?? undefined,
       } as unknown as EvolutionMessage;
       setMessages((prev) => mergeMessages(prev, [evoMsg]));
@@ -2685,8 +2732,16 @@ export function ChatsClient({
 
         for (const payload of avisos) {
         const m = payload.message;
+        // El aviso llega con UNA de las identidades del contacto, y no tiene por
+        // que ser la misma con la que esta guardada la fila. Buscando solo por
+        // `remoteJid` y `aliases` no se encontraba, y el mensaje se perdia: ni
+        // subia la fila ni se marcaba como no leido.
         const idx = data.findIndex(
-          (c) => c.remoteJid === payload.remoteJid || c.aliases?.includes(payload.remoteJid),
+          (c) =>
+            c.remoteJid === payload.remoteJid ||
+            c.remoteJidAlt === payload.remoteJid ||
+            c.senderPn === payload.remoteJid ||
+            c.aliases?.includes(payload.remoteJid),
         );
         if (idx === -1) continue;
         const chat = data[idx];
@@ -2700,7 +2755,11 @@ export function ChatsClient({
           },
           message: { conversation: m.content },
           messageType: m.messageType,
-          messageTimestamp: m.ts,
+          // En segundos, igual que en la conversacion y que lo que devuelve
+          // Evolution en la lista. Cruda podia entrar en milisegundos y esa fila
+          // se quedaba clavada arriba del todo, ordenada por una marca mil veces
+          // mayor que la de cualquier otra.
+          messageTimestamp: Math.floor(epochToMs(m.ts) / 1000),
           pushName: m.pushName ?? chat.lastMessage?.pushName,
         };
         const updated = {
