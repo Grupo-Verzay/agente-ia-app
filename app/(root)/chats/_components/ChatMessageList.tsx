@@ -420,6 +420,20 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
           </div>
         )}
         {loading && <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>}
+        {/*
+          Sin mensajes y sin estar cargando, aqui no se dibujaba NADA: solo el
+          fondo. Y el fondo vacio se lee como "esto esta roto", que es justo lo
+          que parecia al abrir un chat en el hueco entre elegirlo y arrancar la
+          carga. El texto es neutro a proposito, porque vale para los dos casos:
+          la conversacion esta de verdad vacia, o todavia no ha llegado nada.
+        */}
+        {!loading && renderedList.length === 0 && (
+          <div className="flex flex-1 items-center justify-center py-10">
+            <p className="rounded-full bg-background/80 px-4 py-1.5 text-xs text-muted-foreground shadow-sm">
+              Aquí no hay nada que mostrar todavía.
+            </p>
+          </div>
+        )}
         {virtualMetrics.beforeHeight > 0 && (
           <div aria-hidden="true" style={{ height: virtualMetrics.beforeHeight }} />
         )}
