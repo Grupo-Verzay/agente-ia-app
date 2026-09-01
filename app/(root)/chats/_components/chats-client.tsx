@@ -1415,12 +1415,23 @@ export function ChatsClient({
           }
           backoffRef.current = 0;
         } else {
+          // Hasta ahora un fallo aqui era mudo: la conversacion se quedaba como
+          // estaba, la espera se doblaba, y desde fuera parecia lentitud. Si
+          // esto sale en la consola, el problema es la consulta y no el reloj.
+          console.warn(
+            "[chats] la consulta de mensajes fallo:",
+            (result as { message?: string } | undefined)?.message ?? "sin motivo",
+            { remoteJid, instancia: effectiveInstanceName },
+          );
           backoffRef.current = Math.min(
             (backoffRef.current || BASE_INTERVAL) * 2,
             MAX_BACKOFF,
           );
         }
-      } catch {
+      } catch (error) {
+        console.warn("[chats] la consulta de mensajes no volvio:", error, {
+          remoteJid,
+        });
         backoffRef.current = Math.min(
           (backoffRef.current || BASE_INTERVAL) * 2,
           MAX_BACKOFF,
@@ -2401,6 +2412,16 @@ export function ChatsClient({
       0,
     );
     if (enLaLista <= enPantalla) return;
+
+    // La lista tiene algo mas nuevo que la conversacion. Dicho en la consola
+    // con las dos horas: si esto sale una y otra vez con la misma diferencia,
+    // el sondeo esta pidiendo y volviendo sin el mensaje -o sea, el problema
+    // esta en lo que devuelve el servidor, no en cada cuanto se pregunta-.
+    console.warn("[chats] la lista va por delante de la conversacion", {
+      jid,
+      enLaLista: new Date(enLaLista * 1000).toLocaleTimeString(),
+      enPantalla: enPantalla ? new Date(enPantalla * 1000).toLocaleTimeString() : "vacia",
+    });
 
     void pollRef.current?.(jid, aliases);
   }, []);
