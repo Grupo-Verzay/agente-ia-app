@@ -125,9 +125,6 @@ const PREFETCH_TOP_CHATS = 14;
 const BACKFILL_CHATS = 50;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
-// Primera vuelta del sondeo del chat abierto. Corta a proposito: es lo que
-// cubre el hueco entre abrir la conversacion y que empiece el ciclo.
-const SELECTED_CHAT_POLLING_DELAY_MS = 2000;
 // Intervalo de refresco de la lista de chats. Con el tiempo real activo, el
 // socket mantiene la frescura; el polling queda como FALLBACK a 60s (antes 20s)
 // para reconciliar si el WebSocket se cae. Reduce mucho la carga a Evolution+BD.
@@ -143,6 +140,8 @@ const TOPE_ENTRE_SONDEOS_POR_AVISO = 1500;
 // Cuanto se espera para juntar avisos antes de tocar la lista. Rehacer la lista
 // cuesta caro con muchos chats, asi que una rafaga se paga una sola vez.
 const ESPERA_PARA_AGRUPAR_AVISOS = 600;
+// Cada cuanto se le piden los mensajes al chat ABIERTO.
+const INTERVALO_DEL_CHAT_ABIERTO = 5000;
 // Cuanto se fia la App de que el tiempo real esta trayendo lo que pasa. El
 // socket puede estar conectado y aun asi no llegar nada -mal enrutado, una linea
 // que no emite, el servidor caido del otro lado-, y en ese caso los intervalos
@@ -639,7 +638,6 @@ export function ChatsClient({
   const { setOpen: setNavOpen, open: navOpen } = useSidebar();
   const prevNavOpenRef = useRef<boolean>(true);
 
-  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(false);
   const backoffRef = useRef(0);
   // ¿El WebSocket de tiempo real está conectado? Ajusta el polling de respaldo.
@@ -2562,93 +2560,71 @@ export function ChatsClient({
     };
   }, [avisarSiLaListaVaPorDelante, refetchAllInstances, refreshChatSessions]);
 
+  /**
+   * El chat abierto se refresca con un INTERVALO montado una sola vez.
+   *
+   * Antes era una cadena de setTimeout: cada vuelta programaba la siguiente. Eso
+   * se muere en cuanto una vuelta no llega a programar -y con las dependencias
+   * del efecto cambiando en cada refresco de la lista, el efecto se
+   * desmontaba y volvia a montar sin parar, reiniciando la primera espera una y
+   * otra vez-. El sintoma era exactamente este: el mensaje aparecia arriba en la
+   * lista y en la conversacion no salia hasta pasados minutos, cuando algo
+   * ajeno -cambiar de chat, un aviso que si emparejaba- la despertaba.
+   *
+   * Un intervalo no depende de que nadie lo reprograme: sigue disparando.
+   * Se monta con dependencias vacias y lo lee TODO por referencia, asi que
+   * ningun render lo toca.
+   */
   useEffect(() => {
-    if (pollingRef.current) {
-      clearTimeout(pollingRef.current);
-      pollingRef.current = null;
-    }
+    let ultimoIntento = 0;
 
-    let stopped = false;
+    const vuelta = () => {
+      const jid = selectedJidRef.current;
+      if (!jid) return;
 
-    const tick = async () => {
-      if (stopped) return;
+      // Si la ultima consulta fallo, se espera lo que diga el backoff antes de
+      // volver a intentarlo: el intervalo sigue disparando cada pocos segundos,
+      // pero no se golpea a un servidor que ya viene mal.
+      if (backoffRef.current > 0 && Date.now() - ultimoIntento < backoffRef.current) return;
+      ultimoIntento = Date.now();
+      // Con la ventana detras no se consulta -no hay nadie mirando-, pero el
+      // intervalo sigue vivo y en cuanto vuelve al frente la vuelta siguiente
+      // trae lo que haya. Antes, ademas, se limpiaba el temporizador al
+      // esconderse, y si el evento de vuelta no llegaba, el ciclo no revivia.
+      if (typeof document !== "undefined" && document.hidden) return;
 
-      try {
-        if (selectedJid) {
-          // Todo por referencia: lo que hace falta es lo ULTIMO que haya, y
-          // meterlo en las dependencias del efecto reiniciaba el ciclo en cada
-          // render (ver abajo).
-          const trabajo =
-            messagesRef.current.length === 0 && !loadingRef.current
-              ? selectFromSidebarRef.current?.(selectedJid) ?? Promise.resolve()
-              : pollRef.current?.(selectedJid, currentContactRef.current?.aliases) ??
-                Promise.resolve();
-          void trabajo.catch(() => {});
-
-          // Vigilante: si el trabajo no vuelve, el ciclo sigue igual. Un `await`
-          // a secas sobre algo que no termina nunca deja este `try` abierto para
-          // siempre -y con el, el `finally` de abajo sin ejecutarse-, que es
-          // justo como se congelaba la conversacion.
-          await Promise.race([
-            trabajo,
-            new Promise<void>((seguir) => setTimeout(seguir, ESPERA_MAXIMA_DEL_SONDEO + 5000)),
-          ]);
-        }
-      } finally {
-        // La siguiente vuelta se programa PASE LO QUE PASE. Antes se programaba
-        // despues del await, asi que una consulta que fallara o no volviera se
-        // llevaba por delante el ciclo entero: la conversacion abierta dejaba de
-        // refrescarse hasta cambiar de chat o recargar la pagina.
-        if (!stopped) {
-          const base = tiempoRealFiable() ? BASE_INTERVAL : REALTIME_OFF_MSG_INTERVAL_MS;
-          const wait = backoffRef.current > 0 ? backoffRef.current : base;
-          pollingRef.current = setTimeout(() => void tick(), wait);
-        }
+      // Sin nada dibujado todavia, lo que hace falta es la carga completa del
+      // chat, no una comparacion contra una lista vacia.
+      if (messagesRef.current.length === 0 && !loadingRef.current) {
+        void selectFromSidebarRef.current?.(jid)?.catch(() => {});
+        return;
       }
+
+      void pollRef.current?.(jid, currentContactRef.current?.aliases);
     };
 
-    if (selectedJid) {
-      pollingRef.current = setTimeout(() => void tick(), SELECTED_CHAT_POLLING_DELAY_MS);
-    }
+    const id = setInterval(vuelta, INTERVALO_DEL_CHAT_ABIERTO);
 
-    const onVisibility = () => {
-      if (document.hidden) {
-        if (pollingRef.current) {
-          clearTimeout(pollingRef.current);
-          pollingRef.current = null;
-        }
-      } else {
-        backoffRef.current = 0;
-        if (!pollingRef.current) void tick();
-      }
+    // Al volver a la ventana o a la pestana, sin esperar al turno del reloj.
+    const alVolver = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      backoffRef.current = 0;
+      vuelta();
     };
 
     if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", onVisibility);
+      document.addEventListener("visibilitychange", alVolver);
+      window.addEventListener("focus", alVolver);
     }
 
     return () => {
-      stopped = true;
-      if (pollingRef.current) clearTimeout(pollingRef.current);
+      clearInterval(id);
       if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", onVisibility);
+        document.removeEventListener("visibilitychange", alVolver);
+        window.removeEventListener("focus", alVolver);
       }
     };
-    // SOLO el chat abierto. Antes tambien estaban `currentContact`, `loading`,
-    // `handleSelectFromSidebar` y `pollAndCompareMessages`, y todos ellos
-    // cambian de identidad cada vez que se refresca la LISTA -que es justo lo
-    // que pasa cuando entra un mensaje-.
-    //
-    // Cada cambio desmontaba este efecto y lo volvia a montar, y al montar la
-    // primera vuelta se programa a 10s. En una cuenta con movimiento la lista se
-    // refresca antes de esos 10s, asi que el temporizador se reiniciaba una y
-    // otra vez y el sondeo de la conversacion no llegaba a correr NUNCA: el
-    // mensaje aparecia arriba al instante y en la conversacion no salia hasta
-    // cambiar de chat o recargar. Cuanto mas movida la cuenta, peor.
-    //
-    // Ahora el ciclo vive mientras siga abierto el mismo chat, y lee lo demas
-    // por referencia.
-  }, [selectedJid]);
+  }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
