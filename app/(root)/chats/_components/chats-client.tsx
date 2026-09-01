@@ -2426,7 +2426,24 @@ export function ChatsClient({
       enPantalla: enPantalla ? new Date(enPantalla * 1000).toLocaleTimeString() : "vacia",
     });
 
-    void pollRef.current?.(jid, aliases);
+    // Las identidades de la FILA, no solo las del contacto abierto: la fila es
+    // la que trae el mensaje nuevo, asi que es la que sabe bajo que identidad
+    // llego. Preguntar solo con lo que ya conociamos era volver sin el.
+    const identidades = Array.from(
+      new Set(
+        [
+          ...(aliases ?? []),
+          ...(suyo?.aliases ?? []),
+          suyo?.remoteJid,
+          suyo?.remoteJidAlt,
+          suyo?.senderPn,
+          suyo?.lastMessage?.key?.remoteJid,
+          suyo?.lastMessage?.key?.senderPn,
+        ].filter((v): v is string => typeof v === "string" && v.length > 0),
+      ),
+    );
+
+    void pollRef.current?.(jid, identidades);
   }, []);
 
   useEffect(() => {
@@ -2767,6 +2784,17 @@ export function ChatsClient({
           const abierto = selectedJidRef.current;
           if (!abierto) return;
 
+          // El aviso trae la identidad BAJO LA QUE LLEGO el mensaje, y esa es la
+          // pieza que faltaba.
+          //
+          // Un contacto tiene varias -su numero, su `@lid`, su senderPn- y los
+          // mensajes se guardan bajo una de ellas. La lista los ve igual, porque
+          // WhatsApp agrupa el chat; pero pedir los MENSAJES es por identidad, y
+          // se estaba pidiendo solo por las que ya conociamos del contacto. Si el
+          // mensaje entro por otra, la consulta volvia sin el: ni fallaba ni
+          // traia nada nuevo, asi que desde fuera parecia lentitud.
+          const identidades = [...(currentContactRef.current?.aliases ?? []), jid];
+
           // Si ya hay una consulta en vuelo, la nuestra se descartaria sin mas
           // -y esa puede haber salido ANTES de que llegara este mensaje, asi que
           // volveria sin el-. Se reintenta en corto en vez de perderla.
@@ -2780,7 +2808,7 @@ export function ChatsClient({
           }
 
           ultimoSondeoPorAvisoRef.current = Date.now();
-          void pollRef.current?.(abierto, currentContactRef.current?.aliases);
+          void pollRef.current?.(abierto, identidades);
         };
 
         // Dispara YA y luego como mucho una vez cada tope. Un rebote a secas no
