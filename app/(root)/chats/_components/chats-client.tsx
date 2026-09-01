@@ -140,6 +140,9 @@ const REALTIME_OFF_MSG_INTERVAL_MS = 6000;
 // entre esas peticiones: con movimiento fuerte no se golpea Evolution mas de una
 // vez y media por segundo, y el primer mensaje de una rafaga entra en el acto.
 const TOPE_ENTRE_SONDEOS_POR_AVISO = 1500;
+// Cuanto se espera para juntar avisos antes de tocar la lista. Rehacer la lista
+// cuesta caro con muchos chats, asi que una rafaga se paga una sola vez.
+const ESPERA_PARA_AGRUPAR_AVISOS = 600;
 // Cuanto se fia la App de que el tiempo real esta trayendo lo que pasa. El
 // socket puede estar conectado y aun asi no llegar nada -mal enrutado, una linea
 // que no emite, el servidor caido del otro lado-, y en ese caso los intervalos
@@ -2635,6 +2638,11 @@ export function ChatsClient({
   // sigue con el polling de fondo. Es puramente aditivo (acelerador).
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sondeoTrasAvisoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Avisos pendientes de aplicar a la lista, y el reloj que los vacia.
+  const avisosPendientesRef = useRef<
+    { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }[]
+  >([]);
+  const volcadoDeAvisosRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ultimoSondeoPorAvisoRef = useRef(0);
 
   // Inserta un mensaje entrante de texto en el chat abierto sin consultar a
@@ -2657,16 +2665,34 @@ export function ChatsClient({
 
   // Actualiza la entrada de la lista (último mensaje + no leído) y la sube,
   // sin refetch. La ordenación final la hace el sidebar por timestamp.
+  /**
+   * Aplica una tanda de avisos a la lista en UNA sola pasada.
+   *
+   * Antes se llamaba por cada mensaje que entraba, y cada llamada rehace la
+   * lista entera: con miles de chats eso son segundos de navegador ocupado por
+   * mensaje —la consola lo cantaba con "'message' handler took 4365ms"—. Y
+   * mientras esta en eso no dibuja la conversacion ni atiende los relojes, asi
+   * que con movimiento seguido no salia nunca de esa cola. De ahi que el
+   * mensaje apareciera arriba y abajo no.
+   *
+   * En tanda, una rafaga de veinte mensajes cuesta lo que costaba uno.
+   */
   const updateChatListLocal = useCallback(
-    (payload: { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }) => {
-      const m = payload.message;
+    (avisos: { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }[]) => {
+      if (avisos.length === 0) return;
       setCurrentChatsResult((prev) => {
         if (!prev.success) return prev;
-        const idx = prev.data.findIndex(
+
+        let data = prev.data;
+        let cambio = false;
+
+        for (const payload of avisos) {
+        const m = payload.message;
+        const idx = data.findIndex(
           (c) => c.remoteJid === payload.remoteJid || c.aliases?.includes(payload.remoteJid),
         );
-        if (idx === -1) return prev;
-        const chat = prev.data[idx];
+        if (idx === -1) continue;
+        const chat = data[idx];
         const newLastMessage = {
           ...(chat.lastMessage ?? {}),
           key: {
@@ -2685,13 +2711,31 @@ export function ChatsClient({
           lastMessage: newLastMessage as typeof chat.lastMessage,
           unreadCount: m.fromMe ? chat.unreadCount ?? 0 : (chat.unreadCount ?? 0) + 1,
         };
-        return {
-          ...prev,
-          data: [updated, ...prev.data.slice(0, idx), ...prev.data.slice(idx + 1)],
-        };
+        data = [updated, ...data.slice(0, idx), ...data.slice(idx + 1)];
+        cambio = true;
+        }
+
+        // Sin cambios, se devuelve el mismo objeto: asi React no vuelve a
+        // dibujar la lista para nada.
+        return cambio ? { ...prev, data } : prev;
       });
     },
     [],
+  );
+
+  /** Encola un aviso y programa el volcado. */
+  const encolarAviso = useCallback(
+    (payload: { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }) => {
+      avisosPendientesRef.current.push(payload);
+      if (volcadoDeAvisosRef.current) return;
+      volcadoDeAvisosRef.current = setTimeout(() => {
+        volcadoDeAvisosRef.current = null;
+        const tanda = avisosPendientesRef.current;
+        avisosPendientesRef.current = [];
+        updateChatListLocal(tanda);
+      }, ESPERA_PARA_AGRUPAR_AVISOS);
+    },
+    [updateChatListLocal],
   );
 
   useChatsRealtime({
@@ -2816,8 +2860,10 @@ export function ChatsClient({
 
       // Append directo: solo texto con id y chat ya presente en la lista.
       if (m && m.content && m.id && existsInList) {
+        // La conversacion abierta se dibuja YA -es un mensaje, es barato-. La
+        // lista espera a la tanda, que es lo caro.
         if (isOpenChat) appendRealtimeMessage({ remoteJid: jid, message: m });
-        updateChatListLocal({ remoteJid: jid, message: m });
+        encolarAviso({ remoteJid: jid, message: m });
         return; // sin golpear Evolution
       }
 
@@ -2841,6 +2887,9 @@ export function ChatsClient({
       }
       if (sondeoTrasAvisoRef.current) {
         clearTimeout(sondeoTrasAvisoRef.current);
+      }
+      if (volcadoDeAvisosRef.current) {
+        clearTimeout(volcadoDeAvisosRef.current);
       }
     };
   }, []);
