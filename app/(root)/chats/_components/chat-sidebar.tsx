@@ -77,6 +77,7 @@ import {
   lastTextFrom,
   isBadContactName,
   getChatIdentityCandidates,
+  isChatDeletedByPreference,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
 import { saveSidebarCache } from "./chats-sidebar-cache";
@@ -177,13 +178,6 @@ type LoParaNoLeido = {
   _lastFromMe: boolean;
   _hasUnreadFromServer: boolean;
 };
-
-function isChatDeletedByPreference(
-  _chat: ChatData,
-  preference?: ChatConversationPreferenceMap[string],
-) {
-  return Boolean(preference?.deletedAt);
-}
 
 type ChatSidebarProps = {
   allTags?: SimpleTag[];

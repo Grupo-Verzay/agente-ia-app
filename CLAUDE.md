@@ -113,16 +113,25 @@ sabe si un cliente que paga queda habilitado solo o hay que activarlo a mano.
 
 Es el único pendiente que puede costar dinero.
 
-## 2. Seguimientos que salen tarde
-
-Los seguimientos van espaciados 1 a 2 minutos por número, para no arriesgar la
-línea. Una cola de 300 tarda la jornada entera en salir.
-
-Falta decidir qué hacer con el que se pasa de X horas: descartarlo o enviarlo
-igual aunque llegue tarde.
-
 ## Cerrados
 
+- **Seguimientos que salen tarde.** Van espaciados 1 a 2 minutos por número para
+  no arriesgar la línea. Se deja como está: no se está superando la cola de 300
+  donde el espaciado empezaría a doler.
+- **Paginar la lista de chats.** No se hace. "No leídos" se calcula en el
+  navegador (`localStorage`, clave `seenMessages`), así que con solo 50 chats
+  cargados ese contador dejaría de cuadrar. Llevarlo al servidor obligaría a
+  mover ese estado a una tabla, y eso haría que leer en el PC marcara como leído
+  en el móvil. Se prefiere como está hoy.
+- **Chats eliminados que no volvían.** Ahora vuelven si el contacto escribe
+  después del borrado (ver `isChatDeletedByPreference`).
+- **Flujo tipo chatbot que no se activaba.** El de Bienvenida estaba declarado
+  como obligatorio y se había eliminado. Quitada esa declaración, funciona.
+- **Lector de Google Sheets con cabeceras repetidas.** Dos columnas con el mismo
+  nombre hacen que la segunda pise a la primera y esa columna desaparezca de la
+  búsqueda: el asistente responde "no encontrado" sin ningún error. Se decide NO
+  arreglarlo en código: dos encabezados iguales son un error de la hoja, y se
+  corrigen ahí.
 - **Índices de Postgres.** Se miró con datos: los repetidos suman 144 kB y los
   que nadie usa unos 3,5 MB, varios de ellos `_pkey`/`_key` que no se tocan. En
   una base de 1,6 GB no compensa.

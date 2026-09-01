@@ -4,6 +4,7 @@ import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-vi
 import { avatarSrcFor } from "@/lib/avatar";
 import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
 import type { ChatData } from "@/actions/chat-actions";
+import type { ChatConversationPreference } from "@/types/chat";
 
 // Sin timeZone fijo: usa la zona horaria LOCAL del navegador de cada usuario
 // (México, R. Dominicana, etc.), no la de Colombia.
@@ -57,6 +58,38 @@ export function getChatIdentityCandidates(chat: ChatData): string[] {
 
   IDENTIDADES_POR_CHAT.set(chat, candidatos);
   return candidatos;
+}
+
+/**
+ * ¿Sigue eliminada esta conversación?
+ *
+ * Eliminada se queda, PERO vuelve sola si el contacto escribe despues de que la
+ * borraran: un mensaje nuevo es una conversacion nueva, y no tiene sentido que
+ * el cliente escriba y nadie lo vea.
+ *
+ * Esto ya existio y se quito, y conviene saber por que para no repetirlo: antes
+ * revivia con solo recargar la pagina, sin que el contacto hubiera escrito. La
+ * comparacion es la parte delicada, y aqui se hace con las dos partes en la
+ * MISMA unidad —`deletedAt` es una fecha ISO en milisegundos y
+ * `messageTimestamp` llega unas veces en segundos y otras en milisegundos— y
+ * mirando SOLO la marca del ultimo mensaje. No vale `updatedAt` del chat:
+ * WhatsApp la mueve por cualquier cosa, no solo por un mensaje nuevo, y eso es
+ * lo que hacia que reviviera sola.
+ *
+ * Estrictamente posterior: un mensaje del mismo instante del borrado es el que
+ * ya estaba, no uno nuevo.
+ */
+export function isChatDeletedByPreference(
+  chat: Pick<ChatData, "lastMessage">,
+  preference?: ChatConversationPreference,
+): boolean {
+  if (!preference?.deletedAt) return false;
+
+  const borradoMs = new Date(preference.deletedAt).getTime();
+  if (!Number.isFinite(borradoMs)) return true;
+
+  const ultimoMensajeMs = epochToMs(chat.lastMessage?.messageTimestamp);
+  return !(ultimoMensajeMs > borradoMs);
 }
 
 /** Medianoche de ese día, para comparar días y no horas. */
