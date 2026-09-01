@@ -1400,6 +1400,28 @@ export function ChatsClient({
 
         if (result?.success) {
           const nextMessages = result.data || [];
+          // TEMPORAL (diagnostico): una linea por consulta. Dice si el ciclo
+          // corre siquiera, con que identidades pregunta y que le devuelven.
+          // Se quita en cuanto se cierre el caso.
+          {
+            const masNuevo = nextMessages.reduce(
+              (max, m) => Math.max(max, m.messageTimestamp ?? 0),
+              0,
+            );
+            console.log("[chats] sondeo", {
+              pidio: remoteJid,
+              identidades: remoteJidAliases ?? [],
+              devueltos: nextMessages.length,
+              masNuevo: masNuevo ? new Date(masNuevo * 1000).toLocaleTimeString() : "—",
+              enPantalla: (() => {
+                const t = messagesRef.current.reduce(
+                  (max, m) => Math.max(max, m.messageTimestamp ?? 0),
+                  0,
+                );
+                return t ? new Date(t * 1000).toLocaleTimeString() : "—";
+              })(),
+            });
+          }
           if (areListsDifferent(messagesRef.current, nextMessages)) {
             setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo((currentInfo) => {
