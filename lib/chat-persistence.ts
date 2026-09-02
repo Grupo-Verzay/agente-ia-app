@@ -587,9 +587,25 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
   const cleanPushName =
     isBadPushName(input.pushName) || esNombreDeLaLinea ? undefined : input.pushName?.trim();
 
+  // Se busca DENTRO DE LA LINEA, no en toda la cuenta.
+  //
+  // Una cuenta puede tener varias lineas independientes -Ventas, Atencion,
+  // Notificaciones, Pruebas-, cada una con su propio QR, y el mismo numero puede
+  // escribir por varias. El lead es de la LINEA: eso es lo que dice el candado
+  // de la propia tabla, `@@unique([userId, instanceId, remoteJid])`, y lo que ya
+  // hacia `registerSession`. Aqui faltaba, y era el unico sitio por el que
+  // entran los mensajes de verdad.
+  //
+  // Sin el `instanceId`, un mensaje que llegaba por Atencion encontraba el lead
+  // que ese numero tenia en Notificaciones y le reescribia la linea (mas abajo
+  // se guarda `instanceId`). O sea: una sola ficha por numero para toda la
+  // cuenta, saltando de linea en linea segun por donde entrara el ultimo
+  // mensaje. Por eso un contacto aparecia listado en una linea por la que nunca
+  // habia escrito, y por eso volvia despues de borrarlo.
   const existing = await db.session.findFirst({
     where: {
       userId: sessionUserId,
+      instanceId,
       OR: [
         { remoteJid: { in: candidates } },
         { remoteJidAlt: { in: candidates } },
@@ -670,6 +686,7 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
     WHERE NOT EXISTS (
       SELECT 1 FROM "Session"
       WHERE "userId" = ${sessionUserId}
+        AND "instanceId" = ${instanceId}
         AND ("remoteJid" = ANY(${candidates}::text[]) OR "remoteJidAlt" = ANY(${candidates}::text[]))
     )
     ON CONFLICT ("userId", "instanceId", "remoteJid") DO NOTHING
