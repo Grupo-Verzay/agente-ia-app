@@ -12,6 +12,7 @@ import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
 import { PANEL_ROUTES, CLIENT_PANEL_ROUTE } from "@/lib/sidebar-modules";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
+import { facturacionQueMandaEn } from "@/actions/billing/helpers/billing-owner";
 import type { ThemeApp } from "@prisma/client";
 
 import AppInitializer from "@/components/custom/AppInitializer";
@@ -89,10 +90,24 @@ export default async function RootGroupLayout({
     const privilegedUser = isAdminOrReseller(user?.role);
     const isActiveTrial = !!user?.trialEndsAt && user.trialEndsAt > new Date();
 
-    if (user && !isAdmin(user?.role)) {
-        const billing = await db.userBilling.findUnique({
-            where: { userId: user.id },
-        });
+    // Quien ENTRA a otra cuenta no es quien debe la licencia: es quien la
+    // gestiona. Un reseller entrando a un cliente suyo hereda el rol y el
+    // estado de ESE cliente, así que el muro de "licencia venció" le cerraba
+    // la puerta de todos sus clientes vencidos, que son justo los que necesita
+    // abrir para arreglarlos o cobrarles.
+    //
+    // No abre ninguna puerta nueva: currentUser() solo deja actuar como otra
+    // cuenta a quien ya está autorizado -admin, el reseller de ESE cliente, o
+    // un colaborador con esa cuenta asignada-. Y el servicio sigue suspendido:
+    // la instancia se borró al suspender y el agente no contesta. Lo único que
+    // se recupera es poder entrar a mirar y configurar.
+    const entrandoAOtraCuenta = !!user && user.sessionUserId !== user.id;
+
+    if (user && !isAdmin(user?.role) && !entrandoAOtraCuenta) {
+        // La ficha del DUEÑO cuando quien entra es un asesor: un asesor no
+        // tiene servicio propio. Mirando la suya, un equipo entero se quedaba
+        // fuera aunque su cuenta madre estuviera pagada al día.
+        const { facturacion: billing } = await facturacionQueMandaEn(user.id);
         const access = buildBillingServiceAccessState(billing);
 
         if (access.isLocked) {
