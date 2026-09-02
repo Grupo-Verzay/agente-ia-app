@@ -17,6 +17,11 @@ const apiOwnerPrefix = "/api/owner";
 // pierde. Cada uno trae su propia seguridad: /confirm pide CRON_SECRET y
 // /wompi verifica la firma del evento.
 const apiPaymentPrefix = "/api/payment";
+// Señal de vida para el `healthcheck` de Docker. Lo llama el propio contenedor,
+// sin cookie ninguna: si pidiera sesión recibiría la redirección al login, un
+// 307 que el healthcheck da por fallo, y Swarm mataría contenedores sanos en
+// bucle. No expone nada: contesta `{ ok: true }` y no toca la base.
+const apiHealthPrefix = "/api/health";
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -44,6 +49,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiAdminPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiOwnerPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiPaymentPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiHealthPrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
