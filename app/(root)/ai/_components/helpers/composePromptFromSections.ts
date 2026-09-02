@@ -4,26 +4,7 @@ import { nonEmpty } from "./nonEmpty";
 import { SectionsDraftSchema } from "@/types/agentAi";
 import { buildExtrasMarkdown, buildFaqMarkdown, buildManagementMarkdown, buildProductsMarkdown, buildTrainingMarkdown, buildKeywordsMarkdown } from "./actionsBuilders";
 
-/**
- * Opciones de armado del texto que lee el agente.
- */
-export interface OpcionesDePrompt {
-    /**
-     * La cuenta responde con notas de voz en lugar de texto.
-     *
-     * Con la voz activa la firma se omite. La firma es una instruccion de
-     * escribir `*🤖 Sofia*` al principio de cada mensaje: en texto WhatsApp la
-     * muestra en negrita y se ve bien, pero al convertir la respuesta a audio
-     * se lee en voz alta y el agente arranca cada nota diciendo su propio
-     * nombre.
-     */
-    vozActiva?: boolean;
-}
-
-export function composePromptFromSections(
-    sections: z.infer<typeof SectionsDraftSchema>,
-    opciones?: OpcionesDePrompt,
-): string {
+export function composePromptFromSections(sections: z.infer<typeof SectionsDraftSchema>): string {
     if (!nonEmpty(sections.business?.nombre)) {
         return `Completa al menos el nombre del negocio para generar el prompt.`;
     }
@@ -34,11 +15,12 @@ export function composePromptFromSections(
     out.push(buildBusinessHeader(sections.business));
 
     // 2. Firma del agente — justo después de datos del negocio.
-    //    Se salta con la voz activa: ver OpcionesDePrompt.vozActiva. No se
-    //    apaga firmaEnabled, para que al desactivar la voz vuelva sola sin que
-    //    nadie tenga que acordarse de reactivarla.
+    //    Va SIEMPRE, también con la voz activa: el cliente la quiere ver en los
+    //    mensajes. Que no se pronuncie en las notas de voz no se arregla aquí
+    //    sino en el backend, que ya la quita del texto antes de convertirlo a
+    //    audio (stripSignature en webhook.service.ts).
     const firmaText = sections.extras?.firmaText?.trim();
-    if (sections.extras?.firmaEnabled && firmaText && !opciones?.vozActiva) {
+    if (sections.extras?.firmaEnabled && firmaText) {
         out.push('\n---\n\n' + firmaText);
     }
 
