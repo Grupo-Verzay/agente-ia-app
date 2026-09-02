@@ -89,8 +89,13 @@ que el ciclo no corre. **No ponerle condiciones**: es justo lo que lo inutiliza.
 ## Chats: un fallo de segundos no puede costar medio minuto
 
 En la consola de producción salía `POST /chats 502 (Bad Gateway)`: la consulta
-de mensajes rebotando en Traefik mientras el contenedor reiniciaba. **Dura
-segundos.** Pero la reacción del cliente lo multiplicaba por diez.
+de mensajes rebotando en Traefik mientras el contenedor reiniciaba. Pero la
+reacción del cliente lo multiplicaba por diez.
+
+> Cuando se escribió esto se dio por hecho que el corte duraba segundos. Medido
+> después, son **unos 100 segundos** por despliegue (ver el pendiente 2). El
+> corte es más largo de lo que se creía, así que esta regla importa más, no
+> menos: encima del minuto y medio del servidor, el sondeo añadía el suyo.
 
 El sondeo dobla su espera en cada fallo —10s, 20s, 40s— y esa espera **solo se
 borraba cuando volvía bien una consulta de mensajes**. El ciclo de la lista, que
@@ -206,23 +211,86 @@ sabe si un cliente que paga queda habilitado solo o hay que activarlo a mano.
 
 Es el único pendiente que puede costar dinero.
 
-## 2. Por qué reinicia el contenedor de la App
+## 2. Cada despliegue deja la App caída un minuto y medio
 
-Se vieron varios `502 Bad Gateway` seguidos en `/chats`, y al volver la App
-cargaba incompleta. Se bajó la carga que más pesaba (ver *las sesiones no
-vuelven al reloj de la lista*), y con eso los mensajes volvieron a entrar en
-segundos. Pero **no se ha confirmado por qué reiniciaba**.
+El contenedor no reiniciaba solo: **reiniciaba porque lo redesplegábamos**
+(ver *por qué reiniciaba el contenedor*, en Cerrados). Lo que sigue abierto no
+es el reinicio, es lo que cuesta cada uno.
 
-Falta mirarlo en Portainer: cuenta de reinicios del contenedor de
-`agente.ia-app.com`, y si en los logs sale `OOMKilled` o `exit code 137` —eso
-sería quedarse sin memoria—. Mientras no se compruebe, no se puede dar por
-cerrado.
+El servicio va con **una sola réplica** y con `Order: stop-first`: Swarm
+**apaga la vieja antes de levantar la nueva**, así que entre las dos no hay
+nadie escuchando y Traefik solo puede contestar `502`. Medido en el despliegue
+de las 01:05 del 2026-09-02:
 
-Queda puesto el latido `[chats] latido del detector` (nivel *info*) para poder
-diagnosticarlo sin adivinar. Se quita cuando esto se cierre.
+| momento | reloj (UTC) |
+| --- | --- |
+| empieza la actualización | 01:05:53 |
+| la tarea vieja termina de morir | 01:06:07 |
+| arranca el contenedor nuevo | 01:07:33 |
+| Next.js listo | 01:07:34.5 |
+
+**Unos 100 segundos sin App.** Arrancar no es el problema —Next tarda 280 ms—:
+el tiempo se va en apagar la vieja y en bajar la imagen, y **las dos cosas
+pasan con el sitio caído**. Con 30 despliegues en un día (2026-09-01) eso es
+casi una hora de `502` repartida en el día.
+
+De esos 100 segundos, **14 son apagar la vieja, y no hacen falta**. El
+contenedor arranca con `CMD ["sh", "-c", "node server.js"]` y ese `sh` **no
+ejecuta a Node en su lugar, lo cuelga debajo**: el PID 1 es `sh`
+(`SigCgt: 0000000000010002`, o sea que solo atiende `SIGHUP` y `SIGCHLD`).
+Docker manda `SIGTERM` **solo al PID 1**, y el núcleo se lo traga porque el
+PID 1 no lo atiende. Node ni se entera. Pasados los 10 s de gracia llega el
+`SIGKILL`, y de ahí el `exit 137` de todas las tareas: **no es falta de
+memoria, es que nadie escucha la orden de apagarse.**
+
+Tres cosas que lo arreglarían, de menos a más:
+
+1. `CMD ["node", "server.js"]` (sin el `sh`). Node pasa a ser el PID 1, recibe
+   el `SIGTERM` y sale limpio. Ahorra los 10-14 s y quita el `exit 137`.
+2. `Order: start-first` en el stack, para que la nueva esté escuchando **antes**
+   de apagar la vieja. Es lo que se lleva el minuto y medio entero.
+3. Un `healthcheck` contra `/health` (el backend ya tiene uno). Sin él Traefik
+   no sabe si la nueva está lista y manda tráfico a un puerto que aún no
+   contesta.
+
+Ojo con dónde se tocan: **el `docker-compose.yml` del repo es una plantilla**
+—dominio de ejemplo, límites distintos, un `pgbouncer` que en producción no
+existe—. El stack que corre de verdad se edita en Portainer. Lo único de esta
+lista que se arregla desde el repo es el `CMD` del `Dockerfile`.
 
 ## Cerrados
 
+- **Por qué reiniciaba el contenedor.** No era la memoria: **eran los
+  despliegues**. Mirado en Portainer contra el histórico de tareas del servicio
+  Swarm (`agente-app_verzay_app`), que es donde está el dato —`RestartCount` del
+  contenedor es 0 y siempre lo será, porque Swarm no reinicia contenedores: los
+  tira y crea otros—. Las 5 tareas del histórico (el límite es 5,
+  `TaskHistoryRetentionLimit`) llevan **cada una una imagen distinta**, y cada
+  una cae encima de un merge a `main`:
+
+  | tarea creada (UTC) | commit | merge |
+  | --- | --- | --- |
+  | 00:24:28 | `48ae80a` | 00:19:00 |
+  | 00:40:01 | `e8e8250` | 00:35:28 |
+  | 00:47:12 | `08d3dfd` | 00:42:03 |
+  | 00:53:17 | `aa289c8` | 00:47:49 |
+  | 01:05:53 | `f7e15d3` | 01:00:57 |
+
+  La imagen que corre ahora lleva el tag `f7e15d3d9df0…`, el commit de las
+  01:00. Ninguna imagen se repite: **no hay ni un reinicio que no sea un
+  despliegue**. Y hubo 30 despliegues el 2026-09-01, 25 el 08-31, 16 el 08-30 —
+  cada merge a `main` dispara el webhook de Portainer.
+
+  Lo de la memoria queda descartado con números, no por descarte: el cgroup del
+  contenedor lleva `oom 0` y `oom_kill 0` en `memory.events`, `OOMKilled` es
+  `false`, y el consumo se mueve entre **480 y 545 MiB de los 1536 MiB** del
+  límite (~31 %). El host va a 1,7 GiB de 23,5 GiB y lleva 228 días sin
+  reiniciar. El `exit 137` despistaba: aquí no es el `SIGKILL` del gestor de
+  memoria, es el de Docker al agotarse los 10 s de gracia (ver el pendiente 2).
+
+  Se deja puesto el latido `[chats] latido del detector`: lo que diagnostica es
+  que el ciclo de la lista corre, que es el fallo de la conversación atrasada,
+  no este. Quitarlo es decisión aparte.
 - **Seguimientos que salen tarde.** Van espaciados 1 a 2 minutos por número para
   no arriesgar la línea. Se deja como está: no se está superando la cola de 300
   donde el espaciado empezaría a doler.
