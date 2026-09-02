@@ -58,4 +58,19 @@ EXPOSE 3000
 # Se quito 'db push --accept-data-loss' que borraba datos en cada despliegue.
 # Todo cambio de esquema de aqui en adelante se hace con una migracion en api-webhook.
 # Ver docs/db-migrations-ownership.md.
-CMD ["sh", "-c", "node server.js"]
+#
+# Node arranca DIRECTO, sin `sh` delante.
+#
+# Con `["sh", "-c", "node server.js"]` el PID 1 era `sh`, y `sh` no cuelga a Node
+# en su lugar: lo deja debajo como hijo. Docker manda `SIGTERM` solo al PID 1, y
+# el nucleo se lo traga porque ese `sh` no lo atiende (`SigCgt` sin SIGTERM). Node
+# ni se enteraba, se agotaban los 10s de gracia y llegaba el `SIGKILL`.
+#
+# De ahi salia el `exit 137` de cada despliegue, que parecia falta de memoria y no
+# lo era: el cgroup dice `oom_kill 0` y el consumo va por el 31% del limite. Ver
+# el pendiente del reinicio en CLAUDE.md.
+#
+# En forma exec Node ES el PID 1, recibe el `SIGTERM` y sale limpio en
+# milisegundos en vez de esperar los 10s. No hace falta shell aqui: no hay
+# variables que expandir ni tuberias.
+CMD ["node", "server.js"]
