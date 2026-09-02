@@ -198,15 +198,7 @@ porque el navegador dispara el evento muchas más veces de las que puede pintar.
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
 
-## 1. Wompi sin probar de punta a punta
-
-Nunca se ha confirmado que un pago real active la cuenta. La cadena
-Wompi → backend → App no se ha recorrido con dinero de verdad, así que no se
-sabe si un cliente que paga queda habilitado solo o hay que activarlo a mano.
-
-Es el único pendiente que puede costar dinero.
-
-## 2. Por qué reinicia el contenedor de la App
+## 1. Por qué reinicia el contenedor de la App
 
 Se vieron varios `502 Bad Gateway` seguidos en `/chats`, y al volver la App
 cargaba incompleta. Se bajó la carga que más pesaba (ver *las sesiones no
@@ -222,6 +214,18 @@ Queda puesto el latido `[chats] latido del detector` (nivel *info*) para poder
 diagnosticarlo sin adivinar. Se quita cuando esto se cierre.
 
 ## Cerrados
+
+- **Wompi de punta a punta.** Confirmado con dinero real el 2 de septiembre de
+  2026: un cliente pagó y la cuenta se reactivó sola. Era el único pendiente que
+  podía costar dinero. Lo que faltaba no era configuración sino código, en tres
+  piezas: no existía ninguna ruta que recibiera los avisos de Wompi (ahora
+  `/api/payment/wompi`, que verifica la firma del evento); `/api/payment` no
+  estaba entre las rutas sin sesión del middleware, así que el aviso recibía una
+  redirección al login en vez del webhook; y el enlace del aviso de cobro era
+  uno por plan, igual para todos, así que el pago llegaba sin decir de quién era
+  y no había a quién renovarle. Ahora cada cliente tiene el suyo, `/p/{codigo}`,
+  que calcula el precio al abrirse y respeta el precio pactado de esa cuenta, no
+  el de lista del plan.
 
 - **Seguimientos que salen tarde.** Van espaciados 1 a 2 minutos por número para
   no arriesgar la línea. Se deja como está: no se está superando la cola de 300
