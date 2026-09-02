@@ -250,6 +250,21 @@ Ojo con dónde se tocan: **el `docker-compose.yml` del repo es una plantilla**
 existe—. El stack que corre de verdad se edita en Portainer. Lo único de esta
 lista que se arregla desde el repo es el `CMD` del `Dockerfile`.
 
+## 2. Por qué reinicia el contenedor de la App
+
+Se vieron varios `502 Bad Gateway` seguidos en `/chats`, y al volver la App
+cargaba incompleta. Se bajó la carga que más pesaba (ver *las sesiones no
+vuelven al reloj de la lista*), y con eso los mensajes volvieron a entrar en
+segundos. Pero **no se ha confirmado por qué reiniciaba**.
+
+Falta mirarlo en Portainer: cuenta de reinicios del contenedor de
+`agente.ia-app.com`, y si en los logs sale `OOMKilled` o `exit code 137` —eso
+sería quedarse sin memoria—. Mientras no se compruebe, no se puede dar por
+cerrado.
+
+Queda puesto el latido `[chats] latido del detector` (nivel *info*) para poder
+diagnosticarlo sin adivinar. Se quita cuando esto se cierre.
+
 ## Cerrados
 
 - **Wompi de punta a punta.** Confirmado con dinero real el 2 de septiembre de

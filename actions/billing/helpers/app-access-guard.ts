@@ -56,6 +56,14 @@ export async function assertUserCanUseApp(targetUserId: string) {
     return actor;
   }
 
+  // Y quien ENTRÓ a otra cuenta tampoco es quien debe la licencia. Sin esto el
+  // reseller cruza la pantalla de bloqueo pero cada acción de dentro se le cae:
+  // entraría a una cuenta donde no puede tocar nada. currentUser() ya limitó a
+  // qué cuentas puede entrar cada quien.
+  if (actor.sessionUserId !== actor.id) {
+    return actor;
+  }
+
   // Igual que la pantalla de bloqueo: manda la ficha del dueño.
   const { facturacion: billing } = await facturacionQueMandaEn(targetUserId);
   const access = buildBillingServiceAccessState(billing);

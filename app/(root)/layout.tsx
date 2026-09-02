@@ -90,7 +90,20 @@ export default async function RootGroupLayout({
     const privilegedUser = isAdminOrReseller(user?.role);
     const isActiveTrial = !!user?.trialEndsAt && user.trialEndsAt > new Date();
 
-    if (user && !isAdmin(user?.role)) {
+    // Quien ENTRA a otra cuenta no es quien debe la licencia: es quien la
+    // gestiona. Un reseller entrando a un cliente suyo hereda el rol y el
+    // estado de ESE cliente, así que el muro de "licencia venció" le cerraba
+    // la puerta de todos sus clientes vencidos, que son justo los que necesita
+    // abrir para arreglarlos o cobrarles.
+    //
+    // No abre ninguna puerta nueva: currentUser() solo deja actuar como otra
+    // cuenta a quien ya está autorizado -admin, el reseller de ESE cliente, o
+    // un colaborador con esa cuenta asignada-. Y el servicio sigue suspendido:
+    // la instancia se borró al suspender y el agente no contesta. Lo único que
+    // se recupera es poder entrar a mirar y configurar.
+    const entrandoAOtraCuenta = !!user && user.sessionUserId !== user.id;
+
+    if (user && !isAdmin(user?.role) && !entrandoAOtraCuenta) {
         // La ficha del DUEÑO cuando quien entra es un asesor: un asesor no
         // tiene servicio propio. Mirando la suya, un equipo entero se quedaba
         // fuera aunque su cuenta madre estuviera pagada al día.
