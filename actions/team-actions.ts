@@ -8,6 +8,7 @@ import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions"
 import { getAllModules } from "@/actions/module-actions";
 import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
 import { parseItemIds, serializeItemIds } from "@/lib/permisos";
+import { ADMIN_PANEL_ROUTE, rutasDePanelPara } from "@/lib/sidebar-modules";
 import { isAdminLike } from "@/lib/rbac";
 import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
 import type { Role } from "@prisma/client";
@@ -223,22 +224,20 @@ export type AdvisorPermissions = {
   };
 };
 
-/** Las variantes de "Panel": del equipo, del reseller y del cliente. */
-const PANEL_ROUTES = ["/panel", "/admin", "/reseller-panel", "/client-panel"];
+/** Las variantes de "Panel": del equipo, del administrador, del reseller y del cliente. */
+const PANEL_ROUTES = ["/panel", "/admin", ADMIN_PANEL_ROUTE, "/reseller-panel", "/client-panel"];
 
 /** La variante de "Panel" que le corresponde a la cuenta, por su rol. */
 async function panelDeLaCuenta(role: string): Promise<string | null> {
-  const rutas = isAdminLike(role)
-    ? ["/panel", "/admin"]
-    : role === "reseller"
-      ? ["/reseller-panel"]
-      : ["/client-panel"];
+  // Mismo orden de preferencia que el menu y que la portada: una sola regla
+  // para los tres, o acaban discrepando sobre a que panel pertenece alguien.
+  const rutas = rutasDePanelPara(role);
 
-  const panel = await db.module.findFirst({
+  const existentes = await db.module.findMany({
     where: { route: { in: rutas } },
     select: { route: true },
   });
-  return panel?.route ?? null;
+  return rutas.find((r) => existentes.some((m) => m.route === r)) ?? null;
 }
 
 export async function updateAdvisorPermissions(

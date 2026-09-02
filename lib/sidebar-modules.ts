@@ -10,6 +10,61 @@ import { parseItemIds } from '@/lib/permisos';
 // EXACTAMENTE el mismo criterio de visibilidad y no se desincronicen.
 export const PANEL_ROUTES = ['/panel', '/admin'];
 export const CLIENT_PANEL_ROUTE = '/client-panel';
+export const RESELLER_PANEL_ROUTE = '/reseller-panel';
+
+/**
+ * El panel del administrador, aparte del de superadministrador.
+ *
+ * `/panel` lo compartian los dos, asi que no habia forma de recortarle
+ * apartados a un administrador sin quitarselos tambien al superadministrador.
+ * Con una fila propia, cada uno lleva los suyos.
+ */
+export const ADMIN_PANEL_ROUTE = '/panel-admin';
+
+/**
+ * El panel que le PERTENECE a un rol, EN ORDEN DE PREFERENCIA.
+ *
+ * Es una lista y no una ruta unica a proposito: se toma la primera que exista.
+ * Asi, mientras nadie haya creado todavia el modulo `/panel-admin`, un
+ * administrador sigue entrando a `/panel` como hasta ahora, y el dia que se
+ * cree pasa a usarlo sin tocar codigo.
+ *
+ * Estricta: cada rol solo lleva lo suyo. Para decidir que se PINTA en el menu
+ * hace falta la version de abajo, que es mas permisiva.
+ */
+export function rutasDePanelPara(role?: string | null): string[] {
+    if (role === 'reseller') return [RESELLER_PANEL_ROUTE];
+    // El superadministrador se queda con el panel completo de siempre.
+    if (role === 'super_admin') return [...PANEL_ROUTES];
+    if (role === 'admin') return [ADMIN_PANEL_ROUTE, ...PANEL_ROUTES];
+    return [CLIENT_PANEL_ROUTE];
+}
+
+/**
+ * Lo mismo, pero para elegir cual se pinta.
+ *
+ * Aqui se anade el panel del cliente como ultimo recurso a todos menos al
+ * reseller, y NO es lo mismo que la lista estricta: la eleccion se hace sobre
+ * modulos ya filtrados por rol, plan y permisos, asi que si a alguien le
+ * sobrevivio el panel del equipo es porque puede entrar -aunque sea un agente
+ * al que solo se le concedieron dos apartados-. Si no le sobrevivio, le toca el
+ * de cliente. Quitarle ese respaldo dejaria sin panel a quien hoy si lo tiene.
+ */
+export function rutasDePanelParaElMenu(role?: string | null): string[] {
+    if (role === 'reseller') return [RESELLER_PANEL_ROUTE];
+    if (role === 'admin') return [ADMIN_PANEL_ROUTE, ...PANEL_ROUTES, CLIENT_PANEL_ROUTE];
+    return [...PANEL_ROUTES, CLIENT_PANEL_ROUTE];
+}
+
+/** Si una ruta es una de las variantes de "Panel". En el menu va solo una. */
+export function esVarianteDePanel(route: string): boolean {
+    return (
+        PANEL_ROUTES.includes(route) ||
+        route === RESELLER_PANEL_ROUTE ||
+        route === CLIENT_PANEL_ROUTE ||
+        route === ADMIN_PANEL_ROUTE
+    );
+}
 
 // Rutas de gestión ocultas para agentes (cuentas vinculadas sin rol admin).
 const AGENT_HIDDEN_ROUTES = ['/equipo', '/sessions', '/crm', '/asesores'];
@@ -42,15 +97,10 @@ export function getVisibleSidebarModules(
     // del equipo sigue ahí es porque puede entrar —aunque sea un agente al que
     // solo se le concedieron dos apartados—. Si no lo tiene, le toca el de
     // cliente.
-    const candidatosDePanel =
-        user.role === 'reseller'
-            ? ['/reseller-panel']
-            : [...PANEL_ROUTES, CLIENT_PANEL_ROUTE];
+    const candidatosDePanel = rutasDePanelParaElMenu(user.role);
     const panelDelRol = candidatosDePanel
         .map((route) => modules.find((m) => m.showInSidebar && m.route === route))
         .find(Boolean);
-    const esVarianteDePanel = (route: string) =>
-        PANEL_ROUTES.includes(route) || route === '/reseller-panel' || route === CLIENT_PANEL_ROUTE;
 
     return modules
         .filter((link) => link.showInSidebar)

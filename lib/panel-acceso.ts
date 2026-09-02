@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { parseItemIds } from "@/lib/permisos";
-import { PANEL_ROUTES } from "@/lib/sidebar-modules";
+import { rutasDePanelParaElMenu } from "@/lib/sidebar-modules";
 
 type Persona = {
     role: string;
@@ -26,10 +26,19 @@ type Persona = {
  * Devuelve null si no hay módulo de panel; lista vacía si no puede abrir nada.
  */
 export async function apartadosDelPanel(persona: Persona) {
-    const panelModule = await db.module.findFirst({
-        where: { route: { in: PANEL_ROUTES } },
+    // El panel que le toca por rol, no "cualquier panel": un administrador
+    // abriendo su portada tiene que ver SUS apartados, no los del
+    // superadministrador. Se recorre en orden de preferencia y se toma el
+    // primero que exista, que es lo que deja funcionar a los administradores
+    // mientras nadie haya creado todavia el modulo /panel-admin.
+    const candidatas = rutasDePanelParaElMenu(persona.role);
+    const panelesExistentes = await db.module.findMany({
+        where: { route: { in: candidatas } },
         include: { moduleItems: { orderBy: { createdAt: "asc" } } },
     });
+    const panelModule = candidatas
+        .map((route) => panelesExistentes.find((m) => m.route === route))
+        .find(Boolean);
     if (!panelModule) return null;
 
     const concedidos = parseItemIds(persona.grantedModuleItems);
