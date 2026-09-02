@@ -712,6 +712,13 @@ export function ChatsClient({
   // por ref y no por dependencia: el sondeo se recrea con cada cambio de
   // seleccion, y meterlo en las dependencias reiniciaria el ciclo de la lista.
   const pollRef = useRef<((jid: string, aliases?: string[]) => Promise<void>) | null>(null);
+  // Lo ultimo que dijo el detector cuando se rindio, para no repetirlo cada
+  // vuelta del reloj de la lista. Sin esto, contarlo seria imposible de leer;
+  // sin contarlo, el detector se rinde en silencio y no hay forma de saberlo.
+  const ultimoMotivoMudoRef = useRef<{ clave: string; cuando: number } | null>(null);
+  // Reintento corto cuando el detector encuentra una consulta ya en vuelo: esa
+  // consulta pudo salir ANTES de que llegara el mensaje, asi que volveria sin el.
+  const sondeoTrasDetectorRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentContactRef = useRef<ChatData | undefined>(undefined);
   const loadingRef = useRef(false);
   const selectFromSidebarRef = useRef<
@@ -2469,8 +2476,40 @@ export function ChatsClient({
      *
      * `epochToMs` ya existia en el proyecto exactamente para esto.
      */
-    const enLaLista = epochToMs(suyo?.lastMessage?.messageTimestamp);
-    if (!enLaLista) return;
+    // Los dos motivos por los que este detector se rinde ANTES de llegar a su
+    // aviso. Estaban mudos, y eso es justo lo que no puede pasar aqui: la lista
+    // se veia por delante de la conversacion y en la consola no salia nada, asi
+    // que no habia manera de distinguir "no hay nada nuevo" de "no encuentro la
+    // fila". Se cuenta como mucho una vez por minuto y motivo, para que se pueda
+    // leer.
+    const contarSiSeRinde = (clave: string, detalle: Record<string, unknown>) => {
+      const previo = ultimoMotivoMudoRef.current;
+      if (previo?.clave === clave && Date.now() - previo.cuando < 60_000) return;
+      ultimoMotivoMudoRef.current = { clave, cuando: Date.now() };
+      console.warn(`[chats] el detector se rinde: ${clave}`, detalle);
+    };
+
+    if (!suyo) {
+      // La fila del chat abierto no aparece en la lista bajo NINGUNA de sus
+      // identidades. Si esto sale, el mensaje puede estar llegando bajo una
+      // forma del contacto que no conocemos, y el detector nunca va a saltar.
+      contarSiSeRinde("no encuentro la fila del chat abierto en la lista", {
+        jid,
+        identidadesConocidas: aliases,
+        filas: frescos.length,
+      });
+      return;
+    }
+
+    const enLaLista = epochToMs(suyo.lastMessage?.messageTimestamp);
+    if (!enLaLista) {
+      contarSiSeRinde("la fila no trae marca de tiempo en su ultimo mensaje", {
+        jid,
+        filaRemoteJid: suyo.remoteJid,
+        tieneUltimoMensaje: Boolean(suyo.lastMessage),
+      });
+      return;
+    }
 
     const enPantalla = messagesRef.current.reduce(
       (max, m) => Math.max(max, epochToMs(m.messageTimestamp)),
@@ -2505,7 +2544,35 @@ export function ChatsClient({
       ),
     );
 
-    void pollRef.current?.(jid, identidades);
+    // El detector NO adivina: acaba de comprobar que hay un mensaje mas nuevo.
+    // Con la espera creciente puesta -sube hasta 45s tras unas consultas lentas-
+    // la vuelta siguiente del reloj se saltaba, y esos 45s se notan como
+    // "minutos de retraso". Sabiendo que hay algo, se pregunta ya.
+    backoffRef.current = 0;
+
+    // Acotado a la misma espera maxima que tiene una consulta (15s): si en ese
+    // tiempo no se libera, la que hay en vuelo va a fallar sola y el reloj toma
+    // el relevo. Sin tope, esto seria un temporizador cada 700ms para siempre.
+    let intentos = Math.ceil(ESPERA_MAXIMA_DEL_SONDEO / 700);
+
+    const sondear = () => {
+      // Una consulta ya en vuelo pudo salir ANTES de que llegara este mensaje,
+      // asi que volveria sin el; y la nuestra se descartaria sin dejar rastro.
+      // Se reintenta en corto en vez de perderla. Es el mismo cuidado que ya
+      // tiene el aviso de tiempo real.
+      if (inFlightRef.current && intentos > 0) {
+        intentos -= 1;
+        if (sondeoTrasDetectorRef.current) clearTimeout(sondeoTrasDetectorRef.current);
+        sondeoTrasDetectorRef.current = setTimeout(() => {
+          sondeoTrasDetectorRef.current = null;
+          sondear();
+        }, 700);
+        return;
+      }
+      void pollRef.current?.(jid, identidades);
+    };
+
+    sondear();
   }, []);
 
   useEffect(() => {
