@@ -9,7 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
-import { PANEL_ROUTES, CLIENT_PANEL_ROUTE } from "@/lib/sidebar-modules";
+import { esVarianteDePanel, rutasDePanelPara } from "@/lib/sidebar-modules";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import { facturacionQueMandaEn } from "@/actions/billing/helpers/billing-owner";
@@ -319,24 +319,18 @@ export default async function RootGroupLayout({
     // A quien trabaja en una cuenta ajena le toca el panel de ESA cuenta: un
     // agente de una cuenta de administración usa el del equipo, aunque su propio
     // rol sea el de un usuario cualquiera.
-    const VARIANTES_DE_PANEL = [...PANEL_ROUTES, '/reseller-panel', CLIENT_PANEL_ROUTE];
     const rolDeLaCuenta = user.ownerId
         ? (await db.user
             .findUnique({ where: { id: user.ownerId }, select: { role: true } })
             .catch(() => null))?.role ?? user.role
         : user.role;
-    const candidatosDePanel =
-        rolDeLaCuenta === 'reseller'
-            ? ['/reseller-panel']
-            : isAdminLike(rolDeLaCuenta)
-                ? [...PANEL_ROUTES]
-                : [CLIENT_PANEL_ROUTE];
+    const candidatosDePanel = rutasDePanelPara(rolDeLaCuenta);
     const suPanelId =
         candidatosDePanel
             .map((route) => modules.find((m) => m.route === route))
             .find(Boolean)?.id ?? null;
     const esPanelAjeno = (m: { id: string; route: string }) =>
-        VARIANTES_DE_PANEL.includes(m.route) && m.id !== suPanelId;
+        esVarianteDePanel(m.route) && m.id !== suPanelId;
 
     modules = modules.filter((m) => !esPanelAjeno(m));
 

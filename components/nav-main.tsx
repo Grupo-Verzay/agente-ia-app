@@ -29,7 +29,7 @@ import { iconMap } from '@/schema/module';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Settings2 } from 'lucide-react';
-import { getVisibleSidebarModules, PANEL_ROUTES, CLIENT_PANEL_ROUTE } from '@/lib/sidebar-modules';
+import { getVisibleSidebarModules, PANEL_ROUTES, CLIENT_PANEL_ROUTE, ADMIN_PANEL_ROUTE, esVarianteDePanel } from '@/lib/sidebar-modules';
 import { aplicaBloqueoPorPlan } from '@/lib/panel-tabs';
 import { isAdminLike } from '@/lib/rbac';
 
@@ -153,7 +153,7 @@ export function NavMain({ user }: { user: CurrentUser }) {
 
                     // Admin/Panel y reseller-panel: submódulos van a la barra superior — navegar al primero
                     // Resellers (panel admin) van directo a /admin/clientes sin importar los sub-items
-                    if (PANEL_ROUTES.includes(route) || route === '/reseller-panel' || route === CLIENT_PANEL_ROUTE) {
+                    if (esVarianteDePanel(route)) {
                         const firstSubItem = moduleItems[0];
                         // El panel tiene su propia portada con los apartados que
                         // la persona puede abrir; entrar directo al primero
@@ -161,7 +161,10 @@ export function NavMain({ user }: { user: CurrentUser }) {
                         // concedidos le caia en uno sin saber que habia otro.
                         // /reseller-panel no tiene portada: ahi se sigue entrando
                         // al primer apartado.
-                        const tienePortada = PANEL_ROUTES.includes(route) || route === CLIENT_PANEL_ROUTE;
+                        const tienePortada =
+                            PANEL_ROUTES.includes(route) ||
+                            route === ADMIN_PANEL_ROUTE ||
+                            route === CLIENT_PANEL_ROUTE;
                         const firstDest = validateRouteAndRole
                             ? targetRoute
                             : tienePortada
