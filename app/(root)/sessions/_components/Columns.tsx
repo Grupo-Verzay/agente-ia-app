@@ -223,7 +223,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
   onDeleteSuccess: (deletedId: number) => void,
   mutateSessions: () => void,
   allTags: SimpleTag[];
-  onNavigateToChat: (remoteJid: string) => void;
+  onNavigateToChat: (remoteJid: string, instanceId?: string | null) => void;
 }): ColumnDef<Session>[] => [
     {
       accessorKey: "remoteJid",
@@ -235,7 +235,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
         const phone = fmtPhone(displayJid);
         return (
           <button
-            onClick={() => onNavigateToChat(remoteJid)}
+            onClick={() => onNavigateToChat(remoteJid, row.original.instanceId)}
             className="min-w-[80px] cursor-pointer text-blue-600 hover:text-blue-800 transition-colors"
           >
             <p className="whitespace-nowrap font-medium">{phone}</p>
