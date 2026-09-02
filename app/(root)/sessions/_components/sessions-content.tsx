@@ -226,7 +226,21 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               onDeleteSuccess: handleDeleteFromTable,
               mutateSessions: mutate,
               allTags,
-              onNavigateToChat: (remoteJid) => router.push(`/chats?jid=${remoteJid}`)
+              // Se va al chat de LA LINEA de este lead, no solo al numero.
+              //
+              // Con `jid` a secas, Chats abria la conversacion que encontrara
+              // para ese numero en la linea que tuviera seleccionada. Y como el
+              // mismo numero puede escribir por Ventas y por Atencion, pulsar un
+              // lead de una linea te dejaba en la conversacion de otra: la fila
+              // decia "Notificaciones" y caias en "Atencion".
+              //
+              // `/chats` ya sabe recibir `instance` y seleccionar esa linea; solo
+              // faltaba mandarselo.
+              onNavigateToChat: (remoteJid, instanceId) => {
+                const params = new URLSearchParams({ jid: remoteJid });
+                if (instanceId) params.set("instance", instanceId);
+                router.push(`/chats?${params.toString()}`);
+              },
             })}
             data={sessions}
           />

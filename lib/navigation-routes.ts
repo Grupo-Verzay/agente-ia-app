@@ -102,6 +102,10 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/panel/mis-estadisticas" },
     { route: "/panel/seguimientos-prueba" },
     { route: "/panel/notificaciones" },
+    // Las variantes de "Panel", una por rol. Sin estar aqui la ruta no sale en
+    // el desplegable de la pantalla de modulos y no hay forma de crear el
+    // modulo que la usa.
+    { route: "/panel-admin" },
     { route: "/reseller-panel" },
     { route: "/client-panel" },
 ];
