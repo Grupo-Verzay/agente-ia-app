@@ -9,7 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
-import { esVarianteDePanel, rutasDePanelPara } from "@/lib/sidebar-modules";
+import { ADMIN_PANEL_ROUTE, esVarianteDePanel, rutasDePanelPara } from "@/lib/sidebar-modules";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import { facturacionQueMandaEn } from "@/actions/billing/helpers/billing-owner";
@@ -360,7 +360,13 @@ export default async function RootGroupLayout({
     // Las pestañas del panel salen de `modules`, ya filtrado por rol, plan y
     // permisos. Antes salían de `allModules`: una pestaña quitada a la persona
     // seguía apareciendo arriba.
+    // El panel del equipo que le quedó a esta persona. Se mira /panel-admin
+    // primero: `modules` ya viene sin los paneles ajenos, así que a un
+    // administrador solo le sobrevive el suyo y a un superadministrador solo
+    // el de siempre. Sin esto, un administrador abría un submódulo y arriba le
+    // salían las pestañas del superadministrador.
     const panelModule = porFechaDeCreacion(
+        modules.find((m) => m.route === ADMIN_PANEL_ROUTE) ??
         modules.find((m) => m.route === "/panel" || m.route === "/admin"),
     );
     const resellerModule =
