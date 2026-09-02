@@ -4,6 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isAdmin, isAdminOrReseller } from "@/lib/rbac";
 import { buildBillingServiceAccessState } from "./service-access";
+import { facturacionQueMandaEn } from "./billing-owner";
 
 export async function assertCanAccessTargetUser(targetUserId: string) {
   const actor = await currentUser();
@@ -55,9 +56,8 @@ export async function assertUserCanUseApp(targetUserId: string) {
     return actor;
   }
 
-  const billing = await db.userBilling.findUnique({
-    where: { userId: targetUserId },
-  });
+  // Igual que la pantalla de bloqueo: manda la ficha del dueño.
+  const { facturacion: billing } = await facturacionQueMandaEn(targetUserId);
   const access = buildBillingServiceAccessState(billing);
 
   if (access.isLocked) {
