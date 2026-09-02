@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { assertBillingScope } from "./helpers/billing-helpers.server";
 import { buildBillingServiceAccessState } from "./helpers/service-access";
+import { facturacionQueMandaEn } from "./helpers/billing-owner";
 
 export async function getBillingServiceAccessSnapshot(userId?: string) {
   const me = await currentUser();
@@ -20,12 +21,14 @@ export async function getBillingServiceAccessSnapshot(userId?: string) {
       await assertBillingScope(me, targetUserId);
     }
 
+    // La ficha del dueño si quien pregunta es un asesor. Sin esto el botón del
+    // agente le decía "servicio suspendido" a un equipo cuya cuenta madre está
+    // al día.
+    const { responsable } = await facturacionQueMandaEn(targetUserId);
     const billing = await db.userBilling.findUnique({
-      where: { userId: targetUserId },
+      where: { userId: responsable },
       include: {
-        user: {
-          select: { id: true, name: true, company: true, email: true },
-        },
+        user: { select: { id: true, name: true, company: true, email: true } },
       },
     });
 

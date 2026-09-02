@@ -93,7 +93,7 @@ de mensajes rebotando en Traefik mientras el contenedor reiniciaba. Pero la
 reacción del cliente lo multiplicaba por diez.
 
 > Cuando se escribió esto se dio por hecho que el corte duraba segundos. Medido
-> después, son **unos 100 segundos** por despliegue (ver el pendiente 2). El
+> después, son **unos 100 segundos** por despliegue (ver el pendiente 1). El
 > corte es más largo de lo que se creía, así que esta regla importa más, no
 > menos: encima del minuto y medio del servidor, el sondeo añadía el suyo.
 
@@ -203,15 +203,7 @@ porque el navegador dispara el evento muchas más veces de las que puede pintar.
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
 
-## 1. Wompi sin probar de punta a punta
-
-Nunca se ha confirmado que un pago real active la cuenta. La cadena
-Wompi → backend → App no se ha recorrido con dinero de verdad, así que no se
-sabe si un cliente que paga queda habilitado solo o hay que activarlo a mano.
-
-Es el único pendiente que puede costar dinero.
-
-## 2. Cada despliegue deja la App caída un minuto y medio
+## 1. Cada despliegue deja la App caída un minuto y medio
 
 El contenedor no reiniciaba solo: **reiniciaba porque lo redesplegábamos**
 (ver *por qué reiniciaba el contenedor*, en Cerrados). Lo que sigue abierto no
@@ -260,6 +252,17 @@ lista que se arregla desde el repo es el `CMD` del `Dockerfile`.
 
 ## Cerrados
 
+- **Wompi de punta a punta.** Confirmado con dinero real el 2 de septiembre de
+  2026: un cliente pagó y la cuenta se reactivó sola. Era el único pendiente que
+  podía costar dinero. Lo que faltaba no era configuración sino código, en tres
+  piezas: no existía ninguna ruta que recibiera los avisos de Wompi (ahora
+  `/api/payment/wompi`, que verifica la firma del evento); `/api/payment` no
+  estaba entre las rutas sin sesión del middleware, así que el aviso recibía una
+  redirección al login en vez del webhook; y el enlace del aviso de cobro era
+  uno por plan, igual para todos, así que el pago llegaba sin decir de quién era
+  y no había a quién renovarle. Ahora cada cliente tiene el suyo, `/p/{codigo}`,
+  que calcula el precio al abrirse y respeta el precio pactado de esa cuenta, no
+  el de lista del plan.
 - **Por qué reiniciaba el contenedor.** No era la memoria: **eran los
   despliegues**. Mirado en Portainer contra el histórico de tareas del servicio
   Swarm (`agente-app_verzay_app`), que es donde está el dato —`RestartCount` del
@@ -286,7 +289,7 @@ lista que se arregla desde el repo es el `CMD` del `Dockerfile`.
   `false`, y el consumo se mueve entre **480 y 545 MiB de los 1536 MiB** del
   límite (~31 %). El host va a 1,7 GiB de 23,5 GiB y lleva 228 días sin
   reiniciar. El `exit 137` despistaba: aquí no es el `SIGKILL` del gestor de
-  memoria, es el de Docker al agotarse los 10 s de gracia (ver el pendiente 2).
+  memoria, es el de Docker al agotarse los 10 s de gracia (ver el pendiente 1).
 
   Se deja puesto el latido `[chats] latido del detector`: lo que diagnostica es
   que el ciclo de la lista corre, que es el fallo de la conversación atrasada,
