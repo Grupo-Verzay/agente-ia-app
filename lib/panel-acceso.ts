@@ -34,7 +34,10 @@ export async function apartadosDelPanel(persona: Persona) {
     const candidatas = rutasDePanelParaElMenu(persona.role);
     const panelesExistentes = await db.module.findMany({
         where: { route: { in: candidatas } },
-        include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+        // Desempate por id: los submódulos guardados antes de que se sellaran con
+        // un instante distinto comparten createdAt, y sin criterio de desempate
+        // cada consulta los devuelve en otro orden.
+        include: { moduleItems: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
     });
     const panelModule = candidatas
         .map((route) => panelesExistentes.find((m) => m.route === route))
