@@ -704,7 +704,12 @@ export function ChatsClient({
   // cada 5s por pestaña con un chat abierto, y ese precio es barato al lado de
   // un asesor mirando una conversacion que no avanza.
   const BASE_INTERVAL = 5000;
-  const MAX_BACKOFF = 45000;
+  // Techo de la espera creciente. Estaba en 45s y es demasiado para lo que de
+  // verdad falla aqui: un 502 de Traefik mientras el contenedor se reinicia.
+  // Eso dura segundos, pero bastaban tres fallos seguidos para dejar la
+  // conversacion esperando 45s con el servidor ya en pie. 20s es el mismo ritmo
+  // que la lista, asi que no se golpea nada que la lista no golpee ya.
+  const MAX_BACKOFF = 20000;
   // Cuando se refresco la lista por ultima vez, para que volver a la ventana no
   // dispare una consulta por cada clic.
   const ultimoRefrescoRef = useRef(0);
@@ -2597,6 +2602,15 @@ export function ChatsClient({
       try {
         const result = await refetchAllInstances();
         if (result.success) {
+          // Esta vuelta ha ido y ha vuelto: el servidor esta EN PIE.
+          //
+          // El sondeo del chat abierto lleva su propia espera creciente, y al
+          // primer fallo salta a 10s, luego 20, luego 40. Un 502 mientras el
+          // contenedor se reinicia dura segundos, pero dejaba esa espera puesta
+          // mucho despues de que el servidor hubiera vuelto: la conversacion
+          // seguia parada por un problema que ya no existia. Si esta consulta
+          // -que va al mismo sitio- ha contestado, no hay nada que esperar.
+          backoffRef.current = 0;
           const filtered = filterChatList(result, lidPhoneMap);
           aplicarChatsFrescos(filtered);
           if (filtered.success) {
