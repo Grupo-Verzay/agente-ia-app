@@ -228,13 +228,19 @@ export default async function RootGroupLayout({
     // El módulo del panel y el del reseller ya vienen en `allModules`: antes se
     // pedían con dos consultas aparte que devolvían justo lo mismo. Los items se
     // ordenan igual que allí (por fecha de creación).
-    const porFechaDeCreacion = <T extends { moduleItems?: { createdAt: Date }[] }>(m: T | undefined) =>
+    const porFechaDeCreacion = <T extends { moduleItems?: { createdAt: Date; id: string }[] }>(m: T | undefined) =>
         m
             ? {
                 ...m,
-                moduleItems: [...(m.moduleItems ?? [])].sort(
-                    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-                ),
+                // Desempate por id, igual que en las consultas: los submódulos
+                // guardados antes de que se sellaran con un instante distinto
+                // comparten createdAt, y sin desempate esta barra y la del
+                // layout del panel salían en orden distinto. Las pestañas se
+                // reordenaban solas al pasar de un módulo a otro.
+                moduleItems: [...(m.moduleItems ?? [])].sort((a, b) => {
+                    const dif = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                    return dif !== 0 ? dif : a.id.localeCompare(b.id);
+                }),
             }
             : null;
 

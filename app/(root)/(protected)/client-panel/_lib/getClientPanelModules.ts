@@ -11,7 +11,7 @@ export async function getClientPanelModules(): Promise<{
   if (!user) return { user, modules: [] };
 
   const allModules = await db.module.findMany({
-    include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+    include: { moduleItems: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
     orderBy: { order: "asc" },
   });
 

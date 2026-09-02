@@ -27,7 +27,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         user.role === 'reseller'
             ? await db.module.findFirst({
                 where: { route: "/reseller-panel" },
-                include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+                include: { moduleItems: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
             })
             : null;
 
