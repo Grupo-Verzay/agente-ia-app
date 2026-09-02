@@ -223,7 +223,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
   onDeleteSuccess: (deletedId: number) => void,
   mutateSessions: () => void,
   allTags: SimpleTag[];
-  onNavigateToChat: (remoteJid: string) => void;
+  onNavigateToChat: (remoteJid: string, instanceId?: string | null) => void;
 }): ColumnDef<Session>[] => [
     {
       accessorKey: "remoteJid",
@@ -235,7 +235,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
         const phone = fmtPhone(displayJid);
         return (
           <button
-            onClick={() => onNavigateToChat(remoteJid)}
+            onClick={() => onNavigateToChat(remoteJid, row.original.instanceId)}
             className="min-w-[80px] cursor-pointer text-blue-600 hover:text-blue-800 transition-colors"
           >
             <p className="whitespace-nowrap font-medium">{phone}</p>
@@ -252,37 +252,6 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
       cell: ({ row }) => (
         <EditableNameCell session={row.original} onUpdated={mutateSessions} />
       ),
-    },
-    {
-      // De que LINEA es este lead.
-      //
-      // Una cuenta puede tener varias lineas independientes -Ventas, Atencion,
-      // Notificaciones, Pruebas-, cada una con su QR, y el mismo numero puede
-      // escribir por varias. Cada una lleva su propia ficha (el candado de la
-      // tabla es `userId + instanceId + remoteJid`), asi que sin esta columna se
-      // veian dos filas iguales del mismo telefono sin forma de distinguirlas.
-      accessorKey: "instanceId",
-      header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
-          Línea <ArrowUpDown className="ml-0.5 h-3 w-3" />
-        </Button>
-      ),
-      cell: ({ row }) => {
-        const linea = (row.getValue("instanceId") as string | null) ?? "";
-        if (!linea) {
-          return <div className="text-center text-xs text-muted-foreground">—</div>;
-        }
-        return (
-          <div className="flex justify-center">
-            <span
-              title={linea}
-              className="max-w-[160px] truncate rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-            >
-              {linea.replace(/_/g, " ")}
-            </span>
-          </div>
-        );
-      },
     },
     {
       accessorKey: "status",
