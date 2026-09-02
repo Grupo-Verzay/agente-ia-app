@@ -94,13 +94,11 @@ export async function patchBusinessAndFirma(input: {
             firmaName: firma.firmaName,
         });
 
-        const conVoz = await laCuentaRespondeConVoz(tx, current.userId);
-
         const updated = await tx.agentPrompt.update({
             where: { id: promptId },
             data: {
                 sections: next,
-                promptText: componerTextoDelPrompt(next, conVoz),
+                promptText: componerTextoDelPrompt(next),
                 version: { increment: 1 },
                 businessName: next.business.nombre || null,
                 businessSector: next.business.sector || null,
@@ -368,34 +366,8 @@ export async function getCurrentPrompt(promptId: string, agentId: string) {
  * pantalla, pero el agente seguía contestando con el texto de la última
  * publicación. Es el motivo de que "no se actualice de verdad".
  */
-function componerTextoDelPrompt(secciones: unknown, vozActiva = false): string {
-    return composePromptFromSections(normalizeAsDraft(normalizeAsStrict(secciones)), { vozActiva });
-}
-
-/**
- * Si la cuenta dueña de este prompt responde con notas de voz.
- *
- * Se consulta al rehacer el texto porque la firma no se puede incluir cuando
- * las respuestas salen en audio: el agente terminaria diciendo su propio nombre
- * al principio de cada nota. El interruptor vive en la cuenta y la firma en el
- * prompt, asi que hay que cruzarlos aqui.
- *
- * Ante cualquier fallo se asume que NO hay voz: es el comportamiento de
- * siempre, y perder la firma por un error de lectura seria peor que dejarla.
- */
-async function laCuentaRespondeConVoz(
-    tx: Prisma.TransactionClient,
-    userId: string,
-): Promise<boolean> {
-    try {
-        const cuenta = await tx.user.findUnique({
-            where: { id: userId },
-            select: { enableVoiceResponses: true },
-        });
-        return cuenta?.enableVoiceResponses === true;
-    } catch {
-        return false;
-    }
+function componerTextoDelPrompt(secciones: unknown): string {
+    return composePromptFromSections(normalizeAsDraft(normalizeAsStrict(secciones)));
 }
 
 export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
@@ -444,8 +416,6 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
             }
         }
 
-        const conVoz = await laCuentaRespondeConVoz(tx, current.userId);
-
         const updated = await tx.agentPrompt.update({
             where: { id: promptId },
             data: {
@@ -453,7 +423,7 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
                 // El texto que lee el agente se rehace en cada guardado. Antes
                 // solo se rehacía al publicar, así que editar un paso no
                 // cambiaba nada de lo que el agente contestaba.
-                promptText: componerTextoDelPrompt(next, conVoz),
+                promptText: componerTextoDelPrompt(next),
                 version: { increment: 1 },
                 // Denormalizados para listados
                 businessName: next.business.nombre || null,
@@ -511,9 +481,7 @@ export async function publishPrompt(input: z.infer<typeof PublishSchema>) {
 
             // Para componer, usa Draft (por si tu composer espera defaults del Draft)
             const normalizedForCompose = normalizeAsDraft(strict);
-            const promptTextStrict = composePromptFromSections(normalizedForCompose, {
-                vozActiva: await laCuentaRespondeConVoz(tx, current.userId),
-            });
+            const promptTextStrict = composePromptFromSections(normalizedForCompose);
             const { businessName, businessSector } = denormalizeBusiness(strict);
 
             const revNumber = await nextRevisionNumber(promptId);
