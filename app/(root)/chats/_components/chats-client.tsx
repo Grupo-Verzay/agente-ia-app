@@ -2495,6 +2495,35 @@ export function ChatsClient({
     if (!jid) return;
 
     const aliases = identidadesParaPedirMensajes(currentContactRef.current, jid);
+    // Un latido, con TODO lo que se compara, en cada vuelta de la lista.
+    //
+    // Es a proposito que no lleve condicion delante. Cada aviso que hemos puesto
+    // aqui iba detras de alguna, y cuando lo que fallaba era justo esa condicion
+    // el resultado era el mismo: pantalla mal y consola vacia, sin poder
+    // distinguir "no pasa nada" de "no llego a mirar". Esta linea sale siempre,
+    // asi que su AUSENCIA tambien dice algo -significa que este ciclo no corre-.
+    //
+    // Sale tres veces por minuto y solo con un chat abierto. Es diagnostico
+    // temporal: se quita cuando sepamos donde esta el fallo.
+    const parteDeLaLista = frescos.find(
+      (c) =>
+        c.remoteJid === jid ||
+        c.remoteJidAlt === jid ||
+        c.senderPn === jid ||
+        c.aliases?.includes(jid) ||
+        aliases?.includes(c.remoteJid),
+    );
+    const hora = (ms: number) => (ms ? new Date(ms).toLocaleTimeString() : "—");
+    console.info("[chats] latido del detector", {
+      jid,
+      filaEncontrada: Boolean(parteDeLaLista),
+      enLaLista: hora(epochToMs(parteDeLaLista?.lastMessage?.messageTimestamp)),
+      enPantalla: hora(
+        messagesRef.current.reduce((max, m) => Math.max(max, epochToMs(m.messageTimestamp)), 0),
+      ),
+      mensajesEnPantalla: messagesRef.current.length,
+      filasEnLaLista: frescos.length,
+    });
     // Se busca la fila por TODAS las formas de nombrar al contacto, no solo por
     // su `remoteJid`. El mensaje nuevo puede haber llegado bajo el `@lid` o bajo
     // el telefono, y entonces la fila que lo trae ya no se llama igual que el
