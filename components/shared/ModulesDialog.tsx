@@ -24,7 +24,7 @@ interface Props {
 }
 
 /** Las variantes de "Panel": del equipo, del reseller y del cliente. */
-const PANEL_ROUTES = ["/panel", "/admin", "/reseller-panel", "/client-panel"];
+const PANEL_ROUTES = ["/panel", "/admin", "/panel-admin", "/reseller-panel", "/client-panel"];
 
 export const ModulesDialog = ({ open, setOpen, handleModules, user, allModules }: Props) => {
   const [enabledModuleIds, setEnabledModuleIds] = useState<string[]>([]);
