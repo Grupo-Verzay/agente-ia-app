@@ -150,6 +150,16 @@ const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
 // salvavidas- se quedaba hasta un minuto atras. El tiempo real ADELANTA
 // trabajo; el reloj es quien responde de que las cosas se vean.
 const LIST_SYNC_INTERVAL_MS = 20000;
+// Cada cuanto se vuelven a pedir las SESIONES (a quien esta asignado cada chat,
+// sus etiquetas, su estado). Iba pegado al reloj de la lista, o sea cada 20s, y
+// es la consulta mas cara con diferencia: manda la agenda entera al servidor y
+// de ahi salen cuatro consultas enormes contra Postgres.
+//
+// Esto NO es lo que trae los mensajes -eso es el reloj de la lista y el del chat
+// abierto, que siguen igual de cortos, y la regla de arriba sigue en pie-. Es
+// informacion de CRM, que cambia muy de vez en cuando, y lo que hace el propio
+// asesor ya se pinta al momento sin pasar por aqui.
+const INTERVALO_MINIMO_DE_SESIONES = 60000;
 // Polling ADAPTATIVO: si el WebSocket de tiempo real está caído o no
 // configurado, usamos intervalos más ágiles para que igual se sienta en vivo.
 // Con el socket conectado se mantienen los intervalos relajados de arriba.
@@ -713,6 +723,11 @@ export function ChatsClient({
   // Cuando se refresco la lista por ultima vez, para que volver a la ventana no
   // dispare una consulta por cada clic.
   const ultimoRefrescoRef = useRef(0);
+  // Lo mismo para las sesiones (a quien esta asignado cada chat, sus etiquetas,
+  // su estado), que van por su cuenta y mucho mas espaciadas: ver el comentario
+  // largo en `refreshChatSessions`. La lista NO depende de esto para traer los
+  // mensajes.
+  const ultimoRefrescoDeSesionesRef = useRef(0);
   // El ciclo de la lista necesita poder disparar el sondeo del chat abierto. Va
   // por ref y no por dependencia: el sondeo se recrea con cada cambio de
   // seleccion, y meterlo en las dependencias reiniciaria el ciclo de la lista.
@@ -1080,13 +1095,45 @@ export function ChatsClient({
   }, [selectedJid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshChatSessions = useCallback(
-    async (chats: ChatData[]) => {
+    async (chats: ChatData[], opciones?: { forzar?: boolean }) => {
       const descriptors = buildChatContactDescriptors(chats);
 
       if (descriptors.length === 0) {
         setChatSessions({});
         return;
       }
+
+      /**
+       * Esta es, de lejos, la consulta mas cara de la pantalla, y se estaba
+       * repitiendo cada 20 segundos por cada pestaña abierta.
+       *
+       * Lo que viaja no es poco: el navegador manda la agenda ENTERA -en las
+       * cuentas grandes son mas de tres mil contactos, cada uno con sus alias-,
+       * el servidor los valida uno por uno y con ellos arma una busqueda de
+       * ~10.000 identidades contra Postgres. Y no es una consulta: son cuatro
+       * -sesiones con sus etiquetas, seguimientos, resueltas y citas-. Con
+       * varios asesores conectados a la vez eso son decenas de consultas
+       * enormes por minuto.
+       *
+       * Encaja con lo que se ve en produccion: `502 Bad Gateway` en la ruta de
+       * chats, el contenedor reiniciando, y al volver una lista incompleta.
+       *
+       * La lista sigue refrescandose a su ritmo de siempre, que es lo que trae
+       * los mensajes. Lo que se espacia es SOLO esto -a quien esta asignado un
+       * chat, sus etiquetas, su estado-, que cambia muy de vez en cuando. Y lo
+       * que hace el propio asesor se pinta al momento sin pasar por aqui:
+       * asignar, etiquetar y renombrar ya actualizan el estado en local.
+       *
+       * `forzar` es para cuando alguien pide expresamente refrescar.
+       */
+      const ahora = Date.now();
+      if (
+        !opciones?.forzar &&
+        ahora - ultimoRefrescoDeSesionesRef.current < INTERVALO_MINIMO_DE_SESIONES
+      ) {
+        return;
+      }
+      ultimoRefrescoDeSesionesRef.current = ahora;
 
       const result = await getChatContactSessions(sessionUserIds?.length ? sessionUserIds : userId, descriptors);
       if (result.success) {
@@ -1211,7 +1258,8 @@ export function ChatsClient({
     aplicarChatsFrescos(filtered);
 
     if (filtered.success) {
-      await refreshChatSessions(filtered.data);
+      // Refresco pedido a mano: aqui si se paga la consulta cara.
+      await refreshChatSessions(filtered.data, { forzar: true });
     }
   }, [refetchAllInstances, refreshChatSessions]);
 
