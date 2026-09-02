@@ -78,6 +78,62 @@ Dos reglas:
    se nota como un error: se nota como una App lenta, que es mucho peor de
    diagnosticar.
 
+Y una tercera, que costó otra noche **después** de escribir las dos de arriba:
+no basta con que el aviso exista, tiene que poder **salir**. El aviso seguía
+detrás de dos `return` mudos —no encuentro la fila, la fila no trae marca— así
+que la pantalla iba mal y la consola seguía vacía. Ahora hay un **latido sin
+ninguna condición delante** (`[chats] latido del detector`), que sale en cada
+vuelta de la lista con un chat abierto. Su ausencia también informa: significa
+que el ciclo no corre. **No ponerle condiciones**: es justo lo que lo inutiliza.
+
+## Chats: un fallo de segundos no puede costar medio minuto
+
+En la consola de producción salía `POST /chats 502 (Bad Gateway)`: la consulta
+de mensajes rebotando en Traefik mientras el contenedor reiniciaba. **Dura
+segundos.** Pero la reacción del cliente lo multiplicaba por diez.
+
+El sondeo dobla su espera en cada fallo —10s, 20s, 40s— y esa espera **solo se
+borraba cuando volvía bien una consulta de mensajes**. El ciclo de la lista, que
+va al mismo servidor y sí estaba volviendo bien, no se lo decía a nadie. Así que
+la conversación seguía parada medio minuto por un problema que ya no existía.
+
+Dos cosas que hay que mantener:
+
+1. **Una vuelta de la lista que va y vuelve borra la espera del sondeo.** Si una
+   consulta al mismo sitio contesta, el servidor está en pie: no hay nada que
+   esperar. Que cada ciclo lleve su cuenta por separado es lo que causó esto.
+2. El techo de la espera es **20s**, el mismo ritmo de la lista. Estaba en 45s y
+   eso son minutos de sensación de lentitud por un corte de segundos.
+
+Desde fuera nada de esto parece un error. Parece una App lenta.
+
+## Chats: las sesiones no vuelven al reloj de la lista
+
+`refreshChatSessions` es, con diferencia, lo más caro de la pantalla, y estaba
+pegado al reloj de la lista: **cada 20 segundos, por cada pestaña abierta**.
+
+Cada vuelta: el navegador serializa la **agenda entera** —más de 3.000 contactos
+con todos sus alias en las cuentas grandes— y la manda por POST; el servidor los
+valida uno por uno con Zod; con ellos arma ~10.000 identidades candidatas y
+busca en lotes de 5.000, o sea consultas de 10.000 parámetros contra Postgres. Y
+no es una consulta: son **cuatro** (sesiones con etiquetas, seguimientos,
+resueltas y citas).
+
+Con varios asesores conectados eso son decenas de consultas enormes por minuto
+para devolver algo que casi nunca cambia. Encaja con lo que se vio: `502`
+repetido, el contenedor reiniciando, y al volver la lista incompleta (240 chats
+de 3.075, sin sesiones, sin nombres, sin fotos).
+
+Van a **60s** (`INTERVALO_MINIMO_DE_SESIONES`), con `forzar` para el refresco
+que se pide a mano. **No devolverlas al ritmo de la lista.**
+
+Esto **no** contradice la primera regla de este documento. Lo que se espacia
+aquí es información de CRM —a quién está asignado un chat, sus etiquetas, su
+estado—, **no mensajes**. Los relojes que traen los mensajes siguen igual de
+cortos: 5s el chat abierto, 20s la lista. Y lo que hace el propio asesor se
+pinta al momento sin pasar por aquí: asignar, etiquetar y renombrar ya
+actualizan el estado en local.
+
 ## Chats: `contact.aliases` NO son todas las identidades
 
 Al pedir los mensajes se pasaba solo `contact.aliases`, y ese campo **viene vacío
@@ -149,6 +205,21 @@ Wompi → backend → App no se ha recorrido con dinero de verdad, así que no s
 sabe si un cliente que paga queda habilitado solo o hay que activarlo a mano.
 
 Es el único pendiente que puede costar dinero.
+
+## 2. Por qué reinicia el contenedor de la App
+
+Se vieron varios `502 Bad Gateway` seguidos en `/chats`, y al volver la App
+cargaba incompleta. Se bajó la carga que más pesaba (ver *las sesiones no
+vuelven al reloj de la lista*), y con eso los mensajes volvieron a entrar en
+segundos. Pero **no se ha confirmado por qué reiniciaba**.
+
+Falta mirarlo en Portainer: cuenta de reinicios del contenedor de
+`agente.ia-app.com`, y si en los logs sale `OOMKilled` o `exit code 137` —eso
+sería quedarse sin memoria—. Mientras no se compruebe, no se puede dar por
+cerrado.
+
+Queda puesto el latido `[chats] latido del detector` (nivel *info*) para poder
+diagnosticarlo sin adivinar. Se quita cuando esto se cierre.
 
 ## Cerrados
 
