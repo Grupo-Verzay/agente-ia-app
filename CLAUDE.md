@@ -86,6 +86,40 @@ ninguna condición delante** (`[chats] latido del detector`), que sale en cada
 vuelta de la lista con un chat abierto. Su ausencia también informa: significa
 que el ciclo no corre. **No ponerle condiciones**: es justo lo que lo inutiliza.
 
+## El build borraba los avisos: `removeConsole`
+
+Antes de buscar por que "la consola no dice nada", mirar `next.config.js`.
+
+Estaba asi:
+
+```js
+compiler: { removeConsole: { exclude: ["error"] } }
+```
+
+En produccion Next **borra todas las llamadas a `console` menos las excluidas**.
+Con solo `error` en la lista, cada `console.warn` y cada `console.info` del
+proyecto **desaparecia del codigo que corre**. No es que no se vieran: es que no
+existian.
+
+Eso costo dos dias. Se anadieron avisos en el detector de la lista, en el
+tiempo real, en la pausa de la IA y en el borrado de chats; se pidieron capturas
+de la consola una y otra vez; y todas volvian vacias. La conclusion que se
+sacaba —"no salta ningun aviso, luego el codigo no llega ahi"— era falsa: el
+codigo llegaba, pero el aviso no estaba compilado.
+
+Ahora la lista es `["error", "warn", "info"]`. **No quitar `warn` ni `info`**:
+este documento tiene una regla entera sobre que un fallo nunca puede ser mudo, y
+sin ellos esa regla no se sostiene. `log` y `debug` siguen fuera, que eso si es
+ruido de desarrollo.
+
+Como comprobar que un aviso sobrevive, sin desplegar:
+
+```
+npm run build && grep -rl "el texto del aviso" .next/static/chunks/
+```
+
+Si no aparece, en produccion no existe.
+
 ## Chats: un fallo de segundos no puede costar medio minuto
 
 En la consola de producción salía `POST /chats 502 (Bad Gateway)`: la consulta
