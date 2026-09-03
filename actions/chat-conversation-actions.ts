@@ -504,6 +504,12 @@ async function hardDeleteLocalChat(
       },
       create: {
         userId,
+        // La MISMA linea que en el `where` de arriba. Faltaba, y por eso
+        // borrar reventaba: el `where` buscaba (cuenta, linea, numero) y no
+        // encontraba nada, pero el `create` insertaba con la linea por defecto
+        // -cadena vacia-, que es justo donde vive la marca antigua de ese
+        // contacto. Chocaban.
+        instanceName: linea,
         remoteJid: normalizedRemoteJid,
         pinnedAt: null,
         archivedAt: null,
