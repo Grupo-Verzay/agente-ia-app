@@ -2229,11 +2229,17 @@ export function ChatsClient({
   );
 
   const handleDeleteChat = useCallback(
-    async (remoteJid: string) => {
+    async (remoteJid: string, instanceName?: string) => {
       const ownerUserId = ownerForJid(remoteJid);
+      // La linea de la fila que se pulso. `lineaDelJid` busca por numero en la
+      // lista, y cuando el mismo contacto tiene chat en dos lineas devuelve una
+      // cualquiera -y cambia entre una llamada y la siguiente, porque la lista
+      // se rehace cada 20s-. Asi la marca caia en la linea equivocada: se veia
+      // borrar la fila de Notificaciones y la marca se guardaba en Atencion.
+      const linea = instanceName ?? lineaDelJid(remoteJid);
       const result = await deleteChatConversationAction({
         userId: ownerUserId,
-        instanceName: lineaDelJid(remoteJid),
+        instanceName: linea,
         remoteJid,
       });
 
@@ -2249,10 +2255,9 @@ export function ChatsClient({
       // que hacen falta las dos partes, y esta es la del navegador: la llave
       // guardada y, una vuelta de reloj despues, si ese numero volvio y bajo que
       // linea. Diagnostico temporal.
-      const lineaAlBorrar = lineaDelJid(remoteJid);
       console.info("[chats] marca de borrado aplicada", {
         llave: chatPreferenceKey(ownerUserId, result.data.instanceName, result.data.remoteJid),
-        lineaDelChat: lineaAlBorrar ?? "(no se encontro la fila)",
+        lineaDelChat: linea ?? "(no se encontro la fila)",
         lineaQueDevolvioElServidor: result.data.instanceName || "(vacia)",
         remoteJidGuardado: result.data.remoteJid,
         remoteJidPedido: remoteJid,

@@ -186,7 +186,7 @@ type ChatSidebarProps = {
   chatPreferences: ChatConversationPreferenceMap;
   chatSessions: ChatContactSessionMap;
   onArchiveChat?: (remoteJid: string, archived: boolean) => void | Promise<void>;
-  onDeleteChat?: (remoteJid: string) => void | Promise<void>;
+  onDeleteChat?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
   onLeadStatusChange?: (remoteJid: string, status: import("@/types/session").LeadStatus | null) => void;
   onServiceTypeChange?: (remoteJid: string, value: import("@/types/session").ServiceType | null) => void;
   onClientStatusChange?: (remoteJid: string, value: import("@/types/session").ClientStatus | null) => void;
@@ -1391,7 +1391,10 @@ export function ChatSidebar({
 
       <DeleteChatDialog
         target={deleteTarget}
-        onConfirm={(id) => void onDeleteChat?.(id)}
+        // La linea sale de la fila que se pulso, no de una busqueda por
+        // numero: el mismo contacto puede tener chat en varias lineas y buscarlo
+        // despues devuelve una cualquiera.
+        onConfirm={(id) => void onDeleteChat?.(id, deleteTarget?.instanceName)}
         onCancel={() => setDeleteTarget(null)}
       />
 
