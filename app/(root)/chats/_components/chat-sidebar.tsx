@@ -30,7 +30,7 @@ import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
-import { chatPreferenceKey } from "@/lib/chat-preference-key";
+import { chatPreferenceKeys } from "@/lib/chat-preference-key";
 import type { ChatContactSessionMap, SimpleTag, ClientStatus, ServiceType } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import {
@@ -145,7 +145,9 @@ function getPreferenceForChat(
   ownerUserId: string,
 ) {
   return getChatIdentityCandidates(chat)
-    .map((candidate) => preferences[chatPreferenceKey(ownerUserId, candidate)])
+    .flatMap((candidate) =>
+      chatPreferenceKeys(ownerUserId, chat.instanceName, candidate).map((k) => preferences[k]),
+    )
     .find(Boolean);
 }
 

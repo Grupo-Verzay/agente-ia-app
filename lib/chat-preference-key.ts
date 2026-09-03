@@ -1,19 +1,40 @@
 /**
  * Clave de una preferencia de chat (fijado, archivado, borrado).
  *
- * La bandeja muestra las líneas de TODAS las cuentas asociadas, pero la marca se
- * guarda en la tabla por `(userId, remoteJid)`, sin la línea. Si el mapa del
- * cliente se indexa solo por número, un contacto que le escribe a dos líneas
- * comparte una única marca: al borrarlo en una desaparece de todas. Ya pasó —
- * Verzay | Atención cayó de 17 chats a 4.
+ * La bandeja muestra las líneas de TODAS las cuentas asociadas, y un mismo
+ * número puede escribirle a varias. La marca es de **una línea concreta**, no
+ * del número: borrar un contacto en Verzay Notificaciones no puede hacerlo
+ * desaparecer de Atención ni de Ventas.
  *
- * Por eso la clave lleva delante la cuenta dueña de la línea. Es el mismo
- * criterio que `getSessionForChat` usa para las sesiones con `instanceName::jid`.
+ * Por eso la clave lleva las tres cosas: cuenta dueña, línea y número. Es el
+ * mismo criterio que `getSessionForChat` usa para las sesiones.
  *
- * Ojo con el límite: dos líneas de UNA MISMA cuenta siguen compartiendo marca,
- * porque la tabla no guarda la línea. Arreglarlo pide una columna nueva, y las
- * migraciones las manda api-webhook (ver docs/db-migrations-ownership.md).
+ * Antes la clave era solo `cuenta::número`, porque la tabla no guardaba la
+ * línea. Se notaba como que borrar en una línea borraba en todas — Verzay |
+ * Atención cayó de 17 chats a 4 — y también en el otro sentido: el chat volvía
+ * a aparecer sin explicación. La tabla ya guarda `instanceName`.
  */
-export function chatPreferenceKey(ownerUserId: string, remoteJid: string) {
-  return `${ownerUserId}::${remoteJid}`;
+export function chatPreferenceKey(
+  ownerUserId: string,
+  instanceName: string | null | undefined,
+  remoteJid: string,
+) {
+  return `${ownerUserId}::${(instanceName ?? "").trim()}::${remoteJid}`;
+}
+
+/**
+ * Las claves con las que buscar la marca de un chat, en orden.
+ *
+ * Primero la de SU línea. Después la antigua —línea vacía—, que es como
+ * quedaron las marcas de cuando la tabla no guardaba la línea: siguen valiendo
+ * para todas, para no resucitarle al usuario chats que ya había borrado.
+ */
+export function chatPreferenceKeys(
+  ownerUserId: string,
+  instanceName: string | null | undefined,
+  remoteJid: string,
+) {
+  const deSuLinea = chatPreferenceKey(ownerUserId, instanceName, remoteJid);
+  const antigua = chatPreferenceKey(ownerUserId, "", remoteJid);
+  return deSuLinea === antigua ? [antigua] : [deSuLinea, antigua];
 }
