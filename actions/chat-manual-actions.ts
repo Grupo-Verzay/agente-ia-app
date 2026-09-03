@@ -87,6 +87,15 @@ const DEFAULT_CHAT_MESSAGE_PAGE_SIZE = 10;
 // consulta en la apertura, así que pedir una ventana amplia llena la BD local con
 // suficiente historial para que el scroll-back funcione sin quedarse corto.
 const EVOLUTION_SYNC_WINDOW_SIZE = 25;
+// Lo que se le aguanta a Evolution antes de cortarle la llamada. Estaba en los
+// 15s por defecto de `fetchMessagesForRemoteJid`, o sea EXACTAMENTE lo que el
+// navegador espera por toda la vuelta: cualquier lentitud de Evolution se
+// comia el plazo entero y el cliente tiraba la respuesta.
+const ESPERA_MAXIMA_DE_EVOLUTION = 9000;
+// Y lo que se le espera antes de contestar con nuestra base. Por debajo del
+// corte de arriba a proposito: primero se contesta con lo que hay guardado, y
+// Evolution sigue de fondo hasta su propio limite.
+const MARGEN_ANTES_DE_TIRAR_DE_LA_BASE = 6000;
 
 function buildOutgoingHistoryEntry(payload: OutgoingMessagePayload) {
   if (payload.kind === "text") {
@@ -625,25 +634,84 @@ export async function warmChatMessagesAction(
   //
   // En paralelo y no en fila: preguntar a la base es barato y asi no le suma
   // espera a la apertura del chat, que es lo que se cuido al escribir esto.
-  const [result, respaldoLocal] = await Promise.all([
-    findMessagesByRemoteJid(
-      context.apiKeyData,
-      context.instanceName,
-      remoteJid,
-      fetchOptions,
+  //
+  // Y en paralelo DE VERDAD: con `Promise.all` la respuesta de nuestra base
+  // -que suele estar lista en milisegundos y que ya tiene el mensaje, porque el
+  // webhook lo guardo al llegar- se quedaba esperando a Evolution. Si Evolution
+  // tardaba, la vuelta entera tardaba, el cliente se rendia a los 15s y tiraba
+  // la respuesta a la basura. La conversacion se quedaba minutos parada
+  // teniendo el mensaje guardado a un palmo.
+  //
+  // Es la misma regla de siempre -cuando Evolution se queda corta, manda
+  // nuestra base- aplicada al tiempo y no al contenido.
+  const promesaEvolution = findMessagesByRemoteJid(
+    context.apiKeyData,
+    context.instanceName,
+    remoteJid,
+    { ...fetchOptions, timeoutMs: ESPERA_MAXIMA_DE_EVOLUTION },
+  );
+  // El fallo se atiende aqui mismo para que la promesa nunca quede sin `catch`:
+  // se queda corriendo de fondo cuando se contesta con la base, y una promesa
+  // rechazada sin nadie escuchando tumba el proceso de Node.
+  const promesaEvolutionSegura = promesaEvolution.catch(
+    (error): FindMessagesResult => ({
+      success: false,
+      message: error instanceof Error ? error.message : "Evolution no respondio.",
+      queriedRemoteJid: remoteJid,
+    }),
+  );
+
+  const respaldoLocal = effectiveOwnerId
+    ? await buildPersistedMessagesResult({
+        userIds: readUserIds,
+        instanceName: context.instanceName,
+        remoteJid,
+        aliases: options?.remoteJidAliases,
+        page,
+        pageSize,
+        message: "Mensajes cargados desde historial local.",
+      }).catch(() => null)
+    : null;
+
+  // Ya con la base en la mano, a Evolution se le da un margen corto. Si no
+  // llega, se contesta con lo guardado y ella sigue de fondo: lo que traiga se
+  // persiste igual y la siguiente vuelta del reloj lo recoge.
+  const result = await Promise.race([
+    promesaEvolutionSegura,
+    new Promise<null>((resolver) =>
+      setTimeout(() => resolver(null), MARGEN_ANTES_DE_TIRAR_DE_LA_BASE),
     ),
-    effectiveOwnerId
-      ? buildPersistedMessagesResult({
-          userIds: readUserIds,
-          instanceName: context.instanceName,
-          remoteJid,
-          aliases: options?.remoteJidAliases,
-          page,
-          pageSize,
-          message: "Mensajes cargados desde historial local.",
-        }).catch(() => null)
-      : Promise.resolve(null),
   ]);
+
+  if (!result) {
+    void promesaEvolutionSegura.then((tardia) => {
+      if (!tardia.success || !effectiveOwnerId) return;
+      return persistEvolutionMessages({
+        userId: effectiveOwnerId,
+        instanceName: context.instanceName,
+        instanceType: "evolution",
+        remoteJid,
+        messages: tardia.data,
+      }).catch(() => {});
+    });
+
+    console.warn(
+      "[chats] Evolution tardo demasiado: se contesta con nuestra base.",
+      {
+        remoteJid,
+        instancia: context.instanceName,
+        mensajes: respaldoLocal?.data.length ?? 0,
+      },
+    );
+
+    if (respaldoLocal?.data.length) return respaldoLocal;
+
+    return {
+      success: false,
+      message: "Evolution tardo demasiado y no hay historial local todavia.",
+      queriedRemoteJid: remoteJid,
+    };
+  }
 
   if (result.success && effectiveOwnerId) {
     // Camino crítico de la PRIMERA apertura: se devuelve YA lo que respondió

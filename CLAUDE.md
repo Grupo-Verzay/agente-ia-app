@@ -146,6 +146,35 @@ Dos cosas que hay que mantener:
 
 Desde fuera nada de esto parece un error. Parece una App lenta.
 
+## Chats: agotar la espera no es tirar la respuesta
+
+El sondeo del chat abierto corría contra un reloj de 15s hecho con
+`Promise.race` contra un `reject`. Pasados los 15s la respuesta que venía en
+camino **se perdía**, aunque llegara entera un segundo después. Y al otro lado,
+`warmChatMessagesAction` juntaba con `Promise.all` la consulta a Evolution y la
+consulta a nuestra base: la nuestra estaba lista en milisegundos —con el mensaje
+ya guardado por el webhook— pero **esperaba a Evolution**, cuyo propio corte
+también eran 15s. O sea: el plazo del navegador y el de Evolution eran el mismo,
+así que cualquier lentitud de Evolution se comía la vuelta entera.
+
+Desde fuera: la persona escribe, el mensaje está guardado, y la conversación se
+queda minutos vacía. El sondeo se rendía vuelta tras vuelta y doblaba su espera.
+
+Tres cosas que hay que mantener:
+
+1. **Nuestra base no espera a Evolution.** Se lanzan las dos a la vez, pero se
+   contesta con lo guardado en cuanto Evolution pasa de
+   `MARGEN_ANTES_DE_TIRAR_DE_LA_BASE` (6s). Evolution sigue de fondo hasta su
+   propio corte (`ESPERA_MAXIMA_DE_EVOLUTION`, 9s) y **lo que traiga se persiste
+   igual**, así que la vuelta siguiente lo recoge. Es la regla de siempre —cuando
+   Evolution se queda corta manda nuestra base— aplicada al **tiempo** y no al
+   contenido.
+2. Los dos plazos van **escalonados**: el de Evolution por debajo del que espera
+   el navegador. Si se igualan, vuelve el fallo.
+3. En el navegador, agotar la espera **solo libera el ciclo**. La respuesta se
+   sigue escuchando y, si el chat sigue abierto cuando llega, **se pinta**. Nunca
+   volver al `race` contra `reject`: eso tira trabajo ya hecho.
+
 ## Chats: resincronizar historial NO es novedad
 
 Cuando un asesor escribe desde la App, la IA se calla: `pausarIaPorIntervencionHumana`
