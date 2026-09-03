@@ -138,13 +138,62 @@ async function ensurePurgedAtColumn(): Promise<void> {
       `CREATE UNIQUE INDEX IF NOT EXISTS "ChatConversationPreference_user_instance_jid_key"
          ON "ChatConversationPreference" ("userId", "instanceName", "remoteJid")`,
     );
-    await db.$executeRawUnsafe(
-      `ALTER TABLE "ChatConversationPreference"
-         DROP CONSTRAINT IF EXISTS "ChatConversationPreference_userId_remoteJid_key"`,
-    );
-    await db.$executeRawUnsafe(
-      'DROP INDEX IF EXISTS "ChatConversationPreference_userId_remoteJid_key"',
-    );
+    // El candado viejo se busca POR SU DEFINICION, no por su nombre.
+    //
+    // Se intento primero por nombre y no se fue: en produccion se llamaba de
+    // otra forma, asi que el `DROP ... IF EXISTS` no encontro nada y no dijo
+    // nada. El resultado era que la fila nueva -misma cuenta y mismo numero,
+    // distinta linea- chocaba contra el unico de antes, y borrar un chat
+    // reventaba con "Unique constraint failed on the fields:
+    // (userId, instanceName, remoteJid)". Ese mensaje despista: Prisma nombra
+    // los campos del `@@unique` del modelo, no los del indice que de verdad se
+    // violo.
+    //
+    // Se listan los indices UNIQUE de la tabla que van exactamente sobre
+    // (userId, remoteJid) y se retiran, sea cual sea su nombre. Se salta el
+    // nuevo por si acaso.
+    const candadosViejos = await db.$queryRaw<{ conname: string; contype: string }[]>`
+      SELECT c.conname, c.contype::text AS contype
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      WHERE t.relname = 'ChatConversationPreference'
+        AND c.contype = 'u'
+        AND c.conname <> 'ChatConversationPreference_user_instance_jid_key'
+        AND (
+          SELECT array_agg(a.attname::text ORDER BY a.attname)
+          FROM unnest(c.conkey) AS k(attnum)
+          JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+        ) = ARRAY['remoteJid', 'userId']
+    `.catch(() => []);
+
+    for (const { conname } of candadosViejos) {
+      await db.$executeRawUnsafe(
+        `ALTER TABLE "ChatConversationPreference" DROP CONSTRAINT IF EXISTS "${conname}"`,
+      );
+      console.info(`[chats] retirado el candado viejo de preferencias: ${conname}`);
+    }
+
+    // Un UNIQUE puede existir tambien como indice suelto, sin constraint
+    // detras. Ese no sale en `pg_constraint`.
+    const indicesViejos = await db.$queryRaw<{ indexname: string }[]>`
+      SELECT i.relname AS indexname
+      FROM pg_index x
+      JOIN pg_class i ON i.oid = x.indexrelid
+      JOIN pg_class t ON t.oid = x.indrelid
+      WHERE t.relname = 'ChatConversationPreference'
+        AND x.indisunique
+        AND i.relname <> 'ChatConversationPreference_user_instance_jid_key'
+        AND (
+          SELECT array_agg(a.attname::text ORDER BY a.attname)
+          FROM unnest(x.indkey) AS k(attnum)
+          JOIN pg_attribute a ON a.attrelid = x.indrelid AND a.attnum = k.attnum
+        ) = ARRAY['remoteJid', 'userId']
+    `.catch(() => []);
+
+    for (const { indexname } of indicesViejos) {
+      await db.$executeRawUnsafe(`DROP INDEX IF EXISTS "${indexname}"`);
+      console.info(`[chats] retirado el indice unico viejo de preferencias: ${indexname}`);
+    }
   })().catch((error) => {
     asegurarColumnaPurgedAt = null;
     throw error;
