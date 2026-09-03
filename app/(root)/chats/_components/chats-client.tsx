@@ -2308,7 +2308,21 @@ export function ChatsClient({
         prev.success
           ? {
               ...prev,
-              data: prev.data.filter((chat) => !chatMatchesAnyJid(chat, deletedCandidates)),
+              // Se quita de la lista SOLO la fila de esta linea.
+              //
+              // Filtraba por numero a secas, asi que borrar en Notificaciones
+              // hacia desaparecer tambien la fila de Atencion en el acto. La
+              // marca ya iba por linea; esto de aqui la contradecia por delante,
+              // y era lo que se veia.
+              //
+              // Sin linea conocida se mantiene el filtro de antes: mas vale
+              // quitar de mas que dejar en pantalla un chat que se acaba de
+              // borrar.
+              data: prev.data.filter(
+                (chat) =>
+                  !chatMatchesAnyJid(chat, deletedCandidates) ||
+                  (Boolean(linea) && chat.instanceName !== linea),
+              ),
             }
           : prev,
       );
