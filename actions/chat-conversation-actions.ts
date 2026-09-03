@@ -20,6 +20,7 @@ const chatConversationPreferenceTable = db.chatConversationPreference as unknown
       // Solo viene cuando se pide en el select; se necesita para indexar la
       // preferencia por la cuenta dueña de la línea.
       userId?: string;
+      instanceName?: string;
       remoteJid: string;
       pinnedAt: Date | null;
       archivedAt: Date | null;
@@ -28,6 +29,7 @@ const chatConversationPreferenceTable = db.chatConversationPreference as unknown
     }>
   >;
   upsert: (args: unknown) => Promise<{
+    instanceName?: string;
     remoteJid: string;
     pinnedAt: Date | null;
     archivedAt: Date | null;
@@ -46,6 +48,9 @@ type ChatPreferenceResponse<T> = {
 
 const baseSchema = z.object({
   userId: z.string().trim().min(1),
+  // La linea del chat. Opcional porque hay llamadas antiguas que no la mandan;
+  // sin ella la marca se guarda como "de todas las lineas", igual que antes.
+  instanceName: z.string().trim().optional(),
   remoteJid: z.string().trim().min(1),
 });
 
@@ -64,6 +69,7 @@ function normalizePreferenceRemoteJid(remoteJid: string) {
 
 function mapPreference(
   preference: {
+    instanceName?: string | null;
     remoteJid: string;
     pinnedAt: Date | null;
     archivedAt: Date | null;
@@ -72,6 +78,7 @@ function mapPreference(
   },
 ): ChatConversationPreference {
   return {
+    instanceName: preference.instanceName ?? "",
     remoteJid: preference.remoteJid,
     pinnedAt: preference.pinnedAt?.toISOString() ?? null,
     archivedAt: preference.archivedAt?.toISOString() ?? null,
@@ -106,12 +113,55 @@ async function ensurePurgedAtColumn(): Promise<void> {
     await db.$executeRawUnsafe(
       'CREATE INDEX IF NOT EXISTS "ChatConversationPreference_userId_purgedAt_idx" ON "ChatConversationPreference" ("userId", "purgedAt")',
     );
+
+    // La LINEA a la que pertenece la marca.
+    //
+    // Sin esto la tabla guardaba `(cuenta, numero)`, asi que borrar un contacto
+    // en Verzay Notificaciones lo borraba tambien en Atencion y en Ventas: una
+    // sola marca para todas las lineas de la cuenta. Cada linea tiene su propio
+    // QR y sus propias conversaciones, y una no manda sobre las otras.
+    //
+    // Se crea NOT NULL con defecto '' a proposito. Las filas que ya existen se
+    // quedan con la cadena vacia, que significa "de antes, vale para todas las
+    // lineas": los borrados que el usuario ya hizo siguen ocultando lo que
+    // ocultaban, y solo los nuevos son por linea. Si fuera NULL, Postgres trata
+    // cada NULL como distinto y el indice unico dejaria colar duplicados.
+    await db.$executeRawUnsafe(
+      `ALTER TABLE "ChatConversationPreference"
+         ADD COLUMN IF NOT EXISTS "instanceName" TEXT NOT NULL DEFAULT ''`,
+    );
+
+    // El candado pasa a incluir la linea. Primero el nuevo, y solo si queda
+    // creado se retira el viejo: si se cayera entre medias, la tabla se queda
+    // con los dos y sigue siendo correcta -mas estricta, nunca menos-.
+    await db.$executeRawUnsafe(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "ChatConversationPreference_user_instance_jid_key"
+         ON "ChatConversationPreference" ("userId", "instanceName", "remoteJid")`,
+    );
+    await db.$executeRawUnsafe(
+      `ALTER TABLE "ChatConversationPreference"
+         DROP CONSTRAINT IF EXISTS "ChatConversationPreference_userId_remoteJid_key"`,
+    );
+    await db.$executeRawUnsafe(
+      'DROP INDEX IF EXISTS "ChatConversationPreference_userId_remoteJid_key"',
+    );
   })().catch((error) => {
     asegurarColumnaPurgedAt = null;
     throw error;
   });
 
   return asegurarColumnaPurgedAt;
+}
+
+/**
+ * La linea a la que se aplica una marca, ya normalizada.
+ *
+ * Cadena vacia = marca antigua, de cuando la tabla no guardaba la linea. Vale
+ * para todas las lineas de la cuenta, para no cambiarle al usuario lo que ya
+ * habia borrado.
+ */
+function normalizarLinea(instanceName?: string | null) {
+  return (instanceName ?? "").trim();
 }
 
 /**
@@ -174,6 +224,7 @@ async function assertCanDeleteChats(userId: string) {
 
 async function upsertPreference(
   userId: string,
+  instanceName: string | null | undefined,
   remoteJid: string,
   data: {
     pinnedAt?: Date | null;
@@ -184,17 +235,21 @@ async function upsertPreference(
 ): Promise<ChatConversationPreference> {
   await ensurePurgedAtColumn();
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
+  const linea = normalizarLinea(instanceName);
 
   const preference = await chatConversationPreferenceTable.upsert({
     where: {
-      userId_remoteJid: {
+      // Por LINEA: la marca de una no toca a las demas.
+      userId_instanceName_remoteJid: {
         userId,
+        instanceName: linea,
         remoteJid: normalizedRemoteJid,
       },
     },
     update: data,
     create: {
       userId,
+      instanceName: linea,
       remoteJid: normalizedRemoteJid,
       pinnedAt: data.pinnedAt ?? null,
       archivedAt: data.archivedAt ?? null,
@@ -210,9 +265,13 @@ async function upsertPreference(
   return mapPreference(preference);
 }
 
-function deletedPreference(remoteJid: string): ChatConversationPreference {
+function deletedPreference(
+  remoteJid: string,
+  instanceName?: string | null,
+): ChatConversationPreference {
   const now = new Date().toISOString();
   return {
+    instanceName: normalizarLinea(instanceName),
     remoteJid: normalizePreferenceRemoteJid(remoteJid),
     pinnedAt: null,
     archivedAt: null,
@@ -292,17 +351,31 @@ async function purgarRastroDelContacto(
   `;
 }
 
-async function hardDeleteLocalChat(userId: string, remoteJid: string) {
+async function hardDeleteLocalChat(
+  userId: string,
+  instanceName: string | null | undefined,
+  remoteJid: string,
+) {
   await ensurePurgedAtColumn();
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
   const candidates = buildWhatsAppJidCandidates(normalizedRemoteJid);
   const deletedAt = new Date();
+  const linea = normalizarLinea(instanceName);
+  // Cuando se sabe de que linea se esta borrando, se borra SOLO de esa. Hasta
+  // ahora esto arrasaba con el contacto en todas las lineas de la cuenta: sus
+  // sesiones, sus conversaciones y todos sus mensajes. Con varias lineas
+  // independientes eso es destruir historial de una linea desde otra.
+  //
+  // Sin linea -llamadas viejas- se conserva el comportamiento de antes, para no
+  // dejar a medias un borrado que el usuario pidio completo.
+  const soloDeEstaLinea = linea ? { instanceName: linea } : {};
   let deletedPreferenceRow: ChatConversationPreference | null = null;
 
   await db.$transaction(async (tx) => {
     await tx.chatConversationPreference.deleteMany({
       where: {
         userId,
+        ...soloDeEstaLinea,
         remoteJid: { in: candidates.filter((candidate) => candidate !== normalizedRemoteJid) },
       },
     });
@@ -310,6 +383,7 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
     const sessions = await tx.session.findMany({
       where: {
         userId,
+        ...(linea ? { instanceId: linea } : {}),
         OR: [
           { remoteJid: { in: candidates } },
           { remoteJidAlt: { in: candidates } },
@@ -333,9 +407,18 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
       });
     }
 
+    // `chat_conversations` y `chat_messages` guardan su `instanceName`, asi que
+    // el borrado se acota a la linea de la que se pidio. Sin ese filtro, borrar
+    // un chat en una linea se llevaba por delante el historial del mismo
+    // contacto en TODAS las demas.
+    const deEstaLinea = linea
+      ? Prisma.sql`AND "instanceName" = ${linea}`
+      : Prisma.empty;
+
     await tx.$executeRaw`
       DELETE FROM "chat_conversations"
       WHERE "userId" = ${userId}
+        ${deEstaLinea}
         AND (
           "remoteJid" IN (${Prisma.join(candidates)})
           OR "remoteJidAlt" IN (${Prisma.join(candidates)})
@@ -346,6 +429,7 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
     await tx.$executeRaw`
       DELETE FROM "chat_messages"
       WHERE "userId" = ${userId}
+        ${deEstaLinea}
         AND (
           "remoteJid" IN (${Prisma.join(candidates)})
           OR "remoteJidAlt" IN (${Prisma.join(candidates)})
@@ -357,8 +441,9 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
 
     const preference = await tx.chatConversationPreference.upsert({
       where: {
-        userId_remoteJid: {
+        userId_instanceName_remoteJid: {
           userId,
+          instanceName: linea,
           remoteJid: normalizedRemoteJid,
         },
       },
@@ -383,7 +468,7 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
   invalidatePersistedInboxCache();
 
   revalidatePath("/chats");
-  return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid);
+  return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid, linea);
 }
 
 /**
@@ -407,6 +492,7 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
       where: { userId: { in: userIds } },
       select: {
         userId: true,
+        instanceName: true,
         remoteJid: true,
         pinnedAt: true,
         archivedAt: true,
@@ -417,7 +503,7 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
 
     const data = preferences.reduce<ChatConversationPreferenceMap>((acc, item) => {
       if (!item.userId) return acc;
-      acc[chatPreferenceKey(item.userId, item.remoteJid)] = mapPreference(item);
+      acc[chatPreferenceKey(item.userId, item.instanceName ?? '', item.remoteJid)] = mapPreference(item);
       return acc;
     }, {});
 
@@ -445,7 +531,7 @@ export async function toggleChatPinAction(
     const parsed = pinSchema.parse(input);
     await assertAuthorized(parsed.userId);
 
-    const data = await upsertPreference(parsed.userId, parsed.remoteJid, {
+    const data = await upsertPreference(parsed.userId, parsed.instanceName, parsed.remoteJid, {
       pinnedAt: parsed.isPinned ? new Date() : null,
     });
 
@@ -470,7 +556,7 @@ export async function setChatArchivedAction(
     const parsed = archiveSchema.parse(input);
     await assertAuthorized(parsed.userId);
 
-    const data = await upsertPreference(parsed.userId, parsed.remoteJid, {
+    const data = await upsertPreference(parsed.userId, parsed.instanceName, parsed.remoteJid, {
       archivedAt: parsed.archived ? new Date() : null,
       deletedAt: null,
       purgedAt: null,
@@ -496,7 +582,7 @@ export async function deleteChatConversationAction(
   try {
     const parsed = baseSchema.parse(input);
     await assertCanDeleteChats(parsed.userId);
-    const data = await hardDeleteLocalChat(parsed.userId, parsed.remoteJid);
+    const data = await hardDeleteLocalChat(parsed.userId, parsed.instanceName, parsed.remoteJid);
 
     return {
       success: true,
@@ -565,11 +651,11 @@ export async function purgeDeletedChatsAction(
 
       const marcados = await chatConversationPreferenceTable.findMany({
         where: { userId: cuenta, deletedAt: { not: null }, purgedAt: null },
-        select: { remoteJid: true },
+        select: { instanceName: true, remoteJid: true },
       });
 
-      for (const { remoteJid } of marcados) {
-        await hardDeleteLocalChat(cuenta, remoteJid);
+      for (const { instanceName, remoteJid } of marcados) {
+        await hardDeleteLocalChat(cuenta, instanceName, remoteJid);
       }
 
       const limpiados = await chatConversationPreferenceTable.updateMany({
@@ -611,7 +697,7 @@ export async function restoreChatConversationAction(
     const parsed = baseSchema.parse(input);
     await assertAuthorized(parsed.userId);
 
-    const data = await upsertPreference(parsed.userId, parsed.remoteJid, {
+    const data = await upsertPreference(parsed.userId, parsed.instanceName, parsed.remoteJid, {
       deletedAt: null,
       purgedAt: null,
     });
@@ -632,6 +718,7 @@ export async function restoreChatConversationAction(
 
 const bulkBaseSchema = z.object({
   userId: z.string().trim().min(1),
+  instanceName: z.string().trim().optional(),
   remoteJids: z.array(z.string().trim().min(1)).min(1),
 });
 
@@ -644,7 +731,7 @@ export async function bulkArchiveChatsAction(
 
     const results = await Promise.all(
       parsed.remoteJids.map((remoteJid) =>
-        upsertPreference(parsed.userId, remoteJid, {
+        upsertPreference(parsed.userId, parsed.instanceName, remoteJid, {
           archivedAt: input.archived ? new Date() : null,
           deletedAt: null,
           purgedAt: null,
@@ -675,7 +762,9 @@ export async function bulkDeleteChatsAction(
     const parsed = bulkBaseSchema.parse(input);
     await assertCanDeleteChats(parsed.userId);
     const results = await Promise.all(
-      parsed.remoteJids.map((remoteJid) => hardDeleteLocalChat(parsed.userId, remoteJid)),
+      parsed.remoteJids.map((remoteJid) =>
+        hardDeleteLocalChat(parsed.userId, parsed.instanceName, remoteJid),
+      ),
     );
 
     return {
@@ -701,7 +790,7 @@ export async function bulkPinChatsAction(
 
     const results = await Promise.all(
       parsed.remoteJids.map((remoteJid) =>
-        upsertPreference(parsed.userId, remoteJid, {
+        upsertPreference(parsed.userId, parsed.instanceName, remoteJid, {
           pinnedAt: input.isPinned ? new Date() : null,
         }),
       ),

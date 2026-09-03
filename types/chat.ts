@@ -1,4 +1,7 @@
 export type ChatConversationPreference = {
+  // La linea a la que pertenece la marca. Vacia = de antes de que la tabla
+  // guardara la linea; vale para todas las de la cuenta.
+  instanceName: string;
   remoteJid: string;
   pinnedAt: string | null;
   archivedAt: string | null;

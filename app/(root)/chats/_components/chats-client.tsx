@@ -53,7 +53,7 @@ import {
   isLidJid,
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
-import { chatPreferenceKey } from "@/lib/chat-preference-key";
+import { chatPreferenceKey, chatPreferenceKeys } from "@/lib/chat-preference-key";
 import { avatarSrcFor } from "@/lib/avatar";
 import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
@@ -386,7 +386,9 @@ function getPreferenceForChat(
   ownerUserId: string,
 ) {
   return getChatIdentityCandidates(chat)
-    .map((candidate) => preferences[chatPreferenceKey(ownerUserId, candidate)])
+    .flatMap((candidate) =>
+      chatPreferenceKeys(ownerUserId, chat.instanceName, candidate).map((k) => preferences[k]),
+    )
     .find(Boolean);
 }
 
@@ -394,9 +396,12 @@ function getPreferenceForJid(
   remoteJid: string,
   preferences: ChatConversationPreferenceMap,
   ownerUserId: string,
+  instanceName?: string | null,
 ) {
   return buildWhatsAppJidCandidates(remoteJid)
-    .map((candidate) => preferences[chatPreferenceKey(ownerUserId, candidate)])
+    .flatMap((candidate) =>
+      chatPreferenceKeys(ownerUserId, instanceName, candidate).map((k) => preferences[k]),
+    )
     .find(Boolean);
 }
 
@@ -740,6 +745,9 @@ export function ChatsClient({
   // consulta pudo salir ANTES de que llegara el mensaje, asi que volveria sin el.
   const sondeoTrasDetectorRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentContactRef = useRef<ChatData | undefined>(undefined);
+  // La lista por referencia, para que los manejadores que se pasan a las filas
+  // puedan consultarla sin llevarla en sus dependencias (ver CLAUDE.md).
+  const contactsRef = useRef<ChatData[]>([]);
   const loadingRef = useRef(false);
   const selectFromSidebarRef = useRef<
     ((remoteJid: string, contactInstanceName?: string) => Promise<void>) | null
@@ -905,6 +913,22 @@ export function ChatsClient({
       ),
     [contacts, ownerForChat],
   );
+
+  /**
+   * La LINEA del chat, para que borrar o archivar afecte solo a esa.
+   *
+   * Se lee por referencia, no de `contacts`: un manejador que se le pasa a una
+   * fila no puede llevar `contacts` en sus dependencias sin romper el
+   * `React.memo` de toda la columna (ver CLAUDE.md, "la lista es grande").
+   */
+  const lineaDelJid = useCallback((remoteJid: string) => {
+    const chat = contactsRef.current.find(
+      (c: ChatData) => c.remoteJid === remoteJid || c.aliases?.includes(remoteJid),
+    );
+    return chat?.instanceName;
+  }, []);
+
+  contactsRef.current = contacts;
 
   /**
    * Una selección múltiple puede mezclar líneas de cuentas distintas, y cada
@@ -1267,7 +1291,7 @@ export function ChatsClient({
     (preference: ChatConversationPreference, ownerUserId: string) => {
       setChatPreferences((previous) => ({
         ...previous,
-        [chatPreferenceKey(ownerUserId, preference.remoteJid)]: preference,
+        [chatPreferenceKey(ownerUserId, preference.instanceName, preference.remoteJid)]: preference,
       }));
     },
     [],
@@ -2171,7 +2195,7 @@ export function ChatsClient({
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, ownerForJid],
+    [applyChatPreference, ownerForJid, lineaDelJid],
   );
 
   const handleArchiveChat = useCallback(
@@ -2205,6 +2229,7 @@ export function ChatsClient({
       const ownerUserId = ownerForJid(remoteJid);
       const result = await deleteChatConversationAction({
         userId: ownerUserId,
+        instanceName: lineaDelJid(remoteJid),
         remoteJid,
       });
 
@@ -2244,6 +2269,7 @@ export function ChatsClient({
       const ownerUserId = ownerForJid(remoteJid);
       const result = await restoreChatConversationAction({
         userId: ownerUserId,
+        instanceName: lineaDelJid(remoteJid),
         remoteJid,
       });
 
@@ -2255,7 +2281,7 @@ export function ChatsClient({
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, ownerForJid],
+    [applyChatPreference, ownerForJid, lineaDelJid],
   );
 
   // Vaciar la pestana Eliminados: limpia el rastro de cada contacto marcado y
@@ -2302,7 +2328,7 @@ export function ChatsClient({
         const next = { ...prev };
         for (const { ownerUserId, result } of ok) {
           for (const pref of result.data!) {
-            next[chatPreferenceKey(ownerUserId, pref.remoteJid)] = pref;
+            next[chatPreferenceKey(ownerUserId, pref.instanceName, pref.remoteJid)] = pref;
           }
         }
         return next;
@@ -2349,7 +2375,7 @@ export function ChatsClient({
         const next = { ...prev };
         for (const { ownerUserId, result } of ok) {
           for (const pref of result.data!) {
-            next[chatPreferenceKey(ownerUserId, pref.remoteJid)] = pref;
+            next[chatPreferenceKey(ownerUserId, pref.instanceName, pref.remoteJid)] = pref;
           }
         }
         return next;
@@ -2382,7 +2408,7 @@ export function ChatsClient({
         const next = { ...prev };
         for (const { ownerUserId, result } of ok) {
           for (const pref of result.data!) {
-            next[chatPreferenceKey(ownerUserId, pref.remoteJid)] = pref;
+            next[chatPreferenceKey(ownerUserId, pref.instanceName, pref.remoteJid)] = pref;
           }
         }
         return next;

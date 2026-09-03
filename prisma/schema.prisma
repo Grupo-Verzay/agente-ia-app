@@ -600,6 +600,9 @@ model AssignmentLog {
 model ChatConversationPreference {
   id         String    @id @default(cuid())
   userId     String
+  // La LINEA de la marca. Cadena vacia = marca antigua, de cuando la tabla no
+  // guardaba la linea: vale para todas las lineas de la cuenta.
+  instanceName String  @default("")
   remoteJid  String
   pinnedAt   DateTime?
   archivedAt DateTime?
@@ -613,7 +616,7 @@ model ChatConversationPreference {
   updatedAt  DateTime  @updatedAt
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, remoteJid])
+  @@unique([userId, instanceName, remoteJid], map: "ChatConversationPreference_user_instance_jid_key")
   @@index([userId, pinnedAt])
   @@index([userId, archivedAt])
   @@index([userId, deletedAt])
