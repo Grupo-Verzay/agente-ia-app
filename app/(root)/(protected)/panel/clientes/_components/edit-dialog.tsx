@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  DialogTrigger
 } from '@/components/ui/dialog'
+import { DatabaseBackup, Wrench } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ClientInterface } from "@/lib/types"
@@ -29,6 +32,66 @@ import { ToolsEditor } from "./ToolsEditor"
 import { UserBackupManager } from "@/components/backup/UserBackupManager"
 import { getIaCreditByUser } from "@/actions/actions-ia-credits"
 import { onTokensToCredits } from "@/utils/onTokensToCredits"
+/**
+ * Un campo que no se pinta dentro de la ficha, sino detrás de un botón.
+ *
+ * Herramientas y Backup son bloques grandes -el de backup trae su propio
+ * encabezado, sus avisos y dos botones- y estirados dentro de "Editar cliente"
+ * empujaban el formulario hacia abajo: para llegar a Guardar había que pasar
+ * por delante de ellos. Se abren en su propio diálogo, igual que la clave de
+ * IA.
+ *
+ * Lo de dentro se guarda por su cuenta -cada herramienta con su botón, el
+ * backup con sus acciones-, así que sacarlo de la vista no cambia nada: el
+ * "Guardar" de la ficha nunca los llevó.
+ *
+ * Y no se monta hasta que se abre: `DialogContent` no renderiza sus hijos
+ * mientras está cerrado, así que las consultas de dentro no salen si nadie
+ * pulsa el botón.
+ */
+function CampoEnModal({
+  titulo,
+  descripcion,
+  textoDelBoton,
+  icono,
+  ancho = "sm:max-w-lg",
+  children,
+}: {
+  titulo: string
+  descripcion?: string
+  textoDelBoton: string
+  icono: React.ReactNode
+  ancho?: string
+  children: React.ReactNode
+}) {
+  const [abierto, setAbierto] = useState(false)
+
+  return (
+    <Dialog open={abierto} onOpenChange={setAbierto}>
+      <DialogTrigger asChild>
+        {/* `type="button"`: va dentro del <form> de la ficha y sin esto
+            pulsarlo la enviaría. */}
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-start gap-2 font-normal"
+        >
+          {icono}
+          {textoDelBoton}
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent className={ancho}>
+        <DialogHeader>
+          <DialogTitle>{titulo}</DialogTitle>
+          {descripcion ? <DialogDescription>{descripcion}</DialogDescription> : null}
+        </DialogHeader>
+        <div className="max-h-[70vh] overflow-auto pr-1">{children}</div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 interface Props {
   openEditDialog: boolean
   setOpenEditDialog: (open: boolean) => void
@@ -54,6 +117,8 @@ export const EditDialog = ({
     admin: 'Administrador',
     super_admin: 'Super administrador',
   };
+
+  const etiquetaDelCliente = user.company || user.name || user.email || 'este usuario';
 
   const [tz, setTz] = useState<string>(user.timezone ?? "");
   const [enSi, setEnSi] = useState<boolean>(user.enabledSynthesizer ?? false);
@@ -379,15 +444,32 @@ export const EditDialog = ({
         );
 
       case 'tools':
-        return <ToolsEditor userId={user.id} activo={openEditDialog} />;
+        return (
+          <CampoEnModal
+            titulo="Herramientas"
+            descripcion={`Las cinco herramientas de ${etiquetaDelCliente}. Cada una se guarda por su cuenta.`}
+            textoDelBoton="Configurar herramientas"
+            icono={<Wrench className="h-4 w-4" />}
+          >
+            <ToolsEditor userId={user.id} activo />
+          </CampoEnModal>
+        );
 
       case 'backup':
         return (
-          <UserBackupManager
-            targetUserId={user.id}
-            subjectLabel={user.company || user.name || user.email || 'este usuario'}
-            onImported={() => setOpenEditDialog(false)}
-          />
+          <CampoEnModal
+            titulo="Copias de seguridad"
+            descripcion={`Exporta o restaura el respaldo de ${etiquetaDelCliente}.`}
+            textoDelBoton="Abrir copias de seguridad"
+            icono={<DatabaseBackup className="h-4 w-4" />}
+            ancho="sm:max-w-2xl"
+          >
+            <UserBackupManager
+              targetUserId={user.id}
+              subjectLabel={etiquetaDelCliente}
+              onImported={() => setOpenEditDialog(false)}
+            />
+          </CampoEnModal>
         );
 
       default:
