@@ -1520,28 +1520,25 @@ export function ChatsClient({
         const effectiveInstanceName = activeSet?.instanceName ?? instanceName;
         const effectiveApiKeyData = activeSet?.instanceType === "baileys" ? undefined : apiKeyData;
 
-        const result = await Promise.race([
-          effectiveWarmMessages(remoteJid, {
-            page: 1,
-            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-            remoteJidAliases,
-          }),
-          new Promise<never>((_, rechazar) =>
-            setTimeout(() => rechazar(new Error("El sondeo tardo demasiado.")), ESPERA_MAXIMA_DEL_SONDEO),
-          ),
-        ]);
+        const consulta = effectiveWarmMessages(remoteJid, {
+          page: 1,
+          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+          remoteJidAliases,
+        });
 
-        if (result?.success) {
-          const nextMessages = result.data || [];
+        // Pintar lo que traiga la consulta. Se saca aparte porque tambien lo usa
+        // la respuesta que llega TARDE, despues de que se agotara la espera.
+        const pintar = (respuesta: Extract<Awaited<typeof consulta>, { success: true }>) => {
+          const nextMessages = respuesta.data || [];
           if (areListsDifferent(messagesRef.current, nextMessages)) {
             setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo((currentInfo) => {
               const loadedPage = currentInfo?.currentPage ?? 1;
               return {
-                total: result.total ?? currentInfo?.total,
-                pages: result.pages ?? currentInfo?.pages,
+                total: respuesta.total ?? currentInfo?.total,
+                pages: respuesta.pages ?? currentInfo?.pages,
                 currentPage: loadedPage,
-                nextPage: loadedPage > 1 ? currentInfo?.nextPage : result.nextPage,
+                nextPage: loadedPage > 1 ? currentInfo?.nextPage : respuesta.nextPage,
                 instanceName: effectiveInstanceName,
                 remoteJid,
                 remoteJidAliases,
@@ -1549,6 +1546,51 @@ export function ChatsClient({
               };
             });
           }
+        };
+
+        // Agotar la espera NO es tirar la respuesta.
+        //
+        // Antes esto era un `Promise.race` contra un `reject`: pasados los 15s
+        // la respuesta que venia en camino se perdia, aunque llegara entera un
+        // segundo despues. Con Evolution lenta el sondeo se rendia vuelta tras
+        // vuelta y la conversacion se quedaba minutos sin el mensaje que ya
+        // estaba viajando. Ahora la espera solo sirve para liberar el ciclo:
+        // cuando la respuesta aparece, se pinta si el chat sigue abierto.
+        const result = await Promise.race([
+          consulta,
+          new Promise<null>((resolver) =>
+            setTimeout(() => resolver(null), ESPERA_MAXIMA_DEL_SONDEO),
+          ),
+        ]);
+
+        if (!result) {
+          console.warn("[chats] la consulta de mensajes va lenta; se sigue esperando", {
+            remoteJid,
+            instancia: effectiveInstanceName,
+          });
+          void consulta
+            .then((tardia) => {
+              if (!tardia?.success) return;
+              // Solo si no se ha cambiado de chat entretanto: pintar aqui la
+              // respuesta de otra conversacion seria peor que perderla.
+              const abierto = currentContactRef.current?.remoteJid;
+              if (abierto && abierto !== remoteJid && !remoteJidAliases?.includes(abierto)) return;
+              console.info("[chats] la consulta lenta llego y se pinta", { remoteJid });
+              pintar(tardia);
+              backoffRef.current = 0;
+            })
+            .catch((error) => {
+              console.warn("[chats] la consulta lenta tampoco volvio:", error, { remoteJid });
+            });
+          backoffRef.current = Math.min(
+            (backoffRef.current || BASE_INTERVAL) * 2,
+            MAX_BACKOFF,
+          );
+          return;
+        }
+
+        if (result.success) {
+          pintar(result);
           backoffRef.current = 0;
         } else {
           // Hasta ahora un fallo aqui era mudo: la conversacion se quedaba como
