@@ -808,7 +808,17 @@ export async function sendManualChatPayloadAction(
   // El asesor está interviniendo: la IA se calla antes de que salga el mensaje.
   // Si el envío falla, la conversación queda en pausa —que es el lado seguro— y
   // se reactiva con el interruptor.
-  if (user?.id) await pausarIaPorIntervencionHumana(effectiveOwnerId, remoteJid);
+  if (user?.id) {
+    await pausarIaPorIntervencionHumana(effectiveOwnerId, remoteJid);
+  } else {
+    // Tercer camino mudo: sin sesion de usuario ni se intentaba pausar, y no
+    // quedaba rastro. El mensaje SI sale, asi que desde fuera parece que todo
+    // fue bien mientras la IA sigue despierta contestando encima del asesor.
+    console.warn(
+      "[chats] mensaje manual enviado SIN pausar la IA: no hay sesion de usuario.",
+      { remoteJid, instancia: context.instanceName },
+    );
+  }
 
   const transportRemoteJid = await resolveTransportRemoteJid({
     userId: storageUserId,

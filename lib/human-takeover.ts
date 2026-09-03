@@ -29,11 +29,27 @@ export async function pausarIaPorIntervencionHumana(
   userId: string | null | undefined,
   remoteJid: string,
 ): Promise<void> {
-  if (!userId || !remoteJid) return;
+  // Los dos caminos por los que esto se rendia ANTES de llegar a su aviso, y sin
+  // escribir nada. Es el mismo fallo que ya esta documentado en CLAUDE.md: que
+  // no salga el aviso no significa que no haya fallo, puede significar que no se
+  // llego a el. Aqui se pagaba caro, porque el sintoma es la IA contestando
+  // encima del asesor delante del cliente.
+  if (!userId || !remoteJid) {
+    console.warn(
+      "[pausarIaPorIntervencionHumana] No se intenta pausar: falta el dato para buscar la sesion. La IA sigue activa en esta conversacion.",
+      { tieneUserId: Boolean(userId), remoteJid: remoteJid || "(vacio)" },
+    );
+    return;
+  }
 
   try {
     const candidatos = buildWhatsAppJidCandidates(remoteJid);
-    if (candidatos.length === 0) return;
+    if (candidatos.length === 0) {
+      console.warn(
+        `[pausarIaPorIntervencionHumana] El numero no produjo ninguna forma con la que buscar (${remoteJid}). La IA sigue activa en esta conversacion.`,
+      );
+      return;
+    }
 
     const { count } = await db.session.updateMany({
       where: {
