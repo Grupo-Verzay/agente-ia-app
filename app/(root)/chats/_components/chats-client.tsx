@@ -2238,6 +2238,44 @@ export function ChatsClient({
         return;
       }
 
+      // Con QUE llave se guarda la marca aqui, y con cual se buscara despues.
+      //
+      // El chat se borra, desaparece, y a la vuelta siguiente del reloj vuelve.
+      // Eso solo pasa si al repintar no se encuentra esta marca. Para saber por
+      // que hacen falta las dos partes, y esta es la del navegador: la llave
+      // guardada y, una vuelta de reloj despues, si ese numero volvio y bajo que
+      // linea. Diagnostico temporal.
+      const lineaAlBorrar = lineaDelJid(remoteJid);
+      console.info("[chats] marca de borrado aplicada", {
+        llave: chatPreferenceKey(ownerUserId, result.data.instanceName, result.data.remoteJid),
+        lineaDelChat: lineaAlBorrar ?? "(no se encontro la fila)",
+        lineaQueDevolvioElServidor: result.data.instanceName || "(vacia)",
+        remoteJidGuardado: result.data.remoteJid,
+        remoteJidPedido: remoteJid,
+      });
+      window.setTimeout(() => {
+        const candidatos = new Set(buildWhatsAppJidCandidates(remoteJid));
+        const volvio = contactsRef.current.find((c: ChatData) =>
+          getChatIdentityCandidates(c).some((id) => candidatos.has(id)),
+        );
+        console.info(
+          volvio
+            ? "[chats] el chat borrado VOLVIO a la lista"
+            : "[chats] el chat borrado sigue fuera de la lista",
+          volvio
+            ? {
+                lineaAhora: volvio.instanceName ?? "(sin linea)",
+                remoteJidAhora: volvio.remoteJid,
+                llaveQueSeBuscaria: chatPreferenceKey(
+                  ownerUserId,
+                  volvio.instanceName,
+                  volvio.remoteJid,
+                ),
+              }
+            : {},
+        );
+      }, 25000);
+
       const deletedCandidates = new Set(buildWhatsAppJidCandidates(remoteJid));
       setCurrentChatsResult((prev) =>
         prev.success

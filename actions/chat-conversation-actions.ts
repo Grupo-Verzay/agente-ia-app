@@ -520,6 +520,19 @@ async function hardDeleteLocalChat(
     deletedPreferenceRow = mapPreference(preference);
   });
 
+  // Con QUE llave quedo guardada la marca.
+  //
+  // El chat se borra, desaparece, y un minuto despues vuelve. Eso solo puede
+  // pasar si la pantalla no encuentra esta fila, y para saber por que hay que
+  // ver las dos partes: lo que se guardo aqui y lo que busca el navegador. Esta
+  // es la primera.
+  console.info("[chats] marca de borrado guardada", {
+    userId,
+    linea: linea || "(vacia = vale para todas)",
+    remoteJid: normalizedRemoteJid,
+    pedidoComo: remoteJid,
+  });
+
   invalidatePersistedInboxCache();
 
   revalidatePath("/chats");
