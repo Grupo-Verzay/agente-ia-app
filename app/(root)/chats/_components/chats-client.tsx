@@ -1260,14 +1260,28 @@ export function ChatsClient({
       if (!previo.success) return frescos;
       const fusionados = dedupeAndSortChats([...frescos.data, ...previo.data], lidPhoneMap);
 
-      // DIAGNÓSTICO TEMPORAL. Retirar cuando se localice la causa de los chats
-      // que desaparecen de la lista: dice QUÉ conversaciones estaban y ya no,
-      // para saber si las quita la fusión, el deduplicado o un filtro posterior.
-      const antes = new Set(previo.data.map((c) => c.remoteJid));
-      const despues = new Set(fusionados.map((c) => c.remoteJid));
-      const perdidos = Array.from(antes).filter((jid) => !despues.has(jid));
+      // DIAGNOSTICO TEMPORAL: que conversaciones estaban y ya no.
+      //
+      // Compara por TODAS las identidades, no por el `remoteJid` a secas.
+      // Comparando solo ese campo, este aviso saltaba en cada vuelta con un
+      // pu~nado de `@lid` y parecia que la lista perdia chats sin parar. No los
+      // perdia: `dedupeAndSortChats` funde la fila del `@lid` con la del numero
+      // real -para eso esta `lidPhoneMap`-, y la fila superviviente se queda con
+      // el numero como `remoteJid` y el `@lid` entre sus identidades. O sea que
+      // el contacto sigue ahi, con otro nombre de pila.
+      //
+      // Un chat solo se ha perdido de verdad si NINGUNA fila de las fusionadas
+      // lleva ya ninguna de sus identidades. Es la misma leccion de siempre en
+      // este fichero: comparar contactos por una sola forma del numero da
+      // respuestas falsas.
+      const identidadesVivas = new Set(
+        fusionados.flatMap((c) => getChatIdentityCandidates(c)),
+      );
+      const perdidos = previo.data
+        .filter((c) => !getChatIdentityCandidates(c).some((id) => identidadesVivas.has(id)))
+        .map((c) => c.remoteJid);
       if (perdidos.length > 0) {
-        console.warn("[DIAG lista] desaparecen tras fusionar:", perdidos, {
+        console.warn("[DIAG lista] se pierden del todo al fusionar:", perdidos, {
           previos: previo.data.length,
           frescos: frescos.data.length,
           fusionados: fusionados.length,
