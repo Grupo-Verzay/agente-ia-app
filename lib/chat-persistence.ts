@@ -65,6 +65,16 @@ export type PersistChatMessageInput = {
   mediaUrl?: string | null;
   raw?: Prisma.InputJsonValue | null;
   messageTimestamp?: Date | number | string | null;
+  /**
+   * Si un mensaje ENTRANTE puede reabrir una conversacion pausada.
+   *
+   * Cierto para lo que llega en vivo -ahi el cliente acaba de escribir y la
+   * conversacion debe reabrirse-. FALSO cuando se esta guardando historial que
+   * ya existia: el sondeo del chat abierto vuelve a persistir los ultimos
+   * mensajes cada pocos segundos, y esos mensajes viejos no son novedad
+   * ninguna. Ver `persistEvolutionMessages`.
+   */
+  puedeReabrir?: boolean;
 };
 
 let ensureTablePromise: Promise<void> | null = null;
@@ -627,7 +637,20 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
     // asunto no estaba cerrado. Solo con un entrante -que el asesor conteste en
     // una resuelta no la reabre, igual que responder a un correo archivado no
     // lo desarchiva.
-    const reabrir = input.fromMe ? undefined : true;
+    // Y solo si el mensaje es NOVEDAD, no historial que ya teniamos.
+    //
+    // Aqui estaba el fallo de "el asesor escribe y la IA no se calla". La pausa
+    // se escribia bien: `pausarIaPorIntervencionHumana` ponia `status = false`.
+    // Pero el sondeo del chat abierto vuelve a pedirle a Evolution los ultimos
+    // mensajes CADA POCOS SEGUNDOS y los persiste; entre ellos van los del
+    // cliente, que son entrantes, y cada uno reabria la sesion. O sea: el asesor
+    // pausaba, y cinco segundos despues nuestro propio reloj despausaba, sin que
+    // el cliente hubiera escrito nada nuevo.
+    //
+    // La reapertura sigue existiendo -si el cliente escribe de verdad, la
+    // conversacion vuelve a abrirse-, pero solo por los caminos que traen
+    // novedad, no por el que resincroniza historial.
+    const reabrir = input.fromMe || input.puedeReabrir === false ? undefined : true;
     try {
       await db.session.update({
         where: { id: existing.id },
@@ -1048,6 +1071,11 @@ export async function persistEvolutionMessages(params: {
         const altFromRaw =
           rawMsgJid && rawMsgJid !== canonicalMsgJid ? rawMsgJid : undefined;
         return persistChatMessage({
+          // Esto es historial que se resincroniza, no novedad: el reloj del chat
+          // abierto pasa por aqui cada pocos segundos con los MISMOS mensajes.
+          // Si se dejara reabrir, cada vuelta despausaria la conversacion que el
+          // asesor acaba de pausar al escribir.
+          puedeReabrir: false,
           userId: params.userId,
           instanceName: params.instanceName,
           instanceType: params.instanceType ?? 'evolution',
