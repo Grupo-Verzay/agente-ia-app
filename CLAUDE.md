@@ -112,6 +112,61 @@ Dos cosas que hay que mantener:
 
 Desde fuera nada de esto parece un error. Parece una App lenta.
 
+## Chats: resincronizar historial NO es novedad
+
+Cuando un asesor escribe desde la App, la IA se calla: `pausarIaPorIntervencionHumana`
+pone `status = false` antes de que el mensaje salga.
+
+Eso se escribía bien. Lo que fallaba es que **lo deshacíamos nosotros mismos**.
+
+El reloj del chat abierto vuelve a pedirle a Evolution los últimos mensajes cada
+5 segundos y los persiste (`persistEvolutionMessages` → `persistChatMessage` →
+`upsertSessionFromChatMessage`). Y ahí un mensaje entrante **reabre** la
+conversación:
+
+```ts
+const reabrir = input.fromMe ? undefined : true;
+```
+
+Entre los mensajes que trae el sondeo van los del cliente —viejos, ya guardados,
+ninguna novedad—, así que cada vuelta del reloj ponía `status = true` otra vez.
+**El asesor pausaba y cinco segundos después el sondeo despausaba**, sin que el
+cliente hubiera escrito nada.
+
+De ahí venían los síntomas que despistaron durante toda una sesión:
+
+- Desde el móvil "sí funcionaba" y desde la App no. No era la App: es que ese
+  reloj **solo corre cuando hay una conversación abierta en la App**.
+- Con el mismo contacto unas veces sí y otras no, según cayera la vuelta del
+  reloj entre el envío del asesor y el buffer de 10s del backend, que
+  re-verifica `session.status` justo en esa ventana.
+
+La regla: **la reapertura es solo para lo que llega EN VIVO**. El camino que
+resincroniza historial pasa `puedeReabrir: false`. Si se añade otro camino que
+persista mensajes ya conocidos, va igual. Si el cliente escribe de verdad, la
+conversación sigue reabriéndose sola.
+
+Y una advertencia de fondo: `status` sirve para dos cosas a la vez —"conversación
+resuelta" y "IA pausada por intervención humana"—. Mientras sea así, cualquier
+cosa que toque `status` puede apagar la otra sin querer.
+
+## Chats: la pausa busca por TODAS las identidades
+
+`pausarIaPorIntervencionHumana` llamaba a `buildWhatsAppJidCandidates(remoteJid)`
+con el jid pelado. Y esa función devuelve un `@lid` **solo en su forma literal**,
+a propósito: sus dígitos son un id de privacidad, no un teléfono, y fabricar el
+número a partir de ellos daría un JID falso que podría casar con otro contacto.
+El teléfono real tiene que venir aparte, como `extraValue`.
+
+Con un contacto abierto por su `@lid` —que es como llegan casi todos, los
+webhooks vienen con `addressingMode: "lid"`— se buscaba la sesión solo por esa
+forma, la sesión estaba guardada bajo el número, y el `updateMany` no tocaba
+ninguna fila. Estuvo así desde el 29 de julio (#185).
+
+Si la primera búsqueda no pausa nada, se completa con las identidades que guarda
+`chat_messages` y se reintenta. Es la misma regla de siempre: cuando una forma se
+queda corta, nuestra base sabe completarla.
+
 ## Chats: las sesiones no vuelven al reloj de la lista
 
 `refreshChatSessions` es, con diferencia, lo más caro de la pantalla, y estaba
