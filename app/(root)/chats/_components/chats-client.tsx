@@ -748,6 +748,9 @@ export function ChatsClient({
   // La lista por referencia, para que los manejadores que se pasan a las filas
   // puedan consultarla sin llevarla en sus dependencias (ver CLAUDE.md).
   const contactsRef = useRef<ChatData[]>([]);
+  // Las marcas por referencia, para poder consultarlas desde un manejador sin
+  // meterlas en sus dependencias.
+  const chatPreferencesRef = useRef<ChatConversationPreferenceMap>({});
   const loadingRef = useRef(false);
   const selectFromSidebarRef = useRef<
     ((remoteJid: string, contactInstanceName?: string) => Promise<void>) | null
@@ -929,6 +932,7 @@ export function ChatsClient({
   }, []);
 
   contactsRef.current = contacts;
+  chatPreferencesRef.current = chatPreferences;
 
   /**
    * Una selección múltiple puede mezclar líneas de cuentas distintas, y cada
@@ -2254,26 +2258,30 @@ export function ChatsClient({
         remoteJidPedido: remoteJid,
       });
       window.setTimeout(() => {
+        // Se mira la MARCA, no la lista.
+        //
+        // El intento anterior buscaba el chat en `contacts`, que es la lista sin
+        // filtrar: ahi el chat esta SIEMPRE, porque Evolution lo sigue
+        // devolviendo. Lo que decide si se ve o no es la marca, asi que es la
+        // marca lo que hay que mirar: si esta en el mapa, y que contesta
+        // `isChatDeletedByPreference` con ella.
         const candidatos = new Set(buildWhatsAppJidCandidates(remoteJid));
-        const volvio = contactsRef.current.find((c: ChatData) =>
+        const chat = contactsRef.current.find((c: ChatData) =>
           getChatIdentityCandidates(c).some((id) => candidatos.has(id)),
         );
-        console.info(
-          volvio
-            ? "[chats] el chat borrado VOLVIO a la lista"
-            : "[chats] el chat borrado sigue fuera de la lista",
-          volvio
-            ? {
-                lineaAhora: volvio.instanceName ?? "(sin linea)",
-                remoteJidAhora: volvio.remoteJid,
-                llaveQueSeBuscaria: chatPreferenceKey(
-                  ownerUserId,
-                  volvio.instanceName,
-                  volvio.remoteJid,
-                ),
-              }
-            : {},
-        );
+        if (!chat) {
+          console.info("[chats] el chat borrado ya no esta ni en la lista cruda");
+          return;
+        }
+        const marca = getPreferenceForChat(chat, chatPreferencesRef.current, ownerUserId);
+        console.info("[chats] estado de la marca 25s despues", {
+          llaveQueSeBusca: chatPreferenceKey(ownerUserId, chat.instanceName, chat.remoteJid),
+          marcaEncontrada: Boolean(marca),
+          deletedAt: marca?.deletedAt ?? "(sin marca)",
+          ultimoMensaje: chat.lastMessage?.messageTimestamp ?? "(sin mensaje)",
+          loCuentaComoEliminado: isChatDeletedByPreference(chat, marca),
+          llavesEnElMapa: Object.keys(chatPreferencesRef.current).length,
+        });
       }, 25000);
 
       const deletedCandidates = new Set(buildWhatsAppJidCandidates(remoteJid));
