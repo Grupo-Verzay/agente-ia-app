@@ -6,8 +6,18 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   output: "standalone",
   compiler: {
+    // En produccion se borran las llamadas a console MENOS estas.
+    //
+    // Estaba solo `error`, y eso se llevaba por delante TODO el diagnostico de
+    // la App: `console.warn` y `console.info` desaparecian del build. Dos dias
+    // pidiendo capturas de una consola que no podia decir nada, porque los
+    // avisos ni existian en el codigo que corre.
+    //
+    // Este repo se apoya en esos avisos a proposito -CLAUDE.md tiene una regla
+    // entera sobre que un fallo nunca puede ser mudo-, asi que `warn` e `info`
+    // se quedan. `log` y `debug` siguen fuera: esos si son ruido de desarrollo.
     removeConsole: {
-      exclude: ["error"],
+      exclude: ["error", "warn", "info"],
     },
   },
   experimental: {
