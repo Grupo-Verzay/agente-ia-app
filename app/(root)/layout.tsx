@@ -9,7 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
-import { PANEL_ROUTES, CLIENT_PANEL_ROUTE } from "@/lib/sidebar-modules";
+import { ADMIN_PANEL_ROUTE, esVarianteDePanel, rutasDePanelPara } from "@/lib/sidebar-modules";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import { facturacionQueMandaEn } from "@/actions/billing/helpers/billing-owner";
@@ -228,13 +228,19 @@ export default async function RootGroupLayout({
     // El módulo del panel y el del reseller ya vienen en `allModules`: antes se
     // pedían con dos consultas aparte que devolvían justo lo mismo. Los items se
     // ordenan igual que allí (por fecha de creación).
-    const porFechaDeCreacion = <T extends { moduleItems?: { createdAt: Date }[] }>(m: T | undefined) =>
+    const porFechaDeCreacion = <T extends { moduleItems?: { createdAt: Date; id: string }[] }>(m: T | undefined) =>
         m
             ? {
                 ...m,
-                moduleItems: [...(m.moduleItems ?? [])].sort(
-                    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-                ),
+                // Desempate por id, igual que en las consultas: los submódulos
+                // guardados antes de que se sellaran con un instante distinto
+                // comparten createdAt, y sin desempate esta barra y la del
+                // layout del panel salían en orden distinto. Las pestañas se
+                // reordenaban solas al pasar de un módulo a otro.
+                moduleItems: [...(m.moduleItems ?? [])].sort((a, b) => {
+                    const dif = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                    return dif !== 0 ? dif : a.id.localeCompare(b.id);
+                }),
             }
             : null;
 
@@ -319,24 +325,18 @@ export default async function RootGroupLayout({
     // A quien trabaja en una cuenta ajena le toca el panel de ESA cuenta: un
     // agente de una cuenta de administración usa el del equipo, aunque su propio
     // rol sea el de un usuario cualquiera.
-    const VARIANTES_DE_PANEL = [...PANEL_ROUTES, '/reseller-panel', CLIENT_PANEL_ROUTE];
     const rolDeLaCuenta = user.ownerId
         ? (await db.user
             .findUnique({ where: { id: user.ownerId }, select: { role: true } })
             .catch(() => null))?.role ?? user.role
         : user.role;
-    const candidatosDePanel =
-        rolDeLaCuenta === 'reseller'
-            ? ['/reseller-panel']
-            : isAdminLike(rolDeLaCuenta)
-                ? [...PANEL_ROUTES]
-                : [CLIENT_PANEL_ROUTE];
+    const candidatosDePanel = rutasDePanelPara(rolDeLaCuenta);
     const suPanelId =
         candidatosDePanel
             .map((route) => modules.find((m) => m.route === route))
             .find(Boolean)?.id ?? null;
     const esPanelAjeno = (m: { id: string; route: string }) =>
-        VARIANTES_DE_PANEL.includes(m.route) && m.id !== suPanelId;
+        esVarianteDePanel(m.route) && m.id !== suPanelId;
 
     modules = modules.filter((m) => !esPanelAjeno(m));
 
@@ -366,7 +366,13 @@ export default async function RootGroupLayout({
     // Las pestañas del panel salen de `modules`, ya filtrado por rol, plan y
     // permisos. Antes salían de `allModules`: una pestaña quitada a la persona
     // seguía apareciendo arriba.
+    // El panel del equipo que le quedó a esta persona. Se mira /panel-admin
+    // primero: `modules` ya viene sin los paneles ajenos, así que a un
+    // administrador solo le sobrevive el suyo y a un superadministrador solo
+    // el de siempre. Sin esto, un administrador abría un submódulo y arriba le
+    // salían las pestañas del superadministrador.
     const panelModule = porFechaDeCreacion(
+        modules.find((m) => m.route === ADMIN_PANEL_ROUTE) ??
         modules.find((m) => m.route === "/panel" || m.route === "/admin"),
     );
     const resellerModule =

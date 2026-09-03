@@ -3,6 +3,25 @@
 import { FormModuleSchema, FormModuleValues, ModuleWithItems } from '@/schema/module';
 import { db } from '@/lib/db';
 
+/**
+ * Sella cada submodulo con un instante distinto, en el orden en que llegan.
+ *
+ * ModuleItem no tiene columna de orden: el unico criterio disponible es
+ * `createdAt`. Y al guardar se borran todos y se crean de nuevo en UNA
+ * transaccion, donde Postgres le pone a todos la MISMA hora -la de inicio de la
+ * transaccion-. Con las ocho marcas identicas, ordenar por ella es un empate
+ * total: cada consulta los devolvia en un orden distinto y las pestañas se
+ * reordenaban solas al pasar de un modulo a otro. Y el orden que se arrastra en
+ * el editor no se guardaba en ninguna parte.
+ *
+ * Un milisegundo por item basta para conservarlo y no necesita migracion, que
+ * aqui no se puede hacer: el esquema lo gobierna api-webhook.
+ */
+function conOrdenDeLlegada<T>(items: T[]): (T & { createdAt: Date })[] {
+    const base = Date.now();
+    return items.map((item, i) => ({ ...item, createdAt: new Date(base + i) }));
+}
+
 export interface ModuleResponse {
     success: boolean;
     message: string;
@@ -19,7 +38,7 @@ const prisma = db;
 export async function getAllModules(): Promise<ModuleResponse> {
     try {
         const modules = await prisma.module.findMany({
-            include: { moduleItems: true },
+            include: { moduleItems: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
             orderBy: { order: 'asc' },
         });
 
@@ -57,12 +76,12 @@ export async function createModule(formData: FormModuleValues): Promise<ModuleRe
             data: {
                 ...moduleData,
                 moduleItems: items && items.length > 0 ? {
-                    create: items.map(item => ({
+                    create: conOrdenDeLlegada(items.map(item => ({
                         title: item.title,
                         url: item.url,
                         customUrl: item.customUrl,
                         lockedPlans: item.lockedPlans ?? [],
-                    })),
+                    }))),
                 } : undefined,
             },
             include: { moduleItems: true },
@@ -112,12 +131,12 @@ export async function updateModule(moduleId: string, formData: FormModuleValues)
                 moduleItems: items
                     ? {
                         deleteMany: {}, // Borra todos los anteriores
-                        create: items.map(item => ({
+                        create: conOrdenDeLlegada(items.map(item => ({
                             title: item.title,
                             url: item.url,
                             customUrl: item.customUrl,
                             lockedPlans: item.lockedPlans ?? [],
-                        })),
+                        }))),
                     }
                     : undefined,
             },

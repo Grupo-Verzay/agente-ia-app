@@ -7,6 +7,7 @@ import { HomeIcon, RocketLaunchIcon, ChartBarIcon, ChevronRightIcon } from '@her
 import { iconMap, ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
 import { isAdminLike } from '@/lib/rbac';
+import { esVarianteDePanel, rutasDePanelPara } from '@/lib/sidebar-modules';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -49,8 +50,9 @@ const QUICK_LINKS = [
 ] as const;
 
 // Variantes de Panel por rol (comparten label "Panel"). Se colapsan a la del rol
-// y se muestran a ancho completo en "Tus módulos".
-const PANEL_ROUTES = ['/panel', '/reseller-panel', '/client-panel'];
+// y se muestran a ancho completo en "Tus módulos". La lista de cuál le toca a
+// cada rol vive en lib/sidebar-modules: escribirla aquí otra vez fue lo que
+// dejó el panel del administrador fuera de sitio al agregarlo.
 
 export function MainHome({
   user,
@@ -68,11 +70,9 @@ export function MainHome({
     // Los tres paneles (/panel, /reseller-panel, /client-panel) comparten label
     // "Panel"; un admin tiene acceso a los tres. Mostrar solo el del rol para no
     // duplicar tarjetas "Panel".
-    const rolePanel = isAdminLike(user.role)
-      ? '/panel'
-      : user.role === 'reseller'
-        ? '/reseller-panel'
-        : '/client-panel';
+    const candidatos = rutasDePanelPara(user.role);
+    const rolePanel =
+      candidatos.find((route) => modules.some((m) => m.route === route)) ?? candidatos[0];
 
     return modules
       .filter((moduleComponent) => moduleComponent.showInSidebar)
@@ -87,7 +87,7 @@ export function MainHome({
         return access.allowed;
       })
       // Colapsa las variantes de Panel a la del rol.
-      .filter((m) => !PANEL_ROUTES.includes(m.route) || m.route === rolePanel);
+      .filter((m) => !esVarianteDePanel(m.route) || m.route === rolePanel);
   }, [modules, user.role, user.plan]);
 
   const quickLinks = useMemo(() => {
@@ -129,12 +129,14 @@ export function MainHome({
 
   // Accesos principales (arriba, a media página cada uno): el Panel del rol y
   // Conexión→Ajustes (/profile). El resto va debajo en la grilla normal.
-  const PRIMARY_ROUTES = [...PANEL_ROUTES, '/profile'];
   const primaryModules = [
-    accessibleModules.find((m) => PANEL_ROUTES.includes(m.route)),
+    accessibleModules.find((m) => esVarianteDePanel(m.route)),
     accessibleModules.find((m) => m.route === '/profile'),
   ].filter(Boolean) as ModuleWithItems[];
-  const otherModules = accessibleModules.filter((m) => !PRIMARY_ROUTES.includes(m.route));
+  // Se descartan por identidad y no por una lista de rutas: así el panel que
+  // subió arriba es exactamente el que no se repite abajo, sea cual sea.
+  const arriba = new Set(primaryModules.map((m) => m.id));
+  const otherModules = accessibleModules.filter((m) => !arriba.has(m.id));
 
   const renderModuleCard = (moduleComponent: ModuleWithItems) => {
     const Icon = iconMap[moduleComponent.icon as keyof typeof iconMap] || HomeIcon;

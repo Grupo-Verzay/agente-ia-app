@@ -19,7 +19,7 @@ import { getAdvisorPermissions, updateAdvisorPermissions } from "@/actions/team-
 import type { ModuleWithItems } from "@/schema/module";
 
 /** Las variantes de "Panel": del equipo, del reseller y del cliente. */
-const PANEL_ROUTES = ["/panel", "/admin", "/reseller-panel", "/client-panel"];
+const PANEL_ROUTES = ["/panel", "/admin", "/panel-admin", "/reseller-panel", "/client-panel"];
 
 /**
  * Qué ve una persona del equipo dentro de la cuenta.
