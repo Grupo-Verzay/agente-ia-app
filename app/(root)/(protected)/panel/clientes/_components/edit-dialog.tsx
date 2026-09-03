@@ -462,11 +462,9 @@ export const EditDialog = ({
             descripcion={`Exporta o restaura el respaldo de ${etiquetaDelCliente}.`}
             textoDelBoton="Abrir copias de seguridad"
             icono={<DatabaseBackup className="h-4 w-4" />}
-            ancho="sm:max-w-2xl"
           >
             <UserBackupManager
               targetUserId={user.id}
-              subjectLabel={etiquetaDelCliente}
               onImported={() => setOpenEditDialog(false)}
             />
           </CampoEnModal>

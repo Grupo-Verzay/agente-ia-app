@@ -23,7 +23,7 @@ export function UserBackupDialog({
 
   return (
     <Dialog open={openBackupDialog} onOpenChange={setOpenBackupDialog}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Backup del usuario</DialogTitle>
           <DialogDescription>
@@ -33,8 +33,6 @@ export function UserBackupDialog({
 
         <UserBackupManager
           targetUserId={user.id}
-          subjectLabel={label}
-          twoColumns
           onImported={() => setOpenBackupDialog(false)}
         />
       </DialogContent>

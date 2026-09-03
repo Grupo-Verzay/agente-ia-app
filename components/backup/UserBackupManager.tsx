@@ -1,25 +1,15 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Download, HardDriveUpload, Loader2, ShieldAlert } from "lucide-react";
+import { Download, HardDriveUpload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   exportUserBackupAction,
   importUserBackupAction,
 } from "@/actions/user-backup-actions";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 type BackupPreview = {
   exportedAt?: string;
@@ -83,16 +73,27 @@ function formatDate(date?: string) {
   return parsed.toLocaleString("es-CO");
 }
 
+/**
+ * Exportar y restaurar el respaldo de un usuario.
+ *
+ * Vive siempre dentro de un diálogo, y el diálogo ya pone el título y la
+ * descripción arriba: aquí no se repiten. Antes sí lo hacía —encabezado propio,
+ * un aviso de cuatro líneas sobre el reemplazo y descripciones largas en cada
+ * bloque— y el resultado era un modal de más de 600 px que obligaba a
+ * desplazarse para llegar a los dos únicos botones que hay.
+ *
+ * El aviso de que restaurar reemplaza los datos no se pierde: pasa a una línea
+ * dentro de "Restaurar", que es donde hace falta leerlo.
+ *
+ * Tampoco hay pie con "Cerrar": el diálogo ya trae su ✕ y aquí no hay nada que
+ * guardar —cada botón actúa al pulsarlo—, así que un pie solo añadiría alto.
+ */
 export function UserBackupManager({
   targetUserId,
-  subjectLabel,
   onImported,
-  twoColumns = false,
 }: {
   targetUserId: string;
-  subjectLabel: string;
   onImported?: () => void | Promise<void>;
-  twoColumns?: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isExportPending, startExportTransition] = useTransition();
@@ -101,8 +102,7 @@ export function UserBackupManager({
   const [selectedFileContent, setSelectedFileContent] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
   const isReadyToImport = selectedFileContent.length > 0;
-
-  const isReadyToImportSimple = selectedFileContent.length > 0;
+  const ocupado = isExportPending || isImportPending;
 
   const handleExport = () => {
     startExportTransition(async () => {
@@ -157,9 +157,7 @@ export function UserBackupManager({
 
   const handleImport = () => {
     if (!isReadyToImport) {
-      toast.error(
-        "Selecciona un archivo y confirma que deseas reemplazar los datos antes de continuar."
-      );
+      toast.error("Selecciona un archivo de backup antes de restaurar.");
       return;
     }
 
@@ -189,216 +187,90 @@ export function UserBackupManager({
     });
   };
 
-  const exportSection = (
+  return (
     <div className="flex flex-col gap-3">
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Exportar backup</p>
-        <p className="text-sm text-muted-foreground">
-          Descarga un archivo JSON con sesiones, CRM, workflows, finanzas,
-          recordatorios y configuración asociada.
-        </p>
-      </div>
-      <div>
-        <Button
-          type="button"
-          onClick={handleExport}
-          disabled={isExportPending || isImportPending}
-        >
-          {isExportPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
-          )}
-          Exportar respaldo
-        </Button>
-      </div>
-    </div>
-  );
-
-  const importSection = (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Restaurar backup</p>
-        <p className="text-sm text-muted-foreground">
-          Selecciona un archivo generado por Verzay y valida la operación
-          antes de restaurar.
-        </p>
+      <div className="rounded-lg border border-border p-4">
+        {/* `ml-auto` en el botón: al estrecharse la ventana la fila se parte y
+            sin eso el botón caía debajo y pegado a la izquierda. */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0 flex-1 basis-48">
+            <p className="text-sm font-semibold">Exportar</p>
+            <p className="text-xs text-muted-foreground">
+              Sesiones, CRM, workflows, finanzas y recordatorios.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="ml-auto shrink-0"
+            onClick={handleExport}
+            disabled={ocupado}
+          >
+            {isExportPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Exportar
+          </Button>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`backup-file-${targetUserId}`}>Archivo de backup</Label>
-        <Input
-          id={`backup-file-${targetUserId}`}
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          onChange={handleSelectFile}
-          disabled={isImportPending || isExportPending}
-        />
-      </div>
+      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+        <div>
+          <p className="text-sm font-semibold">Restaurar</p>
+          <p className="text-xs text-muted-foreground">
+            Reemplaza la configuración y los datos actuales por los del archivo.
+          </p>
+        </div>
 
-      {selectedFileName ? (
-        <div className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-sm">
-          <p className="font-medium">{selectedFileName}</p>
-          {preview ? (
-            <div className="mt-2 space-y-2 text-muted-foreground">
-              <p>Fuente: {preview.sourceCompany || preview.sourceName || "Sin nombre"}</p>
-              <p>Exportado: {formatDate(preview.exportedAt)}</p>
-              <p>Versión del backup: {preview.version ?? "Desconocida"}</p>
-              <div className="grid gap-2 sm:grid-cols-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            id={`backup-file-${targetUserId}`}
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleSelectFile}
+            disabled={ocupado}
+            className="h-9 min-w-0 flex-1 basis-48 text-xs"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            className="ml-auto shrink-0"
+            onClick={handleImport}
+            disabled={!isReadyToImport || ocupado}
+          >
+            {isImportPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <HardDriveUpload className="mr-2 h-4 w-4" />
+            )}
+            Restaurar
+          </Button>
+        </div>
+
+        {selectedFileName && preview ? (
+          <div className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs">
+            <p className="font-medium">{selectedFileName}</p>
+            <div className="mt-1 text-muted-foreground">
+              <p>
+                {preview.sourceCompany || preview.sourceName || "Sin nombre"} ·{" "}
+                {formatDate(preview.exportedAt)}
+              </p>
+              <div className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
                 <p>Sesiones: {preview.counts.sessions}</p>
                 <p>Registros CRM: {preview.counts.registros}</p>
                 <p>Workflows: {preview.counts.workflows}</p>
                 <p>Recordatorios: {preview.counts.reminders}</p>
                 <p>Productos: {preview.counts.products}</p>
-                <p>Movimientos finanzas: {preview.counts.financeTransactions}</p>
+                <p>Movimientos: {preview.counts.financeTransactions}</p>
               </div>
             </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <Button
-        type="button"
-        variant="destructive"
-        onClick={handleImport}
-        disabled={!isReadyToImport || isImportPending || isExportPending}
-      >
-        {isImportPending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <HardDriveUpload className="mr-2 h-4 w-4" />
-        )}
-        Restaurar backup
-      </Button>
-    </div>
-  );
-
-  if (twoColumns) {
-    return (
-      <div className="space-y-4">
-        <Alert>
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Importación con reemplazo</AlertTitle>
-          <AlertDescription>
-            La restauración conserva la identidad del usuario actual, pero
-            reemplaza su configuración y datos funcionales por el contenido del backup.
-          </AlertDescription>
-        </Alert>
-
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-          <Card className="border-border flex flex-col">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Exportar</CardTitle>
-              <CardDescription className="text-xs">
-                Descarga un respaldo completo de {subjectLabel} en formato JSON con sesiones, CRM, workflows, finanzas, recordatorios y configuración asociada.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col flex-1">
-              <Button
-                type="button"
-                className="w-full mt-auto"
-                onClick={handleExport}
-                disabled={isExportPending || isImportPending}
-              >
-                {isExportPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                Exportar respaldo
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border flex flex-col">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Restaurar backup</CardTitle>
-              <CardDescription className="text-xs">
-                Importa un archivo de respaldo generado por Verzay.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col flex-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor={`backup-file-simple-${targetUserId}`}>Archivo de backup</Label>
-                <Input
-                  id={`backup-file-simple-${targetUserId}`}
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/json,.json"
-                  onChange={handleSelectFile}
-                  disabled={isImportPending || isExportPending}
-                />
-              </div>
-
-              {selectedFileName && preview && (
-                <div className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-sm">
-                  <p className="font-medium">{selectedFileName}</p>
-                  <div className="mt-2 space-y-2 text-muted-foreground">
-                    <p>Fuente: {preview.sourceCompany || preview.sourceName || "Sin nombre"}</p>
-                    <p>Exportado: {formatDate(preview.exportedAt)}</p>
-                    <div className="grid gap-1 sm:grid-cols-2 text-xs">
-                      <p>Sesiones: {preview.counts.sessions}</p>
-                      <p>Registros CRM: {preview.counts.registros}</p>
-                      <p>Workflows: {preview.counts.workflows}</p>
-                      <p>Recordatorios: {preview.counts.reminders}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <Button
-                type="button"
-                variant="destructive"
-                className="w-full mt-auto"
-                onClick={handleImport}
-                disabled={!isReadyToImportSimple || isImportPending || isExportPending}
-              >
-                {isImportPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <HardDriveUpload className="mr-2 h-4 w-4" />
-                )}
-                Importar backup
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+          </div>
+        ) : null}
       </div>
-    );
-  }
-
-  return (
-    <Card className="border-border">
-      <CardHeader className="space-y-2">
-        <CardTitle className="text-lg">Copias de seguridad</CardTitle>
-        <CardDescription>
-          Exporta un respaldo completo de {subjectLabel} en JSON o restaura uno
-          existente reemplazando los datos actuales.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-5">
-        <Alert>
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Importación con reemplazo</AlertTitle>
-          <AlertDescription>
-            La restauración conserva la identidad del usuario actual, pero
-            reemplaza su configuración y datos funcionales por el contenido del
-            backup.
-          </AlertDescription>
-        </Alert>
-
-        <div className="flex flex-col gap-3 rounded-lg border border-border/70 p-4">
-          {exportSection}
-        </div>
-
-        <Separator />
-
-        <div className="space-y-4 rounded-lg border border-border/70 p-4">
-          {importSection}
-        </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 }
