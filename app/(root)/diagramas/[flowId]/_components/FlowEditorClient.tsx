@@ -49,6 +49,12 @@ export function FlowEditorClient({ flowId, flowName, initialNodes, initialEdges,
   const guardar = useCallback(async (avisar = false) => {
     // En un diagrama de lectura no se manda nada: el servidor lo rechazaria de
     // todos modos, y el aviso de error en cada pausa seria insoportable.
+    //
+    // Esto solo es seguro porque el lienzo TAMBIEN esta bloqueado
+    // (`soloLectura`). Cuando no lo estaba, se podia mover, escribir y borrar,
+    // este `return` se tragaba el guardado y al recargar no quedaba nada: se
+    // perdia el trabajo sin un solo aviso. Si algun dia se vuelve a dejar tocar
+    // el lienzo en lectura, esto tiene que avisar, no callar.
     if (!puedeEditar) return;
 
     const graph = canvasRef.current?.getGraph();
@@ -107,6 +113,7 @@ export function FlowEditorClient({ flowId, flowName, initialNodes, initialEdges,
           initialNodes={initialNodes}
           initialEdges={initialEdges}
           onGraphChange={alCambiarElLienzo}
+          soloLectura={!puedeEditar}
         />
       </ReactFlowProvider>
 

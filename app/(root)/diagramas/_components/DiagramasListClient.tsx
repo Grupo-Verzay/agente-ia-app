@@ -317,10 +317,14 @@ export function DiagramasListClient() {
                     return (
                       <span
                         className="ml-auto flex shrink-0 items-center gap-1 text-primary/80"
-                        title="Otra cuenta te lo está compartiendo. Puedes verlo y duplicarlo."
+                        title={
+                          flow.puedeEditar
+                            ? 'Otra cuenta te lo comparte con permiso de edición: lo que cambies lo verá también quien te lo compartió.'
+                            : 'Otra cuenta te lo está compartiendo. Puedes verlo y duplicarlo, no cambiarlo.'
+                        }
                       >
                         <Building2 className="h-3 w-3" />
-                        Compartido contigo
+                        {flow.puedeEditar ? 'Compartido contigo · editable' : 'Compartido contigo'}
                       </span>
                     );
                   }

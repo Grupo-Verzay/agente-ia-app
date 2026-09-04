@@ -29,6 +29,7 @@ import { CustomEdge } from './CustomEdge';
 import type { IdeaAjustes } from './IdeaNode';
 import { FlowNode, type FlowNodeData, type LibreAjustes } from './FlowNode';
 import { FlowAddNodeProvider, AddNodeFn } from './FlowAddNodeContext';
+import { FlowReadOnlyProvider } from './FlowReadOnlyContext';
 import { InlineAddNode } from './InlineAddNode';
 
 // Separacion de referencia entre dos nodos medianos, de borde a borde de la
@@ -225,10 +226,16 @@ interface FlowCanvasProps {
    * solo pintar lo que venia de la base.
    */
   onGraphChange?: () => void;
+  /**
+   * El diagrama se mira, no se toca. Si esto es verdad nada de lo que se haga
+   * aqui se va a guardar, asi que tampoco se deja hacer: mover un nodo,
+   * escribir en el o borrarlo se perdia en silencio al recargar.
+   */
+  soloLectura?: boolean;
 }
 
 export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCanvas(
-  { initialNodes: initialNodesDB, initialEdges: initialEdgesDB, onGraphChange },
+  { initialNodes: initialNodesDB, initialEdges: initialEdgesDB, onGraphChange, soloLectura = false },
   ref,
 ) {
   const { resolvedTheme } = useTheme();
@@ -754,7 +761,10 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
   }, [setEdges]);
 
   return (
-    <FlowAddNodeProvider value={addNodeFromSource}>
+    // Sin `addNodeFromSource` en lectura: el "+" de los conectores se apaga
+    // solo, porque `InlineAddNode` no se pinta cuando no hay a quien avisar.
+    <FlowAddNodeProvider value={soloLectura ? null : addNodeFromSource}>
+     <FlowReadOnlyProvider value={soloLectura}>
       <div ref={wrapperRef} className="relative w-full h-full">
         <ReactFlow
           nodes={nodes}
@@ -764,12 +774,19 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeDragStop={onNodeDragStop}
-          onConnect={onConnect}
+          onConnect={soloLectura ? undefined : onConnect}
           onInit={(instance) => (rfRef.current = instance)}
           defaultEdgeOptions={{ type: 'customEdge' }}
           connectionLineStyle={{ stroke: 'hsl(var(--primary) / 0.65)', strokeWidth: 2.5 }}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
+          onDragOver={soloLectura ? undefined : onDragOver}
+          onDrop={soloLectura ? undefined : onDrop}
+          // Mirar y moverse por el lienzo se puede siempre; cambiarlo no.
+          // `deleteKeyCode` en null es lo que evita que Supr borre un nodo
+          // "seleccionado" por descuido.
+          nodesDraggable={!soloLectura}
+          nodesConnectable={!soloLectura}
+          elementsSelectable={!soloLectura}
+          deleteKeyCode={soloLectura ? null : undefined}
           snapToGrid
           snapGrid={[SNAP, SNAP]}
           fitView
@@ -783,15 +800,17 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
             className="overflow-hidden !rounded-xl !border !border-border !bg-background !shadow-lg [&>button+button]:!border-t [&>button+button]:!border-border [&>button]:!h-9 [&>button]:!w-9 [&>button]:!border-0 [&>button]:!bg-transparent [&>button]:!text-foreground [&>button:hover]:!bg-accent [&_svg]:!h-3.5 [&_svg]:!w-3.5 [&_svg]:!max-h-none [&_svg]:!max-w-none [&_svg]:!fill-current"
           />
 
-          <Panel position="top-center">
-            <Button onClick={handleAutoLayout} variant="outline" size="sm" className="h-8 gap-2 bg-background/80 shadow-sm backdrop-blur" title="Ordenar el diagrama en carriles horizontales">
-              <LayoutGrid className="h-4 w-4" />
-              <span className="text-xs font-medium">Ordenar</span>
-            </Button>
-          </Panel>
+          {!soloLectura && (
+            <Panel position="top-center">
+              <Button onClick={handleAutoLayout} variant="outline" size="sm" className="h-8 gap-2 bg-background/80 shadow-sm backdrop-blur" title="Ordenar el diagrama en carriles horizontales">
+                <LayoutGrid className="h-4 w-4" />
+                <span className="text-xs font-medium">Ordenar</span>
+              </Button>
+            </Panel>
+          )}
         </ReactFlow>
 
-        {nodes.length === 0 && (
+        {nodes.length === 0 && !soloLectura && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
               <InlineAddNode
@@ -812,6 +831,7 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           </div>
         )}
       </div>
+     </FlowReadOnlyProvider>
     </FlowAddNodeProvider>
   );
 });
