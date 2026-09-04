@@ -14,6 +14,9 @@ import { FacebookInstanceCreator } from "./_components/FacebookInstanceCreator";
 import { InstagramInstanceCreator } from "./_components/InstagramInstanceCreator";
 import { TelegramInstanceCreator } from "./_components/TelegramInstanceCreator";
 import { TelegramInstanceCard } from "./_components/TelegramInstanceCard";
+import { WahaInstanceCard } from "./_components/WahaInstanceCard";
+import { WahaInstanceCreator } from "./_components/WahaInstanceCreator";
+import { isWahaConfigured } from "@/lib/waha";
 
 // Adapta las funciones de tipo para manejar arrays
 function hasInstancias(result: { data?: Instancia[] | null }): result is { data: Instancia[] } {
@@ -28,7 +31,7 @@ function hasPrompts(result: { data?: PromptInstance[] | null }): result is { dat
 
 // 🔹 Normaliza el tipo (null/undefined -> "Desconocido")
 const normalizeType = (t?: string | null): string => {
-    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys", "meta", "telegram"];
+    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys", "meta", "telegram", "waha"];
     if (!t) return "Desconocido";
     const normalized = t.trim();
     return valid.includes(normalized) ? normalized : "Desconocido";
@@ -72,6 +75,7 @@ const Connection = async () => {
     const metaFacebookInstances: Instancia[] = [];
     const metaInstagramInstances: Instancia[] = [];
     const telegramInstances: Instancia[] = [];
+    const wahaInstances: Instancia[] = [];
 
     // Asignar instancias sin interferir entre tipos
     instancias.forEach(instancia => {
@@ -82,6 +86,10 @@ const Connection = async () => {
         }
         if (type === 'telegram') {
             telegramInstances.push(instancia);
+            return;
+        }
+        if (type === 'waha') {
+            wahaInstances.push(instancia);
             return;
         }
         if (type === 'meta') {
@@ -150,6 +158,13 @@ const Connection = async () => {
                     pageId={(inst as any).metaPageId ?? ''}
                 />
             ))}
+            {wahaInstances.map((inst) => (
+                <WahaInstanceCard
+                    key={inst.instanceName}
+                    instanceName={inst.instanceName}
+                    displayName={(inst as any).displayName ?? null}
+                />
+            ))}
             {telegramInstances.map((inst) => (
                 <TelegramInstanceCard
                     key={inst.instanceName}
@@ -169,6 +184,9 @@ const Connection = async () => {
             )}
             {telegramInstances.length === 0 && (
                 <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
+            )}
+            {wahaInstances.length === 0 && isWahaConfigured() && (
+                <WahaInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
         </div>
     );
