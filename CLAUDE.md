@@ -254,8 +254,16 @@ Esto **no** contradice la primera regla de este documento. Lo que se espacia
 aquí es información de CRM —a quién está asignado un chat, sus etiquetas, su
 estado—, **no mensajes**. Los relojes que traen los mensajes siguen igual de
 cortos: 5s el chat abierto, 20s la lista. Y lo que hace el propio asesor se
-pinta al momento sin pasar por aquí: asignar, etiquetar y renombrar ya
-actualizan el estado en local.
+pinta al momento sin pasar por aquí: asignar, etiquetar, renombrar y **borrar**
+ya actualizan el estado en local.
+
+Lo de borrar costó una sesión aparte. El quitar la fila estaba **después** del
+`await` de la consulta que borra sesiones, conversaciones y mensajes —que no es
+corta—, así que se pulsaba "Eliminar chat", el diálogo se cerraba y el chat
+seguía ahí unos segundos, con la conversación todavía abierta al lado. Parecía
+que no había pasado nada. **La fila se quita y la conversación se cierra antes
+de preguntarle al servidor**, y si el servidor dice que no, se devuelve todo tal
+cual estaba. Si se añade otra acción del asesor, va igual.
 
 ## Chats: `contact.aliases` NO son todas las identidades
 

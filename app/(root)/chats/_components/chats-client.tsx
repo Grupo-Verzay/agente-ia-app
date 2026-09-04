@@ -2293,6 +2293,63 @@ export function ChatsClient({
       // se rehace cada 20s-. Asi la marca caia en la linea equivocada: se veia
       // borrar la fila de Notificaciones y la marca se guardaba en Atencion.
       const linea = instanceName ?? lineaDelJid(remoteJid);
+      const deletedCandidates = new Set(buildWhatsAppJidCandidates(remoteJid));
+
+      // La fila se quita ANTES de preguntarle al servidor.
+      //
+      // Estaba despues del `await`, asi que la fila se quedaba en pantalla toda
+      // la ida y vuelta -y esa consulta borra sesiones, conversaciones y
+      // mensajes, no es corta-. Se pulsaba "Eliminar chat", el dialogo se
+      // cerraba y el chat seguia ahi unos segundos: parecia que no habia pasado
+      // nada. Es la misma idea que ya se aplica al asignar o etiquetar: lo que
+      // hace el asesor se pinta al momento.
+      //
+      // Si el servidor dice que no, se devuelve tal cual estaba.
+      let listaAntes: typeof currentChatsResult | null = null;
+      let sesionesAntes: typeof chatSessions | null = null;
+
+      setCurrentChatsResult((prev) => {
+        if (listaAntes === null) listaAntes = prev;
+        return prev.success
+          ? {
+              ...prev,
+              // Se quita de la lista SOLO la fila de esta linea.
+              //
+              // Filtraba por numero a secas, asi que borrar en Notificaciones
+              // hacia desaparecer tambien la fila de Atencion en el acto. La
+              // marca ya iba por linea; esto de aqui la contradecia por delante,
+              // y era lo que se veia.
+              //
+              // Sin linea conocida se mantiene el filtro de antes: mas vale
+              // quitar de mas que dejar en pantalla un chat que se acaba de
+              // borrar.
+              data: prev.data.filter(
+                (chat) =>
+                  !chatMatchesAnyJid(chat, deletedCandidates) ||
+                  (Boolean(linea) && chat.instanceName !== linea),
+              ),
+            }
+          : prev;
+      });
+      setChatSessions((prev) => {
+        if (sesionesAntes === null) sesionesAntes = prev;
+        const next = { ...prev };
+        for (const candidate of Array.from(deletedCandidates)) delete next[candidate];
+        return next;
+      });
+
+      // Y la conversacion se cierra tambien ya, no al volver el servidor: si no,
+      // se borra la fila y el chat sigue abierto a la derecha unos segundos.
+      // Se compara con TODAS las identidades del contacto, no solo con el jid
+      // que llego: el chat puede estar abierto por su `@lid` y pedirse el
+      // borrado por el numero, o al reves.
+      const estabaAbierto = deletedCandidates.has(selectedJid);
+      if (estabaAbierto) {
+        setSelectedJid("");
+        setMessages([]);
+        setInfo(undefined);
+      }
+
       const result = await deleteChatConversationAction({
         userId: ownerUserId,
         instanceName: linea,
@@ -2300,6 +2357,11 @@ export function ChatsClient({
       });
 
       if (!result.success || !result.data) {
+        if (listaAntes) setCurrentChatsResult(listaAntes);
+        if (sesionesAntes) setChatSessions(sesionesAntes);
+        // Volver a seleccionarlo basta: el ciclo del chat abierto se encarga de
+        // traer los mensajes otra vez.
+        if (estabaAbierto) setSelectedJid(selectedJid);
         toast.error(result.message || "No se pudo eliminar el chat.");
         return;
       }
@@ -2345,44 +2407,10 @@ export function ChatsClient({
         });
       }, 25000);
 
-      const deletedCandidates = new Set(buildWhatsAppJidCandidates(remoteJid));
-      setCurrentChatsResult((prev) =>
-        prev.success
-          ? {
-              ...prev,
-              // Se quita de la lista SOLO la fila de esta linea.
-              //
-              // Filtraba por numero a secas, asi que borrar en Notificaciones
-              // hacia desaparecer tambien la fila de Atencion en el acto. La
-              // marca ya iba por linea; esto de aqui la contradecia por delante,
-              // y era lo que se veia.
-              //
-              // Sin linea conocida se mantiene el filtro de antes: mas vale
-              // quitar de mas que dejar en pantalla un chat que se acaba de
-              // borrar.
-              data: prev.data.filter(
-                (chat) =>
-                  !chatMatchesAnyJid(chat, deletedCandidates) ||
-                  (Boolean(linea) && chat.instanceName !== linea),
-              ),
-            }
-          : prev,
-      );
-      setChatSessions((prev) => {
-        const next = { ...prev };
-        for (const candidate of Array.from(deletedCandidates)) delete next[candidate];
-        return next;
-      });
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
-
-      if (selectedJid === remoteJid) {
-        setSelectedJid("");
-        setMessages([]);
-        setInfo(undefined);
-      }
     },
-    [applyChatPreference, ownerForJid, selectedJid],
+    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid],
   );
 
   const handleRestoreChat = useCallback(
