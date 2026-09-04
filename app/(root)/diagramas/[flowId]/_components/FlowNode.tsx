@@ -24,6 +24,7 @@ import {
     LIBRE_POR_DEFECTO,
 } from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
+import { useSoloLectura } from './FlowReadOnlyContext';
 import { IdeaNode, type IdeaAjustes } from './IdeaNode';
 
 // Color del icono por tipo -el cuadro del nodo es blanco/tarjeta, el color
@@ -203,6 +204,7 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
     const incoming = useNodeConnections({ handleType: 'target', handleId: 'in' });
     const isTrigger = incoming.length === 0;
 
+    const soloLectura = useSoloLectura();
     const [open, setOpen] = useState(false);
     // Borrador del modal: lo escrito solo entra al diagrama al darle a Listo,
     // para poder cerrar sin haber ensuciado el nodo.
@@ -253,6 +255,10 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
     const hint = CONTENT_HINT[data.tipo] ?? DEFAULT_HINT;
 
     const abrir = () => {
+        // En un diagrama de lectura no se abre a editar. Se abria, se escribia
+        // dentro y al guardar no pasaba nada: el cambio se quedaba en la
+        // pantalla hasta recargar, y ahi se perdia sin un solo aviso.
+        if (soloLectura) return;
         setDraftLabel(data.label);
         setDraftContent(data.content);
         setDraftLibre(libre);
@@ -339,7 +345,9 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
                     )}
                 </div>
 
-                {/* barra de acciones: oculta hasta que se pasa el mouse por el nodo */}
+                {/* barra de acciones: oculta hasta que se pasa el mouse por el
+                    nodo, y no existe en un diagrama de lectura. */}
+                {!soloLectura && (
                 <div className="nodrag absolute -top-3 right-0 z-20 flex translate-x-1/3 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                         type="button"
@@ -366,6 +374,7 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
                         <Trash2 className="h-2.5 w-2.5" />
                     </button>
                 </div>
+                )}
 
                 {isFin ? null : isIntention ? (
                     <>

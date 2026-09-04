@@ -105,6 +105,12 @@ async function ensureFlowTable(): Promise<void> {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
       )
     `;
+    // Con que permiso se comparte. Las filas que ya existian se quedan en
+    // 'lectura', que es exactamente como se comportaban: lo recibido se miraba
+    // y se duplicaba, nunca se cambiaba.
+    await db.$executeRaw`
+      ALTER TABLE "flow_shares" ADD COLUMN IF NOT EXISTS "permiso" TEXT NOT NULL DEFAULT 'lectura'
+    `;
     await db.$executeRaw`
       CREATE UNIQUE INDEX IF NOT EXISTS "flow_shares_flow_account_unique"
       ON "flow_shares" ("flowId", "accountUserId")
@@ -204,11 +210,15 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
     // Los privados de otros no salen de la base siquiera: filtrarlos despues
     // significaria traerselos, y un privado que viaja al navegador ya no lo es.
     const rows = await db.$queryRaw<
-      (Omit<FlowSummary, "puedeEditar" | "puedeCompartir"> & { recibido: boolean })[]
+      (Omit<FlowSummary, "puedeEditar" | "puedeCompartir"> & {
+        recibido: boolean;
+        permisoRecibido: string | null;
+      })[]
     >`
       SELECT "id", "name", "description", "createdAt", "updatedAt", "visibility", "createdById",
              CASE WHEN jsonb_typeof("nodes") = 'array' THEN jsonb_array_length("nodes") ELSE 0 END AS "nodeCount",
              false AS "recibido",
+             NULL AS "permisoRecibido",
              (SELECT COUNT(*)::int FROM "flow_shares" s WHERE s."flowId" = f."id") AS "compartidoCon"
       FROM "flows" f
       WHERE "userId" = ${ctx.cuenta}
@@ -219,6 +229,7 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
       SELECT f."id", f."name", f."description", f."createdAt", f."updatedAt", f."visibility", f."createdById",
              CASE WHEN jsonb_typeof(f."nodes") = 'array' THEN jsonb_array_length(f."nodes") ELSE 0 END AS "nodeCount",
              true AS "recibido",
+             s."permiso" AS "permisoRecibido",
              0 AS "compartidoCon"
       FROM "flows" f
       JOIN "flow_shares" s ON s."flowId" = f."id"
@@ -231,9 +242,11 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
       success: true,
       data: rows.map((row) => ({
         ...row,
-        // Lo recibido se mira y se duplica; cambiarlo o repartirlo es cosa de la
-        // cuenta que lo hizo.
-        puedeEditar: row.recibido ? false : puedeEditarlo(row, ctx),
+        // Lo recibido se cambia solo si se compartio con permiso de edicion.
+        // Repartirlo sigue siendo cosa de la cuenta que lo hizo.
+        puedeEditar: row.recibido
+          ? row.permisoRecibido === "edicion"
+          : puedeEditarlo(row, ctx),
         puedeCompartir: row.recibido ? false : puedeMandarEnEl(row, ctx),
       })),
     };
@@ -243,14 +256,22 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
   }
 }
 
-/** ¿A esta cuenta le están enseñando este diagrama? */
-async function leCompartieron(flowId: string, cuenta: string): Promise<boolean> {
-  const rows = await db.$queryRaw<{ id: string }[]>`
-    SELECT "id" FROM "flow_shares"
+/**
+ * ¿A esta cuenta le están enseñando este diagrama, y con qué permiso?
+ *
+ * Devuelve `null` si no se lo comparten. `"lectura"` o `"edicion"` si sí.
+ */
+async function permisoRecibido(
+  flowId: string,
+  cuenta: string,
+): Promise<"lectura" | "edicion" | null> {
+  const rows = await db.$queryRaw<{ permiso: string }[]>`
+    SELECT "permiso" FROM "flow_shares"
     WHERE "flowId" = ${flowId} AND "accountUserId" = ${cuenta}
     LIMIT 1
   `;
-  return rows.length > 0;
+  if (rows.length === 0) return null;
+  return rows[0].permiso === "edicion" ? "edicion" : "lectura";
 }
 
 export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDetail>> {
@@ -273,10 +294,12 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
     const flow = rows[0];
     if (!flow) return { success: false, message: "Flujo no encontrado." };
 
-    // De otra cuenta: solo se abre si a esta se lo estan enseñando, y de lectura.
+    // De otra cuenta: solo se abre si a esta se lo estan enseñando, y con el
+    // permiso con el que se lo compartieron.
     const recibido = flow.userId !== ctx.cuenta;
     if (recibido) {
-      if (!(await leCompartieron(flowId, ctx.cuenta))) {
+      const permiso = await permisoRecibido(flowId, ctx.cuenta);
+      if (!permiso) {
         return { success: false, message: "Flujo no encontrado." };
       }
       return {
@@ -285,7 +308,8 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
           ...flow,
           recibido: true,
           compartidoCon: 0,
-          puedeEditar: false,
+          puedeEditar: permiso === "edicion",
+          // Repartirlo a mas cuentas sigue siendo de quien lo hizo.
           puedeCompartir: false,
         },
       };
@@ -444,7 +468,30 @@ export async function saveFlowGraphAction(
     // Se comprueba aqui y no solo en la pantalla: el lienzo guarda solo, y un
     // diagrama de lectura tiene que aguantar tambien si la llamada llega suelta.
     const flow = await buscarFlow(flowId, ctx.cuenta);
-    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+
+    if (!flow) {
+      // No es de esta cuenta. Puede ser de otra que se lo comparte: si fue con
+      // permiso de edicion, se guarda igual -es el mismo diagrama, no una
+      // copia-. Antes esto contestaba "Flujo no encontrado" y por eso compartir
+      // como editor no existia.
+      const permiso = await permisoRecibido(flowId, ctx.cuenta);
+      if (!permiso) return { success: false, message: "Flujo no encontrado." };
+      if (permiso !== "edicion") {
+        return { success: false, message: "Este diagrama es de solo lectura." };
+      }
+
+      const nodesJson = JSON.stringify(nodes) as unknown as Prisma.InputJsonValue;
+      const edgesJson = JSON.stringify(edges) as unknown as Prisma.InputJsonValue;
+      await db.$executeRaw`
+        UPDATE "flows" SET "nodes" = ${nodesJson}::jsonb, "edges" = ${edgesJson}::jsonb, "updatedAt" = NOW()
+        WHERE "id" = ${flowId}
+      `;
+      revalidatePath(`/diagramas/${flowId}`);
+      revalidatePath("/diagramas");
+      return { success: true, data: null };
+    }
+
+    if (!puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
     if (!puedeEditarlo(flow, ctx)) {
       return { success: false, message: "Este diagrama es de solo lectura." };
     }
@@ -591,7 +638,9 @@ export async function duplicateFlowAction(flowId: string): Promise<ActionResult<
     // nace en SU cuenta, y como no es del equipo de quien lo hizo, nace privada.
     const recibido = original.userId !== ctx.cuenta;
     if (recibido) {
-      if (!(await leCompartieron(flowId, ctx.cuenta))) {
+      // Copiar se puede con cualquiera de los dos permisos: se copia lo que se
+      // ve, y verlo ya se puede.
+      if (!(await permisoRecibido(flowId, ctx.cuenta))) {
         return { success: false, message: "Flujo no encontrado." };
       }
     } else if (!puedeVerlo(original, ctx)) {
@@ -633,13 +682,20 @@ export async function duplicateFlowAction(flowId: string): Promise<ActionResult<
   }
 }
 
+export type PermisoCompartido = "lectura" | "edicion";
+
 export type CuentaDestino = {
   id: string;
   name: string | null;
   email: string;
   company: string;
   compartido: boolean;
+  /** Con qué permiso se le comparte hoy. `lectura` si aún no se le comparte. */
+  permiso: PermisoCompartido;
 };
+
+/** Una cuenta y con qué permiso se le enseña el diagrama. */
+export type CompartirCon = { accountUserId: string; permiso: PermisoCompartido };
 
 /**
  * A qué cuentas se les puede enseñar este diagrama, y a cuáles ya.
@@ -664,18 +720,24 @@ export async function getFlowShareTargetsAction(
 
     const [cuentas, compartidas] = await Promise.all([
       clientesDeLaCuenta({ id: ctx.cuenta, role: user?.role ?? "user" }),
-      db.$queryRaw<{ accountUserId: string }[]>`
-        SELECT "accountUserId" FROM "flow_shares" WHERE "flowId" = ${flowId}
+      db.$queryRaw<{ accountUserId: string; permiso: string }[]>`
+        SELECT "accountUserId", "permiso" FROM "flow_shares" WHERE "flowId" = ${flowId}
       `,
     ]);
 
-    const yaTiene = new Set(compartidas.map((c) => c.accountUserId));
+    const yaTiene = new Map(
+      compartidas.map((c) => [c.accountUserId, c.permiso === "edicion" ? "edicion" : "lectura"] as const),
+    );
     return {
       success: true,
       // La propia cuenta no se lista: ya lo tiene, y marcarla no querria decir nada.
       data: cuentas
         .filter((c) => c.id !== ctx.cuenta)
-        .map((c) => ({ ...c, compartido: yaTiene.has(c.id) })),
+        .map((c) => ({
+          ...c,
+          compartido: yaTiene.has(c.id),
+          permiso: yaTiene.get(c.id) ?? "lectura",
+        })),
     };
   } catch (error) {
     console.error("[getFlowShareTargetsAction]", error);
@@ -685,7 +747,7 @@ export async function getFlowShareTargetsAction(
 
 export async function setFlowSharesAction(
   flowId: string,
-  accountIds: string[],
+  destinos: CompartirCon[],
 ): Promise<ActionResult<null>> {
   try {
     const user = await currentUser();
@@ -702,15 +764,24 @@ export async function setFlowSharesAction(
     // no decide a quien se le enseña un diagrama.
     const cuentas = await clientesDeLaCuenta({ id: ctx.cuenta, role: user?.role ?? "user" });
     const suyas = new Set(cuentas.map((c) => c.id));
-    const validas = [...new Set(accountIds)].filter((id) => id !== ctx.cuenta && suyas.has(id));
+    // Una entrada por cuenta -si el navegador manda la misma dos veces, manda la
+    // ultima- y el permiso se normaliza aqui: cualquier cosa que no sea
+    // "edicion" es lectura.
+    const porCuenta = new Map<string, PermisoCompartido>();
+    for (const destino of destinos) {
+      if (destino.accountUserId === ctx.cuenta) continue;
+      if (!suyas.has(destino.accountUserId)) continue;
+      porCuenta.set(destino.accountUserId, destino.permiso === "edicion" ? "edicion" : "lectura");
+    }
 
     await db.$executeRaw`DELETE FROM "flow_shares" WHERE "flowId" = ${flowId}`;
-    for (const accountUserId of validas) {
+    for (const [accountUserId, permiso] of porCuenta) {
       const id = `fs_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       await db.$executeRaw`
-        INSERT INTO "flow_shares" ("id", "flowId", "accountUserId", "sharedById")
-        VALUES (${id}, ${flowId}, ${accountUserId}, ${ctx.persona})
-        ON CONFLICT ("flowId", "accountUserId") DO NOTHING
+        INSERT INTO "flow_shares" ("id", "flowId", "accountUserId", "sharedById", "permiso")
+        VALUES (${id}, ${flowId}, ${accountUserId}, ${ctx.persona}, ${permiso})
+        ON CONFLICT ("flowId", "accountUserId")
+        DO UPDATE SET "permiso" = EXCLUDED."permiso"
       `;
     }
 

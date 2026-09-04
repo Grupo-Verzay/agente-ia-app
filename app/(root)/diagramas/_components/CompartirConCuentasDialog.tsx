@@ -19,6 +19,7 @@ import {
   getFlowShareTargetsAction,
   setFlowSharesAction,
   type CuentaDestino,
+  type PermisoCompartido,
 } from '@/actions/flow-actions';
 
 /** Sin tildes y en minúsculas, para buscar "Audífonos" escribiendo "audifonos". */
@@ -30,8 +31,16 @@ function normalizar(texto: string) {
  * A qué otras cuentas se les enseña este diagrama.
  *
  * Es distinto de la visibilidad: aquella reparte dentro del equipo de una misma
- * cuenta, y esto cruza a la cuenta de un cliente. Quien lo recibe lo ve en su
- * propio listado y puede sacar su copia, pero no toca el original.
+ * cuenta, y esto cruza a la cuenta de un cliente.
+ *
+ * Cada cuenta lleva su propio permiso. En "Solo lectura" lo ve y saca su copia;
+ * en "Puede editar" trabaja sobre el mismo diagrama, no sobre una copia, y lo
+ * que escriba lo ves tú.
+ *
+ * Antes esto era un interruptor a secas y todo lo compartido era de lectura.
+ * Se compartia creyendo que el cliente podia editar -la visibilidad de la
+ * tarjeta dice "Editable", pero eso es para el equipo de uno-, el cliente
+ * trabajaba encima y no se guardaba nada.
  */
 export function CompartirConCuentasDialog({
   open,
@@ -47,7 +56,8 @@ export function CompartirConCuentasDialog({
   onSaved: () => void;
 }) {
   const [cuentas, setCuentas] = useState<CuentaDestino[]>([]);
-  const [elegidas, setElegidas] = useState<Set<string>>(new Set());
+  // Cuenta -> permiso. Que no esté en el mapa significa que no se le comparte.
+  const [elegidas, setElegidas] = useState<Map<string, PermisoCompartido>>(new Map());
   const [busqueda, setBusqueda] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, startSaving] = useTransition();
@@ -60,7 +70,7 @@ export function CompartirConCuentasDialog({
       .then((res) => {
         const lista = res.success ? res.data : [];
         setCuentas(lista);
-        setElegidas(new Set(lista.filter((c) => c.compartido).map((c) => c.id)));
+        setElegidas(new Map(lista.filter((c) => c.compartido).map((c) => [c.id, c.permiso])));
         if (!res.success) toast.error(res.message);
       })
       .finally(() => setLoading(false));
@@ -79,15 +89,20 @@ export function CompartirConCuentasDialog({
 
   const guardar = () => {
     startSaving(async () => {
-      const res = await setFlowSharesAction(flowId, [...elegidas]);
+      const res = await setFlowSharesAction(
+        flowId,
+        [...elegidas].map(([accountUserId, permiso]) => ({ accountUserId, permiso })),
+      );
       if (!res.success) {
         toast.error(res.message);
         return;
       }
+      const conEdicion = [...elegidas.values()].filter((p) => p === 'edicion').length;
       toast.success(
         elegidas.size === 0
           ? 'Ya no se comparte con ninguna cuenta.'
-          : `Compartido con ${elegidas.size} ${elegidas.size === 1 ? 'cuenta' : 'cuentas'}.`,
+          : `Compartido con ${elegidas.size} ${elegidas.size === 1 ? 'cuenta' : 'cuentas'}` +
+            (conEdicion > 0 ? `, ${conEdicion} con permiso de edición.` : '.'),
       );
       setOpen(false);
       onSaved();
@@ -103,8 +118,9 @@ export function CompartirConCuentasDialog({
             Compartir — {flowName}
           </DialogTitle>
           <DialogDescription>
-            Lo verán en su propio listado de Diagramas y podrán sacar su copia. El original sigue
-            siendo tuyo: desde allí no lo pueden cambiar.
+            Lo verán en su propio listado de Diagramas. En <strong>Solo lectura</strong> lo miran y
+            sacan su copia; en <strong>Puede editar</strong> trabajan sobre este mismo diagrama y sus
+            cambios te llegan a ti.
           </DialogDescription>
         </DialogHeader>
 
@@ -130,25 +146,53 @@ export function CompartirConCuentasDialog({
             </p>
           ) : (
             <div className="flex flex-col divide-y rounded-lg border border-border/70">
-              {visibles.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{c.company || c.name || c.email}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{c.email}</p>
+              {visibles.map((c) => {
+                const permiso = elegidas.get(c.id);
+                return (
+                  <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{c.company || c.name || c.email}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{c.email}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {/* El permiso solo aparece si se le comparte: un selector
+                          apagado al lado de un interruptor apagado no dice nada. */}
+                      {permiso && (
+                        <div className="flex rounded-md border border-border p-0.5">
+                          {(['lectura', 'edicion'] as const).map((op) => (
+                            <button
+                              key={op}
+                              type="button"
+                              aria-pressed={permiso === op}
+                              onClick={() =>
+                                setElegidas((prev) => new Map(prev).set(c.id, op))
+                              }
+                              className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                permiso === op
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {op === 'lectura' ? 'Solo lectura' : 'Puede editar'}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <Switch
+                        checked={Boolean(permiso)}
+                        onCheckedChange={(val) =>
+                          setElegidas((prev) => {
+                            const next = new Map(prev);
+                            if (val) next.set(c.id, 'lectura');
+                            else next.delete(c.id);
+                            return next;
+                          })
+                        }
+                      />
+                    </div>
                   </div>
-                  <Switch
-                    checked={elegidas.has(c.id)}
-                    onCheckedChange={(val) =>
-                      setElegidas((prev) => {
-                        const next = new Set(prev);
-                        if (val) next.add(c.id);
-                        else next.delete(c.id);
-                        return next;
-                      })
-                    }
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

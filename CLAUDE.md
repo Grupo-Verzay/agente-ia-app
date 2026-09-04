@@ -265,6 +265,39 @@ que no había pasado nada. **La fila se quita y la conversación se cierra antes
 de preguntarle al servidor**, y si el servidor dice que no, se devuelve todo tal
 cual estaba. Si se añade otra acción del asesor, va igual.
 
+## Diagramas: si no se puede guardar, no se puede tocar
+
+Un diagrama compartido con otra cuenta era **siempre de solo lectura** —no
+existía compartir como editor— pero **el lienzo se dejaba tocar entero**: se
+arrastraban nodos, se escribía dentro de ellos, se borraban. Nada de eso se
+guardaba (`FlowEditorClient.guardar` salía con un `return` mudo si
+`!puedeEditar`) y **tampoco salía ningún aviso**. La persona trabajaba un rato,
+recargaba, y el diagrama estaba como al principio. **Trabajo perdido sin un solo
+error**, que es la misma familia de fallo que todas las reglas de Chats de
+arriba.
+
+Y el despiste que lo provocó: la tarjeta del diagrama tiene una visibilidad
+—Privado / Solo lectura / **Editable**— que reparte **dentro del equipo de una
+misma cuenta**. Compartir con la cuenta de un cliente es otra cosa, y ponerlo
+"Editable" no le daba nada al cliente. Dos ideas distintas con la misma palabra.
+
+Tres cosas que hay que mantener:
+
+1. **El bloqueo es del lienzo, no del guardado.** `FlowCanvas` recibe
+   `soloLectura` y con él apaga arrastrar, conectar, seleccionar, la tecla
+   Supr, el soltar nodos, el botón "Ordenar" y el "+" de los conectores;
+   `FlowNode` no abre su diálogo de edición ni enseña duplicar/borrar. El
+   `return` mudo de `guardar` solo es aceptable **porque** ya no se puede llegar
+   a él con cambios encima. Si alguna vez se vuelve a dejar tocar el lienzo sin
+   permiso, ese `return` tiene que avisar.
+2. **El permiso vive en `flow_shares.permiso`** (`lectura` | `edicion`), por
+   cuenta, no en `flows.visibility`. Las filas antiguas se quedan en `lectura`,
+   que es como se comportaban.
+3. **Editar un diagrama recibido escribe sobre el original**, no sobre una
+   copia: `saveFlowGraphAction` actualiza por `id` cuando el flujo no es de la
+   cuenta pero el permiso es `edicion`. Es lo que se espera de "compartido como
+   editor"; quien quiera su propia versión tiene el botón de duplicar.
+
 ## Chats: `contact.aliases` NO son todas las identidades
 
 Al pedir los mensajes se pasaba solo `contact.aliases`, y ese campo **viene vacío
