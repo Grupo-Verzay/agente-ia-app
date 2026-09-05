@@ -116,6 +116,10 @@ const Connection = async () => {
     // renderizado de la pagina completa si Evolution estaba caido o lento.
     // Se pide aparte, desde el cliente, en getInstanceLiveStatusAction.
 
+    // El servidor de WAHA se configura en Panel > Conexion. Sin el, la tarjeta de
+    // WhatsApp V2 no se ofrece: el boton solo sabria dar error.
+    const hayServidorWaha = await isWahaConfigured();
+
     // Render principal
     return (
         <div className="grid w-full grid-cols-1 gap-2 p-4 lg:grid-cols-2 auto-rows-fr">
@@ -185,7 +189,7 @@ const Connection = async () => {
             {telegramInstances.length === 0 && (
                 <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
-            {wahaInstances.length === 0 && isWahaConfigured() && (
+            {wahaInstances.length === 0 && hayServidorWaha && (
                 <WahaInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
         </div>

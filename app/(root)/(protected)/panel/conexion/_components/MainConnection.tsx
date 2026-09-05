@@ -7,6 +7,8 @@ import { agregarApi, editarApiKey, eliminarApiKey } from "@/actions/api-action";
 import { DialogApiKeyType } from "../connection-types";
 import { ApiKey, User } from "@prisma/client";
 import { getColumns, DataGrid, CreateDialog, EditDialog, DeleteDialog } from "./";
+import { WahaServerCard } from "./WahaServerCard";
+import type { WahaServerData } from "@/actions/admin/waha-server-actions";
 import { MetricCard } from "@/components/custom/MetricCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Link2, KeyRound, CalendarCheck, Clock } from "lucide-react";
@@ -16,9 +18,10 @@ interface Props {
     searchParams: { [key: string]: string | undefined },
     user: CurrentUser
     apiKeys: ApiKey[]
+    servidorWaha: WahaServerData
 };
 
-export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
+export const MainConnection = ({ searchParams, user, apiKeys, servidorWaha }: Props) => {
     const router = useRouter();
     const [apiKeyId, setApiKeyId] = useState<string>();
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -123,6 +126,10 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
                         />
                     </div>
                 </div>
+
+                {/* Servidor de WAHA. Es otro proveedor con url + API key, igual que
+                    Evolution, asi que se configura en la misma pantalla. */}
+                <WahaServerCard servidor={servidorWaha} />
 
                 {/* Table */}
                 <div className="flex-1 min-h-0">

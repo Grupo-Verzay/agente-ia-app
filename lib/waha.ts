@@ -1,12 +1,14 @@
+import { db } from '@/lib/db';
+
 /**
  * Cliente de WAHA (WhatsApp HTTP API) — SOLO servidor.
  *
  * No importar desde un componente de cliente. Se usa unicamente desde los
  * route handlers de /app/api/waha/* y desde acciones 'use server'.
  *
- * `WAHA_API_KEY` no puede salir al navegador nunca: todo lo que necesite la
- * tarjeta de "WhatsApp V2" pasa por las rutas de /app/api/waha/*, que llaman
- * aqui y devuelven solo lo justo.
+ * La API key no puede salir al navegador nunca: todo lo que necesite la tarjeta
+ * de "WhatsApp V2" pasa por las rutas de /app/api/waha/*, que llaman aqui y
+ * devuelven solo lo justo.
  */
 
 export interface WahaConfig {
@@ -33,19 +35,32 @@ export interface WahaSession {
 }
 
 /**
- * Devuelve la configuracion o `null` si falta. Se comprueba en cada llamada en
- * vez de tirar al importar: sin WAHA_URL la App tiene que seguir funcionando
- * igual que hoy, solo sin la tarjeta de WhatsApp V2.
+ * El servidor de WAHA sale de la BD (Panel > Conexion), NO del entorno. Es el
+ * mismo trato que Evolution, cuya url y key viven en la tabla `ApiKey` desde
+ * siempre: cambiar una credencial no puede costar un redespliegue.
+ *
+ * Devuelve `null` si no esta configurado. Sin configurar, la App tiene que
+ * seguir funcionando igual que hoy, solo sin la tarjeta de WhatsApp V2.
  */
-export function getWahaConfig(): WahaConfig | null {
-  const baseUrl = process.env.WAHA_URL?.replace(/\/$/, '');
-  const apiKey = process.env.WAHA_API_KEY;
-  if (!baseUrl || !apiKey) return null;
-  return { baseUrl, apiKey };
+export async function getWahaConfig(): Promise<WahaConfig | null> {
+  try {
+    const config = await db.siteConfig.findFirst({
+      select: { wahaUrl: true, wahaApiKey: true },
+    });
+    const baseUrl = config?.wahaUrl?.trim().replace(/\/+$/, '');
+    const apiKey = config?.wahaApiKey?.trim();
+    if (!baseUrl || !apiKey) return null;
+    return { baseUrl, apiKey };
+  } catch (error) {
+    // Un fallo de BD aqui no puede ser mudo: desde fuera se veria como una
+    // tarjeta que "no hace nada", que es mucho peor de diagnosticar.
+    console.error('[waha] no se pudo leer la configuracion del servidor', error);
+    return null;
+  }
 }
 
-export function isWahaConfigured(): boolean {
-  return getWahaConfig() !== null;
+export async function isWahaConfigured(): Promise<boolean> {
+  return (await getWahaConfig()) !== null;
 }
 
 async function wahaFetch(
@@ -75,8 +90,8 @@ export async function createWahaSession(params: {
   webhookUrl: string;
   secret: string;
 }): Promise<{ ok: boolean; message?: string }> {
-  const cfg = getWahaConfig();
-  if (!cfg) return { ok: false, message: 'WAHA no esta configurado en el servidor.' };
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp V2 no esta configurado (Panel > Conexion).' };
 
   try {
     const res = await wahaFetch(cfg, '/api/sessions', {
@@ -107,7 +122,7 @@ export async function createWahaSession(params: {
 }
 
 export async function getWahaSession(session: string): Promise<WahaSession | null> {
-  const cfg = getWahaConfig();
+  const cfg = await getWahaConfig();
   if (!cfg) return null;
   try {
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}`);
@@ -123,8 +138,8 @@ export async function wahaSessionAction(
   session: string,
   action: 'start' | 'stop' | 'logout' | 'restart',
 ): Promise<{ ok: boolean; message?: string }> {
-  const cfg = getWahaConfig();
-  if (!cfg) return { ok: false, message: 'WAHA no esta configurado en el servidor.' };
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp V2 no esta configurado (Panel > Conexion).' };
   try {
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}/${action}`, {
       method: 'POST',
@@ -140,8 +155,8 @@ export async function wahaSessionAction(
 }
 
 export async function deleteWahaSession(session: string): Promise<{ ok: boolean; message?: string }> {
-  const cfg = getWahaConfig();
-  if (!cfg) return { ok: false, message: 'WAHA no esta configurado en el servidor.' };
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp V2 no esta configurado (Panel > Conexion).' };
   try {
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}`, {
       method: 'DELETE',
@@ -159,7 +174,7 @@ export async function deleteWahaSession(session: string): Promise<{ ok: boolean;
 
 /** El QR como PNG, tal cual lo devuelve WAHA. `null` si aun no hay. */
 export async function getWahaQrPng(session: string): Promise<ArrayBuffer | null> {
-  const cfg = getWahaConfig();
+  const cfg = await getWahaConfig();
   if (!cfg) return null;
   try {
     const res = await wahaFetch(cfg, `/api/${encodeURIComponent(session)}/auth/qr?format=image`, {

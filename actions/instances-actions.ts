@@ -869,8 +869,11 @@ export async function createWahaInstance(params: {
     return { success: false, message: 'Nombre de instancia y usuario son requeridos.' };
   }
 
-  if (!isWahaConfigured()) {
-    return { success: false, message: 'WAHA no esta configurado en el servidor (WAHA_URL / WAHA_API_KEY).' };
+  if (!(await isWahaConfigured())) {
+    return {
+      success: false,
+      message: 'El servidor de WhatsApp V2 no esta configurado. Se pone en Panel > Conexion.',
+    };
   }
 
   const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');

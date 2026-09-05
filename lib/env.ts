@@ -17,11 +17,6 @@ const envSchema = z.object({
   BACKEND_URL: z.string().url("BACKEND_URL debe ser una URL válida").optional(),
   BAILEYS_SECRET: z.string().min(1).optional(),
 
-  // WAHA ("WhatsApp V2") — opcionales. Sin las dos, la tarjeta de WhatsApp V2
-  // no se ofrece y el resto de la App funciona igual que hoy.
-  WAHA_URL: z.string().url("WAHA_URL debe ser una URL válida").optional(),
-  WAHA_API_KEY: z.string().min(1).optional(),
-
   // Internal service keys — requeridos en producción
   CRM_FOLLOW_UP_RUNNER_KEY: z.string().min(1, "CRM_FOLLOW_UP_RUNNER_KEY es requerido"),
   CRON_SECRET: z.string().min(1).optional(),

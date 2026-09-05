@@ -6,7 +6,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { session: string } },
 ) {
-  if (!isWahaConfigured()) {
+  if (!(await isWahaConfigured())) {
     return NextResponse.json({ error: 'WAHA no configurado' }, { status: 503 });
   }
 

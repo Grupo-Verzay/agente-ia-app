@@ -3,6 +3,7 @@
 import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
 import { obtenerApiKeys } from "@/actions/api-action";
+import { obtenerServidorWaha } from "@/actions/admin/waha-server-actions";
 import { MainConnection } from "./_components";
 import AccessDenied from "@/app/AccessDenied";
 
@@ -17,7 +18,10 @@ const ConnectionPage = async ({ searchParams }: Props) => {
     return <AccessDenied />;
   };
 
-  const result = await obtenerApiKeys();
+  const [result, servidorWaha] = await Promise.all([
+    obtenerApiKeys(),
+    obtenerServidorWaha(),
+  ]);
 
   if (!result.data) {
     return <h1>Error al cargar las apikey</h1>;
@@ -25,7 +29,12 @@ const ConnectionPage = async ({ searchParams }: Props) => {
 
   return (
     <>
-      <MainConnection searchParams={searchParams} user={user} apiKeys={result.data} />
+      <MainConnection
+        searchParams={searchParams}
+        user={user}
+        apiKeys={result.data}
+        servidorWaha={servidorWaha}
+      />
     </>
   );
 };
