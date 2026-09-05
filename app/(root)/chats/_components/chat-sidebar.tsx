@@ -187,9 +187,11 @@ type ChatSidebarProps = {
   chatSessions: ChatContactSessionMap;
   onArchiveChat?: (remoteJid: string, archived: boolean) => void | Promise<void>;
   onDeleteChat?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
-  onLeadStatusChange?: (remoteJid: string, status: import("@/types/session").LeadStatus | null) => void;
-  onServiceTypeChange?: (remoteJid: string, value: import("@/types/session").ServiceType | null) => void;
-  onClientStatusChange?: (remoteJid: string, value: import("@/types/session").ClientStatus | null) => void;
+  // El `sessionId` va aparte del jid a proposito: la fila conoce la sesion de
+  // SU linea, y buscarla luego por el numero pelado fallaba en silencio.
+  onLeadStatusChange?: (remoteJid: string, status: import("@/types/session").LeadStatus | null, sessionId?: number) => void;
+  onServiceTypeChange?: (remoteJid: string, value: import("@/types/session").ServiceType | null, sessionId?: number) => void;
+  onClientStatusChange?: (remoteJid: string, value: import("@/types/session").ClientStatus | null, sessionId?: number) => void;
   clientValidationEnabled?: boolean;
   onRestoreChat?: (remoteJid: string) => void | Promise<void>;
   onPurgeDeleted?: () => void | Promise<void>;

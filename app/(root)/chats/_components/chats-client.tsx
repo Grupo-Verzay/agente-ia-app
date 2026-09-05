@@ -1346,37 +1346,89 @@ export function ChatsClient({
     [],
   );
 
-  const handleLeadStatusChange = useCallback(
-    (remoteJid: string, status: import("@/types/session").LeadStatus | null) => {
+  /**
+   * Pinta en memoria un cambio que el servidor YA guardo, en TODAS las llaves
+   * bajo las que vive esa sesion.
+   *
+   * Antes se buscaba `previous[remoteJid]` a secas. Y `chatSessions` guarda la
+   * sesion de un contacto bajo dos llaves —la global, el numero pelado, y la de
+   * su linea, `linea::numero`—, mientras que la fila de la lista se queda con
+   * la de SU linea (`getSessionForChat`) pero manda solo el numero. Cuando la
+   * global no existia —porque ese contacto solo tiene sesion en esa linea, o
+   * porque la global esta guardada bajo otra de sus identidades— la busqueda
+   * fallaba, se salia con un `return previous` **mudo**, y la insignia se
+   * quedaba como estaba.
+   *
+   * Desde fuera parecia que "no deja cambiarlo", cuando el cambio si se habia
+   * guardado: aparecia solo despues, cuando el reloj de sesiones (60s) traia la
+   * lista de nuevo.
+   *
+   * Por eso ahora se busca por el **id de la sesion**, que es el mismo en todas
+   * sus llaves y no depende de con que identidad se pregunte. Y si no encaja
+   * ninguna, se avisa: un fallo aqui no puede ser mudo.
+   */
+  const aplicarEnLaSesion = useCallback(
+    (
+      sessionId: number | undefined,
+      remoteJid: string,
+      cambio: Partial<ChatContactSessionSummary>,
+      queCambio: string,
+    ) => {
       setChatSessions((previous) => {
-        const current = previous[remoteJid];
-        if (!current) return previous;
-        return { ...previous, [remoteJid]: { ...current, leadStatus: status } };
+        const siguiente = { ...previous };
+        let tocadas = 0;
+
+        for (const [clave, sesion] of Object.entries(previous)) {
+          const encaja = sessionId != null ? sesion?.id === sessionId : clave === remoteJid;
+          if (!encaja || !sesion) continue;
+          siguiente[clave] = { ...sesion, ...cambio };
+          tocadas++;
+        }
+
+        if (tocadas === 0) {
+          console.warn(
+            `[chats] ${queCambio} se guardo pero no se encontro la sesion en pantalla`,
+            { remoteJid, sessionId: sessionId ?? "(sin id)" },
+          );
+          return previous;
+        }
+        return siguiente;
       });
     },
     [],
+  );
+
+  const handleLeadStatusChange = useCallback(
+    (
+      remoteJid: string,
+      status: import("@/types/session").LeadStatus | null,
+      sessionId?: number,
+    ) => {
+      aplicarEnLaSesion(sessionId, remoteJid, { leadStatus: status }, "el estado del lead");
+    },
+    [aplicarEnLaSesion],
   );
 
   const handleServiceTypeChange = useCallback(
-    (remoteJid: string, value: import("@/types/session").ServiceType | null) => {
-      setChatSessions((previous) => {
-        const current = previous[remoteJid];
-        if (!current) return previous;
-        return { ...previous, [remoteJid]: { ...current, serviceType: value } };
-      });
+    (
+      remoteJid: string,
+      value: import("@/types/session").ServiceType | null,
+      sessionId?: number,
+    ) => {
+      aplicarEnLaSesion(sessionId, remoteJid, { serviceType: value }, "el tipo de servicio");
     },
-    [],
+    [aplicarEnLaSesion],
   );
 
   const handleClientStatusChange = useCallback(
-    (remoteJid: string, value: import("@/types/session").ClientStatus | null) => {
-      setChatSessions((previous) => {
-        const current = previous[remoteJid];
-        if (!current) return previous;
-        return { ...previous, [remoteJid]: { ...current, clientStatus: value } };
-      });
+    (
+      remoteJid: string,
+      value: import("@/types/session").ClientStatus | null,
+      sessionId?: number,
+    ) => {
+      aplicarEnLaSesion(sessionId, remoteJid, { clientStatus: value }, "el estado del cliente");
     },
-    [],
+    [aplicarEnLaSesion],
   );
 
   /**
@@ -2108,36 +2160,87 @@ export function ChatsClient({
 
     setLoadingOlderMessages(true);
     try {
-      const result = await effectiveWarmMessages(selectedJid, {
+      const consulta = effectiveWarmMessages(selectedJid, {
         page: nextPage,
         pageSize: INITIAL_MESSAGE_PAGE_SIZE,
         remoteJidAliases,
       });
+
+      const aplicar = (respuesta: Awaited<typeof consulta>) => {
+        if (!respuesta.success) return;
+        const nextInfo = {
+          total: respuesta.total,
+          pages: respuesta.pages,
+          currentPage: respuesta.currentPage ?? nextPage,
+          nextPage: respuesta.nextPage,
+          instanceName: effectiveInstanceName,
+          remoteJid: selectedJid,
+          remoteJidAliases,
+          apiKeyData: effectiveApiKeyData,
+        };
+        setMessages((previous) => {
+          const merged = mergeMessages(previous, respuesta.data || []);
+          commitCache(
+            getMessageCacheKey(effectiveInstanceName, selectedJid),
+            { messages: merged, info: nextInfo },
+          );
+          return merged;
+        });
+        setInfo(nextInfo);
+      };
+
+      // "Cargar mensajes anteriores" no tenia plazo ninguno. Si la consulta no
+      // volvia -Evolution colgada, un 502 en mitad de un despliegue- el boton se
+      // quedaba en "Cargando..." **para siempre**, deshabilitado, y la
+      // conversacion sin su historial. Ni error, ni forma de reintentar.
+      //
+      // Como en el sondeo del chat abierto: agotar la espera solo libera el
+      // boton. La respuesta se sigue escuchando y, si el chat sigue abierto
+      // cuando llega, se pinta.
+      const result = await Promise.race([
+        consulta,
+        new Promise<null>((resolver) =>
+          setTimeout(() => resolver(null), ESPERA_MAXIMA_DEL_SONDEO),
+        ),
+      ]);
+
+      if (!result) {
+        console.warn("[chats] los mensajes anteriores van lentos; se sigue esperando", {
+          remoteJid: selectedJid,
+          pagina: nextPage,
+        });
+        toast.message("Los mensajes anteriores están tardando. Se pondrán solos cuando lleguen.");
+        void consulta
+          .then((tardia) => {
+            const abierto = currentContactRef.current?.remoteJid;
+            if (abierto && abierto !== selectedJid) return;
+            if (!tardia?.success) return;
+            console.info("[chats] los mensajes anteriores llegaron tarde y se pintan", {
+              remoteJid: selectedJid,
+            });
+            aplicar(tardia);
+          })
+          .catch((error) => {
+            console.warn("[chats] los mensajes anteriores no volvieron:", error, {
+              remoteJid: selectedJid,
+            });
+          });
+        return;
+      }
 
       if (!result.success) {
         toast.error(result.message || "No se pudieron cargar mensajes anteriores.");
         return;
       }
 
-      const nextInfo = {
-        total: result.total,
-        pages: result.pages,
-        currentPage: result.currentPage ?? nextPage,
-        nextPage: result.nextPage,
-        instanceName: effectiveInstanceName,
+      aplicar(result);
+    } catch (error) {
+      // Sin esto, un fallo de red dejaba el aviso mudo: el boton volvia a su
+      // sitio y nadie sabia por que no habia llegado nada.
+      console.warn("[chats] fallo al cargar mensajes anteriores:", error, {
         remoteJid: selectedJid,
-        remoteJidAliases,
-        apiKeyData: effectiveApiKeyData,
-      };
-      setMessages((previous) => {
-        const merged = mergeMessages(previous, result.data || []);
-        commitCache(
-          getMessageCacheKey(effectiveInstanceName, selectedJid),
-          { messages: merged, info: nextInfo },
-        );
-        return merged;
       });
-      setInfo(nextInfo);
+      toast.error("No se pudieron cargar mensajes anteriores.");
     } finally {
       setLoadingOlderMessages(false);
     }
