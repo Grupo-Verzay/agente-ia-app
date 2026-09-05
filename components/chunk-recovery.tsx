@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { cleanCacheBustParam, hardReload } from "@/lib/hard-reload";
+import { cleanCacheBustParam, hardReload, reportarRecargaPrevia } from "@/lib/hard-reload";
 
 // Solo auto-recargamos una vez cada MIN_GAP_MS para NO caer en un bucle de recargas
 // si el error fuese por un bug real (no un desfase de versión). Si vuelve a fallar
@@ -23,7 +23,7 @@ function isRecoverable(msg: string, name: string): boolean {
   return false;
 }
 
-function recover() {
+function recover(motivo: string) {
   try {
     const last = Number(sessionStorage.getItem(RECOVERY_KEY) || "0");
     if (Date.now() - last < MIN_GAP_MS) return; // ya recargamos hace poco → no repetir
@@ -42,7 +42,7 @@ function recover() {
         await Promise.all(regs.map((r) => r.unregister()));
       }
     } finally {
-      hardReload();
+      hardReload(motivo);
     }
   })();
 }
@@ -52,13 +52,21 @@ export function ChunkRecovery() {
     // Si venimos de una recuperación, la carga fue bien: se limpia el parámetro
     // para que no quede a la vista ni se propague al compartir el enlace.
     cleanCacheBustParam();
+    // Y se cuenta por que se recargo la vez anterior, si fue cosa nuestra. Sin
+    // esto, una recarga se lleva la consola por delante y no queda ni rastro:
+    // "la App se refresca sola" no se podia comprobar de ninguna forma.
+    reportarRecargaPrevia();
 
     const onRejection = (e: PromiseRejectionEvent) => {
-      if (isRecoverable(String(e?.reason?.message || ""), String(e?.reason?.name || ""))) recover();
+      const mensaje = String(e?.reason?.message || "");
+      const nombre = String(e?.reason?.name || "");
+      if (isRecoverable(mensaje, nombre)) recover(`promesa rechazada: ${nombre || mensaje}`);
     };
     const onError = (e: ErrorEvent) => {
-      if (isRecoverable(String(e?.message || e?.error?.message || ""), String(e?.error?.name || ""))) {
-        recover();
+      const mensaje = String(e?.message || e?.error?.message || "");
+      const nombre = String(e?.error?.name || "");
+      if (isRecoverable(mensaje, nombre)) {
+        recover(`error de la pagina: ${nombre || mensaje}`);
       }
     };
     window.addEventListener("unhandledrejection", onRejection);

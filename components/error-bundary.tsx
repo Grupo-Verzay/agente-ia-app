@@ -59,7 +59,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             // Silencio: es best-effort
         } finally {
             // Fuerza recarga pidiendo el documento al servidor (ver hardReload).
-            hardReload();
+            hardReload('error no capturado (error boundary)');
         }
     }
 
@@ -67,7 +67,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
         // Recarga pidiendo el HTML de nuevo al servidor: si el error vino de un
         // desfase de versión, un reload normal puede devolver el documento viejo
         // desde caché y volver a fallar igual.
-        hardReload();
+        hardReload('error no capturado (error boundary)');
     };
 
     private handleHome = () => {

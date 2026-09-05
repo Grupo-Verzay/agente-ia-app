@@ -304,6 +304,33 @@ escuchando y, si el chat sigue abierto cuando llega, se pinta. Y el `catch` no
 puede faltar: sin él un fallo de red dejaba el botón bien pero sin explicar por
 qué no llegó nada.
 
+## Una recarga tiene que decir por qué
+
+"La App se refresca sola cada cierto rato" es de lo más difícil de diagnosticar:
+cuando pasa, **la recarga se lleva la consola por delante** y no queda ni rastro.
+No hay captura que pedir.
+
+Por eso `hardReload(motivo)` **anota el motivo antes de recargar** —en
+`sessionStorage`, con la ruta y cuánto llevaba abierta la pestaña— y
+`reportarRecargaPrevia()` lo cuenta al arrancar, desde `ChunkRecovery`:
+
+```
+[app] esta pagina se recargo sola. Motivo: promesa rechazada: ChunkLoadError
+  { donde: "/notas", hace: "2s", laPestanaLlevabaAbierta: "412s" }
+```
+
+Dos cosas:
+
+1. **Ningún `hardReload()` sin motivo.** Hay tres sitios que recargan
+   —`ChunkRecovery`, el error boundary y la pantalla de error—; los tres pasan
+   el suyo.
+2. **Su ausencia también informa**: si la página se recarga y esto no sale, la
+   recarga **no viene de nuestro código** (el contenedor, el navegador, la red).
+   Eso descarta media investigación de un vistazo.
+
+Sale como `console.warn` a propósito: `log` y `debug` los borra el build (ver la
+regla de `removeConsole`).
+
 ## Diagramas: si no se puede guardar, no se puede tocar
 
 Un diagrama compartido con otra cuenta era **siempre de solo lectura** —no
