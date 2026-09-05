@@ -1,4 +1,5 @@
 export * from './MainConnection';
+export * from './WahaServerCard';
 export * from './data-table';
 export * from './columns';
 /* Dialogs */

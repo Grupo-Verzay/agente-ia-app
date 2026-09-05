@@ -6,6 +6,12 @@ import { Instancia } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
+import {
+  createWahaSession,
+  deleteWahaSession,
+  isWahaConfigured,
+  wahaSessionAction,
+} from "@/lib/waha";
 
 const getInstancesSchema = z.object({
   userId: z.string().min(1, "El userId es obligatorio"),
@@ -844,4 +850,128 @@ export async function getMetaCallingStatus(instanceName: string): Promise<{ succ
     console.error('[getMetaCallingStatus]', error);
     return { success: false, message: error?.message || 'No se pudo consultar el estado de llamadas.' };
   }
+}
+
+/* ─── WAHA — "WhatsApp V2" ──────────────────────────────────
+ *
+ * Instancias con `instanceType: 'waha'`. Las de Evolution se guardan como
+ * 'Whatsapp', asi que nada de aqui las toca: en el backend la fabrica de
+ * adaptadores decide por `instanceType` y 'Whatsapp' cae en el `return` final,
+ * el de siempre.
+ */
+
+export async function createWahaInstance(params: {
+  instanceName: string;
+  userId: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { instanceName, userId } = params;
+  if (!instanceName || !userId) {
+    return { success: false, message: 'Nombre de instancia y usuario son requeridos.' };
+  }
+
+  if (!(await isWahaConfigured())) {
+    return {
+      success: false,
+      message: 'El servidor de WhatsApp V2 no esta configurado. Se pone en Panel > Conexion.',
+    };
+  }
+
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  if (!backendUrl) {
+    return { success: false, message: 'BACKEND_URL no configurado en el servidor.' };
+  }
+
+  if (await checkInstanceNameExists(instanceName)) {
+    return { success: false, message: `Ya existe una instancia llamada ${instanceName}.` };
+  }
+
+  // El backend compara esta cabecera contra `metaVerifyToken` antes de aceptar
+  // el webhook, asi que el valor tiene que ser el mismo en los dos sitios.
+  const webhookSecret = randomUUID().replace(/-/g, '');
+
+  const created = await createWahaSession({
+    session: instanceName,
+    webhookUrl: `${backendUrl}/webhook/waha`,
+    secret: webhookSecret,
+  });
+
+  if (!created.ok) {
+    return { success: false, message: created.message ?? 'No se pudo crear la sesion en WAHA.' };
+  }
+
+  try {
+    await db.instancia.create({
+      data: {
+        instanceName,
+        displayName: cleanInstanceDisplayName(instanceName),
+        instanceType: 'waha',
+        userId,
+        instanceId: `waha-${instanceName}`,
+        metaVerifyToken: webhookSecret,
+        metaChannel: 'waha',
+      } as any,
+    });
+  } catch (error: any) {
+    console.error('[createWahaInstance]', error);
+    // La sesion quedo creada en WAHA pero sin fila: se deshace para no dejar
+    // una sesion huerfana mandando webhooks que nadie va a poder emparejar.
+    await deleteWahaSession(instanceName);
+    return { success: false, message: error?.message ?? 'Error al crear la instancia de WhatsApp V2.' };
+  }
+
+  revalidatePath('/connection');
+  return { success: true, message: 'Instancia creada. Escanea el QR para conectar.' };
+}
+
+export async function startWahaInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+  const res = await wahaSessionAction(instanceName, 'start');
+  return res.ok
+    ? { success: true, message: 'Sesion iniciada.' }
+    : { success: false, message: res.message ?? 'No se pudo iniciar la sesion.' };
+}
+
+export async function stopWahaInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+  const res = await wahaSessionAction(instanceName, 'stop');
+  return res.ok
+    ? { success: true, message: 'Sesion detenida.' }
+    : { success: false, message: res.message ?? 'No se pudo detener la sesion.' };
+}
+
+export async function logoutWahaInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+  const res = await wahaSessionAction(instanceName, 'logout');
+  return res.ok
+    ? { success: true, message: 'Sesion cerrada. Vuelve a escanear el QR para conectar.' }
+    : { success: false, message: res.message ?? 'No se pudo cerrar la sesion.' };
+}
+
+export async function deleteWahaInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+
+  // Primero WAHA: si se borra la fila y luego falla el borrado alla, queda una
+  // sesion mandando webhooks que ya no tienen instancia contra la que casar.
+  const res = await deleteWahaSession(instanceName);
+  if (!res.ok) {
+    return { success: false, message: res.message ?? 'No se pudo eliminar la sesion en WAHA.' };
+  }
+
+  try {
+    await db.instancia.deleteMany({ where: { instanceName, instanceType: 'waha' } });
+  } catch (error: any) {
+    console.error('[deleteWahaInstance]', error);
+    return { success: false, message: 'La sesion se elimino en WAHA, pero no se pudo borrar la instancia.' };
+  }
+
+  revalidatePath('/connection');
+  return { success: true, message: 'Instancia eliminada.' };
 }

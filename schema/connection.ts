@@ -30,6 +30,22 @@ export const sanitizeInstanceName = (val: string): string =>
         .slice(0, 30)                  // tope de 30 caracteres
         .replace(/[-_]+$/g, '')        // limpia separador si el corte lo dejó al final
 
+/**
+ * Nombre de la sesion de WAHA ("WhatsApp V2") de una cuenta. Es tambien el
+ * `instanceName` de la fila, porque el backend empareja el webhook de WAHA por
+ * nombre de sesion: si los dos no coinciden, el mensaje llega y no hay
+ * instancia contra la que casarlo.
+ *
+ * El sufijo se pega DESPUES de sanitizar para que el recorte a 30 caracteres no
+ * se lo lleve por delante.
+ */
+export const buildWahaInstanceName = (companyOrUser: string): string => {
+    const base = sanitizeInstanceName(companyOrUser || 'instancia')
+        .slice(0, 27)
+        .replace(/[-_]+$/g, '')
+    return `${base || 'INSTANCIA'}_V2`
+}
+
 export const FormInstanceConnectionSchema = z.object({
     instanceName: z
         .string()

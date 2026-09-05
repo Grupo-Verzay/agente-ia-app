@@ -1834,6 +1834,14 @@ model SiteConfig {
   // cobro real entra en pesos por Wompi. NULL = no convertir. La columna la crea
   // api-webhook (dueño de las migraciones); aquí solo se declara.
   usdToCopRate            Decimal? @map("usd_to_cop_rate") @db.Decimal(12, 2)
+  // Servidor de WAHA ("WhatsApp V2"), uno para toda la plataforma. Se edita en
+  // Panel > Conexion, igual que los servidores de Evolution: NO va en el stack,
+  // porque cambiar una credencial no puede costar un redespliegue (~100 s de
+  // 502, ver el pendiente 1). Las columnas las crea api-webhook, dueño de las
+  // migraciones; aqui solo se declaran. Las dos en NULL = la tarjeta de
+  // WhatsApp V2 no se ofrece.
+  wahaUrl                 String?  @map("waha_url")
+  wahaApiKey              String?  @map("waha_api_key")
   updatedAt               DateTime @updatedAt
 
   @@map("site_config")
