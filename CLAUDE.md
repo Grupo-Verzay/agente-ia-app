@@ -265,6 +265,45 @@ que no había pasado nada. **La fila se quita y la conversación se cierra antes
 de preguntarle al servidor**, y si el servidor dice que no, se devuelve todo tal
 cual estaba. Si se añade otra acción del asesor, va igual.
 
+## Chats: la sesión se busca por su id, no por el número
+
+Cambiar el estado de un lead desde la lista —Frío, Tibio, Finalizado— **se
+guardaba en la base y no se veía en pantalla**. Parecía que la App no dejaba
+cambiarlo; en realidad reaparecía solo, hasta un minuto después, cuando el reloj
+de sesiones traía la lista otra vez.
+
+La causa: `chatSessions` guarda la sesión de un contacto bajo **dos** llaves —la
+global (el número pelado) y la de su línea (`linea::numero`)—. La fila se queda
+con la de **su línea** (`getSessionForChat`), pero al avisar del cambio mandaba
+solo el número. Cuando la global no existía —ese contacto solo tiene sesión en
+esa línea, o la global está guardada bajo otra de sus identidades— la búsqueda
+fallaba y se salía con un `return previous` **mudo**.
+
+Es el mismo fallo que ya se había arreglado en `handleAssignAdvisor`, que sí
+calcula su `claveEnMemoria`; a los tres hermanos —estado del lead, tipo de
+servicio y estado del cliente— se les había pasado.
+
+Dos reglas:
+
+1. **Lo que actualiza una sesión en memoria la busca por su `id`**, que es el
+   mismo en todas sus llaves y no depende de con qué identidad se pregunte.
+   `aplicarEnLaSesion` recorre el mapa y toca todas las entradas de esa sesión.
+2. Si no encaja ninguna, **se avisa**. Un `return previous` callado aquí se ve
+   como un botón que no hace nada.
+
+## Chats: "Cargar mensajes anteriores" también necesita plazo
+
+El botón no tenía ninguno. Si la consulta no volvía —Evolution colgada, un `502`
+en mitad de un despliegue— se quedaba en **«Cargando…» para siempre**,
+deshabilitado, y la conversación sin su historial. Ni error, ni forma de
+reintentar.
+
+Va como el sondeo del chat abierto (ver *agotar la espera no es tirar la
+respuesta*): agotar el plazo **solo libera el botón**; la respuesta se sigue
+escuchando y, si el chat sigue abierto cuando llega, se pinta. Y el `catch` no
+puede faltar: sin él un fallo de red dejaba el botón bien pero sin explicar por
+qué no llegó nada.
+
 ## Diagramas: si no se puede guardar, no se puede tocar
 
 Un diagrama compartido con otra cuenta era **siempre de solo lectura** —no

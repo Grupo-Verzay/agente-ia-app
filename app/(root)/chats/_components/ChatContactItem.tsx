@@ -99,9 +99,9 @@ type ChatContactItemProps = {
   /** Precarga el historial al pasar el mouse/tocar, para que el click sea instantáneo. */
   onPrefetch?: (id: string, instanceName?: string) => void;
   onTogglePin: (id: string, isPinned: boolean) => void;
-  onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
-  onServiceTypeChange?: (remoteJid: string, value: ServiceType | null) => void;
-  onClientStatusChange?: (remoteJid: string, value: ClientStatus | null) => void;
+  onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null, sessionId?: number) => void;
+  onServiceTypeChange?: (remoteJid: string, value: ServiceType | null, sessionId?: number) => void;
+  onClientStatusChange?: (remoteJid: string, value: ClientStatus | null, sessionId?: number) => void;
   clientValidationEnabled?: boolean;
   selected: boolean;
   advisors?: AdvisorInfo[];
@@ -182,7 +182,7 @@ function ChatContactItemBase({
         key="status"
         sessionId={contact.chatSession.id}
         currentStatus={contact.chatSession.leadStatus ?? null}
-        onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
+        onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus, contact.chatSession?.id)}
       />
     );
     // 2. Asesor asignado (Sin asignar / iniciales)
@@ -233,7 +233,7 @@ function ChatContactItemBase({
           key="clientStatus"
           sessionId={contact.chatSession.id}
           currentValue={contact.chatSession.clientStatus ?? null}
-          onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue)}
+          onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue, contact.chatSession?.id)}
         />
       );
       // 5. Tipo de asistencia (IA / Humana)
@@ -242,7 +242,7 @@ function ChatContactItemBase({
           key="serviceType"
           sessionId={contact.chatSession.id}
           currentValue={contact.chatSession.serviceType ?? null}
-          onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue)}
+          onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue, contact.chatSession?.id)}
         />
       );
     }
