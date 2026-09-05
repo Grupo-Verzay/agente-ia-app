@@ -103,7 +103,7 @@ export default function ErrorScreen({
             setReloadIn((s) => (s === null ? null : Math.max(0, s - 1)));
         }, 1000);
         const timer = setTimeout(() => {
-            hardReload();
+            hardReload('pantalla de error: recarga automatica');
         }, AUTO_RELOAD_MS);
 
         return () => {
