@@ -2597,11 +2597,31 @@ export function ChatsClient({
 
   const handleBulkDelete = useCallback(
     async (remoteJids: string[]) => {
-      const groups = groupJidsByOwner(remoteJids);
+      // Se agrupa por cuenta Y POR LINEA.
+      //
+      // Antes solo por cuenta, y la llamada salia sin `instanceName`. Con la
+      // linea vacia el borrado local no acota a ninguna -no borra sesiones ni
+      // mensajes de ninguna linea- y la marca queda como "de todas". El borrado
+      // de uno en uno ya pasaba su linea desde la fila; a este se le habia
+      // pasado.
+      const porCuentaYLinea = new Map<string, { owner: string; linea?: string; jids: string[] }>();
+      for (const jid of remoteJids) {
+        const owner = ownerForJid(jid);
+        const linea = lineaDelJid(jid);
+        const clave = `${owner}::${linea ?? ""}`;
+        const grupo = porCuentaYLinea.get(clave);
+        if (grupo) grupo.jids.push(jid);
+        else porCuentaYLinea.set(clave, { owner, linea, jids: [jid] });
+      }
+
       const results = await Promise.all(
-        groups.map(async ([ownerUserId, jids]) => ({
-          ownerUserId,
-          result: await bulkDeleteChatsAction({ userId: ownerUserId, remoteJids: jids }),
+        Array.from(porCuentaYLinea.values()).map(async ({ owner, linea, jids }) => ({
+          ownerUserId: owner,
+          result: await bulkDeleteChatsAction({
+            userId: owner,
+            instanceName: linea,
+            remoteJids: jids,
+          }),
         })),
       );
       const ok = results.filter(({ result }) => result.success && result.data);
@@ -2639,7 +2659,7 @@ export function ChatsClient({
       }
       toast.success(ok[0].result.message);
     },
-    [groupJidsByOwner, selectedJid],
+    [ownerForJid, lineaDelJid, selectedJid],
   );
 
   const handleBulkPin = useCallback(
