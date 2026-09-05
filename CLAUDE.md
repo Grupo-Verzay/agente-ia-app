@@ -304,6 +304,28 @@ escuchando y, si el chat sigue abierto cuando llega, se pinta. Y el `catch` no
 puede faltar: sin él un fallo de red dejaba el botón bien pero sin explicar por
 qué no llegó nada.
 
+## Chats: la marca de borrado va bajo TODAS las identidades
+
+Un chat borrado —de uno en uno o en selección múltiple— desaparecía y al rato
+**volvía a aparecer**. La marca estaba guardada, se veía en la base; lo que
+fallaba es que la pantalla no la encontraba.
+
+`hardDeleteLocalChat` hacía dos cosas seguidas que se contradecían: **borraba**
+las marcas de las demás identidades del contacto y luego escribía la nueva bajo
+**una sola**. Y la lista trae al contacto por la identidad que Evolution devuelva
+esa vuelta, que no tiene por qué ser la misma con la que se borró: uno abierto
+por su `@lid` y devuelto después por su número se saltaba la marca entera.
+
+Es la misma regla que ya rige en el resto de Chats —buscar la fila, pedir los
+mensajes, pausar la IA—, aplicada también al **escribir**: la marca se pone bajo
+`remoteJid`, `remoteJidAlt`, `senderPn` y el `@lid`, todas. La que se pidió va
+primero, porque es la que se le devuelve a la pantalla.
+
+Y el borrado múltiple salía **sin `instanceName`**: solo agrupaba por cuenta. Con
+la línea vacía no acota a ninguna —no borra sesiones ni mensajes de ninguna— y la
+marca queda como "de todas". El de uno en uno ya pasaba su línea desde la fila
+(#486); a este se le había pasado. Ahora agrupa por **cuenta y línea**.
+
 ## Una recarga tiene que decir por qué
 
 "La App se refresca sola cada cierto rato" es de lo más difícil de diagnosticar:

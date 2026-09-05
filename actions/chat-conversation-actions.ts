@@ -421,13 +421,13 @@ async function hardDeleteLocalChat(
   let deletedPreferenceRow: ChatConversationPreference | null = null;
 
   await db.$transaction(async (tx) => {
-    await tx.chatConversationPreference.deleteMany({
-      where: {
-        userId,
-        ...soloDeEstaLinea,
-        remoteJid: { in: candidates.filter((candidate) => candidate !== normalizedRemoteJid) },
-      },
-    });
+    // Antes aqui se BORRABAN las marcas de las demas identidades del contacto,
+    // y mas abajo se escribia la nueva bajo UNA sola. Eso es lo que hacia que un
+    // chat borrado volviera a aparecer: la lista puede traer a ese mismo
+    // contacto bajo otra de sus formas -su numero, su `@lid`, su `senderPn`- y
+    // entonces no encuentra la marca. Ahora se marcan TODAS (mas abajo), que es
+    // la misma regla de siempre en este proyecto: cuando una forma se queda
+    // corta, se usan todas.
 
     const sessions = await tx.session.findMany({
       where: {
@@ -488,36 +488,55 @@ async function hardDeleteLocalChat(
 
     await purgarRastroDelContacto(tx, userId, candidates);
 
-    const preference = await tx.chatConversationPreference.upsert({
-      where: {
-        userId_instanceName_remoteJid: {
-          userId,
-          instanceName: linea,
-          remoteJid: normalizedRemoteJid,
+    // La marca va bajo TODAS las identidades del contacto, no solo bajo la que
+    // se pidio borrar.
+    //
+    // El chat se borraba, desaparecia, y al rato volvia. La marca estaba
+    // guardada -se veia en la base- pero la pantalla no la encontraba: la lista
+    // trae al contacto por la identidad que Evolution devuelva esa vuelta, y no
+    // tiene por que ser la misma con la que se borro. Un contacto abierto por su
+    // `@lid` y devuelto luego por su numero se saltaba la marca entera.
+    //
+    // Se marca la pedida primero, para que sea la que se devuelve a la pantalla.
+    const identidades = [
+      normalizedRemoteJid,
+      ...candidates.filter((candidate) => candidate !== normalizedRemoteJid),
+    ];
+
+    for (const identidad of identidades) {
+      const preference = await tx.chatConversationPreference.upsert({
+        where: {
+          userId_instanceName_remoteJid: {
+            userId,
+            instanceName: linea,
+            remoteJid: identidad,
+          },
         },
-      },
-      update: {
-        pinnedAt: null,
-        archivedAt: null,
-        deletedAt,
-        purgedAt: deletedAt,
-      },
-      create: {
-        userId,
-        // La MISMA linea que en el `where` de arriba. Faltaba, y por eso
-        // borrar reventaba: el `where` buscaba (cuenta, linea, numero) y no
-        // encontraba nada, pero el `create` insertaba con la linea por defecto
-        // -cadena vacia-, que es justo donde vive la marca antigua de ese
-        // contacto. Chocaban.
-        instanceName: linea,
-        remoteJid: normalizedRemoteJid,
-        pinnedAt: null,
-        archivedAt: null,
-        deletedAt,
-        purgedAt: deletedAt,
-      },
-    });
-    deletedPreferenceRow = mapPreference(preference);
+        update: {
+          pinnedAt: null,
+          archivedAt: null,
+          deletedAt,
+          purgedAt: deletedAt,
+        },
+        create: {
+          userId,
+          // La MISMA linea que en el `where` de arriba. Faltaba, y por eso
+          // borrar reventaba: el `where` buscaba (cuenta, linea, numero) y no
+          // encontraba nada, pero el `create` insertaba con la linea por defecto
+          // -cadena vacia-, que es justo donde vive la marca antigua de ese
+          // contacto. Chocaban.
+          instanceName: linea,
+          remoteJid: identidad,
+          pinnedAt: null,
+          archivedAt: null,
+          deletedAt,
+          purgedAt: deletedAt,
+        },
+      });
+      if (identidad === normalizedRemoteJid) {
+        deletedPreferenceRow = mapPreference(preference);
+      }
+    }
   });
 
   // Con QUE llave quedo guardada la marca.
@@ -531,6 +550,7 @@ async function hardDeleteLocalChat(
     linea: linea || "(vacia = vale para todas)",
     remoteJid: normalizedRemoteJid,
     pedidoComo: remoteJid,
+    identidadesMarcadas: candidates.length,
   });
 
   invalidatePersistedInboxCache();
