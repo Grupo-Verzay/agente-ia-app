@@ -209,24 +209,42 @@ export async function getUserAiDefaults(userId: string): Promise<ActionResult<Us
 /** Vista consolidada para UI (providers + configs + defaults) */
 export async function getUserAiSettings(userId: string): Promise<ActionResult<UserAiSettingsDTO>> {
   noStore();
-  await ensureUser(userId);
-  const [providersRes, configsRes, defaultsRes] = await Promise.all([
-    listAiProvidersWithModels(),
-    getUserAiConfigs(userId),
-    getUserAiDefaults(userId),
-  ]);
-  if (!providersRes.success) return { success: false, message: providersRes.message };
-  if (!configsRes.success) return { success: false, message: configsRes.message };
-  if (!defaultsRes.success) return { success: false, message: defaultsRes.message };
-  return {
-    success: true,
-    message: 'ok',
-    data: {
-      providers: providersRes.data!,
-      configs: configsRes.data!,
-      defaults: defaultsRes.data!,
-    },
-  };
+  // Todo dentro del try. Esto LANZABA -`ensureUser` tira `user_not_found`, y
+  // cualquier caida de la base tambien-, y quien lo llama solo mira
+  // `res.success`: la excepcion se le escapaba, la pantalla se quedaba con los
+  // selectores vacios y el boton clavado en "Guardando...", sin un solo aviso.
+  // Un fallo aqui no puede ser mudo.
+  try {
+    if (!userId) return { success: false, message: 'Falta el usuario.' };
+    await ensureUser(userId);
+
+    const [providersRes, configsRes, defaultsRes] = await Promise.all([
+      listAiProvidersWithModels(),
+      getUserAiConfigs(userId),
+      getUserAiDefaults(userId),
+    ]);
+    if (!providersRes.success) return { success: false, message: providersRes.message };
+    if (!configsRes.success) return { success: false, message: configsRes.message };
+    if (!defaultsRes.success) return { success: false, message: defaultsRes.message };
+
+    if (!providersRes.data?.length) {
+      return { success: false, message: 'No hay proveedores de IA configurados en la plataforma.' };
+    }
+
+    return {
+      success: true,
+      message: 'ok',
+      data: {
+        providers: providersRes.data!,
+        configs: configsRes.data!,
+        defaults: defaultsRes.data!,
+      },
+    };
+  } catch (e: any) {
+    const motivo = e?.message === 'user_not_found' ? 'La cuenta no existe.' : e?.message;
+    console.error('[getUserAiSettings]', userId, e);
+    return { success: false, message: motivo || 'No se pudo cargar la configuración de IA.' };
+  }
 }
 
 /**

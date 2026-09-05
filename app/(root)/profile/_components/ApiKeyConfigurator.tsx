@@ -110,6 +110,13 @@ export function ApiKeyConfigurator({
     const [providerOpen, setProviderOpen] = useState(false);
     const [modelOpen, setModelOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    // Cargar los proveedores y guardar la key son dos cosas distintas y hasta
+    // ahora compartian `loading`. Se veia como que el boton decia "Guardando..."
+    // nada mas abrir el dialogo, sin haber pulsado nada, y con los dos
+    // selectores vacios. Ahora la carga tiene su propio estado y su propio
+    // texto.
+    const [cargando, setCargando] = useState(false);
+    const [fallo, setFallo] = useState<string | null>(null);
     const [settings, setSettings] = useState<SettingsData | null>(null);
 
     // Estado de preview (fuera del diálogo)
@@ -128,14 +135,34 @@ export function ApiKeyConfigurator({
     });
 
     // Carga inicial
+    const [reintento, setReintento] = useState(0);
     useEffect(() => {
+        let cancelado = false;
         (async () => {
-            setLoading(true);
-            const res = await getUserAiSettings(userId);
-            setLoading(false);
+            setCargando(true);
+            setFallo(null);
+
+            let res: Awaited<ReturnType<typeof getUserAiSettings>>;
+            try {
+                res = await getUserAiSettings(userId);
+            } catch (e: any) {
+                // Sin este `catch` la excepcion se perdia: el `setCargando(false)`
+                // no llegaba a correr nunca y el dialogo se quedaba clavado,
+                // con los selectores vacios y sin decir por que.
+                if (cancelado) return;
+                console.error("[ApiKeyConfigurator] no se pudieron cargar los proveedores", e);
+                setCargando(false);
+                setFallo(e?.message || "No se pudo cargar la configuración de IA.");
+                return;
+            }
+            if (cancelado) return;
+            setCargando(false);
 
             if (!res?.success || !res.data) {
-                toast.error(res?.message || "No se pudieron cargar los proveedores");
+                const motivo = res?.message || "No se pudieron cargar los proveedores";
+                console.warn("[ApiKeyConfigurator] configuración de IA no disponible:", motivo);
+                setFallo(motivo);
+                toast.error(motivo);
                 return;
             }
 
@@ -163,8 +190,11 @@ export function ApiKeyConfigurator({
                     setPreviewProviderId(defProvId);
             setPreviewApiKey(existingCfg?.apiKey || "");
         })();
+        return () => {
+            cancelado = true;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId]);
+    }, [userId, reintento]);
 
     const providers = settings?.providers || [];
     const currentProviderId = form.watch("providerId");
@@ -368,6 +398,30 @@ export function ApiKeyConfigurator({
                         </DialogDescription>
                     </DialogHeader>
 
+                    {/* Si la carga falla, se dice y se puede reintentar. Antes
+                        no se decia nada: los selectores salian vacios y no
+                        habia forma de saber si era lento o estaba roto. */}
+                    {fallo && (
+                        <div className="flex items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                            <div>
+                                <p className="font-medium text-destructive">
+                                    No se pudo cargar la configuración de IA
+                                </p>
+                                <p className="text-xs text-muted-foreground">{fallo}</p>
+                            </div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0"
+                                onClick={() => setReintento((n) => n + 1)}
+                                disabled={cargando}
+                            >
+                                {cargando ? "Cargando..." : "Reintentar"}
+                            </Button>
+                        </div>
+                    )}
+
                     <form onSubmit={form.handleSubmit(submit)} className="grid gap-4 py-2">
                         {/* Provider */}
                         <div className="grid gap-2">
@@ -380,7 +434,7 @@ export function ApiKeyConfigurator({
                                         role="combobox"
                                         aria-expanded={providerOpen}
                                         className="justify-between"
-                                        disabled={loading}
+                                        disabled={loading || cargando}
                                     >
                                         {providerLabel}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 opacity-60" />
@@ -442,7 +496,7 @@ export function ApiKeyConfigurator({
                                         variant="outline"
                                         role="combobox"
                                         aria-expanded={modelOpen}
-                                        disabled={!form.getValues("providerId") || loading}
+                                        disabled={!form.getValues("providerId") || loading || cargando}
                                         className={cn(
                                             "justify-between",
                                             !form.getValues("providerId") && "opacity-60"
@@ -506,7 +560,7 @@ export function ApiKeyConfigurator({
                                 }
                                 {...form.register("apiKey")}
                                 className="bg-background border-border"
-                                disabled={loading}
+                                disabled={loading || cargando}
                             />
                             {form.formState.errors.apiKey && (
                                 <p className="text-xs text-destructive">
@@ -535,7 +589,7 @@ export function ApiKeyConfigurator({
                                         <button
                                             key={opt.value}
                                             type="button"
-                                            disabled={loading}
+                                            disabled={loading || cargando}
                                             onClick={() => form.setValue("temperature", opt.value, { shouldDirty: true })}
                                             className={cn(
                                                 "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
@@ -556,12 +610,12 @@ export function ApiKeyConfigurator({
                                 type="button"
                                 variant="outline"
                                 onClick={() => setOpen(false)}
-                                disabled={loading}
+                                disabled={loading || cargando}
                             >
                                 Cancelar
                             </Button>
-                            <Button variant="save" type="submit" disabled={loading}>
-                                {loading ? "Guardando..." : "Guardar"}
+                            <Button variant="save" type="submit" disabled={loading || cargando || !providers.length}>
+                                {cargando ? "Cargando..." : loading ? "Guardando..." : "Guardar"}
                             </Button>
                         </DialogFooter>
                     </form>
