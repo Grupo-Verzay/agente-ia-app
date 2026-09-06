@@ -137,7 +137,7 @@ const Connection = async () => {
                 prompts={instancesData["Whatsapp"].prompts}
             />
             {/* Las DOS tarjetas de mensajeria de WhatsApp van juntas, una al lado
-                de la otra: Evolution a la izquierda y WhatsApp V2 a la derecha.
+                de la otra: Evolution a la izquierda y WhatsApp Mensajeria a la derecha.
                 Separadas por media pantalla se leian como un duplicado raro; una
                 al lado de la otra se leen como lo que son, dos conexiones del
                 mismo canal. La adyacencia hace el trabajo que el nombre no hace.

@@ -6,7 +6,7 @@ import { isAdminLike } from '@/lib/rbac';
 import { revalidatePath } from 'next/cache';
 
 /**
- * Servidor de WAHA ("WhatsApp V2"), uno para toda la plataforma.
+ * Servidor de WAHA ("WhatsApp Mensajeria"), uno para toda la plataforma.
  *
  * Vive en la BD y se edita en Panel > Conexion, igual que los servidores de
  * Evolution. NO en variables de entorno del stack: cambiar una credencial no
@@ -63,7 +63,7 @@ export async function guardarServidorWaha(params: {
     const actual = await db.siteConfig.findFirst({ select: { id: true, wahaApiKey: true } });
 
     // Guardar sin clave solo vale si YA habia una: si no, quedaria a medias y la
-    // tarjeta de WhatsApp V2 no se ofreceria, sin que nadie sepa por que.
+    // tarjeta de WhatsApp Mensajeria no se ofreceria, sin que nadie sepa por que.
     if (!apiKey && !actual?.wahaApiKey?.trim()) {
       return { success: false, message: 'Falta la API key del servidor.' };
     }
@@ -82,7 +82,7 @@ export async function guardarServidorWaha(params: {
 
   revalidatePath('/panel/conexion');
   revalidatePath('/connection');
-  return { success: true, message: 'Servidor de WhatsApp V2 guardado.' };
+  return { success: true, message: 'Servidor de WhatsApp Mensajería guardado.' };
 }
 
 export async function borrarServidorWaha(): Promise<{ success: boolean; message: string }> {
@@ -108,7 +108,7 @@ export async function borrarServidorWaha(): Promise<{ success: boolean; message:
   revalidatePath('/connection');
   return {
     success: true,
-    message: 'Servidor borrado. La conexión de WhatsApp V2 deja de ofrecerse.',
+    message: 'Servidor borrado. La conexión de WhatsApp Mensajería deja de ofrecerse.',
   };
 }
 

@@ -31,7 +31,7 @@ interface Props {
 }
 
 /**
- * Servidor de WAHA ("WhatsApp V2"), uno para toda la plataforma.
+ * Servidor de WAHA ("WhatsApp Mensajeria"), uno para toda la plataforma.
  *
  * Va aqui, junto a los servidores de Evolution, porque es lo mismo: url + API
  * key de un proveedor. Y va en la BD y no en el stack para que cambiar una
@@ -91,7 +91,7 @@ export const WahaServerCard = ({ servidor }: Props) => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <FaWhatsapp className="h-5 w-5 shrink-0 text-green-500" />
-              Servidor de WhatsApp V2 (WAHA)
+              Servidor de WhatsApp Mensajería (Waha)
             </CardTitle>
             {configurado ? (
               <span className="flex items-center gap-1.5 text-xs font-medium text-green-600">
@@ -106,7 +106,7 @@ export const WahaServerCard = ({ servidor }: Props) => {
             )}
           </div>
           <CardDescription>
-            Uno para toda la plataforma. Mientras esté vacío, la conexión de WhatsApp V2 no se
+            Uno para toda la plataforma. Mientras esté vacío, la conexión de WhatsApp Mensajeria no se
             le ofrece a nadie y todo lo demás sigue igual.
           </CardDescription>
         </CardHeader>
@@ -175,9 +175,9 @@ export const WahaServerCard = ({ servidor }: Props) => {
       <AlertDialog open={confirmarBorrado} onOpenChange={setConfirmarBorrado}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Quitar el servidor de WhatsApp V2?</AlertDialogTitle>
+            <AlertDialogTitle>¿Quitar el servidor de WhatsApp Mensajería?</AlertDialogTitle>
             <AlertDialogDescription>
-              La conexión de WhatsApp V2 deja de ofrecerse en Conexión. Las instancias que ya
+              La conexión de WhatsApp Mensajería deja de ofrecerse en Conexión. Las instancias que ya
               estén creadas dejarán de poder enviar y recibir hasta que vuelvas a configurarlo.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -5,7 +5,7 @@ import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-
 import { getWahaSession, isWahaConfigured, wahaMePhone } from '@/lib/waha';
 
 /**
- * Estado de una sesion de WAHA para la tarjeta de WhatsApp V2.
+ * Estado de una sesion de WAHA para la tarjeta de WhatsApp Mensajeria.
  *
  * Devuelve lo justo para pintar la tarjeta. La API key de WAHA se queda aqui.
  */
@@ -44,7 +44,7 @@ export async function GET(
   if (rechazo) return rechazo;
 
   if (!(await isWahaConfigured())) {
-    return NextResponse.json({ error: 'WAHA no configurado' }, { status: 503 });
+    return NextResponse.json({ error: 'El servidor de WhatsApp Mensajería no esta configurado' }, { status: 503 });
   }
 
   const session = await getWahaSession(params.session);

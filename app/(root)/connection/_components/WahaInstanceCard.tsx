@@ -236,7 +236,7 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2 min-w-0">
               <FaWhatsapp className="w-5 h-5 shrink-0 text-green-500" />
-              <span className="truncate">WhatsApp V2</span>
+              <span className="truncate">WhatsApp Mensajería (Waha)</span>
             </CardTitle>
             <Button
               size="sm"
@@ -370,7 +370,7 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
                 <img
                   key={qrTimestamp}
                   src={qrSrc}
-                  alt="QR WhatsApp V2"
+                  alt="QR WhatsApp Mensajería"
                   width={320}
                   height={320}
                   onError={() =>
@@ -396,7 +396,7 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar instancia?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>{visibleName}</strong> y su sesión de WhatsApp V2. Tendrás que
+              Se eliminará <strong>{visibleName}</strong> y su sesión de WhatsApp Mensajeria. Tendrás que
               volver a escanear el QR si quieres conectarla de nuevo. Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
