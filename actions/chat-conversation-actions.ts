@@ -407,9 +407,39 @@ async function hardDeleteLocalChat(
 ) {
   await ensurePurgedAtColumn();
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
-  const candidates = buildWhatsAppJidCandidates(normalizedRemoteJid);
   const deletedAt = new Date();
   const linea = normalizarLinea(instanceName);
+
+  // Las identidades se completan con lo que guarda NUESTRA base antes de
+  // borrar nada.
+  //
+  // `buildWhatsAppJidCandidates` con un `@lid` devuelve solo el `@lid`, a
+  // proposito: sus digitos no son un telefono. Y con un numero no sabe cual
+  // es su `@lid`. Asi que borrar por una forma dejaba la marca sin la otra, y
+  // la lista puede traer al contacto por cualquiera de las dos. Es la misma
+  // regla que ya usa la pausa de la IA (`lib/human-takeover.ts`): cuando una
+  // forma se queda corta, `chat_messages` sabe completarla, porque guarda cada
+  // mensaje con todas. Tiene que ir ANTES de la transaccion, que es la que
+  // borra esos mensajes.
+  const formasBase = buildWhatsAppJidCandidates(normalizedRemoteJid);
+  const vistos = await db.chatMessage.findMany({
+    where: {
+      userId,
+      ...(linea ? { instanceName: linea } : {}),
+      OR: [
+        { remoteJid: { in: formasBase } },
+        { remoteJidAlt: { in: formasBase } },
+        { senderPn: { in: formasBase } },
+      ],
+    },
+    select: { remoteJid: true, remoteJidAlt: true, senderPn: true },
+    distinct: ["remoteJid", "remoteJidAlt", "senderPn"],
+    take: 50,
+  });
+  const candidates = buildWhatsAppJidCandidates(
+    normalizedRemoteJid,
+    vistos.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
+  );
   // Cuando se sabe de que linea se esta borrando, se borra SOLO de esa. Hasta
   // ahora esto arrasaba con el contacto en todas las lineas de la cuenta: sus
   // sesiones, sus conversaciones y todos sus mensajes. Con varias lineas
@@ -551,6 +581,7 @@ async function hardDeleteLocalChat(
     remoteJid: normalizedRemoteJid,
     pedidoComo: remoteJid,
     identidadesMarcadas: candidates.length,
+    completadasDesdeLaBase: Math.max(0, candidates.length - formasBase.length),
   });
 
   invalidatePersistedInboxCache();

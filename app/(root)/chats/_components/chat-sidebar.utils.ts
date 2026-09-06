@@ -87,7 +87,19 @@ export function isChatDeletedByPreference(
   const borradoMs = new Date(preference.deletedAt).getTime();
   if (!Number.isFinite(borradoMs)) return true;
 
-  const ultimoMensajeMs = epochToMs(chat.lastMessage?.messageTimestamp);
+  // Un chat borrado vuelve SOLO si escribe el contacto.
+  //
+  // Se miraba la marca del ultimo mensaje sin mirar de quien era, asi que
+  // cualquier mensaje SALIENTE posterior al borrado -un seguimiento
+  // automatico, la IA contestando, una campaña- lo resucitaba. Se borraba una
+  // y otra vez y volvia una y otra vez, sin que el contacto hubiera dicho
+  // nada. La regla escrita siempre fue "vuelve si el cliente escribe"; el
+  // codigo no la cumplia.
+  const ultimo = chat.lastMessage;
+  const loEscribioElContacto = ultimo?.key?.fromMe !== true;
+  if (!loEscribioElContacto) return true;
+
+  const ultimoMensajeMs = epochToMs(ultimo?.messageTimestamp);
   return !(ultimoMensajeMs > borradoMs);
 }
 
