@@ -1,6 +1,6 @@
 'use client'
 
-import { User } from '@prisma/client'
+import { useState } from 'react'
 import type { CurrentUser } from '@/lib/auth';
 import {
   DropdownMenu,
@@ -8,7 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
-import { ChevronsUpDown, LogOut } from 'lucide-react'
+import { ChevronsUpDown, Loader2, LogOut } from 'lucide-react'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from './ui/sidebar'
 import { handleLogout } from '@/lib/handleLogout'
 import { PLAN_LEVEL_LABELS } from '@/types/plans'
@@ -32,6 +32,13 @@ type LogoutButtonProps = {
 
 const LogoutButton = ({ user, resellerImage, resellerCompany, planLabel: planLabelDeLaMarca }: LogoutButtonProps) => {
   const { isMobile } = useSidebar()
+  // Que se vea que ya vamos de camino. Sin esto, con el servidor ocupado, el
+  // boton parecia no hacer nada y se pulsaba una y otra vez.
+  const [saliendo, setSaliendo] = useState(false)
+  const salir = () => {
+    setSaliendo(true)
+    handleLogout()
+  }
   // El nombre que la marca le puso al nivel; si no hay ninguno, el número de
   // nivel ("Nivel 6"), nunca el interno "Agencias"/"Enterprise".
   const planLabel =
@@ -78,11 +85,17 @@ const LogoutButton = ({ user, resellerImage, resellerCompany, planLabel: planLab
                 />
                 <button
                   type="button"
-                  onClick={handleLogout}
-                  className="ml-auto inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                  onClick={salir}
+                  disabled={saliendo}
+                  aria-busy={saliendo}
+                  className="ml-auto inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60"
                 >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Salir
+                  {saliendo ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <LogOut className="h-3.5 w-3.5" />
+                  )}
+                  {saliendo ? 'Saliendo…' : 'Salir'}
                 </button>
               </div>
             </DropdownMenuLabel>
