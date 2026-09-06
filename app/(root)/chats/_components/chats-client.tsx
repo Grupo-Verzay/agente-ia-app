@@ -1163,7 +1163,32 @@ export function ChatsClient({
       }
       ultimoRefrescoDeSesionesRef.current = ahora;
 
+      // Cuanto cuesta esta vuelta, en numeros.
+      //
+      // Es la consulta mas cara de la pantalla y crece con la cuenta: manda un
+      // descriptor por CHAT, y hay cuentas con mas de 14.000. "La App va lenta"
+      // no se puede diagnosticar sin saber cuantos chats van, cuanto pesa lo que
+      // se manda y cuanto tarda la vuelta; con esto se ve de un vistazo.
+      const arrancoEn = performance.now();
       const result = await getChatContactSessions(sessionUserIds?.length ? sessionUserIds : userId, descriptors);
+      const tardo = Math.round(performance.now() - arrancoEn);
+
+      // Solo se avisa cuando duele. Por debajo de esto es ruido.
+      if (tardo > 1500 || descriptors.length > 3000) {
+        let pesoKb = 0;
+        try {
+          pesoKb = Math.round(JSON.stringify(descriptors).length / 1024);
+        } catch {
+          // El tamaño es informativo: si no se puede calcular, se avisa igual.
+        }
+        console.warn("[chats] el refresco de sesiones va caro", {
+          chatsEnviados: descriptors.length,
+          pesoAproxKb: pesoKb || "(no calculado)",
+          tardoMs: tardo,
+          resultado: result.success ? "ok" : result.message,
+        });
+      }
+
       if (result.success) {
         setChatSessions((prev) => {
           const next = { ...(result.data ?? {}) };
