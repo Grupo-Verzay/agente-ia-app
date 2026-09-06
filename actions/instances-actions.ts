@@ -933,6 +933,19 @@ export async function startWahaInstance(
     : { success: false, message: res.message ?? 'No se pudo iniciar la sesion.' };
 }
 
+export async function restartWahaInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+  // WAHA solo entrega el QR en estado SCAN_QR_CODE. Desde STOPPED o FAILED hay
+  // que reiniciar: medido, vuelve a SCAN_QR_CODE en unos 3 segundos y el QR
+  // pasa a contestar en 0,06 s (en FAILED tardaba 10 s para devolver un 422).
+  const res = await wahaSessionAction(instanceName, 'restart');
+  return res.ok
+    ? { success: true, message: 'Sesion reiniciada.' }
+    : { success: false, message: res.message ?? 'No se pudo reiniciar la sesion.' };
+}
+
 export async function stopWahaInstance(
   instanceName: string,
 ): Promise<{ success: boolean; message: string }> {

@@ -63,10 +63,21 @@ export async function isWahaConfigured(): Promise<boolean> {
   return (await getWahaConfig()) !== null;
 }
 
+/**
+ * Plazo por defecto. NINGUNA llamada a WAHA puede ir sin uno: medido contra el
+ * servidor, pedir el QR con la sesion en FAILED tarda 10,02 s en contestar 422.
+ * Sin plazo eso deja la pantalla girando y el navegador esperando, que es
+ * exactamente el fallo mudo del que habla el CLAUDE.md.
+ */
+const PLAZO_NORMAL_MS = 15000;
+/** El QR tarda 0,06 s cuando la sesion esta lista y ~10 s cuando no lo esta. */
+const PLAZO_DEL_QR_MS = 20000;
+
 async function wahaFetch(
   cfg: WahaConfig,
   path: string,
   init: RequestInit = {},
+  plazoMs: number = PLAZO_NORMAL_MS,
 ): Promise<Response> {
   return fetch(`${cfg.baseUrl}${path}`, {
     ...init,
@@ -76,6 +87,7 @@ async function wahaFetch(
       ...(init.headers ?? {}),
     },
     cache: 'no-store',
+    signal: AbortSignal.timeout(plazoMs),
   });
 }
 
@@ -172,18 +184,51 @@ export async function deleteWahaSession(session: string): Promise<{ ok: boolean;
   }
 }
 
-/** El QR como PNG, tal cual lo devuelve WAHA. `null` si aun no hay. */
-export async function getWahaQrPng(session: string): Promise<ArrayBuffer | null> {
+export type ResultadoQr =
+  | { estado: 'ok'; png: ArrayBuffer }
+  /** La sesion no esta en SCAN_QR_CODE. WAHA contesta 422 diciendo cual espera. */
+  | { estado: 'todavia-no'; motivo: string }
+  | { estado: 'error'; motivo: string };
+
+/**
+ * El QR de una sesion. WAHA SOLO lo da en estado `SCAN_QR_CODE`; en cualquier
+ * otro contesta 422. Por eso esto no devuelve `null` a secas: quien llama tiene
+ * que poder distinguir "reinicia la sesion" de "el servidor no contesta", que
+ * son dos arreglos distintos.
+ */
+export async function getWahaQrPng(session: string): Promise<ResultadoQr> {
   const cfg = await getWahaConfig();
-  if (!cfg) return null;
+  if (!cfg) return { estado: 'error', motivo: 'El servidor de WhatsApp V2 no esta configurado.' };
+
   try {
-    const res = await wahaFetch(cfg, `/api/${encodeURIComponent(session)}/auth/qr?format=image`, {
-      headers: { Accept: 'image/png' },
-    });
-    if (!res.ok) return null;
-    return await res.arrayBuffer();
-  } catch {
-    return null;
+    const res = await wahaFetch(
+      cfg,
+      `/api/${encodeURIComponent(session)}/auth/qr?format=image`,
+      { headers: { Accept: 'image/png' } },
+      PLAZO_DEL_QR_MS,
+    );
+
+    if (res.ok) return { estado: 'ok', png: await res.arrayBuffer() };
+
+    if (res.status === 422) {
+      const cuerpo = await res.text();
+      let estadoActual = '';
+      try { estadoActual = JSON.parse(cuerpo)?.status ?? ''; } catch { /* cuerpo no JSON */ }
+      return {
+        estado: 'todavia-no',
+        motivo: estadoActual
+          ? `La sesion esta en ${estadoActual}; el QR solo existe mientras espera el escaneo.`
+          : 'La sesion todavia no esta esperando el escaneo.',
+      };
+    }
+
+    return { estado: 'error', motivo: `WAHA respondio ${res.status}.` };
+  } catch (error: any) {
+    const agotado = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+    return {
+      estado: 'error',
+      motivo: agotado ? 'El servidor de WhatsApp V2 tardo demasiado.' : 'No se pudo contactar con el servidor.',
+    };
   }
 }
 

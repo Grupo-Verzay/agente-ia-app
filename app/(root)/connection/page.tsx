@@ -168,13 +168,6 @@ const Connection = async () => {
                     pageId={(inst as any).metaPageId ?? ''}
                 />
             ))}
-            {wahaInstances.map((inst) => (
-                <WahaInstanceCard
-                    key={inst.instanceName}
-                    instanceName={inst.instanceName}
-                    displayName={(inst as any).displayName ?? null}
-                />
-            ))}
             {telegramInstances.map((inst) => (
                 <TelegramInstanceCard
                     key={inst.instanceName}
@@ -195,13 +188,26 @@ const Connection = async () => {
             {telegramInstances.length === 0 && (
                 <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
-            {wahaInstances.length === 0 && (hayServidorWaha || puedeConfigurarWaha) && (
-                <WahaInstanceCreator
-                    userId={effectiveId}
-                    company={user.company as string}
-                    hayServidor={hayServidorWaha}
-                />
-            )}
+            {/* WhatsApp V2 va SIEMPRE la ultima, conectada o no. Estaba con las
+                demas conexiones activas —arriba de los creadores— asi que al
+                conectarla saltaba de sitio: el usuario la pulsaba abajo del todo
+                y reaparecia arriba. Las dos ramas van juntas y aqui para que el
+                sitio no dependa de si hay sesion. */}
+            {wahaInstances.length > 0
+                ? wahaInstances.map((inst) => (
+                    <WahaInstanceCard
+                        key={inst.instanceName}
+                        instanceName={inst.instanceName}
+                        displayName={(inst as any).displayName ?? null}
+                    />
+                ))
+                : (hayServidorWaha || puedeConfigurarWaha) && (
+                    <WahaInstanceCreator
+                        userId={effectiveId}
+                        company={user.company as string}
+                        hayServidor={hayServidorWaha}
+                    />
+                )}
         </div>
     );
 };
