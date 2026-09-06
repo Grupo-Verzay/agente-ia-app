@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import type { ApiKey, Instancia } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import {
+  sendWahaTextAction,
+  sendWahaWorkflowAction,
+  sendWahaQuickReplyAction,
+} from "@/actions/waha-chat-actions";
 import { getPersistedInboxChats } from "@/lib/chat-persistence";
 import { getApiKeyById } from "@/actions/api-action";
 import {
@@ -61,6 +66,9 @@ function pickWhatsappOrNull(arr: Instancia[]) {
     arr.find((instance) => instance.instanceType == null) ??
     arr.find((instance) => instance.instanceType === "baileys") ??
     arr.find((instance) => instance.instanceType === "meta" && (instance.metaChannel ?? "whatsapp") === "whatsapp") ??
+    // WhatsApp V2 (WAHA). Sin esto la linea no se puede elegir y sus
+    // conversaciones no tienen donde abrirse.
+    arr.find((instance) => instance.instanceType === "waha") ??
     null
   );
 }
@@ -360,7 +368,8 @@ export default async function ChatsPage({
         (inst) =>
           inst.instanceType !== "baileys" &&
           inst.instanceType !== "meta" &&
-          inst.instanceType !== "telegram",
+          inst.instanceType !== "telegram" &&
+          inst.instanceType !== "waha",
       )
       .map(async (inst) => ({
         instanceName: inst.instanceName,
@@ -446,6 +455,10 @@ export default async function ChatsPage({
       (inst) =>
         inst.instanceType === "Whatsapp" ||
         inst.instanceType === "baileys" ||
+        // WhatsApp V2 (WAHA). Sin esto no se le arma juego de acciones y la
+        // conversacion se abre contra la linea de Evolution: la fila sale en la
+        // lista —eso viene de nuestra base— y los mensajes no.
+        inst.instanceType === "waha" ||
         inst.instanceType == null,
     )
     .map((inst) =>
@@ -469,16 +482,26 @@ export default async function ChatsPage({
   );
 
   // Fase 2: fetch chats de TODAS las instancias de mensajeria en paralelo
-  type FetchPlan = { instancia: Instancia; isBaileys: boolean };
+  type FetchPlan = { instancia: Instancia; isBaileys: boolean; isWaha: boolean };
+  const esWaha = (inst: Pick<Instancia, "instanceType">) =>
+    (inst.instanceType ?? "").trim().toLowerCase() === "waha";
   const fetchPlans: FetchPlan[] = instancias
     .filter(
       (inst) =>
         inst.instanceType === "Whatsapp" ||
         inst.instanceType === "baileys" ||
+        // WhatsApp V2 (WAHA). Sin esto no se le arma juego de acciones y la
+        // conversacion se abre contra la linea de Evolution: la fila sale en la
+        // lista —eso viene de nuestra base— y los mensajes no.
+        inst.instanceType === "waha" ||
         inst.instanceType == null,
     )
-    .filter((inst) => isBaileysRuntimeInstance(inst) || !!claveDeLaLinea(inst))
-    .map((inst) => ({ instancia: inst, isBaileys: isBaileysRuntimeInstance(inst) }));
+    .filter((inst) => isBaileysRuntimeInstance(inst) || esWaha(inst) || !!claveDeLaLinea(inst))
+    .map((inst) => ({
+      instancia: inst,
+      isBaileys: isBaileysRuntimeInstance(inst),
+      isWaha: esWaha(inst),
+    }));
 
   let chatsResult: FetchChatsResult;
   let instanceActionSets: InstanceActionSet[] = [];
@@ -610,10 +633,18 @@ export default async function ChatsPage({
       // linea, asi que alla no quedaba nada con lo que trabajar y contestaba
       // "No hay instancia o API key configurada para cargar mensajes".
       const claveInst = claveDeLaLinea(inst);
+      // WhatsApp V2 no habla con Evolution: sus mensajes los guarda el backend
+      // al recibirlos y salen de nuestra base. Pasarle una clave de Evolution
+      // hace que se pidan al servidor equivocado, que contesta correcto y
+      // VACIO. Con `apiKeyData: null` la accion generica tira de la base.
       const instActionCtx = isBaileysInst
         ? null
         : {
-            apiKeyData: claveInst ? { url: claveInst.url, key: claveInst.key } : null,
+            apiKeyData: plan.isWaha
+              ? null
+              : claveInst
+                ? { url: claveInst.url, key: claveInst.key }
+                : null,
             instanceName: inst.instanceName,
           };
       return {
@@ -624,13 +655,19 @@ export default async function ChatsPage({
           : warmChatMessagesAction.bind(null, instActionCtx),
         sendText: isBaileysInst
           ? sendBaileysTextAction.bind(null, inst.instanceName)
-          : sendManualChatPayloadAction.bind(null, instActionCtx),
+          : plan.isWaha
+            ? sendWahaTextAction.bind(null, inst.instanceName)
+            : sendManualChatPayloadAction.bind(null, instActionCtx),
         sendWorkflow: isBaileysInst
           ? sendBaileysWorkflowAction.bind(null, inst.instanceName)
-          : sendManualWorkflowAction.bind(null, instActionCtx),
+          : plan.isWaha
+            ? sendWahaWorkflowAction.bind(null, inst.instanceName)
+            : sendManualWorkflowAction.bind(null, instActionCtx),
         sendQuickReply: isBaileysInst
           ? sendBaileysQuickReplyAction.bind(null, inst.instanceName)
-          : sendManualQuickReplyAction.bind(null, instActionCtx),
+          : plan.isWaha
+            ? sendWahaQuickReplyAction.bind(null, inst.instanceName)
+            : sendManualQuickReplyAction.bind(null, instActionCtx),
         refetchChats: isBaileysInst
           ? fetchChatsFromBaileys.bind(null, inst.instanceName)
           : refetchChatsManualAction.bind(null, instActionCtx),
@@ -648,10 +685,18 @@ export default async function ChatsPage({
       // linea, asi que alla no quedaba nada con lo que trabajar y contestaba
       // "No hay instancia o API key configurada para cargar mensajes".
       const claveInst = claveDeLaLinea(inst);
+      // WhatsApp V2 no habla con Evolution: sus mensajes los guarda el backend
+      // al recibirlos y salen de nuestra base. Pasarle una clave de Evolution
+      // hace que se pidan al servidor equivocado, que contesta correcto y
+      // VACIO. Con `apiKeyData: null` la accion generica tira de la base.
       const instActionCtx = isBaileysInst
         ? null
         : {
-            apiKeyData: claveInst ? { url: claveInst.url, key: claveInst.key } : null,
+            apiKeyData: plan.isWaha
+              ? null
+              : claveInst
+                ? { url: claveInst.url, key: claveInst.key }
+                : null,
             instanceName: inst.instanceName,
           };
       return {
@@ -662,13 +707,19 @@ export default async function ChatsPage({
           : warmChatMessagesAction.bind(null, instActionCtx),
         sendText: isBaileysInst
           ? sendBaileysTextAction.bind(null, inst.instanceName)
-          : sendManualChatPayloadAction.bind(null, instActionCtx),
+          : plan.isWaha
+            ? sendWahaTextAction.bind(null, inst.instanceName)
+            : sendManualChatPayloadAction.bind(null, instActionCtx),
         sendWorkflow: isBaileysInst
           ? sendBaileysWorkflowAction.bind(null, inst.instanceName)
-          : sendManualWorkflowAction.bind(null, instActionCtx),
+          : plan.isWaha
+            ? sendWahaWorkflowAction.bind(null, inst.instanceName)
+            : sendManualWorkflowAction.bind(null, instActionCtx),
         sendQuickReply: isBaileysInst
           ? sendBaileysQuickReplyAction.bind(null, inst.instanceName)
-          : sendManualQuickReplyAction.bind(null, instActionCtx),
+          : plan.isWaha
+            ? sendWahaQuickReplyAction.bind(null, inst.instanceName)
+            : sendManualQuickReplyAction.bind(null, instActionCtx),
         refetchChats: isBaileysInst
           ? fetchChatsFromBaileys.bind(null, inst.instanceName)
           : refetchChatsManualAction.bind(null, instActionCtx),

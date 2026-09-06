@@ -128,6 +128,22 @@ type ApiKeyData = { url: string; key: string };
 // EVOLUTION_SYNC_WINDOW_SIZE del server action) para que el primer render en
 // móvil pinte la mitad de burbujas y llegue menos payload por la red móvil. El
 // resto del historial se trae bajo demanda al hacer scroll hacia arriba.
+/**
+ * Lineas que NO hablan con Evolution: sus mensajes viven solo en nuestra base,
+ * porque el backend los guarda al recibirlos por webhook.
+ *
+ * Pasarles la clave de Evolution hace que se pidan los mensajes al servidor
+ * equivocado: contesta correcto y VACIO, y la conversacion sale con el
+ * historial de otra linea o en blanco. Es lo que pasaba con WhatsApp V2: la
+ * fila aparecia en la lista —eso sale de nuestra base— y la conversacion no.
+ *
+ * Si entra otro proveedor propio, va en esta lista.
+ */
+const LINEAS_SIN_EVOLUTION = ['baileys', 'waha'];
+
+const hablaConEvolution = (instanceType?: string | null): boolean =>
+  !LINEAS_SIN_EVOLUTION.includes((instanceType ?? '').trim().toLowerCase());
+
 const INITIAL_MESSAGE_PAGE_SIZE = 25;
 // Máx. de prefetch simultáneos que tocan Evolution. Acota los picos cuando se
 // hacen visibles muchas filas de golpe o al precalentar los chats de arriba.
@@ -1596,7 +1612,7 @@ export function ChatsClient({
         const activeSet = activeActionSetRef.current;
         const effectiveWarmMessages = activeSet?.warmMessages ?? warmMessagesAction;
         const effectiveInstanceName = activeSet?.instanceName ?? instanceName;
-        const effectiveApiKeyData = activeSet?.instanceType === "baileys" ? undefined : apiKeyData;
+        const effectiveApiKeyData = hablaConEvolution(activeSet?.instanceType) ? apiKeyData : undefined;
 
         const consulta = effectiveWarmMessages(remoteJid, {
           page: 1,
@@ -1752,7 +1768,7 @@ export function ChatsClient({
       const actionSet =
         instanceActionSets?.find((s) => s.instanceName === selectedContact?.instanceName) ?? null;
       const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
-      const effectiveApiKeyData = actionSet?.instanceType === "baileys" ? undefined : apiKeyData;
+      const effectiveApiKeyData = hablaConEvolution(actionSet?.instanceType) ? apiKeyData : undefined;
       const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
       const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
       return {
@@ -1902,7 +1918,7 @@ export function ChatsClient({
       activeActionSetRef.current = actionSet;
 
       const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
-      const effectiveApiKeyData = actionSet?.instanceType === "baileys" ? undefined : apiKeyData;
+      const effectiveApiKeyData = hablaConEvolution(actionSet?.instanceType) ? apiKeyData : undefined;
       const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
       const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
       const cachedMessages = messageCacheRef.current.get(cacheKey);
@@ -2089,7 +2105,7 @@ export function ChatsClient({
             instanceName: cacheInstanceName,
             remoteJid: selectedJid,
             remoteJidAliases: currentContact?.aliases,
-            apiKeyData: activeActionSetRef.current?.instanceType === "baileys" ? undefined : apiKeyData,
+            apiKeyData: hablaConEvolution(activeActionSetRef.current?.instanceType) ? apiKeyData : undefined,
           },
         });
       };
@@ -2196,7 +2212,7 @@ export function ChatsClient({
     const activeSet = activeActionSetRef.current;
     const effectiveWarmMessages = activeSet?.warmMessages ?? warmMessagesAction;
     const effectiveInstanceName = activeSet?.instanceName ?? instanceName;
-    const effectiveApiKeyData = activeSet?.instanceType === "baileys" ? undefined : apiKeyData;
+    const effectiveApiKeyData = hablaConEvolution(activeSet?.instanceType) ? apiKeyData : undefined;
     const remoteJidAliases = currentContact?.aliases ?? info?.remoteJidAliases;
 
     setLoadingOlderMessages(true);
