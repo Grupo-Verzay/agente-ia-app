@@ -1178,6 +1178,10 @@ export function ChatsClient({
           pesoAproxKb: pesoKb || "(no calculado)",
           tardoMs: tardoRed,
           emparejarMs: tardoEmparejar,
+          // Lo que tardo cada parte en el servidor. Si `tardoMs` es mucho mayor
+          // que `servidor.total`, el tiempo se va en la red o en la cola del
+          // contenedor, no en la base.
+          servidor: result.tiempos ?? "(sin medir)",
           resultado: result.success ? "ok" : result.message,
         });
       }
