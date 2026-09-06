@@ -1653,7 +1653,10 @@ export function ChatsClient({
               // respuesta de otra conversacion seria peor que perderla.
               const abierto = currentContactRef.current?.remoteJid;
               if (abierto && abierto !== remoteJid && !remoteJidAliases?.includes(abierto)) return;
-              console.info("[chats] la consulta lenta llego y se pinta", { remoteJid });
+              console.info("[chats] la consulta lenta llego y se pinta", {
+                remoteJid,
+                servidor: tardia.tiempos,
+              });
               pintar(tardia);
               backoffRef.current = 0;
             })
@@ -1665,6 +1668,18 @@ export function ChatsClient({
             MAX_BACKOFF,
           );
           return;
+        }
+
+        // Entre 3 y 15 s la consulta "llega", pero la conversacion se siente
+        // lenta y hasta ahora no quedaba rastro. El servidor dice cuanto tardo
+        // cada parte y de donde salio la respuesta (Evolution o nuestra base).
+        const tardoServidor = Number(result.tiempos?.total ?? 0);
+        if (tardoServidor > 3000) {
+          console.warn("[chats] la consulta de mensajes tardo", {
+            remoteJid,
+            instancia: effectiveInstanceName,
+            servidor: result.tiempos,
+          });
         }
 
         if (result.success) {
