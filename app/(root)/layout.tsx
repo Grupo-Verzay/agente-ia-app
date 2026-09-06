@@ -82,10 +82,19 @@ export default async function RootGroupLayout({
 }: {
     children: React.ReactNode;
 }) {
+    // Cuanto cuesta el armazon que corre en TODAS las paginas.
+    //
+    // "La App va lenta" no se puede repartir sin saber donde se va el tiempo. Y
+    // este layout se ejecuta en cada navegacion protegida: si tarda, tarda
+    // ENTERA la App, no una pantalla. Se mide por tramos para no adivinar cual
+    // de las consultas es.
+    const arrancoElLayout = Date.now();
+
     await requireAuth();
 
     const user = await currentUser();
     const cookieStore = await cookies();
+    const trasLaSesion = Date.now() - arrancoElLayout;
     const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
     const privilegedUser = isAdminOrReseller(user?.role);
     const isActiveTrial = !!user?.trialEndsAt && user.trialEndsAt > new Date();
@@ -102,12 +111,15 @@ export default async function RootGroupLayout({
     // la instancia se borró al suspender y el agente no contesta. Lo único que
     // se recupera es poder entrar a mirar y configurar.
     const entrandoAOtraCuenta = !!user && user.sessionUserId !== user.id;
+    let facturacionTardo = 0;
 
     if (user && !isAdmin(user?.role) && !entrandoAOtraCuenta) {
         // La ficha del DUEÑO cuando quien entra es un asesor: un asesor no
         // tiene servicio propio. Mirando la suya, un equipo entero se quedaba
         // fuera aunque su cuenta madre estuviera pagada al día.
+        const antesDeFacturacion = Date.now();
         const { facturacion: billing } = await facturacionQueMandaEn(user.id);
+        facturacionTardo = Date.now() - antesDeFacturacion;
         const access = buildBillingServiceAccessState(billing);
 
         if (access.isLocked) {
@@ -162,6 +174,7 @@ export default async function RootGroupLayout({
     // Todo lo que sigue depende solo de `user`, no unas de otras, y antes se
     // pedía en cascada: cada consulta esperaba a la anterior sin necesitarla, y
     // el layout se ejecuta en TODAS las páginas protegidas. Se piden juntas.
+    const antesDelBloqueDeDatos = Date.now();
     const [
         onReseller,
         siteConfig,
@@ -206,6 +219,20 @@ export default async function RootGroupLayout({
             ? db.userModule.findMany({ where: { B: user.id }, select: { A: true } })
             : Promise.resolve([] as { A: string }[]),
     ]);
+
+    const datosTardaron = Date.now() - antesDelBloqueDeDatos;
+    const layoutTardo = Date.now() - arrancoElLayout;
+    // Solo cuando duele. Este layout corre en cada navegacion protegida, asi
+    // que un aviso por vuelta seria ruido; uno lento es justo lo que se busca.
+    if (layoutTardo > 1200) {
+        console.warn('[app] el armazon comun tardo', {
+            totalMs: layoutTardo,
+            sesionMs: trasLaSesion,
+            facturacionMs: facturacionTardo,
+            datosDelMenuMs: datosTardaron,
+            usuario: user.id,
+        });
+    }
 
     // Logo abajo: del reseller asignado, o del platform (SiteConfig)
     const resellerImage = onReseller?.data?.image ?? siteConfig.logoUrl ?? null;
