@@ -71,7 +71,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
         return (
             <>
                 <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-                <span>Business QR</span>
+                <span>Mensajería WhatsApp (QR)</span>
             </>
         )
     }
@@ -204,7 +204,7 @@ export const ConnectionCard = ({
                     aria-disabled={loading}
                 >
                     {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-                    Crear instancia Business QR
+                    Crear instancia
                 </Button>
             </CardFooter>
         </Card>
