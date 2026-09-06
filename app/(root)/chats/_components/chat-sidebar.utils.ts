@@ -6,6 +6,12 @@ import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
 import { epochToMs } from "@/lib/epoch";
 import type { ChatData } from "@/actions/chat-actions";
 import type { ChatConversationPreference } from "@/types/chat";
+import type { ChatContactSessionMap, ChatContactSessionSummary } from "@/types/session";
+import {
+  emparejarSesionesConChats,
+  resolvePreferredRemoteJid,
+  type ChatParaEmparejar,
+} from "@/lib/chat-session-match";
 
 export { epochToMs };
 
@@ -57,6 +63,51 @@ export function getChatIdentityCandidates(chat: ChatData): string[] {
 
   IDENTIDADES_POR_CHAT.set(chat, candidatos);
   return candidatos;
+}
+
+/**
+ * Lo que el emparejador de sesiones necesita de un chat. Cacheado por el
+ * mismo motivo que arriba: se calcula para miles de chats en cada vuelta.
+ */
+const PARA_EMPAREJAR_POR_CHAT = new WeakMap<ChatData, ChatParaEmparejar>();
+
+export function describirChatParaEmparejar(chat: ChatData): ChatParaEmparejar {
+  const guardado = PARA_EMPAREJAR_POR_CHAT.get(chat);
+  if (guardado) return guardado;
+
+  const descrito: ChatParaEmparejar = {
+    remoteJid: chat.remoteJid,
+    instanceName: chat.instanceName,
+    preferredRemoteJid: resolvePreferredRemoteJid([
+      chat.remoteJid,
+      chat.remoteJidAlt,
+      chat.senderPn,
+      ...(chat.aliases ?? []),
+    ]),
+    candidates: getChatIdentityCandidates(chat),
+  };
+
+  PARA_EMPAREJAR_POR_CHAT.set(chat, descrito);
+  return descrito;
+}
+
+/**
+ * El mapa de sesiones por chat, a partir de las sesiones de la cuenta.
+ *
+ * Antes lo armaba el servidor con la agenda que le subia el navegador; ahora
+ * el servidor solo manda las sesiones y esto es una pasada por la lista sin
+ * red por medio. Ver lib/chat-session-match.
+ */
+export function emparejarSesiones(
+  chats: ChatData[],
+  sesiones: ChatContactSessionSummary[],
+): ChatContactSessionMap {
+  return emparejarSesionesConChats(
+    chats
+      .filter((chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast")
+      .map(describirChatParaEmparejar),
+    sesiones,
+  );
 }
 
 /**

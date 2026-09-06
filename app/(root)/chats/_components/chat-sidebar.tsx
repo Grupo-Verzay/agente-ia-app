@@ -152,7 +152,7 @@ function getPreferenceForChat(
 }
 
 function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
-  // Un mismo numero puede escribirle a mas de una linea: getChatContactSessions
+  // Un mismo numero puede escribirle a mas de una linea: `emparejarSesiones`
   // deja la sesion de ESTA linea bajo una llave compuesta. Si se conoce la
   // linea del chat, se usa ESA y solo esa — sin caer de vuelta a la busqueda
   // global — porque el caso a blindar es que un contacto SIN sesion en esta

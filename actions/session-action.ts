@@ -1,14 +1,13 @@
 ﻿'use server'
 
 import { db } from '@/lib/db'
-import { obtenerResueltas } from '@/lib/session-resolved'
+import { obtenerResueltas, obtenerResueltasDeCuentas } from '@/lib/session-resolved'
+import { resolvePreferredRemoteJid, scoreSessionMatch } from '@/lib/chat-session-match'
 import { registerSessionSchema } from '@/schema/session';
 import { AppointmentStatus, Prisma, Session as PrismaSession } from '@prisma/client';
 import { z } from 'zod';
 import { ActionResponse } from './tag-actions';
 import {
-  ChatContactDescriptor,
-  ChatContactSessionMap,
   ChatContactSessionSummary,
   CrmFollowUpStatus,
   LeadStatus,
@@ -28,10 +27,7 @@ import { recordConfirmedSalesOutcome } from '@/lib/sales-learning';
 import { revalidatePath } from 'next/cache';
 import {
   buildWhatsAppJidCandidates,
-  normalizeWhatsAppConversationJid,
-  pickExplicitWhatsAppPhoneJid,
   pickObservedAlternateRemoteJid,
-  pickPreferredWhatsAppRemoteJid,
 } from '@/lib/whatsapp-jid';
 
 // schema para agregar varios tags a una sesión
@@ -65,30 +61,9 @@ function buildRemoteJidCandidates(
   return buildWhatsAppJidCandidates(remoteJid, extras);
 }
 
-function resolvePreferredRemoteJid(values: Array<string | null | undefined>) {
-  return (
-    pickExplicitWhatsAppPhoneJid(values) ||
-    pickPreferredWhatsAppRemoteJid(values) ||
-    normalizeWhatsAppConversationJid(values.find((value) => value?.trim()) ?? '') ||
-    values.find((value) => value?.trim())?.trim() ||
-    ''
-  );
-}
-
-function scoreSessionMatch(
-  session: Pick<PrismaSession, 'remoteJid' | 'remoteJidAlt' | 'updatedAt'>,
-  requestedRemoteJid: string,
-  preferredRemoteJid: string,
-  candidates: string[],
-) {
-  if (session.remoteJid === preferredRemoteJid) return 0;
-  if (session.remoteJidAlt === preferredRemoteJid) return 1;
-  if (session.remoteJid === requestedRemoteJid) return 2;
-  if (session.remoteJidAlt === requestedRemoteJid) return 3;
-  if (candidates.includes(session.remoteJid)) return 4;
-  if (session.remoteJidAlt && candidates.includes(session.remoteJidAlt)) return 5;
-  return 99;
-}
+// `resolvePreferredRemoteJid` y `scoreSessionMatch` viven en
+// lib/chat-session-match: el navegador los necesita para emparejar las
+// sesiones con los chats, y aqui se siguen usando para buscar una sesion.
 
 function createEmptyCrmFollowUpSummary(): SessionCrmFollowUpSummary {
   return {
@@ -152,6 +127,9 @@ function mapChatContactSessionSummary(
     status: mappedSession.status,
     agentDisabled: mappedSession.agentDisabled,
     resolvedAt: resolvedAt ?? null,
+    // Para emparejar en el navegador: de que linea es y cual es mas reciente.
+    instanceId: mappedSession.instanceId ?? null,
+    updatedAt: mappedSession.updatedAt ? new Date(mappedSession.updatedAt).getTime() : null,
   };
 }
 
@@ -361,145 +339,66 @@ export async function getSessionsByUserId(
   }
 }
 
-export async function getChatContactSessions(
+/**
+ * Las sesiones de la cuenta, con todo lo que la bandeja pinta de cada una.
+ *
+ * Sustituye a `getChatContactSessions`, que recibia la agenda ENTERA del
+ * navegador -un descriptor por chat, 3.900 chats y 500 KB en las cuentas
+ * grandes, cada minuto por pestaña-, la validaba fila a fila con Zod, armaba
+ * ~10.000 identidades candidatas y las buscaba con `OR` de dos `IN` de 5.000
+ * parametros. Medido en produccion: 1,3 s en un buen momento y 11, 13 y 25 s
+ * cuando la base estaba ocupada; en esos ratos la consulta de mensajes del
+ * chat abierto tambien se pasaba de plazo, porque era la misma cola.
+ *
+ * Aqui no sube nada: se traen las sesiones por `userId` -que es la primera
+ * columna del indice unico (userId, instanceId, remoteJid)- y el navegador las
+ * empareja con sus chats (`lib/chat-session-match`). Devuelve un ARRAY, no el
+ * mapa por chat: el mapa lo arma quien tiene los chats.
+ */
+export async function getSesionesDeLaCuenta(
   userId: string | string[],
-  chats: ChatContactDescriptor[],
-): Promise<SessionResponse<ChatContactSessionMap>> {
-  const userIds = Array.isArray(userId) ? userId.filter(Boolean) : [userId].filter(Boolean);
+): Promise<SessionResponse<ChatContactSessionSummary[]>> {
+  const pedidos = Array.isArray(userId) ? userId.filter(Boolean) : [userId].filter(Boolean);
   try {
-    if (userIds.length === 0) {
-      return {
-        success: false,
-        message: 'Se requiere el userId.',
-      };
+    if (pedidos.length === 0) {
+      return { success: false, message: 'Se requiere el userId.' };
     }
 
-    const parsedChats = z
-      .array(
-        z.object({
-          remoteJid: z.string().trim().min(1),
-          remoteJidAlt: z.string().trim().nullish(),
-          senderPn: z.string().trim().nullish(),
-          pushName: z.string().trim().nullish(),
-          aliases: z.array(z.string().trim()).optional(),
-          instanceName: z.string().trim().nullish(),
-        }),
-      )
-      .parse(chats ?? []);
-
-    if (parsedChats.length === 0) {
-      return {
-        success: true,
-        message: 'No hay chats para mapear sesiones.',
-        data: {},
-      };
-    }
-
-    const chatsWithCandidates = parsedChats.map((chat) => {
-      const observedAliases = [
-        chat.remoteJid,
-        chat.remoteJidAlt ?? undefined,
-        chat.senderPn ?? undefined,
-        ...(chat.aliases ?? []),
-      ];
-
-      return {
-        chatRemoteJid: chat.remoteJid,
-        instanceName: chat.instanceName ?? null,
-        preferredRemoteJid: resolvePreferredRemoteJid(observedAliases),
-        candidates: buildRemoteJidCandidates(chat.remoteJid, observedAliases),
-      };
-    });
-
-    const allCandidates = Array.from(
-      new Set(
-        chatsWithCandidates.flatMap((chat) => chat.candidates).filter(Boolean),
-      ),
+    // Toda accion que recibe un userId comprueba de quien es el dato. Las
+    // cuentas que no pasan se dejan fuera con aviso, no tumban la bandeja
+    // entera: la pantalla manda la propia, la del dueño y las vinculadas, y
+    // una de mas no puede dejar a las demas sin nombres ni etiquetas.
+    const comprobaciones = await Promise.allSettled(
+      pedidos.map((id) => assertCanAccessTargetUser(id)),
     );
-
-    if (allCandidates.length === 0) {
-      return {
-        success: true,
-        message: 'No se generaron candidatos de JID para buscar sesiones.',
-        data: {},
-      };
+    const userIds = pedidos.filter((_, i) => comprobaciones[i].status === 'fulfilled');
+    const rechazadas = pedidos.filter((_, i) => comprobaciones[i].status !== 'fulfilled');
+    if (rechazadas.length > 0) {
+      console.warn('[chats] se ignoran cuentas a las que no se tiene acceso al traer sesiones', {
+        rechazadas,
+        aceptadas: userIds.length,
+      });
+    }
+    if (userIds.length === 0) {
+      return { success: false, message: 'No autorizado.' };
     }
 
-    // PostgreSQL tiene un límite de 32767 bind variables por query.
-    // Con miles de chats (cada uno con múltiples JID candidates) se supera fácilmente.
-    // Solución: dividir en lotes de 5000 candidatos y unir resultados deduplicando por ID.
-    const BATCH_SIZE = 5000;
-    const candidateBatches: string[][] = [];
-    for (let i = 0; i < allCandidates.length; i += BATCH_SIZE) {
-      candidateBatches.push(allCandidates.slice(i, i + BATCH_SIZE));
-    }
-
-    const TOPE_POR_LOTE = 1000;
     const arrancoEn = Date.now();
 
-    const sessionBatches = await Promise.all(
-      candidateBatches.map((batch) =>
-        db.session.findMany({
-          where: {
-            userId: userIds.length === 1 ? userIds[0] : { in: userIds },
-            OR: [
-              { remoteJid: { in: batch } },
-              { remoteJidAlt: { in: batch } },
-            ],
-          },
+    const sessions = await db.session.findMany({
+      where: { userId: userIds.length === 1 ? userIds[0] : { in: userIds } },
+      include: {
+        sessionTags: {
           include: {
-            sessionTags: {
-              include: {
-                tag: true,
-              },
-            },
+            tag: true,
           },
-          take: TOPE_POR_LOTE,
-        }),
-      ),
-    );
-
-    // El `take` corta EN SILENCIO.
-    //
-    // Un lote que devuelve justo el tope casi seguro tenia mas, y esas sesiones
-    // no llegan a la pantalla: el chat sale sin nombre, sin etiquetas y sin
-    // asesor, como si no tuviera sesion. Encaja con lo que se vio en las
-    // cuentas grandes -"la lista vuelve incompleta, sin sesiones ni nombres"- y
-    // no habia forma de saberlo porque nadie lo contaba.
-    const lotesAlTope = sessionBatches.filter((lote) => lote.length >= TOPE_POR_LOTE).length;
-    if (lotesAlTope > 0) {
-      console.warn(
-        '[chats] la consulta de sesiones se corto por el tope: hay sesiones que NO llegan a la pantalla.',
-        {
-          lotesAlTope,
-          lotesEnTotal: candidateBatches.length,
-          topePorLote: TOPE_POR_LOTE,
-          candidatos: allCandidates.length,
-          chats: parsedChats.length,
         },
-      );
-    }
+      },
+    });
 
-    const sessionDedupeMap = new Map<number, (typeof sessionBatches)[0][0]>();
-    for (const batch of sessionBatches) {
-      for (const session of batch) {
-        sessionDedupeMap.set(session.id, session);
-      }
-    }
-    const sessions = Array.from(sessionDedupeMap.values());
-
-    const sessionsByCandidate = new Map<string, SessionWithTagsRecord[]>();
-    for (const session of sessions) {
-      const sessionCandidates = [session.remoteJid, session.remoteJidAlt].filter(Boolean) as string[];
-
-      for (const candidate of sessionCandidates) {
-        const existing = sessionsByCandidate.get(candidate) ?? [];
-        existing.push(session);
-        sessionsByCandidate.set(candidate, existing);
-      }
-    }
-
-    const allRemoteJids = sessions.map((s) => s.remoteJid).filter(Boolean) as string[];
+    const allRemoteJids = Array.from(
+      new Set(sessions.map((s) => s.remoteJid).filter(Boolean) as string[]),
+    );
 
     const seguimientosRaw = allRemoteJids.length
       ? await db.seguimiento.findMany({
@@ -521,8 +420,8 @@ export async function getChatContactSessions(
     const sessionIds = sessions.map((s) => s.id);
     // Que conversaciones estan marcadas como resueltas. Va aparte porque la
     // columna no esta en schema.prisma (se crea en caliente), asi que el
-    // findMany de arriba no la trae.
-    const resueltasMap = await obtenerResueltas(sessionIds);
+    // findMany de arriba no la trae. Por cuenta, no por lista de ids.
+    const resueltasMap = await obtenerResueltasDeCuentas(userIds);
     const appointmentsRaw = sessionIds.length
       ? await db.appointment.findMany({
           where: { sessionId: { in: sessionIds } },
@@ -565,106 +464,36 @@ export async function getChatContactSessions(
       console.error('No se pudieron contar los recordatorios de la bandeja:', error);
     }
 
-    const data: ChatContactSessionMap = {};
-
-    for (const chat of chatsWithCandidates) {
-      const matchedSessions = new Map<number, SessionWithTagsRecord>();
-
-      for (const candidate of chat.candidates) {
-        const candidateSessions = sessionsByCandidate.get(candidate) ?? [];
-        for (const session of candidateSessions) {
-          matchedSessions.set(session.id, session);
-        }
-      }
-
-      const preferredSession = Array.from(matchedSessions.values())
-        .sort((a, b) => {
-          const aScore = scoreSessionMatch(
-            a,
-            chat.chatRemoteJid,
-            chat.preferredRemoteJid,
-            chat.candidates,
-          );
-          const bScore = scoreSessionMatch(
-            b,
-            chat.chatRemoteJid,
-            chat.preferredRemoteJid,
-            chat.candidates,
-          );
-
-          if (aScore !== bScore) return aScore - bScore;
-          // Preferir sesiones con nombre válido (customName o pushName no vacío/Você)
-          const hasGoodName = (s: typeof a) => {
-            const n = (s.customName ?? s.pushName ?? '').toLowerCase().trim();
-            return n !== '' && n !== 'você' && n !== 'voce' && n !== 'desconocido' && n !== '.';
-          };
-          const aHasName = hasGoodName(a) ? 0 : 1;
-          const bHasName = hasGoodName(b) ? 0 : 1;
-          if (aHasName !== bHasName) return aHasName - bHasName;
-          return b.updatedAt.getTime() - a.updatedAt.getTime();
-        })[0];
-
-      if (preferredSession) {
-        const seg = seguimientosMap.get(preferredSession.remoteJid);
-        data[chat.chatRemoteJid] = mapChatContactSessionSummary(
-          preferredSession,
-          seg?.count ?? 0,
-          Object.entries(seg?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
-          appointmentStatusMap.get(preferredSession.id) ?? null,
-          recordatoriosMap.get(preferredSession.remoteJid) ?? 0,
-          resueltasMap.get(preferredSession.id) ?? null,
-        );
-      }
-
-      // Un mismo numero puede escribirle a mas de una linea de la cuenta, cada
-      // una con su propia Session (asesor asignado, etiquetas...). La entrada
-      // de arriba es "la sesion global" del contacto (para quien no distingue
-      // linea, o para cuando solo hay una). Esta de aqui es la de SU linea, y
-      // se calcula SIEMPRE que se conoce la linea del chat — no solo cuando ya
-      // se sabe que hay mas de una, porque el caso que hay que blindar es
-      // justo el contrario: un contacto que NO tiene sesion en esta linea no
-      // debe heredar en silencio la de otra (verse "asignado" o con etiquetas
-      // que aqui no le pusieron). Si no hay sesion para esta linea, no se
-      // escribe nada bajo la llave compuesta a proposito: getSessionForChat no
-      // cae de vuelta a la global cuando ya sabe en que linea esta.
-      if (chat.instanceName) {
-        const sesionDeSuLinea = Array.from(matchedSessions.values()).find(
-          (s) => s.instanceId === chat.instanceName,
-        );
-        if (sesionDeSuLinea) {
-          const segLinea = seguimientosMap.get(sesionDeSuLinea.remoteJid);
-          data[`${chat.instanceName}::${chat.chatRemoteJid}`] = mapChatContactSessionSummary(
-            sesionDeSuLinea,
-            segLinea?.count ?? 0,
-            Object.entries(segLinea?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
-            appointmentStatusMap.get(sesionDeSuLinea.id) ?? null,
-            recordatoriosMap.get(sesionDeSuLinea.remoteJid) ?? 0,
-            resueltasMap.get(sesionDeSuLinea.id) ?? null,
-          );
-        }
-      }
-    }
+    const data = sessions.map((sesion) => {
+      const seg = seguimientosMap.get(sesion.remoteJid);
+      return mapChatContactSessionSummary(
+        sesion,
+        seg?.count ?? 0,
+        Object.entries(seg?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
+        appointmentStatusMap.get(sesion.id) ?? null,
+        recordatoriosMap.get(sesion.remoteJid) ?? 0,
+        resueltasMap.get(sesion.id) ?? null,
+      );
+    });
 
     const tardo = Date.now() - arrancoEn;
-    if (tardo > 1500 || parsedChats.length > 3000) {
-      console.warn('[chats] getChatContactSessions va caro', {
-        chats: parsedChats.length,
-        candidatos: allCandidates.length,
-        lotes: candidateBatches.length,
-        sesionesEncontradas: sessions.length,
+    if (tardo > 1500 || sessions.length > 3000) {
+      console.warn('[chats] getSesionesDeLaCuenta va caro', {
+        cuentas: userIds.length,
+        sesiones: sessions.length,
         tardoMs: tardo,
       });
     }
 
     return {
       success: true,
-      message: 'Sesiones de chat obtenidas correctamente.',
+      message: 'Sesiones de la cuenta obtenidas correctamente.',
       data,
     };
   } catch (error) {
-    console.error('Error al obtener sesiones para contactos de chat:', error);
+    console.error('Error al obtener las sesiones de la cuenta:', error);
 
-    let errorMessage = 'No se pudieron mapear las sesiones de los chats.';
+    let errorMessage = 'No se pudieron cargar las sesiones de la cuenta.';
     if (error instanceof Error) {
       errorMessage = error.message;
     }

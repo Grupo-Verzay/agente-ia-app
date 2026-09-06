@@ -75,22 +75,6 @@ export type Session = PrismaSession & {
   adSourceAt?: Date | null;
 };
 
-export type ChatContactDescriptor = {
-  remoteJid: string;
-  remoteJidAlt?: string | null;
-  senderPn?: string | null;
-  pushName?: string | null;
-  aliases?: string[];
-  /**
-   * Linea (Instancia) de la que viene este chat. Un mismo numero puede
-   * escribirle a mas de una linea de la cuenta, cada una con su propia
-   * Session (asesor asignado, etiquetas...) para ese contacto. Sirve para
-   * que getChatContactSessions no mezcle la sesion de una linea con la de
-   * otra al elegir "la" sesion de un contacto.
-   */
-  instanceName?: string | null;
-};
-
 export type ChatContactSessionSummary = {
   id: number;
   userId: string;
@@ -120,6 +104,14 @@ export type ChatContactSessionSummary = {
    * cualquier chat contestado.
    */
   resolvedAt?: number | null;
+  /**
+   * Linea (instanceName) de la sesion y cuando se toco por ultima vez
+   * (milisegundos). Los usa el navegador para emparejar las sesiones de la
+   * cuenta con los chats de la bandeja (lib/chat-session-match): la de SU
+   * linea manda, y entre iguales gana la mas reciente.
+   */
+  instanceId?: string | null;
+  updatedAt?: number | null;
 };
 
 export type ChatContactSessionMap = Record<string, ChatContactSessionSummary>;

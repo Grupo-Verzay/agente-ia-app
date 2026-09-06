@@ -237,17 +237,17 @@ Si la primera búsqueda no pausa nada, se completa con las identidades que guard
 `chat_messages` y se reintenta. Es la misma regla de siempre: cuando una forma se
 queda corta, nuestra base sabe completarla.
 
-## Chats: las sesiones no vuelven al reloj de la lista
+## Chats: las sesiones no vuelven al reloj de la lista, y la agenda no se sube
 
 `refreshChatSessions` es, con diferencia, lo más caro de la pantalla, y estaba
 pegado al reloj de la lista: **cada 20 segundos, por cada pestaña abierta**.
 
-Cada vuelta: el navegador serializa la **agenda entera** —más de 3.000 contactos
-con todos sus alias en las cuentas grandes— y la manda por POST; el servidor los
-valida uno por uno con Zod; con ellos arma ~10.000 identidades candidatas y
-busca en lotes de 5.000, o sea consultas de 10.000 parámetros contra Postgres. Y
-no es una consulta: son **cuatro** (sesiones con etiquetas, seguimientos,
-resueltas y citas).
+Cada vuelta: el navegador serializaba la **agenda entera** —más de 3.000
+contactos con todos sus alias en las cuentas grandes— y la mandaba por POST; el
+servidor los validaba uno por uno con Zod; con ellos armaba ~10.000 identidades
+candidatas y buscaba en lotes de 5.000, o sea consultas de 10.000 parámetros
+contra Postgres. Y no era una consulta: eran **cuatro** (sesiones con etiquetas,
+seguimientos, resueltas y citas).
 
 Con varios asesores conectados eso son decenas de consultas enormes por minuto
 para devolver algo que casi nunca cambia. Encaja con lo que se vio: `502`
@@ -256,6 +256,32 @@ de 3.075, sin sesiones, sin nombres, sin fotos).
 
 Van a **60s** (`INTERVALO_MINIMO_DE_SESIONES`), con `forzar` para el refresco
 que se pide a mano. **No devolverlas al ritmo de la lista.**
+
+Y aun a 60s seguía doliendo. Medido en producción con el aviso
+`[chats] el refresco de sesiones va caro`, en una cuenta de 3.900 chats:
+
+| chats subidos | peso | tardó |
+| --- | --- | --- |
+| 3.912 | 500 KB | 1,3 s |
+| 3.914 | 500 KB | 13,5 s |
+| 3.911 | 499 KB | 25 s |
+
+Y en los ratos de 11-25 s **la consulta de mensajes del chat abierto también se
+pasaba de plazo** (`la consulta de mensajes va lenta; se sigue esperando`). Era
+la misma cola: la base ocupada con las consultas de 10.000 parámetros y todo lo
+demás esperando detrás.
+
+Ahora **no se sube nada**. `getSesionesDeLaCuenta` trae las sesiones por
+`userId` —primera columna del índice único `(userId, instanceId, remoteJid)`—
+y el navegador las empareja con sus chats en `lib/chat-session-match`, que es
+puro: solo compara cadenas. Es el mismo criterio de siempre movido de sitio
+(preferida > alterna > pedida > candidata; luego nombre bueno; luego la más
+reciente), y la llave `linea::numero` se sigue escribiendo solo cuando hay
+sesión en esa línea. El aviso de la consola ahora dice `sesionesRecibidas`,
+`tardoMs` (red) y `emparejarMs` (navegador), para comparar antes y después.
+
+**No volver a mandar la agenda al servidor para pedir sesiones.** Si hace
+falta otra cosa por chat, se calcula con lo que ya está en el navegador.
 
 Esto **no** contradice la primera regla de este documento. Lo que se espacia
 aquí es información de CRM —a quién está asignado un chat, sus etiquetas, su
