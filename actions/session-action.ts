@@ -1221,6 +1221,14 @@ export async function getSessionsByUserIdToCRM(
       };
     }
 
+    // Se comprueba que quien pregunta manda sobre esa cuenta. Esta accion se
+    // llama desde el navegador con el `userId` que le manden, y devolvia el
+    // CRM entero de CUALQUIER cuenta a cualquier usuario con sesion (H02 de la
+    // auditoria del 2026-09-06). La regla es la de siempre: uno mismo, el
+    // dueno de un asesor, cuentas vinculadas, admin, y el reseller sobre sus
+    // clientes.
+    await assertCanAccessTargetUser(userId);
+
     const sessions = await db.session.findMany({
       where: {
         userId,

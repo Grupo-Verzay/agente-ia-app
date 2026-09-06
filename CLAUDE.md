@@ -360,6 +360,38 @@ Dos cosas:
 Sale como `console.warn` a propósito: `log` y `debug` los borra el build (ver la
 regla de `removeConsole`).
 
+## Toda acción y toda ruta comprueban de quién es el dato
+
+Había funciones que un usuario con sesión podía llamar con el id de **otra
+cuenta** y contestaban sin preguntar: el CRM entero
+(`getSessionsByUserIdToCRM`), las tareas de una conversación ajena
+(`getTasksBySessionAction`) y el prompt del agente de otro cliente
+(`patchBusinessAndFirma`, que no comprobaba **ni sesión**). Y cinco rutas de
+subida a S3 que no pedían nada: cualquiera, con o sin sesión, podía llenar el
+bucket o dejar archivos en la carpeta de otra cuenta. Es el H02 de la auditoría
+del 2026-09-06.
+
+La regla ya existía, `assertCanAccessTargetUser`, y es la que respeta a todos
+los que tienen que pasar: uno mismo, el asesor sobre su dueño, cuentas
+vinculadas, admin y super admin sobre todo, el reseller sobre sus clientes. Lo
+que faltaba era **aplicarla donde no estaba**.
+
+Tres cosas:
+
+1. **Ninguna acción de servidor que reciba un `userId`, un `sessionId` o un id
+   de recurso lo usa sin pasar antes por `assertCanAccessTargetUser` con el
+   dueño de ese recurso.** Si el recurso no trae el dueño (una conversación, un
+   prompt), se resuelve primero con una consulta pequeña y luego se comprueba.
+2. **Ninguna ruta `/api` confía solo en el middleware.** El middleware se pudo
+   saltar (ver la regla de Next) y volverá a poder en la próxima CVE. Las rutas
+   que son para el navegador comprueban `currentUser()`; las que son para el
+   backend llevan su clave (`CRM_FOLLOW_UP_RUNNER_KEY`); las públicas de verdad
+   (`/api/health`, formularios públicos, avatar) lo son a propósito y lo dicen
+   en un comentario.
+3. Cuando un legítimo reciba «No autorizado», **se arregla la pantalla que
+   manda el id equivocado, no la regla.** El caso típico: pasar el id del asesor
+   donde la regla espera el de su dueño.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera

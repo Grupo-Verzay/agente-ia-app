@@ -71,6 +71,20 @@ export async function patchBusinessAndFirma(input: {
     const { promptId, version, business, firma } = input;
     const parsedBusiness = BusinessDraftSchema.parse(business);
 
+    // No comprobaba NADA: ni sesion ni dueno. Con el id del prompt, cualquiera
+    // podia cambiar el negocio y la firma del agente de otra cuenta (H02 de la
+    // auditoria del 2026-09-06). Las acciones hermanas de este archivo ya
+    // pasan por `assertCanAccessTargetUser`; esta se habia quedado fuera.
+    //
+    // Se resuelve el dueno ANTES de abrir la transaccion, para no tener una
+    // transaccion abierta mientras se consulta la sesion.
+    const dueno = await db.agentPrompt.findUnique({
+        where: { id: promptId },
+        select: { userId: true },
+    });
+    if (!dueno) throw new Error('Prompt no encontrado');
+    await assertCanAccessTargetUser(dueno.userId);
+
     return await db.$transaction(async (tx) => {
         const current = await tx.agentPrompt.findUnique({ where: { id: promptId } });
         if (!current) throw new Error('Prompt no encontrado');
