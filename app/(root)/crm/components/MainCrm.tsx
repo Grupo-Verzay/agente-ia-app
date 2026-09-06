@@ -22,16 +22,34 @@ export const MainCrm = ({ userId, allTags }: MainCrmProps) => {
   const observerRef = useRef<HTMLDivElement | null>(null);
   const [filter, setFilter] = useState<FilterSessionTypes>("all");
 
+  /**
+   * La llave de cada pagina es un ARRAY, no un texto.
+   *
+   * Antes era `${userId}-${estado}-${pagina}` y luego se partia por guiones.
+   * Pero el `userId` es un UUID, que lleva cuatro guiones, asi que las
+   * posiciones 2 y 3 caian DENTRO del UUID: el estado salia como un trozo
+   * hexadecimal cualquiera (y por tanto "sin filtro") y la pagina como
+   * `parseInt` del tercer bloque, que en un UUID v4 empieza siempre por `4`.
+   *
+   * O sea: todo el mundo veia SIEMPRE la pagina 4 -salto de 200 filas- y el
+   * filtro no hacia nada. Con menos de 200 sesiones el CRM salia vacio; con
+   * mas, el scroll infinito repetia el mismo bloque una y otra vez.
+   *
+   * SWR acepta arrays como llave y se los pasa tal cual al cargador: no hay
+   * nada que partir ni que pueda partirse mal.
+   */
+  type LlaveDePagina = readonly ["crm-sesiones", string, boolean | undefined, number];
+
   const getKey = (
     pageIndex: number,
     previousPageData: SessionWithRegistrosAndTags[] | null
-  ) => {
+  ): LlaveDePagina | null => {
     if (previousPageData && previousPageData.length < PAGE_SIZE) return null;
 
-    const statusKey =
-      filter === "all" ? "all" : filter === "activeSession" ? "true" : "false";
+    const estado =
+      filter === "all" ? undefined : filter === "activeSession" ? true : false;
 
-    return `${userId}-${statusKey}-${pageIndex}`;
+    return ["crm-sesiones", userId, estado, pageIndex] as const;
   };
 
   const {
@@ -44,18 +62,12 @@ export const MainCrm = ({ userId, allTags }: MainCrmProps) => {
     mutate
   } = useSWRInfinite<SessionWithRegistrosAndTags[]>(
     getKey,
-    async (key: string) => {
-      const [, statusStr, pageIndex] = key.split("-");
-      const page = parseInt(pageIndex, 10) || 0;
-
-      const statusParam =
-        statusStr === "true" ? true : statusStr === "false" ? false : undefined;
-
+    async ([, cuenta, estado, pagina]: LlaveDePagina) => {
       const res = await getSessionsByUserIdToCRM(
-        userId,
-        page * PAGE_SIZE,
+        cuenta,
+        pagina * PAGE_SIZE,
         PAGE_SIZE,
-        statusParam
+        estado
       );
 
       if (!res.success) {

@@ -292,7 +292,20 @@ function ensureChatMessagesTable() {
       WHERE "chat_conversations"."lastMessageTimestamp" IS NULL
          OR "chat_conversations"."lastMessageTimestamp" <= EXCLUDED."lastMessageTimestamp"
     `;
-  })();
+  })().catch((error) => {
+    // Si una sentencia falla, la promesa rechazada NO se queda guardada.
+    //
+    // Se quedaba: `??=` la memorizaba y todas las escrituras siguientes del
+    // proceso reutilizaban el mismo rechazo sin volver a preguntarle a la
+    // base. Un tropiezo pasajero de Postgres en el arranque dejaba la
+    // persistencia de mensajes rota hasta reiniciar el contenedor, y sin un
+    // solo aviso nuevo, porque el error era siempre el de la primera vez.
+    //
+    // Es el mismo patron que ya usa `ensureFlowTable` en flow-actions.ts.
+    ensureTablePromise = null;
+    console.error("[chat-persistence] fallo la inicializacion de tablas; se reintentara en la proxima escritura", error);
+    throw error;
+  });
 
   return ensureTablePromise;
 }
