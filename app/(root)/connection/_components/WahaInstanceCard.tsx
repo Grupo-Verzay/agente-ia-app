@@ -236,7 +236,7 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2 min-w-0">
               <FaWhatsapp className="w-5 h-5 shrink-0 text-green-500" />
-              <span className="truncate">WhatsApp Mensajería (Waha)</span>
+              <span className="truncate">WhatsApp Mensajería (QR)</span>
             </CardTitle>
             <Button
               size="sm"

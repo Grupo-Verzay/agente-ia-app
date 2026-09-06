@@ -103,7 +103,7 @@ export const ClientInstanceCard = ({
           <div className="flex justify-between items-center gap-2">
             <CardTitle className="flex min-w-0 items-center gap-2">
               <MessageCircle className="h-4 w-4 shrink-0 text-green-600" />
-              <span className="truncate">{instanceType === 'Whatsapp' ? 'Mensajería WhatsApp' : `Mensajería ${instanceType}`}</span>
+              <span className="truncate">{instanceType === 'Whatsapp' ? 'Mensajería WhatsApp (QR)' : `Mensajería ${instanceType}`}</span>
             </CardTitle>
             <div className="shrink-0">
               <ConnectionActions
