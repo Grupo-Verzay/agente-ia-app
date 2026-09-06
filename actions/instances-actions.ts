@@ -852,7 +852,7 @@ export async function getMetaCallingStatus(instanceName: string): Promise<{ succ
   }
 }
 
-/* ─── WAHA — "WhatsApp V2" ──────────────────────────────────
+/* ─── WAHA — "WhatsApp Mensajeria" ──────────────────────────────────
  *
  * Instancias con `instanceType: 'waha'`. Las de Evolution se guardan como
  * 'Whatsapp', asi que nada de aqui las toca: en el backend la fabrica de
@@ -872,7 +872,7 @@ export async function createWahaInstance(params: {
   if (!(await isWahaConfigured())) {
     return {
       success: false,
-      message: 'El servidor de WhatsApp V2 no esta configurado. Se pone en Panel > Conexion.',
+      message: 'El servidor de WhatsApp Mensajería no esta configurado. Se pone en Panel > Conexion.',
     };
   }
 
@@ -916,7 +916,7 @@ export async function createWahaInstance(params: {
     // La sesion quedo creada en WAHA pero sin fila: se deshace para no dejar
     // una sesion huerfana mandando webhooks que nadie va a poder emparejar.
     await deleteWahaSession(instanceName);
-    return { success: false, message: error?.message ?? 'Error al crear la instancia de WhatsApp V2.' };
+    return { success: false, message: error?.message ?? 'Error al crear la instancia de WhatsApp Mensajería.' };
   }
 
   revalidatePath('/connection');

@@ -134,7 +134,7 @@ type ApiKeyData = { url: string; key: string };
  *
  * Pasarles la clave de Evolution hace que se pidan los mensajes al servidor
  * equivocado: contesta correcto y VACIO, y la conversacion sale con el
- * historial de otra linea o en blanco. Es lo que pasaba con WhatsApp V2: la
+ * historial de otra linea o en blanco. Es lo que pasaba con WhatsApp Mensajeria: la
  * fila aparecia en la lista —eso sale de nuestra base— y la conversacion no.
  *
  * Si entra otro proveedor propio, va en esta lista.

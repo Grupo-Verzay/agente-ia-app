@@ -4,7 +4,7 @@ import type { SendMessageResult } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
 
 /**
- * Acciones de la pantalla de Chats para las lineas de WhatsApp V2 (WAHA).
+ * Acciones de la pantalla de Chats para las lineas de WhatsApp Mensajeria (Waha).
  *
  * LEER ya funciona sin nada de aqui: los mensajes los guarda el backend al
  * recibirlos por webhook, y `warmChatMessagesAction` con `apiKeyData: null`
@@ -21,7 +21,7 @@ import type { ChatToolActionResult } from '@/types/chat';
  */
 
 const TODAVIA_NO =
-  'Escribir a mano por WhatsApp V2 todavía no está disponible. La IA sí responde por esta línea.';
+  'Escribir a mano por WhatsApp Mensajería todavía no está disponible. La IA sí responde por esta línea.';
 
 export async function sendWahaTextAction(
   _instanceName: string,

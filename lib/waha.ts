@@ -7,7 +7,7 @@ import { db } from '@/lib/db';
  * route handlers de /app/api/waha/* y desde acciones 'use server'.
  *
  * La API key no puede salir al navegador nunca: todo lo que necesite la tarjeta
- * de "WhatsApp V2" pasa por las rutas de /app/api/waha/*, que llaman aqui y
+ * de "WhatsApp Mensajeria" pasa por las rutas de /app/api/waha/*, que llaman aqui y
  * devuelven solo lo justo.
  */
 
@@ -40,7 +40,7 @@ export interface WahaSession {
  * siempre: cambiar una credencial no puede costar un redespliegue.
  *
  * Devuelve `null` si no esta configurado. Sin configurar, la App tiene que
- * seguir funcionando igual que hoy, solo sin la tarjeta de WhatsApp V2.
+ * seguir funcionando igual que hoy, solo sin la tarjeta de WhatsApp Mensajeria.
  */
 export async function getWahaConfig(): Promise<WahaConfig | null> {
   try {
@@ -103,7 +103,7 @@ export async function createWahaSession(params: {
   secret: string;
 }): Promise<{ ok: boolean; message?: string }> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp V2 no esta configurado (Panel > Conexion).' };
+  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp Mensajería no esta configurado (Panel > Conexion).' };
 
   try {
     const res = await wahaFetch(cfg, '/api/sessions', {
@@ -151,7 +151,7 @@ export async function wahaSessionAction(
   action: 'start' | 'stop' | 'logout' | 'restart',
 ): Promise<{ ok: boolean; message?: string }> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp V2 no esta configurado (Panel > Conexion).' };
+  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp Mensajería no esta configurado (Panel > Conexion).' };
   try {
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}/${action}`, {
       method: 'POST',
@@ -168,7 +168,7 @@ export async function wahaSessionAction(
 
 export async function deleteWahaSession(session: string): Promise<{ ok: boolean; message?: string }> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp V2 no esta configurado (Panel > Conexion).' };
+  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp Mensajería no esta configurado (Panel > Conexion).' };
   try {
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}`, {
       method: 'DELETE',
@@ -198,7 +198,7 @@ export type ResultadoQr =
  */
 export async function getWahaQrPng(session: string): Promise<ResultadoQr> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { estado: 'error', motivo: 'El servidor de WhatsApp V2 no esta configurado.' };
+  if (!cfg) return { estado: 'error', motivo: 'El servidor de WhatsApp Mensajería no esta configurado.' };
 
   try {
     const res = await wahaFetch(
@@ -227,7 +227,7 @@ export async function getWahaQrPng(session: string): Promise<ResultadoQr> {
     const agotado = error?.name === 'TimeoutError' || error?.name === 'AbortError';
     return {
       estado: 'error',
-      motivo: agotado ? 'El servidor de WhatsApp V2 tardo demasiado.' : 'No se pudo contactar con el servidor.',
+      motivo: agotado ? 'El servidor de WhatsApp Mensajería tardo demasiado.' : 'No se pudo contactar con el servidor.',
     };
   }
 }

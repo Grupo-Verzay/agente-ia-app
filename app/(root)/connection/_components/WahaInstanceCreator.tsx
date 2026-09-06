@@ -57,7 +57,7 @@ export const WahaInstanceCreator = ({ userId, company, hayServidor }: WahaInstan
             className="rounded-sm w-6 h-6"
             style={{ color: hayServidor ? WHATSAPP_GREEN : undefined }}
           />
-          <span className="text-xl font-bold">WhatsApp V2</span>
+          <span className="text-xl font-bold">WhatsApp Mensajería (Waha)</span>
         </CardTitle>
         {!hayServidor && (
           <span className="text-xs font-medium text-amber-600">Sin servidor configurado</span>
@@ -86,7 +86,7 @@ export const WahaInstanceCreator = ({ userId, company, hayServidor }: WahaInstan
               style={{ backgroundColor: WHATSAPP_GREEN }}
             >
               {saving ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
-              Conectar WhatsApp V2
+              Conectar WhatsApp Mensajería
             </Button>
           </>
         ) : (

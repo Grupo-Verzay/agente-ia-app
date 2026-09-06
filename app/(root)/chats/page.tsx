@@ -66,7 +66,7 @@ function pickWhatsappOrNull(arr: Instancia[]) {
     arr.find((instance) => instance.instanceType == null) ??
     arr.find((instance) => instance.instanceType === "baileys") ??
     arr.find((instance) => instance.instanceType === "meta" && (instance.metaChannel ?? "whatsapp") === "whatsapp") ??
-    // WhatsApp V2 (WAHA). Sin esto la linea no se puede elegir y sus
+    // WhatsApp Mensajeria (Waha). Sin esto la linea no se puede elegir y sus
     // conversaciones no tienen donde abrirse.
     arr.find((instance) => instance.instanceType === "waha") ??
     null
@@ -455,7 +455,7 @@ export default async function ChatsPage({
       (inst) =>
         inst.instanceType === "Whatsapp" ||
         inst.instanceType === "baileys" ||
-        // WhatsApp V2 (WAHA). Sin esto no se le arma juego de acciones y la
+        // WhatsApp Mensajeria (Waha). Sin esto no se le arma juego de acciones y la
         // conversacion se abre contra la linea de Evolution: la fila sale en la
         // lista —eso viene de nuestra base— y los mensajes no.
         inst.instanceType === "waha" ||
@@ -490,7 +490,7 @@ export default async function ChatsPage({
       (inst) =>
         inst.instanceType === "Whatsapp" ||
         inst.instanceType === "baileys" ||
-        // WhatsApp V2 (WAHA). Sin esto no se le arma juego de acciones y la
+        // WhatsApp Mensajeria (Waha). Sin esto no se le arma juego de acciones y la
         // conversacion se abre contra la linea de Evolution: la fila sale en la
         // lista —eso viene de nuestra base— y los mensajes no.
         inst.instanceType === "waha" ||
@@ -633,7 +633,7 @@ export default async function ChatsPage({
       // linea, asi que alla no quedaba nada con lo que trabajar y contestaba
       // "No hay instancia o API key configurada para cargar mensajes".
       const claveInst = claveDeLaLinea(inst);
-      // WhatsApp V2 no habla con Evolution: sus mensajes los guarda el backend
+      // WhatsApp Mensajeria no habla con Evolution: sus mensajes los guarda el backend
       // al recibirlos y salen de nuestra base. Pasarle una clave de Evolution
       // hace que se pidan al servidor equivocado, que contesta correcto y
       // VACIO. Con `apiKeyData: null` la accion generica tira de la base.
@@ -685,7 +685,7 @@ export default async function ChatsPage({
       // linea, asi que alla no quedaba nada con lo que trabajar y contestaba
       // "No hay instancia o API key configurada para cargar mensajes".
       const claveInst = claveDeLaLinea(inst);
-      // WhatsApp V2 no habla con Evolution: sus mensajes los guarda el backend
+      // WhatsApp Mensajeria no habla con Evolution: sus mensajes los guarda el backend
       // al recibirlos y salen de nuestra base. Pasarle una clave de Evolution
       // hace que se pidan al servidor equivocado, que contesta correcto y
       // VACIO. Con `apiKeyData: null` la accion generica tira de la base.
