@@ -434,6 +434,9 @@ export async function getChatContactSessions(
       candidateBatches.push(allCandidates.slice(i, i + BATCH_SIZE));
     }
 
+    const TOPE_POR_LOTE = 1000;
+    const arrancoEn = Date.now();
+
     const sessionBatches = await Promise.all(
       candidateBatches.map((batch) =>
         db.session.findMany({
@@ -451,10 +454,31 @@ export async function getChatContactSessions(
               },
             },
           },
-          take: 1000,
+          take: TOPE_POR_LOTE,
         }),
       ),
     );
+
+    // El `take` corta EN SILENCIO.
+    //
+    // Un lote que devuelve justo el tope casi seguro tenia mas, y esas sesiones
+    // no llegan a la pantalla: el chat sale sin nombre, sin etiquetas y sin
+    // asesor, como si no tuviera sesion. Encaja con lo que se vio en las
+    // cuentas grandes -"la lista vuelve incompleta, sin sesiones ni nombres"- y
+    // no habia forma de saberlo porque nadie lo contaba.
+    const lotesAlTope = sessionBatches.filter((lote) => lote.length >= TOPE_POR_LOTE).length;
+    if (lotesAlTope > 0) {
+      console.warn(
+        '[chats] la consulta de sesiones se corto por el tope: hay sesiones que NO llegan a la pantalla.',
+        {
+          lotesAlTope,
+          lotesEnTotal: candidateBatches.length,
+          topePorLote: TOPE_POR_LOTE,
+          candidatos: allCandidates.length,
+          chats: parsedChats.length,
+        },
+      );
+    }
 
     const sessionDedupeMap = new Map<number, (typeof sessionBatches)[0][0]>();
     for (const batch of sessionBatches) {
@@ -619,6 +643,17 @@ export async function getChatContactSessions(
           );
         }
       }
+    }
+
+    const tardo = Date.now() - arrancoEn;
+    if (tardo > 1500 || parsedChats.length > 3000) {
+      console.warn('[chats] getChatContactSessions va caro', {
+        chats: parsedChats.length,
+        candidatos: allCandidates.length,
+        lotes: candidateBatches.length,
+        sesionesEncontradas: sessions.length,
+        tardoMs: tardo,
+      });
     }
 
     return {
