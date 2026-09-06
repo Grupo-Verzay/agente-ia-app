@@ -1,12 +1,24 @@
 import { NextResponse } from 'next/server';
+import { currentUser } from '@/lib/auth';
+import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
 import { Readable } from 'stream';
 import { minioClient } from '@/lib/minio';
 import { randomUUID } from 'crypto';
 
 export async function POST(req: Request) {
+  // Sin esto, cualquiera -con o sin sesion- podia subir archivos al bucket.
+  // Estas rutas solo confiaban en el middleware, y el middleware se pudo
+  // saltar hasta #505 (H02/H03 de la auditoria del 2026-09-06).
+  const quien = await currentUser();
+  if (!quien) {
+    return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
+  }
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const userId = formData.get('userId') as string;
+  // Y que la carpeta en la que se escribe sea de una cuenta sobre la que se
+  // manda: si no, una cuenta podia dejar archivos en la carpeta de otra.
+  if (userId) await assertCanAccessTargetUser(userId);
 
     if (!file) {
         return NextResponse.json({ error: 'No se proporcionó un archivo.' }, { status: 400 });

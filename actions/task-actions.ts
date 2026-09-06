@@ -4,6 +4,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 
 import type { TaskData, TaskStatus } from "@/lib/task-types";
@@ -303,6 +304,20 @@ export async function getTasksBySessionAction(
 ): Promise<{ success: boolean; data?: TaskData[]; message?: string }> {
   try {
     await getAuth();
+
+    // Pedia sesion iniciada, pero no comprobaba que la conversacion fuera de
+    // una cuenta sobre la que se manda: con el id de una conversacion ajena
+    // se leian sus tareas (H02 de la auditoria del 2026-09-06). Se mira de
+    // quien es la conversacion y se aplica la regla de acceso de siempre.
+    const conversacion = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+    if (!conversacion?.userId) {
+      return { success: false, message: "Conversación no encontrada." };
+    }
+    await assertCanAccessTargetUser(conversacion.userId);
+
     const tasks = await (db as any).task.findMany({
       where: { sessionId, status: { not: "cancelled" } },
       orderBy: { dueDate: "asc" },
