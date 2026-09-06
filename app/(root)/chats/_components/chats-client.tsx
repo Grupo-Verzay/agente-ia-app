@@ -15,7 +15,7 @@ import {
 import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
 import { loadChatBootstrapData } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
-import { getChatContactSessions } from "@/actions/session-action";
+import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
@@ -32,6 +32,7 @@ import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
 import {
+  emparejarSesiones,
   epochToMs,
   getChatIdentityCandidates,
   isBadContactName,
@@ -66,7 +67,6 @@ import type {
   ChatWorkflowOption,
 } from "@/types/chat";
 import type {
-  ChatContactDescriptor,
   ChatContactSessionMap,
   ChatContactSessionSummary,
   Session,
@@ -330,19 +330,6 @@ export type InstanceActionSet = {
   refetchChats: () => Promise<FetchChatsResult>;
 };
 
-function buildChatContactDescriptors(chats: ChatData[]): ChatContactDescriptor[] {
-  return chats
-    .filter((chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast")
-    .map((chat) => ({
-      remoteJid: chat.remoteJid,
-      remoteJidAlt: chat.remoteJidAlt,
-      senderPn: chat.senderPn,
-      pushName: chat.pushName,
-      aliases: chat.aliases,
-      instanceName: chat.instanceName,
-    }));
-}
-
 function mapSessionToChatContactSummary(session: Session): ChatContactSessionSummary {
   return {
     id: session.id,
@@ -356,6 +343,8 @@ function mapSessionToChatContactSummary(session: Session): ChatContactSessionSum
     assignedAdvisorId: session.assignedAdvisorId ?? null,
     status: session.status,
     agentDisabled: session.agentDisabled,
+    instanceId: session.instanceId ?? null,
+    updatedAt: session.updatedAt ? new Date(session.updatedAt).getTime() : null,
   };
 }
 
@@ -406,7 +395,7 @@ function getPreferenceForJid(
 }
 
 function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
-  // Un mismo numero puede escribirle a mas de una linea: getChatContactSessions
+  // Un mismo numero puede escribirle a mas de una linea: `emparejarSesiones`
   // deja la sesion de ESTA linea bajo una llave compuesta. Si se conoce la
   // linea del chat, se usa ESA y solo esa — sin caer de vuelta a la busqueda
   // global — porque el caso a blindar es que un contacto SIN sesion en esta
@@ -1124,27 +1113,27 @@ export function ChatsClient({
 
   const refreshChatSessions = useCallback(
     async (chats: ChatData[], opciones?: { forzar?: boolean }) => {
-      const descriptors = buildChatContactDescriptors(chats);
-
-      if (descriptors.length === 0) {
+      if (chats.length === 0) {
         setChatSessions({});
         return;
       }
 
       /**
-       * Esta es, de lejos, la consulta mas cara de la pantalla, y se estaba
+       * Esta era, de lejos, la consulta mas cara de la pantalla, y se estaba
        * repitiendo cada 20 segundos por cada pestaña abierta.
        *
-       * Lo que viaja no es poco: el navegador manda la agenda ENTERA -en las
-       * cuentas grandes son mas de tres mil contactos, cada uno con sus alias-,
-       * el servidor los valida uno por uno y con ellos arma una busqueda de
-       * ~10.000 identidades contra Postgres. Y no es una consulta: son cuatro
-       * -sesiones con sus etiquetas, seguimientos, resueltas y citas-. Con
-       * varios asesores conectados a la vez eso son decenas de consultas
-       * enormes por minuto.
+       * Lo que viajaba no era poco: el navegador mandaba la agenda ENTERA -en
+       * las cuentas grandes mas de tres mil contactos, cada uno con sus alias,
+       * 500 KB-, el servidor los validaba uno por uno y con ellos armaba una
+       * busqueda de ~10.000 identidades contra Postgres. Medido: 1,3 s en un
+       * buen momento y 11, 13 y 25 s cuando la base estaba ocupada, y en esos
+       * ratos la consulta de mensajes del chat abierto tambien se pasaba de
+       * plazo. Era la misma cola.
        *
-       * Encaja con lo que se ve en produccion: `502 Bad Gateway` en la ruta de
-       * chats, el contenedor reiniciando, y al volver una lista incompleta.
+       * Ahora no sube nada: el servidor devuelve las sesiones de la cuenta
+       * -una consulta por userId, con indice- y el emparejamiento con los
+       * chats se hace aqui (`emparejarSesiones`), que es una pasada por la
+       * lista sin red por medio.
        *
        * La lista sigue refrescandose a su ritmo de siempre, que es lo que trae
        * los mensajes. Lo que se espacia es SOLO esto -a quien esta asignado un
@@ -1163,35 +1152,39 @@ export function ChatsClient({
       }
       ultimoRefrescoDeSesionesRef.current = ahora;
 
-      // Cuanto cuesta esta vuelta, en numeros.
-      //
-      // Es la consulta mas cara de la pantalla y crece con la cuenta: manda un
-      // descriptor por CHAT, y hay cuentas con mas de 14.000. "La App va lenta"
-      // no se puede diagnosticar sin saber cuantos chats van, cuanto pesa lo que
-      // se manda y cuanto tarda la vuelta; con esto se ve de un vistazo.
+      // Cuanto cuesta esta vuelta, en numeros. "La App va lenta" no se puede
+      // diagnosticar sin saber cuantas sesiones vuelven, cuanto pesan y cuanto
+      // tarda cada parte; con esto se ve de un vistazo.
       const arrancoEn = performance.now();
-      const result = await getChatContactSessions(sessionUserIds?.length ? sessionUserIds : userId, descriptors);
-      const tardo = Math.round(performance.now() - arrancoEn);
+      const result = await getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId);
+      const tardoRed = Math.round(performance.now() - arrancoEn);
+
+      const sesiones = result.success ? result.data ?? [] : [];
+      const arrancoEmparejar = performance.now();
+      const mapa = result.success ? emparejarSesiones(chats, sesiones) : {};
+      const tardoEmparejar = Math.round(performance.now() - arrancoEmparejar);
 
       // Solo se avisa cuando duele. Por debajo de esto es ruido.
-      if (tardo > 1500 || descriptors.length > 3000) {
+      if (tardoRed + tardoEmparejar > 1500 || sesiones.length > 3000 || !result.success) {
         let pesoKb = 0;
         try {
-          pesoKb = Math.round(JSON.stringify(descriptors).length / 1024);
+          pesoKb = Math.round(JSON.stringify(sesiones).length / 1024);
         } catch {
           // El tamaño es informativo: si no se puede calcular, se avisa igual.
         }
         console.warn("[chats] el refresco de sesiones va caro", {
-          chatsEnviados: descriptors.length,
+          chats: chats.length,
+          sesionesRecibidas: sesiones.length,
           pesoAproxKb: pesoKb || "(no calculado)",
-          tardoMs: tardo,
+          tardoMs: tardoRed,
+          emparejarMs: tardoEmparejar,
           resultado: result.success ? "ok" : result.message,
         });
       }
 
       if (result.success) {
         setChatSessions((prev) => {
-          const next = { ...(result.data ?? {}) };
+          const next = { ...mapa };
           // Preservar customName de memoria si DB aún no lo tiene (race condition de rename)
           for (const jid of Object.keys(next)) {
             if (!next[jid].customName && prev[jid]?.customName) {
@@ -1213,7 +1206,6 @@ export function ChatsClient({
     const timer = window.setTimeout(() => {
       void loadChatBootstrapData({
         sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
-        chatDescriptors: buildChatContactDescriptors(currentChatsResult.data),
       }).then((result) => {
         if (cancelled || !result.success || !result.data) return;
         const data = result.data;
@@ -1224,8 +1216,13 @@ export function ChatsClient({
         setAdvisors(data.advisors);
         setClientValidationEnabled(data.clientValidationEnabled);
         setChatPreferences(data.chatPreferences);
+        // Las sesiones llegan sin emparejar; se cruzan aqui con los chats que
+        // ya tiene la pantalla. Cuenta como refresco: el reloj de 60 s no tiene
+        // que repetirlo nada mas arrancar.
+        ultimoRefrescoDeSesionesRef.current = Date.now();
+        const mapa = emparejarSesiones(currentChatsResult.data, data.sesionesDeLaCuenta);
         setChatSessions((prev) => {
-          const next = { ...data.chatSessions };
+          const next = { ...mapa };
           for (const jid of Object.keys(next)) {
             if (!next[jid].customName && prev[jid]?.customName) {
               next[jid] = { ...next[jid], customName: prev[jid].customName };

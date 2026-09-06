@@ -82,6 +82,38 @@ export async function obtenerResueltas(
 }
 
 /**
+ * Lo mismo, pero por cuenta: todas las sesiones resueltas de esas cuentas.
+ *
+ * Es lo que usa la bandeja. Antes se pedia por lista de ids -miles de
+ * parametros en cada vuelta-; por `userId` la consulta va por el indice de la
+ * tabla y no lleva nada que crezca con la cuenta.
+ */
+export async function obtenerResueltasDeCuentas(
+    userIds: string[],
+): Promise<Map<number, number>> {
+    const salida = new Map<number, number>();
+    if (userIds.length === 0) return salida;
+
+    try {
+        await ensureResolvedAtColumn();
+        const filas = await db.$queryRaw<{ id: number; resolved_at: Date | null }[]>(
+            Prisma.sql`
+                SELECT id, resolved_at
+                FROM "Session"
+                WHERE "userId" IN (${Prisma.join(userIds)}) AND resolved_at IS NOT NULL
+            `,
+        );
+        for (const fila of filas) {
+            if (fila.resolved_at) salida.set(fila.id, fila.resolved_at.getTime());
+        }
+    } catch (error) {
+        console.error("[obtenerResueltasDeCuentas]", error);
+    }
+
+    return salida;
+}
+
+/**
  * Deshace la marca: la conversación vuelve a la bandeja.
  *
  * Hace falta un camino de vuelta. Antes, una vez resuelta, la conversación se

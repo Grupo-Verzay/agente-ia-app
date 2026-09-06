@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
-import { getChatContactSessions } from "@/actions/session-action";
+import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { getWorkFlowByUserIds } from "@/actions/workflow-actions";
@@ -16,20 +16,23 @@ import type {
   ChatWorkflowOption,
 } from "@/types/chat";
 import type {
-  ChatContactDescriptor,
-  ChatContactSessionMap,
+  ChatContactSessionSummary,
   SimpleTag,
 } from "@/types/session";
 
 type ChatBootstrapInput = {
   sessionUserIds?: string[];
-  chatDescriptors?: ChatContactDescriptor[];
 };
 
 type ChatBootstrapData = {
   allTags: SimpleTag[];
   chatPreferences: ChatConversationPreferenceMap;
-  chatSessions: ChatContactSessionMap;
+  /**
+   * TODAS las sesiones de las cuentas, sin emparejar. El navegador las cruza
+   * con sus chats (`emparejarSesiones`); asi aqui no hace falta que suba la
+   * agenda entera para pedirlas.
+   */
+  sesionesDeLaCuenta: ChatContactSessionSummary[];
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
   advisors: AdvisorInfo[];
@@ -77,13 +80,13 @@ function withCurrentUserAdvisor(
 }
 
 async function getMissingAssignedAdvisors(
-  chatSessions: ChatContactSessionMap | null | undefined,
+  sesiones: ChatContactSessionSummary[],
   knownAdvisors: AdvisorInfo[],
 ) {
   const knownIds = new Set(knownAdvisors.map((advisor) => advisor.id));
   const missingIds = Array.from(
     new Set(
-      Object.values(chatSessions ?? {})
+      sesiones
         .map((session) => session.assignedAdvisorId)
         .filter((id): id is string => {
           if (!id) return false;
@@ -120,10 +123,6 @@ export async function loadChatBootstrapData(
     ...(input.sessionUserIds ?? []),
   ]);
 
-  const descriptors = (input.chatDescriptors ?? []).filter(
-    (chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast",
-  );
-
   const [
     tagsRes,
     sessionsRes,
@@ -134,9 +133,7 @@ export async function loadChatBootstrapData(
     clientValidationConfig,
   ] = await Promise.all([
     settle(listTagsAction(effectiveOwnerId)),
-    descriptors.length
-      ? settle(getChatContactSessions(sessionUserIds, descriptors))
-      : Promise.resolve(null),
+    settle(getSesionesDeLaCuenta(sessionUserIds)),
     settle(getChatConversationPreferencesForAssociatedAccounts()),
     settle(getWorkFlowByUserIds(sessionUserIds)),
     settle(getAllRRsByUserIds(sessionUserIds)),
@@ -193,10 +190,13 @@ export async function loadChatBootstrapData(
     return items;
   }, []);
 
-  const chatSessions = sessionsRes?.success ? sessionsRes.data ?? {} : {};
+  const sesionesDeLaCuenta = sessionsRes?.success ? sessionsRes.data ?? [] : [];
+  if (sessionsRes && !sessionsRes.success) {
+    console.warn("[chats] la carga inicial no trajo sesiones:", sessionsRes.message);
+  }
   const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
   const baseAdvisors = withCurrentUserAdvisor(advisorsFromTeam, user);
-  const missingAssignedAdvisors = await getMissingAssignedAdvisors(chatSessions, baseAdvisors);
+  const missingAssignedAdvisors = await getMissingAssignedAdvisors(sesionesDeLaCuenta, baseAdvisors);
   const advisors = withCurrentUserAdvisor([...baseAdvisors, ...missingAssignedAdvisors], user);
 
   return {
@@ -205,7 +205,7 @@ export async function loadChatBootstrapData(
     data: {
       allTags,
       chatPreferences: preferencesRes?.success ? preferencesRes.data ?? {} : {},
-      chatSessions,
+      sesionesDeLaCuenta,
       workflows: workflowOptions,
       quickReplies: quickReplyOptions,
       advisors,
