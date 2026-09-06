@@ -554,9 +554,19 @@ export async function warmChatMessagesAction(
   remoteJid: string,
   options?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
 ): Promise<FindMessagesResult> {
+  // Cuanto tarda cada parte. Viaja en la respuesta para que la consola del
+  // navegador diga de donde viene la espera cuando la consulta va lenta.
+  const arrancoTotal = Date.now();
+  const tiempos: Record<string, number | string> = {};
+  const conTiempos = <T extends FindMessagesResult>(resultado: T, fuente: string): T => ({
+    ...resultado,
+    tiempos: { ...tiempos, total: Date.now() - arrancoTotal, fuente },
+  });
+
   context = await resolverContexto(context);
   const user = await currentUser();
   const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
+  tiempos.contexto = Date.now() - arrancoTotal;
   // Conjunto de cuentas bajo las que puede vivir el historial: el dueño resuelto
   // de la línea (donde se guarda ahora) + el owner/id del que ve (donde pudo
   // guardarse antes de que cambiara la propiedad de la línea). Así no se pierde
@@ -575,6 +585,7 @@ export async function warmChatMessagesAction(
       Boolean(options?.localOnly) || Boolean(options?.localFirst) || page > 1 || !hasReadyContext(context);
 
     if (shouldReadLocal) {
+      const arrancoBase = Date.now();
       const localResult = await buildPersistedMessagesResult({
         userIds: readUserIds,
         instanceName: hasReadyContext(context) ? context.instanceName : undefined,
@@ -584,6 +595,7 @@ export async function warmChatMessagesAction(
         pageSize,
         message: "Mensajes cargados desde historial local.",
       });
+      tiempos.base = Date.now() - arrancoBase;
       // localOnly siempre devuelve local (aunque vacío); localFirst solo si hay datos.
       if (localResult.data.length || options?.localOnly) {
         // Este es el camino que puede dejar una conversación congelada durante
@@ -603,17 +615,20 @@ export async function warmChatMessagesAction(
             },
           );
         }
-        return localResult;
+        return conTiempos(localResult, "base (pedida)");
       }
     }
   }
 
   if (!hasReadyContext(context)) {
-    return {
-      success: false,
-      message: "No hay instancia o API key configurada para cargar mensajes.",
-      queriedRemoteJid: remoteJid,
-    };
+    return conTiempos(
+      {
+        success: false,
+        message: "No hay instancia o API key configurada para cargar mensajes.",
+        queriedRemoteJid: remoteJid,
+      },
+      "sin contexto",
+    );
   }
 
   // En la sincronización inicial (página 1) traemos una ventana amplia de Evolution
@@ -644,6 +659,7 @@ export async function warmChatMessagesAction(
   //
   // Es la misma regla de siempre -cuando Evolution se queda corta, manda
   // nuestra base- aplicada al tiempo y no al contenido.
+  const arrancoEvolution = Date.now();
   const promesaEvolution = findMessagesByRemoteJid(
     context.apiKeyData,
     context.instanceName,
@@ -653,14 +669,20 @@ export async function warmChatMessagesAction(
   // El fallo se atiende aqui mismo para que la promesa nunca quede sin `catch`:
   // se queda corriendo de fondo cuando se contesta con la base, y una promesa
   // rechazada sin nadie escuchando tumba el proceso de Node.
-  const promesaEvolutionSegura = promesaEvolution.catch(
-    (error): FindMessagesResult => ({
-      success: false,
-      message: error instanceof Error ? error.message : "Evolution no respondio.",
-      queriedRemoteJid: remoteJid,
-    }),
-  );
+  const promesaEvolutionSegura = promesaEvolution
+    .catch(
+      (error): FindMessagesResult => ({
+        success: false,
+        message: error instanceof Error ? error.message : "Evolution no respondio.",
+        queriedRemoteJid: remoteJid,
+      }),
+    )
+    .then((respuesta) => {
+      tiempos.evolution = Date.now() - arrancoEvolution;
+      return respuesta;
+    });
 
+  const arrancoBase = Date.now();
   const respaldoLocal = effectiveOwnerId
     ? await buildPersistedMessagesResult({
         userIds: readUserIds,
@@ -672,6 +694,7 @@ export async function warmChatMessagesAction(
         message: "Mensajes cargados desde historial local.",
       }).catch(() => null)
     : null;
+  tiempos.base = Date.now() - arrancoBase;
 
   // Ya con la base en la mano, a Evolution se le da un margen corto. Si no
   // llega, se contesta con lo guardado y ella sigue de fondo: lo que traiga se
@@ -715,7 +738,8 @@ export async function warmChatMessagesAction(
     );
 
     // Aqui SIEMPRE hay respaldo: sin el no se corre la carrera.
-    return respaldoLocal!;
+    tiempos.evolution = `>${MARGEN_ANTES_DE_TIRAR_DE_LA_BASE} (sigue de fondo)`;
+    return conTiempos(respaldoLocal!, "base (Evolution tardo)");
   }
 
   if (result.success && effectiveOwnerId) {
@@ -754,17 +778,17 @@ export async function warmChatMessagesAction(
       respaldoLocal?.data.length &&
       (result.data.length === 0 || masNuevo(respaldoLocal.data) > masNuevo(result.data))
     ) {
-      return respaldoLocal;
+      return conTiempos(respaldoLocal, "base (mas nueva que Evolution)");
     }
 
-    return result;
+    return conTiempos(result, "evolution");
   }
 
   if (!result.success && respaldoLocal?.data.length) {
-    return respaldoLocal;
+    return conTiempos(respaldoLocal, "base (Evolution fallo)");
   }
 
-  return result;
+  return conTiempos(result, result.success ? "evolution" : "evolution (fallo)");
 }
 
 export async function refetchChatsManualAction(

@@ -618,8 +618,21 @@ export type FindMessagesResult =
     nextPage?: number | null;
     raw?: unknown;
     queriedRemoteJid?: string;
+    /**
+     * Cuanto tardo cada parte en el servidor (ms) y de donde salio la
+     * respuesta (`fuente`). Lo enseña la consola del navegador cuando la
+     * consulta va lenta: sin esto no se sabe si la espera es de Evolution, de
+     * nuestra base o de la red.
+     */
+    tiempos?: Record<string, number | string>;
   }
-  | { success: false; message: string; raw?: unknown; queriedRemoteJid?: string };
+  | {
+    success: false;
+    message: string;
+    raw?: unknown;
+    queriedRemoteJid?: string;
+    tiempos?: Record<string, number | string>;
+  };
 
 export type SendMessageResult =
   | { success: true; message: string; data?: unknown; remoteJid: string }

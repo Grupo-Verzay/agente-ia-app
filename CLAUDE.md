@@ -401,6 +401,33 @@ Dos cosas:
 Sale como `console.warn` a propósito: `log` y `debug` los borra el build (ver la
 regla de `removeConsole`).
 
+## "Salir" es un viaje, no tres, y se ve que está saliendo
+
+"Le doy a Salir, le doy, le doy, y no sale." El botón encadenaba **tres viajes**
+al servidor antes de moverse —una acción de servidor para borrar las cookies de
+impersonación, el GET del token CSRF de next-auth y el POST de `signOut`— y
+**no enseñaba nada mientras tanto**. Con el contenedor ocupado cada viaje
+tardaba segundos, la persona volvía a pulsar y cada pulsación lanzaba la
+cadena entera otra vez.
+
+Ahora `handleLogout` **navega** a `/api/logout` y nada más. La pestaña enseña
+su indicador de carga al instante, hay un viaje, la ruta no toca la base —la
+sesión es JWT: borrar la cookie **es** cerrar la sesión— y contesta con la
+redirección al login. El botón pasa a «Saliendo…» y la segunda pulsación no
+hace nada.
+
+Dos reglas para cualquier botón que hable con el servidor:
+
+1. **Que se vea que se pulsó**, antes de que el servidor conteste. Un botón que
+   no cambia hasta que vuelve la respuesta es un botón que se pulsa cinco veces.
+2. **Un viaje.** Si una acción necesita tres, se junta en una ruta o acción que
+   haga las tres.
+
+Y para "cambiar de pestaña tarda", hay medida: `NavegacionLenta` anota el
+clic en cualquier enlace interno y avisa `[app] cambiar de pagina tardo`
+con `desde`, `hacia` y `tardoMs` cuando pasa de 1,5 s. Se pide ese aviso
+antes de tocar nada.
+
 ## Toda acción y toda ruta comprueban de quién es el dato
 
 Había funciones que un usuario con sesión podía llamar con el id de **otra

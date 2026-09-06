@@ -7,6 +7,7 @@ import { FontScaleApplier } from "@/components/font-scale-applier";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { Toaster } from "@/components/ui/sonner";
 import { ChunkRecovery } from "@/components/chunk-recovery";
+import { NavegacionLenta } from "@/components/navegacion-lenta";
 import { StoragePersistence } from "@/components/storage-persistence";
 import ErrorBoundary from "@/components/error-bundary";
 
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StoragePersistence />
         <ErrorBoundary>
           <ChunkRecovery />
+          <NavegacionLenta />
           <AppProviders>
             <ThemeProvider
               attribute="class"
