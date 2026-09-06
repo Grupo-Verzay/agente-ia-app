@@ -333,6 +333,21 @@ la línea vacía no acota a ninguna —no borra sesiones ni mensajes de ninguna�
 marca queda como "de todas". El de uno en uno ya pasaba su línea desde la fila
 (#486); a este se le había pasado. Ahora agrupa por **cuenta y línea**.
 
+Y aun con eso volvía, por dos cosas más que costaron otra vuelta:
+
+- **`buildWhatsAppJidCandidates` no cruza el puente `@lid` ↔ número** —a
+  propósito, ver la regla de la pausa—. Borrar por el `@lid` dejaba la marca sin
+  el número, y al revés. Ahora, **antes de la transacción que borra los
+  mensajes**, las identidades se completan con lo que guarda `chat_messages`,
+  igual que hace `pausarIaPorIntervencionHumana`. La consola lo dice:
+  `completadasDesdeLaBase` en `[chats] marca de borrado guardada`.
+- **Un mensaje saliente lo resucitaba.** `isChatDeletedByPreference` miraba la
+  marca del último mensaje sin mirar de quién era: un seguimiento automático, la
+  IA contestando o una campaña, posteriores al borrado, lo traían de vuelta sin
+  que el contacto hubiera dicho nada. La regla escrita siempre fue «vuelve si el
+  cliente escribe»; ahora el código la cumple: **solo un mensaje del contacto
+  (`fromMe === false`) posterior a la marca lo revive**.
+
 ## Una recarga tiene que decir por qué
 
 "La App se refresca sola cada cierto rato" es de lo más difícil de diagnosticar:
