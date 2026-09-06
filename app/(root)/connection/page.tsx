@@ -17,6 +17,7 @@ import { TelegramInstanceCard } from "./_components/TelegramInstanceCard";
 import { WahaInstanceCard } from "./_components/WahaInstanceCard";
 import { WahaInstanceCreator } from "./_components/WahaInstanceCreator";
 import { isWahaConfigured } from "@/lib/waha";
+import { isAdminLike } from "@/lib/rbac";
 
 // Adapta las funciones de tipo para manejar arrays
 function hasInstancias(result: { data?: Instancia[] | null }): result is { data: Instancia[] } {
@@ -116,9 +117,14 @@ const Connection = async () => {
     // renderizado de la pagina completa si Evolution estaba caido o lento.
     // Se pide aparte, desde el cliente, en getInstanceLiveStatusAction.
 
-    // El servidor de WAHA se configura en Panel > Conexion. Sin el, la tarjeta de
-    // WhatsApp V2 no se ofrece: el boton solo sabria dar error.
+    // El servidor de WAHA se configura en Panel > Conexion. Sin el, la tarjeta
+    // no puede conectar nada, pero NO se esconde sin mas: a un administrador se
+    // le enseña diciendo que falta configurar y adonde ir. Esconderla del todo
+    // es un fallo mudo —desde fuera parece que la App no hace nada— y ya costo
+    // una vuelta entera de mirar la pantalla equivocada.
+    // Al cliente si se le oculta: no puede arreglarlo, asi que solo estorbaria.
     const hayServidorWaha = await isWahaConfigured();
+    const puedeConfigurarWaha = isAdminLike(user.role);
 
     // Render principal
     return (
@@ -189,8 +195,12 @@ const Connection = async () => {
             {telegramInstances.length === 0 && (
                 <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
-            {wahaInstances.length === 0 && hayServidorWaha && (
-                <WahaInstanceCreator userId={effectiveId} company={user.company as string} />
+            {wahaInstances.length === 0 && (hayServidorWaha || puedeConfigurarWaha) && (
+                <WahaInstanceCreator
+                    userId={effectiveId}
+                    company={user.company as string}
+                    hayServidor={hayServidorWaha}
+                />
             )}
         </div>
     );
