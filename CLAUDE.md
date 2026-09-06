@@ -360,6 +360,41 @@ Dos cosas:
 Sale como `console.warn` a propósito: `log` y `debug` los borra el build (ver la
 regla de `removeConsole`).
 
+## Next: no bajar de 14.2.25, y cómo comprobarlo
+
+La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera
+`x-middleware-subrequest` **se salta el middleware**, que es lo único que
+protege varias rutas `/api` (subidas, `finance/overview`). Las páginas tienen
+segunda barrera (`requireAuth` en el layout); esas rutas no.
+
+**Se demostró antes de arreglarlo**, sobre el build de `14.2.4` arrancado en
+local con `AUTH_TRUST_HOST=true` y variables de relleno:
+
+```
+curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" \
+  -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" \
+  http://127.0.0.1:3996/api/finance/overview
+```
+
+Sin la cabecera: `307 -> /login`. Con la cabecera en `14.2.4`: **`500`** —el
+middleware se saltó y la petición llegó a la ruta, que aquí solo falló por no
+tener base—. En producción habría entrado. Con `14.2.35`: `307 -> /login` en
+los dos casos.
+
+Dos cosas:
+
+1. **Next a `14.2.25` o superior, siempre**, y `eslint-config-next` a la misma.
+   Están fijadas sin `^` a propósito.
+2. La línea 14 **ya no recibe parches**: `npm audit` lista una veintena de
+   avisos (DoS, cache poisoning) que solo se cierran en 15.5.x. Subir a 15 es
+   un proyecto aparte —React 19, `cookies()`/`headers()` asíncronos— y no se
+   mezcla con un arreglo. Mientras tanto, las rutas `/api` que hoy solo
+   confían en el middleware deberían comprobar sesión por sí mismas (ver H02 de
+   la auditoría del 2026-09-06).
+
+El Dockerfile va en `node:22`: la 20 dejó de tener soporte, y el backend ya
+estaba en 22.
+
 ## Diagramas: si no se puede guardar, no se puede tocar
 
 Un diagrama compartido con otra cuenta era **siempre de solo lectura** —no
