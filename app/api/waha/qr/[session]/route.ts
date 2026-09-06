@@ -4,7 +4,6 @@ import { db } from '@/lib/db';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
 import { getWahaQrPng, isWahaConfigured } from '@/lib/waha';
 
-/** El QR de una sesion de WAHA, como PNG. */
 /**
  * La sesion de WAHA se llama como la instancia. Antes de servir nada se
  * comprueba que la instancia exista y que quien pregunta mande sobre su cuenta:
@@ -32,6 +31,13 @@ async function asegurarQueEsSuLinea(session: string) {
   return null;
 }
 
+/**
+ * El QR de una sesion de WAHA, como PNG.
+ *
+ * Cuando no hay QR responde JSON con el motivo, NUNCA se queda colgada: el
+ * `<img>` de la tarjeta solo sabe de `onLoad`/`onError`, asi que una respuesta
+ * que no llega deja la pantalla girando para siempre.
+ */
 export async function GET(
   _req: NextRequest,
   { params }: { params: { session: string } },
@@ -40,20 +46,22 @@ export async function GET(
   if (rechazo) return rechazo;
 
   if (!(await isWahaConfigured())) {
-    return NextResponse.json({ error: 'WAHA no configurado' }, { status: 503 });
+    return NextResponse.json({ error: 'El servidor de WhatsApp V2 no esta configurado' }, { status: 503 });
   }
 
-  const png = await getWahaQrPng(params.session);
+  const resultado = await getWahaQrPng(params.session);
 
-  // Solo hay QR mientras la sesion esta en SCAN_QR_CODE. En cualquier otro
-  // estado WAHA responde con error y aqui se traduce a un 404 limpio, para que
-  // la tarjeta lo trate como "todavia no hay QR" y no como una caida.
-  if (!png) {
-    return NextResponse.json({ error: 'QR no disponible' }, { status: 404 });
+  if (resultado.estado === 'ok') {
+    return new NextResponse(resultado.png, {
+      status: 200,
+      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' },
+    });
   }
 
-  return new NextResponse(png, {
-    status: 200,
-    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' },
-  });
+  // 409: la sesion existe pero no esta esperando escaneo — se arregla
+  // reiniciandola, no reintentando el QR. 502: el servidor no contesta.
+  return NextResponse.json(
+    { error: resultado.motivo },
+    { status: resultado.estado === 'todavia-no' ? 409 : 502 },
+  );
 }

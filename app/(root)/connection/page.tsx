@@ -17,6 +17,7 @@ import { TelegramInstanceCard } from "./_components/TelegramInstanceCard";
 import { WahaInstanceCard } from "./_components/WahaInstanceCard";
 import { WahaInstanceCreator } from "./_components/WahaInstanceCreator";
 import { isWahaConfigured } from "@/lib/waha";
+import { isAdminLike } from "@/lib/rbac";
 
 // Adapta las funciones de tipo para manejar arrays
 function hasInstancias(result: { data?: Instancia[] | null }): result is { data: Instancia[] } {
@@ -116,9 +117,14 @@ const Connection = async () => {
     // renderizado de la pagina completa si Evolution estaba caido o lento.
     // Se pide aparte, desde el cliente, en getInstanceLiveStatusAction.
 
-    // El servidor de WAHA se configura en Panel > Conexion. Sin el, la tarjeta de
-    // WhatsApp V2 no se ofrece: el boton solo sabria dar error.
+    // El servidor de WAHA se configura en Panel > Conexion. Sin el, la tarjeta
+    // no puede conectar nada, pero NO se esconde sin mas: a un administrador se
+    // le enseña diciendo que falta configurar y adonde ir. Esconderla del todo
+    // es un fallo mudo —desde fuera parece que la App no hace nada— y ya costo
+    // una vuelta entera de mirar la pantalla equivocada.
+    // Al cliente si se le oculta: no puede arreglarlo, asi que solo estorbaria.
     const hayServidorWaha = await isWahaConfigured();
+    const puedeConfigurarWaha = isAdminLike(user.role);
 
     // Render principal
     return (
@@ -162,13 +168,6 @@ const Connection = async () => {
                     pageId={(inst as any).metaPageId ?? ''}
                 />
             ))}
-            {wahaInstances.map((inst) => (
-                <WahaInstanceCard
-                    key={inst.instanceName}
-                    instanceName={inst.instanceName}
-                    displayName={(inst as any).displayName ?? null}
-                />
-            ))}
             {telegramInstances.map((inst) => (
                 <TelegramInstanceCard
                     key={inst.instanceName}
@@ -189,9 +188,26 @@ const Connection = async () => {
             {telegramInstances.length === 0 && (
                 <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
-            {wahaInstances.length === 0 && hayServidorWaha && (
-                <WahaInstanceCreator userId={effectiveId} company={user.company as string} />
-            )}
+            {/* WhatsApp V2 va SIEMPRE la ultima, conectada o no. Estaba con las
+                demas conexiones activas —arriba de los creadores— asi que al
+                conectarla saltaba de sitio: el usuario la pulsaba abajo del todo
+                y reaparecia arriba. Las dos ramas van juntas y aqui para que el
+                sitio no dependa de si hay sesion. */}
+            {wahaInstances.length > 0
+                ? wahaInstances.map((inst) => (
+                    <WahaInstanceCard
+                        key={inst.instanceName}
+                        instanceName={inst.instanceName}
+                        displayName={(inst as any).displayName ?? null}
+                    />
+                ))
+                : (hayServidorWaha || puedeConfigurarWaha) && (
+                    <WahaInstanceCreator
+                        userId={effectiveId}
+                        company={user.company as string}
+                        hayServidor={hayServidorWaha}
+                    />
+                )}
         </div>
     );
 };

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { FaWhatsapp } from 'react-icons/fa';
-import { Loader2, QrCode, RefreshCw, Power, Trash2 } from 'lucide-react';
+import { Loader2, QrCode, RefreshCw, Power, Trash2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -23,6 +23,7 @@ import {
   stopWahaInstance,
   logoutWahaInstance,
   deleteWahaInstance,
+  restartWahaInstance,
 } from '@/actions/instances-actions';
 import { toast } from 'sonner';
 
@@ -40,6 +41,19 @@ interface StatusResponse {
 }
 
 const POLL_INTERVAL_MS = 8000;
+
+/**
+ * Cuanto se espera a que la sesion llegue a SCAN_QR_CODE tras reiniciarla.
+ * Medido contra el servidor: el reinicio la deja lista en unos 3 segundos.
+ */
+const ESPERA_MAXIMA_PARA_EL_QR_MS = 40000;
+const PASO_DE_ESPERA_MS = 2000;
+
+/** Lo que puede estar pasando dentro del dialogo del QR. */
+type EstadoDelQr =
+  | { fase: 'preparando' }
+  | { fase: 'listo' }
+  | { fase: 'fallo'; motivo: string };
 
 /** Texto de la fila de estado cuando la sesión no está conectada. */
 const textoDeEstado = (status: string | undefined, starting: boolean): string => {
@@ -62,7 +76,7 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [showQrDialog, setShowQrDialog] = useState(false);
   const [qrTimestamp, setQrTimestamp] = useState(Date.now());
-  const [loadingQr, setLoadingQr] = useState(true);
+  const [estadoQr, setEstadoQr] = useState<EstadoDelQr>({ fase: 'preparando' });
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -88,25 +102,80 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
     return () => clearInterval(id);
   }, [fetchStatus]);
 
-  // Mientras el diálogo del QR está abierto se refresca la imagen: WAHA rota el
-  // código cada pocos segundos y el navegador cachearía el anterior sin el `?t=`.
+  // Se refresca la imagen mientras hay QR de verdad: WAHA rota el código cada
+  // pocos segundos y el navegador cachearía el anterior sin el `?t=`. Solo en
+  // fase 'listo': si la sesión no está esperando escaneo, cada petición tarda
+  // 10 s en contestar 422 y, con un refresco de 8 s, se pisan unas a otras y la
+  // pantalla se queda girando para siempre. Fue justo lo que pasó.
   useEffect(() => {
-    if (!showQrDialog) return;
+    if (!showQrDialog || estadoQr.fase !== 'listo') return;
     const id = setInterval(() => setQrTimestamp(Date.now()), POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [showQrDialog]);
+  }, [showQrDialog, estadoQr.fase]);
+
+  /**
+   * Deja la sesión en condiciones de dar el QR y solo entonces lo pide.
+   *
+   * WAHA entrega el QR ÚNICAMENTE en `SCAN_QR_CODE`; en cualquier otro estado
+   * contesta 422. Pedirlo a ciegas era el error: la tarjeta enseñaba un spinner
+   * eterno en vez de decir que había que reiniciar la sesión.
+   */
+  const prepararQr = useCallback(async () => {
+    setEstadoQr({ fase: 'preparando' });
+
+    const leerEstado = async (): Promise<string | null> => {
+      try {
+        const res = await fetch(`/api/waha/status/${encodeURIComponent(instanceName)}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return ((await res.json()) as StatusResponse).status ?? null;
+      } catch {
+        return null;
+      }
+    };
+
+    let estado = await leerEstado();
+
+    if (estado !== 'SCAN_QR_CODE') {
+      const res = await restartWahaInstance(instanceName);
+      if (!res.success) {
+        setEstadoQr({ fase: 'fallo', motivo: res.message });
+        return;
+      }
+
+      const limite = Date.now() + ESPERA_MAXIMA_PARA_EL_QR_MS;
+      while (Date.now() < limite) {
+        await new Promise((r) => setTimeout(r, PASO_DE_ESPERA_MS));
+        estado = await leerEstado();
+        if (estado === 'SCAN_QR_CODE' || estado === 'WORKING') break;
+      }
+    }
+
+    if (estado === 'WORKING') {
+      setShowQrDialog(false);
+      fetchStatus();
+      return;
+    }
+
+    if (estado !== 'SCAN_QR_CODE') {
+      setEstadoQr({
+        fase: 'fallo',
+        motivo: `La sesión no llegó a pedir el escaneo (se quedó en ${estado ?? 'desconocido'}). Vuelve a intentarlo.`,
+      });
+      return;
+    }
+
+    setQrTimestamp(Date.now());
+    setEstadoQr({ fase: 'listo' });
+  }, [instanceName, fetchStatus]);
 
   const handleStart = async () => {
     setStarting(true);
     const result = await startWahaInstance(instanceName);
     if (result.success) {
-      setTimeout(() => {
-        fetchStatus();
-        setQrTimestamp(Date.now());
-        setLoadingQr(true);
-        setShowQrDialog(true);
-        setStarting(false);
-      }, 3000);
+      setStarting(false);
+      fetchStatus();
+      setShowQrDialog(true);
+      prepararQr();
     } else {
       toast.error(result.message);
       setStarting(false);
@@ -150,9 +219,8 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
   };
 
   const openQrDialog = () => {
-    setLoadingQr(true);
-    setQrTimestamp(Date.now());
     setShowQrDialog(true);
+    prepararQr();
   };
 
   const connected = status?.connected ?? false;
@@ -273,29 +341,52 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
       <Dialog open={showQrDialog} onOpenChange={setShowQrDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Escanea con WhatsApp — {visibleName}</DialogTitle>
+            <DialogTitle>Escanea con WhatsApp</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
-            {loadingQr && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="animate-spin w-4 h-4" />
-                Cargando QR...
+            {estadoQr.fase === 'preparando' && (
+              <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="animate-spin w-5 h-5" />
+                Preparando la sesión...
               </div>
             )}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={qrTimestamp}
-              src={qrSrc}
-              alt="QR WhatsApp V2"
-              width={320}
-              height={320}
-              onLoad={() => setLoadingQr(false)}
-              onError={() => setLoadingQr(false)}
-              className={`rounded-lg border-4 border-black${loadingQr ? ' hidden' : ''}`}
-            />
-            <p className="text-xs text-muted-foreground text-center">
-              El QR se actualiza automáticamente cada 8 segundos
-            </p>
+
+            {/* Nunca un spinner sin final: si no se puede dar el QR, se dice por
+                qué y se deja reintentar. */}
+            {estadoQr.fase === 'fallo' && (
+              <div className="flex flex-col items-center gap-3 py-6">
+                <AlertCircle className="w-6 h-6 text-amber-600" />
+                <p className="text-center text-sm text-muted-foreground">{estadoQr.motivo}</p>
+                <Button size="sm" variant="outline" onClick={prepararQr}>
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                  Reintentar
+                </Button>
+              </div>
+            )}
+
+            {estadoQr.fase === 'listo' && (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  key={qrTimestamp}
+                  src={qrSrc}
+                  alt="QR WhatsApp V2"
+                  width={320}
+                  height={320}
+                  onError={() =>
+                    setEstadoQr({
+                      fase: 'fallo',
+                      motivo: 'El código dejó de estar disponible. Reintenta para pedir uno nuevo.',
+                    })
+                  }
+                  className="rounded-lg border-4 border-black"
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo.
+                  El código se renueva solo cada 8 segundos.
+                </p>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
