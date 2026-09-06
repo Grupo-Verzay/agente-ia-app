@@ -357,7 +357,7 @@ export async function getSessionsByUserId(
  */
 export async function getSesionesDeLaCuenta(
   userId: string | string[],
-): Promise<SessionResponse<ChatContactSessionSummary[]>> {
+): Promise<SessionResponse<ChatContactSessionSummary[]> & { tiempos?: Record<string, number> }> {
   const pedidos = Array.isArray(userId) ? userId.filter(Boolean) : [userId].filter(Boolean);
   try {
     if (pedidos.length === 0) {
@@ -368,6 +368,7 @@ export async function getSesionesDeLaCuenta(
     // cuentas que no pasan se dejan fuera con aviso, no tumban la bandeja
     // entera: la pantalla manda la propia, la del dueño y las vinculadas, y
     // una de mas no puede dejar a las demas sin nombres ni etiquetas.
+    const arrancoAcceso = Date.now();
     const comprobaciones = await Promise.allSettled(
       pedidos.map((id) => assertCanAccessTargetUser(id)),
     );
@@ -384,28 +385,84 @@ export async function getSesionesDeLaCuenta(
     }
 
     const arrancoEn = Date.now();
+    // Cuanto tarda cada parte, en milisegundos. Viaja en la respuesta para que
+    // la consola del navegador diga donde se va el tiempo del servidor: los
+    // logs del contenedor no estan a mano cuando alguien manda una captura.
+    const tiempos: Record<string, number> = { acceso: arrancoEn - arrancoAcceso };
+    const medir = async <T,>(nombre: string, trabajo: () => Promise<T>): Promise<T> => {
+      const t0 = Date.now();
+      try {
+        return await trabajo();
+      } finally {
+        tiempos[nombre] = Date.now() - t0;
+      }
+    };
 
-    const sessions = await db.session.findMany({
-      where: { userId: userIds.length === 1 ? userIds[0] : { in: userIds } },
-      include: {
-        sessionTags: {
-          include: {
-            tag: true,
+    const sessions = await medir('sesiones', () =>
+      db.session.findMany({
+        where: { userId: userIds.length === 1 ? userIds[0] : { in: userIds } },
+        include: {
+          sessionTags: {
+            include: {
+              tag: true,
+            },
           },
         },
-      },
-    });
+      }),
+    );
 
     const allRemoteJids = Array.from(
       new Set(sessions.map((s) => s.remoteJid).filter(Boolean) as string[]),
     );
+    const sessionIds = sessions.map((s) => s.id);
 
-    const seguimientosRaw = allRemoteJids.length
-      ? await db.seguimiento.findMany({
-          where: { remoteJid: { in: allRemoteJids }, followUpStatus: 'pending' },
-          select: { remoteJid: true, tipo: true },
-        })
-      : [];
+    // Las cuatro consultas de apoyo no dependen entre si: van A LA VEZ. Iban
+    // una detras de otra y la vuelta sumaba los cuatro viajes a la base.
+    //
+    // Recordatorios va en su propio catch: es un contador accesorio, y sin el
+    // esta funcion caia entera al catch de abajo y devolvia "sin sesiones" -con
+    // lo que la bandeja se quedaba sin NINGUN badge (clasificacion, asesor,
+    // seguimientos, citas...), no solo sin el de recordatorios. Las campañas
+    // quedan fuera porque su remoteJid es una lista de numeros, no un contacto;
+    // se comparan con `not: true` para no perder las filas antiguas con la
+    // columna nula.
+    //
+    // Resueltas va aparte porque la columna no esta en schema.prisma (se crea
+    // en caliente), asi que el findMany de arriba no la trae. Por cuenta, no
+    // por lista de ids.
+    const [seguimientosRaw, resueltasMap, appointmentsRaw, recordatoriosRaw] = await Promise.all([
+      medir('seguimientos', () =>
+        allRemoteJids.length
+          ? db.seguimiento.findMany({
+              where: { remoteJid: { in: allRemoteJids }, followUpStatus: 'pending' },
+              select: { remoteJid: true, tipo: true },
+            })
+          : Promise.resolve([]),
+      ),
+      medir('resueltas', () => obtenerResueltasDeCuentas(userIds)),
+      medir('citas', () =>
+        sessionIds.length
+          ? db.appointment.findMany({
+              where: { sessionId: { in: sessionIds } },
+              select: { sessionId: true, status: true, startTime: true },
+              orderBy: { startTime: 'desc' },
+            })
+          : Promise.resolve([]),
+      ),
+      medir('recordatorios', async () => {
+        try {
+          if (!allRemoteJids.length) return [];
+          return await db.reminders.groupBy({
+            by: ['remoteJid'],
+            where: { remoteJid: { in: allRemoteJids }, isCampaign: { not: true } },
+            _count: { _all: true },
+          });
+        } catch (error) {
+          console.error('No se pudieron contar los recordatorios de la bandeja:', error);
+          return [];
+        }
+      }),
+    ]);
 
     const seguimientosMap = new Map<string, { count: number; tiposMap: Record<string, number> }>();
     for (const s of seguimientosRaw) {
@@ -417,19 +474,6 @@ export async function getSesionesDeLaCuenta(
       seguimientosMap.set(s.remoteJid, entry);
     }
 
-    const sessionIds = sessions.map((s) => s.id);
-    // Que conversaciones estan marcadas como resueltas. Va aparte porque la
-    // columna no esta en schema.prisma (se crea en caliente), asi que el
-    // findMany de arriba no la trae. Por cuenta, no por lista de ids.
-    const resueltasMap = await obtenerResueltasDeCuentas(userIds);
-    const appointmentsRaw = sessionIds.length
-      ? await db.appointment.findMany({
-          where: { sessionId: { in: sessionIds } },
-          select: { sessionId: true, status: true, startTime: true },
-          orderBy: { startTime: 'desc' },
-        })
-      : [];
-
     const appointmentStatusMap = new Map<number, AppointmentStatus>();
     for (const appt of appointmentsRaw) {
       if (appt.sessionId !== null && !appointmentStatusMap.has(appt.sessionId)) {
@@ -437,31 +481,9 @@ export async function getSesionesDeLaCuenta(
       }
     }
 
-    // Recordatorios pendientes, en UNA sola consulta para toda la bandeja: con
-    // una por chat esto costaría cientos de viajes a la base en cada carga.
-    //
-    // Va en su propio try: es un contador accesorio, y sin él esta función caía
-    // entera al catch de abajo y devolvía "sin sesiones" — con lo que la bandeja
-    // se quedaba sin NINGÚN badge (clasificación, asesor, seguimientos, citas…),
-    // no solo sin el de recordatorios.
-    //
-    // Las campañas quedan fuera porque su remoteJid es una lista de números, no
-    // un contacto. Se comparan con `not: true` para no perder las filas antiguas
-    // en las que la columna quedó nula.
     const recordatoriosMap = new Map<string, number>();
-    try {
-      if (allRemoteJids.length) {
-        const recordatoriosRaw = await db.reminders.groupBy({
-          by: ['remoteJid'],
-          where: { remoteJid: { in: allRemoteJids }, isCampaign: { not: true } },
-          _count: { _all: true },
-        });
-        for (const fila of recordatoriosRaw) {
-          if (fila.remoteJid) recordatoriosMap.set(fila.remoteJid, fila._count._all);
-        }
-      }
-    } catch (error) {
-      console.error('No se pudieron contar los recordatorios de la bandeja:', error);
+    for (const fila of recordatoriosRaw) {
+      if (fila.remoteJid) recordatoriosMap.set(fila.remoteJid, fila._count._all);
     }
 
     const data = sessions.map((sesion) => {
@@ -476,12 +498,12 @@ export async function getSesionesDeLaCuenta(
       );
     });
 
-    const tardo = Date.now() - arrancoEn;
-    if (tardo > 1500 || sessions.length > 3000) {
+    tiempos.total = Date.now() - arrancoAcceso;
+    if (tiempos.total > 1500 || sessions.length > 3000) {
       console.warn('[chats] getSesionesDeLaCuenta va caro', {
         cuentas: userIds.length,
         sesiones: sessions.length,
-        tardoMs: tardo,
+        tiempos,
       });
     }
 
@@ -489,6 +511,7 @@ export async function getSesionesDeLaCuenta(
       success: true,
       message: 'Sesiones de la cuenta obtenidas correctamente.',
       data,
+      tiempos,
     };
   } catch (error) {
     console.error('Error al obtener las sesiones de la cuenta:', error);
