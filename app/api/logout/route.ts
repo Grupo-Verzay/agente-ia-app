@@ -34,7 +34,7 @@ const COOKIES_DE_SESION = [
   "active_account_id",
 ];
 
-export async function GET(request: Request) {
+export async function GET() {
   // next-auth borra sus cookies con sus propios nombres y atributos. Si
   // fallara, abajo se borran igual a mano: salir tiene que salir.
   try {
@@ -43,7 +43,13 @@ export async function GET(request: Request) {
     console.warn("[auth] signOut de next-auth fallo al salir; se borran las cookies a mano.", error);
   }
 
-  const respuesta = NextResponse.redirect(new URL("/login", request.url), { status: 303 });
+  // Redirección RELATIVA, a propósito. Con `new URL("/login", request.url)` la
+  // dirección salía con el host que ve el servidor detrás de Traefik -el id del
+  // contenedor, `https://7b2fa5d4c09c:3000/login`- y el navegador aterrizaba en
+  // "no se puede acceder a esta página". Un `Location: /login` a secas lo
+  // resuelve el navegador contra el dominio que él mismo pidió, que es el bueno
+  // siempre, sin adivinar cabeceras `x-forwarded-*` ni variables de entorno.
+  const respuesta = new NextResponse(null, { status: 303, headers: { Location: "/login" } });
   for (const nombre of COOKIES_DE_SESION) {
     // Las que empiezan por `__Secure-`/`__Host-` solo se pueden tocar con
     // `Secure`: el navegador ignora un Set-Cookie sin el atributo.
