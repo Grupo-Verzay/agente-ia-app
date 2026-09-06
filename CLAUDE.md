@@ -171,6 +171,13 @@ Tres cosas que hay que mantener:
    contenido.
 2. Los dos plazos van **escalonados**: el de Evolution por debajo del que espera
    el navegador. Si se igualan, vuelve el fallo.
+   Y el atajo de los 6s **solo se corre si hay algo guardado que enseñar**. Sin
+   esa condición —así entró al principio— un chat sin historial local, que es el
+   caso más común de la bandeja (alguien que acaba de escribir por primera vez),
+   se rendía a los 6s y devolvía un fallo **tres segundos antes del plazo de la
+   propia Evolution**: la conversación se abría **en blanco** aunque Evolution
+   fuera a contestar. Si no hay nada local no hay atajo, se espera a Evolution
+   hasta su corte.
 3. En el navegador, agotar la espera **solo libera el ciclo**. La respuesta se
    sigue escuchando y, si el chat sigue abierto cuando llega, **se pinta**. Nunca
    volver al `race` contra `reject`: eso tira trabajo ya hecho.

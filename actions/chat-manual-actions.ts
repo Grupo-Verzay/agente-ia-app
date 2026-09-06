@@ -676,12 +676,22 @@ export async function warmChatMessagesAction(
   // Ya con la base en la mano, a Evolution se le da un margen corto. Si no
   // llega, se contesta con lo guardado y ella sigue de fondo: lo que traiga se
   // persiste igual y la siguiente vuelta del reloj lo recoge.
-  const result = await Promise.race([
-    promesaEvolutionSegura,
-    new Promise<null>((resolver) =>
-      setTimeout(() => resolver(null), MARGEN_ANTES_DE_TIRAR_DE_LA_BASE),
-    ),
-  ]);
+  // El atajo de los 6s SOLO vale si hay algo guardado que enseñar.
+  //
+  // Sin esa condicion, un chat sin historial local -un contacto que acaba de
+  // escribir por primera vez, que es justo el caso mas comun de la bandeja- se
+  // rendia a los 6s y devolvia un fallo, TRES SEGUNDOS ANTES del plazo de la
+  // propia Evolution. La conversacion se abria en blanco aunque Evolution
+  // fuera a contestar. Si no hay nada local, no hay atajo: se espera a
+  // Evolution hasta su corte.
+  const result = respaldoLocal?.data.length
+    ? await Promise.race([
+        promesaEvolutionSegura,
+        new Promise<null>((resolver) =>
+          setTimeout(() => resolver(null), MARGEN_ANTES_DE_TIRAR_DE_LA_BASE),
+        ),
+      ])
+    : await promesaEvolutionSegura;
 
   if (!result) {
     void promesaEvolutionSegura.then((tardia) => {
@@ -704,13 +714,8 @@ export async function warmChatMessagesAction(
       },
     );
 
-    if (respaldoLocal?.data.length) return respaldoLocal;
-
-    return {
-      success: false,
-      message: "Evolution tardo demasiado y no hay historial local todavia.",
-      queriedRemoteJid: remoteJid,
-    };
+    // Aqui SIEMPRE hay respaldo: sin el no se corre la carrera.
+    return respaldoLocal!;
   }
 
   if (result.success && effectiveOwnerId) {
