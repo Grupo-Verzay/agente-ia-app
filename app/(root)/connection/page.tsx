@@ -136,6 +136,29 @@ const Connection = async () => {
                 instanceType={"Whatsapp"}
                 prompts={instancesData["Whatsapp"].prompts}
             />
+            {/* Las DOS tarjetas de mensajeria de WhatsApp van juntas, una al lado
+                de la otra: Evolution a la izquierda y WhatsApp V2 a la derecha.
+                Separadas por media pantalla se leian como un duplicado raro; una
+                al lado de la otra se leen como lo que son, dos conexiones del
+                mismo canal. La adyacencia hace el trabajo que el nombre no hace.
+
+                Por eso este bloque va JUSTO detras de ConnectionMain y delante
+                de todo lo demas. Si se mete algo entre medias, se rompe el par. */}
+            {wahaInstances.length > 0
+                ? wahaInstances.map((inst) => (
+                    <WahaInstanceCard
+                        key={inst.instanceName}
+                        instanceName={inst.instanceName}
+                        displayName={(inst as any).displayName ?? null}
+                    />
+                ))
+                : (hayServidorWaha || puedeConfigurarWaha) && (
+                    <WahaInstanceCreator
+                        userId={effectiveId}
+                        company={user.company as string}
+                        hayServidor={hayServidorWaha}
+                    />
+                )}
             <CallLinkCard />
             {baileysInstances.map((inst) => (
                 <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
@@ -188,26 +211,6 @@ const Connection = async () => {
             {telegramInstances.length === 0 && (
                 <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
-            {/* WhatsApp V2 va SIEMPRE la ultima, conectada o no. Estaba con las
-                demas conexiones activas —arriba de los creadores— asi que al
-                conectarla saltaba de sitio: el usuario la pulsaba abajo del todo
-                y reaparecia arriba. Las dos ramas van juntas y aqui para que el
-                sitio no dependa de si hay sesion. */}
-            {wahaInstances.length > 0
-                ? wahaInstances.map((inst) => (
-                    <WahaInstanceCard
-                        key={inst.instanceName}
-                        instanceName={inst.instanceName}
-                        displayName={(inst as any).displayName ?? null}
-                    />
-                ))
-                : (hayServidorWaha || puedeConfigurarWaha) && (
-                    <WahaInstanceCreator
-                        userId={effectiveId}
-                        company={user.company as string}
-                        hayServidor={hayServidorWaha}
-                    />
-                )}
         </div>
     );
 };
