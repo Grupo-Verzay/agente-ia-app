@@ -715,43 +715,46 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
         "status", "createdAt", "updatedAt"
       )
       SELECT c."userId",
-             -- El mismo contacto puede tener DOS filas en la bandeja, una por su
-             -- numero y otra por su @lid. Si cada una creara su ficha, el CRM
-             -- acabaria con el lead duplicado. Se canoniza a la forma con numero
-             -- cuando se conoce -es lo que hace resolvePreferredRemoteJid en el
-             -- backend-, y asi la segunda choca contra el indice unico y no entra.
              c."canonico",
              NULLIF(c."alterno", c."canonico"),
              COALESCE(NULLIF(BTRIM(c."pushName"), ''), c."canonico"),
              c."instanceName",
              TRUE, NOW(), NOW()
       FROM (
-        SELECT v.*,
+        SELECT v."userId", v."instanceName", v."pushName", v."lastMessageTimestamp",
+               -- Sin el sufijo de dispositivo: WhatsApp numera el aparato desde el
+               -- que se escribe (573001:39@s.whatsapp.net) y ese ":39" NO es parte
+               -- del numero. Una ficha con el sufijo es un lead duplicado del
+               -- mismo contacto. El backend hace lo mismo con sinSufijoDeDispositivo.
                COALESCE(
-                 (SELECT j FROM (VALUES (v."remoteJid"), (v."remoteJidAlt"), (v."senderPn")) AS t(j)
-                  WHERE j LIKE '%@s.whatsapp.net' LIMIT 1),
-                 v."remoteJid"
+                 (SELECT regexp_replace(j, ':[0-9]+@', '@')
+                    FROM (VALUES (v."remoteJid"), (v."remoteJidAlt"), (v."senderPn")) AS t(j)
+                   WHERE j LIKE '%@s.whatsapp.net' LIMIT 1),
+                 regexp_replace(v."remoteJid", ':[0-9]+@', '@')
                ) AS "canonico",
                COALESCE(
                  (SELECT j FROM (VALUES (v."remoteJid"), (v."remoteJidAlt"), (v."senderPn")) AS t(j)
-                  WHERE j LIKE '%@lid' LIMIT 1),
-                 v."remoteJidAlt"
-               ) AS "alterno"
+                   WHERE j LIKE '%@lid' LIMIT 1),
+                 regexp_replace(COALESCE(v."remoteJidAlt", ''), ':[0-9]+@', '@')
+               ) AS "alterno",
+               ARRAY(
+                 SELECT regexp_replace(j, ':[0-9]+@', '@')
+                   FROM (VALUES (v."remoteJid"), (v."remoteJidAlt"), (v."senderPn")) AS t(j)
+                  WHERE j IS NOT NULL AND j <> ''
+               ) AS "identidades"
         FROM "chat_conversations" v
       ) c
       WHERE c."userId" IN (${Prisma.join(userIds)})
         AND c."lastMessageTimestamp" > ${desde}
-        AND c."remoteJid" NOT LIKE '%@g.us'
-        AND c."remoteJid" <> 'status@broadcast'
+        AND c."canonico" NOT LIKE '%@g.us'
+        AND c."canonico" <> 'status@broadcast'
         AND NOT EXISTS (
           SELECT 1 FROM "Session" s
           WHERE s."userId" = c."userId"
             AND s."instanceId" = c."instanceName"
             AND (
-              s."remoteJid" = c."remoteJid"
-              OR s."remoteJidAlt" = c."remoteJid"
-              OR (c."remoteJidAlt" IS NOT NULL AND (s."remoteJid" = c."remoteJidAlt" OR s."remoteJidAlt" = c."remoteJidAlt"))
-              OR (c."senderPn" IS NOT NULL AND (s."remoteJid" = c."senderPn" OR s."remoteJidAlt" = c."senderPn"))
+              regexp_replace(s."remoteJid", ':[0-9]+@', '@') = ANY (c."identidades")
+              OR regexp_replace(COALESCE(s."remoteJidAlt", ''), ':[0-9]+@', '@') = ANY (c."identidades")
             )
         )
       ON CONFLICT ("userId", "instanceId", "remoteJid") DO NOTHING
