@@ -1,6 +1,8 @@
 'use server';
 
 import { sendBaileysTextAction } from '@/actions/baileys-chat-actions';
+import { sendWahaTextAction } from '@/actions/waha-chat-actions';
+import { getWahaSession } from '@/lib/waha';
 import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 import { sendingMessages } from '@/actions/sending-messages-actions';
 import { db } from '@/lib/db';
@@ -29,7 +31,7 @@ export type WhatsAppDispatcherLine = {
   instanceType: string | null;
   serverUrl: string | null;
   apiKey: string | null;
-  provider: 'evolution' | 'baileys' | 'meta';
+  provider: 'evolution' | 'baileys' | 'meta' | 'waha';
 };
 
 function normalizeBaseUrl(url: string | null | undefined): string {
@@ -42,6 +44,20 @@ function isBaileys(instanceType: string | null | undefined) {
   return instanceType?.trim().toLowerCase() === 'baileys';
 }
 
+/** WhatsApp Mensajeria (WAHA): no habla con Evolution ni con el backend de Baileys. */
+function isWaha(instanceType: string | null | undefined) {
+  return instanceType?.trim().toLowerCase() === 'waha';
+}
+
+async function isWahaOpen(instanceName: string): Promise<boolean> {
+  try {
+    const session = await getWahaSession(instanceName);
+    return session?.status === 'WORKING';
+  } catch {
+    return false;
+  }
+}
+
 function isMetaWhatsApp(instance: Pick<DispatcherInstance, 'instanceType' | 'metaChannel'>) {
   return (
     instance.instanceType?.trim().toLowerCase() === 'meta' &&
@@ -51,7 +67,7 @@ function isMetaWhatsApp(instance: Pick<DispatcherInstance, 'instanceType' | 'met
 
 function isWhatsappLike(instanceType: string | null | undefined) {
   const type = instanceType?.trim().toLowerCase();
-  return !type || type === 'whatsapp' || type === 'baileys' || type === 'meta';
+  return !type || type === 'whatsapp' || type === 'baileys' || type === 'meta' || type === 'waha';
 }
 
 function canDispatchWhatsApp(instance: DispatcherInstance) {
@@ -161,6 +177,7 @@ async function isDispatcherLineConnected(args: {
 
   if (args.provider === 'meta') return isMetaOpen(args.instance);
   if (args.provider === 'baileys') return isBaileysOpen(args.instance.instanceName);
+  if (args.provider === 'waha') return isWahaOpen(args.instance.instanceName);
 
   return isEvolutionOpen({
     serverUrl: args.serverUrl,
@@ -207,7 +224,9 @@ async function findLineForUser(
       ? 'meta'
       : isBaileys(instance.instanceType)
         ? 'baileys'
-        : 'evolution';
+        : isWaha(instance.instanceType)
+          ? 'waha'
+          : 'evolution';
     const line: WhatsAppDispatcherLine = {
       id: user.id,
       notificationNumber: user.notificationNumber ?? null,
@@ -225,7 +244,9 @@ async function findLineForUser(
       ? isMetaOpen(instance)
       : provider === 'baileys'
         ? await isBaileysOpen(instance.instanceName)
-        : await isEvolutionOpen({
+        : provider === 'waha'
+          ? await isWahaOpen(instance.instanceName)
+          : await isEvolutionOpen({
           serverUrl,
           apiKey: user.apiKey?.key ?? null,
           instanceName: instance.instanceName,
@@ -482,7 +503,9 @@ export async function resolveWhatsAppDispatcherLineByInstanceName(
     ? 'meta'
     : isBaileys(instance.instanceType)
       ? 'baileys'
-      : 'evolution';
+      : isWaha(instance.instanceType)
+        ? 'waha'
+        : 'evolution';
   const serverUrl = normalizeBaseUrl(user.apiKey?.url);
   const apiKey = provider === 'evolution' ? user.apiKey?.key ?? null : null;
 
@@ -529,6 +552,18 @@ export async function sendViaWhatsAppDispatcher(args: {
       kind: 'text',
       text: args.text,
     });
+  }
+
+  if (args.dispatcher.provider === 'waha') {
+    const result = await sendWahaTextAction(args.dispatcher.instanceName, args.remoteJid, {
+      kind: 'text',
+      text: args.text,
+    });
+    return {
+      success: result.success,
+      message: result.message,
+      error: result.success ? undefined : result.message,
+    };
   }
 
   if (!args.dispatcher.serverUrl || !args.dispatcher.instanceId) {
