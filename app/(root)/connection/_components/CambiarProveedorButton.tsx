@@ -31,21 +31,20 @@ interface Props {
   soloIcono?: boolean;
 }
 
-const TEXTOS = {
-  waha: {
-    boton: 'Conectar por Waha',
-    titulo: '¿Pasar esta línea a Waha?',
-    detalle:
-      'Si la línea está conectada por Evolution, se cierra esa sesión: nunca hay dos proveedores encendidos a la vez. La línea sigue siendo la misma —conserva su nombre, su historial, sus leads y sus seguimientos—; solo cambia por dónde se conecta el WhatsApp. Después tendrás que escanear el QR una vez.',
-    confirmar: 'Cambiar a Waha',
-  },
-  evolution: {
-    boton: 'Volver a Evolution',
-    titulo: '¿Volver esta línea a Evolution?',
-    detalle:
-      'La línea sigue siendo la misma: conserva su nombre, su historial, sus leads y sus seguimientos. Se cierra la sesión de Waha y tendrás que escanear el QR de Evolution.',
-    confirmar: 'Volver a Evolution',
-  },
+/**
+ * Lo mismo en los dos sentidos, y a proposito.
+ *
+ * A quien usa la App no le sirve saber si detras hay Evolution o Waha: son
+ * nombres de servidores nuestros. Lo unico que le cambia la vida es que se
+ * cierra la sesion y hay que volver a escanear el QR. Los nombres de proveedor
+ * solo viven en la consola y en el codigo.
+ */
+const TEXTO = {
+  titulo: '¿Cambiar la conexión de esta línea?',
+  detalle:
+    'Se cierra la sesión de WhatsApp y tendrás que volver a escanear el QR. La línea sigue siendo la misma: conserva su nombre, su historial, sus leads y sus seguimientos.',
+  confirmar: 'Cambiar y escanear QR',
+  boton: 'Cambiar la conexión de esta línea',
 } as const;
 
 /**
@@ -56,7 +55,7 @@ export const CambiarProveedorButton = ({ instanceName, destino, motivoParaNoPode
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [cambiando, setCambiando] = useState(false);
-  const textos = TEXTOS[destino];
+  const textos = TEXTO;
 
   const confirmar = async () => {
     setCambiando(true);

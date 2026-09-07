@@ -640,9 +640,11 @@ por el camino.
 ## Conexión: el canal se llama igual; el proveedor solo se nombra al cambiarlo
 
 Una cosa es **cómo se llama la tarjeta** y otra **por dónde se conecta**. El
-canal es siempre «Mensajería WhatsApp (QR)». Evolution y **Waha** son
-proveedores, y solo se nombran donde se cambia de uno a otro: el aviso del icono
-de flechas y su diálogo de confirmación. En ningún otro sitio.
+canal es siempre «Mensajería WhatsApp (QR)». Evolution y **Waha** son nombres de
+servidores nuestros y **no salen en ninguna pantalla**: viven en el código y en
+la consola. A quien usa la App no le cambia la vida saber cuál hay detrás; lo
+único que le cambia es que al cambiar de conexión **se cierra la sesión y hay
+que volver a escanear el QR**, y eso es lo que dice el diálogo de las flechas.
 
 Antes el título cambiaba con el proveedor —«Mensajería WhatsApp (QR)» con
 Evolution y «WhatsApp Mensajería (QR)» con Waha—: dos nombres parecidos para lo
