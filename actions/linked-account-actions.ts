@@ -395,7 +395,12 @@ export async function getLinkedAccountsInstances(
       where: {
         userId: { in: linkedIds },
         OR: [
-          { instanceType: { in: ["Whatsapp", "baileys"] } },
+          // "waha" es WhatsApp Mensajería, tan línea de WhatsApp como las otras.
+          // Faltaba aquí, así que en cuanto una línea de una cuenta vinculada
+          // pasaba a ese proveedor DESAPARECÍA de la bandeja y del selector de
+          // canales, como si se hubiera borrado. Con Evolution se veía; al
+          // cambiar de proveedor, no. La línea es la misma.
+          { instanceType: { in: ["Whatsapp", "baileys", "waha"] } },
           { instanceType: "meta", metaChannel: "whatsapp" },
         ],
       },
@@ -444,7 +449,12 @@ export async function getMasterAccountInstances(
       where: {
         userId: { in: masterIds },
         OR: [
-          { instanceType: { in: ["Whatsapp", "baileys"] } },
+          // "waha" es WhatsApp Mensajería, tan línea de WhatsApp como las otras.
+          // Faltaba aquí, así que en cuanto una línea de una cuenta vinculada
+          // pasaba a ese proveedor DESAPARECÍA de la bandeja y del selector de
+          // canales, como si se hubiera borrado. Con Evolution se veía; al
+          // cambiar de proveedor, no. La línea es la misma.
+          { instanceType: { in: ["Whatsapp", "baileys", "waha"] } },
           { instanceType: "meta", metaChannel: "whatsapp" },
         ],
       },
