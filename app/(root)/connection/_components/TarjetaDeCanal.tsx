@@ -5,6 +5,7 @@ import { Info, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { TituloDeTarjeta } from './TituloDeTarjeta';
+import { ContactoDeTarjeta } from './ContactoDeTarjeta';
 
 /**
  * La tarjeta de un canal que se conecta pegando credenciales: Cloud API,
@@ -81,17 +82,7 @@ export const TarjetaDeCanal = ({
 
     <CardContent className="flex flex-col gap-3 p-4 pt-2">
       {conectado ? (
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-            {icono}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{nombre}</div>
-            {dato ? (
-              <div className="truncate font-mono text-[13px] text-muted-foreground">{dato}</div>
-            ) : null}
-          </div>
-        </div>
+        <ContactoDeTarjeta icono={icono} nombre={nombre ?? ''} dato={dato} fondo="bg-muted" />
       ) : (
         <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
           <span className="text-[13px] text-muted-foreground">Nombre de instancia</span>

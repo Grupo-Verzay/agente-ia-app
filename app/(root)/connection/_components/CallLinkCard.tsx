@@ -3,33 +3,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Phone, Loader2, QrCode, CheckCircle2, Power, Bot, Settings2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,  } from '@/components/ui/dialog';
 import { QrScanDialog } from '@/components/shared/QrScanDialog';
 import { toast } from 'sonner';
-import {
-  getMyCallSession,
-  linkMyCallSession,
-  linkMyCallSessionByPhone,
-  getMyCallQr,
-  unlinkMyCallSession,
-} from '@/actions/astracalls-actions';
+import { getMyCallSession, linkMyCallSession, linkMyCallSessionByPhone, getMyCallQr, unlinkMyCallSession,  } from '@/actions/astracalls-actions';
 import { getVoicebotConfig, setVoicebotConfig } from '@/actions/voicebot-actions';
 import { VOICEBOT_VOICE_OPTIONS, DEFAULT_VOICEBOT_VOICE } from '@/lib/voicebot-voices';
 import { cn } from '@/lib/utils';
 import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
+import { ContactoDeTarjeta } from './ContactoDeTarjeta';
 
 export function CallLinkCard() {
   const [loading, setLoading] = useState(true);
@@ -165,17 +152,11 @@ export function CallLinkCard() {
         {connected ? (
           <div className="flex flex-1 flex-col gap-3">
             <div className="flex flex-1 items-center">
-              <div className="flex items-center gap-3">
-                <Avatar className="rounded-lg">
-                  <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-                    <Phone className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{name || 'WhatsApp'}</div>
-                  {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0].split(':')[0]}</div>}
-                </div>
-              </div>
+              <ContactoDeTarjeta
+                icono={<Phone className="h-4 w-4" />}
+                nombre={name || 'WhatsApp'}
+                dato={jid ? `+${jid.split('@')[0].split(':')[0]}` : null}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
