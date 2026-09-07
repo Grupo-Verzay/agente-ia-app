@@ -54,6 +54,8 @@ export type MediaData = {
   url: string;
   mimeType: string;
   caption?: string;
+  /** Nombre del archivo tal y como lo mandó el contacto. Es lo que se rotula. */
+  fileName?: string;
 };
 
 export type MessageDeliveryState = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
