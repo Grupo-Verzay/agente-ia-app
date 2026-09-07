@@ -455,13 +455,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <h2 className="truncate text-sm font-bold leading-tight capitalize">{displayedContactName}</h2>
             </div>
             {presencia ? (
-              <span className="truncate text-[0.65rem] italic leading-none text-emerald-600 dark:text-emerald-400">
+              <span className="truncate text-xs italic leading-tight text-emerald-600 dark:text-emerald-400">
                 {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
               </span>
             ) : conexion?.estado === "en_linea" ? (
-              <span className="truncate text-[0.65rem] leading-none text-emerald-600 dark:text-emerald-400">en línea</span>
+              <span className="truncate text-xs font-medium leading-tight text-emerald-600 dark:text-emerald-400">en línea</span>
             ) : conexion?.estado === "desconectado" && conexion.lastSeen ? (
-              <span className="truncate text-[0.65rem] leading-none text-muted-foreground">
+              <span className="truncate text-xs leading-tight text-muted-foreground">
                 {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
               </span>
             ) : null}
@@ -677,13 +677,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               )}
             </div>
             {presencia ? (
-              <span className="truncate text-[0.65rem] italic leading-none text-emerald-600 dark:text-emerald-400">
+              <span className="truncate text-xs italic leading-tight text-emerald-600 dark:text-emerald-400">
                 {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
               </span>
             ) : conexion?.estado === "en_linea" ? (
-              <span className="truncate text-[0.65rem] leading-none text-emerald-600 dark:text-emerald-400">en línea</span>
+              <span className="truncate text-xs font-medium leading-tight text-emerald-600 dark:text-emerald-400">en línea</span>
             ) : conexion?.estado === "desconectado" && conexion.lastSeen ? (
-              <span className="truncate text-[0.65rem] leading-none text-muted-foreground">
+              <span className="truncate text-xs leading-tight text-muted-foreground">
                 {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
               </span>
             ) : null}

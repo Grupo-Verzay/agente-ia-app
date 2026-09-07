@@ -127,7 +127,12 @@ export async function ensureWahaSessionEvents(session: string): Promise<void> {
 
     const eventos = Array.isArray(primero.events) ? (primero.events as string[]) : [];
     const faltan = EVENTOS_DEL_WEBHOOK.filter((e) => !eventos.includes(e));
-    if (!faltan.length) return;
+    if (!faltan.length) {
+      // Tambien se dice cuando esta bien: "no sale nada" no puede significar
+      // dos cosas distintas (no se reviso / estaba al dia).
+      console.info('[waha] eventos del webhook al dia', { session, eventos });
+      return;
+    }
 
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}`, {
       method: 'PUT',

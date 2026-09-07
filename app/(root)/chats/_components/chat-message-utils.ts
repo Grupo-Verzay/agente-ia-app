@@ -424,7 +424,11 @@ export function normalizeDeliveryState(status?: string): MessageDeliveryState {
 
   if (!s || s === 'PENDING' || s === 'SENT') return 'sent';
 
-  if (s === 'SERVER_ACK' || s === 'DELIVERY_ACK' || s === 'DELIVERED' || s === 'DEVICE_ACK') return 'delivered';
+  // Como WhatsApp: una palomita al llegar al servidor, dos al llegar al
+  // telefono, azules al leerse. SERVER_ACK iba junto con "entregado" y las
+  // dos primeras etapas se veian iguales.
+  if (s === 'SERVER_ACK' || s === 'SENT') return 'sent';
+  if (s === 'DELIVERY_ACK' || s === 'DELIVERED' || s === 'DEVICE_ACK') return 'delivered';
 
   if (s === 'READ' || s === 'READ_ACK' || s === 'PLAYED' || s === 'PLAYED_ACK') return 'read';
 
