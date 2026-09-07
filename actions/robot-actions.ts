@@ -24,7 +24,19 @@ import { assertCanAccessTargetUser } from "./billing/helpers/app-access-guard";
  */
 
 const WEBHOOK_POR_DEFECTO = "https://backend.ia-app.com/webhook";
-const EVENTOS_DEL_WEBHOOK = ["MESSAGES_UPSERT", "CALL"];
+/**
+ * Los eventos que Evolution nos manda.
+ *
+ * `MESSAGES_UPDATE` son los acuses: el ✓✓ de que el mensaje llegó al teléfono y
+ * el azul de que lo leyeron. No se pedían, así que la palomita de la lista se
+ * quedaba en UNA para siempre mientras la conversación enseñaba dos —esa se
+ * pide en vivo a Evolution, que sí sabe el estado real, y la lista sale de
+ * nuestra base, que nunca se enteraba—. El backend los atiende en
+ * `handleMessageUpdateEvent`.
+ *
+ * Si se añade otro evento aquí, hay que atenderlo allí o llegará y se tirará.
+ */
+const EVENTOS_DEL_WEBHOOK = ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CALL"];
 
 type Resultado<T> = { success: true; data: T } | { success: false; message: string };
 
