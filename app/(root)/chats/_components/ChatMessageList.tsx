@@ -1,5 +1,7 @@
 'use client';
 
+import { Mic } from "lucide-react";
+import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -239,10 +241,38 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
 const MessageRow = React.memo(MessageRowBase, areMessageRowsEqual);
 
 /* Lista principal */
+/**
+ * La burbuja de "escribiendo…" de WhatsApp: tres puntos que suben y bajan, a
+ * la izquierda, donde saldra el mensaje. Para un audio, el microfono y el
+ * texto. Es solo pintura: la presencia llega por tiempo real y caduca sola.
+ */
+function PresenciaBurbuja({ tipo }: { tipo: PresenciaContacto }) {
+  return (
+    <div className="flex justify-start px-2 py-1" aria-live="polite">
+      <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-white px-3 py-2 shadow-sm dark:bg-neutral-800">
+        {tipo === "grabando" ? (
+          <>
+            <Mic className="h-4 w-4 animate-pulse text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs italic text-muted-foreground">grabando audio…</span>
+          </>
+        ) : (
+          <span className="flex items-end gap-1" aria-label="escribiendo…">
+            <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:0ms]" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:150ms]" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:300ms]" />
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface ChatMessageListProps {
   uiMessages: UIBubble[];
   loading?: boolean;
   listRef: React.RefObject<HTMLDivElement>;
+  /** El contacto esta escribiendo o grabando: burbuja animada al final, como WhatsApp. */
+  presencia?: PresenciaContacto | null;
   advisorName?: string;
   onSetReplyTo?: (bubble: UIBubble) => void;
   onCopyMessage?: (bubble: UIBubble) => void;
@@ -262,6 +292,7 @@ interface ChatMessageListProps {
 
 const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   uiMessages,
+  presencia,
   loading,
   listRef,
   advisorName,
@@ -463,6 +494,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
         {virtualMetrics.afterHeight > 0 && (
           <div aria-hidden="true" style={{ height: virtualMetrics.afterHeight }} />
         )}
+        {presencia && <PresenciaBurbuja tipo={presencia} />}
       </div>
     </div>
     </MediaGalleryProvider>

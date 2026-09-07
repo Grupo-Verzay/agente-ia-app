@@ -1,5 +1,6 @@
 "use client";
 
+import { getWahaPresenceAction } from "@/actions/waha-chat-actions";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -19,7 +20,7 @@ import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
-import { useChatsRealtime, type PresenciaContacto, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
+import { useChatsRealtime, type PresenciaContacto, type ConexionContacto, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -779,6 +780,47 @@ export function ChatsClient({
     for (const [k, p] of Object.entries(presencias)) out[k] = p.estado;
     return out;
   }, [presencias]);
+
+  /**
+   * Conexion del contacto (en linea / desconectado + ultima vez), por fila.
+   * A diferencia de la actividad, NO caduca: vale hasta que WhatsApp diga otra
+   * cosa. Solo la comparten los contactos que tienen la privacidad abierta.
+   */
+  const [conexiones, setConexiones] = useState<Record<string, { estado: ConexionContacto; lastSeen: number | null }>>({});
+
+  /**
+   * Un aviso de presencia (del socket o de la lectura inicial al abrir) se
+   * reparte entre la actividad (efimera) y la conexion (persistente).
+   * Escribir o grabar implica estar en linea.
+   */
+  const aplicarPresencia = useCallback(
+    (llave: string, presence: PresenciaContacto | ConexionContacto | "nada", lastSeen: number | null) => {
+      if (presence === "escribiendo" || presence === "grabando") {
+        setPresencias((prev) => ({ ...prev, [llave]: { estado: presence, hasta: Date.now() + 8000 } }));
+        setConexiones((prev) =>
+          prev[llave]?.estado === "en_linea" ? prev : { ...prev, [llave]: { estado: "en_linea", lastSeen: null } },
+        );
+        return;
+      }
+      if (presence === "en_linea" || presence === "desconectado") {
+        setConexiones((prev) => ({ ...prev, [llave]: { estado: presence, lastSeen } }));
+        if (presence === "desconectado") {
+          setPresencias((prev) => {
+            if (!(llave in prev)) return prev;
+            const { [llave]: _quitada, ...resto } = prev;
+            return resto;
+          });
+        }
+        return;
+      }
+      setPresencias((prev) => {
+        if (!(llave in prev)) return prev;
+        const { [llave]: _quitada, ...resto } = prev;
+        return resto;
+      });
+    },
+    [],
+  );
   // Las marcas por referencia, para poder consultarlas desde un manejador sin
   // meterlas en sus dependencias.
   const chatPreferencesRef = useRef<ChatConversationPreferenceMap>({});
@@ -1992,6 +2034,15 @@ export function ChatsClient({
         instanceActionSets?.find((s) => s.instanceName === selectedContact?.instanceName) ?? null;
       activeActionSetRef.current = actionSet;
 
+      // WhatsApp Mensajeria: la presencia actual (en linea / ult. vez) se lee al
+      // abrir, y esa lectura deja el chat suscrito para lo que venga despues.
+      if ((actionSet?.instanceType ?? "").toLowerCase() === "waha" && actionSet) {
+        const llavePresencia = `${selectedContact?.instanceName ?? actionSet.instanceName}::${selectedContact?.remoteJid ?? remoteJid}`;
+        void getWahaPresenceAction(actionSet.instanceName, remoteJid).then((p) => {
+          if (p) aplicarPresencia(llavePresencia, p.estado, p.lastSeen);
+        });
+      }
+
       const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
       const effectiveApiKeyData = hablaConEvolution(actionSet?.instanceType) ? apiKeyData : undefined;
       const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
@@ -2158,7 +2209,7 @@ export function ChatsClient({
         setLoading(false);
       }
     },
-    [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction, commitCache],
+    [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction, commitCache, aplicarPresencia],
   );
 
   selectFromSidebarRef.current = handleSelectFromSidebar;
@@ -3457,14 +3508,7 @@ export function ChatsClient({
           (!payload.instanceName || !c.instanceName || c.instanceName === payload.instanceName),
       );
       const llave = `${chat?.instanceName ?? payload.instanceName ?? ""}::${chat?.remoteJid ?? payload.remoteJid}`;
-      setPresencias((prev) => {
-        if (payload.presence === "nada") {
-          if (!(llave in prev)) return prev;
-          const { [llave]: _quitada, ...resto } = prev;
-          return resto;
-        }
-        return { ...prev, [llave]: { estado: payload.presence, hasta: Date.now() + 8000 } };
-      });
+      aplicarPresencia(llave, payload.presence, payload.lastSeen ?? null);
     },
     onConnectedChange: (connected) => {
       realtimeConnectedRef.current = connected;
@@ -3726,6 +3770,11 @@ export function ChatsClient({
             presencia={
               selectedJid
                 ? presenciasVisibles[`${currentContact?.instanceName ?? selectedInstanceName ?? ""}::${currentContact?.remoteJid ?? selectedJid}`] ?? null
+                : null
+            }
+            conexion={
+              selectedJid
+                ? conexiones[`${currentContact?.instanceName ?? selectedInstanceName ?? ""}::${currentContact?.remoteJid ?? selectedJid}`] ?? null
                 : null
             }
             loading={loading}
