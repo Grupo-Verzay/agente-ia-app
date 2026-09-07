@@ -348,7 +348,9 @@ export type WahaMediaType = 'image' | 'video' | 'audio' | 'document';
  * grabado; una URL http se pasa tal cual y WAHA la descarga.
  */
 function archivoParaWaha(mediaUrl: string, mimetype?: string | null, fileName?: string | null) {
-  const nombre = fileName?.trim() || undefined;
+  // Sin nombre, WhatsApp ensena el documento como "Untitled". Los nodos de
+  // flujo no traen nombre: se toma el del archivo en la URL.
+  const nombre = fileName?.trim() || nombreDesdeUrl(mediaUrl) || undefined;
   if (/^https?:\/\//i.test(mediaUrl)) {
     return { url: mediaUrl, ...(mimetype ? { mimetype } : {}), ...(nombre ? { filename: nombre } : {}) };
   }
@@ -356,6 +358,16 @@ function archivoParaWaha(mediaUrl: string, mimetype?: string | null, fileName?: 
   const data = dataUrl ? dataUrl[3] : mediaUrl;
   const mime = mimetype || (dataUrl?.[1] ?? 'application/octet-stream');
   return { data, mimetype: mime, ...(nombre ? { filename: nombre } : {}) };
+}
+
+function nombreDesdeUrl(mediaUrl: string): string {
+  if (!/^https?:\/\//i.test(mediaUrl)) return '';
+  try {
+    const ultimo = new URL(mediaUrl).pathname.split('/').filter(Boolean).pop() ?? '';
+    return decodeURIComponent(ultimo).slice(0, 120);
+  } catch {
+    return '';
+  }
 }
 
 export async function sendWahaMedia(params: {
@@ -386,9 +398,13 @@ export async function sendWahaMedia(params: {
   } else if (params.mediatype === 'video') {
     path = '/api/sendVideo';
     body = { ...base, ...conCaption };
-  } else if (params.mediatype === 'audio' && params.ptt) {
-    // Nota de voz. El navegador graba en webm/ogg y WhatsApp quiere opus:
-    // `convert` le pide a WAHA que lo transcodifique.
+  } else if (params.mediatype === 'audio') {
+    // TODO audio va como nota de voz, con o sin la marca `ptt`, igual que
+    // Evolution (`sendWhatsAppAudio`) y que el adaptador del backend. Un nodo
+    // de audio de un flujo no lleva `ptt`, y por `sendFile` llegaba al
+    // telefono como un documento "Untitled" en vez de reproducible. El
+    // navegador graba en webm/ogg y WhatsApp quiere opus: `convert` le pide a
+    // WAHA que lo transcodifique.
     path = '/api/sendVoice';
     body = { ...base, convert: true };
   } else {
