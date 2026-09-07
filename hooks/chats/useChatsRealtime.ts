@@ -19,9 +19,20 @@ export type ChatChangedPayload = {
   ts: number;
 };
 
+/** Lo que el contacto esta haciendo ahora mismo. `nada` apaga el indicador. */
+export type PresenciaContacto = "escribiendo" | "grabando";
+export type ChatPresencePayload = {
+  remoteJid: string;
+  instanceName: string | null;
+  presence: PresenciaContacto | "nada";
+  ts: number;
+};
+
 type UseChatsRealtimeOptions = {
   /** Se llama cada vez que el servidor notifica que un chat cambió. */
   onChatChanged: (payload: ChatChangedPayload) => void;
+  /** Presencia del contacto (escribiendo / grabando audio). Efimera: no se guarda. */
+  onPresence?: (payload: ChatPresencePayload) => void;
   /** Permite desactivar la conexión (p. ej. mientras no hay chats cargados). */
   enabled?: boolean;
   /**
@@ -40,11 +51,16 @@ type UseChatsRealtimeOptions = {
  * Se autoconfigura: pide token a /api/realtime/token. Si el realtime no está
  * habilitado por entorno, no hace nada y todo sigue funcionando con polling.
  */
-export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedChange }: UseChatsRealtimeOptions) {
+export function useChatsRealtime({ onChatChanged, onPresence, enabled = true, onConnectedChange }: UseChatsRealtimeOptions) {
   const handlerRef = useRef(onChatChanged);
   useEffect(() => {
     handlerRef.current = onChatChanged;
   }, [onChatChanged]);
+
+  const presenceRef = useRef(onPresence);
+  useEffect(() => {
+    presenceRef.current = onPresence;
+  }, [onPresence]);
 
   const connectedRef = useRef(onConnectedChange);
   useEffect(() => {
@@ -156,6 +172,12 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
         if (payload?.remoteJid) handlerRef.current?.(payload);
       });
 
+      // Presencia: sin rastro en consola a proposito, llega varias veces por
+      // minuto mientras el contacto escribe y taparia los avisos que importan.
+      socket.on("chat:presence", (payload: ChatPresencePayload) => {
+        if (payload?.remoteJid) presenceRef.current?.(payload);
+      });
+
       // Antes de reintentar, renovar el token (puede haber expirado).
       socket.io.on("reconnect_attempt", async () => {
         const fresh = await fetchToken();
@@ -172,6 +194,7 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
       socket?.off("disconnect");
       socket?.off("connect_error");
       socket?.off("chat:changed");
+      socket?.off("chat:presence");
       socket?.disconnect();
       socket = null;
     };

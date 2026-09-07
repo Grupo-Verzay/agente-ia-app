@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
-import { getWahaSession, isWahaConfigured, wahaMePhone } from '@/lib/waha';
+import { ensureWahaSessionEvents, getWahaSession, isWahaConfigured, wahaMePhone } from '@/lib/waha';
 
 /**
  * Estado de una sesion de WAHA para la tarjeta de WhatsApp Mensajeria.
@@ -48,6 +48,9 @@ export async function GET(
   }
 
   const session = await getWahaSession(params.session);
+  // De fondo: las sesiones creadas antes solo recibian `message`; esto les
+  // anade acuses, borrados y presencia sin tener que volver a escanear.
+  if (session) void ensureWahaSessionEvents(params.session);
 
   if (!session) {
     return NextResponse.json(

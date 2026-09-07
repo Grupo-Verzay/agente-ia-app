@@ -1,5 +1,6 @@
 "use client";
 
+import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React from "react";
 import { Archive, Bell, CalendarClock, Check, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -92,6 +93,8 @@ const APPT_LABEL: Record<string, string> = {
 
 type ChatContactItemProps = {
   contact: SidebarContact;
+  /** El contacto esta escribiendo o grabando: se ensena en vez del ultimo mensaje. */
+  presencia?: PresenciaContacto | null;
   onArchive: (id: string, isArchived: boolean) => void;
   onDeleteRequest: (contact: SidebarContact) => void;
   canDelete?: boolean;
@@ -124,6 +127,7 @@ type ChatContactItemProps = {
 
 function ChatContactItemBase({
   contact,
+  presencia,
   onArchive,
   canDelete = true,
   onDeleteRequest,
@@ -473,7 +477,13 @@ function ChatContactItemBase({
                 {IconComponent && (
                   <IconComponent className="h-4 w-4 shrink-0 text-muted-foreground opacity-70" />
                 )}
-                <span>{contact.lastMessage || "-"}</span>
+                {presencia ? (
+                  <span className="italic text-emerald-600 dark:text-emerald-400">
+                    {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
+                  </span>
+                ) : (
+                  <span>{contact.lastMessage || "-"}</span>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {showInstanceBadge && contact.instanceName && (

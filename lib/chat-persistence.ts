@@ -30,6 +30,7 @@ type PersistedChatMessageRow = {
 };
 
 type InboxRow = {
+  profilePicUrl?: string | null;
   sessionId: number;
   /** Id de la conversación, usado para traer su JSON solo en las filas finales. */
   convId: number | null;
@@ -189,6 +190,11 @@ function ensureChatMessagesTable() {
     // muestra "🚫 Mensaje eliminado". Se resetea a FALSE al llegar un mensaje nuevo.
     await db.$executeRaw`
       ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "lastMessageDeleted" BOOLEAN NOT NULL DEFAULT FALSE
+    `;
+    // Foto de perfil guardada en la fila (la escribe el backend para las
+    // lineas WAHA, que no la traen en su lista de chats). La bandeja la lee.
+    await db.$executeRaw`
+      ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "profilePicUrl" TEXT
     `;
     await db.$executeRaw`
       CREATE INDEX IF NOT EXISTS "chat_conversations_user_last_ts_idx"
@@ -531,7 +537,7 @@ function inboxRowToChat(row: InboxRow): ChatData {
     remoteJid: row.remoteJid,
     remoteJidAlt: row.remoteJidAlt,
     pushName: row.pushName,
-    profilePicUrl: null,
+    profilePicUrl: row.profilePicUrl ?? null,
     unreadCount,
     updatedAt: timestamp.toISOString(),
     lastMessage,
@@ -1494,7 +1500,7 @@ async function loadPersistedInboxChats(
       SELECT
         c."id" AS c_id, c."userId" AS c_user, c."instanceName" AS c_instance,
         c."instanceType" AS c_instance_type, c."remoteJid" AS c_jid,
-        c."remoteJidAlt" AS c_alt, c."senderPn" AS c_sender, c."pushName" AS c_push,
+        c."remoteJidAlt" AS c_alt, c."senderPn" AS c_sender, c."pushName" AS c_push, c."profilePicUrl" AS c_pic,
         c."lastMessageId" AS c_msg_id, c."lastMessageFromMe" AS c_from_me,
         c."lastMessageType" AS c_msg_type, c."lastMessageContent" AS c_content,
         c."lastMessageMediaUrl" AS c_media,
@@ -1550,7 +1556,7 @@ async function loadPersistedInboxChats(
       -- Cada conversación con su sesión emparejada (o NULL): cubre "c con s" y "c sin s"
       SELECT
         c.c_id, c.c_user, c.c_instance, c.c_instance_type, c.c_jid, c.c_alt, c.c_sender,
-        c.c_push, c.c_msg_id, c.c_from_me, c.c_msg_type, c.c_content, c.c_media,
+        c.c_push, c.c_pic, c.c_msg_id, c.c_from_me, c.c_msg_type, c.c_content, c.c_media,
         c.c_ts, c.c_deleted, c.c_updated,
         s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated
       FROM conv c
@@ -1563,7 +1569,7 @@ async function loadPersistedInboxChats(
       SELECT
         NULL::bigint AS c_id, NULL::text AS c_user, NULL::text AS c_instance,
         NULL::text AS c_instance_type, NULL::text AS c_jid,
-        NULL::text AS c_alt, NULL::text AS c_sender, NULL::text AS c_push,
+        NULL::text AS c_alt, NULL::text AS c_sender, NULL::text AS c_push, NULL::text AS c_pic,
         NULL::text AS c_msg_id, NULL::boolean AS c_from_me,
         NULL::text AS c_msg_type, NULL::text AS c_content,
         NULL::text AS c_media,
@@ -1587,6 +1593,7 @@ async function loadPersistedInboxChats(
         COALESCE(m.c_jid, m.s_jid) AS "remoteJid",
         COALESCE(m.c_alt, m.s_alt) AS "remoteJidAlt",
         COALESCE(m.c_push, m.s_push) AS "pushName",
+        m.c_pic AS "profilePicUrl",
         COALESCE(m.c_instance, i."instanceName", m.s_instance) AS "instanceName",
         COALESCE(m.c_instance_type, i."instanceType") AS "instanceType",
         m.c_msg_id AS "messageId",

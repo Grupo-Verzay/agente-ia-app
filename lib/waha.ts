@@ -92,6 +92,100 @@ async function wahaFetch(
 }
 
 /**
+ * Los eventos que el backend atiende. `message` son los mensajes nuevos;
+ * los otros tres son los acuses (el ✓✓), los borrados del cliente y la
+ * presencia (escribiendo / grabando). Si se anade uno aqui, hay que atenderlo
+ * en el backend (`WahaEventsService`), o llegara y se tirara.
+ */
+export const EVENTOS_DEL_WEBHOOK = ['message', 'message.ack', 'message.revoked', 'presence.update'] as const;
+
+const sesionesRevisadas = new Map<string, number>();
+const REVISAR_EVENTOS_CADA_MS = 10 * 60 * 1000;
+
+/**
+ * Pone al dia los eventos del webhook de una sesion ya creada.
+ *
+ * Las sesiones anteriores se crearon solo con `message`; sin esto seguirian
+ * sin acuses ni presencia hasta que alguien las borrara y volviera a escanear.
+ * Se mira una vez cada 10 minutos por sesion (lo llama la tarjeta al pedir el
+ * estado) y solo se escribe si falta algo. Nunca lanza.
+ */
+export async function ensureWahaSessionEvents(session: string): Promise<void> {
+  const ahora = Date.now();
+  const ultima = sesionesRevisadas.get(session) ?? 0;
+  if (ahora - ultima < REVISAR_EVENTOS_CADA_MS) return;
+  sesionesRevisadas.set(session, ahora);
+
+  const cfg = await getWahaConfig();
+  if (!cfg) return;
+  try {
+    const actual = await getWahaSession(session);
+    const config = (actual?.config ?? null) as { webhooks?: Array<Record<string, unknown>> } | null;
+    const webhooks = Array.isArray(config?.webhooks) ? config!.webhooks : [];
+    const primero = webhooks[0];
+    if (!primero || typeof primero.url !== 'string') return;
+
+    const eventos = Array.isArray(primero.events) ? (primero.events as string[]) : [];
+    const faltan = EVENTOS_DEL_WEBHOOK.filter((e) => !eventos.includes(e));
+    if (!faltan.length) return;
+
+    const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        config: {
+          ...config,
+          webhooks: [{ ...primero, events: [...EVENTOS_DEL_WEBHOOK] }, ...webhooks.slice(1)],
+        },
+      }),
+    });
+    if (!res.ok) {
+      console.warn('[waha] no se pudieron actualizar los eventos del webhook', {
+        session,
+        status: res.status,
+        detalle: (await res.text()).slice(0, 200),
+      });
+      return;
+    }
+    console.warn('[waha] eventos del webhook actualizados', { session, faltaban: faltan });
+  } catch (error) {
+    console.warn('[waha] no se pudo revisar el webhook de la sesión', { session, error: String(error) });
+  }
+}
+
+const presenciasSuscritas = new Map<string, number>();
+const RESUSCRIBIR_PRESENCIA_CADA_MS = 10 * 60 * 1000;
+
+/**
+ * Pide a WAHA que mande la presencia (escribiendo / grabando) de un chat.
+ * WAHA solo la envia para los chats suscritos, asi que se hace al abrir la
+ * conversacion; se recuerda 10 minutos para no repetirlo en cada vuelta del
+ * sondeo. Nunca lanza: sin presencia la conversacion funciona igual.
+ */
+export async function subscribeWahaPresence(session: string, chatId: string): Promise<void> {
+  if (!session || !chatId) return;
+  const clave = `${session}|${chatId}`;
+  const ahora = Date.now();
+  if (ahora - (presenciasSuscritas.get(clave) ?? 0) < RESUSCRIBIR_PRESENCIA_CADA_MS) return;
+  presenciasSuscritas.set(clave, ahora);
+
+  const cfg = await getWahaConfig();
+  if (!cfg) return;
+  try {
+    const res = await wahaFetch(
+      cfg,
+      `/api/${encodeURIComponent(session)}/presence/${encodeURIComponent(chatId)}/subscribe`,
+      { method: 'POST', body: JSON.stringify({}) },
+      5000,
+    );
+    if (!res.ok) {
+      console.warn('[waha] no se pudo suscribir la presencia', { session, chatId, status: res.status });
+    }
+  } catch (error) {
+    console.warn('[waha] no se pudo suscribir la presencia', { session, chatId, error: String(error) });
+  }
+}
+
+/**
  * Crea la sesion y la arranca. El webhook se deja configurado aqui mismo,
  * apuntando a nuestro backend y llevando `secret` en la cabecera `X-Api-Key`:
  * el normalizador del backend lo compara contra `metaVerifyToken` de la
@@ -115,7 +209,7 @@ export async function createWahaSession(params: {
           webhooks: [
             {
               url: params.webhookUrl,
-              events: ['message'],
+              events: [...EVENTOS_DEL_WEBHOOK],
               customHeaders: [{ name: 'X-Api-Key', value: params.secret }],
             },
           ],
@@ -321,12 +415,34 @@ async function enviarAWaha(
 }
 
 /** `POST /api/sendText`. `replyTo` es el id del mensaje citado, tal y como lo guardamos. */
+/**
+ * "Escribiendo…" un instante antes del texto, como hace Evolution con su
+ * `delay`. Es un gesto: si WAHA no lo acepta, el mensaje sale igual y no se
+ * avisa de nada.
+ */
+async function gestoDeEscribir(session: string, chatId: string): Promise<void> {
+  const cfg = await getWahaConfig();
+  if (!cfg) return;
+  try {
+    const empezo = await wahaFetch(cfg, '/api/startTyping', {
+      method: 'POST',
+      body: JSON.stringify({ session, chatId }),
+    }, 5000);
+    if (!empezo.ok) return;
+    await new Promise((r) => setTimeout(r, 900));
+    await wahaFetch(cfg, '/api/stopTyping', { method: 'POST', body: JSON.stringify({ session, chatId }) }, 5000);
+  } catch {
+    // es un gesto
+  }
+}
+
 export async function sendWahaText(params: {
   session: string;
   chatId: string;
   text: string;
   replyTo?: string | null;
 }): Promise<WahaSendResult> {
+  await gestoDeEscribir(params.session, params.chatId);
   return enviarAWaha(
     '/api/sendText',
     {

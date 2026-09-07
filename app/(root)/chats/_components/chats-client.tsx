@@ -19,7 +19,7 @@ import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
-import { useChatsRealtime, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
+import { useChatsRealtime, type PresenciaContacto, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -753,6 +753,32 @@ export function ChatsClient({
   // La lista por referencia, para que los manejadores que se pasan a las filas
   // puedan consultarla sin llevarla en sus dependencias (ver CLAUDE.md).
   const contactsRef = useRef<ChatData[]>([]);
+
+  /**
+   * Presencia del contacto (escribiendo / grabando), por fila `linea::jid`.
+   * Efimera: cada aviso vale 8 s y luego se apaga solo, porque WhatsApp no
+   * siempre manda el "paused". Se guarda bajo la llave de la FILA, no bajo la
+   * identidad que trae el aviso, para que la barra lateral y la cabecera la
+   * encuentren sin buscar.
+   */
+  const [presencias, setPresencias] = useState<Record<string, { estado: PresenciaContacto; hasta: number }>>({});
+  useEffect(() => {
+    if (!Object.keys(presencias).length) return;
+    const timer = window.setInterval(() => {
+      const ahora = Date.now();
+      setPresencias((prev) => {
+        const vivas = Object.entries(prev).filter(([, p]) => p.hasta > ahora);
+        if (vivas.length === Object.keys(prev).length) return prev;
+        return Object.fromEntries(vivas);
+      });
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [presencias]);
+  const presenciasVisibles = useMemo(() => {
+    const out: Record<string, PresenciaContacto> = {};
+    for (const [k, p] of Object.entries(presencias)) out[k] = p.estado;
+    return out;
+  }, [presencias]);
   // Las marcas por referencia, para poder consultarlas desde un manejador sin
   // meterlas en sus dependencias.
   const chatPreferencesRef = useRef<ChatConversationPreferenceMap>({});
@@ -3421,6 +3447,25 @@ export function ChatsClient({
 
   useChatsRealtime({
     enabled: normalizedInitialChatsResult.success,
+    onPresence: (payload) => {
+      // El aviso trae UNA identidad del contacto; la fila puede estar bajo
+      // otra. Se busca por todas, como todo lo demas en esta pantalla.
+      const identidades = new Set([payload.remoteJid]);
+      const chat = contactsRef.current.find(
+        (c) =>
+          chatMatchesAnyJid(c, identidades) &&
+          (!payload.instanceName || !c.instanceName || c.instanceName === payload.instanceName),
+      );
+      const llave = `${chat?.instanceName ?? payload.instanceName ?? ""}::${chat?.remoteJid ?? payload.remoteJid}`;
+      setPresencias((prev) => {
+        if (payload.presence === "nada") {
+          if (!(llave in prev)) return prev;
+          const { [llave]: _quitada, ...resto } = prev;
+          return resto;
+        }
+        return { ...prev, [llave]: { estado: payload.presence, hasta: Date.now() + 8000 } };
+      });
+    },
     onConnectedChange: (connected) => {
       realtimeConnectedRef.current = connected;
       // Al reconectar, reactiva el poll de inmediato para reconciliar rápido.
@@ -3614,6 +3659,7 @@ export function ChatsClient({
       >
         <ChatSidebar
           allTags={allTags}
+          presencias={presenciasVisibles}
           chatPreferences={chatPreferences}
           chatSessions={chatSessions}
           onArchiveChat={handleArchiveChat}
@@ -3677,6 +3723,11 @@ export function ChatsClient({
             allTags={allTags}
             header={header}
             info={info}
+            presencia={
+              selectedJid
+                ? presenciasVisibles[`${currentContact?.instanceName ?? selectedInstanceName ?? ""}::${currentContact?.remoteJid ?? selectedJid}`] ?? null
+                : null
+            }
             loading={loading}
             messages={messages}
             onBackToList={toggleSidebarVisibility}

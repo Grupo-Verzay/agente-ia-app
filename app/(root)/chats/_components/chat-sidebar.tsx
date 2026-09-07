@@ -1,5 +1,6 @@
 "use client";
 
+import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { resolveSession } from "@/actions/advisor-assign-actions";
@@ -215,6 +216,8 @@ type ChatSidebarProps = {
   isRefreshing?: boolean;
   onCompose?: () => void;
   inactiveAgentUnreadJids?: Set<string>;
+  /** Presencia por fila (`linea::jid`): escribiendo / grabando. */
+  presencias?: Record<string, PresenciaContacto>;
   onBulkArchive?: (remoteJids: string[], archived: boolean) => Promise<void>;
   onBulkDelete?: (remoteJids: string[]) => Promise<void>;
   onBulkPin?: (remoteJids: string[], isPinned: boolean) => Promise<void>;
@@ -260,6 +263,7 @@ export function ChatSidebar({
   isRefreshing,
   onCompose,
   inactiveAgentUnreadJids,
+  presencias,
   onBulkArchive,
   onBulkDelete,
   onBulkPin,
@@ -1349,6 +1353,7 @@ export function ChatSidebar({
               <ChatContactItem
                 key={`${contact.instanceName ?? ""}::${contact.id}`}
                 contact={contact}
+                presencia={presencias?.[`${contact.instanceName ?? ""}::${contact.id}`] ?? null}
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
                 onPrefetch={handlePrefetchJid}
