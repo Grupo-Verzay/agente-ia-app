@@ -284,9 +284,11 @@ async function adoptarRestosDelSufijoV2(linea: Linea): Promise<Record<string, nu
   `);
 
   // La memoria de la IA se guarda como `NOMBRE-<jid>`: se cambia solo el prefijo.
+  // El `::int` no sobra: Prisma manda el numero como bigint y `SUBSTRING` no lo
+  // acepta (`function substring(character varying, bigint) does not exist`).
   await paso('memoriaMovida', () => db.$executeRaw`
     UPDATE "n8n_chat_histories"
-    SET "session_id" = ${linea.instanceName} || SUBSTRING("session_id" FROM ${nombreViejo.length + 1})
+    SET "session_id" = ${linea.instanceName} || SUBSTRING("session_id" FROM ${nombreViejo.length + 1}::int)
     WHERE "session_id" LIKE ${`${nombreViejo}-%`}
   `);
 

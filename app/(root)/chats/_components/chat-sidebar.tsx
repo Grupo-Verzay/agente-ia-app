@@ -81,6 +81,7 @@ import {
   isChatDeletedByPreference,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
+import { normalizeDeliveryState } from "./chat-message-utils";
 import { saveSidebarCache } from "./chats-sidebar-cache";
 import type { ChatData } from "@/actions/chat-actions";
 
@@ -432,6 +433,8 @@ export function ChatSidebar({
           lastMessage: lastMsgData.text,
           lastMessageId: lastMsgData.id,
           messageType: lastMsgData.messageType,
+          // La palomita de la fila, como en WhatsApp: solo para lo que mando la linea.
+          estadoDelUltimo: lastMsgData.fromMe ? normalizeDeliveryState(chat.lastMessage?.status) : null,
           timestamp: formatTimeFromEpoch(chat.lastMessage?.messageTimestamp),
           ts,
           isGroup: isGroupJid(chat.remoteJid),

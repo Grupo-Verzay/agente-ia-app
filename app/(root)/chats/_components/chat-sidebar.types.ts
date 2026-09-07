@@ -1,4 +1,5 @@
 import type { ChatContactSessionMap } from "@/types/session";
+import type { MessageDeliveryState } from "./chat-message-types";
 
 export type SidebarContact = {
   id: string;
@@ -13,6 +14,8 @@ export type SidebarContact = {
   lastMessage: string;
   lastMessageId: string;
   messageType?: string;
+  /** Palomita del ultimo mensaje cuando lo mando la linea; null si lo mando el contacto. */
+  estadoDelUltimo?: MessageDeliveryState | null;
   name: string;
   avatarSrc: string;
   pinnedAtMs: number;

@@ -2,7 +2,7 @@
 
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React from "react";
-import { Archive, Bell, CalendarClock, Check, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, Bell, CalendarClock, Check, CheckCheck, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -482,7 +482,10 @@ function ChatContactItemBase({
                     {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
                   </span>
                 ) : (
-                  <span>{contact.lastMessage || "-"}</span>
+                  <>
+                    {contact.estadoDelUltimo && <PalomitaDeLaFila estado={contact.estadoDelUltimo} />}
+                    <span>{contact.lastMessage || "-"}</span>
+                  </>
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -711,4 +714,16 @@ function ChatContactItemBase({
 // Memoizado: con props/callbacks estables, los items de la lista no se
 // re-renderizan en cada poll de mensajes/lista. Solo se actualizan cuando
 // cambian sus propios datos.
+/**
+ * La palomita del ultimo mensaje en la fila de la lista, como en WhatsApp:
+ * ✓ enviado, ✓✓ entregado, ✓✓ azul leido. Sobre fondo claro, no sobre burbuja,
+ * asi que los colores no son los de MessageStatusIndicator.
+ */
+const PalomitaDeLaFila = ({ estado }: { estado: NonNullable<SidebarContact["estadoDelUltimo"]> }) => {
+  if (estado === "read") return <CheckCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" aria-label="Leído" />;
+  if (estado === "delivered") return <CheckCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Entregado" />;
+  if (estado === "failed") return <span className="text-xs text-red-500" aria-label="No enviado">!</span>;
+  return <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Enviado" />;
+};
+
 export const ChatContactItem = React.memo(ChatContactItemBase);
