@@ -15,6 +15,7 @@ import { ClientInstanceCardProps } from '@/schema/connection';
 import { PromptInstanceDialog } from './PromptInstanceDialog';
 import { RenameInstanceDialog } from './RenameInstanceDialog';
 import { RecreateInstanceDialog } from './RecreateInstanceDialog';
+import { CambiarProveedorButton } from './CambiarProveedorButton';
 
 interface SocialIconSelectorProps {
   instanceType?: string;
@@ -66,7 +67,8 @@ export const ClientInstanceCard = ({
   user,
   currentInstanceInfo,
   prompts,
-}: ClientInstanceCardProps) => {
+  hayServidorWaha,
+}: ClientInstanceCardProps & { hayServidorWaha?: boolean }) => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showRecreateDialog, setShowRecreateDialog] = useState(false);
   const [showPromptDialog, setShowPromptDialog] = useState(false);
@@ -155,6 +157,23 @@ export const ClientInstanceCard = ({
               </>
             )}
           </div>
+
+          {/* La linea es la misma; solo cambia por donde se conecta el WhatsApp.
+              Nunca hay dos proveedores encendidos: con Evolution conectada el
+              boton se apaga y dice por que. */}
+          {instanceType === 'Whatsapp' && hayServidorWaha && (
+            <div className="flex flex-col gap-1 pt-2">
+              <CambiarProveedorButton
+                instanceName={intanceName}
+                destino="waha"
+                motivoParaNoPoder={
+                  currentInstanceInfo?.connectionStatus === 'open'
+                    ? 'Desvincula Evolution primero para pasar a WhatsApp Mensajería.'
+                    : null
+                }
+              />
+            </div>
+          )}
         </CardContent>
 
       </Card>

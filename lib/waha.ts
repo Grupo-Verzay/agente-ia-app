@@ -280,6 +280,49 @@ export async function createWahaSession(params: {
   }
 }
 
+/**
+ * Deja el webhook de una sesion YA creada apuntando a nuestro backend con el
+ * secreto dado. Se usa al cambiar una linea de proveedor cuando en WAHA ya
+ * existe una sesion con ese nombre (se creo antes, o quedo de un intento
+ * anterior): reutilizarla evita volver a escanear el QR si sigue conectada.
+ */
+export async function setWahaSessionWebhook(params: {
+  session: string;
+  webhookUrl: string;
+  secret: string;
+}): Promise<{ ok: boolean; message?: string }> {
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'El servidor de WhatsApp Mensajería no esta configurado (Panel > Conexion).' };
+  try {
+    const actual = await getWahaSession(params.session);
+    const config = (actual?.config ?? {}) as Record<string, unknown>;
+    const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(params.session)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        config: {
+          ...config,
+          webhooks: [
+            {
+              url: params.webhookUrl,
+              events: [...EVENTOS_DEL_WEBHOOK],
+              customHeaders: [{ name: 'X-Api-Key', value: params.secret }],
+            },
+          ],
+        },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      return { ok: false, message: `WAHA respondio ${res.status}: ${body.slice(0, 300)}` };
+    }
+    // La sesion revisada hace un momento ya no cuenta: acaba de cambiar.
+    sesionesRevisadas.delete(params.session);
+    return { ok: true };
+  } catch {
+    return { ok: false, message: 'No se pudo contactar con WAHA.' };
+  }
+}
+
 export async function getWahaSession(session: string): Promise<WahaSession | null> {
   const cfg = await getWahaConfig();
   if (!cfg) return null;

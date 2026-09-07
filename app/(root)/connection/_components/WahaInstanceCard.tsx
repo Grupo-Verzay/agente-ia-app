@@ -26,10 +26,13 @@ import {
   restartWahaInstance,
 } from '@/actions/instances-actions';
 import { toast } from 'sonner';
+import { CambiarProveedorButton } from './CambiarProveedorButton';
 
 interface WahaInstanceCardProps {
   instanceName: string;
   displayName?: string | null;
+  /** La cuenta tiene servidor de Evolution: se ofrece volver a el. */
+  puedeVolverAEvolution?: boolean;
 }
 
 interface StatusResponse {
@@ -72,7 +75,7 @@ const textoDeEstado = (status: string | undefined, starting: boolean): string =>
   }
 };
 
-export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCardProps) => {
+export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolution }: WahaInstanceCardProps) => {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [showQrDialog, setShowQrDialog] = useState(false);
   const [qrTimestamp, setQrTimestamp] = useState(Date.now());
@@ -322,6 +325,12 @@ export const WahaInstanceCard = ({ instanceName, displayName }: WahaInstanceCard
             )}
           </div>
         </CardContent>
+
+        {puedeVolverAEvolution && (
+          <CardContent className="pt-0">
+            <CambiarProveedorButton instanceName={instanceName} destino="evolution" />
+          </CardContent>
+        )}
 
         <CardFooter className="flex justify-between items-center">
           <Button size="sm" variant="outline" onClick={handleLogout} disabled={loggingOut}>
