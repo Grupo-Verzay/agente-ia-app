@@ -566,7 +566,8 @@ La regla: **cambiar de proveedor cambia `instanceType` de la MISMA fila**
 conversaciones y los mensajes) e `instanceId` (las sesiones del CRM). El
 backend ya decide por `instanceType` en cada envío, así que no hay nada más que
 tocar. La sesión de Waha se llama **igual que la instancia**; `_V2` no existe.
-Nunca hay dos encendidos: con Evolution conectada el botón de cambio se apaga.
+Nunca hay dos encendidos: si Evolution está conectada, el propio cambio cierra
+su sesión antes de seguir.
 
 Si en una cuenta quedaron datos bajo `NOMBRE_V2`, el cambio a Waha los adopta
 (`adoptarRestosDelSufijoV2`) y lo dice en la consola: `[linea] proveedor
@@ -657,22 +658,28 @@ Conexiones, con **cuatro mandos y ninguno más**:
 | Cuerpo | Verde | **Cierra la sesión.** Al posar el cursor se pone rojo y lo dice. |
 | Cuerpo | Rojo / azul | El **Robot**: apaga y enciende la IA de esa línea. |
 
-Cuatro cosas que hay que mantener:
+Cinco cosas que hay que mantener:
 
-1. **Nada de texto suelto ni pie en la tarjeta.** Lo que hace cada botón se lee
+1. **Cambiar de proveedor no deja deberes.** Sigue sin haber dos proveedores
+   encendidos a la vez, pero cerrar el primero **no es trabajo de la persona**:
+   si la sesión de Evolution está abierta, `cambiarProveedorAWaha` la cierra y
+   espera a que deje de estar `open` antes de seguir. Antes el botón salía
+   apagado y había que adivinar que el primer paso era pulsar el verde. La
+   confirmación lo dice antes de tocar nada.
+2. **Nada de texto suelto ni pie en la tarjeta.** Lo que hace cada botón se lee
    al posarse encima y se explica en su diálogo. El Robot no necesita bloque
    propio: ese botón rojo ya es él.
-2. **Cerrar sesión existe en los dos proveedores.** Es la única forma de cambiar
+3. **Cerrar sesión existe en los dos proveedores.** Es la única forma de cambiar
    el número de una línea sin perder su historial. En Evolution la llamada vivía
    dentro de `deleteInstance` —desvincular obligaba a borrar la línea entera—;
    ahora es `cerrarSesionDeLaLinea`. Un fallo del servidor **se dice**: un
    «listo» con la sesión abierta hace creer que ya se puede escanear con otro
    teléfono.
-3. **El Robot funciona con los dos.** El backend ya leía la misma marca para
+4. **El Robot funciona con los dos.** El backend ya leía la misma marca para
    ambos (los mensajes de Waha pasan por el mismo `processWebhook`), pero la App
    exigía una clave de Evolution y llamaba a su webhook, así que en Waha el
    Robot estaba muerto. Con Waha **no se le pregunta nada a Evolution**.
-4. **Perfil no puede tener su propia lógica.** Pinta las mismas tarjetas que
+5. **Perfil no puede tener su propia lógica.** Pinta las mismas tarjetas que
    `/connection`, en el mismo orden. Cuando no conocía el tipo `waha`, la línea
    caía en «Desconocido» y salía «Crear instancia»: pulsarlo creaba una segunda
    línea con el mismo nombre y partía el número en dos.
