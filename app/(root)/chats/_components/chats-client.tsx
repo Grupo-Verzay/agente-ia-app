@@ -1756,13 +1756,24 @@ export function ChatsClient({
          * nuevo puede saltarsela por olvido.
          */
         const sigueSiendoElChatAbierto = (): boolean => {
-          const abierto = currentContactRef.current?.remoteJid ?? selectedJidRef.current;
+          const abierto = selectedJidRef.current;
           if (!abierto) return true;
-          if (abierto === remoteJid) return true;
-          if (remoteJidAliases?.includes(abierto)) return true;
+          // Con TODAS las identidades del chat abierto, como el resto del
+          // archivo. La primera version comparaba solo `remoteJid` contra los
+          // `aliases` que llegan aqui, y esos vienen VACIOS en casi todos los
+          // contactos (ver CLAUDE.md): cuando el contacto estaba guardado bajo
+          // otra de sus formas -lo normal en los que llegan por @lid- no
+          // reconocia su propia conversacion y descartaba TODAS las respuestas.
+          // La lista seguia avanzando y la conversacion se quedaba congelada.
+          const identidadesAbiertas = new Set(
+            identidadesParaPedirMensajes(currentContactRef.current, abierto),
+          );
+          if (identidadesAbiertas.has(remoteJid)) return true;
+          if (remoteJidAliases?.some((jid) => !!jid && identidadesAbiertas.has(jid))) return true;
           console.warn("[chats] respuesta de otra conversacion descartada", {
             pedida: remoteJid,
             abierta: abierto,
+            identidades: Array.from(identidadesAbiertas),
           });
           return false;
         };
