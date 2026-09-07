@@ -6,7 +6,7 @@ import { isAdminLike } from '@/lib/rbac';
 import { revalidatePath } from 'next/cache';
 
 /**
- * Servidor de WAHA ("WhatsApp Mensajeria"), uno para toda la plataforma.
+ * Servidor de Waha ("WhatsApp Mensajeria"), uno para toda la plataforma.
  *
  * Vive en la BD y se edita en Panel > Conexion, igual que los servidores de
  * Evolution. NO en variables de entorno del stack: cambiar una credencial no
@@ -150,7 +150,7 @@ export async function probarServidorWaha(params: {
     const info = await res.json();
     const version = info?.version ?? '¿?';
     const engine = info?.engine ?? '¿?';
-    return { success: true, message: `Conectado. WAHA ${version}, motor ${engine}.` };
+    return { success: true, message: `Conectado. Waha ${version}, motor ${engine}.` };
   } catch {
     return { success: false, message: 'No se pudo contactar con el servidor.' };
   }

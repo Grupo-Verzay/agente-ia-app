@@ -287,7 +287,7 @@ async function sendOutgoingPayload(params: {
   // real-, distinto transporte. El servidor sale de Panel > Conexion.
   if ((instanceType ?? "").trim().toLowerCase() === "waha") {
     const chatId = canonicalToWahaJid(remoteJid);
-    // Un adjunto que venga en base64 se sube a S3 primero: WAHA lo descarga de
+    // Un adjunto que venga en base64 se sube a S3 primero: Waha lo descarga de
     // ahi y la conversacion lo reproduce de ahi (ver lib/adjuntos-salientes).
     let payloadAEnviar: OutgoingMessagePayload = payload;
     if (payload.kind === "media" && userId) {
@@ -642,7 +642,7 @@ export async function warmChatMessagesAction(
   });
 
   context = await resolverContexto(context);
-  // WhatsApp Mensajeria: WAHA solo manda la presencia (escribiendo / grabando)
+  // WhatsApp Mensajeria: Waha solo manda la presencia (escribiendo / grabando)
   // de los chats suscritos. Se suscribe al abrir; la libreria lo recuerda.
   if (!hasReadyContext(context) && context?.instanceName && (await esLineaWaha(context.instanceName))) {
     void subscribeWahaPresence(context.instanceName, canonicalToWahaJid(remoteJid));
@@ -1172,7 +1172,7 @@ export async function sendManualWorkflowAction(
 ): Promise<ChatToolActionResult> {
   context = await resolverContexto(context);
   // WhatsApp Mensajeria (waha) no tiene clave de Evolution, y no la necesita:
-  // los nodos salen por WAHA dentro de sendOutgoingPayload, con la misma logica
+  // los nodos salen por Waha dentro de sendOutgoingPayload, con la misma logica
   // de nodos, automatizaciones y persistencia que Evolution.
   const lineaWaha = !hasReadyContext(context) && (await esLineaWaha(context?.instanceName));
   if (!hasReadyContext(context) && !lineaWaha) {
@@ -1193,7 +1193,7 @@ export async function sendManualWorkflowAction(
     instanceName: ctx.instanceName,
     remoteJid,
     // Confirmar el destinatario con WhatsApp es una consulta a Evolution; en
-    // WAHA se manda al numero (o al @lid, que acepta) tal cual.
+    // Waha se manda al numero (o al @lid, que acepta) tal cual.
     context: lineaWaha ? undefined : ctx,
   });
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);

@@ -5,7 +5,7 @@ import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-
 import { getWahaQrPng, isWahaConfigured } from '@/lib/waha';
 
 /**
- * La sesion de WAHA se llama como la instancia. Antes de servir nada se
+ * La sesion de Waha se llama como la instancia. Antes de servir nada se
  * comprueba que la instancia exista y que quien pregunta mande sobre su cuenta:
  * el QR es la llave para EMPAREJAR la linea de WhatsApp, y con el nombre de la
  * sesion cualquiera -con o sin login- podia pedirlo y escanearlo. Estas rutas
@@ -32,7 +32,7 @@ async function asegurarQueEsSuLinea(session: string) {
 }
 
 /**
- * El QR de una sesion de WAHA, como PNG.
+ * El QR de una sesion de Waha, como PNG.
  *
  * Cuando no hay QR responde JSON con el motivo, NUNCA se queda colgada: el
  * `<img>` de la tarjeta solo sabe de `onLoad`/`onError`, asi que una respuesta

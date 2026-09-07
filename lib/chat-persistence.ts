@@ -192,7 +192,7 @@ function ensureChatMessagesTable() {
       ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "lastMessageDeleted" BOOLEAN NOT NULL DEFAULT FALSE
     `;
     // Foto de perfil guardada en la fila (la escribe el backend para las
-    // lineas WAHA, que no la traen en su lista de chats). La bandeja la lee.
+    // lineas Waha, que no la traen en su lista de chats). La bandeja la lee.
     await db.$executeRaw`
       ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "profilePicUrl" TEXT
     `;

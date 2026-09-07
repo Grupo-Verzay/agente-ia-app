@@ -31,14 +31,14 @@ export const sanitizeInstanceName = (val: string): string =>
         .replace(/[-_]+$/g, '')        // limpia separador si el corte lo dejó al final
 
 /**
- * Nombre de la sesion de WAHA de una cuenta: EL MISMO que el de la instancia,
+ * Nombre de la sesion de Waha de una cuenta: EL MISMO que el de la instancia,
  * la empresa saneada. Es tambien el `instanceName` de la fila, porque el backend
- * empareja el webhook de WAHA por nombre de sesion.
+ * empareja el webhook de Waha por nombre de sesion.
  *
  * Antes se le pegaba `_V2`, pensando WhatsApp Mensajeria como una SEGUNDA
  * linea. Eso creaba otra instancia aparte, con sus propias conversaciones y
  * sus propios leads, y el mismo numero aparecia dos veces en Chats y en el CRM.
- * La instancia es una; el proveedor (Evolution o WAHA) es un ajuste suyo. Ver
+ * La instancia es una; el proveedor (Evolution o Waha) es un ajuste suyo. Ver
  * `actions/proveedor-de-linea-actions.ts`.
  */
 export const buildWahaInstanceName = (companyOrUser: string): string =>
@@ -66,7 +66,7 @@ export interface ClientInstanceCardProps {
 export interface ConnectionMainInterface {
     user: User
     instance?: Instancia
-    /** Hay servidor de WhatsApp Mensajeria (WAHA): la tarjeta ofrece cambiar de proveedor. */
+    /** Hay servidor de WhatsApp Mensajeria (Waha): la tarjeta ofrece cambiar de proveedor. */
     hayServidorWaha?: boolean
     instanceType: string
     instanceInfo?: EvolutionInstance[]

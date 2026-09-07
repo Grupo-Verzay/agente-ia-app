@@ -31,7 +31,7 @@ interface Props {
 }
 
 /**
- * Servidor de WAHA ("WhatsApp Mensajeria"), uno para toda la plataforma.
+ * Servidor de Waha ("WhatsApp Mensajeria"), uno para toda la plataforma.
  *
  * Va aqui, junto a los servidores de Evolution, porque es lo mismo: url + API
  * key de un proveedor. Y va en la BD y no en el stack para que cambiar una

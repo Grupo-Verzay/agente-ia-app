@@ -607,7 +607,7 @@ async function hardDeleteLocalChat(
  * (`isChatDeletedByPreference`): si era del contacto y posterior a la marca, el
  * chat se veia. Pero la IA contesta en unos segundos, y entonces el ultimo
  * mensaje ya no es del contacto: la fila salia y **desaparecia en cuanto la IA
- * respondia**. Se vio en produccion con una linea WAHA el 2026-09-06: el chat
+ * respondia**. Se vio en produccion con una linea Waha el 2026-09-06: el chat
  * entraba, y a los pocos segundos ya no estaba. Con cualquier linea que tenga
  * la IA activa pasa lo mismo.
  *

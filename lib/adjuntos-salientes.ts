@@ -5,12 +5,12 @@ import { minioClient } from '@/lib/minio';
  * Los adjuntos que salen de la App (una nota de voz grabada, una imagen del
  * selector) llegan como `data:` URL o base64 pelado. Para Evolution eso da
  * igual: su servidor conserva el archivo y lo devuelve al releer el chat. Para
- * WhatsApp Mensajeria (WAHA) no hay nadie que lo guarde: nuestra copia ES la
+ * WhatsApp Mensajeria (Waha) no hay nadie que lo guarde: nuestra copia ES la
  * que salio del navegador. Si no se sube a S3, la burbuja queda vacia -la
  * fila decia "Nota de voz" y la conversacion no ensenaba nada, 2026-09-07-.
  *
  * Se sube a S3 (el mismo bucket que las grabaciones de llamadas) y se devuelve
- * la URL publica, que sirve para las dos cosas: mandarla a WAHA (que la
+ * la URL publica, que sirve para las dos cosas: mandarla a Waha (que la
  * descarga) y guardarla en el mensaje (que la App reproduce). Una URL http se
  * devuelve tal cual. Nunca lanza: sin subida, quien llama decide.
  */

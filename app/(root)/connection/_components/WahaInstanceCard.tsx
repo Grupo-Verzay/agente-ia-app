@@ -105,7 +105,7 @@ export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolut
     return () => clearInterval(id);
   }, [fetchStatus]);
 
-  // Se refresca la imagen mientras hay QR de verdad: WAHA rota el código cada
+  // Se refresca la imagen mientras hay QR de verdad: Waha rota el código cada
   // pocos segundos y el navegador cachearía el anterior sin el `?t=`. Solo en
   // fase 'listo': si la sesión no está esperando escaneo, cada petición tarda
   // 10 s en contestar 422 y, con un refresco de 8 s, se pisan unas a otras y la
@@ -119,7 +119,7 @@ export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolut
   /**
    * Deja la sesión en condiciones de dar el QR y solo entonces lo pide.
    *
-   * WAHA entrega el QR ÚNICAMENTE en `SCAN_QR_CODE`; en cualquier otro estado
+   * Waha entrega el QR ÚNICAMENTE en `SCAN_QR_CODE`; en cualquier otro estado
    * contesta 422. Pedirlo a ciegas era el error: la tarjeta enseñaba un spinner
    * eterno en vez de decir que había que reiniciar la sesión.
    */

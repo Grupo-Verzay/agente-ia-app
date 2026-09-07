@@ -5,7 +5,7 @@
  *
  * Una linea es un numero: su nombre de instancia, su historial, sus leads, sus
  * etiquetas, sus seguimientos y la memoria de la IA. Que el WhatsApp de ese
- * numero este conectado por Evolution o por WhatsApp Mensajeria (WAHA) es solo
+ * numero este conectado por Evolution o por WhatsApp Mensajeria (Waha) es solo
  * por donde entra y sale el mensaje, y nunca hay dos encendidos a la vez.
  *
  * Por eso aqui NO se crea ni se borra ninguna fila de `Instancias`: se cambia
@@ -40,7 +40,7 @@ import {
 type Resultado = { success: boolean; message: string };
 
 const EVOLUTION = 'Whatsapp';
-const WAHA = 'waha';
+const Waha = 'waha';
 
 type Linea = {
   id: number;
@@ -82,10 +82,10 @@ async function estadoEnEvolution(
 }
 
 /**
- * Pasar una linea de Evolution a WhatsApp Mensajeria (WAHA).
+ * Pasar una linea de Evolution a WhatsApp Mensajeria (Waha).
  *
  * Solo si Evolution esta desconectada: nunca hay dos proveedores encendidos.
- * La sesion de WAHA se llama como la instancia; si ya existe (de un intento
+ * La sesion de Waha se llama como la instancia; si ya existe (de un intento
  * anterior) se reutiliza con el webhook al dia, y si no se crea. Despues hay
  * que escanear el QR desde la tarjeta.
  */
@@ -93,7 +93,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
   try {
     const linea = await lineaDelUsuario(instanceName, [EVOLUTION, null]);
     if (!linea) {
-      const yaWaha = await lineaDelUsuario(instanceName, [WAHA]);
+      const yaWaha = await lineaDelUsuario(instanceName, [Waha]);
       return yaWaha
         ? { success: true, message: 'Esta línea ya está en WhatsApp Mensajería.' }
         : { success: false, message: 'No se encontró la línea.' };
@@ -128,7 +128,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
       ? await setWahaSessionWebhook({ session: linea.instanceName, webhookUrl, secret: secreto })
       : await createWahaSession({ session: linea.instanceName, webhookUrl, secret: secreto });
     if (!preparada.ok) {
-      return { success: false, message: preparada.message ?? 'No se pudo preparar la sesión en WAHA.' };
+      return { success: false, message: preparada.message ?? 'No se pudo preparar la sesión en Waha.' };
     }
     if (existente && existente.status === 'STOPPED') {
       await wahaSessionAction(linea.instanceName, 'start');
@@ -136,7 +136,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
 
     await db.instancia.update({
       where: { id: linea.id },
-      data: { instanceType: WAHA, metaVerifyToken: secreto, metaChannel: WAHA } as any,
+      data: { instanceType: Waha, metaVerifyToken: secreto, metaChannel: Waha } as any,
     });
     await borrarTipoGuardadoEnConversaciones(linea);
 
@@ -162,15 +162,15 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
 }
 
 /**
- * Volver una linea de WhatsApp Mensajeria (WAHA) a Evolution.
+ * Volver una linea de WhatsApp Mensajeria (Waha) a Evolution.
  *
- * La sesion de WAHA se cierra y se borra; la instancia se crea en Evolution si
+ * La sesion de Waha se cierra y se borra; la instancia se crea en Evolution si
  * no estaba, con el mismo nombre. Despues hay que escanear el QR desde la
  * tarjeta de Evolution.
  */
 export async function cambiarProveedorAEvolution(instanceName: string): Promise<Resultado> {
   try {
-    const linea = await lineaDelUsuario(instanceName, [WAHA]);
+    const linea = await lineaDelUsuario(instanceName, [Waha]);
     if (!linea) {
       const yaEvolution = await lineaDelUsuario(instanceName, [EVOLUTION, null]);
       return yaEvolution
@@ -183,7 +183,7 @@ export async function cambiarProveedorAEvolution(instanceName: string): Promise<
       return { success: false, message: 'Esta cuenta no tiene servidor de Evolution configurado.' };
     }
 
-    // Primero Evolution: si falla, la sesion de WAHA sigue viva y no se pierde nada.
+    // Primero Evolution: si falla, la sesion de Waha sigue viva y no se pierde nada.
     const estado = await estadoEnEvolution(clave, linea.instanceName);
     if (estado === null) {
       const creada = await fetch(`https://${clave.url}/instance/create`, {
