@@ -566,6 +566,16 @@ con cita— buscaba `extendedTextMessage.text`, no lo encontraba y salía como
 pinta **siempre como `conversation`**; cuando llega el mensaje real, mismo
 `key.id`, `mergeMessages` lo reemplaza con su tipo completo.
 
+Y aun con todo eso, **para las líneas de cuentas vinculadas no llegaba ningún
+aviso**. El backend emite a la sala `user:{dueño de la línea}`, y el token de
+`/api/realtime/token` unía al navegador solo a la propia, la del dueño y la de
+sesión. La bandeja, en cambio, enseña también las líneas de las cuentas
+vinculadas en los dos sentidos (`allSessionUserIds` en `chats/page.tsx`). Para
+esas líneas la lista se movía con su reloj de 20 s y la conversación esperaba
+a su sondeo. **El token une a las mismas cuentas que la bandeja enseña.** Si se
+añade otra fuente de líneas a la bandeja, va también al token; la respuesta
+del token dice `cuentas` para comprobarlo desde la pestaña Network.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
