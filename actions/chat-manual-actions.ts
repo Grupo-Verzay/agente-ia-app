@@ -33,6 +33,7 @@ import {
   sendTextMessage,
   sendReaction,
   deleteMessage,
+  subscribeEvolutionPresence,
   editMessage,
 } from "./chat-actions";
 import { getExecutionNodesForWorkflow } from "./workflow-node-action";
@@ -1449,6 +1450,28 @@ export async function sendManualQuickReplyAction(
     message: "Respuesta rapida enviada correctamente.",
     data: { sentCount: 1 },
   };
+}
+
+/**
+ * Deja la conversacion suscrita a la presencia del contacto en una linea de
+ * Evolution ("escribiendo…", "grabando audio…", "en linea").
+ *
+ * Es el hermano de `getWahaPresenceAction`, con una diferencia: a Evolution no
+ * se le puede PREGUNTAR la presencia, solo suscribirse; lo que haya llegara
+ * despues por el webhook (`PRESENCE_UPDATE`) y por el socket. Por eso no
+ * devuelve un estado, solo si quedo suscrita.
+ *
+ * `resolverContexto` es quien comprueba de quien es la linea: solo devuelve la
+ * clave si la cuenta duena esta entre las asociadas al que mira.
+ */
+export async function suscribirPresenciaEvolucionAction(
+  context: ChatActionContext,
+  remoteJid: string,
+): Promise<boolean> {
+  context = await resolverContexto(context);
+  if (!hasReadyContext(context)) return false;
+  await requireCurrentUser();
+  return subscribeEvolutionPresence(context.apiKeyData, context.instanceName, remoteJid);
 }
 
 export async function reactToMessageAction(

@@ -1370,6 +1370,60 @@ export async function markMessagesAsReadByIds(
   }
 }
 
+/**
+ * Suscribe la linea a la presencia de un contacto en Evolution.
+ *
+ * Evolution NO tiene forma de PREGUNTAR la presencia de alguien: la manda por
+ * el webhook (`PRESENCE_UPDATE`) y solo de los contactos a los que la sesion
+ * esta suscrita. La suscripcion no tiene ruta propia, pero `sendPresence` la
+ * hace por dentro (`presenceSubscribe` antes de mandar el gesto), asi que se
+ * usa esa con `paused`, que es "dejo de escribir": el contacto no ve nada
+ * distinto y nosotros quedamos suscritos.
+ *
+ * Es el hermano de `subscribeWahaPresence`. Un fallo aqui no es un error de la
+ * pantalla: la conversacion funciona igual, solo que sin "escribiendo…".
+ */
+export async function subscribeEvolutionPresence(
+  apiKeyData: Pick<ApiKey, 'url' | 'key'>,
+  instanceName: string,
+  remoteJid: string,
+): Promise<boolean> {
+  const { url: baseUrlRaw, key } = apiKeyData ?? ({} as Pick<ApiKey, 'url' | 'key'>);
+  if (!baseUrlRaw || !key || !instanceName || !remoteJid) return false;
+  // Los grupos no tienen presencia que pintar, y un `@lid` es un id de
+  // privacidad: Evolution no lo resuelve a numero y contestaria un error.
+  if (remoteJid.endsWith('@g.us') || remoteJid.includes('@lid')) return false;
+  // El sufijo de dispositivo (`:39`) no es parte del numero.
+  const numero = remoteJid.split('@')[0].split(':')[0];
+  if (!numero) return false;
+  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/chat/sendPresence/${encodeURIComponent(instanceName)}`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey: key },
+      // Los tres campos son obligatorios en Evolution; sin `delay` contesta 400.
+      body: JSON.stringify({ number: numero, presence: 'paused', delay: 0 }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (!res.ok) {
+      console.info('[presencia] Evolution no acepto la suscripcion', { instanceName, estado: res.status });
+      return false;
+    }
+    return true;
+  } catch (e: unknown) {
+    clearTimeout(t);
+    const err = e as { name?: string; message?: string };
+    console.info('[presencia] no se pudo suscribir en Evolution', {
+      instanceName,
+      error: err?.name === 'AbortError' ? 'timeout' : err?.message || String(e),
+    });
+    return false;
+  }
+}
+
 export async function sendReaction(
   apiKeyData: Pick<ApiKey, 'url' | 'key'>,
   instanceName: string,

@@ -1,6 +1,7 @@
 "use client";
 
 import { getWahaPresenceAction } from "@/actions/waha-chat-actions";
+import { suscribirPresenciaEvolucionAction } from "@/actions/chat-manual-actions";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -2081,6 +2082,15 @@ export function ChatsClient({
         void getWahaPresenceAction(actionSet.instanceName, remoteJid).then((p) => {
           if (p) aplicarPresencia(llavePresencia, p.estado, p.lastSeen);
         });
+      }
+      // Evolution: lo mismo, con una diferencia: no se le puede PREGUNTAR la
+      // presencia, solo suscribirse. Lo que haya llega luego por el socket,
+      // igual que en Waha, y se pinta con el mismo aviso.
+      if (hablaConEvolution(actionSet?.instanceType) && actionSet?.instanceName) {
+        void suscribirPresenciaEvolucionAction(
+          { apiKeyData, instanceName: actionSet.instanceName },
+          remoteJid,
+        );
       }
 
       const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;

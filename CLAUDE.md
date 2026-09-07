@@ -734,6 +734,36 @@ Y «(QR)» va en los dos canales que se escanean —«Mensajería WhatsApp (QR)�
 Meta y no vincula ningún teléfono. Esa palabra es lo único que distingue las dos
 tarjetas de WhatsApp.
 
+## "Escribiendo…" hay que pedirlo dos veces
+
+Que se vea "escribiendo…", "grabando audio…" y "en línea" no es una pantalla:
+la pantalla ya estaba hecha y es la misma para los dos proveedores. Lo que hace
+falta es **pedirlo dos veces**, y si falta cualquiera de las dos no llega nada
+y no hay error que mirar:
+
+1. **En el webhook de la línea.** Evolution guarda la lista de eventos con la
+   que se registró el webhook y no la vuelve a mirar, así que `PRESENCE_UPDATE`
+   tiene que estar en `EVENTOS_DEL_WEBHOOK` (`actions/robot-actions.ts`) **y**
+   `ponerAlDiaLosEventos` tiene que reescribirlo en las líneas que ya estaban.
+2. **Por cada contacto.** WhatsApp solo manda la presencia de los contactos a
+   los que la sesión está **suscrita**. En Waha se suscribe leyendo la presencia
+   al abrir el chat; en Evolution **no hay forma de preguntarla**, solo de
+   suscribirse, y ni siquiera tiene ruta propia: la hace por dentro
+   `POST /chat/sendPresence` (`presenceSubscribe` antes del gesto). Se llama con
+   `presence: "paused"` —"dejó de escribir"—, que suscribe sin que el contacto
+   vea nada distinto. Los tres campos (`number`, `presence`, `delay`) son
+   obligatorios; sin `delay` contesta 400.
+
+Y una de vocabulario: los dos proveedores dicen lo mismo con palabras distintas
+—Waha `typing` / `online` / `offline`, Baileys `composing` / `available` /
+`unavailable`— y la App entiende una sola. **El traductor es uno**
+(`presenciaDeWhatsapp`, en `src/utils/presencia.util.ts` del backend). Lo que no
+se reconoce cae en `nada`, que apaga la burbuja: dejarla encendida para siempre
+es peor que no enseñarla.
+
+La presencia **no se guarda**: es de ahora mismo y solo vale para la
+conversación abierta. Tampoco pasa por el buffer ni dispara IA.
+
 ## El Robot no es el webhook
 
 El botón **Robot** de cada línea encendía y apagaba el **webhook de Evolution**.
@@ -846,9 +876,36 @@ Tres cosas que lo arreglarían, de menos a más:
    el `SIGTERM` y sale limpio. Ahorra los 10-14 s y quita el `exit 137`.
 2. `Order: start-first` en el stack, para que la nueva esté escuchando **antes**
    de apagar la vieja. Es lo que se lleva el minuto y medio entero.
-3. Un `healthcheck` contra `/health` (el backend ya tiene uno). Sin él Traefik
-   no sabe si la nueva está lista y manda tráfico a un puerto que aún no
-   contesta.
+3. Un `healthcheck` contra `/api/health` (el backend ya tiene uno). Sin él
+   Traefik no sabe si la nueva está lista y manda tráfico a un puerto que aún
+   no contesta.
+
+El punto 1 ya está hecho. **El 3 se intentó y salió caro**, y esto es lo que
+hay que saber antes de volver a intentarlo:
+
+El healthcheck preguntaba por `http://127.0.0.1:3000/api/health`. En local
+pasaba; en producción fallaba **siempre**, y la cuenta cuadra exacta: 25 s de
+`--start-period` más 3 intentos cada 10 s son los **55 segundos** que tardaba
+Swarm en dar el contenedor por muerto, tirarlo y crear otro. Desde fuera: la App
+caída cada minuto, con tareas que salían con `exit 0` —el `SIGTERM` limpio del
+punto 1, que esa parte sí funcionó—.
+
+El motivo: el servidor de Next en modo `standalone` escucha en
+`process.env.HOSTNAME || '0.0.0.0'` (línea 9 de su `server.js`), y **Docker
+siempre define `HOSTNAME`**, con el id del contenedor. Así que Next no escuchaba
+en `0.0.0.0` sino en la IP de ese nombre, y `127.0.0.1` daba conexión rechazada.
+
+Para volver a ponerlo hacen falta **dos** cosas, no una:
+
+- `ENV HOSTNAME=0.0.0.0` en la etapa `runner` del Dockerfile (es la receta
+  oficial de Next para Docker), o que el healthcheck pregunte por
+  `process.env.HOSTNAME` en vez de por `127.0.0.1`.
+- **Comprobarlo dentro de un contenedor, no en local.** En local `HOSTNAME` no
+  es el id de un contenedor, y por eso la prueba local decía que sí.
+
+Y el orden importa: **el 3 va antes que el 2**. Con `start-first` y un
+healthcheck que no pasa, la tarea nueva nunca llega a sana y el despliegue se
+queda colgado, que es peor que los 100 segundos de ahora.
 
 Ojo con dónde se tocan: **el `docker-compose.yml` del repo es una plantilla**
 —dominio de ejemplo, límites distintos, un `pgbouncer` que en producción no

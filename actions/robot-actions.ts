@@ -34,9 +34,20 @@ const WEBHOOK_POR_DEFECTO = "https://backend.ia-app.com/webhook";
  * nuestra base, que nunca se enteraba—. El backend los atiende en
  * `handleMessageUpdateEvent`.
  *
+ * `PRESENCE_UPDATE` es "escribiendo…", "grabando audio…" y "en línea", lo mismo
+ * que ya se veía en las líneas de WhatsApp Mensajería. El backend lo atiende en
+ * `handlePresenceEvent` y lo emite por el socket; no se guarda nada. Evolution
+ * solo lo manda de los contactos a los que la sesión está suscrita, y de eso se
+ * encarga la App al abrir la conversación (`suscribirPresenciaEvolucionAction`).
+ *
  * Si se añade otro evento aquí, hay que atenderlo allí o llegará y se tirará.
  */
-const EVENTOS_DEL_WEBHOOK = ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CALL"];
+const EVENTOS_DEL_WEBHOOK = [
+  "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
+  "CALL",
+  "PRESENCE_UPDATE",
+];
 
 type Resultado<T> = { success: true; data: T } | { success: false; message: string };
 
