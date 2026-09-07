@@ -1,6 +1,6 @@
 'use client';
 
-import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
+import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
@@ -68,10 +68,29 @@ function initials(a: AdvisorInfo) {
   return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
+/**
+ * "hoy a las 10:41", "ayer a las 22:03", "el 5/9 a las 09:12". Igual que
+ * WhatsApp: la hora solo dice algo si se sabe el dia.
+ */
+function ultimaVezTexto(lastSeenSegundos: number): string {
+  const fecha = new Date(lastSeenSegundos * 1000);
+  const hora = fecha.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+  const hoy = new Date();
+  const mismoDia = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const ayer = new Date(hoy);
+  ayer.setDate(hoy.getDate() - 1);
+  if (mismoDia(fecha, hoy)) return `hoy a las ${hora}`;
+  if (mismoDia(fecha, ayer)) return `ayer a las ${hora}`;
+  return `el ${fecha.getDate()}/${fecha.getMonth() + 1} a las ${hora}`;
+}
+
 interface ChatHeaderProps {
   header: ChatHeaderData;
   /** El contacto esta escribiendo o grabando un audio ahora mismo. */
   presencia?: PresenciaContacto | null;
+  /** Si el contacto esta conectado, y cuando se vio por ultima vez (segundos). */
+  conexion?: { estado: ConexionContacto; lastSeen: number | null } | null;
   session: Session | null;
   userId: string;
   allTags: SimpleTag[];
@@ -108,6 +127,7 @@ interface ChatHeaderProps {
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   header,
   presencia,
+  conexion,
   session,
   userId,
   allTags,
@@ -434,12 +454,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               )}
               <h2 className="truncate text-sm font-bold leading-tight capitalize">{displayedContactName}</h2>
             </div>
-            {presencia && (
+            {presencia ? (
               <span className="truncate text-[0.65rem] italic leading-none text-emerald-600 dark:text-emerald-400">
                 {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
               </span>
-            )}
-            {!presencia && adSourceLabel && (
+            ) : conexion?.estado === "en_linea" ? (
+              <span className="truncate text-[0.65rem] leading-none text-emerald-600 dark:text-emerald-400">en línea</span>
+            ) : conexion?.estado === "desconectado" && conexion.lastSeen ? (
+              <span className="truncate text-[0.65rem] leading-none text-muted-foreground">
+                {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
+              </span>
+            ) : null}
+            {!presencia && !conexion && adSourceLabel && (
               <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
                 <Megaphone className="h-2.5 w-2.5 shrink-0" />
                 {adSourceLabel}
@@ -650,12 +676,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
               )}
             </div>
-            {presencia && (
+            {presencia ? (
               <span className="truncate text-[0.65rem] italic leading-none text-emerald-600 dark:text-emerald-400">
                 {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
               </span>
-            )}
-            {!presencia && adSourceLabel && (
+            ) : conexion?.estado === "en_linea" ? (
+              <span className="truncate text-[0.65rem] leading-none text-emerald-600 dark:text-emerald-400">en línea</span>
+            ) : conexion?.estado === "desconectado" && conexion.lastSeen ? (
+              <span className="truncate text-[0.65rem] leading-none text-muted-foreground">
+                {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
+              </span>
+            ) : null}
+            {!presencia && !conexion && adSourceLabel && (
               <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
                 <Megaphone className="h-3 w-3 shrink-0" />
                 {adSourceLabel}

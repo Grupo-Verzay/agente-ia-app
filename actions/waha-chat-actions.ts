@@ -5,7 +5,7 @@ import type { Prisma } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
 import { persistChatMessage, resolveInstanceOwner } from '@/lib/chat-persistence';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
-import { sendWahaMedia, sendWahaText, type WahaMediaType } from '@/lib/waha';
+import { getWahaPresence, sendWahaMedia, sendWahaText, type PresenciaWaha, type WahaMediaType } from '@/lib/waha';
 import { canonicalToWahaJid } from '@/lib/waha-jid';
 import { subirAdjuntoSaliente } from '@/lib/adjuntos-salientes';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
@@ -232,6 +232,27 @@ function etiquetaDeMedia(mediatype: string, ptt?: boolean): string {
   if (mediatype === 'image') return '📷 Imagen';
   if (mediatype === 'video') return '🎥 Video';
   return '📎 Documento';
+}
+
+/**
+ * Presencia actual del contacto (en linea / ult. vez / escribiendo) al abrir
+ * una conversacion de una linea waha. Deja el chat suscrito para lo que venga
+ * despues por tiempo real. Devuelve null si no se puede saber.
+ */
+export async function getWahaPresenceAction(
+  instanceName: string,
+  remoteJid: string,
+): Promise<PresenciaWaha | null> {
+  try {
+    const linea = await lineaWahaAutorizada(instanceName);
+    if (!linea.ok) return null;
+    const chatId = canonicalToWahaJid(remoteJid);
+    if (!chatId || chatId.endsWith('@g.us')) return null;
+    return await getWahaPresence(instanceName, chatId);
+  } catch (error) {
+    console.warn('[waha] no se pudo leer la presencia inicial', { instanceName, error: String(error) });
+    return null;
+  }
 }
 
 export async function sendWahaWorkflowAction(

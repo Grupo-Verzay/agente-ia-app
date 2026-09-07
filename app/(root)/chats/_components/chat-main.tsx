@@ -1,6 +1,6 @@
 'use client';
 
-import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
+import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, {
   useCallback,
   useEffect,
@@ -88,6 +88,8 @@ type ChatMainProps = {
   info?: ChatInfoMeta;
   /** El contacto esta escribiendo o grabando un audio. */
   presencia?: PresenciaContacto | null;
+  /** Si el contacto esta conectado, y cuando se vio por ultima vez. */
+  conexion?: { estado: ConexionContacto; lastSeen: number | null } | null;
   loading?: boolean;
   onSend: (payload: OutgoingMessagePayload) => void | Promise<void>;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
@@ -128,6 +130,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   messages,
   info,
   presencia,
+  conexion,
   loading,
   onSend,
   onSendQuickReply,
@@ -540,7 +543,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       return;
     }
     scrollToBottom();
-  }, [allMessages.length, loadingOlderMessages, scrollToBottom]);
+  }, [allMessages.length, loadingOlderMessages, scrollToBottom, presencia]);
 
   /* ─── Textarea auto-resize ─── */
   useEffect(() => {
@@ -968,6 +971,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       <ChatHeader
         header={header}
         presencia={presencia}
+        conexion={conexion}
         session={session}
         userId={userId}
         allTags={allTags}
@@ -1117,6 +1121,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         uiMessages={allMessages}
         loading={loading}
         listRef={listRef}
+        presencia={presencia}
         advisorName={assignedAdvisorName}
         onSetReplyTo={setReplyTo}
         onCopyMessage={handleCopyMessage}

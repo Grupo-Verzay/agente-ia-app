@@ -152,6 +152,54 @@ export async function ensureWahaSessionEvents(session: string): Promise<void> {
   }
 }
 
+export type PresenciaWaha = {
+  estado: 'escribiendo' | 'grabando' | 'en_linea' | 'desconectado' | 'nada';
+  /** Segundos, si WhatsApp lo comparte (depende de la privacidad del contacto). */
+  lastSeen: number | null;
+};
+
+function traducirPresencia(valor: unknown): PresenciaWaha['estado'] {
+  const v = String(valor ?? '').toLowerCase();
+  if (v === 'typing' || v === 'composing') return 'escribiendo';
+  if (v === 'recording') return 'grabando';
+  if (v === 'online') return 'en_linea';
+  if (v === 'offline') return 'desconectado';
+  return 'nada';
+}
+
+/**
+ * La presencia ACTUAL de un chat, para pintar "en linea" o "ult. vez…" al
+ * abrir la conversacion sin esperar al primer cambio. Segun el codigo de
+ * WAHA, `GET /api/{session}/presence/{chatId}` ademas SUSCRIBE el chat si no
+ * lo estaba, asi que esta llamada deja tambien el tiempo real encendido.
+ * Nunca lanza: sin dato, la cabecera no ensena conexion.
+ */
+export async function getWahaPresence(session: string, chatId: string): Promise<PresenciaWaha | null> {
+  if (!session || !chatId) return null;
+  const cfg = await getWahaConfig();
+  if (!cfg) return null;
+  try {
+    const res = await wahaFetch(
+      cfg,
+      `/api/${encodeURIComponent(session)}/presence/${encodeURIComponent(chatId)}`,
+      {},
+      5000,
+    );
+    if (!res.ok) return null;
+    const j = (await res.json()) as { presences?: Array<{ lastKnownPresence?: unknown; lastSeen?: unknown }> } | null;
+    const entrada = Array.isArray(j?.presences) ? j!.presences[0] : undefined;
+    if (!entrada) return null;
+    const lastSeen = Number(entrada.lastSeen);
+    presenciasSuscritas.set(`${session}|${chatId}`, Date.now());
+    return {
+      estado: traducirPresencia(entrada.lastKnownPresence),
+      lastSeen: Number.isFinite(lastSeen) && lastSeen > 0 ? lastSeen : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const presenciasSuscritas = new Map<string, number>();
 const RESUSCRIBIR_PRESENCIA_CADA_MS = 10 * 60 * 1000;
 

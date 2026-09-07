@@ -19,12 +19,15 @@ export type ChatChangedPayload = {
   ts: number;
 };
 
-/** Lo que el contacto esta haciendo ahora mismo. `nada` apaga el indicador. */
+/** Lo que el contacto esta haciendo ahora mismo (efimero). `nada` lo apaga. */
 export type PresenciaContacto = "escribiendo" | "grabando";
+/** Si el contacto esta conectado. Con `lastSeen` (segundos) cuando WhatsApp lo da. */
+export type ConexionContacto = "en_linea" | "desconectado";
 export type ChatPresencePayload = {
   remoteJid: string;
   instanceName: string | null;
-  presence: PresenciaContacto | "nada";
+  presence: PresenciaContacto | ConexionContacto | "nada";
+  lastSeen?: number | null;
   ts: number;
 };
 
