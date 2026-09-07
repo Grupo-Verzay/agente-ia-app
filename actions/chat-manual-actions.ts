@@ -22,7 +22,7 @@ import {
   persistEvolutionMessages,
   resolveInstanceOwner,
 } from "@/lib/chat-persistence";
-import { sendWahaMedia, sendWahaText, type WahaMediaType } from "@/lib/waha";
+import { sendWahaMedia, sendWahaText, subscribeWahaPresence, type WahaMediaType } from "@/lib/waha";
 import { canonicalToWahaJid } from "@/lib/waha-jid";
 import {
   fetchChatsFromEvolution,
@@ -366,11 +366,19 @@ function hasReadyContext(context: ChatActionContext): context is ReadyChatAction
 }
 
 /** La linea es de WhatsApp Mensajeria (waha): no habla con Evolution. */
+const tipoDeLineaEnCache = new Map<string, { esWaha: boolean; at: number }>();
+const TIPO_DE_LINEA_TTL_MS = 5 * 60 * 1000;
+
 async function esLineaWaha(instanceName?: string | null): Promise<boolean> {
   const nombre = instanceName?.trim();
   if (!nombre) return false;
+  // Se pregunta en cada vuelta del sondeo del chat abierto (5 s): con cache.
+  const enCache = tipoDeLineaEnCache.get(nombre);
+  if (enCache && Date.now() - enCache.at < TIPO_DE_LINEA_TTL_MS) return enCache.esWaha;
   const dueno = await resolveInstanceOwner(nombre);
-  return (dueno?.instanceType ?? "").trim().toLowerCase() === "waha";
+  const esWaha = (dueno?.instanceType ?? "").trim().toLowerCase() === "waha";
+  tipoDeLineaEnCache.set(nombre, { esWaha, at: Date.now() });
+  return esWaha;
 }
 
 /**
@@ -620,6 +628,11 @@ export async function warmChatMessagesAction(
   });
 
   context = await resolverContexto(context);
+  // WhatsApp Mensajeria: WAHA solo manda la presencia (escribiendo / grabando)
+  // de los chats suscritos. Se suscribe al abrir; la libreria lo recuerda.
+  if (!hasReadyContext(context) && context?.instanceName && (await esLineaWaha(context.instanceName))) {
+    void subscribeWahaPresence(context.instanceName, canonicalToWahaJid(remoteJid));
+  }
   const user = await currentUser();
   const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
   tiempos.contexto = Date.now() - arrancoTotal;

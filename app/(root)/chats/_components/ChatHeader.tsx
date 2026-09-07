@@ -1,5 +1,6 @@
 'use client';
 
+import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
@@ -69,6 +70,8 @@ function initials(a: AdvisorInfo) {
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
+  /** El contacto esta escribiendo o grabando un audio ahora mismo. */
+  presencia?: PresenciaContacto | null;
   session: Session | null;
   userId: string;
   allTags: SimpleTag[];
@@ -104,6 +107,7 @@ interface ChatHeaderProps {
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   header,
+  presencia,
   session,
   userId,
   allTags,
@@ -430,7 +434,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               )}
               <h2 className="truncate text-sm font-bold leading-tight capitalize">{displayedContactName}</h2>
             </div>
-            {adSourceLabel && (
+            {presencia && (
+              <span className="truncate text-[0.65rem] italic leading-none text-emerald-600 dark:text-emerald-400">
+                {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
+              </span>
+            )}
+            {!presencia && adSourceLabel && (
               <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
                 <Megaphone className="h-2.5 w-2.5 shrink-0" />
                 {adSourceLabel}
@@ -641,7 +650,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
               )}
             </div>
-            {adSourceLabel && (
+            {presencia && (
+              <span className="truncate text-[0.65rem] italic leading-none text-emerald-600 dark:text-emerald-400">
+                {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
+              </span>
+            )}
+            {!presencia && adSourceLabel && (
               <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
                 <Megaphone className="h-3 w-3 shrink-0" />
                 {adSourceLabel}

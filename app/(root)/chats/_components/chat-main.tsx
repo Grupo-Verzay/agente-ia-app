@@ -1,5 +1,6 @@
 'use client';
 
+import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, {
   useCallback,
   useEffect,
@@ -85,6 +86,8 @@ type ChatMainProps = {
   header: ChatHeaderData;
   messages: EvolutionMessage[];
   info?: ChatInfoMeta;
+  /** El contacto esta escribiendo o grabando un audio. */
+  presencia?: PresenciaContacto | null;
   loading?: boolean;
   onSend: (payload: OutgoingMessagePayload) => void | Promise<void>;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
@@ -124,6 +127,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   header,
   messages,
   info,
+  presencia,
   loading,
   onSend,
   onSendQuickReply,
@@ -963,6 +967,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
       <ChatHeader
         header={header}
+        presencia={presencia}
         session={session}
         userId={userId}
         allTags={allTags}
