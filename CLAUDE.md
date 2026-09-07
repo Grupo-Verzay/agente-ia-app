@@ -374,6 +374,28 @@ Y aun con eso volvía, por dos cosas más que costaron otra vuelta:
   cliente escribe»; ahora el código la cumple: **solo un mensaje del contacto
   (`fromMe === false`) posterior a la marca lo revive**.
 
+Y una tercera vuelta, que costó otra tarde: **con la IA activa, esa regla se
+rompía sola.** El navegador decidía con el ÚLTIMO mensaje de la fila. El
+mensaje del contacto la hacía visible... y la respuesta de la IA, unos segundos
+después, la volvía a esconder, porque el último ya no era del contacto. Desde
+fuera: "la conversación entra y a los segundos ya no se muestra". Se vio con la
+primera línea WAHA (2026-09-06), pero le pasa a cualquier línea con IA.
+
+La marca ya no se evalúa: **se levanta**. En cuanto hay un mensaje del contacto
+posterior a la marca, la marca sobra y se quita, en dos sitios:
+
+- En el servidor, al cargar las preferencias (`levantarMarcasSiElContactoEscribio`),
+  mirando `chat_messages`, que guarda cada mensaje con `fromMe` y con todas sus
+  identidades. Tres `EXISTS` separados, uno por columna, para que cada uno use
+  su índice: un `OR` sobre las tres columnas en un solo `JOIN` recorría la
+  tabla entera.
+- En el navegador, en memoria, en cuanto una fila con marca trae un mensaje del
+  contacto posterior a ella: se quita de TODAS sus llaves antes de que llegue
+  la respuesta de la IA. Sale `[chats] marca de borrado levantada`.
+
+`isChatDeletedByPreference` se queda como red de seguridad, pero **la regla
+viva es levantar la marca, no evaluarla en cada pintado**.
+
 ## Una recarga tiene que decir por qué
 
 "La App se refresca sola cada cierto rato" es de lo más difícil de diagnosticar:

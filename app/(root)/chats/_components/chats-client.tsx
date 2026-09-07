@@ -997,6 +997,55 @@ export function ChatsClient({
     [chatPreferences, contacts, ownerForChat],
   );
 
+  /**
+   * Si el contacto escribio DESPUES de borrar el chat, la marca de borrado se
+   * levanta aqui mismo, en memoria.
+   *
+   * `isChatDeletedByPreference` decide con el ULTIMO mensaje de la fila. El
+   * mensaje del contacto la hacia visible... y la respuesta de la IA, unos
+   * segundos despues, la volvia a ocultar: el ultimo ya no era del contacto.
+   * "La conversacion entra y a los segundos ya no se muestra" (2026-09-06).
+   *
+   * En cuanto se ve una fila con marca cuyo ultimo mensaje es del contacto y
+   * posterior a la marca, la marca se quita de TODAS sus llaves (una por
+   * identidad). Asi la respuesta de la IA ya no tiene marca que la esconda. El
+   * servidor hace lo mismo con `chat_messages` al cargar las preferencias
+   * (`levantarMarcasSiElContactoEscribio`), asi que al recargar tampoco vuelve.
+   *
+   * Solo toca el estado si hay algo que levantar: sin cambios no hay render.
+   */
+  useEffect(() => {
+    if (!currentChatsResult.success) return;
+    const levantadas: string[] = [];
+    for (const chat of currentChatsResult.data) {
+      const owner = ownerForChat(chat);
+      const preference = getPreferenceForChat(chat, chatPreferences, owner);
+      if (!preference?.deletedAt) continue;
+      const ultimo = chat.lastMessage;
+      if (!ultimo || ultimo.key?.fromMe === true) continue;
+      const borradoMs = new Date(preference.deletedAt).getTime();
+      if (!(epochToMs(ultimo.messageTimestamp) > borradoMs)) continue;
+      for (const candidate of getChatIdentityCandidates(chat)) {
+        for (const k of chatPreferenceKeys(owner, chat.instanceName, candidate)) {
+          if (chatPreferences[k]?.deletedAt) levantadas.push(k);
+        }
+      }
+    }
+    if (!levantadas.length) return;
+    console.warn("[chats] marca de borrado levantada: el contacto escribio despues de borrarlo", {
+      llaves: levantadas.slice(0, 10),
+    });
+    setChatPreferences((prev) => {
+      const next = { ...prev };
+      for (const k of levantadas) {
+        const pref = next[k];
+        if (!pref) continue;
+        next[k] = { ...pref, deletedAt: null, purgedAt: null, isDeleted: false, isPurged: false };
+      }
+      return next;
+    });
+  }, [currentChatsResult, chatPreferences, ownerForChat]);
+
   const currentContact = useMemo(() => {
     if (!contacts.length || !selectedJid) return undefined;
     // El mismo numero puede tener conversacion en varias lineas. Buscar solo

@@ -598,6 +598,76 @@ async function hardDeleteLocalChat(
  * vuelve a sumar en el contador de su línea. Y van con la cuenta en la clave
  * para que la marca se aplique SOLO a los chats de esa línea.
  */
+/**
+ * Levanta la marca de borrado de los chats cuyo contacto escribio DESPUES de
+ * borrarlos.
+ *
+ * La regla escrita siempre fue "un chat borrado vuelve si el cliente escribe".
+ * El navegador la aplicaba mirando SOLO el ultimo mensaje de la fila
+ * (`isChatDeletedByPreference`): si era del contacto y posterior a la marca, el
+ * chat se veia. Pero la IA contesta en unos segundos, y entonces el ultimo
+ * mensaje ya no es del contacto: la fila salia y **desaparecia en cuanto la IA
+ * respondia**. Se vio en produccion con una linea WAHA el 2026-09-06: el chat
+ * entraba, y a los pocos segundos ya no estaba. Con cualquier linea que tenga
+ * la IA activa pasa lo mismo.
+ *
+ * Aqui se mira la fuente completa, `chat_messages`, que guarda cada mensaje con
+ * `fromMe` y con todas sus identidades: si hay UN mensaje del contacto posterior
+ * a la marca, la marca sobra y se quita de la base. Tres EXISTS separados -uno
+ * por columna de identidad- para que cada uno use su indice; un OR sobre las
+ * tres columnas en un solo JOIN recorria la tabla entera.
+ *
+ * Nunca rompe la carga de preferencias: si falla, se anota y se sigue.
+ */
+async function levantarMarcasSiElContactoEscribio(userIds: string[]): Promise<void> {
+  if (!userIds.length) return;
+  try {
+    const revividas = await db.$queryRaw<
+      Array<{ userId: string; instanceName: string; remoteJid: string }>
+    >`
+      WITH revividas AS (
+        SELECT p."id"
+        FROM "ChatConversationPreference" p
+        WHERE p."userId" IN (${Prisma.join(userIds)})
+          AND p."deletedAt" IS NOT NULL
+          AND (
+            EXISTS (
+              SELECT 1 FROM "chat_messages" m
+              WHERE m."userId" = p."userId" AND m."remoteJid" = p."remoteJid"
+                AND m."fromMe" = FALSE AND m."messageTimestamp" > p."deletedAt"
+                AND (p."instanceName" = '' OR m."instanceName" = p."instanceName")
+            )
+            OR EXISTS (
+              SELECT 1 FROM "chat_messages" m
+              WHERE m."userId" = p."userId" AND m."remoteJidAlt" = p."remoteJid"
+                AND m."fromMe" = FALSE AND m."messageTimestamp" > p."deletedAt"
+                AND (p."instanceName" = '' OR m."instanceName" = p."instanceName")
+            )
+            OR EXISTS (
+              SELECT 1 FROM "chat_messages" m
+              WHERE m."userId" = p."userId" AND m."senderPn" = p."remoteJid"
+                AND m."fromMe" = FALSE AND m."messageTimestamp" > p."deletedAt"
+                AND (p."instanceName" = '' OR m."instanceName" = p."instanceName")
+            )
+          )
+      )
+      UPDATE "ChatConversationPreference" p
+      SET "deletedAt" = NULL, "purgedAt" = NULL, "updatedAt" = NOW()
+      FROM revividas r
+      WHERE p."id" = r."id"
+      RETURNING p."userId", p."instanceName", p."remoteJid"
+    `;
+    if (revividas.length) {
+      console.warn("[chats] marcas de borrado levantadas: el contacto escribio despues de borrarlo", {
+        cuantas: revividas.length,
+        chats: revividas.slice(0, 10).map((r) => `${r.instanceName || "*"}::${r.remoteJid}`),
+      });
+    }
+  } catch (error) {
+    console.error("[chats] no se pudieron levantar las marcas de borrado", error);
+  }
+}
+
 export async function getChatConversationPreferencesForAssociatedAccounts(): Promise<
   ChatPreferenceResponse<ChatConversationPreferenceMap>
 > {
@@ -607,6 +677,7 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
 
     await ensurePurgedAtColumn();
     const userIds = await getAssociatedAccountIds(user);
+    await levantarMarcasSiElContactoEscribio(userIds);
     const preferences = await chatConversationPreferenceTable.findMany({
       where: { userId: { in: userIds } },
       select: {
