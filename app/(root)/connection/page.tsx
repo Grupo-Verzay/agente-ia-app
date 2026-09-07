@@ -129,13 +129,23 @@ const Connection = async () => {
     // Render principal
     return (
         <div className="grid w-full grid-cols-1 gap-2 p-4 lg:grid-cols-2 auto-rows-fr">
-            <ConnectionMain
-                user={user as any}
-                instance={instancesData["Whatsapp"].instance}
-                instanceInfo={instancesData["Whatsapp"].info}
-                instanceType={"Whatsapp"}
-                prompts={instancesData["Whatsapp"].prompts}
-            />
+            {/* Una linea es UNA tarjeta. El proveedor (Evolution o WhatsApp
+                Mensajeria) es un ajuste de la linea, no otra linea: la fila de
+                Instancias es la misma y solo cambia su tipo. Por eso, cuando la
+                cuenta ya tiene la linea en WhatsApp Mensajeria, aqui no se pinta
+                el formulario de Evolution: crearia una segunda instancia con el
+                mismo nombre, y el numero quedaria partido en dos (dos filas por
+                contacto en Chats, dos leads en el CRM). */}
+            {(instancesData["Whatsapp"].instance || wahaInstances.length === 0) && (
+                <ConnectionMain
+                    user={user as any}
+                    instance={instancesData["Whatsapp"].instance}
+                    instanceInfo={instancesData["Whatsapp"].info}
+                    instanceType={"Whatsapp"}
+                    prompts={instancesData["Whatsapp"].prompts}
+                    hayServidorWaha={hayServidorWaha}
+                />
+            )}
             {/* Las DOS tarjetas de mensajeria de WhatsApp van juntas, una al lado
                 de la otra: Evolution a la izquierda y WhatsApp Mensajeria a la derecha.
                 Separadas por media pantalla se leian como un duplicado raro; una
@@ -150,9 +160,12 @@ const Connection = async () => {
                         key={inst.instanceName}
                         instanceName={inst.instanceName}
                         displayName={(inst as any).displayName ?? null}
+                        puedeVolverAEvolution={Boolean((user as any).apiKeyId)}
                     />
                 ))
-                : (hayServidorWaha || puedeConfigurarWaha) && (
+                // Con una linea de Evolution ya creada NO se ofrece crear otra
+                // de WhatsApp Mensajeria: se cambia de proveedor desde su tarjeta.
+                : !instancesData["Whatsapp"].instance && (hayServidorWaha || puedeConfigurarWaha) && (
                     <WahaInstanceCreator
                         userId={effectiveId}
                         company={user.company as string}

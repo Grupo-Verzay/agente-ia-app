@@ -18,6 +18,7 @@ export const ConnectionMain = ({
   instanceType,
   prompts,
   autoCreate,
+  hayServidorWaha,
 }: ConnectionMainInterface & { autoCreate?: boolean }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const instanceName = !instance ? '' : instance.instanceName;
@@ -121,6 +122,7 @@ export const ConnectionMain = ({
       user={user}
       currentInstanceInfo={currentInstanceInfo}
       prompts={filteredPrompts}
+      hayServidorWaha={hayServidorWaha}
     />
   ) : (
     <ConnectionCard

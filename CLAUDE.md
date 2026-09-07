@@ -550,6 +550,28 @@ Tres cosas que hay que mantener:
    cuenta pero el permiso es `edicion`. Es lo que se espera de "compartido como
    editor"; quien quiera su propia versión tiene el botón de duplicar.
 
+## Una línea es UNA instancia; el proveedor es un ajuste suyo
+
+WhatsApp Mensajería (WAHA) se construyó como una **segunda línea**: la tarjeta
+fabricaba una instancia aparte, `NOMBRE_V2`, con su propia fila en `Instancias`.
+Pero un número solo está conectado por un proveedor a la vez —o Evolution o
+WAHA—, y todo lo que importa (historial, leads, etiquetas, seguimientos, memoria
+de la IA) está guardado por instancia, no por proveedor. Con dos filas el mismo
+número quedaba partido: dos tarjetas en Conexiones, dos «Alexis» en Chats, dos
+leads en el CRM, y un flujo lanzado sobre la fila vieja salía por Evolution
+—apagada— y agotaba el plazo con «Timeout de solicitud».
+
+La regla: **cambiar de proveedor cambia `instanceType` de la MISMA fila**
+(`actions/proveedor-de-linea-actions.ts`), conservando `instanceName` (las
+conversaciones y los mensajes) e `instanceId` (las sesiones del CRM). El
+backend ya decide por `instanceType` en cada envío, así que no hay nada más que
+tocar. La sesión de WAHA se llama **igual que la instancia**; `_V2` no existe.
+Nunca hay dos encendidos: con Evolution conectada el botón de cambio se apaga.
+
+Si en una cuenta quedaron datos bajo `NOMBRE_V2`, el cambio a WAHA los adopta
+(`adoptarRestosDelSufijoV2`) y lo dice en la consola: `[linea] proveedor
+cambiado a WhatsApp Mensajería { mensajesMovidos, sesionesMovidas, … }`.
+
 ## Chats: `contact.aliases` NO son todas las identidades
 
 Al pedir los mensajes se pasaba solo `contact.aliases`, y ese campo **viene vacío
