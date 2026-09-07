@@ -734,6 +734,36 @@ Y «(QR)» va en los dos canales que se escanean —«Mensajería WhatsApp (QR)�
 Meta y no vincula ningún teléfono. Esa palabra es lo único que distingue las dos
 tarjetas de WhatsApp.
 
+## "Escribiendo…" hay que pedirlo dos veces
+
+Que se vea "escribiendo…", "grabando audio…" y "en línea" no es una pantalla:
+la pantalla ya estaba hecha y es la misma para los dos proveedores. Lo que hace
+falta es **pedirlo dos veces**, y si falta cualquiera de las dos no llega nada
+y no hay error que mirar:
+
+1. **En el webhook de la línea.** Evolution guarda la lista de eventos con la
+   que se registró el webhook y no la vuelve a mirar, así que `PRESENCE_UPDATE`
+   tiene que estar en `EVENTOS_DEL_WEBHOOK` (`actions/robot-actions.ts`) **y**
+   `ponerAlDiaLosEventos` tiene que reescribirlo en las líneas que ya estaban.
+2. **Por cada contacto.** WhatsApp solo manda la presencia de los contactos a
+   los que la sesión está **suscrita**. En Waha se suscribe leyendo la presencia
+   al abrir el chat; en Evolution **no hay forma de preguntarla**, solo de
+   suscribirse, y ni siquiera tiene ruta propia: la hace por dentro
+   `POST /chat/sendPresence` (`presenceSubscribe` antes del gesto). Se llama con
+   `presence: "paused"` —"dejó de escribir"—, que suscribe sin que el contacto
+   vea nada distinto. Los tres campos (`number`, `presence`, `delay`) son
+   obligatorios; sin `delay` contesta 400.
+
+Y una de vocabulario: los dos proveedores dicen lo mismo con palabras distintas
+—Waha `typing` / `online` / `offline`, Baileys `composing` / `available` /
+`unavailable`— y la App entiende una sola. **El traductor es uno**
+(`presenciaDeWhatsapp`, en `src/utils/presencia.util.ts` del backend). Lo que no
+se reconoce cae en `nada`, que apaga la burbuja: dejarla encendida para siempre
+es peor que no enseñarla.
+
+La presencia **no se guarda**: es de ahora mismo y solo vale para la
+conversación abierta. Tampoco pasa por el buffer ni dispara IA.
+
 ## El Robot no es el webhook
 
 El botón **Robot** de cada línea encendía y apagaba el **webhook de Evolution**.
