@@ -475,16 +475,57 @@ async function requireCurrentUser() {
   return user;
 }
 
+/**
+ * De que cuenta son los mensajes de esta linea.
+ *
+ * Esto decidia con `hasReadyContext`, que es "el contexto trae clave de
+ * Evolution". Y una linea de WhatsApp Mensajeria (Waha) NO trae clave a
+ * proposito, asi que para ellas nunca se resolvia el dueno y se leia con la
+ * cuenta de quien mira. Cuando la linea es de una cuenta vinculada -lo normal
+ * en un administrador que atiende varias empresas- los mensajes estan guardados
+ * bajo la cuenta duena y la consulta volvia CORRECTA Y VACIA: la fila salia en
+ * la lista, con su ultimo mensaje, y la conversacion se abria en blanco o
+ * congelada en el ultimo mensaje que si era de su cuenta.
+ *
+ * Se notaba solo con Waha porque con Evolution el contexto SI trae clave, y
+ * entonces el dueno se resolvia bien. Cambiar de proveedor "rompia" la
+ * conversacion sin tocar un solo mensaje.
+ *
+ * La clave no dice de quien es la linea: eso lo dice la propia linea. Se
+ * resuelve siempre, y **solo se acepta si quien mira tiene acceso a esa
+ * cuenta**; si no, se usa la suya, como antes.
+ */
 async function resolveChatStorageUserId(
   context: ChatActionContext,
   fallbackUserId?: string | null,
 ) {
-  if (hasReadyContext(context)) {
-    const owner = await resolveInstanceOwner(context.instanceName);
-    if (owner?.userId) return owner.userId;
-  }
+  const instanceName = context?.instanceName?.trim();
+  if (!instanceName) return fallbackUserId ?? null;
 
-  return fallbackUserId ?? null;
+  try {
+    const owner = await resolveInstanceOwner(instanceName);
+    if (!owner?.userId) return fallbackUserId ?? null;
+    if (owner.userId === fallbackUserId) return owner.userId;
+
+    // Nunca se lee la cuenta de otro por mandar el nombre de su linea.
+    const user = await currentUser();
+    if (!user?.id) return fallbackUserId ?? null;
+    const cuentas = await getAssociatedAccountIds(user);
+    if (!cuentas.includes(owner.userId)) {
+      console.warn("[chats] linea de una cuenta a la que no se tiene acceso", {
+        instanceName,
+        dueno: owner.userId,
+      });
+      return fallbackUserId ?? null;
+    }
+    return owner.userId;
+  } catch (error) {
+    console.warn("[chats] no se pudo resolver la cuenta de la linea", {
+      instanceName,
+      error: String(error),
+    });
+    return fallbackUserId ?? null;
+  }
 }
 
 /**
