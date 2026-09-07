@@ -90,7 +90,7 @@ export const WahaInstanceCreator = ({ userId, company, hayServidor }: WahaInstan
               style={{ backgroundColor: WHATSAPP_GREEN }}
             >
               {saving ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
-              Conectar la línea por Waha
+              Conectar esta línea
             </Button>
           </>
         ) : (

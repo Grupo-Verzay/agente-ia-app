@@ -250,7 +250,7 @@ export async function createWahaSession(params: {
   secret: string;
 }): Promise<{ ok: boolean; message?: string }> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { ok: false, message: 'El servidor de Waha no está configurado (Panel > Conexión).' };
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
 
   try {
     const res = await wahaFetch(cfg, '/api/sessions', {
@@ -276,7 +276,7 @@ export async function createWahaSession(params: {
     }
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con Waha.' };
+    return { ok: false, message: 'No se pudo contactar con el servidor.' };
   }
 }
 
@@ -292,7 +292,7 @@ export async function setWahaSessionWebhook(params: {
   secret: string;
 }): Promise<{ ok: boolean; message?: string }> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { ok: false, message: 'El servidor de Waha no está configurado (Panel > Conexión).' };
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
   try {
     const actual = await getWahaSession(params.session);
     const config = (actual?.config ?? {}) as Record<string, unknown>;
@@ -319,7 +319,7 @@ export async function setWahaSessionWebhook(params: {
     sesionesRevisadas.delete(params.session);
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con Waha.' };
+    return { ok: false, message: 'No se pudo contactar con el servidor.' };
   }
 }
 
@@ -341,7 +341,7 @@ export async function wahaSessionAction(
   action: 'start' | 'stop' | 'logout' | 'restart',
 ): Promise<{ ok: boolean; message?: string }> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { ok: false, message: 'El servidor de Waha no está configurado (Panel > Conexión).' };
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
   try {
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}/${action}`, {
       method: 'POST',
@@ -352,13 +352,13 @@ export async function wahaSessionAction(
     }
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con Waha.' };
+    return { ok: false, message: 'No se pudo contactar con el servidor.' };
   }
 }
 
 export async function deleteWahaSession(session: string): Promise<{ ok: boolean; message?: string }> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { ok: false, message: 'El servidor de Waha no está configurado (Panel > Conexión).' };
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
   try {
     const res = await wahaFetch(cfg, `/api/sessions/${encodeURIComponent(session)}`, {
       method: 'DELETE',
@@ -370,7 +370,7 @@ export async function deleteWahaSession(session: string): Promise<{ ok: boolean;
     }
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con Waha.' };
+    return { ok: false, message: 'No se pudo contactar con el servidor.' };
   }
 }
 
@@ -388,7 +388,7 @@ export type ResultadoQr =
  */
 export async function getWahaQrPng(session: string): Promise<ResultadoQr> {
   const cfg = await getWahaConfig();
-  if (!cfg) return { estado: 'error', motivo: 'El servidor de Waha no está configurado.' };
+  if (!cfg) return { estado: 'error', motivo: 'La conexión por QR no está configurada.' };
 
   try {
     const res = await wahaFetch(
@@ -417,7 +417,7 @@ export async function getWahaQrPng(session: string): Promise<ResultadoQr> {
     const agotado = error?.name === 'TimeoutError' || error?.name === 'AbortError';
     return {
       estado: 'error',
-      motivo: agotado ? 'El servidor de Waha tardó demasiado.' : 'No se pudo contactar con el servidor.',
+      motivo: agotado ? 'El servidor tardó demasiado.' : 'No se pudo contactar con el servidor.',
     };
   }
 }
@@ -472,7 +472,7 @@ async function enviarAWaha(
 ): Promise<WahaSendResult> {
   const cfg = await getWahaConfig();
   if (!cfg) {
-    return { ok: false, message: 'El servidor de Waha no está configurado (Panel > Conexión).' };
+    return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
   }
   try {
     const res = await wahaFetch(cfg, path, { method: 'POST', body: JSON.stringify(body) }, plazoMs);
@@ -489,7 +489,7 @@ async function enviarAWaha(
         // se deja el texto tal cual
       }
       console.warn(`[waha] ${path} respondió ${res.status}`, { chatId, detalle: detalle.slice(0, 200) });
-      return { ok: false, status: res.status, message: `Waha respondió ${res.status}: ${detalle}` };
+      return { ok: false, status: res.status, message: `El servidor respondió ${res.status}: ${detalle}` };
     }
     let cuerpo: unknown = null;
     try {
@@ -504,8 +504,8 @@ async function enviarAWaha(
     return {
       ok: false,
       message: esPlazo
-        ? 'Waha no contestó a tiempo. El mensaje puede haber salido igual; revisa la conversación antes de reenviarlo.'
-        : 'No se pudo contactar con Waha.',
+        ? 'El servidor no contestó a tiempo. El mensaje puede haber salido igual; revisa la conversación antes de reenviarlo.'
+        : 'No se pudo contactar con el servidor.',
     };
   }
 }

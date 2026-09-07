@@ -126,14 +126,14 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
     if (!linea) {
       const yaWaha = await lineaDelUsuario(instanceName, [Waha]);
       return yaWaha
-        ? { success: true, message: 'Esta línea ya está en Waha.' }
+        ? { success: true, message: 'Esta línea ya usa esta conexión.' }
         : { success: false, message: 'No se encontró la línea.' };
     }
 
     if (!(await isWahaConfigured())) {
       return {
         success: false,
-        message: 'El servidor de Waha no está configurado. Se pone en Panel > Conexión.',
+        message: 'La conexión por QR no está configurada. Se pone en Panel > Conexión.',
       };
     }
 
@@ -147,7 +147,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
     if (estado === 'open' && !(await cerrarSesionEnEvolution(clave, linea.instanceName))) {
       return {
         success: false,
-        message: 'No se pudo cerrar la sesión de Evolution. Inténtalo de nuevo en un momento.',
+        message: 'No se pudo cerrar la sesión de WhatsApp. Inténtalo de nuevo en un momento.',
       };
     }
 
@@ -161,7 +161,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
       ? await setWahaSessionWebhook({ session: linea.instanceName, webhookUrl, secret: secreto })
       : await createWahaSession({ session: linea.instanceName, webhookUrl, secret: secreto });
     if (!preparada.ok) {
-      return { success: false, message: preparada.message ?? 'No se pudo preparar la sesión en Waha.' };
+      return { success: false, message: preparada.message ?? 'No se pudo preparar la sesión de WhatsApp.' };
     }
     if (existente && existente.status === 'STOPPED') {
       await wahaSessionAction(linea.instanceName, 'start');
@@ -185,7 +185,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
     return {
       success: true,
       message: existente?.status === 'WORKING'
-        ? 'Listo: la línea ya sale por Waha.'
+        ? 'Listo: la línea ya está conectada.'
         : 'Listo. Escanea el QR desde la tarjeta para conectar.',
     };
   } catch (error: any) {
@@ -233,7 +233,7 @@ export async function cambiarProveedorAEvolution(instanceName: string): Promise<
     await wahaSessionAction(linea.instanceName, 'logout').catch(() => null);
     const borrada = await deleteWahaSession(linea.instanceName);
     if (!borrada.ok) {
-      return { success: false, message: borrada.message ?? 'No se pudo cerrar la sesión de Waha.' };
+      return { success: false, message: borrada.message ?? 'No se pudo cerrar la sesión de WhatsApp.' };
     }
 
     await db.instancia.update({

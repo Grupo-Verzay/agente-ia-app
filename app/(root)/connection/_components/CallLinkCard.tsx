@@ -155,7 +155,7 @@ export function CallLinkCard() {
       <CardHeader className="p-4 pb-2">
         <div className={`flex items-center gap-2 ${connected ? 'justify-between' : 'justify-center'}`}>
           <TituloDeTarjeta icono={<Phone className={`${TAMANO_DEL_ICONO} text-green-600`} />}>
-            Llamadas WhatsApp
+            Llamadas WhatsApp (QR)
           </TituloDeTarjeta>
           {connected && <VoicebotControl />}
         </div>

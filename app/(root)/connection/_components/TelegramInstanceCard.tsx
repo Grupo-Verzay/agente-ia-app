@@ -2,24 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, Pencil, CheckCircle2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { FaTelegramPlane } from 'react-icons/fa';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { deleteTelegramInstance, updateInstanceDisplayName, updateTelegramInstance } from '@/actions/instances-actions';
 import { getInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
-import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
+import { TAMANO_DEL_ICONO } from './TituloDeTarjeta';
+import { TarjetaDeCanal } from './TarjetaDeCanal';
 
 interface TelegramInstanceCardProps {
   instanceName: string;
@@ -85,50 +79,17 @@ export const TelegramInstanceCard = ({ instanceName, displayName, botUsername }:
 
   return (
     <>
-      <Card className="border-border flex h-full flex-col">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <TituloDeTarjeta icono={<FaTelegramPlane className={TAMANO_DEL_ICONO} style={{ color: TELEGRAM_BLUE }} />}>
-              Mensajería Telegram
-            </TituloDeTarjeta>
-            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <FaTelegramPlane className="h-5 w-5" style={{ color: TELEGRAM_BLUE }} />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{visibleName}</p>
-              {botUsername && (
-                <p className="truncate text-xs text-muted-foreground">@{botUsername}</p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-
-        <CardFooter className="mt-auto grid grid-cols-2 gap-2">
-          <Button
-            className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
-            onClick={() => router.refresh()}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            Conectado
-          </Button>
-          <Button
-            onClick={() => setShowEditDialog(true)}
-            className="w-full gap-2 text-white"
-            style={{ backgroundColor: TELEGRAM_BLUE }}
-          >
-            <Pencil className="w-4 h-4" />
-            Editar
-          </Button>
-        </CardFooter>
-      </Card>
+      <TarjetaDeCanal
+        conectado
+        icono={<FaTelegramPlane className={TAMANO_DEL_ICONO} style={{ color: TELEGRAM_BLUE }} />}
+        titulo="Mensajería Telegram"
+        color={TELEGRAM_BLUE}
+        nombre={visibleName}
+        dato={botUsername ? `@${botUsername}` : null}
+        textoConectar="Conectar Telegram"
+        alAbrirFormulario={() => setShowEditDialog(true)}
+        alEliminar={() => setShowDeleteDialog(true)}
+      />
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-md">

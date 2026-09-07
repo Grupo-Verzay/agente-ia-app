@@ -2,25 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, Pencil, Copy, CheckCircle2, PhoneCall } from 'lucide-react';
+import { Loader2, Copy } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { deleteMetaInstance, enableMetaCalling, getMetaCallingStatus, getMetaDisplayPhone, updateInstanceDisplayName, updateMetaInstance } from '@/actions/instances-actions';
 import { getInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
-import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
+import { TAMANO_DEL_ICONO } from './TituloDeTarjeta';
+import { TarjetaDeCanal } from './TarjetaDeCanal';
 
 interface MetaInstanceCardProps {
   instanceName: string;
@@ -36,16 +30,19 @@ const CHANNEL_META = {
     label: 'WhatsApp Cloud API',
     Icon: FaWhatsapp,
     color: 'text-green-500 border-green-500',
+    boton: '#16a34a',
   },
   facebook: {
     label: 'Facebook Messenger',
     Icon: FaFacebook,
     color: 'text-blue-600 border-blue-600',
+    boton: '#1877F2',
   },
   instagram: {
     label: 'Instagram DMs',
     Icon: FaInstagram,
     color: 'text-pink-500 border-pink-500',
+    boton: '#e1306c',
   },
 } as const;
 
@@ -157,77 +154,31 @@ export const MetaInstanceCard = ({
 
   return (
     <>
-      <Card className="border-border flex h-full flex-col">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <TituloDeTarjeta icono={<ChannelIcon className={`${TAMANO_DEL_ICONO} ${iconColor}`} />}>
-              {channelMeta.label}
-            </TituloDeTarjeta>
-            <div className="flex items-center gap-2">
-              {channel === 'whatsapp' && (
-                <Switch
-                  checked={callsEnabled}
-                  disabled={enablingCalls}
-                  onCheckedChange={(checked) => {
-                    if (checked) void handleEnableCalls();
-                  }}
-                />
-              )}
-              <Button
-                size="icon"
-                variant="destructive"
-                className="h-8 w-8"
-                onClick={() => setShowDeleteDialog(true)}
-                title="Eliminar instancia"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted ${iconColor}`}>
-              <ChannelIcon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{visibleName}</p>
-              {channel === 'whatsapp' && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {displayPhone || phoneNumberId || 'Consultando número...'}
-                </p>
-              )}
-            </div>
-          </div>
-
-        </CardContent>
-
-        <CardFooter className="mt-auto grid grid-cols-2 gap-2">
-          {channel === 'whatsapp' && (
-            <button
-              type="button"
-              className="col-span-2 flex w-full items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-              onClick={handleEnableCalls}
+      <TarjetaDeCanal
+        conectado
+        icono={<ChannelIcon className={`${TAMANO_DEL_ICONO} ${iconColor}`} />}
+        titulo={channelMeta.label}
+        color={channelMeta.boton}
+        nombre={visibleName}
+        dato={channel === 'whatsapp' ? (displayPhone || phoneNumberId || 'Consultando número…') : null}
+        textoConectar={`Conectar ${channelMeta.label}`}
+        alAbrirFormulario={() => setShowEditDialog(true)}
+        alEliminar={() => setShowDeleteDialog(true)}
+        extraEnCabecera={
+          // Las llamadas son cosa de Cloud API y viven donde vivian: en la
+          // cabecera, junto a la papelera.
+          channel === 'whatsapp' ? (
+            <Switch
+              checked={callsEnabled}
               disabled={enablingCalls}
-            >
-              {enablingCalls ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneCall className="w-4 h-4" />}
-              {callsEnabled ? 'Llamadas activadas' : 'Activar llamadas'}
-            </button>
-          )}
-          <Button
-            className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
-            onClick={() => router.refresh()}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            Conectado
-          </Button>
-          <Button onClick={() => setShowEditDialog(true)} className="w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]">
-            <Pencil className="w-4 h-4" />
-            Editar
-          </Button>
-        </CardFooter>
-      </Card>
+              title={callsEnabled ? 'Llamadas activadas' : 'Activar llamadas'}
+              onCheckedChange={(checked) => {
+                if (checked) void handleEnableCalls();
+              }}
+            />
+          ) : null
+        }
+      />
 
       {/* Dialog de edición */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

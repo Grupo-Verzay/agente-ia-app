@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Loader2, Plus, Info } from 'lucide-react';
+import { Loader2, Info } from 'lucide-react';
 import { FaInstagram } from 'react-icons/fa';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +11,8 @@ import { createInstagramInstance } from '@/actions/instances-actions';
 import { sanitizeInstanceName } from '@/schema/connection';
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
-import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
+import { TAMANO_DEL_ICONO } from './TituloDeTarjeta';
+import { TarjetaDeCanal } from './TarjetaDeCanal';
 
 interface InstagramInstanceCreatorProps {
   userId: string;
@@ -53,39 +53,14 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
 
   return (
     <>
-      <Card className="flex-1 border-dashed flex flex-col" style={{ borderColor: '#f9a8d4' }}>
-        <CardHeader className="px-4 py-4 pb-2">
-          <TituloDeTarjeta icono={<FaInstagram className={`${TAMANO_DEL_ICONO} text-pink-500`} />}>
-            Mensajería Instagram
-          </TituloDeTarjeta>
-        </CardHeader>
-        <CardContent className="space-y-3 px-6 pb-3 pt-0">
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
-            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="flex-1 font-mono text-foreground">{visibleName}</span>
-              <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
-          {/* Enlace de ayuda (mismo slot que las demás tarjetas → botón alineado). */}
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
-          >
-            Ver cómo conectar tu cuenta
-          </button>
-          <Button
-            onClick={() => setOpen(true)}
-            className="w-full text-white border-0" style={{ background: 'linear-gradient(to right, #E1306C, #833AB4)' }}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Conectar Instagram DMs
-          </Button>
-        </CardFooter>
-      </Card>
+      <TarjetaDeCanal
+        icono={<FaInstagram className={`${TAMANO_DEL_ICONO} text-pink-500`} />}
+        titulo="Mensajería Instagram"
+        color="#e1306c"
+        instanceName={visibleName}
+        textoConectar="Conectar Instagram DMs"
+        alAbrirFormulario={() => setOpen(true)}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
