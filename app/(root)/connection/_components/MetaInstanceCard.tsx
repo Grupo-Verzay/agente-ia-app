@@ -20,6 +20,7 @@ import {
 import { deleteMetaInstance, enableMetaCalling, getMetaCallingStatus, getMetaDisplayPhone, updateInstanceDisplayName, updateMetaInstance } from '@/actions/instances-actions';
 import { getInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface MetaInstanceCardProps {
   instanceName: string;
@@ -159,10 +160,9 @@ export const MetaInstanceCard = ({
       <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2 min-w-0">
-              <ChannelIcon className={`w-5 h-5 shrink-0 ${iconColor}`} />
-              <span className="truncate">{channelMeta.label}</span>
-            </CardTitle>
+            <TituloDeTarjeta icono={<ChannelIcon className={`${TAMANO_DEL_ICONO} ${iconColor}`} />}>
+              {channelMeta.label}
+            </TituloDeTarjeta>
             <div className="flex items-center gap-2">
               {channel === 'whatsapp' && (
                 <Switch

@@ -3,7 +3,8 @@
 import { ReactNode } from 'react';
 import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface LockedChannelCardProps {
   icon: ReactNode;
@@ -14,12 +15,9 @@ interface LockedChannelCardProps {
 /** Tarjeta de canal deshabilitado — mismo estilo que Facebook/Instagram bloqueados. */
 export const LockedChannelCard = ({ icon, title, instanceName }: LockedChannelCardProps) => {
   return (
-    <Card className="border-border flex h-full flex-col">
-      <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
-        <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
-          {icon}
-          <span className="text-xl font-bold">{title}</span>
-        </CardTitle>
+    <Card className="border-border flex flex-col">
+      <CardHeader className="px-4 py-4 pb-2">
+        <TituloDeTarjeta icono={icon}>{title}</TituloDeTarjeta>
       </CardHeader>
       <CardContent className="px-4 pb-3 pt-0">
         <div className="space-y-1.5">

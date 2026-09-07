@@ -534,6 +534,56 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
   }
 }
 
+/**
+ * Cierra la sesion de WhatsApp de la linea de Evolution, sin borrar nada.
+ *
+ * La llamada ya existia, pero SOLO dentro de `deleteInstance`: cerrar sesion y
+ * borrar la instancia iban juntos, asi que la unica forma de desvincular un
+ * telefono era cargarse la linea. Waha si lo tenia suelto, en el pie de su
+ * tarjeta. Ahora las dos lo ofrecen en el mismo sitio -el boton verde- y por
+ * eso Evolution necesita su propia accion.
+ *
+ * A diferencia del borrado, aqui un fallo NO se traga: si Evolution no acepta
+ * el logout, el telefono sigue vinculado y hay que decirlo. Tragarselo dejaria
+ * una tarjeta que dice "sesion cerrada" con la sesion abierta.
+ */
+export async function cerrarSesionDeLaLinea(userId: string, instanceType: string = 'Whatsapp') {
+  try {
+    await assertUserCanUseApp(userId);
+
+    const instanciaActiva = await checkActiveInstance(userId, instanceType);
+    if (!instanciaActiva) {
+      return { success: false, message: "El usuario no tiene ninguna instancia activa." };
+    }
+
+    const user = await db.user.findUnique({ where: { id: userId }, include: { apiKey: true } });
+    if (!user?.apiKey?.url) {
+      return { success: false, message: "El usuario no tiene una ApiKey de Evolution asignada." };
+    }
+
+    // La url se guarda unas veces con esquema y otras sin el.
+    const url = user.apiKey.url.trim().replace(/\/+$/, '');
+    const base = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+
+    const resp = await fetch(
+      `${base}/instance/logout/${encodeURIComponent(instanciaActiva.instanceName)}`,
+      { method: 'DELETE', headers: { apikey: user.apiKey.key, 'Content-Type': 'application/json' } },
+    ).catch(() => null);
+
+    if (!resp?.ok) {
+      console.warn('[cerrarSesionDeLaLinea] Evolution no acepto el logout', {
+        instanceName: instanciaActiva.instanceName,
+        estado: resp?.status ?? 'sin respuesta',
+      });
+      return { success: false, message: "Evolution no aceptó cerrar la sesión. Inténtalo de nuevo." };
+    }
+
+    return { success: true, message: "Sesión cerrada. Escanea el QR para volver a conectar." };
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Error al cerrar la sesión." };
+  }
+}
+
 export async function forceRecreateInstance(userId: string, instanceType: string = 'Whatsapp') {
   try {
     await assertUserCanUseApp(userId);

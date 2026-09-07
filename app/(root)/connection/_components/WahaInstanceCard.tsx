@@ -1,12 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FaWhatsapp } from 'react-icons/fa';
-import { Loader2, QrCode, RefreshCw, Power, Trash2, AlertCircle } from 'lucide-react';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, QrCode, RefreshCw, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -20,19 +16,23 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   startWahaInstance,
-  stopWahaInstance,
   logoutWahaInstance,
   deleteWahaInstance,
   restartWahaInstance,
 } from '@/actions/instances-actions';
 import { toast } from 'sonner';
+import EnableToggleButton from '@/components/button-bot';
+import { BotonDeSesion } from '@/components/boton-de-sesion';
 import { CambiarProveedorButton } from './CambiarProveedorButton';
+import { TarjetaDeLinea } from './TarjetaDeLinea';
 
 interface WahaInstanceCardProps {
   instanceName: string;
   displayName?: string | null;
   /** La cuenta tiene servidor de Evolution: se ofrece volver a el. */
   puedeVolverAEvolution?: boolean;
+  /** Dueño de la linea. Lo necesita el Robot, que va por cuenta. */
+  userId: string;
 }
 
 interface StatusResponse {
@@ -58,24 +58,38 @@ type EstadoDelQr =
   | { fase: 'listo' }
   | { fase: 'fallo'; motivo: string };
 
-/** Texto de la fila de estado cuando la sesión no está conectada. */
+/** Texto de estado cuando la sesión no está conectada. */
 const textoDeEstado = (status: string | undefined, starting: boolean): string => {
-  if (starting) return 'Iniciando sesión...';
+  if (starting) return 'Iniciando sesión…';
   switch (status) {
     case 'STARTING':
-      return 'Iniciando sesión...';
+      return 'Iniciando sesión…';
     case 'SCAN_QR_CODE':
       return 'QR listo — escanea para conectar';
     case 'STOPPED':
-      return 'Detenida';
+      return 'Sesión detenida';
     case 'FAILED':
       return 'La sesión falló — reconecta para reintentar';
     default:
-      return 'Desconectado';
+      return 'Sin conectar';
   }
 };
 
-export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolution }: WahaInstanceCardProps) => {
+/**
+ * La linea de WhatsApp servida por Waha.
+ *
+ * Se pinta con `TarjetaDeLinea`, la MISMA que usa Evolution: mismo titulo,
+ * mismos cuatro mandos, mismo orden. Lo unico que cambia por dentro es a quien
+ * se le pregunta. Antes esta tarjeta tenia pie propio -"Cerrar sesion" y un
+ * refrescar- y no tenia Robot, asi que las dos mitades de la misma pantalla se
+ * comportaban distinto segun el proveedor.
+ */
+export const WahaInstanceCard = ({
+  instanceName,
+  displayName,
+  puedeVolverAEvolution,
+  userId,
+}: WahaInstanceCardProps) => {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [showQrDialog, setShowQrDialog] = useState(false);
   const [qrTimestamp, setQrTimestamp] = useState(Date.now());
@@ -83,8 +97,6 @@ export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolut
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [stopping, setStopping] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -185,25 +197,16 @@ export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolut
     }
   };
 
-  const handleStop = async () => {
-    setStopping(true);
-    const result = await stopWahaInstance(instanceName);
-    setStopping(false);
-    if (result.success) {
-      toast.success(result.message);
-      fetchStatus();
-    } else {
-      toast.error(result.message);
-    }
-  };
-
+  /**
+   * Cerrar sesion desvincula el telefono. El boton verde lo confirma antes; si
+   * el servidor dice que no, se dice, porque un "listo" con la sesion abierta
+   * deja a la persona creyendo que ya puede escanear con otro numero.
+   */
   const handleLogout = async () => {
-    setLoggingOut(true);
     const result = await logoutWahaInstance(instanceName);
-    setLoggingOut(false);
     if (result.success) {
-      toast.success(result.message);
-      fetchStatus();
+      toast.success('Sesión cerrada. Escanea el QR para volver a conectar.');
+      await fetchStatus();
     } else {
       toast.error(result.message);
     }
@@ -229,123 +232,42 @@ export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolut
   const connected = status?.connected ?? false;
   const hasQr = status?.hasQr ?? false;
   const visibleName = displayName ?? instanceName;
-  const userInitial = visibleName.charAt(0).toUpperCase();
   const qrSrc = `/api/waha/qr/${encodeURIComponent(instanceName)}?t=${qrTimestamp}`;
 
   return (
     <>
-      <Card className="border-border flex-1">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2 min-w-0">
-              <FaWhatsapp className="w-5 h-5 shrink-0 text-green-500" />
-              <span className="truncate">WhatsApp Mensajería (QR)</span>
-            </CardTitle>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
-              title="Eliminar instancia"
-            >
-              <Trash2 className="w-4 h-4" />
+      <TarjetaDeLinea
+        nombre={connected ? (status?.pushName ?? visibleName) : visibleName}
+        numero={connected ? (status?.phoneNumber ?? null) : null}
+        cargando={status === null}
+        estado={textoDeEstado(status?.status, starting)}
+        alEliminar={() => setShowDeleteDialog(true)}
+        cambiarProveedor={
+          puedeVolverAEvolution ? (
+            <CambiarProveedorButton instanceName={instanceName} destino="evolution" soloIcono />
+          ) : null
+        }
+        botonDeConexion={
+          connected ? (
+            <BotonDeSesion alCerrarSesion={handleLogout} />
+          ) : hasQr ? (
+            <Button onClick={openQrDialog}>
+              <QrCode className="mr-1 h-4 w-4" />
+              Ver QR
             </Button>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          <div className="flex items-center gap-3 mb-4">
-            {status === null ? (
-              <>
-                <Skeleton className="h-10 w-10 rounded-lg" />
-                <div>
-                  <Skeleton className="h-4 w-[120px] mb-1" />
-                  <Skeleton className="h-3 w-[100px]" />
-                </div>
-              </>
-            ) : connected ? (
-              <>
-                <Avatar className="rounded-lg">
-                  <AvatarFallback className="rounded-lg">{userInitial}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="text-sm font-medium">{status.pushName ?? visibleName}</div>
-                  {status.phoneNumber && (
-                    <div className="text-xs text-muted-foreground">+{status.phoneNumber}</div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <span className="text-sm text-muted-foreground">
-                {textoDeEstado(status.status, starting)}
-              </span>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            {connected ? (
-              <>
-                <Button
-                  size="sm"
-                  className="flex-1 text-white"
-                  style={{ backgroundColor: '#16a34a' }}
-                  disabled
-                >
-                  <QrCode className="w-4 h-4 mr-1" />
-                  Conectado
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 text-white"
-                  style={{ backgroundColor: '#dc2626' }}
-                  onClick={handleStop}
-                  disabled={stopping}
-                >
-                  {stopping ? (
-                    <Loader2 className="animate-spin w-4 h-4 mr-1" />
-                  ) : (
-                    <Power className="w-4 h-4 mr-1" />
-                  )}
-                  Apagar
-                </Button>
-              </>
-            ) : hasQr ? (
-              <Button size="sm" className="flex-1" onClick={openQrDialog}>
-                <QrCode className="w-4 h-4 mr-1" />
-                Ver QR
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" className="flex-1" onClick={handleStart} disabled={starting}>
-                {starting ? (
-                  <Loader2 className="animate-spin w-4 h-4 mr-1" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-1" />
-                )}
-                Reconectar
-              </Button>
-            )}
-          </div>
-        </CardContent>
-
-        {puedeVolverAEvolution && (
-          <CardContent className="pt-0">
-            <CambiarProveedorButton instanceName={instanceName} destino="evolution" />
-          </CardContent>
-        )}
-
-        <CardFooter className="flex justify-between items-center">
-          <Button size="sm" variant="outline" onClick={handleLogout} disabled={loggingOut}>
-            {loggingOut ? (
-              <Loader2 className="animate-spin w-4 h-4 mr-1" />
-            ) : (
-              <Power className="w-4 h-4 mr-1" />
-            )}
-            Cerrar sesión
-          </Button>
-          <Button size="sm" variant="outline" onClick={fetchStatus} title="Actualizar estado">
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </CardFooter>
-      </Card>
+          ) : (
+            <Button variant="outline" onClick={handleStart} disabled={starting}>
+              {starting ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1 h-4 w-4" />
+              )}
+              Reconectar
+            </Button>
+          )
+        }
+        botonDelRobot={<EnableToggleButton userId={userId} instanceName={instanceName} />}
+      />
 
       <Dialog open={showQrDialog} onOpenChange={setShowQrDialog}>
         <DialogContent className="max-w-sm">
@@ -379,7 +301,7 @@ export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolut
                 <img
                   key={qrTimestamp}
                   src={qrSrc}
-                  alt="QR WhatsApp Mensajería"
+                  alt="QR de la línea de WhatsApp"
                   width={320}
                   height={320}
                   onError={() =>
@@ -403,21 +325,25 @@ export const WahaInstanceCard = ({ instanceName, displayName, puedeVolverAEvolut
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar instancia?</AlertDialogTitle>
+            <AlertDialogTitle>¿Eliminar esta línea?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>{visibleName}</strong> y su sesión de WhatsApp Mensajeria. Tendrás que
-              volver a escanear el QR si quieres conectarla de nuevo. Esta acción no se puede deshacer.
+              Se elimina <strong>{visibleName}</strong>: se cierra su sesión de WhatsApp, se borra en
+              el servidor y se borra la línea en la App. Tendrás que volver a escanear el QR si
+              quieres conectarla de nuevo. Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="sm:justify-between">
             <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDelete();
+              }}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting && <Loader2 className="animate-spin w-4 h-4 mr-1" />}
-              Sí, eliminar
+              Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

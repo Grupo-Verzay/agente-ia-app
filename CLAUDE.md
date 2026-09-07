@@ -636,6 +636,57 @@ Y para saber si un aviso **llegó**, cada uno deja rastro: `[realtime] aviso
 está en esa sala; si dice 1 o más y el navegador no dice `aviso`, se perdió
 por el camino.
 
+## Conexión: el canal se llama igual; el proveedor solo se nombra al cambiarlo
+
+Una cosa es **cómo se llama la tarjeta** y otra **por dónde se conecta**. El
+canal es siempre «Mensajería WhatsApp (QR)». Evolution y **Waha** son
+proveedores, y solo se nombran donde se cambia de uno a otro: el aviso del icono
+de flechas y su diálogo de confirmación. En ningún otro sitio.
+
+Antes el título cambiaba con el proveedor —«Mensajería WhatsApp (QR)» con
+Evolution y «WhatsApp Mensajería (QR)» con Waha—: dos nombres parecidos para lo
+mismo, y el cliente no tiene por qué saber que detrás hay dos servidores.
+
+La línea es **una tarjeta** (`TarjetaDeLinea`), la misma en Perfil y en
+Conexiones, con **cuatro mandos y ninguno más**:
+
+| Dónde | Control | Qué hace |
+| --- | --- | --- |
+| Cabecera | Flechas | Cambia de proveedor. Solo el icono, sin etiqueta. |
+| Cabecera | Papelera | Cierra sesión, borra en el servidor y borra la fila. |
+| Cuerpo | Verde | **Cierra la sesión.** Al posar el cursor se pone rojo y lo dice. |
+| Cuerpo | Rojo / azul | El **Robot**: apaga y enciende la IA de esa línea. |
+
+Cuatro cosas que hay que mantener:
+
+1. **Nada de texto suelto ni pie en la tarjeta.** Lo que hace cada botón se lee
+   al posarse encima y se explica en su diálogo. El Robot no necesita bloque
+   propio: ese botón rojo ya es él.
+2. **Cerrar sesión existe en los dos proveedores.** Es la única forma de cambiar
+   el número de una línea sin perder su historial. En Evolution la llamada vivía
+   dentro de `deleteInstance` —desvincular obligaba a borrar la línea entera—;
+   ahora es `cerrarSesionDeLaLinea`. Un fallo del servidor **se dice**: un
+   «listo» con la sesión abierta hace creer que ya se puede escanear con otro
+   teléfono.
+3. **El Robot funciona con los dos.** El backend ya leía la misma marca para
+   ambos (los mensajes de Waha pasan por el mismo `processWebhook`), pero la App
+   exigía una clave de Evolution y llamaba a su webhook, así que en Waha el
+   Robot estaba muerto. Con Waha **no se le pregunta nada a Evolution**.
+4. **Perfil no puede tener su propia lógica.** Pinta las mismas tarjetas que
+   `/connection`, en el mismo orden. Cuando no conocía el tipo `waha`, la línea
+   caía en «Desconocido» y salía «Crear instancia»: pulsarlo creaba una segunda
+   línea con el mismo nombre y partía el número en dos.
+
+Y dos de rejilla y tipografía, que se ven a la primera:
+
+- **Ni `auto-rows-fr` ni `h-full` en las tarjetas.** Con las filas iguales, cada
+  tarjeta se estira hasta la altura de la más alta y le queda un hueco en blanco
+  debajo de los botones. Va `items-start`: cada una mide lo que ocupa.
+- **Un solo título** (`TituloDeTarjeta`, 19 px con icono de 21). Convivían dos
+  escalas —24 px con iconos de 16 en las tarjetas con línea, 20 px con iconos de
+  24 en las de canal por conectar— y una al lado de otra se veían disparejas.
+  Si se añade otra tarjeta de canal, usa ese componente y no un tamaño a mano.
+
 ## El Robot no es el webhook
 
 El botón **Robot** de cada línea encendía y apagaba el **webhook de Evolution**.

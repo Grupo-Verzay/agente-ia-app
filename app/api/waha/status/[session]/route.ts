@@ -44,7 +44,7 @@ export async function GET(
   if (rechazo) return rechazo;
 
   if (!(await isWahaConfigured())) {
-    return NextResponse.json({ error: 'El servidor de WhatsApp Mensajería no esta configurado' }, { status: 503 });
+    return NextResponse.json({ error: 'El servidor de Waha no está configurado' }, { status: 503 });
   }
 
   const session = await getWahaSession(params.session);

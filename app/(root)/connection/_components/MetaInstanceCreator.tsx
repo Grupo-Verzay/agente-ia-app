@@ -15,6 +15,7 @@ import { sanitizeInstanceName } from '@/schema/connection';
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface MetaInstanceCreatorProps {
   userId: string;
@@ -59,11 +60,10 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
   return (
     <>
       <Card className="border-border flex-1 border-dashed flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
-          <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
-            <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-            <span>WhatsApp Cloud API</span>
-          </CardTitle>
+        <CardHeader className="px-4 py-4 pb-2">
+          <TituloDeTarjeta icono={<FaWhatsapp className={`${TAMANO_DEL_ICONO} text-green-500`} />}>
+            WhatsApp Cloud API
+          </TituloDeTarjeta>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
           <div className="space-y-1.5">

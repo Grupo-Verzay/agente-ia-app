@@ -23,12 +23,18 @@ interface Props {
   destino: 'waha' | 'evolution';
   /** Con texto, el boton sale apagado y explica por que (p. ej. Evolution sigue conectada). */
   motivoParaNoPoder?: string | null;
+  /**
+   * En la cabecera de la tarjeta va SOLO el icono, sin etiqueta ni nota: la
+   * tarjeta no lleva texto suelto. Lo que hace se lee al posar el cursor y se
+   * explica en la confirmacion, que es donde de verdad hace falta.
+   */
+  soloIcono?: boolean;
 }
 
 const TEXTOS = {
   waha: {
-    boton: 'Conectar por WhatsApp Mensajería',
-    titulo: '¿Pasar esta línea a WhatsApp Mensajería?',
+    boton: 'Conectar por Waha',
+    titulo: '¿Pasar esta línea a Waha?',
     detalle:
       'La línea sigue siendo la misma: conserva su nombre, su historial, sus leads y sus seguimientos. Solo cambia por dónde se conecta el WhatsApp. Después tendrás que escanear el QR una vez.',
     confirmar: 'Sí, cambiar',
@@ -37,7 +43,7 @@ const TEXTOS = {
     boton: 'Volver a Evolution',
     titulo: '¿Volver esta línea a Evolution?',
     detalle:
-      'La línea sigue siendo la misma: conserva su nombre, su historial, sus leads y sus seguimientos. Se cierra la sesión de WhatsApp Mensajería y tendrás que escanear el QR de Evolution.',
+      'La línea sigue siendo la misma: conserva su nombre, su historial, sus leads y sus seguimientos. Se cierra la sesión de Waha y tendrás que escanear el QR de Evolution.',
     confirmar: 'Sí, volver',
   },
 } as const;
@@ -46,7 +52,7 @@ const TEXTOS = {
  * Cambiar el proveedor de una linea desde su tarjeta. Es un solo viaje al
  * servidor y el boton enseña que esta trabajando mientras dura.
  */
-export const CambiarProveedorButton = ({ instanceName, destino, motivoParaNoPoder }: Props) => {
+export const CambiarProveedorButton = ({ instanceName, destino, motivoParaNoPoder, soloIcono }: Props) => {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [cambiando, setCambiando] = useState(false);
@@ -76,19 +82,38 @@ export const CambiarProveedorButton = ({ instanceName, destino, motivoParaNoPode
 
   return (
     <>
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full"
-        onClick={() => setAbierto(true)}
-        disabled={Boolean(motivoParaNoPoder)}
-        title={motivoParaNoPoder ?? undefined}
-      >
-        <ArrowLeftRight className="w-4 h-4 mr-1" />
-        {textos.boton}
-      </Button>
-      {motivoParaNoPoder && (
-        <p className="text-center text-xs text-muted-foreground">{motivoParaNoPoder}</p>
+      {soloIcono ? (
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-8 w-8"
+          onClick={() => setAbierto(true)}
+          disabled={Boolean(motivoParaNoPoder)}
+          title={motivoParaNoPoder ?? textos.boton}
+        >
+          {cambiando ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ArrowLeftRight className="h-4 w-4" />
+          )}
+        </Button>
+      ) : (
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => setAbierto(true)}
+            disabled={Boolean(motivoParaNoPoder)}
+            title={motivoParaNoPoder ?? undefined}
+          >
+            <ArrowLeftRight className="w-4 h-4 mr-1" />
+            {textos.boton}
+          </Button>
+          {motivoParaNoPoder && (
+            <p className="text-center text-xs text-muted-foreground">{motivoParaNoPoder}</p>
+          )}
+        </>
       )}
 
       <AlertDialog open={abierto} onOpenChange={setAbierto}>

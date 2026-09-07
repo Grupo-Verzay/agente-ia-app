@@ -12,6 +12,7 @@ import { createFacebookInstance } from '@/actions/instances-actions';
 import { sanitizeInstanceName } from '@/schema/connection';
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface FacebookInstanceCreatorProps {
   userId: string;
@@ -53,11 +54,10 @@ export const FacebookInstanceCreator = ({ userId, company }: FacebookInstanceCre
   return (
     <>
       <Card className="flex-1 border-dashed flex flex-col" style={{ borderColor: '#93c5fd' }}>
-        <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
-          <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
-            <FaFacebook className="rounded-sm w-6 h-6" style={{ color: '#1877F2' }} />
-            <span className="text-xl font-bold">Mensajería Facebook</span>
-          </CardTitle>
+        <CardHeader className="px-4 py-4 pb-2">
+          <TituloDeTarjeta icono={<FaFacebook className={TAMANO_DEL_ICONO} style={{ color: '#1877F2' }} />}>
+            Mensajería Facebook
+          </TituloDeTarjeta>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
           <div className="space-y-1.5">

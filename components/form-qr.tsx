@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getInstances, generateQRCode, generateWhatsappPairingCode } from '@/actions/api-action';
+import { cerrarSesionDeLaLinea, getInstances, generateQRCode, generateWhatsappPairingCode } from '@/actions/api-action';
+import { BotonDeSesion } from '@/components/boton-de-sesion';
 import { Button } from "@/components/ui/button";
 import { QrScanDialog } from "@/components/shared/QrScanDialog";
 import { QrCode, Phone, Loader2 } from "lucide-react";
@@ -181,19 +182,34 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
         <>
             {loading ? (
                 <Skeleton className="w-full h-10 rounded-md" />
+            ) : isWhatsappConnected ? (
+                /* Conectada: el verde deja de ser decorativo y cierra la sesion.
+                   Antes abria el dialogo del QR, que con la sesion abierta no
+                   sirve para nada, y desvincular el telefono solo se podia
+                   borrando la linea entera. */
+                <BotonDeSesion
+                    alCerrarSesion={async () => {
+                        const res = await cerrarSesionDeLaLinea(userId);
+                        if (res.success) {
+                            toast.success(res.message);
+                            const name = instanceData?.instanceName;
+                            if (name) await fetchQRCode(name);
+                        } else {
+                            toast.error(res.message);
+                        }
+                    }}
+                />
             ) : (
                 <Button
                     className={`w-full transition-all duration-300 ${isApiDisconnected
                             ? "ring-1 ring-red-500 shadow-[0_0_12px_#ef4444] hover:shadow-[0_0_18px_#ef4444]"
-                            : !isWhatsappConnected
-                                ? "shadow-[0_0_12px_#22c55e] hover:shadow-[0_0_18px_#22c55e] ring-1 ring-green-400"
-                                : ""
+                            : "shadow-[0_0_12px_#22c55e] hover:shadow-[0_0_18px_#22c55e] ring-1 ring-green-400"
                         }`}
                     onClick={() => setIsModalOpen(true)}
-                    variant={isApiDisconnected ? "destructive" : isWhatsappConnected ? "save" : "secondary"}
+                    variant={isApiDisconnected ? "destructive" : "secondary"}
                 >
                     <QrCode className="mr-2 h-4 w-4" />
-                    {isApiDisconnected ? "API desconectada" : isWhatsappConnected ? "Conectado" : "Conectar"}
+                    {isApiDisconnected ? "API desconectada" : "Conectar"}
                 </Button>
             )}
 

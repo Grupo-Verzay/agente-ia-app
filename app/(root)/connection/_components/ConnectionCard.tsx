@@ -25,6 +25,7 @@ import { FormInstanceConnectionValues, FormInstanceConnectionSchema } from '@/sc
 import { FaInstagram, FaFacebook, FaWhatsapp } from "react-icons/fa"
 import { useMemo, useCallback } from "react"
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name"
+import { TAMANO_DEL_ICONO } from "./TituloDeTarjeta"
 
 interface MinimalUser {
     onFacebook?: boolean
@@ -54,7 +55,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
     if (t === 'instagram') {
         return (
             <>
-                <FaInstagram className="text-pink-500 rounded-sm w-6 h-6" />
+                <FaInstagram className={`${TAMANO_DEL_ICONO} text-pink-500`} />
                 <span>Mensajería Instagram</span>
             </>
         )
@@ -62,7 +63,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
     if (t === 'facebook') {
         return (
             <>
-                <FaFacebook className="text-[#1877F2] rounded-sm w-6 h-6" />
+                <FaFacebook className={`${TAMANO_DEL_ICONO} text-[#1877F2]`} />
                 <span>Mensajería Facebook</span>
             </>
         )
@@ -70,7 +71,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
     if (t === 'whatsapp' || t === 'whatsapp business' || t === 'whatsappb') {
         return (
             <>
-                <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
+                <FaWhatsapp className={`${TAMANO_DEL_ICONO} text-green-500`} />
                 <span>Mensajería WhatsApp (QR)</span>
             </>
         )
@@ -130,8 +131,8 @@ export const ConnectionCard = ({
     if (isFacebookOrInstagram && !isChannelEnabled) {
         return (
             <Card className="border-border flex-1 flex flex-col">
-                <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
-                    <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
+                <CardHeader className="px-4 py-4 pb-2">
+                    <CardTitle className="flex min-w-0 items-center gap-2 text-[19px] font-semibold tracking-tight">
                         <SocialIconSelector instanceType={instanceType} />
                     </CardTitle>
                 </CardHeader>
@@ -157,8 +158,8 @@ export const ConnectionCard = ({
     // Renderizado Condicional: Tarjeta de Formulario
     return (
         <Card className="border-border flex-1 flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
-                <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
+            <CardHeader className="px-4 py-4 pb-2">
+                <CardTitle className="flex min-w-0 items-center gap-2 text-[19px] font-semibold tracking-tight">
                     <SocialIconSelector instanceType={instanceType} />
                 </CardTitle>
             </CardHeader>

@@ -29,6 +29,7 @@ import {
 import { getVoicebotConfig, setVoicebotConfig } from '@/actions/voicebot-actions';
 import { VOICEBOT_VOICE_OPTIONS, DEFAULT_VOICEBOT_VOICE } from '@/lib/voicebot-voices';
 import { cn } from '@/lib/utils';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 export function CallLinkCard() {
   const [loading, setLoading] = useState(true);
@@ -153,10 +154,9 @@ export function CallLinkCard() {
     <Card className="border-border flex h-full flex-col">
       <CardHeader className="p-4 pb-2">
         <div className={`flex items-center gap-2 ${connected ? 'justify-between' : 'justify-center'}`}>
-          <CardTitle className="flex min-w-0 items-center gap-2">
-            <Phone className="h-4 w-4 shrink-0 text-green-600" />
-            <span className="truncate">Llamadas WhatsApp</span>
-          </CardTitle>
+          <TituloDeTarjeta icono={<Phone className={`${TAMANO_DEL_ICONO} text-green-600`} />}>
+            Llamadas WhatsApp
+          </TituloDeTarjeta>
           {connected && <VoicebotControl />}
         </div>
       </CardHeader>

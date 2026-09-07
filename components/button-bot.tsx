@@ -21,15 +21,18 @@ import { getBillingServiceAccessSnapshot } from "@/actions/billing/billing-acces
 
 interface EnableToggleButtonProps {
   userId: string;
-  userName?: string | null;
-  apiurl: string;
-  apikey: string;
-  webhookUrl: string;
+  /**
+   * Linea a la que pertenece este boton. Sin ella se usa la de la cuenta.
+   *
+   * Las credenciales de Evolution que recibia antes ya no hacen falta: todo va
+   * por el servidor, y con Waha ni siquiera existen.
+   */
+  instanceName?: string;
 }
 
 const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
   userId,
-  webhookUrl,
+  instanceName,
 }) => {
   const [isEnabled, setIsEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,7 +59,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
     if (!userId) return;
     setError(null);
     try {
-      const res = await leerEstadoDelRobot(userId);
+      const res = await leerEstadoDelRobot(userId, instanceName);
       if (!res.success) {
         setError(res.message);
         return;
@@ -68,7 +71,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, instanceName]);
 
   const loadBillingAccessStatus = useCallback(async () => {
     const res = await getBillingServiceAccessSnapshot(userId);
@@ -107,7 +110,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
     setError(null);
 
     try {
-      const res = await cambiarRobot(userId, nextEnabled);
+      const res = await cambiarRobot(userId, nextEnabled, instanceName);
       if (!res.success) throw new Error(res.message);
 
       setIsEnabled(res.data.botEnabled);
@@ -117,7 +120,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
         toast.warning("Robot apagado: los mensajes se siguen recibiendo y guardando; el agente no responde.");
       }
       if (!res.data.webhookEnabled) {
-        toast.error("Evolution no acepto encender el webhook de la linea. Los avisos en vivo pueden no llegar.");
+        toast.error("Evolution no aceptó encender el webhook de la línea. Los avisos en vivo pueden no llegar.");
       }
     } catch (err) {
       const errorMessage = `Error al cambiar el estado: ${err instanceof Error ? err.message : String(err)}`;
@@ -126,7 +129,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [instanceData, serviceLocked, userId]);
+  }, [instanceData, serviceLocked, userId, instanceName]);
 
   const toggleEnable = async () => {
     await setWebhookEnabled(!(isEnabled ?? false));

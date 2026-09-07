@@ -95,14 +95,14 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
     if (!linea) {
       const yaWaha = await lineaDelUsuario(instanceName, [WAHA]);
       return yaWaha
-        ? { success: true, message: 'Esta línea ya está en WhatsApp Mensajería.' }
+        ? { success: true, message: 'Esta línea ya está en Waha.' }
         : { success: false, message: 'No se encontró la línea.' };
     }
 
     if (!(await isWahaConfigured())) {
       return {
         success: false,
-        message: 'El servidor de WhatsApp Mensajería no está configurado. Se pone en Panel > Conexión.',
+        message: 'El servidor de Waha no está configurado. Se pone en Panel > Conexión.',
       };
     }
 
@@ -142,7 +142,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
 
     const restos = await adoptarRestosDelSufijoV2(linea);
 
-    console.warn('[linea] proveedor cambiado a WhatsApp Mensajería', {
+    console.warn('[linea] proveedor cambiado a Waha', {
       instanceName: linea.instanceName,
       sesionReutilizada: Boolean(existente),
       ...restos,
@@ -152,7 +152,7 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
     return {
       success: true,
       message: existente?.status === 'WORKING'
-        ? 'Listo: la línea ya sale por WhatsApp Mensajería.'
+        ? 'Listo: la línea ya sale por Waha.'
         : 'Listo. Escanea el QR desde la tarjeta para conectar.',
     };
   } catch (error: any) {
@@ -200,7 +200,7 @@ export async function cambiarProveedorAEvolution(instanceName: string): Promise<
     await wahaSessionAction(linea.instanceName, 'logout').catch(() => null);
     const borrada = await deleteWahaSession(linea.instanceName);
     if (!borrada.ok) {
-      return { success: false, message: borrada.message ?? 'No se pudo cerrar la sesión de WhatsApp Mensajería.' };
+      return { success: false, message: borrada.message ?? 'No se pudo cerrar la sesión de Waha.' };
     }
 
     await db.instancia.update({

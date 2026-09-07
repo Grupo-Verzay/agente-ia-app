@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { switchInstanceAdapter, startBaileysSession, stopBaileysSession, deleteBaileysInstance } from '@/actions/instances-actions';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface BaileysInstanceCardProps {
   instanceName: string;
@@ -141,10 +142,9 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
       <Card className="border-border flex-1">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2 min-w-0">
-              <FaWhatsapp className="w-5 h-5 shrink-0 text-green-500" />
-              <span className="truncate">WhatsApp (Baileys)</span>
-            </CardTitle>
+            <TituloDeTarjeta icono={<FaWhatsapp className={`${TAMANO_DEL_ICONO} text-green-500`} />}>
+              WhatsApp (Baileys)
+            </TituloDeTarjeta>
             <Button
               size="sm"
               variant="destructive"

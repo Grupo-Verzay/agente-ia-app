@@ -47,13 +47,7 @@ export const MainDashboard = ({ user }: propsMainDashboard) => {
 
                         {/* Enable Toggle Button */}
                         <div className="flex-1 flex justify-end">
-                            <EnableToggleButton
-                                userId={user.id}
-                                userName={user.name}
-                                apiurl={user.apiUrl}
-                                apikey={user.apiKeyId as string}
-                                webhookUrl={user?.webhookUrl ?? 'https://backend.ia-app.com/webhook'}
-                            />
+                            <EnableToggleButton userId={user.id} />
                         </div>
 
                     </div>

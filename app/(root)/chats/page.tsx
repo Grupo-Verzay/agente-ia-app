@@ -477,7 +477,7 @@ export default async function ChatsPage({
               instanceName: inst.instanceName,
               instanceType: inst.instanceType,
               status: "unknown",
-              label: "WhatsApp Mensajería",
+              label: "Waha",
               message: "Sus mensajes salen de nuestra base.",
             }
         : {

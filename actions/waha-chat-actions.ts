@@ -61,7 +61,7 @@ async function lineaWahaAutorizada(instanceName: string): Promise<
   const dueno = await resolveInstanceOwner(instanceName);
   if (!dueno?.userId) return { ok: false, message: `No se encontró la línea ${instanceName}.` };
   if ((dueno.instanceType ?? '').trim().toLowerCase() !== 'waha') {
-    return { ok: false, message: `La línea ${instanceName} no es de WhatsApp Mensajería.` };
+    return { ok: false, message: `La línea ${instanceName} no es de Waha.` };
   }
   await assertCanAccessTargetUser(dueno.userId);
   return { ok: true, userId: dueno.userId };
@@ -191,7 +191,7 @@ export async function sendWahaTextAction(
     console.error('[sendWahaTextAction]', error);
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'No se pudo enviar por WhatsApp Mensajería.',
+      message: error instanceof Error ? error.message : 'No se pudo enviar por Waha.',
       remoteJid,
     };
   }
