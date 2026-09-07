@@ -7,6 +7,7 @@ import { persistChatMessage, resolveInstanceOwner } from '@/lib/chat-persistence
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
 import { sendWahaMedia, sendWahaText, type WahaMediaType } from '@/lib/waha';
 import { canonicalToWahaJid } from '@/lib/waha-jid';
+import { subirAdjuntoSaliente } from '@/lib/adjuntos-salientes';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
 import type { SendMessageResult } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
@@ -91,11 +92,31 @@ export async function sendWahaTextAction(
       if (!TIPOS_DE_MEDIA.has(mediatype) || !payload.mediaUrl) {
         return { success: false, message: 'Adjunto no reconocido.', remoteJid };
       }
+      // El adjunto se sube a S3 ANTES de enviarlo: WAHA lo descarga de ahi y la
+      // conversacion lo reproduce de ahi. Sin esto la nota de voz llegaba al
+      // cliente pero la burbuja quedaba vacia. Si la subida falla, se manda
+      // igual en base64 (el cliente lo recibe) y se avisa: la burbuja saldra
+      // sin archivo, que es peor que un aviso pero mejor que no enviar.
+      const subida = await subirAdjuntoSaliente({
+        userId: linea.userId,
+        mediaUrl: payload.mediaUrl,
+        mimetype: payload.mimetype,
+        fileName: payload.fileName,
+      });
+      if (!subida) {
+        console.warn('[waha] adjunto saliente sin copia en S3: la burbuja no tendra archivo', {
+          instanceName,
+          mediatype,
+          mimetype: payload.mimetype ?? null,
+        });
+      }
+      const archivo = subida ?? payload.mediaUrl;
+
       const envio = await sendWahaMedia({
         session: instanceName,
         chatId,
         mediatype: mediatype as WahaMediaType,
-        mediaUrl: payload.mediaUrl,
+        mediaUrl: archivo,
         mimetype: payload.mimetype,
         fileName: payload.fileName,
         caption: payload.caption,
@@ -105,7 +126,7 @@ export async function sendWahaTextAction(
       if (!envio.ok) return { success: false, message: envio.message, remoteJid };
 
       const ahora = new Date();
-      const mediaUrl = mediaUrlParaGuardar(payload.mediaUrl);
+      const mediaUrl = mediaUrlParaGuardar(archivo);
       const texto = String(payload.caption ?? payload.fileName ?? etiquetaDeMedia(mediatype, payload.ptt));
       await persistChatMessage({
         userId: linea.userId,

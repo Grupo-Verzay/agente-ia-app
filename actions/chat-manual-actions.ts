@@ -24,6 +24,7 @@ import {
 } from "@/lib/chat-persistence";
 import { sendWahaMedia, sendWahaText, subscribeWahaPresence, type WahaMediaType } from "@/lib/waha";
 import { canonicalToWahaJid } from "@/lib/waha-jid";
+import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
 import {
   fetchChatsFromEvolution,
   findMessagesByRemoteJid,
@@ -286,18 +287,31 @@ async function sendOutgoingPayload(params: {
   // real-, distinto transporte. El servidor sale de Panel > Conexion.
   if ((instanceType ?? "").trim().toLowerCase() === "waha") {
     const chatId = canonicalToWahaJid(remoteJid);
+    // Un adjunto que venga en base64 se sube a S3 primero: WAHA lo descarga de
+    // ahi y la conversacion lo reproduce de ahi (ver lib/adjuntos-salientes).
+    let payloadAEnviar: OutgoingMessagePayload = payload;
+    if (payload.kind === "media" && userId) {
+      const subida = await subirAdjuntoSaliente({
+        userId,
+        mediaUrl: payload.mediaUrl,
+        mimetype: payload.mimetype,
+        fileName: payload.fileName,
+      });
+      if (subida) payloadAEnviar = { ...payload, mediaUrl: subida };
+      else console.warn("[waha] adjunto saliente sin copia en S3: la burbuja no tendra archivo", { instanceName: context.instanceName });
+    }
     const envio =
-      payload.kind === "text"
-        ? await sendWahaText({ session: context.instanceName, chatId, text: payload.text })
+      payloadAEnviar.kind === "text"
+        ? await sendWahaText({ session: context.instanceName, chatId, text: payloadAEnviar.text })
         : await sendWahaMedia({
             session: context.instanceName,
             chatId,
-            mediatype: payload.mediatype as WahaMediaType,
-            mediaUrl: payload.mediaUrl,
-            mimetype: payload.mimetype,
-            fileName: payload.fileName,
-            caption: payload.caption,
-            ptt: payload.ptt,
+            mediatype: payloadAEnviar.mediatype as WahaMediaType,
+            mediaUrl: payloadAEnviar.mediaUrl,
+            mimetype: payloadAEnviar.mimetype,
+            fileName: payloadAEnviar.fileName,
+            caption: payloadAEnviar.caption,
+            ptt: payloadAEnviar.ptt,
           });
     if (!envio.ok) return { success: false, message: envio.message, remoteJid };
 
@@ -305,7 +319,7 @@ async function sendOutgoingPayload(params: {
     await persistOutgoingHistory({
       instanceName: context.instanceName,
       remoteJid: persistRemoteJid ?? remoteJid,
-      payload,
+      payload: payloadAEnviar,
       source,
       userId,
       instanceType: "waha",
