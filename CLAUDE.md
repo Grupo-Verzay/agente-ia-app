@@ -696,6 +696,44 @@ Y dos de rejilla y tipografía, que se ven a la primera:
   24 en las de canal por conectar— y una al lado de otra se veían disparejas.
   Si se añade otra tarjeta de canal, usa ese componente y no un tamaño a mano.
 
+## Conexión: los canales de credenciales, un botón y una sola tarjeta
+
+Cloud API, Telegram, Facebook e Instagram se conectan igual: **pegando unas
+credenciales en un formulario**. Crear la instancia ES pegarlas; no hay paso
+previo que cree nada vacío.
+
+Por eso los cuatro se pintan con `TarjetaDeCanal` y tienen **un solo botón, en
+el mismo sitio**: «Conectar <canal>» cuando no hay nada, «Editar credenciales»
+cuando ya está. Los dos abren el mismo formulario. Antes había dos sitios para
+una sola cosa: un botón de color abajo cuando no existía, y un pie con dos
+botones cuando sí —uno que solo recargaba la página y otro con un lápiz—.
+
+Cuatro cosas que hay que mantener:
+
+1. **Conectado se lee como la línea de WhatsApp**: avatar, nombre y dato debajo.
+   Sin sellos de «Conectado» ni campos grises apilados: la misma anatomía en
+   toda la pantalla. El nombre de instancia solo se enseña **sin conectar**, que
+   es cuando informa de algo.
+2. **La papelera va arriba**, junto al título, y solo cuando hay algo que
+   borrar.
+3. **Nada de líneas de ayuda sueltas en la tarjeta** («Ver cómo crear tu bot»,
+   «Ver cómo conectar tu página»). Van dentro del formulario, que es donde hacen
+   falta.
+4. **Los dos botones de Meta (`MetaEmbeddedSignup`) están ocultos.** Ese camino
+   necesita que la cuenta sea proveedor tecnológico de Meta; sin serlo no puede
+   traer el token ni el número, así que era un botón que no podía funcionar. El
+   componente se queda en el repo: volver a ofrecerlo es una línea.
+
+Y el punto de color: la burbuja del título de la línea lleva **un punto dentro**
+que dice por dónde conecta —uno para cada servidor—. **No se nombra ninguno**: a
+quien usa la App no le sirve saberlo, y un punto de color no le dice nada, que
+es justo lo que se busca. Quien lo necesita lo lee al posar el cursor.
+
+Y «(QR)» va en los dos canales que se escanean —«Mensajería WhatsApp (QR)» y
+«Llamadas WhatsApp (QR)»— y **no** en Cloud API, que es el número oficial de
+Meta y no vincula ningún teléfono. Esa palabra es lo único que distingue las dos
+tarjetas de WhatsApp.
+
 ## El Robot no es el webhook
 
 El botón **Robot** de cada línea encendía y apagaba el **webhook de Evolution**.

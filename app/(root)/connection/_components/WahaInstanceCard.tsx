@@ -237,6 +237,7 @@ export const WahaInstanceCard = ({
   return (
     <>
       <TarjetaDeLinea
+        proveedor="waha"
         nombre={connected ? (status?.pushName ?? visibleName) : visibleName}
         numero={connected ? (status?.phoneNumber ?? null) : null}
         cargando={status === null}

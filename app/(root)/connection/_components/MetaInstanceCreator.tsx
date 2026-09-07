@@ -4,18 +4,17 @@ import { useState, useMemo } from 'react';
 import { Loader2, Info, BookOpen } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import Link from 'next/link';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { createMetaInstance } from '@/actions/instances-actions';
-import { MetaEmbeddedSignup } from './MetaEmbeddedSignup';
 import { sanitizeInstanceName } from '@/schema/connection';
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
+import { TAMANO_DEL_ICONO } from './TituloDeTarjeta';
+import { TarjetaDeCanal } from './TarjetaDeCanal';
 
 interface MetaInstanceCreatorProps {
   userId: string;
@@ -59,53 +58,14 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
 
   return (
     <>
-      <Card className="border-border flex-1 border-dashed flex flex-col">
-        <CardHeader className="px-4 py-4 pb-2">
-          <TituloDeTarjeta icono={<FaWhatsapp className={`${TAMANO_DEL_ICONO} text-green-500`} />}>
-            WhatsApp Cloud API
-          </TituloDeTarjeta>
-        </CardHeader>
-        <CardContent className="space-y-3 px-6 pb-3 pt-0">
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
-            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="flex-1 font-medium text-foreground">{visibleName}</span>
-              <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
-          {/* Alternativa manual ARRIBA para que los botones queden como último
-              elemento y alineados con las demás tarjetas. */}
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
-          >
-            Ingresar credenciales manualmente
-          </button>
-          {/* El cliente elige UNA modalidad: cada botón inicia el Embedded Signup
-              de Meta en su modo. Al conectar por una, solo se muestra esa. */}
-          <div className="grid w-full grid-cols-2 gap-2">
-            <MetaEmbeddedSignup
-              userId={userId}
-              instanceName={instanceName}
-              mode="api"
-              label="WhatsApp API"
-              className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
-              onConnected={() => router.refresh()}
-            />
-            <MetaEmbeddedSignup
-              userId={userId}
-              instanceName={instanceName}
-              mode="coexistence"
-              label="Coexistencia API"
-              className="w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]"
-              onConnected={() => router.refresh()}
-            />
-          </div>
-        </CardFooter>
-      </Card>
+      <TarjetaDeCanal
+        icono={<FaWhatsapp className={`${TAMANO_DEL_ICONO} text-green-500`} />}
+        titulo="WhatsApp Cloud API"
+        color="#16a34a"
+        instanceName={visibleName}
+        textoConectar="Conectar WhatsApp Cloud API"
+        alAbrirFormulario={() => setOpen(true)}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">

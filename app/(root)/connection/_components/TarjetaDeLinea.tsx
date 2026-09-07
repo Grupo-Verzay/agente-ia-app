@@ -27,6 +27,28 @@ import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
  * encima y se confirma en su dialogo. El hueco que quedaba debajo salia de
  * estirar todas las tarjetas de la fila a la altura de la mas alta.
  */
+/**
+ * La burbuja del titulo, con un punto de color dentro que dice por donde
+ * conecta la linea. NO se nombra el servidor: a quien usa la App no le sirve
+ * saberlo, y el punto no le estorba. Quien lo necesita, lo lee al posar el
+ * cursor.
+ */
+const BurbujaConPunto = ({ color, titulo }: { color: string; titulo: string }) => (
+  <svg
+    className={`${TAMANO_DEL_ICONO} text-green-600`}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <title>{titulo}</title>
+    <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+    <circle cx="12" cy="11.5" r="3" fill={color} stroke="none" />
+  </svg>
+);
+
 interface TarjetaDeLineaProps {
   /** Nombre visible de la linea (o del perfil de WhatsApp si ya conecto). */
   nombre: string;
@@ -43,6 +65,8 @@ interface TarjetaDeLineaProps {
   botonDeConexion: ReactNode;
   /** Boton derecho: el Robot. */
   botonDelRobot?: ReactNode;
+  /** Por donde conecta la linea. Pinta el punto dentro de la burbuja. */
+  proveedor?: 'evolution' | 'waha';
 }
 
 export const TarjetaDeLinea = ({
@@ -54,6 +78,7 @@ export const TarjetaDeLinea = ({
   alEliminar,
   botonDeConexion,
   botonDelRobot,
+  proveedor = 'evolution',
 }: TarjetaDeLineaProps) => {
   const inicial = nombre.trim().charAt(0).toUpperCase() || '?';
 
@@ -61,7 +86,14 @@ export const TarjetaDeLinea = ({
     <Card className="border-border flex flex-col">
       <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between gap-2">
-          <TituloDeTarjeta icono={<MessageCircle className={`${TAMANO_DEL_ICONO} text-green-600`} />}>
+          <TituloDeTarjeta
+            icono={
+              <BurbujaConPunto
+                color={proveedor === 'waha' ? '#16a34a' : '#2563eb'}
+                titulo={proveedor === 'waha' ? 'Conexión por Waha' : 'Conexión por Evolution'}
+              />
+            }
+          >
             Mensajería WhatsApp (QR)
           </TituloDeTarjeta>
           <div className="flex shrink-0 items-center gap-2">
