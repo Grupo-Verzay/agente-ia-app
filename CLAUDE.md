@@ -549,6 +549,23 @@ mirar las cuatro; con solo `remoteJid` y `aliases` el mensaje se perdía sin
 error: ni subía la fila, ni se marcaba como no leído, ni se avisaba a la
 conversación.
 
+Esto se arregló para la **lista** y se quedó sin arreglar para la
+**conversación**, y costó otra tarde: "se ve en la columna de todos los chats y
+en la conversación no". `isOpenChat` —el que decide si el aviso es del chat
+abierto y por tanto si se pinta al instante— comparaba solo `remoteJid` y
+`aliases`, que viene vacío casi siempre. Cuando no reconocía el chat, la
+conversación se quedaba esperando al sondeo, y con Evolution lenta eran
+minutos. Ahora compara con `identidadesParaPedirMensajes` y
+`chatMatchesAnyJid`, las mismas que usa todo lo demás.
+
+Y el aviso, **cuando sí se pintaba, salía vacío**: se metía el texto en
+`message.conversation` pero se conservaba el tipo original, y la burbuja lee el
+texto **según el tipo**. Un `extendedTextMessage` —cualquier texto con enlace o
+con cita— buscaba `extendedTextMessage.text`, no lo encontraba y salía como
+«Mensaje eliminado» hasta que el sondeo traía la versión completa. El aviso se
+pinta **siempre como `conversation`**; cuando llega el mensaje real, mismo
+`key.id`, `mergeMessages` lo reemplaza con su tipo completo.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
