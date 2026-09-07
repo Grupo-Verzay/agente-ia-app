@@ -116,6 +116,45 @@ async function evolution(
   return ultimo;
 }
 
+/**
+ * Pone al dia los eventos del webhook de una linea YA registrada.
+ *
+ * Evolution guarda la lista de eventos con la que se registro el webhook y no
+ * la vuelve a mirar. Anadir uno aqui no basta: las lineas que ya estaban
+ * seguirian sin recibirlo, y el arreglo no haria nada hasta que alguien apagara
+ * y encendiera el Robot a mano. Asi entro `MESSAGES_UPDATE` -los acuses- sin que
+ * llegara ni uno.
+ *
+ * Se compara con lo que Evolution tiene y solo se reescribe si falta algo.
+ * Nunca lanza: leer el estado del Robot no puede romperse por esto.
+ */
+async function ponerAlDiaLosEventos(
+  base: string,
+  instanceName: string,
+  credenciales: string[],
+  webhookUrl: string,
+  eventosActuales: unknown,
+): Promise<void> {
+  try {
+    const tiene = Array.isArray(eventosActuales) ? eventosActuales.map(String) : [];
+    const faltan = EVENTOS_DEL_WEBHOOK.filter((e) => !tiene.includes(e));
+    if (!faltan.length) return;
+    const res = await encenderWebhook(base, instanceName, credenciales, webhookUrl);
+    // Sale siempre, salga bien o mal: si un dia falta un evento, esto es lo
+    // primero que hay que mirar.
+    console.warn("[robot] eventos del webhook puestos al dia", {
+      instanceName,
+      faltaban: faltan,
+      ok: res.ok,
+    });
+  } catch (error) {
+    console.warn("[robot] no se pudieron poner al dia los eventos del webhook", {
+      instanceName,
+      error: String(error),
+    });
+  }
+}
+
 async function encenderWebhook(base: string, instanceName: string, credenciales: string[], webhookUrl: string) {
   return evolution(base, `/webhook/set/${encodeURIComponent(instanceName)}`, credenciales, {
     method: "POST",
@@ -215,6 +254,10 @@ export async function leerEstadoDelRobot(
         data: { instanceName: linea.instanceName, botEnabled: false, webhookEnabled: encendido.ok, fuente: "marca" },
       };
     }
+
+    // El webhook ya esta encendido, pero puede haberse registrado con una lista
+    // de eventos mas corta que la de hoy.
+    await ponerAlDiaLosEventos(base, linea.instanceName, credenciales, webhookUrl, webhook.data?.events);
 
     return {
       success: true,
