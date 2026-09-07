@@ -3255,10 +3255,26 @@ export function ChatsClient({
        * llegar a avisar.
        */
       const tsEnSegundos = Math.floor(epochToMs(m.ts) / 1000);
+      /**
+       * SIEMPRE como texto plano, sea cual sea el tipo original.
+       *
+       * El aviso trae el texto en `content` y el tipo en `messageType`. Aqui se
+       * metia el texto en `message.conversation` pero se conservaba el tipo, y
+       * la burbuja lee el texto SEGUN el tipo: un `extendedTextMessage` -que es
+       * como llega cualquier texto con enlace, con cita o desde muchos moviles-
+       * buscaba `message.extendedTextMessage.text`, no lo encontraba, y la
+       * burbuja salia vacia... o sea, como "Mensaje eliminado". El mensaje
+       * "llegaba" al instante y no se veia hasta que el sondeo traia la version
+       * completa, que con Evolution lenta eran minutos.
+       *
+       * Como `conversation` se pinta siempre. Y cuando el sondeo trae el mensaje
+       * real -mismo `key.id`-, `mergeMessages` lo reemplaza con su tipo y su
+       * contenido completos (un documento, una imagen con su archivo...).
+       */
       const evoMsg = {
         key: { id: m.id ?? undefined, fromMe: m.fromMe, remoteJid: payload.remoteJid },
         message: { conversation: m.content },
-        messageType: m.messageType,
+        messageType: "conversation",
         messageTimestamp: tsEnSegundos,
         pushName: m.pushName ?? undefined,
       } as unknown as EvolutionMessage;
@@ -3437,18 +3453,26 @@ export function ChatsClient({
       //
       // Ahora se mira tambien la fila de la lista, que es la que tiene los
       // alias completos: misma fuente para las dos mitades.
+      //
+      // Y por TODAS las identidades, no solo `remoteJid` y `aliases`. La lista
+      // (`updateChatListLocal`) ya miraba tambien `remoteJidAlt` y `senderPn`,
+      // y por eso el mensaje subia la fila al instante; esto miraba menos, no
+      // reconocia el chat abierto, y la conversacion se quedaba esperando al
+      // sondeo. Era exactamente "se ve en la columna y en la conversacion no".
+      // `contact.aliases` viene vacio en la mayoria de los contactos (ver
+      // CLAUDE.md), asi que comparar contra el era casi no comparar.
+      const identidadesDelAbierto = selectedJid
+        ? new Set(identidadesParaPedirMensajes(currentContactRef.current, selectedJid))
+        : null;
       const filaAbierta =
-        selectedJid && currentChatsResult.success
-          ? currentChatsResult.data.find(
-              (c) => c.remoteJid === selectedJid || c.aliases?.includes(selectedJid),
-            )
+        identidadesDelAbierto && currentChatsResult.success
+          ? currentChatsResult.data.find((c) => chatMatchesAnyJid(c, identidadesDelAbierto))
           : undefined;
       const isOpenChat =
         !!jid &&
-        (jid === selectedJid ||
-          !!currentContact?.aliases?.includes(jid) ||
-          filaAbierta?.remoteJid === jid ||
-          !!filaAbierta?.aliases?.includes(jid));
+        !!identidadesDelAbierto &&
+        (identidadesDelAbierto.has(jid) ||
+          (filaAbierta ? getChatIdentityCandidates(filaAbierta).includes(jid) : false));
 
       const m = payload.message;
       // El filtro barato va PRIMERO. Antes se llamaba al servidor por cada
@@ -3479,13 +3503,13 @@ export function ChatsClient({
           });
         }
       }
+      const identidadDelAviso = new Set([jid]);
       const existsInList =
         currentChatsResult.success &&
-        currentChatsResult.data.some(
-          (c) => c.remoteJid === jid || c.aliases?.includes(jid),
-        );
+        currentChatsResult.data.some((c) => chatMatchesAnyJid(c, identidadDelAviso));
 
-      // Append directo: solo texto con id y chat ya presente en la lista.
+      // Append directo: con texto (o etiqueta de multimedia), con id y chat ya
+      // presente en la lista.
       if (m && m.content && m.id && existsInList) {
         // La conversacion abierta se dibuja YA -es un mensaje, es barato-. La
         // lista espera a la tanda, que es lo caro.
@@ -3494,10 +3518,16 @@ export function ChatsClient({
         return; // sin golpear Evolution
       }
 
-      // Fallback (multimedia, saliente, chat nuevo o sin id): comportamiento
-      // probado de Fase 1 (refetch del chat abierto + lista con debounce).
+      // Fallback (aviso sin contenido, chat nuevo o sin id): se le piden los
+      // mensajes al chat abierto con TODAS sus identidades mas la del aviso.
+      // Iba con `currentContact?.aliases`, que casi siempre esta vacio: se
+      // preguntaba por una sola forma del contacto y volvia sin el mensaje.
       if (isOpenChat && selectedJid) {
-        void pollAndCompareMessages(selectedJid, currentContact?.aliases);
+        backoffRef.current = 0;
+        void pollAndCompareMessages(selectedJid, [
+          ...identidadesParaPedirMensajes(currentContactRef.current, selectedJid),
+          jid,
+        ]);
       }
       if (realtimeRefreshTimerRef.current) {
         clearTimeout(realtimeRefreshTimerRef.current);
