@@ -1,5 +1,5 @@
 import { type LucideIcon } from "lucide-react";
-import { buildWhatsAppJidCandidates, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { buildWhatsAppJidCandidates, extractWhatsAppDigits, isLidJid } from "@/lib/whatsapp-jid";
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-visible";
 import { avatarSrcFor } from "@/lib/avatar";
 import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
@@ -245,6 +245,11 @@ export function nameFrom(chat: ChatData, advisorRole?: string | null): string {
   if (name && !isBadContactName(name)) return name;
 
   const jid = chat.remoteJid || "";
+  // Sin numero que ensenar: el contacto oculta su telefono y se muestra por
+  // @usuario, asi que solo tenemos su @lid, cuyos digitos NO son un telefono.
+  // No se ensenan como si lo fueran.
+  if (isLidJid(jid)) return "Contacto sin número";
+
   // Sin nombre real: mostrar el número limpio (+57 300 123 4567) en vez del JID.
   //
   // Este es el sitio por donde MAS numeros ve un agente: toda conversacion sin

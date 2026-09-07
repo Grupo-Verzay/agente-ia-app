@@ -365,6 +365,18 @@ async function resolverContexto(context: ChatActionContext): Promise<ChatActionC
     const dueno = await resolveInstanceOwner(instanceName);
     if (!dueno?.userId) return context;
 
+    // WhatsApp Mensajeria (waha) y Baileys NO hablan con Evolution. Rellenar
+    // aqui la clave de Evolution de la cuenta hacia que la lista y los
+    // mensajes de esas lineas se pidieran al servidor equivocado, que
+    // contesta correcto y VACIO; solo el respaldo de nuestra base lo
+    // disimulaba, y tarde. Para ellas el contexto se queda sin clave, que es
+    // lo que hace que las acciones genericas tiren de la base.
+    const tipo = (dueno.instanceType ?? '').trim().toLowerCase();
+    if (tipo === 'waha' || tipo === 'baileys') {
+      cacheDeClavePorLinea.set(instanceName, { valor: null, at: Date.now() });
+      return context;
+    }
+
     const cuentas = await getAssociatedAccountIds(user);
     if (!cuentas.includes(dueno.userId)) return context;
 
