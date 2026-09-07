@@ -4,9 +4,8 @@ import { ReactNode } from 'react';
 import { MessageCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
 import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
+import { ContactoDeTarjeta } from './ContactoDeTarjeta';
 
 /**
  * La tarjeta de la linea de WhatsApp, IGUAL sea cual sea el proveedor.
@@ -89,7 +88,7 @@ export const TarjetaDeLinea = ({
           <TituloDeTarjeta
             icono={
               <BurbujaConPunto
-                color={proveedor === 'waha' ? '#16a34a' : '#2563eb'}
+                color={proveedor === 'waha' ? '#2563eb' : '#16a34a'}
                 titulo={proveedor === 'waha' ? 'Conexión por Waha' : 'Conexión por Evolution'}
               />
             }
@@ -117,25 +116,13 @@ export const TarjetaDeLinea = ({
             depende del servidor. Con todo el bloque en hueco, una Evolution
             lenta dejaba una tarjeta sin nada que leer: el fallo mudo de
             siempre. */}
-        <div className="flex items-center gap-3">
-          <Avatar className="rounded-lg">
-            <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-              {numero ? inicial : <MessageCircle className="h-4 w-4" />}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{nombre}</div>
-            {numero ? (
-              <div className="truncate font-mono text-[13px] text-muted-foreground">+{numero}</div>
-            ) : cargando ? (
-              <Skeleton className="h-3 w-[110px]" />
-            ) : (
-              <div className="truncate text-[13px] text-muted-foreground">
-                {estado ?? 'Sin conectar'}
-              </div>
-            )}
-          </div>
-        </div>
+        <ContactoDeTarjeta
+          icono={<MessageCircle className="h-4 w-4" />}
+          inicial={numero ? inicial : null}
+          nombre={nombre}
+          dato={numero ? `+${numero}` : (!cargando ? (estado ?? 'Sin conectar') : null)}
+          cargando={cargando}
+        />
 
         <div className="grid grid-cols-2 items-stretch gap-2 [&_button]:w-full">
           {botonDeConexion}
