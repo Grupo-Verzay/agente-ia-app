@@ -63,7 +63,7 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
     let cancelled = false;
     const notifyConnected = (v: boolean) => connectedRef.current?.(v);
 
-    const fetchToken = async (): Promise<{ url: string; token: string } | null> => {
+    const fetchToken = async (): Promise<{ url: string; token: string; cuentas?: number } | null> => {
       try {
         const res = await fetch("/api/realtime/token", { cache: "no-store" });
         if (!res.ok) {
@@ -79,7 +79,11 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
           console.warn("[realtime] el token vino incompleto:", { url: !!data?.url, token: !!data?.token });
           return null;
         }
-        return { url: data.url as string, token: data.token as string };
+        return {
+          url: data.url as string,
+          token: data.token as string,
+          cuentas: typeof data.cuentas === "number" ? data.cuentas : undefined,
+        };
       } catch (error) {
         console.warn("[realtime] no se pudo pedir el token:", error);
         return null;
@@ -90,7 +94,11 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
       const creds = await fetchToken();
       if (!creds || cancelled) return;
 
-      console.info("[realtime] conectando a", creds.url);
+      // Cuantas cuentas escucha este socket. Si la linea de un chat es de una
+      // cuenta vinculada y aqui sale 1, los avisos de esa linea no van a llegar
+      // y la conversacion depende solo del reloj. Ver CLAUDE.md, "buscar la
+      // fila por TODAS las identidades".
+      console.info("[realtime] conectando a", creds.url, { cuentas: creds.cuentas ?? "(sin dato)" });
 
       socket = io(creds.url, {
         path: "/socket.io",
@@ -117,6 +125,16 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
       });
 
       socket.on("chat:changed", (payload: ChatChangedPayload) => {
+        // Cada aviso deja rastro. "A veces se pinta y a veces no" no se puede
+        // diagnosticar sin saber si el aviso LLEGO: si la fila se mueve y esta
+        // linea no sale, el mensaje entro por el reloj de la lista y no por
+        // aqui, y el problema esta en la suscripcion, no en como se pinta.
+        console.info("[realtime] aviso", {
+          remoteJid: payload?.remoteJid,
+          instancia: payload?.instanceName ?? "(sin linea)",
+          tipo: payload?.message?.messageType ?? "(sin contenido)",
+          fromMe: payload?.message?.fromMe ?? null,
+        });
         if (payload?.remoteJid) handlerRef.current?.(payload);
       });
 
