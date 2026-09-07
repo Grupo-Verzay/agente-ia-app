@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
 import { persistChatMessage, resolveInstanceOwner } from '@/lib/chat-persistence';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
@@ -102,6 +103,9 @@ export async function sendWahaTextAction(
       });
       if (!envio.ok) return { success: false, message: envio.message, remoteJid };
 
+      const ahora = new Date();
+      const mediaUrl = mediaUrlParaGuardar(payload.mediaUrl);
+      const texto = String(payload.caption ?? payload.fileName ?? etiquetaDeMedia(mediatype, payload.ptt));
       await persistChatMessage({
         userId: linea.userId,
         instanceName,
@@ -110,10 +114,26 @@ export async function sendWahaTextAction(
         fromMe: true,
         messageId: envio.messageId,
         messageType: `${mediatype}Message`,
-        content: String(payload.caption ?? payload.fileName ?? etiquetaDeMedia(mediatype, payload.ptt)),
-        mediaUrl: mediaUrlParaGuardar(payload.mediaUrl),
-        raw: { origen: 'waha-app', mediatype, mimetype: payload.mimetype ?? null, fileName: payload.fileName ?? null },
-        messageTimestamp: new Date(),
+        content: texto,
+        mediaUrl,
+        raw: snapshotDeSaliente({
+          messageId: envio.messageId,
+          remoteJid,
+          messageType: `${mediatype}Message`,
+          message: {
+            conversation: texto,
+            ...(mediaUrl ? { mediaUrl } : {}),
+            [`${mediatype}Message`]: {
+              caption: payload.caption?.trim() || undefined,
+              fileName: payload.fileName ?? undefined,
+              mimetype: payload.mimetype ?? undefined,
+              ...(mediaUrl ? { mediaUrl } : {}),
+              ptt: payload.ptt ?? undefined,
+            },
+          },
+          fecha: ahora,
+        }),
+        messageTimestamp: ahora,
       });
       return { success: true, message: 'Enviado.', remoteJid };
     }
@@ -124,6 +144,7 @@ export async function sendWahaTextAction(
     const envio = await sendWahaText({ session: instanceName, chatId, text, replyTo });
     if (!envio.ok) return { success: false, message: envio.message, remoteJid };
 
+    const ahora = new Date();
     await persistChatMessage({
       userId: linea.userId,
       instanceName,
@@ -133,8 +154,15 @@ export async function sendWahaTextAction(
       messageId: envio.messageId,
       messageType: 'conversation',
       content: text,
-      raw: { origen: 'waha-app', ...(replyTo ? { replyTo } : {}) },
-      messageTimestamp: new Date(),
+      raw: snapshotDeSaliente({
+        messageId: envio.messageId,
+        remoteJid,
+        messageType: 'conversation',
+        message: { conversation: text },
+        fecha: ahora,
+        replyTo,
+      }),
+      messageTimestamp: ahora,
     });
     return { success: true, message: 'Enviado.', remoteJid };
   } catch (error) {
@@ -145,6 +173,36 @@ export async function sendWahaTextAction(
       remoteJid,
     };
   }
+}
+
+/**
+ * El `raw` que se guarda con el mensaje, con la MISMA forma que un mensaje de
+ * Evolution (`key`, `message`, `messageTimestamp`, `status`). La pantalla lee
+ * las filas guardadas a traves de `getRawEvolutionSnapshot`, que reconoce esa
+ * forma; un objeto cualquiera se colaba entero dentro de `message` y la
+ * burbuja llevaba campos que no eran suyos. Sellado en SEGUNDOS, como todo lo
+ * nuestro.
+ */
+function snapshotDeSaliente(params: {
+  messageId: string | null;
+  remoteJid: string;
+  messageType: string;
+  message: Record<string, unknown>;
+  fecha: Date;
+  replyTo?: string | null;
+}): Prisma.InputJsonValue {
+  // Los `undefined` los descarta JSON.stringify al guardar; el tipo de Prisma no
+  // los contempla, de ahi el cast.
+  return {
+    key: { id: params.messageId ?? null, fromMe: true, remoteJid: params.remoteJid },
+    messageType: params.messageType,
+    message: params.message,
+    messageTimestamp: Math.floor(params.fecha.getTime() / 1000),
+    status: 'DELIVERY_ACK',
+    source: 'waha',
+    origen: 'waha-app',
+    ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+  } as unknown as Prisma.InputJsonValue;
 }
 
 function etiquetaDeMedia(mediatype: string, ptt?: boolean): string {
