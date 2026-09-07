@@ -470,6 +470,16 @@ export default async function ChatsPage({
             label: "Baileys",
             message: "Estado local listo.",
           }
+        : (inst.instanceType ?? "").trim().toLowerCase() === "waha"
+          ? {
+              // WhatsApp Mensajeria no tiene clave de Evolution; con la rama de
+              // abajo salia "Sin API / No hay API Key configurada", que es falso.
+              instanceName: inst.instanceName,
+              instanceType: inst.instanceType,
+              status: "unknown",
+              label: "WhatsApp Mensajería",
+              message: "Sus mensajes salen de nuestra base.",
+            }
         : {
             instanceName: inst.instanceName,
             instanceType: inst.instanceType,
