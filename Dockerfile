@@ -51,6 +51,24 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
+# Senal de vida, para que Swarm sepa cuando la instancia NUEVA ya contesta.
+#
+# Sin esto no se puede usar `Order: start-first` con garantias: Swarm apagaria la
+# vieja en cuanto la nueva ARRANCA, que no es lo mismo que cuando esta lista para
+# servir. Con el healthcheck, la nueva no cuenta como sana hasta que Next
+# responde de verdad, y la vieja no se apaga hasta entonces. Eso es lo que quita
+# el minuto y medio de 502 de cada despliegue (ver el pendiente en CLAUDE.md).
+#
+# Se prueba con `node`, que SIEMPRE esta en esta imagen. Con `curl` o `wget` el
+# healthcheck dependeria de un binario que la imagen base puede no traer, y un
+# healthcheck que falla por eso es peor que no tenerlo: con `start-first` la
+# tarea nueva nunca llegaria a sana y el despliegue se quedaria colgado.
+#
+# `--start-period` da margen al arranque (Next tarda ~280 ms, pero el contenedor
+# entero no) y durante el un fallo NO cuenta como caida.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=25s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 # El frontend NO gestiona el esquema de la BD. El repo BACKEND (api-webhook) es el
 # unico duenno de las migraciones y las aplica en su arranque
 # ('prisma migrate deploy'). La BD es compartida (una sola _prisma_migrations), asi
