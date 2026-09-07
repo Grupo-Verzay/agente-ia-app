@@ -37,7 +37,6 @@ export const ClientInstanceCard = ({
   const instanceId = currentInstanceInfo?.id;
   const ownerJid = currentInstanceInfo?.ownerJid;
   const visibleName = displayName?.trim() || intanceName;
-  const conectada = currentInstanceInfo?.connectionStatus === 'open';
 
   const dialogos = (
     <>
@@ -112,16 +111,11 @@ export const ClientInstanceCard = ({
         alEliminar={() => setShowDeleteDialog(true)}
         cambiarProveedor={
           hayServidorWaha ? (
-            <CambiarProveedorButton
-              instanceName={intanceName}
-              destino="waha"
-              soloIcono
-              // Nunca hay dos proveedores encendidos a la vez: con la sesion de
-              // Evolution abierta el icono se apaga y dice por que.
-              motivoParaNoPoder={
-                conectada ? 'Cierra la sesión de Evolution primero para pasar a Waha.' : null
-              }
-            />
+            // Nunca hay dos proveedores encendidos a la vez, pero cerrar el
+            // primero NO es trabajo de la persona: si la sesion de Evolution
+            // esta abierta, el propio cambio la cierra. La confirmacion lo
+            // dice antes de tocar nada.
+            <CambiarProveedorButton instanceName={intanceName} destino="waha" soloIcono />
           ) : null
         }
         botonDeConexion={<QRCodeGenerator userId={user.id} />}

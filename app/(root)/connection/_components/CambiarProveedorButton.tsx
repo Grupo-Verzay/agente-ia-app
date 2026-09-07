@@ -36,15 +36,15 @@ const TEXTOS = {
     boton: 'Conectar por Waha',
     titulo: '¿Pasar esta línea a Waha?',
     detalle:
-      'La línea sigue siendo la misma: conserva su nombre, su historial, sus leads y sus seguimientos. Solo cambia por dónde se conecta el WhatsApp. Después tendrás que escanear el QR una vez.',
-    confirmar: 'Sí, cambiar',
+      'Si la línea está conectada por Evolution, se cierra esa sesión: nunca hay dos proveedores encendidos a la vez. La línea sigue siendo la misma —conserva su nombre, su historial, sus leads y sus seguimientos—; solo cambia por dónde se conecta el WhatsApp. Después tendrás que escanear el QR una vez.',
+    confirmar: 'Cambiar a Waha',
   },
   evolution: {
     boton: 'Volver a Evolution',
     titulo: '¿Volver esta línea a Evolution?',
     detalle:
       'La línea sigue siendo la misma: conserva su nombre, su historial, sus leads y sus seguimientos. Se cierra la sesión de Waha y tendrás que escanear el QR de Evolution.',
-    confirmar: 'Sí, volver',
+    confirmar: 'Volver a Evolution',
   },
 } as const;
 

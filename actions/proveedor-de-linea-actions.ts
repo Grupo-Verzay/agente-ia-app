@@ -82,6 +82,37 @@ async function estadoEnEvolution(
 }
 
 /**
+ * Cierra la sesion de WhatsApp en Evolution y espera a que deje de estar `open`.
+ *
+ * Es lo que hace posible cambiar de proveedor de un tiron. Antes, con la sesion
+ * abierta el cambio se rechazaba y habia que cerrarla a mano primero: dos pasos
+ * para una sola intencion, y sin decir en ningun sitio que el primero era
+ * "pulsa el boton verde". Sigue sin haber dos proveedores encendidos a la vez;
+ * lo que cambia es QUIEN cierra el primero.
+ */
+async function cerrarSesionEnEvolution(
+  clave: { url: string; key: string } | null,
+  instanceName: string,
+): Promise<boolean> {
+  if (!clave) return false;
+  const url = clave.url.trim().replace(/\/+$/, '');
+  const base = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  const resp = await fetch(`${base}/instance/logout/${encodeURIComponent(instanceName)}`, {
+    method: 'DELETE',
+    headers: { apikey: clave.key, 'Content-Type': 'application/json' },
+  }).catch(() => null);
+  if (!resp?.ok) return false;
+
+  // Evolution tarda un momento en dejar de reportar `open`. Sin esta espera, el
+  // cambio seguiria adelante creyendo que sigue conectada.
+  for (let intento = 0; intento < 5; intento += 1) {
+    await new Promise((r) => setTimeout(r, 700));
+    if ((await estadoEnEvolution(clave, instanceName)) !== 'open') return true;
+  }
+  return false;
+}
+
+/**
  * Pasar una linea de Evolution a WhatsApp Mensajeria (Waha).
  *
  * Solo si Evolution esta desconectada: nunca hay dos proveedores encendidos.
@@ -111,10 +142,12 @@ export async function cambiarProveedorAWaha(instanceName: string): Promise<Resul
 
     const clave = await claveDeEvolution(linea.userId);
     const estado = await estadoEnEvolution(clave, linea.instanceName);
-    if (estado === 'open') {
+    // Conectada por Evolution: se cierra AQUI, antes de seguir. La confirmacion
+    // de la tarjeta ya avisa de que va a pasar.
+    if (estado === 'open' && !(await cerrarSesionEnEvolution(clave, linea.instanceName))) {
       return {
         success: false,
-        message: 'Esta línea sigue conectada por Evolution. Desvincúlala primero y vuelve a intentarlo.',
+        message: 'No se pudo cerrar la sesión de Evolution. Inténtalo de nuevo en un momento.',
       };
     }
 
