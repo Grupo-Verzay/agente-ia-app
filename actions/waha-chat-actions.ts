@@ -10,6 +10,7 @@ import { canonicalToWahaJid } from '@/lib/waha-jid';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
 import type { SendMessageResult } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
+import { sendManualWorkflowAction } from '@/actions/chat-manual-actions';
 
 /**
  * Acciones de la pantalla de Chats para las lineas de WhatsApp Mensajeria (waha).
@@ -213,16 +214,14 @@ function etiquetaDeMedia(mediatype: string, ptt?: boolean): string {
 }
 
 export async function sendWahaWorkflowAction(
-  _instanceName: string,
-  _remoteJid: string,
-  _workflowId: string,
+  instanceName: string,
+  remoteJid: string,
+  workflowId: string,
 ): Promise<ChatToolActionResult> {
-  // Los flujos manuales los ejecuta el backend contra Evolution. Mientras no
-  // haya camino por WAHA, se dice; no se finge que salio.
-  return {
-    success: false,
-    message: 'Los flujos manuales todavía no están disponibles por WhatsApp Mensajería.',
-  };
+  // El mismo motor de nodos que Evolution (texto, media, automatizaciones):
+  // `sendManualWorkflowAction` detecta que la linea es waha y manda cada nodo
+  // por WAHA. Aqui solo se le da el contexto sin clave, que es lo que tiene.
+  return sendManualWorkflowAction({ apiKeyData: null, instanceName }, remoteJid, workflowId);
 }
 
 export async function sendWahaQuickReplyAction(
