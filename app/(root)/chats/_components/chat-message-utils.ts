@@ -142,6 +142,26 @@ export function extensionDeArchivo(valor?: string | null): string {
   return limpio.slice(punto + 1).toLowerCase();
 }
 
+/**
+ * El id de WhatsApp de un mensaje, venga como venga.
+ *
+ * Waha lo entrega SERIALIZADO —`true_573001@c.us_3EB0A1B2`— y Evolution entrega
+ * el mismo mensaje con el id pelado —`3EB0A1B2`—. Guardados los dos, la
+ * conversación pintaba el mismo mensaje DOS VECES: para el desduplicado eran
+ * ids distintos. Se ve al cambiar una línea de proveedor, cuando el historial
+ * trae mensajes escritos con las dos formas.
+ *
+ * Solo se desarma la forma de Waha (`true_…_id` / `false_…_id`). Los ids de
+ * Evolution, Meta y Telegram se devuelven intactos: un `wamid` de Meta puede
+ * llevar guiones bajos dentro y recortarlo por ahí sí podría confundir dos
+ * mensajes distintos.
+ */
+export function idDeWhatsapp(id?: string | null): string {
+  const limpio = (id ?? '').trim();
+  const serializado = /^(?:true|false)_.+_(.+)$/.exec(limpio);
+  return serializado ? serializado[1] : limpio;
+}
+
 export function extractMediaInfo(msg: any, type: MediaType): MediaData | null {
   const typeKey = `${type}Message`;
   const mediaObj = msg?.[typeKey] || {};

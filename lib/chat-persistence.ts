@@ -1177,9 +1177,16 @@ export async function getPersistedMessages(params: {
       -- "deleted" DESC primero: si un mismo mensaje quedó en varias filas (típico
       -- con @lid: número real + @lid) y una resync creó una fila nueva sin la marca
       -- después del borrado, igual gana la fila eliminada → se conserva el badge.
-      SELECT DISTINCT ON ("messageId", "fromMe") *
+      -- Por el id de WhatsApp, no por la forma en que lo entrego el proveedor.
+      -- Waha lo serializa (true_573001@c.us_3EB0A1B2) y Evolution entrega el
+      -- mismo mensaje pelado (3EB0A1B2): guardados los dos, la conversacion
+      -- pintaba el mensaje DOS VECES. Pasa al cambiar una linea de proveedor,
+      -- cuando el historial trae mensajes escritos con las dos formas. Solo se
+      -- desarma la forma de Waha; los ids de Meta pueden llevar guiones bajos
+      -- dentro y recortarlos por ahi si podria confundir dos mensajes distintos.
+      SELECT DISTINCT ON (regexp_replace("messageId", '^(true|false)_.*_', ''), "fromMe") *
       FROM matched
-      ORDER BY "messageId", "fromMe", "deleted" DESC, ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
+      ORDER BY regexp_replace("messageId", '^(true|false)_.*_', ''), "fromMe", "deleted" DESC, ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
       )
     SELECT *
     FROM deduped
