@@ -22,6 +22,8 @@ import {
   persistEvolutionMessages,
   resolveInstanceOwner,
 } from "@/lib/chat-persistence";
+import { sendWahaMedia, sendWahaText, type WahaMediaType } from "@/lib/waha";
+import { canonicalToWahaJid } from "@/lib/waha-jid";
 import {
   fetchChatsFromEvolution,
   findMessagesByRemoteJid,
@@ -225,7 +227,7 @@ async function persistOutgoingHistory(params: {
       type: historyType,
       additionalKwargs: {
         channel: "whatsapp",
-        provider: "evolution",
+        provider: instanceType ?? "evolution",
         direction: "outbound",
         source,
         remoteJid,
@@ -280,6 +282,40 @@ async function sendOutgoingPayload(params: {
 }): Promise<SendMessageResult> {
   const { context, remoteJid, persistRemoteJid, payload, source, userId, instanceType, historyType, metadata } = params;
 
+  // WhatsApp Mensajeria (waha): mismo recorrido -enviar y persistir con el id
+  // real-, distinto transporte. El servidor sale de Panel > Conexion.
+  if ((instanceType ?? "").trim().toLowerCase() === "waha") {
+    const chatId = canonicalToWahaJid(remoteJid);
+    const envio =
+      payload.kind === "text"
+        ? await sendWahaText({ session: context.instanceName, chatId, text: payload.text })
+        : await sendWahaMedia({
+            session: context.instanceName,
+            chatId,
+            mediatype: payload.mediatype as WahaMediaType,
+            mediaUrl: payload.mediaUrl,
+            mimetype: payload.mimetype,
+            fileName: payload.fileName,
+            caption: payload.caption,
+            ptt: payload.ptt,
+          });
+    if (!envio.ok) return { success: false, message: envio.message, remoteJid };
+
+    const sentData = envio.messageId ? { key: { id: envio.messageId } } : null;
+    await persistOutgoingHistory({
+      instanceName: context.instanceName,
+      remoteJid: persistRemoteJid ?? remoteJid,
+      payload,
+      source,
+      userId,
+      instanceType: "waha",
+      sentData,
+      historyType,
+      metadata,
+    });
+    return { success: true, message: "Enviado.", data: sentData ?? undefined, remoteJid };
+  }
+
   const result =
     payload.kind === "text"
       ? await sendTextMessage(context.apiKeyData, context.instanceName, remoteJid, payload.text, {
@@ -327,6 +363,14 @@ type ReadyChatActionContext = {
 
 function hasReadyContext(context: ChatActionContext): context is ReadyChatActionContext {
   return Boolean(context?.apiKeyData?.url && context?.apiKeyData?.key && context?.instanceName);
+}
+
+/** La linea es de WhatsApp Mensajeria (waha): no habla con Evolution. */
+async function esLineaWaha(instanceName?: string | null): Promise<boolean> {
+  const nombre = instanceName?.trim();
+  if (!nombre) return false;
+  const dueno = await resolveInstanceOwner(nombre);
+  return (dueno?.instanceType ?? "").trim().toLowerCase() === "waha";
 }
 
 /**
@@ -1100,20 +1144,30 @@ export async function sendManualWorkflowAction(
   workflowId: string,
 ): Promise<ChatToolActionResult> {
   context = await resolverContexto(context);
-  if (!hasReadyContext(context)) {
+  // WhatsApp Mensajeria (waha) no tiene clave de Evolution, y no la necesita:
+  // los nodos salen por WAHA dentro de sendOutgoingPayload, con la misma logica
+  // de nodos, automatizaciones y persistencia que Evolution.
+  const lineaWaha = !hasReadyContext(context) && (await esLineaWaha(context?.instanceName));
+  if (!hasReadyContext(context) && !lineaWaha) {
     return {
       success: false,
       message: "No hay instancia o API key configurada para enviar workflows.",
     };
   }
+  const ctx = context as Exclude<ChatActionContext, null>;
+  const tipoDeLinea = lineaWaha ? "waha" : "evolution";
 
   const user = await requireCurrentUser();
-  const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
+  const storageUserId = lineaWaha
+    ? ((await resolveInstanceOwner(ctx.instanceName))?.userId ?? user.ownerId ?? user.id)
+    : await resolveChatStorageUserId(ctx, user.ownerId ?? user.id);
   const transportRemoteJid = await resolveTransportRemoteJid({
     userId: storageUserId,
-    instanceName: context.instanceName,
+    instanceName: ctx.instanceName,
     remoteJid,
-    context,
+    // Confirmar el destinatario con WhatsApp es una consulta a Evolution; en
+    // WAHA se manda al numero (o al @lid, que acepta) tal cual.
+    context: lineaWaha ? undefined : ctx,
   });
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const workflow = await db.workflow.findFirst({
@@ -1153,7 +1207,7 @@ export async function sendManualWorkflowAction(
         message: node.message,
         userId: dueno,
         remoteJid,
-        instanceName: context.instanceName,
+        instanceName: ctx.instanceName,
       });
       if (hecho) automatizaciones += 1;
       else skippedCount += 1;
@@ -1167,13 +1221,13 @@ export async function sendManualWorkflowAction(
     }
 
     const result = await sendOutgoingPayload({
-      context,
+      context: ctx,
       remoteJid: transportRemoteJid,
       persistRemoteJid: remoteJid,
       payload,
       source: "manual_chat_workflow",
       userId: dueno,
-      instanceType: "evolution",
+      instanceType: tipoDeLinea,
       historyType: "workflow",
       metadata: {
         workflowId: workflow.id,
