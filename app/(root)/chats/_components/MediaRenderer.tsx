@@ -18,7 +18,19 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
 
   if (!media) return null;
 
-  const { type, url, mimeType, caption } = media;
+  const { type, url, mimeType, caption, fileName } = media;
+
+  // Un documento se rotula con SU NOMBRE. Antes salía `caption || mimeType`, y
+  // como casi ningún archivo lleva pie de foto, lo normal era ver el mimetype:
+  // "application/pdf", o peor, "application/octet-stream". Eso no le dice a
+  // nadie qué archivo es. Si no hay nombre se dice "Documento" y, cuando se
+  // sabe de qué tipo es, se añade ("Documento PDF").
+  const extension = (fileName || url || '').split('?')[0].split('#')[0].split('/').pop()?.split('.').pop() ?? '';
+  const esExtensionUtil = /^[a-z0-9]{2,5}$/i.test(extension) && extension.toLowerCase() !== 'stream';
+  const rotuloDelDocumento =
+    fileName ||
+    caption ||
+    (esExtensionUtil ? `Documento ${extension.toUpperCase()}` : 'Documento');
 
   // Imágenes y videos usan la galería compartida del chat (navegación
   // anterior/siguiente estilo WhatsApp). Si por algún motivo no hay galería,
@@ -92,7 +104,9 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
             className="w-full p-3 bg-blue-500 text-white flex items-center justify-between hover:bg-blue-600 transition-colors"
             aria-label="Abrir documento"
           >
-            <span className="truncate text-sm">{caption || mimeType}</span>
+            <span className="truncate text-sm" title={rotuloDelDocumento}>
+              {rotuloDelDocumento}
+            </span>
             <ArrowUpRight className="w-4 h-4 flex-shrink-0" />
           </button>
         )}

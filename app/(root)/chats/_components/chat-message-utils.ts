@@ -103,13 +103,71 @@ export function etiquetaDeAdjuntoSinArchivo(type: MediaType, msg: any): string {
   return caption ? `${cabecera}\n${caption}` : cabecera;
 }
 
+/** Tipos que no dicen nada: hay que completarlos mirando el nombre del archivo. */
+const TIPOS_SIN_INFORMACION = new Set(['', 'application/octet-stream', 'binary/octet-stream']);
+
+const TIPO_POR_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  zip: 'application/zip',
+  rar: 'application/vnd.rar',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  mp3: 'audio/mpeg',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg',
+  m4a: 'audio/mp4',
+  wav: 'audio/wav',
+};
+
+/** La extensión de un nombre o de una URL, en minúsculas y sin el punto. */
+export function extensionDeArchivo(valor?: string | null): string {
+  const limpio = (valor ?? '').trim().split('?')[0].split('#')[0].split('/').pop() ?? '';
+  const punto = limpio.lastIndexOf('.');
+  if (punto <= 0 || punto === limpio.length - 1) return '';
+  return limpio.slice(punto + 1).toLowerCase();
+}
+
 export function extractMediaInfo(msg: any, type: MediaType): MediaData | null {
   const typeKey = `${type}Message`;
   const mediaObj = msg?.[typeKey] || {};
   const url = msg?.mediaUrl || mediaObj.mediaUrl || mediaObj.url || mediaObj.directPath;
-  const mimeType = mediaObj.mimetype || 'application/octet-stream';
+  // WhatsApp lo llama `fileName`; Waha, `filename`; y algunos envíos, `title`.
+  const fileName: string =
+    (mediaObj.fileName || mediaObj.filename || mediaObj.title || '').toString().trim();
+  // Cuando el tipo no dice nada -Waha manda `application/octet-stream` cada vez
+  // que no sabe qué le llega- se completa con la extensión del nombre, y si no
+  // hay nombre, con la de la URL. Sin esto un PDF no se previsualizaba y la
+  // burbuja salía rotulada con el propio mimetype.
+  const declarado = (mediaObj.mimetype || '').toString().trim().toLowerCase();
+  const mimeType = TIPOS_SIN_INFORMACION.has(declarado)
+    ? TIPO_POR_EXTENSION[extensionDeArchivo(fileName) || extensionDeArchivo(url)] ??
+      (declarado || 'application/octet-stream')
+    : declarado;
   const caption = mediaObj.caption;
-  if (url) return { type, url, mimeType, caption: caption || undefined };
+  if (url) {
+    return {
+      type,
+      url,
+      mimeType,
+      caption: caption || undefined,
+      fileName: fileName || undefined,
+    };
+  }
   return null;
 }
 
