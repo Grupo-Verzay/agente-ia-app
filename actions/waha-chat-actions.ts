@@ -20,16 +20,16 @@ import { sendManualWorkflowAction } from '@/actions/chat-manual-actions';
  * webhook y `warmChatMessagesAction` con `apiKeyData: null` los saca de nuestra
  * base. Es el mismo trato que Baileys.
  *
- * ESCRIBIR va contra el servidor WAHA configurado en Panel > Conexion
+ * ESCRIBIR va contra el servidor Waha configurado en Panel > Conexion
  * (`lib/waha.ts`), en este orden y no en otro:
  *
  * 1. Se comprueba de quien es la linea y que quien escribe puede tocarla.
  * 2. Se PAUSA la IA. Antes de que salga el mensaje, no despues: un adjunto
  *    tarda segundos en subir y la IA alcanzaba a contestar encima del asesor.
- * 3. Se envia, con el `chatId` traducido a la forma de WAHA (`@c.us`; el
- *    `@lid` se manda tal cual, que WAHA lo acepta).
+ * 3. Se envia, con el `chatId` traducido a la forma de Waha (`@c.us`; el
+ *    `@lid` se manda tal cual, que Waha lo acepta).
  * 4. Se guarda en nuestra base como saliente, para que la conversacion lo
- *    pinte y la lista suba la fila. Con el id que devolvio WAHA, para que un
+ *    pinte y la lista suba la fila. Con el id que devolvio Waha, para que un
  *    eco por webhook no lo duplique.
  *
  * Y cualquier fallo se DICE. Un boton de enviar que no hace nada es la peor
@@ -92,7 +92,7 @@ export async function sendWahaTextAction(
       if (!TIPOS_DE_MEDIA.has(mediatype) || !payload.mediaUrl) {
         return { success: false, message: 'Adjunto no reconocido.', remoteJid };
       }
-      // El adjunto se sube a S3 ANTES de enviarlo: WAHA lo descarga de ahi y la
+      // El adjunto se sube a S3 ANTES de enviarlo: Waha lo descarga de ahi y la
       // conversacion lo reproduce de ahi. Sin esto la nota de voz llegaba al
       // cliente pero la burbuja quedaba vacia. Si la subida falla, se manda
       // igual en base64 (el cliente lo recibe) y se avisa: la burbuja saldra
@@ -267,7 +267,7 @@ export async function sendWahaWorkflowAction(
 ): Promise<ChatToolActionResult> {
   // El mismo motor de nodos que Evolution (texto, media, automatizaciones):
   // `sendManualWorkflowAction` detecta que la linea es waha y manda cada nodo
-  // por WAHA. Aqui solo se le da el contexto sin clave, que es lo que tiene.
+  // por Waha. Aqui solo se le da el contexto sin clave, que es lo que tiene.
   return sendManualWorkflowAction({ apiKeyData: null, instanceName }, remoteJid, workflowId);
 }
 

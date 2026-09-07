@@ -117,7 +117,7 @@ const Connection = async () => {
     // renderizado de la pagina completa si Evolution estaba caido o lento.
     // Se pide aparte, desde el cliente, en getInstanceLiveStatusAction.
 
-    // El servidor de WAHA se configura en Panel > Conexion. Sin el, la tarjeta
+    // El servidor de Waha se configura en Panel > Conexion. Sin el, la tarjeta
     // no puede conectar nada, pero NO se esconde sin mas: a un administrador se
     // le enseña diciendo que falta configurar y adonde ir. Esconderla del todo
     // es un fallo mudo —desde fuera parece que la App no hace nada— y ya costo

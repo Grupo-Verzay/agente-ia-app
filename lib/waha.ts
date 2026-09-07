@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 
 /**
- * Cliente de WAHA (WhatsApp HTTP API) — SOLO servidor.
+ * Cliente de Waha (WhatsApp HTTP API) — SOLO servidor.
  *
  * No importar desde un componente de cliente. Se usa unicamente desde los
  * route handlers de /app/api/waha/* y desde acciones 'use server'.
@@ -16,7 +16,7 @@ export interface WahaConfig {
   apiKey: string;
 }
 
-/** Estados que devuelve WAHA en `SessionDTO.status`. */
+/** Estados que devuelve Waha en `SessionDTO.status`. */
 export type WahaSessionStatus =
   | 'STOPPED'
   | 'STARTING'
@@ -35,7 +35,7 @@ export interface WahaSession {
 }
 
 /**
- * El servidor de WAHA sale de la BD (Panel > Conexion), NO del entorno. Es el
+ * El servidor de Waha sale de la BD (Panel > Conexion), NO del entorno. Es el
  * mismo trato que Evolution, cuya url y key viven en la tabla `ApiKey` desde
  * siempre: cambiar una credencial no puede costar un redespliegue.
  *
@@ -64,7 +64,7 @@ export async function isWahaConfigured(): Promise<boolean> {
 }
 
 /**
- * Plazo por defecto. NINGUNA llamada a WAHA puede ir sin uno: medido contra el
+ * Plazo por defecto. NINGUNA llamada a Waha puede ir sin uno: medido contra el
  * servidor, pedir el QR con la sesion en FAILED tarda 10,02 s en contestar 422.
  * Sin plazo eso deja la pantalla girando y el navegador esperando, que es
  * exactamente el fallo mudo del que habla el CLAUDE.md.
@@ -175,7 +175,7 @@ function traducirPresencia(valor: unknown): PresenciaWaha['estado'] {
 /**
  * La presencia ACTUAL de un chat, para pintar "en linea" o "ult. vez…" al
  * abrir la conversacion sin esperar al primer cambio. Segun el codigo de
- * WAHA, `GET /api/{session}/presence/{chatId}` ademas SUSCRIBE el chat si no
+ * Waha, `GET /api/{session}/presence/{chatId}` ademas SUSCRIBE el chat si no
  * lo estaba, asi que esta llamada deja tambien el tiempo real encendido.
  * Nunca lanza: sin dato, la cabecera no ensena conexion.
  */
@@ -209,8 +209,8 @@ const presenciasSuscritas = new Map<string, number>();
 const RESUSCRIBIR_PRESENCIA_CADA_MS = 10 * 60 * 1000;
 
 /**
- * Pide a WAHA que mande la presencia (escribiendo / grabando) de un chat.
- * WAHA solo la envia para los chats suscritos, asi que se hace al abrir la
+ * Pide a Waha que mande la presencia (escribiendo / grabando) de un chat.
+ * Waha solo la envia para los chats suscritos, asi que se hace al abrir la
  * conversacion; se recuerda 10 minutos para no repetirlo en cada vuelta del
  * sondeo. Nunca lanza: sin presencia la conversacion funciona igual.
  */
@@ -272,17 +272,17 @@ export async function createWahaSession(params: {
 
     if (!res.ok) {
       const body = await res.text();
-      return { ok: false, message: `WAHA respondio ${res.status}: ${body.slice(0, 300)}` };
+      return { ok: false, message: `Waha respondio ${res.status}: ${body.slice(0, 300)}` };
     }
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con WAHA.' };
+    return { ok: false, message: 'No se pudo contactar con Waha.' };
   }
 }
 
 /**
  * Deja el webhook de una sesion YA creada apuntando a nuestro backend con el
- * secreto dado. Se usa al cambiar una linea de proveedor cuando en WAHA ya
+ * secreto dado. Se usa al cambiar una linea de proveedor cuando en Waha ya
  * existe una sesion con ese nombre (se creo antes, o quedo de un intento
  * anterior): reutilizarla evita volver a escanear el QR si sigue conectada.
  */
@@ -313,13 +313,13 @@ export async function setWahaSessionWebhook(params: {
     });
     if (!res.ok) {
       const body = await res.text();
-      return { ok: false, message: `WAHA respondio ${res.status}: ${body.slice(0, 300)}` };
+      return { ok: false, message: `Waha respondio ${res.status}: ${body.slice(0, 300)}` };
     }
     // La sesion revisada hace un momento ya no cuenta: acaba de cambiar.
     sesionesRevisadas.delete(params.session);
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con WAHA.' };
+    return { ok: false, message: 'No se pudo contactar con Waha.' };
   }
 }
 
@@ -348,11 +348,11 @@ export async function wahaSessionAction(
     });
     if (!res.ok) {
       const body = await res.text();
-      return { ok: false, message: `WAHA respondio ${res.status}: ${body.slice(0, 300)}` };
+      return { ok: false, message: `Waha respondio ${res.status}: ${body.slice(0, 300)}` };
     }
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con WAHA.' };
+    return { ok: false, message: 'No se pudo contactar con Waha.' };
   }
 }
 
@@ -366,22 +366,22 @@ export async function deleteWahaSession(session: string): Promise<{ ok: boolean;
     // Una sesion que ya no existe no es un fallo: el objetivo es que no este.
     if (!res.ok && res.status !== 404) {
       const body = await res.text();
-      return { ok: false, message: `WAHA respondio ${res.status}: ${body.slice(0, 300)}` };
+      return { ok: false, message: `Waha respondio ${res.status}: ${body.slice(0, 300)}` };
     }
     return { ok: true };
   } catch {
-    return { ok: false, message: 'No se pudo contactar con WAHA.' };
+    return { ok: false, message: 'No se pudo contactar con Waha.' };
   }
 }
 
 export type ResultadoQr =
   | { estado: 'ok'; png: ArrayBuffer }
-  /** La sesion no esta en SCAN_QR_CODE. WAHA contesta 422 diciendo cual espera. */
+  /** La sesion no esta en SCAN_QR_CODE. Waha contesta 422 diciendo cual espera. */
   | { estado: 'todavia-no'; motivo: string }
   | { estado: 'error'; motivo: string };
 
 /**
- * El QR de una sesion. WAHA SOLO lo da en estado `SCAN_QR_CODE`; en cualquier
+ * El QR de una sesion. Waha SOLO lo da en estado `SCAN_QR_CODE`; en cualquier
  * otro contesta 422. Por eso esto no devuelve `null` a secas: quien llama tiene
  * que poder distinguir "reinicia la sesion" de "el servidor no contesta", que
  * son dos arreglos distintos.
@@ -412,7 +412,7 @@ export async function getWahaQrPng(session: string): Promise<ResultadoQr> {
       };
     }
 
-    return { estado: 'error', motivo: `WAHA respondio ${res.status}.` };
+    return { estado: 'error', motivo: `Waha respondio ${res.status}.` };
   } catch (error: any) {
     const agotado = error?.name === 'TimeoutError' || error?.name === 'AbortError';
     return {
@@ -441,11 +441,11 @@ const PLAZO_DE_ENVIO_MS = 15000;
 const PLAZO_DE_ENVIO_DE_MEDIA_MS = 30000;
 
 /**
- * El id del mensaje tal y como lo devuelve WAHA. Se guarda para que, si WAHA
+ * El id del mensaje tal y como lo devuelve Waha. Se guarda para que, si Waha
  * nos reenvia ese mismo mensaje por webhook, `chat_messages` lo deduplique por
  * id en vez de pintarlo dos veces.
  *
- * WAHA lo ha devuelto de varias formas segun version y motor —`id` como texto
+ * Waha lo ha devuelto de varias formas segun version y motor —`id` como texto
  * ya serializado (`true_573…@c.us_ABC`), `id._serialized`, o `key.id` suelto—,
  * asi que se miran todas. Si no aparece en ninguna, se anota QUE claves trajo
  * la respuesta: es como se aprende la forma real, no suponiendola.
@@ -479,7 +479,7 @@ async function enviarAWaha(
     const texto = await res.text();
     if (!res.ok) {
       // El motivo tiene que llegar al asesor: un "no se pudo enviar" a secas
-      // obliga a adivinar. WAHA suele contestar con JSON {message}.
+      // obliga a adivinar. Waha suele contestar con JSON {message}.
       let detalle = texto.slice(0, 300);
       try {
         const j = JSON.parse(texto) as { message?: unknown; error?: unknown };
@@ -513,7 +513,7 @@ async function enviarAWaha(
 /** `POST /api/sendText`. `replyTo` es el id del mensaje citado, tal y como lo guardamos. */
 /**
  * "Escribiendo…" un instante antes del texto, como hace Evolution con su
- * `delay`. Es un gesto: si WAHA no lo acepta, el mensaje sale igual y no se
+ * `delay`. Es un gesto: si Waha no lo acepta, el mensaje sale igual y no se
  * avisa de nada.
  */
 async function gestoDeEscribir(session: string, chatId: string): Promise<void> {
@@ -555,9 +555,9 @@ export async function sendWahaText(params: {
 export type WahaMediaType = 'image' | 'video' | 'audio' | 'document';
 
 /**
- * El adjunto tal y como lo espera WAHA: por URL o en base64. El compositor de
+ * El adjunto tal y como lo espera Waha: por URL o en base64. El compositor de
  * Chats manda `data:` URLs para lo que se adjunta y base64 pelado para el audio
- * grabado; una URL http se pasa tal cual y WAHA la descarga.
+ * grabado; una URL http se pasa tal cual y Waha la descarga.
  */
 function archivoParaWaha(mediaUrl: string, mimetype?: string | null, fileName?: string | null) {
   // Sin nombre, WhatsApp ensena el documento como "Untitled". Los nodos de
@@ -616,7 +616,7 @@ export async function sendWahaMedia(params: {
     // de audio de un flujo no lleva `ptt`, y por `sendFile` llegaba al
     // telefono como un documento "Untitled" en vez de reproducible. El
     // navegador graba en webm/ogg y WhatsApp quiere opus: `convert` le pide a
-    // WAHA que lo transcodifique.
+    // Waha que lo transcodifique.
     path = '/api/sendVoice';
     body = { ...base, convert: true };
   } else {

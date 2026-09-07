@@ -5,12 +5,12 @@ import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-
 import { ensureWahaSessionEvents, getWahaSession, isWahaConfigured, wahaMePhone } from '@/lib/waha';
 
 /**
- * Estado de una sesion de WAHA para la tarjeta de WhatsApp Mensajeria.
+ * Estado de una sesion de Waha para la tarjeta de WhatsApp Mensajeria.
  *
- * Devuelve lo justo para pintar la tarjeta. La API key de WAHA se queda aqui.
+ * Devuelve lo justo para pintar la tarjeta. La API key de Waha se queda aqui.
  */
 /**
- * La sesion de WAHA se llama como la instancia. Antes de servir nada se
+ * La sesion de Waha se llama como la instancia. Antes de servir nada se
  * comprueba que la instancia exista y que quien pregunta mande sobre su cuenta:
  * el QR es la llave para EMPAREJAR la linea de WhatsApp, y con el nombre de la
  * sesion cualquiera -con o sin login- podia pedirlo y escanearlo. Estas rutas

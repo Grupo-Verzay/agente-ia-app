@@ -44,7 +44,7 @@ function isBaileys(instanceType: string | null | undefined) {
   return instanceType?.trim().toLowerCase() === 'baileys';
 }
 
-/** WhatsApp Mensajeria (WAHA): no habla con Evolution ni con el backend de Baileys. */
+/** WhatsApp Mensajeria (Waha): no habla con Evolution ni con el backend de Baileys. */
 function isWaha(instanceType: string | null | undefined) {
   return instanceType?.trim().toLowerCase() === 'waha';
 }

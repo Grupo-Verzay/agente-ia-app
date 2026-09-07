@@ -852,7 +852,7 @@ export async function getMetaCallingStatus(instanceName: string): Promise<{ succ
   }
 }
 
-/* ─── WAHA — "WhatsApp Mensajeria" ──────────────────────────────────
+/* ─── Waha — "WhatsApp Mensajeria" ──────────────────────────────────
  *
  * Instancias con `instanceType: 'waha'`. Las de Evolution se guardan como
  * 'Whatsapp', asi que nada de aqui las toca: en el backend la fabrica de
@@ -896,7 +896,7 @@ export async function createWahaInstance(params: {
   });
 
   if (!created.ok) {
-    return { success: false, message: created.message ?? 'No se pudo crear la sesion en WAHA.' };
+    return { success: false, message: created.message ?? 'No se pudo crear la sesion en Waha.' };
   }
 
   try {
@@ -913,7 +913,7 @@ export async function createWahaInstance(params: {
     });
   } catch (error: any) {
     console.error('[createWahaInstance]', error);
-    // La sesion quedo creada en WAHA pero sin fila: se deshace para no dejar
+    // La sesion quedo creada en Waha pero sin fila: se deshace para no dejar
     // una sesion huerfana mandando webhooks que nadie va a poder emparejar.
     await deleteWahaSession(instanceName);
     return { success: false, message: error?.message ?? 'Error al crear la instancia de WhatsApp Mensajería.' };
@@ -937,7 +937,7 @@ export async function restartWahaInstance(
   instanceName: string,
 ): Promise<{ success: boolean; message: string }> {
   if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
-  // WAHA solo entrega el QR en estado SCAN_QR_CODE. Desde STOPPED o FAILED hay
+  // Waha solo entrega el QR en estado SCAN_QR_CODE. Desde STOPPED o FAILED hay
   // que reiniciar: medido, vuelve a SCAN_QR_CODE en unos 3 segundos y el QR
   // pasa a contestar en 0,06 s (en FAILED tardaba 10 s para devolver un 422).
   const res = await wahaSessionAction(instanceName, 'restart');
@@ -971,18 +971,18 @@ export async function deleteWahaInstance(
 ): Promise<{ success: boolean; message: string }> {
   if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
 
-  // Primero WAHA: si se borra la fila y luego falla el borrado alla, queda una
+  // Primero Waha: si se borra la fila y luego falla el borrado alla, queda una
   // sesion mandando webhooks que ya no tienen instancia contra la que casar.
   const res = await deleteWahaSession(instanceName);
   if (!res.ok) {
-    return { success: false, message: res.message ?? 'No se pudo eliminar la sesion en WAHA.' };
+    return { success: false, message: res.message ?? 'No se pudo eliminar la sesion en Waha.' };
   }
 
   try {
     await db.instancia.deleteMany({ where: { instanceName, instanceType: 'waha' } });
   } catch (error: any) {
     console.error('[deleteWahaInstance]', error);
-    return { success: false, message: 'La sesion se elimino en WAHA, pero no se pudo borrar la instancia.' };
+    return { success: false, message: 'La sesion se elimino en Waha, pero no se pudo borrar la instancia.' };
   }
 
   revalidatePath('/connection');

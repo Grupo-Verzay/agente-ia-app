@@ -1,13 +1,13 @@
 /**
- * Traduccion de identidades hacia WAHA, para ENVIAR.
+ * Traduccion de identidades hacia Waha, para ENVIAR.
  *
  * Es la copia, del lado de la App, de `waha-jid.util.ts` del backend. Todo lo
- * nuestro trabaja con `@s.whatsapp.net`; WAHA nombra a los contactos con
+ * nuestro trabaja con `@s.whatsapp.net`; Waha nombra a los contactos con
  * `@c.us`. Y WhatsApp a veces anade el DISPOSITIVO al numero
- * (`573233246305:39@s.whatsapp.net`): WAHA rechaza un `chatId` con ese sufijo.
+ * (`573233246305:39@s.whatsapp.net`): Waha rechaza un `chatId` con ese sufijo.
  *
  * Lo que NO se toca: el `@lid` (id de privacidad: sus digitos NO son un
- * telefono, y WAHA acepta enviarle directamente), los grupos `@g.us` y las
+ * telefono, y Waha acepta enviarle directamente), los grupos `@g.us` y las
  * difusiones.
  */
 

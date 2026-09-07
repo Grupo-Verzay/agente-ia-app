@@ -15,7 +15,7 @@ interface WahaInstanceCreatorProps {
   userId: string;
   company?: string | null;
   /**
-   * Si el servidor de WAHA esta puesto en Panel > Conexion. Cuando no lo esta,
+   * Si el servidor de Waha esta puesto en Panel > Conexion. Cuando no lo esta,
    * la tarjeta NO desaparece: se enseña diciendo que falta y adonde ir. Que se
    * escondiera sin decir nada hizo perder una vuelta entera buscando el fallo
    * en la pantalla equivocada — desde fuera parecia que el despliegue no habia

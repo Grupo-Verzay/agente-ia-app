@@ -127,7 +127,7 @@ export const MainConnection = ({ searchParams, user, apiKeys, servidorWaha }: Pr
                     </div>
                 </div>
 
-                {/* Servidor de WAHA. Es otro proveedor con url + API key, igual que
+                {/* Servidor de Waha. Es otro proveedor con url + API key, igual que
                     Evolution, asi que se configura en la misma pantalla. */}
                 <WahaServerCard servidor={servidorWaha} />
 
