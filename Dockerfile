@@ -51,23 +51,32 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-# Senal de vida, para que Swarm sepa cuando la instancia NUEVA ya contesta.
+# NO hay `HEALTHCHECK` aqui, y quitarlo costo una tarde de la App reiniciandose
+# en bucle cada 55 segundos.
 #
-# Sin esto no se puede usar `Order: start-first` con garantias: Swarm apagaria la
-# vieja en cuanto la nueva ARRANCA, que no es lo mismo que cuando esta lista para
-# servir. Con el healthcheck, la nueva no cuenta como sana hasta que Next
-# responde de verdad, y la vieja no se apaga hasta entonces. Eso es lo que quita
-# el minuto y medio de 502 de cada despliegue (ver el pendiente en CLAUDE.md).
+# Se puso uno (`node -e "fetch('http://127.0.0.1:3000/api/health')…"`) para poder
+# usar `Order: start-first` con garantias. En local pasaba; en produccion fallaba
+# SIEMPRE, y la cuenta cuadra exacta: 25s de `--start-period` + 3 intentos cada
+# 10s = 55s, que es justo cada cuanto Swarm mataba la tarea y creaba otra.
 #
-# Se prueba con `node`, que SIEMPRE esta en esta imagen. Con `curl` o `wget` el
-# healthcheck dependeria de un binario que la imagen base puede no traer, y un
-# healthcheck que falla por eso es peor que no tenerlo: con `start-first` la
-# tarea nueva nunca llegaria a sana y el despliegue se quedaria colgado.
+# El motivo: el servidor de Next en modo `standalone` escucha en
+# `process.env.HOSTNAME || '0.0.0.0'` (linea 9 de su `server.js`), y **Docker
+# siempre define `HOSTNAME`**, con el id del contenedor. Asi que Next no escucha
+# en `0.0.0.0` sino en la IP de ese nombre: `127.0.0.1` da conexion rechazada,
+# el healthcheck sale con 1, el contenedor pasa a `unhealthy` y Swarm lo tira.
+# Desde fuera se veia una App que se caia sola cada minuto.
 #
-# `--start-period` da margen al arranque (Next tarda ~280 ms, pero el contenedor
-# entero no) y durante el un fallo NO cuenta como caida.
-HEALTHCHECK --interval=10s --timeout=5s --start-period=25s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# Antes de volver a ponerlo hacen falta DOS cosas, no una:
+#
+# 1. `ENV HOSTNAME=0.0.0.0` en esta misma etapa (es la receta oficial de Next
+#    para Docker), o que el healthcheck pregunte por `process.env.HOSTNAME` en
+#    vez de por `127.0.0.1`.
+# 2. Comprobarlo en el contenedor de verdad, no en local: en local `HOSTNAME` no
+#    es el id de un contenedor y por eso pasaba.
+#
+# Mientras no este eso, el stack se queda en `Order: stop-first`, que cuesta ~100
+# segundos de 502 por despliegue (ver el pendiente en CLAUDE.md) pero no tira la
+# App cada minuto.
 
 # El frontend NO gestiona el esquema de la BD. El repo BACKEND (api-webhook) es el
 # unico duenno de las migraciones y las aplica en su arranque
