@@ -29,6 +29,7 @@ import type {
   FindMessagesResult,
   SendMessageResult,
 } from "@/actions/chat-actions";
+import { idDeWhatsapp } from "./chat-message-utils";
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
@@ -843,7 +844,10 @@ export function ChatsClient({
 
   const getMessageKey = useCallback((message: EvolutionMessage) => {
     return (
-      message.key?.id ||
+      // Por el id de WhatsApp, no por la forma en que lo entregó el proveedor:
+      // Waha lo serializa y Evolution no, y el mismo mensaje guardado con las
+      // dos formas salía dos veces (ver `idDeWhatsapp`).
+      idDeWhatsapp(message.key?.id) ||
       message.id ||
       `${message.key?.remoteJid ?? ""}:${message.messageTimestamp ?? 0}:${message.messageType ?? ""}:${message.key?.fromMe ? "1" : "0"}`
     );
