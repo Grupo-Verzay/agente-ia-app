@@ -598,6 +598,22 @@ a su sondeo. **El token une a las mismas cuentas que la bandeja enseña.** Si se
 añade otra fuente de líneas a la bandeja, va también al token; la respuesta
 del token dice `cuentas` para comprobarlo desde la pestaña Network.
 
+Y el socket **tarda en conectar**: en producción el WebSocket contra
+`backend.ia-app.com` falla (`WebSocket connection … failed`, varias veces
+seguidas) y solo después entra por polling. El cliente iba con `websocket`
+primero, así que cada conexión y cada reconexión esperaba a que el WebSocket
+agotara su plazo —20 s por intento— antes de probar el otro, y en ese rato no
+llegaba ningún aviso. Va con **polling primero** (el orden por defecto de
+socket.io) y sube a WebSocket si puede; la consola dice `conectado
+{ transporte }` y `subio a websocket`. Si nunca sube, el WebSocket no pasa por
+el proxy y hay que mirar Traefik, pero los avisos llegan igual.
+
+Y para saber si un aviso **llegó**, cada uno deja rastro: `[realtime] aviso
+{ instancia, tipo }` en el navegador y, en el backend, `chat:changed → user:X
+… oyentes=N`. Si el backend dice `oyentes=0` con la App abierta, la App no
+está en esa sala; si dice 1 o más y el navegador no dice `aviso`, se perdió
+por el camino.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
