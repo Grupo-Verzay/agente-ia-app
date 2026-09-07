@@ -73,6 +73,36 @@ export function base64FromBlob(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * Lo que se enseña cuando el mensaje trae adjunto pero el archivo no esta.
+ *
+ * Sin esto la burbuja se quedaba en blanco: `media` nulo y `content` vacio no
+ * pintan nada, solo la hora. Es el mismo fallo mudo del que habla el CLAUDE.md
+ * -desde fuera se ve como un mensaje que no llego- y pasaba con cualquier
+ * adjunto cuyo archivo aun no estuviera guardado.
+ *
+ * Se dice el tipo y, en un documento, su nombre: con eso el asesor sabe que
+ * hay algo y puede pedirlo por otro camino.
+ */
+export function etiquetaDeAdjuntoSinArchivo(type: MediaType, msg: any): string {
+  const info = msg?.[`${type}Message`] ?? {};
+  const caption = typeof info.caption === 'string' ? info.caption.trim() : '';
+  const nombre =
+    typeof info.fileName === 'string' && info.fileName.trim()
+      ? info.fileName.trim()
+      : typeof info.title === 'string' && info.title.trim()
+        ? info.title.trim()
+        : '';
+  const etiquetas: Record<MediaType, string> = {
+    image: '🖼️ Imagen',
+    video: '🎬 Video',
+    audio: '🎧 Audio',
+    document: '📄 Documento',
+  };
+  const cabecera = nombre ? `${etiquetas[type]}: ${nombre}` : etiquetas[type];
+  return caption ? `${cabecera}\n${caption}` : cabecera;
+}
+
 export function extractMediaInfo(msg: any, type: MediaType): MediaData | null {
   const typeKey = `${type}Message`;
   const mediaObj = msg?.[typeKey] || {};
@@ -508,21 +538,25 @@ export function toUIMessages(
           ? normalizeMessageLabel(messageData.extendedTextMessage.text)
           : '';
         break;
+      // Un mensaje con adjunto SIEMPRE dice algo. Si el archivo no esta -no se
+      // pudo guardar, o llego antes de que se guardara- la burbuja salia
+      // completamente VACIA: ni archivo, ni texto, ni aviso. Desde fuera parece
+      // que el mensaje no llego, y el unico rastro era la hora suelta.
       case 'imageMessage':
         media = extractMediaInfo(messageData, 'image');
-        content = media?.caption || '';
+        content = media?.caption || (media ? '' : etiquetaDeAdjuntoSinArchivo('image', messageData));
         break;
       case 'videoMessage':
         media = extractMediaInfo(messageData, 'video');
-        content = media?.caption || '';
+        content = media?.caption || (media ? '' : etiquetaDeAdjuntoSinArchivo('video', messageData));
         break;
       case 'audioMessage':
         media = extractMediaInfo(messageData, 'audio');
-        content = '';
+        content = media ? '' : etiquetaDeAdjuntoSinArchivo('audio', messageData);
         break;
       case 'documentMessage':
         media = extractMediaInfo(messageData, 'document');
-        content = media?.caption || '';
+        content = media?.caption || (media ? '' : etiquetaDeAdjuntoSinArchivo('document', messageData));
         break;
       case 'interactiveResponseMessage':
         content = getInteractiveResponseText(messageData as Record<string, any>, isUser);
