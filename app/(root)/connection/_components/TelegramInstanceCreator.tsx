@@ -12,6 +12,7 @@ import { createTelegramInstance } from '@/actions/instances-actions';
 import { sanitizeInstanceName } from '@/schema/connection';
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface TelegramInstanceCreatorProps {
   userId: string;
@@ -51,11 +52,10 @@ export const TelegramInstanceCreator = ({ userId, company }: TelegramInstanceCre
   return (
     <>
       <Card className="flex-1 border-dashed flex flex-col" style={{ borderColor: '#9bd4ee' }}>
-        <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
-          <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
-            <FaTelegramPlane className="rounded-sm w-6 h-6" style={{ color: TELEGRAM_BLUE }} />
-            <span className="text-xl font-bold">Mensajería Telegram</span>
-          </CardTitle>
+        <CardHeader className="px-4 py-4 pb-2">
+          <TituloDeTarjeta icono={<FaTelegramPlane className={TAMANO_DEL_ICONO} style={{ color: TELEGRAM_BLUE }} />}>
+            Mensajería Telegram
+          </TituloDeTarjeta>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
           <div className="space-y-1.5">

@@ -6,6 +6,7 @@ import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getApiKeyById } from "@/actions/api-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
+import { isWahaConfigured } from "@/lib/waha";
 interface ActionResponse<T> {
   success: boolean;
   message: string;
@@ -27,6 +28,12 @@ export interface UserInformationProps {
   instancesData: InstancesData;
   metaInstances: Instancia[];
   telegramInstances: Instancia[];
+  /** Lineas servidas por Waha. Perfil no las conocia y enseñaba "Crear instancia". */
+  wahaInstances: Instancia[];
+  /** Hay servidor de Waha configurado: se ofrece cambiar de proveedor. */
+  hayServidorWaha?: boolean;
+  /** La cuenta tiene Evolution: desde una linea Waha se puede volver. */
+  puedeVolverAEvolution?: boolean;
   autoOpenApiKey?: boolean;
   autoSetup?: boolean;
   /** Solo lectura: agentes (no dueño ni administrador) ven el perfil sin poder editar. */
@@ -92,12 +99,17 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
 
   const metaInstances: Instancia[] = [];
   const telegramInstances: Instancia[] = [];
+  const wahaInstances: Instancia[] = [];
 
   // Asignar instancias sin sobrescribir otras
   instancias.forEach((instancia) => {
     const type = instancia.instanceType?.trim();
     if (type === 'meta') { metaInstances.push(instancia); return; }
     if (type === 'telegram') { telegramInstances.push(instancia); return; }
+    // Sin esto, una linea de Waha caia en "Desconocido" y la pestaña Conexion
+    // enseñaba el formulario de "Crear instancia" de Evolution. Pulsarlo creaba
+    // una SEGUNDA linea con el mismo nombre y el numero quedaba partido en dos.
+    if (type === 'waha') { wahaInstances.push(instancia); return; }
     const normalized = normalizeType(instancia.instanceType);
     if (!instancesData[normalized].instance) {
       instancesData[normalized].instance = instancia;
@@ -115,10 +127,11 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
   // Se pide aparte, desde el cliente, en getInstanceLiveStatusAction.
 
   const countries = await getCountryCodes();
+  const hayServidorWaha = await isWahaConfigured();
 
   return (
     <>
-      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} readOnly={!!user.ownerId && user.advisorRole !== 'administrador'} />
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} wahaInstances={wahaInstances} hayServidorWaha={hayServidorWaha} puedeVolverAEvolution={Boolean(user.apiKeyId)} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} readOnly={!!user.ownerId && user.advisorRole !== 'administrador'} />
     </>
   );
 }

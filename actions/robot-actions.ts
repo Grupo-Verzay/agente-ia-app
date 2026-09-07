@@ -38,7 +38,7 @@ export type EstadoDelRobot = {
   fuente: "marca" | "webhook";
 };
 
-async function lineaDeWhatsApp(userId: string) {
+async function lineaDeWhatsApp(userId: string, instanceName?: string) {
   const [instancias, usuario] = await Promise.all([
     db.instancia.findMany({
       where: { userId },
@@ -49,12 +49,30 @@ async function lineaDeWhatsApp(userId: string) {
       select: { webhookUrl: true, apiKey: { select: { url: true, key: true } } },
     }),
   ]);
+  // La linea de WhatsApp es UNA, con dos proveedores posibles: `Whatsapp` es
+  // Evolution y `waha` es Waha. Buscar solo `Whatsapp` dejaba sin Robot a las
+  // lineas migradas, que es justo la fila que cambia de tipo al cambiar de
+  // proveedor (ver actions/proveedor-de-linea-actions.ts).
+  // Si la tarjeta dice de que linea habla, esa y no otra: una cuenta puede
+  // tener una fila de Evolution y otra de Waha, y sin esto el Robot de una
+  // tarjeta acababa encendiendo el de la otra.
   const linea =
-    instancias.find((i) => i.instanceType === "Whatsapp") ?? instancias[0] ?? null;
+    (instanceName ? instancias.find((i) => i.instanceName === instanceName) : null) ??
+    instancias.find((i) => i.instanceType === "Whatsapp") ??
+    instancias.find((i) => i.instanceType === "waha") ??
+    instancias[0] ??
+    null;
   const url = (usuario?.apiKey?.url ?? "").trim().replace(/\/+$/, "");
   const base = url ? (/^https?:\/\//i.test(url) ? url : `https://${url}`) : "";
   return {
     linea,
+    /**
+     * Con Waha no hay nada que preguntarle a Evolution: su webhook se deja
+     * puesto al crear la sesion y el backend lee la misma marca para las dos
+     * (los mensajes de Waha pasan por el mismo `processWebhook`). Exigir aqui
+     * una clave de Evolution dejaba el Robot muerto en esas lineas.
+     */
+    esWaha: linea?.instanceType === "waha",
     base,
     credenciales: Array.from(
       new Set([linea?.instanceId, usuario?.apiKey?.key].filter(Boolean) as string[]),
@@ -128,13 +146,32 @@ async function escribirMarca(instanceName: string, encendido: boolean): Promise<
  * marca y se enciende el webhook, que es lo que hace falta para que lleguen
  * los avisos. La linea sigue sin IA: la marca manda.
  */
-export async function leerEstadoDelRobot(userId: string): Promise<Resultado<EstadoDelRobot>> {
+export async function leerEstadoDelRobot(
+  userId: string,
+  instanceName?: string,
+): Promise<Resultado<EstadoDelRobot>> {
   try {
     await assertCanAccessTargetUser(userId);
-    const { linea, base, credenciales, webhookUrl } = await lineaDeWhatsApp(userId);
+    const { linea, esWaha, base, credenciales, webhookUrl } = await lineaDeWhatsApp(userId, instanceName);
     if (!linea?.instanceName || !linea.instanceId) {
       return { success: false, message: "No se encontraron instancias para este usuario." };
     }
+
+    if (esWaha) {
+      const marcaWaha = await leerMarca(linea.instanceName);
+      return {
+        success: true,
+        data: {
+          instanceName: linea.instanceName,
+          // Sin columna todavia se da por encendido, que es lo que hace el
+          // backend cuando no puede leerla.
+          botEnabled: marcaWaha === "sin-columna" ? true : (marcaWaha ?? true),
+          webhookEnabled: true,
+          fuente: marcaWaha === "sin-columna" ? "webhook" : "marca",
+        },
+      };
+    }
+
     if (!base) {
       return {
         success: false,
@@ -179,13 +216,34 @@ export async function leerEstadoDelRobot(userId: string): Promise<Resultado<Esta
 /**
  * Enciende o apaga el robot. El webhook queda encendido en los dos casos.
  */
-export async function cambiarRobot(userId: string, encendido: boolean): Promise<Resultado<EstadoDelRobot>> {
+export async function cambiarRobot(
+  userId: string,
+  encendido: boolean,
+  instanceName?: string,
+): Promise<Resultado<EstadoDelRobot>> {
   try {
     await assertCanAccessTargetUser(userId);
-    const { linea, base, credenciales, webhookUrl } = await lineaDeWhatsApp(userId);
+    const { linea, esWaha, base, credenciales, webhookUrl } = await lineaDeWhatsApp(userId, instanceName);
     if (!linea?.instanceName || !linea.instanceId) {
       return { success: false, message: "No se encontraron instancias para este usuario." };
     }
+
+    if (esWaha) {
+      // La marca es lo unico que hay que tocar, y sin ella no hay Robot: no se
+      // puede caer al comportamiento viejo de apagar el webhook, porque el de
+      // Waha no lo gobierna esta App.
+      if (!(await escribirMarca(linea.instanceName, encendido))) {
+        return {
+          success: false,
+          message: "La base todavía no tiene la marca del Robot. Inténtalo en unos minutos.",
+        };
+      }
+      return {
+        success: true,
+        data: { instanceName: linea.instanceName, botEnabled: encendido, webhookEnabled: true, fuente: "marca" },
+      };
+    }
+
     if (!base) {
       return { success: false, message: "Este usuario no tiene una API Key de Evolution asignada." };
     }

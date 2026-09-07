@@ -91,7 +91,7 @@ export const WahaServerCard = ({ servidor }: Props) => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <FaWhatsapp className="h-5 w-5 shrink-0 text-green-500" />
-              Servidor de WhatsApp Mensajería (Waha)
+              Servidor de Waha
             </CardTitle>
             {configurado ? (
               <span className="flex items-center gap-1.5 text-xs font-medium text-green-600">
@@ -106,7 +106,7 @@ export const WahaServerCard = ({ servidor }: Props) => {
             )}
           </div>
           <CardDescription>
-            Uno para toda la plataforma. Mientras esté vacío, la conexión de WhatsApp Mensajeria no se
+            Uno para toda la plataforma. Mientras esté vacío, la conexión por Waha no se
             le ofrece a nadie y todo lo demás sigue igual.
           </CardDescription>
         </CardHeader>
@@ -175,9 +175,9 @@ export const WahaServerCard = ({ servidor }: Props) => {
       <AlertDialog open={confirmarBorrado} onOpenChange={setConfirmarBorrado}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Quitar el servidor de WhatsApp Mensajería?</AlertDialogTitle>
+            <AlertDialogTitle>¿Quitar el servidor de Waha?</AlertDialogTitle>
             <AlertDialogDescription>
-              La conexión de WhatsApp Mensajería deja de ofrecerse en Conexión. Las instancias que ya
+              La conexión por Waha deja de ofrecerse en Conexión. Las instancias que ya
               estén creadas dejarán de poder enviar y recibir hasta que vuelvas a configurarlo.
             </AlertDialogDescription>
           </AlertDialogHeader>

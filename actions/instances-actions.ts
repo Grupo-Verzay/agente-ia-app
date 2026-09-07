@@ -872,7 +872,7 @@ export async function createWahaInstance(params: {
   if (!(await isWahaConfigured())) {
     return {
       success: false,
-      message: 'El servidor de WhatsApp Mensajería no esta configurado. Se pone en Panel > Conexion.',
+      message: 'El servidor de Waha no está configurado. Se pone en Panel > Conexión.',
     };
   }
 
@@ -916,7 +916,7 @@ export async function createWahaInstance(params: {
     // La sesion quedo creada en Waha pero sin fila: se deshace para no dejar
     // una sesion huerfana mandando webhooks que nadie va a poder emparejar.
     await deleteWahaSession(instanceName);
-    return { success: false, message: error?.message ?? 'Error al crear la instancia de WhatsApp Mensajería.' };
+    return { success: false, message: error?.message ?? 'Error al crear la línea por Waha.' };
   }
 
   revalidatePath('/connection');

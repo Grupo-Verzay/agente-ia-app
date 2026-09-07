@@ -126,9 +126,13 @@ const Connection = async () => {
     const hayServidorWaha = await isWahaConfigured();
     const puedeConfigurarWaha = isAdminLike(user.role);
 
-    // Render principal
+    // Render principal.
+    //
+    // `items-start`, y NUNCA `auto-rows-fr`: con las filas iguales, cada tarjeta
+    // se estira hasta la altura de la mas alta de su fila y le queda un hueco en
+    // blanco debajo de sus botones. Cada una mide lo que ocupa.
     return (
-        <div className="grid w-full grid-cols-1 gap-2 p-4 lg:grid-cols-2 auto-rows-fr">
+        <div className="grid w-full grid-cols-1 items-start gap-2 p-4 lg:grid-cols-2">
             {/* Una linea es UNA tarjeta. El proveedor (Evolution o WhatsApp
                 Mensajeria) es un ajuste de la linea, no otra linea: la fila de
                 Instancias es la misma y solo cambia su tipo. Por eso, cuando la
@@ -161,6 +165,7 @@ const Connection = async () => {
                         instanceName={inst.instanceName}
                         displayName={(inst as any).displayName ?? null}
                         puedeVolverAEvolution={Boolean((user as any).apiKeyId)}
+                        userId={effectiveId}
                     />
                 ))
                 // Con una linea de Evolution ya creada NO se ofrece crear otra

@@ -19,6 +19,7 @@ import {
 import { deleteTelegramInstance, updateInstanceDisplayName, updateTelegramInstance } from '@/actions/instances-actions';
 import { getInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface TelegramInstanceCardProps {
   instanceName: string;
@@ -87,10 +88,9 @@ export const TelegramInstanceCard = ({ instanceName, displayName, botUsername }:
       <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2 min-w-0">
-              <FaTelegramPlane className="w-5 h-5 shrink-0" style={{ color: TELEGRAM_BLUE }} />
-              <span className="truncate">Mensajería Telegram</span>
-            </CardTitle>
+            <TituloDeTarjeta icono={<FaTelegramPlane className={TAMANO_DEL_ICONO} style={{ color: TELEGRAM_BLUE }} />}>
+              Mensajería Telegram
+            </TituloDeTarjeta>
             <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
               <Trash2 className="w-4 h-4" />
             </Button>

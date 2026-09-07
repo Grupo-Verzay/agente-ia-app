@@ -55,6 +55,8 @@ import { FacebookInstanceCreator } from "../../connection/_components/FacebookIn
 import { InstagramInstanceCreator } from "../../connection/_components/InstagramInstanceCreator";
 import { TelegramInstanceCreator } from "../../connection/_components/TelegramInstanceCreator";
 import { TelegramInstanceCard } from "../../connection/_components/TelegramInstanceCard";
+import { WahaInstanceCard } from "../../connection/_components/WahaInstanceCard";
+import { TAMANO_DEL_ICONO } from "../../connection/_components/TituloDeTarjeta";
 import { LockedChannelCard } from "../../connection/_components/LockedChannelCard";
 import { FaWhatsapp, FaTelegramPlane } from "react-icons/fa";
 import { Phone } from "lucide-react";
@@ -167,7 +169,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 );
 
 // ── Main component ────────────────────────────────────────────────────────────
-export const UserInformation = ({ userId, countries, instancesData, metaInstances, telegramInstances, autoOpenApiKey, autoSetup, readOnly = false }: UserInformationProps) => {
+export const UserInformation = ({ userId, countries, instancesData, metaInstances, telegramInstances, wahaInstances, hayServidorWaha, puedeVolverAEvolution, autoOpenApiKey, autoSetup, readOnly = false }: UserInformationProps) => {
     const reseller = useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -550,20 +552,40 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     <TabsContent value="conexion" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Canal de comunicación</SectionTitle>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 auto-rows-fr">
-                                <ConnectionMain
-                                    user={user}
-                                    instance={instancesData["Whatsapp"].instance}
-                                    instanceInfo={instancesData["Whatsapp"].info}
-                                    instanceType={"Whatsapp"}
-                                    prompts={instancesData["Whatsapp"].prompts}
-                                    autoCreate={autoSetup && !instancesData["Whatsapp"].instance}
-                                />
+                            {/* `items-start`, y NUNCA `auto-rows-fr`: con las filas
+                                iguales cada tarjeta se estira hasta la altura de la
+                                mas alta y queda un hueco en blanco bajo sus botones. */}
+                            <div className="grid grid-cols-1 items-start gap-2 lg:grid-cols-2">
+                                {/* Una linea es UNA tarjeta, la misma que en Conexiones.
+                                    Con la linea ya en Waha NO se pinta el formulario de
+                                    Evolution: crearia una segunda linea con el mismo
+                                    nombre y partiria el numero en dos (dos filas por
+                                    contacto en Chats, dos leads en el CRM). */}
+                                {(instancesData["Whatsapp"].instance || wahaInstances.length === 0) && (
+                                    <ConnectionMain
+                                        user={user}
+                                        instance={instancesData["Whatsapp"].instance}
+                                        instanceInfo={instancesData["Whatsapp"].info}
+                                        instanceType={"Whatsapp"}
+                                        prompts={instancesData["Whatsapp"].prompts}
+                                        hayServidorWaha={hayServidorWaha}
+                                        autoCreate={autoSetup && !instancesData["Whatsapp"].instance && wahaInstances.length === 0}
+                                    />
+                                )}
+                                {wahaInstances.map((inst) => (
+                                    <WahaInstanceCard
+                                        key={inst.instanceName}
+                                        instanceName={inst.instanceName}
+                                        displayName={(inst as any).displayName ?? null}
+                                        puedeVolverAEvolution={puedeVolverAEvolution}
+                                        userId={userId}
+                                    />
+                                ))}
                                 {user?.onCalls ? (
                                     <CallLinkCard />
                                 ) : (
                                     <LockedChannelCard
-                                        icon={<Phone className="w-6 h-6 text-green-600" />}
+                                        icon={<Phone className={`${TAMANO_DEL_ICONO} text-green-600`} />}
                                         title="Llamadas WhatsApp"
                                         instanceName={sanitizeInstanceName(user?.company ?? userId ?? '')}
                                     />
@@ -594,7 +616,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     );
                                 })() : (
                                     <LockedChannelCard
-                                        icon={<FaWhatsapp className="w-6 h-6 text-green-500" />}
+                                        icon={<FaWhatsapp className={`${TAMANO_DEL_ICONO} text-green-500`} />}
                                         title="WhatsApp Cloud API"
                                         instanceName={sanitizeInstanceName(user?.company ?? userId ?? '')}
                                     />
@@ -614,7 +636,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     )
                                 ) : (
                                     <LockedChannelCard
-                                        icon={<FaTelegramPlane className="w-6 h-6" style={{ color: '#229ED9' }} />}
+                                        icon={<FaTelegramPlane className={TAMANO_DEL_ICONO} style={{ color: '#229ED9' }} />}
                                         title="Mensajería Telegram"
                                         instanceName={sanitizeInstanceName(user?.company ?? userId ?? '')}
                                     />

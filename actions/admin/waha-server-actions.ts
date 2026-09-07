@@ -82,7 +82,7 @@ export async function guardarServidorWaha(params: {
 
   revalidatePath('/panel/conexion');
   revalidatePath('/connection');
-  return { success: true, message: 'Servidor de WhatsApp Mensajería guardado.' };
+  return { success: true, message: 'Servidor de Waha guardado.' };
 }
 
 export async function borrarServidorWaha(): Promise<{ success: boolean; message: string }> {
@@ -108,7 +108,7 @@ export async function borrarServidorWaha(): Promise<{ success: boolean; message:
   revalidatePath('/connection');
   return {
     success: true,
-    message: 'Servidor borrado. La conexión de WhatsApp Mensajería deja de ofrecerse.',
+    message: 'Servidor borrado. La conexión por Waha deja de ofrecerse.',
   };
 }
 

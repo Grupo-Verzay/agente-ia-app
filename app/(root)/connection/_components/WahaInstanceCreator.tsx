@@ -10,6 +10,7 @@ import { createWahaInstance } from '@/actions/instances-actions';
 import { buildWahaInstanceName } from '@/schema/connection';
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface WahaInstanceCreatorProps {
   userId: string;
@@ -52,13 +53,16 @@ export const WahaInstanceCreator = ({ userId, company, hayServidor }: WahaInstan
       style={{ borderColor: hayServidor ? '#9be7bb' : undefined }}
     >
       <CardHeader className="flex flex-col items-center gap-1 px-6 py-4">
-        <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
-          <FaWhatsapp
-            className="rounded-sm w-6 h-6"
-            style={{ color: hayServidor ? WHATSAPP_GREEN : undefined }}
-          />
-          <span className="text-xl font-bold">WhatsApp Mensajería (QR)</span>
-        </CardTitle>
+        <TituloDeTarjeta
+          icono={
+            <FaWhatsapp
+              className={TAMANO_DEL_ICONO}
+              style={{ color: hayServidor ? WHATSAPP_GREEN : undefined }}
+            />
+          }
+        >
+          Mensajería WhatsApp (QR)
+        </TituloDeTarjeta>
         {!hayServidor && (
           <span className="text-xs font-medium text-amber-600">Sin servidor configurado</span>
         )}
@@ -86,7 +90,7 @@ export const WahaInstanceCreator = ({ userId, company, hayServidor }: WahaInstan
               style={{ backgroundColor: WHATSAPP_GREEN }}
             >
               {saving ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
-              Conectar WhatsApp Mensajería
+              Conectar la línea por Waha
             </Button>
           </>
         ) : (

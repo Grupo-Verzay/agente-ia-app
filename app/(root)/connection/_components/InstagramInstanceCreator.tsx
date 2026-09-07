@@ -12,6 +12,7 @@ import { createInstagramInstance } from '@/actions/instances-actions';
 import { sanitizeInstanceName } from '@/schema/connection';
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
+import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 
 interface InstagramInstanceCreatorProps {
   userId: string;
@@ -53,11 +54,10 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
   return (
     <>
       <Card className="flex-1 border-dashed flex flex-col" style={{ borderColor: '#f9a8d4' }}>
-        <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
-          <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
-            <FaInstagram className="text-pink-500 rounded-sm w-6 h-6" />
-            <span className="text-xl font-bold">Mensajería Instagram</span>
-          </CardTitle>
+        <CardHeader className="px-4 py-4 pb-2">
+          <TituloDeTarjeta icono={<FaInstagram className={`${TAMANO_DEL_ICONO} text-pink-500`} />}>
+            Mensajería Instagram
+          </TituloDeTarjeta>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
           <div className="space-y-1.5">
