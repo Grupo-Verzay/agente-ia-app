@@ -102,7 +102,17 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
 
       socket = io(creds.url, {
         path: "/socket.io",
-        transports: ["websocket", "polling"],
+        // Primero polling, luego subir a WebSocket si se puede. Es el orden por
+        // defecto de socket.io y hay un motivo para volver a el: en produccion
+        // el WebSocket contra backend.ia-app.com FALLA ("WebSocket connection
+        // ... failed", "no se pudo conectar: websocket error", varias veces
+        // seguidas) y solo despues se conecta por polling. Con "websocket"
+        // primero, cada conexion y cada reconexion esperaba a que el WebSocket
+        // agotara su plazo -20 s por intento- antes de probar el otro, y en
+        // todo ese rato no llegaba NINGUN aviso: el mensaje salia en la lista
+        // por su reloj y en la conversacion no. Con polling primero se conecta
+        // al instante y, si el WebSocket funciona, socket.io sube solo.
+        transports: ["polling", "websocket"],
         auth: { token: creds.token },
         reconnection: true,
         reconnectionDelay: 1000,
@@ -110,8 +120,16 @@ export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedCha
       });
 
       socket.on("connect", () => {
-        console.info("[realtime] conectado");
+        // Con que transporte quedo. Si aqui sale siempre "polling" y nunca un
+        // "subio a websocket", el WebSocket no pasa por el proxy y hay que
+        // mirar Traefik; mientras, polling funciona igual, solo con algo mas
+        // de latencia.
+        const transporte = socket?.io.engine.transport.name ?? "(desconocido)";
+        console.info("[realtime] conectado", { transporte });
         notifyConnected(true);
+        socket?.io.engine.on("upgrade", (nuevo: { name: string }) => {
+          console.info("[realtime] subio a", nuevo?.name);
+        });
       });
       socket.on("disconnect", (motivo) => {
         // "io server disconnect" = el backend nos echa; casi siempre el token
