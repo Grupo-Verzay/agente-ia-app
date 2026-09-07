@@ -239,3 +239,161 @@ export function wahaMePhone(me?: WahaSession['me']): string | null {
   const digits = id.split('@')[0]?.split(':')[0] ?? '';
   return digits || null;
 }
+
+/* ─── Enviar ─────────────────────────────────────────────────────────────── */
+
+export type WahaSendResult =
+  | { ok: true; messageId: string | null }
+  | { ok: false; message: string; status?: number };
+
+/** Un adjunto tarda mas que un texto: se le da el doble de plazo. */
+const PLAZO_DE_ENVIO_MS = 15000;
+const PLAZO_DE_ENVIO_DE_MEDIA_MS = 30000;
+
+/**
+ * El id del mensaje tal y como lo devuelve WAHA. Se guarda para que, si WAHA
+ * nos reenvia ese mismo mensaje por webhook, `chat_messages` lo deduplique por
+ * id en vez de pintarlo dos veces.
+ *
+ * WAHA lo ha devuelto de varias formas segun version y motor —`id` como texto
+ * ya serializado (`true_573…@c.us_ABC`), `id._serialized`, o `key.id` suelto—,
+ * asi que se miran todas. Si no aparece en ninguna, se anota QUE claves trajo
+ * la respuesta: es como se aprende la forma real, no suponiendola.
+ */
+function idDelMensajeEnviado(cuerpo: unknown, chatId: string): string | null {
+  const b = (cuerpo ?? {}) as Record<string, unknown>;
+  if (typeof b.id === 'string' && b.id) return b.id;
+  const idObj = b.id as Record<string, unknown> | undefined;
+  if (idObj && typeof idObj._serialized === 'string') return idObj._serialized;
+  if (idObj && typeof idObj.id === 'string') return `true_${chatId}_${idObj.id}`;
+  const key = b.key as Record<string, unknown> | undefined;
+  if (key && typeof key.id === 'string') return `true_${chatId}_${key.id}`;
+  console.warn('[waha] la respuesta del envio no trae un id reconocible', {
+    claves: Object.keys(b).slice(0, 20),
+  });
+  return null;
+}
+
+async function enviarAWaha(
+  path: string,
+  body: Record<string, unknown>,
+  chatId: string,
+  plazoMs: number,
+): Promise<WahaSendResult> {
+  const cfg = await getWahaConfig();
+  if (!cfg) {
+    return { ok: false, message: 'El servidor de WhatsApp Mensajería no está configurado (Panel > Conexión).' };
+  }
+  try {
+    const res = await wahaFetch(cfg, path, { method: 'POST', body: JSON.stringify(body) }, plazoMs);
+    const texto = await res.text();
+    if (!res.ok) {
+      // El motivo tiene que llegar al asesor: un "no se pudo enviar" a secas
+      // obliga a adivinar. WAHA suele contestar con JSON {message}.
+      let detalle = texto.slice(0, 300);
+      try {
+        const j = JSON.parse(texto) as { message?: unknown; error?: unknown };
+        const m = j?.message ?? j?.error;
+        if (m) detalle = Array.isArray(m) ? m.join('; ') : String(m);
+      } catch {
+        // se deja el texto tal cual
+      }
+      console.warn(`[waha] ${path} respondió ${res.status}`, { chatId, detalle: detalle.slice(0, 200) });
+      return { ok: false, status: res.status, message: `WhatsApp Mensajería respondió ${res.status}: ${detalle}` };
+    }
+    let cuerpo: unknown = null;
+    try {
+      cuerpo = JSON.parse(texto);
+    } catch {
+      cuerpo = null;
+    }
+    return { ok: true, messageId: idDelMensajeEnviado(cuerpo, chatId) };
+  } catch (error) {
+    const esPlazo = error instanceof Error && error.name === 'TimeoutError';
+    console.warn(`[waha] ${path} no contestó`, { chatId, esPlazo, error: String(error) });
+    return {
+      ok: false,
+      message: esPlazo
+        ? 'WhatsApp Mensajería no contestó a tiempo. El mensaje puede haber salido igual; revisa la conversación antes de reenviarlo.'
+        : 'No se pudo contactar con WhatsApp Mensajería.',
+    };
+  }
+}
+
+/** `POST /api/sendText`. `replyTo` es el id del mensaje citado, tal y como lo guardamos. */
+export async function sendWahaText(params: {
+  session: string;
+  chatId: string;
+  text: string;
+  replyTo?: string | null;
+}): Promise<WahaSendResult> {
+  return enviarAWaha(
+    '/api/sendText',
+    {
+      session: params.session,
+      chatId: params.chatId,
+      text: params.text,
+      ...(params.replyTo ? { reply_to: params.replyTo } : {}),
+    },
+    params.chatId,
+    PLAZO_DE_ENVIO_MS,
+  );
+}
+
+export type WahaMediaType = 'image' | 'video' | 'audio' | 'document';
+
+/**
+ * El adjunto tal y como lo espera WAHA: por URL o en base64. El compositor de
+ * Chats manda `data:` URLs para lo que se adjunta y base64 pelado para el audio
+ * grabado; una URL http se pasa tal cual y WAHA la descarga.
+ */
+function archivoParaWaha(mediaUrl: string, mimetype?: string | null, fileName?: string | null) {
+  const nombre = fileName?.trim() || undefined;
+  if (/^https?:\/\//i.test(mediaUrl)) {
+    return { url: mediaUrl, ...(mimetype ? { mimetype } : {}), ...(nombre ? { filename: nombre } : {}) };
+  }
+  const dataUrl = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(mediaUrl);
+  const data = dataUrl ? dataUrl[3] : mediaUrl;
+  const mime = mimetype || (dataUrl?.[1] ?? 'application/octet-stream');
+  return { data, mimetype: mime, ...(nombre ? { filename: nombre } : {}) };
+}
+
+export async function sendWahaMedia(params: {
+  session: string;
+  chatId: string;
+  mediatype: WahaMediaType;
+  mediaUrl: string;
+  mimetype?: string | null;
+  fileName?: string | null;
+  caption?: string | null;
+  ptt?: boolean;
+  replyTo?: string | null;
+}): Promise<WahaSendResult> {
+  const file = archivoParaWaha(params.mediaUrl, params.mimetype, params.fileName);
+  const base = {
+    session: params.session,
+    chatId: params.chatId,
+    file,
+    ...(params.replyTo ? { reply_to: params.replyTo } : {}),
+  };
+  const conCaption = params.caption?.trim() ? { caption: params.caption.trim() } : {};
+
+  let path: string;
+  let body: Record<string, unknown>;
+  if (params.mediatype === 'image') {
+    path = '/api/sendImage';
+    body = { ...base, ...conCaption };
+  } else if (params.mediatype === 'video') {
+    path = '/api/sendVideo';
+    body = { ...base, ...conCaption };
+  } else if (params.mediatype === 'audio' && params.ptt) {
+    // Nota de voz. El navegador graba en webm/ogg y WhatsApp quiere opus:
+    // `convert` le pide a WAHA que lo transcodifique.
+    path = '/api/sendVoice';
+    body = { ...base, convert: true };
+  } else {
+    path = '/api/sendFile';
+    body = { ...base, ...conCaption };
+  }
+  return enviarAWaha(path, body, params.chatId, PLAZO_DE_ENVIO_DE_MEDIA_MS);
+}
