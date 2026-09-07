@@ -614,6 +614,37 @@ Y para saber si un aviso **llegó**, cada uno deja rastro: `[realtime] aviso
 está en esa sala; si dice 1 o más y el navegador no dice `aviso`, se perdió
 por el camino.
 
+## El Robot no es el webhook
+
+El botón **Robot** de cada línea encendía y apagaba el **webhook de Evolution**.
+Robot apagado = Evolution no le manda nada al backend = no hay aviso en vivo,
+no se guarda historial en nuestra base y la conversación abierta solo vive del
+reloj contra Evolution. Las líneas atendidas por personas —justo las que se
+apagan— eran las que peor iban en Chats, y se buscó el fallo durante horas en
+el socket, en las salas y en las identidades. Se vio en los logs del backend:
+en diez minutos entraban webhooks de veinte líneas de otras cuentas y **ni uno
+de las de Verzay**; se encendió el robot y llegaron.
+
+Ahora son dos cosas:
+
+1. **El webhook va siempre encendido.** `cambiarRobot` y `leerEstadoDelRobot`
+   (`actions/robot-actions.ts`) lo dejan encendido pase lo que pase. Es lo que
+   trae los avisos y el historial.
+2. **El Robot es la marca `bot_enabled` de la línea** (`Instancias`), que crea
+   el backend con su migración. El backend la lee en cada mensaje
+   (`isBotEnabled`, con caché de 10 s) y, apagado, **guarda y avisa y se para**:
+   sin sesión, sin disparadores, sin IA, sin flujos.
+
+La App lee y escribe esa columna **con SQL en crudo**, no en `schema.prisma`:
+la columna la crea el backend y, si la App desplegara antes con la columna
+declarada, reventaría cada consulta a `Instancias` (el #360). Sin columna, el
+botón vuelve a tocar el webhook como antes y lo dice en la consola.
+
+Y la migración en caliente: una línea con el webhook apagado en Evolution es
+una que se apagó con el botón viejo. Al abrir Conexión se toma como robot
+apagado, se guarda la marca y se enciende el webhook. Nadie tiene que hacer
+nada a mano.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de

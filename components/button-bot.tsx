@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Power } from "lucide-react";
-import { getInstances } from "@/actions/api-action";
+import { cambiarRobot, leerEstadoDelRobot } from "@/actions/robot-actions";
 import { toast } from "sonner";
 import { getBillingServiceAccessSnapshot } from "@/actions/billing/billing-access-actions";
 
@@ -45,59 +45,30 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
   const [serviceLockReason, setServiceLockReason] = useState<string | null>(null);
   const autoDisableAttemptedRef = useRef(false);
 
-  const fetchWebhookStatus = useCallback(async (
-    instanceName: string,
-    instanceId: string,
-    serverUrl: string
-  ) => {
-    try {
-      const response = await fetch(`https://${serverUrl}/webhook/find/${instanceName}`, {
-        method: "GET",
-        headers: { apikey: instanceId },
-      });
-
-      if (!response.ok) throw new Error("Error al obtener el estado del webhook.");
-
-      const data = await response.json();
-      setIsEnabled(data?.enabled === true);
-    } catch (err) {
-      setError(
-        `Error al obtener el estado del webhook: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  }, []);
-
+  /**
+   * El robot ya no es el webhook de Evolution: es una marca de la linea que el
+   * backend respeta antes de usar la IA (ver actions/robot-actions.ts). El
+   * webhook queda siempre encendido, que es lo que hace falta para el tiempo
+   * real y el historial. Todo va por el servidor: ni credenciales ni llamadas a
+   * Evolution desde el navegador.
+   */
   const loadInstanceData = useCallback(async () => {
     if (!userId) return;
     setError(null);
     try {
-      const instances = await getInstances(userId);
-      if (!instances || instances.length === 0) {
-        setError("No se encontraron instancias para este usuario.");
+      const res = await leerEstadoDelRobot(userId);
+      if (!res.success) {
+        setError(res.message);
         return;
       }
-
-      const whatsappIndex = instances.findIndex((i) => i.instanceType === "Whatsapp");
-      const selected = whatsappIndex >= 0 ? instances[whatsappIndex] : instances[0];
-
-      if (!selected?.instanceName || !selected?.instanceId) {
-        setError("Instancia incompleta: faltan datos requeridos.");
-        return;
-      }
-      if (!selected?.serverUrl) {
-        setError("Este usuario no tiene una API Key de Evolution asignada. Contacta al administrador.");
-        return;
-      }
-
-      const { instanceName, instanceId, serverUrl } = selected;
-      setInstanceData({ instanceName, instanceId, serverUrl });
-      await fetchWebhookStatus(instanceName, instanceId, serverUrl);
+      setInstanceData({ instanceName: res.data.instanceName, instanceId: "", serverUrl: "" });
+      setIsEnabled(res.data.botEnabled);
     } catch (err) {
       setError(`Error al cargar las instancias: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
-  }, [fetchWebhookStatus, userId]);
+  }, [userId]);
 
   const loadBillingAccessStatus = useCallback(async () => {
     const res = await getBillingServiceAccessSnapshot(userId);
@@ -136,32 +107,17 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
     setError(null);
 
     try {
-      const response = await fetch(
-        `https://${instanceData.serverUrl}/webhook/set/${instanceData.instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: instanceData.instanceId,
-          },
-          body: JSON.stringify({
-            webhook: {
-              enabled: nextEnabled,
-              url: webhookUrl,
-              base64: true,
-              events: ["MESSAGES_UPSERT", "CALL"],
-            },
-          }),
-        }
-      );
+      const res = await cambiarRobot(userId, nextEnabled);
+      if (!res.success) throw new Error(res.message);
 
-      if (!response.ok) throw new Error("Error al cambiar el estado.");
-
-      setIsEnabled(nextEnabled);
+      setIsEnabled(res.data.botEnabled);
       if (nextEnabled) {
-        toast.success("Robot encendido correctamente.");
+        toast.success("Robot encendido: el agente vuelve a responder en esta linea.");
       } else {
-        toast.warning("Robot apagado correctamente.");
+        toast.warning("Robot apagado: los mensajes se siguen recibiendo y guardando; el agente no responde.");
+      }
+      if (!res.data.webhookEnabled) {
+        toast.error("Evolution no acepto encender el webhook de la linea. Los avisos en vivo pueden no llegar.");
       }
     } catch (err) {
       const errorMessage = `Error al cambiar el estado: ${err instanceof Error ? err.message : String(err)}`;
@@ -170,7 +126,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [instanceData, serviceLocked, webhookUrl]);
+  }, [instanceData, serviceLocked, userId]);
 
   const toggleEnable = async () => {
     await setWebhookEnabled(!(isEnabled ?? false));
@@ -236,8 +192,8 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
             <AlertDialogHeader>
               <AlertDialogTitle>Estas seguro?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esto apagara el Robot de la instancia. Las respuestas automaticas se detendran
-                hasta que vuelvas a encenderlo.
+                El agente dejara de responder en esta linea hasta que vuelvas a encenderlo.
+                Los mensajes se siguen recibiendo, guardando y avisando en Chats.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

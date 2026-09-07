@@ -277,6 +277,19 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
             // lo metería en la lista de a quién escribirle sin motivo.
             qrStatus = !resultados.some((r) => r.conectada);
             isEvoEnabled = resultados.some((r) => r.robot);
+
+            // El robot ya no es el webhook: es la marca `bot_enabled` de la
+            // linea (ver actions/robot-actions.ts). El webhook va siempre
+            // encendido, asi que leerlo diria "robot encendido" para todas. Si
+            // la columna aun no existe, se queda con el webhook, como antes.
+            try {
+              const marcas = await db.$queryRaw<{ bot_enabled: boolean }[]>(
+                Prisma.sql`SELECT "bot_enabled" FROM "Instancias" WHERE "userId" = ${user.id}`,
+              );
+              if (marcas.length > 0) isEvoEnabled = marcas.some((m) => m.bot_enabled);
+            } catch {
+              // Sin columna todavia: manda el webhook.
+            }
           } catch (error) {
             console.warn(`No se pudo comprobar el estado de las líneas del usuario ${user.id}`, error);
           }
