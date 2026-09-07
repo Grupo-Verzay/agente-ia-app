@@ -1737,9 +1737,36 @@ export function ChatsClient({
           remoteJidAliases,
         });
 
+        /**
+         * Si la conversacion abierta sigue siendo la de esta consulta.
+         *
+         * La guarda estaba SOLO en la respuesta que llega tarde, y el camino
+         * normal se pintaba sin comprobar nada. Con cambiar de chat mientras la
+         * consulta viajaba -que son unos segundos, y en la lista se cambia de
+         * chat todo el rato- los mensajes del chat anterior se MEZCLABAN en el
+         * que se acababa de abrir: se veia un video de otro contacto dentro de
+         * esta conversacion, con su hora y todo, y la fila de la lista decia
+         * otra cosa. Sin ningun error.
+         *
+         * Va dentro de `pintar`, no delante de cada llamada: asi ningun camino
+         * nuevo puede saltarsela por olvido.
+         */
+        const sigueSiendoElChatAbierto = (): boolean => {
+          const abierto = currentContactRef.current?.remoteJid ?? selectedJidRef.current;
+          if (!abierto) return true;
+          if (abierto === remoteJid) return true;
+          if (remoteJidAliases?.includes(abierto)) return true;
+          console.warn("[chats] respuesta de otra conversacion descartada", {
+            pedida: remoteJid,
+            abierta: abierto,
+          });
+          return false;
+        };
+
         // Pintar lo que traiga la consulta. Se saca aparte porque tambien lo usa
         // la respuesta que llega TARDE, despues de que se agotara la espera.
         const pintar = (respuesta: Extract<Awaited<typeof consulta>, { success: true }>) => {
+          if (!sigueSiendoElChatAbierto()) return;
           const nextMessages = respuesta.data || [];
           if (areListsDifferent(messagesRef.current, nextMessages)) {
             setMessages((previous) => mergeMessages(previous, nextMessages));
@@ -1782,10 +1809,8 @@ export function ChatsClient({
           void consulta
             .then((tardia) => {
               if (!tardia?.success) return;
-              // Solo si no se ha cambiado de chat entretanto: pintar aqui la
-              // respuesta de otra conversacion seria peor que perderla.
-              const abierto = currentContactRef.current?.remoteJid;
-              if (abierto && abierto !== remoteJid && !remoteJidAliases?.includes(abierto)) return;
+              // Cambiar de chat entretanto lo comprueba `pintar`, que es por
+              // donde pasan los dos caminos.
               console.info("[chats] la consulta lenta llego y se pinta", {
                 remoteJid,
                 servidor: tardia.tiempos,
