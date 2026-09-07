@@ -668,6 +668,110 @@ async function levantarMarcasSiElContactoEscribio(userIds: string[]): Promise<vo
   }
 }
 
+/**
+ * Cada cuánto se revisa que no falte ninguna ficha, por cuenta y por proceso.
+ * Es una consulta acotada, pero la bandeja se abre muchas veces al día.
+ */
+const REVISAR_FICHAS_CADA_MS = 5 * 60 * 1000;
+const DIAS_DE_FICHAS_A_REVISAR = 7;
+const ultimaRevisionDeFichas = new Map<string, number>();
+
+/**
+ * Crea la ficha del CRM de las conversaciones que se quedaron sin ella.
+ *
+ * La ficha (`Session`) es de donde cuelga TODO lo que se ve en la cabecera del
+ * chat: el número, el lápiz para renombrar, asignar asesor, etiquetas, tareas y
+ * recordatorios. Sin ella la conversación se abre pelada, y desde fuera parece
+ * que la App no deja hacer nada.
+ *
+ * Con Evolution nunca faltaba porque la App le pedía los mensajes cada pocos
+ * segundos y, al guardarlos, creaba la ficha de camino
+ * (`upsertSessionFromChatMessage`). Con WhatsApp Mensajería (Waha) no hay tal
+ * sondeo: todo entra por el webhook del backend, que con el Robot apagado no la
+ * creaba. Eso ya está arreglado allí, pero **solo para lo que llega a partir de
+ * ahora**: las conversaciones que entraron antes se quedaban sin ficha para
+ * siempre, a menos que el contacto volviera a escribir. Esto las completa.
+ *
+ * Se hace con UNA consulta, acotada a los últimos días y espaciada en el tiempo:
+ * la bandeja se abre constantemente y esto no puede pesar en cada carga.
+ *
+ * `Session.instanceId` guarda el NOMBRE de la línea, no su id: es así en los dos
+ * lados (`upsertSessionFromChatMessage` aquí, `registerSession` en el backend).
+ *
+ * Nunca rompe la carga de la bandeja: si falla, se anota y se sigue.
+ */
+async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
+  if (!userIds.length) return;
+  const llave = [...userIds].sort().join(",");
+  const ahora = Date.now();
+  if (ahora - (ultimaRevisionDeFichas.get(llave) ?? 0) < REVISAR_FICHAS_CADA_MS) return;
+  ultimaRevisionDeFichas.set(llave, ahora);
+
+  const desde = new Date(ahora - DIAS_DE_FICHAS_A_REVISAR * 24 * 60 * 60 * 1000);
+  try {
+    const creadas = await db.$queryRaw<Array<{ remoteJid: string; instanceName: string }>>`
+      INSERT INTO "Session" (
+        "userId", "remoteJid", "remoteJidAlt", "pushName", "instanceId",
+        "status", "createdAt", "updatedAt"
+      )
+      SELECT c."userId",
+             -- El mismo contacto puede tener DOS filas en la bandeja, una por su
+             -- numero y otra por su @lid. Si cada una creara su ficha, el CRM
+             -- acabaria con el lead duplicado. Se canoniza a la forma con numero
+             -- cuando se conoce -es lo que hace resolvePreferredRemoteJid en el
+             -- backend-, y asi la segunda choca contra el indice unico y no entra.
+             c."canonico",
+             NULLIF(c."alterno", c."canonico"),
+             COALESCE(NULLIF(BTRIM(c."pushName"), ''), c."canonico"),
+             c."instanceName",
+             TRUE, NOW(), NOW()
+      FROM (
+        SELECT v.*,
+               COALESCE(
+                 (SELECT j FROM (VALUES (v."remoteJid"), (v."remoteJidAlt"), (v."senderPn")) AS t(j)
+                  WHERE j LIKE '%@s.whatsapp.net' LIMIT 1),
+                 v."remoteJid"
+               ) AS "canonico",
+               COALESCE(
+                 (SELECT j FROM (VALUES (v."remoteJid"), (v."remoteJidAlt"), (v."senderPn")) AS t(j)
+                  WHERE j LIKE '%@lid' LIMIT 1),
+                 v."remoteJidAlt"
+               ) AS "alterno"
+        FROM "chat_conversations" v
+      ) c
+      WHERE c."userId" IN (${Prisma.join(userIds)})
+        AND c."lastMessageTimestamp" > ${desde}
+        AND c."remoteJid" NOT LIKE '%@g.us'
+        AND c."remoteJid" <> 'status@broadcast'
+        AND NOT EXISTS (
+          SELECT 1 FROM "Session" s
+          WHERE s."userId" = c."userId"
+            AND s."instanceId" = c."instanceName"
+            AND (
+              s."remoteJid" = c."remoteJid"
+              OR s."remoteJidAlt" = c."remoteJid"
+              OR (c."remoteJidAlt" IS NOT NULL AND (s."remoteJid" = c."remoteJidAlt" OR s."remoteJidAlt" = c."remoteJidAlt"))
+              OR (c."senderPn" IS NOT NULL AND (s."remoteJid" = c."senderPn" OR s."remoteJidAlt" = c."senderPn"))
+            )
+        )
+      ON CONFLICT ("userId", "instanceId", "remoteJid") DO NOTHING
+      RETURNING "remoteJid", "instanceId" AS "instanceName"
+    `;
+    if (creadas.length > 0) {
+      // Sale a proposito: si un dia vuelven a faltar fichas en masa, este numero
+      // es la primera pista de que algo dejo de crearlas al recibir.
+      console.warn("[chats] fichas del CRM creadas para conversaciones que no la tenian", {
+        cuantas: creadas.length,
+        ejemplo: creadas.slice(0, 3),
+      });
+    }
+  } catch (error) {
+    console.warn("[chats] no se pudieron completar las fichas que faltaban", {
+      error: String(error),
+    });
+  }
+}
+
 export async function getChatConversationPreferencesForAssociatedAccounts(): Promise<
   ChatPreferenceResponse<ChatConversationPreferenceMap>
 > {
@@ -678,6 +782,7 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
     await ensurePurgedAtColumn();
     const userIds = await getAssociatedAccountIds(user);
     await levantarMarcasSiElContactoEscribio(userIds);
+    await crearFichasQueFaltan(userIds);
     const preferences = await chatConversationPreferenceTable.findMany({
       where: { userId: { in: userIds } },
       select: {
