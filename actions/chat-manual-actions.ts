@@ -1009,6 +1009,63 @@ export async function refetchChatsManualAction(
   return result;
 }
 
+/**
+ * La sesión de un contacto para leer el interruptor de la firma.
+ *
+ * Dos vueltas, como la pausa de la IA (`pausarIaPorIntervencionHumana`): primero
+ * con las formas que se sacan del propio jid y, si no aparece ninguna fila, se
+ * completan con las identidades que guarda `chat_messages` —que anota cada
+ * mensaje con todas— y se reintenta.
+ *
+ * Hace falta porque `buildWhatsAppJidCandidates` NO cruza el puente `@lid` ↔
+ * número, y es a propósito: los dígitos de un `@lid` son un id de privacidad,
+ * no un teléfono, y fabricar el número con ellos daría un JID falso que podría
+ * casar con otro contacto. El teléfono real tiene que venir de la base.
+ */
+async function buscarSesionParaLaFirma(
+  userId: string,
+  remoteJid: string,
+): Promise<{ signatureEnabled: boolean } | null> {
+  const buscarCon = (formas: string[]) =>
+    db.session.findFirst({
+      where: {
+        userId,
+        OR: [{ remoteJid: { in: formas } }, { remoteJidAlt: { in: formas } }],
+      },
+      select: { signatureEnabled: true },
+    });
+
+  const candidatos = buildWhatsAppJidCandidates(remoteJid);
+  const primera = await buscarCon(candidatos);
+  if (primera) return primera;
+
+  const vistos = await db.chatMessage.findMany({
+    where: {
+      userId,
+      OR: [
+        { remoteJid: { in: candidatos } },
+        { remoteJidAlt: { in: candidatos } },
+        { senderPn: { in: candidatos } },
+      ],
+    },
+    select: { remoteJid: true, remoteJidAlt: true, senderPn: true },
+    distinct: ["remoteJid"],
+    take: 20,
+  });
+
+  const otrasFormas = buildWhatsAppJidCandidates(
+    remoteJid,
+    vistos.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
+  );
+  if (otrasFormas.length <= candidatos.length) return null;
+
+  const segunda = await buscarCon(otrasFormas);
+  if (segunda) {
+    console.info("[firma] sesión encontrada por otra identidad del contacto", { remoteJid });
+  }
+  return segunda;
+}
+
 export async function sendManualChatPayloadAction(
   context: ChatActionContext,
   remoteJid: string,
@@ -1063,12 +1120,26 @@ export async function sendManualChatPayloadAction(
   if (payload.kind === "text" && user?.id && effectiveOwnerId) {
     const signature = (user?.advisorSignature as string | null | undefined)?.trim();
     if (signature) {
-      const sessionRow = await db.session.findFirst({
-        where: { userId: effectiveOwnerId, remoteJid },
-        select: { signatureEnabled: true },
-      });
+      // La sesión se busca por TODAS las identidades del contacto, no por la
+      // que se pidió.
+      //
+      // Iba con `{ userId, remoteJid }` a secas, y esa es la misma trampa que
+      // ya costó el fallo de la pausa de la IA (#185) y el de las marcas de
+      // borrado: un contacto abierto por su `@lid` —que es como llegan casi
+      // todos— tiene la sesión guardada bajo su número. La consulta no
+      // encontraba fila, `signatureEnabled` se quedaba sin saber, y el mensaje
+      // salía SIN FIRMA sin decir nada: ni error, ni aviso. Desde fuera,
+      // "escribo y no sale con la firma".
+      const sessionRow = await buscarSesionParaLaFirma(effectiveOwnerId, remoteJid);
       if (sessionRow?.signatureEnabled) {
         payload = { ...payload, text: `${signature}\n${payload.text}` };
+      } else if (!sessionRow) {
+        // Nunca mudo: sin esto, "no sale con la firma" no distingue "está
+        // apagada" de "no encuentro la conversación".
+        console.warn("[firma] sin sesión para este contacto; el mensaje sale sin firma", {
+          remoteJid,
+          cuenta: effectiveOwnerId,
+        });
       }
     }
   }
