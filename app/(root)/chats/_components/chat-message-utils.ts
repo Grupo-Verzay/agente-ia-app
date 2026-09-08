@@ -499,6 +499,26 @@ function isDeletedMessage(messageType: string | undefined, messageData: Record<s
   );
 }
 
+/**
+ * Busca `contextInfo.externalAdReply` en cualquier parte de un `message`.
+ *
+ * Mira el propio objeto y cada uno de sus tipos (`imageMessage`,
+ * `videoMessage`, `extendedTextMessage`, …). Es tolerante a propósito: si
+ * WhatsApp añade un tipo nuevo, el anuncio se sigue encontrando.
+ */
+function buscarAnuncio(message: unknown): any {
+  if (!message || typeof message !== "object") return undefined;
+  const raiz = message as Record<string, any>;
+  const propio = raiz.contextInfo?.externalAdReply;
+  if (propio) return propio;
+  for (const valor of Object.values(raiz)) {
+    if (!valor || typeof valor !== "object") continue;
+    const anuncio = (valor as Record<string, any>).contextInfo?.externalAdReply;
+    if (anuncio) return anuncio;
+  }
+  return undefined;
+}
+
 export function resolveEvolutionMessageStatus(message: EvolutionMessage): string {
   // Lo que manda la pasarela de WhatsApp, que no siempre trae lo mismo: se
   // declara lo que se lee de ahi en vez de dejarlo sin forma.
@@ -735,11 +755,21 @@ export function toUIMessages(
       media = { ...media, url: cached.dataUrl, mimeType: cached.mime };
     }
 
-    // Extraer previsualización de anuncio Click-to-WhatsApp
-    const adReply =
-      messageData?.contextInfo?.externalAdReply ??
-      messageData?.extendedTextMessage?.contextInfo?.externalAdReply ??
-      (m.contextInfo as any)?.externalAdReply;
+    // Extraer previsualización de anuncio Click-to-WhatsApp.
+    //
+    // El anuncio viaja en `contextInfo.externalAdReply`, y ese `contextInfo`
+    // cuelga DEL TIPO DE MENSAJE, no del mensaje. Se miraban solo tres sitios
+    // —el mensaje, `extendedTextMessage` y el nivel de arriba—, así que un
+    // anuncio que llega como imagen o vídeo (que es lo normal cuando el anuncio
+    // LLEVA imagen) se quedaba sin previsualización: ni la foto, ni el título,
+    // ni el enlace.
+    //
+    // Y no vale con añadir `imageMessage` y `videoMessage` a mano: WhatsApp
+    // tiene más tipos (`documentMessage`, `viewOnceMessage`…) y cada uno lo
+    // cuelga de su propio `contextInfo`. Se buscan TODOS, que es la misma regla
+    // que rige el resto de la pantalla con las identidades del contacto:
+    // preguntar por una sola forma devuelve vacío sin error.
+    const adReply = buscarAnuncio(messageData) ?? (m.contextInfo as any)?.externalAdReply;
     const rawThumb = adReply?.mediaUrl || adReply?.thumbnail;
     const thumbnailUrl = rawThumb
       ? rawThumb.startsWith('data:') || rawThumb.startsWith('http')

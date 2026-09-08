@@ -162,6 +162,22 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const adSource = session?.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adSourceLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
 
+  /**
+   * Si la línea de debajo del nombre ya está diciendo algo (escribiendo,
+   * grabando, en línea, últ. vez), el anuncio no cabe y no se enseña.
+   *
+   * Antes esto era `!conexion`, y desde que la presencia funciona también en
+   * las líneas de Evolution eso **escondía el anuncio siempre**: un contacto
+   * desconectado sin "últ. vez" deja `conexion` puesta pero no pinta ningún
+   * texto, así que la cabecera se quedaba sin lo uno y sin lo otro. Se mira lo
+   * que de verdad se va a pintar, no si hay dato.
+   */
+  const hayLineaDeEstado = Boolean(
+    presencia ||
+      conexion?.estado === "en_linea" ||
+      (conexion?.estado === "desconectado" && conexion.lastSeen),
+  );
+
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
   const [resolving, setResolving] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
@@ -465,7 +481,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
               </span>
             ) : null}
-            {!presencia && !conexion && adSourceLabel && (
+            {!hayLineaDeEstado && adSourceLabel && (
               <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
                 <Megaphone className="h-2.5 w-2.5 shrink-0" />
                 {adSourceLabel}
@@ -687,7 +703,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
               </span>
             ) : null}
-            {!presencia && !conexion && adSourceLabel && (
+            {!hayLineaDeEstado && adSourceLabel && (
               <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
                 <Megaphone className="h-3 w-3 shrink-0" />
                 {adSourceLabel}
