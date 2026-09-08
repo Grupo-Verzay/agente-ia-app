@@ -5,6 +5,7 @@ import type { Prisma } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
 import { persistChatMessage, resolveInstanceOwner } from '@/lib/chat-persistence';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
+import { anteponerFirmaDelAsesor } from '@/lib/firma-del-asesor';
 import { ensureWahaSessionEvents, getWahaPresence, sendWahaMedia, sendWahaText, type PresenciaWaha, type WahaMediaType } from '@/lib/waha';
 import { canonicalToWahaJid } from '@/lib/waha-jid';
 import { subirAdjuntoSaliente } from '@/lib/adjuntos-salientes';
@@ -160,8 +161,17 @@ export async function sendWahaTextAction(
       return { success: true, message: 'Enviado.', remoteJid };
     }
 
-    const text = (payload.text ?? '').trim();
-    if (!text) return { success: false, message: 'El mensaje está vacío.', remoteJid };
+    const escrito = (payload.text ?? '').trim();
+    if (!escrito) return { success: false, message: 'El mensaje está vacío.', remoteJid };
+    // La firma del asesor, con la MISMA regla que las lineas de Evolution.
+    // Estaba escrita solo dentro del envio de Evolution -que ni siquiera
+    // arranca sin sus credenciales-, asi que en una linea de Waha el
+    // interruptor se veia encendido y el mensaje salia sin firma.
+    const text = await anteponerFirmaDelAsesor({
+      ownerUserId: linea.userId,
+      remoteJid,
+      texto: escrito,
+    });
 
     const envio = await sendWahaText({ session: instanceName, chatId, text, replyTo });
     if (!envio.ok) return { success: false, message: envio.message, remoteJid };
