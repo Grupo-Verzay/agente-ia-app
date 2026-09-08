@@ -585,6 +585,47 @@ Se usa `identidadesParaPedirMensajes(contact, jid)`, que se apoya en
 el reloj del chat abierto, el aviso de tiempo real, la precarga y el refresco de
 fondo. Si se añade otro, va con esa función.
 
+## Chats: de qué chat viene lo dice `remoteJid`, no el primer teléfono que aparezca
+
+Un contacto subía un **estado** de WhatsApp y el vídeo salía **dentro de su
+conversación**, con la IA contestándole («Veo que compartiste tu cuenta de
+TikTok…»).
+
+El aviso trae varios campos con identidades (`remoteJid`, `remoteJidAlt`,
+`senderPn`, `senderLid`) y para decidir a qué chat pertenece el mensaje se
+cogía **el primer teléfono que apareciera en cualquiera de ellos**
+(`pickExplicitWhatsAppPhoneJid`). En un estado ese teléfono es el de **quien lo
+publicó**, y viaja en `senderPn`. Así que `status@broadcast` se caía a
+«alterno», el estado entraba como un mensaje 1:1 de esa persona, se guardaba en
+su chat, tocaba su lead y despertaba a la IA.
+
+Ya existía un filtro de estados (`isRegisterableContactJid`), y **llegaba
+tarde**: cuando le tocaba mirar, el `status@broadcast` ya no era el jid
+principal. Un filtro correcto detrás de un cálculo que ya se equivocó no filtra
+nada, que es la misma familia de fallo que «nada que detecte un fallo puede ir
+detrás de algo que falle».
+
+Se vio en los registros de producción, y así es como se reconoce:
+
+```
+[WEBHOOK] I=… ; rJid status@broadcast rJidAlt …@lid
+[UID=…][R=57319…@s.whatsapp.net] [SESSION] Usuario ya registrado con JID alternativo: status@broadcast
+```
+
+Ese `R=` es el número del autor del estado. Si `rJid` y `R=` no son el mismo
+chat, algo está mal.
+
+Dos reglas:
+
+1. **El chat lo manda `key.remoteJid`.** Cuando ese jid es un grupo, un estado,
+   una difusión o un canal, es el definitivo: ningún teléfono sacado de otro
+   campo lo pisa. Esto también valía para los **grupos**, donde el mismo
+   `senderPn` los colaba como chat privado y además dejaba sin efecto los
+   `isGroupChat` de más abajo.
+2. **Un estado, una difusión o un canal se descartan antes de todo**: antes de
+   guardar el mensaje, de registrar el lead y de despertar a la IA. Va **después**
+   de aprender el par `@lid` → número de los grupos, que eso sí interesa.
+
 ## Chats: buscar la fila por TODAS las identidades
 
 El aviso de tiempo real trae **una** de las identidades del contacto
