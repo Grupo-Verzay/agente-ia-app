@@ -436,7 +436,9 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       return;
     }
 
-    const started = await startAstraCall(`+${phone}`);
+    // La llamada sale por la linea de la conversacion, asi que el numero
+    // con el que se llama es el de la cuenta dueña de esa linea.
+    const started = await startAstraCall(`+${phone}`, instanceName);
     if (cancelledRef.current) return;
     if (!started.success || !started.sid || !started.callId) {
       setErrorMsg(started.message || 'No se pudo iniciar la llamada.');

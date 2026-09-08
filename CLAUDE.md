@@ -805,6 +805,25 @@ es peor que no enseñarla.
 La presencia **no se guarda**: es de ahora mismo y solo vale para la
 conversación abierta. Tampoco pasa por el buffer ni dispara IA.
 
+## Llamadas: se llama con el número de la línea, no con el de quien mira
+
+`startAstraCall` cogía el número vinculado de la **cuenta con la que entras**
+(`effectiveId`). Desde una cuenta que administra a otra —un super admin abriendo
+los chats de un cliente, una cuenta principal con otra asociada— salía «No
+tienes un número vinculado para llamar» aunque **esa línea sí tuviera el suyo
+conectado y funcionando**: desde la otra sesión la llamada entraba y se hablaba.
+
+La llamada sale por la línea de la conversación, así que el número tiene que ser
+el de **la cuenta dueña de esa línea** (`sidParaLlamar`, con el `instanceName`
+que ya recibía `CallDialog`). Si esa cuenta no tiene número, o no se puede
+administrar, se cae al propio, que es lo que se hacía antes.
+
+Esto **no** es el salto por `linked_accounts` que se quitó a propósito: aquel
+mandaba a un «master» y cruzaba los números de dos cuentas principales
+co-administradas. Aquí no se busca a nadie: se mira el dueño de ESA línea, que
+es un dato concreto de la fila. Cada cuenta principal conserva su número y desde
+sus propios chats sigue usando el suyo.
+
 ## El Robot no es el webhook
 
 El botón **Robot** de cada línea encendía y apagaba el **webhook de Evolution**.
