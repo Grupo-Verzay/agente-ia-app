@@ -17,6 +17,7 @@ import type {
 } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
+import { anteponerFirmaDelAsesor } from '@/lib/firma-del-asesor';
 
 type BaileysOutgoingPayload = { kind: string; text?: string; [key: string]: unknown };
 
@@ -321,12 +322,22 @@ export async function sendBaileysTextAction(
     }
 
     // Texto
+    //
+    // La firma del asesor va aqui tambien: la regla es una sola
+    // (`lib/firma-del-asesor`) y estaba escrita solo dentro del envio de
+    // Evolution, asi que en esta linea el interruptor se veia encendido y el
+    // mensaje salia sin firma.
+    const texto = await anteponerFirmaDelAsesor({
+      ownerUserId: dueno?.userId,
+      remoteJid,
+      texto: payload.text ?? '',
+    });
     const res = await fetch(
       `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
       {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ remoteJid, text: payload.text }),
+        body: JSON.stringify({ remoteJid, text: texto }),
         cache: 'no-store',
       },
     );
