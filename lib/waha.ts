@@ -92,12 +92,32 @@ async function wahaFetch(
 }
 
 /**
- * Los eventos que el backend atiende. `message` son los mensajes nuevos;
- * los otros tres son los acuses (el ✓✓), los borrados del cliente y la
- * presencia (escribiendo / grabando). Si se anade uno aqui, hay que atenderlo
- * en el backend (`WahaEventsService`), o llegara y se tirara.
+ * Los eventos que el backend atiende.
+ *
+ * - `message`          → lo que escribe el CLIENTE.
+ * - `message.any`      → TODO, incluido lo que se escribe DESDE EL MOVIL. Sin
+ *                        esto, un mensaje que el asesor manda desde su telefono
+ *                        no llegaba nunca: no salia en la App y, peor, **no
+ *                        callaba a la IA**, que seguia contestandole al cliente
+ *                        por encima de la persona. En las lineas de Evolution
+ *                        eso funciona porque `MESSAGES_UPSERT` ya trae los
+ *                        propios; en Waha hay que pedirlo aparte.
+ *                        El normalizador se queda solo con los `fromMe` de aqui,
+ *                        para que lo del cliente no entre dos veces.
+ * - `message.ack`      → el ✓✓.
+ * - `message.revoked`  → el cliente borro un mensaje.
+ * - `presence.update`  → escribiendo / grabando.
+ *
+ * Si se anade uno aqui, hay que atenderlo en el backend (el normalizador o
+ * `WahaEventsService`), o llegara y se tirara.
  */
-export const EVENTOS_DEL_WEBHOOK = ['message', 'message.ack', 'message.revoked', 'presence.update'] as const;
+export const EVENTOS_DEL_WEBHOOK = [
+  'message',
+  'message.any',
+  'message.ack',
+  'message.revoked',
+  'presence.update',
+] as const;
 
 const sesionesRevisadas = new Map<string, number>();
 const REVISAR_EVENTOS_CADA_MS = 10 * 60 * 1000;
