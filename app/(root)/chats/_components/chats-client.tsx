@@ -3546,6 +3546,39 @@ export function ChatsClient({
     [updateChatListLocal],
   );
 
+  /**
+   * Si un aviso de tiempo real es de la conversacion que esta abierta.
+   *
+   * Es la unica pregunta que separa "pinto este mensaje aqui" de "meto en esta
+   * conversacion algo que es de otra persona", asi que vive en un solo sitio y
+   * la usan las dos mitades: la que pide los mensajes y la que los pinta.
+   *
+   * Mira primero las identidades del contacto abierto y, si no encaja, las de
+   * SU FILA de la lista, que es la que tiene los alias completos. Esa fila se
+   * busca **acotando por linea**: el mismo numero puede tener conversacion en
+   * dos lineas, y la fila de la otra traeria identidades que no son de esta.
+   */
+  const esDelChatAbierto = (jidDelAviso: string): boolean => {
+    const abierto = selectedJidRef.current;
+    if (!jidDelAviso || !abierto) return false;
+
+    const identidades = new Set(
+      identidadesParaPedirMensajes(currentContactRef.current, abierto),
+    );
+    if (identidades.has(jidDelAviso)) return true;
+
+    if (!currentChatsResult.success) return false;
+    const coincide = (c: ChatData) => chatMatchesAnyJid(c, identidades);
+    const fila =
+      (selectedInstanceName
+        ? currentChatsResult.data.find(
+            (c) => c.instanceName === selectedInstanceName && coincide(c),
+          )
+        : undefined) ?? currentChatsResult.data.find(coincide);
+
+    return fila ? getChatIdentityCandidates(fila).includes(jidDelAviso) : false;
+  };
+
   useChatsRealtime({
     enabled: normalizedInitialChatsResult.success,
     onPresence: (payload) => {
@@ -3596,7 +3629,21 @@ export function ChatsClient({
           // se estaba pidiendo solo por las que ya conociamos del contacto. Si el
           // mensaje entro por otra, la consulta volvia sin el: ni fallaba ni
           // traia nada nuevo, asi que desde fuera parecia lentitud.
-          const identidades = [...identidadesParaPedirMensajes(currentContactRef.current, jid), jid];
+          //
+          // PERO la identidad del aviso solo se anade SI ES DE ESTE CHAT.
+          //
+          // Se anadia siempre, y eso metia mensajes de OTRA persona dentro de la
+          // conversacion abierta: llegaba un aviso de Ricardo, se le pedian al
+          // servidor los mensajes del chat abierto (Genesis) MAS la identidad de
+          // Ricardo, y el servidor devolvia los de los dos. Todo lo de Ricardo se
+          // pintaba en la conversacion de Genesis. El guardia de la respuesta no
+          // lo veia: la consulta se pidio para el chat que de verdad esta
+          // abierto, asi que para el estaba todo en orden.
+          //
+          // La identidad de un aviso ajeno no aporta nada aqui: lo que se quiere
+          // es refrescar el chat abierto, y para eso bastan SUS identidades.
+          const identidades = identidadesParaPedirMensajes(currentContactRef.current, abierto);
+          if (esDelChatAbierto(jid) && !identidades.includes(jid)) identidades.push(jid);
 
           // Si ya hay una consulta en vuelo, la nuestra se descartaria sin mas
           // -y esa puede haber salido ANTES de que llegara este mensaje, asi que
@@ -3649,18 +3696,9 @@ export function ChatsClient({
       // sondeo. Era exactamente "se ve en la columna y en la conversacion no".
       // `contact.aliases` viene vacio en la mayoria de los contactos (ver
       // CLAUDE.md), asi que comparar contra el era casi no comparar.
-      const identidadesDelAbierto = selectedJid
-        ? new Set(identidadesParaPedirMensajes(currentContactRef.current, selectedJid))
-        : null;
-      const filaAbierta =
-        identidadesDelAbierto && currentChatsResult.success
-          ? currentChatsResult.data.find((c) => chatMatchesAnyJid(c, identidadesDelAbierto))
-          : undefined;
-      const isOpenChat =
-        !!jid &&
-        !!identidadesDelAbierto &&
-        (identidadesDelAbierto.has(jid) ||
-          (filaAbierta ? getChatIdentityCandidates(filaAbierta).includes(jid) : false));
+      // La misma pregunta que usa el sondeo de arriba, en un solo sitio: si las
+      // dos mitades no la responden igual, una pinta lo que la otra no pidio.
+      const isOpenChat = esDelChatAbierto(jid);
 
       const m = payload.message;
       // El filtro barato va PRIMERO. Antes se llamaba al servidor por cada
