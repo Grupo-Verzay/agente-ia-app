@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Minus, Plus, Scan } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { abrirPdf, pintarPagina } from '@/lib/pdf-en-el-navegador';
+import { useMandosDelVisor } from '../mandos-del-visor';
 
 /**
  * Un PDF pintado por nosotros, pagina a pagina.
@@ -24,6 +25,11 @@ import { abrirPdf, pintarPagina } from '@/lib/pdf-en-el-navegador';
  * ancho que haya** -no una columna estrecha en medio de la pantalla-, se puede
  * **acercar y alejar** con un boton para volver al ancho, y se puede **ir a
  * una pagina**, que con un catalogo de 63 es lo que mas falta hace.
+ *
+ * Los mandos van en la barra de ARRIBA, la del nombre y la descarga, no en una
+ * segunda barra debajo: al lado del nombre hay sitio de sobra, y dos barras
+ * para un solo documento es una de mas. El visor los publica
+ * (`useMandosDelVisor`) y la barra los pinta.
  *
  * Lo que NO se ha traido del visor del navegador: girar, imprimir y buscar
  * texto. Descargar ya esta arriba, en la cabecera del visor.
@@ -183,25 +189,15 @@ export const PdfPages: React.FC<PdfPagesProps> = ({ url, titulo }) => {
     }
   }, []);
 
-  if (fallo) {
-    // El camino de antes. En un ordenador sigue enseñando el documento.
-    return (
-      <iframe
-        src={url}
-        title={titulo}
-        className="w-full h-full bg-white"
-        style={{ border: 'none', minHeight: '60vh' }}
-      />
-    );
-  }
-
   const acercar = () => setZoom((z) => Math.min(ZOOM_MAXIMO, z + PASO_DEL_ZOOM));
   const alejar = () => setZoom((z) => Math.max(ZOOM_MINIMO, z - PASO_DEL_ZOOM));
 
-  return (
-    <div className="flex h-full w-full flex-col bg-neutral-200 dark:bg-neutral-800">
-      {/* Los mandos, los mismos que traia el visor del navegador. */}
-      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-border/50 bg-background/80 px-2 py-1 backdrop-blur">
+  // Los mandos suben a la barra de arriba. Un hook no puede ir detras de un
+  // `return`, asi que esto va ANTES del caso de fallo -y con `fallo` en las
+  // dependencias, para que al caer al iframe se retiren-.
+  useMandosDelVisor(
+    fallo || paginas === 0 ? null : (
+      <>
         <Button
           variant="ghost"
           size="icon"
@@ -212,7 +208,7 @@ export const PdfPages: React.FC<PdfPagesProps> = ({ url, titulo }) => {
         >
           <Minus className="h-4 w-4" />
         </Button>
-        <span className="w-14 text-center text-xs tabular-nums text-muted-foreground">
+        <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
           {Math.round(zoom * 100)}%
         </span>
         <Button
@@ -236,28 +232,44 @@ export const PdfPages: React.FC<PdfPagesProps> = ({ url, titulo }) => {
         >
           <Scan className="h-4 w-4" />
         </Button>
-        {paginas > 0 && (
-          <span className="ml-2 flex items-center gap-1 text-xs text-muted-foreground">
-            <input
-              type="number"
-              min={1}
-              max={paginas}
-              value={paginaActual}
-              onChange={(e) => {
-                const pedida = Number(e.target.value);
-                if (Number.isFinite(pedida)) {
-                  setPaginaActual(pedida);
-                  irA(pedida);
-                }
-              }}
-              aria-label="Ir a la página"
-              className="h-7 w-12 rounded border border-border bg-background px-1 text-center tabular-nums text-foreground"
-            />
-            de {paginas}
-          </span>
-        )}
-      </div>
+        <span className="ml-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <input
+            type="number"
+            min={1}
+            max={paginas}
+            value={paginaActual}
+            onChange={(e) => {
+              const pedida = Number(e.target.value);
+              if (Number.isFinite(pedida)) {
+                setPaginaActual(pedida);
+                irA(pedida);
+              }
+            }}
+            aria-label="Ir a la página"
+            className="h-7 w-12 rounded border border-border bg-background px-1 text-center tabular-nums text-foreground"
+          />
+          de {paginas}
+        </span>
+      </>
+    ),
+    [fallo, paginas, paginaActual, zoom, irA],
+  );
 
+  if (fallo) {
+    // El camino de antes. En un ordenador sigue enseñando el documento.
+    return (
+      <iframe
+        src={url}
+        title={titulo}
+        className="w-full h-full bg-white"
+        style={{ border: 'none', minHeight: '60vh' }}
+      />
+    );
+  }
+
+
+  return (
+    <div className="flex h-full w-full flex-col bg-neutral-200 dark:bg-neutral-800">
       <div ref={marco} onScroll={alDesplazar} className="min-h-0 flex-1 overflow-auto">
         {paginas === 0 && (
           <div className="flex h-full min-h-[50vh] items-center justify-center gap-2 text-sm text-muted-foreground">
