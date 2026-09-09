@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { db } from "@/lib/db";
+import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
 
 /**
  * Helpers SERVER (auth/guards/decimal)
@@ -68,7 +69,17 @@ export function normalizeOptionalText(value?: string | null, maxLength = 500): s
 
 export async function assertBillingScope(actor: { id?: string; role?: string | null }, rawUserId?: string | null) {
   const userId = ensureUserId(rawUserId);
-  assertAdminOrReseller(actor?.role);
+
+  // Alguien del equipo sin rol de admin pasa por su cartera: solo los clientes
+  // que le asignaron, y solo esos. Es la misma llave que abre el listado, para
+  // que no se le enseñe una fila que luego no puede tocar.
+  const cartera = await clientesDelAsesor(actor ?? {});
+  if (cartera) {
+    if (!cartera.includes(userId)) {
+      throw new Error("No autorizado para gestionar este cliente.");
+    }
+    return userId;
+  }
 
   const targetUser = await db.user.findUnique({
     where: { id: userId },

@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isAdminLike } from "@/lib/rbac";
 import { BillingUpsertInput, ResponseFormat, UserBilling } from "@/types/billing";
 import { createInstanceInternal, deleteInstanceInternal } from "@/actions/api-action";
 
@@ -610,7 +611,10 @@ export async function toggleUserStatus(
 export async function bulkSyncActiveClientSessions(): Promise<ResponseFormat<{ updated: number }>> {
     try {
         const me = await currentUser();
-        if (!me) return { success: false, message: "No autorizado." };
+        // Toca las conversaciones de TODOS los clientes activos de la
+        // plataforma, no las de una cartera: es de la casa. Solo pedía sesión,
+        // y esta pantalla ya no es solo de administradores.
+        if (!me || !isAdminLike(me.role)) return { success: false, message: "No autorizado." };
 
         const activeUsers = await db.userBilling.findMany({
             where: { accessStatus: "ACTIVE" },
