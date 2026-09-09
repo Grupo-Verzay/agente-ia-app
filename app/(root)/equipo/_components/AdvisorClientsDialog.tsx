@@ -71,6 +71,31 @@ export function AdvisorClientsDialog({
     [clientes, consulta],
   );
 
+  /**
+   * Marcar o desmarcar de una vez.
+   *
+   * Con 61 cuentas, asignarlas una a una son 61 clics. El boton actua sobre lo
+   * que se esta VIENDO, no sobre la lista entera: con una busqueda puesta,
+   * marca solo lo encontrado, que es lo que se espera de un boton que aparece
+   * al lado del buscador. Por eso el rotulo dice cuantas son.
+   *
+   * Si ya estan todas las visibles marcadas, el boton las quita: un solo mando
+   * para las dos cosas, como el resto de la App.
+   */
+  const todasLasVisiblesAsignadas =
+    visibles.length > 0 && visibles.every((c) => asignados.has(c.id));
+
+  const alternarLasVisibles = () => {
+    setAsignados((prev) => {
+      const next = new Set(prev);
+      for (const c of visibles) {
+        if (todasLasVisiblesAsignadas) next.delete(c.id);
+        else next.add(c.id);
+      }
+      return next;
+    });
+  };
+
   const guardar = () => {
     startSaving(async () => {
       const res = await setAdvisorClients(advisorId, [...asignados]);
@@ -96,14 +121,27 @@ export function AdvisorClientsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="relative shrink-0">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por empresa, nombre o correo…"
-            className="h-9 pl-8"
-          />
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por empresa, nombre o correo…"
+              className="h-9 pl-8"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0"
+            onClick={alternarLasVisibles}
+            disabled={loading || saving || visibles.length === 0}
+          >
+            {todasLasVisiblesAsignadas ? "Quitar" : "Asignar"}
+            {consulta ? ` los ${visibles.length}` : " todos"}
+          </Button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">

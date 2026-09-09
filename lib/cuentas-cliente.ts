@@ -22,7 +22,18 @@ export async function clientesDeLaCuenta(owner: {
   id: string;
   role: string;
 }): Promise<CuentaCliente[]> {
-  const base = { role: { in: ["user", "affiliate"] as Role[] } };
+  // Cuentas PRINCIPALES, no gente del equipo de otra cuenta.
+  //
+  // El rol no basta para distinguirlas: un asesor se crea con rol `user` igual
+  // que un cliente, y lo que lo diferencia es que cuelga de alguien
+  // (`ownerId`). Sin esta condicion, la lista de "Clientes asignados" salia
+  // mezclada con los asesores de otras cuentas -61 filas donde deberian ser
+  // muchas menos-, y ninguno de ellos es una cuenta a la que se pueda entrar a
+  // administrar: no tienen nada que administrar, son personas dentro de otra.
+  const base = {
+    role: { in: ["user", "affiliate"] as Role[] },
+    ownerId: null,
+  };
   const select = { id: true, name: true, email: true, company: true };
 
   if (isAdminLike(owner.role)) {
