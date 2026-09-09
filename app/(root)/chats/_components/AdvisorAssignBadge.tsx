@@ -209,13 +209,24 @@ export function AdvisorAssignBadge({
         * que se viene a hacer, y esconderlo tras un submenú añade un clic a lo
         * principal—. Lo que se hace es **darle su propio scroll**: arriba se
         * quedan fijos «Sin asignar» y «Asignarme», abajo el Historial, y solo la
-        * lista se desplaza. El menú entero no pasa del 70 % de la altura de la
-        * ventana, tenga el equipo tres personas o treinta.
+        * lista se desplaza.
+        *
+        * Y el tope NO puede ser `70vh` a secas: eso mide la ventana, no el
+        * hueco que hay entre el botón y el borde. Con la fila arriba del todo,
+        * el menú se abría hacia arriba y **se salía por encima de la pantalla**:
+        * el título «Asignar asesor» quedaba cortado y no había forma de
+        * subir. El tope es el hueco de verdad, que Radix mide y publica en
+        * `--radix-popover-content-available-height`, y encima de eso el 70 %
+        * como techo. Cualquier menú con una lista dentro va igual.
         */}
       <PopoverContent
-        className="flex max-h-[70vh] w-56 flex-col overflow-hidden p-1"
+        className="flex w-56 flex-col overflow-hidden p-1"
+        style={{
+          maxHeight: 'min(70vh, var(--radix-popover-content-available-height))',
+        }}
         side="top"
         align="start"
+        collisionPadding={12}
         onClick={(e) => e.stopPropagation()}
       >
         <p className="shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

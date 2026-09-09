@@ -548,7 +548,11 @@ function ChatContactItemBase({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent
+              align="end"
+              className="w-52 overflow-y-auto"
+              style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+            >
               {/* 1. Marcar como leído / no leído */}
               {contact.isUnreadLocal ? (
                 <DropdownMenuItem onSelect={() => onMarkRead?.(contact.id)}>
@@ -576,7 +580,10 @@ function ChatContactItemBase({
                     <UserCheck className="h-4 w-4" />
                     Asignar agente
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-[60vh] w-48 overflow-y-auto">
+                  <DropdownMenuSubContent
+                    className="w-48 overflow-y-auto"
+                    style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+                  >
                     <DropdownMenuItem onSelect={() => onAssignAdvisor(contact.id, null, contact.instanceName)}>
                       <span className="text-sm text-muted-foreground">Sin asignar</span>
                     </DropdownMenuItem>
@@ -612,7 +619,10 @@ function ChatContactItemBase({
                     <Tag className="h-4 w-4" />
                     Asignar etiqueta
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-[60vh] w-44 overflow-y-auto">
+                  <DropdownMenuSubContent
+                    className="w-44 overflow-y-auto"
+                    style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+                  >
                     {allTags.map((tag) => {
                       const hasTag = contact.chatSession?.tags?.some((t) => t.id === tag.id);
                       return (
