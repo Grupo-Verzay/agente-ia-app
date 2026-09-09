@@ -103,6 +103,8 @@ interface ChatHeaderProps {
   onOpenContactEditor: () => void;
   onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
   onSessionMutate: () => void;
+  /** El interruptor de la IA cambio: para pintarlo al momento en la lista. */
+  onSessionStatusChange?: (status: boolean) => void;
   onSessionRefresh: () => Promise<void>;
   advisors?: AdvisorInfo[];
   currentAdvisorId?: string;
@@ -140,6 +142,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onOpenContactEditor,
   onSessionTagsChange,
   onSessionMutate,
+  onSessionStatusChange,
   onSessionRefresh,
   advisors,
   currentAdvisorId,
@@ -302,6 +305,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       sessionId={session.id}
       checked={session.status ?? false}
       mutateSessions={onSessionMutate}
+      onChanged={onSessionStatusChange}
     />
   );
 

@@ -65,6 +65,8 @@ interface ChatInputBarProps {
     params: string[],
   ) => Promise<{ success: boolean; message?: string }>;
   onSessionMutate: () => void;
+  /** El interruptor de la IA cambio: para pintarlo al momento en la lista. */
+  onSessionStatusChange?: (status: boolean) => void;
   onGenerateSuggestion?: () => void;
   noteMode?: boolean;
   onToggleNoteMode?: () => void;
@@ -104,6 +106,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   instanceName,
   onSendTemplate,
   onSessionMutate,
+  onSessionStatusChange,
   onGenerateSuggestion,
   noteMode = false,
   onToggleNoteMode,
@@ -485,6 +488,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                   sessionId={session.id ?? -1}
                   checked={session.status ?? false}
                   mutateSessions={onSessionMutate}
+                  onChanged={onSessionStatusChange}
                 />
               </span>
             )}

@@ -104,6 +104,8 @@ type ChatMainProps = {
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
   onSessionResolved?: (remoteJid: string, session: Session | null) => void;
+  /** El interruptor de la IA cambio: para pintarlo al momento en la lista. */
+  onSessionStatusChange?: (sessionId: number, remoteJid: string, status: boolean) => void;
   onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
   advisors?: AdvisorInfo[];
   currentAdvisorId?: string;
@@ -145,6 +147,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   allTags,
   workflows,
   onSessionResolved,
+  onSessionStatusChange,
   onSessionTagsChange,
   advisors,
   currentAdvisorId,
@@ -955,6 +958,21 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     [sendNow, handleSendNote, isRecording, recordedAudio, slashOpen, noteMode, input],
   );
 
+
+  /**
+   * El interruptor de la IA, pintado al momento en la lista.
+   *
+   * `SwitchStatus` solo sabe si quedo encendido o apagado; el id de la sesion y
+   * el contacto los sabemos aqui, asi que se completan antes de subirlo.
+   */
+  const avisarDelInterruptor = useCallback(
+    (status: boolean) => {
+      if (!session?.id || !info?.remoteJid) return;
+      onSessionStatusChange?.(session.id, info.remoteJid, status);
+    },
+    [onSessionStatusChange, session?.id, info?.remoteJid],
+  );
+
   const toggleInfoPanel = useCallback(() => {
     setInfoPanelOpen((v) => {
       const next = !v;
@@ -984,6 +1002,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onOpenContactEditor={() => setIsContactEditorOpen(true)}
         onSessionTagsChange={onSessionTagsChange}
         onSessionMutate={mutateSessionStatus}
+        onSessionStatusChange={avisarDelInterruptor}
         onSessionRefresh={refreshSessionStatus}
         advisors={advisors}
         currentAdvisorId={currentAdvisorId}
@@ -1189,6 +1208,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         instanceName={info?.instanceName}
         onSendTemplate={onSendTemplate}
         onSessionMutate={mutateSessionStatus}
+        onSessionStatusChange={avisarDelInterruptor}
         onGenerateSuggestion={() => void generateSuggestion()}
         noteMode={noteMode}
         onToggleNoteMode={handleToggleNoteMode}

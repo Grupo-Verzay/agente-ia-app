@@ -1562,6 +1562,24 @@ export function ChatsClient({
     [],
   );
 
+  /**
+   * El interruptor de la IA de una conversacion, pintado al momento.
+   *
+   * Es el quinto hermano de la regla de siempre: lo que actualiza una sesion en
+   * memoria la busca por su `id`. A este se le habia pasado, y por eso se
+   * encendia, se salia del chat, se volvia... y aparecia apagado otra vez: la
+   * barra lateral guarda su propia copia de la sesion, al reabrir el chat se
+   * siembra con ella, y nadie la habia puesto al dia. Solo se corregia cuando
+   * el reloj de sesiones (60s) traia la lista de nuevo, y de ahi el "tarda
+   * mucho".
+   */
+  const handleSessionStatusChange = useCallback(
+    (sessionId: number, remoteJid: string, status: boolean) => {
+      aplicarEnLaSesion(sessionId, remoteJid, { status }, "el interruptor de la IA");
+    },
+    [aplicarEnLaSesion],
+  );
+
   const handleLeadStatusChange = useCallback(
     (
       remoteJid: string,
@@ -3874,6 +3892,7 @@ export function ChatsClient({
             instanceType={currentContact?.instanceType}
             onSendTemplate={handleSendTemplate}
             onSessionResolved={handleSessionResolved}
+            onSessionStatusChange={handleSessionStatusChange}
             onSessionTagsChange={handleSessionTagsChange}
             quickReplies={quickReplies}
             userId={userId}
