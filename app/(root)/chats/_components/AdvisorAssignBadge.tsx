@@ -201,13 +201,24 @@ export function AdvisorAssignBadge({
         </button>
       </PopoverTrigger>
 
+      {/*
+        * Con un equipo de verdad la lista de asesores se comía el menú y el
+        * Historial quedaba fuera de la pantalla: no se llegaba abajo.
+        *
+        * Aquí no se pliega la lista como en «Acciones» —asignar a alguien ES lo
+        * que se viene a hacer, y esconderlo tras un submenú añade un clic a lo
+        * principal—. Lo que se hace es **darle su propio scroll**: arriba se
+        * quedan fijos «Sin asignar» y «Asignarme», abajo el Historial, y solo la
+        * lista se desplaza. El menú entero no pasa del 70 % de la altura de la
+        * ventana, tenga el equipo tres personas o treinta.
+        */}
       <PopoverContent
-        className="w-48 p-1"
+        className="flex max-h-[70vh] w-56 flex-col overflow-hidden p-1"
         side="top"
         align="start"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Asignar asesor
         </p>
 
@@ -215,7 +226,7 @@ export function AdvisorAssignBadge({
           type="button"
           onClick={() => void handleAssign(null)}
           className={cn(
-            'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors',
+            'flex w-full shrink-0 items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors',
             !assignedAdvisorId && 'font-semibold text-primary',
           )}
         >
@@ -230,7 +241,7 @@ export function AdvisorAssignBadge({
             type="button"
             onClick={() => void handleAssign(currentAdvisorId ?? null)}
             className={cn(
-              'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors',
+              'flex w-full shrink-0 items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors',
               isMySession && 'font-semibold text-primary',
             )}
           >
@@ -241,27 +252,33 @@ export function AdvisorAssignBadge({
           </button>
         )}
 
-        {canAssignToMe && otrosAsesores.length > 0 && <div className="my-1 border-t border-border/50" />}
+        {canAssignToMe && otrosAsesores.length > 0 && (
+          <div className="my-1 shrink-0 border-t border-border/50" />
+        )}
 
-        {otrosAsesores.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            onClick={() => void handleAssign(a.id)}
-            className={cn(
-              'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors',
-              assignedAdvisorId === a.id && 'font-semibold text-primary',
-            )}
-          >
-            <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
-              {initials(a)}
-            </span>
-            <span className="truncate">{a.name ?? a.email}</span>
-          </button>
-        ))}
+        {/* La única parte que se desplaza: es la que crece con el equipo. */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {otrosAsesores.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => void handleAssign(a.id)}
+              className={cn(
+                'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors',
+                assignedAdvisorId === a.id && 'font-semibold text-primary',
+              )}
+              title={a.name ?? a.email ?? undefined}
+            >
+              <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
+                {initials(a)}
+              </span>
+              <span className="truncate">{a.name ?? a.email}</span>
+            </button>
+          ))}
+        </div>
 
         {sessionId && (
-          <>
+          <div className="shrink-0">
             <div className="my-1 border-t border-border/50" />
             <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
               <Clock className="h-2.5 w-2.5" />
@@ -283,7 +300,7 @@ export function AdvisorAssignBadge({
                 );
               })
             )}
-          </>
+          </div>
         )}
       </PopoverContent>
     </Popover>

@@ -566,6 +566,21 @@ cortas y Resolver se ve siempre, con equipo de tres o de treinta.
 La regla, si se añade otra lista aquí: **lo que el asesor hace a diario se ve
 sin desplegar nada**; lo que crece con el equipo va dentro de un submenú.
 
+Y lo mismo pasaba en el otro menú donde sale el equipo entero: **asignar asesor
+desde la fila de la lista** (`AdvisorAssignBadge`). Ahí la lista se comía el
+menú y el **Historial**, que va al final, quedaba fuera de la pantalla.
+
+Ese **no se pliega**, y a propósito: asignar a alguien *es* lo que se viene a
+hacer en ese menú, y esconderlo tras un submenú añade un clic a lo principal.
+Lo que se hace es darle **su propio scroll**: el menú no pasa del 70 % de la
+altura de la ventana, arriba se quedan fijos «Sin asignar» y «Asignarme», abajo
+el Historial, y solo la lista se desplaza.
+
+Las dos formas valen; lo que no vale es una lista que crece sin tope. **Si la
+lista es el motivo del menú, scroll; si es una opción más entre otras,
+submenú** —y el submenú también con su `max-h`, como los de «Asignar agente» y
+«Asignar etiqueta» del menú de la fila—.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se
