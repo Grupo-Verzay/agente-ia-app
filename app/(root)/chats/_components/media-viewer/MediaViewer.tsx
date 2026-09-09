@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import type { MediaData } from '../chat-message-types';
 import { getViewer } from './viewer-registry';
+import { ProveedorDeMandos } from './mandos-del-visor';
 
 interface MediaViewerProps {
   /** Modo de un solo elemento (documento, audio, etc.). */
@@ -38,6 +39,15 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
   onClose,
   onNavigate,
 }) => {
+  // Los mandos que publica el visor de dentro (el zoom del PDF, por ejemplo).
+  // Van en ESTA barra y no en una segunda debajo: aqui hay sitio de sobra al
+  // lado del nombre, y dos barras para un documento es una de mas.
+  const [mandosDelVisor, setMandosDelVisor] = useState<React.ReactNode>(null);
+  const mandos = useMemo(
+    () => ({ publicar: (nodo: React.ReactNode) => setMandosDelVisor(nodo) }),
+    [],
+  );
+
   const list = items && items.length ? items : media ? [media] : [];
   const total = list.length;
   const safeIndex = Math.min(Math.max(index, 0), Math.max(total - 1, 0));
@@ -123,6 +133,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
               </span>
             )}
           </div>
+          {mandosDelVisor && <div className="flex shrink-0 items-center gap-1">{mandosDelVisor}</div>}
           {canNavigate && (
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
               {safeIndex + 1} / {total}
@@ -141,13 +152,15 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
 
         {/* Content — cada viewer llena esta área. En galería, flechas anterior/siguiente. */}
         <div className={isDocumentCard ? 'relative overflow-hidden' : 'relative flex-1 min-h-0 overflow-hidden'}>
-          <ViewerComponent
-            key={url}
-            url={url}
-            mimeType={mimeType}
-            caption={caption}
-            fileName={active.fileName}
-          />
+          <ProveedorDeMandos value={mandos}>
+            <ViewerComponent
+              key={url}
+              url={url}
+              mimeType={mimeType}
+              caption={caption}
+              fileName={active.fileName}
+            />
+          </ProveedorDeMandos>
 
           {canNavigate && (
             <>
