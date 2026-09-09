@@ -875,6 +875,10 @@ export default async function ChatsPage({
   return (
     <ChatsClient
       userId={effectiveOwnerId}
+      // Las notas son PERSONALES: quien mira ve las suyas y las que le hayan
+      // compartido, no las de la cuenta. Por eso viaja aparte del id de la
+      // cuenta, que es con el que van los chats, las lineas y las sesiones.
+      viewerUserId={user.id}
       sessionUserIds={allSessionUserIds}
       instancias={instanciasMeta}
       chatsResult={chatsResult}

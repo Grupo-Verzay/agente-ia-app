@@ -524,6 +524,14 @@ function dedupeAndSortChats(chats: ChatData[], lidMap?: LidPhoneMap) {
 
 interface ChatsClientProps {
   userId: string;
+  /**
+   * Quien esta mirando, que NO es lo mismo que la cuenta.
+   *
+   * `userId` es la cuenta que se administra: con el van los chats, las lineas
+   * y las sesiones, y para un asesor es la de su dueño. Las notas, en cambio,
+   * son de cada persona, asi que necesitan este.
+   */
+  viewerUserId?: string;
   sessionUserIds?: string[];
   instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
   chatsResult: FetchChatsResult;
@@ -570,6 +578,7 @@ interface ChatsClientProps {
 
 export function ChatsClient({
   userId,
+  viewerUserId,
   sessionUserIds,
   instancias = [],
   chatsResult: initialChatsResult,
@@ -3896,6 +3905,7 @@ export function ChatsClient({
             onSessionTagsChange={handleSessionTagsChange}
             quickReplies={quickReplies}
             userId={userId}
+            viewerUserId={viewerUserId}
             sessionUserIds={sessionUserIds?.length ? sessionUserIds : undefined}
             initialSession={currentContactSession}
             workflows={workflows}
