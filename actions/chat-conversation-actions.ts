@@ -782,7 +782,7 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
         "userId", "remoteJid", "remoteJidAlt", "pushName", "instanceId",
         "status", "createdAt", "updatedAt"
       )
-      SELECT c."userId",
+      SELECT duena."userId",
              c."canonico",
              NULLIF(c."alterno", c."canonico"),
              COALESCE(NULLIF(BTRIM(c."pushName"), ''), c."canonico"),
@@ -812,13 +812,35 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
                ) AS "identidades"
         FROM "chat_conversations" v
       ) c
+      -- La ficha es del DUEÑO DE LA LÍNEA, nunca de quien la está mirando.
+      --
+      -- chat_conversations es el cache de la bandeja y se guarda bajo el userId
+      -- de QUIEN MIRA: en la bandeja unificada un administrador ve las líneas de
+      -- las cuentas asociadas, y esa fila queda a su nombre. Eso está bien para
+      -- el cache -lo dice upsertSessionFromChatMessage, que por eso resuelve el
+      -- dueño antes de tocar Session- pero aquí se insertaba con el userId de la
+      -- conversación tal cual, así que CADA CUENTA QUE ABRÍA LA BANDEJA SE
+      -- LLEVABA UNA COPIA DEL LEAD. Desde fuera: leads en una cuenta que no
+      -- tiene ninguna línea creada, que volvían solos unos minutos después de
+      -- borrarlos, porque esto se vuelve a ejecutar al abrir la bandeja.
+      --
+      -- Con el JOIN, una conversación cuya línea no se puede resolver no crea
+      -- ficha: sin dueño no hay lead. Es preferible que falte a que aparezca en
+      -- la cuenta equivocada.
+      JOIN LATERAL (
+        SELECT i."userId"
+        FROM "Instancias" i
+        WHERE i."instanceName" = c."instanceName"
+        ORDER BY i.id
+        LIMIT 1
+      ) duena ON TRUE
       WHERE c."userId" IN (${Prisma.join(userIds)})
         AND c."lastMessageTimestamp" > ${desde}
         AND c."canonico" NOT LIKE '%@g.us'
         AND c."canonico" <> 'status@broadcast'
         AND NOT EXISTS (
           SELECT 1 FROM "Session" s
-          WHERE s."userId" = c."userId"
+          WHERE s."userId" = duena."userId"
             AND s."instanceId" = c."instanceName"
             AND (
               regexp_replace(s."remoteJid", ':[0-9]+@', '@') = ANY (c."identidades")
