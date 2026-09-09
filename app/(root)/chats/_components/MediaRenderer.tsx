@@ -8,6 +8,23 @@ import { cn } from '@/lib/utils';
 import type { MediaData } from './chat-message-types';
 import { MediaViewer, useMediaGallery } from './media-viewer';
 
+/**
+ * El ancho maximo de un adjunto, para que el PIE se ajuste al mismo.
+ *
+ * El texto que acompana a una foto no tenia tope, asi que estiraba la burbuja
+ * hasta donde llegara la frase y la foto quedaba flotando en una caja mucho mas
+ * ancha que ella. Dandole el mismo tope, el texto salta de linea justo donde
+ * acaba la imagen y la burbuja mide lo que mide la foto.
+ *
+ * Vive aqui y se exporta para que sea UN solo valor: si se cambia el ancho del
+ * adjunto y el del pie se queda con el viejo, vuelve el desajuste.
+ */
+export function anchoDelAdjunto(tipo: MediaData['type']): string {
+  return tipo === 'audio' || tipo === 'document'
+    ? 'w-full max-w-[350px]'
+    : 'max-w-full md:max-w-[300px]';
+}
+
 interface MediaRendererProps {
   media: MediaData | undefined;
 }
@@ -40,17 +57,10 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
     setViewerOpen(true);
   };
   const baseStyle = 'my-1 rounded-md overflow-hidden border dark:border-gray-600';
-  const audioDocStyle = 'w-full max-w-[350px]';
 
   return (
     <>
-      <div
-        className={cn(
-          baseStyle,
-          'max-w-full',
-          type === 'audio' || type === 'document' ? audioDocStyle : 'md:max-w-[300px]',
-        )}
-      >
+      <div className={cn(baseStyle, anchoDelAdjunto(type))}>
         {type === 'image' && (
           <SafeImage
             src={url}
