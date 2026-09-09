@@ -8,7 +8,7 @@ import { writeAuditLog } from "@/actions/audit-log-actions";
 import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
 import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
-import { mandaEnElProyecto } from "@/lib/project-roles";
+import { filtroDeProyectosVisibles, mandaEnElProyecto } from "@/lib/project-roles";
 
 type Result<T> = { success: boolean; message: string; data?: T };
 
@@ -110,7 +110,9 @@ export async function listProjectsAction(): Promise<Result<ProjectData[]>> {
     const quienMira = { id: user.id, gestionaLaCuenta: canManageWorkspace(user) };
 
     const projects = await db.project.findMany({
-      where: { ownerId },
+      // Los de la cuenta, pero solo los que tienen que ver con quien mira: un
+      // agente ve los suyos, no el trabajo entero de su dueño.
+      where: { ownerId, ...filtroDeProyectosVisibles(user) },
       include: {
         members: { select: { userId: true } },
         tasks: { select: { status: true, dueDate: true } },
@@ -259,8 +261,14 @@ export async function deleteProjectAction(projectId: number): Promise<Result<nul
 /** Tareas de un proyecto, para pintar el tablero. */
 export async function getProjectTasksAction(projectId: number): Promise<Result<TaskData[]>> {
   try {
-    const { ownerId } = await getAuth();
-    await assertOwnProject(projectId, ownerId);
+    const { user, ownerId } = await getAuth();
+    // Con el id a mano se pedía el tablero de cualquier proyecto de la cuenta.
+    // Se abre el que se puede ver, que es el mismo criterio de la lista.
+    const visible = await db.project.findFirst({
+      where: { id: projectId, ownerId, ...filtroDeProyectosVisibles(user) },
+      select: { id: true },
+    });
+    if (!visible) throw new Error("Proyecto no encontrado.");
 
     const tasks = await db.task.findMany({
       where: { projectId, ownerId },

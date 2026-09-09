@@ -3,7 +3,8 @@
 import { db } from "@/lib/db"
 import { currentUser } from "@/lib/auth"
 import { isAdminLike } from "@/lib/rbac"
-import { BillingStatus, Plan, ServiceAccessStatus } from "@prisma/client"
+import { clientesDelAsesor } from "@/lib/clientes-del-asesor"
+import { BillingStatus, Plan, Prisma, ServiceAccessStatus } from "@prisma/client"
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────
 
@@ -94,37 +95,40 @@ function fillMonths(map: Map<string, number>, numMonths = 12): { month: string; 
 
 // ─── Reseller: sus propias métricas ─────────────────────────────────────────
 
-export async function getResellerAnalytics(): Promise<{
-  success: boolean
-  data?: ResellerAnalyticsData
-  message?: string
-}> {
-  const user = await currentUser()
-  if (!user || user.role !== "reseller") {
-    return { success: false, message: "No autorizado" }
-  }
+type ClienteConCuenta = {
+  id: string
+  name: string | null
+  company: string | null
+  email: string
+  plan: Plan
+  createdAt: Date
+  billing: {
+    accessStatus: ServiceAccessStatus | null
+    billingStatus: BillingStatus | null
+    price: Prisma.Decimal | null
+    currencyCode: string | null
+    serviceEndsAt: Date | null
+  } | null
+  iaCredits: { total: number; used: number } | null
+}
+
+/**
+ * Las metricas de una cartera de clientes.
+ *
+ * Estaban dentro de `getResellerAnalytics`, atadas a la consulta que trae los
+ * clientes de un reseller. Se separan porque la misma cuenta vale para la
+ * cartera de alguien del equipo: cambian los clientes, no las cuentas.
+ */
+function metricasDeLaCartera(entrada: (ClienteConCuenta | null)[]): ResellerAnalyticsData {
+  // La consulta del reseller puede traer huecos (una asignacion cuyo cliente ya
+  // no existe). Se quitan aqui, una sola vez, y no en cada cuenta de abajo.
+  const clients = entrada.filter((c): c is ClienteConCuenta => c != null)
 
   const twelveMonthsAgo = new Date()
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
 
   const sevenDaysFromNow = new Date()
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
-
-  const assignments = await db.reseller.findMany({
-    where: { resellerid: user.id },
-    include: {
-      user_reseller_userIdToUser: {
-        include: {
-          billing: true,
-          iaCredits: true,
-        },
-      },
-    },
-  })
-
-  const clients = assignments
-    .map((a) => a.user_reseller_userIdToUser)
-    .filter(Boolean)
 
   const totalClients = clients.length
   const activeClients = clients.filter(
@@ -224,23 +228,89 @@ export async function getResellerAnalytics(): Promise<{
     .sort((a, b) => a.percentage - b.percentage)
 
   return {
-    success: true,
-    data: {
-      totalClients,
-      activeClients,
-      suspendedClients,
-      unpaidClients,
-      activationRate,
-      planDistribution,
-      totalCreditsAssigned,
-      totalCreditsUsed,
-      estimatedMonthlyRevenue,
-      currencyCode,
-      newClientsByMonth,
-      clientsExpiringSoon,
-      lowCreditUsers,
-    },
+    totalClients,
+    activeClients,
+    suspendedClients,
+    unpaidClients,
+    activationRate,
+    planDistribution,
+    totalCreditsAssigned,
+    totalCreditsUsed,
+    estimatedMonthlyRevenue,
+    currencyCode,
+    newClientsByMonth,
+    clientsExpiringSoon,
+    lowCreditUsers,
   }
+}
+
+/** Lo que hace falta de cada cliente para las metricas de arriba. */
+const SELECT_DE_LA_CARTERA = {
+  id: true,
+  name: true,
+  company: true,
+  email: true,
+  plan: true,
+  createdAt: true,
+  billing: {
+    select: {
+      accessStatus: true,
+      billingStatus: true,
+      price: true,
+      currencyCode: true,
+      serviceEndsAt: true,
+    },
+  },
+  iaCredits: { select: { total: true, used: true } },
+} as const
+
+export async function getResellerAnalytics(): Promise<{
+  success: boolean
+  data?: ResellerAnalyticsData
+  message?: string
+}> {
+  const user = await currentUser()
+  if (!user || user.role !== "reseller") {
+    return { success: false, message: "No autorizado" }
+  }
+
+  const assignments = await db.reseller.findMany({
+    where: { resellerid: user.id },
+    select: { user_reseller_userIdToUser: { select: SELECT_DE_LA_CARTERA } },
+  })
+
+  const clients = assignments.map((a) => a.user_reseller_userIdToUser)
+
+  return { success: true, data: metricasDeLaCartera(clients as (ClienteConCuenta | null)[]) }
+}
+
+/**
+ * Las metricas de los clientes que le asignaron a alguien del equipo.
+ *
+ * Analitica va con Clientes: quien lleva unas cuentas necesita ver como van
+ * —cuantas activas, cuales vencen, quien se queda sin creditos—, y hasta ahora
+ * la pantalla pedia rol de admin y le contestaba «Acceso Denegado» aunque
+ * tuviera clientes a su cargo. Solo salen los suyos.
+ */
+export async function getAnalyticsDeMiCartera(): Promise<{
+  success: boolean
+  data?: ResellerAnalyticsData
+  message?: string
+}> {
+  const user = await currentUser()
+  if (!user) return { success: false, message: "No autorizado" }
+
+  const cartera = await clientesDelAsesor(user)
+  if (!cartera || cartera.length === 0) {
+    return { success: false, message: "No autorizado" }
+  }
+
+  const clients = await db.user.findMany({
+    where: { id: { in: cartera } },
+    select: SELECT_DE_LA_CARTERA,
+  })
+
+  return { success: true, data: metricasDeLaCartera(clients as ClienteConCuenta[]) }
 }
 
 // ─── Verzay: métricas de plataforma ─────────────────────────────────────────

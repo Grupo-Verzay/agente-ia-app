@@ -507,6 +507,48 @@ Dos cosas:
 
 Si se añade otra acción de notas que reciba un `userId`, va por esa función.
 
+## El equipo entra por su cartera, no por su rol
+
+Un asesor del equipo con la pestaña concedida abría Panel › **Instancias** y
+Panel › **Analíticas** y le salía **«Acceso Denegado»**. Las dos pantallas
+pedían rol —`isAdminOrReseller` una, `isAdminLike` la otra— y ese asesor no lo
+tiene ni lo va a tener: lo que tiene son **clientes asignados**.
+
+La cartera ya existía y ya decidía qué ve en Clientes: `advisor_clients`. Lo
+que faltaba era usarla en las demás. Ahora es **una sola función**,
+`clientesDelAsesor(persona)` (`lib/clientes-del-asesor.ts`):
+
+- `null` = sin límite propio (admin, super admin, reseller: cada uno se acota
+  por su regla de siempre).
+- `[]` = no le asignaron ninguno → «No autorizado».
+- una lista = **esos y solo esos**.
+
+La usan Clientes, Instancias (`getClientsWithBilling` y `assertBillingScope`,
+que es la llave de todos los cambios de facturación) y Analíticas. **Si se
+añade otra pantalla por cliente, va por ahí**, y no volviendo a pedir rol: eso
+es lo que dejó a esta gente fuera.
+
+Tres cosas que hay que mantener:
+
+1. **Quien decide es la consulta, no la pantalla.** `/panel/client-billing` ya
+   no comprueba el rol: pinta lo que la consulta le devuelve y enseña
+   «Acceso Denegado» solo si esta dice «No autorizado». Así la pantalla no
+   puede abrir de más que la consulta.
+2. **Analítica va con Clientes**: quien no es admin ve las métricas de **su**
+   cartera (`getAnalyticsDeMiCartera`, la misma tarjeta que ya usaba el
+   reseller), no las de la plataforma. El cálculo se separó de la consulta
+   (`metricasDeLaCartera`) justo para eso: cambian los clientes, no las cuentas.
+3. Lo que es **de la casa** sigue siendo de la casa. Al abrir esta pantalla a
+   más gente, `bulkSyncActiveClientSessions` —que toca las conversaciones de
+   TODOS los clientes activos y solo pedía sesión— pasó a exigir admin. Cuando
+   una pantalla se abre, se repasa qué acciones quedan a su alcance.
+
+Y en **Proyectos**, el mismo reparto: un agente ve los que tienen que ver con
+él —los que creó, los que lleva y aquellos en los que está
+(`filtroDeProyectosVisibles`)—, no el trabajo entero de su dueño. Vale para la
+lista y para abrir un tablero por su id. Diagramas ya lo hacía por su cuenta
+con `visibility` (privado / lectura / edición).
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera

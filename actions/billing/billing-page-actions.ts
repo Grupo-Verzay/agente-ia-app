@@ -3,19 +3,24 @@
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isAdminOrReseller } from "@/lib/rbac";
 import { ResponseFormat } from "@/types/billing";
+import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
 import { serializeUserBilling } from "./helpers/billing-helpers";
 
 export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
   try {
     const me = await currentUser();
     if (!me) return { success: false, message: "No autorizado." };
-    if (!isAdminOrReseller(me.role)) {
+
+    // Alguien del equipo entra con su cartera: los clientes que le asignaron,
+    // los mismos que ya ve en Clientes. Antes se pedía rol de admin y esta
+    // pantalla se le cerraba entera aunque tuviera clientes a su cargo.
+    const cartera = await clientesDelAsesor(me);
+    if (cartera && cartera.length === 0) {
       return { success: false, message: "No autorizado." };
     }
 
-    let assignedUserIds: string[] | undefined;
+    let assignedUserIds: string[] | undefined = cartera ?? undefined;
 
     if (me.role === "reseller") {
       // Clientes del reseller: combinar sistema viejo (Reseller.userId) y nuevo

@@ -1,20 +1,45 @@
 import { currentUser } from "@/lib/auth"
-import { isAdminLike } from "@/lib/rbac"
+import { isAdminLike, isReseller } from "@/lib/rbac"
 import AccessDenied from "@/app/AccessDenied"
-import { getVerzayPlatformAnalytics } from "@/actions/analytics-actions"
+import {
+  getAnalyticsDeMiCartera,
+  getResellerAnalytics,
+  getVerzayPlatformAnalytics,
+} from "@/actions/analytics-actions"
+import { ResellerAnalytics } from "../mis-estadisticas/_components/ResellerAnalytics"
 import { VerzayAnalytics } from "./_components/VerzayAnalytics"
 
+const SinDatos = ({ que }: { que: string }) => (
+  <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
+    No se pudieron cargar {que}.
+  </div>
+)
+
+/**
+ * Analítica va con Clientes: quien lleva unas cuentas ve cómo van ESAS.
+ *
+ * El administrador de la plataforma ve la plataforma entera; quien no lo es,
+ * su cartera —los clientes que le asignaron, los mismos de la pestaña
+ * Clientes—. Antes esta pantalla pedía rol de admin y contestaba «Acceso
+ * Denegado» a alguien que sí tenía clientes a su cargo.
+ */
 const AnalyticsPage = async () => {
   const user = await currentUser()
-  if (!user || !isAdminLike(user.role)) return <AccessDenied />
+  if (!user) return <AccessDenied />
+
+  if (!isAdminLike(user.role)) {
+    // Un reseller ya tiene su cartera por otro camino (sus clientes asignados);
+    // el resto del equipo, por `advisor_clients`.
+    const mios = isReseller(user.role)
+      ? await getResellerAnalytics()
+      : await getAnalyticsDeMiCartera()
+    if (!mios.success || !mios.data) return <AccessDenied />
+    return <ResellerAnalytics data={mios.data} />
+  }
 
   const result = await getVerzayPlatformAnalytics()
   if (!result.success || !result.data) {
-    return (
-      <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-        No se pudieron cargar las estadísticas de plataforma.
-      </div>
-    )
+    return <SinDatos que="las estadísticas de plataforma" />
   }
 
   return <VerzayAnalytics data={result.data} />

@@ -9,6 +9,7 @@ import { getIaCreditByUser } from './actions-ia-credits';
 import { inheritResellerAiConfig } from './userAiconfig-actions';
 import { currentUser } from '@/lib/auth';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
+import { clientesDelAsesor } from '@/lib/clientes-del-asesor';
 import { purgarCuentaEliminada } from '@/lib/purge-account.server';
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
@@ -68,14 +69,11 @@ const assignNonBooleanFields = (fd: FormData, target: Record<string, any>) => {
 const clientesPermitidos = async (): Promise<Set<string> | null> => {
   const me = await currentUser();
   if (!me) throw new Error("No autorizado.");
-  if (isAdminOrReseller(me.role)) return null;
 
-  const asignados = await db.advisorClient
-    .findMany({ where: { advisorUserId: me.id }, select: { clientUserId: true } })
-    .catch(() => []);
-
-  if (asignados.length === 0) throw new Error("No autorizado.");
-  return new Set(asignados.map((a) => a.clientUserId));
+  const cartera = await clientesDelAsesor(me);
+  if (!cartera) return null;
+  if (cartera.length === 0) throw new Error("No autorizado.");
+  return new Set(cartera);
 };
 
 const ensureAdminOrResellerUser = async () => {

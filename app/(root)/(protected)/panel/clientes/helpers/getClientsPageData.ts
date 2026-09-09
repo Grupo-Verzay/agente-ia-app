@@ -4,7 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { getEnrichedClients } from "@/actions/userClientDataActions";
 import { obtenerApiKeys } from "@/actions/api-action";
 import { getCountryCodes } from "@/actions/get-country-action";
-import { isAdminOrReseller } from "@/lib/rbac";
+import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
 import { db } from "@/lib/db";
 import { PLAN_LABELS } from "@/types/plans";
 import type { ClientInterface } from "@/lib/types";
@@ -40,19 +40,14 @@ export async function getClientsPageData(): Promise<
         // Un colaborador del equipo no tiene rol de admin, pero puede tener
         // clientes asignados: entonces ve esos y solo esos. Es lo que le permite
         // entrar a arreglar una cuenta concreta sin abrirle la plataforma.
-        const asignados = isAdminOrReseller(user.role)
-            ? []
-            : await db.advisorClient
-                .findMany({ where: { advisorUserId: user.id }, select: { clientUserId: true } })
-                .catch(() => []);
-
-        if (!isAdminOrReseller(user.role) && asignados.length === 0) {
+        const cartera = await clientesDelAsesor(user);
+        if (cartera && cartera.length === 0) {
             return { success: false, message: "No autorizado." };
         }
 
         let usersPromise;
-        if (asignados.length > 0) {
-            usersPromise = getEnrichedClients({ userIds: asignados.map((a) => a.clientUserId) });
+        if (cartera) {
+            usersPromise = getEnrichedClients({ userIds: cartera });
         } else if (user.role === "reseller") {
             // Combinar sistema viejo (reseller table) y nuevo (demoResellerId)
             const [oldAssignments, newClients] = await Promise.all([
