@@ -23,26 +23,17 @@ import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canManageWorkspace } from "@/lib/workspace-roles";
+import {
+  esTipoDeCarpeta,
+  type Carpeta,
+  type CarpetasDeUnTipo,
+  type TipoDeCarpeta,
+} from "@/lib/carpetas";
 
-/** Qué pantalla ordena esta carpeta. Si se añade otra, va aquí y nada más. */
-export const TIPOS_DE_CARPETA = ["proyecto", "diagrama"] as const;
-export type TipoDeCarpeta = (typeof TIPOS_DE_CARPETA)[number];
-
-export type Carpeta = {
-  id: string;
-  nombre: string;
-  color: string | null;
-  orden: number;
-  /** Quién la creó. Solo esa persona —o quien gestiona la cuenta— la cambia. */
-  createdById: string | null;
-  puedeGestionar: boolean;
-};
-
-export type CarpetasDeUnTipo = {
-  carpetas: Carpeta[];
-  /** id de la cosa → id de su carpeta. Lo que no está aquí, va suelto. */
-  deCadaCosa: Record<string, string>;
-};
+// Este fichero SOLO exporta funciones asíncronas: es lo único que admite un
+// módulo `'use server'`. Los tipos y las constantes están en `lib/carpetas.ts`
+// —con un `export const` aquí el build pasa y en producción cada llamada da un
+// 500 sin decir nada—.
 
 type Resultado<T> = { success: true; data: T } | { success: false; message: string };
 
@@ -105,10 +96,8 @@ async function contexto() {
 }
 
 function limpiarTipo(tipo: string): TipoDeCarpeta {
-  if (!(TIPOS_DE_CARPETA as readonly string[]).includes(tipo)) {
-    throw new Error("Tipo de carpeta desconocido.");
-  }
-  return tipo as TipoDeCarpeta;
+  if (!esTipoDeCarpeta(tipo)) throw new Error("Tipo de carpeta desconocido.");
+  return tipo;
 }
 
 function limpiarNombre(nombre: string): string {

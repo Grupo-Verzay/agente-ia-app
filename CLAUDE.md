@@ -595,6 +595,27 @@ La carpeta es de la **cuenta**, con `effectiveId`, que es el mismo valor con el
 que agrupan Proyectos (`ownerId ?? id`) y Diagramas. Si se usara otro, las
 carpetas quedarían en una cuenta y las cosas en otra.
 
+### Un fichero `'use server'` SOLO exporta funciones asíncronas
+
+Esto costó la primera versión entera. `actions/carpetas-actions.ts` exportaba
+también una constante (`TIPOS_DE_CARPETA`). Next lo admite en el build —**`npm
+run build` pasó limpio**— y luego, en producción, **cada llamada a cualquier
+acción de ese fichero da 500**. Desde fuera: se pulsaba «Crear» y el botón se
+quedaba en «Guardando…» **para siempre**, sin un solo error en pantalla.
+
+Dos reglas:
+
+1. En un módulo `'use server'`, todo lo que no sea una función `async` va a otro
+   fichero. Los tipos y las constantes de carpetas están en `lib/carpetas.ts`.
+   Un `export type` sí puede quedarse: se borra al compilar.
+2. **Ninguna llamada a una acción puede dejar un botón colgado.** Una acción no
+   solo devuelve `success: false`: puede **reventar**, y entonces el `await` se
+   rompe y la línea que apaga el «Guardando…» no llega a ejecutarse. Van todas
+   por `pedir(...)` (en `components/shared/Carpetas.tsx`), que convierte el
+   fallo en un `success: false` con su aviso. Es la misma familia que «un fallo
+   nunca puede ser mudo»: aquí el síntoma no era un error, era un diálogo
+   congelado.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera
