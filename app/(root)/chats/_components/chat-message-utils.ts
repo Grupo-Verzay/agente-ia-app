@@ -202,12 +202,27 @@ export function extractMediaInfo(msg: any, type: MediaType): MediaData | null {
  *
  * Se miran los dos, y el propio del tipo manda. Para un adjunto `conversation`
  * no suele existir, asi que este respaldo no le quita el sitio a nada.
+ *
+ * Salvo por una cosa: el servidor guarda una ETIQUETA -`[Imagen]`, `[Audio]`…-
+ * como texto de la fila cuando el adjunto no trae pie, para que la lista de
+ * chats tenga algo que resumir. Al leerla, `chat-persistence` la deja caer en
+ * `conversation` si no habia texto, y este respaldo la pintaba como si fuera el
+ * pie: una foto sin texto salia rotulada «[Imagen]» debajo. Son marcadores
+ * nuestros, no lo que escribio nadie, asi que no valen como pie.
  */
+const ETIQUETAS_DE_ADJUNTO = new Set([
+  "[Imagen]",
+  "[Video]",
+  "[Audio]",
+  "[Documento]",
+  "[Sticker]",
+]);
+
 function pieDelAdjunto(media: MediaData | null, messageData: any): string {
   const propio = media?.caption?.trim();
   if (propio) return propio;
   const suelto = typeof messageData?.conversation === 'string' ? messageData.conversation.trim() : '';
-  return suelto;
+  return ETIQUETAS_DE_ADJUNTO.has(suelto) ? "" : suelto;
 }
 
 function getInteractiveResponseText(messageData: Record<string, any>, isUser: boolean): string {
