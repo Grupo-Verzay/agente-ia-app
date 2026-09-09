@@ -1,5 +1,6 @@
 import { currentUser } from "@/lib/auth"
 import { isAdminLike, isReseller } from "@/lib/rbac"
+import { cuentaQueManda } from "@/lib/cuenta-que-manda"
 import AccessDenied from "@/app/AccessDenied"
 import {
   getAnalyticsDeMiCartera,
@@ -27,10 +28,16 @@ const AnalyticsPage = async () => {
   const user = await currentUser()
   if (!user) return <AccessDenied />
 
-  if (!isAdminLike(user.role)) {
+  // Por qué cuenta se mira. El administrador de una cuenta actúa por ella, así
+  // que ve lo que ella ve: la plataforma entera si es de la casa, su cartera si
+  // es un reseller. Con su propio rol —`user`, siempre— caía en la cartera
+  // personal, que está vacía, y le salía «Acceso Denegado».
+  const cuenta = await cuentaQueManda(user)
+
+  if (!isAdminLike(cuenta.role)) {
     // Un reseller ya tiene su cartera por otro camino (sus clientes asignados);
     // el resto del equipo, por `advisor_clients`.
-    const mios = isReseller(user.role)
+    const mios = isReseller(cuenta.role)
       ? await getResellerAnalytics()
       : await getAnalyticsDeMiCartera()
     if (!mios.success || !mios.data) return <AccessDenied />

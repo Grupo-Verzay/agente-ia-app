@@ -5,6 +5,7 @@ import { getEnrichedClients } from "@/actions/userClientDataActions";
 import { obtenerApiKeys } from "@/actions/api-action";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { db } from "@/lib/db";
 import { PLAN_LABELS } from "@/types/plans";
 import type { ClientInterface } from "@/lib/types";
@@ -37,6 +38,12 @@ export async function getClientsPageData(): Promise<
         const user = await currentUser();
         if (!user) return { success: false, message: "No autorizado." };
 
+        // Por qué cuenta se pregunta. El administrador de una cuenta actúa por
+        // ella: ve sus clientes sin que se los asignen uno a uno, y con el
+        // mismo criterio —si la cuenta es un reseller, los del reseller; si es
+        // de la casa, los de la casa sin los de ningún reseller—.
+        const cuenta = await cuentaQueManda(user);
+
         // Un colaborador del equipo no tiene rol de admin, pero puede tener
         // clientes asignados: entonces ve esos y solo esos. Es lo que le permite
         // entrar a arreglar una cuenta concreta sin abrirle la plataforma.
@@ -48,16 +55,16 @@ export async function getClientsPageData(): Promise<
         let usersPromise;
         if (cartera) {
             usersPromise = getEnrichedClients({ userIds: cartera });
-        } else if (user.role === "reseller") {
+        } else if (cuenta.role === "reseller") {
             // Combinar sistema viejo (reseller table) y nuevo (demoResellerId)
             const [oldAssignments, newClients] = await Promise.all([
-                db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
+                db.reseller.findMany({ where: { resellerid: cuenta.id }, select: { userId: true } }),
                 // Sin filtrar por isDemo: las cuentas de prueba tambien son
                 // suyas y tienen que verse. Quedaban fuera de esta lista, y la
                 // unica pantalla que las mostraba —Mis Clientes— se dio de baja
                 // y hoy solo redirige aqui: se creaban y no aparecian en ningun
                 // sitio de la App. En la tabla se distinguen por su etiqueta.
-                db.user.findMany({ where: { demoResellerId: user.id }, select: { id: true } }),
+                db.user.findMany({ where: { demoResellerId: cuenta.id }, select: { id: true } }),
             ]);
             const allIds = Array.from(new Set([
                 ...oldAssignments.map(r => r.userId).filter(Boolean) as string[],
@@ -72,9 +79,9 @@ export async function getClientsPageData(): Promise<
             usersPromise = getEnrichedClients({ excludeResellerClients: true });
         }
 
-        const poolsPromise = user.role === 'reseller'
+        const poolsPromise = cuenta.role === 'reseller'
             ? db.resellerLicensePool.findMany({
-                where: { resellerUserId: user.id },
+                where: { resellerUserId: cuenta.id },
                 include: { subscriptionPlan: true },
               })
             : Promise.resolve([] as { subscriptionPlanId: string; totalLicenses: number; usedLicenses: number; subscriptionPlan: { plan: Plan } }[]);
@@ -104,10 +111,10 @@ export async function getClientsPageData(): Promise<
         const availableApikeys = apikeys.filter((k) => (usage[k.id] || 0) < 100);
 
         // Uso DINÁMICO por pool: clientes activos reales etiquetados con cada plan.
-        const licenseUsage = user.role === 'reseller'
+        const licenseUsage = cuenta.role === 'reseller'
             ? await db.user.groupBy({
                 by: ['resellerSubscriptionPlanId'],
-                where: { demoResellerId: user.id, isDemo: false, resellerSubscriptionPlanId: { not: null } },
+                where: { demoResellerId: cuenta.id, isDemo: false, resellerSubscriptionPlanId: { not: null } },
                 _count: { _all: true },
             })
             : [];
@@ -129,7 +136,17 @@ export async function getClientsPageData(): Promise<
                 users,
                 apikeys,
                 availableApikeys,
-                currentUserRol: user.role,
+                // El rol que decide qué botones se ven es el de la CUENTA por la
+                // que se actúa, no el de la persona. Un administrador se crea
+                // con rol `user`, así que en el menú de cada fila solo le
+                // quedaba «Ingresar»: sin Editar, sin Módulos, sin Asignar y
+                // sin Eliminar, que es justo lo que se le pide que haga.
+                //
+                // Enseñar el botón no basta: cada acción de servidor comprueba
+                // lo mismo por su cuenta (`puedeGestionarAlCliente`), así que
+                // esto es la fachada de una puerta que ya está abierta, no la
+                // puerta.
+                currentUserRol: cuenta.role,
                 countries,
                 allModules: allModules as ModuleWithItems[],
                 resellerPools,

@@ -3,6 +3,7 @@ import { cache } from "react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 
@@ -95,6 +96,9 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
             deniedModuleItems: true,
             grantedModuleItems: true,
             canTakeUnassigned: true,
+            // Para saber si actúa por su cuenta (ver más abajo).
+            ownerId: true,
+            advisorRole: true,
         },
     });
 
@@ -105,20 +109,28 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
     let porImpersonacion = false;
     let accountRole: AccountRole | null = null;
 
-    if (impersonateId && isAdminLike(realUser.role)) {
+    // Con qué alcance se entra a otra cuenta. El `administrador` de una cuenta
+    // entra a donde entra ella: si no, «Ingresar» ponía la cookie y la sesión
+    // no cambiaba —se quedaba en la suya— sin decir nada. Solo se resuelve
+    // cuando hace falta, que es cuando hay cookie de impersonación.
+    const quienEntra = impersonateId
+        ? await cuentaQueManda(realUser)
+        : { id: realUser.id, role: realUser.role as string };
+
+    if (impersonateId && isAdminLike(quienEntra.role)) {
         effectiveUserId = impersonateId;
         porImpersonacion = true;
-    } else if (impersonateId && isAdminOrReseller(realUser.role)) {
+    } else if (impersonateId && isAdminOrReseller(quienEntra.role)) {
         // Reseller (no admin): solo puede actuar como uno de SUS clientes
         // (asignados en `reseller` o creados como demo por él).
         const target = await db.user.findUnique({
             where: { id: impersonateId },
             select: { demoResellerId: true },
         });
-        let owns = target?.demoResellerId === realUser.id;
+        let owns = target?.demoResellerId === quienEntra.id;
         if (!owns) {
             const assignment = await db.reseller.findFirst({
-                where: { userId: impersonateId, resellerid: realUser.id },
+                where: { userId: impersonateId, resellerid: quienEntra.id },
                 select: { id: true },
             });
             owns = !!assignment;
