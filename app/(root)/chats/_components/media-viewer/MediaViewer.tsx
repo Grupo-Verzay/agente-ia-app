@@ -64,7 +64,12 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
       const a = document.createElement('a');
       a.href = blobUrl;
       const ext = (blob.type || mimeType).split('/')[1]?.replace('jpeg', 'jpg') || 'bin';
-      a.download = active.caption?.trim() || `${type}_${safeIndex + 1}.${ext}`;
+      // El nombre del archivo primero: sin el, lo que se guardaba en el disco
+      // era nuestra clave de almacenamiento (`false_2196...@lid_3EB0...pdf`).
+      a.download =
+        active.fileName?.trim() ||
+        active.caption?.trim() ||
+        `${type}_${safeIndex + 1}.${ext}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -88,6 +93,9 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
   if (!active) return null;
 
   const { type, url, mimeType, caption } = active;
+  // El rotulo del documento es su NOMBRE. Con solo `caption` -que un documento
+  // casi nunca trae- la cabecera decia "DOCUMENTO" y no se sabia cual.
+  const rotulo = (active.fileName ?? '').trim() || caption;
   const ViewerComponent = getViewer(type);
   const isDocumentCard = type === 'document' && !isPdfMime(mimeType);
 
@@ -101,14 +109,14 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
         }
       >
         <DialogTitle className="sr-only">
-          {caption || TYPE_LABELS[type] || 'Visor multimedia'}
+          {rotulo || TYPE_LABELS[type] || 'Visor multimedia'}
         </DialogTitle>
 
         {/* Top bar — pr-12 deja espacio para el botón X de DialogClose */}
         <div className="flex items-center gap-3 pl-4 pr-12 py-2.5 border-b border-border">
           <div className="flex-1 min-w-0">
-            {caption ? (
-              <span className="text-sm text-foreground truncate block">{caption}</span>
+            {rotulo ? (
+              <span className="text-sm text-foreground truncate block" title={rotulo}>{rotulo}</span>
             ) : (
               <span className="text-xs text-muted-foreground uppercase tracking-widest">
                 {TYPE_LABELS[type] ?? type}
@@ -133,7 +141,13 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
 
         {/* Content — cada viewer llena esta área. En galería, flechas anterior/siguiente. */}
         <div className={isDocumentCard ? 'relative overflow-hidden' : 'relative flex-1 min-h-0 overflow-hidden'}>
-          <ViewerComponent key={url} url={url} mimeType={mimeType} caption={caption} />
+          <ViewerComponent
+            key={url}
+            url={url}
+            mimeType={mimeType}
+            caption={caption}
+            fileName={active.fileName}
+          />
 
           {canNavigate && (
             <>
