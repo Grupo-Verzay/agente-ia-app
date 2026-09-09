@@ -15,6 +15,7 @@ import {
   Users,
   Share2,
   Building2,
+  MoreHorizontal,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -96,8 +97,9 @@ function cuandoSeTocó(fecha: Date | string): string {
 
   if (diasAtrás <= 0) return 'Editado hoy';
   if (diasAtrás === 1) return 'Editado ayer';
-  if (diasAtrás < 7) return `Editado hace ${diasAtrás} días`;
-  return `Editado el ${d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  if (diasAtrás < 7) return `Hace ${diasAtrás} días`;
+  // Sin «Editado el» delante: con la fecha larga no cabía y se recortaba.
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function DiagramasListClient() {
@@ -252,181 +254,180 @@ export function DiagramasListClient() {
           {visibles.map((flow) => (
             <Card
               key={flow.id}
-              className="group relative cursor-pointer transition-colors hover:border-primary/60 hover:bg-accent/40"
+              className="group flex cursor-pointer flex-col transition-colors hover:border-primary/60 hover:bg-accent/40"
               onClick={() => router.push(`/diagramas/${flow.id}`)}
             >
-              <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-3">
+              {/* TRES FILAS, siempre las mismas: nombre, pasos y fecha, y el
+                  permiso con los botones. Cada dato en su sitio en todas las
+                  tarjetas, y todas con la misma altura: antes los datos iban en
+                  una fila que se partía sola, así que una tarjeta ocupaba una
+                  línea y la de al lado tres, y la rejilla salía escalonada. */}
+              <CardHeader className="flex flex-row items-start gap-3 space-y-0 p-4 pb-2">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                   <DiagramIcon className="h-4.5 w-4.5 text-primary" />
                 </span>
-                {/* El nombre se lleva TODO el ancho que queda. Las acciones ya
-                    no van en la fila: cinco botones de 28 px dejaban al titulo
-                    unos 50 px en la rejilla de cuatro columnas, y salia
-                    «Verz...», «Distr Pa...». Un `opacity-0` no libera sitio —el
-                    hueco sigue ahi—, asi que van fuera del flujo. */}
+                {/* Sitio para DOS líneas aunque el nombre use una: es lo que
+                    iguala las alturas sin recortar los nombres largos. El
+                    completo va en el `title`, por si algún día no cabe. */}
                 <CardTitle
-                  className="min-w-0 flex-1 pt-1 pr-[8.5rem] text-sm font-semibold leading-tight md:pr-0"
+                  className="min-w-0 flex-1 pt-0.5 text-sm font-semibold leading-tight"
                   title={flow.name}
                 >
-                  <span className="line-clamp-2">{flow.name}</span>
+                  <span className="line-clamp-2 min-h-[2.5em]">{flow.name}</span>
                 </CardTitle>
-                {/* En pantalla grande salen al pasar el mouse, para que la
-                    rejilla se lea limpia; en tactil no hay mouse que pasar, asi
-                    que ahi se quedan puestas —y por eso el titulo reserva sitio
-                    a su derecha solo en pantalla pequeña—. Llevan fondo propio:
-                    al aparecer encima del nombre, sin el se leerian las dos
-                    cosas superpuestas. */}
-                <div className="absolute right-3 top-3 flex shrink-0 items-center gap-0.5 rounded-md bg-card/95 transition-opacity group-hover:bg-accent/95 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
-                  <MoverACarpeta
-                    carpetas={carpetas.carpetas}
-                    actual={carpetas.deCadaCosa[flow.id] ?? null}
-                    onMover={(id) => void carpetas.mover(flow.id, id)}
-                    className="h-7 w-7"
-                  />
-                  {flow.puedeEditar && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRenaming(flow);
-                        setRenameValue(flow.name);
-                      }}
-                      title="Renombrar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  {/* Duplicar lo puede cualquiera que lo vea: la copia es suya y
-                      el original se queda intacto. Es la forma de partir de uno
-                      del equipo sin miedo a estropearlo. */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleDuplicate(flow);
-                    }}
-                    disabled={duplicando === flow.id}
-                    title="Duplicar"
-                  >
-                    {duplicando === flow.id
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Copy className="h-3.5 w-3.5" />}
-                  </Button>
-                  {flow.puedeCompartir && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-7 w-7 ${flow.compartidoCon > 0
-                        ? 'text-primary hover:text-primary'
-                        : 'text-muted-foreground hover:text-foreground'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCompartiendo(flow);
-                      }}
-                      title={flow.compartidoCon > 0
-                        ? `Compartido con ${flow.compartidoCon} ${flow.compartidoCon === 1 ? 'cuenta' : 'cuentas'}`
-                        : 'Compartir con otras cuentas'}
-                    >
-                      <Share2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  {flow.puedeCompartir && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleting(flow);
-                      }}
-                      title="Eliminar"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
               </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                <span className="rounded-md bg-muted px-1.5 py-0.5 font-medium tabular-nums text-foreground/70">
-                  {flow.nodeCount === 1 ? '1 paso' : `${flow.nodeCount ?? 0} pasos`}
-                </span>
-                <span className="truncate">{cuandoSeTocó(flow.updatedAt)}</span>
 
-                {/* Con quién se comparte. Quien manda en el diagrama lo cambia
-                    desde aquí mismo; el resto solo lee en qué quedó. */}
-                {(() => {
-                  // Uno recibido no dice su visibilidad -esa es del equipo de
-                  // quien lo hizo, y aqui no significa nada-, dice de donde
-                  // viene, que es lo unico que hace falta saber.
-                  if (flow.recibido) {
+              <CardContent className="flex flex-1 flex-col gap-2 p-4 pt-0">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-medium tabular-nums text-foreground/70">
+                    {flow.nodeCount === 1 ? '1 paso' : `${flow.nodeCount ?? 0} pasos`}
+                  </span>
+                  <span className="truncate">{cuandoSeTocó(flow.updatedAt)}</span>
+                </div>
+
+                {/* La fila de abajo va pegada al borde inferior (`mt-auto`), así
+                    queda a la misma altura en todas aunque una acabe midiendo
+                    distinto. */}
+                <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  {/* Con quién se comparte. Quien manda en el diagrama lo cambia
+                      desde aquí mismo; el resto solo lee en qué quedó. */}
+                  {(() => {
+                    // Uno recibido no dice su visibilidad -esa es del equipo de
+                    // quien lo hizo, y aqui no significa nada-, dice de donde
+                    // viene, que es lo unico que hace falta saber.
+                    if (flow.recibido) {
+                      return (
+                        <span
+                          className="flex min-w-0 items-center gap-1 text-xs text-primary/80"
+                          title={
+                            flow.puedeEditar
+                              ? 'Otra cuenta te lo comparte con permiso de edición: lo que cambies lo verá también quien te lo compartió.'
+                              : 'Otra cuenta te lo está compartiendo. Puedes verlo y duplicarlo, no cambiarlo.'
+                          }
+                        >
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            {flow.puedeEditar ? 'Compartido · editable' : 'Compartido contigo'}
+                          </span>
+                        </span>
+                      );
+                    }
+
+                    const compartir = COMPARTIR[flow.visibility] ?? COMPARTIR.edicion;
+                    const Icono = compartir.icono;
+
+                    if (!flow.puedeCompartir) {
+                      return (
+                        <span
+                          className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+                          title={compartir.ayuda}
+                        >
+                          <Icono className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{compartir.etiqueta}</span>
+                        </span>
+                      );
+                    }
+
                     return (
-                      <span
-                        className="ml-auto flex shrink-0 items-center gap-1 text-primary/80"
-                        title={
-                          flow.puedeEditar
-                            ? 'Otra cuenta te lo comparte con permiso de edición: lo que cambies lo verá también quien te lo compartió.'
-                            : 'Otra cuenta te lo está compartiendo. Puedes verlo y duplicarlo, no cambiarlo.'
-                        }
-                      >
-                        <Building2 className="h-3 w-3" />
-                        {flow.puedeEditar ? 'Compartido contigo · editable' : 'Compartido contigo'}
-                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="-ml-1 flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                            title={compartir.ayuda}
+                          >
+                            <Icono className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{compartir.etiqueta}</span>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuLabel>Con el equipo</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuRadioGroup
+                            value={flow.visibility}
+                            onValueChange={(v) => void handleVisibility(flow, v as FlowVisibility)}
+                          >
+                            {(Object.keys(COMPARTIR) as FlowVisibility[]).map((clave) => (
+                              <DropdownMenuRadioItem key={clave} value={clave}>
+                                <span className="flex flex-col">
+                                  <span>{COMPARTIR[clave].etiqueta}</span>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {COMPARTIR[clave].ayuda}
+                                  </span>
+                                </span>
+                              </DropdownMenuRadioItem>
+                            ))}
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     );
-                  }
+                  })()}
 
-                  const compartir = COMPARTIR[flow.visibility] ?? COMPARTIR.edicion;
-                  const Icono = compartir.icono;
-
-                  if (!flow.puedeCompartir) {
-                    return (
-                      <span
-                        className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground/80"
-                        title={compartir.ayuda}
-                      >
-                        <Icono className="h-3 w-3" />
-                        {compartir.etiqueta}
-                      </span>
-                    );
-                  }
-
-                  return (
+                  {/* Los botones YA NO se esconden hasta pasar el mouse: en un
+                      móvil no hay mouse que pasar, así que allí no había forma
+                      de llegar a ellos. La carpeta suelta —es lo que se usa
+                      para ordenar— y el resto dentro del «⋯». */}
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <MoverACarpeta
+                      carpetas={carpetas.carpetas}
+                      actual={carpetas.deCadaCosa[flow.id] ?? null}
+                      onMover={(id) => void carpetas.mover(flow.id, id)}
+                      className="h-7 w-7"
+                    />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          className="ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted hover:text-foreground"
-                          title={compartir.ayuda}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                          title="Más opciones"
                         >
-                          <Icono className="h-3 w-3" />
-                          {compartir.etiqueta}
+                          {duplicando === flow.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <MoreHorizontal className="h-3.5 w-3.5" />}
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuLabel>Con el equipo</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuRadioGroup
-                          value={flow.visibility}
-                          onValueChange={(v) => void handleVisibility(flow, v as FlowVisibility)}
+                        {flow.puedeEditar && (
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onSelect={() => { setRenaming(flow); setRenameValue(flow.name); }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Renombrar
+                          </DropdownMenuItem>
+                        )}
+                        {/* Duplicar lo puede cualquiera que lo vea: la copia es
+                            suya y el original se queda intacto. Es la forma de
+                            partir de uno del equipo sin miedo a estropearlo. */}
+                        <DropdownMenuItem
+                          className="gap-2"
+                          disabled={duplicando === flow.id}
+                          onSelect={() => void handleDuplicate(flow)}
                         >
-                          {(Object.keys(COMPARTIR) as FlowVisibility[]).map((clave) => (
-                            <DropdownMenuRadioItem key={clave} value={clave}>
-                              <span className="flex flex-col">
-                                <span>{COMPARTIR[clave].etiqueta}</span>
-                                <span className="text-[11px] text-muted-foreground">
-                                  {COMPARTIR[clave].ayuda}
-                                </span>
-                              </span>
-                            </DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
+                          <Copy className="h-3.5 w-3.5" /> Duplicar
+                        </DropdownMenuItem>
+                        {flow.puedeCompartir && (
+                          <DropdownMenuItem className="gap-2" onSelect={() => setCompartiendo(flow)}>
+                            <Share2 className={`h-3.5 w-3.5 ${flow.compartidoCon > 0 ? 'text-primary' : ''}`} />
+                            {flow.compartidoCon > 0
+                              ? `Compartido con ${flow.compartidoCon} ${flow.compartidoCon === 1 ? 'cuenta' : 'cuentas'}`
+                              : 'Compartir con otras cuentas'}
+                          </DropdownMenuItem>
+                        )}
+                        {flow.puedeCompartir && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="gap-2 text-destructive focus:text-destructive"
+                              onSelect={() => setDeleting(flow)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  );
-                })()}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}

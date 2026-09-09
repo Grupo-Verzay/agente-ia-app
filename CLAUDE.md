@@ -641,6 +641,31 @@ Si se añade otro botón a una tarjeta, se mira antes cuánto ancho le queda al
 nombre. Es la misma familia que el hueco en blanco de las tarjetas de Conexión:
 lo que no se ve también ocupa.
 
+### La tarjeta de Diagramas son TRES filas, y no cambian
+
+Sacar los botones del flujo arregló el ancho pero no la altura: los datos iban
+todos en una fila que se partía sola, así que «Analisis» ocupaba una línea,
+«Funel (Ventas)» dos y «Verzay Ventas (Cierre)» tres. La rejilla salía
+escalonada.
+
+La anatomía es fija, siempre la misma:
+
+1. **El nombre**, con sitio para **dos líneas aunque use una** (`line-clamp-2`
+   más `min-h-[2.5em]`). Eso es lo que iguala las alturas sin recortar los
+   nombres largos; el completo va igualmente en el `title`.
+2. **Pasos y fecha.**
+3. **El permiso y los botones**, sobre una raya y pegados al borde de abajo con
+   `mt-auto`, para que queden a la misma altura en todas.
+
+Y los botones **ya no se esconden hasta pasar el mouse**: en un móvil no hay
+mouse que pasar, así que allí no había forma de llegar a ellos. Va suelta la
+carpeta —es lo que se usa para ordenar— y el resto dentro de un «⋯»: renombrar,
+duplicar, compartir y eliminar. El permiso sigue siendo su propio menú, que es
+donde se cambia.
+
+La fecha vieja perdió el «Editado el» delante: con la fecha larga no cabía y se
+recortaba, que era justo lo que se veía.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera
