@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Check, CheckCheck, CircleAlert, Clock, Reply, PhoneMissed, PhoneOutgoing, Video, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MediaRenderer } from './MediaRenderer';
+import { MediaRenderer, anchoDelAdjunto } from './MediaRenderer';
 import { SafeImage } from '@/components/custom/SafeImage';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
 import { MessageContextMenu } from './MessageContextMenu';
@@ -407,7 +407,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         {media && <MediaRenderer media={media} />}
         {message && (
-          <div className={contentClass}>
+          <div
+            className={cn(
+              contentClass,
+              // El pie de un adjunto se ajusta al ANCHO DEL ADJUNTO.
+              //
+              // Sin tope, una frase larga estiraba la burbuja hasta donde
+              // llegara el texto y la foto quedaba flotando en una caja mucho
+              // mas ancha que ella. Con el mismo tope, el texto salta de linea
+              // justo donde acaba la imagen.
+              media && anchoDelAdjunto(media.type),
+            )}
+          >
             <ExpandableText message={message} isUserMessage={isUserMessage} />
           </div>
         )}
