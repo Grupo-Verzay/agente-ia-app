@@ -702,19 +702,30 @@ La lista de Clientes decía «Total clientes 35», y de esos no todos eran
 clientes: había suspendidos, morosos y cuentas a las que nunca se les configuró
 el servicio. El número servía para poco.
 
-Activo es **`UserBilling.accessStatus === ACTIVE`**, que es el mismo estado que
-ya mandan Finanzas y Analíticas. La regla vive en `lib/clientes-activos.ts` para
-que los tres digan el mismo número; si hace falta en otra pantalla, se importa
-de ahí y no se vuelve a escribir la condición.
+Activo son **dos cosas a la vez**: la cuenta habilitada (`User.status`, el
+muñequito de la columna Estado) **y** el servicio al día
+(`UserBilling.accessStatus === ACTIVE`, el mismo estado que ya mandan Finanzas y
+Analíticas). Con solo la facturación, el filtro de «Activos» enseñaba filas con
+el muñequito en rojo: cuentas deshabilitadas que no entran a la App pero cuya
+facturación seguía diciendo `ACTIVE`. La regla vive en `lib/clientes-activos.ts`
+para que los tres sitios digan el mismo número; si hace falta en otra pantalla,
+se importa de ahí y no se vuelve a escribir la condición.
 
-Dos cosas de la pantalla:
+Tres cosas de la pantalla:
 
 1. **El filtro no va dentro de «Columnas».** Ese menú decide qué **datos** se
-   enseñan de cada fila; el estado del servicio decide **qué filas** hay. Es un
-   desplegable propio, y cuando no está en «Todos» se pinta en azul: un filtro
-   puesto que no se nota es lo que hace pensar que faltan clientes.
+   enseñan de cada fila; el estado decide **qué filas** hay. Es un desplegable
+   propio, y cuando no está en «Todos» se pinta en azul: un filtro puesto que no
+   se nota es lo que hace pensar que faltan clientes.
 2. **Sin fila de facturación no se da por activo.** Es una cuenta a la que nunca
    se le configuró el servicio, y contarla es justo lo que inflaba el total.
+3. **Las opciones son tres palabras**: Todos, Activos, Inactivos. Nada de
+   «Con servicio activo»: el desplegable ya se llama «Estado».
+
+Y la barra de esa pantalla **se parte en dos filas** (`flex-wrap`) y el buscador
+lleva ancho **máximo**, no fijo. Con el menú lateral desplegado, un `w-72` que no
+encoge empujaba «Columnas» y «Acciones» fuera de la pantalla, sin scroll con el
+que alcanzarlos. Si se añade otro botón a esa barra, va igual.
 
 Y del lado de los datos: `getEnrichedClients` trae **solo los dos estados**
 (`accessStatus`, `billingStatus`), no la fila entera. El `price` es un `Decimal`

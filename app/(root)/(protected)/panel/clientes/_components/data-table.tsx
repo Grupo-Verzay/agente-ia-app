@@ -110,10 +110,14 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
     <div className="flex flex-col h-full gap-2">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
-        <div className="flex justify-between items-center gap-2">
-          <div className="flex flex-row flex-1 gap-2">
+        {/* La barra se parte en dos filas cuando no cabe. Sin `flex-wrap` —y con
+            el buscador de ancho fijo— con el menú lateral desplegado los botones
+            de la derecha («Columnas», «Acciones») se salían de la pantalla y no
+            había forma de llegar a ellos. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 basis-72 flex-row flex-wrap gap-2">
 
-            <div className="flex flex-row items-center gap-2 flex-1">
+            <div className="flex min-w-0 flex-1 basis-64 flex-row items-center gap-2">
               <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
 
               {/* button-create-client. En el teléfono ocupaba una fila entera
@@ -132,7 +136,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
               }
             </div>
 
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
               {/* Qué clientes se ven. Va aquí y no dentro de «Columnas»: eso
                   decide qué datos se enseñan de cada fila, no qué filas hay.
                   Cuando no está en «Todos» se pinta en azul, para que no se
@@ -152,7 +156,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Estado del servicio</DropdownMenuLabel>
+                  <DropdownMenuLabel>Estado</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {(Object.keys(ETIQUETAS_DE_SERVICIO) as EstadoDelServicio[]).map((clave) => (
                     <DropdownMenuCheckboxItem
