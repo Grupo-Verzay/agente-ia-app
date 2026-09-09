@@ -59,6 +59,7 @@ import {
   type FlowSummary,
 } from '@/actions/flow-actions';
 import type { FlowVisibility } from '@/lib/flow-visibility';
+import { BarraDeCarpetas, MoverACarpeta, useCarpetas } from '@/components/shared/Carpetas';
 import { CompartirConCuentasDialog } from './CompartirConCuentasDialog';
 
 /**
@@ -110,6 +111,18 @@ export function DiagramasListClient() {
   const [deleting, setDeleting] = useState<FlowSummary | null>(null);
   const [duplicando, setDuplicando] = useState<string | null>(null);
   const [compartiendo, setCompartiendo] = useState<FlowSummary | null>(null);
+  const carpetas = useCarpetas('diagrama');
+
+  // Lo que se ve con la carpeta puesta. Lo recibido de otra cuenta también se
+  // puede archivar: es tuyo en tu pantalla aunque el original sea de otro.
+  const visibles = (flows ?? []).filter((f) => carpetas.enLaCarpeta(f.id));
+  const cuentaPorCarpeta: Record<string, number> = {};
+  let sueltas = 0;
+  for (const f of flows ?? []) {
+    const c = carpetas.deCadaCosa[f.id];
+    if (c) cuentaPorCarpeta[c] = (cuentaPorCarpeta[c] ?? 0) + 1;
+    else sueltas += 1;
+  }
 
   const load = async () => {
     const res = await listFlowsAction();
@@ -194,6 +207,20 @@ export function DiagramasListClient() {
         </Button>
       </div>
 
+      {/* Carpetas: con nueve diagramas ya cuesta encontrar el de ayer. */}
+      {flows !== null && flows.length > 0 && (
+        <BarraDeCarpetas
+          tipo="diagrama"
+          carpetas={carpetas.carpetas}
+          seleccionada={carpetas.seleccionada}
+          onSeleccionar={carpetas.setSeleccionada}
+          onCambio={() => void carpetas.recargar()}
+          cuentaPorCarpeta={cuentaPorCarpeta}
+          sueltas={sueltas}
+          className="shrink-0"
+        />
+      )}
+
       {flows === null ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -217,7 +244,12 @@ export function DiagramasListClient() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {flows.map((flow) => (
+          {visibles.length === 0 && (
+            <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
+              Esta carpeta está vacía.
+            </p>
+          )}
+          {visibles.map((flow) => (
             <Card
               key={flow.id}
               className="group relative cursor-pointer transition-colors hover:border-primary/60 hover:bg-accent/40"
@@ -233,7 +265,13 @@ export function DiagramasListClient() {
                 {/* En pantalla grande las acciones solo salen al pasar el mouse,
                     para que la rejilla se lea limpia; en tactil no hay mouse que
                     pasar, asi que ahi se quedan siempre puestas. */}
-                <div className="flex shrink-0 gap-0.5 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+                <div className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+                  <MoverACarpeta
+                    carpetas={carpetas.carpetas}
+                    actual={carpetas.deCadaCosa[flow.id] ?? null}
+                    onMover={(id) => void carpetas.mover(flow.id, id)}
+                    className="h-7 w-7"
+                  />
                   {flow.puedeEditar && (
                     <Button
                       variant="ghost"
