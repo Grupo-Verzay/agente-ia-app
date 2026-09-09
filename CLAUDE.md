@@ -758,6 +758,30 @@ donde se cambia.
 La fecha vieja perdió el «Editado el» delante: con la fecha larga no cabía y se
 recortaba, que era justo lo que se veía.
 
+## Clientes: «activo» es el servicio al día, y lo dicen los tres sitios igual
+
+La lista de Clientes decía «Total clientes 35», y de esos no todos eran
+clientes: había suspendidos, morosos y cuentas a las que nunca se les configuró
+el servicio. El número servía para poco.
+
+Activo es **`UserBilling.accessStatus === ACTIVE`**, que es el mismo estado que
+ya mandan Finanzas y Analíticas. La regla vive en `lib/clientes-activos.ts` para
+que los tres digan el mismo número; si hace falta en otra pantalla, se importa
+de ahí y no se vuelve a escribir la condición.
+
+Dos cosas de la pantalla:
+
+1. **El filtro no va dentro de «Columnas».** Ese menú decide qué **datos** se
+   enseñan de cada fila; el estado del servicio decide **qué filas** hay. Es un
+   desplegable propio, y cuando no está en «Todos» se pinta en azul: un filtro
+   puesto que no se nota es lo que hace pensar que faltan clientes.
+2. **Sin fila de facturación no se da por activo.** Es una cuenta a la que nunca
+   se le configuró el servicio, y contarla es justo lo que inflaba el total.
+
+Y del lado de los datos: `getEnrichedClients` trae **solo los dos estados**
+(`accessStatus`, `billingStatus`), no la fila entera. El `price` es un `Decimal`
+y no viaja a un componente de cliente.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera

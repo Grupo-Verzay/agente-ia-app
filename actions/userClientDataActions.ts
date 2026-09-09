@@ -191,6 +191,12 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         // Credenciales de Evolution de la CUENTA. La clave hace falta aparte del
         // token de la instancia: no todas las rutas aceptan el mismo.
         apiKey: { select: { url: true, key: true } },
+        // Si el servicio está al día. Es el MISMO estado que mandan Finanzas y
+        // Analíticas, y es lo que separa a un cliente de verdad de una cuenta
+        // que quedó ahí: sin esto, la lista decía «35 clientes» contando
+        // suspendidos y morosos. Solo los dos estados, no el precio: el
+        // `Decimal` no viaja a un componente de cliente.
+        billing: { select: { accessStatus: true, billingStatus: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -329,6 +335,7 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           reseller,
           credits,
           instancias: user.instancias,
+          billing: user.billing ?? null,
         };
       })
     );

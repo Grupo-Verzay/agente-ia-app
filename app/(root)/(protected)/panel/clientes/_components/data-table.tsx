@@ -33,9 +33,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, Plus } from 'lucide-react'
+import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
+import { ETIQUETAS_DE_SERVICIO, type EstadoDelServicio } from '@/lib/clientes-activos'
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -43,6 +44,9 @@ interface DataTableProps<TData, TValue> {
   currentUserRol: string
   openCreateDialogUser: () => void
   setStatusFilter: (status: StatusKey | null) => void
+  /** Todos / solo los que tienen el servicio al día / solo el resto. */
+  servicio: EstadoDelServicio
+  setServicio: (estado: EstadoDelServicio) => void
   initialSearch?: string
 }
 
@@ -52,7 +56,7 @@ const VISIBILITY_STORAGE_KEY = 'admin-clientes-column-visibility'
 const COLUMNS_HIDDEN_FROM_TOGGLE = ['role', 'email', 'reseller']
 const DEFAULT_HIDDEN: VisibilityState = { role: false, email: false, reseller: false }
 
-export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, setStatusFilter, initialSearch }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, setStatusFilter, servicio, setServicio, initialSearch }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -129,6 +133,39 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
             </div>
 
             <div className="ml-auto flex items-center gap-1">
+              {/* Qué clientes se ven. Va aquí y no dentro de «Columnas»: eso
+                  decide qué datos se enseñan de cada fila, no qué filas hay.
+                  Cuando no está en «Todos» se pinta en azul, para que no se
+                  quede puesto sin que se note. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={servicio === 'todos' ? undefined : 'border-sky-500 text-sky-600'}
+                    title="Filtrar por estado del servicio"
+                  >
+                    <BadgeCheck className="h-4 w-4" />
+                    <span className="hidden md:inline">
+                      {servicio === 'todos' ? 'Estado' : ETIQUETAS_DE_SERVICIO[servicio]}
+                    </span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Estado del servicio</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {(Object.keys(ETIQUETAS_DE_SERVICIO) as EstadoDelServicio[]).map((clave) => (
+                    <DropdownMenuCheckboxItem
+                      key={clave}
+                      checked={servicio === clave}
+                      onCheckedChange={() => setServicio(clave)}
+                    >
+                      {ETIQUETAS_DE_SERVICIO[clave]}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <ClientStatusPanel
                 users={data as ClientInterface[]}
                 onFilterChange={setStatusFilter}
