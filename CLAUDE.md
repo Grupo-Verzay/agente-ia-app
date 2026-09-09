@@ -549,6 +549,52 @@ Y en **Proyectos**, el mismo reparto: un agente ve los que tienen que ver con
 lista y para abrir un tablero por su id. Diagramas ya lo hacía por su cuenta
 con `visibility` (privado / lectura / edición).
 
+## Chats: el menú de Acciones no puede crecer con el equipo
+
+En «Acciones» iban abiertas, una detrás de otra, las dos listas de asesores:
+**Transferir a…** y **Agregar participante a…**. Con un equipo de verdad eso son
+los mismos nombres dos veces, y **Resolver conversación** quedaba tan abajo que
+no se llegaba: la lista se acababa antes que el menú.
+
+Y es justo lo que más se usa. Transferir o sumar a alguien es de vez en cuando;
+cerrar la conversación es cada día.
+
+Las dos listas van **plegadas**, cada una en su submenú (`DropdownMenuSub`), con
+su propio scroll (`max-h-[60vh]`). El menú de arriba se queda en seis entradas
+cortas y Resolver se ve siempre, con equipo de tres o de treinta.
+
+La regla, si se añade otra lista aquí: **lo que el asesor hace a diario se ve
+sin desplegar nada**; lo que crece con el equipo va dentro de un submenú.
+
+## Carpetas: ordenan la pantalla, no viven dentro de la cosa
+
+Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se
+encuentra nada. Se pueden agrupar en carpetas (`actions/carpetas-actions.ts` y
+`components/shared/Carpetas.tsx`, que usan las dos pantallas: el estado, la
+barra de chips y el botón de mover son los mismos).
+
+Dos decisiones que conviene no deshacer:
+
+1. **No hay `folderId` dentro de `Project` ni de `flows`.** Hay una tabla aparte
+   (`work_folder_items`) que dice qué está en qué carpeta. `Project` es del
+   BACKEND —él es dueño de las migraciones— y añadirle columnas desde la App es
+   lo que reventó el #360. Las dos tablas nuevas (`work_folders`,
+   `work_folder_items`) las crea la propia App con `CREATE TABLE IF NOT EXISTS`,
+   igual que `flows` y `chat_messages`.
+2. **La carpeta no filtra en el servidor.** La lista de cosas ya viene entera;
+   el navegador solo decide cuáles pinta. Cambiar de carpeta es instantáneo y no
+   depende de una vuelta de red, y los números de cada chip salen de la lista
+   completa, no de lo que deje ver el filtro que haya puesto.
+
+Y dos de comportamiento: **borrar una carpeta no borra lo que tiene dentro**
+—vuelve a salir suelto, y el diálogo lo dice—, y **mover se pinta al momento**;
+si el servidor dice que no, se devuelve tal cual estaba (la misma regla que
+borrar un chat).
+
+La carpeta es de la **cuenta**, con `effectiveId`, que es el mismo valor con el
+que agrupan Proyectos (`ownerId ?? id`) y Diagramas. Si se usara otro, las
+carpetas quedarían en una cuenta y las cosas en otra.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera

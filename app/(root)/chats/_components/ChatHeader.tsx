@@ -11,6 +11,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SwitchStatus } from '../../sessions/_components/SwitchStatus';
@@ -267,6 +271,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   const participantCandidates = (advisors ?? []).filter((a) => a.id !== userId);
+  const puedeAgregarParticipante = !!session && participantCandidates.length > 0;
 
   const handleLiberate = async () => {
     await onAssignAdvisor?.(null);
@@ -357,57 +362,83 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             Tomar conversación
           </DropdownMenuItem>
         )}
-        {canTake && (canLiberate || canResolve || canReopen) && (
+
+        {/*
+         * Transferir y Agregar participante van PLEGADOS, cada uno en su
+         * submenú.
+         *
+         * Estaban abiertos, uno detrás de otro: con varios asesores el menú se
+         * llenaba de nombres —dos veces, una por lista— y Resolver quedaba tan
+         * abajo que no se llegaba. Y eso es justo lo que más se usa: transferir
+         * y sumar gente son de vez en cuando; cerrar la conversación es cada
+         * día.
+         *
+         * La regla, si se añade otra lista aquí: **lo que hace el asesor a
+         * diario se ve sin desplegar nada**. Las listas que crecen con el
+         * equipo van dentro de un submenú, con su propio scroll.
+         */}
+        {canTake && (canLiberate || canResolve || canReopen || puedeAgregarParticipante) && (
           <div className="my-1 border-t border-border/50" />
         )}
 
         {/* Transferir — solo para agentes con sesión propia */}
         {canLiberate && (
-          <>
-            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="cursor-pointer">
+              <ArrowRight className="h-3.5 w-3.5 shrink-0" />
               Transferir a...
-            </p>
-            {otherAdvisors.length === 0 ? (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">No hay otros asesores.</p>
-            ) : (
-              otherAdvisors.map((a) => (
-                <DropdownMenuItem
-                  key={a.id}
-                  onSelect={() => void handleTransfer(a.id)}
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer"
-                >
-                  <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
-                    {initials(a)}
-                  </span>
-                  <span className="truncate">{a.name ?? a.email}</span>
-                </DropdownMenuItem>
-              ))
-            )}
-            <div className="my-1 border-t border-border/50" />
-          </>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="max-h-[60vh] w-56 overflow-y-auto p-1">
+                {otherAdvisors.length === 0 ? (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">No hay otros asesores.</p>
+                ) : (
+                  otherAdvisors.map((a) => (
+                    <DropdownMenuItem
+                      key={a.id}
+                      onSelect={() => void handleTransfer(a.id)}
+                      className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer"
+                    >
+                      <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
+                        {initials(a)}
+                      </span>
+                      <span className="truncate">{a.name ?? a.email}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
         )}
 
         {/* Agregar participante (colaboración) */}
-        {session && participantCandidates.length > 0 && (
-          <>
-            <div className="my-1 border-t border-border/50" />
-            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Agregar participante a...
-            </p>
-            {participantCandidates.map((a) => (
-              <DropdownMenuItem
-                key={`part-${a.id}`}
-                onSelect={() => void handleAddParticipant(a.id)}
-                className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer"
-              >
-                <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
-                  {initials(a)}
-                </span>
-                <span className="truncate">{a.name ?? a.email}</span>
-              </DropdownMenuItem>
-            ))}
-            <div className="my-1 border-t border-border/50" />
-          </>
+        {puedeAgregarParticipante && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="cursor-pointer">
+              <UserRound className="h-3.5 w-3.5 shrink-0" />
+              Agregar participante...
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="max-h-[60vh] w-56 overflow-y-auto p-1">
+                {participantCandidates.map((a) => (
+                  <DropdownMenuItem
+                    key={`part-${a.id}`}
+                    onSelect={() => void handleAddParticipant(a.id)}
+                    className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer"
+                  >
+                    <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
+                      {initials(a)}
+                    </span>
+                    <span className="truncate">{a.name ?? a.email}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+        )}
+
+        {(canLiberate || puedeAgregarParticipante) && (canLiberate || canResolve || canReopen) && (
+          <div className="my-1 border-t border-border/50" />
         )}
 
         {/* Liberar y Resolver en lista vertical */}

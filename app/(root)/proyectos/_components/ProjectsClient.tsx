@@ -29,6 +29,8 @@ import {
   BOARD_COLUMNS, PROJECT_STATUSES, PROJECT_STATUS_LABELS,
   type ProjectData, type ProjectStatus,
 } from "@/lib/project-types";
+import { BarraDeCarpetas, MoverACarpeta, useCarpetas } from "@/components/shared/Carpetas";
+import type { Carpeta as CarpetaDeProyecto } from "@/actions/carpetas-actions";
 import { ProjectBoard } from "./ProjectBoard";
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
@@ -107,6 +109,7 @@ export function ProjectsClient({
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"todos" | ProjectStatus | "mios">("todos");
+  const carpetas = useCarpetas("proyecto");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,19 +140,38 @@ export function ProjectsClient({
     return { activos, vencidas, revision, abiertas };
   }, [projects]);
 
+  // `enLaCarpeta` es estable (useCallback); el objeto que devuelve el hook no,
+  // así que se depende de la función y no de él: si no, este memo se rehacía en
+  // cada render y no servía de nada.
+  const { enLaCarpeta } = carpetas;
+
   const visibleProjects = useMemo(() => {
     const q = query.trim().toLowerCase();
     return projects.filter((p) => {
       if (q && !p.name.toLowerCase().includes(q) && !(p.description ?? "").toLowerCase().includes(q)) {
         return false;
       }
+      if (!enLaCarpeta(String(p.id))) return false;
       if (filter === "todos") return true;
       if (filter === "mios") {
         return p.leadId === userId || p.members.some((m) => m.userId === userId);
       }
       return p.status === filter;
     });
-  }, [projects, query, filter, userId]);
+  }, [projects, query, filter, userId, enLaCarpeta]);
+
+  // Cuántos hay en cada carpeta, para el número del chip. Sale de la lista
+  // completa: el número dice lo que hay dentro, no lo que deja ver el filtro.
+  const reparto = useMemo(() => {
+    const porCarpeta: Record<string, number> = {};
+    let sueltas = 0;
+    for (const p of projects) {
+      const c = carpetas.deCadaCosa[String(p.id)];
+      if (c) porCarpeta[c] = (porCarpeta[c] ?? 0) + 1;
+      else sueltas += 1;
+    }
+    return { porCarpeta, sueltas };
+  }, [projects, carpetas.deCadaCosa]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -266,6 +288,16 @@ export function ProjectsClient({
           ))}
         </div>
 
+        <BarraDeCarpetas
+          tipo="proyecto"
+          carpetas={carpetas.carpetas}
+          seleccionada={carpetas.seleccionada}
+          onSeleccionar={carpetas.setSeleccionada}
+          onCambio={() => void carpetas.recargar()}
+          cuentaPorCarpeta={reparto.porCarpeta}
+          sueltas={reparto.sueltas}
+        />
+
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* Crear lo puede cualquiera del equipo: el proyecto queda a su
@@ -306,6 +338,9 @@ export function ProjectsClient({
               key={project.id}
               project={project}
               canManage={project.puedeGestionar}
+              carpetas={carpetas.carpetas}
+              carpetaActual={carpetas.deCadaCosa[String(project.id)] ?? null}
+              onMoverACarpeta={(id) => void carpetas.mover(String(project.id), id)}
               onOpen={() => setOpenProjectId(project.id)}
               onEdit={() => setEditing(project)}
               onDelete={() => setDeleteTarget(project)}
@@ -351,12 +386,18 @@ export function ProjectsClient({
 function ProjectCard({
   project,
   canManage,
+  carpetas,
+  carpetaActual,
+  onMoverACarpeta,
   onOpen,
   onEdit,
   onDelete,
 }: {
   project: ProjectData;
   canManage: boolean;
+  carpetas: CarpetaDeProyecto[];
+  carpetaActual: string | null;
+  onMoverACarpeta: (carpetaId: string | null) => void;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -383,8 +424,17 @@ function ProjectCard({
               roja permanente era lo más llamativo de la tarjeta. Van en la fila,
               antes del estado: así el estado se queda pegado a la derecha, en el
               mismo sitio que le sale a un participante, que no tiene botones. */}
-          {canManage && (
-            <div className="flex shrink-0 gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            {/* Archivar en una carpeta es ordenar la propia pantalla, no cambiar
+                el proyecto: no pide ser quien lo gestiona. */}
+            <MoverACarpeta
+              carpetas={carpetas}
+              actual={carpetaActual}
+              onMover={onMoverACarpeta}
+              className="h-6 w-6 rounded-md border"
+            />
+            {canManage && (
+              <>
               <Button
                 variant="outline" size="icon"
                 className="h-6 w-6 text-muted-foreground hover:text-red-600"
@@ -400,8 +450,9 @@ function ProjectCard({
               >
                 <Pencil className="h-3 w-3" />
               </Button>
-            </div>
-          )}
+              </>
+            )}
+          </div>
           <Badge variant="outline" className={cn("shrink-0 text-[10px] uppercase", STATUS_STYLES[project.status])}>
             {PROJECT_STATUS_LABELS[project.status]}
           </Badge>
