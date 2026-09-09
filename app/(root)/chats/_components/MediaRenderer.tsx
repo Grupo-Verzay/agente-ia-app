@@ -10,7 +10,7 @@ import { MediaViewer, useMediaGallery } from './media-viewer';
 import { DocumentCard } from './DocumentCard';
 
 /**
- * El ancho maximo de un adjunto, para que el PIE se ajuste al mismo.
+ * El ancho de un adjunto, que es tambien el del PIE que lo acompana.
  *
  * El texto que acompana a una foto no tenia tope, asi que estiraba la burbuja
  * hasta donde llegara la frase y la foto quedaba flotando en una caja mucho mas
@@ -19,10 +19,20 @@ import { DocumentCard } from './DocumentCard';
  *
  * Vive aqui y se exporta para que sea UN solo valor: si se cambia el ancho del
  * adjunto y el del pie se queda con el viejo, vuelve el desajuste.
+ *
+ * Para un documento y un audio el ancho es FIJO, no `w-full max-w-[350px]`.
+ * `w-full` es el 100% de la BURBUJA, y la burbuja mide lo que mide su
+ * contenido: la tarjeta de un PDF con nombre largo salia a 350 px y la del
+ * mismo PDF con nombre corto -o la que llega sin nombre, rotulada "Documento
+ * PDF"- salia visiblemente mas estrecha. Dos tarjetas del mismo tipo con
+ * anchos distintos en la misma conversacion, una entrando y otra saliendo.
+ *
+ * Fijo y con `max-w-full`, para que en un movil se encoja en vez de salirse.
+ * Una imagen o un video NO llevan ancho fijo: cada uno se pinta con su forma.
  */
 export function anchoDelAdjunto(tipo: MediaData['type']): string {
   return tipo === 'audio' || tipo === 'document'
-    ? 'w-full max-w-[350px]'
+    ? 'w-[350px] max-w-full'
     : 'max-w-full md:max-w-[300px]';
 }
 
