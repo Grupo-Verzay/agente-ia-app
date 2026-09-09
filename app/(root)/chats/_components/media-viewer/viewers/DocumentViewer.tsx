@@ -4,6 +4,7 @@ import React, { useCallback } from 'react';
 import { Download, ExternalLink, FileArchive, FileCode, FileSpreadsheet, FileText, FileType } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ViewerProps } from '../viewer-types';
+import { PdfPages } from './PdfPages';
 
 const ICON_MAP: Array<{ mimes: string[]; icon: React.FC<{ className?: string }>; ext: string }> = [
   { mimes: ['application/pdf'], icon: FileType, ext: 'pdf' },
@@ -29,7 +30,7 @@ function isPdf(mimeType: string) {
   return mimeType === 'application/pdf' || mimeType.endsWith('/pdf');
 }
 
-/** Nombre de descarga: usa el caption (suele traer el nombre real) o uno genérico. */
+/** Nombre de descarga: el del archivo, luego el caption, y si no uno genérico. */
 function resolveDownloadName(caption: string | undefined, ext: string) {
   const clean = (caption ?? '').trim();
   if (clean && /\.[a-z0-9]{2,5}$/i.test(clean)) return clean;
@@ -37,9 +38,10 @@ function resolveDownloadName(caption: string | undefined, ext: string) {
   return `documento.${ext}`;
 }
 
-export const DocumentViewer: React.FC<ViewerProps> = ({ url, mimeType, caption }) => {
+export const DocumentViewer: React.FC<ViewerProps> = ({ url, mimeType, caption, fileName }) => {
   const { icon: DocIcon, ext } = getDocMeta(mimeType);
-  const downloadName = resolveDownloadName(caption, ext);
+  const rotulo = (fileName ?? '').trim() || caption;
+  const downloadName = resolveDownloadName(rotulo, ext);
 
   const handleDownload = useCallback(async () => {
     try {
@@ -59,16 +61,10 @@ export const DocumentViewer: React.FC<ViewerProps> = ({ url, mimeType, caption }
   }, [url, downloadName]);
 
   if (isPdf(mimeType)) {
-    return (
-      <div className="w-full flex flex-col" style={{ minHeight: '100vh' }}>
-        <iframe
-          src={url}
-          title={caption || 'Documento PDF'}
-          className="w-full flex-1 bg-white"
-          style={{ border: 'none', minHeight: '60vh' }}
-        />
-      </div>
-    );
+    // Lo pinta pdf.js, no el navegador: en un movil el `<iframe>` no enseñaba
+    // el documento, sino un cuadro gris con un boton "Abrir". `PdfPages` se
+    // cae solo a ese iframe si no puede leer el archivo.
+    return <PdfPages url={url} titulo={rotulo || 'Documento PDF'} />;
   }
 
   return (
@@ -79,8 +75,8 @@ export const DocumentViewer: React.FC<ViewerProps> = ({ url, mimeType, caption }
         </div>
 
         <div className="flex min-w-0 flex-col gap-1">
-          <p className="max-w-full truncate text-base font-medium leading-snug text-foreground" title={caption || 'Documento'}>
-            {caption || 'Documento'}
+          <p className="max-w-full truncate text-base font-medium leading-snug text-foreground" title={rotulo || 'Documento'}>
+            {rotulo || 'Documento'}
           </p>
           <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
             {getExtLabel(mimeType)}
