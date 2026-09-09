@@ -572,9 +572,24 @@ menú y el **Historial**, que va al final, quedaba fuera de la pantalla.
 
 Ese **no se pliega**, y a propósito: asignar a alguien *es* lo que se viene a
 hacer en ese menú, y esconderlo tras un submenú añade un clic a lo principal.
-Lo que se hace es darle **su propio scroll**: el menú no pasa del 70 % de la
-altura de la ventana, arriba se quedan fijos «Sin asignar» y «Asignarme», abajo
-el Historial, y solo la lista se desplaza.
+Lo que se hace es darle **su propio scroll**: arriba se quedan fijos «Sin
+asignar» y «Asignarme», abajo el Historial, y solo la lista se desplaza.
+
+Y el tope **no puede ser `70vh` a secas**, que fue el primer intento y no
+arregló nada: `vh` mide la **ventana**, no el hueco que hay entre el botón y el
+borde. Con la fila arriba del todo el menú se abría hacia arriba y se salía por
+encima —el título «Asignar asesor» cortado—; con la fila abajo, al revés. El
+tope es el hueco de verdad, que Radix mide y publica en
+`--radix-popover-content-available-height` (y su gemela
+`--radix-dropdown-menu-content-available-height`), con el 70 % como techo
+encima:
+
+```
+style={{ maxHeight: 'min(70vh, var(--radix-popover-content-available-height))' }}
+```
+
+**Cualquier menú con una lista dentro va así**, y ya lo llevan el de «Acciones»,
+sus dos submenús y los tres del menú de la fila.
 
 Las dos formas valen; lo que no vale es una lista que crece sin tope. **Si la
 lista es el motivo del menú, scroll; si es una opción más entre otras,

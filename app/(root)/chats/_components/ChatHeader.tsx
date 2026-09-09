@@ -339,7 +339,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           <ChevronDown className="h-3 w-3" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-52 p-1" align="end">
+      <DropdownMenuContent
+        className="w-52 overflow-y-auto p-1"
+        style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+        align="end"
+      >
         {onNewMessage && (
           <>
             <DropdownMenuItem
@@ -389,7 +393,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               Transferir a...
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
-              <DropdownMenuSubContent className="max-h-[60vh] w-56 overflow-y-auto p-1">
+              <DropdownMenuSubContent
+                className="w-56 overflow-y-auto p-1"
+                style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+              >
                 {otherAdvisors.length === 0 ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground">No hay otros asesores.</p>
                 ) : (
@@ -419,7 +426,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               Agregar participante...
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
-              <DropdownMenuSubContent className="max-h-[60vh] w-56 overflow-y-auto p-1">
+              <DropdownMenuSubContent
+                className="w-56 overflow-y-auto p-1"
+                style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+              >
                 {participantCandidates.map((a) => (
                   <DropdownMenuItem
                     key={`part-${a.id}`}
