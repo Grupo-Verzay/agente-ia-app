@@ -259,13 +259,24 @@ export function DiagramasListClient() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                   <DiagramIcon className="h-4.5 w-4.5 text-primary" />
                 </span>
-                <CardTitle className="min-w-0 flex-1 pt-1 text-sm font-semibold leading-tight">
+                {/* El nombre se lleva TODO el ancho que queda. Las acciones ya
+                    no van en la fila: cinco botones de 28 px dejaban al titulo
+                    unos 50 px en la rejilla de cuatro columnas, y salia
+                    «Verz...», «Distr Pa...». Un `opacity-0` no libera sitio —el
+                    hueco sigue ahi—, asi que van fuera del flujo. */}
+                <CardTitle
+                  className="min-w-0 flex-1 pt-1 pr-[8.5rem] text-sm font-semibold leading-tight md:pr-0"
+                  title={flow.name}
+                >
                   <span className="line-clamp-2">{flow.name}</span>
                 </CardTitle>
-                {/* En pantalla grande las acciones solo salen al pasar el mouse,
-                    para que la rejilla se lea limpia; en tactil no hay mouse que
-                    pasar, asi que ahi se quedan siempre puestas. */}
-                <div className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+                {/* En pantalla grande salen al pasar el mouse, para que la
+                    rejilla se lea limpia; en tactil no hay mouse que pasar, asi
+                    que ahi se quedan puestas —y por eso el titulo reserva sitio
+                    a su derecha solo en pantalla pequeña—. Llevan fondo propio:
+                    al aparecer encima del nombre, sin el se leerian las dos
+                    cosas superpuestas. */}
+                <div className="absolute right-3 top-3 flex shrink-0 items-center gap-0.5 rounded-md bg-card/95 transition-opacity group-hover:bg-accent/95 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
                   <MoverACarpeta
                     carpetas={carpetas.carpetas}
                     actual={carpetas.deCadaCosa[flow.id] ?? null}
@@ -339,7 +350,7 @@ export function DiagramasListClient() {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CardContent className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 <span className="rounded-md bg-muted px-1.5 py-0.5 font-medium tabular-nums text-foreground/70">
                   {flow.nodeCount === 1 ? '1 paso' : `${flow.nodeCount ?? 0} pasos`}
                 </span>

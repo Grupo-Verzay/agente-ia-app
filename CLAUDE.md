@@ -616,6 +616,31 @@ Dos reglas:
    nunca puede ser mudo»: aquí el síntoma no era un error, era un diálogo
    congelado.
 
+## Un `opacity-0` no libera sitio: el hueco sigue ahí
+
+En la rejilla de Diagramas los nombres salían recortados —«Verz…», «Distr
+Pa…»— aunque la tarjeta pareciera medio vacía. La culpa era de la fila de
+botones: están en `md:opacity-0` y solo se ven al pasar el mouse, pero
+**siguen ocupando su ancho**. Cinco botones de 28 px más el icono, en la
+rejilla de cuatro columnas, le dejaban al título unos 50 px.
+
+Las acciones van **fuera del flujo** (`absolute` en la esquina, sobre la
+tarjeta, que ya es `relative`) y el nombre se lleva todo el ancho. Tres cosas
+que hay que mantener:
+
+1. **Fondo propio** en el bloque de acciones. Al aparecer encima del nombre,
+   sin él se leen las dos cosas superpuestas.
+2. **Sitio reservado solo donde hacen falta.** En táctil no hay mouse que pasar
+   y los botones están siempre puestos, así que el título lleva `pr-[8.5rem]` y
+   lo quita en `md:` —donde solo salen al pasar el mouse, y tapar un poco el
+   nombre justo cuando apuntas ahí no molesta—.
+3. El nombre completo va en el `title` del elemento: recortado a dos líneas, el
+   tooltip es lo único que lo dice entero.
+
+Si se añade otro botón a una tarjeta, se mira antes cuánto ancho le queda al
+nombre. Es la misma familia que el hueco en blanco de las tarjetas de Conexión:
+lo que no se ve también ocupa.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera
