@@ -224,6 +224,26 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
                     instancias: true,
                     notificationNumber: true,
                     timezone: true,
+                    // El plan es DE LA CUENTA, no de la persona.
+                    //
+                    // Quien entra al equipo se crea con el plan por defecto y
+                    // esa fila no se toca nunca mas: la suscripcion la paga la
+                    // cuenta. Sin traerlo de aqui, al administrador de una
+                    // cuenta Enterprise le salia «Plan Basico» en la barra
+                    // lateral y en su Perfil, y las pantallas que se abren por
+                    // plan (`lib/sidebar-modules.ts`, los limites de productos,
+                    // las plantillas de flujo) le median por un plan que nadie
+                    // contrato.
+                    //
+                    // El `rol` NO se hereda, a proposito: eso es lo que decide
+                    // sobre que cuentas manda, y prestarlo seria abrirle la
+                    // plataforma entera. El plan solo dice hasta donde llega la
+                    // cuenta en la que ya esta.
+                    plan: true,
+                    // Con que marca se nombra ese plan (`etiquetaDePlanParaCuenta`).
+                    // Sin el, un cliente de reseller veria a su equipo los
+                    // nombres genericos de la plataforma en vez de los suyos.
+                    demoResellerId: true,
                 },
             });
             if (ownerCreds) {
