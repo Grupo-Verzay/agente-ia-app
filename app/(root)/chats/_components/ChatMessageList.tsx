@@ -396,6 +396,38 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
     updateViewport(el.scrollTop, el.clientHeight);
   }, [listRef, renderedList.length, updateViewport]);
 
+  /**
+   * Si ya se puede AFIRMAR que la conversacion esta vacia.
+   *
+   * "Aqui no hay nada que mostrar todavia" se enseñaba en cuanto la lista
+   * quedaba vacia sin estar cargando, y eso junta dos cosas que no son la
+   * misma: una conversacion que de verdad no tiene mensajes, y el hueco de un
+   * segundo entre abrir el chat y que llegue la respuesta. En ese hueco la
+   * frase se lee como que algo ha fallado.
+   *
+   * Durante ese margen se dice "Cargando mensajes...", que es lo que esta
+   * pasando -el reloj del chat abierto sigue preguntando cada 5 s-. Pasado el
+   * margen se dice lo que hay, y se dice bien: sin mensajes, con una invitacion
+   * a escribir. **El margen no puede taparlo para siempre**: una conversacion
+   * vacia tiene que acabar diciendolo, o volvemos al indicador de carga eterno
+   * que este repositorio ya arreglo en el boton de "Cargar mensajes anteriores".
+   */
+  const MARGEN_ANTES_DE_DECIR_QUE_ESTA_VACIA = 1200;
+  const [sePuedeDecirQueEstaVacia, setSePuedeDecirQueEstaVacia] = useState(false);
+  const vacia = !loading && renderedList.length === 0;
+
+  useEffect(() => {
+    if (!vacia) {
+      setSePuedeDecirQueEstaVacia(false);
+      return;
+    }
+    const reloj = window.setTimeout(
+      () => setSePuedeDecirQueEstaVacia(true),
+      MARGEN_ANTES_DE_DECIR_QUE_ESTA_VACIA,
+    );
+    return () => window.clearTimeout(reloj);
+  }, [vacia]);
+
   const handleScroll = useCallback(() => {
     const el = listRef.current;
     if (el) {
@@ -450,18 +482,25 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
             </Button>
           </div>
         )}
-        {loading && <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>}
+        {(loading || (vacia && !sePuedeDecirQueEstaVacia)) && (
+          <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>
+        )}
         {/*
           Sin mensajes y sin estar cargando, aqui no se dibujaba NADA: solo el
-          fondo. Y el fondo vacio se lee como "esto esta roto", que es justo lo
-          que parecia al abrir un chat en el hueco entre elegirlo y arrancar la
-          carga. El texto es neutro a proposito, porque vale para los dos casos:
-          la conversacion esta de verdad vacia, o todavia no ha llegado nada.
+          fondo. Y el fondo vacio se lee como "esto esta roto".
+          Ya con texto, seguia leyendose mal: "Aqui no hay nada que mostrar
+          todavia" suena a que algo fallo, y salia tambien en el hueco de un
+          segundo entre abrir el chat y que llegue la respuesta. Ahora ese hueco
+          dice que esta cargando -que es lo que pasa- y esto dice lo que hay,
+          con una invitacion a escribir en vez de un aviso en negativo.
         */}
-        {!loading && renderedList.length === 0 && (
-          <div className="flex flex-1 items-center justify-center py-10">
+        {vacia && sePuedeDecirQueEstaVacia && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 py-10 text-center">
             <p className="rounded-full bg-background/80 px-4 py-1.5 text-xs text-muted-foreground shadow-sm">
-              Aquí no hay nada que mostrar todavía.
+              Aún no hay mensajes en esta conversación
+            </p>
+            <p className="text-[11px] text-muted-foreground/80">
+              Escribe abajo para empezar
             </p>
           </div>
         )}
