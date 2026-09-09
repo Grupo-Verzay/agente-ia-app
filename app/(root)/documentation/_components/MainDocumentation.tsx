@@ -21,13 +21,18 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
     const accents = ['#3B82F6', '#22C55E', '#8B5CF6'];
 
     return (
-        <div className="flex flex-wrap gap-4 items-stretch justify-center p-2">
+        // Rejilla, no `flex-wrap` con ancho fijo. Con `w-72` las tarjetas no
+        // crecían: en pantalla ancha entraban tres y la cuarta bajaba sola y
+        // centrada, dejando un hueco a los lados. Aquí el ancho se reparte y
+        // los cortes son 1 / 2 / 4, nunca 3: con cuatro tarjetas, tres por fila
+        // es justo lo que deja una huérfana debajo.
+        <div className="grid grid-cols-1 items-stretch gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4">
             {modules.map((card, index) => {
                 const color = card.accent ?? accents[index % accents.length];
                 return (
                     <div
                         key={index}
-                        className="flex flex-col justify-between bg-background border border-border rounded-2xl w-72 overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.015]"
+                        className="flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-border bg-background transition-all duration-300 hover:shadow-lg hover:scale-[1.015]"
                         style={{ borderTop: `3px solid ${color}` }}
                     >
                         {/* Icono + título */}
