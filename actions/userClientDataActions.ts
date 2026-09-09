@@ -10,6 +10,8 @@ import { inheritResellerAiConfig } from './userAiconfig-actions';
 import { currentUser } from '@/lib/auth';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
 import { clientesDelAsesor } from '@/lib/clientes-del-asesor';
+import { cuentaQueManda } from '@/lib/cuenta-que-manda';
+import { exigirGestionDelCliente, puedeAdministrarClientes, puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
 import { purgarCuentaEliminada } from '@/lib/purge-account.server';
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
@@ -76,9 +78,16 @@ const clientesPermitidos = async (): Promise<Set<string> | null> => {
   return new Set(cartera);
 };
 
+/**
+ * Quien manda en el panel de Clientes: la plataforma, un reseller sobre los
+ * suyos, y el `administrador` de una cuenta, que actua por ella.
+ *
+ * Se pregunta por la CUENTA y no por la persona: un administrador se crea con
+ * rol `user`, asi que pidiendole el rol se le cerraba la pantalla entera.
+ */
 const ensureAdminOrResellerUser = async () => {
   const me = await currentUser();
-  if (!me || !isAdminOrReseller(me.role)) {
+  if (!me || !(await puedeAdministrarClientes(me))) {
     throw new Error("No autorizado.");
   }
   return me;
@@ -461,7 +470,12 @@ export const updateClientDataByField = async (
 // ==============================
 export const updateClientData = async (userId: string, formData: FormData) => {
   try {
-    await ensureAdminOrResellerUser();
+    // De quien es esta cuenta. Antes bastaba con tener rol de admin o de
+    // reseller y no se miraba el cliente: un reseller podia editar la ficha de
+    // un cliente que no era suyo con solo llamar a la accion.
+    const me = await currentUser();
+    if (!me) throw new Error("No autorizado.");
+    await exigirGestionDelCliente(me, userId);
 
     const dataToUpdate: Record<string, any> = {};
 
@@ -606,6 +620,9 @@ export const createUserWithPausar = async (
 ): Promise<ClientResponse<UserWithPausar>> => {
   try {
     const me = await ensureAdminOrResellerUser();
+    // Si quien crea es el administrador de una cuenta reseller, el cliente
+    // nuevo cuelga de la CUENTA, no de el: es ella la que tiene las licencias.
+    const cuenta = await cuentaQueManda(me);
 
     const { openingPhrase, subscriptionPlanId, ...userFields } = userData;
 
@@ -618,8 +635,8 @@ export const createUserWithPausar = async (
       totalLicenses: number;
       subscriptionPlan: { credits: number };
     } | null = null;
-    if (me.role === 'reseller') {
-      if (!userFields.demoResellerId) userFields.demoResellerId = me.id;
+    if (cuenta.role === 'reseller') {
+      if (!userFields.demoResellerId) userFields.demoResellerId = cuenta.id;
       if (!userFields.apiKeyId) userFields.apiKeyId = me.apiKeyId ?? null;
       if (!userFields.apiUrl) userFields.apiUrl = me.apiUrl;
 
@@ -628,12 +645,12 @@ export const createUserWithPausar = async (
       // así eliminar un cliente libera el cupo automáticamente (modelo A).
       if (subscriptionPlanId) {
         pool = await db.resellerLicensePool.findUnique({
-          where: { resellerUserId_subscriptionPlanId: { resellerUserId: me.id, subscriptionPlanId } },
+          where: { resellerUserId_subscriptionPlanId: { resellerUserId: cuenta.id, subscriptionPlanId } },
           include: { subscriptionPlan: true },
         });
         if (!pool) return { success: false, message: 'No tienes licencias de ese plan.' };
         const used = await db.user.count({
-          where: { demoResellerId: me.id, isDemo: false, resellerSubscriptionPlanId: subscriptionPlanId },
+          where: { demoResellerId: cuenta.id, isDemo: false, resellerSubscriptionPlanId: subscriptionPlanId },
         });
         if (used >= pool.totalLicenses) {
           return {
@@ -771,16 +788,13 @@ export async function deleteUser(id: string) {
   let currentStep = "init";
 
   try {
+    // Una sola llave, la misma que abre Editar y Módulos: la plataforma sobre
+    // todas, el reseller sobre las suyas —por los dos caminos con los que se le
+    // vinculan clientes, no solo `demoResellerId`— y el administrador de una
+    // cuenta sobre lo que mande su cuenta.
     const me = await currentUser();
-    if (!me || !isAdminOrReseller(me.role)) {
+    if (!me || !(await puedeGestionarAlCliente(me, id))) {
       return { success: false, message: "No autorizado." };
-    }
-    // Resellers solo pueden eliminar a SUS propios clientes.
-    if (!isAdminLike(me.role)) {
-      const target = await db.user.findUnique({ where: { id }, select: { demoResellerId: true } });
-      if (!target || target.demoResellerId !== me.id) {
-        return { success: false, message: "No autorizado." };
-      }
     }
 
     // FASE 1 — apagar y marcar. Transacción corta: solo toca la cuenta.

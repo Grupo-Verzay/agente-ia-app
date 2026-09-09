@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { currentUser } from "@/lib/auth";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { db } from "@/lib/db";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
@@ -30,11 +31,28 @@ type ActionResult<T = undefined> =
   | { success: true; data?: T; message?: string }
   | { success: false; message: string };
 
+/**
+ * Quién manda en esta pantalla, y sobre QUÉ cuenta.
+ *
+ * Todo lo de Equipo cuelga de la cuenta: los miembros son `owner_id = <cuenta>`,
+ * las conversaciones son `Session."userId" = <cuenta>` y las asignaciones se
+ * guardan con `ownerUserId = <cuenta>`. Por eso lo que se devuelve lleva el id
+ * y el rol de la CUENTA, no los de la persona.
+ *
+ * Antes se devolvía la persona tal cual, y para un `administrador` —que es una
+ * fila propia con su id y rol `user`— eso significaba preguntar por
+ * `owner_id = <su id>`: la pantalla le salía **con el equipo vacío**, y desde
+ * el listado de Clientes «Asignar a» le contestaba «Cliente no encontrado».
+ * Ninguna de las dos decía por qué.
+ *
+ * Un `agente` sigue sin pasar: participa, pero no reparte.
+ */
 async function requireOwner() {
   const user = await currentUser();
   if (!user?.id) return null;
   if (user.ownerId && user.advisorRole !== "administrador") return null;
-  return user;
+  const cuenta = await cuentaQueManda(user);
+  return { ...user, id: cuenta.id, role: cuenta.role };
 }
 
 // Verifica que un asesor pertenece al dueño usando raw SQL
@@ -832,7 +850,16 @@ async function esClienteDeLaCuenta(
   const base = { id: clientId, role: { in: ["user", "affiliate"] as Role[] } };
 
   if (isAdminLike(owner.role)) {
-    return !!(await db.user.findFirst({ where: base, select: { id: true } }));
+    // Sin los de ningun reseller, igual que `clientesDeLaCuenta`: si la fila no
+    // sale en la lista, tampoco se puede repartir desde aqui.
+    return !!(await db.user.findFirst({
+      where: {
+        ...base,
+        demoResellerId: null,
+        reseller_reseller_userIdToUser: { none: {} },
+      },
+      select: { id: true },
+    }));
   }
 
   const suyo = await db.user.findFirst({

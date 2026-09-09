@@ -2,6 +2,7 @@
 
 import { auth, signIn } from "@/auth";
 import { db } from "@/lib/db";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
 import { loginSchema, registerSchema } from "@/lib/zod";
 import bcrypt from "bcryptjs";
@@ -214,12 +215,16 @@ export async function impersonateUser(targetUserId: string) {
 
   const realUser = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, role: true },
+    select: { id: true, role: true, ownerId: true, advisorRole: true },
   });
 
   if (!realUser) return { success: false, message: "No autorizado" };
 
-  const esGestor = isAdminOrReseller(realUser.role);
+  // Por qué cuenta se entra. El administrador de una cuenta entra a donde entra
+  // ella; con su propio rol —`user`— caía en la lista de asignados de abajo y
+  // solo podía entrar a los clientes que alguien le hubiera pasado uno a uno.
+  const cuenta = await cuentaQueManda(realUser);
+  const esGestor = isAdminOrReseller(cuenta.role);
 
   // Un colaborador del equipo no tiene rol de gestión, pero sí puede entrar a
   // los clientes que le asignaron: es justo para lo que se le pasan. Fuera de
@@ -243,12 +248,12 @@ export async function impersonateUser(targetUserId: string) {
 
   // Los resellers (no admin) solo pueden entrar a SUS propios clientes:
   // ya sea asignados en la tabla `reseller` o creados como demo por ellos.
-  if (esGestor && !isAdminLike(realUser.role)) {
+  if (esGestor && !isAdminLike(cuenta.role)) {
     const ownsByAssignment = await db.reseller.findFirst({
-      where: { userId: targetUserId, resellerid: realUser.id },
+      where: { userId: targetUserId, resellerid: cuenta.id },
       select: { id: true },
     });
-    const owns = exists.demoResellerId === realUser.id || !!ownsByAssignment;
+    const owns = exists.demoResellerId === cuenta.id || !!ownsByAssignment;
     if (!owns) return { success: false, message: "No autorizado" };
   }
 

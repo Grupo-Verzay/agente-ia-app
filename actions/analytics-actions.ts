@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { currentUser } from "@/lib/auth"
 import { isAdminLike } from "@/lib/rbac"
 import { clientesDelAsesor } from "@/lib/clientes-del-asesor"
+import { cuentaQueManda } from "@/lib/cuenta-que-manda"
 import { BillingStatus, Plan, Prisma, ServiceAccessStatus } from "@prisma/client"
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────
@@ -270,12 +271,17 @@ export async function getResellerAnalytics(): Promise<{
   message?: string
 }> {
   const user = await currentUser()
-  if (!user || user.role !== "reseller") {
+  if (!user) return { success: false, message: "No autorizado" }
+
+  // Por qué cuenta se pregunta: el administrador de un reseller ve la cartera
+  // de SU cuenta (ver `lib/cuenta-que-manda.ts`).
+  const cuenta = await cuentaQueManda(user)
+  if (cuenta.role !== "reseller") {
     return { success: false, message: "No autorizado" }
   }
 
   const assignments = await db.reseller.findMany({
-    where: { resellerid: user.id },
+    where: { resellerid: cuenta.id },
     select: { user_reseller_userIdToUser: { select: SELECT_DE_LA_CARTERA } },
   })
 
@@ -321,7 +327,13 @@ export async function getVerzayPlatformAnalytics(): Promise<{
   message?: string
 }> {
   const user = await currentUser()
-  if (!user || !isAdminLike(user.role)) {
+  if (!user) return { success: false, message: "No autorizado" }
+
+  // Las de plataforma las ve quien manda en la plataforma, y el administrador
+  // de esa cuenta con ella: actúa por ella. Preguntando por SU rol —`user`—
+  // esta pantalla le contestaba «No se pudieron cargar las estadísticas».
+  const cuenta = await cuentaQueManda(user)
+  if (!isAdminLike(cuenta.role)) {
     return { success: false, message: "No autorizado" }
   }
 

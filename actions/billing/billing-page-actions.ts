@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ResponseFormat } from "@/types/billing";
 import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { serializeUserBilling } from "./helpers/billing-helpers";
 
 export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
@@ -22,18 +23,22 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
 
     let assignedUserIds: string[] | undefined = cartera ?? undefined;
 
-    if (me.role === "reseller") {
+    // Por qué cuenta se pregunta: el administrador de una cuenta reseller ve la
+    // facturación de los clientes de ESA cuenta, no la de la plataforma.
+    const cuenta = await cuentaQueManda(me);
+
+    if (cuenta.role === "reseller") {
       // Clientes del reseller: combinar sistema viejo (Reseller.userId) y nuevo
       // (User.demoResellerId), igual que /panel/clientes. Antes solo usaba el
       // viejo, por eso el billing salía vacío para clientes vinculados por
       // demoResellerId aunque sí aparecieran en /panel/clientes.
       const [oldAssignments, newClients] = await Promise.all([
         db.reseller.findMany({
-          where: { resellerid: me.id },
+          where: { resellerid: cuenta.id },
           select: { userId: true },
         }),
         db.user.findMany({
-          where: { demoResellerId: me.id },
+          where: { demoResellerId: cuenta.id },
           select: { id: true },
         }),
       ]);
