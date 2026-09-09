@@ -576,7 +576,7 @@ function ChatContactItemBase({
                     <UserCheck className="h-4 w-4" />
                     Asignar agente
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-48">
+                  <DropdownMenuSubContent className="max-h-[60vh] w-48 overflow-y-auto">
                     <DropdownMenuItem onSelect={() => onAssignAdvisor(contact.id, null, contact.instanceName)}>
                       <span className="text-sm text-muted-foreground">Sin asignar</span>
                     </DropdownMenuItem>
@@ -612,7 +612,7 @@ function ChatContactItemBase({
                     <Tag className="h-4 w-4" />
                     Asignar etiqueta
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-44">
+                  <DropdownMenuSubContent className="max-h-[60vh] w-44 overflow-y-auto">
                     {allTags.map((tag) => {
                       const hasTag = contact.chatSession?.tags?.some((t) => t.id === tag.id);
                       return (
