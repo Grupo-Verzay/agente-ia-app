@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Minus, Plus, Scan } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { abrirPdf, pintarPagina } from '@/lib/pdf-en-el-navegador';
 
 /**
@@ -17,7 +18,17 @@ import { abrirPdf, pintarPagina } from '@/lib/pdf-en-el-navegador';
  * que ya esta en el proyecto para la miniatura de la tarjeta. Da igual el
  * navegador y da igual el telefono.
  *
- * Dos cosas que hay que mantener:
+ * Al dejar de usar el visor del navegador se perdieron sus mandos, y se noto:
+ * "no me da la opcion de que se amplie al ancho de la pantalla". Asi que van
+ * aqui, y son los tres que se usan de verdad: **el documento ocupa todo el
+ * ancho que haya** -no una columna estrecha en medio de la pantalla-, se puede
+ * **acercar y alejar** con un boton para volver al ancho, y se puede **ir a
+ * una pagina**, que con un catalogo de 63 es lo que mas falta hace.
+ *
+ * Lo que NO se ha traido del visor del navegador: girar, imprimir y buscar
+ * texto. Descargar ya esta arriba, en la cabecera del visor.
+ *
+ * Tres cosas que hay que mantener:
  *
  * 1. **Una pagina se pinta cuando se acerca, no antes.** Un catalogo de 63
  *    paginas pintado de golpe se baja entero y tarda un minuto. Con
@@ -26,15 +37,22 @@ import { abrirPdf, pintarPagina } from '@/lib/pdf-en-el-navegador';
  * 2. **Cada pagina se guarda como IMAGEN, no como lienzo.** 63 lienzos de una
  *    pagina son cientos de megas de memoria y en un movil tumban la pestaña;
  *    las mismas 63 en JPEG son unos pocos megas.
- *
- * Y si pdf.js no puede -el almacenamiento no deja pedir el archivo desde el
- * navegador, el PDF esta roto-, **no se queda en blanco**: se cae al `<iframe>`
- * de antes, que en un ordenador sigue funcionando, y el boton de descargar
- * sigue estando arriba.
+ * 3. **Acercar NO vuelve a pintar.** Cada pagina se pinta una sola vez, a mas
+ *    resolucion de la que se enseña, y el zoom solo la estira. Repintar 63
+ *    paginas cada vez que se toca el `+` es volver al problema del punto 1.
  */
 
-/** Ancho al que se pinta cada pagina. Mas que esto no se nota y pesa el doble. */
-const ANCHO_DE_LA_PAGINA = 1000;
+/** Cuanto mas fino se pinta de lo que se enseña, para que el zoom no emborrone. */
+const FINURA = 2;
+
+/** Limites de lo que se pinta. Ni borroso en un monitor, ni enorme en un movil. */
+const ANCHO_MINIMO = 800;
+const ANCHO_MAXIMO = 1800;
+
+/** Hasta donde se puede acercar y alejar. */
+const ZOOM_MINIMO = 0.5;
+const ZOOM_MAXIMO = 3;
+const PASO_DEL_ZOOM = 0.25;
 
 /** Proporcion de una hoja A4 vertical, para el hueco de una pagina sin pintar. */
 const PROPORCION_POR_DEFECTO = 1 / 1.414;
@@ -46,17 +64,78 @@ interface PdfPagesProps {
 
 export const PdfPages: React.FC<PdfPagesProps> = ({ url, titulo }) => {
   const documento = useRef<any>(null);
+  const marco = useRef<HTMLDivElement | null>(null);
   const [paginas, setPaginas] = useState(0);
   const [proporcion, setProporcion] = useState(PROPORCION_POR_DEFECTO);
   const [pintadas, setPintadas] = useState<Record<number, string>>({});
   const [fallo, setFallo] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const anchoDeRender = useRef(ANCHO_MINIMO);
   const pidiendo = useRef<Set<number>>(new Set());
+  const huecos = useRef<Map<number, HTMLDivElement>>(new Map());
+  const fotograma = useRef<number | null>(null);
+
+  /** Apuntar donde esta cada pagina, para saber cual se esta mirando. */
+  const apuntarHueco = useCallback((numero: number, nodo: HTMLDivElement | null) => {
+    if (nodo) huecos.current.set(numero, nodo);
+    else huecos.current.delete(numero);
+  }, []);
+
+  /**
+   * Que pagina se esta mirando.
+   *
+   * Se mide UNA VEZ POR FOTOGRAMA (`requestAnimationFrame`), como la lista de
+   * chats: el navegador dispara `scroll` muchas mas veces de las que puede
+   * pintar, y recorrer las paginas en cada uno pone el desplazamiento pegajoso.
+   */
+  const alDesplazar = useCallback(() => {
+    if (fotograma.current !== null) return;
+    fotograma.current = requestAnimationFrame(() => {
+      fotograma.current = null;
+      const caja = marco.current;
+      if (!caja) return;
+      const arriba = caja.getBoundingClientRect().top;
+      let mirando = 1;
+      for (const [numero, nodo] of huecos.current) {
+        // La primera pagina cuyo final queda por debajo del borde de arriba.
+        if (nodo.getBoundingClientRect().bottom > arriba + 8) {
+          mirando = numero;
+          break;
+        }
+      }
+      setPaginaActual((previo) => (previo === mirando ? previo : mirando));
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (fotograma.current !== null) cancelAnimationFrame(fotograma.current);
+  }, []);
+
+  const irA = useCallback((numero: number) => {
+    const destino = Math.min(Math.max(1, numero), paginas || 1);
+    huecos.current.get(destino)?.scrollIntoView({ block: 'start' });
+  }, [paginas]);
+
+  // A que resolucion se pinta. Se mide UNA vez, al abrir: si cambiara con el
+  // ancho de la ventana, redimensionarla obligaria a repintarlo todo.
+  useEffect(() => {
+    const ancho = marco.current?.clientWidth ?? 0;
+    if (!ancho) return;
+    const nitido = ancho * (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
+    anchoDeRender.current = Math.round(
+      Math.min(ANCHO_MAXIMO, Math.max(ANCHO_MINIMO, nitido * (FINURA / 2))),
+    );
+  }, []);
 
   useEffect(() => {
     let vigente = true;
     setPaginas(0);
     setPintadas({});
     setFallo(false);
+    setZoom(1);
+    setPaginaActual(1);
+    huecos.current.clear();
 
     void (async () => {
       try {
@@ -90,7 +169,7 @@ export const PdfPages: React.FC<PdfPagesProps> = ({ url, titulo }) => {
     if (!doc || pidiendo.current.has(numero)) return;
     pidiendo.current.add(numero);
     try {
-      const hecha = await pintarPagina(doc, numero, ANCHO_DE_LA_PAGINA);
+      const hecha = await pintarPagina(doc, numero, anchoDeRender.current);
       if (!hecha || !documento.current) return;
       if (numero === 1) setProporcion(hecha.proporcion);
       setPintadas((previo) => ({ ...previo, [numero]: hecha.imagen }));
@@ -110,31 +189,101 @@ export const PdfPages: React.FC<PdfPagesProps> = ({ url, titulo }) => {
       <iframe
         src={url}
         title={titulo}
-        className="w-full flex-1 bg-white"
+        className="w-full h-full bg-white"
         style={{ border: 'none', minHeight: '60vh' }}
       />
     );
   }
 
+  const acercar = () => setZoom((z) => Math.min(ZOOM_MAXIMO, z + PASO_DEL_ZOOM));
+  const alejar = () => setZoom((z) => Math.max(ZOOM_MINIMO, z - PASO_DEL_ZOOM));
+
   return (
-    <div className="w-full overflow-y-auto bg-neutral-200 dark:bg-neutral-800" style={{ maxHeight: '80vh' }}>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-3">
+    <div className="flex h-full w-full flex-col bg-neutral-200 dark:bg-neutral-800">
+      {/* Los mandos, los mismos que traia el visor del navegador. */}
+      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-border/50 bg-background/80 px-2 py-1 backdrop-blur">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={alejar}
+          disabled={zoom <= ZOOM_MINIMO}
+          aria-label="Alejar"
+        >
+          <Minus className="h-4 w-4" />
+        </Button>
+        <span className="w-14 text-center text-xs tabular-nums text-muted-foreground">
+          {Math.round(zoom * 100)}%
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={acercar}
+          disabled={zoom >= ZOOM_MAXIMO}
+          aria-label="Acercar"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setZoom(1)}
+          disabled={zoom === 1}
+          aria-label="Ajustar al ancho"
+          title="Ajustar al ancho"
+        >
+          <Scan className="h-4 w-4" />
+        </Button>
+        {paginas > 0 && (
+          <span className="ml-2 flex items-center gap-1 text-xs text-muted-foreground">
+            <input
+              type="number"
+              min={1}
+              max={paginas}
+              value={paginaActual}
+              onChange={(e) => {
+                const pedida = Number(e.target.value);
+                if (Number.isFinite(pedida)) {
+                  setPaginaActual(pedida);
+                  irA(pedida);
+                }
+              }}
+              aria-label="Ir a la página"
+              className="h-7 w-12 rounded border border-border bg-background px-1 text-center tabular-nums text-foreground"
+            />
+            de {paginas}
+          </span>
+        )}
+      </div>
+
+      <div ref={marco} onScroll={alDesplazar} className="min-h-0 flex-1 overflow-auto">
         {paginas === 0 && (
-          <div className="flex h-[60vh] items-center justify-center gap-2 text-sm text-muted-foreground">
+          <div className="flex h-full min-h-[50vh] items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Abriendo el documento…
           </div>
         )}
 
-        {Array.from({ length: paginas }, (_, i) => i + 1).map((numero) => (
-          <PaginaDelPdf
-            key={numero}
-            numero={numero}
-            imagen={pintadas[numero]}
-            proporcion={proporcion}
-            onAcercarse={pintar}
-          />
-        ))}
+        {/* Al 100% el documento ocupa TODO el ancho que haya. Antes iba en una
+            columna de 768 px en medio de la pantalla, con el hueco a los lados
+            y la letra pequeña. */}
+        <div
+          className="mx-auto flex flex-col gap-2 p-2"
+          style={{ width: `${zoom * 100}%` }}
+        >
+          {Array.from({ length: paginas }, (_, i) => i + 1).map((numero) => (
+            <PaginaDelPdf
+              key={numero}
+              numero={numero}
+              imagen={pintadas[numero]}
+              proporcion={proporcion}
+              onAcercarse={pintar}
+              onMontar={apuntarHueco}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -147,11 +296,19 @@ interface PaginaDelPdfProps {
   imagen: string | undefined;
   proporcion: number;
   onAcercarse: (numero: number) => void;
+  onMontar: (numero: number, nodo: HTMLDivElement | null) => void;
 }
 
 const PaginaDelPdf: React.FC<PaginaDelPdfProps> = React.memo(
-  ({ numero, imagen, proporcion, onAcercarse }) => {
+  ({ numero, imagen, proporcion, onAcercarse, onMontar }) => {
     const hueco = useRef<HTMLDivElement | null>(null);
+
+    // Se apunta al montar y se borra al desmontar, para que la barra sepa por
+    // que pagina va y el salto tenga a donde ir.
+    useEffect(() => {
+      onMontar(numero, hueco.current);
+      return () => onMontar(numero, null);
+    }, [numero, onMontar]);
 
     useEffect(() => {
       const nodo = hueco.current;
