@@ -4,11 +4,16 @@ import { getRegisterLinksAction } from "@/actions/admin/get-register-links-actio
 import { RegisterLinksManager } from "./_components/RegisterLinksManager";
 import Header from "@/components/shared/header";
 import AccessDenied from "@/app/AccessDenied";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 
 const RegisterLinksPage = async () => {
   const user = await currentUser();
 
-  if (!user || !isAdminLike(user.role)) {
+  // Quien manda aqui es la CUENTA, no la persona: su administrador actua por
+  // ella (ver `lib/cuenta-que-manda.ts`). Con su propio rol —`user`— esta
+  // pantalla le contestaba «Acceso Denegado» aunque el menu se la enseñara.
+  const cuenta = user ? await cuentaQueManda(user) : null;
+  if (!user || !cuenta || !isAdminLike(cuenta.role)) {
     return <AccessDenied />;
   }
 

@@ -7,18 +7,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExternalDataImportClient } from './_components/ExternalDataImportClient';
 import { ExternalClientDataManagement } from './_components/ExternalClientDataManagement';
 import { ExternalDataToolConfigManagement } from './_components/ExternalDataToolConfigManagement';
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 
 export const dynamic = 'force-dynamic';
 
 export default async function ExternalDataPage() {
   const user = await currentUser();
 
-  if (!user || !isAdminLike(user.role)) {
+  // Quien manda aqui es la CUENTA, no la persona: su administrador actua por
+  // ella (ver `lib/cuenta-que-manda.ts`). Con su propio rol —`user`— esta
+  // pantalla le contestaba «Acceso Denegado» aunque el menu se la enseñara.
+  const cuenta = user ? await cuentaQueManda(user) : null;
+  if (!user || !cuenta || !isAdminLike(cuenta.role)) {
     return <AccessDenied />;
   }
 
-  const resClients = isAdminOrReseller(user.role)
-    ? await getClientsForSelector(user.role === 'reseller' ? { resellerId: user.id } : undefined)
+  const resClients = isAdminOrReseller(cuenta.role)
+    ? await getClientsForSelector(cuenta.role === 'reseller' ? { resellerId: cuenta.id } : undefined)
     : { data: [] };
 
   const clients = resClients?.data ?? [];
