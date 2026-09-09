@@ -270,7 +270,18 @@ export const PdfPages: React.FC<PdfPagesProps> = ({ url, titulo }) => {
 
   return (
     <div className="flex h-full w-full flex-col bg-neutral-200 dark:bg-neutral-800">
-      <div ref={marco} onScroll={alDesplazar} className="min-h-0 flex-1 overflow-auto">
+      {/* El tope va aqui, en unidades de PANTALLA, y no se puede quitar.
+          `flex-1` reparte una altura que el padre tiene que tener DEFINIDA, y
+          no la tiene: el dialogo va con `max-h-[95vh]`, que es un techo, no una
+          altura. Sin tope, este contenedor crecia con las 63 paginas, el
+          `overflow-auto` no tenia nada que recortar y NO habia barra: el
+          documento se abria y no se podia bajar. */}
+      <div
+        ref={marco}
+        onScroll={alDesplazar}
+        className="min-h-0 flex-1 overflow-auto"
+        style={{ maxHeight: '80vh' }}
+      >
         {paginas === 0 && (
           <div className="flex h-full min-h-[50vh] items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
