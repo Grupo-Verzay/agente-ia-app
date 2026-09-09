@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowUpRight, Maximize2, Mic } from 'lucide-react';
+import { Maximize2, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SafeImage } from '@/components/custom/SafeImage';
 import { cn } from '@/lib/utils';
 import type { MediaData } from './chat-message-types';
 import { MediaViewer, useMediaGallery } from './media-viewer';
+import { DocumentCard } from './DocumentCard';
 
 /**
  * El ancho maximo de un adjunto, para que el PIE se ajuste al mismo.
@@ -108,17 +109,12 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
         )}
 
         {type === 'document' && (
-          <button
-            type="button"
-            onClick={() => setViewerOpen(true)}
-            className="w-full p-3 bg-blue-500 text-white flex items-center justify-between hover:bg-blue-600 transition-colors"
-            aria-label="Abrir documento"
-          >
-            <span className="truncate text-sm" title={rotuloDelDocumento}>
-              {rotuloDelDocumento}
-            </span>
-            <ArrowUpRight className="w-4 h-4 flex-shrink-0" />
-          </button>
+          <DocumentCard
+            url={url}
+            fileName={rotuloDelDocumento}
+            mimeType={mimeType ?? ''}
+            onOpen={() => setViewerOpen(true)}
+          />
         )}
       </div>
 

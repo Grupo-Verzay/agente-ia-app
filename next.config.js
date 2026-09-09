@@ -46,6 +46,18 @@ const nextConfig = {
     ],
   },
 
+  webpack: (config) => {
+    // `pdfjs-dist` declara `canvas` como opcional: lo usa para dibujar cuando
+    // corre en Node. En el navegador dibuja sobre el `<canvas>` del DOM y no le
+    // hace falta, pero webpack intenta resolverlo igual al empaquetar y el
+    // build se cae con «Module not found: Can't resolve 'canvas'».
+    //
+    // `false` le dice a webpack que ese modulo no existe y que siga. Es la
+    // receta que da el propio pdf.js para Next.
+    config.resolve.alias = { ...(config.resolve.alias ?? {}), canvas: false };
+    return config;
+  },
+
   async redirects() {
     return [
       {
