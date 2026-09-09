@@ -13,9 +13,20 @@ interface Props {
   sessionId: number;
   checked: boolean;
   mutateSessions?: (updater: (prevData: SessionLike[][] | undefined) => SessionLike[][] | undefined, shouldRevalidate?: boolean) => void;
+  /**
+   * Se llama cuando el servidor YA guardo el cambio, para que quien nos pinta
+   * lo apunte en su estado local.
+   *
+   * Sin esto, en Chats el interruptor volvia a verse apagado al salir de la
+   * conversacion y volver: la barra lateral guarda su propia copia de la sesion
+   * y nadie se la actualizaba, asi que al reabrir el chat se sembraba con la
+   * copia vieja. Solo se corregia cuando el reloj de sesiones (60s) traia la
+   * lista otra vez, y de ahi el "tarda mucho".
+   */
+  onChanged?: (status: boolean) => void;
 }
 
-export const SwitchStatus = ({ sessionId, checked, mutateSessions }: Props) => {
+export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged }: Props) => {
   const [localChecked, setLocalChecked] = useState(checked);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,6 +42,7 @@ export const SwitchStatus = ({ sessionId, checked, mutateSessions }: Props) => {
 
     if (result.success) {
       toast.success('Actualizado!', { id: toastId });
+      onChanged?.(status);
 
       if (mutateSessions) {
         mutateSessions((prev) => {
