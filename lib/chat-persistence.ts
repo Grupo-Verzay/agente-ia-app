@@ -317,6 +317,28 @@ function ensureChatMessagesTable() {
 }
 
 function epochToDate(value?: Date | number | string | null) {
+  return horaDelMensaje(value) ?? new Date();
+}
+
+/**
+ * La hora que trae el mensaje, o `null` si NO trae ninguna.
+ *
+ * `epochToDate` devuelve la hora de AHORA cuando no hay nada que leer, y eso
+ * es inventarse un dato. Para pintar da igual; para guardar no, y costo que los
+ * chats borrados volvieran solos:
+ *
+ * El reloj del chat abierto vuelve a pedir los ultimos mensajes cada 5 s y los
+ * persiste. Si uno de esos -viejo, ya guardado, del contacto- llegaba sin hora,
+ * se sellaba con la de ahora y el `ON CONFLICT` pisaba la que ya tenia. A
+ * partir de ahi ese mensaje era mas nuevo que la marca de borrado, y
+ * `levantarMarcasSiElContactoEscribio` quitaba la marca: el chat volvia a la
+ * lista sin que el contacto hubiera escrito nada.
+ *
+ * Es la misma familia que "resincronizar historial NO es novedad" (CLAUDE.md),
+ * aplicada a la HORA en vez de al estado de la sesion: volver a traer lo mismo
+ * no puede parecer que ha pasado algo.
+ */
+function horaDelMensaje(value?: Date | number | string | null): Date | null {
   if (value instanceof Date) return value;
   if (typeof value === 'number' && Number.isFinite(value)) {
     return new Date(value < 2_000_000_000 ? value * 1000 : value);
@@ -325,7 +347,7 @@ function epochToDate(value?: Date | number | string | null) {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
-  return new Date();
+  return null;
 }
 
 function dateToEpochSeconds(date: Date | null | undefined) {
@@ -895,7 +917,11 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
   const messageId =
     input.messageId?.trim() ||
     randomMessageId(input.fromMe ? 'outgoing' : 'incoming');
-  const messageTimestamp = epochToDate(input.messageTimestamp);
+  // Si la hora viene de VERDAD en el mensaje o nos la hemos puesto nosotros.
+  // Lo segundo vale para dar de alta un mensaje nuevo -algo hay que poner-, pero
+  // NO para pisar la hora de uno que ya estaba guardado (ver `horaDelMensaje`).
+  const horaReal = horaDelMensaje(input.messageTimestamp);
+  const messageTimestamp = horaReal ?? new Date();
   const isDeleteEvent = isDeletedMessageEvent(input);
   const hasDisplayablePayload = hasDisplayableMessagePayload(input);
 
@@ -987,7 +1013,13 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
           THEN jsonb_set(COALESCE(EXCLUDED."raw", '{}'::jsonb), '{sentByAi}', 'true'::jsonb)
         ELSE COALESCE(EXCLUDED."raw", "chat_messages"."raw")
       END,
+      -- La hora de la fila solo se pisa con una hora REAL. Con una inventada
+      -- -el mensaje llego sin hora y le pusimos la de ahora- se conserva la que
+      -- ya tenia: si no, el sondeo envejecia hacia HOY mensajes viejos y eso
+      -- levantaba la marca de los chats borrados.
       "messageTimestamp" = CASE
+        WHEN NOT ${horaReal !== null}::boolean
+          THEN "chat_messages"."messageTimestamp"
         WHEN EXCLUDED."content" IS NULL AND EXCLUDED."mediaUrl" IS NULL
           THEN "chat_messages"."messageTimestamp"
         ELSE EXCLUDED."messageTimestamp"
