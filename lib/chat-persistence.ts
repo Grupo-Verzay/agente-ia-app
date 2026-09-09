@@ -601,6 +601,28 @@ async function resolveInstanceOwnerId(instanceName?: string | null): Promise<str
   return userId;
 }
 
+/**
+ * El aviso de "linea sin dueño", una vez por linea y por rato.
+ *
+ * Esto corre por CADA mensaje de cada vuelta del sondeo, asi que sin freno una
+ * sola linea huerfana llena la consola y tapa todo lo demas. Que salga poco no
+ * lo hace mudo: sale, y con el nombre de la linea, que es lo que hace falta
+ * para ir a mirarla.
+ */
+const AVISO_LINEA_SIN_DUENO_MS = 5 * 60 * 1000;
+const ultimoAvisoDeLinea = new Map<string, number>();
+
+function avisarLineaSinDueno(instanceName: string | null | undefined, mirando: string) {
+  const linea = instanceName?.trim() || '(sin nombre)';
+  const ahora = Date.now();
+  if (ahora - (ultimoAvisoDeLinea.get(linea) ?? 0) < AVISO_LINEA_SIN_DUENO_MS) return;
+  ultimoAvisoDeLinea.set(linea, ahora);
+  console.warn('[chats] linea sin dueño en Instancias: no se crea la ficha del CRM', {
+    linea,
+    mirando,
+  });
+}
+
 export async function upsertSessionFromChatMessage(input: PersistChatMessageInput) {
   const remoteJid = normalizeStoredRemoteJid(input.remoteJid, [
     input.remoteJidAlt,
@@ -622,7 +644,18 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
   // quien la está viendo. En la bandeja unificada un administrador ve chats de
   // otras cuentas; persistir la conversación bajo su userId es correcto para el
   // caché (chat_messages), pero NO debe crear un lead bajo su cuenta.
-  const sessionUserId = (await resolveInstanceOwnerId(input.instanceName)) ?? input.userId;
+  //
+  // Y si NO se puede resolver el dueño, no se crea ficha. El respaldo era
+  // `?? input.userId`, o sea justo lo que la línea de arriba prohíbe: una línea
+  // que no aparece en `Instancias` —borrada, renombrada, con el sufijo `_V2`—
+  // dejaba el lead a nombre de quien estuviera mirando. Sin dueño no hay lead:
+  // es preferible que falte a que aparezca en la cuenta equivocada, y en cuanto
+  // la línea se resuelva la ficha se crea sola en la vuelta siguiente.
+  const sessionUserId = await resolveInstanceOwnerId(input.instanceName);
+  if (!sessionUserId) {
+    avisarLineaSinDueno(input.instanceName, input.userId);
+    return;
+  }
 
   // Nombre "basura" (mensajes propios, sin nombre): no debe guardarse como
   // nombre del lead. 'Você'/'Voce' es lo que WhatsApp asigna a los mensajes
