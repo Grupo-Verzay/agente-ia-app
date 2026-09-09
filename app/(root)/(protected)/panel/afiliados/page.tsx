@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { isAdminOrReseller } from "@/lib/rbac";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import AccessDenied from "@/app/AccessDenied";
 import { getAllAffiliatesAction } from "@/actions/affiliate-actions";
 import { db } from "@/lib/db";
@@ -9,7 +10,10 @@ import { AffiliateManager } from "./_components/AffiliateManager";
 export default async function PanelAfiliados() {
   const user = await currentUser();
   if (!user) redirect("/login");
-  if (!isAdminOrReseller(user.role)) return <AccessDenied />;
+  // Quien manda aqui es la CUENTA, no la persona: su administrador actua por
+  // ella (ver `lib/cuenta-que-manda.ts`).
+  const cuenta = await cuentaQueManda(user);
+  if (!isAdminOrReseller(cuenta.role)) return <AccessDenied />;
 
   const [affiliatesRes, users] = await Promise.all([
     getAllAffiliatesAction(),

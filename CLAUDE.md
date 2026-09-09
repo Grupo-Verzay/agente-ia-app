@@ -595,6 +595,13 @@ Cuatro cosas que hay que mantener:
 4. **Un `agente` no pasa.** Es el mismo reparto de `canManageWorkspace`:
    participa, pero no manda. A él se le pasa una cuenta para que entre a
    arreglarla, no para que la administre.
+5. **Ninguna pantalla del panel vuelve a pedir rol.** Quién ve cada pestaña ya
+   lo decide `apartadosDelPanel`, con los permisos que le dio su cuenta en
+   Equipo. Las veinte páginas de `/panel` lo preguntaban otra vez por su cuenta
+   —`isAdminLike(user.role)`— así que el menú le enseñaba «Pagos» y
+   «Resellers» y la página le contestaba «Acceso Denegado»: menú abierto,
+   puerta cerrada. Todas preguntan ya por `cuentaQueManda`. **Si se añade otra
+   pestaña al panel, va igual.**
 
 Y de paso: **de un reseller sale su cuenta principal, no su cartera**. Sus
 clientes los administra y los factura él; que aparecieran en la lista de la

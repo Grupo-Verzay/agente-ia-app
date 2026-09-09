@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { apartadosDelPanel } from "@/lib/panel-acceso";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
     const user = await currentUser();
@@ -31,6 +32,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             })
             : null;
 
+    // Quien manda: la cuenta. Su administrador actua por ella.
+    const cuenta = await cuentaQueManda(user);
     const bloqueaPorPlan = aplicaBloqueoPorPlan(user);
 
     const panelTabs =
@@ -41,7 +44,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
                 bloqueaPorPlan,
                 excluirSoloReseller: true,
                 // Equipo interno: lo que su plan no alcanza no se muestra.
-                ocultarBloqueadas: isAdminLike(user.role),
+                ocultarBloqueadas: isAdminLike(cuenta.role),
             });
 
     return (
