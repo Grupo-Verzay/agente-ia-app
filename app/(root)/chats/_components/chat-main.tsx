@@ -81,6 +81,8 @@ const EMPTY_MEDIA_MAP: Map<string, { dataUrl: string; mime: string; length: numb
 
 type ChatMainProps = {
   userId: string;
+  /** Quien mira. Las notas son suyas, no de la cuenta. */
+  viewerUserId?: string;
   sessionUserIds?: string[];
   initialSession?: Session | ChatContactSessionSummary | null;
   header: ChatHeaderData;
@@ -142,6 +144,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   onBackToList,
   quickReplies,
   userId,
+  viewerUserId,
   sessionUserIds,
   initialSession,
   allTags,
@@ -1027,7 +1030,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           display:none) para que reabrir sea instantáneo. */}
       {notesLoaded && (
         <div className={chatView === 'notes' ? 'flex-1 min-h-0 overflow-hidden' : 'hidden'}>
-          <NotesClient userId={userId} collapseSidebarOnSelect />
+          {/* Las notas son de la PERSONA, como en /notas. Con el id de la
+              cuenta, un asesor entraba a un chat y veia TODAS las notas de su
+              dueño, tambien las que no le habia compartido. Compartir es lo
+              que hace que otro las vea, y eso ya vive en su pestaña. */}
+          <NotesClient userId={viewerUserId ?? userId} collapseSidebarOnSelect />
         </div>
       )}
 

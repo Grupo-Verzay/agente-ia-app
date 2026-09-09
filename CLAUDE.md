@@ -482,6 +482,31 @@ Tres cosas:
    manda el id equivocado, no la regla.** El caso típico: pasar el id del asesor
    donde la regla espera el de su dueño.
 
+## Las notas son de la PERSONA, no de la cuenta
+
+Un administrador comparte unas notas con su equipo. Todo bien en `/notas`. Pero
+esa misma gente abría **cualquier chat**, iba a la pestaña Notas y veía **todas**
+las notas del administrador, también las que no había compartido.
+
+La pestaña de un chat pintaba `<NotesClient userId={effectiveOwnerId} />` —el id
+de la **cuenta**— mientras `/notas` pinta `user.id`, el de **quien mira**. Y del
+otro lado nada lo corregía: `getNotes(userId)` usaba el id que llegaba del
+navegador tal cual.
+
+Dos cosas:
+
+1. **Las pantallas piden las notas de quien mira.** En Chats se pasa
+   `viewerUserId`, no el id de la cuenta.
+2. **`notes-actions.ts` no comprueba el id que llega: lo ignora.**
+   `elDuenoDeLasNotas(pedido)` resuelve `currentUser()` y devuelve **su** id;
+   si el pedido era otro, lo dice en la consola. Aquí
+   `assertCanAccessTargetUser` **no vale**: deja pasar al asesor hacia su
+   dueño, que es justo el caso que hay que cerrar. Compartir es lo único que
+   hace que otro vea una nota, y eso vive en `note_shares` —lo comprueban
+   `getNote` y `updateNote`, cada una por su lado—.
+
+Si se añade otra acción de notas que reciba un `userId`, va por esa función.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera

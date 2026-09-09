@@ -24,12 +24,42 @@ export type TeamAccount = { id: string; name: string | null; email: string }
 export type NoteShareRow = { userId: string; canEdit: boolean; name: string | null; email: string }
 export type NoteSharePermission = 'none' | 'read' | 'edit'
 
+/**
+ * De quién son las notas que se piden: SIEMPRE de quien está mirando.
+ *
+ * Las notas son de la PERSONA, no de la cuenta. Compartir es lo único que hace
+ * que otro las vea, y eso vive en `note_shares`. Pero el id llegaba desde el
+ * navegador y aquí se usaba tal cual, así que bastaba con mandar otro para
+ * sacar la lista entera de otra persona.
+ *
+ * Y no era teórico: la pestaña Notas de un chat pasaba el id de la CUENTA
+ * (`effectiveOwnerId`), así que un asesor abría cualquier conversación y veía
+ * TODAS las notas de su dueño, también las que no le había compartido.
+ *
+ * Por eso no se comprueba el id que llega: se ignora. `assertCanAccessTargetUser`
+ * no vale aquí —deja pasar al asesor hacia su dueño, que es justo el caso que
+ * hay que cerrar—. Si alguna pantalla manda otro id, se arregla la pantalla.
+ */
+async function elDuenoDeLasNotas(pedido: string): Promise<string | null> {
+  const user = await currentUser()
+  if (!user?.id) return null
+  if (pedido && pedido !== user.id) {
+    console.warn('[notas] se pidieron las notas de otra cuenta; se usan las de quien mira', {
+      pedido,
+      quienMira: user.id,
+    })
+  }
+  return user.id
+}
+
 // ── Folders ──────────────────────────────────────────────────────────────────
 
 export async function getFolders(userId: string) {
   try {
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, data: [] as NoteFolderWithCount[], error: 'No autorizado.' }
     const data = await db.noteFolder.findMany({
-      where: { userId },
+      where: { userId: dueno },
       orderBy: { order: 'asc' },
       include: { _count: { select: { notes: true } } },
     })
@@ -42,9 +72,11 @@ export async function getFolders(userId: string) {
 
 export async function createFolder(userId: string, name: string, color?: string) {
   try {
-    const last = await db.noteFolder.findFirst({ where: { userId }, orderBy: { order: 'desc' } })
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
+    const last = await db.noteFolder.findFirst({ where: { userId: dueno }, orderBy: { order: 'desc' } })
     const data = await db.noteFolder.create({
-      data: { userId, name, color, order: (last?.order ?? 0) + 1 },
+      data: { userId: dueno, name, color, order: (last?.order ?? 0) + 1 },
       include: { _count: { select: { notes: true } } },
     })
     return { success: true, data }
@@ -55,8 +87,10 @@ export async function createFolder(userId: string, name: string, color?: string)
 
 export async function updateFolder(id: string, userId: string, payload: { name?: string; color?: string }) {
   try {
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
     const data = await db.noteFolder.update({
-      where: { id, userId },
+      where: { id, userId: dueno },
       data: payload,
       include: { _count: { select: { notes: true } } },
     })
@@ -68,7 +102,9 @@ export async function updateFolder(id: string, userId: string, payload: { name?:
 
 export async function deleteFolder(id: string, userId: string) {
   try {
-    await db.noteFolder.delete({ where: { id, userId } })
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
+    await db.noteFolder.delete({ where: { id, userId: dueno } })
     return { success: true }
   } catch {
     return { success: false, error: 'No se pudo eliminar la carpeta.' }
@@ -79,8 +115,10 @@ export async function deleteFolder(id: string, userId: string) {
 
 export async function getNotes(userId: string, folderId?: string | null, search?: string) {
   try {
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, data: [] as UserNoteListItem[], error: 'No autorizado.' }
     const baseWhere: any = {
-      userId,
+      userId: dueno,
       isArchived: false,
       ...(folderId !== undefined ? { folderId } : {}),
     }
@@ -115,8 +153,10 @@ export async function getNotes(userId: string, folderId?: string | null, search?
 
 export async function getArchivedNotes(userId: string) {
   try {
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, data: [] as UserNoteListItem[], error: 'No autorizado.' }
     const data = await db.userNote.findMany({
-      where: { userId, isArchived: true },
+      where: { userId: dueno, isArchived: true },
       select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
       orderBy: { updatedAt: 'desc' },
     })
@@ -129,15 +169,17 @@ export async function getArchivedNotes(userId: string) {
 
 export async function getNote(id: string, userId: string) {
   try {
+    const quienMira = await elDuenoDeLasNotas(userId)
+    if (!quienMira) return { success: false, error: 'No autorizado.' }
     const data = await db.userNote.findUnique({ where: { id } })
     if (!data) return { success: false, error: 'Nota no encontrada.' }
     // Dueño: acceso total.
-    if (data.userId === userId) {
+    if (data.userId === quienMira) {
       return { success: true, data, canEdit: true, isOwner: true, ownerName: null }
     }
     // Compartida: acceso solo si existe un share para esta cuenta.
     const share = await db.noteShare.findUnique({
-      where: { noteId_userId: { noteId: id, userId } },
+      where: { noteId_userId: { noteId: id, userId: quienMira } },
       select: { canEdit: true },
     })
     if (!share) return { success: false, error: 'No autorizado.' }
@@ -159,9 +201,11 @@ export async function getNote(id: string, userId: string) {
 
 export async function createNote(userId: string, folderId?: string | null, templateContent?: object, templateTitle?: string) {
   try {
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
     const data = await db.userNote.create({
       data: {
-        userId,
+        userId: dueno,
         folderId: folderId ?? null,
         title: (templateTitle ?? 'Sin título').toUpperCase(),
         content: templateContent ?? {},
@@ -169,7 +213,7 @@ export async function createNote(userId: string, folderId?: string | null, templ
       select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
     })
     await writeAuditLog({
-      userId,
+      userId: dueno,
       actorId: await getAuditActorId(),
       entityType: 'note',
       entityId: data.id,
@@ -199,14 +243,16 @@ export async function updateNote(
   },
 ) {
   try {
+    const quienEdita = await elDuenoDeLasNotas(userId)
+    if (!quienEdita) return { success: false, error: 'No autorizado.' }
     const existing = await db.userNote.findUnique({ where: { id }, select: { userId: true } })
     if (!existing) return { success: false, error: 'Nota no encontrada.' }
 
     // Cuenta que NO es dueña: solo puede editar si tiene un share con canEdit,
     // y únicamente contenido/título (no fija, archiva, mueve ni etiqueta).
-    if (existing.userId !== userId) {
+    if (existing.userId !== quienEdita) {
       const share = await db.noteShare.findUnique({
-        where: { noteId_userId: { noteId: id, userId } },
+        where: { noteId_userId: { noteId: id, userId: quienEdita } },
         select: { canEdit: true },
       })
       if (!share?.canEdit) return { success: false, error: 'No tienes permiso para editar esta nota.' }
@@ -221,19 +267,19 @@ export async function updateNote(
         entityId: id,
         action: 'updated',
         summary: `Actualizo la nota compartida "${data.title}"`,
-        metadata: { fields: Object.keys(safe), sharedEditor: userId },
+        metadata: { fields: Object.keys(safe), sharedEditor: quienEdita },
       })
       return { success: true, data }
     }
 
-    const data = await db.userNote.update({ where: { id, userId }, data: payload })
+    const data = await db.userNote.update({ where: { id, userId: quienEdita }, data: payload })
     const action = payload.isArchived === true
       ? 'archived'
       : payload.isArchived === false
         ? 'restored'
         : 'updated'
     await writeAuditLog({
-      userId,
+      userId: quienEdita,
       actorId: await getAuditActorId(),
       entityType: 'note',
       entityId: id,
@@ -253,7 +299,9 @@ export async function updateNote(
 
 export async function updateNoteOrder(id: string, userId: string, order: number) {
   try {
-    await db.userNote.update({ where: { id, userId }, data: { order } })
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false }
+    await db.userNote.update({ where: { id, userId: dueno }, data: { order } })
     return { success: true }
   } catch {
     return { success: false }
@@ -262,9 +310,11 @@ export async function updateNoteOrder(id: string, userId: string, order: number)
 
 export async function archiveNote(id: string, userId: string) {
   try {
-    const data = await db.userNote.update({ where: { id, userId }, data: { isArchived: true } })
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
+    const data = await db.userNote.update({ where: { id, userId: dueno }, data: { isArchived: true } })
     await writeAuditLog({
-      userId,
+      userId: dueno,
       actorId: await getAuditActorId(),
       entityType: 'note',
       entityId: id,
@@ -279,9 +329,11 @@ export async function archiveNote(id: string, userId: string) {
 
 export async function unarchiveNote(id: string, userId: string) {
   try {
-    const data = await db.userNote.update({ where: { id, userId }, data: { isArchived: false } })
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
+    const data = await db.userNote.update({ where: { id, userId: dueno }, data: { isArchived: false } })
     await writeAuditLog({
-      userId,
+      userId: dueno,
       actorId: await getAuditActorId(),
       entityType: 'note',
       entityId: id,
@@ -296,9 +348,11 @@ export async function unarchiveNote(id: string, userId: string) {
 
 export async function deleteNote(id: string, userId: string) {
   try {
-    const data = await db.userNote.delete({ where: { id, userId } })
+    const dueno = await elDuenoDeLasNotas(userId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
+    const data = await db.userNote.delete({ where: { id, userId: dueno } })
     await writeAuditLog({
-      userId,
+      userId: dueno,
       actorId: await getAuditActorId(),
       entityType: 'note',
       entityId: id,
@@ -394,7 +448,9 @@ export async function getTeamAccounts(accountId: string): Promise<{ success: boo
 // Con quién está compartida una nota (solo el dueño puede consultarlo).
 export async function getNoteShares(noteId: string, ownerId: string): Promise<{ success: boolean; data: NoteShareRow[]; error?: string }> {
   try {
-    const note = await db.userNote.findFirst({ where: { id: noteId, userId: ownerId }, select: { id: true } })
+    const dueno = await elDuenoDeLasNotas(ownerId)
+    if (!dueno) return { success: false, data: [], error: 'No autorizado.' }
+    const note = await db.userNote.findFirst({ where: { id: noteId, userId: dueno }, select: { id: true } })
     if (!note) return { success: false, data: [], error: 'No autorizado.' }
     const rows = await db.$queryRaw<NoteShareRow[]>`
       SELECT ns."userId", ns."canEdit", u.name, u.email
@@ -417,11 +473,13 @@ export async function setNoteShare(
   permission: NoteSharePermission,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const note = await db.userNote.findFirst({ where: { id: noteId, userId: ownerId }, select: { id: true, title: true } })
+    const dueno = await elDuenoDeLasNotas(ownerId)
+    if (!dueno) return { success: false, error: 'No autorizado.' }
+    const note = await db.userNote.findFirst({ where: { id: noteId, userId: dueno }, select: { id: true, title: true } })
     if (!note) return { success: false, error: 'No autorizado.' }
-    if (targetUserId === ownerId) return { success: false, error: 'No puedes compartir contigo mismo.' }
+    if (targetUserId === dueno) return { success: false, error: 'No puedes compartir contigo mismo.' }
 
-    const team = await getTeamIds(ownerId)
+    const team = await getTeamIds(dueno)
     if (!team.includes(targetUserId)) return { success: false, error: 'La cuenta no pertenece a tu equipo.' }
 
     if (permission === 'none') {
@@ -436,7 +494,7 @@ export async function setNoteShare(
     }
 
     await writeAuditLog({
-      userId: ownerId,
+      userId: dueno,
       actorId: await getAuditActorId(),
       entityType: 'note',
       entityId: noteId,
@@ -457,6 +515,8 @@ export async function setNoteShare(
 // cada quien acomode su lista sin alterar la nota del dueño.
 export async function getSharedNotes(userId: string): Promise<{ success: boolean; data: SharedNoteListItem[]; error?: string }> {
   try {
+    const quienMira = await elDuenoDeLasNotas(userId)
+    if (!quienMira) return { success: false, data: [], error: 'No autorizado.' }
     const rows = await db.$queryRaw<SharedNoteListItem[]>`
       SELECT n.id, n.title, n.emoji, n.color, ns."isPinned", n."isArchived", n."folderId",
              n."contactJid", n."contactName", n."updatedAt", n."createdAt",
@@ -464,7 +524,7 @@ export async function getSharedNotes(userId: string): Promise<{ success: boolean
       FROM "note_shares" ns
       JOIN "user_notes" n ON n.id = ns."noteId"
       JOIN "User" u ON u.id = n."userId"
-      WHERE ns."userId" = ${userId}
+      WHERE ns."userId" = ${quienMira}
         AND n."isArchived" = false
       ORDER BY ns."isPinned" DESC, ns."order" ASC, n."updatedAt" DESC
     `
@@ -478,7 +538,9 @@ export async function getSharedNotes(userId: string): Promise<{ success: boolean
 // Fijar/desfijar una nota compartida (solo para el receptor que lo pide).
 export async function setNoteSharePin(noteId: string, userId: string, isPinned: boolean): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await db.noteShare.updateMany({ where: { noteId, userId }, data: { isPinned } })
+    const quienMira = await elDuenoDeLasNotas(userId)
+    if (!quienMira) return { success: false, error: 'No autorizado.' }
+    const res = await db.noteShare.updateMany({ where: { noteId, userId: quienMira }, data: { isPinned } })
     if (res.count === 0) return { success: false, error: 'No tienes esta nota compartida.' }
     return { success: true }
   } catch {
@@ -489,7 +551,9 @@ export async function setNoteSharePin(noteId: string, userId: string, isPinned: 
 // Guardar el orden propio del receptor para una nota compartida.
 export async function updateNoteShareOrder(noteId: string, userId: string, order: number): Promise<{ success: boolean }> {
   try {
-    await db.noteShare.updateMany({ where: { noteId, userId }, data: { order } })
+    const quienMira = await elDuenoDeLasNotas(userId)
+    if (!quienMira) return { success: false }
+    await db.noteShare.updateMany({ where: { noteId, userId: quienMira }, data: { order } })
     return { success: true }
   } catch {
     return { success: false }
