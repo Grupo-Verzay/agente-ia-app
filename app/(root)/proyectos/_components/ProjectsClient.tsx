@@ -30,7 +30,7 @@ import {
   type ProjectData, type ProjectStatus,
 } from "@/lib/project-types";
 import { BarraDeCarpetas, MoverACarpeta, useCarpetas } from "@/components/shared/Carpetas";
-import type { Carpeta as CarpetaDeProyecto } from "@/actions/carpetas-actions";
+import type { Carpeta as CarpetaDeProyecto } from "@/lib/carpetas";
 import { ProjectBoard } from "./ProjectBoard";
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {

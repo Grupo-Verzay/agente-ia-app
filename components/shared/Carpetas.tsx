@@ -40,8 +40,30 @@ import {
   listarCarpetasAction,
   moverACarpetaAction,
   renombrarCarpetaAction,
-  type Carpeta,
 } from '@/actions/carpetas-actions';
+import type { Carpeta, TipoDeCarpeta } from '@/lib/carpetas';
+
+/**
+ * Ninguna de estas llamadas puede dejar un botón colgado.
+ *
+ * Una acción de servidor no solo devuelve `success: false`: también puede
+ * **reventar** —un 500, la red— y entonces el `await` se rompe. Sin esto, la
+ * línea que apaga el «Guardando…» no se ejecutaba nunca y el diálogo se quedaba
+ * así para siempre, sin un solo error en pantalla. Pasó de verdad: el fichero
+ * de acciones exportaba una constante, cosa que un módulo `'use server'` no
+ * admite, y cada llamada daba 500.
+ */
+async function pedir<T>(
+  quéEs: string,
+  llamada: () => Promise<{ success: true; data: T } | { success: false; message: string }>,
+): Promise<{ success: true; data: T } | { success: false; message: string }> {
+  try {
+    return await llamada();
+  } catch (error) {
+    console.warn(`[carpetas] ${quéEs} no llegó al servidor`, error);
+    return { success: false, message: `No se pudo ${quéEs}. Revisa la conexión.` };
+  }
+}
 
 /**
  * Carpetas de una pantalla de tarjetas (Proyectos, Diagramas).
@@ -54,13 +76,13 @@ import {
  * se decide cuáles se pintan. Así cambiar de carpeta es instantáneo y no
  * depende de una vuelta de red.
  */
-export function useCarpetas(tipo: 'proyecto' | 'diagrama') {
+export function useCarpetas(tipo: TipoDeCarpeta) {
   const [carpetas, setCarpetas] = useState<Carpeta[]>([]);
   const [deCadaCosa, setDeCadaCosa] = useState<Record<string, string>>({});
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
-    const res = await listarCarpetasAction(tipo);
+    const res = await pedir('cargar las carpetas', () => listarCarpetasAction(tipo));
     if (!res.success) {
       // Un fallo mudo aquí se ve como "las carpetas no se guardan".
       console.warn('[carpetas] no se pudieron cargar', { tipo, motivo: res.message });
@@ -94,7 +116,7 @@ export function useCarpetas(tipo: 'proyecto' | 'diagrama') {
         return copia;
       });
 
-      const res = await moverACarpetaAction(tipo, itemId, carpetaId);
+      const res = await pedir('mover a la carpeta', () => moverACarpetaAction(tipo, itemId, carpetaId));
       if (!res.success) {
         setDeCadaCosa((prev) => {
           const copia = { ...prev };
@@ -138,7 +160,7 @@ export function BarraDeCarpetas({
   sueltas,
   className,
 }: {
-  tipo: 'proyecto' | 'diagrama';
+  tipo: TipoDeCarpeta;
   carpetas: Carpeta[];
   seleccionada: string | null;
   onSeleccionar: (id: string | null) => void;
@@ -157,7 +179,7 @@ export function BarraDeCarpetas({
 
   const crear = async () => {
     setGuardando(true);
-    const res = await crearCarpetaAction(tipo, nombre);
+    const res = await pedir('crear la carpeta', () => crearCarpetaAction(tipo, nombre));
     setGuardando(false);
     if (!res.success) return toast.error(res.message);
     setCreando(false);
@@ -169,7 +191,8 @@ export function BarraDeCarpetas({
   const renombrar = async () => {
     if (!renombrando) return;
     setGuardando(true);
-    const res = await renombrarCarpetaAction(renombrando.id, nombre);
+    const res = await pedir('renombrar la carpeta', () =>
+      renombrarCarpetaAction(renombrando.id, nombre));
     setGuardando(false);
     if (!res.success) return toast.error(res.message);
     setRenombrando(null);
@@ -179,7 +202,7 @@ export function BarraDeCarpetas({
 
   const eliminar = async () => {
     if (!borrando) return;
-    const res = await eliminarCarpetaAction(borrando.id);
+    const res = await pedir('eliminar la carpeta', () => eliminarCarpetaAction(borrando.id));
     if (!res.success) return toast.error(res.message);
     toast.success(`Se eliminó "${borrando.nombre}". Lo que tenía dentro sigue ahí, suelto.`);
     setBorrando(null);
