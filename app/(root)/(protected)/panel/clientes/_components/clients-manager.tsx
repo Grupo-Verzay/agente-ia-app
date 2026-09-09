@@ -288,9 +288,9 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                 <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<BadgeCheck className="h-4 w-4" />}
-                        label="Servicio activo"
+                        label="Activos"
                         value={conServicioActivo}
-                        helper="Con el servicio al día. El resto están suspendidos, en mora o sin facturación configurada."
+                        helper="Cuenta habilitada y servicio al día. El resto están deshabilitados, suspendidos, en mora o sin facturación configurada."
                         color="#0EA5E9"
                     />
                 </div>

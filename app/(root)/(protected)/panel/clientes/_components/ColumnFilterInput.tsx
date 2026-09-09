@@ -36,7 +36,7 @@ export function ColumnFilterInput<TData>({ table, initialValue, initialColumn }:
     }, [])
 
     return (
-        <div className="flex min-w-0 flex-1 flex-row gap-2 sm:flex-none sm:shrink-0">
+        <div className="flex min-w-0 flex-1 flex-row gap-2">
             {/* Select. En el teléfono no cabe junto al buscador y al botón de
                 nuevo, así que ahí se busca por empresa —lo que se busca casi
                 siempre— y el selector aparece a partir de tablet. */}
@@ -68,7 +68,10 @@ export function ColumnFilterInput<TData>({ table, initialValue, initialColumn }:
                     setValue(val)
                     handleFilter(val, selectedColumn)
                 }}
-                className="min-w-0 flex-1 sm:w-72 sm:flex-none sm:shrink-0"
+                // Ancho máximo, no ancho fijo: con el menú lateral desplegado un
+                // `w-72` que no encoge empuja los botones de la derecha fuera de
+                // la pantalla.
+                className="min-w-0 flex-1 sm:max-w-72"
             />
         </div>
     )
