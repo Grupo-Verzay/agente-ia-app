@@ -33,6 +33,12 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
      * clientes asignados no está en esta lista: a él se le pasa una cuenta para
      * que entre a arreglarla, no para que la administre, así que solo le queda
      * "Ingresar".
+     *
+     * `currentUserRol` es el rol de la CUENTA por la que se actúa, no el de la
+     * persona (`getClientsPageData`): el administrador de una cuenta se crea con
+     * rol `user`, y preguntándole el suyo aquí se quedaba también con
+     * "Ingresar" y nada más. Cada acción vuelve a comprobarlo en el servidor
+     * (`lib/gestion-de-clientes.ts`), así que esto solo decide qué se enseña.
      */
     const puedeGestionar =
         currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller'

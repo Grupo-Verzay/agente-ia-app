@@ -3,6 +3,7 @@ import { currentUser } from "@/lib/auth";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { db } from "@/lib/db";
 import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 
 /**
  * Helpers SERVER (auth/guards/decimal)
@@ -67,7 +68,15 @@ export function normalizeOptionalText(value?: string | null, maxLength = 500): s
   return cleaned;
 }
 
-export async function assertBillingScope(actor: { id?: string; role?: string | null }, rawUserId?: string | null) {
+export async function assertBillingScope(
+  actor: {
+    id?: string;
+    role?: string | null;
+    ownerId?: string | null;
+    advisorRole?: string | null;
+  },
+  rawUserId?: string | null,
+) {
   const userId = ensureUserId(rawUserId);
 
   // Alguien del equipo sin rol de admin pasa por su cartera: solo los clientes
@@ -81,24 +90,30 @@ export async function assertBillingScope(actor: { id?: string; role?: string | n
     return userId;
   }
 
+  // Por qué cuenta se factura. El administrador de una cuenta actúa por ella, y
+  // preguntando por SU rol —`user`, siempre— el corte del reseller de abajo no
+  // se le aplicaba nunca: el administrador de un reseller habría podido tocar
+  // la facturación de cualquier cliente de la plataforma.
+  const cuenta = await cuentaQueManda(actor ?? {});
+
   const targetUser = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, demoResellerId: true },
   });
   if (!targetUser) throw new Error("Cliente no encontrado.");
 
-  if (actor?.role === "reseller") {
-    if (!actor?.id) throw new Error("No autorizado.");
+  if (cuenta.role === "reseller") {
+    if (!cuenta.id) throw new Error("No autorizado.");
 
     // Autorizado si el cliente está vinculado por el sistema NUEVO (demoResellerId)
     // o el VIEJO (Reseller.userId). Antes solo miraba el viejo, por eso rechazaba
     // ("No autorizado para gestionar este cliente") a clientes vinculados por
     // demoResellerId aunque sí aparecieran en el listado de billing.
     const assigned =
-      targetUser.demoResellerId === actor.id
+      targetUser.demoResellerId === cuenta.id
         ? true
         : await db.reseller.findFirst({
-            where: { resellerid: actor.id, userId },
+            where: { resellerid: cuenta.id, userId },
             select: { id: true },
           });
 

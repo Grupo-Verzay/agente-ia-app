@@ -181,9 +181,20 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
         // cuantos dolares son esos pesos y a que WhatsApp escribir. Se resuelve
         // aqui, en el servidor, porque son tres consultas y la tarjeta es un
         // componente de cliente.
+        //
+        // Se pregunta por la CUENTA (`effectiveId`), no por la persona. Quien
+        // entra al equipo tiene su propia fila con el plan por defecto, y su
+        // Perfil decia «Plan Basico» dentro de una cuenta Enterprise. El plan
+        // es de la cuenta; la persona solo trabaja dentro de ella.
+        //
+        // El cobro de arriba sigue buscandose por `me.id` a proposito: quien no
+        // paga la suscripcion no tiene por que ver el importe, la fecha de
+        // vencimiento ni el enlace de pago de su jefe. Sin fila de cobro la
+        // tarjeta enseña el nombre del plan y nada mas, que es justo lo que
+        // toca.
         const cuenta = await db.user
             .findUnique({
-                where: { id: me.id },
+                where: { id: me.effectiveId ?? me.id },
                 select: { plan: true, demoResellerId: true },
             })
             .catch(() => null);

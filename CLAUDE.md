@@ -549,6 +549,68 @@ Y en **Proyectos**, el mismo reparto: un agente ve los que tienen que ver con
 lista y para abrir un tablero por su id. Diagramas ya lo hacía por su cuenta
 con `visibility` (privado / lectura / edición).
 
+## El administrador de una cuenta actúa POR la cuenta
+
+Dentro de un equipo hay dos papeles: el `agente`, que atiende lo que le asignan,
+y el `administrador`, que es la mano derecha del dueño. El segundo tenía el
+nombre y nada más.
+
+La causa es siempre la misma: **cada pantalla preguntaba por la persona**. Y la
+persona se crea con rol `user` y sin nada a su nombre, así que:
+
+- En **Clientes** le salía «No autorizado» hasta que alguien le asignaba los 61
+  clientes uno a uno; y aun asignados, en el menú de la fila solo le quedaba
+  «Ingresar» —Editar, Módulos, Asignar a y Eliminar piden rol de admin o
+  reseller, y él no lo tiene ni lo va a tener—.
+- En **Equipo** la consulta buscaba `owner_id = <su id>` y le devolvía el equipo
+  vacío: el equipo cuelga de la cuenta, no de él. Por eso «Asignar a» contestaba
+  «Cliente no encontrado».
+- En **Analíticas** caía en la cartera personal, que está vacía, y le salía
+  «Acceso Denegado».
+- En el **Perfil** y la barra lateral le salía «Plan Básico» dentro de una
+  cuenta Enterprise: el plan lo paga la cuenta, y su fila conserva el de por
+  defecto para siempre.
+
+La pregunta se hace **una sola vez y en un solo sitio**: `cuentaQueManda`
+(`lib/cuenta-que-manda.ts`) dice por qué cuenta actúa alguien —él mismo, o su
+cuenta si es su `administrador`—, y con eso se decide el alcance. `requireOwner`
+de Equipo devuelve ya el id y el rol de la CUENTA, que es de quien cuelga todo
+lo de esa pantalla.
+
+Cuatro cosas que hay que mantener:
+
+1. **El rol NO se hereda.** `user.role` sigue siendo el suyo en todo lo demás.
+   Escribirlo en `currentUser()` habría convertido a cada administrador en super
+   admin de la plataforma entera. Lo que se hereda es **el alcance**, y solo
+   donde se pregunta por la cuenta. El plan sí viaja con las credenciales del
+   dueño, porque es de la cuenta.
+2. **Enseñar el botón no es abrir la puerta.** `currentUserRol` decide qué se
+   pinta; quien decide de verdad es `lib/gestion-de-clientes.ts`, y lo comprueban
+   Editar, Módulos, Eliminar y Asignar cada una por su lado. Si se añade otra
+   acción sobre un cliente, va por ahí y no volviendo a pedir rol.
+3. **Y se pregunta por el cliente, no solo por quién llama.** Antes bastaba con
+   ser administrador de cualquier cuenta para repartirle módulos a cualquier
+   cliente de la plataforma, y un reseller podía editar la ficha de uno que no
+   era suyo. Es el H02 de la auditoría otra vez.
+4. **Un `agente` no pasa.** Es el mismo reparto de `canManageWorkspace`:
+   participa, pero no manda. A él se le pasa una cuenta para que entre a
+   arreglarla, no para que la administre.
+5. **Ninguna pantalla del panel vuelve a pedir rol.** Quién ve cada pestaña ya
+   lo decide `apartadosDelPanel`, con los permisos que le dio su cuenta en
+   Equipo. Las veinte páginas de `/panel` lo preguntaban otra vez por su cuenta
+   —`isAdminLike(user.role)`— así que el menú le enseñaba «Pagos» y
+   «Resellers» y la página le contestaba «Acceso Denegado»: menú abierto,
+   puerta cerrada. Todas preguntan ya por `cuentaQueManda`. **Si se añade otra
+   pestaña al panel, va igual.**
+
+Y de paso: **de un reseller sale su cuenta principal, no su cartera**. Sus
+clientes los administra y los factura él; que aparecieran en la lista de la
+plataforma llenaba la pantalla de cuentas ajenas y dejaba repartir lo que no se
+debe. `clientesDeLaCuenta` usa el mismo criterio que ya usaba `/panel/clientes`
+(`excludeResellerClients`), por los **dos** caminos con los que se vincula un
+cliente a un reseller: `demoResellerId` y la tabla `reseller`. Que las dos
+listas digan lo mismo es la gracia: no se puede repartir lo que no se ve.
+
 ## Chats: el menú de Acciones no puede crecer con el equipo
 
 En «Acciones» iban abiertas, una detrás de otra, las dos listas de asesores:
@@ -696,7 +758,7 @@ donde se cambia.
 La fecha vieja perdió el «Editado el» delante: con la fecha larga no cabía y se
 recortaba, que era justo lo que se veía.
 
-## Clientes: «activo» es el servicio al día, y lo dicen los tres sitios igual
+## Clientes: «activo» es cuenta habilitada Y servicio al día
 
 La lista de Clientes decía «Total clientes 35», y de esos no todos eran
 clientes: había suspendidos, morosos y cuentas a las que nunca se les configuró

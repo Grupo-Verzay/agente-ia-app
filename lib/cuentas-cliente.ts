@@ -11,7 +11,9 @@ export type CuentaCliente = {
 
 /**
  * Las cuentas de cliente sobre las que manda esta cuenta. Un admin las tiene
- * todas; un reseller, las suyas —las que creó como demo y las que le asignaron—.
+ * todas menos las de los resellers —de un reseller sale su cuenta principal, no
+ * su cartera—; un reseller, las suyas —las que creó como demo y las que le
+ * asignaron—.
  *
  * Vive aquí y no junto a unas acciones concretas porque la usan dos cosas que no
  * se parecen en nada: repartir clientes entre el equipo, y elegir a qué cuentas
@@ -37,7 +39,33 @@ export async function clientesDeLaCuenta(owner: {
   const select = { id: true, name: true, email: true, company: true };
 
   if (isAdminLike(owner.role)) {
-    return db.user.findMany({ where: base, select, orderBy: { company: "asc" } });
+    // De un reseller sale su CUENTA PRINCIPAL, no sus clientes. Son cuentas que
+    // el reseller administra y factura; entrar a gestionarlas por encima de el
+    // es rebasar el reparto, y en una plataforma con resellers grandes son la
+    // mayoria de las filas de la lista.
+    //
+    // Es el mismo criterio con el que ya se pinta `/panel/clientes`
+    // (`excludeResellerClients`): los dos caminos con los que se le vincula un
+    // cliente a un reseller, el nuevo (`demoResellerId`) y el viejo (la tabla
+    // `reseller`). Que las dos listas digan lo mismo es la gracia: no se puede
+    // repartir lo que no se puede ver.
+    const deResellers = await db.reseller.findMany({
+      where: { userId: { not: null } },
+      select: { userId: true },
+    });
+    const idsDeResellers = deResellers
+      .map((r) => r.userId)
+      .filter((id): id is string => !!id);
+
+    return db.user.findMany({
+      where: {
+        ...base,
+        demoResellerId: null,
+        ...(idsDeResellers.length ? { id: { notIn: idsDeResellers } } : {}),
+      },
+      select,
+      orderBy: { company: "asc" },
+    });
   }
 
   const asignados = await db.reseller.findMany({

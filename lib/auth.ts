@@ -3,6 +3,7 @@ import { cache } from "react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 
@@ -95,6 +96,9 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
             deniedModuleItems: true,
             grantedModuleItems: true,
             canTakeUnassigned: true,
+            // Para saber si actúa por su cuenta (ver más abajo).
+            ownerId: true,
+            advisorRole: true,
         },
     });
 
@@ -105,20 +109,28 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
     let porImpersonacion = false;
     let accountRole: AccountRole | null = null;
 
-    if (impersonateId && isAdminLike(realUser.role)) {
+    // Con qué alcance se entra a otra cuenta. El `administrador` de una cuenta
+    // entra a donde entra ella: si no, «Ingresar» ponía la cookie y la sesión
+    // no cambiaba —se quedaba en la suya— sin decir nada. Solo se resuelve
+    // cuando hace falta, que es cuando hay cookie de impersonación.
+    const quienEntra = impersonateId
+        ? await cuentaQueManda(realUser)
+        : { id: realUser.id, role: realUser.role as string };
+
+    if (impersonateId && isAdminLike(quienEntra.role)) {
         effectiveUserId = impersonateId;
         porImpersonacion = true;
-    } else if (impersonateId && isAdminOrReseller(realUser.role)) {
+    } else if (impersonateId && isAdminOrReseller(quienEntra.role)) {
         // Reseller (no admin): solo puede actuar como uno de SUS clientes
         // (asignados en `reseller` o creados como demo por él).
         const target = await db.user.findUnique({
             where: { id: impersonateId },
             select: { demoResellerId: true },
         });
-        let owns = target?.demoResellerId === realUser.id;
+        let owns = target?.demoResellerId === quienEntra.id;
         if (!owns) {
             const assignment = await db.reseller.findFirst({
-                where: { userId: impersonateId, resellerid: realUser.id },
+                where: { userId: impersonateId, resellerid: quienEntra.id },
                 select: { id: true },
             });
             owns = !!assignment;
@@ -224,6 +236,26 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
                     instancias: true,
                     notificationNumber: true,
                     timezone: true,
+                    // El plan es DE LA CUENTA, no de la persona.
+                    //
+                    // Quien entra al equipo se crea con el plan por defecto y
+                    // esa fila no se toca nunca mas: la suscripcion la paga la
+                    // cuenta. Sin traerlo de aqui, al administrador de una
+                    // cuenta Enterprise le salia «Plan Basico» en la barra
+                    // lateral y en su Perfil, y las pantallas que se abren por
+                    // plan (`lib/sidebar-modules.ts`, los limites de productos,
+                    // las plantillas de flujo) le median por un plan que nadie
+                    // contrato.
+                    //
+                    // El `rol` NO se hereda, a proposito: eso es lo que decide
+                    // sobre que cuentas manda, y prestarlo seria abrirle la
+                    // plataforma entera. El plan solo dice hasta donde llega la
+                    // cuenta en la que ya esta.
+                    plan: true,
+                    // Con que marca se nombra ese plan (`etiquetaDePlanParaCuenta`).
+                    // Sin el, un cliente de reseller veria a su equipo los
+                    // nombres genericos de la plataforma en vez de los suyos.
+                    demoResellerId: true,
                 },
             });
             if (ownerCreds) {

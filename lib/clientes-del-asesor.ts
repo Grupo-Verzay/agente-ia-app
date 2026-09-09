@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { isAdminOrReseller } from "@/lib/rbac";
 
 /**
@@ -14,6 +15,11 @@ import { isAdminOrReseller } from "@/lib/rbac";
  *   acota por su regla (el reseller por sus asignaciones, el admin por lo suyo).
  * - `[]` = no le han asignado ninguno. Quien llame corta con «No autorizado».
  *
+ * Y el `administrador` de una cuenta no pasa por su cartera sino por la de su
+ * cuenta: actúa por ella (ver `lib/cuenta-que-manda.ts`), así que sobre una
+ * cuenta de admin o de reseller devuelve `null` —sin límite propio— y ve lo
+ * mismo que su jefe sin que nadie le asigne nada.
+ *
  * Estaba escrito dentro de `userClientDataActions` y no salía de ahí, así que
  * cada pantalla nueva volvía a pedir rol de admin y le cerraba la puerta al
  * asesor. Vive aquí para que Clientes, Instancias y Analíticas repartan igual.
@@ -21,13 +27,20 @@ import { isAdminOrReseller } from "@/lib/rbac";
 export async function clientesDelAsesor(persona: {
     id?: string | null;
     role?: string | null;
+    ownerId?: string | null;
+    advisorRole?: string | null;
 }): Promise<string[] | null> {
     if (!persona?.id) return [];
-    if (isAdminOrReseller(persona.role)) return null;
+
+    // Quién manda aquí. El administrador de una cuenta actúa POR ella: su
+    // alcance es el de su cuenta, no el suyo propio, y por eso no hay que
+    // asignarle los clientes uno a uno (ver `lib/cuenta-que-manda.ts`).
+    const cuenta = await cuentaQueManda(persona);
+    if (isAdminOrReseller(cuenta.role)) return null;
 
     try {
         const filas = await db.advisorClient.findMany({
-            where: { advisorUserId: persona.id },
+            where: { advisorUserId: cuenta.id },
             select: { clientUserId: true },
         });
         return Array.from(new Set(filas.map((f) => f.clientUserId)));
@@ -36,7 +49,7 @@ export async function clientesDelAsesor(persona: {
         // persona no tiene cartera; pero un fallo mudo aquí se ve como un
         // «No autorizado» sin motivo, así que se dice.
         console.warn("[cartera] no se pudieron leer los clientes del asesor", {
-            asesor: persona.id,
+            asesor: cuenta.id,
             error: String(error),
         });
         return [];
