@@ -26,7 +26,13 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
         // centrada, dejando un hueco a los lados. Aquí el ancho se reparte y
         // los cortes son 1 / 2 / 4, nunca 3: con cuatro tarjetas, tres por fila
         // es justo lo que deja una huérfana debajo.
-        <div className="grid grid-cols-1 items-stretch gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        //
+        // Las cuatro entran a partir de `lg` (1024 px), no de `xl` (1280): el
+        // corte alto dejaba 2+2 en un portátil normal —basta con el zoom del
+        // navegador o una ventana sin maximizar para bajar de 1280—, que es lo
+        // que se vio. A 1024, descontando la barra lateral, cada tarjeta pasa
+        // de 200 px y el contenido es corto: cabe.
+        <div className="grid grid-cols-1 items-stretch gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
             {modules.map((card, index) => {
                 const color = card.accent ?? accents[index % accents.length];
                 return (
@@ -36,7 +42,7 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
                         style={{ borderTop: `3px solid ${color}` }}
                     >
                         {/* Icono + título */}
-                        <div className="flex flex-col items-center gap-3 px-6 pt-8 pb-4 text-center">
+                        <div className="flex flex-col items-center gap-2.5 px-5 pt-6 pb-4 text-center">
                             <div
                                 className="flex items-center justify-center w-12 h-12 rounded-2xl"
                                 style={{ backgroundColor: `${color}18` }}
@@ -48,7 +54,7 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
                         </div>
 
                         {/* Botón */}
-                        <div className="px-6 pb-6">
+                        <div className="px-5 pb-5">
                             <Button asChild className="w-full" style={{ backgroundColor: color, borderColor: color }}>
                                 <Link href={card.href}>{card.buttonLabel}</Link>
                             </Button>
