@@ -191,6 +191,25 @@ export function extractMediaInfo(msg: any, type: MediaType): MediaData | null {
   return null;
 }
 
+/**
+ * El texto que acompana a un adjunto, venga en el campo que venga.
+ *
+ * Se leia SOLO de `imageMessage.caption`, y no siempre viaja ahi: llega tambien
+ * en `conversation` -asi lo manda Evolution en algunas versiones, y asi lo deja
+ * el traductor de WhatsApp Mensajeria-. Resultado: alguien mandaba una foto con
+ * texto, la foto se veia y **el texto no aparecia por ningun lado**. Comprobado
+ * en produccion: el pie llegaba al servidor y se perdia al pintarlo.
+ *
+ * Se miran los dos, y el propio del tipo manda. Para un adjunto `conversation`
+ * no suele existir, asi que este respaldo no le quita el sitio a nada.
+ */
+function pieDelAdjunto(media: MediaData | null, messageData: any): string {
+  const propio = media?.caption?.trim();
+  if (propio) return propio;
+  const suelto = typeof messageData?.conversation === 'string' ? messageData.conversation.trim() : '';
+  return suelto;
+}
+
 function getInteractiveResponseText(messageData: Record<string, any>, isUser: boolean): string {
   const interactive = messageData?.interactiveResponseMessage;
   const bodyText = typeof interactive?.body?.text === 'string' ? interactive.body.text.trim() : '';
@@ -642,11 +661,11 @@ export function toUIMessages(
       // que el mensaje no llego, y el unico rastro era la hora suelta.
       case 'imageMessage':
         media = extractMediaInfo(messageData, 'image');
-        content = media?.caption || (media ? '' : etiquetaDeAdjuntoSinArchivo('image', messageData));
+        content = pieDelAdjunto(media, messageData) || (media ? '' : etiquetaDeAdjuntoSinArchivo('image', messageData));
         break;
       case 'videoMessage':
         media = extractMediaInfo(messageData, 'video');
-        content = media?.caption || (media ? '' : etiquetaDeAdjuntoSinArchivo('video', messageData));
+        content = pieDelAdjunto(media, messageData) || (media ? '' : etiquetaDeAdjuntoSinArchivo('video', messageData));
         break;
       case 'audioMessage':
         media = extractMediaInfo(messageData, 'audio');
@@ -654,7 +673,7 @@ export function toUIMessages(
         break;
       case 'documentMessage':
         media = extractMediaInfo(messageData, 'document');
-        content = media?.caption || (media ? '' : etiquetaDeAdjuntoSinArchivo('document', messageData));
+        content = pieDelAdjunto(media, messageData) || (media ? '' : etiquetaDeAdjuntoSinArchivo('document', messageData));
         break;
       case 'interactiveResponseMessage':
         content = getInteractiveResponseText(messageData as Record<string, any>, isUser);
