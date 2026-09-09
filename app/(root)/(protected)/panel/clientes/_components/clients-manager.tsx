@@ -24,11 +24,16 @@ import bcrypt from "bcryptjs";
 import { LENGTH_PASSWORD_HASH } from '@/types/generic';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Users, Wifi, WifiOff, Zap } from 'lucide-react';
+import { BadgeCheck, Users, Wifi, WifiOff, Zap } from 'lucide-react';
 import { ModuleWithItems } from '@/schema/module';
 import { setUserModules } from '@/actions/user-module-actions';
 import { ModulesDialog } from '@/components/shared/ModulesDialog';
 import type { ResellerPoolOption } from '../helpers/getClientsPageData';
+import {
+    cumpleEstadoDelServicio,
+    tieneServicioActivo,
+    type EstadoDelServicio,
+} from '@/lib/clientes-activos';
 
 
 export type DialogType = 'editar' | 'evo' | 'delete' | 'modules' | 'plan' | 'asignar'
@@ -55,6 +60,10 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openAsignarDialog, setOpenAsignarDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
+    // «En total hay 35 pero no todos son clientes activos». Este filtro es el
+    // que separa unos de otros, y va aparte de los contadores de QR y Robot:
+    // aquellos dicen cómo está la conexión, este si el servicio está al día.
+    const [servicio, setServicio] = useState<EstadoDelServicio>('todos');
 
 
     const handleCreate = async (formData: UserFormValues & { subscriptionPlanId?: string }) => {
@@ -246,20 +255,21 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         setOpenCreateDialog(true);
     };
 
-    const filteredUsers = statusFilter
-        ? users.filter((user) => {
-            if (statusFilter === "qrDisconnected") return user.qrStatus === true;
-            if (statusFilter === "qrConnected") return user.qrStatus === false;
-            if (statusFilter === "evoOn") return user.isEvoEnabled === true;
-            if (statusFilter === "evoOff") return user.isEvoEnabled === false;
-            return true;
-        })
-        : users;
+    const filteredUsers = users.filter((user) => {
+        if (!cumpleEstadoDelServicio(user, servicio)) return false;
+        if (!statusFilter) return true;
+        if (statusFilter === "qrDisconnected") return user.qrStatus === true;
+        if (statusFilter === "qrConnected") return user.qrStatus === false;
+        if (statusFilter === "evoOn") return user.isEvoEnabled === true;
+        if (statusFilter === "evoOff") return user.isEvoEnabled === false;
+        return true;
+    });
 
     const columns = getColumns(openDialogGetUserId, currentUserRol);
 
     const qrConectados = users.filter(u => u.qrStatus === false).length;
     const evoActivos = users.filter(u => u.isEvoEnabled === true).length;
+    const conServicioActivo = users.filter(tieneServicioActivo).length;
 
     return (
         <TooltipProvider delayDuration={120}>
@@ -273,6 +283,15 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                         value={users.length}
                         helper="Clientes registrados en la plataforma"
                         color="#3B82F6"
+                    />
+                </div>
+                <div className="min-w-0 sm:flex-1">
+                    <MetricCard
+                        icon={<BadgeCheck className="h-4 w-4" />}
+                        label="Servicio activo"
+                        value={conServicioActivo}
+                        helper="Con el servicio al día. El resto están suspendidos, en mora o sin facturación configurada."
+                        color="#0EA5E9"
                     />
                 </div>
                 <div className="min-w-0 sm:flex-1">
@@ -312,6 +331,8 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     currentUserRol={currentUserRol}
                     openCreateDialogUser={openCreateDialogUser}
                     setStatusFilter={setStatusFilter}
+                    servicio={servicio}
+                    setServicio={setServicio}
                     initialSearch={initialSearch}
                 />
             </div>
