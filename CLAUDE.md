@@ -1242,6 +1242,35 @@ Y de paso, la forma de comprobarlo desde fuera: `/sessions` tiene un desplegable
 **«Línea»** con los leads de cada una (`getLeadsPorLinea`). Ese número al lado
 del de Chats es lo que delata un recorte.
 
+### El número y la lista son dos cosas
+
+Subir el tope no era la respuesta de fondo. **Nadie baja más allá de los
+primeros chats**, así que la lista puede seguir acotada; lo que no puede estar
+recortado es el **número**. Eran lo mismo porque el contador de cada canal se
+sacaba contando las filas cargadas.
+
+Ahora el número viene aparte, de `contarChatsPorLinea`: dos `COUNT` agrupados
+sobre `Session` por `userId` —primera columna de su índice único—, **sin tocar
+`chat_conversations` ni el JSON de `lastMessageRaw`**, que es lo que obligaba a
+poner tope. Leer un número no cuesta lo que leer la bandeja.
+
+Tres cosas que hay que mantener:
+
+1. **Se restan las borradas y las archivadas**, o vuelve el fallo que ya se
+   arregló una vez: limpiar cientos de chats y ver el número igual de alto.
+2. **Se cuentan las SESIONES con marca, no las marcas.** Una conversación
+   borrada deja marca bajo todas sus identidades (`remoteJid`, `remoteJidAlt`,
+   `senderPn`, el `@lid`), así que restar marcas restaría hasta cuatro veces de
+   más.
+3. **El del servidor manda, pero nunca por debajo de lo cargado**
+   (`Math.max`): puede haber conversaciones que WhatsApp devuelve y que todavía
+   no tienen ficha. Y el navegador sigue descontando lo que el asesor acaba de
+   borrar o archivar, para que el número baje al momento y no dentro de un
+   minuto.
+
+Si hace falta otro contador por línea, va por ahí: **un contador es un `COUNT`,
+no un `length` de lo que se haya podido cargar.**
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
