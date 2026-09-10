@@ -22,6 +22,12 @@ import { sendMetaTemplate, traerMasChatsDeLaLinea, type MetaTemplateOption } fro
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
 import { useChatsRealtime, type PresenciaContacto, type ConexionContacto, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
+import {
+  iniciarTrazaDelPanel,
+  medirConsulta,
+  mensajePintado,
+  mensajeSoloPorElReloj,
+} from "@/lib/traza-panel";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -641,6 +647,18 @@ export function ChatsClient({
             chat.remoteJid === initialSelectedJid || chat.aliases?.includes(initialSelectedJid),
         )
       : undefined;
+
+  /**
+   * Arranca la traza del panel, una vez por carga de la pantalla.
+   *
+   * Es la UNICA ida al servidor que añade toda esta instrumentacion: leer el
+   * interruptor. Todo lo demas se mide y se escribe en el navegador, asi que
+   * no le cuesta nada a `.144`. Y si la traza esta apagada -que es como nace-,
+   * ni siquiera se pone un reloj.
+   */
+  useEffect(() => {
+    void iniciarTrazaDelPanel();
+  }, []);
 
   const [selectedJid, setSelectedJid] = useState(initialSelectedJid || "");
   const [selectedInstanceName, setSelectedInstanceName] = useState<string | null>(null);
@@ -1856,11 +1874,20 @@ export function ChatsClient({
         const effectiveInstanceName = activeSet?.instanceName ?? instanceName;
         const effectiveApiKeyData = hablaConEvolution(activeSet?.instanceType) ? apiKeyData : undefined;
 
-        const consulta = effectiveWarmMessages(remoteJid, {
-          page: 1,
-          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-          remoteJidAliases,
-        });
+        // El sondeo del chat abierto, cronometrado. Es la otra consulta que se
+        // repite sola —cada 5 s por pestaña con un chat abierto— y la que se
+        // pasa de plazo justo cuando la base esta ocupada, que es lo que hay
+        // que poder cruzar con las vueltas de la lista.
+        const consulta = medirConsulta(
+          "mensajes",
+          () =>
+            effectiveWarmMessages(remoteJid, {
+              page: 1,
+              pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+              remoteJidAliases,
+            }),
+          { instancia: effectiveInstanceName },
+        );
 
         /**
          * Si la conversacion abierta sigue siendo la de esta consulta.
@@ -1904,6 +1931,15 @@ export function ChatsClient({
         const pintar = (respuesta: Extract<Awaited<typeof consulta>, { success: true }>) => {
           if (!sigueSiendoElChatAbierto()) return;
           const nextMessages = respuesta.data || [];
+          // Cuantos mensajes los trajo el RELOJ y no el socket.
+          //
+          // Es el numero que dice si el tiempo real esta sirviendo de algo. Si
+          // sale alto, la conversacion vive del sondeo —que es exactamente el
+          // fallo que se ha dado por arreglado varias veces— y el socket es
+          // decorativo. Solo cuenta los que no se habian visto por el socket.
+          for (const m of nextMessages) {
+            mensajeSoloPorElReloj(m?.key?.id);
+          }
           if (areListsDifferent(messagesRef.current, nextMessages)) {
             setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo((currentInfo) => {
@@ -3328,7 +3364,15 @@ export function ChatsClient({
 
       ultimoRefrescoRef.current = Date.now();
       try {
-        const result = await refetchAllInstances();
+        // La vuelta de la lista, cronometrada. Es la consulta que mas se
+        // repite de toda la pantalla —una por LINEA cada 20 s por pestaña— y
+        // la que hay que poder poner al lado del numero de lineas y de
+        // asesores para ver si el coste escala con la cuenta.
+        const result = await medirConsulta(
+          "lista",
+          () => refetchAllInstances(),
+          { lineas: instanceActionSets?.length ?? 1 },
+        );
         if (result.success) {
           // Esta vuelta ha ido y ha vuelto: el servidor esta EN PIE.
           //
@@ -3859,7 +3903,16 @@ export function ChatsClient({
       if (m && m.content && m.id && existsInList) {
         // La conversacion abierta se dibuja YA -es un mensaje, es barato-. La
         // lista espera a la tanda, que es lo caro.
-        if (isOpenChat) appendRealtimeMessage({ remoteJid: jid, message: m });
+        if (isOpenChat) {
+          appendRealtimeMessage({ remoteJid: jid, message: m });
+          // Aqui se cierra el camino de un mensaje entrante: del `chat:changed`
+          // que emitio el backend a la burbuja delante del asesor. Va DENTRO
+          // del `if`, porque lo que se mide es que se VEA: un aviso que entra
+          // pero no se reconoce como del chat abierto es justo el fallo que ha
+          // vuelto varias veces, y con esta marca fuera del `if` se contaria
+          // como si se hubiera pintado.
+          mensajePintado(m.id);
+        }
         encolarAviso({ remoteJid: jid, message: m });
         return; // sin golpear Evolution
       }

@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 
+import { avisoRecibido, conexionEvento } from "@/lib/traza-panel";
+
 export type RealtimeMessage = {
   id: string | null;
   fromMe: boolean;
@@ -145,15 +147,23 @@ export function useChatsRealtime({ onChatChanged, onPresence, enabled = true, on
         // de latencia.
         const transporte = socket?.io.engine.transport.name ?? "(desconocido)";
         console.info("[realtime] conectado", { transporte });
+        // La traza distingue la PRIMERA conexion de una reconexion, y en la
+        // reconexion dice cuanto estuvo caido y cuantos mensajes trajo el
+        // reloj mientras tanto. Eso ultimo es lo unico que convierte "el
+        // socket se reconecta solo" en un dato: en ese rato la conversacion
+        // iba ciega.
+        conexionEvento("conectado", { transporte });
         notifyConnected(true);
         socket?.io.engine.on("upgrade", (nuevo: { name: string }) => {
           console.info("[realtime] subio a", nuevo?.name);
+          conexionEvento("conectado", { subioA: nuevo?.name });
         });
       });
       socket.on("disconnect", (motivo) => {
         // "io server disconnect" = el backend nos echa; casi siempre el token
         // no le cuadra con su REALTIME_JWT_SECRET.
         console.warn("[realtime] desconectado:", motivo);
+        conexionEvento("desconectado", { motivo });
         notifyConnected(false);
       });
       // Sin este manejador, un socket que no llega a levantarse no deja rastro.
@@ -172,6 +182,10 @@ export function useChatsRealtime({ onChatChanged, onPresence, enabled = true, on
           tipo: payload?.message?.messageType ?? "(sin contenido)",
           fromMe: payload?.message?.fromMe ?? null,
         });
+        // Se sella la llegada del aviso ANTES de entregarlo: lo que se quiere
+        // medir es el camino entero -de cuando el backend lo emitio a cuando
+        // el asesor lo ve-, y el pintado ocurre dentro de ese manejador.
+        avisoRecibido(payload?.message?.id, payload?.remoteJid, payload?.ts ?? Date.now());
         if (payload?.remoteJid) handlerRef.current?.(payload);
       });
 
