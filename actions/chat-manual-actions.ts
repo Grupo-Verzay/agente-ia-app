@@ -931,7 +931,24 @@ export async function refetchChatsManualAction(
   context = await resolverContexto(context);
   if (!hasReadyContext(context)) {
     if (readUserIds.length) {
-      const persisted = await getPersistedInboxChats({ userIds: readUserIds });
+      // Acotado A ESTA LINEA. Esta accion se ata por linea (`instActionCtx`),
+      // asi que su respaldo tiene que devolver los chats de esa linea y no la
+      // bandeja entera de la cuenta.
+      //
+      // Sin `instanceNames` devolvia TODO lo que la cuenta tenga guardado, o
+      // sea tambien las lineas que ya no existen en `Instancias`: las borradas,
+      // los restos con sufijo `_V2` y los canales `_wh` / `_tg` / `_fb` / `_ig`.
+      // Esos chats salian en la lista sin tener linea a la que pertenecer, y por
+      // eso el desplegable de canales no cuadraba (`[chats] hay chats de lineas
+      // que no estan en el filtro de canales`).
+      //
+      // Y se cae aqui en cada vuelta del refresco de una linea Waha o Baileys,
+      // que a proposito se quedan sin clave de Evolution (ver `resolverContexto`).
+      const laLinea = context?.instanceName?.trim();
+      const persisted = await getPersistedInboxChats({
+        userIds: readUserIds,
+        instanceNames: laLinea ? [laLinea] : undefined,
+      });
       if (persisted.length) {
         return {
           success: true,

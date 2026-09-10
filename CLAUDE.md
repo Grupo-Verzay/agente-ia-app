@@ -1201,6 +1201,20 @@ El desplegable lleva además su propio scroll acotado al hueco real
 (`--radix-dropdown-menu-content-available-height`), que es la regla de siempre
 para un menú con una lista dentro: la lista crece con las líneas de la cuenta.
 
+Y en cuanto salieron esas filas se vio de dónde venían: `llamadas`, `AIZEN-BOT`,
+`GRUPO_VERZAY_V2`, `VERZAY_ATENCION_wh`… o sea líneas borradas, restos con
+sufijo `_V2` y los canales `_wh` / `_tg` / `_fb` / `_ig`. Las metía
+**`refetchChatsManualAction`**: esa acción se ata **por línea**, pero su
+respaldo llamaba a `getPersistedInboxChats({ userIds })` **sin
+`instanceNames`**, así que devolvía la bandeja **entera de la cuenta** —todo lo
+que esa cuenta tenga guardado desde siempre— en vez de los chats de su línea. Y
+se cae ahí en **cada vuelta** del refresco de una línea Waha o Baileys, que a
+propósito se quedan sin clave de Evolution (`resolverContexto`).
+
+**Un respaldo devuelve lo mismo que devolvería el camino bueno, ni más.** Si la
+acción es de una línea, el respaldo va acotado a esa línea. Los demás usos de
+`getPersistedInboxChats` ya pasaban `instanceNames`; a este se le había pasado.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
