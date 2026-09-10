@@ -11,6 +11,7 @@ import { MessageContextMenu } from './MessageContextMenu';
 import { CallDialog } from './CallDialog';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
+import { TextoConFormato } from './TextoConFormato';
 
 /* ─── ExpandableText ─── */
 interface ExpandableTextProps {
@@ -25,7 +26,11 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({ message, isUserMessage 
   if (!message) return null;
 
   if (message.length <= MAX_LENGTH) {
-    return <p className="text-base sm:text-[15px] whitespace-pre-wrap">{message}</p>;
+    return (
+      <p className="text-base sm:text-[15px] whitespace-pre-wrap">
+        <TextoConFormato texto={message} />
+      </p>
+    );
   }
 
   const displayedText = isExpanded ? message : `${message.substring(0, MAX_LENGTH)}...`;
@@ -35,7 +40,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({ message, isUserMessage 
 
   return (
     <p className="text-base sm:text-[15px] whitespace-pre-wrap">
-      {displayedText}
+      <TextoConFormato texto={displayedText} />
       <button
         onClick={() => setIsExpanded((v) => !v)}
         className={cn('ml-1 font-semibold text-xs inline-block', linkClass)}

@@ -22,6 +22,8 @@ import {
   updateAdvisorSignatureAction,
 } from '@/actions/chat-manual-actions';
 import { EmojiPickerPanel } from './EmojiPickerPanel';
+import { FormatoDeTexto } from './FormatoDeTexto';
+import { envolverSeleccion } from '@/lib/formato-whatsapp';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
@@ -185,6 +187,58 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
     }, 0);
   }, [input, onInputChange, textareaRef]);
+
+  /**
+   * Pone (o quita) una marca de formato de WhatsApp sobre lo seleccionado.
+   *
+   * Va por el mismo canal que el emoji —un evento sintetico a `onInputChange`—
+   * porque el texto lo guarda el padre. Y devuelve la seleccion a donde estaba
+   * en un `setTimeout(0)`, por lo mismo que hace `insertEmoji`: React todavia no
+   * ha repintado el `value`, asi que tocar `selectionStart` antes no sirve de
+   * nada.
+   */
+  const aplicarFormato = useCallback((marca: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const r = envolverSeleccion(
+      input,
+      textarea.selectionStart ?? input.length,
+      textarea.selectionEnd ?? input.length,
+      marca,
+    );
+    if (r.texto === input) return;
+    onInputChange({ target: { value: r.texto } } as React.ChangeEvent<HTMLTextAreaElement>);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = r.inicio;
+      textarea.selectionEnd = r.fin;
+    }, 0);
+  }, [input, onInputChange, textareaRef]);
+
+  /**
+   * Los atajos de teclado, delante del manejador de siempre.
+   *
+   * Se envuelve `onKeyPress` en vez de sustituirlo: ese es el que manda el
+   * mensaje con Enter y el que mueve las sugerencias de `/` y de `@`. Aqui solo
+   * se atienden las tres combinaciones de formato; **todo lo demas pasa de
+   * largo, tal cual llego**.
+   */
+  const manejarTeclas = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      const tecla = e.key.toLowerCase();
+      const marca =
+        tecla === 'b' && !e.shiftKey ? '*'
+        : tecla === 'i' && !e.shiftKey ? '_'
+        : tecla === 'x' && e.shiftKey ? '~'
+        : null;
+      if (marca) {
+        e.preventDefault();
+        aplicarFormato(marca);
+        return;
+      }
+    }
+    onKeyPress(e);
+  }, [aplicarFormato, onKeyPress]);
 
   // Dictado por voz (voz → texto). Escribe la transcripción en la barra usando el
   // mismo canal que el input (evento sintético a onInputChange), para editarla o
@@ -571,6 +625,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               </Button>
             )}
             {!isRecording && !isPreviewingAudio && (
+              <FormatoDeTexto onAplicar={aplicarFormato} disabled={!isInputActive} />
+            )}
+            {!isRecording && !isPreviewingAudio && (
               <div className="relative" ref={emojiRef}>
                 <Button
                   onClick={() => setEmojiOpen((v) => !v)}
@@ -657,7 +714,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           }
           value={input}
           onChange={onInputChange}
-          onKeyDown={onKeyPress}
+          onKeyDown={manejarTeclas}
           onPaste={handlePaste}
           disabled={!isInputActive}
           rows={1}
