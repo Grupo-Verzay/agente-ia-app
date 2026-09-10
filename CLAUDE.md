@@ -1289,6 +1289,25 @@ los dos fallos.
 Si hace falta otro contador por línea, va por ahí: **un contador es un `COUNT`,
 no un `length` de lo que se haya podido cargar.**
 
+### Un contador cuenta lo mismo que enseña su filtro
+
+Dos secuelas de sacar el número aparte, las dos del mismo despiste: **contar por
+un lado y listar por otro.**
+
+1. **El `COUNT` va acotado a las MISMAS líneas que la lista.** Sin pasarle
+   `instanceNames`, contaba todas las que aparecen en `Session` —las borradas,
+   los restos `_V2`, los canales `_wh`— y devolvió al desplegable las filas
+   «Línea sin ficha» que se acababan de quitar del lado de los chats. Con
+   número, eso sí: se elegía `VERZAY_ATENCION_wh`, prometía 18 y la lista salía
+   con «No hay chats que coincidan con el filtro». **Un filtro que ofrece un
+   número tiene que poder enseñar esas filas.**
+2. **Dos «Todos» con números distintos, uno al lado del otro.** El del
+   desplegable era la suma de las líneas (766) y el chip azul de la cabecera es
+   lo que la vista enseña, sin archivadas ni resueltas (462). Los dos ciertos, y
+   por eso despistaba tanto. La fila «Todos» del desplegable **ya no lleva
+   número**: ahí solo significa «sin filtro», y el chip de la cabecera es el
+   único sitio donde se lee un total.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
