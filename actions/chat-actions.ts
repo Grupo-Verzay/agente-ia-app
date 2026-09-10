@@ -919,6 +919,57 @@ export async function resolveWhatsAppJid(
   }
 }
 
+/**
+ * El motivo de un envio fallido, en cristiano.
+ *
+ * Evolution NO pone el motivo en `message`: lo anida en `response.message`, y a
+ * veces como lista. Leyendo solo `raw.message`, la persona veia «Error 500 en la
+ * API al enviar mensaje» —que no dice nada ni sugiere que hacer—. El envio de
+ * media ya miraba el sitio bueno; al de texto y al de audio se les habia pasado.
+ *
+ * Y hay un motivo que merece su propia frase: `Connection Closed` —y sus
+ * hermanos— significa que la sesion de WhatsApp de esa linea esta caida AUNQUE
+ * la tarjeta de Conexion siga en verde. La tarjeta no miente por su cuenta:
+ * pregunta a `/instance/connect` y Evolution contesta `state: "open"` mientras
+ * el socket real ya no existe. Quien lo sufre no necesita el codigo HTTP,
+ * necesita saber que hay que volver a escanear el QR.
+ *
+ * Visto en produccion el 2026-09-10 con la linea MONTERREY_PENSIONADO_ALIADO:
+ * el flujo entero fallaba —texto, audio, seguimientos— con
+ * `{ status: 500, response: { message: 'Connection Closed' } }`, el backend
+ * anotaba «Revisar la conexion de la instancia», y en pantalla ponia
+ * «Conectado». Se perdio una tarde buscandolo en la App.
+ *
+ * NO se exporta: este fichero es `'use server'` y ahi solo pueden salir
+ * funciones asincronas (ver CLAUDE.md).
+ */
+const LINEA_CAIDA =
+  /connection\s*(closed|terminated|lost)|not\s*connected|no\s*session|socket\s*closed/i;
+
+function motivoDelEnvioFallido(status: number, raw: any, porDefecto: string): string {
+  const anidado = raw?.response?.message;
+  const delProveedor =
+    (Array.isArray(anidado) ? anidado.join(', ') : (anidado as string)) ||
+    (raw?.message as string) ||
+    '';
+
+  // El cuerpo entero tambien se mira: Evolution no siempre pone el motivo en el
+  // mismo sitio, y aqui vale mas acertar con el aviso que ser purista.
+  const cuerpo = (() => {
+    try {
+      return JSON.stringify(raw ?? '');
+    } catch {
+      return '';
+    }
+  })();
+
+  if (LINEA_CAIDA.test(delProveedor) || (status >= 500 && LINEA_CAIDA.test(cuerpo))) {
+    return 'La linea esta desconectada de WhatsApp. Vuelve a escanear el QR desde Conexion.';
+  }
+
+  return delProveedor || porDefecto;
+}
+
 export async function sendTextMessage(
   apiKeyData: Pick<ApiKey, 'url' | 'key'>,
   instanceName: string,
@@ -958,7 +1009,7 @@ export async function sendTextMessage(
     if (!res.ok)
       return {
         success: false,
-        message: (raw?.message as string) || `Error ${res.status} en la API al enviar mensaje.`,
+        message: motivoDelEnvioFallido(res.status, raw, `Error ${res.status} en la API al enviar mensaje.`),
         raw,
         remoteJid,
       };
@@ -1022,7 +1073,7 @@ export async function sendAudio(
     if (!res.ok)
       return {
         success: false,
-        message: (raw?.message as string) || `Error ${res.status} al enviar audio.`,
+        message: motivoDelEnvioFallido(res.status, raw, `Error ${res.status} al enviar audio.`),
         raw,
         remoteJid,
       };
@@ -1118,10 +1169,7 @@ export async function sendMediaByUrl(
     clearTimeout(t);
     const raw = await res.json().catch(() => null);
     if (!res.ok) {
-      const em = raw?.response?.message;
-      const msg =
-        (Array.isArray(em) ? em.join(', ') : (em as string) || (raw?.message as string)) ||
-        `Error ${res.status} al enviar media.`;
+      const msg = motivoDelEnvioFallido(res.status, raw, `Error ${res.status} al enviar media.`);
       return { success: false, message: msg, raw, remoteJid };
     }
     if (!raw) return { success: false, message: 'Respuesta inválida o vacía al enviar media.', remoteJid };

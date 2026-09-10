@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { TAMANO_DEL_ICONO, TituloDeTarjeta } from './TituloDeTarjeta';
 import { ContactoDeTarjeta } from './ContactoDeTarjeta';
+import { AvisoDeLineaCaida } from './AvisoDeLineaCaida';
 
 /**
  * La tarjeta de la linea de WhatsApp, IGUAL sea cual sea el proveedor.
@@ -51,6 +52,15 @@ const BurbujaConPunto = ({ color, titulo }: { color: string; titulo: string }) =
 interface TarjetaDeLineaProps {
   /** Nombre visible de la linea (o del perfil de WhatsApp si ya conecto). */
   nombre: string;
+  /**
+   * El nombre REAL de la linea en `Instancias`, no el visible.
+   *
+   * Con el se pregunta si sus envios estan fallando: el estado que da el
+   * proveedor puede decir «Conectado» con la sesion ya cerrada (ver
+   * `AvisoDeLineaCaida`). Opcional para no romper a quien todavia no lo pase;
+   * sin el, la tarjeta se comporta como antes.
+   */
+  instanceName?: string | null;
   /** Telefono, sin el "+". Vacio mientras no se sabe. */
   numero?: string | null;
   /** Aun no hay respuesta del servidor: se enseña el hueco, no un dato falso. */
@@ -70,6 +80,7 @@ interface TarjetaDeLineaProps {
 
 export const TarjetaDeLinea = ({
   nombre,
+  instanceName,
   numero,
   cargando,
   estado,
@@ -123,6 +134,10 @@ export const TarjetaDeLinea = ({
           dato={numero ? `+${numero}` : (!cargando ? (estado ?? 'Sin conectar') : null)}
           cargando={cargando}
         />
+
+        {/* Va ENCIMA de los botones, no en lugar del verde: el estado que da el
+            proveedor sigue siendo un dato, lo que faltaba era el otro. */}
+        {instanceName ? <AvisoDeLineaCaida instanceName={instanceName} /> : null}
 
         <div className="grid grid-cols-2 items-stretch gap-2 [&_button]:w-full">
           {botonDeConexion}

@@ -106,6 +106,7 @@ export const ClientInstanceCard = ({
       <TarjetaDeLinea
         proveedor="evolution"
         nombre={visibleName}
+        instanceName={intanceName}
         numero={ownerJid ? ownerJid.split('@')[0] : null}
         cargando={!currentInstanceInfo}
         estado="Sin conectar"
