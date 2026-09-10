@@ -1565,21 +1565,45 @@ export async function contarChatsPorLinea(params: {
   if (params.instanceNames && !lineas.length) return {};
 
   try {
+    const __t0 = performance.now();
+    // Las marcas se sacan UNA vez y se cruzan con un hash join, no con un
+    // `NOT EXISTS` correlacionado.
+    //
+    // El primer intento era `NOT EXISTS (... p."remoteJid" = s."remoteJid" OR
+    // p."remoteJid" = s."remoteJidAlt")`, o sea la misma trampa que ya costo
+    // caro en `levantarMarcasSiElContactoEscribio`: un `OR` sobre dos columnas
+    // dentro de un correlacionado no puede usar indice y se ejecuta UNA VEZ POR
+    // SESION. Con 15.000 leads son 15.000 busquedas.
+    //
+    // Asi son dos pasadas y ya: la tabla de marcas es pequeña -solo hay fila
+    // por chat borrado o archivado- y entra entera en memoria.
     const filas = await db.$queryRaw<{ linea: string | null; total: bigint }[]>`
+      WITH marcas AS (
+        SELECT DISTINCT "userId", "remoteJid"
+        FROM "ChatConversationPreference"
+        WHERE "userId" IN (${Prisma.join(userIds)})
+          AND ("deletedAt" IS NOT NULL OR "archivedAt" IS NOT NULL)
+      )
       SELECT s."instanceId" AS linea, COUNT(DISTINCT s."remoteJid") AS total
       FROM "Session" s
+      LEFT JOIN marcas m  ON m."userId"  = s."userId" AND m."remoteJid"  = s."remoteJid"
+      LEFT JOIN marcas ma ON ma."userId" = s."userId" AND ma."remoteJid" = s."remoteJidAlt"
       WHERE s."userId" IN (${Prisma.join(userIds)})
         AND s."remoteJid" NOT LIKE '%@lid'
         ${lineas.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(lineas)})` : Prisma.empty}
-        AND NOT EXISTS (
-          SELECT 1
-          FROM "ChatConversationPreference" p
-          WHERE p."userId" = s."userId"
-            AND (p."deletedAt" IS NOT NULL OR p."archivedAt" IS NOT NULL)
-            AND (p."remoteJid" = s."remoteJid" OR p."remoteJid" = s."remoteJidAlt")
-        )
+        AND m."remoteJid" IS NULL
+        AND ma."remoteJid" IS NULL
       GROUP BY s."instanceId"
     `;
+
+    // Un contador nunca deberia costar; si algun dia cuesta, que se vea.
+    const __ms = performance.now() - __t0;
+    if (__ms > 300) {
+      console.warn(`[PERF] contarChatsPorLinea ${Math.round(__ms)}ms`, {
+        cuentas: userIds.length,
+        lineas: lineas.length || 'todas',
+      });
+    }
 
     const conteos: Record<string, number> = {};
     for (const f of filas) {

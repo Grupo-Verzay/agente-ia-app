@@ -1289,6 +1289,22 @@ los dos fallos.
 Si hace falta otro contador por línea, va por ahí: **un contador es un `COUNT`,
 no un `length` de lo que se haya podido cargar.**
 
+Y **un contador no puede costar**. Lo que hace esta consulta barata:
+
+- Toca **solo `Session`**, por `userId` —primera columna de su índice único—,
+  y acotada además por `instanceId`. Ni `chat_conversations`, ni el JSON de
+  `lastMessageRaw`, que es lo caro de la bandeja.
+- Las marcas de borrado se sacan **una vez, en un `WITH`**, y se cruzan con dos
+  `LEFT JOIN` (hash). El primer intento fue
+  `NOT EXISTS (… p.remoteJid = s.remoteJid OR p.remoteJid = s.remoteJidAlt)`,
+  o sea **la misma trampa** que ya costó caro en
+  `levantarMarcasSiElContactoEscribio`: un `OR` sobre dos columnas dentro de un
+  correlacionado no usa índice y se ejecuta **una vez por sesión** — con 15.000
+  leads, 15.000 búsquedas.
+- Corre **una vez por carga de la pantalla**, dentro del `Promise.all` que ya
+  estaba, así que no añade ni una vuelta de red.
+- Y se mide: `[PERF] contarChatsPorLinea` sale si pasa de 300 ms.
+
 ### Un filtro que ofrece un número tiene que poder llegar a él
 
 Con el número ya correcto quedaba lo peor de los dos mundos: el desplegable
