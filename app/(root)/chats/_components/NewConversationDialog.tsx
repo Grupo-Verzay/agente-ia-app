@@ -65,12 +65,27 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     [instanceActionSets],
   );
 
+  /**
+   * Las lineas por las que se puede abrir una conversacion nueva.
+   *
+   * `waha` y `evolution` FALTABAN, y son los dos tipos con los que se guarda
+   * hoy una linea de WhatsApp por QR (ver *Una linea es UNA instancia* en
+   * CLAUDE.md: cambiar de proveedor cambia `instanceType` de la misma fila).
+   * Sin ellos, una cuenta con varias lineas se quedaba con las de Evolution
+   * antiguas y el selector «Via:» desaparecia —solo se pinta con mas de una—,
+   * asi que no habia forma de mandarle un mensaje a un cliente por otra linea.
+   *
+   * Es el mismo despiste que ya costo la tarjeta de Perfil, que con `waha`
+   * caia en «Desconocido». Si se añade otro tipo de linea de WhatsApp, va aqui.
+   */
   const whatsappInstancias = instancias.filter((i) => {
     const type = i.instanceType?.trim().toLowerCase();
     const metaChannel = i.metaChannel?.trim().toLowerCase();
     const isWhatsAppLine =
       !type ||
       type === 'whatsapp' ||
+      type === 'evolution' ||
+      type === 'waha' ||
       type === 'baileys' ||
       (type === 'meta' && (!metaChannel || metaChannel === 'whatsapp'));
 
