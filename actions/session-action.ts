@@ -209,11 +209,47 @@ async function buildCrmFollowUpSummaryForSession(
   return summary;
 }
 
-export async function getSessionsCountByUserId(userId: string) {
+/**
+ * Cuantos leads tiene cada linea.
+ *
+ * `/sessions` cuenta la cuenta ENTERA y Chats cuenta una linea, asi que los dos
+ * numeros nunca se parecian —«290 en Ventas y 576 aqui»— y no habia forma de
+ * saber cuantos de esos 576 eran de Ventas. Esto lo dice.
+ *
+ * `Session.instanceId` guarda el NOMBRE de la linea, no su id
+ * (`chat-persistence`: `const instanceId = input.instanceName`).
+ */
+export async function getLeadsPorLinea(userId: string) {
+  try {
+    if (!userId) return { success: false as const, message: "No existe el userId" };
+
+    const filas = await db.session.groupBy({
+      by: ["instanceId"],
+      where: { userId, NOT: { remoteJid: { endsWith: "@lid" } } },
+      _count: { _all: true },
+    });
+
+    return {
+      success: true as const,
+      data: filas
+        .map((f) => ({ linea: f.instanceId ?? "", total: f._count._all }))
+        .sort((a, b) => b.total - a.total),
+    };
+  } catch (error) {
+    console.error("[getLeadsPorLinea]", error);
+    return { success: false as const, message: "Error al contar los leads por linea" };
+  }
+}
+
+export async function getSessionsCountByUserId(userId: string, instanceId?: string) {
   try {
     // Excluir sesiones fantasma por LID (@lid): son IDs de privacidad de WhatsApp,
     // no teléfonos → aparecían como "Você" sin número. No cuentan como leads.
-    const baseWhere = { userId, NOT: { remoteJid: { endsWith: "@lid" } } };
+    const baseWhere = {
+      userId,
+      NOT: { remoteJid: { endsWith: "@lid" } },
+      ...(instanceId ? { instanceId } : {}),
+    };
 
     const total = await db.session.count({
       where: baseWhere,
@@ -255,7 +291,8 @@ export async function getSessionsByUserId(
   skip: number = 0,
   take: number = 20,
   status?: boolean, // true: activos, false: inactivos, undefined: todos
-  agentDisabled?: boolean // false: agente activo, true: agente inactivo, undefined: todos
+  agentDisabled?: boolean, // false: agente activo, true: agente inactivo, undefined: todos
+  instanceId?: string // la linea; vacio = todas
 ): Promise<SessionsListResponse> {
   try {
     if (!userId) {
@@ -274,6 +311,7 @@ export async function getSessionsByUserId(
         NOT: { remoteJid: { endsWith: "@lid" } },
         ...(status !== undefined && { status }),
         ...(agentDisabled !== undefined && { agentDisabled }),
+        ...(instanceId ? { instanceId } : {}),
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -616,7 +654,8 @@ export async function deleteSession(
  */
 export async function searchSessionsByUserId(
   userId: string,
-  query: string
+  query: string,
+  instanceId?: string
 ): Promise<SessionsListResponse> {
   try {
     if (!userId) {
@@ -632,6 +671,9 @@ export async function searchSessionsByUserId(
         userId,
         // No mostrar sesiones fantasma por LID (@lid) tampoco en la búsqueda.
         NOT: { remoteJid: { endsWith: "@lid" } },
+        // La busqueda respeta el filtro de linea: si no, buscar deshacia el
+        // filtro sin decirlo.
+        ...(instanceId ? { instanceId } : {}),
         OR: [
           { pushName: { contains: query, mode: "insensitive" } },
           { remoteJid: { contains: query, mode: "insensitive" } },

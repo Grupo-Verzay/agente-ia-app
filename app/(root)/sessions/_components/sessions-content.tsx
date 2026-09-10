@@ -3,14 +3,22 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { activateAllSessions, cleanupJunkSessions, deactivateAllSessions, deleteAllSessions, getSessionsByUserId, getSessionsCountByUserId, searchSessionsByUserId } from "@/actions/session-action";
+import { activateAllSessions, cleanupJunkSessions, deactivateAllSessions, deleteAllSessions, getLeadsPorLinea, getSessionsByUserId, getSessionsCountByUserId, searchSessionsByUserId } from "@/actions/session-action";
 import { clearAllHistory } from "@/actions/n8n-chat-historial-action";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Radio } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { UserSessionsSkeleton } from "./user-sessions-skeleton";
 import { columns } from "./Columns";
 import { DataTable } from "./data-table";
@@ -48,11 +56,16 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [filter, setFilter] = useState<FilterSessionTypes>("all");
   const [isExporting, setIsExporting] = useState(false);
+  // La linea. `/sessions` contaba SIEMPRE la cuenta entera, asi que su total
+  // nunca se parecia al de Chats —«290 en Ventas y 576 aqui»— y no habia forma
+  // de saber cuantos de esos leads eran de cada linea.
+  const [linea, setLinea] = useState("");
+  const [lineas, setLineas] = useState<{ linea: string; total: number }[]>([]);
 
   const { data: pageData = [], mutate, isLoading, isValidating, error } = useSWR<Session[]>(
-    search.trim() ? null : JSON.stringify({ userId, currentPage, filter }),
+    search.trim() ? null : JSON.stringify({ userId, currentPage, filter, linea }),
     async (key: string) => {
-      const { userId, currentPage, filter } = JSON.parse(key);
+      const { userId, currentPage, filter, linea } = JSON.parse(key);
       const sessionStatus =
         filter === "activeSession" ? true :
           filter === "inactiveSession" ? false :
@@ -67,7 +80,8 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
         currentPage * PAGE_SIZE,
         PAGE_SIZE,
         sessionStatus,
-        agentDisabled
+        agentDisabled,
+        linea || undefined
       );
 
       if (!response.success) throw new Error(response.message);
@@ -96,10 +110,19 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
 
   useEffect(() => {
     async function fetchStats() {
-      const res = await getSessionsCountByUserId(userId);
+      const res = await getSessionsCountByUserId(userId, linea || undefined);
       if (res.success && res.data) setStats(res.data);
     }
     fetchStats();
+  }, [userId, linea]);
+
+  useEffect(() => {
+    async function cargarLineas() {
+      const res = await getLeadsPorLinea(userId);
+      if (res.success && res.data) setLineas(res.data);
+      else if (!res.success) console.warn("[leads] no se pudo contar por linea", res.message);
+    }
+    cargarLineas();
   }, [userId]);
 
   useEffect(() => {
@@ -123,7 +146,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
 
     setIsSearching(true);
     try {
-      const res = await searchSessionsByUserId(userId, value);
+      const res = await searchSessionsByUserId(userId, value, linea || undefined);
       setSearchResults(res.success ? res.data || [] : []);
     } catch (err) {
       console.error("Error buscando sesiones:", err);
@@ -179,6 +202,58 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             />
           </div>
           <div className="toolbar-collapse flex items-center gap-2">
+            {/* De que linea son estos leads. Con varias lineas, el total de la
+                cuenta no se puede comparar con el de Chats, que siempre es de
+                una. Cuando hay linea puesta se pinta en azul, para que no quede
+                filtrando sin que se note. */}
+            {lineas.length > 1 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={linea ? "border-sky-500 text-sky-600" : undefined}
+                    title="Filtrar por línea"
+                  >
+                    <Radio className="h-4 w-4" />
+                    <span className="hidden md:inline max-w-[10rem] truncate">
+                      {linea || "Línea"}
+                    </span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64 overflow-y-auto"
+                  collisionPadding={12}
+                  style={{ maxHeight: 'min(70vh, var(--radix-dropdown-menu-content-available-height))' }}
+                >
+                  <DropdownMenuLabel>Línea</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={!linea}
+                    onCheckedChange={() => { setLinea(""); setCurrentPage(0); }}
+                    className="justify-between gap-2"
+                  >
+                    <span>Todas</span>
+                    <span className="text-xs text-muted-foreground">
+                      {lineas.reduce((a, l) => a + l.total, 0)}
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                  {lineas.map((l) => (
+                    <DropdownMenuCheckboxItem
+                      key={l.linea || "(sin linea)"}
+                      checked={linea === l.linea}
+                      onCheckedChange={() => { setLinea(l.linea); setCurrentPage(0); }}
+                      className="justify-between gap-2"
+                    >
+                      <span className="truncate">{l.linea || "Sin línea"}</span>
+                      <span className="text-xs text-muted-foreground">{l.total}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button
               size="sm"
               variant="outline"
