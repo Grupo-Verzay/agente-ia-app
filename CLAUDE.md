@@ -1230,13 +1230,19 @@ venían de allí.
 
 Dos cosas:
 
-1. El tope es `TOPE_DE_LA_BANDEJA` (**1500**), con nombre y comentario, no un
-   número suelto dentro del SQL. Subirlo cuesta poco desde que el JSON pesado
-   (`lastMessageRaw`) se lee **adelgazado y solo de las filas devueltas**; si
-   vuelve a doler, lo dice `[PERF] getPersistedInboxChats` con su tiempo.
-2. **El tope avisa cuando muerde**: `[chats] la bandeja llegó al tope y puede
-   estar recortada: N de M`. Un recorte mudo se ve como «faltan chats», que es
-   de lo más caro de diagnosticar; es la misma regla que el resto del fichero.
+1. El tope es `TOPE_DE_LA_BANDEJA`, con nombre y motivo, no un número suelto
+   dentro del SQL. **Vale 300**: es cuánto se LEE, y responde a una sola
+   pregunta —cuántas conversaciones recorre de verdad una persona antes de
+   buscar—. Estuvo en 1500 un rato, mientras el contador todavía salía de contar
+   estas filas; en cuanto el número se sacó aparte, subirlo dejó de tener
+   sentido. Cada fila de más es JSON que se descomprime, viaja y se convierte a
+   objetos, y eso se paga en **todas** las cargas de Chats. Si 300 se queda
+   corto para desplazarse, lo que toca es traer la página siguiente, no subir
+   esto.
+2. **Lo que se recorta, se dice**: `[chats] la lista viene al tope: N de M`. Va
+   como `console.info` y no como `warn` a propósito, porque en una cuenta grande
+   es lo esperado, no un fallo. Sirve para separar «esta cuenta es grande» de
+   «faltan chats», que es la distinción que costó una sesión entera.
 
 Y de paso, la forma de comprobarlo desde fuera: `/sessions` tiene un desplegable
 **«Línea»** con los leads de cada una (`getLeadsPorLinea`). Ese número al lado

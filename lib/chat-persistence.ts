@@ -1320,17 +1320,21 @@ const inboxCache = new Map<string, { at: number; rows: Promise<ChatData[]> }>();
 /**
  * Cuantas conversaciones trae la bandeja de nuestra base.
  *
- * Estaba en 300, y ese tope **no se veia por ninguna parte**: una cuenta con 576
- * leads en una sola linea abria Chats y contaba 290 —300 menos los borrados y
- * archivados—, o sea que faltaba la mitad de sus conversaciones y nada lo decia.
- * Duele sobre todo en las lineas que dependen SOLO de nuestra base (Waha,
- * Baileys, los canales de credenciales) y cuando Evolution no contesta.
+ * Este numero es **cuanto se LEE**, no cuanto se enseña. El contador de cada
+ * linea ya no depende de el (`contarChatsPorLinea` es un COUNT aparte), asi que
+ * aqui manda una sola pregunta: cuantas conversaciones va a recorrer de verdad
+ * una persona antes de buscar. Nadie baja de doscientas.
  *
- * El JSON pesado (`lastMessageRaw`) ya se lee adelgazado y solo de las filas que
- * se devuelven, asi que subirlo cuesta mucho menos que antes. Si algun dia vuelve
- * a doler, el aviso `[PERF] getPersistedInboxChats` lo dice con su tiempo.
+ * Estuvo en 1500 un rato, cuando el contador todavia salia de contar estas
+ * filas y subirlo era la unica forma de que el numero no mintiera. Ya no hace
+ * falta: cada fila de mas es JSON que se descomprime, viaja y se convierte a
+ * objetos, y eso es justo lo que se paga en la carga de Chats.
+ *
+ * Si 300 se queda corto para desplazarse, lo que hay que hacer es traer la
+ * pagina siguiente, no subir esto: subirlo encarece TODAS las cargas para
+ * arreglar el caso de unos pocos.
  */
-const TOPE_DE_LA_BANDEJA = 1500;
+const TOPE_DE_LA_BANDEJA = 300;
 
 function inboxCacheKey(userIds: string[], instanceNames: string[] | undefined, take?: number) {
   return JSON.stringify([
@@ -1839,16 +1843,17 @@ async function loadPersistedInboxChats(
 
   const __ms = performance.now() - __t0;
 
-  // El tope no puede morder en silencio.
+  // Lo que se recorta, se dice.
   //
-  // Con 300 y sin este aviso, una cuenta con 576 conversaciones en una línea
-  // veía 290 en la bandeja y no había forma de saber que faltaba la mitad: ni
-  // error, ni hueco, ni nada. Es la misma familia que el resto de este fichero:
-  // lo que recorta, lo dice.
+  // Ya no es un fallo —el contador de cada línea sale aparte de un COUNT, así
+  // que el número sigue siendo el real— pero saber que la LISTA viene tocando
+  // el tope es lo que separa "esta cuenta es grande" de "faltan chats", y esa
+  // distinción costó una sesión entera. Va como `info` y no como `warn`
+  // justamente porque es lo esperado en una cuenta grande.
   const tope = params.take ?? TOPE_DE_LA_BANDEJA;
   if (rows.length >= tope) {
-    console.warn(
-      `[chats] la bandeja llegó al tope y puede estar recortada: ${rows.length} de ${tope}`,
+    console.info(
+      `[chats] la lista viene al tope: ${rows.length} de ${tope}. El contador de cada línea NO depende de esto.`,
       { cuentas: userIds.length, lineas: params.instanceNames?.length ?? 'todas' },
     );
   }
