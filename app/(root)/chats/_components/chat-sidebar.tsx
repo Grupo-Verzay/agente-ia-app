@@ -621,12 +621,31 @@ export function ChatSidebar({
       else if (servicio === 'HUMANO') human++;
     }
 
+    // «Todos» dice el MISMO numero que el desplegable de canales.
+    //
+    // Salia de contar las filas cargadas, asi que el desplegable ofrecia
+    // «Ventas 574», se elegia, y el chip decia 290. Los dos eran ciertos —uno
+    // es el total de la linea y el otro lo que la lista tiene cargado— y por
+    // eso confundia tanto: dos numeros para lo mismo, pegados. El total manda;
+    // las filas que falten llegan al bajar (`onCargarMas`).
+    //
+    // Las demas pestañas siguen contando lo cargado: son estados de lo que hay
+    // delante (mias, archivadas, resueltas), no el tamaño de la linea.
+    const totalDeLaLinea = selectedChannel
+      ? channelCounts?.[selectedChannel]
+      : channelCounts
+        ? Object.values(channelCounts).reduce((a, b) => a + b, 0)
+        : undefined;
+
     return {
       advisorCounts: { countMap, unassigned },
-      tabCounts: { all, mine, dm, groups, archived, resolved, deleted } satisfies TabCounts,
+      tabCounts: {
+        all: Math.max(all, totalDeLaLinea ?? 0),
+        mine, dm, groups, archived, resolved, deleted,
+      } satisfies TabCounts,
       filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human },
     };
-  }, [contacts, currentAdvisorId, starredJids]);
+  }, [contacts, currentAdvisorId, starredJids, channelCounts, selectedChannel]);
 
   const { advisorCounts, tabCounts, filterCounts } = conteos;
 
