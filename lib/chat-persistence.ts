@@ -264,41 +264,42 @@ function ensureChatMessagesTable() {
         AND COALESCE(NULLIF(BTRIM("lastMessageContent"), ''), '-') = '-'
         AND "lastMessageMediaUrl" IS NULL
     `;
-    await db.$executeRaw`
-      INSERT INTO "chat_conversations" (
-        "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
-        "pushName", "lastMessageId", "lastMessageFromMe", "lastMessageType",
-        "lastMessageContent", "lastMessageMediaUrl", "lastMessageRaw",
-        "lastMessageTimestamp", "createdAt", "updatedAt"
-      )
-      SELECT DISTINCT ON ("userId", "instanceName", "remoteJid")
-        "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
-        "pushName", "messageId", "fromMe", "messageType",
-        "content", "mediaUrl", ${recortarRawSql(Prisma.sql`"raw"`)}, "messageTimestamp", NOW(), NOW()
-      FROM "chat_messages"
-      WHERE NOT (
-        "messageType" IN ('conversation', 'extendedTextMessage')
-        AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
-        AND "mediaUrl" IS NULL
-      )
-      ORDER BY "userId", "instanceName", "remoteJid", "messageTimestamp" DESC, "id" DESC
-      ON CONFLICT ("userId", "instanceName", "remoteJid")
-      DO UPDATE SET
-        "instanceType" = COALESCE(EXCLUDED."instanceType", "chat_conversations"."instanceType"),
-        "remoteJidAlt" = COALESCE(EXCLUDED."remoteJidAlt", "chat_conversations"."remoteJidAlt"),
-        "senderPn" = COALESCE(EXCLUDED."senderPn", "chat_conversations"."senderPn"),
-        "pushName" = COALESCE(EXCLUDED."pushName", "chat_conversations"."pushName"),
-        "lastMessageId" = EXCLUDED."lastMessageId",
-        "lastMessageFromMe" = EXCLUDED."lastMessageFromMe",
-        "lastMessageType" = EXCLUDED."lastMessageType",
-        "lastMessageContent" = EXCLUDED."lastMessageContent",
-        "lastMessageMediaUrl" = EXCLUDED."lastMessageMediaUrl",
-        "lastMessageRaw" = EXCLUDED."lastMessageRaw",
-        "lastMessageTimestamp" = EXCLUDED."lastMessageTimestamp",
-        "updatedAt" = NOW()
-      WHERE "chat_conversations"."lastMessageTimestamp" IS NULL
-         OR "chat_conversations"."lastMessageTimestamp" <= EXCLUDED."lastMessageTimestamp"
-    `;
+    // AQUI HABIA un `INSERT ... SELECT DISTINCT ON` que reconstruia
+    // `chat_conversations` ENTERA a partir de `chat_messages`. Se quita.
+    //
+    // Lo que hacia: leer la tabla de mensajes completa —sin ninguna cota de
+    // fecha—, ordenarla entera y reescribir la fila de cada conversacion. Y
+    // corria una vez por PROCESO de Node, o sea a los segundos de cada
+    // arranque, disparado por el primer mensaje que se guardara. Con ~30
+    // despliegues en un dia, eso son ~30 recorridos completos de una tabla de
+    // cientos de MB, cada uno dejando a Postgres ocupado mientras todas las
+    // consultas del panel hacian cola detras. Y empeoraba con el tiempo: el
+    // coste crece con la tabla.
+    //
+    // Por que ya no hace falta: era una red por si algun camino guardaba un
+    // mensaje sin actualizar tambien la conversacion. Se rastrearon todos los
+    // caminos de escritura de los dos repos y hoy no queda ninguno asi:
+    //
+    // - `chatStore.persistMessage` (motor) escribe las dos tablas, seguidas y
+    //   sin condicion. Por ahi pasa TODO lo que entra por webhook: Evolution,
+    //   Waha, Baileys y los mensajes de Meta.
+    // - `persistChatMessage` (aqui abajo) hace lo mismo del lado de la App.
+    // - El voicebot tenia su propio INSERT que solo tocaba `chat_messages`.
+    //   Ese era el unico hueco de verdad, y se cerro pasandolo por
+    //   `persistMessage`.
+    // - Borrar, fusionar `@lid` y cambiar de proveedor tocan las dos tablas.
+    //
+    // El unico que sigue escribiendo un mensaje sin conversacion es el evento
+    // de llamada de Meta (`meta_call`), y ese NO es una conversacion: usa un
+    // jid sintetico (`meta-call:<id>`) y es un buzon de señalizacion que la
+    // pantalla de llamadas lee por `messageId`. Ahi este barrido no tapaba un
+    // hueco: FABRICABA basura, una fila fantasma en la bandeja por cada evento
+    // de llamada. Al quitarlo, deja de fabricarse sola.
+    //
+    // Las filas fantasma que ya existan siguen ahi: esto no borra nada. Se
+    // limpian aparte.
+    //
+    // Los indices de arriba y los tres `DELETE` se quedan como estaban.
   })().catch((error) => {
     // Si una sentencia falla, la promesa rechazada NO se queda guardada.
     //
