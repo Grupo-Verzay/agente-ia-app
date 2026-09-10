@@ -8,6 +8,7 @@ import {
   pickPreferredWhatsAppRemoteJid,
 } from '@/lib/whatsapp-jid';
 import { esSobreInternoDeWhatsapp } from '@/lib/whatsapp-message-kinds';
+import { TOPE_DE_LA_BANDEJA } from '@/lib/bandeja';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -1317,30 +1318,18 @@ function getChatTimestamp(chat: ChatData) {
 const INBOX_CACHE_TTL_MS = 10_000;
 const inboxCache = new Map<string, { at: number; rows: Promise<ChatData[]> }>();
 
-/**
- * Cuantas conversaciones trae la bandeja de nuestra base.
- *
- * Este numero es **cuanto se LEE**, no cuanto se enseña. El contador de cada
- * linea ya no depende de el (`contarChatsPorLinea` es un COUNT aparte), asi que
- * aqui manda una sola pregunta: cuantas conversaciones va a recorrer de verdad
- * una persona antes de buscar. Nadie baja de doscientas.
- *
- * Estuvo en 1500 un rato, cuando el contador todavia salia de contar estas
- * filas y subirlo era la unica forma de que el numero no mintiera. Ya no hace
- * falta: cada fila de mas es JSON que se descomprime, viaja y se convierte a
- * objetos, y eso es justo lo que se paga en la carga de Chats.
- *
- * Si 300 se queda corto para desplazarse, lo que hay que hacer es traer la
- * pagina siguiente, no subir esto: subirlo encarece TODAS las cargas para
- * arreglar el caso de unos pocos.
- */
-const TOPE_DE_LA_BANDEJA = 300;
 
-function inboxCacheKey(userIds: string[], instanceNames: string[] | undefined, take?: number) {
+function inboxCacheKey(
+  userIds: string[],
+  instanceNames: string[] | undefined,
+  take?: number,
+  antesDe?: Date,
+) {
   return JSON.stringify([
     [...userIds].sort(),
     [...(instanceNames ?? [])].sort(),
     take ?? TOPE_DE_LA_BANDEJA,
+    antesDe ? antesDe.getTime() : 0,
   ]);
 }
 
@@ -1611,11 +1600,13 @@ export async function getPersistedInboxChats(params: {
   userIds: string[];
   instanceNames?: string[];
   take?: number;
+  /** Solo las anteriores a esta fecha: es la «pagina siguiente» de la bandeja. */
+  antesDe?: Date;
 }): Promise<ChatData[]> {
   const userIds = params.userIds.filter(Boolean);
   if (!userIds.length) return [];
 
-  const key = inboxCacheKey(userIds, params.instanceNames, params.take);
+  const key = inboxCacheKey(userIds, params.instanceNames, params.take, params.antesDe);
   const now = Date.now();
 
   const cached = inboxCache.get(key);
@@ -1641,7 +1632,7 @@ export function invalidatePersistedInboxCache(): void {
 }
 
 async function loadPersistedInboxChats(
-  params: { userIds: string[]; instanceNames?: string[]; take?: number },
+  params: { userIds: string[]; instanceNames?: string[]; take?: number; antesDe?: Date },
   userIds: string[],
 ): Promise<ChatData[]> {
   return readWithTablesFallback(async () => {
@@ -1814,6 +1805,19 @@ async function loadPersistedInboxChats(
     FROM (
       SELECT *
       FROM inbox_rows
+      -- Paginado por FECHA, no por posicion.
+      --
+      -- Con OFFSET se saltaban filas: la primera pagina se pide para TODAS
+      -- las lineas juntas con un solo LIMIT, asi que de una linea concreta
+      -- pueden haber entrado 250 y no 300, y saltar 300 de esa linea se comia
+      -- 50 conversaciones. Con la fecha del ultimo que ya tiene la pantalla no
+      -- hay nada que suponer, y ademas aguanta que entren mensajes nuevos entre
+      -- una pagina y la siguiente.
+      ${
+        params.antesDe
+          ? Prisma.sql`WHERE COALESCE("messageTimestamp", "sessionUpdatedAt") < ${params.antesDe}`
+          : Prisma.empty
+      }
       ORDER BY COALESCE("messageTimestamp", "sessionUpdatedAt") DESC
       LIMIT ${params.take ?? TOPE_DE_LA_BANDEJA}
     ) ir

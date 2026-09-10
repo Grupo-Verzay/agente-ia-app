@@ -1289,6 +1289,35 @@ los dos fallos.
 Si hace falta otro contador por línea, va por ahí: **un contador es un `COUNT`,
 no un `length` de lo que se haya podido cargar.**
 
+### Un filtro que ofrece un número tiene que poder llegar a él
+
+Con el número ya correcto quedaba lo peor de los dos mundos: el desplegable
+ofrecía **«Ventas 574»**, se elegía, y la cabecera decía **290** — que es lo que
+la lista tenía para enseñar. El número era cierto y la lista también; lo que no
+podía ser es que no hubiera forma de llegar del uno a la otra.
+
+**La respuesta no es tocar el número, es traer las páginas siguientes.**
+`traerMasChatsDeLaLinea` las pide cuando la persona baja a menos de dos
+pantallas del final (`onCargarMas`, colgado del mismo `requestAnimationFrame`
+que ya medía el scroll). La primera carga sigue costando lo mismo.
+
+Tres cosas que hay que mantener:
+
+1. **El cursor es una FECHA, no una posición.** Con `OFFSET` se saltaban filas:
+   la primera página se pide para **todas las líneas juntas** con un solo
+   `LIMIT`, así que de una línea concreta pueden haber entrado 250 y no 300, y
+   saltar 300 de esa línea se comía 50 conversaciones. Se pide «las anteriores a
+   la más antigua que ya tengo de esta línea», que además aguanta que entren
+   mensajes nuevos entre una página y la siguiente.
+2. **El tamaño de página vive en `lib/bandeja.ts`**, no duplicado a cada lado.
+   Lo usan la consulta (su `LIMIT`) y el navegador (para saber cuándo ya no
+   queda nada: una página incompleta). Con dos números distintos se saltarían
+   filas.
+3. **La acción comprueba de quién es la línea** (`assertCanAccessTargetUser`
+   sobre el dueño que resuelve `resolveInstanceOwner`), como cualquier otra que
+   reciba un id. Y si una página falla **lo dice**: sin eso se ve como «la lista
+   no sigue bajando», que no parece un error.
+
 ### Un contador cuenta lo mismo que enseña su filtro
 
 Dos secuelas de sacar el número aparte, las dos del mismo despiste: **contar por
@@ -1472,11 +1501,14 @@ lista que se arregla desde el repo es el `CMD` del `Dockerfile`.
 - **Seguimientos que salen tarde.** Van espaciados 1 a 2 minutos por número para
   no arriesgar la línea. Se deja como está: no se está superando la cola de 300
   donde el espaciado empezaría a doler.
-- **Paginar la lista de chats.** No se hace. "No leídos" se calcula en el
-  navegador (`localStorage`, clave `seenMessages`), así que con solo 50 chats
-  cargados ese contador dejaría de cuadrar. Llevarlo al servidor obligaría a
-  mover ese estado a una tabla, y eso haría que leer en el PC marcara como leído
-  en el móvil. Se prefiere como está hoy.
+- **Paginar la lista de chats.** Se hace, y era necesario: sin ello el filtro
+  ofrecía «Ventas 574» y la lista solo tenía 300 filas que enseñar. Lo que se
+  descartó en su día era **paginar de entrada** —cargar 50 y pedir el resto—,
+  porque "no leídos" se calcula en el navegador (`localStorage`, clave
+  `seenMessages`) y con tan pocos chats cargados ese contador dejaría de
+  cuadrar. Eso sigue en pie: la primera página es grande (300) y las siguientes
+  llegan **al bajar del todo**, así que los contadores de la cabecera solo
+  ganan filas, nunca arrancan cortos.
 - **Chats eliminados que no volvían.** Ahora vuelven si el contacto escribe
   después del borrado (ver `isChatDeletedByPreference`).
 - **Flujo tipo chatbot que no se activaba.** El de Bienvenida estaba declarado

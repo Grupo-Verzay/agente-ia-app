@@ -18,7 +18,7 @@ import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
 import { loadChatBootstrapData } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { getSesionesDeLaCuenta } from "@/actions/session-action";
-import { sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
+import { sendMetaTemplate, traerMasChatsDeLaLinea, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
 import { useChatsRealtime, type PresenciaContacto, type ConexionContacto, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
@@ -58,6 +58,7 @@ import {
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
 import { chatPreferenceKey, chatPreferenceKeys } from "@/lib/chat-preference-key";
+import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
 import { avatarSrcFor } from "@/lib/avatar";
 import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
@@ -1484,6 +1485,78 @@ export function ChatsClient({
       return { ...frescos, data: fusionados };
     });
   }, [lidPhoneMap]);
+
+  /**
+   * Traer la pagina siguiente de la bandeja.
+   *
+   * La lista se carga acotada (`TOPE_DE_LA_BANDEJA`) y el contador de cada
+   * canal dice el total de verdad. Sin esto las dos cifras no podian
+   * encontrarse: el desplegable ofrecia «Ventas 574», se elegia, y la lista
+   * solo tenia 290 filas. Un filtro que ofrece un numero tiene que poder llegar
+   * a el, y esta es la forma de hacerlo sin encarecer TODAS las cargas.
+   *
+   * Se pagina por LINEA, que es como se guarda la bandeja: cuando hay una
+   * elegida se pide la suya; sin filtro, la de todas.
+   */
+  const cargandoMasRef = useRef(false);
+  const sinMasRef = useRef<Record<string, boolean>>({});
+
+  const cargarMasChats = useCallback(() => {
+    if (cargandoMasRef.current) return;
+
+    const lineas = selectedChannel
+      ? [selectedChannel]
+      : (instancias.map((i) => i.instanceName).filter(Boolean) as string[]);
+    const pendientes = lineas.filter((linea) => !sinMasRef.current[linea]);
+    if (!pendientes.length) return;
+
+    cargandoMasRef.current = true;
+    void (async () => {
+      try {
+        const tandas = await Promise.allSettled(
+          pendientes.map(async (linea) => {
+            // El cursor es la fecha del MAS ANTIGUO que la pantalla ya tiene
+            // de esa linea. Con eso no hay nada que suponer sobre cuantos
+            // entraron en la primera pagina, que se pide para todas juntas.
+            const suyos = currentChatsResult.success
+              ? currentChatsResult.data.filter((c) => c.instanceName === linea)
+              : [];
+            if (!suyos.length) return { linea, res: null };
+            const masAntiguo = suyos.reduce(
+              (min, c) => Math.min(min, getChatSortTimestamp(c) || Number.MAX_SAFE_INTEGER),
+              Number.MAX_SAFE_INTEGER,
+            );
+            if (!Number.isFinite(masAntiguo) || masAntiguo === Number.MAX_SAFE_INTEGER) {
+              return { linea, res: null };
+            }
+            const res = await traerMasChatsDeLaLinea(linea, masAntiguo);
+            return { linea, res };
+          }),
+        );
+
+        const nuevos: ChatData[] = [];
+        for (const t of tandas) {
+          if (t.status !== "fulfilled") continue;
+          const { linea, res } = t.value;
+          if (!res) continue;
+          if (!res.success) {
+            // Un fallo aqui se ve como "la lista no sigue": no puede ser mudo.
+            console.warn("[chats] no se pudo traer la pagina siguiente", { linea, motivo: res.message });
+            continue;
+          }
+          // Menos de una pagina entera significa que ya no queda nada detras.
+          if (res.data.length < TOPE_DE_LA_BANDEJA) sinMasRef.current[linea] = true;
+          nuevos.push(...res.data);
+        }
+
+        if (nuevos.length) {
+          aplicarChatsFrescos(filterChatList({ success: true, message: "OK", data: nuevos }, lidPhoneMap));
+        }
+      } finally {
+        cargandoMasRef.current = false;
+      }
+    })();
+  }, [selectedChannel, instancias, aplicarChatsFrescos, lidPhoneMap, currentChatsResult]);
 
   const refreshSidebarData = useCallback(async () => {
     const chatRefreshResult = await refetchAllInstances();
@@ -3864,6 +3937,7 @@ export function ChatsClient({
           resolveChatOwnerId={ownerForChat}
           onChannelChange={handleChannelChange}
           onRefresh={handleRefresh}
+          onCargarMas={cargarMasChats}
           isRefreshing={isRefreshing}
           inactiveAgentUnreadJids={pendingUnreadJids}
           onCompose={instanceActionSets && instanceActionSets.length > 0 ? () => setIsComposeOpen(true) : undefined}
