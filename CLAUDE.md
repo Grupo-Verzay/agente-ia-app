@@ -1174,6 +1174,33 @@ una que se apagó con el botón viejo. Al abrir Conexión se toma como robot
 apagado, se guarda la marca y se enciende el webhook. Nadie tiene que hacer
 nada a mano.
 
+## Chats: el filtro de canales tiene que sumar
+
+En el desplegable de canales, «Todos» decía **614** y las filas de abajo sumaban
+**469**. No es un redondeo: son 145 chats que **ninguna fila podía filtrar**.
+
+Las dos cifras se calculan de sitios distintos. `channelCounts` cuenta por
+`chat.instanceName`, o sea **todas** las líneas que aparezcan en los chats, y
+«Todos» es su suma. Las filas, en cambio, salen de `channels` —las `Instancias`
+de la cuenta y las de las cuentas vinculadas—. Si un chat llega con una línea
+que no está en esa lista, entra en la suma y no tiene fila: se ve en «Todos» y
+no se puede aislar.
+
+Dos cosas:
+
+1. **Toda línea que traiga chats tiene su fila.** `lineasSinFila` compara las
+   dos listas y pinta las que faltan con su nombre crudo y el rótulo «Línea sin
+   ficha». Así la suma cuadra siempre y no queda nada inalcanzable.
+2. **Y lo dice la consola**: `[chats] hay chats de lineas que no estan en el
+   filtro de canales`, con la línea, cuántos chats trae y las líneas que sí
+   están en el filtro. Su presencia significa que a la cuenta le falta esa
+   `Instancia` (borrada, un resto de `_V2`, una cuenta vinculada que ya no se
+   trae), y es lo que hay que arreglar en los datos.
+
+El desplegable lleva además su propio scroll acotado al hueco real
+(`--radix-dropdown-menu-content-available-height`), que es la regla de siempre
+para un menú con una lista dentro: la lista crece con las líneas de la cuenta.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de

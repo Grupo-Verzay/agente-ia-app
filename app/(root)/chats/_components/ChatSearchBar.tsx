@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { Search, X, ChevronDown, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,6 +48,37 @@ export function ChatSearchBar({
     : "Todos";
   const totalCount = Object.values(channelCounts).reduce((a, b) => a + b, 0);
 
+  /**
+   * Lineas que tienen chats pero NO tienen fila en el desplegable.
+   *
+   * «Todos» suma TODAS las lineas que aparecen en los chats; las filas solo
+   * salen para las lineas que llegan en `channels` (las `Instancias` de la
+   * cuenta y las de las cuentas vinculadas). Cuando una linea trae chats y no
+   * esta en esa lista, los numeros no cuadran —«Todos 614» con las filas
+   * sumando 469— y esos chats **no se pueden filtrar por ninguna fila**: el
+   * filtro no llega a ellos.
+   *
+   * Se les pinta su propia fila, con el nombre crudo de la linea. Asi la suma
+   * siempre cuadra y no queda nada inalcanzable.
+   */
+  const lineasSinFila = useMemo(
+    () =>
+      Object.keys(channelCounts).filter(
+        (nombre) =>
+          (channelCounts[nombre] ?? 0) > 0 &&
+          !channels.some((ch) => ch.instanceName === nombre),
+      ),
+    [channelCounts, channels],
+  );
+
+  useEffect(() => {
+    if (!hasChannels || lineasSinFila.length === 0) return;
+    console.warn("[chats] hay chats de lineas que no estan en el filtro de canales", {
+      lineas: lineasSinFila.map((nombre) => ({ linea: nombre, chats: channelCounts[nombre] })),
+      lineasDelFiltro: channels.map((ch) => ch.instanceName),
+    });
+  }, [hasChannels, lineasSinFila, channelCounts, channels]);
+
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
       {hasChannels ? (
@@ -61,7 +93,15 @@ export function ChatSearchBar({
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
+          {/* Con su propio scroll: la lista crece con las lineas de la cuenta y
+              el tope es el hueco de verdad, no `vh` (ver la regla de los menus
+              con listas dentro). */}
+          <DropdownMenuContent
+            align="start"
+            className="w-56 overflow-y-auto"
+            collisionPadding={12}
+            style={{ maxHeight: 'min(70vh, var(--radix-dropdown-menu-content-available-height))' }}
+          >
             <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Canales
             </p>
@@ -109,6 +149,36 @@ export function ChatSearchBar({
                         {count}
                       </span>
                     )}
+                    {isActive && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </div>
+                </DropdownMenuItem>
+              );
+            })}
+            {/* Lineas con chats que no estan en `channels`: sin esta fila sus
+                chats se cuentan en «Todos» y no hay forma de filtrarlos. */}
+            {lineasSinFila.map((nombre) => {
+              const isActive = selectedChannel === nombre;
+              return (
+                <DropdownMenuItem
+                  key={nombre}
+                  onSelect={() => onChannelChange?.(nombre)}
+                  className="flex items-center justify-between gap-2 cursor-pointer"
+                >
+                  <div className="flex min-w-0 flex-col">
+                    <span className={cn("truncate text-xs", isActive && "font-medium text-primary")}>
+                      {nombre}
+                    </span>
+                    <span className="truncate text-[10px] text-muted-foreground">
+                      Linea sin ficha
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className={cn(
+                      "rounded-full px-1.5 py-px text-[10px] font-semibold",
+                      isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                    )}>
+                      {channelCounts[nombre]}
+                    </span>
                     {isActive && <Check className="h-3.5 w-3.5 text-primary" />}
                   </div>
                 </DropdownMenuItem>
