@@ -1407,6 +1407,43 @@ miles de chats, recorrer el array hasta encontrarlos cuesta lo mismo que no
 virtualizar), y el scroll se mide **una vez por fotograma** (`requestAnimationFrame`),
 porque el navegador dispara el evento muchas más veces de las que puede pintar.
 
+## Chats: el formato es de WhatsApp, no markdown
+
+WhatsApp no manda formato: manda **marcas dentro del texto plano** —`*negrilla*`,
+`_cursiva_`, `~tachado~`, ```` ```mono``` ````— y cada cliente las pinta. Enviar,
+por tanto, ya funcionaba solo. Lo que faltaba era de nuestro lado: la burbuja
+sacaba el texto tal cual, así que el asesor leía `*confirmado*` mientras su
+cliente veía la palabra en negrilla.
+
+**La trampa está en copiar la barra de otras bandejas.** Chatwoot y compañía
+escriben markdown —`**negrilla**`, con dos asteriscos— y en WhatsApp eso deja un
+asterisco a la vista en el teléfono del cliente. Los botones escriben marcas de
+WhatsApp, y solo esas cuatro: **nada de listas, encabezados ni enlaces con
+texto**, que WhatsApp no tiene. Un botón que produce algo que el cliente ve roto
+es peor que no tenerlo.
+
+Tres cosas que hay que mantener:
+
+1. **Quien entiende las marcas es uno solo**, `lib/formato-whatsapp.ts`, y es
+   puro: entra una cadena y salen nodos. Lo pinta `TextoConFormato.tsx` y lo
+   escribe `FormatoDeTexto.tsx`, los dos apoyados en él. Si se añade otro sitio
+   que enseñe texto de WhatsApp, va por ahí.
+2. **Ni justo antes ni justo después de una marca puede haber letra o número.**
+   Es la condición que evita que `nombre_de_variable` salga en cursiva y `2*3*4`
+   en negrilla, y es el fallo clásico de los lectores caseros de markdown. Con
+   los espacios, al revés: pegados por dentro no valen (`* hola *` en WhatsApp se
+   ve con sus asteriscos), y por eso al envolver una selección los espacios de
+   los bordes se quedan **fuera** de la marca.
+3. **Los atajos envuelven al manejador de siempre, no lo sustituyen.**
+   `onKeyPress` es el que manda con Enter y el que mueve las sugerencias de `/` y
+   de `@`; `manejarTeclas` solo atiende Ctrl+B, Ctrl+I y Ctrl+Shift+X y **deja
+   pasar todo lo demás tal cual**.
+
+Y lo que no case con una marca completa se enseña tal cual. La burbuja recorta a
+250 caracteres hasta que se pulsa «Ver más», así que un mensaje puede quedar
+partido con una marca sin cerrar: entonces se ve el asterisco, que es
+exactamente lo que hace WhatsApp.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
