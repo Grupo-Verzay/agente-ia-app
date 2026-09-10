@@ -1033,11 +1033,34 @@ export function ChatsClient({
    * fila no puede llevar `contacts` en sus dependencias sin romper el
    * `React.memo` de toda la columna (ver CLAUDE.md, "la lista es grande").
    */
-  const lineaDelJid = useCallback((remoteJid: string) => {
-    const chat = contactsRef.current.find(
-      (c: ChatData) => c.remoteJid === remoteJid || c.aliases?.includes(remoteJid),
-    );
-    return chat?.instanceName;
+  /**
+   * De que linea es este chat. `undefined` si no se puede saber.
+   *
+   * Comparaba solo `remoteJid` y `aliases`, que es el juego corto —y `aliases`
+   * viene VACIO en la mayoria de los contactos, asi que comparar contra el era
+   * casi no comparar—. Un contacto seleccionado por su `@lid` cuando su fila
+   * esta guardada por el numero no se encontraba, esto devolvia `undefined`, y
+   * el borrado salia sin linea: la marca quedaba como «de todas las lineas» y
+   * el `DELETE` local arrasaba el historial del contacto en toda la cuenta.
+   * Es la misma leccion que ya costo cara en `isOpenChat`, en el aviso en vivo
+   * y en la pausa de la IA: **por todas las identidades, o no se compara**.
+   *
+   * Y devuelve `undefined` tambien cuando hay VARIAS lineas posibles. Antes
+   * `.find` se quedaba con la primera que apareciera, asi que con el mismo
+   * contacto en dos lineas la marca podia caer en la equivocada —y el orden de
+   * la lista cambia cada 20 s, asi que ni siquiera era el mismo error dos
+   * veces—. Sin respuesta clara no hay respuesta: quien llama decide, y hoy lo
+   * que hacen es no borrar y avisar.
+   */
+  const lineaDelJid = useCallback((remoteJid: string): string | undefined => {
+    const identidades = new Set(buildWhatsAppJidCandidates(remoteJid));
+    const lineas = new Set<string>();
+    for (const chat of contactsRef.current as ChatData[]) {
+      if (!chatMatchesAnyJid(chat, identidades)) continue;
+      if (chat.instanceName) lineas.add(chat.instanceName);
+    }
+    if (lineas.size !== 1) return undefined;
+    return lineas.values().next().value;
   }, []);
 
   contactsRef.current = contacts;
@@ -2993,14 +3016,43 @@ export function ChatsClient({
       // mensajes de ninguna linea- y la marca queda como "de todas". El borrado
       // de uno en uno ya pasaba su linea desde la fila; a este se le habia
       // pasado.
-      const porCuentaYLinea = new Map<string, { owner: string; linea?: string; jids: string[] }>();
+      //
+      // Y el grupo «sin linea» YA NO EXISTE. Estaba aceptado de forma explicita
+      // (`${owner}::${linea ?? ""}`), y era la puerta por la que entraban las
+      // marcas de todas las lineas: si `lineaDelJid` no sabia contestar, se
+      // borraba igual y sin acotar. Ahora lo que no se puede situar no se
+      // borra, y se dice cuantos fueron.
+      const sinLinea: string[] = [];
+      const porCuentaYLinea = new Map<string, { owner: string; linea: string; jids: string[] }>();
       for (const jid of remoteJids) {
         const owner = ownerForJid(jid);
         const linea = lineaDelJid(jid);
-        const clave = `${owner}::${linea ?? ""}`;
+        if (!linea) {
+          sinLinea.push(jid);
+          continue;
+        }
+        const clave = `${owner}::${linea}`;
         const grupo = porCuentaYLinea.get(clave);
         if (grupo) grupo.jids.push(jid);
         else porCuentaYLinea.set(clave, { owner, linea, jids: [jid] });
+      }
+
+      if (sinLinea.length > 0) {
+        // Nunca mudo: quedarse chats seleccionados sin borrar y no decirlo se ve
+        // como «el boton no funciona».
+        console.warn("[chats] no se pudo saber de que linea son estos chats; no se borran", {
+          cuantos: sinLinea.length,
+          jids: sinLinea.slice(0, 10),
+        });
+      }
+
+      if (porCuentaYLinea.size === 0) {
+        toast.error(
+          sinLinea.length === 1
+            ? "No se pudo saber de que linea es ese chat. Abrelo y borralo desde la conversacion."
+            : `No se pudo saber de que linea son esos ${sinLinea.length} chats. Abrelos y borralos uno a uno.`,
+        );
+        return;
       }
 
       const results = await Promise.all(
@@ -3018,7 +3070,11 @@ export function ChatsClient({
         toast.error(results[0]?.result.message || "No se pudieron eliminar los chats.");
         return;
       }
-      const deletedJids = new Set(remoteJids.flatMap((jid) => buildWhatsAppJidCandidates(jid)));
+      // Solo se quitan de la pantalla los que de verdad se mandaron a borrar.
+      // Con `remoteJids` entero, los que se quedaron sin linea desaparecian de
+      // la lista sin haberse borrado y volvian en el refresco siguiente.
+      const enviados = Array.from(porCuentaYLinea.values()).flatMap((g) => g.jids);
+      const deletedJids = new Set(enviados.flatMap((jid) => buildWhatsAppJidCandidates(jid)));
       setCurrentChatsResult((prev) =>
         prev.success
           ? {
@@ -3046,7 +3102,13 @@ export function ChatsClient({
         setMessages([]);
         setInfo(undefined);
       }
-      toast.success(ok[0].result.message);
+      if (sinLinea.length > 0) {
+        toast.warning(
+          `${sinLinea.length} chat${sinLinea.length !== 1 ? "s" : ""} no se borr${sinLinea.length !== 1 ? "aron" : "o"}: no se pudo saber de que linea ${sinLinea.length !== 1 ? "son" : "es"}. Abre${sinLinea.length !== 1 ? "los" : "lo"} y borra desde la conversacion.`,
+        );
+      } else {
+        toast.success(ok[0].result.message);
+      }
     },
     [ownerForJid, lineaDelJid, selectedJid],
   );

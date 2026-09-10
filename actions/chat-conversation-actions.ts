@@ -214,6 +214,27 @@ function normalizarLinea(instanceName?: string | null) {
 }
 
 /**
+ * No se sabe de que linea es el chat, asi que no se borra nada.
+ *
+ * Es una clase propia y no un `Error` a secas para que quien llama pueda
+ * distinguirlo de un fallo de verdad: «Vaciar eliminados» se lo salta y sigue,
+ * y los dos botones de borrar lo enseñan como aviso y no como error.
+ */
+// NO se exporta: este fichero es `'use server'` y ahi todo lo exportado tiene
+// que ser una funcion `async`. Exportar una clase compila -`npm run build` pasa
+// limpio- y luego, en produccion, CADA llamada a cualquier accion del fichero
+// da 500. Ya costo la primera version de Carpetas (ver CLAUDE.md). No hace
+// falta exportarla: los tres que la miran viven en este mismo fichero.
+class SinLineaParaBorrar extends Error {
+  constructor() {
+    super(
+      "No se pudo saber de que linea es este chat, asi que no se borro nada. Abrelo y borralo desde la conversacion.",
+    );
+    this.name = "SinLineaParaBorrar";
+  }
+}
+
+/**
  * La preferencia se guarda bajo la cuenta DUEÑA de la línea del chat, no bajo
  * la que se esté mirando: la bandeja enseña las líneas de todas las cuentas
  * asociadas, y si la marca cayera en la cuenta activa, al leerla bajo la dueña
@@ -410,6 +431,38 @@ async function hardDeleteLocalChat(
   const deletedAt = new Date();
   const linea = normalizarLinea(instanceName);
 
+  // SIN LINEA NO SE BORRA. Ni el historial, ni la marca.
+  //
+  // Esto era destruccion de datos que nadie pidio. Mas abajo, el filtro de
+  // linea de los `DELETE` se arma asi:
+  //
+  //     const deEstaLinea = linea ? Prisma.sql`AND "instanceName" = ${linea}` : Prisma.empty;
+  //
+  // Con la linea vacia, `Prisma.empty` deja los `DELETE` SIN filtro, y entonces
+  // borrar un chat en una linea se llevaba por delante las conversaciones, los
+  // mensajes y las sesiones de ese contacto en TODAS las lineas de la cuenta.
+  // Y la marca se guardaba con `instanceName = ''`, que la bandeja aplica
+  // tambien a todas (ver `chatPreferenceKeys`). O sea que una sola pulsacion
+  // sin linea escondia al contacto en toda la cuenta y ademas le borraba el
+  // historial en todas partes.
+  //
+  // De ahi salieron las 1081 marcas «de todas las lineas» que hay en produccion
+  // -y de ahi que 978 de ellas ya no tengan ni un mensaje en `chat_messages`:
+  // no es la retencion ni es que sean de Evolution, es que este `DELETE` se los
+  // llevo-.
+  //
+  // La regla es simple y no admite excepcion: **si no se sabe de que linea es,
+  // no se toca nada**. Quien llama lo dice y avisa. Es preferible un boton que
+  // se queja a un boton que borra de mas sin decirlo.
+  if (!linea) {
+    console.warn("[chats] borrado rechazado: no se sabe de que linea es el chat", {
+      userId,
+      remoteJid: normalizedRemoteJid,
+      pedidoComo: remoteJid,
+    });
+    throw new SinLineaParaBorrar();
+  }
+
   // Las identidades se completan con lo que guarda NUESTRA base antes de
   // borrar nada.
   //
@@ -425,7 +478,7 @@ async function hardDeleteLocalChat(
   const vistos = await db.chatMessage.findMany({
     where: {
       userId,
-      ...(linea ? { instanceName: linea } : {}),
+      instanceName: linea,
       OR: [
         { remoteJid: { in: formasBase } },
         { remoteJidAlt: { in: formasBase } },
@@ -447,7 +500,7 @@ async function hardDeleteLocalChat(
   //
   // Sin linea -llamadas viejas- se conserva el comportamiento de antes, para no
   // dejar a medias un borrado que el usuario pidio completo.
-  const soloDeEstaLinea = linea ? { instanceName: linea } : {};
+  const soloDeEstaLinea = { instanceName: linea };
   let deletedPreferenceRow: ChatConversationPreference | null = null;
 
   await db.$transaction(async (tx) => {
@@ -462,7 +515,10 @@ async function hardDeleteLocalChat(
     const sessions = await tx.session.findMany({
       where: {
         userId,
-        ...(linea ? { instanceId: linea } : {}),
+        // Acotada SIEMPRE, por lo mismo que el filtro de los DELETE: estas
+        // sesiones se borran unas lineas mas abajo, y sin acotar se borraba la
+        // ficha de CRM del contacto en todas las lineas de la cuenta.
+        instanceId: linea,
         OR: [
           { remoteJid: { in: candidates } },
           { remoteJidAlt: { in: candidates } },
@@ -490,9 +546,16 @@ async function hardDeleteLocalChat(
     // el borrado se acota a la linea de la que se pidio. Sin ese filtro, borrar
     // un chat en una linea se llevaba por delante el historial del mismo
     // contacto en TODAS las demas.
-    const deEstaLinea = linea
-      ? Prisma.sql`AND "instanceName" = ${linea}`
-      : Prisma.empty;
+    // SIN ternario, a proposito. Esto era:
+    //
+    //     linea ? Prisma.sql`AND "instanceName" = ${linea}` : Prisma.empty
+    //
+    // y esa rama `Prisma.empty` es la que dejaba los dos `DELETE` de abajo sin
+    // filtro. Arriba hay una guarda que ya impide llegar hasta aqui sin linea,
+    // pero una guarda se puede quitar y un ternario invita a ello. Asi el
+    // filtro no PUEDE faltar: si `linea` fuera vacia, la consulta no borraria
+    // nada en vez de borrarlo todo.
+    const deEstaLinea = Prisma.sql`AND "instanceName" = ${linea}`;
 
     await tx.$executeRaw`
       DELETE FROM "chat_conversations"
@@ -979,6 +1042,9 @@ export async function deleteChatConversationAction(
     };
   } catch (error) {
     console.error("[deleteChatConversationAction]", error);
+    // `SinLineaParaBorrar` no es un fallo: es que no se sabe de que linea es el
+    // chat y por eso NO se borro nada. Su propio mensaje ya lo explica y dice
+    // que hacer, asi que se devuelve tal cual.
     return {
       success: false,
       message: error instanceof Error ? error.message : "No se pudo eliminar el chat.",
@@ -1026,6 +1092,7 @@ export async function purgeDeletedChatsAction(
     await ensurePurgedAtColumn();
     let count = 0;
     let saltadas = 0;
+    let sinLinea = 0;
 
     for (const cuenta of cuentas) {
       if (cuenta !== userId) {
@@ -1042,12 +1109,38 @@ export async function purgeDeletedChatsAction(
         select: { instanceName: true, remoteJid: true },
       });
 
+      // Las marcas ANTIGUAS -las que se guardaron sin linea- se saltan.
+      //
+      // Este bucle relee las marcas y vuelve a llamar al borrado con SU
+      // `instanceName`. Con una marca antigua eso es la cadena vacia, o sea
+      // exactamente el caso que arrasaba el historial del contacto en todas las
+      // lineas de la cuenta. Y ademas se reescribia como vacia, asi que el
+      // problema se perpetuaba a si mismo cada vez que alguien pulsaba «Vaciar
+      // eliminados».
+      //
+      // Se quedan como estan, sin purgar y sin `purgedAt`, hasta que se decida
+      // que hacer con ellas. No purgarlas no rompe nada: la marca sigue
+      // ocultando el chat igual que hoy.
       for (const { instanceName, remoteJid } of marcados) {
-        await hardDeleteLocalChat(cuenta, instanceName, remoteJid);
+        try {
+          await hardDeleteLocalChat(cuenta, instanceName, remoteJid);
+        } catch (error) {
+          if (error instanceof SinLineaParaBorrar) {
+            sinLinea++;
+            continue;
+          }
+          throw error;
+        }
       }
 
       const limpiados = await chatConversationPreferenceTable.updateMany({
-        where: { userId: cuenta, deletedAt: { not: null }, purgedAt: null },
+        where: {
+          userId: cuenta,
+          deletedAt: { not: null },
+          purgedAt: null,
+          // Solo se dan por limpiadas las que de verdad se limpiaron.
+          NOT: { instanceName: "" },
+        },
         data: { purgedAt: new Date() },
       });
       count += limpiados.count;
@@ -1061,12 +1154,18 @@ export async function purgeDeletedChatsAction(
     // quedara nada, es que estaba en cuentas que no se tocaron.
     const enCuentasAjenas =
       saltadas > 0 ? ` Quedan chats en ${saltadas} cuenta${saltadas !== 1 ? "s" : ""} donde no se puede limpiar.` : "";
+    // Y se dice cuantas quedaron fuera por no saber su linea, en vez de dejarlo
+    // en un numero que no cuadra y no explica por que.
+    const antiguas =
+      sinLinea > 0
+        ? ` ${sinLinea} marca${sinLinea !== 1 ? "s" : ""} antigua${sinLinea !== 1 ? "s" : ""} sin linea no se toc${sinLinea !== 1 ? "aron" : "o"}.`
+        : "";
 
     return {
       success: true,
       message: (count > 0
         ? `${count} chat${count !== 1 ? "s" : ""} limpiado${count !== 1 ? "s" : ""} por completo.`
-        : "No quedaba nada por limpiar.") + enCuentasAjenas,
+        : "No quedaba nada por limpiar.") + enCuentasAjenas + antiguas,
       data: { purged: count },
     };
   } catch (error) {
