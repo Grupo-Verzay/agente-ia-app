@@ -195,11 +195,43 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       orderBy: { name: "asc" },
     });
 
+    // El Robot de cada cuenta, de UNA consulta y para TODOS los proveedores.
+    //
+    // Estaba dentro del bloque que habla con Evolution, y ese bloque solo corre
+    // si la cuenta tiene alguna linea de tipo `whatsapp`/`evolution`. Una cuenta
+    // servida por Waha no entraba nunca, asi que `isEvoEnabled` se quedaba en su
+    // valor inicial —`false`— y la columna Agente salia SIEMPRE en rojo, "Robot
+    // apagado", con el Robot encendido. Es el mismo fallo que ya se arreglo en la
+    // tarjeta de la linea: la marca vale para los dos proveedores (el backend lee
+    // `bot_enabled` en cada mensaje, venga de donde venga), lo que sobraba era
+    // preguntarselo a Evolution.
+    //
+    // Y va fuera del `map`: una consulta por cliente son 34 idas y vueltas a la
+    // base cada vez que se abre la pantalla.
+    const robotPorCuenta = new Map<string, boolean>();
+    let hayColumnaDelRobot = true;
+    if (users.length > 0) {
+      try {
+        const marcas = await db.$queryRaw<{ userId: string; bot_enabled: boolean }[]>(
+          Prisma.sql`SELECT "userId", "bot_enabled" FROM "Instancias" WHERE "userId" IN (${Prisma.join(users.map((u) => u.id))})`,
+        );
+        // Con varias lineas basta con que UNA tenga el Robot encendido.
+        for (const marca of marcas) {
+          if (marca.bot_enabled) robotPorCuenta.set(marca.userId, true);
+          else if (!robotPorCuenta.has(marca.userId)) robotPorCuenta.set(marca.userId, false);
+        }
+      } catch {
+        // La columna la crea el backend. Sin ella se sigue como antes, con lo
+        // que diga el webhook de Evolution (ver mas abajo).
+        hayColumnaDelRobot = false;
+      }
+    }
+
     const enrichedUsers: ClientInterface[] = await Promise.all(
       users.map(async (user): Promise<ClientInterface> => {
         // qrStatus === true significa DESCONECTADO (así lo leen la tabla, los
         // contadores y el filtro).
-        let isEvoEnabled = false;
+        let isEvoEnabled = robotPorCuenta.get(user.id) ?? false;
         let reseller: User | null = null;
         let credits: IaCredit | null = null;
 
@@ -283,20 +315,13 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
             // operando. Marcarlo en rojo por una instancia vieja que quedó suelta
             // lo metería en la lista de a quién escribirle sin motivo.
             qrStatus = !resultados.some((r) => r.conectada);
-            isEvoEnabled = resultados.some((r) => r.robot);
 
             // El robot ya no es el webhook: es la marca `bot_enabled` de la
-            // linea (ver actions/robot-actions.ts). El webhook va siempre
-            // encendido, asi que leerlo diria "robot encendido" para todas. Si
-            // la columna aun no existe, se queda con el webhook, como antes.
-            try {
-              const marcas = await db.$queryRaw<{ bot_enabled: boolean }[]>(
-                Prisma.sql`SELECT "bot_enabled" FROM "Instancias" WHERE "userId" = ${user.id}`,
-              );
-              if (marcas.length > 0) isEvoEnabled = marcas.some((m) => m.bot_enabled);
-            } catch {
-              // Sin columna todavia: manda el webhook.
-            }
+            // linea (ver actions/robot-actions.ts), y esa ya se leyo arriba para
+            // todas las cuentas. El webhook va siempre encendido, asi que leerlo
+            // diria "robot encendido" para todas: solo manda cuando la columna
+            // todavia no existe.
+            if (!hayColumnaDelRobot) isEvoEnabled = resultados.some((r) => r.robot);
           } catch (error) {
             console.warn(`No se pudo comprobar el estado de las líneas del usuario ${user.id}`, error);
           }
