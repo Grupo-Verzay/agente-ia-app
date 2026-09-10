@@ -38,3 +38,93 @@ export function chatPreferenceKeys(
   const antigua = chatPreferenceKey(ownerUserId, "", remoteJid);
   return deSuLinea === antigua ? [antigua] : [deSuLinea, antigua];
 }
+
+/** Lo que hace falta de una marca para elegir entre varias. */
+type MarcaConFechas = {
+  pinnedAt?: string | Date | null;
+  archivedAt?: string | Date | null;
+  deletedAt?: string | Date | null;
+  purgedAt?: string | Date | null;
+};
+
+/** Cuándo se tocó por última vez esta fila. Sin ninguna fecha, nunca. */
+function cuandoSeToco(marca: MarcaConFechas | undefined): number {
+  if (!marca) return -1;
+  let ultima = 0;
+  for (const valor of [marca.pinnedAt, marca.archivedAt, marca.deletedAt, marca.purgedAt]) {
+    if (!valor) continue;
+    const ms = valor instanceof Date ? valor.getTime() : new Date(valor).getTime();
+    if (Number.isFinite(ms) && ms > ultima) ultima = ms;
+  }
+  return ultima;
+}
+
+/**
+ * La marca que manda para un chat, entre todas las que pueda tener.
+ *
+ * Un contacto tiene varias identidades (`remoteJid`, `remoteJidAlt`, `senderPn`,
+ * su `@lid`) y hasta dos filas por cada una: la de **su línea** y la **antigua**,
+ * de cuando la tabla no guardaba la línea y la marca valía para todas.
+ *
+ * Antes esto era un `.find(Boolean)` sobre esa lista: **ganaba la primera que
+ * apareciera**, y el orden lo pone la identidad, no la fecha. Eso es lo que
+ * hacía que un chat volviera una y otra vez, y es un caso muy concreto:
+ *
+ * - El contacto tiene una fila **antigua** —sin línea— con `pinnedAt` puesto,
+ *   de cuando anclar no mandaba la línea.
+ * - Se elimina el chat. El borrado escribe filas nuevas, **de su línea**, con
+ *   `deletedAt`, bajo todas las identidades que sepa cruzar.
+ * - La lista lo devuelve la vuelta siguiente por otra de sus identidades, y por
+ *   esa la primera fila que aparece es la antigua: la que dice «anclado» y no
+ *   dice «borrado». **La marca nueva no se llega a mirar.**
+ *
+ * Y no se cruzaban todas las identidades porque quien sabe cruzar `@lid` con
+ * número es `chat_messages`... que el propio borrado acababa de vaciar. Se
+ * eliminaba diez veces y volvía diez veces.
+ *
+ * La regla, que es la de siempre en Chats —cuando una forma se queda corta, se
+ * miran todas— aplicada por fin a **leer**:
+ *
+ * 1. **Si hay alguna fila de SU línea, mandan esas**, aunque exista una antigua.
+ *    Lo de esta línea es más reciente y más preciso por definición.
+ * 2. **Entre varias, la que se tocó la última.** Nunca se mezclan campos de dos
+ *    filas: se elige una y se devuelve entera, o el chat saldría anclado por una
+ *    y borrado por otra.
+ * 3. La antigua sigue valiendo **cuando en esta línea no hay nada**, para no
+ *    resucitar lo que alguien ya borró antes de que existiera la columna.
+ */
+export function elegirPreferenciaDelChat<T extends MarcaConFechas>(
+  preferencias: Record<string, T | undefined>,
+  ownerUserId: string,
+  instanceName: string | null | undefined,
+  identidades: string[],
+): T | undefined {
+  let deSuLinea: T | undefined;
+  let deSuLineaMs = -1;
+  let antigua: T | undefined;
+  let antiguaMs = -1;
+
+  const linea = (instanceName ?? "").trim();
+
+  for (const identidad of identidades) {
+    const suya = linea ? preferencias[chatPreferenceKey(ownerUserId, linea, identidad)] : undefined;
+    if (suya) {
+      const ms = cuandoSeToco(suya);
+      if (ms > deSuLineaMs) {
+        deSuLinea = suya;
+        deSuLineaMs = ms;
+      }
+    }
+
+    const vieja = preferencias[chatPreferenceKey(ownerUserId, "", identidad)];
+    if (vieja) {
+      const ms = cuandoSeToco(vieja);
+      if (ms > antiguaMs) {
+        antigua = vieja;
+        antiguaMs = ms;
+      }
+    }
+  }
+
+  return deSuLinea ?? antigua;
+}

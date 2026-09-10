@@ -52,6 +52,18 @@ const baseSchema = z.object({
   // sin ella la marca se guarda como "de todas las lineas", igual que antes.
   instanceName: z.string().trim().optional(),
   remoteJid: z.string().trim().min(1),
+  // Las identidades que la fila YA tiene en pantalla.
+  //
+  // Quien sabe cruzar un `@lid` con su numero es `chat_messages`... que el
+  // primer borrado deja vacio. A partir del segundo, el servidor solo conoce la
+  // forma con la que se pidio, asi que la marca se quedaba a medias y el chat
+  // volvia con la otra. La lista SI las tiene todas -llegan en el propio chat-,
+  // asi que las manda.
+  //
+  // Solo se usan para MARCAR. Lo que borra historial sigue yendo con las que
+  // resuelve el servidor: una lista que llega de fuera no decide que filas se
+  // borran.
+  identidades: z.array(z.string().trim().min(1)).max(20).optional(),
 });
 
 const pinSchema = baseSchema.extend({
@@ -308,8 +320,9 @@ async function identidadesDelContacto(
   userId: string,
   linea: string,
   normalizedRemoteJid: string,
+  extra: string[] = [],
 ): Promise<string[]> {
-  const formasBase = buildWhatsAppJidCandidates(normalizedRemoteJid);
+  const formasBase = buildWhatsAppJidCandidates(normalizedRemoteJid, extra);
   const vistos = await db.chatMessage
     .findMany({
       where: {
@@ -327,10 +340,10 @@ async function identidadesDelContacto(
     })
     .catch(() => [] as { remoteJid: string; remoteJidAlt: string | null; senderPn: string | null }[]);
 
-  return buildWhatsAppJidCandidates(
-    normalizedRemoteJid,
-    vistos.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
-  );
+  return buildWhatsAppJidCandidates(normalizedRemoteJid, [
+    ...vistos.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
+    ...extra,
+  ]);
 }
 
 /**
@@ -357,11 +370,17 @@ async function upsertPreferenceEnTodasLasIdentidades(
     deletedAt?: Date | null;
     purgedAt?: Date | null;
   },
+  identidadesDeLaFila: string[] = [],
 ): Promise<ChatConversationPreference> {
   await ensurePurgedAtColumn();
   const linea = normalizarLinea(instanceName);
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
-  const identidades = await identidadesDelContacto(userId, linea, normalizedRemoteJid);
+  const identidades = await identidadesDelContacto(
+    userId,
+    linea,
+    normalizedRemoteJid,
+    identidadesDeLaFila,
+  );
 
   let primera: ChatConversationPreference | null = null;
   for (const jid of identidades) {
@@ -527,6 +546,7 @@ async function hardDeleteLocalChat(
   userId: string,
   instanceName: string | null | undefined,
   remoteJid: string,
+  identidadesDeLaFila: string[] = [],
 ) {
   await ensurePurgedAtColumn();
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
@@ -589,6 +609,21 @@ async function hardDeleteLocalChat(
   // cual porque el anclado —el otro que la usa— si acepta quedarse sin linea, y
   // ahi buscar en todas es lo que se quiere.
   const candidates = await identidadesDelContacto(userId, linea, normalizedRemoteJid);
+  // Las que sabe la pantalla se suman SOLO para marcar.
+  //
+  // El segundo borrado del mismo contacto ya no encuentra nada en
+  // `chat_messages` -se lo llevo el primero-, asi que el servidor se queda con
+  // la forma que le pidieron y la marca no cubre las demas. La lista si las
+  // tiene: llegan dentro del propio chat. Por eso ahora las manda.
+  //
+  // Y NO entran en los `DELETE` de abajo, a proposito: esos borran historial, y
+  // una lista de identidades que llega de fuera no puede decidir que filas se
+  // borran. Para marcar no hay ese riesgo -una marca de mas se levanta sola en
+  // cuanto el contacto escribe- y es justo lo que faltaba.
+  const paraMarcar = buildWhatsAppJidCandidates(normalizedRemoteJid, [
+    ...candidates,
+    ...identidadesDeLaFila,
+  ]);
   // Cuando se sabe de que linea se esta borrando, se borra SOLO de esa. Hasta
   // ahora esto arrasaba con el contacto en todas las lineas de la cuenta: sus
   // sesiones, sus conversaciones y todos sus mensajes. Con varias lineas
@@ -689,7 +724,7 @@ async function hardDeleteLocalChat(
     // Se marca la pedida primero, para que sea la que se devuelve a la pantalla.
     const identidades = [
       normalizedRemoteJid,
-      ...candidates.filter((candidate) => candidate !== normalizedRemoteJid),
+      ...paraMarcar.filter((candidate) => candidate !== normalizedRemoteJid),
     ];
 
     for (const identidad of identidades) {
@@ -739,8 +774,9 @@ async function hardDeleteLocalChat(
     linea: linea || "(vacia = vale para todas)",
     remoteJid: normalizedRemoteJid,
     pedidoComo: remoteJid,
-    identidadesMarcadas: candidates.length,
+    identidadesMarcadas: paraMarcar.length,
     completadasDesdeLaBase: Math.max(0, candidates.length - formasBase.length),
+    completadasDesdeLaPantalla: Math.max(0, paraMarcar.length - candidates.length),
   });
 
   invalidatePersistedInboxCache();
@@ -1083,6 +1119,7 @@ export async function toggleChatPinAction(
       parsed.instanceName,
       parsed.remoteJid,
       { pinnedAt: parsed.isPinned ? new Date() : null },
+      parsed.identidades ?? [],
     );
 
     return {
@@ -1106,11 +1143,20 @@ export async function setChatArchivedAction(
     const parsed = archiveSchema.parse(input);
     await assertAuthorized(parsed.userId);
 
-    const data = await upsertPreference(parsed.userId, parsed.instanceName, parsed.remoteJid, {
-      archivedAt: parsed.archived ? new Date() : null,
-      deletedAt: null,
-      purgedAt: null,
-    });
+    // Bajo TODAS las identidades, igual que anclar y borrar. Archivar se habia
+    // quedado escribiendo bajo una sola: se archivaba con la fila bajo su `@lid`
+    // y al desarchivarla con la fila bajo su numero quedaba la otra puesta.
+    const data = await upsertPreferenceEnTodasLasIdentidades(
+      parsed.userId,
+      parsed.instanceName,
+      parsed.remoteJid,
+      {
+        archivedAt: parsed.archived ? new Date() : null,
+        deletedAt: null,
+        purgedAt: null,
+      },
+      parsed.identidades ?? [],
+    );
 
     return {
       success: true,
@@ -1132,7 +1178,12 @@ export async function deleteChatConversationAction(
   try {
     const parsed = baseSchema.parse(input);
     await assertCanDeleteChats(parsed.userId);
-    const data = await hardDeleteLocalChat(parsed.userId, parsed.instanceName, parsed.remoteJid);
+    const data = await hardDeleteLocalChat(
+      parsed.userId,
+      parsed.instanceName,
+      parsed.remoteJid,
+      parsed.identidades ?? [],
+    );
 
     return {
       success: true,
