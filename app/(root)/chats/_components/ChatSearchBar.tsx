@@ -47,6 +47,9 @@ export function ChatSearchBar({
     ? getInstanceUiDisplayName(activeChannel)
     : "Todos";
 
+  /** La suma de las lineas: el mismo total que enseña el chip de la cabecera. */
+  const totalCount = Object.values(channelCounts).reduce((a, b) => a + b, 0);
+
   /**
    * Lineas que tienen chats pero NO tienen fila en el desplegable.
    *
@@ -110,15 +113,19 @@ export function ChatSearchBar({
               className="flex items-center justify-between gap-2 cursor-pointer"
             >
               <span className="text-xs font-medium">Todos</span>
-              {/* Sin número, a propósito.
-                  Aquí decía la suma de todas las líneas y el chip azul de la
-                  cabecera dice otra cosa —lo que la vista está enseñando, sin
-                  archivadas ni resueltas—, así que había dos «Todos» con
-                  números distintos, uno al lado del otro. Los dos eran
-                  ciertos y por eso despistaba tanto. La suma no aporta nada
-                  que no diga ya el chip; esta fila solo significa «sin
-                  filtro». */}
+              {/* La suma de las líneas, que es EXACTAMENTE lo que dice el chip
+                  azul de la cabecera: los dos salen de `channelCounts`.
+                  Estuvo un rato sin número porque cada uno decía una cosa —la
+                  suma aquí, las filas cargadas allí— y dos «Todos» distintos
+                  pegados despistan más que informar. Ya dicen lo mismo, así
+                  que el número vuelve. Si algún día vuelven a separarse, se
+                  arregla la fuente, no se esconde el número. */}
               <div className="flex items-center gap-1.5">
+                {totalCount > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground">
+                    {totalCount}
+                  </span>
+                )}
                 {!selectedChannel && <Check className="h-3.5 w-3.5 text-primary" />}
               </div>
             </DropdownMenuItem>

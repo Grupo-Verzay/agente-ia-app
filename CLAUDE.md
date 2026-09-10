@@ -1362,6 +1362,12 @@ un lado y listar por otro.**
    contando lo cargado, y ahí sí es correcto: son estados de lo que hay delante
    (mías, archivadas, resueltas), no el tamaño de la línea.
 
+   Y con los dos diciendo lo mismo, **la fila «Todos» del desplegable recupera
+   su número**: los dos salen de `channelCounts`. Quitarlo fue el parche de
+   mientras, no el destino. **Si vuelven a separarse se arregla la fuente, no se
+   esconde el número**: un hueco donde antes había una cifra no explica nada, y
+   el número es justo lo que se viene a mirar.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
