@@ -8,6 +8,26 @@
 services:
   librechat:
     image: ghcr.io/danny-avila/librechat:latest
+    # Techo del registro. Sin esto NO hay ninguno.
+    #
+    # El driver `json-file` de Docker es el de por defecto y **no rota**: el
+    # fichero de log crece hasta llenar el disco. `.144` tiene 11 GB y es el
+    # unico servidor que no se puede reemplazar, asi que un servicio hablador
+    # -y este lo es: un solo mensaje del webhook deja del orden de 10 a 30
+    # lineas en stdout- se lo come sin que nadie se entere hasta que ya no se
+    # puede escribir.
+    #
+    # 50 MB x 5 ficheros = 250 MB por servicio como maximo, pase lo que pase.
+    # Lo que se recorta es el historial mas viejo, que es lo que menos se
+    # consulta: para diagnosticar se miran las ultimas horas.
+    #
+    # OJO: esto solo entra en vigor cuando el contenedor se RECREA. Cambiarlo
+    # aqui no toca a un contenedor que ya esta corriendo.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     container_name: librechat
     restart: always
     depends_on:
@@ -43,6 +63,12 @@ services:
 
   mongodb:
     image: mongo:7
+    # Mismo techo que arriba: `json-file` no rota por defecto.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     container_name: librechat-mongodb
     restart: always
     command: mongod --noauth
@@ -51,6 +77,12 @@ services:
 
   meilisearch:
     image: getmeili/meilisearch:v1.12
+    # Mismo techo que arriba: `json-file` no rota por defecto.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     container_name: librechat-meilisearch
     restart: always
     environment:
@@ -62,6 +94,12 @@ services:
 
   vectordb:
     image: pgvector/pgvector:0.8.0-pg16
+    # Mismo techo que arriba: `json-file` no rota por defecto.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     container_name: librechat-vectordb
     restart: always
     environment:
@@ -73,6 +111,12 @@ services:
 
   rag_api:
     image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    # Mismo techo que arriba: `json-file` no rota por defecto.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     container_name: librechat-rag-api
     restart: always
     depends_on:
