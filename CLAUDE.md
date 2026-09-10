@@ -1331,11 +1331,20 @@ un lado y listar por otro.**
    con «No hay chats que coincidan con el filtro». **Un filtro que ofrece un
    número tiene que poder enseñar esas filas.**
 2. **Dos «Todos» con números distintos, uno al lado del otro.** El del
-   desplegable era la suma de las líneas (766) y el chip azul de la cabecera es
-   lo que la vista enseña, sin archivadas ni resueltas (462). Los dos ciertos, y
-   por eso despistaba tanto. La fila «Todos» del desplegable **ya no lleva
-   número**: ahí solo significa «sin filtro», y el chip de la cabecera es el
-   único sitio donde se lee un total.
+   desplegable era la suma de las líneas (766) y el chip azul de la cabecera
+   contaba las filas cargadas (462). Los dos ciertos, y por eso despistaba
+   tanto.
+
+   Se arregló en dos pasos, y el primero **no bastaba**: quitarle el número a la
+   fila «Todos» del desplegable dejó el caso peor —el desplegable ofrecía
+   «Ventas 574», se elegía, y el chip decía **290**—. Explicar que uno es el
+   total de la línea y el otro lo cargado es tener razón y no arreglar nada:
+   **son dos números para lo mismo, pegados en la pantalla.**
+
+   Ahora el chip «Todos» dice **el total de la línea**, el mismo del
+   desplegable; las filas que falten llegan al bajar. Las demás pestañas siguen
+   contando lo cargado, y ahí sí es correcto: son estados de lo que hay delante
+   (mías, archivadas, resueltas), no el tamaño de la línea.
 
 ## Chats: la lista es grande, no rehacerla por gusto
 
