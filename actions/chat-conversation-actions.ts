@@ -271,6 +271,108 @@ async function assertCanDeleteChats(userId: string) {
   throw new Error("Solo el dueño o un administrador puede eliminar chats.");
 }
 
+/**
+ * Todas las identidades conocidas de un contacto en esa linea, la pedida
+ * primero.
+ *
+ * `buildWhatsAppJidCandidates` con un `@lid` devuelve solo el `@lid`, a
+ * proposito: sus digitos no son un telefono. Y con un numero no sabe cual es su
+ * `@lid`. Quien sabe cruzarlas es `chat_messages`, que guarda cada mensaje con
+ * todas.
+ *
+ * Es la misma consulta que ya hacia el borrado; vive aparte porque la marca de
+ * anclado necesita exactamente lo mismo (ver `upsertPreferenceEnTodasLasIdentidades`).
+ */
+async function identidadesDelContacto(
+  userId: string,
+  linea: string,
+  normalizedRemoteJid: string,
+): Promise<string[]> {
+  const formasBase = buildWhatsAppJidCandidates(normalizedRemoteJid);
+  const vistos = await db.chatMessage
+    .findMany({
+      where: {
+        userId,
+        ...(linea ? { instanceName: linea } : {}),
+        OR: [
+          { remoteJid: { in: formasBase } },
+          { remoteJidAlt: { in: formasBase } },
+          { senderPn: { in: formasBase } },
+        ],
+      },
+      select: { remoteJid: true, remoteJidAlt: true, senderPn: true },
+      distinct: ["remoteJid", "remoteJidAlt", "senderPn"],
+      take: 50,
+    })
+    .catch(() => [] as { remoteJid: string; remoteJidAlt: string | null; senderPn: string | null }[]);
+
+  return buildWhatsAppJidCandidates(
+    normalizedRemoteJid,
+    vistos.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
+  );
+}
+
+/**
+ * La marca va bajo TODAS las identidades del contacto, no solo bajo la que se
+ * pidio.
+ *
+ * Es la regla que ya rige el borrado, y al anclado se le habia pasado: se
+ * anclaba un chat estando la fila bajo su `@lid`, se desanclaba mas tarde con
+ * la fila bajo su numero —la lista lo trae por la identidad que devuelva el
+ * proveedor esa vuelta, que no tiene por que ser la misma—, y el `pinnedAt` de
+ * la primera seguia puesto. Desde fuera: **se desancla y vuelve a aparecer
+ * anclado**, una y otra vez.
+ *
+ * La identidad pedida va primero, porque es la que se le devuelve a la pantalla.
+ * La cache y el `revalidatePath` se tocan UNA vez al final y no por identidad.
+ */
+async function upsertPreferenceEnTodasLasIdentidades(
+  userId: string,
+  instanceName: string | null | undefined,
+  remoteJid: string,
+  data: {
+    pinnedAt?: Date | null;
+    archivedAt?: Date | null;
+    deletedAt?: Date | null;
+    purgedAt?: Date | null;
+  },
+): Promise<ChatConversationPreference> {
+  await ensurePurgedAtColumn();
+  const linea = normalizarLinea(instanceName);
+  const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
+  const identidades = await identidadesDelContacto(userId, linea, normalizedRemoteJid);
+
+  let primera: ChatConversationPreference | null = null;
+  for (const jid of identidades) {
+    const fila = await chatConversationPreferenceTable.upsert({
+      where: {
+        userId_instanceName_remoteJid: {
+          userId,
+          instanceName: linea,
+          remoteJid: normalizePreferenceRemoteJid(jid),
+        },
+      },
+      update: data,
+      create: {
+        userId,
+        instanceName: linea,
+        remoteJid: normalizePreferenceRemoteJid(jid),
+        pinnedAt: data.pinnedAt ?? null,
+        archivedAt: data.archivedAt ?? null,
+        deletedAt: data.deletedAt ?? null,
+        purgedAt: data.purgedAt ?? null,
+      },
+    });
+    if (!primera) primera = mapPreference(fila);
+  }
+
+  invalidatePersistedInboxCache();
+  revalidatePath("/chats");
+
+  // Sin identidades no hay nada que cruzar: se guarda bajo la pedida, como antes.
+  return primera ?? (await upsertPreference(userId, instanceName, normalizedRemoteJid, data));
+}
+
 async function upsertPreference(
   userId: string,
   instanceName: string | null | undefined,
@@ -422,24 +524,7 @@ async function hardDeleteLocalChat(
   // mensaje con todas. Tiene que ir ANTES de la transaccion, que es la que
   // borra esos mensajes.
   const formasBase = buildWhatsAppJidCandidates(normalizedRemoteJid);
-  const vistos = await db.chatMessage.findMany({
-    where: {
-      userId,
-      ...(linea ? { instanceName: linea } : {}),
-      OR: [
-        { remoteJid: { in: formasBase } },
-        { remoteJidAlt: { in: formasBase } },
-        { senderPn: { in: formasBase } },
-      ],
-    },
-    select: { remoteJid: true, remoteJidAlt: true, senderPn: true },
-    distinct: ["remoteJid", "remoteJidAlt", "senderPn"],
-    take: 50,
-  });
-  const candidates = buildWhatsAppJidCandidates(
-    normalizedRemoteJid,
-    vistos.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
-  );
+  const candidates = await identidadesDelContacto(userId, linea, normalizedRemoteJid);
   // Cuando se sabe de que linea se esta borrando, se borra SOLO de esa. Hasta
   // ahora esto arrasaba con el contacto en todas las lineas de la cuenta: sus
   // sesiones, sus conversaciones y todos sus mensajes. Con varias lineas
@@ -919,9 +1004,12 @@ export async function toggleChatPinAction(
     const parsed = pinSchema.parse(input);
     await assertAuthorized(parsed.userId);
 
-    const data = await upsertPreference(parsed.userId, parsed.instanceName, parsed.remoteJid, {
-      pinnedAt: parsed.isPinned ? new Date() : null,
-    });
+    const data = await upsertPreferenceEnTodasLasIdentidades(
+      parsed.userId,
+      parsed.instanceName,
+      parsed.remoteJid,
+      { pinnedAt: parsed.isPinned ? new Date() : null },
+    );
 
     return {
       success: true,
@@ -1178,7 +1266,7 @@ export async function bulkPinChatsAction(
 
     const results = await Promise.all(
       parsed.remoteJids.map((remoteJid) =>
-        upsertPreference(parsed.userId, parsed.instanceName, remoteJid, {
+        upsertPreferenceEnTodasLasIdentidades(parsed.userId, parsed.instanceName, remoteJid, {
           pinnedAt: input.isPinned ? new Date() : null,
         }),
       ),
