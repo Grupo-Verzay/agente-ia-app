@@ -37,6 +37,7 @@ import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, Chevr
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
 import { ETIQUETAS_DE_SERVICIO, type EstadoDelServicio } from '@/lib/clientes-activos'
+import { cn } from '@/lib/utils'
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -110,14 +111,14 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
     <div className="flex flex-col h-full gap-2">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
-        {/* La barra se parte en dos filas cuando no cabe. Sin `flex-wrap` —y con
-            el buscador de ancho fijo— con el menú lateral desplegado los botones
-            de la derecha («Columnas», «Acciones») se salían de la pantalla y no
-            había forma de llegar a ellos. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-1 basis-72 flex-row flex-wrap gap-2">
+        {/* La misma barra que Equipo: izquierda fija, zona central que SCROLLEA
+            cuando no cabe y derecha fija. Con el menú lateral desplegado los
+            botones de la derecha («Columnas», «Acciones») se salían de la
+            pantalla y no había forma de llegar a ellos. */}
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 min-w-0 items-center gap-2">
 
-            <div className="flex min-w-0 flex-1 basis-64 flex-row items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-row items-center gap-2 sm:flex-none sm:shrink-0">
               <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
 
               {/* button-create-client. En el teléfono ocupaba una fila entera
@@ -136,7 +137,8 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
               }
             </div>
 
-            <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+            {/* Zona central: SCROLLEA cuando no cabe (estado, contadores, columnas) */}
+            <div className="flex flex-1 min-w-0 items-center gap-1 overflow-x-auto">
               {/* Qué clientes se ven. Va aquí y no dentro de «Columnas»: eso
                   decide qué datos se enseñan de cada fila, no qué filas hay.
                   Cuando no está en «Todos» se pinta en azul, para que no se
@@ -145,7 +147,10 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className={servicio === 'todos' ? undefined : 'border-sky-500 text-sky-600'}
+                    className={cn(
+                      'ml-auto shrink-0',
+                      servicio === 'todos' ? undefined : 'border-sky-500 text-sky-600',
+                    )}
                     title="Filtrar por estado del servicio"
                   >
                     <BadgeCheck className="h-4 w-4" />
@@ -177,7 +182,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
+                  <Button variant="outline" className="shrink-0">
                     <Ellipsis className="h-4 w-4 md:hidden" />
                     <span className="hidden md:inline">Columnas</span>
                     <ChevronDown className="ml-2 h-4 w-4 hidden md:inline" />
@@ -199,10 +204,13 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                     ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+            </div>
 
+            {/* Derecha FIJA: nunca se va de la pantalla ni se desplaza */}
+            <div className="flex shrink-0 items-center gap-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
+                  <Button variant="outline" size="icon" className="shrink-0">
                     <Ellipsis className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

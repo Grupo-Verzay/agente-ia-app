@@ -81,7 +81,7 @@ export const ClientStatusPanel = ({ users, onFilterChange }: ClientStatusSummary
         // apilaban uno debajo de otro y empujaban la tabla media pantalla hacia
         // abajo. Son las mismas cifras de las tarjetas de arriba, que también se
         // saltan en móvil.
-        <div className="hidden sm:flex sm:flex-row">
+        <div className="hidden shrink-0 sm:flex sm:flex-row">
             {(
                 ["total", "qrDisconnected", "qrConnected", "evoOn", "evoOff"] as StatusKey[]
             ).map((key) => {
