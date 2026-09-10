@@ -2697,8 +2697,20 @@ export function ChatsClient({
     async (remoteJid: string, isPinned: boolean) => {
       // Bajo la cuenta DUEÑA de la línea, no bajo la que se esté mirando.
       const ownerUserId = ownerForJid(remoteJid);
+      // Y CON SU LÍNEA. Sin ella la marca se guardaba bajo la llave global
+      // —`instanceName` vacío—, que es la vieja, y la pantalla busca primero la
+      // de la línea y solo después esa. Resultado: se desanclaba, la marca
+      // global se quedaba puesta bajo otra de las identidades del contacto, y
+      // el chat volvía anclado. Peor aún, esa marca global dice «no borrado» y
+      // puede ganarle a la de borrado —que sí va por línea—, así que el mismo
+      // chat reaparecía después de eliminarlo.
+      //
+      // Es el mismo descuido que ya costó el borrado múltiple (#486): la acción
+      // que marca un chat pasa su línea.
+      const linea = lineaDelJid(remoteJid);
       const result = await toggleChatPinAction({
         userId: ownerUserId,
+        instanceName: linea,
         remoteJid,
         isPinned,
       });
@@ -2717,8 +2729,11 @@ export function ChatsClient({
   const handleArchiveChat = useCallback(
     async (remoteJid: string, archived: boolean) => {
       const ownerUserId = ownerForJid(remoteJid);
+      // Con su línea, por lo mismo que el anclado: sin ella la marca cae en la
+      // llave global y deja de casar con la fila.
       const result = await setChatArchivedAction({
         userId: ownerUserId,
+        instanceName: lineaDelJid(remoteJid),
         remoteJid,
         archived,
       });
@@ -2737,7 +2752,7 @@ export function ChatsClient({
         setInfo(undefined);
       }
     },
-    [applyChatPreference, ownerForJid, selectedJid],
+    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid],
   );
 
   const handleDeleteChat = useCallback(
