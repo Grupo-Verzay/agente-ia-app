@@ -1534,21 +1534,29 @@ function recortarRawSql(col: Prisma.Sql): Prisma.Sql {
 /**
  * Cuantas conversaciones tiene cada linea DE VERDAD.
  *
- * El numero y la lista son dos cosas distintas y hasta ahora eran la misma: el
+ * El numero y la lista son dos cosas distintas y llegaron a ser la misma: el
  * contador de cada canal se sacaba contando las filas cargadas, asi que con el
  * tope de la bandeja mordiendo decia 290 en una linea de 576. Nadie baja mas
  * alla de los primeros chats, asi que la LISTA puede seguir acotada; lo que no
  * puede estar recortado es el NUMERO.
  *
- * Y sale barato: dos `COUNT` agrupados sobre `Session`, por `userId` —primera
- * columna de su indice unico— sin tocar `chat_conversations` ni el JSON pesado
- * de `lastMessageRaw`, que es lo que obligaba a poner tope.
+ * Es **un solo `COUNT`** sobre `Session`, sin tocar `chat_conversations` ni el
+ * JSON pesado de `lastMessageRaw`, que es lo que obligaba a poner tope.
  *
- * Se descuentan las borradas y las archivadas, para que siga cumpliendose lo de
- * siempre: limpiar chats tiene que bajar el numero de la linea. Se cuentan las
- * SESIONES con marca, no las marcas: una sola conversacion borrada deja marca
- * bajo todas sus identidades (`remoteJid`, `remoteJidAlt`, `senderPn`, el
- * `@lid`), asi que restar marcas restaria hasta cuatro veces de mas.
+ * Dos cosas que lo hacen dar el numero bueno y no uno parecido:
+ *
+ * 1. **`COUNT(DISTINCT remoteJid)`, no `COUNT(*)`.** La bandeja mira las lineas
+ *    de VARIAS cuentas a la vez (`allSessionUserIds`: la propia, la de sesion,
+ *    las vinculadas), y una misma linea puede tener la ficha del mismo contacto
+ *    bajo mas de un `userId` -pasa con las conversaciones viejas guardadas bajo
+ *    el dueño anterior de la linea-. Contando filas, una linea de 576 decia
+ *    **1036**: el mismo contacto contado dos veces.
+ * 2. **Las borradas y las archivadas se descuentan dentro de la consulta**, con
+ *    un `NOT EXISTS`, para que siga cumpliendose lo de siempre: limpiar chats
+ *    baja el numero de la linea. Restar marcas por fuera no vale: una sola
+ *    conversacion borrada deja marca bajo todas sus identidades (`remoteJid`,
+ *    `remoteJidAlt`, `senderPn`, el `@lid`), asi que restaria hasta cuatro
+ *    veces de mas.
  */
 export async function contarChatsPorLinea(params: {
   userIds: string[];
@@ -1557,44 +1565,26 @@ export async function contarChatsPorLinea(params: {
   if (!userIds.length) return {};
 
   try {
-    const sinLid = { userId: { in: userIds }, NOT: { remoteJid: { endsWith: "@lid" } } };
-
-    const totales = await db.session.groupBy({
-      by: ["instanceId"],
-      where: sinLid,
-      _count: { _all: true },
-    });
-
-    const marcas = await db.chatConversationPreference.findMany({
-      where: {
-        userId: { in: userIds },
-        OR: [{ deletedAt: { not: null } }, { archivedAt: { not: null } }],
-      },
-      select: { remoteJid: true },
-    });
-    const jidsConMarca = Array.from(new Set(marcas.map((m) => m.remoteJid).filter(Boolean)));
-
-    const ocultas = jidsConMarca.length
-      ? await db.session.groupBy({
-          by: ["instanceId"],
-          where: {
-            ...sinLid,
-            OR: [
-              { remoteJid: { in: jidsConMarca } },
-              { remoteJidAlt: { in: jidsConMarca } },
-            ],
-          },
-          _count: { _all: true },
-        })
-      : [];
-
-    const ocultasPorLinea = new Map(ocultas.map((o) => [o.instanceId ?? "", o._count._all]));
+    const filas = await db.$queryRaw<{ linea: string | null; total: bigint }[]>`
+      SELECT s."instanceId" AS linea, COUNT(DISTINCT s."remoteJid") AS total
+      FROM "Session" s
+      WHERE s."userId" IN (${Prisma.join(userIds)})
+        AND s."remoteJid" NOT LIKE '%@lid'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "ChatConversationPreference" p
+          WHERE p."userId" = s."userId"
+            AND (p."deletedAt" IS NOT NULL OR p."archivedAt" IS NOT NULL)
+            AND (p."remoteJid" = s."remoteJid" OR p."remoteJid" = s."remoteJidAlt")
+        )
+      GROUP BY s."instanceId"
+    `;
 
     const conteos: Record<string, number> = {};
-    for (const t of totales) {
-      const linea = t.instanceId ?? "";
+    for (const f of filas) {
+      const linea = f.linea ?? "";
       if (!linea) continue;
-      conteos[linea] = Math.max(0, t._count._all - (ocultasPorLinea.get(linea) ?? 0));
+      conteos[linea] = Number(f.total);
     }
     return conteos;
   } catch (error) {

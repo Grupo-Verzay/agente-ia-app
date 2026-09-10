@@ -1255,24 +1255,36 @@ primeros chats**, así que la lista puede seguir acotada; lo que no puede estar
 recortado es el **número**. Eran lo mismo porque el contador de cada canal se
 sacaba contando las filas cargadas.
 
-Ahora el número viene aparte, de `contarChatsPorLinea`: dos `COUNT` agrupados
-sobre `Session` por `userId` —primera columna de su índice único—, **sin tocar
-`chat_conversations` ni el JSON de `lastMessageRaw`**, que es lo que obligaba a
-poner tope. Leer un número no cuesta lo que leer la bandeja.
+Ahora el número viene aparte, de `contarChatsPorLinea`: **un** `COUNT` sobre
+`Session`, **sin tocar `chat_conversations` ni el JSON de `lastMessageRaw`**,
+que es lo que obligaba a poner tope. Leer un número no cuesta lo que leer la
+bandeja.
 
-Tres cosas que hay que mantener:
+Cuatro cosas que hay que mantener:
 
-1. **Se restan las borradas y las archivadas**, o vuelve el fallo que ya se
+1. **`COUNT(DISTINCT remoteJid)`, no `COUNT(*)`.** La bandeja mira las líneas de
+   VARIAS cuentas a la vez (`allSessionUserIds`), y una misma línea puede tener
+   la ficha del mismo contacto bajo más de un `userId` —pasa con las
+   conversaciones viejas guardadas bajo el dueño anterior de la línea—. Contando
+   filas, esa línea de 576 pasó a decir **1036**: el mismo contacto dos veces.
+   Primero se quedaba corta, después larga; el número correcto es el de
+   contactos distintos.
+2. **Se restan las borradas y las archivadas**, o vuelve el fallo que ya se
    arregló una vez: limpiar cientos de chats y ver el número igual de alto.
-2. **Se cuentan las SESIONES con marca, no las marcas.** Una conversación
-   borrada deja marca bajo todas sus identidades (`remoteJid`, `remoteJidAlt`,
-   `senderPn`, el `@lid`), así que restar marcas restaría hasta cuatro veces de
-   más.
-3. **El del servidor manda, pero nunca por debajo de lo cargado**
+3. **Se descuentan dentro de la consulta, con un `NOT EXISTS`.** Restar marcas
+   por fuera no vale: una conversación borrada deja marca bajo todas sus
+   identidades (`remoteJid`, `remoteJidAlt`, `senderPn`, el `@lid`), así que
+   restaría hasta cuatro veces de más.
+4. **El del servidor manda, pero nunca por debajo de lo cargado**
    (`Math.max`): puede haber conversaciones que WhatsApp devuelve y que todavía
    no tienen ficha. Y el navegador sigue descontando lo que el asesor acaba de
    borrar o archivar, para que el número baje al momento y no dentro de un
    minuto.
+
+Y la forma de saber si un contador miente: **ponerlo al lado del de otra
+pantalla que cuente lo mismo por otro camino.** El desplegable «Línea» de
+`/sessions` es eso para Chats; que digan cifras distintas es lo que destapó
+los dos fallos.
 
 Si hace falta otro contador por línea, va por ahí: **un contador es un `COUNT`,
 no un `length` de lo que se haya podido cargar.**
