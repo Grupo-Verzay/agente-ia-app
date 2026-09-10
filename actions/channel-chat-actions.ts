@@ -15,6 +15,7 @@ import type {
 } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
+import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
 
 type ChannelOutgoingPayload = { kind: string; text?: string; [key: string]: unknown };
 
@@ -81,6 +82,41 @@ export async function fetchChannelChats(instanceName: string): Promise<FetchChat
     return { success: true, message: 'OK', data };
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al cargar chats.' };
+  }
+}
+
+/**
+ * La pagina siguiente de la bandeja de UNA linea.
+ *
+ * La lista se carga acotada (`TOPE_DE_LA_BANDEJA`, 300) y el contador de cada
+ * canal dice el total de verdad. Sin esto las dos cifras no podian encontrarse
+ * nunca: el desplegable ofrecia «Ventas 574», se elegia, y la lista solo tenia
+ * 290 filas que enseñar. **Un filtro que ofrece un numero tiene que poder
+ * llegar a el**, y la forma de hacerlo sin encarecer todas las cargas es traer
+ * la pagina siguiente cuando la persona baja del todo.
+ */
+export async function traerMasChatsDeLaLinea(
+  instanceName: string,
+  anteriorA: number,
+): Promise<FetchChatsResult> {
+  try {
+    const user = await currentUser();
+    if (!user?.id) return { success: false, message: 'No autorizado.' };
+
+    const owner = await resolveInstanceOwner(instanceName);
+    if (!owner?.userId) return { success: false, message: 'Instancia sin propietario.' };
+
+    // De quien es la linea, igual que en cualquier otra accion que reciba un id.
+    await assertCanAccessTargetUser(owner.userId);
+
+    const data = await getPersistedInboxChats({
+      userIds: [owner.userId],
+      instanceNames: [instanceName],
+      antesDe: anteriorA > 0 ? new Date(anteriorA) : undefined,
+    });
+    return { success: true, message: 'OK', data };
+  } catch (err: any) {
+    return { success: false, message: err?.message ?? 'Error al cargar mas chats.' };
   }
 }
 

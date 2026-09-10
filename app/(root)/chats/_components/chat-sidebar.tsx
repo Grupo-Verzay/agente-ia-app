@@ -214,6 +214,8 @@ type ChatSidebarProps = {
   resolveChatOwnerId?: (chat: { instanceName?: string | null }) => string;
   onChannelChange?: (channel: string | null) => void;
   onRefresh?: () => Promise<void>;
+  /** Traer la pagina siguiente de la bandeja al llegar al final de la lista. */
+  onCargarMas?: () => void;
   isRefreshing?: boolean;
   onCompose?: () => void;
   inactiveAgentUnreadJids?: Set<string>;
@@ -261,6 +263,7 @@ export function ChatSidebar({
   resolveChatOwnerId,
   onChannelChange,
   onRefresh,
+  onCargarMas,
   isRefreshing,
   onCompose,
   inactiveAgentUnreadJids,
@@ -781,9 +784,19 @@ export function ChatSidebar({
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = 0;
       const el = listScrollRef.current;
-      if (el) setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+      if (!el) return;
+      setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+
+      // Cerca del final: se pide la pagina siguiente.
+      //
+      // La lista se carga acotada y el contador de la linea dice el total de
+      // verdad; sin esto las dos cifras no se encontraban nunca -«Ventas 574»
+      // y 290 filas que enseñar-. El margen es de dos pantallas, para que la
+      // siguiente este puesta antes de llegar al borde.
+      const queda = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (queda < el.clientHeight * 2) onCargarMas?.();
     });
-  }, []);
+  }, [onCargarMas]);
 
   React.useEffect(
     () => () => {
