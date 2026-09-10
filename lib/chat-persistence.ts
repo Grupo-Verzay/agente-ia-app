@@ -1560,9 +1560,20 @@ function recortarRawSql(col: Prisma.Sql): Prisma.Sql {
  */
 export async function contarChatsPorLinea(params: {
   userIds: string[];
+  instanceNames?: string[];
 }): Promise<Record<string, number>> {
   const userIds = params.userIds.filter(Boolean);
   if (!userIds.length) return {};
+
+  // SOLO las lineas de la bandeja, las mismas que se le piden a la lista.
+  //
+  // Sin esto el contador contaba TODAS las lineas que aparecen en `Session`
+  // —las borradas, los restos `_V2`, los canales `_wh`— y volvian al
+  // desplegable las filas «Linea sin ficha» que se habian quitado del lado de
+  // los chats: con numero, pero al elegirlas la lista salia vacia («No hay
+  // chats que coincidan con el filtro»). Un filtro que promete 18 y enseña 0.
+  const lineas = params.instanceNames?.filter(Boolean) ?? [];
+  if (params.instanceNames && !lineas.length) return {};
 
   try {
     const filas = await db.$queryRaw<{ linea: string | null; total: bigint }[]>`
@@ -1570,6 +1581,7 @@ export async function contarChatsPorLinea(params: {
       FROM "Session" s
       WHERE s."userId" IN (${Prisma.join(userIds)})
         AND s."remoteJid" NOT LIKE '%@lid'
+        ${lineas.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(lineas)})` : Prisma.empty}
         AND NOT EXISTS (
           SELECT 1
           FROM "ChatConversationPreference" p

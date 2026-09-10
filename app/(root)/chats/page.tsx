@@ -553,7 +553,10 @@ export default async function ChatsPage({
     // El NUMERO de cada linea, aparte de la lista. La lista va acotada -nadie
     // baja mas alla de los primeros chats- pero el contador tiene que ser el
     // real: es un COUNT, no lee el JSON de ningun mensaje.
-    contarChatsPorLinea({ userIds: allSessionUserIds }),
+    contarChatsPorLinea({
+      userIds: allSessionUserIds,
+      instanceNames: instancias.map((inst) => inst.instanceName),
+    }),
   ]);
   const __tBandeja = performance.now();
 
