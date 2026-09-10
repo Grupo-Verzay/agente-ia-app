@@ -396,6 +396,45 @@ posterior a la marca, la marca sobra y se quita, en dos sitios:
 `isChatDeletedByPreference` se queda como red de seguridad, pero **la regla
 viva es levantar la marca, no evaluarla en cada pintado**.
 
+### Y leerla también: gana la de SU línea, no la primera que aparezca
+
+Marcar bajo todas las identidades no bastó. El chat volvía **diez veces
+seguidas**, anclado, después de eliminarlo.
+
+Leer la marca era un `.find(Boolean)` sobre la lista de llaves: **ganaba la
+primera que apareciera**, y ese orden lo pone la identidad, no la fecha. Un
+contacto tiene hasta dos filas por cada una de sus cuatro identidades —la de su
+línea y la **antigua**, sin línea, de cuando la tabla no guardaba la columna—.
+Así que:
+
+- Quedaba una fila antigua con `pinnedAt` puesto, de cuando anclar no mandaba la
+  línea.
+- Se eliminaba el chat: eso escribe filas nuevas, **de su línea**, con
+  `deletedAt`.
+- La lista lo devolvía por otra identidad, y por esa la primera fila que aparecía
+  era la antigua: la que dice «anclado» y **no** dice «borrado». La marca nueva
+  no se llegaba a mirar.
+
+Se elige con `elegirPreferenciaDelChat` (`lib/chat-preference-key.ts`), y son
+tres reglas:
+
+1. **Si hay alguna fila de SU línea, mandan esas**, aunque exista una antigua.
+2. **Entre varias, la que se tocó la última.** Nunca se mezclan campos de dos
+   filas: se elige una entera, o el chat sale anclado por una y borrado por otra.
+3. La antigua sigue valiendo **cuando en esta línea no hay ninguna**, para no
+   resucitar lo que alguien borró antes de que existiera la columna.
+
+Y del lado de escribir faltaba una pieza: **quien sabe cruzar un `@lid` con su
+número es `chat_messages`… que el propio borrado deja vacío**. Del segundo
+borrado en adelante el servidor solo conocía la forma con la que se le pidió. La
+pantalla sí las tiene todas —vienen dentro del chat—, así que ahora las manda
+(`identidades` en las tres acciones). **Solo se usan para marcar**: los `DELETE`
+siguen yendo con las que resuelve el servidor, porque una lista que llega de
+fuera no puede decidir qué historial se borra.
+
+Archivar seguía escribiendo bajo una sola identidad; va por el mismo camino que
+anclar y borrar.
+
 ## Una recarga tiene que decir por qué
 
 "La App se refresca sola cada cierto rato" es de lo más difícil de diagnosticar:

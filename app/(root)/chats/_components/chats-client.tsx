@@ -63,7 +63,11 @@ import {
   isLidJid,
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
-import { chatPreferenceKey, chatPreferenceKeys } from "@/lib/chat-preference-key";
+import {
+  chatPreferenceKey,
+  chatPreferenceKeys,
+  elegirPreferenciaDelChat,
+} from "@/lib/chat-preference-key";
 import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
 import { avatarSrcFor } from "@/lib/avatar";
 import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
@@ -400,11 +404,12 @@ function getPreferenceForChat(
   preferences: ChatConversationPreferenceMap,
   ownerUserId: string,
 ) {
-  return getChatIdentityCandidates(chat)
-    .flatMap((candidate) =>
-      chatPreferenceKeys(ownerUserId, chat.instanceName, candidate).map((k) => preferences[k]),
-    )
-    .find(Boolean);
+  return elegirPreferenciaDelChat(
+    preferences,
+    ownerUserId,
+    chat.instanceName,
+    getChatIdentityCandidates(chat),
+  );
 }
 
 function getPreferenceForJid(
@@ -413,11 +418,12 @@ function getPreferenceForJid(
   ownerUserId: string,
   instanceName?: string | null,
 ) {
-  return buildWhatsAppJidCandidates(remoteJid)
-    .flatMap((candidate) =>
-      chatPreferenceKeys(ownerUserId, instanceName, candidate).map((k) => preferences[k]),
-    )
-    .find(Boolean);
+  return elegirPreferenciaDelChat(
+    preferences,
+    ownerUserId,
+    instanceName,
+    buildWhatsAppJidCandidates(remoteJid),
+  );
 }
 
 function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
@@ -1061,6 +1067,26 @@ export function ChatsClient({
     }
     if (lineas.size !== 1) return undefined;
     return lineas.values().next().value;
+  }, []);
+
+  /**
+   * Todas las identidades que la pantalla ya conoce de ese contacto.
+   *
+   * Cruzar un `@lid` con su numero solo lo sabe hacer `chat_messages`, y el
+   * primer borrado del contacto la deja vacia: a partir del segundo, el
+   * servidor solo conoce la forma con la que se le pidio y la marca no cubre
+   * las demas. La lista SI las tiene todas —vienen dentro del propio chat— asi
+   * que se le mandan.
+   */
+  const identidadesDeLaFila = useCallback((remoteJid: string): string[] => {
+    const identidades = new Set(buildWhatsAppJidCandidates(remoteJid));
+    const todas = new Set<string>(identidades);
+    for (const chat of contactsRef.current as ChatData[]) {
+      if (!chatMatchesAnyJid(chat, identidades)) continue;
+      for (const candidato of getChatIdentityCandidates(chat)) todas.add(candidato);
+    }
+    // El tope del esquema de la accion; de sobra para un contacto.
+    return Array.from(todas).slice(0, 20);
   }, []);
 
   contactsRef.current = contacts;
@@ -2772,6 +2798,7 @@ export function ChatsClient({
         instanceName: linea,
         remoteJid,
         isPinned,
+        identidades: identidadesDeLaFila(remoteJid),
       });
 
       if (!result.success || !result.data) {
@@ -2782,7 +2809,7 @@ export function ChatsClient({
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, ownerForJid, lineaDelJid],
+    [applyChatPreference, ownerForJid, lineaDelJid, identidadesDeLaFila],
   );
 
   const handleArchiveChat = useCallback(
@@ -2795,6 +2822,7 @@ export function ChatsClient({
         instanceName: lineaDelJid(remoteJid),
         remoteJid,
         archived,
+        identidades: identidadesDeLaFila(remoteJid),
       });
 
       if (!result.success || !result.data) {
@@ -2811,7 +2839,7 @@ export function ChatsClient({
         setInfo(undefined);
       }
     },
-    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid],
+    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid, identidadesDeLaFila],
   );
 
   const handleDeleteChat = useCallback(
@@ -2884,6 +2912,7 @@ export function ChatsClient({
         userId: ownerUserId,
         instanceName: linea,
         remoteJid,
+        identidades: identidadesDeLaFila(remoteJid),
       });
 
       if (!result.success || !result.data) {
@@ -2940,7 +2969,7 @@ export function ChatsClient({
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid],
+    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid, identidadesDeLaFila],
   );
 
   const handleRestoreChat = useCallback(

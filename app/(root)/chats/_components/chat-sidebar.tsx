@@ -31,7 +31,7 @@ import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
-import { chatPreferenceKeys } from "@/lib/chat-preference-key";
+import { elegirPreferenciaDelChat } from "@/lib/chat-preference-key";
 import type { ChatContactSessionMap, SimpleTag, ClientStatus, ServiceType } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import {
@@ -146,11 +146,12 @@ function getPreferenceForChat(
   preferences: ChatConversationPreferenceMap,
   ownerUserId: string,
 ) {
-  return getChatIdentityCandidates(chat)
-    .flatMap((candidate) =>
-      chatPreferenceKeys(ownerUserId, chat.instanceName, candidate).map((k) => preferences[k]),
-    )
-    .find(Boolean);
+  return elegirPreferenciaDelChat(
+    preferences,
+    ownerUserId,
+    chat.instanceName,
+    getChatIdentityCandidates(chat),
+  );
 }
 
 function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
