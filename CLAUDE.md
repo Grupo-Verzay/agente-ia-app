@@ -789,6 +789,12 @@ lleva ancho **máximo**, no fijo. Con el menú lateral desplegado, un `w-72` que
 encoge empujaba «Columnas» y «Acciones» fuera de la pantalla, sin scroll con el
 que alcanzarlos. Si se añade otro botón a esa barra, va igual.
 
+Lo mismo en **Equipo**, que lo intentaba con `overflow-x-auto`: al estrechar la
+ventana «Vincular existente» quedaba **cortado por la mitad** y la barrita de
+scroll salía dentro de la tarjeta. Una barra de botones **se parte en filas**;
+el scroll horizontal se reserva para lo que no puede partirse, como la tabla de
+asesores de abajo.
+
 Y del lado de los datos: `getEnrichedClients` trae **solo los dos estados**
 (`accessStatus`, `billingStatus`), no la fila entera. El `price` es un `Decimal`
 y no viaja a un componente de cliente.
