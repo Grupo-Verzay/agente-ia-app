@@ -784,16 +784,18 @@ Tres cosas de la pantalla:
 3. **Las opciones son tres palabras**: Todos, Activos, Inactivos. Nada de
    «Con servicio activo»: el desplegable ya se llama «Estado».
 
-Y la barra de esa pantalla **se parte en dos filas** (`flex-wrap`) y el buscador
-lleva ancho **máximo**, no fijo. Con el menú lateral desplegado, un `w-72` que no
-encoge empujaba «Columnas» y «Acciones» fuera de la pantalla, sin scroll con el
-que alcanzarlos. Si se añade otro botón a esa barra, va igual.
+Y la barra de esa pantalla va **como la de Equipo**, que es la que estaba bien:
+**izquierda fija** (el buscador y «+ Nuevo»), **zona central que scrollea**
+cuando no cabe (`flex-1 min-w-0 overflow-x-auto`, con `ml-auto` en el primer
+hijo para que se peguen a la derecha mientras sobre sitio y `shrink-0` en cada
+uno) y **derecha fija** («Acciones»). Con el menú lateral desplegado, sin esa
+zona central, «Columnas» y «Acciones» se salían de la pantalla y **no había
+forma de llegar a ellos**.
 
-Lo mismo en **Equipo**, que lo intentaba con `overflow-x-auto`: al estrechar la
-ventana «Vincular existente» quedaba **cortado por la mitad** y la barrita de
-scroll salía dentro de la tarjeta. Una barra de botones **se parte en filas**;
-el scroll horizontal se reserva para lo que no puede partirse, como la tabla de
-asesores de abajo.
+**Partirla en filas con `flex-wrap` no vale**: se descoloca —«+ Nuevo» se va
+solo a un extremo y la segunda fila queda suelta—. Lo que se hace es dejar que
+el trozo del medio se desplace. Si se añade otro botón a esa barra, va dentro de
+la zona central, no fuera.
 
 Y del lado de los datos: `getEnrichedClients` trae **solo los dos estados**
 (`accessStatus`, `billingStatus`), no la fila entera. El `price` es un `Decimal`

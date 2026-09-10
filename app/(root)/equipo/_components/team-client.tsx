@@ -322,12 +322,9 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       {/* KPI cards — primera fila */}
       {metrics && <TeamKpiCards metrics={metrics} />}
 
-      {/* Auto-assign + acciones en una sola barra. Se parte en filas cuando no
-          cabe: el scroll horizontal de antes cortaba «Vincular existente» por la
-          mitad y la barrita quedaba dentro de la tarjeta. Es la misma regla que
-          la barra de Clientes. */}
+      {/* Auto-assign + acciones en una sola barra */}
       <div className={cn(
-        "rounded-xl border bg-card px-4 py-3 flex flex-wrap items-center gap-3 transition-colors",
+        "rounded-xl border bg-card px-4 py-3 flex items-center gap-3 transition-colors",
         autoAssignEnabled ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
       )}>
         {/* Lado izquierdo: icono + toggle + max chats */}
@@ -378,8 +375,8 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             </div>
           )}
         </div>
-        {/* Zona central: se parte en filas cuando no cabe (toggle + acciones) */}
-        <div className="toolbar-collapse flex min-w-0 flex-1 basis-64 flex-wrap items-center gap-2">
+        {/* Zona central: SCROLLEA cuando no cabe (toggle + acciones de asignación) */}
+        <div className="toolbar-collapse flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
           {/* Toggle de vista: Tabla / Pipeline (ml-auto: empuja el grupo a la derecha) */}
           <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0 ml-auto">
             <button
