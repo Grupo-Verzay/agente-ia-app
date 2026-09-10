@@ -1317,8 +1317,27 @@ function getChatTimestamp(chat: ChatData) {
 const INBOX_CACHE_TTL_MS = 10_000;
 const inboxCache = new Map<string, { at: number; rows: Promise<ChatData[]> }>();
 
+/**
+ * Cuantas conversaciones trae la bandeja de nuestra base.
+ *
+ * Estaba en 300, y ese tope **no se veia por ninguna parte**: una cuenta con 576
+ * leads en una sola linea abria Chats y contaba 290 —300 menos los borrados y
+ * archivados—, o sea que faltaba la mitad de sus conversaciones y nada lo decia.
+ * Duele sobre todo en las lineas que dependen SOLO de nuestra base (Waha,
+ * Baileys, los canales de credenciales) y cuando Evolution no contesta.
+ *
+ * El JSON pesado (`lastMessageRaw`) ya se lee adelgazado y solo de las filas que
+ * se devuelven, asi que subirlo cuesta mucho menos que antes. Si algun dia vuelve
+ * a doler, el aviso `[PERF] getPersistedInboxChats` lo dice con su tiempo.
+ */
+const TOPE_DE_LA_BANDEJA = 1500;
+
 function inboxCacheKey(userIds: string[], instanceNames: string[] | undefined, take?: number) {
-  return JSON.stringify([[...userIds].sort(), [...(instanceNames ?? [])].sort(), take ?? 300]);
+  return JSON.stringify([
+    [...userIds].sort(),
+    [...(instanceNames ?? [])].sort(),
+    take ?? TOPE_DE_LA_BANDEJA,
+  ]);
 }
 
 /**
@@ -1716,7 +1735,7 @@ async function loadPersistedInboxChats(
       SELECT *
       FROM inbox_rows
       ORDER BY COALESCE("messageTimestamp", "sessionUpdatedAt") DESC
-      LIMIT ${params.take ?? 300}
+      LIMIT ${params.take ?? TOPE_DE_LA_BANDEJA}
     ) ir
     LEFT JOIN "chat_conversations" c ON c."id" = ir."convId"
     ORDER BY COALESCE(ir."messageTimestamp", ir."sessionUpdatedAt") DESC
@@ -1745,6 +1764,20 @@ async function loadPersistedInboxChats(
   }
 
   const __ms = performance.now() - __t0;
+
+  // El tope no puede morder en silencio.
+  //
+  // Con 300 y sin este aviso, una cuenta con 576 conversaciones en una línea
+  // veía 290 en la bandeja y no había forma de saber que faltaba la mitad: ni
+  // error, ni hueco, ni nada. Es la misma familia que el resto de este fichero:
+  // lo que recorta, lo dice.
+  const tope = params.take ?? TOPE_DE_LA_BANDEJA;
+  if (rows.length >= tope) {
+    console.warn(
+      `[chats] la bandeja llegó al tope y puede estar recortada: ${rows.length} de ${tope}`,
+      { cuentas: userIds.length, lineas: params.instanceNames?.length ?? 'todas' },
+    );
+  }
 
   // El armado de los chats (parsear el JSON de cada mensaje y ordenar) también
   // se mide: es trabajo por fila y hasta ahora quedaba fuera del cronómetro.

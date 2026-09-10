@@ -1215,6 +1215,33 @@ propósito se quedan sin clave de Evolution (`resolverContexto`).
 acción es de una línea, el respaldo va acotado a esa línea. Los demás usos de
 `getPersistedInboxChats` ya pasaban `instanceNames`; a este se le había pasado.
 
+## Chats: la bandeja estaba topada en 300, y no lo decía
+
+Una cuenta con **576 leads en una sola línea** abría Chats y su línea contaba
+**290**. No faltaban por borrados ni por archivados: el `LIMIT` de
+`getPersistedInboxChats` era **300**, y 290 es 300 menos los que sí estaban
+borrados o archivados. Faltaba la mitad de las conversaciones **y nada lo
+decía** — ni error, ni hueco, ni aviso.
+
+Duele sobre todo donde la lista **solo** puede salir de nuestra base: las líneas
+Waha y Baileys, los canales de credenciales, y cualquier línea cuando Evolution
+no contesta. Con Evolution respondiendo el tope se disimulaba, porque los chats
+venían de allí.
+
+Dos cosas:
+
+1. El tope es `TOPE_DE_LA_BANDEJA` (**1500**), con nombre y comentario, no un
+   número suelto dentro del SQL. Subirlo cuesta poco desde que el JSON pesado
+   (`lastMessageRaw`) se lee **adelgazado y solo de las filas devueltas**; si
+   vuelve a doler, lo dice `[PERF] getPersistedInboxChats` con su tiempo.
+2. **El tope avisa cuando muerde**: `[chats] la bandeja llegó al tope y puede
+   estar recortada: N de M`. Un recorte mudo se ve como «faltan chats», que es
+   de lo más caro de diagnosticar; es la misma regla que el resto del fichero.
+
+Y de paso, la forma de comprobarlo desde fuera: `/sessions` tiene un desplegable
+**«Línea»** con los leads de cada una (`getLeadsPorLinea`). Ese número al lado
+del de Chats es lo que delata un recorte.
+
 ## Chats: la lista es grande, no rehacerla por gusto
 
 Hay cuentas con miles de chats. Rehacer la lista entera cuesta segundos de
