@@ -1527,6 +1527,80 @@ function recortarRawSql(col: Prisma.Sql): Prisma.Sql {
 `;
 }
 
+/**
+ * Cuantas conversaciones tiene cada linea DE VERDAD.
+ *
+ * El numero y la lista son dos cosas distintas y hasta ahora eran la misma: el
+ * contador de cada canal se sacaba contando las filas cargadas, asi que con el
+ * tope de la bandeja mordiendo decia 290 en una linea de 576. Nadie baja mas
+ * alla de los primeros chats, asi que la LISTA puede seguir acotada; lo que no
+ * puede estar recortado es el NUMERO.
+ *
+ * Y sale barato: dos `COUNT` agrupados sobre `Session`, por `userId` —primera
+ * columna de su indice unico— sin tocar `chat_conversations` ni el JSON pesado
+ * de `lastMessageRaw`, que es lo que obligaba a poner tope.
+ *
+ * Se descuentan las borradas y las archivadas, para que siga cumpliendose lo de
+ * siempre: limpiar chats tiene que bajar el numero de la linea. Se cuentan las
+ * SESIONES con marca, no las marcas: una sola conversacion borrada deja marca
+ * bajo todas sus identidades (`remoteJid`, `remoteJidAlt`, `senderPn`, el
+ * `@lid`), asi que restar marcas restaria hasta cuatro veces de mas.
+ */
+export async function contarChatsPorLinea(params: {
+  userIds: string[];
+}): Promise<Record<string, number>> {
+  const userIds = params.userIds.filter(Boolean);
+  if (!userIds.length) return {};
+
+  try {
+    const sinLid = { userId: { in: userIds }, NOT: { remoteJid: { endsWith: "@lid" } } };
+
+    const totales = await db.session.groupBy({
+      by: ["instanceId"],
+      where: sinLid,
+      _count: { _all: true },
+    });
+
+    const marcas = await db.chatConversationPreference.findMany({
+      where: {
+        userId: { in: userIds },
+        OR: [{ deletedAt: { not: null } }, { archivedAt: { not: null } }],
+      },
+      select: { remoteJid: true },
+    });
+    const jidsConMarca = Array.from(new Set(marcas.map((m) => m.remoteJid).filter(Boolean)));
+
+    const ocultas = jidsConMarca.length
+      ? await db.session.groupBy({
+          by: ["instanceId"],
+          where: {
+            ...sinLid,
+            OR: [
+              { remoteJid: { in: jidsConMarca } },
+              { remoteJidAlt: { in: jidsConMarca } },
+            ],
+          },
+          _count: { _all: true },
+        })
+      : [];
+
+    const ocultasPorLinea = new Map(ocultas.map((o) => [o.instanceId ?? "", o._count._all]));
+
+    const conteos: Record<string, number> = {};
+    for (const t of totales) {
+      const linea = t.instanceId ?? "";
+      if (!linea) continue;
+      conteos[linea] = Math.max(0, t._count._all - (ocultasPorLinea.get(linea) ?? 0));
+    }
+    return conteos;
+  } catch (error) {
+    // Sin numero se cae al conteo de las filas cargadas, que es lo de antes.
+    // Callarlo aqui seria volver a un numero corto sin explicacion.
+    console.error("[chats] no se pudo contar las conversaciones por linea", error);
+    return {};
+  }
+}
+
 export async function getPersistedInboxChats(params: {
   userIds: string[];
   instanceNames?: string[];

@@ -534,6 +534,8 @@ interface ChatsClientProps {
   viewerUserId?: string;
   sessionUserIds?: string[];
   instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
+  /** Cuantas conversaciones tiene cada linea de verdad, sin el tope de la lista. */
+  conteosPorLinea?: Record<string, number>;
   chatsResult: FetchChatsResult;
   initialChatPreferences: ChatConversationPreferenceMap;
   initialChatSessions: ChatContactSessionMap;
@@ -581,6 +583,7 @@ export function ChatsClient({
   viewerUserId,
   sessionUserIds,
   instancias = [],
+  conteosPorLinea,
   chatsResult: initialChatsResult,
   initialChatPreferences,
   initialChatSessions,
@@ -1043,22 +1046,39 @@ export function ChatsClient({
   /**
    * Cuantas conversaciones tiene cada linea.
    *
-   * Cuenta lo mismo que se ve en la lista: sin eliminadas ni archivadas. Antes
-   * contaba todo lo que devolvia WhatsApp, asi que despues de limpiar cientos
-   * de chats el numero de la linea seguia igual de alto y no cuadraba con
-   * nada.
+   * El NUMERO no es lo mismo que la LISTA. La lista va acotada a proposito
+   * -nadie baja mas alla de los primeros chats- pero el contador tiene que ser
+   * el real, y contando las filas cargadas nunca lo era: con el tope de la
+   * bandeja mordiendo, una linea de 576 conversaciones decia 290.
+   *
+   * Manda `conteosPorLinea`, que viene del servidor y es un COUNT (no lee el
+   * JSON de ningun mensaje). Cuando una linea no esta ahi -no llego el conteo,
+   * o es una linea sin sesiones- se cuenta lo cargado, que es lo de antes.
+   *
+   * Sigue descontando eliminadas y archivadas por los dos caminos: el servidor
+   * ya se las quita, y aqui se quitan tambien las que el asesor acaba de tocar,
+   * porque limpiar chats tiene que bajar el numero al momento.
    */
   const channelCounts = useMemo((): Record<string, number> => {
     if (!currentChatsResult.success) return {};
-    const counts: Record<string, number> = {};
+    const cargadas: Record<string, number> = {};
     for (const chat of currentChatsResult.data) {
       if (!chat.instanceName) continue;
       const preference = getPreferenceForChat(chat, chatPreferences, ownerForChat(chat));
       if (isChatDeletedByPreference(chat, preference) || preference?.isArchived) continue;
-      counts[chat.instanceName] = (counts[chat.instanceName] ?? 0) + 1;
+      cargadas[chat.instanceName] = (cargadas[chat.instanceName] ?? 0) + 1;
+    }
+
+    if (!conteosPorLinea) return cargadas;
+
+    const counts: Record<string, number> = { ...cargadas };
+    for (const [linea, total] of Object.entries(conteosPorLinea)) {
+      // El del servidor manda salvo que la pantalla ya vea mas: puede haber
+      // conversaciones que WhatsApp devuelve y todavia no tienen ficha.
+      counts[linea] = Math.max(total, cargadas[linea] ?? 0);
     }
     return counts;
-  }, [currentChatsResult, chatPreferences, ownerForChat]);
+  }, [currentChatsResult, chatPreferences, ownerForChat, conteosPorLinea]);
 
   const filteredSidebarResult = useMemo((): FetchChatsResult => {
     if (!selectedChannel || !sidebarResult.success) return sidebarResult;

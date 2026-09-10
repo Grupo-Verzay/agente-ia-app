@@ -10,7 +10,7 @@ import {
   sendWahaWorkflowAction,
   sendWahaQuickReplyAction,
 } from "@/actions/waha-chat-actions";
-import { getPersistedInboxChats } from "@/lib/chat-persistence";
+import { contarChatsPorLinea, getPersistedInboxChats } from "@/lib/chat-persistence";
 import { getApiKeyById } from "@/actions/api-action";
 import {
   fetchChatsFromEvolution,
@@ -522,7 +522,7 @@ export default async function ChatsPage({
   let __msPrefs = 0;
   let __msAsesores = 0;
   let __msBandejaTotal = 0;
-  const [persistedInitialChats, initialPreferencesResult, initialAdvisorsResult] = await Promise.all([
+  const [persistedInitialChats, initialPreferencesResult, initialAdvisorsResult, conteosPorLinea] = await Promise.all([
     (async () => {
       const t = performance.now();
       try {
@@ -550,6 +550,10 @@ export default async function ChatsPage({
         __msAsesores = performance.now() - t;
       }
     })(),
+    // El NUMERO de cada linea, aparte de la lista. La lista va acotada -nadie
+    // baja mas alla de los primeros chats- pero el contador tiene que ser el
+    // real: es un COUNT, no lee el JSON de ningun mensaje.
+    contarChatsPorLinea({ userIds: allSessionUserIds }),
   ]);
   const __tBandeja = performance.now();
 
@@ -881,6 +885,7 @@ export default async function ChatsPage({
       viewerUserId={user.id}
       sessionUserIds={allSessionUserIds}
       instancias={instanciasMeta}
+      conteosPorLinea={conteosPorLinea}
       chatsResult={chatsResult}
       initialChatPreferences={initialChatPreferences}
       initialChatSessions={{}}
