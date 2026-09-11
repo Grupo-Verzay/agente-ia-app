@@ -673,6 +673,47 @@ export function ChatsClient({
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [composeInitialContact, setComposeInitialContact] = useState<{ jid: string; name: string; phone: string } | undefined>();
   const [currentChatsResult, setCurrentChatsResult] = useState(normalizedInitialChatsResult);
+
+  /**
+   * Identidad del contacto -> posicion de su fila en la lista.
+   *
+   * Cada aviso de tiempo real llega con UNA de las identidades del contacto, y
+   * hasta ahora encontrar su fila costaba recorrer la lista entera: un `.find`
+   * en `esDelChatAbierto` y un `.findIndex` por cada aviso en el volcado. Con
+   * 3.900 chats cargados y una rafaga de veinte mensajes, eso son veinte
+   * recorridos completos dentro de la misma tanda. El coste por evento crecia
+   * con el tamaño de la cuenta, que es exactamente el termino que hay que
+   * quitar (causa raiz nº 2 del diagnostico del panel).
+   *
+   * Se construye UNA vez por lista y las busquedas pasan a ser de mapa.
+   *
+   * Sale de `currentChatsResult` y de NADA MAS. Es la misma fuente de la que
+   * sale la lista que se pinta, asi que no puede quedarse vieja: si cambia la
+   * lista, cambia el indice, en el mismo render. Un indice que se actualiza por
+   * su cuenta -a mano, en un efecto, al recibir un aviso- es como vuelve el
+   * fallo que ya costo tres vueltas: «se ve en la columna y en la conversacion
+   * no». No se toca desde ningun otro sitio.
+   *
+   * `getChatIdentityCandidates` ya esta cacheado por chat, asi que armarlo es
+   * una pasada barata sobre lo que ya se calculo.
+   */
+  const indiceDeIdentidades = useMemo(() => {
+    const indice = new Map<string, number>();
+    if (!currentChatsResult.success) return indice;
+    currentChatsResult.data.forEach((chat, posicion) => {
+      for (const identidad of getChatIdentityCandidates(chat)) {
+        // La PRIMERA gana. La lista viene ordenada por fecha, asi que cuando el
+        // mismo contacto tiene fila en dos lineas, la que se queda es la mas
+        // reciente: el mismo criterio con el que se pinta.
+        if (identidad && !indice.has(identidad)) indice.set(identidad, posicion);
+      }
+    });
+    return indice;
+  }, [currentChatsResult]);
+
+  /** Para leerlo desde manejadores sin que estos cambien de identidad. */
+  const indiceDeIdentidadesRef = useRef(indiceDeIdentidades);
+  indiceDeIdentidadesRef.current = indiceDeIdentidades;
   const [chatPreferences, setChatPreferences] =
     useState<ChatConversationPreferenceMap>(initialChatPreferences);
   const [chatSessions, setChatSessions] = useState<ChatContactSessionMap>(initialChatSessions);
@@ -3776,53 +3817,95 @@ export function ChatsClient({
       setCurrentChatsResult((prev) => {
         if (!prev.success) return prev;
 
-        let data = prev.data;
-        let cambio = false;
+        // La tanda se aplica sobre UNA copia, no una por aviso.
+        //
+        // Antes cada aviso hacia `data = [updated, ...data.slice(0, idx), ...data.slice(idx + 1)]`,
+        // o sea una copia completa del array POR AVISO. Con miles de chats y una
+        // rafaga de veinte mensajes eso son veinte copias de miles de elementos
+        // dentro de la misma tanda, y la tanda existia justamente para pagar el
+        // trabajo una sola vez.
+        const indice = indiceDeIdentidadesRef.current;
 
+        // Lo mas reciente por chat, no lo ultimo que llego.
+        //
+        // Dos avisos del mismo chat pueden entrar desordenados -el socket no
+        // garantiza el orden, y el reintento de una rafaga menos-. Quedarse con
+        // el ultimo recibido dejaba la fila con un mensaje ANTERIOR al que ya
+        // estaba pintado. Gana la marca de tiempo mas alta.
+        const porFila = new Map<
+          number,
+          { m: NonNullable<ChatChangedPayload["message"]>; jid: string }
+        >();
         for (const payload of avisos) {
-        const m = payload.message;
-        // El aviso llega con UNA de las identidades del contacto, y no tiene por
-        // que ser la misma con la que esta guardada la fila. Buscando solo por
-        // `remoteJid` y `aliases` no se encontraba, y el mensaje se perdia: ni
-        // subia la fila ni se marcaba como no leido.
-        const idx = data.findIndex(
-          (c) =>
-            c.remoteJid === payload.remoteJid ||
-            c.remoteJidAlt === payload.remoteJid ||
-            c.senderPn === payload.remoteJid ||
-            c.aliases?.includes(payload.remoteJid),
-        );
-        if (idx === -1) continue;
-        const chat = data[idx];
-        const newLastMessage = {
-          ...(chat.lastMessage ?? {}),
-          key: {
-            ...(chat.lastMessage?.key ?? {}),
-            id: m.id ?? chat.lastMessage?.key?.id,
-            fromMe: m.fromMe,
-            remoteJid: payload.remoteJid,
-          },
-          message: { conversation: m.content },
-          messageType: m.messageType,
-          // En segundos, igual que en la conversacion y que lo que devuelve
-          // Evolution en la lista. Cruda podia entrar en milisegundos y esa fila
-          // se quedaba clavada arriba del todo, ordenada por una marca mil veces
-          // mayor que la de cualquier otra.
-          messageTimestamp: Math.floor(epochToMs(m.ts) / 1000),
-          pushName: m.pushName ?? chat.lastMessage?.pushName,
-        };
-        const updated = {
-          ...chat,
-          lastMessage: newLastMessage as typeof chat.lastMessage,
-          unreadCount: m.fromMe ? chat.unreadCount ?? 0 : (chat.unreadCount ?? 0) + 1,
-        };
-        data = [updated, ...data.slice(0, idx), ...data.slice(idx + 1)];
-        cambio = true;
+          const posicion = indice.get(payload.remoteJid);
+          if (posicion === undefined) continue;
+          const yaHabia = porFila.get(posicion);
+          if (yaHabia && epochToMs(yaHabia.m.ts) >= epochToMs(payload.message.ts)) continue;
+          porFila.set(posicion, { m: payload.message, jid: payload.remoteJid });
+        }
+        if (porFila.size === 0) return prev;
+
+        // Cuantos mensajes SIN LEER suma cada fila en esta tanda. El mensaje que
+        // gana es uno solo, pero si el contacto mando tres, la fila tiene que
+        // subir tres.
+        const sinLeer = new Map<number, number>();
+        for (const payload of avisos) {
+          if (payload.message.fromMe) continue;
+          const posicion = indice.get(payload.remoteJid);
+          if (posicion === undefined) continue;
+          sinLeer.set(posicion, (sinLeer.get(posicion) ?? 0) + 1);
         }
 
-        // Sin cambios, se devuelve el mismo objeto: asi React no vuelve a
-        // dibujar la lista para nada.
-        return cambio ? { ...prev, data } : prev;
+        const data = [...prev.data];
+        const tocadas: number[] = [];
+
+        for (const [posicion, { m, jid }] of porFila) {
+          const chat = data[posicion];
+          if (!chat) continue;
+          const newLastMessage = {
+            ...(chat.lastMessage ?? {}),
+            key: {
+              ...(chat.lastMessage?.key ?? {}),
+              id: m.id ?? chat.lastMessage?.key?.id,
+              fromMe: m.fromMe,
+              // La identidad con la que llego el aviso, como antes: es la que
+              // usa el sondeo para deduplicar cuando traiga el mensaje real.
+              remoteJid: jid,
+            },
+            message: { conversation: m.content },
+            messageType: m.messageType,
+            // En segundos, igual que en la conversacion y que lo que devuelve
+            // Evolution en la lista. Cruda podia entrar en milisegundos y esa
+            // fila se quedaba clavada arriba del todo, ordenada por una marca
+            // mil veces mayor que la de cualquier otra.
+            messageTimestamp: Math.floor(epochToMs(m.ts) / 1000),
+            pushName: m.pushName ?? chat.lastMessage?.pushName,
+          };
+          data[posicion] = {
+            ...chat,
+            lastMessage: newLastMessage as typeof chat.lastMessage,
+            unreadCount: (chat.unreadCount ?? 0) + (sinLeer.get(posicion) ?? 0),
+          };
+          tocadas.push(posicion);
+        }
+
+        if (tocadas.length === 0) return prev;
+
+        // Las filas tocadas suben arriba, y ENTRE ELLAS por su hora.
+        //
+        // No por el orden en que llegaron los avisos: el socket no garantiza
+        // orden, asi que con dos chats en la misma tanda la lista podia quedar
+        // con el mensaje mas viejo por encima del mas nuevo hasta el refresco
+        // siguiente. Es el mismo criterio con el que ordena la lista, aplicado
+        // tambien aqui.
+        const arriba = new Set(tocadas);
+        const movidas = tocadas
+          .slice()
+          .sort((a, b) => epochToMs(porFila.get(b)!.m.ts) - epochToMs(porFila.get(a)!.m.ts))
+          .map((posicion) => data[posicion]);
+        const resto = data.filter((_, posicion) => !arriba.has(posicion));
+
+        return { ...prev, data: [...movidas, ...resto] };
       });
     },
     [],
@@ -3865,15 +3948,25 @@ export function ChatsClient({
     if (identidades.has(jidDelAviso)) return true;
 
     if (!currentChatsResult.success) return false;
-    const coincide = (c: ChatData) => chatMatchesAnyJid(c, identidades);
-    const fila =
-      (selectedInstanceName
-        ? currentChatsResult.data.find(
-            (c) => c.instanceName === selectedInstanceName && coincide(c),
-          )
-        : undefined) ?? currentChatsResult.data.find(coincide);
 
-    return fila ? getChatIdentityCandidates(fila).includes(jidDelAviso) : false;
+    // Por el indice, no recorriendo la lista.
+    //
+    // Esto hacia hasta DOS `.find` sobre la lista entera —construyendo el
+    // conjunto de identidades de cada chat por el camino— y corria una vez POR
+    // AVISO. Con una cuenta grande y movimiento, era el trabajo mas repetido de
+    // la pantalla. La pregunta que responde es la misma; lo que cambia es que
+    // ya no depende de cuantos chats haya cargados.
+    const posicion = indiceDeIdentidades.get(jidDelAviso);
+    if (posicion === undefined) return false;
+    const fila = currentChatsResult.data[posicion];
+    if (!fila) return false;
+
+    // La fila encontrada tiene que ser la del chat ABIERTO, no la de cualquier
+    // contacto que comparta identidad. Y acotando por linea cuando se sabe: el
+    // mismo numero puede tener conversacion en dos lineas y la de la otra
+    // traeria identidades que no son de esta.
+    if (selectedInstanceName && fila.instanceName !== selectedInstanceName) return false;
+    return chatMatchesAnyJid(fila, identidades);
   };
 
   useChatsRealtime({

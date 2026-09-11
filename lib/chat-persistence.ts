@@ -8,7 +8,7 @@ import {
   pickPreferredWhatsAppRemoteJid,
 } from '@/lib/whatsapp-jid';
 import { esSobreInternoDeWhatsapp } from '@/lib/whatsapp-message-kinds';
-import { TOPE_DE_LA_BANDEJA } from '@/lib/bandeja';
+import { TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -1682,8 +1682,55 @@ async function loadPersistedInboxChats(
   // ORs + EXISTS que obligaba a un nested-loop cuadrático. Mismas columnas, mismo
   // DISTINCT ON y mismo orden que antes → mismos resultados (verificado con un
   // dataset de equivalencia: todas las reglas, multi-match, Meta, aislamiento).
+  // El recorte va DELANTE del cruce, no detras.
+  //
+  // Esto montaba `conv` y `sess` con TODAS las conversaciones y TODAS las
+  // sesiones de la cuenta, las desapilaba en claves (hasta 3 filas por
+  // conversacion y 2+ por sesion), las cruzaba, hacia el `DISTINCT ON` con su
+  // ordenacion... y recortaba a 300 al final. En una cuenta de 15.000 leads eso
+  // son unas 45.000 + 30.000 filas cruzadas y ordenadas para devolver 300: el
+  // `LIMIT` no ahorraba el trabajo, solo tiraba el resultado. Y crecia con la
+  // cuenta, asi que cada cliente que crecia se comia el ahorro anterior.
+  //
+  // Ahora se preseleccionan las mas recientes de cada fuente y solo esas entran.
+  // Es correcto por el argumento de mezcla de dos listas ordenadas: cada fila
+  // del resultado ordena por `c_ts` -si viene de una conversacion- o por
+  // `s_updated` -si es una sesion sin conversacion-, asi que el top-N global
+  // esta contenido en el top-N de cada fuente por su propio reloj.
+  //
+  // Con dos cuidados, que son los que lo hacen seguro:
+  //
+  //  - Las conversaciones SIN `lastMessageTimestamp` entran SIEMPRE. Esas
+  //    ordenan por el reloj de su sesion, no por el suyo, asi que recortarlas
+  //    por una columna que no tienen las dejaria fuera por sorpresa.
+  //  - La ventana es `VENTANA_DE_CANDIDATOS` veces la pagina, no exacta. El
+  //    motivo y lo que cubre estan escritos en esa constante.
+  const ventana = (params.take ?? TOPE_DE_LA_BANDEJA) * VENTANA_DE_CANDIDATOS;
+
   const consultarBandeja = (rawExpr: Prisma.Sql) => db.$queryRaw<InboxRow[]>`
-    WITH conv AS (
+    WITH pre_conv AS (
+      -- Entra por "chat_conversations_user_last_ts_idx" (userId, lastMessageTimestamp DESC).
+      SELECT c."id"
+      FROM "chat_conversations" c
+      WHERE c."userId" IN (${Prisma.join(userIds)})
+        AND c."lastMessageTimestamp" IS NOT NULL
+      ORDER BY c."lastMessageTimestamp" DESC
+      LIMIT ${ventana}
+    ),
+    pre_sess AS (
+      -- OJO: "Session" NO tiene indice por "updatedAt" -sus indices son
+      -- (userId, remoteJid), (userId, createdAt DESC) y el unico
+      -- (userId, instanceId, remoteJid)-, asi que esto ordena sin indice. Sigue
+      -- siendo mucho mas barato que arrastrar la cuenta entera por todo el
+      -- cruce, pero el indice que lo haria gratis lo tiene que crear el motor,
+      -- que es el dueño de las migraciones.
+      SELECT s."id"
+      FROM "Session" s
+      WHERE s."userId" IN (${Prisma.join(userIds)})
+      ORDER BY s."updatedAt" DESC
+      LIMIT ${ventana}
+    ),
+    conv AS (
       SELECT
         c."id" AS c_id, c."userId" AS c_user, c."instanceName" AS c_instance,
         c."instanceType" AS c_instance_type, c."remoteJid" AS c_jid,
@@ -1695,6 +1742,12 @@ async function loadPersistedInboxChats(
         c."updatedAt" AS c_updated
       FROM "chat_conversations" c
       WHERE c."userId" IN (${Prisma.join(userIds)})
+        AND (
+          -- Las que no traen hora ordenan por el reloj de su sesion: entran
+          -- siempre, no se pueden recortar por una columna que tienen vacia.
+          c."lastMessageTimestamp" IS NULL
+          OR c."id" IN (SELECT "id" FROM pre_conv)
+        )
     ),
     sess AS (
       SELECT
@@ -1703,6 +1756,7 @@ async function loadPersistedInboxChats(
         s."updatedAt" AS s_updated
       FROM "Session" s
       WHERE s."userId" IN (${Prisma.join(userIds)})
+        AND s."id" IN (SELECT "id" FROM pre_sess)
     ),
     -- Mapa (userId, instanceId, instanceName) como lista literal. La fila centinela
     -- (NULL,NULL,NULL) fija los tipos a text y nunca casa (NULL <> nada).
@@ -1897,11 +1951,26 @@ async function loadPersistedInboxChats(
     .sort((a, b) => getChatTimestamp(b) - getChatTimestamp(a));
   const __msMap = performance.now() - __tMap;
 
-  if (__ms + __msMap > 500) {
+  // Cuantas filas salen SIN ultimo mensaje.
+  //
+  // Es el numero que vigila el unico riesgo del recorte previo: una fila cuya
+  // sesion entro en la ventana pero cuya conversacion se quedo fuera sale sin
+  // su ultimo mensaje. `convId` a null es exactamente eso: una fila que salio
+  // de `Session` sin conversacion emparejada.
+  //
+  // No es cero por definicion —una conversacion que WhatsApp todavia no ha
+  // devuelto tampoco tiene fila en `chat_conversations`, y eso ya pasaba
+  // antes—, asi que lo que interesa es la TENDENCIA: si empieza a subir con el
+  // tamaño de la cuenta, la ventana se esta quedando corta. Medido, no
+  // estimado.
+  const sinUltimoMensaje = rows.reduce((n, r) => (r.convId == null ? n + 1 : n), 0);
+
+  if (__ms + __msMap > 500 || sinUltimoMensaje > 0) {
     console.error(
       `[PERF] getPersistedInboxChats consulta=${Math.round(__ms)}ms ` +
         `armado=${Math.round(__msMap)}ms ` +
-        `accounts=${userIds.length} rows=${rows.length}`,
+        `accounts=${userIds.length} rows=${rows.length} ` +
+        `sinUltimoMensaje=${sinUltimoMensaje} ventana=${ventana}`,
     );
   }
 

@@ -172,16 +172,19 @@ export function useChatsRealtime({ onChatChanged, onPresence, enabled = true, on
       });
 
       socket.on("chat:changed", (payload: ChatChangedPayload) => {
-        // Cada aviso deja rastro. "A veces se pinta y a veces no" no se puede
-        // diagnosticar sin saber si el aviso LLEGO: si la fila se mueve y esta
-        // linea no sale, el mensaje entro por el reloj de la lista y no por
-        // aqui, y el problema esta en la suscripcion, no en como se pinta.
-        console.info("[realtime] aviso", {
-          remoteJid: payload?.remoteJid,
-          instancia: payload?.instanceName ?? "(sin linea)",
-          tipo: payload?.message?.messageType ?? "(sin contenido)",
-          fromMe: payload?.message?.fromMe ?? null,
-        });
+        // SIN aviso por evento.
+        //
+        // Habia un `console.info` por cada `chat:changed`. La sala del socket es
+        // de CUENTA, asi que cada asesor recibe un evento por cada mensaje de
+        // cada linea de la cuenta: en una cuenta con movimiento eso son cientos
+        // de lineas de consola por minuto y por pestaña, que ademas retienen
+        // los objetos logueados mientras haya DevTools abierto —en una pestaña
+        // que un asesor deja abierta un turno entero, eso es memoria que no se
+        // recoge—. Y tapaba los avisos que si importan.
+        //
+        // Lo que hacia falta saber —si el aviso LLEGO— se sigue viendo con la
+        // traza del panel, que ademas mide el camino entero hasta la pantalla y
+        // se enciende sin desplegar (`traza_config`).
         // Se sella la llegada del aviso ANTES de entregarlo: lo que se quiere
         // medir es el camino entero -de cuando el backend lo emitio a cuando
         // el asesor lo ve-, y el pintado ocurre dentro de ese manejador.
