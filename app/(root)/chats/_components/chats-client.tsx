@@ -3211,21 +3211,58 @@ export function ChatsClient({
       // Solo se quitan de la pantalla los que de verdad se mandaron a borrar.
       // Con `remoteJids` entero, los que se quedaron sin linea desaparecian de
       // la lista sin haberse borrado y volvian en el refresco siguiente.
-      const enviados = Array.from(porCuentaYLinea.values()).flatMap((g) => g.jids);
-      const deletedJids = new Set(enviados.flatMap((jid) => buildWhatsAppJidCandidates(jid)));
+      //
+      // Y se quitan SOLO de su linea.
+      //
+      // Esto filtraba por identidad a secas, asi que borrar un contacto en
+      // Ventas hacia desaparecer en el acto tambien sus filas de Atencion y de
+      // Notificaciones —conversaciones distintas, que nadie pidio borrar—.
+      // Volvian solas en el refresco siguiente, que es lo que lo hacia parecer
+      // un parpadeo y no un fallo. El borrado de uno en uno ya se acotaba desde
+      // #488; a este se le habia pasado.
+      //
+      // Se guarda por linea: cada grupo sabe de cual es y que identidades
+      // lleva.
+      const porLinea = new Map<string, Set<string>>();
+      for (const { linea, jids } of Array.from(porCuentaYLinea.values())) {
+        const identidades = porLinea.get(linea) ?? new Set<string>();
+        for (const jid of jids) {
+          for (const candidato of buildWhatsAppJidCandidates(jid)) identidades.add(candidato);
+        }
+        porLinea.set(linea, identidades);
+      }
+      const seBorro = (chat: ChatData) => {
+        const identidades = chat.instanceName ? porLinea.get(chat.instanceName) : undefined;
+        return Boolean(identidades) && chatMatchesAnyJid(chat, identidades!);
+      };
+
       setCurrentChatsResult((prev) =>
         prev.success
-          ? {
-              ...prev,
-              data: prev.data.filter((chat) => !chatMatchesAnyJid(chat, deletedJids)),
-            }
+          ? { ...prev, data: prev.data.filter((chat) => !seBorro(chat)) }
           : prev,
       );
       setChatSessions((prev) => {
         const next = { ...prev };
-        for (const jid of Array.from(deletedJids)) delete next[jid];
+        // Las sesiones viven bajo DOS llaves: la de su linea (`linea::numero`) y
+        // la global (el numero pelado). Se quita la de la linea que se borro y
+        // se deja la global, que es la que pueden estar usando las filas del
+        // mismo contacto en las OTRAS lineas. Antes se hacia al reves —se
+        // borraba la global y se dejaba la de la linea—, asi que el borrado se
+        // llevaba por delante el asesor y las etiquetas de conversaciones que
+        // seguian vivas.
+        for (const [linea, identidades] of Array.from(porLinea.entries())) {
+          for (const identidad of Array.from(identidades)) {
+            delete next[`${linea}::${identidad}`];
+          }
+        }
         return next;
       });
+
+      // Para cerrar la conversacion abierta y para las marcas hacen falta las
+      // identidades sueltas, sin linea: ahi no hay fila que acotar.
+      const deletedJids = new Set(
+        Array.from(porLinea.values()).flatMap((ids) => Array.from(ids)),
+      );
       setChatPreferences((prev) => {
         const next = { ...prev };
         for (const { ownerUserId, result } of ok) {
@@ -3235,7 +3272,20 @@ export function ChatsClient({
         }
         return next;
       });
-      if (buildWhatsAppJidCandidates(selectedJid).some((candidate) => deletedJids.has(candidate))) {
+      // La conversacion abierta se cierra solo si se borro LA SUYA.
+      //
+      // Comparaba por identidad a secas, asi que con el chat de Atencion
+      // abierto, borrar a ese mismo contacto en Ventas cerraba la conversacion
+      // de Atencion, que seguia existiendo. Cuando no se sabe de que linea es
+      // la abierta se conserva el criterio de antes.
+      const identidadesAbiertas = buildWhatsAppJidCandidates(selectedJid);
+      const borraronLaAbierta = selectedInstanceName
+        ? (porLinea.get(selectedInstanceName)?.size ?? 0) > 0 &&
+          identidadesAbiertas.some((candidate) =>
+            porLinea.get(selectedInstanceName)!.has(candidate),
+          )
+        : identidadesAbiertas.some((candidate) => deletedJids.has(candidate));
+      if (borraronLaAbierta) {
         setSelectedJid("");
         setMessages([]);
         setInfo(undefined);
@@ -3248,7 +3298,7 @@ export function ChatsClient({
         toast.success(ok[0].result.message);
       }
     },
-    [ownerForJid, lineaDelJid, selectedJid],
+    [ownerForJid, lineaDelJid, selectedJid, selectedInstanceName],
   );
 
   const handleBulkPin = useCallback(
