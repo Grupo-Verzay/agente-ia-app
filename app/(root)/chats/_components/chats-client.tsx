@@ -487,6 +487,18 @@ function identidadesParaPedirMensajes(
   return Array.from(new Set([...getChatIdentityCandidates(contact), remoteJid].filter(Boolean)));
 }
 
+/**
+ * La llave del indice de avisos: linea + identidad.
+ *
+ * Sin la linea, un contacto con conversacion en tres lineas comparte una sola
+ * entrada y los avisos de las tres caen en la misma fila. Vive aqui, en una
+ * sola funcion, para que el que escribe el indice y el que lo consulta no
+ * puedan construirla distinto.
+ */
+function claveDeIdentidad(instanceName: string | null | undefined, identidad: string) {
+  return `${instanceName ?? ""}::${identidad}`;
+}
+
 function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
   return getChatIdentityCandidates(chat).some((candidate) => jids.has(candidate));
 }
@@ -702,10 +714,24 @@ export function ChatsClient({
     if (!currentChatsResult.success) return indice;
     currentChatsResult.data.forEach((chat, posicion) => {
       for (const identidad of getChatIdentityCandidates(chat)) {
-        // La PRIMERA gana. La lista viene ordenada por fecha, asi que cuando el
-        // mismo contacto tiene fila en dos lineas, la que se queda es la mas
-        // reciente: el mismo criterio con el que se pinta.
-        if (identidad && !indice.has(identidad)) indice.set(identidad, posicion);
+        if (!identidad) continue;
+        // Con la LINEA en la llave, no solo la identidad.
+        //
+        // Un mismo numero puede tener conversacion en varias lineas de la misma
+        // cuenta, y son conversaciones DISTINTAS. Sin la linea, las tres filas
+        // compartian entrada y ganaba la primera -o sea la mas reciente, porque
+        // la lista va ordenada por fecha-: todos los avisos en vivo caian sobre
+        // esa, y las otras se quedaban congeladas. Y como la mas reciente
+        // cambia sola cada vez que el reloj trae un mensaje de otra linea, el
+        // chat parecia "cambiar de linea": primero Ventas, luego Atencion,
+        // luego Notificaciones.
+        //
+        // La llave sin linea se guarda TAMBIEN, como respaldo: hay avisos que
+        // llegan sin `instanceName` y sin ella no encontrarian ninguna fila.
+        // Se consulta solo cuando la de la linea no encuentra nada.
+        const conLinea = claveDeIdentidad(chat.instanceName, identidad);
+        if (!indice.has(conLinea)) indice.set(conLinea, posicion);
+        if (!indice.has(identidad)) indice.set(identidad, posicion);
       }
     });
     return indice;
@@ -3836,8 +3862,15 @@ export function ChatsClient({
           number,
           { m: NonNullable<ChatChangedPayload["message"]>; jid: string }
         >();
+        // Primero por (linea, identidad); si el aviso no trae linea, por la
+        // identidad sola. Una sola funcion decide, para que los dos bucles de
+        // aqui abajo no puedan discrepar.
+        const filaDelAviso = (p: { remoteJid: string; instanceName?: string | null }) =>
+          indice.get(claveDeIdentidad(p.instanceName, p.remoteJid)) ??
+          (p.instanceName ? undefined : indice.get(p.remoteJid));
+
         for (const payload of avisos) {
-          const posicion = indice.get(payload.remoteJid);
+          const posicion = filaDelAviso(payload);
           if (posicion === undefined) continue;
           const yaHabia = porFila.get(posicion);
           if (yaHabia && epochToMs(yaHabia.m.ts) >= epochToMs(payload.message.ts)) continue;
@@ -3851,7 +3884,7 @@ export function ChatsClient({
         const sinLeer = new Map<number, number>();
         for (const payload of avisos) {
           if (payload.message.fromMe) continue;
-          const posicion = indice.get(payload.remoteJid);
+          const posicion = filaDelAviso(payload);
           if (posicion === undefined) continue;
           sinLeer.set(posicion, (sinLeer.get(posicion) ?? 0) + 1);
         }
@@ -3913,7 +3946,17 @@ export function ChatsClient({
 
   /** Encola un aviso y programa el volcado. */
   const encolarAviso = useCallback(
-    (payload: { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }) => {
+    (payload: {
+      remoteJid: string;
+      /**
+       * La linea del aviso. Se tiraba aqui, y era el dato que hacia falta para
+       * saber a CUAL de las conversaciones de ese contacto pertenece el
+       * mensaje. Puede venir vacia -no todos los avisos la traen-, y entonces
+       * se cae al respaldo sin linea.
+       */
+      instanceName?: string | null;
+      message: NonNullable<ChatChangedPayload["message"]>;
+    }) => {
       avisosPendientesRef.current.push(payload);
       if (volcadoDeAvisosRef.current) return;
       volcadoDeAvisosRef.current = setTimeout(() => {
@@ -3949,22 +3992,37 @@ export function ChatsClient({
 
     if (!currentChatsResult.success) return false;
 
-    // Por el indice, no recorriendo la lista.
+    // Por el indice, no recorriendo la lista. Pero buscando PRIMERO en la linea
+    // abierta, que es lo que se habia perdido.
     //
-    // Esto hacia hasta DOS `.find` sobre la lista entera —construyendo el
-    // conjunto de identidades de cada chat por el camino— y corria una vez POR
-    // AVISO. Con una cuenta grande y movimiento, era el trabajo mas repetido de
-    // la pantalla. La pregunta que responde es la misma; lo que cambia es que
-    // ya no depende de cuantos chats haya cargados.
-    const posicion = indiceDeIdentidades.get(jidDelAviso);
+    // Esto hacia dos `.find` sobre la lista entera y corria una vez POR AVISO;
+    // el indice quita ese coste. Lo que NO se puede perder por el camino es el
+    // orden de la busqueda: el `.find` de antes preferia la fila de la linea
+    // abierta y solo si no la encontraba miraba cualquier otra.
+    //
+    // Al pasar al indice se hizo al reves -resolver primero, rechazar despues
+    // si la linea no cuadraba- y eso rompio el caso de un contacto con
+    // conversacion en varias lineas: el indice devolvia la fila de la linea mas
+    // reciente, no coincidia con la abierta, se devolvia `false` y el mensaje
+    // no entraba en la conversacion. Desde fuera es el fallo de siempre: "se ve
+    // en la columna y en la conversacion no". Estuvo vivo en produccion.
+    //
+    // Ahora se pregunta por (linea abierta, identidad) y solo si no hay nada se
+    // cae a la identidad sola, que es exactamente lo que hacia el `.find`.
+    const buscar = (identidad: string) => {
+      const enSuLinea = selectedInstanceName
+        ? indiceDeIdentidades.get(claveDeIdentidad(selectedInstanceName, identidad))
+        : undefined;
+      return enSuLinea ?? indiceDeIdentidades.get(identidad);
+    };
+
+    const posicion = buscar(jidDelAviso);
     if (posicion === undefined) return false;
     const fila = currentChatsResult.data[posicion];
     if (!fila) return false;
 
-    // La fila encontrada tiene que ser la del chat ABIERTO, no la de cualquier
-    // contacto que comparta identidad. Y acotando por linea cuando se sabe: el
-    // mismo numero puede tener conversacion en dos lineas y la de la otra
-    // traeria identidades que no son de esta.
+    // La fila tiene que ser la del chat ABIERTO, no la de cualquier contacto
+    // que comparta identidad.
     if (selectedInstanceName && fila.instanceName !== selectedInstanceName) return false;
     return chatMatchesAnyJid(fila, identidades);
   };
@@ -4139,7 +4197,7 @@ export function ChatsClient({
           // como si se hubiera pintado.
           mensajePintado(m.id);
         }
-        encolarAviso({ remoteJid: jid, message: m });
+        encolarAviso({ remoteJid: jid, instanceName: payload.instanceName, message: m });
         return; // sin golpear Evolution
       }
 
