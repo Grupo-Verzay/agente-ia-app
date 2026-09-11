@@ -36,9 +36,7 @@ services:
         define('WP_MEMORY_LIMIT', '512M');
         define('WP_MAX_MEMORY_LIMIT', '1024M');
         define('FS_METHOD', 'direct');
-        /* Traefik termina el TLS: sin esto WordPress cree que va por http y entra en bucle de redirecciones. */
-        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $_SERVER['HTTPS'] = 'on'; }
-        if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) { $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST']; }
+        /* Nada de variables PHP con signo de dolar aqui: el stack las sustituye como si fueran suyas. El X-Forwarded-Proto de Traefik ya lo atiende el wp-config.php de la imagen. */
     volumes:
       - html:/var/www/html
     deploy:
