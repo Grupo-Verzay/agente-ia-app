@@ -57,7 +57,7 @@ echo "$RESPUESTA" | python3 -c '
 import json, sys
 r = json.load(sys.stdin)
 if "Id" in r:
-    print(f"Stack {r[\"Name\"]} creado (id {r[\"Id\"]}).")
+    print("Stack %s creado (id %s)." % (r["Name"], r["Id"]))
 else:
     print("Portainer contestó con error:", r); sys.exit(1)'
 echo "Dominio: https://$DOMINIO  (y www.$DOMINIO). Apunta los dos registros A al servidor antes de abrirlo."
