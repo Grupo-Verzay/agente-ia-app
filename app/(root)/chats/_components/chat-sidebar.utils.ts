@@ -271,11 +271,39 @@ export function formatTimeFromEpoch(epoch?: number): string {
 
 const BAD_NAMES = new Set(['você', 'voce', 'desconocido', '.', '']);
 
+/**
+ * Una identidad de WhatsApp escrita entera: `573001234567@s.whatsapp.net`,
+ * `9876543210@lid`, un grupo, una difusion.
+ *
+ * Se acotan los dominios a los de WhatsApp a proposito: con un `@` a secas se
+ * descartaria tambien un correo, y un asesor puede renombrar un contacto a su
+ * correo y esperar verlo. Y la segunda forma —digitos@loquesea— cubre los
+ * dominios que no estan en la lista sin tocar un correo con nombre.
+ */
+const DOMINIOS_DE_WHATSAPP = /@(s\.whatsapp\.net|lid|c\.us|g\.us|broadcast|newsletter)$/i;
+const SOLO_DIGITOS_ARROBA = /^\+?\d{6,}@/;
+
 export function isBadContactName(name?: string | null): boolean {
   if (!name) return true;
 
   const limpio = name.trim();
   if (BAD_NAMES.has(limpio.toLowerCase())) return true;
+
+  // Un JID no es un nombre.
+  //
+  // Cuando el contacto es nuevo y nadie sabe como se llama, Evolution devuelve
+  // el propio JID como `pushName`, y eso llegaba a la fila TAL CUAL:
+  // «573233246305@s.whatsapp.net». Pasaba el filtro porque no es una ristra de
+  // digitos pelados -lleva arroba y letras-, asi que se daba por un nombre
+  // bueno y se pintaba. Solo se veia en una conversacion NUEVA: en cuanto la
+  // sesion guarda un nombre de verdad, ese gana antes de llegar aqui.
+  //
+  // Y no era solo feo. El numero entero viaja dentro del JID, asi que se
+  // saltaba el tapado de telefonos que hace `nameFrom` un poco mas abajo
+  // (`telefonoParaMostrar` / `puedeVerTelefonoCompleto`): un agente que no debe
+  // ver el numero completo lo tenia delante en la lista. Descartandolo aqui, la
+  // fila cae a `nameFrom` y sale el numero formateado y tapado segun su rol.
+  if (DOMINIOS_DE_WHATSAPP.test(limpio) || SOLO_DIGITOS_ARROBA.test(limpio)) return true;
 
   // Una ristra de dígitos no es un nombre. Cuando WhatsApp no da el nombre del
   // contacto, lo que queda guardado es su identificador interno —los quince
