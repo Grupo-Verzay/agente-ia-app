@@ -9,6 +9,7 @@ import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
+import { motivoDeNoPoderCrearLaLinea } from '@/lib/motivo-de-evolution';
 import { assertApiKeyHasCapacity } from "./admin/evolution-capacity";
 
 const QR_DISCONNECTION_MESSAGE =
@@ -430,7 +431,16 @@ export async function createInstance(data: FormData) {
       const apiResult = await response.json();
 
       if (!response.ok) {
-        throw new Error(apiResult.message || 'Error al crear la instancia en la API.');
+        // El motivo lo trae Evolution anidado (`response.message`), no en
+        // `message`. Leyendo solo `message` el aviso se quedaba siempre en el
+        // texto por defecto: un boton que falla y no dice por que.
+        const motivo = motivoDeNoPoderCrearLaLinea(apiResult, 'Error al crear la instancia en la API.');
+        console.warn('[linea] Evolution rechazo crear la instancia', {
+          instanceName,
+          estado: response.status,
+          motivo,
+        });
+        throw new Error(motivo);
       }
 
       const instanceId = apiResult.hash;
@@ -862,7 +872,15 @@ export async function createInstanceInternal(
       });
       const apiResult = await response.json();
       if (!response.ok) {
-        return { success: false, message: apiResult.message || 'Error al crear la instancia en la API.' };
+        // Mismo lector que el otro camino de creacion: son dos puertas para lo
+        // mismo y el aviso tiene que decir lo mismo en las dos.
+        const motivo = motivoDeNoPoderCrearLaLinea(apiResult, 'Error al crear la instancia en la API.');
+        console.warn('[linea] Evolution rechazo crear la instancia', {
+          instanceName,
+          estado: response.status,
+          motivo,
+        });
+        return { success: false, message: motivo };
       }
 
       const instanceId = apiResult.hash;

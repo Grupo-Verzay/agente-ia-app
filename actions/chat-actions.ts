@@ -3,6 +3,7 @@
 import type { ApiKey } from '@prisma/client';
 import { Buffer } from 'buffer';
 import { epochToMs } from '@/lib/epoch';
+import { motivoDeEvolution } from '@/lib/motivo-de-evolution';
 import {
   buildWhatsAppJidCandidates,
   normalizeWhatsAppConversationJid,
@@ -947,11 +948,11 @@ const LINEA_CAIDA =
   /connection\s*(closed|terminated|lost)|not\s*connected|no\s*session|socket\s*closed/i;
 
 function motivoDelEnvioFallido(status: number, raw: any, porDefecto: string): string {
-  const anidado = raw?.response?.message;
-  const delProveedor =
-    (Array.isArray(anidado) ? anidado.join(', ') : (anidado as string)) ||
-    (raw?.message as string) ||
-    '';
+  // Quien sabe donde esconde Evolution el motivo es uno solo,
+  // `lib/motivo-de-evolution.ts`: esto mismo estaba escrito aqui y otra vez en
+  // la creacion de lineas, y dos copias de una regla acaban diciendo cosas
+  // distintas.
+  const delProveedor = motivoDeEvolution(raw);
 
   // El cuerpo entero tambien se mira: Evolution no siempre pone el motivo en el
   // mismo sitio, y aqui vale mas acertar con el aviso que ser purista.

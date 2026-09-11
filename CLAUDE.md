@@ -1550,6 +1550,36 @@ Y el formato de salida es el mismo que el de entrada, con una excepción a
 propósito: todo lo que no sea PNG sale como JPEG. Un PNG de una foto pesa
 muchísimo más y el tope del adjunto son 8 MB.
 
+## Evolution esconde el motivo en `response.message`
+
+«Error al crear la instancia en la API», y nada más. El servidor sí había dicho
+por qué; la App no lo leía.
+
+Un rechazo de Evolution viene así:
+
+```json
+{ "status": 403, "error": "Forbidden",
+  "response": { "message": ["This name \"X\" is already in use."] } }
+```
+
+`raw.message` —lo que se miraba— **viene vacío**, así que el aviso caía siempre
+en el texto por defecto. Un botón que falla y no dice por qué, que es justo lo
+que este documento prohíbe en su primera mitad.
+
+El caso real: la línea **seguía existiendo en Evolution** y no tenía ficha en la
+App, así que «Crear instancia» chocaba con el nombre ocupado. Con el motivo a la
+vista se resuelve en un minuto; sin él fue una llamada.
+
+Dos cosas:
+
+1. **Quien sabe dónde esconde Evolution el motivo es uno solo**,
+   `lib/motivo-de-evolution.ts`, y es puro. Mira el anidado, luego el de arriba y
+   luego `error`, porque Evolution no siempre usa el mismo. Lo usan los dos
+   caminos de creación y el de envío, que tenían la misma lógica copiada.
+2. **El nombre ocupado se explica en palabras que se puedan usar**: la línea
+   existe en el servidor pero no tiene ficha, y no se creó ninguna. Decir
+   «Forbidden» es tan poco útil como no decir nada.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
