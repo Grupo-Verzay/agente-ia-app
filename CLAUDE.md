@@ -1518,6 +1518,38 @@ Y lo que no case con una marca completa se enseña tal cual. La burbuja recorta 
 partido con una marca sin cerrar: entonces se ve el asterisco, que es
 exactamente lo que hace WhatsApp.
 
+## Chats: el editor de la foto es un paso opcional, no el camino
+
+Antes de enviar una imagen se puede recortarla, ponerle flechas y cuadros,
+dibujar encima y escribir (`EditorDeImagen.tsx`). Se llega por el **lápiz** de la
+previsualización del adjunto.
+
+Cuatro cosas que hay que mantener:
+
+1. **Es opcional y va por encima de lo que ya había.** Adjuntar coge el fichero,
+   lo pasa a `dataUrl` y lo manda; el editor solo sustituye esa `dataUrl` por
+   otra. Si el editor fallara, adjuntar y enviar siguen funcionando exactamente
+   igual. Para el envío, el backend, Evolution y WhatsApp es una foto normal:
+   **no se toca nada del camino de envío**.
+2. **Se dibuja en coordenadas de la IMAGEN, no de la pantalla.** El lienzo se ve
+   escalado para que quepa; guardando coordenadas de pantalla, la flecha saldría
+   movida en la foto final y de distinto tamaño según la ventana. `aLaImagen`
+   hace esa conversión y es la única que la hace. El grosor y el tamaño de letra
+   también se miden en la imagen: en una foto de 4.000 px un trazo de 3 px no se
+   ve.
+3. **Los trazos se guardan, no se queman.** Se repinta todo en cada cambio a
+   partir de la lista, así que «Deshacer» es quitar el último y ya, y **el
+   recorte es un trazo más**: no destruye nada y se puede deshacer. Si se añade
+   otra herramienta, va como un trazo más en esa lista.
+4. **Por encima de 2.400 px de lado se trabaja con una copia reducida**
+   (`LADO_MAXIMO`). Volver a codificar una foto de cámara entera puede pasarse de
+   los 8 MB del adjunto y ahoga la memoria de un móvil mientras se dibuja;
+   WhatsApp la recomprime de todas formas. Solo afecta a la foto **si se edita**.
+
+Y el formato de salida es el mismo que el de entrada, con una excepción a
+propósito: todo lo que no sea PNG sale como JPEG. Un PNG de una foto pesa
+muchísimo más y el tope del adjunto son 8 MB.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

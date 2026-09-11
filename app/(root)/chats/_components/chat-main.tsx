@@ -744,6 +744,19 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     setComposeMediaList((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  /**
+   * La foto editada sustituye a la original en el sitio que ocupaba.
+   *
+   * Se cambia SOLO la imagen: el nombre y el tipo se conservan, porque el
+   * editor devuelve el mismo formato que le entro. Para el envio es la misma
+   * foto de siempre.
+   */
+  const handleReplaceComposeMedia = useCallback((index: number, dataUrl: string) => {
+    setComposeMediaList((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, dataUrl } : m)),
+    );
+  }, []);
+
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setInput(value);
@@ -1203,6 +1216,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onKeyPress={handleKeyPress}
         onAddComposeMedia={handleAddComposeMedia}
         onRemoveComposeMedia={handleRemoveComposeMedia}
+        onReplaceComposeMedia={handleReplaceComposeMedia}
         onClearReplyTo={() => setReplyTo(null)}
         onStartRecording={startRecording}
         onStopRecordingAndPreview={stopRecordingAndPreview}

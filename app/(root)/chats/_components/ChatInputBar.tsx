@@ -23,6 +23,7 @@ import {
 } from '@/actions/chat-manual-actions';
 import { EmojiPickerPanel } from './EmojiPickerPanel';
 import { FormatoDeTexto } from './FormatoDeTexto';
+import { EditorDeImagen } from './EditorDeImagen';
 import { envolverSeleccion } from '@/lib/formato-whatsapp';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import type { ComposeMedia } from './attachment-menu';
@@ -52,6 +53,8 @@ interface ChatInputBarProps {
   onKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onAddComposeMedia: (media: ComposeMedia) => void;
   onRemoveComposeMedia: (index: number) => void;
+  /** Sustituye la foto por su version editada. Opcional: sin esto no sale el lapiz. */
+  onReplaceComposeMedia?: (index: number, dataUrl: string) => void;
   onClearReplyTo: () => void;
   onStartRecording: () => void;
   onStopRecordingAndPreview: () => void;
@@ -96,6 +99,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onKeyPress,
   onAddComposeMedia,
   onRemoveComposeMedia,
+  onReplaceComposeMedia,
   onClearReplyTo,
   onStartRecording,
   onStopRecordingAndPreview,
@@ -117,6 +121,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [signatureText, setSignatureText] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  // Qué adjunto se está editando, o null. El editor es un paso opcional: si no
+  // se abre, adjuntar y enviar funcionan igual que siempre.
+  const [editando, setEditando] = useState<number | null>(null);
   const [inputMenuOpen, setInputMenuOpen] = useState(false);
   const [rightMenuOpen, setRightMenuOpen] = useState(false);
   const [isCompactToolbar, setIsCompactToolbar] = useState(false);
@@ -444,6 +451,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                 <div className="truncate font-medium">{composeMediaList[0].fileName}</div>
                 <div className="text-muted-foreground">{composeMediaList[0].mimeType}</div>
               </div>
+              {onReplaceComposeMedia && composeMediaList[0].mediatype === 'image' && (
+                <button onClick={() => setEditando(0)} aria-label="Editar foto" title="Editar foto" type="button"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition-colors hover:bg-muted">
+                  <PenLine className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button onClick={() => onRemoveComposeMedia(0)} aria-label="Quitar adjunto" type="button"
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-colors hover:bg-red-600">
                 <X className="h-3.5 w-3.5" />
@@ -468,9 +481,32 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                   >
                     <X className="h-3 w-3" />
                   </button>
+                  {onReplaceComposeMedia && m.mediatype === 'image' && (
+                    <button
+                      onClick={() => setEditando(i)}
+                      aria-label="Editar foto"
+                      title="Editar foto"
+                      type="button"
+                      className="absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-background/90 text-foreground shadow-md transition-colors hover:bg-background"
+                    >
+                      <PenLine className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
+          )}
+
+          {editando !== null && composeMediaList[editando] && onReplaceComposeMedia && (
+            <EditorDeImagen
+              dataUrl={composeMediaList[editando].dataUrl}
+              mimeType={composeMediaList[editando].mimeType}
+              onCerrar={() => setEditando(null)}
+              onGuardar={(nueva) => {
+                onReplaceComposeMedia(editando, nueva);
+                setEditando(null);
+              }}
+            />
           )}
         </div>
       )}
