@@ -79,6 +79,9 @@ import {
   isBadContactName,
   getChatIdentityCandidates,
   isChatDeletedByPreference,
+  claveDeChat,
+  partirClaveDeChat,
+  type SeleccionDeChat,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
 import { normalizeDeliveryState } from "./chat-message-utils";
@@ -95,7 +98,7 @@ import type { ChatData } from "@/actions/chat-actions";
 // ellas—: con una sola marca compartida, abrirlo en una borraba la de la otra y
 // las dos se quedaban peleando por siempre en "No leídos".
 function claveDeChatVisto(instanceName: string | undefined, remoteJid: string): string {
-  return `${instanceName ?? ""}::${remoteJid}`;
+  return claveDeChat(instanceName, remoteJid);
 }
 
 // Tope de la lista guardada en el navegador: una entrada por chat abierto, y
@@ -231,11 +234,14 @@ type ChatSidebarProps = {
   inactiveAgentUnreadJids?: Set<string>;
   /** Presencia por fila (`linea::jid`): escribiendo / grabando. */
   presencias?: Record<string, PresenciaContacto>;
-  onBulkArchive?: (remoteJids: string[], archived: boolean) => Promise<void>;
-  onBulkDelete?: (remoteJids: string[]) => Promise<void>;
-  onBulkPin?: (remoteJids: string[], isPinned: boolean) => Promise<void>;
-  onBulkAssignAdvisor?: (remoteJids: string[], advisorId: string | null) => Promise<void>;
-  onBulkAddTag?: (remoteJids: string[], tagId: number) => Promise<void>;
+  // Cada chat marcado viaja con SU linea: un mismo numero puede estar
+  // seleccionado en una linea y no en otra, y la accion tiene que caer solo en
+  // la que se marco.
+  onBulkArchive?: (chats: SeleccionDeChat[], archived: boolean) => Promise<void>;
+  onBulkDelete?: (chats: SeleccionDeChat[]) => Promise<void>;
+  onBulkPin?: (chats: SeleccionDeChat[], isPinned: boolean) => Promise<void>;
+  onBulkAssignAdvisor?: (chats: SeleccionDeChat[], advisorId: string | null) => Promise<void>;
+  onBulkAddTag?: (chats: SeleccionDeChat[], tagId: number) => Promise<void>;
   onCollapse?: () => void;
   tab?: TabKey;
   onTabChange?: (tab: TabKey) => void;
@@ -563,6 +569,13 @@ export function ChatSidebar({
 
   const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
 
+  /** ¿Está destacada ESTA conversación? Cuenta también la entrada antigua, sin línea. */
+  const estaDestacado = React.useCallback(
+    (c: { id: string; instanceName?: string | null }) =>
+      starredJids.has(claveDeChat(c.instanceName, c.id)) || starredJids.has(c.id),
+    [starredJids],
+  );
+
   /**
    * Todos los contadores, en UNA sola pasada.
    *
@@ -621,7 +634,7 @@ export function ChatSidebar({
       }
 
       if (c.isUnreadLocal) unread++;
-      if (starredJids.has(c.id)) starred++;
+      if (estaDestacado(c)) starred++;
       if (c.hasNotes) notes++;
 
       const estadoCliente = c.chatSession?.clientStatus;
@@ -657,7 +670,7 @@ export function ChatSidebar({
       } satisfies TabCounts,
       filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human },
     };
-  }, [contacts, currentAdvisorId, starredJids, channelCounts, selectedChannel]);
+  }, [contacts, currentAdvisorId, estaDestacado, channelCounts, selectedChannel]);
 
   const { advisorCounts, tabCounts, filterCounts } = conteos;
 
@@ -755,7 +768,7 @@ export function ChatSidebar({
     }
 
     if (starredOnly) {
-      list = list.filter((c) => starredJids.has(c.id));
+      list = list.filter(estaDestacado);
     }
 
     if (notesOnly) {
@@ -775,7 +788,7 @@ export function ChatSidebar({
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, starredJids, currentAdvisorId]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, estaDestacado, currentAdvisorId]);
 
   // Ref con la lista filtrada actual, para usar dentro de efectos sin volver a
   // dispararlos en cada cambio de la lista (p. ej. polls).
@@ -956,9 +969,20 @@ export function ChatSidebar({
     try { localStorage.setItem("starredChats", JSON.stringify(starredJidsArray)); } catch {}
   }, [starredJidsArray]);
 
-  const toggleStarred = useCallback((jid: string) => {
+  // Destacar es de la conversacion, no del numero: el mismo contacto puede
+  // importar en Ventas y no en Atencion. Se guarda con la llave de su linea,
+  // igual que lo seleccionado y lo ya visto.
+  //
+  // La entrada ANTIGUA -solo el numero- sigue valiendo para leer, como en
+  // `seenMessages`: los navegadores ya tienen las suyas guardadas y no hay por
+  // que borrarle a nadie sus destacados. Al quitar la estrella se van las dos,
+  // asi que la vieja desaparece la primera vez que se toca.
+  const toggleStarred = useCallback((jid: string, instanceName?: string | null) => {
+    const clave = claveDeChat(instanceName, jid);
     setStarredJidsArray((prev) =>
-      prev.includes(jid) ? prev.filter((id) => id !== jid) : [...prev, jid]
+      prev.includes(clave) || prev.includes(jid)
+        ? prev.filter((id) => id !== clave && id !== jid)
+        : [...prev, clave]
     );
   }, []);
 
@@ -1000,10 +1024,20 @@ export function ChatSidebar({
     [onPrefetchRemoteJid],
   );
 
-  const toggleSelectJid = useCallback((jid: string) => {
+  /**
+   * Lo seleccionado se guarda por LINEA y chat, no por chat.
+   *
+   * Con la identidad sola, un contacto con conversacion en tres lineas comparte
+   * una sola entrada: se marcaba la casilla de UNA fila y se pintaban las tres
+   * -el contador decia 1, que es lo que delataba que la seleccion era una y las
+   * marcas tres-. Y al borrar, `lineaDelJid` se rinde a proposito cuando hay
+   * varias, asi que no se borraba ninguna.
+   */
+  const toggleSelectJid = useCallback((jid: string, instanceName?: string | null) => {
+    const clave = claveDeChat(instanceName, jid);
     setSelectedJids((prev) => {
       const next = new Set(prev);
-      if (next.has(jid)) { next.delete(jid); } else { next.add(jid); }
+      if (next.has(clave)) { next.delete(clave); } else { next.add(clave); }
       return next;
     });
   }, []);
@@ -1011,7 +1045,9 @@ export function ChatSidebar({
   const clearSelection = useCallback(() => setSelectedJids(new Set()), []);
 
   const selectAll = useCallback(() => {
-    const visibleIds = (tab === "deleted" ? deletedContacts : filtered).map((c) => c.id);
+    const visibleIds = (tab === "deleted" ? deletedContacts : filtered).map((c) =>
+      claveDeChat(c.instanceName, c.id),
+    );
     setSelectedJids((prev) => {
       if (prev.size === visibleIds.length && visibleIds.every((id) => prev.has(id))) {
         return new Set();
@@ -1020,13 +1056,21 @@ export function ChatSidebar({
     });
   }, [tab, filtered, deletedContacts]);
 
-  const selectedJidsArray = useMemo(() => Array.from(selectedJids), [selectedJids]);
+  /** Lo marcado, cada uno con su línea. Es lo que reciben las acciones en lote. */
+  const selectedChats = useMemo(
+    (): SeleccionDeChat[] =>
+      Array.from(selectedJids).map((clave) => {
+        const { instanceName, remoteJid } = partirClaveDeChat(clave);
+        return { remoteJid, instanceName: instanceName || null };
+      }),
+    [selectedJids],
+  );
 
   const handleBulkArchive = useCallback(async (archived: boolean) => {
-    if (!onBulkArchive || selectedJidsArray.length === 0) return;
-    await onBulkArchive(selectedJidsArray, archived);
+    if (!onBulkArchive || selectedChats.length === 0) return;
+    await onBulkArchive(selectedChats, archived);
     clearSelection();
-  }, [onBulkArchive, selectedJidsArray, clearSelection]);
+  }, [onBulkArchive, selectedChats, clearSelection]);
 
   const hoyISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -1062,7 +1106,9 @@ export function ChatSidebar({
 
   const handleDeleteByDate = useCallback(async () => {
     if (!onBulkDelete || contactosEnElRango.length === 0) return;
-    await onBulkDelete(contactosEnElRango.map((c) => c.id));
+    await onBulkDelete(
+      contactosEnElRango.map((c) => ({ remoteJid: c.id, instanceName: c.instanceName })),
+    );
     setDateDeleteOpen(false);
     setDateFrom("");
     setDateTo("");
@@ -1070,41 +1116,47 @@ export function ChatSidebar({
   }, [onBulkDelete, contactosEnElRango, clearSelection]);
 
   const handleBulkDelete = useCallback(async () => {
-    if (!onBulkDelete || selectedJidsArray.length === 0) return;
-    await onBulkDelete(selectedJidsArray);
+    if (!onBulkDelete || selectedChats.length === 0) return;
+    await onBulkDelete(selectedChats);
     setBulkDeleteOpen(false);
     clearSelection();
-  }, [onBulkDelete, selectedJidsArray, clearSelection]);
+  }, [onBulkDelete, selectedChats, clearSelection]);
 
   const handleBulkPin = useCallback(async (isPinned: boolean) => {
-    if (!onBulkPin || selectedJidsArray.length === 0) return;
-    await onBulkPin(selectedJidsArray, isPinned);
+    if (!onBulkPin || selectedChats.length === 0) return;
+    await onBulkPin(selectedChats, isPinned);
     clearSelection();
-  }, [onBulkPin, selectedJidsArray, clearSelection]);
+  }, [onBulkPin, selectedChats, clearSelection]);
 
   const handleBulkMarkRead = useCallback((read: boolean) => {
-    for (const jid of selectedJidsArray) {
-      const contact = contactsRef.current.find((c) => c.id === jid);
+    for (const { remoteJid, instanceName } of selectedChats) {
+      // La fila de SU linea. Buscando solo por identidad se cogia la primera
+      // que apareciera, que con un contacto en varias lineas no tiene por que
+      // ser la marcada: se marcaba como leido el ultimo mensaje de otra.
+      const contact = contactsRef.current.find(
+        (c) => c.id === remoteJid && (!instanceName || c.instanceName === instanceName),
+      );
+      const linea = instanceName ?? contact?.instanceName ?? undefined;
       if (read) {
-        markMessageAsSeen(jid, contact?.lastMessageId ?? "", contact?.instanceName, contact?.ts);
+        markMessageAsSeen(remoteJid, contact?.lastMessageId ?? "", linea, contact?.ts);
       } else {
-        markMessageAsUnseen(jid, contact?.instanceName);
+        markMessageAsUnseen(remoteJid, linea);
       }
     }
     clearSelection();
-  }, [selectedJidsArray, markMessageAsSeen, markMessageAsUnseen, clearSelection]);
+  }, [selectedChats, markMessageAsSeen, markMessageAsUnseen, clearSelection]);
 
   const handleBulkAssignAdvisor = useCallback(async (advisorId: string | null) => {
-    if (!onBulkAssignAdvisor || selectedJidsArray.length === 0) return;
-    await onBulkAssignAdvisor(selectedJidsArray, advisorId);
+    if (!onBulkAssignAdvisor || selectedChats.length === 0) return;
+    await onBulkAssignAdvisor(selectedChats, advisorId);
     clearSelection();
-  }, [onBulkAssignAdvisor, selectedJidsArray, clearSelection]);
+  }, [onBulkAssignAdvisor, selectedChats, clearSelection]);
 
   const handleBulkAddTag = useCallback(async (tagId: number) => {
-    if (!onBulkAddTag || selectedJidsArray.length === 0) return;
-    await onBulkAddTag(selectedJidsArray, tagId);
+    if (!onBulkAddTag || selectedChats.length === 0) return;
+    await onBulkAddTag(selectedChats, tagId);
     clearSelection();
-  }, [onBulkAddTag, selectedJidsArray, clearSelection]);
+  }, [onBulkAddTag, selectedChats, clearSelection]);
 
   const handleRenameSubmit = useCallback(async () => {
     if (!renameTarget) return;
@@ -1419,7 +1471,11 @@ export function ChatSidebar({
                 currentAdvisorId={currentAdvisorId}
                 onAssignAdvisor={onAssignAdvisor}
                 showInstanceBadge={instancias.length > 1 && !selectedChannel}
-                isChecked={selectedJids.size > 0 ? selectedJids.has(contact.id) : undefined}
+                isChecked={
+                  selectedJids.size > 0
+                    ? selectedJids.has(claveDeChat(contact.instanceName, contact.id))
+                    : undefined
+                }
                 onToggleSelect={toggleSelectJid}
                 allTags={allTags}
                 onMarkRead={handleItemMarkRead}
@@ -1427,7 +1483,7 @@ export function ChatSidebar({
                 onResolve={handleResolve}
                 onAssignTag={handleAssignTag}
                 onRenameRequest={handleItemRenameRequest}
-                isStarred={starredJids.has(contact.id)}
+                isStarred={estaDestacado(contact)}
                 onToggleStar={toggleStarred}
                 hasNotes={contact.hasNotes}
               />

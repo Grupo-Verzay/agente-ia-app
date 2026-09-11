@@ -66,6 +66,34 @@ export function getChatIdentityCandidates(chat: ChatData): string[] {
 }
 
 /**
+ * La llave de un chat en la pantalla: su LINEA y su identidad.
+ *
+ * El mismo numero puede tener conversacion en varias lineas, y son
+ * conversaciones distintas. Todo lo que la pantalla guarde por chat -lo
+ * seleccionado, lo ya visto, el indice de avisos- tiene que ir con esta llave;
+ * con la identidad sola, las filas del mismo contacto comparten una entrada y
+ * lo que se hace en una se ve en las tres.
+ *
+ * Vive aqui, en una sola funcion, para que quien la escribe y quien la consulta
+ * no puedan construirla distinto.
+ */
+export function claveDeChat(instanceName: string | null | undefined, remoteJid: string): string {
+  return `${instanceName ?? ""}::${remoteJid}`;
+}
+
+/** Lo contrario: de la llave, la linea y la identidad. */
+export function partirClaveDeChat(clave: string): { instanceName: string; remoteJid: string } {
+  const corte = clave.indexOf("::");
+  // Sin separador la llave es antigua (solo identidad): se devuelve sin linea,
+  // que es exactamente como se comportaba.
+  if (corte < 0) return { instanceName: "", remoteJid: clave };
+  return { instanceName: clave.slice(0, corte), remoteJid: clave.slice(corte + 2) };
+}
+
+/** Un chat señalado en la pantalla: su identidad y de qué línea es. */
+export type SeleccionDeChat = { remoteJid: string; instanceName?: string | null };
+
+/**
  * Las identidades que aparecen en MAS DE UNA linea de la bandeja.
  *
  * Es lo que `elegirPreferenciaDelChat` necesita para no heredarle a un contacto

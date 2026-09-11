@@ -113,7 +113,7 @@ type ChatContactItemProps = {
   onAssignAdvisor?: (remoteJid: string, advisorId: string | null, instanceName?: string | null) => Promise<void>;
   showInstanceBadge?: boolean;
   isChecked?: boolean;
-  onToggleSelect?: (id: string) => void;
+  onToggleSelect?: (id: string, instanceName?: string | null) => void;
   allTags?: SimpleTag[];
   onMarkRead?: (id: string) => void;
   onMarkUnread?: (id: string) => void;
@@ -121,7 +121,7 @@ type ChatContactItemProps = {
   onAssignTag?: (remoteJid: string, tagId: number) => void;
   onRenameRequest?: (contact: SidebarContact) => void;
   isStarred?: boolean;
-  onToggleStar?: (id: string) => void;
+  onToggleStar?: (id: string, instanceName?: string | null) => void;
   hasNotes?: boolean;
 };
 
@@ -384,7 +384,7 @@ function ChatContactItemBase({
           onClick={(e) => {
             e.stopPropagation();
             if (onToggleSelect) {
-              onToggleSelect(contact.id);
+              onToggleSelect(contact.id, contact.instanceName);
             } else {
               onSelect(contact.id, contact.lastMessageId, contact.instanceName);
             }
@@ -433,7 +433,7 @@ function ChatContactItemBase({
           type="button"
           onClick={() => {
             if (selectionMode && onToggleSelect) {
-              onToggleSelect(contact.id);
+              onToggleSelect(contact.id, contact.instanceName);
             } else {
               onSelect(contact.id, contact.lastMessageId, contact.instanceName);
             }
@@ -518,7 +518,7 @@ function ChatContactItemBase({
         {onToggleStar && !selectionMode && (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onToggleStar(contact.id); }}
+            onClick={(e) => { e.stopPropagation(); onToggleStar(contact.id, contact.instanceName); }}
             className={cn(
               "shrink-0 -mr-1 flex h-7 items-center justify-center overflow-hidden rounded-full transition-all",
               isStarred

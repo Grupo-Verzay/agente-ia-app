@@ -47,6 +47,7 @@ import {
   identidadesEnVariasLineas,
   isBadContactName,
   isChatDeletedByPreference,
+  type SeleccionDeChat,
 } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
@@ -1186,22 +1187,58 @@ export function ChatsClient({
   chatPreferencesRef.current = chatPreferences;
 
   /**
-   * Una selección múltiple puede mezclar líneas de cuentas distintas, y cada
-   * marca va bajo la cuenta de su línea. Se agrupa para hacer una llamada por
-   * cuenta en vez de una sola con todo mezclado.
+   * La sesión CRM de un chat marcado: la de SU línea.
+   *
+   * `chatSessions` guarda cada sesión bajo dos llaves —la de su línea
+   * (`linea::numero`) y la global, el número pelado—. Buscar por la global
+   * devuelve la de cualquiera de sus líneas, que con un contacto repartido no
+   * tiene por qué ser la marcada. Mismo criterio que `getSessionForChat`.
    */
-  const groupJidsByOwner = useCallback(
-    (remoteJids: string[]) => {
-      const groups = new Map<string, string[]>();
-      for (const jid of remoteJids) {
-        const owner = ownerForJid(jid);
-        const list = groups.get(owner);
-        if (list) list.push(jid);
-        else groups.set(owner, [jid]);
-      }
-      return Array.from(groups.entries());
+  const sesionDeLaSeleccion = useCallback(
+    ({ remoteJid, instanceName }: SeleccionDeChat) => {
+      const linea = instanceName?.trim();
+      if (linea) return chatSessions[`${linea}::${remoteJid}`] ?? undefined;
+      return buildWhatsAppJidCandidates(remoteJid)
+        .map((candidato) => chatSessions[candidato])
+        .find(Boolean);
     },
-    [ownerForJid],
+    [chatSessions],
+  );
+
+  /**
+   * Una selección múltiple puede mezclar líneas de cuentas distintas, y cada
+   * marca va bajo la cuenta de su línea. Se agrupa por cuenta Y POR LÍNEA, que
+   * es lo que necesitan las acciones en lote.
+   *
+   * La linea la manda LA SELECCION: cada chat marcado sabe de cual es, porque
+   * lo seleccionado se guarda con la llave `linea::identidad`. Antes se
+   * adivinaba con `lineaDelJid`, que se rinde a proposito cuando el numero
+   * aparece en varias —justo el caso del contacto repartido entre lineas—, asi
+   * que esas acciones o no acotaban o no se hacian.
+   *
+   * Si un chat llega sin linea (una fila que no la trae), se cae a `lineaDelJid`
+   * y, si tampoco, se devuelve aparte: quien llama decide si lo deja fuera —el
+   * borrado— o si sigue sin acotar.
+   */
+  const agruparSeleccionPorCuentaYLinea = useCallback(
+    (chats: SeleccionDeChat[]) => {
+      const grupos = new Map<string, { owner: string; linea: string; jids: string[] }>();
+      const sinLinea: string[] = [];
+      for (const { remoteJid, instanceName } of chats) {
+        const linea = instanceName?.trim() || lineaDelJid(remoteJid);
+        if (!linea) {
+          sinLinea.push(remoteJid);
+          continue;
+        }
+        const owner = cuentaDeLaLinea(remoteJid, linea);
+        const clave = `${owner}::${linea}`;
+        const grupo = grupos.get(clave);
+        if (grupo) grupo.jids.push(remoteJid);
+        else grupos.set(clave, { owner, linea, jids: [remoteJid] });
+      }
+      return { grupos: Array.from(grupos.values()), sinLinea };
+    },
+    [cuentaDeLaLinea, lineaDelJid],
   );
 
   /**
@@ -3152,12 +3189,20 @@ export function ChatsClient({
   }, [userId]);
 
   const handleBulkArchive = useCallback(
-    async (remoteJids: string[], archived: boolean) => {
-      const groups = groupJidsByOwner(remoteJids);
+    async (chats: SeleccionDeChat[], archived: boolean) => {
+      // Por cuenta Y POR LINEA, como el borrado (#615). Sin `instanceName` la
+      // marca se guarda "de todas las lineas" y archivar en Ventas escondia al
+      // mismo contacto en Atencion y en Notificaciones.
+      const { grupos } = agruparSeleccionPorCuentaYLinea(chats);
       const results = await Promise.all(
-        groups.map(async ([ownerUserId, jids]) => ({
+        grupos.map(async ({ owner: ownerUserId, linea, jids }) => ({
           ownerUserId,
-          result: await bulkArchiveChatsAction({ userId: ownerUserId, remoteJids: jids, archived }),
+          result: await bulkArchiveChatsAction({
+            userId: ownerUserId,
+            instanceName: linea,
+            remoteJids: jids,
+            archived,
+          }),
         })),
       );
       const ok = results.filter(({ result }) => result.success && result.data);
@@ -3174,18 +3219,26 @@ export function ChatsClient({
         }
         return next;
       });
-      if (archived && remoteJids.includes(selectedJid)) {
+      // La conversacion abierta se cierra solo si se archivo LA SUYA: misma
+      // identidad Y misma linea. Comparando solo el numero, archivar al mismo
+      // contacto en otra linea cerraba una conversacion que seguia ahi.
+      const archivaronLaAbierta = chats.some(
+        (c) =>
+          c.remoteJid === selectedJid &&
+          (!selectedInstanceName || !c.instanceName || c.instanceName === selectedInstanceName),
+      );
+      if (archived && archivaronLaAbierta) {
         setSelectedJid("");
         setMessages([]);
         setInfo(undefined);
       }
       toast.success(ok[0].result.message);
     },
-    [groupJidsByOwner, selectedJid],
+    [agruparSeleccionPorCuentaYLinea, selectedJid, selectedInstanceName],
   );
 
   const handleBulkDelete = useCallback(
-    async (remoteJids: string[]) => {
+    async (chats: SeleccionDeChat[]) => {
       // Se agrupa por cuenta Y POR LINEA.
       //
       // Antes solo por cuenta, y la llamada salia sin `instanceName`. Con la
@@ -3199,20 +3252,14 @@ export function ChatsClient({
       // marcas de todas las lineas: si `lineaDelJid` no sabia contestar, se
       // borraba igual y sin acotar. Ahora lo que no se puede situar no se
       // borra, y se dice cuantos fueron.
-      const sinLinea: string[] = [];
-      const porCuentaYLinea = new Map<string, { owner: string; linea: string; jids: string[] }>();
-      for (const jid of remoteJids) {
-        const owner = ownerForJid(jid);
-        const linea = lineaDelJid(jid);
-        if (!linea) {
-          sinLinea.push(jid);
-          continue;
-        }
-        const clave = `${owner}::${linea}`;
-        const grupo = porCuentaYLinea.get(clave);
-        if (grupo) grupo.jids.push(jid);
-        else porCuentaYLinea.set(clave, { owner, linea, jids: [jid] });
-      }
+      //
+      // La linea la trae AHORA la propia seleccion, que se guarda por
+      // `linea::identidad`. `lineaDelJid` se queda solo de respaldo para una
+      // fila que llegue sin ella: con un contacto en varias lineas se rendia a
+      // proposito, asi que estos chats caian enteros en «sin linea» y no se
+      // borraba ninguno.
+      const { grupos, sinLinea } = agruparSeleccionPorCuentaYLinea(chats);
+      const porCuentaYLinea = new Map(grupos.map((g) => [`${g.owner}::${g.linea}`, g]));
 
       if (sinLinea.length > 0) {
         // Nunca mudo: quedarse chats seleccionados sin borrar y no decirlo se ve
@@ -3337,16 +3384,24 @@ export function ChatsClient({
         toast.success(ok[0].result.message);
       }
     },
-    [ownerForJid, lineaDelJid, selectedJid, selectedInstanceName],
+    [agruparSeleccionPorCuentaYLinea, selectedJid, selectedInstanceName],
   );
 
   const handleBulkPin = useCallback(
-    async (remoteJids: string[], isPinned: boolean) => {
-      const groups = groupJidsByOwner(remoteJids);
+    async (chats: SeleccionDeChat[], isPinned: boolean) => {
+      // Por cuenta Y POR LINEA, como archivar y borrar: anclar sin
+      // `instanceName` escribe la marca «de todas» y el contacto salia anclado
+      // tambien en las lineas que nadie toco.
+      const { grupos } = agruparSeleccionPorCuentaYLinea(chats);
       const results = await Promise.all(
-        groups.map(async ([ownerUserId, jids]) => ({
+        grupos.map(async ({ owner: ownerUserId, linea, jids }) => ({
           ownerUserId,
-          result: await bulkPinChatsAction({ userId: ownerUserId, remoteJids: jids, isPinned }),
+          result: await bulkPinChatsAction({
+            userId: ownerUserId,
+            instanceName: linea,
+            remoteJids: jids,
+            isPinned,
+          }),
         })),
       );
       const ok = results.filter(({ result }) => result.success && result.data);
@@ -3365,14 +3420,26 @@ export function ChatsClient({
       });
       toast.success(ok[0].result.message);
     },
-    [groupJidsByOwner],
+    [agruparSeleccionPorCuentaYLinea],
   );
 
   const handleBulkAssignAdvisor = useCallback(
-    async (remoteJids: string[], advisorId: string | null) => {
-      const sessionIds = remoteJids
-        .map((jid) => chatSessions[jid]?.id)
-        .filter((id): id is number => id !== undefined);
+    async (chats: SeleccionDeChat[], advisorId: string | null) => {
+      // La sesion de SU linea.
+      //
+      // `chatSessions` guarda cada sesion bajo dos llaves: la de su linea
+      // (`linea::numero`) y la global (el numero pelado). Esto buscaba solo la
+      // global, asi que con un contacto en varias lineas se asignaba el asesor
+      // en la sesion de la primera que hubiera quedado ahi —no en la marcada—,
+      // y encima se pintaba en las tres filas. Es el mismo criterio que ya usa
+      // `getSessionForChat` para la fila.
+      const conSesion = chats
+        .map((c) => ({ remoteJid: c.remoteJid, sesion: sesionDeLaSeleccion(c) }))
+        .filter(
+          (c): c is { remoteJid: string; sesion: ChatContactSessionSummary } =>
+            c.sesion !== undefined,
+        );
+      const sessionIds = Array.from(new Set(conSesion.map((c) => c.sesion.id)));
 
       if (sessionIds.length === 0) {
         toast.error("Ninguno de los chats seleccionados tiene sesión CRM.");
@@ -3391,13 +3458,13 @@ export function ChatsClient({
 
       const ok = sessionIds.length - failed;
       if (ok > 0) {
-        setChatSessions((prev) => {
-          const next = { ...prev };
-          for (const jid of remoteJids) {
-            if (next[jid]) next[jid] = { ...next[jid]!, assignedAdvisorId: advisorId };
-          }
-          return next;
-        });
+        // Por el ID de la sesion, que es el mismo en todas sus llaves. Tocando
+        // `next[jid]` solo se pintaba la global: la fila, que lee la de su
+        // linea, seguia diciendo «Sin asignar» hasta el refresco siguiente. Es
+        // la regla que ya siguen los cambios de uno en uno.
+        for (const { sesion, remoteJid } of conSesion) {
+          aplicarEnLaSesion(sesion.id, remoteJid, { assignedAdvisorId: advisorId }, "la asignacion en lote");
+        }
         if (advisorId) {
           const name = advisors?.find((a) => a.id === advisorId)?.name ?? "Asesor";
           toast.success(`${ok} chat${ok !== 1 ? "s" : ""} asignado${ok !== 1 ? "s" : ""} a ${name}.`);
@@ -3406,14 +3473,16 @@ export function ChatsClient({
         }
       }
     },
-    [chatSessions, advisors],
+    [sesionDeLaSeleccion, aplicarEnLaSesion, advisors],
   );
 
   const handleBulkAddTag = useCallback(
-    async (remoteJids: string[], tagId: number) => {
-      const sessionPairs = remoteJids
-        .map((jid) => ({ jid, sessionId: chatSessions[jid]?.id }))
-        .filter((p): p is { jid: string; sessionId: number } => p.sessionId !== undefined);
+    async (chats: SeleccionDeChat[], tagId: number) => {
+      // La sesion de SU linea, igual que al asignar asesor.
+      const sessionPairs = chats
+        .map((c) => ({ jid: c.remoteJid, sesion: sesionDeLaSeleccion(c) }))
+        .filter((p): p is { jid: string; sesion: ChatContactSessionSummary } => p.sesion !== undefined)
+        .map((p) => ({ jid: p.jid, sessionId: p.sesion.id, tags: p.sesion.tags }));
 
       if (sessionPairs.length === 0) {
         toast.error("Ninguno de los chats seleccionados tiene sesión CRM.");
@@ -3433,22 +3502,19 @@ export function ChatsClient({
 
       if (ok > 0) {
         const tag = allTags.find((t) => t.id === tagId);
-        setChatSessions((prev) => {
-          const next = { ...prev };
-          for (const { jid } of sessionPairs) {
-            const session = next[jid];
-            if (!session) continue;
-            const hasTag = session.tags?.some((t) => t.id === tagId);
-            if (!hasTag && tag) {
-              next[jid] = { ...session, tags: [...(session.tags ?? []), tag] };
-            }
+        // Por el ID de la sesion, como al asignar: `next[jid]` solo tocaba la
+        // llave global y la fila -que lee la de su linea- no enseñaba la
+        // etiqueta hasta el refresco siguiente.
+        if (tag) {
+          for (const { jid, sessionId, tags } of sessionPairs) {
+            if (tags?.some((t) => t.id === tagId)) continue;
+            aplicarEnLaSesion(sessionId, jid, { tags: [...(tags ?? []), tag] }, "la etiqueta en lote");
           }
-          return next;
-        });
+        }
         toast.success(`Etiqueta aplicada a ${ok} chat${ok !== 1 ? "s" : ""}.`);
       }
     },
-    [userId, chatSessions, allTags],
+    [userId, sesionDeLaSeleccion, aplicarEnLaSesion, allTags],
   );
 
   /**
