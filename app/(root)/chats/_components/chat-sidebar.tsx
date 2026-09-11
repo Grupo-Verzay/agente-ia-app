@@ -145,12 +145,14 @@ function getPreferenceForChat(
   chat: ChatData,
   preferences: ChatConversationPreferenceMap,
   ownerUserId: string,
+  repartidasEntreLineas?: ReadonlySet<string>,
 ) {
   return elegirPreferenciaDelChat(
     preferences,
     ownerUserId,
     chat.instanceName,
     getChatIdentityCandidates(chat),
+    repartidasEntreLineas,
   );
 }
 
@@ -213,6 +215,13 @@ type ChatSidebarProps = {
   channelCounts?: Record<string, number>;
   /** Cuenta dueña de la línea del chat, para resolver su preferencia. */
   resolveChatOwnerId?: (chat: { instanceName?: string | null }) => string;
+  /**
+   * Identidades que aparecen en más de una línea. Viene calculado sobre la
+   * lista SIN filtrar por canal; aquí no se puede recalcular porque `result` ya
+   * llega filtrado, y con el filtro puesto un contacto de dos líneas parecería
+   * de una sola. Ver `identidadesEnVariasLineas`.
+   */
+  repartidasEntreLineas?: ReadonlySet<string>;
   onChannelChange?: (channel: string | null) => void;
   onRefresh?: () => Promise<void>;
   /** Traer la pagina siguiente de la bandeja al llegar al final de la lista. */
@@ -262,6 +271,7 @@ export function ChatSidebar({
   selectedChannel,
   channelCounts,
   resolveChatOwnerId,
+  repartidasEntreLineas,
   onChannelChange,
   onRefresh,
   onCargarMas,
@@ -419,6 +429,7 @@ export function ChatSidebar({
           chat,
           chatPreferences,
           resolveChatOwnerId?.(chat) ?? "",
+          repartidasEntreLineas,
         );
         const chatSession = getSessionForChat(chat, chatSessions) ?? null;
 
@@ -495,7 +506,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, instancias, notedSessionIds, result]);
+  }, [chatPreferences, chatSessions, instancias, notedSessionIds, result, repartidasEntreLineas]);
 
   /**
    * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la

@@ -44,6 +44,7 @@ import {
   emparejarSesiones,
   epochToMs,
   getChatIdentityCandidates,
+  identidadesEnVariasLineas,
   isBadContactName,
   isChatDeletedByPreference,
 } from "./chat-sidebar.utils";
@@ -403,12 +404,14 @@ function getPreferenceForChat(
   chat: ChatData,
   preferences: ChatConversationPreferenceMap,
   ownerUserId: string,
+  repartidasEntreLineas?: ReadonlySet<string>,
 ) {
   return elegirPreferenciaDelChat(
     preferences,
     ownerUserId,
     chat.instanceName,
     getChatIdentityCandidates(chat),
+    repartidasEntreLineas,
   );
 }
 
@@ -417,12 +420,14 @@ function getPreferenceForJid(
   preferences: ChatConversationPreferenceMap,
   ownerUserId: string,
   instanceName?: string | null,
+  repartidasEntreLineas?: ReadonlySet<string>,
 ) {
   return elegirPreferenciaDelChat(
     preferences,
     ownerUserId,
     instanceName,
     buildWhatsAppJidCandidates(remoteJid),
+    repartidasEntreLineas,
   );
 }
 
@@ -1215,12 +1220,30 @@ export function ChatsClient({
    * ya se las quita, y aqui se quitan tambien las que el asesor acaba de tocar,
    * porque limpiar chats tiene que bajar el numero al momento.
    */
+  /**
+   * Los contactos que estan en mas de una linea.
+   *
+   * Sale de la lista SIN FILTRAR (`currentChatsResult`), no de la que ve la
+   * barra lateral: si se calculara con el filtro de canal puesto, un contacto de
+   * dos lineas pasaria por ser de una sola, volveria a heredar la marca antigua
+   * y su fila desapareceria justo al filtrar.
+   */
+  const repartidasEntreLineas = useMemo(
+    () => identidadesEnVariasLineas(currentChatsResult.success ? currentChatsResult.data : []),
+    [currentChatsResult],
+  );
+
   const channelCounts = useMemo((): Record<string, number> => {
     if (!currentChatsResult.success) return {};
     const cargadas: Record<string, number> = {};
     for (const chat of currentChatsResult.data) {
       if (!chat.instanceName) continue;
-      const preference = getPreferenceForChat(chat, chatPreferences, ownerForChat(chat));
+      const preference = getPreferenceForChat(
+        chat,
+        chatPreferences,
+        ownerForChat(chat),
+        repartidasEntreLineas,
+      );
       if (isChatDeletedByPreference(chat, preference) || preference?.isArchived) continue;
       cargadas[chat.instanceName] = (cargadas[chat.instanceName] ?? 0) + 1;
     }
@@ -1234,7 +1257,7 @@ export function ChatsClient({
       counts[linea] = Math.max(total, cargadas[linea] ?? 0);
     }
     return counts;
-  }, [currentChatsResult, chatPreferences, ownerForChat, conteosPorLinea]);
+  }, [currentChatsResult, chatPreferences, ownerForChat, conteosPorLinea, repartidasEntreLineas]);
 
   const filteredSidebarResult = useMemo((): FetchChatsResult => {
     if (!selectedChannel || !sidebarResult.success) return sidebarResult;
@@ -1249,10 +1272,15 @@ export function ChatsClient({
   const visibleContacts = useMemo(
     () =>
       contacts.filter((contact) => {
-        const preference = getPreferenceForChat(contact, chatPreferences, ownerForChat(contact));
+        const preference = getPreferenceForChat(
+          contact,
+          chatPreferences,
+          ownerForChat(contact),
+          repartidasEntreLineas,
+        );
         return !isChatDeletedByPreference(contact, preference) && !preference?.isArchived;
       }),
-    [chatPreferences, contacts, ownerForChat],
+    [chatPreferences, contacts, ownerForChat, repartidasEntreLineas],
   );
 
   /**
@@ -1277,7 +1305,7 @@ export function ChatsClient({
     const levantadas: string[] = [];
     for (const chat of currentChatsResult.data) {
       const owner = ownerForChat(chat);
-      const preference = getPreferenceForChat(chat, chatPreferences, owner);
+      const preference = getPreferenceForChat(chat, chatPreferences, owner, repartidasEntreLineas);
       if (!preference?.deletedAt) continue;
       const ultimo = chat.lastMessage;
       if (!ultimo || ultimo.key?.fromMe === true) continue;
@@ -1302,7 +1330,7 @@ export function ChatsClient({
       }
       return next;
     });
-  }, [currentChatsResult, chatPreferences, ownerForChat]);
+  }, [currentChatsResult, chatPreferences, ownerForChat, repartidasEntreLineas]);
 
   const currentContact = useMemo(() => {
     if (!contacts.length || !selectedJid) return undefined;
@@ -1332,11 +1360,22 @@ export function ChatsClient({
   const currentPreference = useMemo(
     () =>
       currentContact
-        ? getPreferenceForChat(currentContact, chatPreferences, ownerForChat(currentContact))
+        ? getPreferenceForChat(
+            currentContact,
+            chatPreferences,
+            ownerForChat(currentContact),
+            repartidasEntreLineas,
+          )
         : selectedJid
-          ? getPreferenceForJid(selectedJid, chatPreferences, ownerForJid(selectedJid))
+          ? getPreferenceForJid(
+              selectedJid,
+              chatPreferences,
+              ownerForJid(selectedJid),
+              undefined,
+              repartidasEntreLineas,
+            )
           : undefined,
-    [chatPreferences, currentContact, selectedJid, ownerForChat, ownerForJid],
+    [chatPreferences, currentContact, selectedJid, ownerForChat, ownerForJid, repartidasEntreLineas],
   );
 
   const header = useMemo(() => {
@@ -4322,6 +4361,7 @@ export function ChatsClient({
           selectedChannel={selectedChannel}
           channelCounts={channelCounts}
           resolveChatOwnerId={ownerForChat}
+          repartidasEntreLineas={repartidasEntreLineas}
           onChannelChange={handleChannelChange}
           onRefresh={handleRefresh}
           onCargarMas={cargarMasChats}
