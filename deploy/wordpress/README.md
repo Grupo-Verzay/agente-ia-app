@@ -46,3 +46,25 @@ un certificado con `dominio` y `www.dominio`, y si `www` no apunta aquí, el
 reto de Let's Encrypt falla para los dos.
 
 Hostinger no se cancela hasta ver los tres sitios sirviendo desde aquí.
+
+## Los dominios: DNS a Cloudflare antes de nada
+
+Los tres (`verzay.com`, `verzana.pro`, `realizarpago.com`) tienen hoy los
+nameservers de Hostinger (`*.dns-parking.com`), así que el DNS **también** se
+va con Hostinger. Primero se lleva a Cloudflare, con todo apuntando donde
+apunta hoy; el sitio no se entera.
+
+1. Cloudflare → Add a site → el dominio, plan Free. Cuando pida los registros,
+   importar el fichero `dns/<dominio>.zone` de aquí (Import and Export → Import),
+   que tiene lo que había en Hostinger el 2026-09-11: los A del CDN de
+   Hostinger, el correo (MX, SPF, DKIM, DMARC, autoconfig) y `www`.
+2. En el **registrador** (donde se compró el dominio), cambiar los nameservers a
+   los dos que dé Cloudflare. Tarda de minutos a un día en propagarse.
+3. Dejar `@` y `www` **sin proxy (nube gris)** hasta que el WordPress esté aquí
+   y con certificado: con el proxy naranja, el reto HTTP de Let's Encrypt que
+   usa Traefik no llega al servidor. Encenderlo después es un clic.
+
+**El correo se queda en Hostinger** mientras los MX apunten a
+`mx1/mx2.hostinger.com`. Cancelar el hosting sin haber movido antes los buzones
+(a otro proveedor, o quedándose solo el plan de correo de Hostinger) los deja
+sin servicio. Es una decisión aparte de mover los sitios.
