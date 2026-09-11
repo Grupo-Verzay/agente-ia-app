@@ -66,6 +66,53 @@ export function getChatIdentityCandidates(chat: ChatData): string[] {
 }
 
 /**
+ * Las identidades que aparecen en MAS DE UNA linea de la bandeja.
+ *
+ * Es lo que `elegirPreferenciaDelChat` necesita para no heredarle a un contacto
+ * la marca antigua -la que se guardo sin linea y vale para todas-: si ese numero
+ * escribe a Ventas y a Atencion, esa marca no dice en cual se pulso, asi que
+ * aplicarla a las dos esconde una conversacion que nadie borro.
+ *
+ * Se calcula sobre la lista SIN FILTRAR, a proposito. Con la lista ya filtrada
+ * por canal, un contacto de dos lineas se veria como de una sola en cuanto
+ * alguien eligiera una linea en el desplegable, volveria a heredar la marca y la
+ * fila desapareceria al filtrar. Quien la llama pasa la lista entera.
+ *
+ * Una pasada por los chats, apoyada en `getChatIdentityCandidates`, que ya viene
+ * cacheado por objeto.
+ */
+export function identidadesEnVariasLineas(chats: ChatData[]): Set<string> {
+  const primeraLinea = new Map<string, string>();
+  const repartidas = new Set<string>();
+
+  for (const chat of chats) {
+    const linea = chat.instanceName?.trim();
+    // Sin linea no se puede saber de cual es: no cuenta ni a favor ni en contra.
+    if (!linea) continue;
+
+    for (const identidad of getChatIdentityCandidates(chat)) {
+      const vista = primeraLinea.get(identidad);
+      if (vista === undefined) primeraLinea.set(identidad, linea);
+      else if (vista !== linea) repartidas.add(identidad);
+    }
+  }
+
+  // Un contacto tiene varias identidades y cada fila puede traer un subconjunto
+  // distinto. Si UNA de ellas esta repartida, el contacto lo esta: se marcan
+  // todas las que compartan fila con una repartida, o la marca se heredaria
+  // igual por la identidad que quedo fuera.
+  if (repartidas.size) {
+    for (const chat of chats) {
+      const identidades = getChatIdentityCandidates(chat);
+      if (!identidades.some((id) => repartidas.has(id))) continue;
+      for (const identidad of identidades) repartidas.add(identidad);
+    }
+  }
+
+  return repartidas;
+}
+
+/**
  * Lo que el emparejador de sesiones necesita de un chat. Cacheado por el
  * mismo motivo que arriba: se calcula para miles de chats en cada vuelta.
  */

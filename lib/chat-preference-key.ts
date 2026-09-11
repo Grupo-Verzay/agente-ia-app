@@ -92,12 +92,23 @@ function cuandoSeToco(marca: MarcaConFechas | undefined): number {
  *    y borrado por otra.
  * 3. La antigua sigue valiendo **cuando en esta línea no hay nada**, para no
  *    resucitar lo que alguien ya borró antes de que existiera la columna.
+ *
+ * Con una excepción, que es la regla 3 llevada a su caso límite: **si ese
+ * contacto tiene conversación en varias líneas, la antigua no se hereda**. Esa
+ * marca se escribió cuando la tabla no guardaba la línea, así que no dice en
+ * cuál se pulsó; heredarla en todas escondía conversaciones que nadie borró. El
+ * síntoma: el mismo número escribe a Ventas y a Atención, se borró en una, y
+ * desaparece de las dos. Quien tiene marca propia de su línea sigue oculto —esa
+ * sí dice de qué línea es—, y el contacto de una sola línea también, porque ahí
+ * no hay ninguna ambigüedad que resolver: la marca solo pudo ser de esa.
  */
 export function elegirPreferenciaDelChat<T extends MarcaConFechas>(
   preferencias: Record<string, T | undefined>,
   ownerUserId: string,
   instanceName: string | null | undefined,
   identidades: string[],
+  /** Identidades que aparecen en más de una línea de la bandeja. */
+  repartidasEntreLineas?: ReadonlySet<string>,
 ): T | undefined {
   let deSuLinea: T | undefined;
   let deSuLineaMs = -1;
@@ -105,6 +116,12 @@ export function elegirPreferenciaDelChat<T extends MarcaConFechas>(
   let antiguaMs = -1;
 
   const linea = (instanceName ?? "").trim();
+
+  // ¿Este contacto está repartido entre varias líneas? Entonces la marca sin
+  // línea no se hereda: no sabe de cuál era.
+  const enVariasLineas = Boolean(
+    repartidasEntreLineas?.size && identidades.some((id) => repartidasEntreLineas.has(id)),
+  );
 
   for (const identidad of identidades) {
     const suya = linea ? preferencias[chatPreferenceKey(ownerUserId, linea, identidad)] : undefined;
@@ -115,6 +132,8 @@ export function elegirPreferenciaDelChat<T extends MarcaConFechas>(
         deSuLineaMs = ms;
       }
     }
+
+    if (enVariasLineas) continue;
 
     const vieja = preferencias[chatPreferenceKey(ownerUserId, "", identidad)];
     if (vieja) {
