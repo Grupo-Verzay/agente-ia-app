@@ -1089,6 +1089,27 @@ export function ChatsClient({
     return Array.from(todas).slice(0, 20);
   }, []);
 
+  /**
+   * De que CUENTA es la marca: la de la linea de la fila que se pulso.
+   *
+   * `ownerForJid` busca el chat por numero, y el mismo contacto puede tener
+   * conversacion en dos lineas —pasa constantemente: el mismo cliente escribe a
+   * Ventas y a Atencion—. Devolvia el primero que apareciera en la lista, que
+   * no tiene por que ser el de la fila que se pulso, y si esas dos lineas son de
+   * cuentas distintas la marca se guardaba **bajo la otra cuenta**. La pantalla
+   * la busca bajo la dueña de SU linea, no la encontraba nunca, y el chat volvia
+   * una y otra vez por mucho que se borrara.
+   *
+   * Es el mismo descuido que ya costo la linea (#608), ahora con la cuenta: si
+   * se sabe de que linea es la fila, **de ahi sale todo**. Sin linea no queda
+   * mas remedio que buscar por numero, como antes.
+   */
+  const cuentaDeLaLinea = useCallback(
+    (remoteJid: string, linea: string | undefined) =>
+      linea ? ownerForChat({ instanceName: linea }) : ownerForJid(remoteJid),
+    [ownerForChat, ownerForJid],
+  );
+
   contactsRef.current = contacts;
   chatPreferencesRef.current = chatPreferences;
 
@@ -2779,9 +2800,8 @@ export function ChatsClient({
   );
 
   const handleToggleChatPin = useCallback(
-    async (remoteJid: string, isPinned: boolean) => {
+    async (remoteJid: string, isPinned: boolean, instanceName?: string) => {
       // Bajo la cuenta DUEÑA de la línea, no bajo la que se esté mirando.
-      const ownerUserId = ownerForJid(remoteJid);
       // Y CON SU LÍNEA. Sin ella la marca se guardaba bajo la llave global
       // —`instanceName` vacío—, que es la vieja, y la pantalla busca primero la
       // de la línea y solo después esa. Resultado: se desanclaba, la marca
@@ -2792,7 +2812,12 @@ export function ChatsClient({
       //
       // Es el mismo descuido que ya costó el borrado múltiple (#486): la acción
       // que marca un chat pasa su línea.
-      const linea = lineaDelJid(remoteJid);
+      // La linea la manda la FILA. `lineaDelJid` busca por numero y se rinde
+      // -devuelve `undefined`- cuando el mismo contacto tiene chat en dos
+      // lineas, que es justo el caso de este fallo: sin linea la marca cae en la
+      // llave global y desanclar no se nota. Es lo que ya hace borrar (#486).
+      const linea = instanceName ?? lineaDelJid(remoteJid);
+      const ownerUserId = cuentaDeLaLinea(remoteJid, linea);
       const result = await toggleChatPinAction({
         userId: ownerUserId,
         instanceName: linea,
@@ -2809,17 +2834,19 @@ export function ChatsClient({
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, ownerForJid, lineaDelJid, identidadesDeLaFila],
+    [applyChatPreference, cuentaDeLaLinea, lineaDelJid, identidadesDeLaFila],
   );
 
   const handleArchiveChat = useCallback(
-    async (remoteJid: string, archived: boolean) => {
-      const ownerUserId = ownerForJid(remoteJid);
+    async (remoteJid: string, archived: boolean, instanceName?: string) => {
       // Con su línea, por lo mismo que el anclado: sin ella la marca cae en la
-      // llave global y deja de casar con la fila.
+      // llave global y deja de casar con la fila. Y la cuenta sale de esa misma
+      // línea, no de buscar el número.
+      const linea = instanceName ?? lineaDelJid(remoteJid);
+      const ownerUserId = cuentaDeLaLinea(remoteJid, linea);
       const result = await setChatArchivedAction({
         userId: ownerUserId,
-        instanceName: lineaDelJid(remoteJid),
+        instanceName: linea,
         remoteJid,
         archived,
         identidades: identidadesDeLaFila(remoteJid),
@@ -2839,18 +2866,18 @@ export function ChatsClient({
         setInfo(undefined);
       }
     },
-    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid, identidadesDeLaFila],
+    [applyChatPreference, cuentaDeLaLinea, selectedJid, lineaDelJid, identidadesDeLaFila],
   );
 
   const handleDeleteChat = useCallback(
     async (remoteJid: string, instanceName?: string) => {
-      const ownerUserId = ownerForJid(remoteJid);
       // La linea de la fila que se pulso. `lineaDelJid` busca por numero en la
       // lista, y cuando el mismo contacto tiene chat en dos lineas devuelve una
       // cualquiera -y cambia entre una llamada y la siguiente, porque la lista
       // se rehace cada 20s-. Asi la marca caia en la linea equivocada: se veia
       // borrar la fila de Notificaciones y la marca se guardaba en Atencion.
       const linea = instanceName ?? lineaDelJid(remoteJid);
+      const ownerUserId = cuentaDeLaLinea(remoteJid, linea);
       const deletedCandidates = new Set(buildWhatsAppJidCandidates(remoteJid));
 
       // La fila se quita ANTES de preguntarle al servidor.
@@ -2969,7 +2996,7 @@ export function ChatsClient({
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, ownerForJid, selectedJid, lineaDelJid, identidadesDeLaFila],
+    [applyChatPreference, cuentaDeLaLinea, selectedJid, lineaDelJid, identidadesDeLaFila],
   );
 
   const handleRestoreChat = useCallback(

@@ -188,7 +188,7 @@ type ChatSidebarProps = {
   allTags?: SimpleTag[];
   chatPreferences: ChatConversationPreferenceMap;
   chatSessions: ChatContactSessionMap;
-  onArchiveChat?: (remoteJid: string, archived: boolean) => void | Promise<void>;
+  onArchiveChat?: (remoteJid: string, archived: boolean, instanceName?: string) => void | Promise<void>;
   onDeleteChat?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
   // El `sessionId` va aparte del jid a proposito: la fila conoce la sesion de
   // SU linea, y buscarla luego por el numero pelado fallaba en silencio.
@@ -200,7 +200,7 @@ type ChatSidebarProps = {
   onPurgeDeleted?: () => void | Promise<void>;
   onSelectRemoteJid?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
   onPrefetchRemoteJid?: (remoteJid: string, instanceName?: string) => void;
-  onTogglePin?: (remoteJid: string, isPinned: boolean) => void | Promise<void>;
+  onTogglePin?: (remoteJid: string, isPinned: boolean, instanceName?: string) => void | Promise<void>;
   result: FetchChatsResult;
   selectedJid?: string;
   selectedInstanceName?: string | null;
@@ -1143,11 +1143,13 @@ export function ChatSidebar({
   // Callbacks estables para los items (necesarios para que React.memo de
   // ChatContactItem evite re-renders en cada poll).
   const handleItemTogglePin = useCallback(
-    (id: string, isPinned: boolean) => void onTogglePin?.(id, isPinned),
+    (id: string, isPinned: boolean, instanceName?: string) =>
+      void onTogglePin?.(id, isPinned, instanceName),
     [onTogglePin],
   );
   const handleItemArchive = useCallback(
-    (id: string, isArchived: boolean) => void onArchiveChat?.(id, isArchived),
+    (id: string, isArchived: boolean, instanceName?: string) =>
+      void onArchiveChat?.(id, isArchived, instanceName),
     [onArchiveChat],
   );
   const handleItemMarkRead = useCallback(

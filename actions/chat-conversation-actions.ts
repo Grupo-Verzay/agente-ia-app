@@ -267,41 +267,45 @@ async function assertAuthorized(userId: string) {
   }
 }
 
+/**
+ * Borrar pide lo MISMO que anclar y archivar, y una cosa mas.
+ *
+ * Esto llevaba su propia lista de casos —uno mismo, el administrador de la
+ * cuenta, y una consulta a `linked_accounts` en las dos direcciones— y esa
+ * lista no coincidia con la de `assertAuthorized`, que es la que usan anclar y
+ * archivar. Resultado: el mismo chat se podia anclar y no se podia borrar. Se
+ * pulsaba «Eliminar» y salia **«Solo el dueno o un administrador puede eliminar
+ * chats»** en una cuenta donde se llevaba todo el dia trabajando.
+ *
+ * Los dos casos que se caian:
+ *
+ * - **El administrador de una cuenta, sobre una linea de otra cuenta asociada.**
+ *   La bandeja las ensena juntas (`allSessionUserIds`), pero la condicion pedia
+ *   que la linea fuera de SU cuenta exactamente, y las lineas de la cuenta
+ *   hermana no lo son.
+ * - **El dueno cuya fila trae `ownerId` puesto.** La primera condicion era
+ *   `user.id === userId && !user.ownerId`, y al entrar por una cuenta vinculada
+ *   `ownerId` viene relleno, asi que ni siendo el dueno pasaba.
+ *
+ * La puerta es la misma que la de anclar y archivar —las cuentas asociadas, que
+ * se calculan aqui y nunca con lo que mande el cliente— y encima de eso una
+ * condicion propia, porque borrar no es anclar: **un `agente` no borra.** Es el
+ * mismo reparto de `canManageWorkspace`: participa, pero no manda.
+ */
 async function assertCanDeleteChats(userId: string) {
   const user = await currentUser();
   if (!user?.id) {
     throw new Error("No autorizado.");
   }
 
-  if (user.id === userId && !user.ownerId) return;
-  if (user.ownerId === userId && user.advisorRole === "administrador") return;
+  await assertAuthorized(userId);
 
-  const realUserId = user.sessionUserId ?? user.id;
-
-  // El vinculo vale en las DOS direcciones, igual que para cambiar de cuenta:
-  //
-  //   - A uno lo metieron en esa cuenta como administrador.
-  //   - O esa cuenta la metio uno bajo la suya, y entonces uno es el que manda
-  //     ahi: es quien la vinculo.
-  //
-  // Faltaba la segunda, y es la del dueño de varias cuentas -el caso normal-.
-  // Podia entrar en Verzay Ventas desde el menu de cuentas, ver sus chats
-  // eliminados en la lista... y no poder limpiarlos: la comprobacion solo
-  // miraba la direccion contraria. `switchToAccount` ya aceptaba las dos.
-  const link = await db.$queryRaw<{ id: string }[]>`
-    SELECT id
-    FROM "linked_accounts"
-    WHERE ("master_user_id" = ${userId}
-           AND "linked_user_id" = ${realUserId}
-           AND role = 'administrador'::"LinkedAccountRole")
-       OR ("master_user_id" = ${realUserId}
-           AND "linked_user_id" = ${userId})
-    LIMIT 1
-  `.catch(() => []);
-
-  if (link.length > 0) return;
-
-  throw new Error("Solo el dueño o un administrador puede eliminar chats.");
+  // `ownerId` puesto = se esta actuando dentro del equipo de una cuenta. Ahi
+  // borrar es del dueno y de su mano derecha; el `agente` atiende lo que le
+  // asignan. Sin `ownerId` se actua como la cuenta misma, y entonces si.
+  if (user.ownerId && user.ownerId !== user.id && user.advisorRole !== "administrador") {
+    throw new Error("Solo el dueño o un administrador puede eliminar chats.");
+  }
 }
 
 /**

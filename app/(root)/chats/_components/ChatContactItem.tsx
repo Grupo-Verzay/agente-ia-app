@@ -95,13 +95,13 @@ type ChatContactItemProps = {
   contact: SidebarContact;
   /** El contacto esta escribiendo o grabando: se ensena en vez del ultimo mensaje. */
   presencia?: PresenciaContacto | null;
-  onArchive: (id: string, isArchived: boolean) => void;
+  onArchive: (id: string, isArchived: boolean, instanceName?: string) => void;
   onDeleteRequest: (contact: SidebarContact) => void;
   canDelete?: boolean;
   onSelect: (id: string, lastMessageId: string, instanceName?: string) => void;
   /** Precarga el historial al pasar el mouse/tocar, para que el click sea instantáneo. */
   onPrefetch?: (id: string, instanceName?: string) => void;
-  onTogglePin: (id: string, isPinned: boolean) => void;
+  onTogglePin: (id: string, isPinned: boolean, instanceName?: string) => void;
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null, sessionId?: number) => void;
   onServiceTypeChange?: (remoteJid: string, value: ServiceType | null, sessionId?: number) => void;
   onClientStatusChange?: (remoteJid: string, value: ClientStatus | null, sessionId?: number) => void;
@@ -664,11 +664,11 @@ function ChatContactItemBase({
               )}
               <DropdownMenuSeparator />
               {/* 7-8. Anclar / Archivar */}
-              <DropdownMenuItem onSelect={() => onTogglePin(contact.id, !contact.isPinned)}>
+              <DropdownMenuItem onSelect={() => onTogglePin(contact.id, !contact.isPinned, contact.instanceName)}>
                 <Pin className="h-4 w-4" />
                 {contact.isPinned ? "Desanclar chat" : "Anclar chat"}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onArchive(contact.id, !contact.isArchived)}>
+              <DropdownMenuItem onSelect={() => onArchive(contact.id, !contact.isArchived, contact.instanceName)}>
                 <Archive className="h-4 w-4" />
                 {contact.isArchived ? "Restaurar chat" : "Archivar chat"}
               </DropdownMenuItem>

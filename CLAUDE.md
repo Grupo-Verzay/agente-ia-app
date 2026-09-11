@@ -435,6 +435,41 @@ fuera no puede decidir qué historial se borra.
 Archivar seguía escribiendo bajo una sola identidad; va por el mismo camino que
 anclar y borrar.
 
+### Y la CUENTA también sale de la línea de la fila
+
+Con lo anterior puesto, el chat seguía volviendo. Faltaba la otra mitad de la
+llave: la marca se guarda bajo `cuenta::línea::número`, y la **cuenta** se
+sacaba buscando el número en la lista (`ownerForJid`).
+
+El mismo contacto tiene conversación en dos líneas —le escribe a Ventas y a
+Atención, es lo normal—, así que esa búsqueda devolvía **la primera fila que
+apareciera**, no la que se pulsó. Si esas dos líneas son de cuentas distintas,
+la marca se guardaba **bajo la otra cuenta**; la pantalla la busca bajo la dueña
+de SU línea y no la encontraba nunca.
+
+**Si se sabe de qué línea es la fila, de ahí sale todo**: la línea y la cuenta
+(`cuentaDeLaLinea`). Y la línea la manda **la fila**, no una búsqueda por
+número: `lineaDelJid` se rinde a propósito cuando hay dos, así que anclar y
+archivar —que no la pasaban— caían en la llave global y no se notaban. Borrar ya
+la pasaba desde #486; a los otros dos se les había pasado.
+
+### Borrar pide lo mismo que anclar, y una cosa más
+
+`assertCanDeleteChats` llevaba su propia lista de casos y no coincidía con la de
+`assertAuthorized`, que es la que usan anclar y archivar. El mismo chat se podía
+anclar y no se podía borrar: salía **«Solo el dueño o un administrador puede
+eliminar chats»** en una cuenta donde se trabajaba todo el día.
+
+Dos casos se caían: el **administrador de una cuenta** sobre una línea de otra
+cuenta asociada —la bandeja las enseña juntas, pero la condición pedía que fuera
+de SU cuenta exactamente—, y el **dueño cuya fila trae `ownerId` puesto**, que
+es lo que pasa al entrar por una cuenta vinculada.
+
+La puerta es **la misma** —las cuentas asociadas, calculadas en el servidor— y
+encima una condición propia, porque borrar no es anclar: **un `agente` no
+borra**. Si se añade otra acción destructiva en Chats, va igual: la misma puerta
+que las demás, más lo suyo.
+
 ## Una recarga tiene que decir por qué
 
 "La App se refresca sola cada cierto rato" es de lo más difícil de diagnosticar:
