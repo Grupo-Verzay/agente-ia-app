@@ -660,11 +660,43 @@ function textoDelMensajeCitado(citado: Record<string, any> | null | undefined): 
  * SU autor: es el de verdad, y `contextInfo` a veces trae una version recortada.
  * Si no esta -una cita a algo muy viejo-, se usa lo que venga en el aviso.
  */
+/**
+ * El `contextInfo` de un mensaje, mire donde mire.
+ *
+ * No hay un solo sitio, y por eso mirar solo la raiz no bastaba:
+ *
+ * - Evolution/Baileys lo cuelgan DENTRO del tipo:
+ *   `message.extendedTextMessage.contextInfo`.
+ * - El normalizador de Waha lo escribe en `message.contextInfo`.
+ * - Lo que sale del panel lo guarda en la raiz (ver `persistOutgoingHistory`).
+ *
+ * Se buscan los tres, que es la misma regla que ya sigue `buscarAnuncio` para
+ * `externalAdReply`. Gana el primero que traiga de verdad un id citado: un
+ * `contextInfo` sin cita -los hay, con `mentionedJid` y poco mas- no tapa al
+ * que si la trae.
+ */
+function contextInfoConCita(m: EvolutionMessage): Record<string, any> | undefined {
+  const message = (m.message ?? {}) as Record<string, any>;
+  const candidatos: unknown[] = [m.contextInfo, message.contextInfo];
+  for (const valor of Object.values(message)) {
+    if (valor && typeof valor === 'object' && !Array.isArray(valor)) {
+      candidatos.push((valor as Record<string, any>).contextInfo);
+    }
+  }
+
+  for (const candidato of candidatos) {
+    if (!candidato || typeof candidato !== 'object') continue;
+    const ctx = candidato as Record<string, any>;
+    if (ctx.stanzaId || ctx.quotedMessageId || ctx.quotedStanzaId) return ctx;
+  }
+  return undefined;
+}
+
 function citaDelMensaje(
   m: EvolutionMessage,
   porId: Map<string, { content: string; fromMe: boolean; mediaType?: string }>,
 ): UIBubble['quotedMessage'] | undefined {
-  const ctx = m.contextInfo as Record<string, any> | null | undefined;
+  const ctx = contextInfoConCita(m);
   if (!ctx) return undefined;
 
   const id = ctx.stanzaId || ctx.quotedMessageId || ctx.quotedStanzaId;
