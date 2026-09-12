@@ -104,6 +104,12 @@ function renderElement(el: AnyElement, behaviorText: string, k?: number): string
             out.push(`${prefix}> ${notifyPrompt}`);
             return out;
         }
+        case "leer_google_sheets": {
+            // La URL va en el prompt: es como llega a la tool (parametro `url`).
+            const hoja = (el as { sheetUrl?: string | null }).sheetUrl?.trim();
+            out.push(`${prefix}> **FUNCIÓN**: Ejecuta la tool \`leer_google_sheets\`${hoja ? ` con \`url\`: ${hoja}` : ""}`);
+            return out;
+        }
         case "consulta_datos": {
             const prompt = trim(el.prompt);
             out.push(`${prefix}> **FUNCIÓN**: consulta_datos\n${prompt || ""}`);

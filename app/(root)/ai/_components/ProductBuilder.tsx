@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, GripVertical, ChevronDown, Copy } from "lucide-react";
 import { StepTemplatePicker } from "./StepTemplatePicker";
 import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
+import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
 import { Workflow } from "@prisma/client";
 import { useProductsAutosave, AutosaveStatus } from "./hooks/useProductsAutosave";
@@ -130,8 +131,9 @@ export const ProductBuilder = ({
 }: ProductBuilderProps) => {
     // Compute initial state once (auto-init for new agents where initialItems === undefined)
     const [items, setItems] = useState<ProductItemType[]>(
+        // Se enderezan al cargar, ver `ordenarElementosDeLosPasos`.
         Array.isArray(initialItems) && initialItems.length > 0
-            ? (initialItems as ProductItemType[])
+            ? ordenarElementosDeLosPasos(initialItems as ProductItemType[])
             : []
     );
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
@@ -236,10 +238,10 @@ export const ProductBuilder = ({
                 return {
                     ...it,
                     mainMessage: plantilla.content,
-                    elements: [
+                    elements: ordenarElementos([
                         ...elementos,
                         ...elementosQueFaltan(plantilla, elementos, notificationNumber),
-                    ],
+                    ]),
                 };
             }),
         );
@@ -263,6 +265,23 @@ export const ProductBuilder = ({
                         ...s,
                         elements: s.elements.map((e) =>
                             e.id === elId && e.kind === "text" ? { ...e, text } : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    const updateSheetUrl = (productId: string, elId: string, url: string) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === productId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "leer_google_sheets"
+                                ? { ...e, sheetUrl: url }
+                                : e
                         ),
                     }
                     : s
@@ -352,7 +371,10 @@ export const ProductBuilder = ({
                 const oldIndex = s.elements.findIndex((e) => e.id === active.id);
                 const newIndex = s.elements.findIndex((e) => e.id === over.id);
                 if (oldIndex < 0 || newIndex < 0) return s;
-                return { ...s, elements: arrayMove(s.elements, oldIndex, newIndex) };
+                // Soltar no deja poner una accion por debajo de un texto: el paso se
+                // ejecuta de arriba abajo y ahi la accion llega tarde. Se coloca en la
+                // ultima posicion legal en vez de rechazar el gesto.
+                return { ...s, elements: ordenarElementos(arrayMove(s.elements, oldIndex, newIndex)) };
             }));
             return;
         }
@@ -566,6 +588,7 @@ export const ProductBuilder = ({
                                                                                                             addPedidoField={addPedidoField}
                                                                                                             removePedidoField={removePedidoField}
                                                                                                             onSubtypeChange={onSubtypeChange}
+                                                                                                            updateSheetUrl={updateSheetUrl}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StepTemplatePicker } from "./StepTemplatePicker";
 import { elementosQueFaltan, StepTemplate, esInstruccionDelSistema } from "./helpers/stepTemplates";
+import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
 import {
   AnyStep,
@@ -207,7 +208,11 @@ export function TrainingBuilder({
         welcomeType: "obligatoria",
       }];
     } else {
-      _initOnce.current = initialSteps.length > 0 ? (initialSteps as StepTraining[]) : [];
+      // Se enderezan al cargar: un bloque guardado con la accion debajo del
+      // texto se arregla solo al abrirlo. Si no hay nada que mover devuelve los
+      // mismos objetos, asi que el autosave no escribe una version por abrir la
+      // pantalla.
+      _initOnce.current = initialSteps.length > 0 ? ordenarElementosDeLosPasos(initialSteps as StepTraining[]) : [];
     }
   }
   const _initSteps = _initOnce.current;
@@ -374,10 +379,10 @@ export function TrainingBuilder({
         return {
           ...s,
           mainMessage: plantilla.content,
-          elements: [
+          elements: ordenarElementos([
             ...elementos,
             ...elementosQueFaltan(plantilla, elementos, notificationNumber),
-          ],
+          ]),
         };
       })
     );
@@ -401,6 +406,23 @@ export function TrainingBuilder({
             ...s,
             elements: s.elements.map((e) =>
               e.id === elId && e.kind === "text" ? { ...e, text } : e
+            ),
+          }
+          : s
+      )
+    );
+  };
+
+  const updateSheetUrl = (stepId: string, elId: string, url: string) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+            ...s,
+            elements: s.elements.map((e) =>
+              e.id === elId && e.kind === "function" && e.fn === "leer_google_sheets"
+                ? ({ ...e, sheetUrl: url } as typeof e)
+                : e
             ),
           }
           : s
@@ -554,7 +576,11 @@ export function TrainingBuilder({
             const oldIndex = s.elements.findIndex((e) => e.id === active.id);
             const newIndex = s.elements.findIndex((e) => e.id === over.id);
             if (oldIndex < 0 || newIndex < 0) return s;
-            return { ...s, elements: arrayMove(s.elements, oldIndex, newIndex) };
+            // Soltar no deja poner una accion por debajo de un texto: el paso se
+            // ejecuta de arriba abajo y ahi la accion llega tarde. Se coloca en la
+            // ultima posicion legal en vez de rechazar el gesto, que se veria como
+            // que la App se colgo.
+            return { ...s, elements: ordenarElementos(arrayMove(s.elements, oldIndex, newIndex)) };
           })
         );
       }
@@ -904,6 +930,7 @@ export function TrainingBuilder({
                                                       onSubtypeChange={onSubtypeChange}
                                                       steps={steps}
                                                       updateRoutingRules={updateRoutingRules}
+                                                      updateSheetUrl={updateSheetUrl}
                                                     />
                                                   </div>
                                                 </div>

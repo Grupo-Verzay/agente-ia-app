@@ -209,6 +209,17 @@ function formatElement(el: AnyEl, k: number, flowBehaviorText: string, cfg: Prom
                 return out;
             }
 
+            case "leer_google_sheets": {
+                // La URL viaja EN EL PROMPT porque es asi como llega a la tool: el
+                // modelo la pasa como parametro `url`. Sin ella la tool usa la hoja
+                // que tenga configurada, que es lo que se quiere cuando el campo
+                // esta vacio.
+                const hoja = (el as { sheetUrl?: string | null }).sheetUrl?.trim();
+                out.push(`- (${k}) **Función**: Ejecuta la tool \`leer_google_sheets\`${hoja ? ` con \`url\`: ${hoja}` : ""}`);
+                out.push(`* **Comportamiento obligatorio:** emite TODAS las filas que devuelva, sin recortar, sin inventar y sin anunciar la herramienta. Si no devuelve ninguna, dilo y ofrece buscar de otra forma; nunca afirmes que no existe.\n`);
+                return out;
+            }
+
             case "consulta_datos": {
                 const newSubtype = transformSubtype(el.subtype);
                 const base = `\n### Consulta de datos\n**(${k}) Toma de ${newSubtype ?? ""}**\n- (${k}) Para procesar tu *${newSubtype ?? "—"}*, ${el.prompt ?? ""}:`;
@@ -311,7 +322,7 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
 
         const hasActions = els.some((el: AnyEl) => {
             if (el.kind === "function") {
-                return el.fn === "ejecutar_flujo" || el.fn === "notificar_asesor";
+                return el.fn === "ejecutar_flujo" || el.fn === "notificar_asesor" || el.fn === "leer_google_sheets";
             }
             if (el.kind === "text") {
                 return !!trimOrUndefined(el.text);

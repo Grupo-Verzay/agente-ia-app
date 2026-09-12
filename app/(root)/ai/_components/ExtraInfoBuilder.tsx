@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, PenSquare, GripVertical, ChevronDown, Copy } from "lucide-react";
 import { StepTemplatePicker } from "./StepTemplatePicker";
 import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
+import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
 import { useExtrasAutosave, AutosaveStatus } from "./hooks/useExtrasAutosave"; // 👈 actualizado
 import { FunctionSelector } from "./FunctionSelector";
@@ -137,8 +138,9 @@ export function ExtraInfoBuilder({
 }: ExtraInfoBuilderProps & { flows?: Workflow[] }) {
     /* ====== Estado: pasos (antes "items") ====== */
     const [items, setItems] = useState<ExtraItemType[]>(
+        // Se enderezan al cargar, ver `ordenarElementosDeLosPasos`.
         initialExtras?.items && initialExtras.items.length > 0
-            ? (initialExtras.items as ExtraItemType[])
+            ? ordenarElementosDeLosPasos(initialExtras.items as ExtraItemType[])
             : []
     );
 
@@ -234,7 +236,10 @@ export function ExtraInfoBuilder({
                 const oldIndex = s.elements.findIndex((e) => e.id === active.id);
                 const newIndex = s.elements.findIndex((e) => e.id === over.id);
                 if (oldIndex < 0 || newIndex < 0) return s;
-                return { ...s, elements: arrayMove(s.elements, oldIndex, newIndex) };
+                // Soltar no deja poner una accion por debajo de un texto: el paso se
+                // ejecuta de arriba abajo y ahi la accion llega tarde. Se coloca en la
+                // ultima posicion legal en vez de rechazar el gesto.
+                return { ...s, elements: ordenarElementos(arrayMove(s.elements, oldIndex, newIndex)) };
             }));
             return;
         }
@@ -293,10 +298,10 @@ export function ExtraInfoBuilder({
                 return {
                     ...it,
                     mainMessage: plantilla.content,
-                    elements: [
+                    elements: ordenarElementos([
                         ...elementos,
                         ...elementosQueFaltan(plantilla, elementos, notificationNumber),
-                    ],
+                    ]),
                 };
             }),
         );
@@ -321,6 +326,23 @@ export function ExtraInfoBuilder({
                         ...s,
                         elements: s.elements.map((e) =>
                             e.id === elId && e.kind === "text" ? { ...e, text } : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    const updateSheetUrl = (extraId: string, elId: string, url: string) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === extraId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "leer_google_sheets"
+                                ? { ...e, sheetUrl: url }
+                                : e
                         ),
                     }
                     : s
@@ -610,6 +632,7 @@ export function ExtraInfoBuilder({
                                                                                                             addPedidoField={addPedidoField}
                                                                                                             removePedidoField={removePedidoField}
                                                                                                             onSubtypeChange={onSubtypeChange}
+                                                                                                            updateSheetUrl={updateSheetUrl}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>
