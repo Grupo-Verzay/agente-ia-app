@@ -1,4 +1,4 @@
-﻿"use server"
+"use server"
 
 import { db } from "@/lib/db"
 import { z } from "zod"
@@ -6,7 +6,7 @@ import { formValuesReminderSchema, ReminderDeliverySummary, reminderSchema } fro
 import { Prisma, Reminders } from "@prisma/client"
 import { parse as parseDate, format, isValid, addSeconds } from "date-fns"
 
-// â”€â”€â”€ Helpers de campaÃ±a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers de campaña ───────────────────────────────────────────────────────
 
 function randomBetween(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -66,7 +66,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         const errors = parse.error.format()
         return {
             success: false,
-            message: "Datos invÃ¡lidos. Corrige los campos requeridos.",
+            message: "Datos inválidos. Corrige los campos requeridos.",
             data: errors,
         }
     }
@@ -84,13 +84,13 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         : "";
 
     try {
-        // Crear 1 registro Reminders por campaÃ±a o recordatorio
+        // Crear 1 registro Reminders por campaña o recordatorio
         const reminder = await db.reminders.create({
             data: { ...reminderData, isCampaign } as Prisma.RemindersCreateInput,
         });
 
         if (!isCampaign) {
-            // Recordatorio individual â€” 1 Seguimiento
+            // Recordatorio individual — 1 Seguimiento
             await db.seguimiento.create({
                 data: {
                     idNodo:    `reminder-${reminder.id}`,
@@ -114,7 +114,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             };
         }
 
-        // CampaÃ±a â€” N Seguimientos individuales con delay escalonado y variables resueltas
+        // Campaña — N Seguimientos individuales con delay escalonado y variables resueltas
         const minDelay = Math.max(30, campaignMinDelay ?? 30);
         const maxDelay = Math.max(minDelay, campaignMaxDelay ?? 60);
         let cumulativeDelay = 0;
@@ -145,7 +145,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
 
         return {
             success: true,
-            message: `CampaÃ±a creada: ${jids.length} mensajes programados.`,
+            message: `Campaña creada: ${jids.length} mensajes programados.`,
             data: reminder,
         }
     } catch (error) {
@@ -204,14 +204,14 @@ export async function getCampaignsByUserId(userId: string): Promise<ReminderResp
 
         return {
             success: true,
-            message: "CampaÃ±as obtenidas correctamente.",
+            message: "Campañas obtenidas correctamente.",
             data: campaigns,
         }
     } catch (error) {
         console.error("[GET_CAMPAIGNS]", error)
         return {
             success: false,
-            message: "Error al obtener las campaÃ±as.",
+            message: "Error al obtener las campañas.",
         }
     }
 }
@@ -525,7 +525,7 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
     if (!parse.success) {
         return {
             success: false,
-            message: "Datos invÃ¡lidos. Corrige los campos requeridos.",
+            message: "Datos inválidos. Corrige los campos requeridos.",
             data: parse.error.format(),
         }
     }
