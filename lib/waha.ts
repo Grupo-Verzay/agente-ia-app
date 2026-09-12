@@ -645,3 +645,80 @@ export async function sendWahaMedia(params: {
   }
   return enviarAWaha(path, body, params.chatId, PLAZO_DE_ENVIO_DE_MEDIA_MS);
 }
+
+/**
+ * Editar un mensaje ya enviado.
+ *
+ * `PUT /api/{session}/chats/{chatId}/messages/{messageId}`, que es como lo pide
+ * Waha: la sesion y el chat van en la RUTA, no en el cuerpo, al reves que los
+ * envios. El `messageId` es el id serializado tal y como lo guardamos
+ * (`true_573…@c.us_ABC`, ver `idDelMensajeEnviado`), asi que se pasa entero y
+ * codificado — lleva `@` y guiones bajos.
+ *
+ * Lo que conteste el servidor se DEVUELVE, no se traga: si esta version o este
+ * motor no saben editar, lo dira con un 404 o un 501 y la persona tiene que
+ * poder leerlo. Un "no se pudo" a secas aqui es exactamente el fallo mudo que
+ * el CLAUDE.md prohibe.
+ *
+ * Y el plazo de WhatsApp sigue mandando por encima de todo esto: pasados unos
+ * 15 minutos, el mensaje ya no se puede editar lo pida quien lo pida.
+ */
+export async function editWahaMessage(params: {
+  session: string;
+  chatId: string;
+  messageId: string;
+  text: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
+
+  const texto = (params.text ?? '').trim();
+  if (!texto) return { ok: false, message: 'El texto no puede estar vacío.' };
+
+  const ruta =
+    `/api/${encodeURIComponent(params.session)}` +
+    `/chats/${encodeURIComponent(params.chatId)}` +
+    `/messages/${encodeURIComponent(params.messageId)}`;
+
+  try {
+    const res = await wahaFetch(cfg, ruta, {
+      method: 'PUT',
+      body: JSON.stringify({ text: texto }),
+    });
+
+    if (!res.ok) {
+      const cuerpo = (await res.text().catch(() => '')).slice(0, 300);
+      console.warn('[waha] no se pudo editar el mensaje', {
+        session: params.session,
+        estado: res.status,
+        cuerpo,
+      });
+      // El 404 tiene dos lecturas -no existe la ruta, o no existe el mensaje- y
+      // desde aqui no se distinguen. Se dice la de cada una para que quien lo
+      // lea sepa por donde seguir.
+      if (res.status === 404) {
+        return {
+          ok: false,
+          message:
+            'El servidor no encontró el mensaje, o esta versión no sabe editar. ' +
+            'Míralo en Panel > Conexión, botón Probar: ahí salen la versión y el motor.',
+        };
+      }
+      if (res.status === 501) {
+        return { ok: false, message: 'El motor de esta línea no permite editar mensajes.' };
+      }
+      return { ok: false, message: `El servidor respondió ${res.status}${cuerpo ? `: ${cuerpo}` : ''}` };
+    }
+
+    return { ok: true, message: 'Mensaje editado.' };
+  } catch (error) {
+    const esPlazo = (error as { name?: string })?.name === 'TimeoutError';
+    console.warn('[waha] fallo al editar el mensaje', { session: params.session, error: String(error) });
+    return {
+      ok: false,
+      message: esPlazo
+        ? 'El servidor no contestó a tiempo. Vuelve a mirar la conversación antes de reintentar.'
+        : 'No se pudo contactar con el servidor.',
+    };
+  }
+}
