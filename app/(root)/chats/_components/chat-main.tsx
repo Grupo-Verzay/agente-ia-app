@@ -820,23 +820,34 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     void navigator.clipboard.writeText(text).then(() => toast.success('Copiado al portapapeles.'));
   }, []);
 
+  // Como en editar: la clave de Evolution NO es obligatoria. Pedirla dejaba los
+  // dos botones MUDOS en las lineas de WhatsApp Mensajeria (waha), que no la
+  // traen a proposito. Y si de verdad falta algo, se dice.
+  const faltaElChat = useCallback((que: string) => {
+    console.warn(`[chats] no se puede ${que}: falta el contexto del chat`, {
+      linea: info?.instanceName ?? "(sin linea)",
+      chat: info?.remoteJid ?? "(sin chat)",
+    });
+    toast.error(`No se pudo ${que}: vuelve a abrir la conversación.`);
+  }, [info]);
+
   const handleReactMessage = useCallback(async (bubble: UIBubble, emoji: string) => {
-    if (!info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    if (!info?.instanceName || !info.remoteJid) return faltaElChat("reaccionar");
     const result = await reactToMessageAction(
-      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      { apiKeyData: info.apiKeyData ?? null, instanceName: info.instanceName },
       info.remoteJid,
       bubble.id,
       bubble.sender === 'user',
       emoji,
     );
     if (!result.success) toast.error(result.message);
-  }, [info]);
+  }, [info, faltaElChat]);
 
   const handleDeleteMessage = useCallback(async (bubble: UIBubble) => {
-    if (!info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    if (!info?.instanceName || !info.remoteJid) return faltaElChat("eliminar el mensaje");
     setDeletedIds((prev) => new Set(prev).add(bubble.id));
     const result = await deleteMessageAction(
-      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      { apiKeyData: info.apiKeyData ?? null, instanceName: info.instanceName },
       info.remoteJid,
       bubble.id,
       bubble.sender === 'user',
@@ -847,7 +858,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     } else {
       toast.success('Mensaje eliminado.');
     }
-  }, [info]);
+  }, [info, faltaElChat]);
 
   /**
    * Editar lo puede hacer cualquiera del equipo, no solo un administrador.

@@ -24,7 +24,15 @@ import {
   persistEvolutionMessages,
   resolveInstanceOwner,
 } from "@/lib/chat-persistence";
-import { editWahaMessage, sendWahaMedia, sendWahaText, subscribeWahaPresence, type WahaMediaType } from "@/lib/waha";
+import {
+  deleteWahaMessage,
+  editWahaMessage,
+  reactToWahaMessage,
+  sendWahaMedia,
+  sendWahaText,
+  subscribeWahaPresence,
+  type WahaMediaType,
+} from "@/lib/waha";
 import { canonicalToWahaJid } from "@/lib/waha-jid";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
 import {
@@ -1503,8 +1511,21 @@ export async function reactToMessageAction(
   emoji: string,
 ): Promise<{ success: boolean; message: string }> {
   context = await resolverContexto(context);
-  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   await requireCurrentUser();
+
+  // WhatsApp Mensajeria (waha) no habla con Evolution: su contexto llega SIN
+  // clave a proposito. Sin esta rama, reaccionar moria con "Sin instancia
+  // configurada" en esas lineas.
+  if (!hasReadyContext(context) && context?.instanceName && (await esLineaWaha(context.instanceName))) {
+    const r = await reactToWahaMessage({
+      session: context.instanceName,
+      messageId,
+      emoji,
+    });
+    return { success: r.ok, message: r.message };
+  }
+
+  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   return sendReaction(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe, emoji);
 }
 
@@ -1515,11 +1536,22 @@ export async function deleteMessageAction(
   fromMe: boolean,
 ): Promise<{ success: boolean; message: string }> {
   context = await resolverContexto(context);
-  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   const user = await requireCurrentUser();
   if (user.role !== "admin" && user.role !== "super_admin") {
     return { success: false, message: "Solo los administradores pueden eliminar mensajes." };
   }
+
+  // Igual que editar: una linea de WhatsApp Mensajeria (waha) no trae clave de
+  // Evolution, asi que borrar moria arriba con "Sin instancia configurada".
+  // Sigue pidiendo ser administrador: borrar quita algo del telefono del
+  // cliente, no es corregir una tilde.
+  const esWaha =
+    !hasReadyContext(context) && !!context?.instanceName && (await esLineaWaha(context.instanceName));
+
+  if (!esWaha && !hasReadyContext(context)) {
+    return { success: false, message: "Sin instancia configurada." };
+  }
+
   // El borrado en WhatsApp ("eliminar para todos") tiene su propio limite de
   // tiempo: pasado un rato, WhatsApp lo rechaza aunque el mensaje sea tuyo.
   // Antes eso frenaba TODO: si WhatsApp decia que no, la copia local ni se
@@ -1527,18 +1559,27 @@ export async function deleteMessageAction(
   // el administrador -que aqui ya se autentico como tal, arriba- solo quiera
   // que deje de verse. Se intenta igual (mejor si WhatsApp tambien lo borra),
   // pero un fallo ahi ya no bloquea el borrado local.
-  const resultadoWhatsapp = await deleteMessage(
-    context.apiKeyData,
-    context.instanceName,
-    remoteJid,
-    messageId,
-    fromMe,
-  );
+  const resultadoWhatsapp = esWaha
+    ? await (async () => {
+        const r = await deleteWahaMessage({
+          session: context!.instanceName,
+          chatId: canonicalToWahaJid(remoteJid),
+          messageId,
+        });
+        return { success: r.ok, message: r.message };
+      })()
+    : await deleteMessage(
+        context!.apiKeyData!,
+        context!.instanceName,
+        remoteJid,
+        messageId,
+        fromMe,
+      );
 
   const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
   await eliminarMensajeDelTodo({
     userId: storageUserId ?? user.ownerId ?? user.id,
-    instanceName: context.instanceName,
+    instanceName: context!.instanceName,
     remoteJid,
     messageId,
     fromMe,
