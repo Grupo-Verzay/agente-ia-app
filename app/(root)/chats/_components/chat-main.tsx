@@ -387,8 +387,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     const cache = mediaCacheRef.current;
     const out: UIBubble[] = [];
     for (const b of baseBubbles) {
-      if (deletedIds.size > 0 && deletedIds.has(b.id)) continue;
-      let bubble = b;
+      // Un mensaje eliminado SE QUEDA, con su sello. Aqui se hacia `continue`
+      // y la burbuja se esfumaba en cuanto se pulsaba Eliminar, antes incluso
+      // de que el servidor contestara. Ahora se marca, que es como se ve
+      // cuando lo borra el contacto desde su telefono.
+      let bubble = deletedIds.size > 0 && deletedIds.has(b.id)
+        ? { ...b, clientDeleted: true }
+        : b;
       if (b.media && cache.has(b.id)) {
         const cached = cache.get(b.id)!;
         bubble = { ...bubble, media: { ...b.media, url: cached.dataUrl, mimeType: cached.mime } };
