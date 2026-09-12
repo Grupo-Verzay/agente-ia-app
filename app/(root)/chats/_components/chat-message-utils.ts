@@ -850,6 +850,22 @@ export function toUIMessages(
       if (emoji) b.reaction = emoji;
     }
   }
+  // Y la que viene colgada del propio mensaje, que es como la guarda nuestra
+  // base (ver `guardarReaccion`). Sin esto, en las líneas que leen la
+  // conversación de nuestra base —Waha, y cualquiera cuando Evolution no
+  // contesta— se reaccionaba, se veía en el teléfono y en el panel no quedaba
+  // nada. Va después porque es la que sobrevive a la recarga.
+  const porMensaje = new Map<string, string>();
+  for (const m of messages) {
+    const emoji = (m as { reaccion?: unknown }).reaccion;
+    if (typeof emoji === 'string' && emoji) porMensaje.set(m.key?.id ?? '', emoji);
+  }
+  if (porMensaje.size) {
+    for (const b of result) {
+      const emoji = porMensaje.get(b.id);
+      if (emoji) b.reaction = emoji;
+    }
+  }
   return result;
 }
 
