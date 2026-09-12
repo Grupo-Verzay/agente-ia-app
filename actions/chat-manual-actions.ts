@@ -15,7 +15,7 @@ import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { epochToMs } from "@/lib/epoch";
 import {
-  eliminarMensajeDelTodo,
+  marcarMensajeComoEliminado,
   getDeletedLastMessageJids,
   getPersistedInboxChats,
   getPersistedMessages,
@@ -1589,13 +1589,21 @@ export async function deleteMessageAction(
     };
   }
 
+  // EL MENSAJE NO DESAPARECE: se marca.
+  //
+  // Queda con su texto y con el sello «Eliminado», exactamente igual que cuando
+  // el contacto borra uno desde su telefono. Antes se borraba la fila entera
+  // (`eliminarMensajeDelTodo`) y la burbuja se esfumaba: nadie podia saber que
+  // se habia dicho, ni el asesor que lo borro ni el que entrara despues, y en
+  // una conversacion de trabajo eso es justo lo que hace falta conservar.
+  //
+  // Es el mismo camino que ya usaba el borrado del contacto, que es el que se
+  // comporta bien.
   const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
-  await eliminarMensajeDelTodo({
+  await marcarMensajeComoEliminado({
     userId: storageUserId ?? user.ownerId ?? user.id,
     instanceName: context!.instanceName,
-    remoteJid,
     messageId,
-    fromMe,
   });
 
   return resultadoWhatsapp;
