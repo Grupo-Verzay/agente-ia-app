@@ -20,6 +20,7 @@ import {
   getPersistedInboxChats,
   getPersistedMessages,
   guardarMensajeEditado,
+  guardarReaccion,
   persistChatMessage,
   persistEvolutionMessages,
   resolveInstanceOwner,
@@ -1516,17 +1517,43 @@ export async function reactToMessageAction(
   // WhatsApp Mensajeria (waha) no habla con Evolution: su contexto llega SIN
   // clave a proposito. Sin esta rama, reaccionar moria con "Sin instancia
   // configurada" en esas lineas.
-  if (!hasReadyContext(context) && context?.instanceName && (await esLineaWaha(context.instanceName))) {
-    const r = await reactToWahaMessage({
-      session: context.instanceName,
-      messageId,
-      emoji,
-    });
-    return { success: r.ok, message: r.message };
+  const esWaha =
+    !hasReadyContext(context) && !!context?.instanceName && (await esLineaWaha(context.instanceName));
+
+  if (!esWaha && !hasReadyContext(context)) {
+    return { success: false, message: "Sin instancia configurada." };
   }
 
-  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
-  return sendReaction(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe, emoji);
+  const resultado = esWaha
+    ? await (async () => {
+        const r = await reactToWahaMessage({
+          session: context!.instanceName,
+          messageId,
+          emoji,
+        });
+        return { success: r.ok, message: r.message };
+      })()
+    : await sendReaction(context!.apiKeyData!, context!.instanceName, remoteJid, messageId, fromMe, emoji);
+
+  // La reaccion se guarda PEGADA a su mensaje, para que quede.
+  //
+  // Antes no se guardaba en ningun sitio: se veia en el telefono y en el panel
+  // no quedaba rastro. En las lineas que leen la conversacion de nuestra base
+  // —Waha, y cualquiera cuando Evolution no contesta— no aparecia nunca; en las
+  // de Evolution solo mientras su lista siguiera trayendo la reaccion.
+  if (resultado.success) {
+    const dueno = await resolveInstanceOwner(context!.instanceName);
+    if (dueno?.userId) {
+      await guardarReaccion({
+        userId: dueno.userId,
+        instanceName: context!.instanceName,
+        messageId,
+        emoji,
+      });
+    }
+  }
+
+  return resultado;
 }
 
 export async function deleteMessageAction(

@@ -507,6 +507,12 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
     contextInfo: rawSnapshot?.contextInfo ?? null,
     ...(sentByAi ? { sentByAi: true } : {}),
     ...(row.deleted ? { clientDeleted: true } : {}),
+    // La reaccion va colgada del propio mensaje (ver `guardarReaccion`), no
+    // como fila aparte. Aqui sale para que la burbuja pueda pintarla.
+    ...(typeof (row.raw as { reaccion?: unknown } | null)?.reaccion === 'string' &&
+    (row.raw as { reaccion: string }).reaccion
+      ? { reaccion: (row.raw as { reaccion: string }).reaccion }
+      : {}),
     source: rawSnapshot?.source ?? row.instanceType ?? 'local',
     messageTimestamp: rawSnapshot?.messageTimestamp ?? dateToEpochSeconds(row.messageTimestamp),
     instanceId: rawSnapshot?.instanceId ?? row.instanceName,
@@ -976,6 +982,70 @@ export async function guardarMensajeEditado(params: {
     // Nunca mudo: si esto falla, la edición se ve en una pestaña y en ninguna
     // otra, que es justo el síntoma que se vino a arreglar.
     console.error('[chats] no se pudo guardar el mensaje editado', { instanceName, messageId, error });
+  }
+}
+
+/**
+ * Guarda la reacción de un mensaje, EN EL PROPIO MENSAJE.
+ *
+ * Una reacción no se guarda como fila aparte a propósito. Este proyecto
+ * las rechaza en `persistChatMessage` y las excluye al leer la bandeja y la
+ * conversación, y con razón: una reacción no es un mensaje, y colada como fila
+ * acababa siendo el «último mensaje» de la fila de la lista —la conversación
+ * decía 👍 en vez de lo que se habló—.
+ *
+ * Así que el emoji viaja dentro del `raw` del mensaje al que reaccionaron. Sin
+ * filas nuevas no hay nada que ensucie la bandeja, y el emoji va donde tiene
+ * que estar: pegado a su mensaje, para todos y después de recargar.
+ *
+ * Un emoji vacío QUITA la reacción, que es como lo dicen los dos proveedores.
+ */
+export async function guardarReaccion(params: {
+  userId: string;
+  instanceName: string;
+  messageId: string;
+  emoji: string;
+}): Promise<void> {
+  const { userId, instanceName, messageId } = params;
+  if (!userId || !instanceName || !messageId) return;
+  const emoji = (params.emoji ?? '').trim();
+
+  try {
+    const filas = await db.$queryRaw<{ raw: Prisma.JsonValue | null }[]>`
+      SELECT "raw" FROM "chat_messages"
+      WHERE "userId" = ${userId}
+        AND "instanceName" = ${instanceName}
+        AND "messageId" = ${messageId}
+      LIMIT 1
+    `;
+
+    // Sin copia local no hay donde colgarla. Se dice, porque desde fuera esto
+    // se ve como «reaccioné y no quedó nada».
+    if (!filas.length) {
+      console.warn('[chats] reaccion sin copia local del mensaje', { instanceName, messageId });
+      return;
+    }
+
+    const base = filas[0].raw;
+    const copia =
+      base && typeof base === 'object' && !Array.isArray(base)
+        ? (JSON.parse(JSON.stringify(base)) as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    if (emoji) copia.reaccion = emoji;
+    else delete copia.reaccion;
+
+    await db.$executeRaw`
+      UPDATE "chat_messages"
+      SET "raw" = ${copia as Prisma.InputJsonValue},
+          "updatedAt" = NOW()
+      WHERE "userId" = ${userId}
+        AND "instanceName" = ${instanceName}
+        AND "messageId" = ${messageId}
+    `;
+
+    invalidatePersistedInboxCache();
+  } catch (error) {
+    console.error('[chats] no se pudo guardar la reaccion', { instanceName, messageId, error });
   }
 }
 
