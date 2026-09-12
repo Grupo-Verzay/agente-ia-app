@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StepTemplatePicker } from "./StepTemplatePicker";
-import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
+import { elementosQueFaltan, StepTemplate, esInstruccionDelSistema } from "./helpers/stepTemplates";
 
 import {
   AnyStep,
@@ -64,7 +64,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { WELCOME_TITLE, WELCOME_TITLE_LEGACY, WELCOME_MAIN_MESSAGE, WELCOME_MESSAGES, WelcomeType } from "./helpers/trainingDefaults";
-import { CADENA_STEPS, buildCadenaSteps } from "./helpers/flowObjectives";
 
 /* utilidad: type-guard para pedidos */
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
@@ -152,6 +151,32 @@ function SortableElementRow({
         isDragging,
       })}
     </div>
+  );
+}
+
+
+/**
+ * El texto que manda el sistema, plegado y sin poder tocarlo.
+ *
+ * Lo usan los dos sitios donde el contenido del bloque no lo escribe la
+ * persona: el paso de **Bienvenida** y cualquier bloque al que se le haya
+ * aplicado una **plantilla**. Vive aquí una sola vez a propósito: si los dos se
+ * pintaran por separado acabarían comportándose distinto, y el de la plantilla
+ * nació justo de copiar el de Bienvenida.
+ */
+function InstruccionesDelSistema({ texto }: { texto?: string | null }) {
+  return (
+    <details className="group">
+      <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center gap-1">
+        <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+        Ver instrucciones del sistema
+      </summary>
+      <Textarea
+        value={texto ?? ""}
+        readOnly
+        className="min-h-[120px] mt-2 text-xs font-mono bg-muted/30 text-muted-foreground resize-none"
+      />
+    </details>
   );
 }
 
@@ -760,29 +785,32 @@ export function TrainingBuilder({
                                           disabled={false}
                                           onApply={(plantilla) => aplicarPlantilla(step.id, plantilla)}
                                         />
-                                        <Textarea
-                                          value={step.mainMessage}
-                                          onChange={(e) => updateStepMainMessage(step.id, e.target.value)}
-                                          placeholder="Escribe el mensaje inicial para este paso…"
-                                          className="min-h-[32px]"
-                                        />
+                                        {/* Lo que deja una plantilla NO se edita a mano.
+                                            Son condiciones y tablas que el modelo lee al pie de
+                                            la letra: cambiar una palabra ahi altera el
+                                            comportamiento y no se nota hasta que un cliente
+                                            recibe algo raro. Se enseña como lo que es
+                                            —instrucciones del sistema, plegadas y en gris—,
+                                            igual que en el paso de Bienvenida. Para cambiarlo se
+                                            aplica otra plantilla encima, que para eso sigue ahi
+                                            el boton. */}
+                                        {esInstruccionDelSistema(step.mainMessage) ? (
+                                          <InstruccionesDelSistema texto={step.mainMessage} />
+                                        ) : (
+                                          <Textarea
+                                            value={step.mainMessage}
+                                            onChange={(e) => updateStepMainMessage(step.id, e.target.value)}
+                                            placeholder="Escribe el mensaje inicial para este paso…"
+                                            className="min-h-[32px]"
+                                          />
+                                        )}
                                       </>
                                     )}
                                   </div>
 
                                   {lockWelcome && (
                                     <div className="px-3">
-                                      <details className="group">
-                                        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center gap-1">
-                                          <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
-                                          Ver instrucciones del sistema
-                                        </summary>
-                                        <Textarea
-                                          value={step.mainMessage}
-                                          readOnly
-                                          className="min-h-[120px] mt-2 text-xs font-mono bg-muted/30 text-muted-foreground resize-none"
-                                        />
-                                      </details>
+                                      <InstruccionesDelSistema texto={step.mainMessage} />
                                     </div>
                                   )}
 
@@ -899,38 +927,6 @@ export function TrainingBuilder({
           </DndContext>
         )}
 
-        {/* Banner CADENA — solo cuando existe únicamente el paso INICIO FLUJO */}
-        {steps.length === 1 && (steps[0].title === WELCOME_TITLE || steps[0].title === WELCOME_TITLE_LEGACY) && (<>
-          <Separator className="opacity-40" />
-          <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/20 px-3 py-2 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-foreground/70">🎯 Modelo CADENA para ventas por WhatsApp</span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 h-7 text-xs gap-1.5 border-dashed border-primary/40 text-primary hover:bg-primary/10 hover:border-primary hover:text-primary"
-                onClick={() => {
-                  const newSteps = buildCadenaSteps();
-                  setSteps((prev) => [...prev, ...newSteps]);
-                  setExpandedSteps(new Set(newSteps.map((s) => s.id)));
-                }}
-              >
-                <Plus className="h-3 w-3" />
-                Aplicar modelo
-              </Button>
-            </div>
-            <div className="flex items-center w-full gap-1">
-              {CADENA_STEPS.map((s, i) => (
-                <>
-                  <span key={s.title} className="flex-1 text-center text-[10px] font-semibold text-primary/80 bg-primary/10 border border-primary/25 rounded py-1">{s.title}</span>
-                  {i < CADENA_STEPS.length - 1 && (
-                    <ArrowRight key={`a-${i}`} className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                  )}
-                </>
-              ))}
-            </div>
-          </div>
-        </>)}
       </CardContent>
 
       {steps.length > 0 && (
