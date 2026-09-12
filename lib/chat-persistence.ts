@@ -504,7 +504,13 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
     participant: rawSnapshot?.participant ?? null,
     messageType: rawSnapshot?.messageType ?? row.messageType,
     message: buildMessageContent(row),
-    contextInfo: rawSnapshot?.contextInfo ?? null,
+    // La cita tambien puede venir en el `raw` suelto, sin foto de Evolution
+    // alrededor: es como la guardan los mensajes que salen del panel (ver
+    // `persistOutgoingHistory`). Sin este respaldo, al recargar se perdia la
+    // cita de lo que habia escrito el propio asesor.
+    contextInfo:
+      rawSnapshot?.contextInfo ??
+      ((row.raw as { contextInfo?: Record<string, unknown> } | null)?.contextInfo ?? null),
     ...(sentByAi ? { sentByAi: true } : {}),
     ...(row.deleted ? { clientDeleted: true } : {}),
     // La reaccion va colgada del propio mensaje (ver `guardarReaccion`), no
