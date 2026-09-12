@@ -48,15 +48,19 @@ const notificarAsesor = (notificationNumber?: string | null): ElementItem =>
  * Estas no se interpretan. Dicen cuándo entra el bloque, qué sale, en qué orden
  * y qué está prohibido.
  *
- * Las tres primeras se disparan igual —por el TÍTULO que el cliente les ponga
- * arriba, ahí van sus palabras: "precio", "garantía", "envío"— y se diferencian
- * solo en qué hace el bloque al activarse: ejecutar un flujo, avisar al asesor,
- * o simplemente responder.
+ * **El nombre lleva entre paréntesis lo que la dispara**, que es lo único que
+ * de verdad las diferencia entre sí:
  *
- * La cuarta es de otra familia y va al final por eso: **no se dispara por el
- * título**, entra cuando le toca su turno en el orden del flujo
- * (`current_step`), y además declara cómo se pasa al paso siguiente. Si se
- * añaden más, las de intención arriba y las de orden abajo.
+ * - `(secuencial)` — entra cuando le toca su turno en el orden del flujo
+ *   (`current_step`), y además declara cómo se pasa al paso siguiente. Va la
+ *   primera porque es la que arma la conversación; las demás son desvíos que se
+ *   cruzan en medio.
+ * - `(intención)` — entra por el TÍTULO que el cliente le ponga al bloque, ahí
+ *   van sus palabras: "precio", "garantía", "envío". Las tres se disparan igual
+ *   y se diferencian en qué hacen: lanzar un flujo, solo responder, o avisar al
+ *   asesor por dentro.
+ *
+ * Si se añade otra, el nombre dice de qué se dispara.
  */
 export const EJECUCION_POR_INTENCION = `## 🔒 GATE — EJECUCIÓN POR (INTENCIÓN / PALABRA)
 
@@ -162,39 +166,36 @@ Evaluar en este orden exacto:
 
 export const STEP_TEMPLATES: StepTemplate[] = [
     {
+        id: "paso_secuencial",
+        name: "Ejecutar paso (secuencial)",
+        description:
+            "Entra cuando le toca su turno en el flujo, no por una palabra. Recoge su variable y decide a qué paso pasa.",
+        content: PASO_SECUENCIAL,
+        elementos: () => [ejecutarFlujo(), texto()],
+    },
+    {
         id: "ejecucion_por_intencion",
-        name: "Ejecutar flujo",
+        name: "Ejecutar flujo (intención)",
         description:
             "Al reconocer la palabra, lanza un flujo y responde con el texto del bloque.",
         content: EJECUCION_POR_INTENCION,
         elementos: () => [ejecutarFlujo(), texto()],
     },
     {
-        id: "notificar_asesor_por_intencion",
-        name: "Notificar al asesor",
-        description:
-            "Al reconocer la palabra, avisa al asesor por dentro y responde con el texto del bloque. El cliente no se entera del aviso.",
-        content: NOTIFICAR_ASESOR_POR_INTENCION,
-        elementos: (notificationNumber) => [notificarAsesor(notificationNumber), texto()],
-    },
-    {
         id: "respuesta_por_intencion",
-        name: "Solo responder",
+        name: "Solo responder (intención)",
         description:
             "Al reconocer la palabra, responde con el texto del bloque. Sin acción, salvo la que le agregues después.",
         content: RESPUESTA_POR_INTENCION,
         elementos: () => [texto()],
     },
     {
-        // La unica que NO se dispara por el titulo: entra cuando le toca su
-        // turno en el orden del flujo. Por eso va al final de la lista, separada
-        // de las tres de intencion.
-        id: "paso_secuencial",
-        name: "Ejecutar paso secuencial",
+        id: "notificar_asesor_por_intencion",
+        name: "Notificar asesor (intención)",
         description:
-            "Entra cuando le toca su turno en el flujo, no por una palabra. Recoge su variable y decide a qué paso pasa.",
-        content: PASO_SECUENCIAL,
-        elementos: () => [ejecutarFlujo(), texto()],
+            "Al reconocer la palabra, avisa al asesor por dentro y responde con el texto del bloque. El cliente no se entera del aviso.",
+        content: NOTIFICAR_ASESOR_POR_INTENCION,
+        elementos: (notificationNumber) => [notificarAsesor(notificationNumber), texto()],
     },
 ];
 
@@ -205,6 +206,27 @@ export const STEP_TEMPLATES: StepTemplate[] = [
  * selectores de flujo ni dos avisos al asesor, así que solo se agrega lo que no
  * esté ya puesto.
  */
+/** La primera línea de todas las plantillas. Ver `esInstruccionDelSistema`. */
+const MARCA_DE_PLANTILLA = "## 🔒 GATE";
+
+/**
+ * ¿Este texto salió de una plantilla?
+ *
+ * Lo que una plantilla deja en el bloque **no se edita a mano**: son condiciones
+ * y tablas que el modelo lee al pie de la letra, y cambiar una palabra ahí
+ * altera el comportamiento sin que se note hasta que un cliente recibe algo
+ * raro. Se enseña como lo que es —instrucciones del sistema, plegadas y en
+ * gris—, igual que en el paso de Bienvenida.
+ *
+ * Se reconoce por su primera línea, y no por una marca aparte guardada en el
+ * paso, para que valga también con los bloques que ya estaban creados: así no
+ * hay nada que migrar. Para cambiarlo se aplica otra plantilla encima, que es
+ * el camino previsto.
+ */
+export function esInstruccionDelSistema(texto: string | null | undefined): boolean {
+    return (texto ?? "").trimStart().startsWith(MARCA_DE_PLANTILLA);
+}
+
 export function elementosQueFaltan(
     plantilla: StepTemplate,
     elements?: ElementItem[],
