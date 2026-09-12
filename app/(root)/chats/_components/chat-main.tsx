@@ -849,6 +849,16 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     }
   }, [info]);
 
+  /**
+   * Editar lo puede hacer cualquiera del equipo, no solo un administrador.
+   *
+   * El menú solo lo ofrece sobre los mensajes que salieron de la línea
+   * (`isUserMessage`) y WhatsApp solo lo admite durante unos 15 minutos, así que
+   * es corregir el propio error de dedo. Pedir rol de administrador para eso
+   * obligaba a llamar al jefe por una tilde.
+   *
+   * Borrar se queda como estaba: eso quita algo del teléfono del cliente.
+   */
   const handleEditMessage = useCallback((bubble: UIBubble) => {
     setEditingBubble(bubble);
   }, []);
@@ -1184,7 +1194,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onCopyMessage={handleCopyMessage}
         onReactMessage={handleReactMessage}
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
-        onEditMessage={!advisorRole || advisorRole === 'administrador' ? handleEditMessage : undefined}
+        onEditMessage={handleEditMessage}
         onDeleteNote={handleDeleteNote}
         onLoadOlderMessages={onLoadOlderMessages}
         canLoadOlderMessages={canLoadOlderMessages}

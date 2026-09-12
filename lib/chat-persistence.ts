@@ -142,6 +142,13 @@ function ensureChatMessagesTable() {
     await db.$executeRaw`
       ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "deleted" BOOLEAN NOT NULL DEFAULT FALSE
     `;
+    // Un asesor corrigio el texto desde el panel. Sirve para BLINDARLO: el
+    // sondeo de Evolution vuelve a guardar el mensaje con su texto original en
+    // cada vuelta, y sin esta marca la correccion duraba hasta el refresco
+    // siguiente. Es el mismo truco que ya protege a `sentByAi`.
+    await db.$executeRaw`
+      ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "editedAt" TIMESTAMP(3)
+    `;
     await db.$executeRaw`
       CREATE INDEX IF NOT EXISTS "chat_messages_user_jid_ts_idx"
       ON "chat_messages" ("userId", "remoteJid", "messageTimestamp" DESC)
@@ -859,6 +866,120 @@ export async function marcarMensajeComoEliminado(params: {
 }
 
 /**
+ * El mismo mensaje con otro texto, dentro del `raw`.
+ *
+ * Hace falta tocar el `raw` y no solo la columna `content` porque quien decide
+ * qué se pinta es `buildMessageContent`, y **el `raw` gana**: si su
+ * `message` trae texto, `content` ni se mira. Guardando solo `content`, la
+ * edición se veía únicamente en la pestaña de quien la hizo y desaparecía al
+ * recargar.
+ *
+ * Se escribe donde el mensaje ya tenía su texto, porque la burbuja lo lee
+ * **según el tipo**: un `extendedTextMessage` —cualquier texto con enlace o con
+ * cita— busca `extendedTextMessage.text` y no mira `conversation`. Poner el
+ * texto en el sitio equivocado deja la burbuja vacía, que es el mismo fallo que
+ * ya costó una tarde con los avisos en vivo.
+ *
+ * Es pura: entra el `raw` y sale otro `raw`. No toca la base.
+ */
+export function conElTextoEditado(raw: unknown, texto: string): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+
+  const copia = JSON.parse(JSON.stringify(raw)) as Record<string, any>;
+  // El `raw` puede ser la foto entera del mensaje (con `message` dentro) o solo
+  // su contenido. Es la misma distinción que hace `buildMessageContent`.
+  const contenido = ('message' in copia ? copia.message : copia) as Record<string, any> | null;
+  if (!contenido || typeof contenido !== 'object') return raw;
+
+  if (contenido.extendedTextMessage && typeof contenido.extendedTextMessage === 'object') {
+    contenido.extendedTextMessage.text = texto;
+  } else if (contenido.imageMessage && typeof contenido.imageMessage === 'object') {
+    contenido.imageMessage.caption = texto;
+  } else if (contenido.videoMessage && typeof contenido.videoMessage === 'object') {
+    contenido.videoMessage.caption = texto;
+  } else if (contenido.documentMessage && typeof contenido.documentMessage === 'object') {
+    contenido.documentMessage.caption = texto;
+  } else {
+    contenido.conversation = texto;
+  }
+
+  return copia;
+}
+
+/**
+ * Guarda el texto nuevo de un mensaje editado.
+ *
+ * Sin esto la edición vivía SOLO en la pestaña que la hizo: es un `Map` en
+ * memoria del navegador (`editedContent`). Los demás asesores seguían viendo el
+ * texto viejo, y quien editaba lo perdía al recargar. En WhatsApp sí quedaba
+ * cambiado, así que la App acababa contando algo distinto de lo que el cliente
+ * tenía en su teléfono.
+ *
+ * Se escribe en los dos sitios que lo pintan: el mensaje y —solo si es el
+ * último de esa conversación— la fila de la lista.
+ */
+export async function guardarMensajeEditado(params: {
+  userId: string;
+  instanceName: string;
+  messageId: string;
+  texto: string;
+}): Promise<void> {
+  const { userId, instanceName, messageId } = params;
+  const texto = (params.texto ?? '').trim();
+  if (!userId || !instanceName || !messageId || !texto) return;
+
+  try {
+    const filas = await db.$queryRaw<{ raw: Prisma.JsonValue | null }[]>`
+      SELECT "raw" FROM "chat_messages"
+      WHERE "userId" = ${userId}
+        AND "instanceName" = ${instanceName}
+        AND "messageId" = ${messageId}
+      LIMIT 1
+    `;
+
+    // Sin fila guardada no hay nada que corregir: el mensaje se editó en
+    // WhatsApp igualmente y el sondeo lo traerá. Se dice, porque desde fuera
+    // esto se ve como "a los demás no les cambió".
+    if (!filas.length) {
+      console.warn('[chats] mensaje editado sin copia local que actualizar', {
+        instanceName,
+        messageId,
+      });
+      return;
+    }
+
+    const rawNuevo = conElTextoEditado(filas[0].raw, texto) as Prisma.InputJsonValue | null;
+
+    await db.$executeRaw`
+      UPDATE "chat_messages"
+      SET "content" = ${texto},
+          "raw" = ${rawNuevo === null ? Prisma.DbNull : rawNuevo},
+          "editedAt" = NOW(),
+          "updatedAt" = NOW()
+      WHERE "userId" = ${userId}
+        AND "instanceName" = ${instanceName}
+        AND "messageId" = ${messageId}
+    `;
+
+    await db.$executeRaw`
+      UPDATE "chat_conversations"
+      SET "lastMessageContent" = ${texto},
+          "lastMessageRaw" = ${rawNuevo === null ? Prisma.DbNull : rawNuevo},
+          "updatedAt" = NOW()
+      WHERE "userId" = ${userId}
+        AND "instanceName" = ${instanceName}
+        AND "lastMessageId" = ${messageId}
+    `;
+
+    invalidatePersistedInboxCache();
+  } catch (error) {
+    // Nunca mudo: si esto falla, la edición se ve en una pestaña y en ninguna
+    // otra, que es justo el síntoma que se vino a arreglar.
+    console.error('[chats] no se pudo guardar el mensaje editado', { instanceName, messageId, error });
+  }
+}
+
+/**
  * Borra un mensaje DE VERDAD: la fila desaparece, sin dejar el aviso
  * "Eliminado" ni rastro de su contenido.
  *
@@ -1035,9 +1156,16 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
           THEN "chat_messages"."messageType"
         ELSE EXCLUDED."messageType"
       END,
-      "content" = COALESCE(EXCLUDED."content", "chat_messages"."content"),
+      -- Lo que un asesor corrigio a mano NO se pisa. Evolution devuelve el
+      -- mensaje con su texto original en cada vuelta del sondeo, asi que sin
+      -- esto la correccion se veia unos segundos y volvia sola al texto viejo.
+      "content" = CASE
+        WHEN "chat_messages"."editedAt" IS NOT NULL THEN "chat_messages"."content"
+        ELSE COALESCE(EXCLUDED."content", "chat_messages"."content")
+      END,
       "mediaUrl" = COALESCE(EXCLUDED."mediaUrl", "chat_messages"."mediaUrl"),
       "raw" = CASE
+        WHEN "chat_messages"."editedAt" IS NOT NULL THEN "chat_messages"."raw"
         WHEN EXCLUDED."content" IS NULL AND EXCLUDED."mediaUrl" IS NULL
           THEN "chat_messages"."raw"
         -- Preservar el marcador { sentByAi: true } que puso el backend al enviar por
