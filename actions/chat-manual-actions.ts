@@ -1552,13 +1552,19 @@ export async function deleteMessageAction(
     return { success: false, message: "Sin instancia configurada." };
   }
 
-  // El borrado en WhatsApp ("eliminar para todos") tiene su propio limite de
-  // tiempo: pasado un rato, WhatsApp lo rechaza aunque el mensaje sea tuyo.
-  // Antes eso frenaba TODO: si WhatsApp decia que no, la copia local ni se
-  // tocaba, y un mensaje viejo quedaba imposible de quitar del panel aunque
-  // el administrador -que aqui ya se autentico como tal, arriba- solo quiera
-  // que deje de verse. Se intenta igual (mejor si WhatsApp tambien lo borra),
-  // pero un fallo ahi ya no bloquea el borrado local.
+  // MANDA WHATSAPP. Si el no lo borra, la App tampoco.
+  //
+  // "Eliminar para todos" tiene su propio limite de tiempo: pasado un rato
+  // WhatsApp lo rechaza aunque el mensaje sea tuyo. Durante un tiempo la App
+  // borraba su copia igualmente, para que un administrador pudiera al menos
+  // quitarlo de la pantalla. El efecto era peor que el problema: el panel y el
+  // telefono del cliente contaban cosas distintas —el mensaje seguia en su
+  // WhatsApp y en la App no habia ni rastro— y no quedaba forma de saber que
+  // se habia dicho ni de recuperarlo.
+  //
+  // Ahora el borrado local va DESPUES y solo si WhatsApp dijo que si. Si
+  // rechaza, no se toca nada y se devuelve su motivo: la burbuja vuelve a su
+  // sitio y se lee por que.
   const resultadoWhatsapp = esWaha
     ? await (async () => {
         const r = await deleteWahaMessage({
@@ -1576,6 +1582,13 @@ export async function deleteMessageAction(
         fromMe,
       );
 
+  if (!resultadoWhatsapp.success) {
+    return {
+      success: false,
+      message: `No se eliminó: WhatsApp no lo borró. ${resultadoWhatsapp.message}`,
+    };
+  }
+
   const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
   await eliminarMensajeDelTodo({
     userId: storageUserId ?? user.ownerId ?? user.id,
@@ -1584,13 +1597,6 @@ export async function deleteMessageAction(
     messageId,
     fromMe,
   });
-
-  if (!resultadoWhatsapp.success) {
-    return {
-      success: true,
-      message: `Eliminado del panel. WhatsApp no lo borro: ${resultadoWhatsapp.message}`,
-    };
-  }
 
   return resultadoWhatsapp;
 }
