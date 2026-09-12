@@ -4,7 +4,18 @@ import type { ElementItem } from "@/types/agentAi";
 
 export type StepTemplate = {
     id: string;
+    /** La acción, y nada más. Es por lo que se busca en la lista. */
     name: string;
+    /**
+     * Qué la dispara: `secuencial` o `intención`.
+     *
+     * Va aparte del nombre y **debajo**, no pegado entre paréntesis, porque son
+     * dos cosas distintas: el nombre dice qué hace el bloque —que es lo que se
+     * viene a buscar— y esto dice cuándo entra. Con los cuatro nombres
+     * empezando por «Ejecutar» o llevando el paréntesis a rastras, la lista se
+     * leía como un párrafo; separados se distinguen de un vistazo.
+     */
+    disparo: "secuencial" | "intención";
     description: string;
     content: string;
     /**
@@ -167,7 +178,8 @@ Evaluar en este orden exacto:
 export const STEP_TEMPLATES: StepTemplate[] = [
     {
         id: "paso_secuencial",
-        name: "Ejecutar paso (secuencial)",
+        name: "Ejecutar paso",
+        disparo: "secuencial",
         description:
             "Entra cuando le toca su turno en el flujo, no por una palabra. Recoge su variable y decide a qué paso pasa.",
         content: PASO_SECUENCIAL,
@@ -175,7 +187,8 @@ export const STEP_TEMPLATES: StepTemplate[] = [
     },
     {
         id: "ejecucion_por_intencion",
-        name: "Ejecutar flujo (intención)",
+        name: "Ejecutar flujo",
+        disparo: "intención",
         description:
             "Al reconocer la palabra, lanza un flujo y responde con el texto del bloque.",
         content: EJECUCION_POR_INTENCION,
@@ -183,7 +196,8 @@ export const STEP_TEMPLATES: StepTemplate[] = [
     },
     {
         id: "respuesta_por_intencion",
-        name: "Solo responder (intención)",
+        name: "Solo responder",
+        disparo: "intención",
         description:
             "Al reconocer la palabra, responde con el texto del bloque. Sin acción, salvo la que le agregues después.",
         content: RESPUESTA_POR_INTENCION,
@@ -191,7 +205,8 @@ export const STEP_TEMPLATES: StepTemplate[] = [
     },
     {
         id: "notificar_asesor_por_intencion",
-        name: "Notificar asesor (intención)",
+        name: "Notificar asesor",
+        disparo: "intención",
         description:
             "Al reconocer la palabra, avisa al asesor por dentro y responde con el texto del bloque. El cliente no se entera del aviso.",
         content: NOTIFICAR_ASESOR_POR_INTENCION,

@@ -133,11 +133,24 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
                                             : "hover:bg-muted/50"
                                     )}
                                 >
+                                    {/* El nombre en negrilla y lo que la dispara
+                                        debajo, en gris: por el nombre se busca,
+                                        el disparo confirma cuál es. Juntos en
+                                        una línea —«Ejecutar paso
+                                        (secuencial)»— la lista se leía como un
+                                        párrafo, y con los cuatro empezando por
+                                        el mismo verbo no se distinguían. */}
                                     <p className={cn(
                                         "text-sm leading-snug",
-                                        isSelected ? "font-semibold text-primary" : "font-medium"
+                                        isSelected ? "font-semibold text-primary" : "font-semibold"
                                     )}>
                                         {t.name}
+                                    </p>
+                                    <p className={cn(
+                                        "text-xs leading-snug",
+                                        isSelected ? "text-primary/70" : "text-muted-foreground"
+                                    )}>
+                                        ({t.disparo})
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-3">
                                         {t.description}
@@ -156,6 +169,7 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
                             mirar— y empujaba el pie hacia abajo. */}
                         <div className="px-4 py-2 border-b bg-muted/10 shrink-0">
                             <p className="text-sm font-semibold leading-snug">{selected.name}</p>
+                            <p className="text-xs text-muted-foreground leading-snug">({selected.disparo})</p>
                             <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-2">
                                 {selected.description}
                             </p>
