@@ -645,3 +645,206 @@ export async function sendWahaMedia(params: {
   }
   return enviarAWaha(path, body, params.chatId, PLAZO_DE_ENVIO_DE_MEDIA_MS);
 }
+
+/**
+ * Editar un mensaje ya enviado.
+ *
+ * `PUT /api/{session}/chats/{chatId}/messages/{messageId}`, que es como lo pide
+ * Waha: la sesion y el chat van en la RUTA, no en el cuerpo, al reves que los
+ * envios. El `messageId` es el id serializado tal y como lo guardamos
+ * (`true_573…@c.us_ABC`, ver `idDelMensajeEnviado`), asi que se pasa entero y
+ * codificado — lleva `@` y guiones bajos.
+ *
+ * Lo que conteste el servidor se DEVUELVE, no se traga: si esta version o este
+ * motor no saben editar, lo dira con un 404 o un 501 y la persona tiene que
+ * poder leerlo. Un "no se pudo" a secas aqui es exactamente el fallo mudo que
+ * el CLAUDE.md prohibe.
+ *
+ * Y el plazo de WhatsApp sigue mandando por encima de todo esto: pasados unos
+ * 15 minutos, el mensaje ya no se puede editar lo pida quien lo pida.
+ */
+export async function editWahaMessage(params: {
+  session: string;
+  chatId: string;
+  messageId: string;
+  text: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
+
+  const texto = (params.text ?? '').trim();
+  if (!texto) return { ok: false, message: 'El texto no puede estar vacío.' };
+
+  const ruta =
+    `/api/${encodeURIComponent(params.session)}` +
+    `/chats/${encodeURIComponent(params.chatId)}` +
+    `/messages/${encodeURIComponent(params.messageId)}`;
+
+  try {
+    const res = await wahaFetch(cfg, ruta, {
+      method: 'PUT',
+      body: JSON.stringify({ text: texto }),
+    });
+
+    if (!res.ok) {
+      const cuerpo = (await res.text().catch(() => '')).slice(0, 300);
+      console.warn('[waha] no se pudo editar el mensaje', {
+        session: params.session,
+        estado: res.status,
+        cuerpo,
+      });
+      // El 404 tiene dos lecturas -no existe la ruta, o no existe el mensaje- y
+      // desde aqui no se distinguen. Se dice la de cada una para que quien lo
+      // lea sepa por donde seguir.
+      if (res.status === 404) {
+        return {
+          ok: false,
+          message:
+            'El servidor no encontró el mensaje, o esta versión no sabe editar. ' +
+            'Míralo en Panel > Conexión, botón Probar: ahí salen la versión y el motor.',
+        };
+      }
+      if (res.status === 501) {
+        return { ok: false, message: 'El motor de esta línea no permite editar mensajes.' };
+      }
+      return { ok: false, message: `El servidor respondió ${res.status}${cuerpo ? `: ${cuerpo}` : ''}` };
+    }
+
+    return { ok: true, message: 'Mensaje editado.' };
+  } catch (error) {
+    const esPlazo = (error as { name?: string })?.name === 'TimeoutError';
+    console.warn('[waha] fallo al editar el mensaje', { session: params.session, error: String(error) });
+    return {
+      ok: false,
+      message: esPlazo
+        ? 'El servidor no contestó a tiempo. Vuelve a mirar la conversación antes de reintentar.'
+        : 'No se pudo contactar con el servidor.',
+    };
+  }
+}
+
+/**
+ * Borrar un mensaje en WhatsApp ("eliminar para todos").
+ *
+ * `DELETE /api/{session}/chats/{chatId}/messages/{messageId}`, la misma ruta
+ * que editar pero con otro verbo: sesion y chat en la RUTA, y el id
+ * serializado tal y como lo guardamos.
+ *
+ * Como en editar, lo que conteste el servidor se DEVUELVE. Y por encima manda
+ * el plazo de WhatsApp: pasado un rato no deja borrar para todos aunque el
+ * mensaje sea tuyo. Eso no es un fallo nuestro, pero tiene que leerse.
+ */
+export async function deleteWahaMessage(params: {
+  session: string;
+  chatId: string;
+  messageId: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
+
+  const ruta =
+    `/api/${encodeURIComponent(params.session)}` +
+    `/chats/${encodeURIComponent(params.chatId)}` +
+    `/messages/${encodeURIComponent(params.messageId)}`;
+
+  try {
+    const res = await wahaFetch(cfg, ruta, { method: 'DELETE' });
+
+    if (!res.ok) {
+      const cuerpo = (await res.text().catch(() => '')).slice(0, 300);
+      console.warn('[waha] no se pudo borrar el mensaje', {
+        session: params.session,
+        estado: res.status,
+        cuerpo,
+      });
+      if (res.status === 404) {
+        return {
+          ok: false,
+          message:
+            'El servidor no encontró el mensaje, o esta versión no sabe borrar. ' +
+            'Míralo en Panel > Conexión, botón Probar: ahí salen la versión y el motor.',
+        };
+      }
+      if (res.status === 501) {
+        return { ok: false, message: 'El motor de esta línea no permite borrar mensajes.' };
+      }
+      return { ok: false, message: `El servidor respondió ${res.status}${cuerpo ? `: ${cuerpo}` : ''}` };
+    }
+
+    return { ok: true, message: 'Mensaje eliminado.' };
+  } catch (error) {
+    const esPlazo = (error as { name?: string })?.name === 'TimeoutError';
+    console.warn('[waha] fallo al borrar el mensaje', { session: params.session, error: String(error) });
+    return {
+      ok: false,
+      message: esPlazo
+        ? 'El servidor no contestó a tiempo. Vuelve a mirar la conversación antes de reintentar.'
+        : 'No se pudo contactar con el servidor.',
+    };
+  }
+}
+
+/**
+ * Reaccionar a un mensaje, o quitar la reaccion.
+ *
+ * `PUT /api/reaction`, y aqui la sesion va en el CUERPO y no en la ruta —como
+ * los envios y al reves que editar y borrar—. No es un descuido: Waha las tiene
+ * asi, y copiar la forma de la otra da un 404 que parece "esta version no
+ * puede" sin serlo.
+ *
+ * Un emoji vacio QUITA la reaccion, que es la convencion de Waha. Por eso el
+ * texto vacio no se rechaza aqui, al reves que en editar.
+ */
+export async function reactToWahaMessage(params: {
+  session: string;
+  messageId: string;
+  emoji: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
+
+  const quitando = !params.emoji;
+
+  try {
+    const res = await wahaFetch(cfg, '/api/reaction', {
+      method: 'PUT',
+      body: JSON.stringify({
+        session: params.session,
+        messageId: params.messageId,
+        reaction: params.emoji,
+      }),
+    });
+
+    if (!res.ok) {
+      const cuerpo = (await res.text().catch(() => '')).slice(0, 300);
+      console.warn('[waha] no se pudo reaccionar', {
+        session: params.session,
+        estado: res.status,
+        cuerpo,
+      });
+      if (res.status === 404) {
+        return {
+          ok: false,
+          message:
+            'El servidor no encontró el mensaje, o esta versión no sabe reaccionar. ' +
+            'Míralo en Panel > Conexión, botón Probar: ahí salen la versión y el motor.',
+        };
+      }
+      if (res.status === 501) {
+        return { ok: false, message: 'El motor de esta línea no permite reaccionar.' };
+      }
+      return { ok: false, message: `El servidor respondió ${res.status}${cuerpo ? `: ${cuerpo}` : ''}` };
+    }
+
+    return { ok: true, message: quitando ? 'Reacción quitada.' : 'Reacción enviada.' };
+  } catch (error) {
+    const esPlazo = (error as { name?: string })?.name === 'TimeoutError';
+    console.warn('[waha] fallo al reaccionar', { session: params.session, error: String(error) });
+    return {
+      ok: false,
+      message: esPlazo
+        ? 'El servidor no contestó a tiempo. Vuelve a mirar la conversación antes de reintentar.'
+        : 'No se pudo contactar con el servidor.',
+    };
+  }
+}

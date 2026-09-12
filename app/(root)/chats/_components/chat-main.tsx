@@ -200,6 +200,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [composeMediaList, setComposeMediaList] = useState<ComposeMedia[]>([]);
   const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  // Lo que el asesor acaba de reaccionar, para pintarlo sin esperar al reloj.
+  const [reacciones, setReacciones] = useState<Map<string, string>>(new Map());
   // Edición optimista: id del mensaje -> nuevo texto (se aplica al render al vuelo).
   const [editedContent, setEditedContent] = useState<Map<string, string>>(new Map());
   const [editingBubble, setEditingBubble] = useState<UIBubble | null>(null);
@@ -387,8 +389,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     const cache = mediaCacheRef.current;
     const out: UIBubble[] = [];
     for (const b of baseBubbles) {
-      if (deletedIds.size > 0 && deletedIds.has(b.id)) continue;
-      let bubble = b;
+      // Un mensaje eliminado SE QUEDA, con su sello. Aqui se hacia `continue`
+      // y la burbuja se esfumaba en cuanto se pulsaba Eliminar, antes incluso
+      // de que el servidor contestara. Ahora se marca, que es como se ve
+      // cuando lo borra el contacto desde su telefono.
+      let bubble = deletedIds.size > 0 && deletedIds.has(b.id)
+        ? { ...b, clientDeleted: true }
+        : b;
       if (b.media && cache.has(b.id)) {
         const cached = cache.get(b.id)!;
         bubble = { ...bubble, media: { ...b.media, url: cached.dataUrl, mimeType: cached.mime } };
@@ -399,10 +406,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       if (editedContent.size > 0 && editedContent.has(b.id)) {
         bubble = { ...bubble, content: editedContent.get(b.id)! };
       }
+      if (reacciones.size > 0 && reacciones.has(b.id)) {
+        const emoji = reacciones.get(b.id)!;
+        bubble = { ...bubble, reaction: emoji || undefined };
+      }
       out.push(bubble);
     }
     return out;
-  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds, editedContent]);
+  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds, editedContent, reacciones]);
 
   /* ─── Load notes when session changes ─── */
   useEffect(() => {
@@ -820,23 +831,46 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     void navigator.clipboard.writeText(text).then(() => toast.success('Copiado al portapapeles.'));
   }, []);
 
+  // Como en editar: la clave de Evolution NO es obligatoria. Pedirla dejaba los
+  // dos botones MUDOS en las lineas de WhatsApp Mensajeria (waha), que no la
+  // traen a proposito. Y si de verdad falta algo, se dice.
+  const faltaElChat = useCallback((que: string) => {
+    console.warn(`[chats] no se puede ${que}: falta el contexto del chat`, {
+      linea: info?.instanceName ?? "(sin linea)",
+      chat: info?.remoteJid ?? "(sin chat)",
+    });
+    toast.error(`No se pudo ${que}: vuelve a abrir la conversación.`);
+  }, [info]);
+
   const handleReactMessage = useCallback(async (bubble: UIBubble, emoji: string) => {
-    if (!info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    if (!info?.instanceName || !info.remoteJid) return faltaElChat("reaccionar");
+    // Se pinta al momento. Esperar al reloj son cinco segundos mirando una
+    // burbuja que no cambia, y eso se lee como que el emoji no se mandó.
+    const anterior = bubble.reaction;
+    setReacciones((prev) => new Map(prev).set(bubble.id, emoji));
     const result = await reactToMessageAction(
-      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      { apiKeyData: info.apiKeyData ?? null, instanceName: info.instanceName },
       info.remoteJid,
       bubble.id,
       bubble.sender === 'user',
       emoji,
     );
-    if (!result.success) toast.error(result.message);
-  }, [info]);
+    if (!result.success) {
+      setReacciones((prev) => {
+        const next = new Map(prev);
+        if (anterior) next.set(bubble.id, anterior);
+        else next.delete(bubble.id);
+        return next;
+      });
+      toast.error(result.message);
+    }
+  }, [info, faltaElChat]);
 
   const handleDeleteMessage = useCallback(async (bubble: UIBubble) => {
-    if (!info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    if (!info?.instanceName || !info.remoteJid) return faltaElChat("eliminar el mensaje");
     setDeletedIds((prev) => new Set(prev).add(bubble.id));
     const result = await deleteMessageAction(
-      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      { apiKeyData: info.apiKeyData ?? null, instanceName: info.instanceName },
       info.remoteJid,
       bubble.id,
       bubble.sender === 'user',
@@ -847,20 +881,48 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     } else {
       toast.success('Mensaje eliminado.');
     }
-  }, [info]);
+  }, [info, faltaElChat]);
 
+  /**
+   * Editar lo puede hacer cualquiera del equipo, no solo un administrador.
+   *
+   * El menú solo lo ofrece sobre los mensajes que salieron de la línea
+   * (`isUserMessage`) y WhatsApp solo lo admite durante unos 15 minutos, así que
+   * es corregir el propio error de dedo. Pedir rol de administrador para eso
+   * obligaba a llamar al jefe por una tilde.
+   *
+   * Borrar se queda como estaba: eso quita algo del teléfono del cliente.
+   */
   const handleEditMessage = useCallback((bubble: UIBubble) => {
     setEditingBubble(bubble);
   }, []);
 
   const handleSaveEdit = useCallback(async (newText: string) => {
     const bubble = editingBubble;
-    if (!bubble || !info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    // La clave de Evolution NO es obligatoria para editar.
+    //
+    // Pedirla aqui dejaba el boton MUDO en las lineas de WhatsApp Mensajeria
+    // (waha), que a proposito no la traen: se pulsaba «Guardar», no pasaba
+    // nada, no salia ni un aviso, y el dialogo se quedaba abierto. Con
+    // Evolution funcionaba, asi que parecia que editar se hubiera roto al
+    // cambiar de proveedor. Lo unico que hace falta es la linea y el chat; de
+    // por donde sale el mensaje ya decide el servidor.
+    if (!bubble || !info?.instanceName || !info.remoteJid) {
+      // Y si de verdad falta algo, se dice. Un `return` callado aqui es un
+      // boton que no hace nada.
+      console.warn("[chats] no se puede editar: falta el contexto del chat", {
+        hayBurbuja: Boolean(bubble),
+        linea: info?.instanceName ?? "(sin linea)",
+        chat: info?.remoteJid ?? "(sin chat)",
+      });
+      toast.error("No se pudo editar: vuelve a abrir la conversación.");
+      return;
+    }
     const prevContent = bubble.content;
     setEditedContent((prev) => new Map(prev).set(bubble.id, newText)); // optimista
     setEditingBubble(null);
     const result = await editMessageAction(
-      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      { apiKeyData: info.apiKeyData ?? null, instanceName: info.instanceName },
       info.remoteJid,
       bubble.id,
       newText,
@@ -1166,7 +1228,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onCopyMessage={handleCopyMessage}
         onReactMessage={handleReactMessage}
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
-        onEditMessage={!advisorRole || advisorRole === 'administrador' ? handleEditMessage : undefined}
+        onEditMessage={handleEditMessage}
         onDeleteNote={handleDeleteNote}
         onLoadOlderMessages={onLoadOlderMessages}
         canLoadOlderMessages={canLoadOlderMessages}

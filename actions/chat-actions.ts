@@ -559,6 +559,14 @@ export type EvolutionMessage = {
   MessageUpdate?: Array<unknown>;
   /** El cliente eliminó ("eliminar para todos") este mensaje; se conserva y se marca. */
   clientDeleted?: boolean;
+  /**
+   * El emoji con el que se reaccionó a ESTE mensaje.
+   *
+   * Va colgado del propio mensaje y no como una fila aparte: una reacción no es
+   * un mensaje, y guardada como tal acababa siendo el «último mensaje» de la
+   * fila de la lista. Ver `guardarReaccion` en lib/chat-persistence.
+   */
+  reaccion?: string;
 };
 
 export type LastMessage = {
