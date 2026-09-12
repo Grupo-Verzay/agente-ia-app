@@ -610,6 +610,88 @@ export function normalizeDeliveryState(status?: string): MessageDeliveryState {
  * El `@lid` es el identificador interno de WhatsApp y no sirve como teléfono; si
  * el número real viene en `participantAlt`, se usa ese.
  */
+/**
+ * El texto de un mensaje CITADO, en corto.
+ *
+ * La cita se pinta en una linea dentro de la burbuja, asi que no hace falta el
+ * despliegue entero de tipos que hace la burbuja de verdad: basta el texto y,
+ * si era un adjunto, decir cual. Lo que no se reconozca sale como «Mensaje»,
+ * que es mejor que una cita en blanco.
+ */
+function textoDelMensajeCitado(citado: Record<string, any> | null | undefined): {
+  content: string;
+  mediaType?: string;
+} {
+  if (!citado || typeof citado !== 'object') return { content: 'Mensaje' };
+
+  const texto =
+    citado.conversation ||
+    citado.extendedTextMessage?.text ||
+    '';
+  if (texto) return { content: normalizeMessageLabel(String(texto)) };
+
+  const adjuntos: [string, string][] = [
+    ['imageMessage', 'Imagen'],
+    ['videoMessage', 'Video'],
+    ['audioMessage', 'Audio'],
+    ['documentMessage', 'Documento'],
+    ['stickerMessage', 'Sticker'],
+    ['locationMessage', 'Ubicacion'],
+    ['contactMessage', 'Contacto'],
+  ];
+  for (const [clave, etiqueta] of adjuntos) {
+    if (citado[clave]) {
+      const pie = citado[clave]?.caption;
+      return { content: pie ? normalizeMessageLabel(String(pie)) : '', mediaType: etiqueta };
+    }
+  }
+
+  return { content: 'Mensaje' };
+}
+
+/**
+ * A que mensaje responde este, si responde a alguno.
+ *
+ * WhatsApp lo manda en `contextInfo`: `stanzaId` es el id del citado y
+ * `quotedMessage` su contenido. Los mensajes que salen del panel guardan lo
+ * mismo (ver `persistOutgoingHistory`), asi que los dos caminos se leen igual.
+ *
+ * Si el mensaje citado esta cargado en la conversacion se prefiere SU texto y
+ * SU autor: es el de verdad, y `contextInfo` a veces trae una version recortada.
+ * Si no esta -una cita a algo muy viejo-, se usa lo que venga en el aviso.
+ */
+function citaDelMensaje(
+  m: EvolutionMessage,
+  porId: Map<string, { content: string; fromMe: boolean; mediaType?: string }>,
+): UIBubble['quotedMessage'] | undefined {
+  const ctx = m.contextInfo as Record<string, any> | null | undefined;
+  if (!ctx) return undefined;
+
+  const id = ctx.stanzaId || ctx.quotedMessageId || ctx.quotedStanzaId;
+  if (!id || typeof id !== 'string') return undefined;
+
+  const cargado = porId.get(id);
+  if (cargado) {
+    return {
+      id,
+      content: cargado.content,
+      sender: cargado.fromMe ? 'user' : 'other',
+      ...(cargado.mediaType ? { mediaType: cargado.mediaType } : {}),
+    };
+  }
+
+  const { content, mediaType } = textoDelMensajeCitado(ctx.quotedMessage);
+  return {
+    id,
+    content,
+    // Sin el mensaje delante no se puede saber de quien era con certeza. Se
+    // dice «Contacto», que es lo que mas veces acierta: casi siempre se cita
+    // al cliente.
+    sender: 'other',
+    ...(mediaType ? { mediaType } : {}),
+  };
+}
+
 function autorDeMensajeDeGrupo(m: EvolutionMessage): { name: string | null; phone: string | null } {
   const jidCrudo = m.key?.participant || m.participant || '';
   const jidAlterno = m.key?.participantAlt || '';
@@ -843,6 +925,38 @@ export function toUIMessages(
   });
 
   const result = bubbles.filter((b): b is UIBubble => b !== null);
+
+  // La cita: a qué mensaje responde cada uno.
+  //
+  // Va aquí, después de armar las burbujas, porque para pintar bien la cita
+  // hace falta el texto del mensaje citado, y ese solo se conoce cuando ya
+  // están todas montadas. Antes no se rellenaba en ningún sitio: la burbuja
+  // sabía pintarla —el bloque existe en `MessageBubble`— pero nunca le llegaba,
+  // así que respondías citando, en WhatsApp se veía la cita y en el panel la
+  // respuesta salía suelta, sin decir a qué contestaba.
+  const porId = new Map<string, { content: string; fromMe: boolean; mediaType?: string }>();
+  for (const b of result) {
+    porId.set(b.id, {
+      content: b.content,
+      fromMe: b.sender === 'user',
+      ...(b.media?.type ? { mediaType: b.media.type } : {}),
+    });
+  }
+  // Por id, no por posicion: la lista de burbujas es la de mensajes FILTRADA
+  // -los sobres internos y los eliminados no pintan-, asi que los indices no se
+  // corresponden.
+  const mensajePorId = new Map<string, EvolutionMessage>();
+  for (const m of messages) {
+    const id = m.key?.id;
+    if (id) mensajePorId.set(id, m);
+  }
+  for (const b of result) {
+    const m = mensajePorId.get(b.id);
+    if (!m) continue;
+    const cita = citaDelMensaje(m, porId);
+    if (cita) b.quotedMessage = cita;
+  }
+
   // Adjunta cada reacción a su mensaje objetivo (si está cargado en la lista).
   if (reactions.size) {
     for (const b of result) {

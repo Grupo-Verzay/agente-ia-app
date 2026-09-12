@@ -273,6 +273,19 @@ async function persistOutgoingHistory(params: {
           payload,
           sentData: sentData ?? null,
           metadata,
+          // La cita, con la MISMA forma que la manda WhatsApp
+          // (`contextInfo.stanzaId` + `quotedMessage`). Guardada asi, el panel
+          // la lee igual venga de donde venga, y no hay que ensenarle a leer
+          // ademas la forma de nuestro `payload`. Sin esto la respuesta salia
+          // suelta, sin decir a que mensaje contestaba.
+          ...(payload.quotedMessage
+            ? {
+                contextInfo: {
+                  stanzaId: payload.quotedMessage.key?.id,
+                  quotedMessage: payload.quotedMessage.message,
+                },
+              }
+            : {}),
         } as any,
         messageTimestamp: new Date(),
       });
