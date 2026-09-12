@@ -15,10 +15,15 @@ import { ElementMenu } from "./ElementMenu";
  * la única diferencia es lo que pide: en vez de elegir un flujo de una lista,
  * se pega la URL de la hoja.
  *
- * La URL se pega **de la barra del navegador con la pestaña abierta**, y por eso
- * lo dice el texto de ayuda: ahí dentro viaja el `gid`, que es lo único que
- * identifica la pestaña. Una URL sin `gid` vale igual —la hoja de una sola
- * pestaña no lo lleva—, así que no se exige.
+ * La URL se pega de la barra del navegador con la pestaña abierta: ahí dentro
+ * viaja el `gid`, que es lo único que identifica la pestaña. Una URL sin `gid`
+ * vale igual —la hoja de una sola pestaña no lo lleva—, así que no se exige.
+ *
+ * Y no lleva texto de ayuda debajo. La tarjeta se queda como sus hermanas —el
+ * título y su campo, nada más—: un párrafo de instrucciones dentro de un
+ * elemento del paso desequilibra la columna entera y empuja hacia abajo lo que
+ * viene después. Lo que hay que saber para pegar bien la URL se explica donde
+ * se explica lo demás, no en la tarjeta.
  */
 export const LeerGoogleSheetsCard: FC<PropsLeerGoogleSheets> = ({
     el,
@@ -56,12 +61,6 @@ export const LeerGoogleSheetsCard: FC<PropsLeerGoogleSheets> = ({
                         {" "}docs.google.com/spreadsheets.
                     </p>
                 )}
-
-                <p className="text-xs text-muted-foreground">
-                    Abre en Google Sheets la pestaña que quieres consultar y copia la URL
-                    completa de la barra del navegador. La hoja debe estar compartida como
-                    «Cualquiera con el enlace puede ver».
-                </p>
             </CardContent>
         </Card>
     );
