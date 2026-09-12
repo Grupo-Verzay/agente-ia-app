@@ -40,6 +40,14 @@ const ejecutarFlujo = (): ElementItem =>
         flowName: null,
     }) as ElementItem;
 
+const leerGoogleSheets = (): ElementItem =>
+    ({
+        id: nanoid(),
+        kind: "function",
+        fn: "leer_google_sheets",
+        sheetUrl: null,
+    }) as ElementItem;
+
 const notificarAsesor = (notificationNumber?: string | null): ElementItem =>
     ({
         id: nanoid(),
@@ -175,6 +183,29 @@ Evaluar en este orden exacto:
 - Reformular o parafrasear el TEXTO. Sale palabra por palabra.
 - Emitir los elementos marcados NO EMITIR.`;
 
+export const LEER_GOOGLE_SHEETS = `## 🔒 GATE — LEER GOOGLE SHEETS
+
+**CONDICIÓN DE ACTIVACIÓN:**
+\`gate_evaluado == true\` **AND** el mensaje del cliente coincide con los términos del **TÍTULO DE ESTE BLOQUE**.
+
+### 📤 SALIDA DEL TURNO — en este orden, siempre
+
+| # | Acción | Condición |
+|---|--------|-----------|
+| 1º | Ejecutar tool \`leer_google_sheets\` | Siempre. Pasar la URL del campo de este bloque. |
+| 2º | Filtrar por \`columna\` y \`valor\` | Solo si el Regla/parámetro lo indica y el cliente dio un criterio. |
+| 3º | Emitir **TODAS** las filas devueltas, en el formato del Regla/parámetro | Siempre. |
+| 4º | **ESPERAR** respuesta del cliente | No emitir nada más. |
+
+### 🚫 PROHIBIDO
+
+- Inventar filas, columnas, precios o valores que no vengan de la hoja.
+- Recortar el resultado. Si vuelven 12 filas, salen 12.
+- Anunciar la ejecución de la herramienta.
+- Afirmar que un producto NO existe si la consulta no devolvió filas. En ese caso, indicar que no se encontró con ese criterio y ofrecer buscar de otra forma.
+- Modificar \`current_step\`.
+- Emitir JSON, arrays o bloques de código.`;
+
 export const STEP_TEMPLATES: StepTemplate[] = [
     {
         id: "paso_secuencial",
@@ -202,6 +233,15 @@ export const STEP_TEMPLATES: StepTemplate[] = [
             "Al reconocer la palabra, responde con el texto del bloque. Sin acción, salvo la que le agregues después.",
         content: RESPUESTA_POR_INTENCION,
         elementos: () => [texto()],
+    },
+    {
+        id: "leer_google_sheets",
+        name: "Leer Google Sheets",
+        disparo: "intención",
+        description:
+            "Al reconocer la palabra, consulta una hoja de cálculo y responde con las filas que encuentre. La hoja se pega en el propio bloque.",
+        content: LEER_GOOGLE_SHEETS,
+        elementos: () => [leerGoogleSheets(), texto()],
     },
     {
         id: "notificar_asesor_por_intencion",

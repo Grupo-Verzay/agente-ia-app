@@ -63,6 +63,7 @@ export const PromptElementSchema = z.union([
             "consulta_datos",
             "actualizar_datos",
             "enrutamiento",
+            "leer_google_sheets",
         ]),
         subtype: z
             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
@@ -72,6 +73,8 @@ export const PromptElementSchema = z.union([
         flowId: z.string().nullable().optional(),
         flowName: z.string().nullable().optional(),
         notificationNumber: z.string().nullable().optional(),
+        /** La hoja que lee `leer_google_sheets`. Se guarda tal cual se pegó. */
+        sheetUrl: z.string().nullable().optional(),
         rules: z.array(z.object({
             id: z.string(),
             keywords: z.string().default(""),
@@ -532,6 +535,12 @@ export type ElementFunction =
         fn: "consulta_datos";
         subtype: "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas";
         prompt: string;
+    }
+    | {
+        id: string;
+        kind: "function";
+        fn: "leer_google_sheets";
+        sheetUrl: string | null;
     };
 
 export type RoutingRule = {
@@ -747,6 +756,21 @@ export type PropsActionSteeps = {
     isManagement?: boolean;
     steps?: Array<{ id: string; title?: string }>;
     updateRoutingRules?: (stepId: string, elId: string, rules: RoutingRule[]) => void;
+    updateSheetUrl?: (stepId: string, elId: string, url: string) => void;
+};
+
+export type ElementoLeerGoogleSheets = {
+    id: string;
+    kind: "function";
+    fn: "leer_google_sheets";
+    sheetUrl?: string | null;
+};
+
+export type PropsLeerGoogleSheets = {
+    el: ElementoLeerGoogleSheets;
+    onRemove: () => void;
+    onChangeUrl: (url: string) => void;
+    isManagement?: boolean;
 };
 
 export type PropsRouting = {
@@ -766,13 +790,14 @@ export type TextElement = {
 export type FnCommon = {
     id: string;
     kind: "function";
-    fn: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento";
+    fn: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento" | "leer_google_sheets";
     subtype?: "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas";
     prompt?: string;
     fields?: string[];
     flowId?: string | null;
     flowName?: string | null;
     notificationNumber?: string | null;
+    sheetUrl?: string | null;
     rules?: RoutingRule[];
 };
 
@@ -862,7 +887,7 @@ export const notifyPrompt = `**Función**: Ejecuta la tool 'Notificacion Asesor'
 export type AnyEl = {
     kind: "text" | "function";
     text?: string;
-    fn?: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento";
+    fn?: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento" | "leer_google_sheets";
     subtype?: string;
     prompt?: string;
     fields?: string[];

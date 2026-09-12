@@ -4,6 +4,7 @@
 import { FC } from "react";
 import {
     DataSubtype,
+    ElementoLeerGoogleSheets,
     ElementRouting,
     PedidoFunctionEl,
     PropsActionSteeps,
@@ -19,6 +20,7 @@ import {
     NotificarAsesorCard,
     ConsultaDatosCard,
     RoutingCard,
+    LeerGoogleSheetsCard,
 } from "./";
 
 const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
@@ -35,6 +37,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     onAddRule,
     steps,
     updateRoutingRules,
+    updateSheetUrl,
 }) => {
     if (el.kind === "text") {
         return (
@@ -91,6 +94,17 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
             <NotificarAsesorCard
                 el={el as PropsNotifyAsesor['el']}
                 onRemove={() => removeElement(stepId, el.id)}
+                isManagement={isManagement}
+            />
+        );
+    }
+
+    if (el.kind === "function" && el.fn === "leer_google_sheets") {
+        return (
+            <LeerGoogleSheetsCard
+                el={el as ElementoLeerGoogleSheets}
+                onRemove={() => removeElement(stepId, el.id)}
+                onChangeUrl={(url) => updateSheetUrl?.(stepId, el.id, url)}
                 isManagement={isManagement}
             />
         );
