@@ -1,4 +1,5 @@
 import { AnyEl, AnyStep, flowBehaviorText as initialFlowBehaviorText, notifyPrompt, PromptBuildConfig } from "@/types/agentAi";
+import { variablesDelPaso, variablesParaLaTabla } from "@/lib/variables-del-paso";
 
 export const transformSubtype = (subtype?: string): string | undefined => {
     const transformMap: Record<string, string> = {
@@ -336,10 +337,16 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
     if (cfg.showMotorFlujo && items.length > 0) {
         const hasAnyMotor = items.some((s) => s.variableQueRecoge?.trim() || s.condicionParaAvanzar?.trim());
         if (hasAnyMotor) {
+            // Un paso puede recoger VARIAS variables, separadas por comas. Se
+            // enumeran para que el agente sepa cuantas son: volcada la celda tal
+            // cual, «nombre, correo, ciudad» se leia como una sola cosa y unas
+            // veces esperaba los tres datos y otras avanzaba con el primero.
+            const hayVarias = items.some((s) => variablesDelPaso(s.variableQueRecoge).length > 1);
+
             const rows = items.map((s, i) => {
                 const n = i + 1;
                 const nombre = (s.title || `Paso ${n}`).toUpperCase();
-                const variable = s.variableQueRecoge?.trim() || "—";
+                const variable = variablesParaLaTabla(s.variableQueRecoge);
                 const condicion = s.condicionParaAvanzar?.trim() || "—";
                 return `| ${n} | ${nombre} | ${variable} | ${condicion} |`;
             });
@@ -355,6 +362,12 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
                     `- Avanza al siguiente paso SOLO cuando se cumple la condición.`,
                     `- Si la condición no se cumple, permanece en el paso actual.`,
                     `- Registra la variable en memoria antes de avanzar.`,
+                    ...(hayVarias
+                        ? [
+                              `- Cuando un paso lista VARIAS variables separadas por comas, son TODAS obligatorias: no avanzas hasta haber recogido cada una de ellas Y cumplirse la condición.`,
+                              `- Pide las que falten de una en una, sin amontonarlas en un mismo mensaje.`,
+                          ]
+                        : []),
                 ].join("\n")
             );
         }
