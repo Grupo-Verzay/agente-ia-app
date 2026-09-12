@@ -19,6 +19,7 @@ import {
   getDeletedLastMessageJids,
   getPersistedInboxChats,
   getPersistedMessages,
+  guardarMensajeEditado,
   persistChatMessage,
   persistEvolutionMessages,
   resolveInstanceOwner,
@@ -1560,27 +1561,60 @@ export async function editMessageAction(
   newText: string,
 ): Promise<{ success: boolean; message: string }> {
   context = await resolverContexto(context);
-  const user = await requireCurrentUser();
-  if (user.role !== "admin" && user.role !== "super_admin") {
-    return { success: false, message: "Solo los administradores pueden editar mensajes." };
-  }
+  // Editar lo puede hacer CUALQUIERA del equipo, no solo un administrador.
+  //
+  // Solo se ofrece sobre los mensajes que salieron de la linea
+  // (`isUserMessage` en el menu de la burbuja) y WhatsApp solo lo admite
+  // durante unos 15 minutos, asi que lo unico que permite es que quien acaba de
+  // escribir corrija su propio error de dedo. Pedir rol de administrador para
+  // eso obligaba a llamar al jefe por una tilde.
+  await requireCurrentUser();
 
   // WhatsApp Mensajeria (waha) no habla con Evolution, asi que su contexto
   // llega SIN clave a proposito (ver `resolverContexto`). Sin esta rama, editar
   // moria arriba con "Sin instancia configurada" y desde fuera parecia que la
   // funcion se hubiera roto al cambiar de proveedor: con Evolution editaba y
-  // con Waha no. La comprobacion de rol va ANTES, para que sea la misma puerta
-  // en los dos caminos.
-  if (!hasReadyContext(context) && context?.instanceName && (await esLineaWaha(context.instanceName))) {
-    const resultado = await editWahaMessage({
-      session: context.instanceName,
-      chatId: canonicalToWahaJid(remoteJid),
-      messageId,
-      text: newText,
-    });
-    return { success: resultado.ok, message: resultado.message };
+  // con Waha no.
+  const esWaha =
+    !hasReadyContext(context) && !!context?.instanceName && (await esLineaWaha(context.instanceName));
+
+  if (!esWaha && !hasReadyContext(context)) {
+    return { success: false, message: "Sin instancia configurada." };
   }
 
-  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
-  return editMessage(context.apiKeyData, context.instanceName, remoteJid, messageId, newText);
+  const resultado = esWaha
+    ? await (async () => {
+        const r = await editWahaMessage({
+          session: context!.instanceName,
+          chatId: canonicalToWahaJid(remoteJid),
+          messageId,
+          text: newText,
+        });
+        return { success: r.ok, message: r.message };
+      })()
+    : await editMessage(context!.apiKeyData!, context!.instanceName, remoteJid, messageId, newText);
+
+  // El texto nuevo se guarda para TODOS, no solo para quien edito.
+  //
+  // Antes la edicion vivia en un `Map` del navegador que la hizo: los demas
+  // asesores seguian viendo el texto viejo -y quien editaba lo perdia al
+  // recargar-, mientras en el telefono del cliente ya estaba cambiado.
+  if (resultado.success) {
+    const dueno = await resolveInstanceOwner(context!.instanceName);
+    if (dueno?.userId) {
+      await guardarMensajeEditado({
+        userId: dueno.userId,
+        instanceName: context!.instanceName,
+        messageId,
+        texto: newText,
+      });
+    } else {
+      console.warn("[chats] mensaje editado en una linea sin dueno resuelto; no se guardo", {
+        instanceName: context!.instanceName,
+        messageId,
+      });
+    }
+  }
+
+  return resultado;
 }
