@@ -1580,6 +1580,46 @@ Dos cosas:
    existe en el servidor pero no tiene ficha, y no se creó ninguna. Decir
    «Forbidden» es tan poco útil como no decir nada.
 
+## El texto roto no se arregla en la conexión: ya está en los caracteres
+
+En la herramienta de Google Sheets se leía `hoja de cÃ¡lculo pÃºblica`. El
+primer impulso es mirar la codificación de la base, el driver o las cabeceras.
+**No era nada de eso**: el texto ya estaba roto **en el código fuente**. Cinco
+ficheros se guardaron con sus bytes UTF-8 leídos antes como si fueran de un
+juego de un byte, y de ahí se copió a todas partes.
+
+Para la base, para la API y para el navegador, `Ã¡` son dos letras válidas y
+todos las transportan perfectamente. Por eso **no hay nada que configurar**: lo
+único que se puede hacer es volver a los bytes originales.
+
+Y no era cosmético. La descripción de cada herramienta se le pasa al modelo tal
+cual (`description: cfg.toolDescription`, en `ai-agent.service.ts` del backend),
+así que **el agente venía leyendo eso**.
+
+Cuatro cosas que hay que mantener:
+
+1. **Quien decide es un viaje de ida y vuelta, no un vistazo.**
+   `lib/texto-doblemente-codificado.ts` solo repara lo que, convertido otra vez
+   a bytes y decodificado como UTF-8, **vuelve a ser válido y distinto**. Un
+   texto sano no pasa la prueba y se queda como está. Eso importa porque esto se
+   ejecuta sobre datos de clientes.
+2. **Son tres juegos, no uno.** Los acentos vuelven con `latin-1`; los emojis
+   solo con `cp1252` (su forma rota lleva `Å¸`, `â€œ`, que latin-1 no tiene); y
+   un emoji compuesto como `🧑‍💼` lleva dentro un ZWJ cuyos bytes incluyen
+   `0x8D`, **que cp1252 no tiene y latin-1 sí**. Con un solo juego esa línea no
+   se puede deshacer entera.
+3. **La reparación de la base busca, no adivina.**
+   `/api/admin/reparar-codificacion` recorre **todas las columnas de texto** de
+   todas las tablas con clave `id` y pregunta cuáles traen las señales. Una lista
+   de tablas escrita a mano se queda corta el día que alguien añada una columna.
+   Va en dos pasadas y la primera **no toca nada**: sin parámetros da el informe,
+   y solo con `?aplicar=si` escribe.
+4. **Y se limpia también al guardar**, con la misma función. Si no, vuelve a
+   entrar por la puerta de al lado.
+
+Cómo se comprueba que no queda nada, sin desplegar: buscar en el repo texto que
+se pueda reparar. Si alguna línea vuelve a ser distinta al repararla, está rota.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

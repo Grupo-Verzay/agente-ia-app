@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -96,7 +96,7 @@ async function runPostBookingTasks({
     db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
 
-  // Usar recordatorios del servicio si estÃ¡n configurados; si no, los globales
+  // Usar recordatorios del servicio si están configurados; si no, los globales
   type ServiceReminder = { timeMinutes: number; message: string };
   const serviceReminders: ServiceReminder[] = Array.isArray(service?.remindersConfig)
     ? (service.remindersConfig as ServiceReminder[]).filter(
@@ -110,7 +110,7 @@ async function runPostBookingTasks({
     : null;
 
   if (!instance?.instanceId) {
-    console.warn(`[bookings/notification] Sin apiKey o instancia â€” abortando tareas post-cita`);
+    console.warn(`[bookings/notification] Sin apiKey o instancia — abortando tareas post-cita`);
     return;
   }
 
@@ -126,9 +126,9 @@ async function runPostBookingTasks({
     : (apiKey?.key ?? instance.instanceId);
   const clientTimezone = getTimezoneFromPhone(phone, timezone);
 
-  // 1. ConfirmaciÃ³n al cliente
+  // 1. Confirmación al cliente
   const confirmRawText = service?.messageText?.trim()
-    || `ðŸ“ Â¡Tu cita ha sido registrada! Un asesor se pondrÃ¡ en contacto contigo a la brevedad.`;
+    || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
   const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
 
   const clientJid = phone.includes('@s.whatsapp.net')
@@ -151,7 +151,7 @@ async function runPostBookingTasks({
     }
   }).catch((err) => console.error(`[bookings/notification] Error confirmación: ${err}`));
 
-  // 2. Notificar al asesor/dueÃ±o
+  // 2. Notificar al asesor/dueño
   const ownerPhones: string[] = [];
   if (user?.notificationNumber) ownerPhones.push(user.notificationNumber);
   for (const c of notificationContacts) {
@@ -163,18 +163,18 @@ async function runPostBookingTasks({
     const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
     const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
     const tzLabel = tzCityLabel(timezone);
-    const serviceName = service?.name ?? 'AsesorÃ­a';
+    const serviceName = service?.name ?? 'Asesoría';
     const memberName = member?.name ?? '';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
 
     const ownerText =
-      `ðŸ“… *Nueva Cita Agendada*:\n\n` +
-      `ðŸ‘¤ *Cliente:* ${pushName}\n` +
-      `ðŸ“ *Servicio:* ${serviceName}\n` +
-      (memberName ? `ðŸ§‘â€ðŸ’¼ *Especialista:* ${memberName}\n` : '') +
-      `ðŸ“† *Fecha y hora:* ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).\n\n` +
-      `ðŸ“± *WhatsApp del cliente:*\n\n` +
-      `ðŸ‘‰ ${clientPhone}`;
+      `📅 *Nueva Cita Agendada*:\n\n` +
+      `👤 *Cliente:* ${pushName}\n` +
+      `📝 *Servicio:* ${serviceName}\n` +
+      (memberName ? `🧑‍💼 *Especialista:* ${memberName}\n` : '') +
+      `📆 *Fecha y hora:* ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).\n\n` +
+      `📱 *WhatsApp del cliente:*\n\n` +
+      `👉 ${clientPhone}`;
 
     await Promise.allSettled(
       ownerPhones.map(async (ownerPhone) => {
@@ -206,7 +206,7 @@ async function runPostBookingTasks({
 
   // 3. Recordatorios programados
   if (serviceReminders.length > 0) {
-    // Recordatorios especÃ­ficos del servicio
+    // Recordatorios específicos del servicio
     await Promise.allSettled(
       serviceReminders.map(async (rem, idx) => {
         const seconds = rem.timeMinutes * 60;
@@ -267,7 +267,7 @@ async function runPostBookingTasks({
  * Body: { userId, serviceId, memberId, pushName, phone, instanceName, startTime, endTime, timezone }
  *
  * memberId: puede omitirse si solo hay un miembro disponible para el servicio;
- *           en ese caso se asigna automÃ¡ticamente el primero activo.
+ *           en ese caso se asigna automáticamente el primero activo.
  */
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
@@ -346,7 +346,7 @@ export async function POST(request: Request) {
       .map((m) => m.teamMember.id);
 
     if (activeMembers.length === 0) {
-      // NingÃºn miembro asignado al servicio â†’ tomar cualquier miembro activo del equipo
+      // Ningún miembro asignado al servicio → tomar cualquier miembro activo del equipo
       const anyMember = await db.teamMember.findFirst({
         where: { teamId: team.id, isActive: true },
         select: { id: true },
@@ -378,7 +378,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.message }, { status: 400 });
   }
 
-  // Tareas post-creaciÃ³n (fire-and-forget)
+  // Tareas post-creación (fire-and-forget)
   runPostBookingTasks({
     userId,
     instanceName,

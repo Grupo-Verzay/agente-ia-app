@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { exportToExcel } from '@/helpers/exportToExcel'
 import {
@@ -297,13 +297,13 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            Â¿EstÃ¡s seguro de que quieres ejecutar esta acciÃ³n masiva?
+                            ¿Estás seguro de que quieres ejecutar esta acción masiva?
                         </AlertDialogTitle>
                         <AlertDialogDescription className="space-y-2">
-                            Esta acciÃ³n : "{actionType ? `"${actionMap[actionType].label}"` : ''}" <strong className="text-red-600">NO</strong> se puede deshacer.
-                            Â¿EstÃ¡s seguro?
+                            Esta acción : "{actionType ? `"${actionMap[actionType].label}"` : ''}" <strong className="text-red-600">NO</strong> se puede deshacer.
+                            ¿Estás seguro?
                             <Input
-                                placeholder="Escribe aquÃ­..."
+                                placeholder="Escribe aquí..."
                                 value={confirmationText}
                                 onChange={(e) => setConfirmationText(e.target.value)}
                             /> 

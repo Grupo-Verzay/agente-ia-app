@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import { BUILTIN_TOOL_CATALOG } from '@/lib/external-data-tool-catalog';
+import { textoLimpio } from '@/lib/texto-doblemente-codificado';
 import type {
   ExternalDataBuiltinToolType,
   ExternalDataToolConfig,
@@ -45,8 +46,13 @@ export async function addBuiltinTool(
 
   const catalogEntry = BUILTIN_TOOL_CATALOG.find((c) => c.toolType === toolType)!;
 
-  const finalDisplayName = overrides.displayName?.trim() || catalogEntry.defaultDisplayName;
-  const finalDescription = overrides.toolDescription?.trim() || catalogEntry.defaultDescription;
+  // Lo que se guarda pasa por `textoLimpio`: si llega un texto doblemente
+  // codificado —pegado desde otro sitio, o de una version vieja del catalogo—
+  // se endereza aqui y no llega a la base. Es la misma regla que usa la
+  // reparacion de `/api/admin/reparar-codificacion`, para que las dos no puedan
+  // acabar diciendo cosas distintas. Un texto sano no lo toca.
+  const finalDisplayName = textoLimpio(overrides.displayName?.trim() || catalogEntry.defaultDisplayName);
+  const finalDescription = textoLimpio(overrides.toolDescription?.trim() || catalogEntry.defaultDescription);
 
   if (!finalDisplayName) return { success: false, error: 'El nombre visible es requerido' };
   if (!finalDescription) return { success: false, error: 'La descripción para el agente es requerida' };
