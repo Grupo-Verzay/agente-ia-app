@@ -38,7 +38,7 @@ const notificarAsesor = (notificationNumber?: string | null): ElementItem =>
     }) as ElementItem;
 
 /**
- * Las tres plantillas.
+ * Las plantillas de un bloque.
  *
  * Antes había dieciséis, repartidas en siete fases de venta, escritas como
  * consejos: "saluda al cliente por su nombre", "reconoce que llega referido".
@@ -46,10 +46,17 @@ const notificarAsesor = (notificationNumber?: string | null): ElementItem =>
  * cada conversación salía distinta.
  *
  * Estas no se interpretan. Dicen cuándo entra el bloque, qué sale, en qué orden
- * y qué está prohibido. Las tres se disparan igual —por el TÍTULO que el cliente
- * les ponga arriba, ahí van sus palabras: "precio", "garantía", "envío"— y se
- * diferencian solo en qué hace el bloque al activarse: ejecutar un flujo, avisar
- * al asesor, o simplemente responder.
+ * y qué está prohibido.
+ *
+ * Las tres primeras se disparan igual —por el TÍTULO que el cliente les ponga
+ * arriba, ahí van sus palabras: "precio", "garantía", "envío"— y se diferencian
+ * solo en qué hace el bloque al activarse: ejecutar un flujo, avisar al asesor,
+ * o simplemente responder.
+ *
+ * La cuarta es de otra familia y va al final por eso: **no se dispara por el
+ * título**, entra cuando le toca su turno en el orden del flujo
+ * (`current_step`), y además declara cómo se pasa al paso siguiente. Si se
+ * añaden más, las de intención arriba y las de orden abajo.
  */
 export const EJECUCION_POR_INTENCION = `## 🔒 GATE — EJECUCIÓN POR (INTENCIÓN / PALABRA)
 
@@ -115,6 +122,44 @@ export const RESPUESTA_POR_INTENCION = `## 🔒 GATE — RESPUESTA POR (INTENCI�
 - Reformular, resumir o parafrasear el texto. Sale palabra por palabra.
 - Emitir los elementos marcados **NO EMITIR** (transición / notas de control).`;
 
+export const PASO_SECUENCIAL = `## 🔒 GATE — PASO SECUENCIAL
+
+**CONDICIÓN DE ACTIVACIÓN:**
+\`gate_evaluado == true\` **AND** \`current_step == N\`
+
+> 🚨 Este bloque solo se ejecuta cuando \`current_step\` coincide con el número de este paso.
+
+### 📤 SALIDA DEL TURNO — en este orden, siempre
+
+| # | Acción | Condición |
+|---|--------|-----------|
+| 1º | **FUNCIÓN** (Ejecutar flujo) | Solo si el paso la tiene. Si no la tiene, se omite sin error. |
+| 2º | **PRIMER elemento de TEXTO** del paso, palabra por palabra | Siempre sale, haya flujo o no. |
+| 3º | **ESPERAR** respuesta del usuario | No emitir nada más. |
+
+### ➡️ TRANSICIÓN
+
+Evaluar en este orden exacto:
+
+1. **SI** la(s) *Variable(s) que recoge* NO están llenas según la *Condición para avanzar* → \`current_step\` permanece en **N**. Repetir el TEXTO del paso. STOP.
+2. **SI** están llenas Y el Regla/parámetro declara una condición de salto que se cumple → \`current_step = paso destino declarado\`. STOP.
+3. **SI** están llenas Y hay condición de salto declarada pero NINGUNA se cumple → \`current_step = N+1\` (ruta por defecto). STOP.
+4. **SI** están llenas Y NO hay condición de salto declarada → \`current_step = N+1\`. STOP.
+5. **SI** este es el último paso del flujo → \`halt\`. No avanzar.
+
+🚫 El destino de un salto SOLO puede venir del Regla/parámetro de este paso. Nunca inferirlo.
+
+### 🚫 PROHIBIDO
+
+- Avanzar sin que la(s) variable(s) estén llenas según la Condición para avanzar.
+- Retroceder a un paso ya completado.
+- Ejecutar dos pasos en el mismo turno.
+- Inferir variables. Solo se setean con respuesta explícita del usuario.
+- Inferir el destino de un salto.
+- Emitir mensajes intermedios ("un momento", "procesando").
+- Reformular o parafrasear el TEXTO. Sale palabra por palabra.
+- Emitir los elementos marcados NO EMITIR.`;
+
 export const STEP_TEMPLATES: StepTemplate[] = [
     {
         id: "ejecucion_por_intencion",
@@ -139,6 +184,17 @@ export const STEP_TEMPLATES: StepTemplate[] = [
             "Al reconocer la palabra, responde con el texto del bloque. Sin acción, salvo la que le agregues después.",
         content: RESPUESTA_POR_INTENCION,
         elementos: () => [texto()],
+    },
+    {
+        // La unica que NO se dispara por el titulo: entra cuando le toca su
+        // turno en el orden del flujo. Por eso va al final de la lista, separada
+        // de las tres de intencion.
+        id: "paso_secuencial",
+        name: "Ejecutar paso secuencial",
+        description:
+            "Entra cuando le toca su turno en el flujo, no por una palabra. Recoge su variable y decide a qué paso pasa.",
+        content: PASO_SECUENCIAL,
+        elementos: () => [ejecutarFlujo(), texto()],
     },
 ];
 

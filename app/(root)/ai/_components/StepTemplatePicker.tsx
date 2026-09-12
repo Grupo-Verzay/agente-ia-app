@@ -83,8 +83,7 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
                 Cuando el bloque queda en la parte baja de la pantalla, el panel
                 se daba vuelta y se abría hacia arriba, tapando el bloque y
                 dejando la lista fuera de vista: se elegía a ciegas. Se prefiere
-                que baje aunque haya que bajar la página. Y el alto se limita a
-                lo que quepa, para no salirse por debajo en pantallas cortas. */}
+                que baje aunque haya que bajar la página. */}
             <PopoverContent
                 className="p-0 overflow-hidden"
                 style={{ width: popoverWidth }}
@@ -93,8 +92,30 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
                 side="bottom"
                 sideOffset={4}
                 avoidCollisions={false}
+                collisionPadding={12}
             >
-                <div className="flex" style={{ height: "min(380px, 60vh)" }}>
+                {/* El alto se acota al HUECO REAL que hay debajo del boton, no a
+                    `60vh`.
+                    `vh` mide la ventana, no lo que queda entre el boton y el
+                    borde de abajo. Con el bloque en la parte baja —y sobre todo
+                    cuando es el ULTIMO paso, que ya no hay nada mas que
+                    desplazar— el panel se salia por debajo y **Aplicar**, que va
+                    pegado a su borde inferior, quedaba fuera de la pantalla: se
+                    elegia la plantilla y no habia forma de aplicarla.
+                    Radix mide ese hueco y lo publica en
+                    `--radix-popover-content-available-height`. Es la misma regla
+                    que ya siguen los menus de Chats (ver CLAUDE.md).
+                    Sin suelo a proposito: si solo caben 150 px, mejor un panel
+                    de 150 px con todo dentro —las dos columnas ya se desplazan
+                    solas y el pie es `shrink-0`— que uno de 380 con el boton
+                    inalcanzable. */}
+                <div
+                    className="flex"
+                    style={{
+                        height:
+                            "min(380px, var(--radix-popover-content-available-height, 60vh))",
+                    }}
+                >
 
                     {/* ── Lista ── */}
                     <div className="w-52 shrink-0 border-r overflow-y-auto bg-muted/20">
@@ -128,9 +149,14 @@ export function StepTemplatePicker({ label, onApply, disabled }: Props) {
 
                     {/* ── Vista previa ── */}
                     <div className="flex flex-col flex-1 min-w-0">
-                        <div className="px-4 py-3 border-b bg-muted/10 shrink-0">
-                            <p className="text-sm font-semibold">{selected.name}</p>
-                            <p className="text-sm text-muted-foreground mt-1">
+                        {/* Recortada a proposito: el nombre y la descripcion ya
+                            se leen enteros en la lista de la izquierda, asi que
+                            aqui repetirlos a tamano completo solo le quitaba
+                            sitio a la vista previa —que es lo que se viene a
+                            mirar— y empujaba el pie hacia abajo. */}
+                        <div className="px-4 py-2 border-b bg-muted/10 shrink-0">
+                            <p className="text-sm font-semibold leading-snug">{selected.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-2">
                                 {selected.description}
                             </p>
                         </div>
