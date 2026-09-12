@@ -1,4 +1,5 @@
 import type { Step } from "@/types/agentAi";
+import { esAgentePorIntencion } from "./trainingDefaults";
 
 function extractTransitionCondition(step: Step, idx: number): string {
     const mainMsg = (step.mainMessage ?? '');
@@ -24,9 +25,23 @@ function extractTransitionCondition(step: Step, idx: number): string {
     return `Cliente completa el objetivo del paso ${idx + 1}`;
 }
 
-/** Construye el bloque de Motor de Flujo Determinista desde los pasos de training. */
+/**
+ * Construye el bloque de Motor de Flujo Determinista desde los pasos de training.
+ *
+ * **Solo para los agentes secuenciales.** Sus dos primeras reglas —R1, no pasas
+ * de estado hasta cumplir la condición; R2, nunca vuelves a un paso ya
+ * completado— describen un recorrido en orden, y en un agente por intención
+ * cada bloque entra cuando el mensaje coincide con su título, en cualquier
+ * momento. Con las dos cosas dentro del mismo prompt el modelo recibe órdenes
+ * opuestas y obedece una al azar; es el mismo fallo que ya costó el bloque de
+ * enrutamiento contra la bienvenida obligatoria.
+ *
+ * Quién es cada uno lo dice el selector de bienvenida que ya existe, y por eso
+ * no hay ajuste nuevo: ver `esAgentePorIntencion`.
+ */
 export function buildMotorFromTrainingSteps(steps: Step[]): string {
     if (!steps?.length) return '';
+    if (esAgentePorIntencion(steps)) return '';
 
     const rows = steps.map((step, idx) => {
         const n = idx + 1;

@@ -93,3 +93,32 @@ export const WELCOME_MESSAGES: Record<WelcomeType, string> = {
 };
 
 export const WELCOME_MAIN_MESSAGE = WELCOME_MAIN_MESSAGE_OBLIGATORIA;
+
+/** La primera línea del texto del modo inteligente. Ver `esAgentePorIntencion`. */
+const MARCA_DEL_MODO_INTELIGENTE = "## 🔓 GATE — PRIMER TURNO (MODO INTELIGENTE)";
+
+/**
+ * ¿Este agente trabaja por intención, o por turnos?
+ *
+ * Lo dice el selector de bienvenida que ya existe, y no hace falta otro:
+ *
+ * - **obligatoria** → secuencial. Se recorre paso a paso, en orden.
+ * - **inteligente** → por intención. Cada bloque entra cuando el mensaje
+ *   coincide con su título, en cualquier momento de la conversación.
+ *
+ * Se pregunta por el paso que lleva el selector —el de bienvenida—, no por
+ * todos: los demás no lo llevan. Y si ese paso no lo tiene guardado, porque es
+ * de antes de que existiera el selector, se mira su texto: el propio selector
+ * es quien lo escribe. Sin ninguna de las dos señales se responde
+ * **secuencial**, que es lo que hacían todos hasta ahora.
+ */
+export function esAgentePorIntencion(
+    pasos: Array<{ welcomeType?: WelcomeType; mainMessage?: string } | null | undefined> | null | undefined,
+): boolean {
+    const conSelector = (pasos ?? []).find((paso) => paso?.welcomeType);
+    if (conSelector) return conSelector.welcomeType === "inteligente";
+
+    return (pasos ?? []).some((paso) =>
+        (paso?.mainMessage ?? "").trimStart().startsWith(MARCA_DEL_MODO_INTELIGENTE),
+    );
+}
