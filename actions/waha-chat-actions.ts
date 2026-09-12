@@ -47,7 +47,7 @@ type OutgoingPayload = {
   fileName?: string;
   caption?: string;
   ptt?: boolean;
-  quotedMessage?: { key?: { id?: string | null } | null } | null;
+  quotedMessage?: { key?: { id?: string | null } | null; message?: Record<string, unknown> | null } | null;
   [key: string]: unknown;
 };
 
@@ -87,6 +87,7 @@ export async function sendWahaTextAction(
     const chatId = canonicalToWahaJid(remoteJid);
     if (!chatId) return { success: false, message: 'El contacto no tiene una identidad válida.', remoteJid };
     const replyTo = payload.quotedMessage?.key?.id ?? null;
+    const citado = payload.quotedMessage?.message ?? null;
 
     if (payload.kind === 'media') {
       const mediatype = String(payload.mediatype ?? '').toLowerCase();
@@ -155,6 +156,8 @@ export async function sendWahaTextAction(
             },
           },
           fecha: ahora,
+          replyTo,
+          citado,
         }),
         messageTimestamp: ahora,
       });
@@ -193,6 +196,7 @@ export async function sendWahaTextAction(
         message: { conversation: text },
         fecha: ahora,
         replyTo,
+        citado,
       }),
       messageTimestamp: ahora,
     });
@@ -222,6 +226,7 @@ function snapshotDeSaliente(params: {
   message: Record<string, unknown>;
   fecha: Date;
   replyTo?: string | null;
+  citado?: Record<string, unknown> | null;
 }): Prisma.InputJsonValue {
   // Los `undefined` los descarta JSON.stringify al guardar; el tipo de Prisma no
   // los contempla, de ahi el cast.
@@ -236,6 +241,19 @@ function snapshotDeSaliente(params: {
     source: 'waha',
     origen: 'waha-app',
     ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+    // La cita, con la MISMA forma que la manda WhatsApp (`contextInfo.stanzaId`
+    // + `quotedMessage`). `replyTo` de aqui arriba es la forma de Waha y solo la
+    // entiende el envio; guardada asi, la conversacion la lee igual venga de la
+    // linea que venga. Sin esto la respuesta salia suelta, sin decir a que
+    // mensaje contestaba.
+    ...(params.replyTo
+      ? {
+          contextInfo: {
+            stanzaId: params.replyTo,
+            ...(params.citado ? { quotedMessage: params.citado } : {}),
+          },
+        }
+      : {}),
   } as unknown as Prisma.InputJsonValue;
 }
 
