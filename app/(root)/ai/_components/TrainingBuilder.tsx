@@ -65,6 +65,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { WELCOME_TITLE, WELCOME_TITLE_LEGACY, WELCOME_MAIN_MESSAGE, WELCOME_MESSAGES, WelcomeType } from "./helpers/trainingDefaults";
 import { CADENA_STEPS, buildCadenaSteps } from "./helpers/flowObjectives";
+import { variablesDelPaso } from "@/lib/variables-del-paso";
 
 /* utilidad: type-guard para pedidos */
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
@@ -798,25 +799,40 @@ export function TrainingBuilder({
                                         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                                       </button>
                                       {expandedMotor.has(step.id) && (
-                                        <div className="grid grid-cols-2 gap-3">
-                                          <div className="space-y-1.5">
-                                            <label className="text-xs font-medium text-foreground/70">Variable que recoge</label>
-                                            <Input
-                                              value={step.variableQueRecoge ?? ""}
-                                              onChange={(e) => updateStepVariable(step.id, e.target.value)}
-                                              placeholder="ej: nombre_usuario"
-                                              className="h-8 text-sm"
-                                            />
+                                        <div className="space-y-2">
+                                          <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                              <label className="text-xs font-medium text-foreground/70">Variable que recoge</label>
+                                              <Input
+                                                value={step.variableQueRecoge ?? ""}
+                                                onChange={(e) => updateStepVariable(step.id, e.target.value)}
+                                                placeholder="ej: nombre_usuario, correo"
+                                                className="h-8 text-sm"
+                                              />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                              <label className="text-xs font-medium text-foreground/70">Condicion para avanzar</label>
+                                              <Input
+                                                value={step.condicionParaAvanzar ?? ""}
+                                                onChange={(e) => updateStepCondicion(step.id, e.target.value)}
+                                                placeholder="ej: datos completos"
+                                                className="h-8 text-sm"
+                                              />
+                                            </div>
                                           </div>
-                                          <div className="space-y-1.5">
-                                            <label className="text-xs font-medium text-foreground/70">Condicion para avanzar</label>
-                                            <Input
-                                              value={step.condicionParaAvanzar ?? ""}
-                                              onChange={(e) => updateStepCondicion(step.id, e.target.value)}
-                                              placeholder="ej: datos completos"
-                                              className="h-8 text-sm"
-                                            />
-                                          </div>
+                                          {/* Al configurar cada paso hay que saber que son varias y que van
+                                              todas: sin decirlo, la coma parece parte del nombre. */}
+                                          <p className="text-[11px] leading-snug text-muted-foreground">
+                                            Puedes pedir <strong className="font-medium text-foreground/70">varias variables</strong>, separadas por comas.
+                                            El paso no avanza hasta que estén <strong className="font-medium text-foreground/70">todas</strong> recogidas
+                                            y se cumpla la condición. Las pide de una en una.
+                                            {variablesDelPaso(step.variableQueRecoge).length > 1 && (
+                                              <span className="ml-1 text-foreground/70">
+                                                Este paso pide {variablesDelPaso(step.variableQueRecoge).length}:{" "}
+                                                {variablesDelPaso(step.variableQueRecoge).join(" · ")}.
+                                              </span>
+                                            )}
+                                          </p>
                                         </div>
                                       )}
                                     </div>
