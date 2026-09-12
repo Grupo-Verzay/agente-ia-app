@@ -23,7 +23,7 @@ import {
   persistEvolutionMessages,
   resolveInstanceOwner,
 } from "@/lib/chat-persistence";
-import { sendWahaMedia, sendWahaText, subscribeWahaPresence, type WahaMediaType } from "@/lib/waha";
+import { editWahaMessage, sendWahaMedia, sendWahaText, subscribeWahaPresence, type WahaMediaType } from "@/lib/waha";
 import { canonicalToWahaJid } from "@/lib/waha-jid";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
 import {
@@ -1560,10 +1560,27 @@ export async function editMessageAction(
   newText: string,
 ): Promise<{ success: boolean; message: string }> {
   context = await resolverContexto(context);
-  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   const user = await requireCurrentUser();
   if (user.role !== "admin" && user.role !== "super_admin") {
     return { success: false, message: "Solo los administradores pueden editar mensajes." };
   }
+
+  // WhatsApp Mensajeria (waha) no habla con Evolution, asi que su contexto
+  // llega SIN clave a proposito (ver `resolverContexto`). Sin esta rama, editar
+  // moria arriba con "Sin instancia configurada" y desde fuera parecia que la
+  // funcion se hubiera roto al cambiar de proveedor: con Evolution editaba y
+  // con Waha no. La comprobacion de rol va ANTES, para que sea la misma puerta
+  // en los dos caminos.
+  if (!hasReadyContext(context) && context?.instanceName && (await esLineaWaha(context.instanceName))) {
+    const resultado = await editWahaMessage({
+      session: context.instanceName,
+      chatId: canonicalToWahaJid(remoteJid),
+      messageId,
+      text: newText,
+    });
+    return { success: resultado.ok, message: resultado.message };
+  }
+
+  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
   return editMessage(context.apiKeyData, context.instanceName, remoteJid, messageId, newText);
 }

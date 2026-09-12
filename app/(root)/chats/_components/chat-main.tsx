@@ -855,12 +855,30 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   const handleSaveEdit = useCallback(async (newText: string) => {
     const bubble = editingBubble;
-    if (!bubble || !info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    // La clave de Evolution NO es obligatoria para editar.
+    //
+    // Pedirla aqui dejaba el boton MUDO en las lineas de WhatsApp Mensajeria
+    // (waha), que a proposito no la traen: se pulsaba «Guardar», no pasaba
+    // nada, no salia ni un aviso, y el dialogo se quedaba abierto. Con
+    // Evolution funcionaba, asi que parecia que editar se hubiera roto al
+    // cambiar de proveedor. Lo unico que hace falta es la linea y el chat; de
+    // por donde sale el mensaje ya decide el servidor.
+    if (!bubble || !info?.instanceName || !info.remoteJid) {
+      // Y si de verdad falta algo, se dice. Un `return` callado aqui es un
+      // boton que no hace nada.
+      console.warn("[chats] no se puede editar: falta el contexto del chat", {
+        hayBurbuja: Boolean(bubble),
+        linea: info?.instanceName ?? "(sin linea)",
+        chat: info?.remoteJid ?? "(sin chat)",
+      });
+      toast.error("No se pudo editar: vuelve a abrir la conversación.");
+      return;
+    }
     const prevContent = bubble.content;
     setEditedContent((prev) => new Map(prev).set(bubble.id, newText)); // optimista
     setEditingBubble(null);
     const result = await editMessageAction(
-      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      { apiKeyData: info.apiKeyData ?? null, instanceName: info.instanceName },
       info.remoteJid,
       bubble.id,
       newText,
