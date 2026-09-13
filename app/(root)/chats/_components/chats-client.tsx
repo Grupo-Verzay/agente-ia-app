@@ -1424,7 +1424,7 @@ export function ChatsClient({
       for (const k of levantadas) {
         const pref = next[k];
         if (!pref) continue;
-        next[k] = { ...pref, deletedAt: null, purgedAt: null, isDeleted: false, isPurged: false };
+        next[k] = { ...pref, deletedAt: null, purgedAt: null, isDeleted: false, isPurged: false, updatedAt: new Date().toISOString() };
       }
       return next;
     });
@@ -2798,7 +2798,7 @@ export function ChatsClient({
           for (const k of llavesDelChat) {
             const pref = next[k];
             if (pref?.deletedAt) {
-              next[k] = { ...pref, deletedAt: null, purgedAt: null, isDeleted: false, isPurged: false };
+              next[k] = { ...pref, deletedAt: null, purgedAt: null, isDeleted: false, isPurged: false, updatedAt: new Date().toISOString() };
             }
           }
           return next;

@@ -90,6 +90,7 @@ function mapPreference(
     archivedAt: Date | null;
     deletedAt: Date | null;
     purgedAt?: Date | null;
+    updatedAt?: Date | null;
   },
 ): ChatConversationPreference {
   return {
@@ -99,6 +100,7 @@ function mapPreference(
     archivedAt: preference.archivedAt?.toISOString() ?? null,
     deletedAt: preference.deletedAt?.toISOString() ?? null,
     purgedAt: preference.purgedAt?.toISOString() ?? null,
+    updatedAt: preference.updatedAt?.toISOString() ?? null,
     isPinned: Boolean(preference.pinnedAt),
     isArchived: Boolean(preference.archivedAt),
     isDeleted: Boolean(preference.deletedAt),
@@ -475,6 +477,7 @@ function deletedPreference(
     archivedAt: null,
     deletedAt: now,
     purgedAt: now,
+    updatedAt: now,
     isPinned: false,
     isArchived: false,
     isDeleted: true,
@@ -1088,6 +1091,7 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
         archivedAt: true,
         deletedAt: true,
         purgedAt: true,
+        updatedAt: true,
       },
     });
 
