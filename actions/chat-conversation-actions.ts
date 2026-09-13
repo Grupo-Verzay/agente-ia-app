@@ -52,6 +52,9 @@ const baseSchema = z.object({
   // sin ella la marca se guarda como "de todas las lineas", igual que antes.
   instanceName: z.string().trim().optional(),
   remoteJid: z.string().trim().min(1),
+  // Cuando escribio el contacto por ultima vez, segun la fila que se ve en
+  // pantalla (en milisegundos). Solo lo manda quien levanta una marca.
+  contactoEscribioEn: z.number().optional(),
   // Las identidades que la fila YA tiene en pantalla.
   //
   // Quien sabe cruzar un `@lid` con su numero es `chat_messages`... que el
@@ -1308,6 +1311,17 @@ export async function levantarMarcaDeBorradoAction(
     // CONTACTO posterior al borrado. Lo que pone la pantalla son las
     // identidades -que es lo que el servidor no sabe cruzar solo- y el aviso de
     // que ahi hubo movimiento.
+    // La prueba que trae la pantalla: la fila tiene un mensaje DEL CONTACTO
+    // posterior al borrado. Viene del mismo sitio que todo lo demas -nuestra
+    // bandeja-, asi que vale tanto como la consulta de abajo, y llega donde
+    // esta no alcanza: `chat_messages` guarda cada mensaje bajo la identidad
+    // con la que llego, y el borrado deja la tabla vacia, asi que del segundo
+    // borrado en adelante puede no haber ni una fila que cruzar.
+    const pruebaDeLaPantalla =
+      typeof input.contactoEscribioEn === "number" &&
+      Number.isFinite(input.contactoEscribioEn) &&
+      input.contactoEscribioEn > borradoEl.getTime();
+
     const escribioElContacto = await db.chatMessage.findFirst({
       where: {
         userId: parsed.userId,
@@ -1322,7 +1336,15 @@ export async function levantarMarcaDeBorradoAction(
       },
       select: { id: true },
     });
-    if (!escribioElContacto) {
+    if (!escribioElContacto && !pruebaDeLaPantalla) {
+      // Esto NO puede ser mudo: desde fuera se ve como un chat que reaparece y
+      // se vuelve a esconder solo, que es lo mas dificil de diagnosticar.
+      console.warn("[chats] la marca de borrado se queda: no consta que el contacto haya escrito", {
+        linea: linea || "*",
+        pedidoComo: parsed.remoteJid,
+        borradoEl: borradoEl.toISOString(),
+        identidades: identidades.length,
+      });
       return { success: true, message: "El contacto no ha escrito.", data: { levantadas: 0 } };
     }
 

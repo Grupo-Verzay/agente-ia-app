@@ -1338,6 +1338,8 @@ export function ChatsClient({
    * Solo toca el estado si hay algo que levantar: sin cambios no hay render.
    */
   const marcasYaPreguntadas = useRef<Set<string>>(new Set());
+  /** Chats a los que ya se aviso, al escribirles, de que vuelven a la lista. */
+  const envioDevolvioElChat = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!currentChatsResult.success) return;
     const levantadas: string[] = [];
@@ -1347,7 +1349,13 @@ export function ChatsClient({
     // (`levantarMarcasSiElContactoEscribio`), pero solo acierta cuando la
     // identidad de la marca aparece tal cual en `chat_messages`; quien las
     // tiene TODAS es esta pantalla.
-    const paraElServidor: { userId: string; instanceName?: string; remoteJid: string; identidades: string[] }[] = [];
+    const paraElServidor: {
+      userId: string;
+      instanceName?: string;
+      remoteJid: string;
+      identidades: string[];
+      contactoEscribioEn?: number;
+    }[] = [];
     for (const chat of currentChatsResult.data) {
       const owner = ownerForChat(chat);
       const preference = getPreferenceForChat(chat, chatPreferences, owner, repartidasEntreLineas);
@@ -1371,6 +1379,13 @@ export function ChatsClient({
           ...(chat.instanceName ? { instanceName: chat.instanceName } : {}),
           remoteJid: chat.remoteJid,
           identidades,
+          // La prueba que tiene la pantalla: cuando escribio el contacto. El
+          // servidor la usa cuando `chat_messages` no puede cruzar la marca con
+          // ningun mensaje -pasa del segundo borrado en adelante, porque borrar
+          // deja esa tabla vacia para ese contacto-.
+          ...(ultimo.key?.fromMe === true
+            ? {}
+            : { contactoEscribioEn: epochToMs(ultimo.messageTimestamp) }),
         });
       }
 
@@ -2759,8 +2774,19 @@ export function ChatsClient({
       const llavesDelChat = identidadesDeLaFila(selectedJid).flatMap((candidate) =>
         chatPreferenceKeys(owner, cacheInstanceName, candidate),
       );
-      // Basta con que ALGUNA de sus llaves tenga marca: se quitan todas.
-      if (llavesDelChat.some((k) => chatPreferencesRef.current[k]?.deletedAt)) {
+      // Se avisa SIEMPRE, una vez por chat y por pestaña, sin mirar si aqui se
+      // ve la marca.
+      //
+      // Mirarla era el fallo: cuando el contacto escribe, la marca se levanta
+      // en memoria al momento, asi que al responder ya no habia marca a la
+      // vista y no se avisaba a nadie. La de la BASE seguia puesta, y al
+      // siguiente refresco de preferencias volvia y escondia el chat otra vez
+      // -"le respondo y a los segundos desaparece"-. En la base es un UPDATE
+      // que no toca nada si no hay marca: preguntarlo de mas no cuesta.
+      const yaAvisado = envioDevolvioElChat.current;
+      const llaveDelAviso = `${owner}::${cacheInstanceName ?? ""}::${selectedJid}`;
+      if (!yaAvisado.has(llaveDelAviso)) {
+        yaAvisado.add(llaveDelAviso);
         void devolverChatAlEscribirAction({
           userId: owner,
           ...(cacheInstanceName ? { instanceName: cacheInstanceName } : {}),
