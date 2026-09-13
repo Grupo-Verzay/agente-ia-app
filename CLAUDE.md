@@ -1620,6 +1620,94 @@ Cuatro cosas que hay que mantener:
 Cómo se comprueba que no queda nada, sin desplegar: buscar en el repo texto que
 se pueda reparar. Si alguna línea vuelve a ser distinta al repararla, está rota.
 
+## Mudar un servicio de servidor: el certificado va DESPUÉS del DNS, y no se reintenta solo
+
+Se movió WAHA del servidor de la App (`89.117.150.148`) al de Evolution
+(`89.117.150.233`). Los datos salieron perfectos: los dos volúmenes se copiaron
+byte a byte, y las cinco sesiones que estaban vivas **volvieron solas, sin
+reescanear ningún QR**.
+
+Y aun así, durante veinte minutos el sitio nuevo no tenía HTTPS, **sin un solo
+error en ninguna parte**.
+
+Traefik pidió el certificado a las 23:38:04, cuando se encendió el servicio
+nuevo. En ese momento `waha.ia-app.com` todavía apuntaba al servidor viejo, así
+que Let's Encrypt fue a validar el reto **allí** y no lo encontró:
+
+```
+legolog: [INFO] [waha.ia-app.com] acme: Trying to solve HTTP-01
+error msg="Unable to obtain ACME certificate for domains \"waha.ia-app.com\":
+  one or more domains had a problem"
+```
+
+Falló por el motivo correcto. El problema es lo que pasa después: **Traefik no
+reintenta un pedido fallido.** Se queda sirviendo su certificado propio —
+`CN=TRAEFIK DEFAULT CERT` — indefinidamente, y lo único que escribe es un
+`debug` por petición (`Serving default certificate for request`). Desde fuera:
+el sitio nuevo no tiene HTTPS y nadie dice por qué.
+
+Tres reglas:
+
+1. **El orden es: servicio arriba → DNS → certificado.** El certificado solo se
+   puede emitir cuando el DNS ya apunta al servidor nuevo, porque el reto es
+   HTTP y Let's Encrypt va a donde diga el DNS. Si el servicio se enciende antes
+   de mover el DNS —que es lo correcto, así las sesiones reconectan mientras
+   tanto— entonces **el primer intento de certificado está condenado** y hay que
+   forzar otro a mano.
+2. **Forzar el reintento se hace tocando una etiqueta DEL SERVICIO, no
+   reiniciando nada.** Las `Labels` del servicio no son parte del
+   `TaskTemplate`, así que Swarm **no recrea la tarea**: el contenedor sigue
+   corriendo y las sesiones de WhatsApp ni se enteran. Reiniciar Traefik también
+   funcionaría, pero corta un momento todo lo demás que hay en ese servidor.
+3. **Se comprueba mirando el certificado, no la pantalla.** `CN=TRAEFIK DEFAULT
+   CERT` significa "no emitido"; el dominio tiene que salir en el `acme.json`
+   del volumen de Traefik:
+
+   ```
+   curl -sSv --resolve dominio:443:IP https://dominio/ 2>&1 | grep subject:
+   grep -o dominio /etc/traefik/letsencrypt/acme.json
+   ```
+
+### Y Traefik no escribe en `docker logs`
+
+Buscar el error costó de más por esto: el Traefik de esos servidores va con
+`--log.filePath=/var/log/traefik/traefik.log`, así que `docker logs` enseña
+**una sola línea**, la de arranque, y parece que no pasa nada. El log de verdad
+está dentro del contenedor y se saca con la API de Docker
+(`GET /containers/<id>/archive?path=...`), sin necesidad de `exec`.
+
+Ese fichero estaba en **1,3 GB** y en `DEBUG`, creciendo sin freno.
+
+### Copiar sesiones de WAHA: primero se apaga
+
+Las sesiones son **SQLite con WAL** (`gows.db` + `-wal` + `-shm`), una base por
+línea. Copiar eso con WAHA encendido da una copia a medias, que en una base de
+datos no es "un trozo menos": es una sesión corrupta y un QR nuevo.
+
+Con el servicio a 0 réplicas, WAHA cierra limpio y SQLite consolida sus WAL. Se
+nota en el tamaño: el volumen pasó de **1.272 a 716 MiB** y desaparecieron todos
+los `-wal` y `-shm`. Esa es además la señal de que el cierre fue limpio; si
+quedan, algo se mató a la fuerza y la copia no es de fiar.
+
+La media (6,4 GB) sí admite copia en caliente —son ficheros sueltos—, así que va
+**antes** del corte y solo se repasa el delta durante él. Eso dejó el corte de
+datos en unos 40 segundos.
+
+### Para saber si una sesión ya estaba muerta antes
+
+Después de la mudanza, dos de siete líneas pedían QR. La pregunta es siempre la
+misma: ¿lo rompimos nosotros? Lo dice **la fecha de escritura de su `gows.db`**:
+
+```
+date -r /app/.sessions/gows/<SESION>/gows.db
+```
+
+Las seis vivas marcaban la hora exacta en que se apagó el servicio. La séptima
+marcaba **27 horas antes**: llevaba deslogueada desde el día anterior y la
+mudanza no tuvo nada que ver. Es la forma barata de separar "lo rompió el cambio"
+de "ya venía roto", y se mira **antes** de ponerse a buscar culpables en el
+cambio.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
