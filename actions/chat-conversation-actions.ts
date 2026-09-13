@@ -1353,163 +1353,44 @@ export async function levantarMarcaDeBorradoAction(
 }
 
 /**
- * Vacia la pestana Eliminados: limpia el rastro que quede de cada contacto
- * marcado y los da por purgados, para que la lista quede en cero.
+ * Escribirle a un chat eliminado lo devuelve a la lista.
  *
- * NO se borra la marca de eliminado, y no se debe borrar nunca. La lista de
- * Chats se lee de la linea de WhatsApp, no de esta base: mientras la
- * conversacion siga viva en el telefono, esa marca es lo unico que la
- * mantiene fuera de la vista. Borrarla devuelve de golpe todas las
- * conversaciones a la lista principal, que es exactamente lo que no se
- * quiere. Por eso existe purgedAt aparte: dice "aqui ya no queda nada que
- * borrar" sin destapar nada.
+ * La regla es "eliminado se queda eliminado, y vuelve si hay conversacion
+ * nueva". Conversacion nueva son las dos direcciones: que escriba el contacto
+ * -de eso se ocupa `levantarMarcaDeBorradoAction`, que lo comprueba en la
+ * base- o que le escribas tu, que es este caso y no necesita comprobar nada:
+ * abrir un chat borrado y escribirle es decir que vuelve.
  *
- * Se repite la limpieza en vez de darlos por limpios porque entre el borrado
- * y el vaciado el contacto pudo haber vuelto: si el cliente escribio, la
- * linea recreo la ficha y los mensajes.
- *
- * Va por TODAS las cuentas asociadas, no solo por la activa. La pestana
- * Eliminados junta lo de todas -las marcas se leen con ese alcance-, asi que
- * limpiar solo una dejaba el resto intacto en la base: la lista se veia vacia
- * por el apaño de pantalla y al recargar volvian los mismos chats. El aviso
- * decia 61 y se limpiaban los de una cuenta.
- *
- * Cada cuenta se comprueba por separado con `assertCanDeleteChats`. Si en
- * alguna no se manda, se salta y se sigue con las demas: se limpia lo que se
- * pueda, nunca lo que no se deba.
+ * No hay pestana de Eliminados ni boton de restaurar: esto es lo unico que los
+ * devuelve, y por eso tiene que funcionar sin condiciones raras.
  */
-export async function purgeDeletedChatsAction(
-  input: { userId: string },
-): Promise<ChatPreferenceResponse<{ purged: number }>> {
-  try {
-    const userId = z.string().trim().min(1).parse(input.userId);
-    await assertCanDeleteChats(userId);
-
-    const user = await currentUser();
-    const asociadas = user ? await getAssociatedAccountIds(user) : [];
-    const cuentas = [userId, ...asociadas.filter((id) => id !== userId)];
-
-    await ensurePurgedAtColumn();
-    let count = 0;
-    let saltadas = 0;
-    let sinLinea = 0;
-
-    for (const cuenta of cuentas) {
-      if (cuenta !== userId) {
-        try {
-          await assertCanDeleteChats(cuenta);
-        } catch {
-          saltadas++;
-          continue;
-        }
-      }
-
-      const marcados = await chatConversationPreferenceTable.findMany({
-        where: { userId: cuenta, deletedAt: { not: null }, purgedAt: null },
-        select: { instanceName: true, remoteJid: true },
-      });
-
-      // Las marcas ANTIGUAS -las que se guardaron sin linea- se saltan.
-      //
-      // Este bucle relee las marcas y vuelve a llamar al borrado con SU
-      // `instanceName`. Con una marca antigua eso es la cadena vacia, o sea
-      // exactamente el caso que arrasaba el historial del contacto en todas las
-      // lineas de la cuenta. Y ademas se reescribia como vacia, asi que el
-      // problema se perpetuaba a si mismo cada vez que alguien pulsaba «Vaciar
-      // eliminados».
-      //
-      // Se quedan como estan, sin purgar y sin `purgedAt`, hasta que se decida
-      // que hacer con ellas. No purgarlas no rompe nada: la marca sigue
-      // ocultando el chat igual que hoy.
-      for (const { instanceName, remoteJid } of marcados) {
-        try {
-          await hardDeleteLocalChat(cuenta, instanceName, remoteJid);
-        } catch (error) {
-          if (error instanceof SinLineaParaBorrar) {
-            sinLinea++;
-            continue;
-          }
-          throw error;
-        }
-      }
-
-      const limpiados = await chatConversationPreferenceTable.updateMany({
-        where: {
-          userId: cuenta,
-          deletedAt: { not: null },
-          purgedAt: null,
-          // Solo se dan por limpiadas las que de verdad se limpiaron.
-          NOT: { instanceName: "" },
-        },
-        data: { purgedAt: new Date() },
-      });
-      count += limpiados.count;
-    }
-
-    invalidatePersistedInboxCache();
-    revalidatePath("/chats");
-
-    // El aviso dice lo que de verdad paso. "No quedaba nada por limpiar"
-    // mientras la lista enseñaba 61 era el mensaje que despistaba: no es que no
-    // quedara nada, es que estaba en cuentas que no se tocaron.
-    const enCuentasAjenas =
-      saltadas > 0 ? ` Quedan chats en ${saltadas} cuenta${saltadas !== 1 ? "s" : ""} donde no se puede limpiar.` : "";
-    // Y se dice cuantas quedaron fuera por no saber su linea, en vez de dejarlo
-    // en un numero que no cuadra y no explica por que.
-    const antiguas =
-      sinLinea > 0
-        ? ` ${sinLinea} marca${sinLinea !== 1 ? "s" : ""} antigua${sinLinea !== 1 ? "s" : ""} sin linea no se toc${sinLinea !== 1 ? "aron" : "o"}.`
-        : "";
-
-    return {
-      success: true,
-      message: (count > 0
-        ? `${count} chat${count !== 1 ? "s" : ""} limpiado${count !== 1 ? "s" : ""} por completo.`
-        : "No quedaba nada por limpiar.") + enCuentasAjenas + antiguas,
-      data: { purged: count },
-    };
-  } catch (error) {
-    console.error("[purgeDeletedChatsAction]", error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "No se pudieron limpiar los chats eliminados.",
-    };
-  }
-}
-
-export async function restoreChatConversationAction(
+export async function devolverChatAlEscribirAction(
   input: z.infer<typeof baseSchema>,
-): Promise<ChatPreferenceResponse<ChatConversationPreference>> {
+): Promise<ChatPreferenceResponse<{ levantadas: number }>> {
   try {
     const parsed = baseSchema.parse(input);
     await assertAuthorized(parsed.userId);
 
-    // Bajo TODAS sus identidades, como se marco. Se quitaba solo bajo la que se
-    // pidio, asi que un chat borrado por su `@lid` y restaurado por su numero
-    // -o al reves- seguia escondido por la otra: se pulsaba Restaurar, la fila
-    // desaparecia de Eliminados y no volvia a la lista.
-    await quitarMarcaDeBorrado(
+    const count = await quitarMarcaDeBorrado(
       parsed.userId,
       parsed.instanceName,
       parsed.remoteJid,
       parsed.identidades ?? [],
     );
+    if (count > 0) {
+      console.warn("[chats] chat eliminado devuelto a la lista: le escribiste", {
+        linea: normalizarLinea(parsed.instanceName) || "*",
+        pedidoComo: parsed.remoteJid,
+        filas: count,
+      });
+    }
 
-    const data = await upsertPreference(parsed.userId, parsed.instanceName, parsed.remoteJid, {
-      deletedAt: null,
-      purgedAt: null,
-    });
-
-    return {
-      success: true,
-      message: "Chat restaurado correctamente.",
-      data,
-    };
+    return { success: true, message: "Chat devuelto a la lista.", data: { levantadas: count } };
   } catch (error) {
-    console.error("[restoreChatConversationAction]", error);
+    console.error("[devolverChatAlEscribirAction]", error);
     return {
       success: false,
-      message: error instanceof Error ? error.message : "No se pudo restaurar el chat.",
+      message: error instanceof Error ? error.message : "No se pudo devolver el chat a la lista.",
     };
   }
 }

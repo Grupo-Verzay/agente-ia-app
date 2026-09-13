@@ -26,7 +26,8 @@ export type SidebarContact = {
   hasNotes?: boolean;
 };
 
-export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "resolved" | "deleted";
+// Sin "deleted": un chat eliminado no se ve en ninguna parte (ver `isDeleted`).
+export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "resolved";
 
 export type TabCounts = Record<TabKey, number>;
 

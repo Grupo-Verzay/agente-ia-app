@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { ComponentType } from "react";
-import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
+import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +52,7 @@ const GROUPS_COLOR = "#28A745";
 
 export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "resolved" || tab === "deleted" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
+  const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
     const count = tabCounts[key];
     const isActive = tab === key;
@@ -281,18 +281,6 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             </span>
             {tabCounts.resolved > 0 && (
               <span className="text-[10px] text-muted-foreground">{tabCounts.resolved}</span>
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => onTabChange("deleted")}
-            className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-          >
-            <span className="flex items-center gap-1.5 text-xs">
-              <Trash2 className="h-3 w-3 text-muted-foreground shrink-0" />
-              Eliminados
-            </span>
-            {tabCounts.deleted > 0 && (
-              <span className="text-[10px] text-muted-foreground">{tabCounts.deleted}</span>
             )}
           </DropdownMenuItem>
           {onDeleteByDate && (
