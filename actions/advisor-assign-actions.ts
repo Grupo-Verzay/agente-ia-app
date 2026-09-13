@@ -173,11 +173,12 @@ export async function autoAssignUnassignedSessionsForOwner(
 /**
  * Devolver la conversacion a la IA.
  *
- * Una conversacion escalada queda con dos cosas puestas: la IA apagada y un
- * asesor asignado. Este es el camino de vuelta, y tiene que deshacer las dos:
- * si solo se enciende la IA, el chat se queda en la pestaña «Mias» de alguien
- * que ya no lo esta atendiendo; si solo se suelta, el cliente escribe y no le
- * contesta nadie.
+ * Una conversacion escalada y atendida queda con tres cosas puestas: la IA
+ * apagada por el escalado (`agentDisabled`), la IA apagada otra vez por el
+ * asesor al contestar (`status`) y un asesor asignado. Este es el camino de
+ * vuelta y tiene que deshacer las tres: si queda una, el boton parece no hacer
+ * nada —el chat se queda en la pestaña «Mias» de alguien que ya no lo atiende,
+ * o el cliente escribe y no le contesta nadie—.
  *
  * Lo hace quien puede tocar esa conversacion: el dueño, un administrador de la
  * cuenta, o el asesor que la tiene.
@@ -203,6 +204,26 @@ export async function devolverChatALaIaAction(sessionId: number): Promise<Result
       where: { id: sessionId },
       data: {
         agentDisabled: false,
+        // Y `status`, que es el interruptor que corta ANTES.
+        //
+        // Aqui estaba el fallo: se devolvia el chat a la IA y la IA seguia
+        // muda. `agentDisabled` no es el unico corte —el backend mira primero
+        // `status` (`webhook.service.ts`, la re-verificacion de despues del
+        // buffer) y solo despues `agentDisabled`—, y `status` lo habia puesto
+        // en falso el propio asesor al contestar, que es lo que hace
+        // `pausarIaPorIntervencionHumana`. O sea: el boton funcionaba mientras
+        // nadie hubiera escrito, y dejaba de funcionar justo en el caso normal
+        // —un asesor atiende, termina y se lo devuelve a la IA—.
+        //
+        // Desde fuera no parecia un error: parecia que la IA "ya no contesta a
+        // ese contacto". Se arreglaba solo, y a medias, cuando el cliente
+        // volvia a escribir Y alguien tenia la App abierta, porque es la App
+        // quien reabre la sesion al persistir un entrante nuevo
+        // (`lib/chat-persistence.ts`). Sin App abierta, no se arreglaba.
+        //
+        // Devolver a la IA tiene que deshacer TODO lo que la callo, no una
+        // parte. Si se anade otro corte, va tambien aqui.
+        status: true,
         // El opt-in por contacto, igual que el interruptor de la ficha: sin el,
         // una cuenta con el agente global apagado seguiria sin contestar.
         aiOptIn: true,
