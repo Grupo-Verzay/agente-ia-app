@@ -107,6 +107,9 @@ interface MessageRowProps {
   contactName?: string;
   isSearchMatch: boolean;
   isActiveSearchMatch: boolean;
+  /** Es el mensaje al que se acaba de saltar desde una cita: se resalta. */
+  esElSaltado?: boolean;
+  onJumpToMessage?: (messageId: string) => void;
   onSetReplyTo?: (bubble: UIBubble) => void;
   onCopyMessage?: (bubble: UIBubble) => void;
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
@@ -122,6 +125,8 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
   contactName,
   isSearchMatch,
   isActiveSearchMatch,
+  esElSaltado,
+  onJumpToMessage,
   onSetReplyTo,
   onCopyMessage,
   onReactMessage,
@@ -133,12 +138,16 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
     'rounded-xl transition-all duration-200',
     isSearchMatch && 'bg-amber-200/20',
     isActiveSearchMatch && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent',
+    // El de la cita se resalta un momento, como en WhatsApp: sin eso saltas y
+    // no sabes a cual de los mensajes de la pantalla has ido.
+    esElSaltado && 'ring-2 ring-sky-400 bg-sky-400/10',
   );
 
   return (
     <div
       data-message-id={message.id}
       data-search-active={isActiveSearchMatch ? 'true' : undefined}
+      data-saltado={esElSaltado ? 'true' : undefined}
       className={wrapperClass}
     >
       {message.status === 'sending' ? (
@@ -176,6 +185,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           callPhone={callPhone}
           contactName={contactName}
           quotedMessage={message.quotedMessage}
+          onJumpToQuoted={onJumpToMessage}
           adPreview={message.adPreview}
           onReply={onSetReplyTo ? () => onSetReplyTo(message) : undefined}
           onCopy={onCopyMessage ? () => onCopyMessage(message) : undefined}
@@ -200,7 +210,9 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     prev.callPhone !== next.callPhone ||
     prev.contactName !== next.contactName ||
     prev.isSearchMatch !== next.isSearchMatch ||
-    prev.isActiveSearchMatch !== next.isActiveSearchMatch
+    prev.isActiveSearchMatch !== next.isActiveSearchMatch ||
+    prev.esElSaltado !== next.esElSaltado ||
+    prev.onJumpToMessage !== next.onJumpToMessage
   ) {
     return false;
   }
@@ -285,6 +297,9 @@ interface ChatMessageListProps {
   loadingOlderMessages?: boolean;
   searchMatchIds?: Set<string>;
   activeSearchMessageId?: string;
+  /** Mensaje al que se acaba de saltar desde una cita. */
+  mensajeSaltado?: string | null;
+  onJumpToMessage?: (messageId: string) => void;
   /** Teléfono del contacto (solo dígitos) para el botón "devolver llamada" en burbujas de llamada */
   callPhone?: string;
   contactName?: string;
@@ -307,6 +322,8 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   loadingOlderMessages,
   searchMatchIds,
   activeSearchMessageId,
+  mensajeSaltado,
+  onJumpToMessage,
   callPhone,
   contactName,
 }) => {
@@ -355,7 +372,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   }, [fullList]);
 
   const virtualMetrics = useMemo(() => {
-    if (renderedList.length <= VIRTUALIZE_AFTER_ITEMS || activeSearchMessageId) {
+    if (renderedList.length <= VIRTUALIZE_AFTER_ITEMS || activeSearchMessageId || mensajeSaltado) {
       return {
         beforeHeight: 0,
         afterHeight: 0,
@@ -388,7 +405,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
       afterHeight: Math.max(0, totalHeight - (offsets[endIndex] ?? totalHeight)),
       items: renderedList.slice(startIndex, endIndex),
     };
-  }, [activeSearchMessageId, renderedList, viewport.height, viewport.scrollTop]);
+  }, [activeSearchMessageId, mensajeSaltado, renderedList, viewport.height, viewport.scrollTop]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -521,6 +538,8 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
               contactName={contactName}
               isSearchMatch={searchMatchIds?.has(item.message.id) ?? false}
               isActiveSearchMatch={activeSearchMessageId === item.message.id}
+              esElSaltado={mensajeSaltado === item.message.id}
+              onJumpToMessage={onJumpToMessage}
               onSetReplyTo={onSetReplyTo}
               onCopyMessage={onCopyMessage}
               onReactMessage={onReactMessage}
