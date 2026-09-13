@@ -45,6 +45,7 @@ import { Role } from "@prisma/client";
 import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
 import { NotificationContactsManager } from "./NotificationContactsManager";
 import { OperatorContactsManager } from "./OperatorContactsManager";
+import { EscaladoCard } from "./EscaladoCard";
 import { OwnerModeToggle } from "./OwnerModeToggle";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
@@ -858,6 +859,17 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         />
                                     </div>
                                 </CardHeader>
+                            </Card>
+
+                            {/* Escalado a un asesor.
+                                Va aqui, junto al interruptor del agente, y no en
+                                Equipo: los planes sin equipo no ven esa pantalla
+                                y tambien escalan. */}
+                            <SectionTitle>Escalado a un asesor</SectionTitle>
+                            <Card className="border-border">
+                                <CardContent className="pt-4">
+                                    <EscaladoCard readOnly={readOnly} />
+                                </CardContent>
                             </Card>
 
                             <SectionTitle>Tiempos de respuesta</SectionTitle>

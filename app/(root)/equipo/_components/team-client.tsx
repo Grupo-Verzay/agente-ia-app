@@ -65,7 +65,6 @@ import {
   getAdvisorModuleIds,
   saveAdvisorModules,
   saveAutoAssignSettings,
-  saveAutoReleaseMinutes,
   releaseAdvisorSessions,
 } from "@/actions/team-actions";
 import { resetAllLinkedAccounts } from "@/actions/linked-account-actions";
@@ -103,7 +102,7 @@ function getInitials(name: string | null, email: string) {
 }
 
 type ModulesForm = { advisorId: string; advisorName: string; enabledIds: string[]; loading: boolean };
-type AutoAssignSettings = { autoAssignEnabled: boolean; autoAssignMaxChats: number; autoReleaseMinutes?: number };
+type AutoAssignSettings = { autoAssignEnabled: boolean; autoAssignMaxChats: number };
 
 type Props = {
   userId: string;
@@ -136,34 +135,9 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [autoAssignMaxChats, setAutoAssignMaxChats] = useState(initialAutoAssign.autoAssignMaxChats);
   const [autoAssignSaving, setAutoAssignSaving] = useState(false);
 
-  /* ─── Soltar los escalados sin respuesta ───
-   *
-   * Cuando la IA escala una conversacion se la deja a un asesor y se calla. Si
-   * ese asesor no contesta, el cliente espera a quien no va a venir. Con esto
-   * puesto, pasados los minutos la conversacion vuelve al reparto SALTANDO a
-   * quien no respondio; si no queda nadie disponible se queda sin asignar y a
-   * la vista, con la IA apagada -pidio una persona-.
-   *
-   * Apagado es `0`, que es lo que se guarda: el dueño decide si lo quiere.
-   */
-  const MINUTOS_POR_DEFECTO_AL_SOLTAR = 10;
-  const [autoReleaseMinutes, setAutoReleaseMinutes] = useState(initialAutoAssign.autoReleaseMinutes ?? 0);
-  const [autoReleaseSaving, setAutoReleaseSaving] = useState(false);
-
-  function guardarMinutosAlSoltar(minutos: number) {
-    setAutoReleaseSaving(true);
-    saveAutoReleaseMinutes(minutos).then((res) => {
-      if (!res.success) toast.error(res.message);
-      else if (res.message) toast.success(res.message);
-      setAutoReleaseSaving(false);
-    });
-  }
-
-  function handleAutoReleaseToggle(enabled: boolean) {
-    const next = enabled ? MINUTOS_POR_DEFECTO_AL_SOLTAR : 0;
-    setAutoReleaseMinutes(next);
-    guardarMinutosAlSoltar(next);
-  }
+  /* «Soltar los escalados sin respuesta» se mudo a Perfil > Comportamiento,
+   * junto a «Apagar la IA al escalar», que es de lo que depende. Aqui no podia
+   * quedarse: los planes sin equipo no ven esta pantalla y tambien escalan. */
 
   function handleAutoAssignToggle(enabled: boolean) {
     setAutoAssignEnabled(enabled);
@@ -404,36 +378,6 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
               </label>
             </div>
           )}
-          {/* Soltar los escalados a los que nadie contesta */}
-          <div className="flex items-center gap-2 border-l border-border/60 pl-4">
-            <Label htmlFor="auto-release-toggle" className="text-xs text-muted-foreground whitespace-nowrap cursor-pointer">
-              Soltar sin respuesta
-            </Label>
-            <Switch
-              id="auto-release-toggle"
-              checked={autoReleaseMinutes > 0}
-              onCheckedChange={handleAutoReleaseToggle}
-            />
-            {autoReleaseMinutes > 0 && (
-              <>
-                <Input
-                  id="auto-release-min"
-                  type="number"
-                  min={1}
-                  max={240}
-                  className="h-8 w-16 text-sm"
-                  value={autoReleaseMinutes}
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value);
-                    if (!isNaN(n)) setAutoReleaseMinutes(n);
-                  }}
-                  onBlur={() => guardarMinutosAlSoltar(autoReleaseMinutes)}
-                />
-                <span className="text-xs text-muted-foreground whitespace-nowrap">min</span>
-              </>
-            )}
-            {autoReleaseSaving && <span className="text-xs text-muted-foreground">Guardando…</span>}
-          </div>
         </div>
         {/* Zona central: SCROLLEA cuando no cabe (toggle + acciones de asignación) */}
         <div className="toolbar-collapse flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
