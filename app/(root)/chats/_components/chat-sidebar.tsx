@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Inbox, Users, UserX, Check, MessageCircle, PanelLeftClose, RefreshCw } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
-import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
+import { useChatsVistos, type MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import { elegirPreferenciaDelChat } from "@/lib/chat-preference-key";
 import type { ChatContactSessionMap, SimpleTag, ClientStatus, ServiceType } from "@/types/session";
@@ -340,20 +340,27 @@ export function ChatSidebar({
 
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
-  const [seenMessages, setSeenMessages] = useLocalStorageObjectArray(
-    "seenMessages",
-    [] as MessageRecord[],
-  );
+  const [seenMessages, setSeenMessages] = useChatsVistos("seenMessages");
 
   const markMessageAsSeen = useCallback(
     (remoteJid: string, messageId: string, instanceName?: string, ts?: number) => {
       if (!remoteJid || !messageId) return;
       const clave = claveDeChatVisto(instanceName, remoteJid);
       setSeenMessages((prev) => {
-        const filtered = prev.filter((m) => m.userId !== clave);
-        return [...filtered, { userId: clave, messageId, ts } satisfies MessageRecord].slice(
-          -MAX_CHATS_VISTOS,
-        );
+        const next = new Map(prev);
+        // Borrar y volver a poner, no solo poner: un Map conserva la posición
+        // de una llave que ya estaba, y el tope se poda por posicion. Sin esto,
+        // un chat que se abre a diario envejeceria hasta caerse de la lista.
+        next.delete(clave);
+        next.set(clave, { userId: clave, messageId, ts } satisfies MessageRecord);
+        // Entran 1.000 y se va la mas antigua, igual que el `slice(-1000)` de
+        // antes. El orden de insercion del Map es justo ese.
+        while (next.size > MAX_CHATS_VISTOS) {
+          const masVieja = next.keys().next();
+          if (masVieja.done) break;
+          next.delete(masVieja.value);
+        }
+        return next;
       });
       setForcedUnreadJids((prev) => {
         if (!prev.has(remoteJid)) return prev;
@@ -368,9 +375,15 @@ export function ChatSidebar({
   const markMessageAsUnseen = useCallback(
     (remoteJid: string, instanceName?: string) => {
       const clave = claveDeChatVisto(instanceName, remoteJid);
-      setSeenMessages((prev) =>
-        prev.filter((m) => m.userId !== clave && m.userId !== remoteJid),
-      );
+      setSeenMessages((prev) => {
+        const next = new Map(prev);
+        // Las dos formas, como antes: si solo se quitara la de la linea, la
+        // entrada antigua -guardada bajo el numero pelado- seguiria diciendo
+        // "leido" y el chat no se marcaria.
+        next.delete(clave);
+        next.delete(remoteJid);
+        return next;
+      });
       setForcedUnreadJids((prev) => new Set([...prev, remoteJid]));
     },
     [setSeenMessages],
@@ -380,12 +393,17 @@ export function ChatSidebar({
     (remoteJid: string, messageId: string, instanceName?: string, ts?: number) => {
       if (!messageId) return false;
       const clave = claveDeChatVisto(instanceName, remoteJid);
-      // El registro viejo (solo remoteJid) sigue valiendo: los navegadores ya
-      // tienen guardados los suyos y no hay por qué marcarles como sin leer todo
-      // lo que ya habían abierto.
-      const record =
-        seenMessages.find((m) => m.userId === clave) ??
-        seenMessages.find((m) => m.userId === remoteJid);
+      // PRIMERO la llave con su linea, y solo despues el numero pelado. Ese
+      // orden no es un detalle: el registro viejo es de cuando esto se guardaba
+      // sin la linea, y el mismo contacto puede escribir a dos. Si gana el
+      // pelado, las dos conversaciones vuelven a compartir una sola marca y se
+      // pisan entre ellas -abrir la de Ventas daba por leida la de Atencion-,
+      // que es el fallo que costo varios arreglos cerrar.
+      //
+      // El registro viejo sigue valiendo para leer: los navegadores ya tienen
+      // guardados los suyos y no hay por que marcarles como sin leer todo lo
+      // que ya habian abierto.
+      const record = seenMessages.get(clave) ?? seenMessages.get(remoteJid);
       if (!record) return false;
       if (record.messageId === messageId) return true;
       // Nada anterior a lo ya visto vuelve a contar como sin leer, diga lo que
