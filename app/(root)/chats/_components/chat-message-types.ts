@@ -73,7 +73,14 @@ export type UIBubble = {
   call?: { direction: 'incoming' | 'outgoing'; isVideo?: boolean; durationSecs?: number; status?: string };
   /** Emoji de reacción pegado a este mensaje (estilo WhatsApp) */
   reaction?: string;
-  quotedMessage?: { id: string; content: string; sender: 'user' | 'other'; mediaType?: string };
+  quotedMessage?: {
+    id: string;
+    content: string;
+    sender: 'user' | 'other';
+    mediaType?: string;
+    /** Quién lo escribió, cuando no basta con «el contacto»: un grupo. */
+    author?: string;
+  };
   adPreview?: {
     title?: string;
     body?: string;

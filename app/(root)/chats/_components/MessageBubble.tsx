@@ -88,7 +88,8 @@ interface MessageBubbleProps {
   reaction?: string;
   /** Teléfono del contacto (solo dígitos) para "devolver llamada" */
   callPhone?: string;
-  callContactName?: string;
+  /** Nombre del contacto: el de la cabecera. Lo usan la llamada y la cita. */
+  contactName?: string;
   quotedMessage?: UIBubble['quotedMessage'];
   adPreview?: UIBubble['adPreview'];
   onReply?: () => void;
@@ -114,7 +115,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   call,
   reaction,
   callPhone,
-  callContactName,
+  contactName,
   quotedMessage,
   adPreview,
   onReply,
@@ -240,7 +241,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
         </div>
         {callPhone && (
-          <CallDialog open={callOpen} onClose={() => setCallOpen(false)} phone={callPhone} contactName={callContactName} />
+          <CallDialog open={callOpen} onClose={() => setCallOpen(false)} phone={callPhone} contactName={contactName} />
         )}
       </div>
     );
@@ -402,8 +403,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               ? 'border-white/60 bg-white/15 text-white/90'
               : 'border-gray-300 dark:border-gray-500 bg-gray-50 dark:bg-white/10 text-gray-700 dark:text-gray-300',
           )}>
+            {/*
+              Quién escribió lo citado, con su nombre. «Contacto» a secas es lo
+              que se veía antes y no dice nada: en la cabecera está el nombre y
+              en la cita salía una etiqueta genérica. En un grupo el autor es
+              uno de tantos, y ese viene con la propia cita.
+            */}
             <span className="font-semibold block mb-0.5">
-              {quotedMessage.sender === 'user' ? 'Tú' : 'Contacto'}
+              {quotedMessage.sender === 'user'
+                ? 'Tú'
+                : quotedMessage.author || contactName || 'Contacto'}
             </span>
             <span className="block truncate max-w-[220px]">
               {quotedMessage.mediaType ? `[${quotedMessage.mediaType}]${quotedMessage.content ? ` ${quotedMessage.content}` : ''}` : quotedMessage.content}

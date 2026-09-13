@@ -104,7 +104,7 @@ interface MessageRowProps {
   message: UIBubble;
   advisorName?: string;
   callPhone?: string;
-  callContactName?: string;
+  contactName?: string;
   isSearchMatch: boolean;
   isActiveSearchMatch: boolean;
   onSetReplyTo?: (bubble: UIBubble) => void;
@@ -119,7 +119,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
   message,
   advisorName,
   callPhone,
-  callContactName,
+  contactName,
   isSearchMatch,
   isActiveSearchMatch,
   onSetReplyTo,
@@ -174,7 +174,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           call={message.call}
           reaction={message.reaction}
           callPhone={callPhone}
-          callContactName={callContactName}
+          contactName={contactName}
           quotedMessage={message.quotedMessage}
           adPreview={message.adPreview}
           onReply={onSetReplyTo ? () => onSetReplyTo(message) : undefined}
@@ -198,7 +198,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     prev.onDeleteNote !== next.onDeleteNote ||
     prev.advisorName !== next.advisorName ||
     prev.callPhone !== next.callPhone ||
-    prev.callContactName !== next.callContactName ||
+    prev.contactName !== next.contactName ||
     prev.isSearchMatch !== next.isSearchMatch ||
     prev.isActiveSearchMatch !== next.isActiveSearchMatch
   ) {
@@ -287,7 +287,7 @@ interface ChatMessageListProps {
   activeSearchMessageId?: string;
   /** Teléfono del contacto (solo dígitos) para el botón "devolver llamada" en burbujas de llamada */
   callPhone?: string;
-  callContactName?: string;
+  contactName?: string;
 }
 
 const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
@@ -308,7 +308,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   searchMatchIds,
   activeSearchMessageId,
   callPhone,
-  callContactName,
+  contactName,
 }) => {
   const autoLoadLockRef = useRef(false);
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
@@ -518,7 +518,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
               message={item.message}
               advisorName={advisorName}
               callPhone={callPhone}
-              callContactName={callContactName}
+              contactName={contactName}
               isSearchMatch={searchMatchIds?.has(item.message.id) ?? false}
               isActiveSearchMatch={activeSearchMessageId === item.message.id}
               onSetReplyTo={onSetReplyTo}
