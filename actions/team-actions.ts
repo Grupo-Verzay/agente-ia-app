@@ -697,17 +697,55 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
 }
 
 export async function getAutoAssignSettings(): Promise<
-  ActionResult<{ autoAssignEnabled: boolean; autoAssignMaxChats: number }>
+  ActionResult<{ autoAssignEnabled: boolean; autoAssignMaxChats: number; autoReleaseMinutes: number }>
 > {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
-  const rows = await db.$queryRaw<{ autoAssignEnabled: boolean; autoAssignMaxChats: number }[]>`
-    SELECT auto_assign_enabled AS "autoAssignEnabled", auto_assign_max_chats AS "autoAssignMaxChats"
-    FROM "User" WHERE id = ${owner.id}
-  `;
-  const row = rows[0] ?? { autoAssignEnabled: false, autoAssignMaxChats: 5 };
+  // `auto_release_minutes` la crea el BACKEND con su migracion, que es quien
+  // aplica las migraciones aqui. Se lee con SQL en crudo y con respaldo: si la
+  // columna todavia no existe -App desplegada antes que el backend-, la
+  // pantalla sigue funcionando con el resto de la tarjeta en vez de reventar.
+  const rows = await db
+    .$queryRaw<{ autoAssignEnabled: boolean; autoAssignMaxChats: number; autoReleaseMinutes: number }[]>`
+      SELECT auto_assign_enabled AS "autoAssignEnabled",
+             auto_assign_max_chats AS "autoAssignMaxChats",
+             auto_release_minutes AS "autoReleaseMinutes"
+      FROM "User" WHERE id = ${owner.id}
+    `
+    .catch(async (error) => {
+      console.warn("[equipo] sin columna auto_release_minutes todavia", String(error));
+      const base = await db.$queryRaw<{ autoAssignEnabled: boolean; autoAssignMaxChats: number }[]>`
+        SELECT auto_assign_enabled AS "autoAssignEnabled", auto_assign_max_chats AS "autoAssignMaxChats"
+        FROM "User" WHERE id = ${owner.id}
+      `;
+      return base.map((b) => ({ ...b, autoReleaseMinutes: 0 }));
+    });
+  const row = rows[0] ?? { autoAssignEnabled: false, autoAssignMaxChats: 5, autoReleaseMinutes: 10 };
   return { success: true, data: row };
+}
+
+/**
+ * Cuanto espera una conversacion escalada a que el asesor conteste.
+ *
+ * `0` = no soltar nunca, que es como se apaga desde la pantalla. Si contesta
+ * nadie en ese tiempo, la conversacion vuelve al reparto saltando a quien no
+ * respondio; el barrido que lo hace vive en el backend.
+ */
+export async function saveAutoReleaseMinutes(minutos: number): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  // Entre 1 y 240 minutos, o 0 para apagarlo. Un minuto es poco margen para
+  // que alguien lea y conteste; cuatro horas ya no es "sin respuesta".
+  const valor = minutos <= 0 ? 0 : Math.max(1, Math.min(Math.round(minutos), 240));
+  try {
+    await db.$executeRaw`UPDATE "User" SET auto_release_minutes = ${valor} WHERE id = ${owner.id}`;
+  } catch (error) {
+    console.warn("[equipo] no se pudo guardar auto_release_minutes", String(error));
+    return { success: false, message: "Esta opción aún no está disponible en el servidor." };
+  }
+  return { success: true, message: valor === 0 ? "Las conversaciones escaladas no se soltarán." : `Se soltarán a los ${valor} minutos sin respuesta.` };
 }
 
 export async function saveAutoAssignSettings(input: {
