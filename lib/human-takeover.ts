@@ -1,3 +1,4 @@
+import { quitarSelloDeEscalado } from "@/lib/escalado";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 
@@ -62,6 +63,11 @@ export async function pausarIaPorIntervencionHumana(
         },
         data: { status: false },
       });
+
+    // Si alguien contesta, esta conversacion ya no espera a nadie: fuera el
+    // sello de escalado. Va aqui porque este es el UNICO sitio por el que pasan
+    // los cuatro caminos de envio (Evolution, Waha, Baileys y los canales).
+    void quitarSelloDeEscalado(userId, candidatos);
 
     let { count } = await pausarCon(candidatos);
 

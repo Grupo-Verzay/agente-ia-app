@@ -1,5 +1,6 @@
 ﻿'use server'
 
+import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
 import { obtenerResueltas, obtenerResueltasDeCuentas } from '@/lib/session-resolved'
 import { resolvePreferredRemoteJid, scoreSessionMatch } from '@/lib/chat-session-match'
@@ -104,6 +105,7 @@ function mapChatContactSessionSummary(
   latestAppointmentStatus?: AppointmentStatus | null,
   reminderCount?: number,
   resolvedAt?: number | null,
+  escalatedAt?: number | null,
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
 
@@ -127,6 +129,7 @@ function mapChatContactSessionSummary(
     status: mappedSession.status,
     agentDisabled: mappedSession.agentDisabled,
     resolvedAt: resolvedAt ?? null,
+    escalatedAt: escalatedAt ?? null,
     // Para emparejar en el navegador: de que linea es y cual es mas reciente.
     instanceId: mappedSession.instanceId ?? null,
     updatedAt: mappedSession.updatedAt ? new Date(mappedSession.updatedAt).getTime() : null,
@@ -468,7 +471,7 @@ export async function getSesionesDeLaCuenta(
     // Resueltas va aparte porque la columna no esta en schema.prisma (se crea
     // en caliente), asi que el findMany de arriba no la trae. Por cuenta, no
     // por lista de ids.
-    const [seguimientosRaw, resueltasMap, appointmentsRaw, recordatoriosRaw] = await Promise.all([
+    const [seguimientosRaw, resueltasMap, appointmentsRaw, escaladasMap, recordatoriosRaw] = await Promise.all([
       medir('seguimientos', () =>
         allRemoteJids.length
           ? db.seguimiento.findMany({
@@ -487,6 +490,7 @@ export async function getSesionesDeLaCuenta(
             })
           : Promise.resolve([]),
       ),
+      medir('escaladas', () => obtenerEscaladasDeCuentas(userIds)),
       medir('recordatorios', async () => {
         try {
           if (!allRemoteJids.length) return [];
@@ -533,6 +537,7 @@ export async function getSesionesDeLaCuenta(
         appointmentStatusMap.get(sesion.id) ?? null,
         recordatoriosMap.get(sesion.remoteJid) ?? 0,
         resueltasMap.get(sesion.id) ?? null,
+        escaladasMap.get(sesion.id) ?? null,
       );
     });
 

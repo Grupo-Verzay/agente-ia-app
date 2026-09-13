@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { db } from "@/lib/db";
+import { quitarSelloDeEscaladoPorSesion } from "@/lib/escalado";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 
@@ -209,6 +210,8 @@ export async function devolverChatALaIaAction(sessionId: number): Promise<Result
       },
     });
 
+    // Ya no espera a nadie: fuera el sello de la fila.
+    await quitarSelloDeEscaladoPorSesion(sessionId);
     await logAssignment(sessionId, rows[0].assignedAdvisorId, user.id, "returned_to_ai");
 
     revalidatePath("/chats");
@@ -420,6 +423,7 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   // "resuelta", porque status tambien se apaga solo con que un asesor responda.
   await db.$executeRaw`UPDATE "Session" SET status = false WHERE id = ${sessionId}`;
   await marcarSesionResuelta(sessionId);
+  await quitarSelloDeEscaladoPorSesion(sessionId);
   await logAssignment(sessionId, assignedAdvisorId, user.id, "resolved");
 
   return { success: true, message: "Conversación resuelta." };

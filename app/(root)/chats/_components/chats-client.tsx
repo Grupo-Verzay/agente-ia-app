@@ -375,6 +375,7 @@ function mapSessionToChatContactSummary(session: Session): ChatContactSessionSum
     assignedAdvisorId: session.assignedAdvisorId ?? null,
     status: session.status,
     agentDisabled: session.agentDisabled,
+    escalatedAt: (session as { escalatedAt?: number | null }).escalatedAt ?? null,
     instanceId: session.instanceId ?? null,
     updatedAt: session.updatedAt ? new Date(session.updatedAt).getTime() : null,
   };
