@@ -9,9 +9,8 @@ import {
   bulkDeleteChatsAction,
   bulkPinChatsAction,
   deleteChatConversationAction,
+  devolverChatAlEscribirAction,
   levantarMarcaDeBorradoAction,
-  purgeDeletedChatsAction,
-  restoreChatConversationAction,
   setChatArchivedAction,
   toggleChatPinAction,
 } from "@/actions/chat-conversation-actions";
@@ -2749,6 +2748,37 @@ export function ChatsClient({
         throw new Error(result.message || "No se pudo enviar el mensaje.");
       }
 
+      // Escribirle a un chat eliminado lo devuelve a la lista.
+      //
+      // Es la otra mitad de la regla -vuelve si hay conversacion nueva-, y sin
+      // ella escribirle a alguien borrado dejaba el chat escondido: el mensaje
+      // salia, el cliente contestaba, y en la bandeja no habia fila. Se quita
+      // de todas sus identidades en la base y tambien aqui, para que la fila
+      // aparezca sin esperar al siguiente refresco.
+      const owner = cuentaDeLaLinea(selectedJid, cacheInstanceName);
+      const llavesDelChat = identidadesDeLaFila(selectedJid).flatMap((candidate) =>
+        chatPreferenceKeys(owner, cacheInstanceName, candidate),
+      );
+      // Basta con que ALGUNA de sus llaves tenga marca: se quitan todas.
+      if (llavesDelChat.some((k) => chatPreferencesRef.current[k]?.deletedAt)) {
+        void devolverChatAlEscribirAction({
+          userId: owner,
+          ...(cacheInstanceName ? { instanceName: cacheInstanceName } : {}),
+          remoteJid: selectedJid,
+          identidades: identidadesDeLaFila(selectedJid),
+        }).catch((e) => console.warn("[chats] no se pudo devolver el chat a la lista", String(e)));
+        setChatPreferences((prev) => {
+          const next = { ...prev };
+          for (const k of llavesDelChat) {
+            const pref = next[k];
+            if (pref?.deletedAt) {
+              next[k] = { ...pref, deletedAt: null, purgedAt: null, isDeleted: false, isPurged: false };
+            }
+          }
+          return next;
+        });
+      }
+
       // 2) Se MANTIENE la burbuja optimista local (id local-) tal cual: el poll/tiempo
       //    real traerá el mensaje real y mergeMessages lo reconcilia (por contenido en
       //    texto; por tipo de media + ventana temporal en imagen/audio/video/doc, que
@@ -2793,6 +2823,8 @@ export function ChatsClient({
       selectedJid,
       sendAnyAction,
       commitCache,
+      cuentaDeLaLinea,
+      identidadesDeLaFila,
     ],
   );
 
@@ -3188,55 +3220,6 @@ export function ChatsClient({
     },
     [applyChatPreference, cuentaDeLaLinea, selectedJid, lineaDelJid, identidadesDeLaFila],
   );
-
-  const handleRestoreChat = useCallback(
-    async (remoteJid: string) => {
-      const ownerUserId = ownerForJid(remoteJid);
-      // Con las identidades de la fila, igual que al borrar: la marca esta bajo
-      // todas y hay que quitarla de todas (#640).
-      const result = await restoreChatConversationAction({
-        userId: ownerUserId,
-        instanceName: lineaDelJid(remoteJid),
-        remoteJid,
-        identidades: identidadesDeLaFila(remoteJid),
-      });
-
-      if (!result.success || !result.data) {
-        toast.error(result.message || "No se pudo restaurar el chat.");
-        return;
-      }
-
-      applyChatPreference(result.data, ownerUserId);
-      toast.success(result.message);
-    },
-    [applyChatPreference, ownerForJid, lineaDelJid, identidadesDeLaFila],
-  );
-
-  // Vaciar la pestana Eliminados: limpia el rastro de cada contacto marcado y
-  // quita la marca, asi que la lista queda en cero. Los chats no vuelven a la
-  // lista principal salvo que el cliente escriba de nuevo desde WhatsApp.
-  const handlePurgeDeleted = useCallback(async () => {
-    const result = await purgeDeletedChatsAction({ userId });
-
-    if (!result.success) {
-      toast.error(result.message || "No se pudieron eliminar por completo los chats.");
-      return;
-    }
-
-    // Las marcas de borrado NO se quitan: son lo unico que mantiene esas
-    // conversaciones fuera de la lista. Solo se dan por purgadas.
-    const ahora = new Date().toISOString();
-    setChatPreferences((prev) => {
-      const next = { ...prev };
-      for (const [jid, pref] of Object.entries(prev)) {
-        if (pref?.deletedAt && !pref.purgedAt) {
-          next[jid] = { ...pref, purgedAt: ahora, isPurged: true };
-        }
-      }
-      return next;
-    });
-    toast.success(result.message);
-  }, [userId]);
 
   const handleBulkArchive = useCallback(
     async (chats: SeleccionDeChat[], archived: boolean) => {
@@ -4462,8 +4445,6 @@ export function ChatsClient({
           onServiceTypeChange={handleServiceTypeChange}
           onClientStatusChange={handleClientStatusChange}
           clientValidationEnabled={clientValidationEnabled}
-          onRestoreChat={handleRestoreChat}
-          onPurgeDeleted={handlePurgeDeleted}
           onSelectRemoteJid={handleSelectFromSidebar}
           onPrefetchRemoteJid={prefetchChat}
           onTogglePin={handleToggleChatPin}

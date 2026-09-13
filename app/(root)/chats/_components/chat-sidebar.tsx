@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Inbox, Trash2, Users, UserX, Check, MessageCircle, PanelLeftClose, RefreshCw } from "lucide-react";
+import { Inbox, Users, UserX, Check, MessageCircle, PanelLeftClose, RefreshCw } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
@@ -63,7 +63,6 @@ function initials(name: string | null, email: string) {
   return src.slice(0, 2).toUpperCase();
 }
 import { ChatContactItem } from "./ChatContactItem";
-import { DeletedContactItem } from "./DeletedContactItem";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
@@ -201,8 +200,6 @@ type ChatSidebarProps = {
   onServiceTypeChange?: (remoteJid: string, value: import("@/types/session").ServiceType | null, sessionId?: number) => void;
   onClientStatusChange?: (remoteJid: string, value: import("@/types/session").ClientStatus | null, sessionId?: number) => void;
   clientValidationEnabled?: boolean;
-  onRestoreChat?: (remoteJid: string) => void | Promise<void>;
-  onPurgeDeleted?: () => void | Promise<void>;
   onSelectRemoteJid?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
   onPrefetchRemoteJid?: (remoteJid: string, instanceName?: string) => void;
   onTogglePin?: (remoteJid: string, isPinned: boolean, instanceName?: string) => void | Promise<void>;
@@ -261,8 +258,6 @@ export function ChatSidebar({
   onServiceTypeChange,
   onClientStatusChange,
   clientValidationEnabled = false,
-  onRestoreChat,
-  onPurgeDeleted,
   onSelectRemoteJid,
   onPrefetchRemoteJid,
   onTogglePin,
@@ -599,7 +594,6 @@ export function ChatSidebar({
     let groups = 0;
     let archived = 0;
     let resolved = 0;
-    let deleted = 0;
     let unread = 0;
     let starred = 0;
     let notes = 0;
@@ -609,12 +603,8 @@ export function ChatSidebar({
     let human = 0;
 
     for (const c of contacts) {
-      if (c.isDeleted) {
-        // Cuenta lo que la pestana ENSEÑA, purgados incluidos. Si no, el numero
-        // dice 0 y la lista trae filas.
-        deleted++;
-        continue;
-      }
+      // Un chat eliminado no esta en ninguna pestana: no se cuenta en ninguna.
+      if (c.isDeleted) continue;
 
       const resuelta = esResuelta(c);
       if (c.isArchived) archived++;
@@ -667,39 +657,13 @@ export function ChatSidebar({
       advisorCounts: { countMap, unassigned },
       tabCounts: {
         all: Math.max(all, totalDeLaLinea ?? 0),
-        mine, dm, groups, archived, resolved, deleted,
+        mine, dm, groups, archived, resolved,
       } satisfies TabCounts,
       filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human },
     };
   }, [contacts, currentAdvisorId, estaDestacado, channelCounts, selectedChannel]);
 
   const { advisorCounts, tabCounts, filterCounts } = conteos;
-
-  const deletedContacts = useMemo(() => {
-    // Los purgados TAMBIEN se listan.
-    //
-    // Se escondian para que la pestana no se volviera un cajon, dando por hecho
-    // que purgar era una accion aparte y posterior. No lo es: borrar un chat
-    // escribe `purgedAt` en el mismo momento que `deletedAt`
-    // (`hardDeleteLocalChat`), asi que TODO lo borrado nacia purgado y esta
-    // pestana salia **vacia siempre**. Con ella vacia no habia forma de
-    // restaurar nada: el chat desaparecia de la lista y no aparecia aqui.
-    //
-    // Purgado dice "ya no queda rastro suyo que limpiar", no "no se puede
-    // recuperar": la marca sigue siendo lo unico que lo esconde, y quitarla es
-    // justo lo que hace el boton de restaurar.
-    let list = contacts.filter((c) => c.isDeleted);
-    if (q.trim()) {
-      const term = q.trim().toLowerCase();
-      list = list.filter(
-        (c) =>
-          c.name.toLowerCase().includes(term) ||
-          c.id.toLowerCase().includes(term) ||
-          c.lastMessage.toLowerCase().includes(term),
-      );
-    }
-    return list.slice().sort((a, b) => b.ts - a.ts);
-  }, [contacts, q]);
 
   const setUnreadCount = useChatUnreadStore((s) => s.setUnreadCount);
   useEffect(() => {
@@ -736,7 +700,6 @@ export function ChatSidebar({
   }, [unreadOnly, filterCounts.unread, setUnreadOnly]);
 
   const filtered = useMemo(() => {
-    if (tab === "deleted") return [];
 
     let list = contacts.filter((c) => !c.isDeleted);
 
@@ -1056,16 +1019,14 @@ export function ChatSidebar({
   const clearSelection = useCallback(() => setSelectedJids(new Set()), []);
 
   const selectAll = useCallback(() => {
-    const visibleIds = (tab === "deleted" ? deletedContacts : filtered).map((c) =>
-      claveDeChat(c.instanceName, c.id),
-    );
+    const visibleIds = filtered.map((c) => claveDeChat(c.instanceName, c.id));
     setSelectedJids((prev) => {
       if (prev.size === visibleIds.length && visibleIds.every((id) => prev.has(id))) {
         return new Set();
       }
       return new Set(visibleIds);
     });
-  }, [tab, filtered, deletedContacts]);
+  }, [filtered]);
 
   /** Lo marcado, cada uno con su línea. Es lo que reciben las acciones en lote. */
   const selectedChats = useMemo(
@@ -1256,9 +1217,7 @@ export function ChatSidebar({
       ? "No hay chats archivados que coincidan con el filtro."
       : tab === "resolved"
         ? "No hay conversaciones resueltas."
-        : tab === "deleted"
-          ? "No hay chats eliminados."
-          : "No hay chats que coincidan con el filtro.";
+        : "No hay chats que coincidan con el filtro.";
 
   return (
     <>
@@ -1400,7 +1359,7 @@ export function ChatSidebar({
           {selectedJids.size > 0 && (
             <BulkActionBar
               count={selectedJids.size}
-              totalCount={tab === "deleted" ? deletedContacts.length : filtered.length}
+              totalCount={filtered.length}
               onClear={clearSelection}
               onSelectAll={selectAll}
               onArchive={handleBulkArchive}
@@ -1422,41 +1381,7 @@ export function ChatSidebar({
           onScroll={handleListScroll}
           className="flex-1 overflow-y-auto p-1"
         >
-          {tab === "deleted" ? (
-            deletedContacts.length > 0 ? (
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between gap-2 px-2 py-1">
-                  <p className="text-xs text-muted-foreground">
-                    {deletedContacts.length} chat{deletedContacts.length !== 1 ? "s" : ""}{" "}
-                    eliminado{deletedContacts.length !== 1 ? "s" : ""}
-                  </p>
-                  {onPurgeDeleted && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const seguro = window.confirm(
-                          `Se va a borrar el rastro de ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSiguen eliminados y fuera de la lista, y siguen aquí por si hay que devolverlos.\n\n¿Continuar?`,
-                        );
-                        if (seguro) void onPurgeDeleted();
-                      }}
-                      className="shrink-0 text-xs font-medium text-destructive hover:underline"
-                    >
-                      Vaciar
-                    </button>
-                  )}
-                </div>
-                {deletedContacts.map((contact) => (
-                  <DeletedContactItem
-                    key={contact.id}
-                    contact={contact}
-                    onRestore={(id) => void onRestoreChat?.(id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <ChatEmptyState Icon={Trash2} message={emptyMessage} />
-            )
-          ) : result.success && filtered.length > 0 ? (
+          {result.success && filtered.length > 0 ? (
             <div className="flex flex-col gap-1">
               {listVirtual.beforeHeight > 0 && (
                 <div aria-hidden="true" style={{ height: listVirtual.beforeHeight }} />
