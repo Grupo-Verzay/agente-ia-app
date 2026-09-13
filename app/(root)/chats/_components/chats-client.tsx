@@ -155,7 +155,7 @@ type ApiKeyData = { url: string; key: string };
  *
  * Si entra otro proveedor propio, va en esta lista.
  */
-const LINEAS_SIN_EVOLUTION = ['baileys', 'waha'];
+const LINEAS_SIN_EVOLUTION = ['waha'];
 
 const hablaConEvolution = (instanceType?: string | null): boolean =>
   !LINEAS_SIN_EVOLUTION.includes((instanceType ?? '').trim().toLowerCase());
@@ -2591,7 +2591,7 @@ export function ChatsClient({
         // el historial local y, SI está vacío, cae al fetch remoto de Evolution en la
         // MISMA llamada. Antes eran DOS server actions en fila (local vacío + remoto),
         // cada una con su latencia de red móvil y su auth → el doble de espera al
-        // abrir por primera vez un chat sin historial. (Baileys/canales lo soportan
+        // abrir por primera vez un chat sin historial. (Los canales lo soportan
         // igual; canales siempre son locales.)
         const openResult = await effectiveWarmMessages(remoteJid, {
           page: 1,

@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getApiKeyById } from "@/actions/api-action";
 import { fetchChatsFromEvolution } from "@/actions/chat-actions";
-import { fetchChatsFromBaileys } from "@/actions/baileys-chat-actions";
 import { isEvolutionRestInstance } from "@/lib/instance-display-name";
 
 export async function getChatUnreadCountAction(): Promise<number> {
@@ -29,24 +28,15 @@ export async function getChatUnreadCountAction(): Promise<number> {
 
     if (!instancias.length || !apiKey) return 0;
 
-    // Solo instancias servibles por Evolution/Baileys. El último fallback ya NO es
+    // Solo instancias servibles por Evolution. El último fallback ya NO es
     // instancias[0]: si el usuario solo tiene Meta/Telegram, no se llama al endpoint
     // de Evolution (daba 404 "Cannot GET /chat/findChats/<meta>"); sus no leídos se
     // resuelven por el store unificado, no aquí.
     const instance = instancias.find((i) => i.instanceType === "Whatsapp")
       ?? instancias.find((i) => i.instanceType == null)
-      ?? instancias.find((i) => i.instanceType === "baileys")
       ?? instancias.find((i) => isEvolutionRestInstance(i.instanceType));
 
     if (!instance) return 0;
-
-    const isBaileys = instance.instanceType === "baileys";
-
-    if (isBaileys) {
-      const result = await fetchChatsFromBaileys(instance.instanceName);
-      if (!result.success || !result.data) return 0;
-      return result.data.filter((c) => (c.unreadCount ?? 0) > 0).length;
-    }
 
     const result = await fetchChatsFromEvolution(
       { url: apiKey.url, key: apiKey.key },

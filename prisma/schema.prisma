@@ -2790,40 +2790,7 @@ model BookingAppointment {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-model BaileysContact {
-  id           String           @id @default(cuid())
-  instanceName String
-  remoteJid    String
-  pushName     String?
-  phoneNumber  String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  messages     BaileysMessage[]
 
-  @@unique([instanceName, remoteJid])
-  @@index([instanceName])
-  @@map("baileys_contacts")
-}
-
-model BaileysMessage {
-  id           String         @id @default(cuid())
-  instanceName String
-  remoteJid    String
-  messageId    String
-  fromMe       Boolean        @default(false)
-  body         String?
-  type         String         @default("conversation")
-  mediaUrl     String?
-  timestamp    DateTime
-  status       String         @default("sent")
-  createdAt    DateTime       @default(now())
-  contact      BaileysContact @relation(fields: [instanceName, remoteJid], references: [instanceName, remoteJid], onDelete: Cascade)
-
-  @@unique([instanceName, messageId])
-  @@index([instanceName, remoteJid, timestamp])
-  @@index([instanceName, timestamp])
-  @@map("baileys_messages")
-}
 
 // ─── MÓDULO FORMULARIOS DINÁMICOS ────────────────────────────────────────────
 

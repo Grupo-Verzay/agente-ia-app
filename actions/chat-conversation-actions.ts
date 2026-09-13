@@ -495,7 +495,7 @@ function deletedPreference(
  * seguimientos, el historico archivado del CRM, el bloqueo antiflood y la
  * copia local de contactos y mensajes de la linea.
  *
- * Las tablas de la linea (baileys) se acotan a las instancias del propio
+ * Las tablas de la linea se acotan a las instancias del propio
  * usuario: la clave de esas tablas es el nombre de instancia, no el usuario,
  * asi que sin ese filtro se estaria borrando el contacto de otra cuenta que
  * hable con el mismo numero.
@@ -537,19 +537,6 @@ async function purgarRastroDelContacto(
       AND "remoteJid" IN (${Prisma.join(candidates)})
   `;
 
-  // baileys_messages cae en cascada con su contacto, pero puede haber filas
-  // sueltas de un contacto que ya no existe.
-  await tx.$executeRaw`
-    DELETE FROM "baileys_messages"
-    WHERE "instanceName" IN (${Prisma.join(nombres)})
-      AND "remoteJid" IN (${Prisma.join(candidates)})
-  `;
-
-  await tx.$executeRaw`
-    DELETE FROM "baileys_contacts"
-    WHERE "instanceName" IN (${Prisma.join(nombres)})
-      AND "remoteJid" IN (${Prisma.join(candidates)})
-  `;
 }
 
 async function hardDeleteLocalChat(

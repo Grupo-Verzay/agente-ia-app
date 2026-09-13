@@ -116,12 +116,12 @@ Acciones sugeridas: [Abrir modulo] [Revisar configuracion]
 Nota de verificacion: modo activo del copiloto: ${mode}.`);
     }
 
-    if (/(whatsapp|conexion|conectar|qr|instancia|baileys|meta)/.test(text)) {
+    if (/(whatsapp|conexion|conectar|qr|instancia|meta)/.test(text)) {
         return createAssistantMessage(`${prefix}Para conectar WhatsApp, entra al modulo de conexiones y crea o revisa tu instancia.
 
 Pasos:
 1) Abre el modulo Conexiones.
-2) Elige el tipo de conexion que vas a usar: WhatsApp QR/Baileys o Meta, segun tu configuracion.
+2) Elige el tipo de conexion que vas a usar: WhatsApp por QR o Meta, segun tu configuracion.
 3) Si es QR, escanea el codigo con el WhatsApp del negocio.
 4) Verifica que la instancia quede activa antes de probar mensajes.
 

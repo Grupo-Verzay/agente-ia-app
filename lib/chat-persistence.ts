@@ -289,7 +289,7 @@ function ensureChatMessagesTable() {
     //
     // - `chatStore.persistMessage` (motor) escribe las dos tablas, seguidas y
     //   sin condicion. Por ahi pasa TODO lo que entra por webhook: Evolution,
-    //   Waha, Baileys y los mensajes de Meta.
+    //   Waha y los mensajes de Meta.
     // - `persistChatMessage` (aqui abajo) hace lo mismo del lado de la App.
     // - El voicebot tenia su propio INSERT que solo tocaba `chat_messages`.
     //   Ese era el unico hueco de verdad, y se cerro pasandolo por
@@ -570,7 +570,7 @@ function inboxRowToChat(row: InboxRow): ChatData {
   }
 
   // Indicador de "pendiente de responder" para canales del store unificado
-  // (Telegram/Meta): 1 si el último mensaje es del cliente. WhatsApp/Baileys
+  // (Telegram/Meta): 1 si el último mensaje es del cliente. WhatsApp
   // conservan su comportamiento (0) para no alterar su flujo de no-leídos.
   const isUnifiedChannel = row.instanceType === 'telegram' || row.instanceType === 'meta';
   const unreadCount = isUnifiedChannel && row.fromMe === false ? 1 : 0;

@@ -13,9 +13,8 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().min(1, "DATABASE_URL es requerido"),
 
-  // Backend (Baileys / Evolution) — requerido en producción
+  // Backend — requerido en producción
   BACKEND_URL: z.string().url("BACKEND_URL debe ser una URL válida").optional(),
-  BAILEYS_SECRET: z.string().min(1).optional(),
 
   // Internal service keys — requeridos en producción
   CRM_FOLLOW_UP_RUNNER_KEY: z.string().min(1, "CRM_FOLLOW_UP_RUNNER_KEY es requerido"),

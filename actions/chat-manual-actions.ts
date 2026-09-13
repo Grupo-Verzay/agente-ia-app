@@ -460,14 +460,14 @@ async function resolverContexto(context: ChatActionContext): Promise<ChatActionC
     const dueno = await resolveInstanceOwner(instanceName);
     if (!dueno?.userId) return context;
 
-    // WhatsApp Mensajeria (waha) y Baileys NO hablan con Evolution. Rellenar
+    // WhatsApp Mensajeria (waha) NO habla con Evolution. Rellenar
     // aqui la clave de Evolution de la cuenta hacia que la lista y los
     // mensajes de esas lineas se pidieran al servidor equivocado, que
     // contesta correcto y VACIO; solo el respaldo de nuestra base lo
     // disimulaba, y tarde. Para ellas el contexto se queda sin clave, que es
     // lo que hace que las acciones genericas tiren de la base.
     const tipo = (dueno.instanceType ?? '').trim().toLowerCase();
-    if (tipo === 'waha' || tipo === 'baileys') {
+    if (tipo === 'waha') {
       cacheDeClavePorLinea.set(instanceName, { valor: null, at: Date.now() });
       return context;
     }
@@ -1196,7 +1196,7 @@ export async function refetchChatsManualAction(
       // eso el desplegable de canales no cuadraba (`[chats] hay chats de lineas
       // que no estan en el filtro de canales`).
       //
-      // Y se cae aqui en cada vuelta del refresco de una linea Waha o Baileys,
+      // Y se cae aqui en cada vuelta del refresco de una linea Waha,
       // que a proposito se quedan sin clave de Evolution (ver `resolverContexto`).
       const laLinea = context?.instanceName?.trim();
 
@@ -1345,7 +1345,7 @@ export async function sendManualChatPayloadAction(
   // encontraba la sesión y el mensaje salía sin firma, sin decir nada. Es el
   // mismo `effectiveOwnerId` que usa el cierre de la conversación más abajo.
   // La firma vive en `lib/firma-del-asesor`, no aqui: hay TRES envios (este,
-  // el de WhatsApp Mensajeria y el de Baileys) y escribirla solo en uno es lo
+  // el de WhatsApp Mensajeria) y escribirla solo en uno es lo
   // que hacia que el interruptor se viera encendido y el mensaje saliera sin
   // firma en las otras lineas.
   if (payload.kind === "text") {

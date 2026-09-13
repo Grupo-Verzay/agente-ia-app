@@ -86,7 +86,6 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
       type === 'whatsapp' ||
       type === 'evolution' ||
       type === 'waha' ||
-      type === 'baileys' ||
       (type === 'meta' && (!metaChannel || metaChannel === 'whatsapp'));
 
     return isWhatsAppLine && sendableInstanceNames.has(i.instanceName);

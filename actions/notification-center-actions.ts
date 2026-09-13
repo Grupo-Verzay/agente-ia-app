@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { getApiKeyById } from "@/actions/api-action";
 import { fetchChatsFromEvolution } from "@/actions/chat-actions";
-import { fetchChatsFromBaileys } from "@/actions/baileys-chat-actions";
 import { isEvolutionRestInstance } from "@/lib/instance-display-name";
 
 export type NotificationKind =
@@ -125,7 +124,7 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    // Chats sin leer: mensajes con unreadCount > 0 en Evolution/Baileys (bajan a 0 al abrir el chat)
+    // Chats sin leer: mensajes con unreadCount > 0 en Evolution (bajan a 0 al abrir el chat)
     let unreadChats: {
       remoteJid: string;
       pushName?: string | null;
@@ -133,24 +132,23 @@ export async function getNotificationCenterData(): Promise<{
       lastMessage?: { key?: { id?: string | null } | null } | null;
     }[] = [];
     if (instances.length > 0 && owner?.apiKeyId) {
-      // Solo instancias servibles por Evolution/Baileys. El último fallback ya NO
+      // Solo instancias servibles por Evolution. El último fallback ya NO
       // es instances[0]: si solo hay Meta/Telegram, no se llama al endpoint de
       // Evolution (daba 404 "Cannot GET /chat/findChats/<meta>"); esos chats se
       // leen del store unificado, no de aquí.
       const instance =
         instances.find((i) => i.instanceType === "Whatsapp") ??
         instances.find((i) => i.instanceType == null) ??
-        instances.find((i) => i.instanceType === "baileys") ??
         instances.find((i) => isEvolutionRestInstance(i.instanceType));
 
       if (instance) {
         const resApikey = await getApiKeyById(owner.apiKeyId);
         const apiKey = resApikey.success && resApikey.data ? resApikey.data : null;
         if (apiKey) {
-          const isBaileys = instance.instanceType === "baileys";
-          const chatsResult = isBaileys
-            ? await fetchChatsFromBaileys(instance.instanceName)
-            : await fetchChatsFromEvolution({ url: apiKey.url, key: apiKey.key }, instance.instanceName);
+          const chatsResult = await fetchChatsFromEvolution(
+            { url: apiKey.url, key: apiKey.key },
+            instance.instanceName,
+          );
 
           if (chatsResult.success && chatsResult.data) {
             // Solo mensajes REALMENTE sin leer (unreadCount > 0). Al abrir el chat
