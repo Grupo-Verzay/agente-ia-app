@@ -1234,6 +1234,43 @@ export async function deleteChatConversationAction(
  *
  * Solo UPDATE, nunca crea filas: lo que no existe no tiene marca que levantar.
  */
+/**
+ * Quita la marca de borrado de un contacto: de TODAS sus identidades y de sus
+ * DOS llaves -la de su linea y la antigua sin linea, que la pantalla lee de
+ * respaldo-. Devuelve cuantas filas se destaparon.
+ *
+ * Solo UPDATE: lo que no existe no tiene marca que quitar.
+ */
+async function quitarMarcaDeBorrado(
+  userId: string,
+  instanceName: string | null | undefined,
+  remoteJid: string,
+  identidadesDeLaFila: string[] = [],
+): Promise<number> {
+  await ensurePurgedAtColumn();
+  const linea = normalizarLinea(instanceName);
+  const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
+  const identidades = (
+    await identidadesDelContacto(userId, linea, normalizedRemoteJid, identidadesDeLaFila)
+  ).map(normalizePreferenceRemoteJid);
+
+  const { count } = await chatConversationPreferenceTable.updateMany({
+    where: {
+      userId,
+      remoteJid: { in: identidades },
+      ...(linea ? { instanceName: { in: [linea, ""] } } : {}),
+      deletedAt: { not: null },
+    },
+    data: { deletedAt: null, purgedAt: null },
+  });
+
+  if (count > 0) {
+    invalidatePersistedInboxCache();
+    revalidatePath("/chats");
+  }
+  return count;
+}
+
 export async function levantarMarcaDeBorradoAction(
   input: z.infer<typeof baseSchema>,
 ): Promise<ChatPreferenceResponse<{ levantadas: number }>> {
@@ -1244,30 +1281,65 @@ export async function levantarMarcaDeBorradoAction(
 
     const linea = normalizarLinea(parsed.instanceName);
     const normalizedRemoteJid = normalizePreferenceRemoteJid(parsed.remoteJid);
-    const identidades = buildWhatsAppJidCandidates(normalizedRemoteJid, parsed.identidades ?? []).map(
-      normalizePreferenceRemoteJid,
-    );
+    const identidades = (
+      await identidadesDelContacto(parsed.userId, linea, normalizedRemoteJid, parsed.identidades ?? [])
+    ).map(normalizePreferenceRemoteJid);
 
-    const { count } = await chatConversationPreferenceTable.updateMany({
+    // Cuando se borro por ultima vez. Si se borro otra vez despues de que el
+    // contacto escribiera, manda el borrado nuevo: se compara con el mas
+    // reciente de sus filas.
+    const marcadas = await chatConversationPreferenceTable.findMany({
       where: {
         userId: parsed.userId,
         remoteJid: { in: identidades },
-        // La suya y la antigua sin linea, que es la que se lee de respaldo.
-        instanceName: linea ? { in: [linea, ""] } : undefined,
+        ...(linea ? { instanceName: { in: [linea, ""] } } : {}),
         deletedAt: { not: null },
       },
-      data: { deletedAt: null, purgedAt: null },
+      select: { deletedAt: true },
+      orderBy: { deletedAt: "desc" },
+      take: 1,
     });
+    const borradoEl = marcadas[0]?.deletedAt;
+    if (!borradoEl) {
+      return { success: true, message: "No habia marca que levantar.", data: { levantadas: 0 } };
+    }
+
+    // Quien decide es la BASE, no la pantalla: hace falta un mensaje DEL
+    // CONTACTO posterior al borrado. Lo que pone la pantalla son las
+    // identidades -que es lo que el servidor no sabe cruzar solo- y el aviso de
+    // que ahi hubo movimiento.
+    const escribioElContacto = await db.chatMessage.findFirst({
+      where: {
+        userId: parsed.userId,
+        ...(linea ? { instanceName: linea } : {}),
+        fromMe: false,
+        messageTimestamp: { gt: borradoEl },
+        OR: [
+          { remoteJid: { in: identidades } },
+          { remoteJidAlt: { in: identidades } },
+          { senderPn: { in: identidades } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!escribioElContacto) {
+      return { success: true, message: "El contacto no ha escrito.", data: { levantadas: 0 } };
+    }
+
+    const count = await quitarMarcaDeBorrado(
+      parsed.userId,
+      parsed.instanceName,
+      parsed.remoteJid,
+      identidades,
+    );
 
     if (count > 0) {
       console.warn("[chats] marca de borrado levantada en la base: el contacto escribio", {
         linea: linea || "*",
-        pedidoComo: normalizedRemoteJid,
-        identidades: identidades.length,
+        pedidoComo: parsed.remoteJid,
+        borradoEl: borradoEl.toISOString(),
         filas: count,
       });
-      invalidatePersistedInboxCache();
-      revalidatePath("/chats");
     }
 
     return { success: true, message: "Marca de borrado levantada.", data: { levantadas: count } };
@@ -1411,6 +1483,17 @@ export async function restoreChatConversationAction(
   try {
     const parsed = baseSchema.parse(input);
     await assertAuthorized(parsed.userId);
+
+    // Bajo TODAS sus identidades, como se marco. Se quitaba solo bajo la que se
+    // pidio, asi que un chat borrado por su `@lid` y restaurado por su numero
+    // -o al reves- seguia escondido por la otra: se pulsaba Restaurar, la fila
+    // desaparecia de Eliminados y no volvia a la lista.
+    await quitarMarcaDeBorrado(
+      parsed.userId,
+      parsed.instanceName,
+      parsed.remoteJid,
+      parsed.identidades ?? [],
+    );
 
     const data = await upsertPreference(parsed.userId, parsed.instanceName, parsed.remoteJid, {
       deletedAt: null,
