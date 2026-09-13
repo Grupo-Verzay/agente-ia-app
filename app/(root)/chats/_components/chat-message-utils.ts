@@ -692,9 +692,24 @@ function contextInfoConCita(m: EvolutionMessage): Record<string, any> | undefine
   return undefined;
 }
 
+/**
+ * El id de WhatsApp pelado, sin el envoltorio de Waha.
+ *
+ * Waha nombra sus mensajes `true_573001112233@c.us_3EB0ABC`: quien escribio,
+ * el chat y, al final, el id de WhatsApp de verdad. La cita, en cambio, viaja
+ * con el id PELADO (`3EB0ABC`), asi que comparar las dos cadenas tal cual no
+ * casaba nunca: la cita no encontraba su mensaje aunque estuviera ahi al lado,
+ * y salia con el nombre del contacto en una respuesta propia -y sin forma de
+ * saltar a ella-.
+ */
+function idCrudoDeMensaje(id: string): string {
+  const waha = /^(?:true|false)_[^_]+_(.+)$/.exec(id);
+  return waha ? waha[1] : id;
+}
+
 function citaDelMensaje(
   m: EvolutionMessage,
-  porId: Map<string, { content: string; fromMe: boolean; mediaType?: string; author?: string }>,
+  porId: Map<string, { id: string; content: string; fromMe: boolean; mediaType?: string; author?: string }>,
 ): UIBubble['quotedMessage'] | undefined {
   const ctx = contextInfoConCita(m);
   if (!ctx) return undefined;
@@ -702,10 +717,12 @@ function citaDelMensaje(
   const id = ctx.stanzaId || ctx.quotedMessageId || ctx.quotedStanzaId;
   if (!id || typeof id !== 'string') return undefined;
 
-  const cargado = porId.get(id);
+  const cargado = porId.get(id) ?? porId.get(idCrudoDeMensaje(id));
   if (cargado) {
     return {
-      id,
+      // El id de la BURBUJA, no el de la cita: es con el que se la busca en la
+      // pantalla para saltar a ella.
+      id: cargado.id,
       content: cargado.content,
       sender: cargado.fromMe ? 'user' : 'other',
       ...(cargado.mediaType ? { mediaType: cargado.mediaType } : {}),
@@ -967,16 +984,22 @@ export function toUIMessages(
   // sabía pintarla —el bloque existe en `MessageBubble`— pero nunca le llegaba,
   // así que respondías citando, en WhatsApp se veía la cita y en el panel la
   // respuesta salía suelta, sin decir a qué contestaba.
-  const porId = new Map<string, { content: string; fromMe: boolean; mediaType?: string; author?: string }>();
+  const porId = new Map<string, { id: string; content: string; fromMe: boolean; mediaType?: string; author?: string }>();
   for (const b of result) {
-    porId.set(b.id, {
+    const ficha = {
+      id: b.id,
       content: b.content,
       fromMe: b.sender === 'user',
       ...(b.media?.type ? { mediaType: b.media.type } : {}),
       // En un grupo escriben varios: quién lo dijo forma parte de la cita. En
       // un chat de uno a uno no hace falta, que es el de la cabecera.
       ...(b.groupSenderName ? { author: b.groupSenderName } : {}),
-    });
+    };
+    porId.set(b.id, ficha);
+    // Y bajo su id pelado, que es con el que viene la cita en las lineas de
+    // Waha. Sin pisar una entrada que ya exista con ese nombre.
+    const crudo = idCrudoDeMensaje(b.id);
+    if (crudo !== b.id && !porId.has(crudo)) porId.set(crudo, ficha);
   }
   // Por id, no por posicion: la lista de burbujas es la de mensajes FILTRADA
   // -los sobres internos y los eliminados no pintan-, asi que los indices no se

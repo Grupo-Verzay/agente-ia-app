@@ -91,6 +91,8 @@ interface MessageBubbleProps {
   /** Nombre del contacto: el de la cabecera. Lo usan la llamada y la cita. */
   contactName?: string;
   quotedMessage?: UIBubble['quotedMessage'];
+  /** Llevar a la conversacion hasta el mensaje que cita esta burbuja. */
+  onJumpToQuoted?: (messageId: string) => void;
   adPreview?: UIBubble['adPreview'];
   onReply?: () => void;
   onCopy?: () => void;
@@ -117,6 +119,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   callPhone,
   contactName,
   quotedMessage,
+  onJumpToQuoted,
   adPreview,
   onReply,
   onCopy,
@@ -397,8 +400,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
         {quotedMessage && (
-          <div className={cn(
-            'mb-1.5 px-2 py-1.5 rounded-lg border-l-4 text-xs cursor-default',
+          // Pulsable, como en WhatsApp: lleva al mensaje que se cito. Es un
+          // `button` y no un `div` con `onClick` para que se pueda llegar con
+          // el teclado y se lea como lo que es.
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onJumpToQuoted?.(quotedMessage.id);
+            }}
+            title="Ir al mensaje citado"
+            className={cn(
+            'mb-1.5 px-2 py-1.5 rounded-lg border-l-4 text-xs block w-full text-left transition-opacity',
+            onJumpToQuoted ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
             isUserMessage
               ? 'border-white/60 bg-white/15 text-white/90'
               : 'border-gray-300 dark:border-gray-500 bg-gray-50 dark:bg-white/10 text-gray-700 dark:text-gray-300',
@@ -417,7 +431,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <span className="block truncate max-w-[220px]">
               {quotedMessage.mediaType ? `[${quotedMessage.mediaType}]${quotedMessage.content ? ` ${quotedMessage.content}` : ''}` : quotedMessage.content}
             </span>
-          </div>
+          </button>
         )}
         {media && <MediaRenderer media={media} />}
         {message && (

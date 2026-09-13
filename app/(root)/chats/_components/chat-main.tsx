@@ -520,6 +520,41 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     activeElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [activeSearchMessageId]);
 
+  /**
+   * Pulsar una cita lleva al mensaje que cita, como en WhatsApp.
+   *
+   * Dos pasos, y el orden importa: primero se marca el mensaje -eso apaga la
+   * virtualizacion de la lista, asi que la burbuja existe en la pantalla aunque
+   * estuviera muy arriba- y en el siguiente fotograma se va a ella. Buscarla
+   * antes de montarla no encuentra nada.
+   *
+   * Si no aparece es que ese mensaje todavia no esta cargado -la conversacion
+   * carga por tramos-, y eso SE DICE: un toque que no hace nada se lee como que
+   * la App esta rota.
+   */
+  const [mensajeSaltado, setMensajeSaltado] = useState<string | null>(null);
+  const irAlMensajeCitado = useCallback((messageId: string) => {
+    if (!messageId) return;
+    setMensajeSaltado(messageId);
+    requestAnimationFrame(() => {
+      const destino = listRef.current?.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`);
+      if (!destino) {
+        setMensajeSaltado(null);
+        toast.info('Ese mensaje todavía no está cargado. Usa «Cargar mensajes anteriores».');
+        return;
+      }
+      destino.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }, []);
+
+  // El resaltado es un parpadeo, no un estado: se apaga solo y con el vuelve la
+  // virtualizacion.
+  useEffect(() => {
+    if (!mensajeSaltado) return;
+    const t = setTimeout(() => setMensajeSaltado(null), 2500);
+    return () => clearTimeout(t);
+  }, [mensajeSaltado]);
+
   const handleToggleSearch = useCallback(() => {
     setSearchOpen((current) => {
       const next = !current;
@@ -1235,6 +1270,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         loadingOlderMessages={loadingOlderMessages}
         searchMatchIds={searchMatchIds}
         activeSearchMessageId={activeSearchMessageId}
+        mensajeSaltado={mensajeSaltado}
+        onJumpToMessage={irAlMensajeCitado}
         callPhone={(displayedWhatsapp || '').replace(/\D/g, '')}
         contactName={displayedContactName}
       />
