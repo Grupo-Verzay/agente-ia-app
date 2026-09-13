@@ -1207,6 +1207,80 @@ export async function deleteChatConversationAction(
 }
 
 /**
+ * Levanta la marca de borrado de un chat porque el contacto volvio a escribir.
+ *
+ * La regla -un chat borrado vuelve si el cliente escribe- se aplicaba en dos
+ * sitios y ninguno bastaba solo:
+ *
+ * - En el navegador, en memoria. Se veia bien... hasta recargar: nadie se lo
+ *   decia a la base, asi que la marca seguia ahi y el chat volvia a esconderse.
+ * - En el servidor, `levantarMarcasSiElContactoEscribio`, que busca en
+ *   `chat_messages` un mensaje del contacto posterior a la marca. Eso solo
+ *   encuentra la fila cuando la identidad de la marca aparece TAL CUAL en una
+ *   de las tres columnas del mensaje. Si el chat se borro por su `@lid` y los
+ *   mensajes se guardan bajo el numero -o al reves, o bajo otra cuenta de las
+ *   asociadas, o con otro nombre de linea-, esa marca no se cruza con nada y
+ *   se queda puesta para siempre. Desde fuera: el contacto escribe, contestas,
+ *   y el chat desaparece de la lista otra vez; vuelve un momento cada vez que
+ *   le escribes y se esconde al siguiente refresco.
+ *
+ * Esto cierra el circulo: quien YA sabe que el contacto escribio es la
+ * pantalla -tiene la fila, su ultimo mensaje y TODAS sus identidades-, asi que
+ * lo dice y aqui se quita la marca de todas ellas.
+ *
+ * Se quita tambien la fila ANTIGUA, la que no lleva linea: la pantalla la lee
+ * cuando no hay ninguna de su linea (`elegirPreferenciaDelChat`), asi que
+ * dejarla con la marca puesta seguiria escondiendo el chat.
+ *
+ * Solo UPDATE, nunca crea filas: lo que no existe no tiene marca que levantar.
+ */
+export async function levantarMarcaDeBorradoAction(
+  input: z.infer<typeof baseSchema>,
+): Promise<ChatPreferenceResponse<{ levantadas: number }>> {
+  try {
+    const parsed = baseSchema.parse(input);
+    await assertAuthorized(parsed.userId);
+    await ensurePurgedAtColumn();
+
+    const linea = normalizarLinea(parsed.instanceName);
+    const normalizedRemoteJid = normalizePreferenceRemoteJid(parsed.remoteJid);
+    const identidades = buildWhatsAppJidCandidates(normalizedRemoteJid, parsed.identidades ?? []).map(
+      normalizePreferenceRemoteJid,
+    );
+
+    const { count } = await chatConversationPreferenceTable.updateMany({
+      where: {
+        userId: parsed.userId,
+        remoteJid: { in: identidades },
+        // La suya y la antigua sin linea, que es la que se lee de respaldo.
+        instanceName: linea ? { in: [linea, ""] } : undefined,
+        deletedAt: { not: null },
+      },
+      data: { deletedAt: null, purgedAt: null },
+    });
+
+    if (count > 0) {
+      console.warn("[chats] marca de borrado levantada en la base: el contacto escribio", {
+        linea: linea || "*",
+        pedidoComo: normalizedRemoteJid,
+        identidades: identidades.length,
+        filas: count,
+      });
+      invalidatePersistedInboxCache();
+      revalidatePath("/chats");
+    }
+
+    return { success: true, message: "Marca de borrado levantada.", data: { levantadas: count } };
+  } catch (error) {
+    console.error("[levantarMarcaDeBorradoAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo levantar la marca de borrado.",
+    };
+  }
+}
+
+/**
  * Vacia la pestana Eliminados: limpia el rastro que quede de cada contacto
  * marcado y los da por purgados, para que la lista quede en cero.
  *

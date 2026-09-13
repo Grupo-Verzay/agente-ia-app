@@ -9,6 +9,7 @@ import {
   bulkDeleteChatsAction,
   bulkPinChatsAction,
   deleteChatConversationAction,
+  levantarMarcaDeBorradoAction,
   purgeDeletedChatsAction,
   restoreChatConversationAction,
   setChatArchivedAction,
@@ -1340,6 +1341,13 @@ export function ChatsClient({
   useEffect(() => {
     if (!currentChatsResult.success) return;
     const levantadas: string[] = [];
+    // Y se le dice al SERVIDOR, que es lo que faltaba: levantarla solo en
+    // memoria se veia bien hasta recargar, y entonces el chat volvia a
+    // esconderse. El servidor lo intenta por su cuenta
+    // (`levantarMarcasSiElContactoEscribio`), pero solo acierta cuando la
+    // identidad de la marca aparece tal cual en `chat_messages`; quien las
+    // tiene TODAS es esta pantalla.
+    const paraElServidor: { userId: string; instanceName?: string; remoteJid: string; identidades: string[] }[] = [];
     for (const chat of currentChatsResult.data) {
       const owner = ownerForChat(chat);
       const preference = getPreferenceForChat(chat, chatPreferences, owner, repartidasEntreLineas);
@@ -1348,11 +1356,33 @@ export function ChatsClient({
       if (!ultimo || ultimo.key?.fromMe === true) continue;
       const borradoMs = new Date(preference.deletedAt).getTime();
       if (!(epochToMs(ultimo.messageTimestamp) > borradoMs)) continue;
-      for (const candidate of getChatIdentityCandidates(chat)) {
+      const identidades = getChatIdentityCandidates(chat);
+      let teniaMarca = false;
+      for (const candidate of identidades) {
         for (const k of chatPreferenceKeys(owner, chat.instanceName, candidate)) {
-          if (chatPreferences[k]?.deletedAt) levantadas.push(k);
+          if (chatPreferences[k]?.deletedAt) {
+            levantadas.push(k);
+            teniaMarca = true;
+          }
         }
       }
+      if (teniaMarca && owner) {
+        paraElServidor.push({
+          userId: owner,
+          ...(chat.instanceName ? { instanceName: chat.instanceName } : {}),
+          remoteJid: chat.remoteJid,
+          identidades,
+        });
+      }
+    }
+    for (const chat of paraElServidor) {
+      void levantarMarcaDeBorradoAction(chat)
+        .then((r) => {
+          if (!r.success) console.warn("[chats] no se pudo levantar la marca en la base", r.message);
+        })
+        // Un fallo aqui no puede ser mudo: se ve como un chat que se esconde
+        // solo cada vez que se recarga, que es lo peor de diagnosticar.
+        .catch((e) => console.warn("[chats] no se pudo levantar la marca en la base", String(e)));
     }
     if (!levantadas.length) return;
     console.warn("[chats] marca de borrado levantada: el contacto escribio despues de borrarlo", {
