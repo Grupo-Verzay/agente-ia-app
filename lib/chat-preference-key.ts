@@ -45,16 +45,43 @@ type MarcaConFechas = {
   archivedAt?: string | Date | null;
   deletedAt?: string | Date | null;
   purgedAt?: string | Date | null;
+  /** Cuándo se escribió esta fila. Es lo que de verdad dice cuál es la última. */
+  updatedAt?: string | Date | null;
 };
 
-/** Cuándo se tocó por última vez esta fila. Sin ninguna fecha, nunca. */
+function enMs(valor: string | Date | null | undefined): number {
+  if (!valor) return 0;
+  const ms = valor instanceof Date ? valor.getTime() : new Date(valor).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * Cuándo se tocó por última vez esta fila.
+ *
+ * Manda `updatedAt`, que es cuándo se ESCRIBIÓ. Antes se sacaba de las fechas
+ * que la fila lleva dentro —anclado, archivado, borrado— y eso tiene un agujero
+ * que costó una tarde: **una fila limpia no tiene ninguna, así que valía cero y
+ * perdía siempre**.
+ *
+ * El caso real: un contacto con marca de borrado bajo sus cuatro identidades.
+ * El contacto vuelve a escribir y la marca se levanta... en las filas que se
+ * pudieron cruzar con `chat_messages` (su número y su forma canónica), no en la
+ * del `@lid`. Las levantadas quedaban sin fecha alguna y la del `@lid`, con su
+ * `deletedAt` de hace días, seguía ganando: el chat seguía escondido aunque la
+ * conversación estuviera viva ese mismo día.
+ *
+ * Con `updatedAt` gana la que se acaba de tocar, que es lo que la regla decía
+ * desde el principio. Las fechas de dentro se quedan como respaldo para las
+ * filas que llegan sin `updatedAt`.
+ */
 function cuandoSeToco(marca: MarcaConFechas | undefined): number {
   if (!marca) return -1;
+  const escrita = enMs(marca.updatedAt);
+  if (escrita) return escrita;
   let ultima = 0;
   for (const valor of [marca.pinnedAt, marca.archivedAt, marca.deletedAt, marca.purgedAt]) {
-    if (!valor) continue;
-    const ms = valor instanceof Date ? valor.getTime() : new Date(valor).getTime();
-    if (Number.isFinite(ms) && ms > ultima) ultima = ms;
+    const ms = enMs(valor);
+    if (ms > ultima) ultima = ms;
   }
   return ultima;
 }

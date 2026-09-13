@@ -7,6 +7,9 @@ export type ChatConversationPreference = {
   archivedAt: string | null;
   deletedAt: string | null;
   purgedAt: string | null;
+  // Cuando se escribio esta fila. Es lo que decide cual manda cuando un mismo
+  // contacto tiene marcas bajo varias identidades (ver `elegirPreferenciaDelChat`).
+  updatedAt: string | null;
   isPinned: boolean;
   isArchived: boolean;
   isDeleted: boolean;
