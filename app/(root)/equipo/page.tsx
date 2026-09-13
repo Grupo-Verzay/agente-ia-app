@@ -41,7 +41,7 @@ export default async function EquipoPage() {
       initialAutoAssign={
         autoAssignSettings?.success && autoAssignSettings.data
           ? autoAssignSettings.data
-          : { autoAssignEnabled: false, autoAssignMaxChats: 5, autoReleaseMinutes: 0 }
+          : { autoAssignEnabled: false, autoAssignMaxChats: 5 }
       }
       teamMetrics={teamMetrics?.success && teamMetrics.data ? teamMetrics.data : null}
     />
