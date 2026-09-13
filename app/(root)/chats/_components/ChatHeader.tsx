@@ -3,7 +3,7 @@
 import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
+import { ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import { SessionTagsCombobox } from '../../tags/components/SessionTagsCombobox';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { reopenSession, resolveSession } from '@/actions/advisor-assign-actions';
 import { addSessionParticipantAction } from '@/actions/collab-actions';
+import { devolverChatALaIaAction } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
@@ -209,9 +210,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const canResolve = puedeCerrarOAbrir && !estaResuelta;
   const canReopen = puedeCerrarOAbrir && estaResuelta;
   const canLiberate = isMySession;
+  // «Devolver a la IA» solo se ofrece cuando hay algo que devolver: la IA esta
+  // apagada en ESTA conversacion. Lo hace quien manda en ella.
+  const iaPausada = Boolean(session?.agentDisabled);
+  const canReturnToAi = !!session && iaPausada && (isOwnerLike || isMySession);
   const canTake = !assignedAdvisorId;
   const otherAdvisors = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
-  const showLifecycleButton = session && (canResolve || canReopen || canLiberate || canTake);
+  const showLifecycleButton = session && (canResolve || canReopen || canLiberate || canTake || canReturnToAi);
 
   const handleResolve = async () => {
     if (!session?.id || resolving) return;
@@ -275,6 +280,24 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   const handleLiberate = async () => {
     await onAssignAdvisor?.(null);
+  };
+
+  /**
+   * Devolver la conversacion a la IA: la enciende y suelta al asesor.
+   *
+   * Las dos cosas juntas a proposito. Solo encenderla deja el chat en la
+   * pestaña «Mias» de alguien que ya no lo atiende; solo soltarlo deja al
+   * cliente escribiendo sin que le conteste nadie.
+   */
+  const handleReturnToAi = async () => {
+    if (!session?.id || resolving) return;
+    setResolving(true);
+    const res = await devolverChatALaIaAction(session.id);
+    setResolving(false);
+    if (!res.success) { toast.error(res.message ?? 'No se pudo devolver a la IA.'); return; }
+    toast.success('Conversación devuelta a la IA.');
+    onSessionMutate();
+    await onSessionRefresh();
   };
 
   const [callOpen, setCallOpen] = useState(false);
@@ -447,7 +470,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </DropdownMenuSub>
         )}
 
-        {(canLiberate || puedeAgregarParticipante) && (canLiberate || canResolve || canReopen) && (
+        {(canLiberate || puedeAgregarParticipante) && (canLiberate || canResolve || canReopen || canReturnToAi) && (
           <div className="my-1 border-t border-border/50" />
         )}
 
@@ -459,6 +482,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           >
             <LogOut className="h-3.5 w-3.5 shrink-0" />
             Liberar conversación
+          </DropdownMenuItem>
+        )}
+        {canReturnToAi && (
+          <DropdownMenuItem
+            onSelect={() => void handleReturnToAi()}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <Bot className="h-3.5 w-3.5 shrink-0" />
+            Devolver a la IA
           </DropdownMenuItem>
         )}
         {canResolve && (
