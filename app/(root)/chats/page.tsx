@@ -27,13 +27,6 @@ import {
 } from "@/actions/chat-manual-actions";
 import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
 import {
-  fetchChatsFromBaileys,
-  findMessagesFromBaileys,
-  sendBaileysTextAction,
-  sendBaileysWorkflowAction,
-  sendBaileysQuickReplyAction,
-} from "@/actions/baileys-chat-actions";
-import {
   fetchChannelChats,
   warmChannelMessages,
   sendChannelTextAction,
@@ -64,7 +57,6 @@ function pickWhatsappOrNull(arr: Instancia[]) {
   return (
     arr.find((instance) => instance.instanceType === "Whatsapp") ??
     arr.find((instance) => instance.instanceType == null) ??
-    arr.find((instance) => instance.instanceType === "baileys") ??
     arr.find((instance) => instance.instanceType === "meta" && (instance.metaChannel ?? "whatsapp") === "whatsapp") ??
     // WhatsApp Mensajeria (Waha). Sin esto la linea no se puede elegir y sus
     // conversaciones no tienen donde abrirse.
@@ -92,10 +84,6 @@ async function settle<T>(promise: Promise<T>): Promise<T | null> {
   }
 }
 
-// Cache corto del estado del runtime Baileys por instancia. El chequeo hace un
-// fetch al backend en CADA carga de Chats (page es force-dynamic); sin cache ni
-// timeout, un backend lento colgaba toda la carga de la bandeja. Un TTL corto es
-// seguro: solo decide la ruta de fetch (Baileys vs Evolution), ambas válidas.
 /**
  * Lo máximo que la pantalla espera a Evolution antes de dibujarse.
  *
@@ -105,42 +93,6 @@ async function settle<T>(promise: Promise<T>): Promise<T | null> {
  * en blanco: lo que no llegue a tiempo lo trae el refresco del cliente.
  */
 const ESPERA_EVOLUTION_RENDER_MS = 4_000;
-
-const BAILEYS_RUNTIME_TTL_MS = 20_000;
-const BAILEYS_RUNTIME_TIMEOUT_MS = 2_000;
-const baileysRuntimeStatusCache = new Map<string, { open: boolean; at: number }>();
-
-async function isBaileysRuntimeOpen(instanceName: string) {
-  const baseUrl = process.env.BACKEND_URL?.replace(/\/+$/, "");
-  const secret = process.env.BAILEYS_SECRET || process.env.CRM_FOLLOW_UP_RUNNER_KEY || "";
-  if (!baseUrl || !secret || !instanceName) return false;
-
-  const cached = baileysRuntimeStatusCache.get(instanceName);
-  if (cached && Date.now() - cached.at < BAILEYS_RUNTIME_TTL_MS) return cached.open;
-
-  // Timeout duro: un backend caído/lento no debe bloquear el render de Chats.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), BAILEYS_RUNTIME_TIMEOUT_MS);
-  try {
-    const res = await fetch(
-      `${baseUrl}/whatsapp/baileys/status/${encodeURIComponent(instanceName)}`,
-      { headers: { "x-internal-secret": secret }, cache: "no-store", signal: controller.signal },
-    );
-    if (!res.ok) return false;
-
-    const json = await res.json().catch(() => null);
-    const status = String(json?.status ?? json?.state ?? json?.connection ?? "").toLowerCase();
-    const open = Boolean(json?.connected) || status === "open" || status === "connected";
-    baileysRuntimeStatusCache.set(instanceName, { open, at: Date.now() });
-    return open;
-  } catch {
-    // No cacheamos el fallo: puede ser un timeout puntual y no queremos fijar
-    // "cerrado" durante 20s; el próximo load reintenta.
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 function settleValue<T>(value: T | null | undefined): T | null {
   return value ?? null;
@@ -359,32 +311,7 @@ export default async function ChatsPage({
     const claveId = instancia.userId ? claveIdPorCuenta.get(instancia.userId) : null;
     return claveId ? clavesPorId.get(claveId) ?? null : null;
   };
-  const baileysRuntimeNames = new Set(
-    instancias.filter((inst) => inst.instanceType === "baileys").map((inst) => inst.instanceName),
-  );
-  const baileysRuntimeChecks = await Promise.allSettled(
-    instancias
-      .filter(
-        (inst) =>
-          inst.instanceType !== "baileys" &&
-          inst.instanceType !== "meta" &&
-          inst.instanceType !== "telegram" &&
-          inst.instanceType !== "waha",
-      )
-      .map(async (inst) => ({
-        instanceName: inst.instanceName,
-        open: await isBaileysRuntimeOpen(inst.instanceName),
-      })),
-  );
   const __tRuntime = performance.now();
-
-  for (const check of baileysRuntimeChecks) {
-    if (check.status === "fulfilled" && check.value.open) {
-      baileysRuntimeNames.add(check.value.instanceName);
-    }
-  }
-  const isBaileysRuntimeInstance = (inst: Pick<Instancia, "instanceName" | "instanceType">) =>
-    inst.instanceType === "baileys" || baileysRuntimeNames.has(inst.instanceName);
 
   // UserIds de todas las cuentas cuyas sesiones debe ver el usuario actual
   const allSessionUserIds = [
@@ -454,7 +381,6 @@ export default async function ChatsPage({
     .filter(
       (inst) =>
         inst.instanceType === "Whatsapp" ||
-        inst.instanceType === "baileys" ||
         // WhatsApp Mensajeria (Waha). Sin esto no se le arma juego de acciones y la
         // conversacion se abre contra la linea de Evolution: la fila sale en la
         // lista —eso viene de nuestra base— y los mensajes no.
@@ -462,15 +388,7 @@ export default async function ChatsPage({
         inst.instanceType == null,
     )
     .map((inst) =>
-      isBaileysRuntimeInstance(inst)
-        ? {
-            instanceName: inst.instanceName,
-            instanceType: inst.instanceType,
-            status: "unknown",
-            label: "Baileys",
-            message: "Estado local listo.",
-          }
-        : (inst.instanceType ?? "").trim().toLowerCase() === "waha"
+      (inst.instanceType ?? "").trim().toLowerCase() === "waha"
           ? {
               // WhatsApp Mensajeria no tiene clave de Evolution; con la rama de
               // abajo salia "Sin API / No hay API Key configurada", que es falso.
@@ -492,24 +410,22 @@ export default async function ChatsPage({
   );
 
   // Fase 2: fetch chats de TODAS las instancias de mensajeria en paralelo
-  type FetchPlan = { instancia: Instancia; isBaileys: boolean; isWaha: boolean };
+  type FetchPlan = { instancia: Instancia; isWaha: boolean };
   const esWaha = (inst: Pick<Instancia, "instanceType">) =>
     (inst.instanceType ?? "").trim().toLowerCase() === "waha";
   const fetchPlans: FetchPlan[] = instancias
     .filter(
       (inst) =>
         inst.instanceType === "Whatsapp" ||
-        inst.instanceType === "baileys" ||
         // WhatsApp Mensajeria (Waha). Sin esto no se le arma juego de acciones y la
         // conversacion se abre contra la linea de Evolution: la fila sale en la
         // lista —eso viene de nuestra base— y los mensajes no.
         inst.instanceType === "waha" ||
         inst.instanceType == null,
     )
-    .filter((inst) => isBaileysRuntimeInstance(inst) || esWaha(inst) || !!claveDeLaLinea(inst))
+    .filter((inst) => esWaha(inst) || !!claveDeLaLinea(inst))
     .map((inst) => ({
       instancia: inst,
-      isBaileys: isBaileysRuntimeInstance(inst),
       isWaha: esWaha(inst),
     }));
 
@@ -581,7 +497,6 @@ export default async function ChatsPage({
         instancias.filter(
           (i) =>
             i.instanceType === "Whatsapp" ||
-            i.instanceType === "baileys" ||
             i.instanceType == null,
         ).length === 0
           ? "No se encontro una instancia WhatsApp valida."
@@ -604,9 +519,7 @@ export default async function ChatsPage({
     // cuanto Evolution vuelva, sin que nadie tenga que recargar.
     const allFetchResults = await Promise.allSettled(
       fetchPlans.map((plan) =>
-        plan.isBaileys
-          ? fetchChatsFromBaileys(plan.instancia.instanceName)
-          : fetchChatsFromEvolution(claveDeLaLinea(plan.instancia)!, plan.instancia.instanceName, {
+        fetchChatsFromEvolution(claveDeLaLinea(plan.instancia)!, plan.instancia.instanceName, {
               timeoutMs: ESPERA_EVOLUTION_RENDER_MS,
             }),
       ),
@@ -643,7 +556,6 @@ export default async function ChatsPage({
 
     instanceActionSets = fetchPlans.map((plan) => {
       const inst = plan.instancia;
-      const isBaileysInst = plan.isBaileys;
       // Si aqui no se resuelve la clave, se manda IGUAL el nombre de la linea:
       // el servidor sabe de que cuenta es y puede buscarla el (resolverContexto
       // en chat-manual-actions). Antes se mandaba null y se perdia tambien la
@@ -654,40 +566,28 @@ export default async function ChatsPage({
       // al recibirlos y salen de nuestra base. Pasarle una clave de Evolution
       // hace que se pidan al servidor equivocado, que contesta correcto y
       // VACIO. Con `apiKeyData: null` la accion generica tira de la base.
-      const instActionCtx = isBaileysInst
-        ? null
-        : {
-            apiKeyData: plan.isWaha
-              ? null
-              : claveInst
-                ? { url: claveInst.url, key: claveInst.key }
-                : null,
-            instanceName: inst.instanceName,
-          };
+      const instActionCtx = {
+        apiKeyData: plan.isWaha
+          ? null
+          : claveInst
+            ? { url: claveInst.url, key: claveInst.key }
+            : null,
+        instanceName: inst.instanceName,
+      };
       return {
         instanceName: inst.instanceName,
         instanceType: inst.instanceType ?? undefined,
-        warmMessages: isBaileysInst
-          ? findMessagesFromBaileys.bind(null, inst.instanceName)
-          : warmChatMessagesAction.bind(null, instActionCtx),
-        sendText: isBaileysInst
-          ? sendBaileysTextAction.bind(null, inst.instanceName)
-          : plan.isWaha
+        warmMessages: warmChatMessagesAction.bind(null, instActionCtx),
+        sendText: plan.isWaha
             ? sendWahaTextAction.bind(null, inst.instanceName)
             : sendManualChatPayloadAction.bind(null, instActionCtx),
-        sendWorkflow: isBaileysInst
-          ? sendBaileysWorkflowAction.bind(null, inst.instanceName)
-          : plan.isWaha
+        sendWorkflow: plan.isWaha
             ? sendWahaWorkflowAction.bind(null, inst.instanceName)
             : sendManualWorkflowAction.bind(null, instActionCtx),
-        sendQuickReply: isBaileysInst
-          ? sendBaileysQuickReplyAction.bind(null, inst.instanceName)
-          : plan.isWaha
+        sendQuickReply: plan.isWaha
             ? sendWahaQuickReplyAction.bind(null, inst.instanceName)
             : sendManualQuickReplyAction.bind(null, instActionCtx),
-        refetchChats: isBaileysInst
-          ? fetchChatsFromBaileys.bind(null, inst.instanceName)
-          : refetchChatsManualAction.bind(null, instActionCtx),
+        refetchChats: refetchChatsManualAction.bind(null, instActionCtx),
       } satisfies InstanceActionSet;
     });
   }
@@ -695,7 +595,6 @@ export default async function ChatsPage({
   if (instanceActionSets.length === 0 && fetchPlans.length > 0) {
     instanceActionSets = fetchPlans.map((plan) => {
       const inst = plan.instancia;
-      const isBaileysInst = plan.isBaileys;
       // Si aqui no se resuelve la clave, se manda IGUAL el nombre de la linea:
       // el servidor sabe de que cuenta es y puede buscarla el (resolverContexto
       // en chat-manual-actions). Antes se mandaba null y se perdia tambien la
@@ -706,40 +605,28 @@ export default async function ChatsPage({
       // al recibirlos y salen de nuestra base. Pasarle una clave de Evolution
       // hace que se pidan al servidor equivocado, que contesta correcto y
       // VACIO. Con `apiKeyData: null` la accion generica tira de la base.
-      const instActionCtx = isBaileysInst
-        ? null
-        : {
-            apiKeyData: plan.isWaha
-              ? null
-              : claveInst
-                ? { url: claveInst.url, key: claveInst.key }
-                : null,
-            instanceName: inst.instanceName,
-          };
+      const instActionCtx = {
+        apiKeyData: plan.isWaha
+          ? null
+          : claveInst
+            ? { url: claveInst.url, key: claveInst.key }
+            : null,
+        instanceName: inst.instanceName,
+      };
       return {
         instanceName: inst.instanceName,
         instanceType: inst.instanceType ?? undefined,
-        warmMessages: isBaileysInst
-          ? findMessagesFromBaileys.bind(null, inst.instanceName)
-          : warmChatMessagesAction.bind(null, instActionCtx),
-        sendText: isBaileysInst
-          ? sendBaileysTextAction.bind(null, inst.instanceName)
-          : plan.isWaha
+        warmMessages: warmChatMessagesAction.bind(null, instActionCtx),
+        sendText: plan.isWaha
             ? sendWahaTextAction.bind(null, inst.instanceName)
             : sendManualChatPayloadAction.bind(null, instActionCtx),
-        sendWorkflow: isBaileysInst
-          ? sendBaileysWorkflowAction.bind(null, inst.instanceName)
-          : plan.isWaha
+        sendWorkflow: plan.isWaha
             ? sendWahaWorkflowAction.bind(null, inst.instanceName)
             : sendManualWorkflowAction.bind(null, instActionCtx),
-        sendQuickReply: isBaileysInst
-          ? sendBaileysQuickReplyAction.bind(null, inst.instanceName)
-          : plan.isWaha
+        sendQuickReply: plan.isWaha
             ? sendWahaQuickReplyAction.bind(null, inst.instanceName)
             : sendManualQuickReplyAction.bind(null, instActionCtx),
-        refetchChats: isBaileysInst
-          ? fetchChatsFromBaileys.bind(null, inst.instanceName)
-          : refetchChatsManualAction.bind(null, instActionCtx),
+        refetchChats: refetchChatsManualAction.bind(null, instActionCtx),
       } satisfies InstanceActionSet;
     });
   }
@@ -760,7 +647,6 @@ export default async function ChatsPage({
   const lineasEvolutionSinPlan = instancias.filter(
     (inst) =>
       (inst.instanceType === "Whatsapp" || inst.instanceType == null) &&
-      !isBaileysRuntimeInstance(inst) &&
       !instanceActionSets.some((set) => set.instanceName === inst.instanceName),
   );
   for (const inst of lineasEvolutionSinPlan) {
@@ -777,7 +663,7 @@ export default async function ChatsPage({
   }
 
   // Canales que viven en el store unificado (Telegram, Meta). Se agregan SIEMPRE,
-  // independientemente de fetchPlans (que solo cubre Evolution/Baileys), para que
+  // independientemente de fetchPlans (que solo cubre Evolution y Waha), para que
   // sus conversaciones se puedan abrir y responder desde la misma bandeja.
   const channelInstances = instancias.filter(
     (inst) => inst.instanceType === "meta" || inst.instanceType === "telegram",
@@ -794,8 +680,6 @@ export default async function ChatsPage({
       refetchChats: fetchChannelChats.bind(null, inst.instanceName),
     } satisfies InstanceActionSet);
   }
-
-  const isBaileys = whatsappInstancia ? isBaileysRuntimeInstance(whatsappInstancia) : false;
 
   const requestedJid = searchParams?.jid
     ? normalizeWhatsAppConversationJid(searchParams.jid) || searchParams.jid
@@ -844,7 +728,7 @@ export default async function ChatsPage({
   // para no cambiar nada en el caso de siempre (un dueño con su unica linea).
   const claveActiva = whatsappInstancia ? claveDeLaLinea(whatsappInstancia) ?? apiKey : apiKey;
   const actionContext =
-    whatsappInstancia && !isBaileys
+    whatsappInstancia
       ? {
           // Igual que arriba: sin clave se manda la linea a secas y el servidor
           // la resuelve.
@@ -853,27 +737,15 @@ export default async function ChatsPage({
         }
       : null;
 
-  const instanceNameForActions = whatsappInstancia?.instanceName ?? '';
+  const warmMessagesAction = warmChatMessagesAction.bind(null, actionContext);
 
-  const warmMessagesAction = isBaileys
-    ? findMessagesFromBaileys.bind(null, instanceNameForActions)
-    : warmChatMessagesAction.bind(null, actionContext);
+  const refetchChatsAction = refetchChatsManualAction.bind(null, actionContext);
 
-  const refetchChatsAction = isBaileys
-    ? fetchChatsFromBaileys.bind(null, instanceNameForActions)
-    : refetchChatsManualAction.bind(null, actionContext);
+  const sendAnyAction = sendManualChatPayloadAction.bind(null, actionContext);
 
-  const sendAnyAction = isBaileys
-    ? sendBaileysTextAction.bind(null, instanceNameForActions)
-    : sendManualChatPayloadAction.bind(null, actionContext);
+  const sendWorkflowAction = sendManualWorkflowAction.bind(null, actionContext);
 
-  const sendWorkflowAction = isBaileys
-    ? sendBaileysWorkflowAction.bind(null, instanceNameForActions)
-    : sendManualWorkflowAction.bind(null, actionContext);
-
-  const sendQuickReplyAction = isBaileys
-    ? sendBaileysQuickReplyAction.bind(null, instanceNameForActions)
-    : sendManualQuickReplyAction.bind(null, actionContext);
+  const sendQuickReplyAction = sendManualQuickReplyAction.bind(null, actionContext);
   const assignAdvisorAction = assignSessionToAdvisor;
   const takeSessionAction = takeSession;
   const releaseSessionAction = releaseSession;

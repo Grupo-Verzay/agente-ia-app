@@ -400,7 +400,7 @@ export async function getLinkedAccountsInstances(
           // pasaba a ese proveedor DESAPARECÍA de la bandeja y del selector de
           // canales, como si se hubiera borrado. Con Evolution se veía; al
           // cambiar de proveedor, no. La línea es la misma.
-          { instanceType: { in: ["Whatsapp", "baileys", "waha"] } },
+          { instanceType: { in: ["Whatsapp", "waha"] } },
           { instanceType: "meta", metaChannel: "whatsapp" },
         ],
       },
@@ -454,7 +454,7 @@ export async function getMasterAccountInstances(
           // pasaba a ese proveedor DESAPARECÍA de la bandeja y del selector de
           // canales, como si se hubiera borrado. Con Evolution se veía; al
           // cambiar de proveedor, no. La línea es la misma.
-          { instanceType: { in: ["Whatsapp", "baileys", "waha"] } },
+          { instanceType: { in: ["Whatsapp", "waha"] } },
           { instanceType: "meta", metaChannel: "whatsapp" },
         ],
       },

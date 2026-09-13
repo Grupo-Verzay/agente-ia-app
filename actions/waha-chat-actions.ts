@@ -19,7 +19,7 @@ import { sendManualWorkflowAction } from '@/actions/chat-manual-actions';
  *
  * LEER no pasa por aqui: los mensajes los guarda el backend al recibirlos por
  * webhook y `warmChatMessagesAction` con `apiKeyData: null` los saca de nuestra
- * base. Es el mismo trato que Baileys.
+ * base.
  *
  * ESCRIBIR va contra el servidor Waha configurado en Panel > Conexion
  * (`lib/waha.ts`), en este orden y no en otro:

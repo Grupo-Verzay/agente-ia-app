@@ -67,7 +67,7 @@ async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: s
  * (Telegram, Meta: WhatsApp Cloud / Facebook / Instagram).
  *
  * Lectura: tablas chat_messages / chat_conversations (persistidas por el backend).
- * Envío manual: endpoint genérico /whatsapp/baileys/send-channel (WhatsAppSenderFactory).
+ * Envío manual: endpoint genérico /whatsapp/channels/send-channel (WhatsAppSenderFactory).
  */
 
 export async function fetchChannelChats(instanceName: string): Promise<FetchChatsResult> {
@@ -168,7 +168,7 @@ export async function sendChannelTextAction(
 
     if (payload.kind === 'media') {
       const res = await fetch(
-        `${backendUrl()}/whatsapp/baileys/send-media-channel/${encodeURIComponent(instanceName)}`,
+        `${backendUrl()}/whatsapp/channels/send-media-channel/${encodeURIComponent(instanceName)}`,
         {
           method: 'POST',
           headers: authHeaders(),
@@ -213,7 +213,7 @@ export async function sendChannelTextAction(
     if (!text) return { success: false, message: 'Mensaje vacío.', remoteJid };
 
     const res = await fetch(
-      `${backendUrl()}/whatsapp/baileys/send-channel/${encodeURIComponent(instanceName)}`,
+      `${backendUrl()}/whatsapp/channels/send-channel/${encodeURIComponent(instanceName)}`,
       {
         method: 'POST',
         headers: authHeaders(),
@@ -266,7 +266,7 @@ export async function listMetaTemplates(
 ): Promise<{ success: boolean; templates: MetaTemplateOption[] }> {
   try {
     const res = await fetch(
-      `${backendUrl()}/whatsapp/baileys/meta-templates/${encodeURIComponent(instanceName)}`,
+      `${backendUrl()}/whatsapp/channels/meta-templates/${encodeURIComponent(instanceName)}`,
       { headers: authHeaders(), cache: 'no-store' },
     );
     if (!res.ok) return { success: false, templates: [] };
@@ -291,7 +291,7 @@ export async function sendMetaTemplate(
 ): Promise<SendMessageResult> {
   try {
     const res = await fetch(
-      `${backendUrl()}/whatsapp/baileys/send-template/${encodeURIComponent(instanceName)}`,
+      `${backendUrl()}/whatsapp/channels/send-template/${encodeURIComponent(instanceName)}`,
       {
         method: 'POST',
         headers: authHeaders(),

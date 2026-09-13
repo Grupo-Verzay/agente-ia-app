@@ -7,7 +7,7 @@ import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
  *
  * Vive aquí y no en el envío de un proveedor porque **hay tres envíos**:
  * Evolution (`sendManualChatPayloadAction`), WhatsApp Mensajería
- * (`sendWahaTextAction`) y Baileys (`sendBaileysTextAction`). La firma estaba
+ * (`sendWahaTextAction`). La firma estaba
  * escrita SOLO dentro del de Evolution, y ese ni siquiera arranca sin sus
  * credenciales: para una línea de Waha la función entera se salía en su primera
  * línea, así que el interruptor de la firma se veía encendido y el mensaje salía

@@ -334,7 +334,7 @@ export async function sendTrialTestMessage(
     // medias). Decir "enviado" en ese caso manda a buscar el fallo al lugar
     // equivocado, así que se avisa en vez de dar un OK que no está comprobado.
     const messageId = (result as { messageId?: string }).messageId
-    if (dispatcher.provider !== 'baileys' && dispatcher.provider !== 'meta' && !messageId) {
+    if (dispatcher.provider !== 'meta' && !messageId) {
       return {
         success: false,
         message: `${dispatcher.instanceName} aceptó el envío pero WhatsApp no devolvió identificador: el mensaje no salió. Revisa la conexión de esa línea o prueba con otra.`,

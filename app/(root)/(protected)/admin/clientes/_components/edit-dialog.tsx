@@ -79,9 +79,6 @@ export const EditDialog = ({
   const waInstance = (user.instancias ?? []).find(
     (i) => i.instanceType !== 'Instagram' && i.instanceType !== 'Facebook'
   );
-  const [connectionType, setConnectionType] = useState<'baileys' | 'Whatsapp'>(
-    waInstance?.instanceType === 'baileys' ? 'baileys' : 'Whatsapp'
-  );
   const [applyingType, setApplyingType] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan>(user.plan as Plan);
 
@@ -434,19 +431,9 @@ export const EditDialog = ({
               {/* Canal WhatsApp */}
               <div className="flex flex-col gap-2 pb-3 mb-1 border-b">
                 <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
+                {/* El selector Evolution/Baileys se fue con Baileys: ya no
+                    hay entre que elegir, solo dejar la linea lista. */}
                 <div className="flex items-center gap-2">
-                  <Select
-                    value={connectionType}
-                    onValueChange={(v) => setConnectionType(v as 'baileys' | 'Whatsapp')}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Whatsapp">Evolution API</SelectItem>
-                      <SelectItem value="baileys">Baileys</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <Button
                     type="button"
                     variant="outline"
@@ -454,7 +441,7 @@ export const EditDialog = ({
                     disabled={applyingType}
                     onClick={async () => {
                       setApplyingType(true);
-                      const res = await setUserConnectionType(user.id, connectionType, user.company ?? undefined);
+                      const res = await setUserConnectionType(user.id, user.company ?? undefined);
                       setApplyingType(false);
                       if (res.success) toast.success(res.message);
                       else toast.error(res.message);

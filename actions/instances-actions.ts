@@ -37,167 +37,6 @@ export async function checkInstanceNameExists(instanceName: string): Promise<boo
   }
 }
 
-export type SwitchAdapterResult = { success: boolean; message: string };
-
-export async function switchInstanceAdapter(
-  instanceName: string,
-  targetType: 'baileys' | 'Whatsapp',
-): Promise<SwitchAdapterResult> {
-  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
-
-  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
-  const secret = process.env.BAILEYS_SECRET;
-
-  try {
-    if (targetType === 'baileys') {
-      await db.instancia.updateMany({
-        where: { instanceName },
-        data: { instanceType: 'baileys' },
-      });
-
-      if (backendUrl && secret) {
-        await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(instanceName)}`, {
-          method: 'POST',
-          headers: { 'x-internal-secret': secret },
-          cache: 'no-store',
-        }).catch(() => {});
-      }
-    } else {
-      if (backendUrl && secret) {
-        await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(instanceName)}`, {
-          method: 'DELETE',
-          headers: { 'x-internal-secret': secret },
-          cache: 'no-store',
-        }).catch(() => {});
-      }
-
-      await db.instancia.updateMany({
-        where: { instanceName },
-        data: { instanceType: 'Whatsapp' },
-      });
-    }
-
-    revalidatePath('/connection');
-    return { success: true, message: `Adaptador cambiado a ${targetType === 'baileys' ? 'Baileys' : 'Evolution API'}.` };
-  } catch (error: any) {
-    console.error('[switchInstanceAdapter]', error);
-    return { success: false, message: 'Error al cambiar el adaptador.' };
-  }
-}
-
-export async function stopBaileysSession(
-  instanceName: string,
-): Promise<{ success: boolean; message: string }> {
-  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
-
-  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
-  const secret = process.env.BAILEYS_SECRET;
-
-  if (!backendUrl || !secret) return { success: false, message: 'Backend no configurado.' };
-
-  try {
-    await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(instanceName)}`, {
-      method: 'DELETE',
-      headers: { 'x-internal-secret': secret },
-      cache: 'no-store',
-    });
-    return { success: true, message: 'Sesión detenida.' };
-  } catch {
-    return { success: false, message: 'Error al detener la sesión.' };
-  }
-}
-
-export async function createBaileysInstance(
-  instanceName: string,
-  userId: string,
-): Promise<{ success: boolean; message: string }> {
-  if (!instanceName || !userId) return { success: false, message: 'Datos requeridos.' };
-
-  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
-  const secret = process.env.BAILEYS_SECRET;
-
-  if (!backendUrl || !secret) return { success: false, message: 'Backend no configurado.' };
-
-  try {
-    // 1. Crear registro en BD
-    await db.instancia.create({
-      data: {
-        instanceName,
-        displayName: cleanInstanceDisplayName(instanceName),
-        instanceType: 'baileys',
-        userId,
-        instanceId: `baileys-${instanceName}`,
-      },
-    });
-
-    // 2. Iniciar sesión Baileys en el backend
-    await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(instanceName)}`, {
-      method: 'POST',
-      headers: { 'x-internal-secret': secret },
-      cache: 'no-store',
-    }).catch(() => {});
-
-    revalidatePath('/connection');
-    return { success: true, message: 'Instancia Baileys creada. Escanea el QR para conectar.' };
-  } catch (error: any) {
-    console.error('[createBaileysInstance]', error);
-    return { success: false, message: error?.message ?? 'Error al crear la instancia.' };
-  }
-}
-
-export async function deleteBaileysInstance(
-  instanceName: string,
-): Promise<{ success: boolean; message: string }> {
-  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
-
-  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
-  const secret = process.env.BAILEYS_SECRET;
-
-  try {
-    // 1. Detener sesión Baileys en el backend (ignorar errores si ya está detenida)
-    if (backendUrl && secret) {
-      await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(instanceName)}`, {
-        method: 'DELETE',
-        headers: { 'x-internal-secret': secret },
-        cache: 'no-store',
-      }).catch(() => {});
-    }
-
-    // 2. Eliminar contactos (cascade elimina mensajes también)
-    await db.baileysContact.deleteMany({ where: { instanceName } });
-
-    // 3. Eliminar el registro de Instancia
-    await db.instancia.deleteMany({ where: { instanceName } });
-
-    revalidatePath('/connection');
-    return { success: true, message: 'Instancia eliminada correctamente.' };
-  } catch (error) {
-    console.error('[deleteBaileysInstance]', error);
-    return { success: false, message: 'Error al eliminar la instancia.' };
-  }
-}
-
-export async function startBaileysSession(
-  instanceName: string,
-): Promise<{ success: boolean; message: string }> {
-  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
-
-  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
-  const secret = process.env.BAILEYS_SECRET;
-
-  if (!backendUrl || !secret) return { success: false, message: 'Backend no configurado.' };
-
-  try {
-    await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(instanceName)}`, {
-      method: 'POST',
-      headers: { 'x-internal-secret': secret },
-      cache: 'no-store',
-    });
-    return { success: true, message: 'Sesión iniciada.' };
-  } catch {
-    return { success: false, message: 'Error al iniciar la sesión.' };
-  }
-}
 
 export async function getInstancesByUserId(userId: string): Promise<InstanceResponse<Instancia[]>> {
   const validation = getInstancesSchema.safeParse({ userId });
@@ -233,15 +72,18 @@ export async function getInstancesByUserId(userId: string): Promise<InstanceResp
   }
 }
 
+/**
+ * Deja la cuenta con su linea de WhatsApp por QR, creandola si no la tiene.
+ *
+ * Antes recibia `targetType` y servia para alternar entre Evolution y Baileys.
+ * Retirado Baileys solo queda un destino, asi que el parametro sobraba: un
+ * argumento con un unico valor posible es una decision que ya no existe.
+ */
 export async function setUserConnectionType(
   userId: string,
-  targetType: 'baileys' | 'Whatsapp',
   companyName?: string,
 ): Promise<{ success: boolean; message: string }> {
   if (!userId) return { success: false, message: 'userId requerido.' };
-
-  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
-  const secret = process.env.BAILEYS_SECRET;
 
   try {
     const existing = await db.instancia.findFirst({
@@ -252,26 +94,12 @@ export async function setUserConnectionType(
     });
 
     if (existing) {
-      if (targetType === 'baileys') {
-        await db.instancia.update({ where: { id: existing.id }, data: { instanceType: 'baileys' } });
-        if (backendUrl && secret) {
-          await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(existing.instanceName)}`, {
-            method: 'POST', headers: { 'x-internal-secret': secret }, cache: 'no-store',
-          }).catch(() => {});
-        }
-      } else {
-        if (existing.instanceType === 'baileys' && backendUrl && secret) {
-          await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(existing.instanceName)}`, {
-            method: 'DELETE', headers: { 'x-internal-secret': secret }, cache: 'no-store',
-          }).catch(() => {});
-        }
-        await db.instancia.update({ where: { id: existing.id }, data: { instanceType: 'Whatsapp' } });
-      }
+      await db.instancia.update({ where: { id: existing.id }, data: { instanceType: 'Whatsapp' } });
     } else {
       // Sin instancia → crear una nueva
       const base = (companyName ?? userId)
         .toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]/g, '_')
         .replace(/_+/g, '_')
         .slice(0, 20)
@@ -281,22 +109,18 @@ export async function setUserConnectionType(
       await db.instancia.create({
         data: {
           instanceName,
-          instanceType: targetType,
+          instanceType: 'Whatsapp',
           userId,
-          instanceId: `${targetType === 'baileys' ? 'baileys' : 'evo'}-${instanceName}`,
+          instanceId: `evo-${instanceName}`,
         },
       });
-
-      if (targetType === 'baileys' && backendUrl && secret) {
-        await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(instanceName)}`, {
-          method: 'POST', headers: { 'x-internal-secret': secret }, cache: 'no-store',
-        }).catch(() => {});
-      }
     }
 
     revalidatePath('/connection');
-    const label = targetType === 'baileys' ? 'Baileys' : 'Evolution API';
-    return { success: true, message: `Canal configurado como ${label}. El cliente puede conectar desde su página de Conexión.` };
+    return {
+      success: true,
+      message: 'Canal configurado. El cliente puede conectar desde su página de Conexión.',
+    };
   } catch (err) {
     console.error('[setUserConnectionType]', err);
     return { success: false, message: 'Error al configurar el canal.' };

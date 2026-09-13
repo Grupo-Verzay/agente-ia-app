@@ -241,7 +241,7 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         let reseller: User | null = null;
         let credits: IaCredit | null = null;
 
-        // Solo las líneas que se comprueban contra Evolution. Baileys mantiene la
+        // Solo las líneas que se comprueban contra Evolution. Waha mantiene la
         // sesión dentro del backend y Meta/Telegram no son QR: preguntarle a
         // Evolution por ellas devuelve "no existe", que aquí se leería como línea
         // caída. Lo que no se puede comprobar no se marca en rojo.
@@ -256,7 +256,7 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         // sin tener siquiera instancia. Y es justo a quien hay que escribirle,
         // porque no ha terminado de configurarse.
         //
-        // Los que sí tienen línea pero de otro canal (Baileys, Meta, Telegram) se
+        // Los que sí tienen línea pero de otro canal (Waha, Meta, Telegram) se
         // quedan fuera de la cuenta: no son QR y no se pueden comprobar desde
         // aquí, así que ni verde ni rojo — no inventamos un estado.
         const tieneOtroCanal = user.instancias.length > lineasEvolution.length;

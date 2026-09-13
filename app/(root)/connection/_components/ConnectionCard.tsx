@@ -41,7 +41,7 @@ interface ConnectionCardProps {
     checkNameAvailable?: (name: string) => Promise<boolean>
 }
 
-type WhatsAppAdapter = 'Whatsapp' | 'baileys'
+type WhatsAppAdapter = 'Whatsapp'
 
 interface SocialIconSelectorProps {
     instanceType: string

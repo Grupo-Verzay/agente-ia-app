@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { ClientInstanceCard, ConnectionCard } from './';
 import { ConnectionMainInterface, FormInstanceConnectionValues, sanitizeInstanceName } from '@/schema/connection';
 import { PromptInstance } from '@prisma/client';
-import { checkInstanceNameExists, createBaileysInstance } from '@/actions/instances-actions';
+import { checkInstanceNameExists } from '@/actions/instances-actions';
 import { getInstanceDisplayName } from '@/lib/instance-display-name';
 
 export const ConnectionMain = ({
@@ -65,19 +65,13 @@ export const ConnectionMain = ({
     }
 
     try {
-      if (data.instanceType === 'baileys') {
-        const result = await createBaileysInstance(data.instanceName, user.id);
-        if (result.success) toast.success(result.message);
-        else toast.error(result.message);
-      } else {
-        const formData = new FormData();
-        formData.append('instanceName', data.instanceName);
-        formData.append('instanceType', data.instanceType);
-        formData.append('userId', user.id);
-        const result = await createInstance(formData);
-        if (result.success) toast.success(result.message);
-        else toast.error(result.message);
-      }
+      const formData = new FormData();
+      formData.append('instanceName', data.instanceName);
+      formData.append('instanceType', data.instanceType);
+      formData.append('userId', user.id);
+      const result = await createInstance(formData);
+      if (result.success) toast.success(result.message);
+      else toast.error(result.message);
     } catch (error) {
       console.error('[ConnectionMain]', error);
       toast.error('Hubo un error al procesar la solicitud.');
@@ -97,15 +91,11 @@ export const ConnectionMain = ({
     (async () => {
       setLoading(true);
       try {
-        if (instanceType === 'baileys') {
-          await createBaileysInstance(derivedInstanceName, user.id);
-        } else {
-          const formData = new FormData();
-          formData.append('instanceName', derivedInstanceName);
-          formData.append('instanceType', instanceType);
-          formData.append('userId', user.id);
-          await createInstance(formData);
-        }
+        const formData = new FormData();
+        formData.append('instanceName', derivedInstanceName);
+        formData.append('instanceType', instanceType);
+        formData.append('userId', user.id);
+        await createInstance(formData);
       } catch {
         // autoCreate failures are silent — user can click the button manually
       } finally {

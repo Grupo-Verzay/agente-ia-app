@@ -50,9 +50,6 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
     const waInstance = (user.instancias ?? []).find(
         (i: any) => i.instanceType !== 'Instagram' && i.instanceType !== 'Facebook'
     )
-    const [connectionType, setConnectionType] = useState<'baileys' | 'Whatsapp'>(
-        waInstance?.instanceType === 'baileys' ? 'baileys' : 'Whatsapp'
-    )
 
     const handleUserDashboard = () => {
         if (!user.email || !user.password) {
@@ -74,7 +71,7 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
 
     const handleApplyCanal = async () => {
         setApplyingCanal(true)
-        const res = await setUserConnectionType(user.id, connectionType, user.company ?? undefined)
+        const res = await setUserConnectionType(user.id, user.company ?? undefined)
         setApplyingCanal(false)
         if (res.success) {
             toast.success(res.message)
@@ -156,19 +153,8 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                     </DialogHeader>
                     <div className="flex flex-col gap-4 py-2">
                         <div className="flex flex-col gap-2">
-                            <Label>Tipo de canal</Label>
-                            <Select
-                                value={connectionType}
-                                onValueChange={(v) => setConnectionType(v as 'baileys' | 'Whatsapp')}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Whatsapp">Evolution API</SelectItem>
-                                    <SelectItem value="baileys">Baileys</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            {/* El selector Evolution/Baileys se fue con Baileys:
+                                ya no hay entre que elegir, solo confirmar. */}
                             {waInstance && (
                                 <p className="text-xs text-muted-foreground">
                                     Instancia actual: {waInstance.instanceName} ({waInstance.instanceType})

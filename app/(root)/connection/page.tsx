@@ -7,7 +7,6 @@ import { getApiKeyById } from "@/actions/api-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 import { ConnectionMain } from "./_components";
 import { CallLinkCard } from "./_components/CallLinkCard";
-import { BaileysInstanceCard } from "./_components/BaileysInstanceCard";
 import { MetaInstanceCard } from "./_components/MetaInstanceCard";
 import { MetaInstanceCreator } from "./_components/MetaInstanceCreator";
 import { FacebookInstanceCreator } from "./_components/FacebookInstanceCreator";
@@ -32,7 +31,7 @@ function hasPrompts(result: { data?: PromptInstance[] | null }): result is { dat
 
 // 🔹 Normaliza el tipo (null/undefined -> "Desconocido")
 const normalizeType = (t?: string | null): string => {
-    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys", "meta", "telegram", "waha"];
+    const valid = ["Whatsapp", "Instagram", "Facebook", "meta", "telegram", "waha"];
     if (!t) return "Desconocido";
     const normalized = t.trim();
     return valid.includes(normalized) ? normalized : "Desconocido";
@@ -66,12 +65,10 @@ const Connection = async () => {
         Whatsapp: { prompts: [] },
         Instagram: { prompts: [] },
         Facebook: { prompts: [] },
-        baileys: { prompts: [] },
         Desconocido: { prompts: [] },
     };
 
-    // Instancias Baileys y Meta (puede haber varias de cada tipo)
-    const baileysInstances: Instancia[] = [];
+    // Instancias de Meta (puede haber varias de cada tipo)
     const metaWhatsappInstances: Instancia[] = [];
     const metaFacebookInstances: Instancia[] = [];
     const metaInstagramInstances: Instancia[] = [];
@@ -81,10 +78,6 @@ const Connection = async () => {
     // Asignar instancias sin interferir entre tipos
     instancias.forEach(instancia => {
         const type = normalizeType(instancia.instanceType);
-        if (type === 'baileys') {
-            baileysInstances.push(instancia);
-            return;
-        }
         if (type === 'telegram') {
             telegramInstances.push(instancia);
             return;
@@ -178,9 +171,6 @@ const Connection = async () => {
                     />
                 )}
             <CallLinkCard />
-            {baileysInstances.map((inst) => (
-                <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
-            ))}
             {metaWhatsappInstances.map((inst) => (
                 <MetaInstanceCard
                     key={inst.instanceName}

@@ -125,7 +125,7 @@ export async function sendMissedOutgoingCallReply(
     // Instancia de la cuenta (cualquier canal de WhatsApp).
     const inst =
       (await db.instancia.findFirst({
-        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution', 'baileys', 'meta'] } },
+        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution', 'meta'] } },
         select: { instanceName: true, instanceType: true },
       })) ??
       (await db.instancia.findFirst({ where: { userId }, select: { instanceName: true, instanceType: true } }));
@@ -135,9 +135,9 @@ export async function sendMissedOutgoingCallReply(
     const remoteJid = `${digits}@s.whatsapp.net`;
     const channel = (inst?.instanceType ?? '').toLowerCase();
 
-    // Canales oficiales/unificados (Meta Cloud API, Baileys): se envía por el
-    // backend, que respeta la ventana de 24h de Meta y persiste en el panel.
-    if (channel === 'meta' || channel === 'baileys') {
+    // Canales oficiales/unificados (Meta Cloud API): se envía por el backend,
+    // que respeta la ventana de 24h de Meta y persiste en el panel.
+    if (channel === 'meta') {
       const res = await sendChannelTextAction(instanceName, remoteJid, { kind: 'text', text });
       return { sent: !!res?.success, message: res?.success ? undefined : res?.message };
     }

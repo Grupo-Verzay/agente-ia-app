@@ -391,11 +391,11 @@ export async function logOutgoingCallAction(
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { id: null };
     // Instancia para asociar la llamada. NO exigir 'Whatsapp' exacto: muchas
-    // cuentas usan otros tipos (evolution/baileys/meta) o varios canales. Si no
+    // cuentas usan otros tipos (evolution/meta) o varios canales. Si no
     // hay ninguna, se usa un nombre por defecto para NO perder el registro.
     const inst =
       (await db.instancia.findFirst({
-        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution', 'baileys'] } },
+        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution'] } },
         select: { instanceName: true },
       })) ??
       (await db.instancia.findFirst({ where: { userId }, select: { instanceName: true } }));

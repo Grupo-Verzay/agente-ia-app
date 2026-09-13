@@ -8,7 +8,6 @@ import {
   sendManualQuickReplyAction,
   sendManualWorkflowAction,
 } from "@/actions/chat-manual-actions";
-import { sendBaileysTextAction } from "@/actions/baileys-chat-actions";
 import { sendChannelTextAction, sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import { getApiKeyById } from "@/actions/api-action";
 import { assignTagToSessionAction, removeTagFromSessionAction } from "@/actions/tag-actions";
@@ -147,7 +146,6 @@ export async function getAccountLinesAction(): Promise<{ success: boolean; data:
     const whatsappRows = rows.filter(
       (i) =>
         i.instanceType === "Whatsapp" ||
-        i.instanceType === "baileys" ||
         i.instanceType === "meta" ||
         i.instanceType == null,
     );
@@ -182,7 +180,7 @@ export async function getAccountLinesAction(): Promise<{ success: boolean; data:
 /**
  * Envía un texto al contacto de la conversación pero por una línea/instancia
  * distinta a la actual (puede ser de otra cuenta asociada). Resuelve el adaptador
- * correcto (baileys / canal Meta / Evolution) y, para Evolution, la API key de la
+ * correcto (canal Meta / Evolution) y, para Evolution, la API key de la
  * CUENTA dueña de esa línea (no la actual).
  */
 async function sendTextViaLine(
@@ -196,10 +194,6 @@ async function sendTextViaLine(
   });
   if (!inst) throw new Error(`Línea "${instanceName}" no encontrada o no autorizada.`);
 
-  if (inst.instanceType === "baileys") {
-    await sendBaileysTextAction(instanceName, remoteJid, { kind: "text", text });
-    return;
-  }
   if (inst.instanceType === "meta" || inst.instanceType === "telegram") {
     await sendChannelTextAction(instanceName, remoteJid, { kind: "text", text });
     return;
