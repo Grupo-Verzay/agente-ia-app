@@ -1236,7 +1236,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         searchMatchIds={searchMatchIds}
         activeSearchMessageId={activeSearchMessageId}
         callPhone={(displayedWhatsapp || '').replace(/\D/g, '')}
-        callContactName={displayedContactName}
+        contactName={displayedContactName}
       />
 
       <SuggestedReplyBar

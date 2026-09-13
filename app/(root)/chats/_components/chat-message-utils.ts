@@ -694,7 +694,7 @@ function contextInfoConCita(m: EvolutionMessage): Record<string, any> | undefine
 
 function citaDelMensaje(
   m: EvolutionMessage,
-  porId: Map<string, { content: string; fromMe: boolean; mediaType?: string }>,
+  porId: Map<string, { content: string; fromMe: boolean; mediaType?: string; author?: string }>,
 ): UIBubble['quotedMessage'] | undefined {
   const ctx = contextInfoConCita(m);
   if (!ctx) return undefined;
@@ -709,6 +709,7 @@ function citaDelMensaje(
       content: cargado.content,
       sender: cargado.fromMe ? 'user' : 'other',
       ...(cargado.mediaType ? { mediaType: cargado.mediaType } : {}),
+      ...(cargado.author ? { author: cargado.author } : {}),
     };
   }
 
@@ -966,12 +967,15 @@ export function toUIMessages(
   // sabía pintarla —el bloque existe en `MessageBubble`— pero nunca le llegaba,
   // así que respondías citando, en WhatsApp se veía la cita y en el panel la
   // respuesta salía suelta, sin decir a qué contestaba.
-  const porId = new Map<string, { content: string; fromMe: boolean; mediaType?: string }>();
+  const porId = new Map<string, { content: string; fromMe: boolean; mediaType?: string; author?: string }>();
   for (const b of result) {
     porId.set(b.id, {
       content: b.content,
       fromMe: b.sender === 'user',
       ...(b.media?.type ? { mediaType: b.media.type } : {}),
+      // En un grupo escriben varios: quién lo dijo forma parte de la cita. En
+      // un chat de uno a uno no hace falta, que es el de la cabecera.
+      ...(b.groupSenderName ? { author: b.groupSenderName } : {}),
     });
   }
   // Por id, no por posicion: la lista de burbujas es la de mensajes FILTRADA
