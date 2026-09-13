@@ -26,6 +26,25 @@ function sinSufijoDeDispositivo(jid: string): string {
   return `${numero}${jid.slice(arroba)}`;
 }
 
+/**
+ * El camino de vuelta: `573001234567@c.us` → `573001234567@s.whatsapp.net`.
+ *
+ * Hace falta al LEER de Waha -el historial de la linea-, porque todo lo nuestro
+ * guarda el jid canonico. Sin esto el mismo contacto quedaria bajo dos
+ * identidades y su conversacion saldria partida en dos filas.
+ *
+ * Lo que no es de un usuario -grupos, `@lid`, difusiones- se devuelve tal cual,
+ * igual que en el backend (`waha-jid.util.ts`).
+ */
+export function wahaJidToCanonical(value?: string | null): string {
+  const raw = sinSufijoDeDispositivo((value ?? '').trim());
+  if (!raw) return '';
+  if (raw.toLowerCase().endsWith(WAHA_USER_SUFFIX)) {
+    return `${raw.slice(0, -WAHA_USER_SUFFIX.length)}${CANONICAL_USER_SUFFIX}`;
+  }
+  return raw;
+}
+
 export function canonicalToWahaJid(value?: string | null): string {
   const raw = sinSufijoDeDispositivo((value ?? '').trim());
   if (!raw) return '';

@@ -32,9 +32,13 @@ import {
   sendWahaMedia,
   sendWahaText,
   subscribeWahaPresence,
+  getWahaChatMessages,
+  getWahaChats,
   type WahaMediaType,
 } from "@/lib/waha";
-import { canonicalToWahaJid } from "@/lib/waha-jid";
+import { mensajeDeWahaParaGuardar } from "@/lib/waha-historial";
+import { canonicalToWahaJid, wahaJidToCanonical } from "@/lib/waha-jid";
+import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
 import {
   fetchChatsFromEvolution,
@@ -693,6 +697,106 @@ async function buildPersistedMessagesResult(params: {
   };
 }
 
+/**
+ * El historial que Waha ya tiene de un chat, traido a nuestra base.
+ *
+ * Una linea recien escaneada empieza VACIA: su conversacion solo se llena con
+ * lo que entre por el webhook de ahi en adelante. Pero WhatsApp manda al
+ * vincular una ventana del historial, y el motor de Waha la guarda; esto es lo
+ * que la pide y la persiste, para que la conversacion se abra con lo de antes
+ * igual que hacia Evolution.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **Se persiste con `puedeReabrir: false`.** Esto es resincronizar
+ *    historial, no novedad: sin eso, cada importacion volveria a poner
+ *    `status = true` y despausaria la IA de conversaciones que un asesor habia
+ *    pausado. Es la regla de siempre.
+ * 2. **Con freno.** El sondeo del chat abierto entra aqui cada 5 s; pedirle el
+ *    historial a Waha en cada vuelta es maltratar el servidor para traer lo
+ *    mismo. Se hace una vez por chat cada `IMPORTAR_HISTORIAL_CADA_MS`, y
+ *    siempre que se pidan paginas anteriores (ahi es justo lo que se busca).
+ * 3. **Nunca rompe la conversacion.** Si Waha falla, se anota y se sigue con lo
+ *    guardado: un historial incompleto es mejor que una pantalla en blanco.
+ */
+const IMPORTAR_HISTORIAL_CADA_MS = 60 * 1000;
+const ultimaImportacionDeChat = new Map<string, number>();
+
+async function traerHistorialDeWaha(params: {
+  userId: string;
+  instanceName: string;
+  remoteJid: string;
+  pageSize: number;
+  page: number;
+  yaCargados: number;
+}): Promise<number> {
+  const clave = `${params.instanceName}|${params.remoteJid}`;
+  const ahora = Date.now();
+  const dePaginaAnterior = params.page > 1;
+  if (!dePaginaAnterior && ahora - (ultimaImportacionDeChat.get(clave) ?? 0) < IMPORTAR_HISTORIAL_CADA_MS) {
+    return 0;
+  }
+  ultimaImportacionDeChat.set(clave, ahora);
+
+  const chatId = canonicalToWahaJid(params.remoteJid);
+  if (!chatId) return 0;
+
+  const traida = await getWahaChatMessages({
+    session: params.instanceName,
+    chatId,
+    limit: Math.max(params.pageSize, 100),
+    // Para "cargar mensajes anteriores" se salta lo que ya esta en pantalla.
+    offset: dePaginaAnterior ? params.yaCargados : 0,
+  });
+  if (!traida.ok) {
+    console.warn("[waha] no se pudo traer el historial del chat", {
+      instanceName: params.instanceName,
+      remoteJid: params.remoteJid,
+      motivo: traida.message,
+    });
+    return 0;
+  }
+
+  let guardados = 0;
+  for (const crudo of traida.mensajes) {
+    const mensaje = mensajeDeWahaParaGuardar(crudo, params.remoteJid);
+    if (!mensaje) continue;
+    try {
+      await persistChatMessage({
+        userId: params.userId,
+        instanceName: params.instanceName,
+        instanceType: "waha",
+        remoteJid: params.remoteJid,
+        messageId: mensaje.messageId,
+        fromMe: mensaje.fromMe,
+        messageType: mensaje.messageType,
+        content: mensaje.content,
+        mediaUrl: mensaje.mediaUrl,
+        raw: mensaje.raw as any,
+        messageTimestamp: mensaje.messageTimestamp,
+        puedeReabrir: false,
+      });
+      guardados++;
+    } catch (error) {
+      console.warn("[waha] no se pudo guardar un mensaje del historial", {
+        instanceName: params.instanceName,
+        messageId: mensaje.messageId,
+        error: String(error),
+      });
+    }
+  }
+
+  if (guardados > 0) {
+    console.info("[waha] historial del chat traido", {
+      instanceName: params.instanceName,
+      remoteJid: params.remoteJid,
+      mensajes: guardados,
+      pagina: params.page,
+    });
+  }
+  return guardados;
+}
+
 export async function warmChatMessagesAction(
   context: ChatActionContext,
   remoteJid: string,
@@ -745,6 +849,44 @@ export async function warmChatMessagesAction(
         message: "Mensajes cargados desde historial local.",
       });
       tiempos.base = Date.now() - arrancoBase;
+
+      // WhatsApp Mensajeria (waha): el historial que ya tiene WhatsApp.
+      //
+      // Aqui no hay Evolution a la que preguntar, asi que sin esto la
+      // conversacion solo ensena lo que haya entrado por el webhook desde que
+      // se conecto la linea: una linea recien escaneada se abre VACIA aunque el
+      // telefono tenga la conversacion entera. Se pide a Waha, se guarda, y se
+      // vuelve a leer nuestra base, que es la que manda.
+      if (
+        !options?.localOnly &&
+        context?.instanceName &&
+        !hasReadyContext(context) &&
+        (await esLineaWaha(context.instanceName))
+      ) {
+        const arrancoWaha = Date.now();
+        const traidos = await traerHistorialDeWaha({
+          userId: effectiveOwnerId,
+          instanceName: context.instanceName,
+          remoteJid,
+          pageSize,
+          page,
+          yaCargados: localResult.data.length,
+        });
+        tiempos.waha = Date.now() - arrancoWaha;
+        if (traidos > 0) {
+          const conHistorial = await buildPersistedMessagesResult({
+            userIds: readUserIds,
+            instanceName: context.instanceName,
+            remoteJid,
+            aliases: options?.remoteJidAliases,
+            page,
+            pageSize,
+            message: "Mensajes cargados desde historial local.",
+          });
+          return conTiempos(conHistorial, "waha + base");
+        }
+      }
+
       // localOnly siempre devuelve local (aunque vacío); localFirst solo si hay datos.
       if (localResult.data.length || options?.localOnly) {
         // Este es el camino que puede dejar una conversación congelada durante
@@ -940,6 +1082,95 @@ export async function warmChatMessagesAction(
   return conTiempos(result, result.success ? "evolution" : "evolution (fallo)");
 }
 
+/**
+ * Los chats que Waha ya tiene, traidos a nuestra base.
+ *
+ * Solo el ULTIMO mensaje de cada uno: es lo que hace falta para que la fila
+ * exista, se ordene y ensene su linea de resumen. El resto de la conversacion
+ * llega al abrirla (`traerHistorialDeWaha`), y asi importar una cuenta grande
+ * no se convierte en miles de escrituras de golpe.
+ *
+ * Con freno de verdad -una vez cada media hora por linea-, porque esta accion
+ * la llama el reloj de la lista cada 20 s por cada pestana abierta. La bandeja
+ * no puede pagar esto en cada vuelta.
+ */
+const IMPORTAR_CHATS_CADA_MS = 30 * 60 * 1000;
+const ultimaImportacionDeLinea = new Map<string, number>();
+
+async function traerChatsDeWaha(params: { userId: string; instanceName: string }): Promise<void> {
+  const ahora = Date.now();
+  if (ahora - (ultimaImportacionDeLinea.get(params.instanceName) ?? 0) < IMPORTAR_CHATS_CADA_MS) return;
+  // Se marca ANTES de empezar: la importacion tarda, y sin esto la vuelta
+  // siguiente del reloj arrancaria otra encima.
+  ultimaImportacionDeLinea.set(params.instanceName, ahora);
+
+  if (!(await esLineaWaha(params.instanceName))) return;
+
+  const traidos = await getWahaChats({ session: params.instanceName, limit: TOPE_DE_LA_BANDEJA });
+  if (!traidos.ok) {
+    console.warn("[waha] no se pudo traer la lista de chats", {
+      instanceName: params.instanceName,
+      motivo: traidos.message,
+    });
+    return;
+  }
+
+  let guardados = 0;
+  for (const chat of traidos.chats) {
+    const jid = jidDelChatDeWaha(chat.id);
+    if (!jid) continue;
+    const ultimo = chat.lastMessage;
+    if (!ultimo) continue;
+    const mensaje = mensajeDeWahaParaGuardar(ultimo, jid);
+    if (!mensaje) continue;
+    try {
+      await persistChatMessage({
+        userId: params.userId,
+        instanceName: params.instanceName,
+        instanceType: "waha",
+        remoteJid: jid,
+        messageId: mensaje.messageId,
+        fromMe: mensaje.fromMe,
+        messageType: mensaje.messageType,
+        content: mensaje.content,
+        mediaUrl: mensaje.mediaUrl,
+        pushName: typeof chat.name === "string" ? chat.name : undefined,
+        raw: mensaje.raw as any,
+        messageTimestamp: mensaje.messageTimestamp,
+        // Resincronizar historial NO es novedad: esto no despausa la IA.
+        puedeReabrir: false,
+      });
+      guardados++;
+    } catch (error) {
+      console.warn("[waha] no se pudo guardar un chat del historial", {
+        instanceName: params.instanceName,
+        remoteJid: jid,
+        error: String(error),
+      });
+    }
+  }
+
+  console.info("[waha] lista de chats traida", {
+    instanceName: params.instanceName,
+    chats: traidos.chats.length,
+    guardados,
+  });
+}
+
+/** El jid del chat, que Waha manda unas veces como cadena y otras como objeto. */
+function jidDelChatDeWaha(id: unknown): string | null {
+  const crudo =
+    typeof id === "string"
+      ? id
+      : typeof (id as { _serialized?: unknown })?._serialized === "string"
+        ? ((id as { _serialized: string })._serialized)
+        : "";
+  if (!crudo) return null;
+  // Los estados, las difusiones y los canales no son conversaciones.
+  if (/@(broadcast|newsletter)$/i.test(crudo)) return null;
+  return wahaJidToCanonical(crudo) || null;
+}
+
 export async function refetchChatsManualAction(
   context: ChatActionContext,
 ): Promise<FetchChatsResult> {
@@ -968,6 +1199,18 @@ export async function refetchChatsManualAction(
       // Y se cae aqui en cada vuelta del refresco de una linea Waha o Baileys,
       // que a proposito se quedan sin clave de Evolution (ver `resolverContexto`).
       const laLinea = context?.instanceName?.trim();
+
+      // WhatsApp Mensajeria (waha): los chats que ya tiene WhatsApp.
+      //
+      // La bandeja de una linea Waha sale ENTERA de nuestra base, asi que una
+      // linea recien escaneada aparece con cero chats aunque el telefono tenga
+      // cientos. Se le piden a Waha y se guarda el ultimo mensaje de cada uno:
+      // con eso la fila existe, se ordena por su fecha y la conversacion se
+      // completa al abrirla.
+      if (laLinea && effectiveOwnerId) {
+        await traerChatsDeWaha({ userId: effectiveOwnerId, instanceName: laLinea });
+      }
+
       const persisted = await getPersistedInboxChats({
         userIds: readUserIds,
         instanceNames: laLinea ? [laLinea] : undefined,

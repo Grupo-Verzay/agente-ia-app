@@ -848,3 +848,139 @@ export async function reactToWahaMessage(params: {
     };
   }
 }
+
+/* ─── El historial que ya tiene WhatsApp ──────────────────────────────────
+ *
+ * Al vincular el telefono, WhatsApp manda una ventana del historial y el motor
+ * de Waha la guarda. Eso es lo que devuelven estas dos consultas, y es de donde
+ * sale la bandeja de una linea recien escaneada: sin ellas la conversacion
+ * empieza vacia y solo se llena con lo que entre POR EL WEBHOOK a partir de
+ * ese momento.
+ *
+ * Waha no promete cuanto historial hay: depende del motor y de lo que el
+ * telefono haya sincronizado. Lo que devuelva se guarda en nuestra base, que a
+ * partir de ahi es la duena del historial —la misma regla de siempre: cuando el
+ * proveedor se queda corto, manda nuestra base—.
+ *
+ * El plazo es mas largo que el del resto (20 s): leer el historial de un chat
+ * con miles de mensajes no es una consulta barata, y rendirse antes obliga a
+ * repetirla entera.
+ */
+const PLAZO_DEL_HISTORIAL_MS = 20000;
+
+/** Un mensaje tal y como lo devuelve Waha. Se mapea en `lib/waha-historial`. */
+export type MensajeDeWaha = {
+  id?: string;
+  timestamp?: number;
+  from?: string;
+  to?: string;
+  fromMe?: boolean;
+  body?: string;
+  hasMedia?: boolean;
+  media?: { url?: string; mimetype?: string; filename?: string } | null;
+  replyTo?: { id?: string; participant?: string; body?: string } | string | null;
+  _data?: Record<string, unknown> | null;
+  [clave: string]: unknown;
+};
+
+export type ChatDeWaha = {
+  id?: unknown;
+  name?: string | null;
+  picture?: string | null;
+  lastMessage?: MensajeDeWaha | null;
+  [clave: string]: unknown;
+};
+
+async function pedirAWaha<T>(
+  path: string,
+  session: string,
+  que: string,
+): Promise<{ ok: true; datos: T } | { ok: false; message: string }> {
+  const cfg = await getWahaConfig();
+  if (!cfg) return { ok: false, message: 'La conexión por QR no está configurada (Panel > Conexión).' };
+  try {
+    const res = await wahaFetch(cfg, path, {}, PLAZO_DEL_HISTORIAL_MS);
+    if (!res.ok) {
+      const cuerpo = (await res.text().catch(() => '')).slice(0, 200);
+      // Un fallo aqui se ve como "la conversacion esta vacia", que no parece un
+      // error. Se dice SIEMPRE, con el motivo del servidor.
+      console.warn(`[waha] no se pudo traer ${que}`, { session, estado: res.status, cuerpo });
+      if (res.status === 404 || res.status === 501) {
+        return {
+          ok: false,
+          message:
+            'Esta versión o este motor de la conexión por QR no sirven el historial. ' +
+            'Míralo en Panel > Conexión, botón Probar.',
+        };
+      }
+      return { ok: false, message: `El servidor respondió ${res.status}${cuerpo ? `: ${cuerpo}` : ''}` };
+    }
+    const datos = (await res.json()) as T;
+    return { ok: true, datos };
+  } catch (error) {
+    const esPlazo = (error as { name?: string })?.name === 'TimeoutError';
+    console.warn(`[waha] fallo al traer ${que}`, { session, error: String(error) });
+    return {
+      ok: false,
+      message: esPlazo ? 'El servidor no contestó a tiempo.' : 'No se pudo contactar con el servidor.',
+    };
+  }
+}
+
+/** Los mensajes de un chat, los mas nuevos primero. */
+export async function getWahaChatMessages(params: {
+  session: string;
+  chatId: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ ok: true; mensajes: MensajeDeWaha[] } | { ok: false; message: string }> {
+  const q = new URLSearchParams({
+    limit: String(Math.max(1, Math.min(params.limit ?? 100, 500))),
+    // Sin esto Waha descarga cada adjunto para responder, y una ventana de 100
+    // mensajes con fotos tarda lo indecible. La media de lo ya guardado la
+    // trae el webhook.
+    downloadMedia: 'false',
+  });
+  if (params.offset) q.set('offset', String(params.offset));
+
+  const r = await pedirAWaha<MensajeDeWaha[]>(
+    `/api/${encodeURIComponent(params.session)}/chats/${encodeURIComponent(params.chatId)}/messages?${q}`,
+    params.session,
+    'los mensajes del chat',
+  );
+  if (!r.ok) return r;
+  return { ok: true, mensajes: Array.isArray(r.datos) ? r.datos : [] };
+}
+
+/**
+ * Los chats de la linea, con su ultimo mensaje.
+ *
+ * Se pide `chats/overview`, que ya trae el ultimo mensaje y ahorra una consulta
+ * por chat. Si esta version no la tiene (404), se cae a `chats` a secas: sirve
+ * para que la fila exista, y el contenido llega al abrirla.
+ */
+export async function getWahaChats(params: {
+  session: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ ok: true; chats: ChatDeWaha[] } | { ok: false; message: string }> {
+  const q = new URLSearchParams({
+    limit: String(Math.max(1, Math.min(params.limit ?? 300, 1000))),
+  });
+  if (params.offset) q.set('offset', String(params.offset));
+
+  const overview = await pedirAWaha<ChatDeWaha[]>(
+    `/api/${encodeURIComponent(params.session)}/chats/overview?${q}`,
+    params.session,
+    'la lista de chats',
+  );
+  if (overview.ok) return { ok: true, chats: Array.isArray(overview.datos) ? overview.datos : [] };
+
+  const simple = await pedirAWaha<ChatDeWaha[]>(
+    `/api/${encodeURIComponent(params.session)}/chats?${q}`,
+    params.session,
+    'la lista de chats',
+  );
+  if (!simple.ok) return simple;
+  return { ok: true, chats: Array.isArray(simple.datos) ? simple.datos : [] };
+}
