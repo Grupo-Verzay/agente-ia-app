@@ -47,6 +47,7 @@ import {
     sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
 import { CAPTURE_SNIPPETS, CAPTURA_MAIN_MESSAGES } from "@/types/agentAi";
 import type {
@@ -164,8 +165,9 @@ export const ManagementBuilder = ({
     registerSaveHandler
 }: ManagementBuilderProps) => {
     const [steps, setSteps] = useState<ManagementItem[]>(
+        // Se enderezan al cargar, ver `ordenarElementosDeLosPasos`.
         Array.isArray(initialItems) && initialItems.length > 0
-            ? (initialItems as ManagementItem[])
+            ? ordenarElementosDeLosPasos(initialItems as ManagementItem[])
             : []
     );
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
@@ -491,7 +493,9 @@ export const ManagementBuilder = ({
                 const oldIndex = s.elements.findIndex((e) => e.id === active.id);
                 const newIndex = s.elements.findIndex((e) => e.id === over.id);
                 if (oldIndex < 0 || newIndex < 0) return s;
-                return { ...s, elements: arrayMove(s.elements, oldIndex, newIndex) };
+                // Las acciones no bajan por debajo de un texto: el paso se ejecuta de
+                // arriba abajo y ahi la accion llega tarde.
+                return { ...s, elements: ordenarElementos(arrayMove(s.elements, oldIndex, newIndex)) };
             }));
             return;
         }

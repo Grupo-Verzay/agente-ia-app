@@ -15,11 +15,12 @@ import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { epochToMs } from "@/lib/epoch";
 import {
-  eliminarMensajeDelTodo,
+  marcarMensajeComoEliminado,
   getDeletedLastMessageJids,
   getPersistedInboxChats,
   getPersistedMessages,
   guardarMensajeEditado,
+  guardarReaccion,
   persistChatMessage,
   persistEvolutionMessages,
   resolveInstanceOwner,
@@ -272,6 +273,19 @@ async function persistOutgoingHistory(params: {
           payload,
           sentData: sentData ?? null,
           metadata,
+          // La cita, con la MISMA forma que la manda WhatsApp
+          // (`contextInfo.stanzaId` + `quotedMessage`). Guardada asi, el panel
+          // la lee igual venga de donde venga, y no hay que ensenarle a leer
+          // ademas la forma de nuestro `payload`. Sin esto la respuesta salia
+          // suelta, sin decir a que mensaje contestaba.
+          ...(payload.quotedMessage
+            ? {
+                contextInfo: {
+                  stanzaId: payload.quotedMessage.key?.id,
+                  quotedMessage: payload.quotedMessage.message,
+                },
+              }
+            : {}),
         } as any,
         messageTimestamp: new Date(),
       });
@@ -1516,17 +1530,43 @@ export async function reactToMessageAction(
   // WhatsApp Mensajeria (waha) no habla con Evolution: su contexto llega SIN
   // clave a proposito. Sin esta rama, reaccionar moria con "Sin instancia
   // configurada" en esas lineas.
-  if (!hasReadyContext(context) && context?.instanceName && (await esLineaWaha(context.instanceName))) {
-    const r = await reactToWahaMessage({
-      session: context.instanceName,
-      messageId,
-      emoji,
-    });
-    return { success: r.ok, message: r.message };
+  const esWaha =
+    !hasReadyContext(context) && !!context?.instanceName && (await esLineaWaha(context.instanceName));
+
+  if (!esWaha && !hasReadyContext(context)) {
+    return { success: false, message: "Sin instancia configurada." };
   }
 
-  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
-  return sendReaction(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe, emoji);
+  const resultado = esWaha
+    ? await (async () => {
+        const r = await reactToWahaMessage({
+          session: context!.instanceName,
+          messageId,
+          emoji,
+        });
+        return { success: r.ok, message: r.message };
+      })()
+    : await sendReaction(context!.apiKeyData!, context!.instanceName, remoteJid, messageId, fromMe, emoji);
+
+  // La reaccion se guarda PEGADA a su mensaje, para que quede.
+  //
+  // Antes no se guardaba en ningun sitio: se veia en el telefono y en el panel
+  // no quedaba rastro. En las lineas que leen la conversacion de nuestra base
+  // —Waha, y cualquiera cuando Evolution no contesta— no aparecia nunca; en las
+  // de Evolution solo mientras su lista siguiera trayendo la reaccion.
+  if (resultado.success) {
+    const dueno = await resolveInstanceOwner(context!.instanceName);
+    if (dueno?.userId) {
+      await guardarReaccion({
+        userId: dueno.userId,
+        instanceName: context!.instanceName,
+        messageId,
+        emoji,
+      });
+    }
+  }
+
+  return resultado;
 }
 
 export async function deleteMessageAction(
@@ -1552,13 +1592,19 @@ export async function deleteMessageAction(
     return { success: false, message: "Sin instancia configurada." };
   }
 
-  // El borrado en WhatsApp ("eliminar para todos") tiene su propio limite de
-  // tiempo: pasado un rato, WhatsApp lo rechaza aunque el mensaje sea tuyo.
-  // Antes eso frenaba TODO: si WhatsApp decia que no, la copia local ni se
-  // tocaba, y un mensaje viejo quedaba imposible de quitar del panel aunque
-  // el administrador -que aqui ya se autentico como tal, arriba- solo quiera
-  // que deje de verse. Se intenta igual (mejor si WhatsApp tambien lo borra),
-  // pero un fallo ahi ya no bloquea el borrado local.
+  // MANDA WHATSAPP. Si el no lo borra, la App tampoco.
+  //
+  // "Eliminar para todos" tiene su propio limite de tiempo: pasado un rato
+  // WhatsApp lo rechaza aunque el mensaje sea tuyo. Durante un tiempo la App
+  // borraba su copia igualmente, para que un administrador pudiera al menos
+  // quitarlo de la pantalla. El efecto era peor que el problema: el panel y el
+  // telefono del cliente contaban cosas distintas —el mensaje seguia en su
+  // WhatsApp y en la App no habia ni rastro— y no quedaba forma de saber que
+  // se habia dicho ni de recuperarlo.
+  //
+  // Ahora el borrado local va DESPUES y solo si WhatsApp dijo que si. Si
+  // rechaza, no se toca nada y se devuelve su motivo: la burbuja vuelve a su
+  // sitio y se lee por que.
   const resultadoWhatsapp = esWaha
     ? await (async () => {
         const r = await deleteWahaMessage({
@@ -1576,21 +1622,29 @@ export async function deleteMessageAction(
         fromMe,
       );
 
-  const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
-  await eliminarMensajeDelTodo({
-    userId: storageUserId ?? user.ownerId ?? user.id,
-    instanceName: context!.instanceName,
-    remoteJid,
-    messageId,
-    fromMe,
-  });
-
   if (!resultadoWhatsapp.success) {
     return {
-      success: true,
-      message: `Eliminado del panel. WhatsApp no lo borro: ${resultadoWhatsapp.message}`,
+      success: false,
+      message: `No se eliminó: WhatsApp no lo borró. ${resultadoWhatsapp.message}`,
     };
   }
+
+  // EL MENSAJE NO DESAPARECE: se marca.
+  //
+  // Queda con su texto y con el sello «Eliminado», exactamente igual que cuando
+  // el contacto borra uno desde su telefono. Antes se borraba la fila entera
+  // (`eliminarMensajeDelTodo`) y la burbuja se esfumaba: nadie podia saber que
+  // se habia dicho, ni el asesor que lo borro ni el que entrara despues, y en
+  // una conversacion de trabajo eso es justo lo que hace falta conservar.
+  //
+  // Es el mismo camino que ya usaba el borrado del contacto, que es el que se
+  // comporta bien.
+  const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
+  await marcarMensajeComoEliminado({
+    userId: storageUserId ?? user.ownerId ?? user.id,
+    instanceName: context!.instanceName,
+    messageId,
+  });
 
   return resultadoWhatsapp;
 }

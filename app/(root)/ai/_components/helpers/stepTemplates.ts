@@ -4,7 +4,18 @@ import type { ElementItem } from "@/types/agentAi";
 
 export type StepTemplate = {
     id: string;
+    /** La acción, y nada más. Es por lo que se busca en la lista. */
     name: string;
+    /**
+     * Qué la dispara: `secuencial` o `intención`.
+     *
+     * Va aparte del nombre y **debajo**, no pegado entre paréntesis, porque son
+     * dos cosas distintas: el nombre dice qué hace el bloque —que es lo que se
+     * viene a buscar— y esto dice cuándo entra. Con los cuatro nombres
+     * empezando por «Ejecutar» o llevando el paréntesis a rastras, la lista se
+     * leía como un párrafo; separados se distinguen de un vistazo.
+     */
+    disparo: "secuencial" | "intención";
     description: string;
     content: string;
     /**
@@ -29,6 +40,14 @@ const ejecutarFlujo = (): ElementItem =>
         flowName: null,
     }) as ElementItem;
 
+const leerGoogleSheets = (): ElementItem =>
+    ({
+        id: nanoid(),
+        kind: "function",
+        fn: "leer_google_sheets",
+        sheetUrl: null,
+    }) as ElementItem;
+
 const notificarAsesor = (notificationNumber?: string | null): ElementItem =>
     ({
         id: nanoid(),
@@ -38,7 +57,7 @@ const notificarAsesor = (notificationNumber?: string | null): ElementItem =>
     }) as ElementItem;
 
 /**
- * Las tres plantillas.
+ * Las plantillas de un bloque.
  *
  * Antes había dieciséis, repartidas en siete fases de venta, escritas como
  * consejos: "saluda al cliente por su nombre", "reconoce que llega referido".
@@ -46,10 +65,21 @@ const notificarAsesor = (notificationNumber?: string | null): ElementItem =>
  * cada conversación salía distinta.
  *
  * Estas no se interpretan. Dicen cuándo entra el bloque, qué sale, en qué orden
- * y qué está prohibido. Las tres se disparan igual —por el TÍTULO que el cliente
- * les ponga arriba, ahí van sus palabras: "precio", "garantía", "envío"— y se
- * diferencian solo en qué hace el bloque al activarse: ejecutar un flujo, avisar
- * al asesor, o simplemente responder.
+ * y qué está prohibido.
+ *
+ * **El nombre lleva entre paréntesis lo que la dispara**, que es lo único que
+ * de verdad las diferencia entre sí:
+ *
+ * - `(secuencial)` — entra cuando le toca su turno en el orden del flujo
+ *   (`current_step`), y además declara cómo se pasa al paso siguiente. Va la
+ *   primera porque es la que arma la conversación; las demás son desvíos que se
+ *   cruzan en medio.
+ * - `(intención)` — entra por el TÍTULO que el cliente le ponga al bloque, ahí
+ *   van sus palabras: "precio", "garantía", "envío". Las tres se disparan igual
+ *   y se diferencian en qué hacen: lanzar un flujo, solo responder, o avisar al
+ *   asesor por dentro.
+ *
+ * Si se añade otra, el nombre dice de qué se dispara.
  */
 export const EJECUCION_POR_INTENCION = `## 🔒 GATE — EJECUCIÓN POR (INTENCIÓN / PALABRA)
 
@@ -115,30 +145,112 @@ export const RESPUESTA_POR_INTENCION = `## 🔒 GATE — RESPUESTA POR (INTENCI�
 - Reformular, resumir o parafrasear el texto. Sale palabra por palabra.
 - Emitir los elementos marcados **NO EMITIR** (transición / notas de control).`;
 
+export const PASO_SECUENCIAL = `## 🔒 GATE — PASO SECUENCIAL
+
+**CONDICIÓN DE ACTIVACIÓN:**
+\`gate_evaluado == true\` **AND** \`current_step == N\`
+
+> 🚨 Este bloque solo se ejecuta cuando \`current_step\` coincide con el número de este paso.
+
+### 📤 SALIDA DEL TURNO — en este orden, siempre
+
+| # | Acción | Condición |
+|---|--------|-----------|
+| 1º | **FUNCIÓN** (Ejecutar flujo) | Solo si el paso la tiene. Si no la tiene, se omite sin error. |
+| 2º | **PRIMER elemento de TEXTO** del paso, palabra por palabra | Siempre sale, haya flujo o no. |
+| 3º | **ESPERAR** respuesta del usuario | No emitir nada más. |
+
+### ➡️ TRANSICIÓN
+
+Evaluar en este orden exacto:
+
+1. **SI** la(s) *Variable(s) que recoge* NO están llenas según la *Condición para avanzar* → \`current_step\` permanece en **N**. Repetir el TEXTO del paso. STOP.
+2. **SI** están llenas Y el Regla/parámetro declara una condición de salto que se cumple → \`current_step = paso destino declarado\`. STOP.
+3. **SI** están llenas Y hay condición de salto declarada pero NINGUNA se cumple → \`current_step = N+1\` (ruta por defecto). STOP.
+4. **SI** están llenas Y NO hay condición de salto declarada → \`current_step = N+1\`. STOP.
+5. **SI** este es el último paso del flujo → \`halt\`. No avanzar.
+
+🚫 El destino de un salto SOLO puede venir del Regla/parámetro de este paso. Nunca inferirlo.
+
+### 🚫 PROHIBIDO
+
+- Avanzar sin que la(s) variable(s) estén llenas según la Condición para avanzar.
+- Retroceder a un paso ya completado.
+- Ejecutar dos pasos en el mismo turno.
+- Inferir variables. Solo se setean con respuesta explícita del usuario.
+- Inferir el destino de un salto.
+- Emitir mensajes intermedios ("un momento", "procesando").
+- Reformular o parafrasear el TEXTO. Sale palabra por palabra.
+- Emitir los elementos marcados NO EMITIR.`;
+
+export const LEER_GOOGLE_SHEETS = `## 🔒 GATE — LEER GOOGLE SHEETS
+
+**CONDICIÓN DE ACTIVACIÓN:**
+\`gate_evaluado == true\` **AND** el mensaje del cliente coincide con los términos del **TÍTULO DE ESTE BLOQUE**.
+
+### 📤 SALIDA DEL TURNO — en este orden, siempre
+
+| # | Acción | Condición |
+|---|--------|-----------|
+| 1º | Ejecutar tool \`leer_google_sheets\` | Siempre. Pasar la URL del campo de este bloque. |
+| 2º | Filtrar por \`columna\` y \`valor\` | Solo si el Regla/parámetro lo indica y el cliente dio un criterio. |
+| 3º | Emitir **TODAS** las filas devueltas, en el formato del Regla/parámetro | Siempre. |
+| 4º | **ESPERAR** respuesta del cliente | No emitir nada más. |
+
+### 🚫 PROHIBIDO
+
+- Inventar filas, columnas, precios o valores que no vengan de la hoja.
+- Recortar el resultado. Si vuelven 12 filas, salen 12.
+- Anunciar la ejecución de la herramienta.
+- Afirmar que un producto NO existe si la consulta no devolvió filas. En ese caso, indicar que no se encontró con ese criterio y ofrecer buscar de otra forma.
+- Modificar \`current_step\`.
+- Emitir JSON, arrays o bloques de código.`;
+
 export const STEP_TEMPLATES: StepTemplate[] = [
+    {
+        id: "paso_secuencial",
+        name: "Ejecutar paso",
+        disparo: "secuencial",
+        description:
+            "Entra cuando le toca su turno en el flujo, no por una palabra. Recoge su variable y decide a qué paso pasa.",
+        content: PASO_SECUENCIAL,
+        elementos: () => [ejecutarFlujo(), texto()],
+    },
     {
         id: "ejecucion_por_intencion",
         name: "Ejecutar flujo",
+        disparo: "intención",
         description:
             "Al reconocer la palabra, lanza un flujo y responde con el texto del bloque.",
         content: EJECUCION_POR_INTENCION,
         elementos: () => [ejecutarFlujo(), texto()],
     },
     {
-        id: "notificar_asesor_por_intencion",
-        name: "Notificar al asesor",
-        description:
-            "Al reconocer la palabra, avisa al asesor por dentro y responde con el texto del bloque. El cliente no se entera del aviso.",
-        content: NOTIFICAR_ASESOR_POR_INTENCION,
-        elementos: (notificationNumber) => [notificarAsesor(notificationNumber), texto()],
-    },
-    {
         id: "respuesta_por_intencion",
         name: "Solo responder",
+        disparo: "intención",
         description:
             "Al reconocer la palabra, responde con el texto del bloque. Sin acción, salvo la que le agregues después.",
         content: RESPUESTA_POR_INTENCION,
         elementos: () => [texto()],
+    },
+    {
+        id: "leer_google_sheets",
+        name: "Leer Google Sheets",
+        disparo: "intención",
+        description:
+            "Al reconocer la palabra, consulta una hoja de cálculo y responde con las filas que encuentre. La hoja se pega en el propio bloque.",
+        content: LEER_GOOGLE_SHEETS,
+        elementos: () => [leerGoogleSheets(), texto()],
+    },
+    {
+        id: "notificar_asesor_por_intencion",
+        name: "Notificar asesor",
+        disparo: "intención",
+        description:
+            "Al reconocer la palabra, avisa al asesor por dentro y responde con el texto del bloque. El cliente no se entera del aviso.",
+        content: NOTIFICAR_ASESOR_POR_INTENCION,
+        elementos: (notificationNumber) => [notificarAsesor(notificationNumber), texto()],
     },
 ];
 
@@ -149,6 +261,27 @@ export const STEP_TEMPLATES: StepTemplate[] = [
  * selectores de flujo ni dos avisos al asesor, así que solo se agrega lo que no
  * esté ya puesto.
  */
+/** La primera línea de todas las plantillas. Ver `esInstruccionDelSistema`. */
+const MARCA_DE_PLANTILLA = "## 🔒 GATE";
+
+/**
+ * ¿Este texto salió de una plantilla?
+ *
+ * Lo que una plantilla deja en el bloque **no se edita a mano**: son condiciones
+ * y tablas que el modelo lee al pie de la letra, y cambiar una palabra ahí
+ * altera el comportamiento sin que se note hasta que un cliente recibe algo
+ * raro. Se enseña como lo que es —instrucciones del sistema, plegadas y en
+ * gris—, igual que en el paso de Bienvenida.
+ *
+ * Se reconoce por su primera línea, y no por una marca aparte guardada en el
+ * paso, para que valga también con los bloques que ya estaban creados: así no
+ * hay nada que migrar. Para cambiarlo se aplica otra plantilla encima, que es
+ * el camino previsto.
+ */
+export function esInstruccionDelSistema(texto: string | null | undefined): boolean {
+    return (texto ?? "").trimStart().startsWith(MARCA_DE_PLANTILLA);
+}
+
 export function elementosQueFaltan(
     plantilla: StepTemplate,
     elements?: ElementItem[],

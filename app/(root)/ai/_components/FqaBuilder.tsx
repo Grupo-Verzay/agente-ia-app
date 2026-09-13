@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StepTemplatePicker } from "./StepTemplatePicker";
 import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
+import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
@@ -124,7 +125,10 @@ export function FqaBuilder({
 }: FqaBuilderProps) {
     // Compute initial state once (auto-init for new agents where initialItems === undefined)
     const [items, setItems] = useState<QaItem[]>(
-        Array.isArray(initialItems) && initialItems.length > 0 ? initialItems : []
+        // Se enderezan al cargar: un bloque guardado con la accion debajo del texto
+        // se arregla solo al abrirlo, y si no hay nada que mover devuelve los mismos
+        // objetos, asi que el autosave no escribe por abrir la pantalla.
+        Array.isArray(initialItems) && initialItems.length > 0 ? ordenarElementosDeLosPasos(initialItems) : []
     );
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
     const [expandedItems, setExpandedItems] = useState<Set<string>>(
@@ -236,10 +240,10 @@ export function FqaBuilder({
                 return {
                     ...it,
                     mainMessage: plantilla.content,
-                    elements: [
+                    elements: ordenarElementos([
                         ...elementos,
                         ...elementosQueFaltan(plantilla, elementos, notificationNumber),
-                    ],
+                    ]),
                 };
             }),
         );
@@ -263,6 +267,23 @@ export function FqaBuilder({
                         ...s,
                         elements: s.elements.map((e) =>
                             e.id === elId && e.kind === "text" ? { ...e, text } : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    const updateSheetUrl = (faqId: string, elId: string, url: string) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === faqId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "leer_google_sheets"
+                                ? { ...e, sheetUrl: url }
+                                : e
                         ),
                     }
                     : s
@@ -352,7 +373,10 @@ export function FqaBuilder({
                 const oldIndex = s.elements.findIndex((e) => e.id === active.id);
                 const newIndex = s.elements.findIndex((e) => e.id === over.id);
                 if (oldIndex < 0 || newIndex < 0) return s;
-                return { ...s, elements: arrayMove(s.elements, oldIndex, newIndex) };
+                // Soltar no deja poner una accion por debajo de un texto: el paso se
+                // ejecuta de arriba abajo y ahi la accion llega tarde. Se coloca en la
+                // ultima posicion legal en vez de rechazar el gesto.
+                return { ...s, elements: ordenarElementos(arrayMove(s.elements, oldIndex, newIndex)) };
             }));
             return;
         }
@@ -568,6 +592,7 @@ export function FqaBuilder({
                                                                                                             addPedidoField={addPedidoField}
                                                                                                             removePedidoField={removePedidoField}
                                                                                                             onSubtypeChange={onSubtypeChange}
+                                                                                                            updateSheetUrl={updateSheetUrl}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>

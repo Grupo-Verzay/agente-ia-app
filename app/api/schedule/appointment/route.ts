@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -35,14 +35,14 @@ async function resolveServiceId(userId: string, serviceId: string): Promise<stri
     return all[idx - 1]?.id ?? null;
   }
 
-  // Primero intenta coincidencia exacta insensible a mayÃºsculas
+  // Primero intenta coincidencia exacta insensible a mayúsculas
   const svc = await db.service.findFirst({
     where: { userId, name: { equals: serviceId, mode: 'insensitive' } },
     select: { id: true, name: true },
   });
   if (svc) return svc.id;
 
-  // Normaliza: quita acentos, minÃºsculas, convierte slugs (guiones/guiones_bajos â†’ espacios)
+  // Normaliza: quita acentos, minúsculas, convierte slugs (guiones/guiones_bajos → espacios)
   // Cubre el caso donde el LLM inventa "acido_hialuronico" o "botox" en vez del UUID real
   const normalize = (s: string) =>
     s.normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase().replace(/[_-]+/g, ' ').trim();
@@ -58,7 +58,7 @@ async function resolveServiceId(userId: string, serviceId: string): Promise<stri
   const startsWith = all.find(s => normalize(s.name).startsWith(normalizedInput + ' '));
   if (startsWith) return startsWith.id;
 
-  // 3. El slug empieza con el nombre del servicio (ej: "acido_hialuronico_labios" â†’ "Ãcido HialurÃ³nico")
+  // 3. El slug empieza con el nombre del servicio (ej: "acido_hialuronico_labios" → "Ácido Hialurónico")
   const nameIsPrefix = all.find(s => normalizedInput.startsWith(normalize(s.name) + ' '));
   if (nameIsPrefix) return nameIsPrefix.id;
 
@@ -70,7 +70,7 @@ function normalizeTimeToSeconds(timeStr: string): number {
   const [unit, valueStr] = (timeStr ?? '').split('-');
   const value = parseInt(valueStr, 10);
   if (unit in unitToSeconds && !isNaN(value)) return value * unitToSeconds[unit];
-  // Fallback: nÃºmero plano guardado directamente como segundos (formato legacy)
+  // Fallback: número plano guardado directamente como segundos (formato legacy)
   const raw = parseInt(timeStr, 10);
   return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
@@ -108,7 +108,7 @@ function formatReminderMessage(
 }
 
 /**
- * EnvÃ­a el mensaje de confirmaciÃ³n del servicio y crea los seguimientos programados.
+ * Envía el mensaje de confirmación del servicio y crea los seguimientos programados.
  * Fire-and-forget: no bloquea la respuesta si falla.
  */
 async function runPostAppointmentTasks({
@@ -148,7 +148,7 @@ async function runPostAppointmentTasks({
   console.log(`[schedule/notification] messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId} apiKeyId=${user?.apiKeyId ?? 'null'} reminders=${reminders.length}`);
 
   if (!instance?.instanceId) {
-    console.warn(`[schedule/notification] Sin apiKey (url+key) o instancia â€” abortando tareas post-cita`);
+    console.warn(`[schedule/notification] Sin apiKey (url+key) o instancia — abortando tareas post-cita`);
     return;
   }
 
@@ -163,13 +163,13 @@ async function runPostAppointmentTasks({
     ? (instance.metaAccessToken || apiKey?.key || instance.instanceId)
     : (apiKey?.key ?? instance.instanceId);
 
-  // Detectar timezone del cliente por cÃ³digo de paÃ­s del telÃ©fono
+  // Detectar timezone del cliente por código de país del teléfono
   const clientTimezone = getTimezoneFromPhone(phone, timezone);
 
-  // 1. ConfirmaciÃ³n del servicio al cliente via seguimiento (mismo mecanismo que confirm-appointment)
-  // Usa el mensaje del servicio si estÃ¡ configurado; de lo contrario, envÃ­a un mensaje genÃ©rico.
+  // 1. Confirmación del servicio al cliente via seguimiento (mismo mecanismo que confirm-appointment)
+  // Usa el mensaje del servicio si está configurado; de lo contrario, envía un mensaje genérico.
   const confirmRawText = service?.messageText?.trim()
-    || `ðŸ“ Â¡Tu cita ha sido registrada! Un asesor se pondrÃ¡ en contacto contigo a la brevedad.`;
+    || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
   const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
   const clientJid = phone.includes('@s.whatsapp.net')
     ? phone
@@ -193,7 +193,7 @@ async function runPostAppointmentTasks({
     console.error(`[schedule/notification] Error enviando confirmación al cliente: ${err}`);
   });
 
-  // 2. Notificar al asesor/dueÃ±o (igual que el flujo pÃºblico)
+  // 2. Notificar al asesor/dueño (igual que el flujo público)
   const ownerPhones: string[] = [];
   if (user?.notificationNumber) ownerPhones.push(user.notificationNumber);
   for (const c of notificationContacts) {
@@ -205,15 +205,15 @@ async function runPostAppointmentTasks({
     const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
     const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
     const tzLabel = tzCityLabel(timezone);
-    const serviceName = service?.name ?? 'AsesorÃ­a';
+    const serviceName = service?.name ?? 'Asesoría';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
 
     const ownerText =
-      `ðŸ“… *Tienes Nueva Cita*:\n\n` +
-      `ðŸ‘¤ *Nombre:* ${pushName}\n` +
-      `ðŸ“ *DescripciÃ³n ${serviceName}:* Para el dÃ­a ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).\n\n` +
-      `ðŸ“± *WhatsApp del usuario:*\n\n` +
-      `ðŸ‘‰ ${clientPhone}`;
+      `📅 *Tienes Nueva Cita*:\n\n` +
+      `👤 *Nombre:* ${pushName}\n` +
+      `📝 *Descripción ${serviceName}:* Para el día ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).\n\n` +
+      `📱 *WhatsApp del usuario:*\n\n` +
+      `👉 ${clientPhone}`;
 
     await Promise.allSettled(
       ownerPhones.map(async (ownerPhone) => {
@@ -240,17 +240,17 @@ async function runPostAppointmentTasks({
           },
         });
         if (result.success) {
-          console.log(`[schedule/notification] NotificaciÃ³n al asesor enviada a ${ownerPhone}`);
+          console.log(`[schedule/notification] Notificación al asesor enviada a ${ownerPhone}`);
         } else {
           console.warn(`[schedule/notification] No se pudo notificar al asesor en ${ownerPhone}: ${result.message}`);
         }
       }),
     );
   } else {
-    console.log(`[schedule/notification] Sin nÃºmero de notificaciÃ³n configurado para userId=${userId}`);
+    console.log(`[schedule/notification] Sin número de notificación configurado para userId=${userId}`);
   }
 
-  // 3. Crear seguimientos programados (igual que el flujo pÃºblico)
+  // 3. Crear seguimientos programados (igual que el flujo público)
   if (reminders.length === 0) {
     console.log(`[schedule/notification] Sin recordatorios configurados para userId=${userId}`);
     return;
@@ -299,8 +299,8 @@ async function runPostAppointmentTasks({
 /**
  * POST /api/schedule/appointment
  *
- * Crea una cita desde el agente IA, envÃ­a el mensaje del servicio y crea seguimientos.
- * serviceId puede ser UUID, nombre o Ã­ndice numÃ©rico 1-based.
+ * Crea una cita desde el agente IA, envía el mensaje del servicio y crea seguimientos.
+ * serviceId puede ser UUID, nombre o índice numérico 1-based.
  */
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
@@ -324,8 +324,8 @@ export async function POST(request: Request) {
   }
 
   // Asegurar que startTime/endTime siempre sean UTC.
-  // Si el LLM envÃ­a la string sin Z (ej: "2025-10-17T21:00:00"), Node.js la interpreta como hora
-  // local del servidor (America/Bogota, UTC-5), desplazando todos los cÃ¡lculos 5 horas.
+  // Si el LLM envía la string sin Z (ej: "2025-10-17T21:00:00"), Node.js la interpreta como hora
+  // local del servidor (America/Bogota, UTC-5), desplazando todos los cálculos 5 horas.
   const utcSuffix = /Z$|\+\d{2}:\d{2}$|-\d{2}:\d{2}$/.test(rawStartTime);
   const startTime = utcSuffix ? rawStartTime : rawStartTime + 'Z';
   const endTime = /Z$|\+\d{2}:\d{2}$|-\d{2}:\d{2}$/.test(rawEndTime) ? rawEndTime : rawEndTime + 'Z';
@@ -358,7 +358,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.message }, { status: 400 });
   }
 
-  // Tareas post-creaciÃ³n: mensaje de confirmaciÃ³n + seguimientos (fire-and-forget)
+  // Tareas post-creación: mensaje de confirmación + seguimientos (fire-and-forget)
   runPostAppointmentTasks({
     userId,
     instanceName,

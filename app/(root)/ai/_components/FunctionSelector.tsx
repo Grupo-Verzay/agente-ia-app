@@ -24,6 +24,7 @@ import {
 } from "@/types/agentAi";
 
 import { Button } from "@/components/ui/button";
+import { insertarElementoEnOrden } from "@/lib/orden-de-elementos";
 import { Plus, Zap } from "lucide-react";
 import { nanoid } from "nanoid";
 
@@ -128,6 +129,13 @@ export const FunctionSelector = ({
         notificationNumber: notificationNumber ?? null,
     });
 
+    const makeLeerGoogleSheets = (): ElementFunction => ({
+        id: nanoid(),
+        kind: "function",
+        fn: "leer_google_sheets",
+        sheetUrl: null,
+    });
+
     const makeRouting = () => ({
         id: nanoid(),
         kind: "function" as const,
@@ -136,12 +144,21 @@ export const FunctionSelector = ({
     });
 
     /** Inserta en step o crea bloque (raíz) */
+    /**
+     * Inserta el elemento **en su sitio**, no al final.
+     *
+     * Una accion por debajo del REGLA/PARAMETRO no se ejecuta a tiempo: el
+     * modelo contesta primero y la respuesta sale sin el dato. Y caer en eso era
+     * cuestion de escribir la regla antes de agregar la accion, que es el orden
+     * natural de trabajo. Lo decide `insertarElementoEnOrden`, el mismo que usa
+     * el arrastre.
+     */
     const insertOrCreate = useCallback((el: ElementItem) => {
         if (step && setSteps) {
             setSteps((prev) =>
                 prev.map((s) =>
                     s.id === step.id
-                        ? { ...s, elements: [...s.elements, el], openPicker: false }
+                        ? { ...s, elements: insertarElementoEnOrden(s.elements, el), openPicker: false }
                         : s
                 )
             );
@@ -163,6 +180,8 @@ export const FunctionSelector = ({
         insertOrCreate(makeEjecutarFlujo() as ElementItem);
     const addFunctionNotificar = () =>
         insertOrCreate(makeNotificar() as ElementItem);
+    const addFunctionLeerGoogleSheets = () =>
+        insertOrCreate(makeLeerGoogleSheets() as ElementItem);
 
     const addRouting = () =>
         insertOrCreate(makeRouting() as ElementItem);
@@ -236,6 +255,13 @@ export const FunctionSelector = ({
                                             </CommandItem>
                                             <CommandItem onSelect={addFunctionNotificar}>
                                                 <span className="flex items-center gap-2">🔔 Notificar asesor</span>
+                                            </CommandItem>
+                                            {/* Fuera de Gestion a proposito: ahi el menu solo ofrece
+                                                "Captura de datos", que es lo contrario de esto —una
+                                                le pide datos al cliente y los guarda; esta va a
+                                                buscarlos a una hoja para responder—. */}
+                                            <CommandItem onSelect={addFunctionLeerGoogleSheets}>
+                                                <span className="flex items-center gap-2">📊 Leer Google Sheets</span>
                                             </CommandItem>
                                         </>
                                     )}

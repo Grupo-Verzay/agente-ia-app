@@ -17,7 +17,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StepTemplatePicker } from "./StepTemplatePicker";
-import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
+import { elementosQueFaltan, StepTemplate, esInstruccionDelSistema } from "./helpers/stepTemplates";
+import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
 import {
   AnyStep,
@@ -64,7 +65,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { WELCOME_TITLE, WELCOME_TITLE_LEGACY, WELCOME_MAIN_MESSAGE, WELCOME_MESSAGES, WelcomeType } from "./helpers/trainingDefaults";
-import { CADENA_STEPS, buildCadenaSteps } from "./helpers/flowObjectives";
+import { variablesDelPaso } from "@/lib/variables-del-paso";
 
 /* utilidad: type-guard para pedidos */
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
@@ -155,6 +156,32 @@ function SortableElementRow({
   );
 }
 
+
+/**
+ * El texto que manda el sistema, plegado y sin poder tocarlo.
+ *
+ * Lo usan los dos sitios donde el contenido del bloque no lo escribe la
+ * persona: el paso de **Bienvenida** y cualquier bloque al que se le haya
+ * aplicado una **plantilla**. Vive aquí una sola vez a propósito: si los dos se
+ * pintaran por separado acabarían comportándose distinto, y el de la plantilla
+ * nació justo de copiar el de Bienvenida.
+ */
+function InstruccionesDelSistema({ texto }: { texto?: string | null }) {
+  return (
+    <details className="group">
+      <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center gap-1">
+        <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+        Ver instrucciones del sistema
+      </summary>
+      <Textarea
+        value={texto ?? ""}
+        readOnly
+        className="min-h-[120px] mt-2 text-xs font-mono bg-muted/30 text-muted-foreground resize-none"
+      />
+    </details>
+  );
+}
+
 export function TrainingBuilder({
   flows = [],
   notificationNumber,
@@ -181,7 +208,11 @@ export function TrainingBuilder({
         welcomeType: "obligatoria",
       }];
     } else {
-      _initOnce.current = initialSteps.length > 0 ? (initialSteps as StepTraining[]) : [];
+      // Se enderezan al cargar: un bloque guardado con la accion debajo del
+      // texto se arregla solo al abrirlo. Si no hay nada que mover devuelve los
+      // mismos objetos, asi que el autosave no escribe una version por abrir la
+      // pantalla.
+      _initOnce.current = initialSteps.length > 0 ? ordenarElementosDeLosPasos(initialSteps as StepTraining[]) : [];
     }
   }
   const _initSteps = _initOnce.current;
@@ -348,10 +379,10 @@ export function TrainingBuilder({
         return {
           ...s,
           mainMessage: plantilla.content,
-          elements: [
+          elements: ordenarElementos([
             ...elementos,
             ...elementosQueFaltan(plantilla, elementos, notificationNumber),
-          ],
+          ]),
         };
       })
     );
@@ -375,6 +406,23 @@ export function TrainingBuilder({
             ...s,
             elements: s.elements.map((e) =>
               e.id === elId && e.kind === "text" ? { ...e, text } : e
+            ),
+          }
+          : s
+      )
+    );
+  };
+
+  const updateSheetUrl = (stepId: string, elId: string, url: string) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+            ...s,
+            elements: s.elements.map((e) =>
+              e.id === elId && e.kind === "function" && e.fn === "leer_google_sheets"
+                ? ({ ...e, sheetUrl: url } as typeof e)
+                : e
             ),
           }
           : s
@@ -528,7 +576,11 @@ export function TrainingBuilder({
             const oldIndex = s.elements.findIndex((e) => e.id === active.id);
             const newIndex = s.elements.findIndex((e) => e.id === over.id);
             if (oldIndex < 0 || newIndex < 0) return s;
-            return { ...s, elements: arrayMove(s.elements, oldIndex, newIndex) };
+            // Soltar no deja poner una accion por debajo de un texto: el paso se
+            // ejecuta de arriba abajo y ahi la accion llega tarde. Se coloca en la
+            // ultima posicion legal en vez de rechazar el gesto, que se veria como
+            // que la App se colgo.
+            return { ...s, elements: ordenarElementos(arrayMove(s.elements, oldIndex, newIndex)) };
           })
         );
       }
@@ -760,29 +812,32 @@ export function TrainingBuilder({
                                           disabled={false}
                                           onApply={(plantilla) => aplicarPlantilla(step.id, plantilla)}
                                         />
-                                        <Textarea
-                                          value={step.mainMessage}
-                                          onChange={(e) => updateStepMainMessage(step.id, e.target.value)}
-                                          placeholder="Escribe el mensaje inicial para este paso…"
-                                          className="min-h-[32px]"
-                                        />
+                                        {/* Lo que deja una plantilla NO se edita a mano.
+                                            Son condiciones y tablas que el modelo lee al pie de
+                                            la letra: cambiar una palabra ahi altera el
+                                            comportamiento y no se nota hasta que un cliente
+                                            recibe algo raro. Se enseña como lo que es
+                                            —instrucciones del sistema, plegadas y en gris—,
+                                            igual que en el paso de Bienvenida. Para cambiarlo se
+                                            aplica otra plantilla encima, que para eso sigue ahi
+                                            el boton. */}
+                                        {esInstruccionDelSistema(step.mainMessage) ? (
+                                          <InstruccionesDelSistema texto={step.mainMessage} />
+                                        ) : (
+                                          <Textarea
+                                            value={step.mainMessage}
+                                            onChange={(e) => updateStepMainMessage(step.id, e.target.value)}
+                                            placeholder="Escribe el mensaje inicial para este paso…"
+                                            className="min-h-[32px]"
+                                          />
+                                        )}
                                       </>
                                     )}
                                   </div>
 
                                   {lockWelcome && (
                                     <div className="px-3">
-                                      <details className="group">
-                                        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center gap-1">
-                                          <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
-                                          Ver instrucciones del sistema
-                                        </summary>
-                                        <Textarea
-                                          value={step.mainMessage}
-                                          readOnly
-                                          className="min-h-[120px] mt-2 text-xs font-mono bg-muted/30 text-muted-foreground resize-none"
-                                        />
-                                      </details>
+                                      <InstruccionesDelSistema texto={step.mainMessage} />
                                     </div>
                                   )}
 
@@ -798,25 +853,40 @@ export function TrainingBuilder({
                                         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                                       </button>
                                       {expandedMotor.has(step.id) && (
-                                        <div className="grid grid-cols-2 gap-3">
-                                          <div className="space-y-1.5">
-                                            <label className="text-xs font-medium text-foreground/70">Variable que recoge</label>
-                                            <Input
-                                              value={step.variableQueRecoge ?? ""}
-                                              onChange={(e) => updateStepVariable(step.id, e.target.value)}
-                                              placeholder="ej: nombre_usuario"
-                                              className="h-8 text-sm"
-                                            />
+                                        <div className="space-y-2">
+                                          <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                              <label className="text-xs font-medium text-foreground/70">Variable que recoge</label>
+                                              <Input
+                                                value={step.variableQueRecoge ?? ""}
+                                                onChange={(e) => updateStepVariable(step.id, e.target.value)}
+                                                placeholder="ej: nombre_usuario, correo"
+                                                className="h-8 text-sm"
+                                              />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                              <label className="text-xs font-medium text-foreground/70">Condicion para avanzar</label>
+                                              <Input
+                                                value={step.condicionParaAvanzar ?? ""}
+                                                onChange={(e) => updateStepCondicion(step.id, e.target.value)}
+                                                placeholder="ej: datos completos"
+                                                className="h-8 text-sm"
+                                              />
+                                            </div>
                                           </div>
-                                          <div className="space-y-1.5">
-                                            <label className="text-xs font-medium text-foreground/70">Condicion para avanzar</label>
-                                            <Input
-                                              value={step.condicionParaAvanzar ?? ""}
-                                              onChange={(e) => updateStepCondicion(step.id, e.target.value)}
-                                              placeholder="ej: datos completos"
-                                              className="h-8 text-sm"
-                                            />
-                                          </div>
+                                          {/* Al configurar cada paso hay que saber que son varias y que van
+                                              todas: sin decirlo, la coma parece parte del nombre. */}
+                                          <p className="text-[11px] leading-snug text-muted-foreground">
+                                            Puedes pedir <strong className="font-medium text-foreground/70">varias variables</strong>, separadas por comas.
+                                            El paso no avanza hasta que estén <strong className="font-medium text-foreground/70">todas</strong> recogidas
+                                            y se cumpla la condición. Las pide de una en una.
+                                            {variablesDelPaso(step.variableQueRecoge).length > 1 && (
+                                              <span className="ml-1 text-foreground/70">
+                                                Este paso pide {variablesDelPaso(step.variableQueRecoge).length}:{" "}
+                                                {variablesDelPaso(step.variableQueRecoge).join(" · ")}.
+                                              </span>
+                                            )}
+                                          </p>
                                         </div>
                                       )}
                                     </div>
@@ -860,6 +930,7 @@ export function TrainingBuilder({
                                                       onSubtypeChange={onSubtypeChange}
                                                       steps={steps}
                                                       updateRoutingRules={updateRoutingRules}
+                                                      updateSheetUrl={updateSheetUrl}
                                                     />
                                                   </div>
                                                 </div>
@@ -899,38 +970,6 @@ export function TrainingBuilder({
           </DndContext>
         )}
 
-        {/* Banner CADENA — solo cuando existe únicamente el paso INICIO FLUJO */}
-        {steps.length === 1 && (steps[0].title === WELCOME_TITLE || steps[0].title === WELCOME_TITLE_LEGACY) && (<>
-          <Separator className="opacity-40" />
-          <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/20 px-3 py-2 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-foreground/70">🎯 Modelo CADENA para ventas por WhatsApp</span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 h-7 text-xs gap-1.5 border-dashed border-primary/40 text-primary hover:bg-primary/10 hover:border-primary hover:text-primary"
-                onClick={() => {
-                  const newSteps = buildCadenaSteps();
-                  setSteps((prev) => [...prev, ...newSteps]);
-                  setExpandedSteps(new Set(newSteps.map((s) => s.id)));
-                }}
-              >
-                <Plus className="h-3 w-3" />
-                Aplicar modelo
-              </Button>
-            </div>
-            <div className="flex items-center w-full gap-1">
-              {CADENA_STEPS.map((s, i) => (
-                <>
-                  <span key={s.title} className="flex-1 text-center text-[10px] font-semibold text-primary/80 bg-primary/10 border border-primary/25 rounded py-1">{s.title}</span>
-                  {i < CADENA_STEPS.length - 1 && (
-                    <ArrowRight key={`a-${i}`} className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                  )}
-                </>
-              ))}
-            </div>
-          </div>
-        </>)}
       </CardContent>
 
       {steps.length > 0 && (
