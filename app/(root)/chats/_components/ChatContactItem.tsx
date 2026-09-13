@@ -2,7 +2,7 @@
 
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React from "react";
-import { Archive, Bell, CalendarClock, Check, CheckCheck, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, Bell, Hand, CalendarClock, Check, CheckCheck, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -180,6 +180,33 @@ function ChatContactItemBase({
   const badgeItems: React.ReactNode[] = [];
 
   if (contact.chatSession) {
+    // 0. Escalada por la IA y esperando a una persona. Va PRIMERO a proposito:
+    //    es lo unico de la fila que dice «esto corre prisa», y con el tiempo
+    //    delante, que es lo que distingue una de hace un minuto de una de hace
+    //    media hora. Desaparece solo en cuanto alguien contesta.
+    const escaladaEn = contact.chatSession.escalatedAt ?? null;
+    if (escaladaEn) {
+      const minutos = Math.max(0, Math.round((Date.now() - escaladaEn) / 60000));
+      const cuanto = minutos < 1 ? "ahora" : minutos < 60 ? `${minutos} min` : `${Math.floor(minutos / 60)} h`;
+      badgeItems.push(
+        <TooltipProvider key="escalada">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-orange-300 bg-orange-50 px-1.5 dark:border-orange-700 dark:bg-orange-950">
+                <Hand className="h-3 w-3 text-orange-600 dark:text-orange-400 shrink-0" />
+                <span className="text-[10px] font-bold leading-none text-orange-700 dark:text-orange-300">
+                  {cuanto}
+                </span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+              <p className="text-xs font-semibold">Pidió un asesor</p>
+              <p className="text-xs">La IA está pausada y espera desde hace {cuanto}.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
     // 1. Clasificación del lead (Frio, Sin clasificar, etc.)
     badgeItems.push(
       <LeadStatusSelect

@@ -105,6 +105,12 @@ export type ChatContactSessionSummary = {
    */
   resolvedAt?: number | null;
   /**
+   * Desde cuando esta conversacion espera a una persona (la IA la escalo), en
+   * milisegundos. Null = no esta escalada. Se borra cuando alguien contesta,
+   * cuando se devuelve a la IA o cuando se resuelve.
+   */
+  escalatedAt?: number | null;
+  /**
    * Linea (instanceName) de la sesion y cuando se toco por ultima vez
    * (milisegundos). Los usa el navegador para emparejar las sesiones de la
    * cuenta con los chats de la bandeja (lib/chat-session-match): la de SU
