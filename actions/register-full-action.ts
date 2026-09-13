@@ -1,6 +1,7 @@
 "use server";
 
 import { signIn } from "@/auth";
+import { crearSesionDeWaha, sePuedeCrearEnWaha } from "@/lib/crear-linea-waha";
 import { db } from "@/lib/db";
 import { fullRegisterSchema } from "@/lib/zod";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
@@ -219,6 +220,26 @@ async function createInstanceForUser(
   userId: string,
   instanceName: string
 ): Promise<{ success: boolean; message: string }> {
+  // La linea nueva nace en WhatsApp Mensajeria (Waha), igual que por los otros
+  // dos caminos de creacion (`createInstance` y `createInstanceInternal`). Si no
+  // hay servidor configurado, en Evolution como siempre.
+  if (await sePuedeCrearEnWaha()) {
+    const enWaha = await crearSesionDeWaha(instanceName);
+    if (enWaha.ok) {
+      await db.instancia.create({
+        data: { instanceName, userId, ...enWaha.datos } as any,
+      });
+      console.info('[linea] creada en WhatsApp Mensajeria', { instanceName, userId });
+      return { success: true, message: "Instancia creada exitosamente." };
+    }
+    // Un cliente que acaba de registrarse no puede quedarse sin linea: se anota
+    // el motivo y se sigue por Evolution, que es el camino de siempre.
+    console.warn('[linea] no se pudo crear en WhatsApp Mensajeria; se crea en Evolution', {
+      instanceName,
+      motivo: enWaha.message,
+    });
+  }
+
   const user = await db.user.findUnique({
     where: { id: userId },
     include: { apiKey: true },

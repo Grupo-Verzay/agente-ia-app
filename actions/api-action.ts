@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { resolveSystemNotificationDispatcherLine, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
 import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
+import { crearSesionDeWaha, sePuedeCrearEnWaha } from "@/lib/crear-linea-waha";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
@@ -394,6 +395,31 @@ export async function createInstance(data: FormData) {
     }
 
     if (isWhatsappLike(instanceType)) {
+      // Las lineas NUEVAS nacen en WhatsApp Mensajeria (Waha).
+      //
+      // Es el mismo canal y la misma tarjeta -«Mensajeria WhatsApp (QR)»-:
+      // cambia por donde se conecta, que es un ajuste de la linea y no algo que
+      // se enseñe. Si no hay servidor de Waha configurado se crea en Evolution,
+      // como siempre, para no dejar sin linea a una instalacion que no lo use.
+      if (await sePuedeCrearEnWaha()) {
+        const enWaha = await crearSesionDeWaha(instanceName);
+        if (!enWaha.ok) {
+          console.warn('[linea] no se pudo crear en WhatsApp Mensajeria', { instanceName, motivo: enWaha.message });
+          return { success: false, message: enWaha.message };
+        }
+        const nuevaEnWaha = await db.instancia.create({
+          data: {
+            instanceName,
+            displayName: cleanInstanceDisplayName(instanceName),
+            userId,
+            ...enWaha.datos,
+          } as any,
+        });
+        console.info('[linea] creada en WhatsApp Mensajeria', { instanceName, userId });
+        revalidatePath('/agregar-api');
+        return { success: true, message: "Instancia creada exitosamente.", instancia: nuevaEnWaha };
+      }
+
       const user = await db.user.findUnique({
         where: { id: userId },
         include: { apiKey: true },
@@ -846,6 +872,30 @@ export async function createInstanceInternal(
     }
 
     if (isWhatsappLike(instanceType)) {
+      // Las lineas NUEVAS nacen en WhatsApp Mensajeria (Waha).
+      //
+      // Es el mismo canal y la misma tarjeta -«Mensajeria WhatsApp (QR)»-:
+      // cambia por donde se conecta, que es un ajuste de la linea y no algo que
+      // se enseñe. Si no hay servidor de Waha configurado se crea en Evolution,
+      // como siempre, para no dejar sin linea a una instalacion que no lo use.
+      if (await sePuedeCrearEnWaha()) {
+        const enWaha = await crearSesionDeWaha(instanceName);
+        if (!enWaha.ok) {
+          console.warn('[linea] no se pudo crear en WhatsApp Mensajeria', { instanceName, motivo: enWaha.message });
+          return { success: false, message: enWaha.message };
+        }
+        await db.instancia.create({
+          data: {
+            instanceName,
+            displayName: cleanInstanceDisplayName(instanceName),
+            userId,
+            ...enWaha.datos,
+          } as any,
+        });
+        console.info('[linea] creada en WhatsApp Mensajeria', { instanceName, userId });
+        return { success: true, message: "Instancia creada exitosamente." };
+      }
+
       const user = await db.user.findUnique({
         where: { id: userId },
         include: { apiKey: true },
@@ -903,8 +953,15 @@ export async function createInstanceInternal(
 
 // Función para verificar si el usuario ya tiene una instancia
 export async function checkActiveInstance(userId: string, instanceType: string = 'Whatsapp') {
+  // La linea de WhatsApp por QR puede estar guardada con dos tipos -`Whatsapp`
+  // si nacio en Evolution, `waha` si nacio o se paso a WhatsApp Mensajeria- y
+  // son LA MISMA cosa: un numero conectado por QR. Preguntando solo por el tipo
+  // pedido, una cuenta con su linea en Waha pasaba el guardia y acababa con dos
+  // filas para el mismo numero, que es justo lo que la regla «una linea es una
+  // instancia» existe para evitar.
+  const tipos = isWhatsappLike(instanceType) ? [instanceType, 'waha'] : [instanceType];
   const instanciaActiva = await db.instancia.findFirst({
-    where: { userId, instanceType: instanceType },
+    where: { userId, instanceType: { in: Array.from(new Set(tipos)) } },
   });
   return instanciaActiva;
 }
