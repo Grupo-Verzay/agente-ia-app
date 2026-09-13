@@ -1338,6 +1338,7 @@ export function ChatsClient({
    *
    * Solo toca el estado si hay algo que levantar: sin cambios no hay render.
    */
+  const marcasYaPreguntadas = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!currentChatsResult.success) return;
     const levantadas: string[] = [];
@@ -1353,20 +1354,19 @@ export function ChatsClient({
       const preference = getPreferenceForChat(chat, chatPreferences, owner, repartidasEntreLineas);
       if (!preference?.deletedAt) continue;
       const ultimo = chat.lastMessage;
-      if (!ultimo || ultimo.key?.fromMe === true) continue;
+      if (!ultimo) continue;
       const borradoMs = new Date(preference.deletedAt).getTime();
       if (!(epochToMs(ultimo.messageTimestamp) > borradoMs)) continue;
       const identidades = getChatIdentityCandidates(chat);
-      let teniaMarca = false;
-      for (const candidate of identidades) {
-        for (const k of chatPreferenceKeys(owner, chat.instanceName, candidate)) {
-          if (chatPreferences[k]?.deletedAt) {
-            levantadas.push(k);
-            teniaMarca = true;
-          }
-        }
-      }
-      if (teniaMarca && owner) {
+
+      // Al servidor se le pregunta SIEMPRE que la fila tenga movimiento
+      // posterior al borrado, lo haya escrito quien lo haya escrito. Que el
+      // ultimo sea del contacto dura segundos -contestas tu, o contesta la IA-
+      // y con esa condicion la pregunta no se llegaba a hacer nunca: el chat se
+      // quedaba escondido aunque la conversacion siguiera viva. Quien decide es
+      // la base (`levantarMarcaDeBorradoAction`), que mira si el contacto
+      // escribio despues; aqui solo se avisa de donde mirar.
+      if (owner) {
         paraElServidor.push({
           userId: owner,
           ...(chat.instanceName ? { instanceName: chat.instanceName } : {}),
@@ -1374,8 +1374,25 @@ export function ChatsClient({
           identidades,
         });
       }
+
+      // Y en memoria se levanta ya, sin esperar al viaje, pero solo con la
+      // prueba delante: el ultimo mensaje es del contacto.
+      if (ultimo.key?.fromMe === true) continue;
+      for (const candidate of identidades) {
+        for (const k of chatPreferenceKeys(owner, chat.instanceName, candidate)) {
+          if (chatPreferences[k]?.deletedAt) levantadas.push(k);
+        }
+      }
     }
+    // Una vez por chat y por pestaña abierta. La lista se rehace cada 20 s y sin
+    // esto se preguntaria lo mismo una y otra vez por cada chat borrado que
+    // tenga movimiento: la respuesta no cambia hasta que el contacto escriba, y
+    // cuando escriba llega por el otro lado (la marca se levanta y desaparece de
+    // aqui).
     for (const chat of paraElServidor) {
+      const llave = `${chat.userId}::${chat.instanceName ?? ""}::${chat.remoteJid}`;
+      if (marcasYaPreguntadas.current.has(llave)) continue;
+      marcasYaPreguntadas.current.add(llave);
       void levantarMarcaDeBorradoAction(chat)
         .then((r) => {
           if (!r.success) console.warn("[chats] no se pudo levantar la marca en la base", r.message);
@@ -3175,10 +3192,13 @@ export function ChatsClient({
   const handleRestoreChat = useCallback(
     async (remoteJid: string) => {
       const ownerUserId = ownerForJid(remoteJid);
+      // Con las identidades de la fila, igual que al borrar: la marca esta bajo
+      // todas y hay que quitarla de todas (#640).
       const result = await restoreChatConversationAction({
         userId: ownerUserId,
         instanceName: lineaDelJid(remoteJid),
         remoteJid,
+        identidades: identidadesDeLaFila(remoteJid),
       });
 
       if (!result.success || !result.data) {
@@ -3189,7 +3209,7 @@ export function ChatsClient({
       applyChatPreference(result.data, ownerUserId);
       toast.success(result.message);
     },
-    [applyChatPreference, ownerForJid, lineaDelJid],
+    [applyChatPreference, ownerForJid, lineaDelJid, identidadesDeLaFila],
   );
 
   // Vaciar la pestana Eliminados: limpia el rastro de cada contacto marcado y

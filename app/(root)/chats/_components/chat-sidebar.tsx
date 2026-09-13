@@ -610,8 +610,9 @@ export function ChatSidebar({
 
     for (const c of contacts) {
       if (c.isDeleted) {
-        // Las purgadas siguen eliminadas, pero ya no queda nada que listar.
-        if (!c.isPurged) deleted++;
+        // Cuenta lo que la pestana ENSEÑA, purgados incluidos. Si no, el numero
+        // dice 0 y la lista trae filas.
+        deleted++;
         continue;
       }
 
@@ -675,9 +676,19 @@ export function ChatSidebar({
   const { advisorCounts, tabCounts, filterCounts } = conteos;
 
   const deletedContacts = useMemo(() => {
-    // Los ya purgados siguen eliminados -y por tanto ocultos-, pero no se
-    // listan: no queda nada suyo que borrar y la pestana se volvia un cajon.
-    let list = contacts.filter((c) => c.isDeleted && !c.isPurged);
+    // Los purgados TAMBIEN se listan.
+    //
+    // Se escondian para que la pestana no se volviera un cajon, dando por hecho
+    // que purgar era una accion aparte y posterior. No lo es: borrar un chat
+    // escribe `purgedAt` en el mismo momento que `deletedAt`
+    // (`hardDeleteLocalChat`), asi que TODO lo borrado nacia purgado y esta
+    // pestana salia **vacia siempre**. Con ella vacia no habia forma de
+    // restaurar nada: el chat desaparecia de la lista y no aparecia aqui.
+    //
+    // Purgado dice "ya no queda rastro suyo que limpiar", no "no se puede
+    // recuperar": la marca sigue siendo lo unico que lo esconde, y quitarla es
+    // justo lo que hace el boton de restaurar.
+    let list = contacts.filter((c) => c.isDeleted);
     if (q.trim()) {
       const term = q.trim().toLowerCase();
       list = list.filter(
@@ -1424,7 +1435,7 @@ export function ChatSidebar({
                       type="button"
                       onClick={() => {
                         const seguro = window.confirm(
-                          `Se va a borrar el rastro de ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSiguen eliminados y fuera de la lista; solo dejan de aparecer aquí.\n\n¿Continuar?`,
+                          `Se va a borrar el rastro de ${deletedContacts.length} chat${deletedContacts.length !== 1 ? "s" : ""}: sus mensajes, su ficha de contacto y los datos que la IA les haya capturado. No se puede deshacer.\n\nSiguen eliminados y fuera de la lista, y siguen aquí por si hay que devolverlos.\n\n¿Continuar?`,
                         );
                         if (seguro) void onPurgeDeleted();
                       }}
