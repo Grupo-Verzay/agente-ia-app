@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
 import { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
@@ -166,6 +167,59 @@ export async function autoAssignUnassignedSessionsForOwner(
   }
 
   return { assigned };
+}
+
+/**
+ * Devolver la conversacion a la IA.
+ *
+ * Una conversacion escalada queda con dos cosas puestas: la IA apagada y un
+ * asesor asignado. Este es el camino de vuelta, y tiene que deshacer las dos:
+ * si solo se enciende la IA, el chat se queda en la pestaña «Mias» de alguien
+ * que ya no lo esta atendiendo; si solo se suelta, el cliente escribe y no le
+ * contesta nadie.
+ *
+ * Lo hace quien puede tocar esa conversacion: el dueño, un administrador de la
+ * cuenta, o el asesor que la tiene.
+ *
+ * Queda en el historial como `returned_to_ai`, que es lo que luego explica por
+ * que un chat dejo de estar asignado sin que nadie lo liberara a mano.
+ */
+export async function devolverChatALaIaAction(sessionId: number): Promise<Result> {
+  try {
+    const user = await currentUser();
+    if (!user?.id) return { success: false, message: "No autorizado." };
+
+    const rows = await db.$queryRaw<{ userId: string; assignedAdvisorId: string | null }[]>`
+      SELECT "userId", assigned_advisor_id AS "assignedAdvisorId"
+      FROM "Session" WHERE id = ${sessionId} LIMIT 1
+    `;
+    if (!rows[0]) return { success: false, message: "Conversación no encontrada." };
+    if (!(await puedeCerrarOReabrir(user, rows[0]))) {
+      return { success: false, message: "No autorizado." };
+    }
+
+    await db.session.update({
+      where: { id: sessionId },
+      data: {
+        agentDisabled: false,
+        // El opt-in por contacto, igual que el interruptor de la ficha: sin el,
+        // una cuenta con el agente global apagado seguiria sin contestar.
+        aiOptIn: true,
+        assignedAdvisorId: null,
+      },
+    });
+
+    await logAssignment(sessionId, rows[0].assignedAdvisorId, user.id, "returned_to_ai");
+
+    revalidatePath("/chats");
+    return { success: true };
+  } catch (error) {
+    console.error("[devolverChatALaIaAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo devolver el chat a la IA.",
+    };
+  }
 }
 
 export async function assignSessionToAdvisor(
