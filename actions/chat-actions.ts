@@ -559,6 +559,8 @@ export type EvolutionMessage = {
   MessageUpdate?: Array<unknown>;
   /** El cliente eliminó ("eliminar para todos") este mensaje; se conserva y se marca. */
   clientDeleted?: boolean;
+  /** Alguien corrigió este mensaje desde la App. Se marca en la burbuja. */
+  editado?: boolean;
   /**
    * El emoji con el que se reaccionó a ESTE mensaje.
    *

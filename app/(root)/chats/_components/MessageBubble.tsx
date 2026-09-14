@@ -74,6 +74,7 @@ interface MessageBubbleProps {
   sentByAi?: boolean;
   /** El cliente eliminó este mensaje ("eliminar para todos"); se conserva con badge. */
   clientDeleted?: boolean;
+  editado?: boolean;
   senderName?: string;
   /** Autor del mensaje en chats de grupo (vacío en los 1-a-1). */
   groupSenderName?: string | null;
@@ -106,6 +107,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   isUserMessage,
   sentByAi,
   clientDeleted,
+  editado,
   senderName,
   groupSenderName,
   groupSenderPhone,
@@ -176,10 +178,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     </span>
   ) : null;
 
+  // Igual que «Eliminado»: la burbuja cambia y hay que poder saber por que.
+  // Sin esto, quien no hizo la correccion ve un texto distinto del que recuerda
+  // —o del que tiene el cliente en su telefono si WhatsApp rechazo la edicion— y
+  // nada en pantalla lo explica.
+  const editadoBadge = editado ? (
+    <span
+      className={cn(
+        'flex items-center gap-0.5 text-[0.6rem] font-semibold leading-none',
+        isUserMessage ? 'text-amber-200' : 'text-amber-600 dark:text-amber-400',
+      )}
+      title="Este mensaje se corrigió desde la App"
+    >
+      <span>✏️</span>
+      <span>Editado</span>
+    </span>
+  ) : null;
+
   const timeAndStatus = (
     <div className="flex items-center gap-0.5">
       {deletedBadge}
-      {deletedBadge && (senderIcon || timestamp) && (
+      {deletedBadge && (editadoBadge || senderIcon || timestamp) && (
+        <span className="text-[0.6rem] leading-none text-gray-400/70 mx-0.5">|</span>
+      )}
+      {editadoBadge}
+      {editadoBadge && (senderIcon || timestamp) && (
         <span className="text-[0.6rem] leading-none text-gray-400/70 mx-0.5">|</span>
       )}
       {senderIcon}

@@ -28,6 +28,8 @@ type PersistedChatMessageRow = {
   raw: Prisma.JsonValue | null;
   messageTimestamp: Date;
   deleted: boolean | null;
+  /** Cuando alguien corrigio el texto desde la App. La pone `guardarMensajeEditado`. */
+  editedAt: Date | null;
 };
 
 type InboxRow = {
@@ -513,6 +515,10 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
       ((row.raw as { contextInfo?: Record<string, unknown> } | null)?.contextInfo ?? null),
     ...(sentByAi ? { sentByAi: true } : {}),
     ...(row.deleted ? { clientDeleted: true } : {}),
+    // Corregido desde la App. La marca ya estaba guardada —es lo que impide que
+    // el sondeo devuelva el texto viejo— pero no llegaba a la pantalla, asi que
+    // el mensaje cambiaba sin que nada dijera por que.
+    ...(row.editedAt ? { editado: true } : {}),
     // La reaccion va colgada del propio mensaje (ver `guardarReaccion`), no
     // como fila aparte. Aqui sale para que la burbuja pueda pintarla.
     ...(typeof (row.raw as { reaccion?: unknown } | null)?.reaccion === 'string' &&

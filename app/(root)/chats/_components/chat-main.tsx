@@ -204,6 +204,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [reacciones, setReacciones] = useState<Map<string, string>>(new Map());
   // Edición optimista: id del mensaje -> nuevo texto (se aplica al render al vuelo).
   const [editedContent, setEditedContent] = useState<Map<string, string>>(new Map());
+  // Los que se acaban de corregir DESDE ESTA pestaña, para que el badge
+  // «Editado» salga al momento y no dentro de una vuelta del sondeo. Solo entran
+  // los que WhatsApp aceptó: si rechaza, el texto vuelve al viejo y marcarlo
+  // sería mentir.
+  const [editadosLocal, setEditadosLocal] = useState<Set<string>>(new Set());
   const [editingBubble, setEditingBubble] = useState<UIBubble | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
@@ -406,6 +411,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       if (editedContent.size > 0 && editedContent.has(b.id)) {
         bubble = { ...bubble, content: editedContent.get(b.id)! };
       }
+      if (editadosLocal.size > 0 && editadosLocal.has(b.id)) {
+        bubble = { ...bubble, editado: true };
+      }
       if (reacciones.size > 0 && reacciones.has(b.id)) {
         const emoji = reacciones.get(b.id)!;
         bubble = { ...bubble, reaction: emoji || undefined };
@@ -413,7 +421,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       out.push(bubble);
     }
     return out;
-  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds, editedContent, reacciones]);
+  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds, editedContent, editadosLocal, reacciones]);
 
   /* ─── Load notes when session changes ─── */
   useEffect(() => {
@@ -966,6 +974,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       setEditedContent((prev) => { const next = new Map(prev); next.set(bubble.id, prevContent); return next; });
       toast.error(result.message);
     } else {
+      setEditadosLocal((prev) => new Set(prev).add(bubble.id));
       toast.success('Mensaje editado.');
     }
   }, [editingBubble, info]);
