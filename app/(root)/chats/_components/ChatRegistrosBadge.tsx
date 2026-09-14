@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 
-import { readBadgeCount, writeBadgeCount } from "./chat-badge-cache";
 import { loadRegistrosSnapshot } from "./chat-registros-cache";
+import { guardarResumen, leerResumen } from "./chat-registros-store";
 import { RESUMEN_VACIO, type ResumenDeRegistros } from "@/lib/registros-del-lead";
 import type { SimpleTag } from "@/types/session";
 
@@ -73,11 +73,34 @@ export function ChatRegistrosBadge({
   onSessionRefresh?: () => Promise<void> | void;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  // Mientras la sesion no ha llegado, se ensena el ultimo total conocido.
-  const [cachedTotal, setCachedTotal] = useState(0);
+
+  /**
+   * UNA fuente para el numero y para las filas.
+   *
+   * Antes el contador caia a un cache de solo el total cuando la sesion no
+   * traia el resumen, y las filas no tenian respaldo ninguno: al cambiar de
+   * chat el icono decia 13 y el globo «Sin registros aun». Dos fuentes para lo
+   * mismo, y solo una con red.
+   *
+   * Ahora sale todo del store, que guarda el resumen ENTERO y sobrevive a
+   * cambiar de chat y volver.
+   */
+  const [resumenEnPantalla, setResumenEnPantalla] = useState<ResumenDeRegistros | null>(null);
 
   useEffect(() => {
-    setCachedTotal(readBadgeCount(`reg:${sessionId}`));
+    setResumenEnPantalla(leerResumen(sessionId));
+  }, [sessionId]);
+
+  // Cuando la sesion trae los numeros, entran al store y a la pantalla.
+  useEffect(() => {
+    if (!registrosResumen) return;
+    guardarResumen(sessionId, registrosResumen);
+    setResumenEnPantalla(registrosResumen);
+  }, [registrosResumen, sessionId]);
+
+  // Y cuando el detalle se carga o se refresca, el store ya lo tiene: se relee.
+  const releerDelStore = useCallback(() => {
+    setResumenEnPantalla(leerResumen(sessionId));
   }, [sessionId]);
 
   /**
@@ -93,10 +116,12 @@ export function ChatRegistrosBadge({
    * por algo que la mayoria de las veces nadie mira.
    */
   const calentarElPanel = useCallback(() => {
-    void loadRegistrosSnapshot(sessionId, userId, remoteJid).catch(() => undefined);
-  }, [sessionId, userId, remoteJid]);
+    void loadRegistrosSnapshot(sessionId, userId, remoteJid)
+      .then(releerDelStore)
+      .catch(() => undefined);
+  }, [sessionId, userId, remoteJid, releerDelStore]);
 
-  const resumen = registrosResumen ?? RESUMEN_VACIO;
+  const resumen = resumenEnPantalla ?? RESUMEN_VACIO;
   const countByTipo = TIPOS.reduce((acc, tipo) => {
     acc[tipo] = resumen.porTipo[tipo] ?? 0;
     return acc;
@@ -109,13 +134,10 @@ export function ChatRegistrosBadge({
   const followUpsCount = resumen.followUpsIa;
   const grandTotal = registrosTotal + seguimientosCount + recordatoriosCount + citasCount + followUpsCount;
 
-  // El total se guarda para que la PROXIMA apertura lo ensene antes incluso de
-  // que llegue la sesion.
-  const llego = !!registrosResumen;
-  useEffect(() => {
-    if (llego) writeBadgeCount(`reg:${sessionId}`, grandTotal);
-  }, [llego, grandTotal, sessionId]);
-  const displayTotal = llego ? grandTotal : cachedTotal;
+  // El numero sale del MISMO objeto que las filas. Si no se sabe nada todavia,
+  // no hay numero y no hay filas: coherente, en vez de un 13 sobre un globo
+  // vacio.
+  const displayTotal = grandTotal;
 
   const notasIaCount = (sessionSeguimientos ?? "")
     .split("\n")
@@ -194,7 +216,9 @@ export function ChatRegistrosBadge({
             // Y se vuelve a pedir la sesion, que es de donde salen los numeros
             // del globo. Sin lo segundo, anadir un registro y cerrar dejaba el
             // contador viejo hasta el siguiente refresco.
-            void loadRegistrosSnapshot(sessionId, userId, remoteJid, { force: true }).catch(() => undefined);
+            void loadRegistrosSnapshot(sessionId, userId, remoteJid, { force: true })
+              .then(releerDelStore)
+              .catch(() => undefined);
             void onSessionRefresh?.();
           }
         }}

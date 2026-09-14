@@ -15,6 +15,8 @@ import {
 import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
 import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import type { Registro } from "@prisma/client";
+import type { ResumenDeRegistros } from "@/lib/registros-del-lead";
+import { guardarResumen } from "./chat-registros-store";
 
 export type RegistrosSnapshot = {
   registros: Registro[];
@@ -26,6 +28,28 @@ export type RegistrosSnapshot = {
   followUpId: string | null;
   hasFollowUp: boolean;
 };
+
+/**
+ * Los mismos numeros que trae la sesion, pero sacados del detalle.
+ *
+ * Vive aqui y no en el store para que el store no dependa del snapshot: el
+ * store solo sabe de resumenes.
+ */
+export function resumenDesdeSnapshot(snapshot: RegistrosSnapshot): ResumenDeRegistros {
+  const porTipo: Record<string, number> = {};
+  for (const r of snapshot.registros) {
+    const tipo = String((r as { tipo?: unknown }).tipo ?? "");
+    if (!tipo) continue;
+    porTipo[tipo] = (porTipo[tipo] ?? 0) + 1;
+  }
+  return {
+    porTipo,
+    seguimientos: snapshot.seguimientosPendingCount,
+    recordatorios: snapshot.recordatoriosCount,
+    citas: snapshot.citasCount,
+    followUpsIa: snapshot.seguimientosPendientes,
+  };
+}
 
 const cache = new Map<number, RegistrosSnapshot>();
 const inflight = new Map<number, Promise<RegistrosSnapshot>>();
@@ -93,6 +117,11 @@ export function loadRegistrosSnapshot(
       hasFollowUp: syn ? true : prev?.hasFollowUp ?? false,
     };
     cache.set(sessionId, snapshot);
+    // El detalle manda sobre los numeros: en cuanto se carga, el contador y el
+    // globo se ponen al dia con EL MISMO dato que ensena el panel. Asi anadir
+    // un registro y cerrar actualiza la cuenta sin esperar a la sesion, y las
+    // tres cosas no pueden discrepar.
+    guardarResumen(sessionId, resumenDesdeSnapshot(snapshot));
     return snapshot;
   })();
   inflight.set(sessionId, promise);
