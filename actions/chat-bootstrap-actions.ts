@@ -10,6 +10,7 @@ import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { getWorkFlowByUserIds } from "@/actions/workflow-actions";
 import { getAllRRsByUserIds } from "@/actions/rr-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
+import { conLaCuentaPropia } from "@/lib/asesores";
 import type {
   ChatConversationPreferenceMap,
   ChatQuickReplyOption,
@@ -77,28 +78,6 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return values.filter((value, index, array): value is string =>
     Boolean(value) && array.indexOf(value) === index,
   );
-}
-
-function withCurrentUserAdvisor(
-  advisors: AdvisorInfo[],
-  user: { id?: string | null; name?: string | null; email?: string | null; company?: string | null; advisorRole?: string | null },
-) {
-  if (!user.id) return advisors;
-
-  const currentAdvisor: AdvisorInfo = {
-    // La cuenta propia sale en la lista para poder asignarse chats, pero no es
-    // un asesor dado de alta en Equipo: no cuenta en la insignia.
-    esDelEquipo: false,
-    id: user.id,
-    name: user.company || user.name || user.email || "Yo",
-    email: user.email || "",
-    advisorRole: user.advisorRole ?? null,
-  };
-
-  const map = new Map<string, AdvisorInfo>();
-  map.set(currentAdvisor.id, currentAdvisor);
-  for (const advisor of advisors) map.set(advisor.id, advisor);
-  return Array.from(map.values());
 }
 
 async function getMissingAssignedAdvisors(
@@ -239,12 +218,12 @@ export async function loadChatBootstrapData(
     console.warn("[chats] la carga inicial no trajo sesiones:", sessionsRes.message);
   }
   const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
-  const baseAdvisors = withCurrentUserAdvisor(advisorsFromTeam, user);
+  const baseAdvisors = conLaCuentaPropia(advisorsFromTeam, user);
   const arrancoAsesoresQueFaltan = Date.now();
   const missingAssignedAdvisors = await getMissingAssignedAdvisors(sesionesDeLaCuenta, baseAdvisors);
   // Este va DESPUES del Promise.all, asi que se suma al total. Si pesa, se ve.
   tiempos.asesoresQueFaltan = Date.now() - arrancoAsesoresQueFaltan;
-  const advisors = withCurrentUserAdvisor([...baseAdvisors, ...missingAssignedAdvisors], user);
+  const advisors = conLaCuentaPropia([...baseAdvisors, ...missingAssignedAdvisors], user);
   tiempos.total = Date.now() - arrancoAcceso;
 
   return {

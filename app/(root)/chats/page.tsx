@@ -37,6 +37,8 @@ import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
 import { getTeamAdvisorInfos, type AdvisorInfo } from "@/actions/team-actions";
+import { listTagsAction } from "@/actions/tag-actions";
+import { conLaCuentaPropia } from "@/lib/asesores";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { applyLidMappingToChats, type LidPhoneMap } from "./_components/lid-mapping";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
@@ -96,25 +98,6 @@ const ESPERA_EVOLUTION_RENDER_MS = 4_000;
 
 function settleValue<T>(value: T | null | undefined): T | null {
   return value ?? null;
-}
-
-function withCurrentUserAdvisor(
-  advisors: AdvisorInfo[],
-  user: { id?: string | null; name?: string | null; email?: string | null; company?: string | null; advisorRole?: string | null },
-) {
-  if (!user.id) return advisors;
-
-  const currentAdvisor: AdvisorInfo = {
-    id: user.id,
-    name: user.company || user.name || user.email || "Yo",
-    email: user.email || "",
-    advisorRole: user.advisorRole ?? null,
-  };
-
-  const map = new Map<string, AdvisorInfo>();
-  map.set(currentAdvisor.id, currentAdvisor);
-  for (const advisor of advisors) map.set(advisor.id, advisor);
-  return Array.from(map.values());
 }
 
 function getChatSortTimestamp(chat: ChatData) {
@@ -470,7 +453,14 @@ export default async function ChatsPage({
   let __msPrefs = 0;
   let __msAsesores = 0;
   let __msBandejaTotal = 0;
-  const [persistedInitialChats, initialPreferencesResult, initialAdvisorsResult, conteosPorLinea] = await Promise.all([
+  const [
+    persistedInitialChats,
+    initialPreferencesResult,
+    initialAdvisorsResult,
+    conteosPorLinea,
+    initialTagsResult,
+    initialClientValidation,
+  ] = await Promise.all([
     (async () => {
       const t = performance.now();
       try {
@@ -505,13 +495,41 @@ export default async function ChatsPage({
       userIds: allSessionUserIds,
       instanceNames: instancias.map((inst) => inst.instanceName),
     }),
+    // Las etiquetas y la config de validacion, desde el SERVIDOR.
+    //
+    // Las dos llegaban con la carga inicial, o sea segundos despues de que la
+    // pantalla ya estuviera pintada, y se notaba: el filtro de etiquetas (el
+    // embudo) aparecia de la nada, y en las cuentas con validacion de cliente
+    // el menu de «⌄» cambiaba de contenido solo. Una barra que se completa a
+    // trozos se lee como una pantalla a medio cargar.
+    //
+    // Van dentro del `Promise.all` que ya estaba: en paralelo con las otras
+    // cuatro, asi que cuestan lo que la mas lenta y no la suma. Las dos son
+    // pequenas y por indice.
+    settle(listTagsAction(effectiveOwnerId)),
+    db.externalDataToolConfig
+      .findFirst({
+        where: { userId: effectiveOwnerId, toolType: "client_validation", isEnabled: true },
+        select: { id: true },
+      })
+      .catch(() => null),
   ]);
   const __tBandeja = performance.now();
 
-  const initialAdvisors = withCurrentUserAdvisor(
+  const initialAdvisors = conLaCuentaPropia(
     initialAdvisorsResult.success ? initialAdvisorsResult.data ?? [] : [],
     user,
   );
+  const initialAllTags =
+    initialTagsResult?.data?.map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      slug: tag.slug,
+      color: tag.color,
+      order: tag.order ?? 0,
+      sessionCount: tag._count?.sessionTags ?? 0,
+    })) ?? [];
+
   const initialChatPreferences = initialPreferencesResult.success
     ? initialPreferencesResult.data ?? {}
     : {};
@@ -808,7 +826,7 @@ export default async function ChatsPage({
       apiKeyData={claveActiva ? { url: claveActiva.url, key: claveActiva.key } : undefined}
       instanceActionSets={instanceActionSets}
       instanceHealth={instanceHealth}
-      allTags={[]}
+      allTags={initialAllTags}
       workflows={[]}
       quickReplies={[]}
       advisors={initialAdvisors}
@@ -819,7 +837,7 @@ export default async function ChatsPage({
       takeSessionAction={takeSessionAction}
       releaseSessionAction={releaseSessionAction}
       transferSessionAction={transferSessionAction}
-      clientValidationEnabled={false}
+      clientValidationEnabled={Boolean(initialClientValidation)}
     />
   );
 }
