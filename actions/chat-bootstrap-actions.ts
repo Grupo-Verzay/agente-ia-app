@@ -49,7 +49,11 @@ type ChatBootstrapData = {
   clientValidationEnabled: boolean;
 };
 
-type ChatBootstrapResponse = {
+// `export type` y no una constante: en un fichero `'use server'` todo lo que no
+// sea una funcion async tiene que irse a otro sitio, pero un tipo se borra al
+// compilar y no llega a existir. Lo necesita `/api/chats/bootstrap` y el
+// navegador, que ya no llama a esta funcion directamente.
+export type ChatBootstrapResponse = {
   success: boolean;
   message: string;
   data?: ChatBootstrapData;
