@@ -858,8 +858,37 @@ export async function warmChatMessagesAction(
       // se conecto la linea: una linea recien escaneada se abre VACIA aunque el
       // telefono tenga la conversacion entera. Se pide a Waha, se guarda, y se
       // vuelve a leer nuestra base, que es la que manda.
+      //
+      // ## Solo cuando NO hay nada que enseñar, o cuando se piden anteriores
+      //
+      // Esto es un RELLENO, y estaba corriendo siempre. Dos cosas lo hacian
+      // caro, y las dos a la vez:
+      //
+      // 1. Va ANTES del `return` que devuelve lo local, asi que corria tambien
+      //    con la conversacion ya entera en nuestra base: 100 mensajes pedidos
+      //    a Waha y guardados DE UNO EN UNO cada 60 s, por chat, para reescribir
+      //    lo que ya estaba. Y siempre los mismos: `offset` solo se mueve al
+      //    pedir paginas anteriores, asi que ni siquiera iba rellenando hacia
+      //    atras.
+      // 2. Lo llamaba tambien el PREFETCH de la lista, que pasa `localFirst` y
+      //    se dispara por cada fila que se hace visible. La rama de Evolution si
+      //    mira `localFirst`; a esta se le habia pasado. Con decenas de filas
+      //    visibles eso son miles de escrituras por minuto contra un pool de 10
+      //    conexiones, y de ahi que TODO lo demas se viera lento: la bandeja
+      //    entre 517 y 1.153 ms para la misma consulta, y las cuatro consultas
+      //    de sesiones rondando el segundo cada una. No eran consultas lentas:
+      //    era espera por conexion.
+      //
+      // El relleno sigue donde hace falta: una conversacion que no tiene nada
+      // guardado (la linea recien escaneada, el contacto que escribe por primera
+      // vez) y el boton de «Cargar mensajes anteriores», que pide `page > 1`.
+      // Lo que llega NUEVO no depende de esto: lo guarda el webhook del backend,
+      // que va siempre encendido.
+      const noHayNadaQueEnsenar = localResult.data.length === 0;
+      const pideMasAntiguos = page > 1;
       if (
         !options?.localOnly &&
+        (noHayNadaQueEnsenar || pideMasAntiguos) &&
         context?.instanceName &&
         !hasReadyContext(context) &&
         (await esLineaWaha(context.instanceName))
