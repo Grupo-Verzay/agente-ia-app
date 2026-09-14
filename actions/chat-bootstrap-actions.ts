@@ -43,6 +43,16 @@ type ChatBootstrapResponse = {
   success: boolean;
   message: string;
   data?: ChatBootstrapData;
+  /**
+   * Cuanto tardo cada una de las consultas, en milisegundos.
+   *
+   * Esto es un `Promise.all` de siete: devuelve cuando acaba la ULTIMA, asi que
+   * saber el total no dice nada —lo unico que importa es cual es la lenta—. Y
+   * los registros del contenedor no estan a mano cuando alguien manda una
+   * captura, asi que el desglose viaja en la respuesta y sale por la consola
+   * del navegador.
+   */
+  tiempos?: Record<string, number>;
 };
 
 async function settle<T>(promise: Promise<T>): Promise<T | null> {
@@ -123,6 +133,17 @@ export async function loadChatBootstrapData(
     ...(input.sessionUserIds ?? []),
   ]);
 
+  const tiempos: Record<string, number> = {};
+  const medir = async <T,>(nombre: string, trabajo: () => Promise<T>): Promise<T> => {
+    const t0 = Date.now();
+    try {
+      return await trabajo();
+    } finally {
+      tiempos[nombre] = Date.now() - t0;
+    }
+  };
+
+  const arrancoTodo = Date.now();
   const [
     tagsRes,
     sessionsRes,
@@ -132,23 +153,26 @@ export async function loadChatBootstrapData(
     advisorsRes,
     clientValidationConfig,
   ] = await Promise.all([
-    settle(listTagsAction(effectiveOwnerId)),
-    settle(getSesionesDeLaCuenta(sessionUserIds)),
-    settle(getChatConversationPreferencesForAssociatedAccounts()),
-    settle(getWorkFlowByUserIds(sessionUserIds)),
-    settle(getAllRRsByUserIds(sessionUserIds)),
-    settle(getTeamAdvisorInfos()),
-    db.externalDataToolConfig
-      .findFirst({
-        where: {
-          userId: effectiveOwnerId,
-          toolType: "client_validation",
-          isEnabled: true,
-        },
-        select: { id: true },
-      })
-      .catch(() => null),
+    medir("etiquetas", () => settle(listTagsAction(effectiveOwnerId))),
+    medir("sesiones", () => settle(getSesionesDeLaCuenta(sessionUserIds))),
+    medir("marcasDeBorrado", () => settle(getChatConversationPreferencesForAssociatedAccounts())),
+    medir("flujos", () => settle(getWorkFlowByUserIds(sessionUserIds))),
+    medir("respuestasRapidas", () => settle(getAllRRsByUserIds(sessionUserIds))),
+    medir("asesores", () => settle(getTeamAdvisorInfos())),
+    medir("configValidacion", () =>
+      db.externalDataToolConfig
+        .findFirst({
+          where: {
+            userId: effectiveOwnerId,
+            toolType: "client_validation",
+            isEnabled: true,
+          },
+          select: { id: true },
+        })
+        .catch(() => null),
+    ),
   ]);
+  tiempos.lasSieteALaVez = Date.now() - arrancoTodo;
 
   const allTags =
     tagsRes?.data?.map((tag) => ({
@@ -196,7 +220,10 @@ export async function loadChatBootstrapData(
   }
   const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
   const baseAdvisors = withCurrentUserAdvisor(advisorsFromTeam, user);
+  const arrancoAsesoresQueFaltan = Date.now();
   const missingAssignedAdvisors = await getMissingAssignedAdvisors(sesionesDeLaCuenta, baseAdvisors);
+  // Este va DESPUES del Promise.all, asi que se suma al total. Si pesa, se ve.
+  tiempos.asesoresQueFaltan = Date.now() - arrancoAsesoresQueFaltan;
   const advisors = withCurrentUserAdvisor([...baseAdvisors, ...missingAssignedAdvisors], user);
 
   return {
@@ -211,5 +238,6 @@ export async function loadChatBootstrapData(
       advisors,
       clientValidationEnabled: Boolean(clientValidationConfig),
     },
+    tiempos,
   };
 }

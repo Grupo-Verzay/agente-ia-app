@@ -856,6 +856,40 @@ export function ChatsClient({
   // pide tambien -las necesita para completar los asesores-, y sin esto llegaria
   // despues a poner lo mismo y repintaria la lista entera por gusto.
   const sesionesYaAplicadasRef = useRef(false);
+  /**
+   * MEDICION del arranque de Chats. Solo instrumentacion: no cambia nada.
+   *
+   * «La lista sale pelada unos segundos» se ha diagnosticado dos veces leyendo
+   * codigo y las dos veces se llego a una causa incompleta. Esto pone numeros:
+   * cuanto pasa desde que la pantalla se monta hasta que cada pieza esta
+   * puesta, y en que se va el tiempo del servidor en cada una.
+   *
+   * Sale por `console.warn` a proposito: el build borra `log` y `debug`.
+   */
+  const medicionRef = useRef<{
+    t0: number;
+    sesiones?: Record<string, unknown>;
+    bootstrap?: Record<string, unknown>;
+    lista?: Record<string, unknown>;
+    impreso: boolean;
+  }>({ t0: 0, impreso: false });
+
+  const quizaImprimirMedicion = useCallback((chats: number) => {
+    const m = medicionRef.current;
+    if (m.impreso || !m.t0) return;
+    // Se imprime cuando han llegado las tres, o a los 15 s con lo que haya: si
+    // una no vuelve, eso TAMBIEN es el dato.
+    const estanLasTres = !!m.sesiones && !!m.bootstrap && !!m.lista;
+    const seAcaboLaEspera = performance.now() - m.t0 > 15000;
+    if (!estanLasTres && !seAcaboLaEspera) return;
+    m.impreso = true;
+    console.warn("[chats] MEDICION del arranque (ms desde que se monta la pantalla)", {
+      chats,
+      sesiones: m.sesiones ?? "(no llego)",
+      bootstrap: m.bootstrap ?? "(no llego)",
+      listaEvolution: m.lista ?? "(no llego)",
+    });
+  }, []);
   // El ciclo de la lista necesita poder disparar el sondeo del chat abierto. Va
   // por ref y no por dependencia: el sondeo se recrea con cada cambio de
   // seleccion, y meterlo en las dependencias reiniciaria el ciclo de la lista.
@@ -1672,6 +1706,7 @@ export function ChatsClient({
     bootstrapRequestedRef.current = true;
 
     let cancelled = false;
+    medicionRef.current = { t0: performance.now(), impreso: false };
 
     /**
      * Cruzar las sesiones con los chats y dejarlas puestas.
@@ -1712,18 +1747,41 @@ export function ChatsClient({
      * asesores con los que tienen chats asignados y no salen en el equipo. Lo
      * que ya no hace es ser el unico camino por el que llegan a la pantalla.
      */
+    const arrancoSesiones = performance.now();
     void getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId).then(
       (result) => {
-        if (cancelled || !result.success) return;
-        sesionesYaAplicadasRef.current = true;
-        aplicarSesiones(result.data ?? []);
+        const red = Math.round(performance.now() - arrancoSesiones);
+        if (cancelled) return;
+        const arrancoEmparejar = performance.now();
+        if (result.success) {
+          sesionesYaAplicadasRef.current = true;
+          aplicarSesiones(result.data ?? []);
+        }
+        medicionRef.current.sesiones = {
+          ok: result.success,
+          cuantas: result.success ? (result.data ?? []).length : 0,
+          idaYVuelta: red,
+          emparejar: Math.round(performance.now() - arrancoEmparejar),
+          puestasEn: Math.round(performance.now() - medicionRef.current.t0),
+          servidor: result.tiempos ?? "(sin medir)",
+        };
+        quizaImprimirMedicion(currentChatsResult.data.length);
       },
     );
 
     const timer = window.setTimeout(() => {
+      const arrancoBootstrap = performance.now();
       void loadChatBootstrapData({
         sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
       }).then((result) => {
+        medicionRef.current.bootstrap = {
+          ok: result.success,
+          idaYVuelta: Math.round(performance.now() - arrancoBootstrap),
+          puestoEn: Math.round(performance.now() - medicionRef.current.t0),
+          asesoresRecibidos: result.data?.advisors?.length ?? 0,
+          servidor: result.tiempos ?? "(sin medir)",
+        };
+        quizaImprimirMedicion(currentChatsResult.data.length);
         if (cancelled || !result.success || !result.data) return;
         const data = result.data;
 
@@ -1746,7 +1804,7 @@ export function ChatsClient({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [currentChatsResult, sessionUserIds, userId]);
+  }, [currentChatsResult, sessionUserIds, userId, quizaImprimirMedicion]);
 
   const refetchAllInstances = useCallback(async (): Promise<FetchChatsResult> => {
     if (!instanceActionSets?.length) return refetchChatsAction();
@@ -3827,11 +3885,22 @@ export function ChatsClient({
         // repite de toda la pantalla —una por LINEA cada 20 s por pestaña— y
         // la que hay que poder poner al lado del numero de lineas y de
         // asesores para ver si el coste escala con la cuenta.
+        const arrancoLista = performance.now();
         const result = await medirConsulta(
           "lista",
           () => refetchAllInstances(),
           { lineas: instanceActionSets?.length ?? 1 },
         );
+        // Solo la PRIMERA vuelta, para la medicion del arranque.
+        if (!medicionRef.current.lista && medicionRef.current.t0) {
+          medicionRef.current.lista = {
+            ok: result.success,
+            idaYVuelta: Math.round(performance.now() - arrancoLista),
+            acaboEn: Math.round(performance.now() - medicionRef.current.t0),
+            lineas: instanceActionSets?.length ?? 1,
+          };
+          quizaImprimirMedicion(result.success ? result.data.length : 0);
+        }
         if (result.success) {
           // Esta vuelta ha ido y ha vuelto: el servidor esta EN PIE.
           //
@@ -3930,7 +3999,7 @@ export function ChatsClient({
         window.removeEventListener("focus", alVolver);
       }
     };
-  }, [avisarSiLaListaVaPorDelante, refetchAllInstances, refreshChatSessions]);
+  }, [avisarSiLaListaVaPorDelante, refetchAllInstances, refreshChatSessions, quizaImprimirMedicion]);
 
   /**
    * El chat abierto se refresca con un INTERVALO montado una sola vez.
