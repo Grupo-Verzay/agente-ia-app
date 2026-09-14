@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { ComponentType } from "react";
-import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
+import { Inbox, UserCheck, UserX, Bot, Headphones, Archive, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,10 +18,13 @@ type ChatTabBarProps = {
   tab: TabKey;
   tabCounts: TabCounts;
   showMine?: boolean;
-  rightSlot?: React.ReactNode;
   unreadOnly?: boolean;
   onToggleUnread?: () => void;
   unreadCount?: number;
+  /** Escalados a una persona y sin asesor que los atienda. */
+  enEsperaOnly?: boolean;
+  onToggleEnEspera?: () => void;
+  enEsperaCount?: number;
   starredOnly?: boolean;
   onToggleStarred?: () => void;
   starredCount?: number;
@@ -48,9 +51,8 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
   { key: "all",  label: "Todos", Icon: Inbox,     color: "#007BFF" },
 ];
 
-const GROUPS_COLOR = "#28A745";
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
@@ -111,31 +113,37 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           </button>
         )}
 
-        {/* Badge Grupos */}
-        <button
-          type="button"
-          onClick={() => onTabChange("groups")}
-          title="Grupos"
-          className={cn(
-            "inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium transition-all",
-            tab === "groups"
-              ? "border-emerald-600 bg-emerald-600 text-white"
-              : "border-emerald-400/50 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400"
-          )}
-        >
-          <Users className="h-3 w-3 shrink-0" />
-          {tabCounts.groups > 0 && (
+        {/* En espera: escalados a una persona y sin asesor que los tome.
+            Va detras de «No leidos» porque es otro ESTADO del chat, y uno puede
+            estar leido y seguir esperando.
+
+            Solo se dibuja si hay alguno: un boton en cero no informa de nada y
+            gasta ancho. Y en rosa porque el naranja ya esta cogido dos veces
+            -«No leidos» y el chip de minutos de la tarjeta-. */}
+        {onToggleEnEspera && (enEsperaCount ?? 0) > 0 && (
+          <button
+            type="button"
+            onClick={onToggleEnEspera}
+            title="Escalados a una persona y sin asesor asignado"
+            aria-pressed={!!enEsperaOnly}
+            className={cn(
+              "inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap transition-all",
+              enEsperaOnly
+                ? "border-rose-600 bg-rose-600 text-white"
+                : "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
+            )}
+          >
+            <span>En espera</span>
             <span
-              className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
-              style={{ background: tab === "groups" ? "rgba(255,255,255,0.3)" : GROUPS_COLOR }}
+              className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none tabular-nums text-white"
+              style={{ background: enEsperaOnly ? "rgba(255,255,255,0.3)" : "#e11d48" }}
             >
-              {tabCounts.groups > 99 ? "99+" : tabCounts.groups}
+              {(enEsperaCount ?? 0) > 99 ? "99+" : enEsperaCount}
             </span>
-          )}
-        </button>
+          </button>
+        )}
       </div>
 
-      {rightSlot}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

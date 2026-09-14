@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Inbox, Users, UserX, Check, MessageCircle, PanelLeftClose, RefreshCw } from "lucide-react";
+import { Inbox, Users, UserX, Check, MessageCircle } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useChatsVistos, type MessageRecord } from "@/hooks/chats/useSeenMessages";
@@ -324,6 +324,7 @@ export function ChatSidebar({
   const [dateTo, setDateTo] = useState("");
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
   const [starredJidsArray, setStarredJidsArray] = useState<string[]>([]);
+  const [enEsperaOnly, setEnEsperaOnly] = useState(false);
   const [starredOnly, setStarredOnly] = useState(false);
   const [renameTarget, setRenameTarget] = useState<SidebarContact | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -619,6 +620,7 @@ export function ChatSidebar({
     let clientInactive = 0;
     let ia = 0;
     let human = 0;
+    let enEspera = 0;
 
     for (const c of contacts) {
       // Un chat eliminado no esta en ninguna pestana: no se cuenta en ninguna.
@@ -643,6 +645,10 @@ export function ChatSidebar({
       }
 
       if (c.isUnreadLocal) unread++;
+      // En espera: la IA lo escalo -o se solto por tiempo- y NADIE lo ha
+      // tomado. Un chat puede estar leido y seguir esperando, por eso «No
+      // leidos» no lo cubre. En cuanto alguien se lo asigna, sale.
+      if (c.chatSession?.escalatedAt && !c.chatSession.assignedAdvisorId) enEspera++;
       if (estaDestacado(c)) starred++;
       if (c.hasNotes) notes++;
 
@@ -677,7 +683,7 @@ export function ChatSidebar({
         all: Math.max(all, totalDeLaLinea ?? 0),
         mine, dm, groups, archived, resolved,
       } satisfies TabCounts,
-      filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human },
+      filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human, enEspera },
     };
   }, [contacts, currentAdvisorId, estaDestacado, channelCounts, selectedChannel]);
 
@@ -759,6 +765,10 @@ export function ChatSidebar({
       list = list.filter((c) => c.isUnreadLocal);
     }
 
+    if (enEsperaOnly) {
+      list = list.filter((c) => c.chatSession?.escalatedAt && !c.chatSession.assignedAdvisorId);
+    }
+
     if (starredOnly) {
       list = list.filter(estaDestacado);
     }
@@ -775,12 +785,22 @@ export function ChatSidebar({
       list = list.filter((c) => c.chatSession?.serviceType === serviceTypeFilter);
     }
 
+    // Con «En espera» puesto manda el TIEMPO ESPERANDO, y nada mas: el que
+    // lleva mas, primero. Ni anclados arriba ni lo mas reciente delante, que es
+    // justo lo que hunde a los que esperan. Fuera de este filtro, el orden de
+    // siempre.
+    if (enEsperaOnly) {
+      return list
+        .slice()
+        .sort((a, b) => (a.chatSession?.escalatedAt ?? 0) - (b.chatSession?.escalatedAt ?? 0));
+    }
+
     return list.slice().sort((a, b) => {
       if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, estaDestacado, currentAdvisorId]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, enEsperaOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, estaDestacado, currentAdvisorId]);
 
   // Ref con la lista filtrada actual, para usar dentro de efectos sin volver a
   // dispararlos en cada cambio de la lista (p. ej. polls).
@@ -1250,6 +1270,9 @@ export function ChatSidebar({
           // cabe: ahi la altura pasa a ser un minimo y la cabecera crece.
           style={haySeleccion ? { minHeight: '5.125rem' } : { height: '5.125rem' }}
         >
+          {/* Arriba: QUIEN o QUE TIPO de chat es. Abajo: en que SITUACION esta.
+              Tres iconos y ninguno mas —etiquetas, asesores, grupos—, y el
+              buscador con todo el ancho que sobra. */}
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
             <ChatSearchBar
               value={q}
@@ -1260,16 +1283,16 @@ export function ChatSidebar({
               channelCounts={channelCounts}
               onChannelChange={onChannelChange}
             />
-            {onRefresh && (
-              <button
-                type="button"
-                disabled={isRefreshing}
-                onClick={() => void onRefresh()}
-                title="Actualizar chats"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:h-8 sm:w-8"
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-              </button>
+            {/* Etiquetas. Sube de la fila de abajo: filtra por que TIPO de chat
+                es, no por su situacion. Donde estaba el boton de refrescar, que
+                sobraba: la lista se refresca sola cada 20 s. */}
+            {allTags.length > 0 && (
+              <TagFilterPanel
+                tags={allTags}
+                selectedTagIds={selectedTagIds}
+                onToggleTag={toggleTagFilter}
+                onClearFilter={() => setSelectedTagIds(new Set())}
+              />
             )}
             {showAdvisorFilter && (
               <DropdownMenu>
@@ -1328,16 +1351,33 @@ export function ChatSidebar({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            {onCollapse && (
-              <button
-                type="button"
-                onClick={onCollapse}
-                title="Colapsar lista de chats"
-                className="hidden md:inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
-              >
-                <PanelLeftClose className="h-3.5 w-3.5" />
-              </button>
-            )}
+            {/* Grupos. Sube tambien: es un TIPO de chat. Donde estaba el boton
+                de abrir y cerrar el panel, que en computador no hacia falta -la
+                columna ya es ancha- y en movil lo resuelve el sistema. */}
+            <button
+              type="button"
+              onClick={() => handleTabChange(tab === "groups" ? "all" : "groups")}
+              title="Solo grupos"
+              aria-pressed={tab === "groups"}
+              className={cn(
+                "relative inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors sm:h-8 sm:px-2",
+                tab === "groups"
+                  ? "border-emerald-600 bg-emerald-600 text-white"
+                  : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              {tabCounts.groups > 0 && (
+                <span
+                  className={cn(
+                    "text-[10px] font-bold leading-none tabular-nums",
+                    tab === "groups" ? "text-white" : "text-emerald-600 dark:text-emerald-400",
+                  )}
+                >
+                  {tabCounts.groups > 99 ? "99+" : tabCounts.groups}
+                </span>
+              )}
+            </button>
           </div>
 
           <ChatTabBar
@@ -1346,17 +1386,12 @@ export function ChatSidebar({
             tabCounts={tabCounts}
             showMine={!!currentAdvisorId}
             onCompose={onCompose}
-            rightSlot={allTags.length > 0 ? (
-              <TagFilterPanel
-                tags={allTags}
-                selectedTagIds={selectedTagIds}
-                onToggleTag={toggleTagFilter}
-                onClearFilter={() => setSelectedTagIds(new Set())}
-              />
-            ) : null}
             unreadOnly={unreadOnly}
             onToggleUnread={() => setUnreadOnly((v) => !v)}
             unreadCount={filterCounts.unread}
+            enEsperaOnly={enEsperaOnly}
+            onToggleEnEspera={() => setEnEsperaOnly((v) => !v)}
+            enEsperaCount={filterCounts.enEspera}
             starredOnly={starredOnly}
             onToggleStarred={() => setStarredOnly((v) => !v)}
             starredCount={filterCounts.starred}
