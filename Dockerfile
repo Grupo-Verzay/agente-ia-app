@@ -36,6 +36,22 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+# En que interfaz escucha Next. Sin esto NO se puede tener healthcheck.
+#
+# El servidor de Next en modo `standalone` escucha en
+# `process.env.HOSTNAME || '0.0.0.0'` (linea 9 de su `server.js`), y Docker
+# SIEMPRE define `HOSTNAME`, con el id del contenedor. Asi que Next no escuchaba
+# en todas las interfaces sino solo en la IP de ese nombre, y cualquier sonda
+# contra `127.0.0.1:3000` desde dentro del propio contenedor daba conexion
+# rechazada. De ahi que el healthcheck fallara SIEMPRE en produccion y pasara
+# en local, donde `HOSTNAME` no es el id de un contenedor.
+#
+# Poniendolo a `0.0.0.0` -la receta oficial de Next para Docker- Next escucha en
+# todas, incluida la que ya usaba. Es estrictamente mas amplio que antes: el
+# trafico que hoy entra por la IP del contenedor sigue entrando igual.
+#
+# Nada del codigo de la App lee esta variable; solo la lee `server.js` de Next.
+ENV HOSTNAME=0.0.0.0
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
@@ -66,17 +82,25 @@ EXPOSE 3000
 # el healthcheck sale con 1, el contenedor pasa a `unhealthy` y Swarm lo tira.
 # Desde fuera se veia una App que se caia sola cada minuto.
 #
-# Antes de volver a ponerlo hacen falta DOS cosas, no una:
+# Hacian falta DOS cosas, no una:
 #
-# 1. `ENV HOSTNAME=0.0.0.0` en esta misma etapa (es la receta oficial de Next
-#    para Docker), o que el healthcheck pregunte por `process.env.HOSTNAME` en
-#    vez de por `127.0.0.1`.
+# 1. `ENV HOSTNAME=0.0.0.0` en esta misma etapa. HECHO, arriba, junto a `PORT`.
 # 2. Comprobarlo en el contenedor de verdad, no en local: en local `HOSTNAME` no
-#    es el id de un contenedor y por eso pasaba.
+#    es el id de un contenedor y por eso la prueba local decia que si.
 #
-# Mientras no este eso, el stack se queda en `Order: stop-first`, que cuesta ~100
-# segundos de 502 por despliegue (ver el pendiente en CLAUDE.md) pero no tira la
-# App cada minuto.
+# El 2 es lo que falta. Hasta que alguien entre al contenedor que corre y vea
+# que `/api/health` contesta desde dentro, el `HEALTHCHECK` sigue SIN ponerse
+# aqui: una sonda que no pasa es peor que ninguna, porque Swarm mata tareas
+# sanas cada 55 segundos.
+#
+# Mientras tanto el stack se queda como este, que cuesta ~100 segundos de 502
+# por despliegue (ver el pendiente en CLAUDE.md) pero no tira la App.
+#
+# OJO con el `docker-compose.yml` del repo: ese SI trae un healthcheck contra
+# `127.0.0.1` y `order: start-first`, o sea lo que este comentario dice que no
+# se puede tener todavia. Es una plantilla y se contradice con esto; el stack
+# que corre de verdad se edita en Portainer. No dar por bueno lo que diga ese
+# archivo sin mirar el panel.
 
 # El frontend NO gestiona el esquema de la BD. El repo BACKEND (api-webhook) es el
 # unico duenno de las migraciones y las aplica en su arranque
