@@ -1,17 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Search,
-  ChevronDown,
-  RefreshCw,
-  Users,
-  PanelLeftClose,
-  Filter,
-} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { readSidebarCache, type CachedSidebarRow } from "./chats-sidebar-cache";
+import { ChatSearchBar } from "./ChatSearchBar";
+import { ChatTabBar } from "./ChatTabBar";
+import { TagFilterPanel } from "./TagFilterPanel";
+import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
+import type { TabCounts } from "./chat-sidebar.types";
+import {
+  readSidebarCache,
+  FORMA_POR_DEFECTO,
+  type CachedSidebarRow,
+  type FormaDeLaBarra,
+} from "./chats-sidebar-cache";
+
+/** Sin datos todavía: todos a cero, y en cero la insignia no se pinta. */
+const SIN_CONTEOS: TabCounts = { all: 0, mine: 0, groups: 0, archived: 0, resolved: 0, dm: 0 };
+const nada = () => { };
 
 function initials(name: string) {
   const clean = (name || "").trim();
@@ -19,15 +25,6 @@ function initials(name: string) {
   const parts = clean.split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return clean.slice(0, 2).toUpperCase();
-}
-
-// Botón/ícono cuadrado del toolbar, mismas medidas que el real (h-7 w-7 / sm:h-8 w-8).
-function ToolbarIcon({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground sm:h-8 sm:w-8">
-      {children}
-    </span>
-  );
 }
 
 // Filas de skeleton (fallback cuando aún no hay caché o antes de hidratar).
@@ -50,78 +47,77 @@ function SkeletonRows() {
   );
 }
 
-// Sidebar "puente": misma estructura/medidas que el sidebar real (ancho, toolbar,
-// buscador, tabs, filas) para que al terminar de cargar NO se vea un salto brusco.
-// Muestra la última lista de chats conocida (desde localStorage) mientras el
-// servidor termina. El toolbar es estático (no interactivo).
+/**
+ * El sidebar "puente": lo que se ve mientras /chats carga.
+ *
+ * La barra se pinta con **los mismos componentes que la de verdad**
+ * —`ChatSearchBar`, `ChatTabBar` y los dos botones de `BotonesDeLaBarra`—, no
+ * con una copia. La copia es lo que falló: el puente se quedó con la barra de
+ * hace tres versiones —botón de refrescar, botón de panel, sin «En espera»— y
+ * al llegar la real la barra cambiaba entera delante de quien estuviera
+ * mirando. Mientras sean los mismos componentes, no pueden discrepar.
+ *
+ * Los datos no están todavía, así que **los contadores salen en cero** —la
+ * insignia de un cero no se pinta, ni aquí ni en la real— y los manejadores no
+ * hacen nada. La barra no se puede tocar (`pointer-events-none`): es una
+ * fotografía, no un control, y un clic que no responde se siente peor que un
+ * botón todavía apagado.
+ *
+ * Lo único que no se puede saber sin datos es qué PIEZAS lleva la barra de esta
+ * cuenta, y eso se recuerda de la última visita (`FormaDeLaBarra`).
+ */
 export function CachedSidebar() {
   // null = aún no hidratado (SSR / primer render) → skeleton para no romper hidratación.
   const [rows, setRows] = useState<CachedSidebarRow[] | null>(null);
+  const [forma, setForma] = useState<FormaDeLaBarra>(FORMA_POR_DEFECTO);
 
   useEffect(() => {
-    setRows(readSidebarCache());
+    const guardado = readSidebarCache();
+    setRows(guardado.filas);
+    setForma(guardado.forma);
   }, []);
 
   return (
     <div className="hidden h-full flex-shrink-0 border-r border-border md:block md:w-[20rem] lg:w-[22rem] xl:w-[24rem]">
       <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur">
-        {/* Toolbar estático — mismas clases/medidas que el real (ChatSearchBar + tabs) */}
-        <div className="sticky top-0 z-10 space-y-1.5 border-b border-border bg-background/80 px-2 py-2 backdrop-blur sm:space-y-2 sm:px-3">
+        {/* Mismas clases y MISMA altura fija que la barra real, para que el
+            divisor no salte al cambiar el puente por ella. */}
+        <div
+          className="pointer-events-none sticky top-0 z-10 flex flex-col justify-center space-y-1.5 overflow-hidden border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur sm:space-y-2 sm:px-3"
+          style={{ height: '5.125rem' }}
+          aria-hidden
+        >
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
-            {/* Réplica de ChatSearchBar: "Todos ▾" + buscador */}
-            <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-              <span className="inline-flex h-8 min-w-[56px] max-w-[104px] items-center gap-0.5 rounded-full px-2 text-sm font-semibold tracking-tight text-foreground sm:gap-1 sm:px-2.5">
-                <span className="min-w-0 flex-1 truncate text-left">Todos</span>
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              </span>
-              <div className="relative min-w-[36px] flex-1">
-                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <div className="flex h-7 items-center rounded-full border border-input bg-background pl-7 pr-7 text-xs text-muted-foreground sm:text-sm">
-                  Buscar...
-                </div>
-              </div>
-            </div>
-            <ToolbarIcon>
-              <RefreshCw className="h-3.5 w-3.5" />
-            </ToolbarIcon>
-            <ToolbarIcon>
-              <Users className="h-3.5 w-3.5" />
-            </ToolbarIcon>
-            <ToolbarIcon>
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            </ToolbarIcon>
+            <ChatSearchBar
+              value=""
+              onChange={nada}
+              onClear={nada}
+              /* Dos entradas de mentira solo para que salga el desplegable
+                 «Todos ▾» en vez del título «Chats»: `ChatSearchBar` decide por
+                 cuántas líneas hay, y la lista no se puede abrir. */
+              channels={forma.canales ? [{ instanceName: "" }, { instanceName: " " }] : []}
+              selectedChannel={null}
+            />
+            {forma.etiquetas && (
+              <TagFilterPanel
+                tags={[]}
+                selectedTagIds={new Set<number>()}
+                onToggleTag={nada}
+                onClearFilter={nada}
+              />
+            )}
+            {forma.asesores && <BotonDeAsesores />}
+            <BotonDeGrupos />
           </div>
 
-          {/* Tabs — misma estructura/medidas que ChatTabBar (justify-evenly, h-6, chips
-              con borde) para que la transición del puente al real NO se descuadre. */}
-          <div className="flex w-full items-center gap-1">
-            <div className="flex flex-1 items-center justify-evenly gap-1 overflow-hidden">
-              <span
-                className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap"
-                style={{ borderColor: "#7C3AED50", color: "#7C3AED", background: "#7C3AED10" }}
-              >
-                Mías
-              </span>
-              <span
-                className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap"
-                style={{ background: "#007BFF", borderColor: "#007BFF", color: "#fff" }}
-              >
-                Todos
-              </span>
-              <span className="inline-flex h-6 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-orange-300 bg-orange-50 px-2 text-xs font-medium text-orange-500 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-400">
-                No leídos
-              </span>
-              <span className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-50 px-2 text-xs font-medium text-emerald-600 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400">
-                <Users className="h-3 w-3 shrink-0" />
-              </span>
-            </div>
-            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground">
-              <Filter className="h-3 w-3" />
-            </span>
-            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">
-              <ChevronDown className="h-3 w-3" />
-            </span>
-          </div>
+          <ChatTabBar
+            tab="all"
+            onTabChange={nada}
+            tabCounts={SIN_CONTEOS}
+            showMine={forma.mias}
+            onToggleUnread={nada}
+            onToggleEnEspera={nada}
+          />
         </div>
 
         {/* Lista de chats (desde caché) — misma disposición que ChatContactItem */}

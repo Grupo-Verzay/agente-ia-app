@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { ChatSearchBar } from "./ChatSearchBar";
+import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { ChatTabBar } from "./ChatTabBar";
 import { cn } from "@/lib/utils";
@@ -840,8 +841,16 @@ export function ChatSidebar({
         timestamp: c.timestamp,
         lastMessage: c.lastMessage,
       })),
+      // La FORMA de la barra viaja con la lista: es lo que le permite al puente
+      // pintarla desde el primer fotograma igual que va a quedar.
+      {
+        canales: instancias.length > 1,
+        etiquetas: allTags.length > 0,
+        asesores: showAdvisorFilter,
+        mias: !!currentAdvisorId,
+      },
     );
-  }, [filtered]);
+  }, [filtered, instancias.length, allTags.length, showAdvisorFilter, currentAdvisorId]);
 
   /**
    * El navegador dispara `scroll` muchas mas veces de las que puede pintar. Una
@@ -1311,37 +1320,16 @@ export function ChatSidebar({
             {showAdvisorFilter && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    title="Filtrar por asesor"
-                    className={cn(
-                      'relative inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors sm:h-8 sm:px-2',
-                      advisorFilter !== null
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                    )}
-                  >
-                    <Users className="h-4 w-4 shrink-0" />
-                    {/* Cuantos asesores del EQUIPO hay dados de alta.
-                        No cuenta la cuenta propia ni las cuentas vinculadas
-                        -que salen en la lista para poder asignarles chats, pero
-                        no son personas del equipo- ni «Sin asignar», que no es
-                        un asesor. La marca la pone `getTeamAdvisorInfos`, que
-                        es quien sabe de donde sale cada fila. */}
-                    {asesoresDelEquipo > 0 && (
-                      <span
-                        className={cn(
-                          "text-[10px] font-bold leading-none tabular-nums",
-                          advisorFilter !== null ? "text-primary" : "text-muted-foreground",
-                        )}
-                      >
-                        {asesoresDelEquipo > 99 ? "99+" : asesoresDelEquipo}
-                      </span>
-                    )}
-                    {advisorFilter !== null && (
-                      <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
-                    )}
-                  </button>
+                  <BotonDeAsesores
+                    activo={advisorFilter !== null}
+                    /* Cuantos asesores del EQUIPO hay dados de alta. No cuenta la
+                       cuenta propia ni las cuentas vinculadas -que salen en la lista
+                       para poder asignarles chats, pero no son personas del equipo-
+                       ni «Sin asignar», que no es un asesor. La marca la pone
+                       `getTeamAdvisorInfos`, que es quien sabe de donde sale cada
+                       fila. */
+                    cantidad={asesoresDelEquipo}
+                  />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 p-1">
                   <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1403,30 +1391,11 @@ export function ChatSidebar({
             {/* Grupos. Sube tambien: es un TIPO de chat. Donde estaba el boton
                 de abrir y cerrar el panel, que en computador no hacia falta -la
                 columna ya es ancha- y en movil lo resuelve el sistema. */}
-            <button
-              type="button"
+            <BotonDeGrupos
+              activo={tab === "groups"}
+              cantidad={tabCounts.groups}
               onClick={() => handleTabChange(tab === "groups" ? "all" : "groups")}
-              title="Solo grupos"
-              aria-pressed={tab === "groups"}
-              className={cn(
-                "relative inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors sm:h-8 sm:px-2",
-                tab === "groups"
-                  ? "border-emerald-600 bg-emerald-600 text-white"
-                  : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <Users className="h-4 w-4 shrink-0" />
-              {tabCounts.groups > 0 && (
-                <span
-                  className={cn(
-                    "text-[10px] font-bold leading-none tabular-nums",
-                    tab === "groups" ? "text-white" : "text-emerald-600 dark:text-emerald-400",
-                  )}
-                >
-                  {tabCounts.groups > 99 ? "99+" : tabCounts.groups}
-                </span>
-              )}
-            </button>
+            />
           </div>
 
           <ChatTabBar
