@@ -697,6 +697,12 @@ export function ChatSidebar({
 
   const { advisorCounts, tabCounts, filterCounts } = conteos;
 
+  // Los asesores del equipo, que no son todos los que salen en la lista.
+  const asesoresDelEquipo = useMemo(
+    () => (advisors ?? []).filter((a) => a.esDelEquipo).length,
+    [advisors],
+  );
+
   const setUnreadCount = useChatUnreadStore((s) => s.setUnreadCount);
   useEffect(() => {
     setUnreadCount(filterCounts.unread);
@@ -1309,13 +1315,29 @@ export function ChatSidebar({
                     type="button"
                     title="Filtrar por asesor"
                     className={cn(
-                      'relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors sm:h-8 sm:w-8',
+                      'relative inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors sm:h-8 sm:px-2',
                       advisorFilter !== null
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     )}
                   >
-                    <Users className="h-4 w-4" />
+                    <Users className="h-4 w-4 shrink-0" />
+                    {/* Cuantos asesores del EQUIPO hay dados de alta.
+                        No cuenta la cuenta propia ni las cuentas vinculadas
+                        -que salen en la lista para poder asignarles chats, pero
+                        no son personas del equipo- ni «Sin asignar», que no es
+                        un asesor. La marca la pone `getTeamAdvisorInfos`, que
+                        es quien sabe de donde sale cada fila. */}
+                    {asesoresDelEquipo > 0 && (
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold leading-none tabular-nums",
+                          advisorFilter !== null ? "text-primary" : "text-muted-foreground",
+                        )}
+                      >
+                        {asesoresDelEquipo > 99 ? "99+" : asesoresDelEquipo}
+                      </span>
+                    )}
                     {advisorFilter !== null && (
                       <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
                     )}

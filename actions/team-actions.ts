@@ -25,7 +25,21 @@ export type AdvisorRow = {
   advisorAvailable: boolean;
   lastActivity: string | null;
 };
-export type AdvisorInfo = { id: string; name: string | null; email: string; advisorRole: string | null };
+export type AdvisorInfo = {
+  id: string;
+  name: string | null;
+  email: string;
+  advisorRole: string | null;
+  /**
+   * Si es alguien del EQUIPO de esta cuenta, y no una cuenta vinculada.
+   *
+   * La lista de asesores mezcla tres cosas: la gente dada de alta en Equipo,
+   * las cuentas vinculadas -que salen ahi para poder asignarles chats- y la
+   * cuenta propia. Desde el navegador no hay forma de distinguirlas: todas
+   * llegan con nombre y correo. Esta marca la pone la consulta, que si lo sabe.
+   */
+  esDelEquipo?: boolean;
+};
 
 type ActionResult<T = undefined> =
   | { success: true; data?: T; message?: string }
@@ -392,11 +406,17 @@ export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>
         id,
         name,
         email,
-        role
+        role,
+        priority
       FROM members
       ORDER BY id, priority DESC
     )
-    SELECT id, name, email, role AS "advisorRole"
+    -- priority 0 es la gente de Equipo (owner_id); 1 son las cuentas
+    -- vinculadas. El DISTINCT ON de arriba ya decide cual gana cuando alguien
+    -- esta en las dos, y aqui solo se traduce a algo que el navegador pueda
+    -- leer sin adivinar. (Sin comillas invertidas: esto vive dentro de un
+    -- template literal y una sola lo cerraria.)
+    SELECT id, name, email, role AS "advisorRole", (priority = 0) AS "esDelEquipo"
     FROM dedup
     ORDER BY name ASC
   `;
