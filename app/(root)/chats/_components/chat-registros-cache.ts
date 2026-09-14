@@ -17,6 +17,7 @@ import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import type { Registro } from "@prisma/client";
 import type { ResumenDeRegistros } from "@/lib/registros-del-lead";
 import { guardarResumen } from "./chat-registros-store";
+import { apuntarAccion } from "@/lib/cola-de-acciones";
 
 export type RegistrosSnapshot = {
   registros: Registro[];
@@ -74,13 +75,24 @@ export function loadRegistrosSnapshot(
     if (existing) return existing;
   }
   const promise = (async () => {
+    // Las SEIS con nombre en la cola de acciones.
+    //
+    // Son acciones de servidor, asi que Next las atiende de una en una: estas
+    // seis ocupan seis turnos seguidos, por delante de lo que venga detras.
+    // Sin nombre no se distinguian —todas van por POST a la ruta de la pagina—
+    // y en el volcado de la cola salian como turnos anonimos, justo cuando
+    // habia dos POST con 12 s de espera que no se podian atribuir a nadie.
+    //
+    // `apuntarAccion` es solo instrumentacion: llama a la funcion en la MISMA
+    // linea, sincrona, y devuelve su promesa original, asi que no cambia ni el
+    // orden de encolado ni el encadenamiento de errores.
     const [regResult, legacyResult, crmResult, remResult, apptResult, synResult] = await Promise.all([
-      getRegistrosBySessionId(sessionId),
-      getSessionLegacySeguimientos(remoteJid),
-      getSessionCrmFollowUps(sessionId, userId),
-      getRemindersByRemoteJid(userId, remoteJid),
-      getAppointmentsBySession(sessionId),
-      getSessionLatestSummarySnapshot(sessionId),
+      apuntarAccion("registros: getRegistrosBySessionId", () => getRegistrosBySessionId(sessionId)),
+      apuntarAccion("registros: getSessionLegacySeguimientos", () => getSessionLegacySeguimientos(remoteJid)),
+      apuntarAccion("registros: getSessionCrmFollowUps", () => getSessionCrmFollowUps(sessionId, userId)),
+      apuntarAccion("registros: getRemindersByRemoteJid", () => getRemindersByRemoteJid(userId, remoteJid)),
+      apuntarAccion("registros: getAppointmentsBySession", () => getAppointmentsBySession(sessionId)),
+      apuntarAccion("registros: getSessionLatestSummarySnapshot", () => getSessionLatestSummarySnapshot(sessionId)),
     ]);
     // Si alguna consulta falla, se conserva el último valor cacheado (no borrar por un
     // error transitorio durante un refresco).

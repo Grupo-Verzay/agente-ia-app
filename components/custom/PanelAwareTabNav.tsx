@@ -44,9 +44,32 @@ function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Pro
         setOptimisticUrl(null);
     }, [currentFullUrl]);
 
-    useEffect(() => {
-        visibleTabUrls.forEach((url) => router.prefetch(url));
-    }, [router, visibleTabUrls]);
+    /*
+     * Aqui habia un prefetch de TODAS las pestañas al montar:
+     *
+     *     useEffect(() => {
+     *       visibleTabUrls.forEach((url) => router.prefetch(url));
+     *     }, [router, visibleTabUrls]);
+     *
+     * Tres cosas lo hacian caro, y las tres juntas:
+     *
+     * 1. Corria **aunque este componente no pinte nada**. El `return null` de
+     *    `excludePanelRoutes` esta mas abajo, y los efectos de React no se
+     *    saltan por un `return`: se ejecutan igual. O sea que estando en
+     *    `/chats` —donde esta barra no se ve— se descargaba el panel entero.
+     * 2. El layout monta DOS de estas (`panelTabs` y `clientPanelTabs`, en
+     *    `app/(root)/layout.tsx`), asi que una URL que este en las dos listas
+     *    se pedia dos veces. Medido: `/panel/clientes`, duplicado.
+     * 3. Cada descarga son cientos de KB de RSC. Medido al entrar a `/chats`:
+     *    cinco prefetch de 1.350 a 2.501 ms cada uno —el de `/chats` con 723 KB
+     *    sin comprimir— compitiendo con `/api/chats/lista` y
+     *    `/api/chats/bootstrap` justo cuando hacen falta.
+     *
+     * Adivinar a donde va a ir alguien cuesta mas que acertar. El prefetch que
+     * se queda es el de `onMouseEnter` y `onFocus` de cada enlace, que no
+     * adivina: se dispara cuando la persona ya apunta a la pestaña, y para
+     * cuando pulsa la ruta ya esta. Eso no cuesta nada al arranque.
+     */
 
     const isPanelRoute = panelRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"));
 
@@ -118,7 +141,12 @@ function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Pro
                             <Link
                                 key={tab.url}
                                 href={tab.url}
-                                prefetch
+                                // `prefetch` a secas es prefetch COMPLETO de la
+                                // ruta, y en cuanto el enlace entra en pantalla.
+                                // Con la barra visible son todas las pestañas a
+                                // la vez. Lo trae el cursor, dos lineas mas
+                                // abajo.
+                                prefetch={false}
                                 onClick={(event) => handleNavigate(event, tab.url, active, tab.locked)}
                                 onMouseEnter={() => !tab.locked && router.prefetch(tab.url)}
                                 onFocus={() => !tab.locked && router.prefetch(tab.url)}

@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
-import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { getWorkFlowByUserIds } from "@/actions/workflow-actions";
@@ -16,10 +15,7 @@ import type {
   ChatQuickReplyOption,
   ChatWorkflowOption,
 } from "@/types/chat";
-import type {
-  ChatContactSessionSummary,
-  SimpleTag,
-} from "@/types/session";
+import type { SimpleTag } from "@/types/session";
 
 type ChatBootstrapInput = {
   sessionUserIds?: string[];
@@ -29,19 +25,22 @@ type ChatBootstrapData = {
   allTags: SimpleTag[];
   chatPreferences: ChatConversationPreferenceMap;
   /**
-   * Las sesiones NO viajan aqui, y es a proposito.
+   * Las sesiones NO viajan aqui, y ya ni siquiera se piden.
    *
-   * Se piden igual mas abajo —hacen falta para completar la lista de asesores
-   * con los que tienen chats asignados y no salen en el equipo— pero se quedan
-   * en el servidor. El navegador las recibe por su propia consulta, que sale al
-   * montar la pantalla y va por indice.
+   * Dos pasos, de dos fallos distintos:
    *
-   * Viajaban por los DOS caminos desde el #656, que fue cuando se les dio
-   * consulta propia y se olvido quitarlas de aqui: 573 KB de los 1.540 que pesa
-   * esta respuesta, bajados dos veces en cada carga de Chats para pintar lo
-   * mismo. Y el coste de esta respuesta no es esperar en cola —se midio con
-   * dos replicas y no se movio ni un segundo—: es serializarla y comprimirla,
-   * que es trabajo por peticion. Lo unico que lo baja es que pese menos.
+   * 1. Viajaban por los DOS caminos desde el #656 —573 KB de los 1.540 que
+   *    pesaba esta respuesta, bajados dos veces en cada carga de Chats para
+   *    pintar lo mismo—. Se quitaron de la respuesta, pero la consulta se quedo
+   *    porque hacia falta para completar la lista de asesores.
+   * 2. Y entonces la MISMA consulta corria dos veces por carga: aqui (1.035 ms)
+   *    y en el navegador (2.900 ms). Ahora aqui no se piden las sesiones: se
+   *    piden los ids distintos de asesor asignado, que es lo unico que se
+   *    necesitaba (ver `idsDeAsesoresConChatsAsignados`).
+   *
+   * El navegador las sigue recibiendo por su propia consulta, que sale al
+   * montar la pantalla y va por indice. **No devolverlas por aqui**: llegarian
+   * al ritmo de la MAS LENTA de las siete de abajo, y no al suyo.
    */
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
@@ -84,21 +83,50 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   );
 }
 
+/**
+ * Los asesores que TIENEN chats asignados y no salen en el equipo.
+ *
+ * Esto recibia la lista ENTERA de sesiones de la cuenta y le sacaba los
+ * `assignedAdvisorId`. O sea que el bootstrap ejecutaba `getSesionesDeLaCuenta`
+ * —731 filas, 444 KB, 1.035 ms medidos— para acabar quedandose con un puñado
+ * de ids. Y desde el #662 ni siquiera las manda: el navegador las pide por su
+ * cuenta, asi que esa misma consulta corria DOS VECES en cada carga de Chats.
+ *
+ * Lo que hace falta es la lista de ids distintos, y eso es un `DISTINCT` sobre
+ * la primera columna del indice unico `(userId, instanceId, remoteJid)`. No lee
+ * ni un `lastMessageRaw`.
+ *
+ * No se devuelven las sesiones por aqui a proposito: que viajen con el
+ * bootstrap es justo lo que se quito en el #662 —las insignias de cada fila
+ * llegaban al ritmo de la MAS LENTA de las siete consultas, no al suyo—.
+ */
+async function idsDeAsesoresConChatsAsignados(userIds: string[]): Promise<string[]> {
+  if (!userIds.length) return [];
+  try {
+    const filas = await db.session.findMany({
+      where: { userId: { in: userIds }, assignedAdvisorId: { not: null } },
+      select: { assignedAdvisorId: true },
+      distinct: ["assignedAdvisorId"],
+    });
+    return filas
+      .map((fila) => fila.assignedAdvisorId)
+      .filter((id): id is string => Boolean(id));
+  } catch (error) {
+    // Nunca rompe la carga: sin esto solo faltan del desplegable los asesores
+    // que ya no estan en el equipo, no la pantalla.
+    console.warn("[chats] no se pudieron leer los asesores con chats asignados", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
 async function getMissingAssignedAdvisors(
-  sesiones: ChatContactSessionSummary[],
+  idsAsignados: string[],
   knownAdvisors: AdvisorInfo[],
 ) {
   const knownIds = new Set(knownAdvisors.map((advisor) => advisor.id));
-  const missingIds = Array.from(
-    new Set(
-      sesiones
-        .map((session) => session.assignedAdvisorId)
-        .filter((id): id is string => {
-          if (!id) return false;
-          return !knownIds.has(id);
-        }),
-    ),
-  );
+  const missingIds = Array.from(new Set(idsAsignados.filter((id) => !knownIds.has(id))));
 
   if (missingIds.length === 0) return [];
 
@@ -147,7 +175,7 @@ export async function loadChatBootstrapData(
   const arrancoTodo = Date.now();
   const [
     tagsRes,
-    sessionsRes,
+    idsAsignados,
     preferencesRes,
     workflowsRes,
     quickRepliesRes,
@@ -155,7 +183,7 @@ export async function loadChatBootstrapData(
     clientValidationConfig,
   ] = await Promise.all([
     medir("etiquetas", () => settle(listTagsAction(effectiveOwnerId))),
-    medir("sesiones", () => settle(getSesionesDeLaCuenta(sessionUserIds))),
+    medir("asesoresAsignados", () => idsDeAsesoresConChatsAsignados(sessionUserIds)),
     medir("marcasDeBorrado", () => settle(getChatConversationPreferencesForAssociatedAccounts())),
     medir("flujos", () => settle(getWorkFlowByUserIds(sessionUserIds))),
     medir("respuestasRapidas", () => settle(getAllRRsByUserIds(sessionUserIds))),
@@ -215,16 +243,10 @@ export async function loadChatBootstrapData(
     return items;
   }, []);
 
-  // Se usan aqui y se quedan aqui: solo hacen falta para saber que asesores
-  // tienen chats asignados y no salen en el equipo. No van en la respuesta.
-  const sesionesDeLaCuenta = sessionsRes?.success ? sessionsRes.data ?? [] : [];
-  if (sessionsRes && !sessionsRes.success) {
-    console.warn("[chats] la carga inicial no trajo sesiones:", sessionsRes.message);
-  }
   const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
   const baseAdvisors = conLaCuentaPropia(advisorsFromTeam, user);
   const arrancoAsesoresQueFaltan = Date.now();
-  const missingAssignedAdvisors = await getMissingAssignedAdvisors(sesionesDeLaCuenta, baseAdvisors);
+  const missingAssignedAdvisors = await getMissingAssignedAdvisors(idsAsignados ?? [], baseAdvisors);
   // Este va DESPUES del Promise.all, asi que se suma al total. Si pesa, se ve.
   tiempos.asesoresQueFaltan = Date.now() - arrancoAsesoresQueFaltan;
   const advisors = conLaCuentaPropia([...baseAdvisors, ...missingAssignedAdvisors], user);

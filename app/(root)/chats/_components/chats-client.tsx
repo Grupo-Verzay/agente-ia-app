@@ -31,6 +31,7 @@ import {
 } from "@/lib/traza-panel";
 import { apuntarAccion, volcarLaColaDeAcciones } from "@/lib/cola-de-acciones";
 import { pedirSinCola } from "@/lib/pedir-sin-cola";
+import type { RespuestaDeLaLista } from "@/app/api/chats/lista/route";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -1004,8 +1005,11 @@ export function ChatsClient({
   const arranquesDelCicloRef = useRef(0);
   const primeraVueltaPedidaRef = useRef(false);
   // Para medir la primera vuelta de la lista linea por linea, una sola vez.
+  //
+  // Ya no hay un reloj por linea (`tiemposPorLineaRef`, que estaba aqui): las
+  // cuatro van en UNA peticion, asi que el reloj del navegador es uno y el
+  // desglose por linea lo manda el servidor dentro de la respuesta.
   const primeraVueltaMedidaRef = useRef(false);
-  const tiemposPorLineaRef = useRef<Array<{ tardoMs: number }>>([]);
 
   const quizaImprimirMedicion = useCallback((chats: number) => {
     const m = medicionRef.current;
@@ -2102,52 +2106,68 @@ export function ChatsClient({
     // sobre el total: 31 s para 6 lineas puede ser seis de 31 s o cinco
     // rapidas y una colgada, y eso cambia por completo donde hay que mirar.
     //
-    // Y salen de verdad a la vez porque van por `/api/chats/lista`, no por una
-    // accion de servidor. Esto era `s.refetchChats()` —una accion— y Next las
-    // atiende DE UNA EN UNA, asi que este `allSettled` no las paralelizaba: las
-    // encolaba. Medido en produccion con cuatro lineas: 1.150 ms de trabajo del
-    // servidor sumando las cuatro, y once segundos de reloj. Ver el comentario
-    // de la ruta, que lleva la tabla.
+    // Y van en UNA sola peticion a `/api/chats/lista`, no una por linea.
+    //
+    // Primero fueron acciones de servidor, y Next las atiende DE UNA EN UNA, asi
+    // que este `allSettled` no las paralelizaba: las encolaba (1.150 ms de
+    // trabajo repartidos en once segundos de reloj). Sacarlas a `/api` arreglo
+    // la espera y dejo cuatro peticiones haciendo cada una el mismo trabajo de
+    // entrada —`currentUser()` y `getAssociatedAccountIds()`—: 470 a 862 ms por
+    // linea, unos 2,5 s sumados solo en averiguar cuatro veces quien pregunta.
+    //
+    // `currentUser()` esta memoizado con `cache()` de React, pero eso deduplica
+    // DENTRO de una peticion. La forma de que corra una vez es que haya una.
     //
     // Las acciones del juego (`sendText`, `warmMessages`, …) se quedan donde
     // estaban: son de una en una y no compiten entre ellas.
     const soloLaPrimeraVez = !primeraVueltaMedidaRef.current;
     const arranco = performance.now();
-    const results = await Promise.allSettled(
-      instanceActionSets.map(async (s) => {
-        const t0 = performance.now();
-        try {
-          return await pedirSinCola<FetchChatsResult>(
-            "/api/chats/lista",
-            { instanceName: s.instanceName },
-            { success: false, message: `No se pudo pedir la lista de ${s.instanceName}.` },
-          );
-        } finally {
-          if (soloLaPrimeraVez) {
-            tiemposPorLineaRef.current.push({ tardoMs: Math.round(performance.now() - t0) });
-          }
-        }
+    const pedidas = instanceActionSets.map((s) => s.instanceName);
+    const respuesta = await pedirSinCola<RespuestaDeLaLista>(
+      "/api/chats/lista",
+      { instanceNames: pedidas },
+      { lineas: [] },
+    );
+    // El servidor devuelve una entrada por linea pedida, pero una respuesta que
+    // no llego trae la lista vacia: se rellena para que el aviso de abajo diga
+    // que falto, en vez de callarse.
+    const porLinea = new Map(respuesta.lineas.map((l) => [l.instanceName, l.resultado]));
+    const results: Array<{ instanceName: string; resultado: FetchChatsResult }> = pedidas.map(
+      (instanceName) => ({
+        instanceName,
+        resultado:
+          porLinea.get(instanceName) ??
+          { success: false, message: `No llego la lista de ${instanceName}.` },
       }),
     );
     if (soloLaPrimeraVez) {
       primeraVueltaMedidaRef.current = true;
+      // Ya no hay un `tardoMs` por linea: es una sola ida y vuelta, y ese es el
+      // total. Lo que sigue diciendo donde se fue el tiempo es el desglose del
+      // servidor, que viene por linea.
       console.warn("[chats] la primera vuelta de la lista, linea por linea", {
         totalMs: Math.round(performance.now() - arranco),
-        lineas: results.map((r, i) => ({
-          tardoMs: tiemposPorLineaRef.current[i]?.tardoMs ?? null,
-          // Lo que dice el servidor de SU parte. Si `tardoMs` es mucho mayor que
-          // `servidor.total`, esa linea no estuvo trabajando: estuvo esperando.
-          servidor:
-            r.status === "fulfilled" ? r.value.tiempos ?? "(sin medir)" : `(reventó: ${r.reason})`,
+        enUnaSolaPeticion: true,
+        lineas: results.map((r) => ({
+          linea: r.instanceName,
+          ok: r.resultado.success,
+          servidor: r.resultado.tiempos ?? "(sin medir)",
         })),
       });
     }
     const allChats: ChatData[] = [];
     let algunaRespondio = false;
     for (const r of results) {
-      if (r.status === "fulfilled" && r.value.success) {
+      if (r.resultado.success) {
         algunaRespondio = true;
-        allChats.push(...r.value.data);
+        allChats.push(...r.resultado.data);
+      } else {
+        // Una linea que no vuelve no puede ser muda: desde fuera se ve como una
+        // bandeja a la que le faltan chats, que no parece un error.
+        console.warn("[chats] una linea no devolvio su lista", {
+          linea: r.instanceName,
+          motivo: r.resultado.message,
+        });
       }
     }
     // Si NINGUNA instancia respondió, esto no es "cero chats": es que no se pudo

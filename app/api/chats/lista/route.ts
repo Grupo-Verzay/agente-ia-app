@@ -4,96 +4,124 @@ import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { resolveInstanceOwner } from "@/lib/chat-persistence";
 import { refetchChatsManualAction } from "@/actions/chat-manual-actions";
 import { fetchChannelChats } from "@/actions/channel-chat-actions";
+import type { FetchChatsResult } from "@/actions/chat-actions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * La lista de chats de UNA linea, fuera de la cola de acciones de Next.
+ * La lista de chats de TODAS las lineas de la bandeja, en UNA peticion.
  *
  * ## Por que esto no es una accion de servidor
  *
  * Next serializa TODAS las acciones de servidor de una pagina: una en vuelo, y
  * la siguiente no arranca hasta que la anterior resuelve
- * (`shared/lib/router/action-queue.js`). La bandeja pide la lista de cada linea
- * a la vez con un `Promise.allSettled`, pero eso no las paraleliza: las encola.
+ * (`shared/lib/router/action-queue.js`). Con una accion por linea, el
+ * `Promise.allSettled` de la bandeja no las paralelizaba: las encolaba. Medido
+ * con cuatro lineas, 1.150 ms de trabajo repartidos en once segundos de reloj.
  *
- * Medido en produccion, con cuatro lineas:
+ * ## Y por que UNA peticion y no cuatro
  *
- * | linea                  | el servidor tardo | el navegador espero |
- * | ---------------------- | ----------------- | ------------------- |
- * | VERZAY_ATENCION        | 414 ms            | 10.213 ms           |
- * | VERZAY_VENTAS          | 179 ms            | 10.247 ms           |
- * | VERZAY_NOTIFICACIONES  | 334 ms            | 10.741 ms           |
- * | VERZAY_PRUEBAS         | 223 ms            | 11.090 ms           |
+ * Sacarlas de la cola arreglo la espera, pero dejo cuatro peticiones haciendo
+ * cada una el mismo trabajo de entrada: `currentUser()` y
+ * `getAssociatedAccountIds()`. Medido despues: 470 a 862 ms por linea, unos
+ * 2,5 s sumados, solo en averiguar cuatro veces quien pregunta.
  *
- * Mil ciento cincuenta milisegundos de trabajo repartidos en once segundos de
- * reloj. Las cuatro contestaron rapido; lo que costaba era el turno. Y no es
- * solo la lista: mientras una de estas ocupa la cola, el `bootstrap` y las
- * sesiones —que pintan las insignias de cada fila— esperan detras.
+ * `currentUser()` ya esta memoizado con `cache()` de React, pero eso deduplica
+ * **dentro de una peticion**, no entre peticiones. La forma de que corra una
+ * sola vez es que haya una sola peticion.
  *
- * Una ruta `/api` es un `fetch` normal: no pasa por esa cola y las cuatro
- * salen de verdad a la vez.
+ * Asi que las lineas llegan juntas y se resuelven juntas: el acceso y el
+ * alcance se calculan **una vez**, y las lineas se piden en paralelo dentro del
+ * mismo proceso. De paso baja la concurrencia contra Postgres, que con cuatro
+ * peticiones simultaneas por pestaña se multiplicaba por cada asesor conectado.
  *
- * ## La puerta va AQUI, y antes de despachar
+ * ## Que recibe, y que NO recibe
  *
- * Esta ruta recibe el nombre de la linea del navegador, asi que la comprueba
- * ella. Es la regla de CLAUDE.md —ninguna accion usa un id que llega de fuera
- * sin comprobar de quien es el dato— y aqui hacia falta de verdad:
+ * Solo **nombres de linea**. La clave de Evolution no viaja ni de ida ni de
+ * vuelta: la resuelve el servidor con `resolverContexto`.
  *
- * - `refetchChatsManualAction` ya se defiende sola: `resolverContexto` no
- *   entrega la clave de Evolution de una linea ajena, y el respaldo lee con
- *   las cuentas de quien pregunta.
- * - `fetchChannelChats` **no**. Lee por `owner.userId` de la propia linea, sin
- *   preguntar nada. Atada a una accion con el nombre ya puesto eso no se
- *   notaba; abierta por una ruta que acepta el nombre, seria la bandeja de
- *   Meta y Telegram de cualquier cuenta a quien supiera el nombre de su linea.
+ * ## La puerta va AQUI, y por cada linea
+ *
+ * `refetchChatsManualAction` ya se defiende sola, pero `fetchChannelChats` —la
+ * de Meta y Telegram— lee por el `userId` de la propia linea sin preguntar
+ * nada. Atada a una accion con el nombre ya puesto eso no se notaba; abierta
+ * por una ruta que acepta nombres, seria la bandeja de cualquier cuenta a quien
+ * supiera el nombre de su linea.
  *
  * El alcance es `getAssociatedAccountIds`: el mismo con el que la bandeja LEE
- * los chats, no el de rol. Si alguien legitimo recibiera un «No autorizado»
- * aqui, lo que esta mal es la lista de lineas que manda la pantalla, no esta
- * comprobacion —y por eso el rechazo **se dice** en la consola del contenedor
- * en vez de contestar una lista vacia—.
+ * los chats, no el de rol. Se calcula una vez y se comprueba linea por linea —
+ * juntar las peticiones no puede aflojar la puerta—. Un rechazo **se dice** en
+ * la consola del contenedor en vez de contestar una lista vacia.
  *
  * ## Y la sesion se comprueba aqui
  *
  * Ninguna ruta `/api` confia solo en el middleware (ver CLAUDE.md): se pudo
  * saltar con la CVE-2025-29927 y volvera a poder.
  */
+
+/** Tope de lineas por peticion. Una bandeja de verdad no pasa de unas pocas. */
+const TOPE_DE_LINEAS = 40;
+
+export type RespuestaDeLaLista = {
+  /** Una entrada por linea pedida, en el mismo orden. */
+  lineas: Array<{ instanceName: string; resultado: FetchChatsResult }>;
+};
+
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user?.id) {
     return NextResponse.json({ success: false, message: "No autorizado." }, { status: 401 });
   }
 
-  const cuerpo = (await request.json().catch(() => null)) as { instanceName?: unknown } | null;
-  const instanceName =
-    typeof cuerpo?.instanceName === "string" ? cuerpo.instanceName.trim() : "";
-  if (!instanceName) {
+  const cuerpo = (await request.json().catch(() => null)) as
+    | { instanceNames?: unknown }
+    | null;
+  const pedidas = Array.isArray(cuerpo?.instanceNames)
+    ? cuerpo!.instanceNames
+        .filter((n): n is string => typeof n === "string")
+        .map((n) => n.trim())
+        .filter(Boolean)
+        .slice(0, TOPE_DE_LINEAS)
+    : [];
+
+  if (!pedidas.length) {
     return NextResponse.json(
-      { success: false, message: "Falta el nombre de la linea." },
+      { success: false, message: "No se pidio ninguna linea." },
       { status: 400 },
     );
   }
 
+  // Una vez, no una por linea. Es el motivo entero de que esto sea una sola
+  // peticion.
+  const cuentas = await getAssociatedAccountIds(user);
+
+  const lineas = await Promise.all(
+    pedidas.map(async (instanceName) => {
+      const resultado = await unaLinea(instanceName, cuentas, user.id);
+      return { instanceName, resultado };
+    }),
+  );
+
+  return NextResponse.json({ lineas } satisfies RespuestaDeLaLista);
+}
+
+async function unaLinea(
+  instanceName: string,
+  cuentas: string[],
+  quienPregunta: string,
+): Promise<FetchChatsResult> {
   const dueno = await resolveInstanceOwner(instanceName);
   if (!dueno?.userId) {
-    return NextResponse.json(
-      { success: false, message: "Esa linea no existe." },
-      { status: 404 },
-    );
+    return { success: false, message: `La linea ${instanceName} no existe.` };
   }
 
-  const cuentas = await getAssociatedAccountIds(user);
   if (!cuentas.includes(dueno.userId)) {
     console.warn("[chats] se pidio la lista de una linea que no es de estas cuentas", {
       instanceName,
-      quienPregunta: user.id,
+      quienPregunta,
     });
-    return NextResponse.json(
-      { success: false, message: "Esa linea no es de esta cuenta." },
-      { status: 403 },
-    );
+    return { success: false, message: `La linea ${instanceName} no es de esta cuenta.` };
   }
 
   const tipo = (dueno.instanceType ?? "").trim().toLowerCase();
@@ -102,13 +130,11 @@ export async function POST(request: Request) {
   // Es el mismo reparto que hace `chats/page.tsx` al armar los juegos de
   // acciones; mandarlas por la generica las dejaria con la bandeja vacia.
   if (tipo === "meta" || tipo === "telegram") {
-    return NextResponse.json(await fetchChannelChats(instanceName));
+    return fetchChannelChats(instanceName);
   }
 
   // `apiKeyData: null` a proposito: que la resuelva el servidor. Es la misma
   // forma con la que ya se llamaba esta accion para las lineas cuya clave no se
   // resolvia en la pagina (`lineasEvolutionSinPlan` en chats/page.tsx).
-  return NextResponse.json(
-    await refetchChatsManualAction({ apiKeyData: null, instanceName }),
-  );
+  return refetchChatsManualAction({ apiKeyData: null, instanceName });
 }
