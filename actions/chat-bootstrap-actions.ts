@@ -2,7 +2,6 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { msDesdeQueEntroLaPeticion } from "@/lib/reloj-de-la-peticion";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
 import { getSesionesDeLaCuenta } from "@/actions/session-action";
@@ -132,10 +131,6 @@ export async function loadChatBootstrapData(
   // tiempo no esta en la base ni en estas consultas, sino en serializar la
   // respuesta y bajarla. Sin `total` no hay forma de separar las dos cosas.
   const tiempos: Record<string, number> = { acceso: acaboElAcceso - arrancoAcceso };
-  // Cuanto se tardo en LLEGAR hasta aqui, desde que el middleware vio la
-  // peticion. Es el hueco sin explicar: ver `lib/reloj-de-la-peticion`.
-  const espero = msDesdeQueEntroLaPeticion();
-  if (espero !== null) tiempos.desdeElMiddleware = espero;
   const medir = async <T,>(nombre: string, trabajo: () => Promise<T>): Promise<T> => {
     const t0 = Date.now();
     try {
