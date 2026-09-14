@@ -28,11 +28,20 @@ type ChatBootstrapData = {
   allTags: SimpleTag[];
   chatPreferences: ChatConversationPreferenceMap;
   /**
-   * TODAS las sesiones de las cuentas, sin emparejar. El navegador las cruza
-   * con sus chats (`emparejarSesiones`); asi aqui no hace falta que suba la
-   * agenda entera para pedirlas.
+   * Las sesiones NO viajan aqui, y es a proposito.
+   *
+   * Se piden igual mas abajo —hacen falta para completar la lista de asesores
+   * con los que tienen chats asignados y no salen en el equipo— pero se quedan
+   * en el servidor. El navegador las recibe por su propia consulta, que sale al
+   * montar la pantalla y va por indice.
+   *
+   * Viajaban por los DOS caminos desde el #656, que fue cuando se les dio
+   * consulta propia y se olvido quitarlas de aqui: 573 KB de los 1.540 que pesa
+   * esta respuesta, bajados dos veces en cada carga de Chats para pintar lo
+   * mismo. Y el coste de esta respuesta no es esperar en cola —se midio con
+   * dos replicas y no se movio ni un segundo—: es serializarla y comprimirla,
+   * que es trabajo por peticion. Lo unico que lo baja es que pese menos.
    */
-  sesionesDeLaCuenta: ChatContactSessionSummary[];
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
   advisors: AdvisorInfo[];
@@ -220,6 +229,8 @@ export async function loadChatBootstrapData(
     return items;
   }, []);
 
+  // Se usan aqui y se quedan aqui: solo hacen falta para saber que asesores
+  // tienen chats asignados y no salen en el equipo. No van en la respuesta.
   const sesionesDeLaCuenta = sessionsRes?.success ? sessionsRes.data ?? [] : [];
   if (sessionsRes && !sessionsRes.success) {
     console.warn("[chats] la carga inicial no trajo sesiones:", sessionsRes.message);
@@ -239,7 +250,6 @@ export async function loadChatBootstrapData(
     data: {
       allTags,
       chatPreferences: preferencesRes?.success ? preferencesRes.data ?? {} : {},
-      sesionesDeLaCuenta,
       workflows: workflowOptions,
       quickReplies: quickReplyOptions,
       advisors,
