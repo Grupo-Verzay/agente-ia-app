@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
+import { puedeBorrarEnChats } from "@/lib/mando-en-chats";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import { invalidatePersistedInboxCache } from "@/lib/chat-persistence";
@@ -306,10 +307,11 @@ async function assertCanDeleteChats(userId: string) {
 
   await assertAuthorized(userId);
 
-  // `ownerId` puesto = se esta actuando dentro del equipo de una cuenta. Ahi
-  // borrar es del dueno y de su mano derecha; el `agente` atiende lo que le
-  // asignan. Sin `ownerId` se actua como la cuenta misma, y entonces si.
-  if (user.ownerId && user.ownerId !== user.id && user.advisorRole !== "administrador") {
+  // Quien manda dentro del equipo: el dueno y su administrador. Vive en
+  // `lib/mando-en-chats.ts` porque el borrado de MENSAJES pregunta lo mismo, y
+  // preguntarlo cada uno por su cuenta es lo que dejo esa otra puerta cerrada
+  // para un administrador.
+  if (!puedeBorrarEnChats(user)) {
     throw new Error("Solo el dueño o un administrador puede eliminar chats.");
   }
 }
