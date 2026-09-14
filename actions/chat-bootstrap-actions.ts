@@ -86,6 +86,9 @@ function withCurrentUserAdvisor(
   if (!user.id) return advisors;
 
   const currentAdvisor: AdvisorInfo = {
+    // La cuenta propia sale en la lista para poder asignarse chats, pero no es
+    // un asesor dado de alta en Equipo: no cuenta en la insignia.
+    esDelEquipo: false,
     id: user.id,
     name: user.company || user.name || user.email || "Yo",
     email: user.email || "",

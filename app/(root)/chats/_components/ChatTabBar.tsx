@@ -117,11 +117,11 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, unre
             Va detras de «No leidos» porque es otro ESTADO del chat, y uno puede
             estar leido y seguir esperando.
 
-            SIEMPRE visible, tambien en cero. Se probo escondiendolo cuando no
-            habia ninguno y el resultado fue peor: quien no lo ve no sabe si es
-            que no hay nadie esperando o que el filtro no existe. Un cero
-            tambien informa, y ademas mantiene la barra quieta en vez de que los
-            chips salten de sitio cada vez que entra o sale uno.
+            El CHIP esta siempre, desde el primer pintado y sin esperar dato:
+            quien no lo ve no sabe si es que no hay nadie esperando o que el
+            filtro no existe, y ademas la barra se queda quieta en vez de que
+            los chips salten de sitio cada vez que entra o sale uno. Lo que si
+            desaparece en cero es la INSIGNIA, como en «No leidos».
 
             En rosa porque el naranja ya esta cogido dos veces -«No leidos» y el
             chip de minutos de la tarjeta-. */}
@@ -139,12 +139,19 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, unre
             )}
           >
             <span>En espera</span>
-            <span
-              className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none tabular-nums text-white"
-              style={{ background: enEsperaOnly ? "rgba(255,255,255,0.3)" : "#e11d48" }}
-            >
-              {(enEsperaCount ?? 0) > 99 ? "99+" : enEsperaCount ?? 0}
-            </span>
+            {/* En cero NO se pinta insignia, igual que «No leidos». Un «0» al
+                lado se lee como un dato y no lo es: lo que dice es que no hay
+                nada esperando, y eso ya lo dice la ausencia. El chip sigue ahi
+                -desde el primer pintado- para que se sepa que el filtro
+                existe. */}
+            {(enEsperaCount ?? 0) > 0 && (
+              <span
+                className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none tabular-nums text-white"
+                style={{ background: enEsperaOnly ? "rgba(255,255,255,0.3)" : "#e11d48" }}
+              >
+                {(enEsperaCount ?? 0) > 99 ? "99+" : enEsperaCount}
+              </span>
+            )}
           </button>
         )}
       </div>
