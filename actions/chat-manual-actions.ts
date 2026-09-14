@@ -25,6 +25,7 @@ import {
   persistEvolutionMessages,
   resolveInstanceOwner,
 } from "@/lib/chat-persistence";
+import { puedeBorrarEnChats } from "@/lib/mando-en-chats";
 import {
   deleteWahaMessage,
   editWahaMessage,
@@ -1946,8 +1947,28 @@ export async function deleteMessageAction(
 ): Promise<{ success: boolean; message: string }> {
   context = await resolverContexto(context);
   const user = await requireCurrentUser();
-  if (user.role !== "admin" && user.role !== "super_admin") {
-    return { success: false, message: "Solo los administradores pueden eliminar mensajes." };
+
+  // La MISMA puerta que borrar un chat (`lib/mando-en-chats.ts`): el dueno de la
+  // cuenta y su administrador; un `agente` no.
+  //
+  // Aqui se pedia `user.role === "admin"`, que es el rol de la PLATAFORMA, y el
+  // administrador de una cuenta no lo tiene ni lo va a tener. El menu de la
+  // burbuja si mira su `advisorRole`, asi que le ofrecia «Eliminar» y el
+  // servidor le contestaba que no: boton abierto, puerta cerrada.
+  if (!puedeBorrarEnChats(user)) {
+    return { success: false, message: "Solo el dueño o un administrador puede eliminar mensajes." };
+  }
+
+  // Y de quien es la linea. Antes no hacia falta preguntarlo —solo pasaba un
+  // admin de plataforma, que manda sobre todas—; ahora que entra el
+  // administrador de UNA cuenta hay que acotarlo a las suyas, porque el
+  // `instanceName` llega del navegador.
+  const duenoDeLaLinea = await resolveInstanceOwner(context?.instanceName ?? "");
+  if (duenoDeLaLinea?.userId) {
+    const cuentasPermitidas = await getAuthorizedAccountUserIds(user);
+    if (!cuentasPermitidas.includes(duenoDeLaLinea.userId)) {
+      return { success: false, message: "Esa línea no es de tu cuenta." };
+    }
   }
 
   // Igual que editar: una linea de WhatsApp Mensajeria (waha) no trae clave de
