@@ -73,20 +73,7 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // La hora de entrada, para poder medir el hueco que va de aqui a la primera
-  // linea de una accion de servidor.
-  //
-  // El navegador ve 1,5-3,5 s de TTFB en acciones cuyo trabajo medido son ~250
-  // ms, y ese hueco tiene dos tramos que no sabiamos separar: lo de antes del
-  // middleware (red, Traefik, aceptar la conexion) y lo de despues (resolver la
-  // accion, leer el cuerpo, o esperar al unico hilo de JavaScript). Este sello
-  // los parte en dos, con el mismo reloj a los dos lados.
-  //
-  // Solo se sella aqui, en la salida normal: los `return` de arriba son rutas
-  // publicas y de maquina, que no nos interesan. Ver `lib/reloj-de-la-peticion`.
-  const cabeceras = new Headers(req.headers);
-  cabeceras.set("x-entro-en", String(Date.now()));
-  return NextResponse.next({ request: { headers: cabeceras } });
+  return NextResponse.next();
 });
 
 export const config = {
