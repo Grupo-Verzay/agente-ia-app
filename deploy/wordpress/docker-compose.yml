@@ -1,0 +1,103 @@
+# WordPress en el Swarm de Verzay: UN stack por sitio (dominio).
+#
+# Se despliega con deploy/wordpress/crear-stack.sh <dominio>, que rellena las
+# variables (DOMINIO, SLUG, contraseñas) y lo crea en Portainer por la API.
+# También se puede pegar a mano en Portainer → Stacks → Add stack, poniendo las
+# variables abajo en "Environment variables".
+#
+# Sin límites: PHP acepta subidas de 2 GB y corre hasta 15 minutos (para
+# importar el backup de Hostinger con un plugin si hace falta), MariaDB admite
+# paquetes de 256 MB (dumps con filas grandes), y Traefik/Apache no ponen tope.
+
+services:
+  wordpress:
+    image: wordpress:6.8-php8.3-apache
+    networks: [internal, minha_rede]
+    # El entrypoint oficial solo instala WordPress si el comando es apache2-foreground,
+    # así que se escribe el php.ini de "sin límites" y se le devuelve el mando.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        cat > /usr/local/etc/php/conf.d/zz-sin-limites.ini <<'EOF'
+        upload_max_filesize = 2G
+        post_max_size = 2G
+        memory_limit = 512M
+        max_execution_time = 900
+        max_input_time = 900
+        max_input_vars = 20000
+        EOF
+        exec docker-entrypoint.sh apache2-foreground
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      # Si el backup de Hostinger usa otro prefijo de tablas, se cambia aquí y se
+      # redespliega: el wp-config.php de la imagen lee estas variables en caliente.
+      WORDPRESS_TABLE_PREFIX: ${TABLE_PREFIX:-wp_}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_MEMORY_LIMIT', '512M');
+        define('WP_MAX_MEMORY_LIMIT', '1024M');
+        define('FS_METHOD', 'direct');
+        /* Nada de variables PHP con signo de dolar aqui: el stack las sustituye como si fueran suyas. El X-Forwarded-Proto de Traefik ya lo atiende el wp-config.php de la imagen. */
+    volumes:
+      - html:/var/www/html
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1G
+        reservations:
+          memory: 128M
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=minha_rede
+        - traefik.http.routers.wp-${SLUG}.rule=Host(`${DOMINIO}`) || Host(`www.${DOMINIO}`)
+        - traefik.http.routers.wp-${SLUG}.entrypoints=websecure
+        - traefik.http.routers.wp-${SLUG}.priority=100
+        - traefik.http.routers.wp-${SLUG}.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.wp-${SLUG}.service=wp-${SLUG}
+        - traefik.http.services.wp-${SLUG}.loadbalancer.server.port=80
+        - traefik.http.services.wp-${SLUG}.loadbalancer.passHostHeader=true
+
+  db:
+    image: mariadb:11.4
+    networks: [internal]
+    command:
+      - --max_allowed_packet=256M
+      - --innodb_buffer_pool_size=256M
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db:/var/lib/mysql
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      resources:
+        limits:
+          cpus: "1"
+          memory: 768M
+        reservations:
+          memory: 128M
+
+networks:
+  internal:
+  minha_rede:
+    name: minha_rede
+    external: true
+
+volumes:
+  html:
+  db:

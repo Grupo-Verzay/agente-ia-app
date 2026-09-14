@@ -1,0 +1,12 @@
+; vernaza.pro — zona LISTA para Cloudflare: apunta al servidor propio.
+; El sitio ya está restaurado allí, así que en cuanto propague queda servido.
+; Al importar en Cloudflare, DESMARCA la casilla de aplicar proxy: todo va en
+; "Solo DNS" (nube gris) o Let's Encrypt no puede emitir el certificado.
+;
+; Este dominio NO tenía correo configurado (ni MX ni SPF ni DKIM), así que
+; aquí tampoco hay nada de eso: es la foto fiel de lo que tenía.
+$ORIGIN vernaza.pro.
+$TTL 300
+
+@	300	IN	A	89.117.150.148
+www	300	IN	CNAME	vernaza.pro.

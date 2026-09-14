@@ -1,0 +1,10 @@
+; aizen-bot.com — registros tal como estaban el 2026-09-11.
+; Para importar en Cloudflare → DNS → Records → Import and Export → Import.
+; Los A/AAAA de @ se cambian a 89.117.150.148 SOLO cuando el WordPress ya esté restaurado y probado.
+$ORIGIN aizen-bot.com.
+$TTL 300
+
+@	300	IN	A	15.197.148.33
+@	300	IN	A	3.33.130.190
+www	300	IN	CNAME	aizen-bot.com.
+_dmarc	300	IN	TXT	"v=DMARC1; p=quarantine; adkim=r; aspf=r; rua=mailto:dmarc_rua@onsecureserver.net;"
