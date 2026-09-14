@@ -1090,21 +1090,67 @@ export async function warmChatMessagesAction(
  * llega al abrirla (`traerHistorialDeWaha`), y asi importar una cuenta grande
  * no se convierte en miles de escrituras de golpe.
  *
- * Con freno de verdad -una vez cada media hora por linea-, porque esta accion
- * la llama el reloj de la lista cada 20 s por cada pestana abierta. La bandeja
- * no puede pagar esto en cada vuelta.
+ * El freno ya no es un reloj: es la base. Se rellena solo si esa linea no tiene
+ * historial nuestro todavia (`laLineaYaTieneHistorial`). Y no corre en el
+ * camino de la lista: quien la llama la lanza sin esperarla.
  */
-const IMPORTAR_CHATS_CADA_MS = 30 * 60 * 1000;
-const ultimaImportacionDeLinea = new Map<string, number>();
+/**
+ * Cuanto puede durar el relleno antes de cortarse.
+ *
+ * Es una GUARDA, no el arreglo: el arreglo es que esto ya no corre en el camino
+ * de la lista. Aun de fondo, 300 escrituras en fila retienen una conexion en un
+ * proceso de un solo hilo con un pool de 10, y eso conviene acotarlo.
+ *
+ * Generoso a proposito: un relleno normal de 300 chats cabe entero, asi que
+ * cortarse es el caso raro y no el habitual. Eso importa por lo de abajo.
+ */
+const PLAZO_DEL_RELLENO_MS = 15000;
+
+/**
+ * Lineas cuyo relleno se corto por plazo y hay que continuar.
+ *
+ * En memoria A PROPOSITO, y no es una vuelta al guardia de antes: esto es una
+ * CONTINUACION, no el freno. El freno es la base (`laLineaYaTieneHistorial`).
+ * Si el proceso muere con un relleno a medias, la linea se queda con lo mas
+ * reciente guardado -que es lo que se ordena primero- y el resto no vuelve.
+ */
+const rellenoAContinuar = new Set<string>();
+
+/**
+ * Si esta linea ya tiene historial nuestro.
+ *
+ * Sustituye al reloj de 30 minutos que vivia en un `Map` por proceso, y que
+ * estaba roto en la practica: con dos replicas corria el doble, y se borraba en
+ * cada despliegue -que aqui son decenas al dia-, asi que casi nunca llegaba a
+ * cumplir su media hora.
+ *
+ * Preguntarle a la base no tiene ninguno de esos problemas: se comparte entre
+ * replicas sola y sobrevive a los reinicios. Y encaja con para que existe esto:
+ * rellenar una linea recien escaneada que sale con cero chats. Lo que va
+ * llegando despues entra por el webhook, no por aqui.
+ */
+async function laLineaYaTieneHistorial(userId: string, instanceName: string): Promise<boolean> {
+  try {
+    const fila = await db.chatMessage.findFirst({
+      where: { userId, instanceName },
+      select: { id: true },
+    });
+    return !!fila;
+  } catch (error) {
+    // Si no se puede comprobar, NO se rellena: equivocarse hacia el lado de no
+    // escribir es barato; hacia el otro son 300 escrituras de mas por vuelta.
+    console.warn("[waha] no se pudo comprobar si la linea ya tiene historial", {
+      instanceName,
+      error: String(error),
+    });
+    return true;
+  }
+}
 
 async function traerChatsDeWaha(params: { userId: string; instanceName: string }): Promise<void> {
-  const ahora = Date.now();
-  if (ahora - (ultimaImportacionDeLinea.get(params.instanceName) ?? 0) < IMPORTAR_CHATS_CADA_MS) return;
-  // Se marca ANTES de empezar: la importacion tarda, y sin esto la vuelta
-  // siguiente del reloj arrancaria otra encima.
-  ultimaImportacionDeLinea.set(params.instanceName, ahora);
-
+  const continuando = rellenoAContinuar.has(params.instanceName);
   if (!(await esLineaWaha(params.instanceName))) return;
+  if (!continuando && (await laLineaYaTieneHistorial(params.userId, params.instanceName))) return;
 
   const traidos = await getWahaChats({ session: params.instanceName, limit: TOPE_DE_LA_BANDEJA });
   if (!traidos.ok) {
@@ -1115,8 +1161,23 @@ async function traerChatsDeWaha(params: { userId: string; instanceName: string }
     return;
   }
 
+  // Del mas RECIENTE al mas viejo, antes de empezar a escribir.
+  //
+  // Hasta ahora el bucle se fiaba del orden en que los devolviera Waha, que no
+  // esta verificado. Ordenando aqui, lo que el plazo deje fuera es siempre lo
+  // mas antiguo -lo que menos se mira- en vez de lo que toque.
+  const ordenados = [...traidos.chats].sort(
+    (a, b) => Number(b.lastMessage?.timestamp ?? 0) - Number(a.lastMessage?.timestamp ?? 0),
+  );
+
+  const arrancoElRelleno = Date.now();
+  let cortadoPorPlazo = false;
   let guardados = 0;
-  for (const chat of traidos.chats) {
+  for (const chat of ordenados) {
+    if (Date.now() - arrancoElRelleno > PLAZO_DEL_RELLENO_MS) {
+      cortadoPorPlazo = true;
+      break;
+    }
     const jid = jidDelChatDeWaha(chat.id);
     if (!jid) continue;
     const ultimo = chat.lastMessage;
@@ -1150,10 +1211,17 @@ async function traerChatsDeWaha(params: { userId: string; instanceName: string }
     }
   }
 
+  // Si se corto, la vuelta siguiente CONTINUA: sellar aqui convertiria una
+  // linea recien escaneada en 300 chats a plazos, que es no rellenarla.
+  if (cortadoPorPlazo) rellenoAContinuar.add(params.instanceName);
+  else rellenoAContinuar.delete(params.instanceName);
+
   console.info("[waha] lista de chats traida", {
     instanceName: params.instanceName,
     chats: traidos.chats.length,
     guardados,
+    cortadoPorPlazo,
+    continuando,
   });
 }
 
@@ -1222,10 +1290,34 @@ export async function refetchChatsManualAction(
       // cientos. Se le piden a Waha y se guarda el ultimo mensaje de cada uno:
       // con eso la fila existe, se ordena por su fecha y la conversacion se
       // completa al abrirla.
+      //
+      // **Se lanza y NO se espera**, y ese es el arreglo.
+      //
+      // Esto es un RELLENO, no la lista. Y estaba en medio del camino: medido
+      // en produccion, `lista: VERZAY_NOTIFICACIONES` tardo 10.760 ms con solo
+      // 257 ms de trabajo del servidor —el resto eran hasta 300
+      // `persistChatMessage` de uno en uno—. El daño no era solo tardar: Next
+      // encola las acciones de servidor DE UNA EN UNA
+      // (`shared/lib/router/action-queue.js`), asi que esa linea bloqueaba a
+      // todas las de atras. En esa misma carga, dos lineas seguian sin resolver
+      // a los 45 segundos.
+      //
+      // Contestando ya con lo que hay en nuestra base, el relleno termina igual
+      // -el proceso de Node es de larga vida- y la vuelta siguiente del reloj,
+      // 20 s despues, recoge lo que haya escrito.
+      //
+      // El `catch` no es opcional: una promesa rechazada sin gestionar aqui se
+      // la lleva el proceso entero por delante.
       tiempos.camino = "nuestra base";
       if (laLinea && effectiveOwnerId) {
-        await medir("waha", () =>
-          traerChatsDeWaha({ userId: effectiveOwnerId, instanceName: laLinea }),
+        tiempos.relleno = "lanzado sin esperar";
+        void traerChatsDeWaha({ userId: effectiveOwnerId, instanceName: laLinea }).catch(
+          (error) => {
+            console.warn("[waha] el relleno de la linea fallo", {
+              instanceName: laLinea,
+              error: String(error),
+            });
+          },
         );
       }
 
