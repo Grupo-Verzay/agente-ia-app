@@ -193,7 +193,13 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                 ? await rechargeIaCredit(userId, total, new Date(), onCreditsToTokens(used))
                 : await createIaCreditForUser(userId, total, new Date(), onCreditsToTokens(used));
             if (!creditRes.success) {
+                // Antes esto solo iba a la consola, y la pantalla decía
+                // «Cliente actualizado» igual: se guardaba el resto y los
+                // créditos no, sin que nada lo dijera. Se veía como que los
+                // créditos «no se dejan cambiar».
                 console.error('Error al guardar créditos:', creditRes.message);
+                toast.error(`No se pudieron guardar los créditos: ${creditRes.message}`, { id: toastId });
+                return;
             }
         }
 

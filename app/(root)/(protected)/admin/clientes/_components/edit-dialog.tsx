@@ -76,6 +76,7 @@ export const EditDialog = ({
   const [creditUsed, setCreditUsed] = useState(0);
   const [creditHasRecord, setCreditHasRecord] = useState(false);
   const [creditLoading, setCreditLoading] = useState(false);
+  const [creditLegible, setCreditLegible] = useState(true);
   const waInstance = (user.instancias ?? []).find(
     (i) => i.instanceType !== 'Instagram' && i.instanceType !== 'Facebook'
   );
@@ -88,6 +89,9 @@ export const EditDialog = ({
     if (!openEditDialog) return;
     setCreditLoading(true);
     getIaCreditByUser(user.id).then(res => {
+      // «No los puedo leer» y «esta cuenta no tiene» llegan los dos como
+      // `success: false`. Solo el primero prohibe guardar.
+      setCreditLegible(res.autorizado !== false);
       if (res.success && res.data?.length) {
         setCreditTotal(res.data[0].total);
         setCreditUsed(onTokensToCredits(res.data[0].used));
@@ -337,12 +341,28 @@ export const EditDialog = ({
 
       case 'creditTotal':
         if (creditLoading) return <span className="text-sm text-muted-foreground">Cargando...</span>;
+        // Si no se pudieron leer, no se pueden guardar: los campos no llevan
+        // `name`, asi que no viajan en el formulario y el guardado los salta
+        // entero. Sin esto, 0 en pantalla es 0 en la base.
+        if (!creditLegible) return (
+          <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3">
+            <span className="text-sm text-muted-foreground">Sin permiso</span>
+          </div>
+        );
         return (
           <Input id="creditTotal" name="creditTotal" type="number" value={creditTotal}
             onChange={(e) => setCreditTotal(parseInt(e.target.value) || 0)} placeholder={label} />
         );
       case 'creditUsed':
         if (creditLoading) return <span className="text-sm text-muted-foreground">Cargando...</span>;
+        // Si no se pudieron leer, no se pueden guardar: los campos no llevan
+        // `name`, asi que no viajan en el formulario y el guardado los salta
+        // entero. Sin esto, 0 en pantalla es 0 en la base.
+        if (!creditLegible) return (
+          <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3">
+            <span className="text-sm text-muted-foreground">Sin permiso</span>
+          </div>
+        );
         return (
           <Input id="creditUsed" name="creditUsed" type="number" value={creditUsed}
             onChange={(e) => setCreditUsed(parseInt(e.target.value) || 0)} placeholder={label} />

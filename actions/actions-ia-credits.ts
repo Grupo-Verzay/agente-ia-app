@@ -2,6 +2,7 @@
 
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
 import { isAdminLike } from '@/lib/rbac';
 import { IaCredit, Plan } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -10,6 +11,15 @@ interface IaCreditResponse {
   success: boolean;
   message: string;
   data?: IaCredit[];
+  /**
+   * `false` solo cuando la respuesta es un «no autorizado».
+   *
+   * Sin distinguirlo, un «no puedo leerlos» y un «esta cuenta todavía no tiene
+   * créditos» llegan a la pantalla igual —los dos con `success: false`— y el
+   * formulario pinta 0 en los dos casos. En el primero, guardar escribiría ese
+   * 0 encima del tope real.
+   */
+  autorizado?: boolean;
 }
 
 export interface PlanConfigItem {
@@ -121,8 +131,8 @@ export async function getIaCreditByUser(userId: string): Promise<IaCreditRespons
     // Mismo criterio que para escribirlos: si un reseller puede poner el tope de
     // sus clientes, tiene que poder leerlo. Sin esto vería 0 y al guardar
     // machacaría el valor real con ceros.
-    if (!(await puedeGestionarCreditos(userId))) {
-      return { success: false, message: 'No autorizado' };
+    if (!(await puedeVerLosCreditos(userId))) {
+      return { success: false, message: 'No autorizado', autorizado: false };
     }
 
     if (!userId) {
@@ -145,27 +155,37 @@ export async function getIaCreditByUser(userId: string): Promise<IaCreditRespons
 /**
  * ¿Puede esta persona tocar los créditos de esta cuenta?
  *
- * Admin y super_admin, siempre. Un reseller, SOLO sobre sus propios clientes:
- * ahora es él quien paga los tokens de esos clientes con su clave de IA, así que
- * necesita poder ponerles tope. Sin la comprobación de propiedad, un reseller
- * podría cambiarle los créditos a un cliente de otro.
+ * **La misma puerta que Editar, Módulos, Asignar y Eliminar**
+ * (`puedeGestionarAlCliente`), y no una lista propia. La de aquí pedía
+ * `isAdminLike(me.role)` —el rol de la PERSONA— y eso dejaba fuera al
+ * `administrador` de una cuenta, que no tiene ese rol ni lo va a tener: lo que
+ * tiene es la cuenta. Desde fuera se veía así: abría «Editar cliente», los
+ * créditos salían en 0, los escribía, guardaba, y al volver a abrir seguían en
+ * 0. Ni un aviso, porque el fallo del guardado solo iba a la consola.
  *
- * Se mira la vinculación por los DOS sistemas —el nuevo `demoResellerId` y la
- * tabla `reseller` vieja—, porque un cliente vinculado solo por el viejo tiene
- * `demoResellerId` en nulo y su reseller no podría gestionarlo.
+ * Es el mismo fallo que ya costó Clientes, Equipo y Analíticas, y la misma
+ * regla del documento: **el administrador de una cuenta actúa POR la cuenta**,
+ * y se pregunta por el cliente, no solo por quién llama. Un `agente` sigue sin
+ * pasar, y un reseller solo sobre los suyos.
  */
 async function puedeGestionarCreditos(userId: string): Promise<boolean> {
   const me = await currentUser();
   if (!me) return false;
-  if (isAdminLike(me.role)) return true;
-  if (me.role !== 'reseller') return false;
+  return puedeGestionarAlCliente(me, userId);
+}
 
-  const [porNuevo, porViejo] = await Promise.all([
-    db.user.findFirst({ where: { id: userId, demoResellerId: me.id }, select: { id: true } }),
-    db.reseller.findFirst({ where: { userId, resellerid: me.id }, select: { userId: true } }),
-  ]);
-
-  return Boolean(porNuevo || porViejo);
+/**
+ * ¿Puede VERLOS?
+ *
+ * Lo mismo, más uno mismo. Mirar el propio saldo no es gestionar nada, y con la
+ * regla de escribir aplicada a la lectura, el contador de créditos de una
+ * cuenta corriente se quedaba sin datos.
+ */
+async function puedeVerLosCreditos(userId: string): Promise<boolean> {
+  const me = await currentUser();
+  if (!me) return false;
+  if (me.id === userId) return true;
+  return puedeGestionarAlCliente(me, userId);
 }
 
 export async function createIaCreditForUser(
@@ -176,7 +196,7 @@ export async function createIaCreditForUser(
 ): Promise<IaCreditResponse> {
   try {
     if (!(await puedeGestionarCreditos(userId))) {
-      return { success: false, message: 'No autorizado' };
+      return { success: false, message: 'No autorizado', autorizado: false };
     }
 
     if (!userId || total == null || !renewalDate) {
@@ -207,7 +227,7 @@ export async function rechargeIaCredit(
 ): Promise<IaCreditResponse> {
   try {
     if (!(await puedeGestionarCreditos(userId))) {
-      return { success: false, message: 'No autorizado' };
+      return { success: false, message: 'No autorizado', autorizado: false };
     }
 
     if (!userId) {
