@@ -900,6 +900,9 @@ export function ChatsClient({
   // llego a pedirse alguna vez. Ver el efecto del ciclo, mas abajo.
   const arranquesDelCicloRef = useRef(0);
   const primeraVueltaPedidaRef = useRef(false);
+  // Para medir la primera vuelta de la lista linea por linea, una sola vez.
+  const primeraVueltaMedidaRef = useRef(false);
+  const tiemposPorLineaRef = useRef<Array<{ tardoMs: number }>>([]);
 
   const quizaImprimirMedicion = useCallback((chats: number) => {
     const m = medicionRef.current;
@@ -1814,6 +1817,10 @@ export function ChatsClient({
           // encima. Lo que falta saber es si aqui pasa lo mismo a lo grande,
           // y que parte lo llena. Por eso va desglosado y no solo el total.
           peso: pesoDeLaRespuesta(result.data),
+          // 960 KB de marcas de chat es mas que las sesiones. Con el numero de
+          // filas al lado se sabe si son muchas marcas o marcas gordas, que se
+          // arreglan de formas distintas.
+          marcas: Object.keys(result.data?.chatPreferences ?? {}).length,
         };
         quizaImprimirMedicion(currentChatsResult.data.length);
         if (cancelled || !result.success || !result.data) return;
@@ -1840,9 +1847,105 @@ export function ChatsClient({
     };
   }, [currentChatsResult, sessionUserIds, userId, quizaImprimirMedicion]);
 
+  /**
+   * Los viajes de red del arranque, medidos por el propio navegador.
+   *
+   * Esta es la pieza que faltaba. La carga inicial tarda 18 s, el servidor
+   * trabaja 320 ms y la respuesta pesa 1,5 MB: el tiempo no esta en la base ni
+   * en el peso, y desde dentro del codigo no hay forma de verlo. El navegador
+   * si lo sabe, y lo publica en Resource Timing, partido en tres:
+   *
+   * - `esperoAntesDeSalirMs` — desde que se pide hasta que la peticion SALE. Si
+   *   esto es lo gordo, el viaje estuvo en la cola del navegador (por ejemplo,
+   *   con HTTP/1.1 solo caben 6 peticiones a la vez por dominio, y la lista
+   *   manda 6 de golpe).
+   * - `ttfbMs` — desde que sale hasta el primer byte. Si esto es lo gordo, el
+   *   tiempo esta en el servidor DESPUES de nuestra ultima linea: serializar la
+   *   respuesta y comprimirla.
+   * - `descargaMs` — bajar el cuerpo. Aqui se ve si el problema es el tamaño.
+   *
+   * Los tres se suman al total, asi que uno de ellos tiene los 17,5 s. Y
+   * `protocolo` dice si la cola de 6 es siquiera posible.
+   */
+  useEffect(() => {
+    if (typeof PerformanceObserver === "undefined" || typeof performance === "undefined") return;
+    const t0 = performance.now();
+    const viajes: Array<Record<string, number | string>> = [];
+    let observador: PerformanceObserver | null = null;
+
+    try {
+      observador = new PerformanceObserver((lista) => {
+        for (const entrada of lista.getEntries()) {
+          const r = entrada as PerformanceResourceTiming;
+          if (r.initiatorType !== "fetch" && r.initiatorType !== "xmlhttprequest") continue;
+          viajes.push({
+            pedidoEnMs: Math.round(r.startTime - t0),
+            esperoAntesDeSalirMs: Math.round(Math.max(0, r.requestStart - r.startTime)),
+            ttfbMs: Math.round(Math.max(0, r.responseStart - r.requestStart)),
+            descargaMs: Math.round(Math.max(0, r.responseEnd - r.responseStart)),
+            totalMs: Math.round(r.duration),
+            kbPorElCable: Math.round((r.encodedBodySize || 0) / 1024),
+            kbSinComprimir: Math.round((r.decodedBodySize || 0) / 1024),
+            protocolo: r.nextHopProtocol || "(sin dato)",
+          });
+        }
+      });
+      observador.observe({ type: "resource", buffered: true });
+    } catch {
+      return;
+    }
+
+    // A los 40 s: mas que la vuelta de la lista, que tardo 31.
+    const cuandoContarlo = window.setTimeout(() => {
+      observador?.disconnect();
+      const lentos = [...viajes].sort((a, b) => Number(b.totalMs) - Number(a.totalMs)).slice(0, 12);
+      console.warn("[chats] viajes de red del arranque (ms desde que se monta la pantalla)", {
+        cuantos: viajes.length,
+        protocolo: viajes[0]?.protocolo ?? "(sin dato)",
+        losDoceMasLentos: lentos,
+      });
+    }, 40000);
+
+    return () => {
+      observador?.disconnect();
+      window.clearTimeout(cuandoContarlo);
+    };
+  }, []);
+
   const refetchAllInstances = useCallback(async (): Promise<FetchChatsResult> => {
     if (!instanceActionSets?.length) return refetchChatsAction();
-    const results = await Promise.allSettled(instanceActionSets.map((s) => s.refetchChats()));
+    // Cada linea, cronometrada por separado.
+    //
+    // Las 6 salen a la vez y se espera a TODAS, asi que una sola lenta manda
+    // sobre el total: 31 s para 6 lineas puede ser seis de 31 s o cinco
+    // rapidas y una colgada, y eso cambia por completo donde hay que mirar.
+    const soloLaPrimeraVez = !primeraVueltaMedidaRef.current;
+    const arranco = performance.now();
+    const results = await Promise.allSettled(
+      instanceActionSets.map(async (s) => {
+        const t0 = performance.now();
+        try {
+          return await s.refetchChats();
+        } finally {
+          if (soloLaPrimeraVez) {
+            tiemposPorLineaRef.current.push({ tardoMs: Math.round(performance.now() - t0) });
+          }
+        }
+      }),
+    );
+    if (soloLaPrimeraVez) {
+      primeraVueltaMedidaRef.current = true;
+      console.warn("[chats] la primera vuelta de la lista, linea por linea", {
+        totalMs: Math.round(performance.now() - arranco),
+        lineas: results.map((r, i) => ({
+          tardoMs: tiemposPorLineaRef.current[i]?.tardoMs ?? null,
+          // Lo que dice el servidor de SU parte. Si `tardoMs` es mucho mayor que
+          // `servidor.total`, esa linea no estuvo trabajando: estuvo esperando.
+          servidor:
+            r.status === "fulfilled" ? r.value.tiempos ?? "(sin medir)" : `(reventó: ${r.reason})`,
+        })),
+      });
+    }
     const allChats: ChatData[] = [];
     let algunaRespondio = false;
     for (const r of results) {

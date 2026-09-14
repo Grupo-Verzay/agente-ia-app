@@ -1174,7 +1174,21 @@ function jidDelChatDeWaha(id: unknown): string | null {
 export async function refetchChatsManualAction(
   context: ChatActionContext,
 ): Promise<FetchChatsResult> {
-  const user = await currentUser();
+  // Instrumentacion. La vuelta de la lista tardo 31 s para 6 lineas y desde el
+  // navegador no hay forma de saber de quien es ese tiempo: Evolution y nuestra
+  // propia base se ven igual desde fuera. Aqui cada parte lleva su reloj.
+  const arrancoLaVuelta = Date.now();
+  const tiempos: Record<string, number | string> = {};
+  const medir = async <T,>(nombre: string, trabajo: () => Promise<T>): Promise<T> => {
+    const t0 = Date.now();
+    try {
+      return await trabajo();
+    } finally {
+      tiempos[nombre] = Date.now() - t0;
+    }
+  };
+
+  const user = await medir("acceso", () => currentUser());
   const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
   // Mismo conjunto que la lectura de mensajes: no perder conversaciones viejas
   // guardadas bajo el userId anterior al cambio de dueño de la línea.
@@ -1182,7 +1196,8 @@ export async function refetchChatsManualAction(
     new Set([effectiveOwnerId, user?.ownerId, user?.id].filter(Boolean) as string[]),
   );
 
-  context = await resolverContexto(context);
+  context = await medir("resolverContexto", () => resolverContexto(context));
+  tiempos.linea = context?.instanceName?.trim() || "(sin nombre)";
   if (!hasReadyContext(context)) {
     if (readUserIds.length) {
       // Acotado A ESTA LINEA. Esta accion se ata por linea (`instActionCtx`),
@@ -1207,30 +1222,42 @@ export async function refetchChatsManualAction(
       // cientos. Se le piden a Waha y se guarda el ultimo mensaje de cada uno:
       // con eso la fila existe, se ordena por su fecha y la conversacion se
       // completa al abrirla.
+      tiempos.camino = "nuestra base";
       if (laLinea && effectiveOwnerId) {
-        await traerChatsDeWaha({ userId: effectiveOwnerId, instanceName: laLinea });
+        await medir("waha", () =>
+          traerChatsDeWaha({ userId: effectiveOwnerId, instanceName: laLinea }),
+        );
       }
 
-      const persisted = await getPersistedInboxChats({
-        userIds: readUserIds,
-        instanceNames: laLinea ? [laLinea] : undefined,
-      });
+      const persisted = await medir("bandejaGuardada", () =>
+        getPersistedInboxChats({
+          userIds: readUserIds,
+          instanceNames: laLinea ? [laLinea] : undefined,
+        }),
+      );
       if (persisted.length) {
+        tiempos.total = Date.now() - arrancoLaVuelta;
         return {
           success: true,
           message: "Chats cargados desde historial local.",
           data: persisted,
+          tiempos,
         };
       }
     }
 
+    tiempos.total = Date.now() - arrancoLaVuelta;
     return {
       success: false,
       message: "No hay instancia o API key configurada para refrescar chats.",
+      tiempos,
     };
   }
 
-  const result = await fetchChatsFromEvolution(context.apiKeyData, context.instanceName);
+  tiempos.camino = "evolution";
+  const result = await medir("evolution", () =>
+    fetchChatsFromEvolution(context.apiKeyData, context.instanceName),
+  );
 
   // Superponer el marcador "🚫 Mensaje eliminado" del inbox persistido sobre los
   // chats en vivo. Evolution devuelve el último mensaje de un borrado como stub
@@ -1246,10 +1273,12 @@ export async function refetchChatsManualAction(
       // Solo se necesitan los JIDs con la marca, no la bandeja entera: armarla
       // cruza conversaciones con sesiones y cuesta segundos, y esto corre en
       // cada refresco de la lista.
-      const deleted = await getDeletedLastMessageJids({
-        userIds: readUserIds,
-        instanceName: context.instanceName,
-      });
+      const deleted = await medir("marcasDeBorrado", () =>
+        getDeletedLastMessageJids({
+          userIds: readUserIds,
+          instanceName: context.instanceName,
+        }),
+      );
       const deletedJids = new Set<string>();
       for (const p of deleted) {
         for (const cand of buildWhatsAppJidCandidates(p.remoteJid, [p.remoteJidAlt, p.senderPn])) {
@@ -1277,20 +1306,25 @@ export async function refetchChatsManualAction(
   }
 
   if (!result.success && readUserIds.length) {
-    const persisted = await getPersistedInboxChats({
-      userIds: readUserIds,
-      instanceNames: [context.instanceName],
-    });
+    const persisted = await medir("bandejaGuardadaTrasFallo", () =>
+      getPersistedInboxChats({
+        userIds: readUserIds,
+        instanceNames: [context.instanceName],
+      }),
+    );
     if (persisted.length) {
+      tiempos.total = Date.now() - arrancoLaVuelta;
       return {
         success: true,
         message: "Evolution no respondió; chats cargados desde historial local.",
         data: persisted,
+        tiempos,
       };
     }
   }
 
-  return result;
+  tiempos.total = Date.now() - arrancoLaVuelta;
+  return { ...result, tiempos };
 }
 
 export async function sendManualChatPayloadAction(

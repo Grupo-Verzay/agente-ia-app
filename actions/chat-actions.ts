@@ -613,8 +613,12 @@ export type ChatData = {
 type ChatArray = ChatData[];
 
 export type FetchChatsResult =
-  | { success: true; message: string; data: ChatArray }
-  | { success: false; message: string };
+  // `tiempos` es solo instrumentacion, y opcional: cuanto tardo cada parte de
+  // la vuelta de UNA linea en el servidor. Sirve para separar «Evolution
+  // contesta lento» de «lo caro es nuestro», que desde el navegador se ven
+  // exactamente igual.
+  | { success: true; message: string; data: ChatArray; tiempos?: Record<string, number | string> }
+  | { success: false; message: string; tiempos?: Record<string, number | string> };
 
 export type FindMessagesResult =
   | {
