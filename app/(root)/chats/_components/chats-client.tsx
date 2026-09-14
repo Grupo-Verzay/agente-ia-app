@@ -194,6 +194,80 @@ const LIST_SYNC_INTERVAL_MS = 20000;
 const INTERVALO_MINIMO_DE_SESIONES = 60000;
 
 /**
+ * De que estan hechas las marcas de chat que se bajan en cada carga.
+ *
+ * Son 2.750 filas y 960 KB, mas que todas las sesiones juntas, y hasta ahora
+ * solo se sabia el numero. Lo que decide como se arregla es el reparto:
+ *
+ * - `sinNingunaMarca` son filas que no dicen NADA -ni anclado, ni archivado, ni
+ *   borrado, ni purgado-. Quedan al desanclar o desarchivar, que vacia la fecha
+ *   pero no borra la fila. Son podables sin discutir: no cambian una sola
+ *   pantalla.
+ * - `sinLinea` son las filas antiguas, de cuando la tabla no guardaba la
+ *   columna. Siguen valiendo (`elegirPreferenciaDelChat` las usa cuando en esa
+ *   linea no hay ninguna), asi que NO son podables sin mirar antes.
+ * - `filasPorChat` es el multiplicador: una marca se escribe bajo todas las
+ *   identidades del contacto y por linea. Si sale ~4, el peso es ese.
+ */
+function desglosarLasMarcas(marcas: Record<string, unknown> | undefined): Record<string, number> | string {
+  if (!marcas) return "(sin datos)";
+  try {
+    const filas = Object.values(marcas) as Array<Record<string, unknown>>;
+    const contactos = new Set<string>();
+    let sinNingunaMarca = 0;
+    let sinLinea = 0;
+    let ancladas = 0;
+    let archivadas = 0;
+    let borradas = 0;
+    let purgadas = 0;
+    for (const f of filas) {
+      if (f?.pinnedAt) ancladas += 1;
+      if (f?.archivedAt) archivadas += 1;
+      if (f?.deletedAt) borradas += 1;
+      if (f?.purgedAt) purgadas += 1;
+      if (!f?.pinnedAt && !f?.archivedAt && !f?.deletedAt && !f?.purgedAt) sinNingunaMarca += 1;
+      if (!f?.instanceName) sinLinea += 1;
+      if (typeof f?.remoteJid === "string") contactos.add(f.remoteJid);
+    }
+    return {
+      filas: filas.length,
+      sinNingunaMarca,
+      ancladas,
+      archivadas,
+      borradas,
+      purgadas,
+      sinLinea,
+      contactosDistintos: contactos.size,
+      filasPorContacto: contactos.size ? Math.round((filas.length / contactos.size) * 10) / 10 : 0,
+    };
+  } catch {
+    return "(no calculado)";
+  }
+}
+
+/**
+ * De quien es un viaje de red, con el detalle justo para agruparlos.
+ *
+ * Las acciones de servidor de Next van TODAS por POST a la ruta de la pagina,
+ * asi que por la URL no se distinguen entre ellas; el prefetch del router va a
+ * la ruta de destino con `_rsc`, y las rutas de la API tienen su propio camino.
+ * Con eso basta para repartir el total en clases y ver cual es la que pesa.
+ */
+function deQuienEsElViaje(url: string): string {
+  try {
+    const u = new URL(url, typeof location !== "undefined" ? location.href : "http://x");
+    if (u.searchParams.has("_rsc")) return `prefetch del router (${u.pathname})`;
+    if (u.pathname.startsWith("/api/")) return u.pathname;
+    if (typeof location !== "undefined" && u.pathname === location.pathname) {
+      return "accion de servidor (POST a esta pagina)";
+    }
+    return u.pathname;
+  } catch {
+    return "(url no interpretable)";
+  }
+}
+
+/**
  * Cuanto pesa, en KB, lo que devuelve la carga inicial, y de quien es el peso.
  *
  * Solo instrumentacion. `JSON.stringify` no es exactamente lo que viaja -la
@@ -1820,7 +1894,7 @@ export function ChatsClient({
           // 960 KB de marcas de chat es mas que las sesiones. Con el numero de
           // filas al lado se sabe si son muchas marcas o marcas gordas, que se
           // arreglan de formas distintas.
-          marcas: Object.keys(result.data?.chatPreferences ?? {}).length,
+          marcas: desglosarLasMarcas(result.data?.chatPreferences),
         };
         quizaImprimirMedicion(currentChatsResult.data.length);
         if (cancelled || !result.success || !result.data) return;
@@ -1879,6 +1953,7 @@ export function ChatsClient({
           const r = entrada as PerformanceResourceTiming;
           if (r.initiatorType !== "fetch" && r.initiatorType !== "xmlhttprequest") continue;
           viajes.push({
+            origen: deQuienEsElViaje(r.name),
             pedidoEnMs: Math.round(r.startTime - t0),
             esperoAntesDeSalirMs: Math.round(Math.max(0, r.requestStart - r.startTime)),
             ttfbMs: Math.round(Math.max(0, r.responseStart - r.requestStart)),
@@ -1899,9 +1974,21 @@ export function ChatsClient({
     const cuandoContarlo = window.setTimeout(() => {
       observador?.disconnect();
       const lentos = [...viajes].sort((a, b) => Number(b.totalMs) - Number(a.totalMs)).slice(0, 12);
+      // Cuantos viajes de cada clase, y cuanto tiempo se lleva cada clase. Sin
+      // esto, «92 peticiones» es un numero sin dueño: no se sabe si son
+      // nuestras consultas, prefetch del router o rutas de la API.
+      const porOrigen: Record<string, { cuantos: number; ttfbTotalMs: number; ttfbPeorMs: number }> = {};
+      for (const v of viajes) {
+        const clave = String(v.origen);
+        const acc = (porOrigen[clave] ??= { cuantos: 0, ttfbTotalMs: 0, ttfbPeorMs: 0 });
+        acc.cuantos += 1;
+        acc.ttfbTotalMs += Number(v.ttfbMs);
+        acc.ttfbPeorMs = Math.max(acc.ttfbPeorMs, Number(v.ttfbMs));
+      }
       console.warn("[chats] viajes de red del arranque (ms desde que se monta la pantalla)", {
         cuantos: viajes.length,
         protocolo: viajes[0]?.protocolo ?? "(sin dato)",
+        porOrigen,
         losDoceMasLentos: lentos,
       });
     }, 40000);
