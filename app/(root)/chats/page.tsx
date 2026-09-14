@@ -266,9 +266,41 @@ export default async function ChatsPage({
   // vinculadas. Sin esto veía los chats de todas ellas mezclados, y ni siquiera
   // eran de la cuenta en la que está.
   const esAgenteDeLaCuenta = !!user?.ownerId && user?.advisorRole !== "administrador";
-  const instancias = esAgenteDeLaCuenta
-    ? ownInstancias
-    : [...ownInstancias, ...linkedInstancias];
+  /**
+   * Una linea, UNA vez. Gana la primera aparicion.
+   *
+   * `linkedInstancias` ya se filtra contra `ownInstancias` (arriba), asi que el
+   * cruce propio-vinculada estaba cubierto. Lo que no lo estaba es que la MISMA
+   * linea llegue por dos caminos DENTRO de las vinculadas —una cuenta vinculada
+   * y una maestra pueden traer las dos la misma— ni que se repita dentro de las
+   * propias.
+   *
+   * De esta lista sale todo lo de la pantalla: los juegos de acciones, los
+   * nombres del filtro de canales, los contadores y los `instanceNames` con los
+   * que se pide la bandeja. Una linea repetida aqui son DOS juegos de acciones
+   * para el mismo sitio, o sea dos vueltas identicas a la lista cada 20 s por
+   * pestaña. Medido: 6 juegos para 4 lineas, y las dos repetidas fueron
+   * justamente las que a los 45 s seguian sin resolver, porque Next encola las
+   * acciones de una en una y las duplicadas van al final de la cola.
+   *
+   * Gana la primera porque el orden ya expresa la prioridad: primero las
+   * propias, despues las vinculadas.
+   *
+   * Los dos bloques que arman juegos de acciones mas abajo ya comprueban
+   * `some((s) => s.instanceName === ...)`. A este se le habia pasado.
+   */
+  const sinLineasRepetidas = <T extends { instanceName: string }>(lista: T[]): T[] => {
+    const vistas = new Set<string>();
+    return lista.filter((inst) => {
+      const nombre = inst.instanceName;
+      if (!nombre || vistas.has(nombre)) return false;
+      vistas.add(nombre);
+      return true;
+    });
+  };
+  const instancias = sinLineasRepetidas(
+    esAgenteDeLaCuenta ? ownInstancias : [...ownInstancias, ...linkedInstancias],
+  );
 
   /* ─── La API key de CADA linea, no una sola para todas ───
    *
