@@ -2,6 +2,7 @@
 
 import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
+import { msDesdeQueEntroLaPeticion } from '@/lib/reloj-de-la-peticion'
 import {
   ESTADOS_DE_CITA_CERRADA,
   ESTADOS_DE_FOLLOWUP_VIVO,
@@ -437,6 +438,9 @@ export async function getSesionesDeLaCuenta(
     // la consola del navegador diga donde se va el tiempo del servidor: los
     // logs del contenedor no estan a mano cuando alguien manda una captura.
     const tiempos: Record<string, number> = { acceso: arrancoEn - arrancoAcceso };
+    // Lo mismo que en la carga inicial: cuanto se tardo en llegar hasta aqui.
+    const esperoEnLlegar = msDesdeQueEntroLaPeticion();
+    if (esperoEnLlegar !== null) tiempos.desdeElMiddleware = esperoEnLlegar;
     const medir = async <T,>(nombre: string, trabajo: () => Promise<T>): Promise<T> => {
       const t0 = Date.now();
       try {
