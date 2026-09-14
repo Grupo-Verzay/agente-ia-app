@@ -1851,6 +1851,39 @@ export function ChatsClient({
      * asesores con los que tienen chats asignados y no salen en el equipo. Lo
      * que ya no hace es ser el unico camino por el que llegan a la pantalla.
      */
+    /**
+     * Un solo reintento, a los 2 s, y solo si nadie las ha puesto ya.
+     *
+     * Uno y no varios: si el servidor esta caido, insistir desde cada pestaña
+     * abierta es justo lo que no conviene mientras se levanta. El reloj de
+     * sesiones —cada 60 s— sigue detras como ultima red.
+     */
+    const reintentarLasSesiones = () => {
+      window.setTimeout(() => {
+        if (cancelled || sesionesYaAplicadasRef.current) return;
+        void getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId)
+          .then((otra) => {
+            if (cancelled || !otra.success) {
+              if (!cancelled) {
+                console.warn("[chats] el reintento de sesiones tampoco trajo nada", {
+                  motivo: otra.success ? "(ok)" : otra.message,
+                });
+              }
+              return;
+            }
+            sesionesYaAplicadasRef.current = true;
+            aplicarSesiones(otra.data ?? []);
+            console.warn("[chats] las sesiones llegaron en el reintento");
+          })
+          .catch((error) => {
+            if (cancelled) return;
+            console.warn("[chats] el reintento de sesiones reventó", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }, 2000);
+    };
+
     const arrancoSesiones = performance.now();
     void getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId).then(
       (result) => {
@@ -1870,8 +1903,30 @@ export function ChatsClient({
           servidor: result.tiempos ?? "(sin medir)",
         };
         quizaImprimirMedicion(currentChatsResult.data.length);
+        // Si esta consulta no las trae, no las trae NADIE.
+        //
+        // Hasta ahora la carga inicial devolvia las sesiones tambien, asi que
+        // un fallo aqui se tapaba solo. Ya no viajan por ahi —eran 573 de los
+        // 1.540 KB de esa respuesta, bajados dos veces—, asi que este camino es
+        // el unico, y un fallo suyo deja la lista pelada del todo: sin asesor,
+        // sin etiquetas y sin el chip de minutos.
+        //
+        // Por eso se reintenta una vez, y se dice. Un fallo mudo aqui no se ve
+        // como un error: se ve como una App a medio pintar.
+        if (!result.success && !cancelled) {
+          console.warn("[chats] las sesiones no llegaron; se reintenta una vez", {
+            motivo: result.message,
+          });
+          reintentarLasSesiones();
+        }
       },
-    );
+    ).catch((error) => {
+      if (cancelled) return;
+      console.warn("[chats] la consulta de sesiones reventó; se reintenta una vez", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      reintentarLasSesiones();
+    });
 
     const timer = window.setTimeout(() => {
       const arrancoBootstrap = performance.now();
@@ -1906,12 +1961,9 @@ export function ChatsClient({
         setAdvisors(data.advisors);
         setClientValidationEnabled(data.clientValidationEnabled);
         setChatPreferences(data.chatPreferences);
-        // Si la consulta de arriba ya las puso, esta llega mas tarde y con lo
-        // mismo: repintar la lista entera por gusto es justo lo que esta
-        // pantalla no se puede permitir.
-        if (!sesionesYaAplicadasRef.current) {
-          aplicarSesiones(data.sesionesDeLaCuenta);
-        }
+        // Las sesiones ya no vienen por aqui: tienen su propia consulta, que
+        // sale antes y lleva su reintento. Esta respuesta las traia tambien
+        // -573 de sus 1.540 KB- para pintar exactamente lo mismo.
       });
     }, 100);
 
