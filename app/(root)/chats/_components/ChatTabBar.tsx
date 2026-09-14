@@ -113,18 +113,23 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, unre
           </button>
         )}
 
-        {/* En espera: escalados a una persona y sin asesor que los tome.
+        {/* En espera: pidieron una persona y ninguna les ha contestado aun.
             Va detras de «No leidos» porque es otro ESTADO del chat, y uno puede
             estar leido y seguir esperando.
 
-            Solo se dibuja si hay alguno: un boton en cero no informa de nada y
-            gasta ancho. Y en rosa porque el naranja ya esta cogido dos veces
-            -«No leidos» y el chip de minutos de la tarjeta-. */}
-        {onToggleEnEspera && (enEsperaCount ?? 0) > 0 && (
+            SIEMPRE visible, tambien en cero. Se probo escondiendolo cuando no
+            habia ninguno y el resultado fue peor: quien no lo ve no sabe si es
+            que no hay nadie esperando o que el filtro no existe. Un cero
+            tambien informa, y ademas mantiene la barra quieta en vez de que los
+            chips salten de sitio cada vez que entra o sale uno.
+
+            En rosa porque el naranja ya esta cogido dos veces -«No leidos» y el
+            chip de minutos de la tarjeta-. */}
+        {onToggleEnEspera && (
           <button
             type="button"
             onClick={onToggleEnEspera}
-            title="Escalados a una persona y sin asesor asignado"
+            title="Pidieron una persona y ninguna les ha contestado aun"
             aria-pressed={!!enEsperaOnly}
             className={cn(
               "inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap transition-all",
@@ -138,7 +143,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, unre
               className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none tabular-nums text-white"
               style={{ background: enEsperaOnly ? "rgba(255,255,255,0.3)" : "#e11d48" }}
             >
-              {(enEsperaCount ?? 0) > 99 ? "99+" : enEsperaCount}
+              {(enEsperaCount ?? 0) > 99 ? "99+" : enEsperaCount ?? 0}
             </span>
           </button>
         )}
