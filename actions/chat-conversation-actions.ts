@@ -9,6 +9,7 @@ import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/
 import { invalidatePersistedInboxCache } from "@/lib/chat-persistence";
 import { chatPreferenceKey } from "@/lib/chat-preference-key";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
+import { laListaSaleDeNuestraBase } from "@/lib/lista-de-la-linea";
 import type {
   ChatConversationPreference,
   ChatConversationPreferenceMap,
@@ -630,6 +631,9 @@ async function hardDeleteLocalChat(
   // dejar a medias un borrado que el usuario pidio completo.
   const soloDeEstaLinea = { instanceName: linea };
   let deletedPreferenceRow: ChatConversationPreference | null = null;
+  // Se pregunta ANTES de la transaccion: dentro no se hacen consultas que no
+  // sean el propio borrado.
+  const borradoDefinitivo = await laListaSaleDeNuestraBase(linea);
 
   await db.$transaction(async (tx) => {
     // Antes aqui se BORRABAN las marcas de las demas identidades del contacto,
@@ -709,6 +713,42 @@ async function hardDeleteLocalChat(
 
     await purgarRastroDelContacto(tx, userId, candidates);
 
+    /**
+     * Si la lista de esta linea sale de NUESTRA base, el chat ya se fue: no
+     * hace falta marca, y la fila se borra.
+     *
+     * Justo arriba se han borrado las sesiones, las conversaciones y los
+     * mensajes de este contacto en esta linea. En una linea Waha, Meta o
+     * Telegram la bandeja no tiene otra fuente, asi que sin esas filas no hay
+     * nada que listar: eliminado es eliminado. Dejar una marca ahi no esconde
+     * nada; solo pesa, y mucho: 1.044 de las 1.200 filas de una cuenta estaban
+     * en «borrada y purgada», 399 de los 407 KB de la carga inicial.
+     *
+     * En una linea de Evolution NO: alli la lista la trae el telefono en cada
+     * vuelta y el chat sigue existiendo en WhatsApp. Sin la marca vuelve a la
+     * bandeja veinte segundos despues.
+     *
+     * Y si el contacto vuelve a escribir, la conversacion entra **como nueva**,
+     * que es exactamente lo que dice la regla de siempre. Sin fila no hay nada
+     * que levantar: `levantarMarcasSiElContactoEscribio` no encuentra nada que
+     * actualizar y no falla —es un `UPDATE ... FROM` sobre un CTE vacio, que no
+     * toca ninguna fila y devuelve la lista vacia—.
+     */
+    if (borradoDefinitivo) {
+      const identidadesABorrar = [
+        normalizedRemoteJid,
+        ...paraMarcar.filter((candidate) => candidate !== normalizedRemoteJid),
+      ];
+      await tx.chatConversationPreference.deleteMany({
+        where: {
+          userId,
+          instanceName: linea,
+          remoteJid: { in: identidadesABorrar },
+        },
+      });
+      return;
+    }
+
     // La marca va bajo TODAS las identidades del contacto, no solo bajo la que
     // se pidio borrar.
     //
@@ -766,8 +806,12 @@ async function hardDeleteLocalChat(
   // pasar si la pantalla no encuentra esta fila, y para saber por que hay que
   // ver las dos partes: lo que se guardo aqui y lo que busca el navegador. Esta
   // es la primera.
-  console.info("[chats] marca de borrado guardada", {
+  console.info(borradoDefinitivo ? "[chats] chat borrado sin dejar marca" : "[chats] marca de borrado guardada", {
     userId,
+    // De donde sale la lista de esta linea decide si el chat se pudo borrar de
+    // verdad o solo esconder. Si alguna vez un borrado «no se nota», esto dice
+    // cual de los dos caminos tomo.
+    laListaSaleDeNuestraBase: borradoDefinitivo,
     linea: linea || "(vacia = vale para todas)",
     remoteJid: normalizedRemoteJid,
     pedidoComo: remoteJid,
@@ -810,6 +854,17 @@ async function hardDeleteLocalChat(
  * tres columnas en un solo JOIN recorria la tabla entera.
  *
  * Nunca rompe la carga de preferencias: si falla, se anota y se sigue.
+ *
+ * ## Y si la fila NO existe, no pasa nada: el chat entra como nuevo
+ *
+ * Desde que el borrado de una linea Waha, Meta o Telegram borra la fila en vez
+ * de marcarla (ver `hardDeleteLocalChat`), lo normal es que aqui no haya nada
+ * que levantar. Eso no es un caso de error: es un `UPDATE ... FROM` sobre un
+ * CTE que sale vacio, asi que no toca ninguna fila, devuelve la lista vacia y
+ * no avisa de nada. Y sin fila no hay marca, asi que si el contacto vuelve a
+ * escribir su conversacion aparece sola, como cualquier otra nueva. Esta
+ * consulta solo tiene trabajo con las lineas de Evolution, que son las que
+ * siguen guardando marca porque alli el chat sigue vivo en el telefono.
  */
 async function levantarMarcasSiElContactoEscribio(userIds: string[]): Promise<void> {
   if (!userIds.length) return;

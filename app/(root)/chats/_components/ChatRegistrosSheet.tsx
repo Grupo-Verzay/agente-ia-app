@@ -11,6 +11,8 @@ import {
   getCachedRegistrosSnapshot,
   type RegistrosSnapshot,
 } from "./chat-registros-cache";
+import { leerResumen } from "./chat-registros-store";
+import type { ResumenDeRegistros } from "@/lib/registros-del-lead";
 import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
 import { getSessionCrmFollowUps, getSessionLatestSummarySnapshot, updateFollowUpSummarySnapshot, createManualSynthesis } from "@/actions/crm-follow-up-actions";
 import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
@@ -150,6 +152,16 @@ export function ChatRegistrosSheet({
   const [citasCount, setCitasCount] = useState(0);
   const [sintesis, setSintesis] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /**
+   * Los numeros que YA tiene el globo, para abrir sin gris.
+   *
+   * `countByTipo` se deriva de las filas, asi que sin ellas diria cero -que es
+   * peor que un skeleton: es un dato falso-. Con esto el panel abre con los
+   * mismos numeros que acaba de ensenar el globo, que salen del mismo store, y
+   * las filas se pintan cuando llegan.
+   */
+  const [porTipoSemilla, setPorTipoSemilla] = useState<Record<string, number> | null>(null);
+  const [detalleCargado, setDetalleCargado] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab ?? "RESUMEN");
   const [agendaMode, setAgendaMode] = useState<"all" | "legacy" | "crm" | "reminders" | "appointments">("all");
   const [sintesisExpanded, setSintesisExpanded] = useState(false);
@@ -182,10 +194,42 @@ export function ChatRegistrosSheet({
     setSintesis(s.sintesis);
     setFollowUpId(s.followUpId);
     setHasFollowUp(s.hasFollowUp);
+    setDetalleCargado(true);
   }, []);
 
+  /** Abre con los numeros del globo. Las filas llegan despues. */
+  const sembrarDesdeElGlobo = useCallback((resumen: ResumenDeRegistros) => {
+    setPorTipoSemilla(resumen.porTipo);
+    setSeguimientosPendingCount(resumen.seguimientos);
+    setSeguimientosPendientes(resumen.followUpsIa);
+    setRecordatoriosCount(resumen.recordatorios);
+    setCitasCount(resumen.citas);
+  }, []);
+
+  /**
+   * Lo maximo que el panel se queda en gris antes de abrirse igual.
+   *
+   * Agotarlo NO tira la respuesta: se sigue esperando y, si llega con el panel
+   * abierto, se pinta. Es la misma regla que el sondeo del chat abierto y que
+   * «Cargar mensajes anteriores» —agotar la espera solo libera la pantalla—.
+   */
+  const PLAZO_DEL_DETALLE_MS = 8000;
+
   const load = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!opts?.silent) setLoading(true);
+    let plazo: number | undefined;
+    if (!opts?.silent) {
+      setLoading(true);
+      // El detalle son SEIS acciones de servidor, y Next las atiende de una en
+      // una. Si alguna no vuelve, esto se quedaba en gris para siempre: sin
+      // error, sin filas y sin forma de reintentar. Pasado el plazo el panel se
+      // abre con lo que haya; la respuesta se sigue escuchando.
+      plazo = window.setTimeout(() => {
+        setLoading(false);
+        console.warn("[chats] el detalle de registros tarda; el panel se abre igual", {
+          sessionId,
+        });
+      }, PLAZO_DEL_DETALLE_MS);
+    }
     try {
       // silent=refresco en 2º plano (fuerza data fresca). No-silent=carga normal, que
       // deduplica con la carga que ya disparó el badge al abrir el chat (misma sesión).
@@ -193,35 +237,63 @@ export function ChatRegistrosSheet({
         force: !!opts?.silent,
       });
       applySnapshot(snapshot);
+    } catch (error) {
+      // Sin esto una accion que revienta deja una promesa rechazada sin
+      // gestionar y el panel sin explicar por que no llego nada.
+      console.warn("[chats] no se pudo cargar el detalle de registros", {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
+      if (plazo !== undefined) window.clearTimeout(plazo);
       setLoading(false);
     }
   }, [sessionId, userId, remoteJid, applySnapshot]);
 
   useEffect(() => {
-    if (open) {
-      setActiveTab(initialTab ?? "RESUMEN");
-      setSintesisEditing(false);
-      // El badge del header ya precargó esto al abrir el chat → normalmente cacheado.
-      const cached = getCachedRegistrosSnapshot(sessionId);
-      if (cached) {
-        applySnapshot(cached); // instantáneo, sin skeleton
-        void load({ silent: true }); // refresca en 2º plano
-      } else {
-        void load(); // aún no cacheado: skeleton (deduplica con la carga del badge)
-      }
+    if (!open) return;
+    setActiveTab(initialTab ?? "RESUMEN");
+    setSintesisEditing(false);
+    // De otra sesion no se hereda nada: ni las filas ni los numeros sembrados.
+    setDetalleCargado(false);
+    setPorTipoSemilla(null);
+
+    // El badge del header ya precargó esto al abrir el globo → normalmente cacheado.
+    const cached = getCachedRegistrosSnapshot(sessionId);
+    if (cached) {
+      applySnapshot(cached); // instantáneo, sin skeleton
+      void load({ silent: true }); // refresca en 2º plano
+      return;
     }
-  }, [open, sessionId, initialTab, load, applySnapshot]);
+
+    // Sin detalle todavia: se abre con los numeros que el globo acaba de
+    // ensenar, que salen del MISMO store. El panel y el globo no pueden decir
+    // cosas distintas, y nadie mira un gris mientras el dato ya esta.
+    const semilla = leerResumen(sessionId);
+    if (semilla) {
+      sembrarDesdeElGlobo(semilla);
+      void load({ silent: true });
+    } else {
+      void load(); // no hay nada que ensenar: skeleton
+    }
+  }, [open, sessionId, initialTab, load, applySnapshot, sembrarDesdeElGlobo]);
 
   const countByTipo = useMemo(() => {
     const counts = {} as Record<TipoRegistro, number>;
     for (const t of TIPOS) counts[t] = 0;
+    // Mientras no hayan llegado las filas, mandan los numeros del globo.
+    // Contar sobre una lista vacia diria «0» en todo, que no es «todavia no
+    // se sabe»: es un dato falso, y encima distinto del que se acaba de ver.
+    if (!detalleCargado && porTipoSemilla) {
+      for (const t of TIPOS) counts[t] = porTipoSemilla[t] ?? 0;
+      return counts;
+    }
     for (const r of registros) {
       const t = r.tipo as TipoRegistro;
       if (TIPOS.includes(t)) counts[t] = (counts[t] ?? 0) + 1;
     }
     return counts;
-  }, [registros]);
+  }, [registros, detalleCargado, porTipoSemilla]);
 
   const { flujosCount, flujosNames } = useMemo(() => {
     const str = (flujos ?? "").trim();
