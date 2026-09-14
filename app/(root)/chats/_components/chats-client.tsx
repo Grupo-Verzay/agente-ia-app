@@ -192,6 +192,28 @@ const LIST_SYNC_INTERVAL_MS = 20000;
 // informacion de CRM, que cambia muy de vez en cuando, y lo que hace el propio
 // asesor ya se pinta al momento sin pasar por aqui.
 const INTERVALO_MINIMO_DE_SESIONES = 60000;
+
+/**
+ * Cuanto pesa, en KB, lo que devuelve la carga inicial, y de quien es el peso.
+ *
+ * Solo instrumentacion. `JSON.stringify` no es exactamente lo que viaja -la
+ * respuesta de una accion de servidor va en el formato de React, y ademas
+ * comprimida-, pero sirve para lo unico que hace falta: saber que parte de la
+ * respuesta es la gorda. Va en su propio `try`: medir no puede romper la carga.
+ */
+function pesoDeLaRespuesta(data: unknown): Record<string, number> | string {
+  if (!data || typeof data !== "object") return "(sin datos)";
+  try {
+    const kb = (valor: unknown) => Math.round(JSON.stringify(valor ?? null).length / 1024);
+    const partes: Record<string, number> = { TOTAL: kb(data) };
+    for (const [nombre, valor] of Object.entries(data as Record<string, unknown>)) {
+      partes[nombre] = kb(valor);
+    }
+    return partes;
+  } catch {
+    return "(no calculado)";
+  }
+}
 // Polling ADAPTATIVO: si el WebSocket de tiempo real está caído o no
 // configurado, usamos intervalos más ágiles para que igual se sienta en vivo.
 // Con el socket conectado se mantienen los intervalos relajados de arriba.
@@ -873,6 +895,11 @@ export function ChatsClient({
     lista?: Record<string, unknown>;
     impreso: boolean;
   }>({ t0: 0, impreso: false });
+
+  // Cuantas veces se ha rearmado el ciclo de la lista, y si su primera vuelta
+  // llego a pedirse alguna vez. Ver el efecto del ciclo, mas abajo.
+  const arranquesDelCicloRef = useRef(0);
+  const primeraVueltaPedidaRef = useRef(false);
 
   const quizaImprimirMedicion = useCallback((chats: number) => {
     const m = medicionRef.current;
@@ -1780,6 +1807,13 @@ export function ChatsClient({
           puestoEn: Math.round(performance.now() - medicionRef.current.t0),
           asesoresRecibidos: result.data?.advisors?.length ?? 0,
           servidor: result.tiempos ?? "(sin medir)",
+          // Cuanto pesa lo que baja, y de quien es el peso.
+          //
+          // La consulta de sesiones ya enseño la forma del problema: el
+          // servidor decia ~250 ms y el navegador veia 2,3 s con 573 KB
+          // encima. Lo que falta saber es si aqui pasa lo mismo a lo grande,
+          // y que parte lo llena. Por eso va desglosado y no solo el total.
+          peso: pesoDeLaRespuesta(result.data),
         };
         quizaImprimirMedicion(currentChatsResult.data.length);
         if (cancelled || !result.success || !result.data) return;
@@ -3865,6 +3899,20 @@ export function ChatsClient({
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
+    // Cuantas veces se ha REARMADO este ciclo.
+    //
+    // El ciclo espera `INITIAL_CHAT_SYNC_DELAY_MS` antes de su primera vuelta, y
+    // esa espera arranca de cero en cada montaje del efecto. Si alguna de sus
+    // dependencias cambia de identidad en cada pintado, el efecto se limpia y se
+    // vuelve a montar, la espera se rearma, y la primera vuelta NO LLEGA NUNCA
+    // mientras la pantalla siga moviendose. Desde fuera eso es exactamente lo
+    // que se vio: `listaEvolution: (no llego)`.
+    //
+    // Un numero mayor que 1 aqui dice que el ciclo se esta rearmando; un 1 dice
+    // que no, y entonces el retraso esta en Evolution.
+    arranquesDelCicloRef.current += 1;
+    const arranqueNumero = arranquesDelCicloRef.current;
+
     const loop = async () => {
       if (stopped) return;
 
@@ -3899,6 +3947,12 @@ export function ChatsClient({
             acaboEn: Math.round(performance.now() - medicionRef.current.t0),
             lineas: instanceActionSets?.length ?? 1,
           };
+          // Si la medicion ya se imprimio -a los 15 s, diciendo «no llego»-,
+          // este es el dato que faltaba: cuanto tardo de verdad. Sin esto la
+          // respuesta llega y no la ve nadie.
+          if (medicionRef.current.impreso) {
+            console.warn("[chats] la primera vuelta de la lista llego TARDE", medicionRef.current.lista);
+          }
           quizaImprimirMedicion(result.success ? result.data.length : 0);
         }
         if (result.success) {
@@ -3956,6 +4010,16 @@ export function ChatsClient({
     // Es también lo que permite que la pantalla deje de esperar a Evolution para
     // dibujarse: si no llega a tiempo, este ciclo la completa en cuanto pueda.
     timer = setTimeout(() => {
+      if (arranqueNumero === arranquesDelCicloRef.current && !primeraVueltaPedidaRef.current) {
+        primeraVueltaPedidaRef.current = true;
+        console.warn("[chats] el ciclo de la lista pide su primera vuelta", {
+          rearmes: arranqueNumero,
+          desdeQueSeMontoMs: medicionRef.current.t0
+            ? Math.round(performance.now() - medicionRef.current.t0)
+            : "(sin medir)",
+          lineas: instanceActionSets?.length ?? 1,
+        });
+      }
       void loop();
     }, INITIAL_CHAT_SYNC_DELAY_MS);
 

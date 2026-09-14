@@ -121,7 +121,9 @@ async function getMissingAssignedAdvisors(
 export async function loadChatBootstrapData(
   input: ChatBootstrapInput = {},
 ): Promise<ChatBootstrapResponse> {
+  const arrancoAcceso = Date.now();
   const user = await currentUser();
+  const acaboElAcceso = Date.now();
   if (!user?.id) {
     return { success: false, message: "No autorizado." };
   }
@@ -133,7 +135,11 @@ export async function loadChatBootstrapData(
     ...(input.sessionUserIds ?? []),
   ]);
 
-  const tiempos: Record<string, number> = {};
+  // `acceso` y `total` se miden como en `getSesionesDeLaCuenta`, y por el mismo
+  // motivo: si el navegador ve una ida y vuelta MUCHO mayor que `total`, el
+  // tiempo no esta en la base ni en estas consultas, sino en serializar la
+  // respuesta y bajarla. Sin `total` no hay forma de separar las dos cosas.
+  const tiempos: Record<string, number> = { acceso: acaboElAcceso - arrancoAcceso };
   const medir = async <T,>(nombre: string, trabajo: () => Promise<T>): Promise<T> => {
     const t0 = Date.now();
     try {
@@ -225,6 +231,7 @@ export async function loadChatBootstrapData(
   // Este va DESPUES del Promise.all, asi que se suma al total. Si pesa, se ve.
   tiempos.asesoresQueFaltan = Date.now() - arrancoAsesoresQueFaltan;
   const advisors = withCurrentUserAdvisor([...baseAdvisors, ...missingAssignedAdvisors], user);
+  tiempos.total = Date.now() - arrancoAcceso;
 
   return {
     success: true,
