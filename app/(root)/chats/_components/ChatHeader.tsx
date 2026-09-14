@@ -640,6 +640,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 leadScoreReason={session.leadScoreReason}
                 tags={session.tags}
                 sessionSeguimientos={session.seguimientos}
+                registrosResumen={session.registrosResumen}
+                onSessionRefresh={onSessionRefresh}
               />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
@@ -837,6 +839,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 leadScoreReason={session.leadScoreReason}
                 tags={session.tags}
                 sessionSeguimientos={session.seguimientos}
+                registrosResumen={session.registrosResumen}
+                onSessionRefresh={onSessionRefresh}
               />
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />

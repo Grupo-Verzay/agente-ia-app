@@ -2,6 +2,13 @@
 
 import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
+import {
+  ESTADOS_DE_CITA_CERRADA,
+  ESTADOS_DE_FOLLOWUP_VIVO,
+  SEGUIMIENTO_PENDIENTE,
+  whereRecordatoriosDelLead,
+  whereSeguimientosDelLead,
+} from '@/lib/registros-del-lead'
 import { obtenerResueltas, obtenerResueltasDeCuentas } from '@/lib/session-resolved'
 import { resolvePreferredRemoteJid, scoreSessionMatch } from '@/lib/chat-session-match'
 import { registerSessionSchema } from '@/schema/session';
@@ -1006,7 +1013,61 @@ export async function getSessionByRemoteJid(
     }
 
     const mappedSession = mapSessionRecord(resolvedSession);
-    mappedSession.crmFollowUpSummary = await buildCrmFollowUpSummaryForSession(resolvedSession.id);
+
+    // El resumen de registros viaja CON la sesion, no aparte.
+    //
+    // El globo del badge de la cabecera pedia estos numeros con seis acciones
+    // de servidor propias, y Next las encola de una en una
+    // (`shared/lib/router/action-queue.js`): eran seis turnos de cola detras de
+    // todo lo demas del arranque, y por eso el globo salia en blanco segundos
+    // despues de que la conversacion ya estuviera pintada.
+    //
+    // Aqui son cinco `count` en paralelo sobre una sesion ya resuelta, dentro
+    // de una consulta que ya se hacia al abrir el chat: cero turnos de cola.
+    // Las condiciones salen de `lib/registros-del-lead`, las mismas que usa el
+    // panel «Ver y gestionar», para que los dos digan el mismo numero.
+    const [crmFollowUpSummary, porTipo, seguimientos, recordatorios, citas, followUpsIa] =
+      await Promise.all([
+        buildCrmFollowUpSummaryForSession(resolvedSession.id),
+        db.registro.groupBy({
+          by: ["tipo"],
+          where: { sessionId: resolvedSession.id },
+          _count: { _all: true },
+        }),
+        db.seguimiento.count({
+          where: {
+            ...whereSeguimientosDelLead(resolvedSession.remoteJid),
+            followUpStatus: SEGUIMIENTO_PENDIENTE,
+          },
+        }),
+        db.reminders.count({
+          where: whereRecordatoriosDelLead(resolvedSession.userId, resolvedSession.remoteJid),
+        }),
+        db.appointment.count({
+          where: {
+            sessionId: resolvedSession.id,
+            NOT: { status: { in: [...ESTADOS_DE_CITA_CERRADA] } },
+          },
+        }),
+        db.crmFollowUp.count({
+          where: {
+            sessionId: resolvedSession.id,
+            status: { in: [...ESTADOS_DE_FOLLOWUP_VIVO] },
+          },
+        }),
+      ]);
+
+    mappedSession.crmFollowUpSummary = crmFollowUpSummary;
+    mappedSession.registrosResumen = {
+      porTipo: porTipo.reduce<Record<string, number>>((acc, fila) => {
+        acc[String(fila.tipo)] = fila._count._all;
+        return acc;
+      }, {}),
+      seguimientos,
+      recordatorios,
+      citas,
+      followUpsIa,
+    };
 
     return {
       success: true,

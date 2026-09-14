@@ -1,3 +1,4 @@
+import type { ResumenDeRegistros } from "@/lib/registros-del-lead";
 import type {
   Prisma,
   AppointmentStatus,
@@ -69,6 +70,8 @@ export type SessionCrmFollowUpSummary = {
 
 export type Session = PrismaSession & {
   tags?: SimpleTag[];
+  /** Lo que pinta el globo de «Registros del lead», ya contado. */
+  registrosResumen?: ResumenDeRegistros;
   crmFollowUpSummary?: SessionCrmFollowUpSummary | null;
   pendingSeguimientos?: number;
   adSource?: { title?: string; body?: string; sourceUrl?: string } | null;

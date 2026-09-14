@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { whereRecordatoriosDelLead } from "@/lib/registros-del-lead"
 import { z } from "zod"
 import { formValuesReminderSchema, ReminderDeliverySummary, reminderSchema } from "@/schema/reminder"
 import { Prisma, Reminders } from "@prisma/client"
@@ -465,7 +466,7 @@ export async function getRemindersByRemoteJid(
 ): Promise<{ success: boolean; message: string; data?: ReminderItem[] }> {
   try {
     const items = await db.reminders.findMany({
-      where: { userId, remoteJid, isCampaign: false },
+      where: whereRecordatoriosDelLead(userId, remoteJid),
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
