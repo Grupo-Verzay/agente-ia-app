@@ -96,6 +96,8 @@ export type UIBubble = {
   sentByAi?: boolean;
   /** El cliente eliminó este mensaje ("eliminar para todos"); se conserva con badge. */
   clientDeleted?: boolean;
+  /** Alguien corrigió este mensaje desde la App; se pinta el badge «Editado». */
+  editado?: boolean;
   // Nota interna
   isNote?: boolean;
   noteAuthorName?: string | null;

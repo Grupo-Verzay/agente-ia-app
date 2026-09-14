@@ -971,6 +971,9 @@ export function toUIMessages(
       // El cliente eliminó este mensaje ("eliminar para todos"); lo conservamos y
       // el panel muestra el badge "Eliminado". También cuando llega como stub vacío.
       ...(m.clientDeleted === true || isEmptyDeletedStub ? { clientDeleted: true } : {}),
+      // Corregido desde la App. Viene de `editedAt`, la misma marca que impide
+      // que el sondeo devuelva el texto viejo.
+      ...((m as { editado?: boolean }).editado === true ? { editado: true } : {}),
     };
   });
 
