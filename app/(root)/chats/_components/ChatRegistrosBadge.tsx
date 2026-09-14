@@ -4,13 +4,8 @@ import dynamic from "next/dynamic";
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import type { Registro, TipoRegistro } from "@prisma/client";
+import type { TipoRegistro } from "@prisma/client";
 
-import { getRegistrosBySessionId } from "@/actions/registro-action";
-import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
-import { getSessionCrmFollowUps } from "@/actions/crm-follow-up-actions";
-import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
-import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -21,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 
 import { readBadgeCount, writeBadgeCount } from "./chat-badge-cache";
 import { loadRegistrosSnapshot } from "./chat-registros-cache";
+import { RESUMEN_VACIO, type ResumenDeRegistros } from "@/lib/registros-del-lead";
 import type { SimpleTag } from "@/types/session";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO", "REPORTE"];
@@ -56,6 +52,8 @@ export function ChatRegistrosBadge({
   leadScoreReason,
   tags,
   sessionSeguimientos,
+  registrosResumen,
+  onSessionRefresh,
 }: {
   sessionId: number;
   sessionPushName?: string | null;
@@ -69,50 +67,55 @@ export function ChatRegistrosBadge({
   leadScoreReason?: string | null;
   tags?: SimpleTag[];
   sessionSeguimientos?: string | null;
+  /** Ya contado, y llega CON la sesion del chat. El globo no pide nada. */
+  registrosResumen?: ResumenDeRegistros;
+  /** Vuelve a pedir la sesion, que es quien trae los numeros del globo. */
+  onSessionRefresh?: () => Promise<void> | void;
 }) {
-  const [registros, setRegistros] = useState<Registro[]>([]);
-  const [seguimientosCount, setSeguimientosCount] = useState(0);
-  const [recordatoriosCount, setRecordatoriosCount] = useState(0);
-  const [citasCount, setCitasCount] = useState(0);
-  const [followUpsCount, setFollowUpsCount] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
-  // Muestra el último total conocido AL INSTANTE mientras cargan las 5 consultas.
-  const [loaded, setLoaded] = useState(false);
+  // Mientras la sesion no ha llegado, se ensena el ultimo total conocido.
   const [cachedTotal, setCachedTotal] = useState(0);
 
   useEffect(() => {
-    setLoaded(false);
     setCachedTotal(readBadgeCount(`reg:${sessionId}`));
   }, [sessionId]);
 
-  const load = useCallback(async () => {
-    // Cargador COMPARTIDO con el sheet "Registros": al abrir el chat, el badge dispara
-    // esta carga y deja el snapshot cacheado, así el sheet abre instantáneo (no repite
-    // las 6 consultas). El sheet reusa el mismo caché.
-    const snapshot = await loadRegistrosSnapshot(sessionId, userId, remoteJid);
-    setRegistros(snapshot.registros);
-    setSeguimientosCount(snapshot.seguimientosPendingCount);
-    setRecordatoriosCount(snapshot.recordatoriosCount);
-    setCitasCount(snapshot.citasCount);
-    setFollowUpsCount(snapshot.seguimientosPendientes);
-    setLoaded(true);
+  /**
+   * Calienta el panel «Ver y gestionar», y NO el globo.
+   *
+   * El globo ya no espera a nadie: sus numeros vienen con la sesion. Pero el
+   * panel sigue necesitando el detalle -las filas, no los contadores-, y eso
+   * son seis acciones de servidor que Next encola de una en una.
+   *
+   * Por eso se disparan al ABRIR EL GLOBO y no al abrir el chat: para cuando
+   * alguien pulsa «Ver y gestionar» ya estan, el panel abre instantaneo como
+   * hasta ahora, y el arranque de la conversacion no paga seis turnos de cola
+   * por algo que la mayoria de las veces nadie mira.
+   */
+  const calentarElPanel = useCallback(() => {
+    void loadRegistrosSnapshot(sessionId, userId, remoteJid).catch(() => undefined);
   }, [sessionId, userId, remoteJid]);
 
-  useEffect(() => { load(); }, [load]);
-
+  const resumen = registrosResumen ?? RESUMEN_VACIO;
   const countByTipo = TIPOS.reduce((acc, tipo) => {
-    acc[tipo] = registros.filter((r) => r.tipo === tipo).length;
+    acc[tipo] = resumen.porTipo[tipo] ?? 0;
     return acc;
   }, {} as Record<TipoRegistro, number>);
 
-  const registrosTotal = registros.length;
+  const registrosTotal = TIPOS.reduce((n, tipo) => n + countByTipo[tipo], 0);
+  const seguimientosCount = resumen.seguimientos;
+  const recordatoriosCount = resumen.recordatorios;
+  const citasCount = resumen.citas;
+  const followUpsCount = resumen.followUpsIa;
   const grandTotal = registrosTotal + seguimientosCount + recordatoriosCount + citasCount + followUpsCount;
-  // Una vez cargado, guardamos el total para que la PRÓXIMA apertura lo muestre ya.
-  // Mientras no ha cargado, mostramos el último total conocido (cachedTotal).
+
+  // El total se guarda para que la PROXIMA apertura lo ensene antes incluso de
+  // que llegue la sesion.
+  const llego = !!registrosResumen;
   useEffect(() => {
-    if (loaded) writeBadgeCount(`reg:${sessionId}`, grandTotal);
-  }, [loaded, grandTotal, sessionId]);
-  const displayTotal = loaded ? grandTotal : cachedTotal;
+    if (llego) writeBadgeCount(`reg:${sessionId}`, grandTotal);
+  }, [llego, grandTotal, sessionId]);
+  const displayTotal = llego ? grandTotal : cachedTotal;
 
   const notasIaCount = (sessionSeguimientos ?? "")
     .split("\n")
@@ -134,7 +137,7 @@ export function ChatRegistrosBadge({
 
   return (
     <>
-      <Popover>
+      <Popover onOpenChange={(abierto) => { if (abierto) calentarElPanel(); }}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -186,7 +189,14 @@ export function ChatRegistrosBadge({
         open={sheetOpen}
         onOpenChange={(v) => {
           setSheetOpen(v);
-          if (!v) load();
+          if (!v) {
+            // Al cerrar, el detalle pudo cambiar: se rehace el cache del panel
+            // Y se vuelve a pedir la sesion, que es de donde salen los numeros
+            // del globo. Sin lo segundo, anadir un registro y cerrar dejaba el
+            // contador viejo hasta el siguiente refresco.
+            void loadRegistrosSnapshot(sessionId, userId, remoteJid, { force: true }).catch(() => undefined);
+            void onSessionRefresh?.();
+          }
         }}
         sessionId={sessionId}
         sessionPushName={sessionPushName}

@@ -2,6 +2,7 @@
 'use server'
 
 import { db } from "@/lib/db"
+import { whereSeguimientosDelLead } from "@/lib/registros-del-lead"
 import { seguimientosSchema } from "@/schema/seguimientos"
 
 export interface SeguimientosResponse {
@@ -190,19 +191,9 @@ export async function getSessionLegacySeguimientos(
 ): Promise<{ success: boolean; message: string; data?: LegacySeguimientoItem[] }> {
   try {
     const seguimientos = await db.seguimiento.findMany({
-      where: {
-        remoteJid,
-        NOT: {
-          OR: [
-            { idNodo: null },
-            { idNodo: "" },
-            { idNodo: { startsWith: "reminder-" } },
-            { idNodo: { startsWith: "appt-confirm-" } },
-            { idNodo: { startsWith: "appt-reminder-" } },
-            { idNodo: { startsWith: "camping-" } },
-          ],
-        },
-      },
+      // La condicion vive en `lib/registros-del-lead`: el contador del globo la
+      // usa tambien, y si se separan dicen numeros distintos.
+      where: whereSeguimientosDelLead(remoteJid),
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
