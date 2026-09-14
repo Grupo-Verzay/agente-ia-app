@@ -27,7 +27,6 @@ import {
 } from "@/actions/chat-manual-actions";
 import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
 import {
-  fetchChannelChats,
   warmChannelMessages,
   sendChannelTextAction,
   sendChannelWorkflowAction,
@@ -637,7 +636,6 @@ export default async function ChatsPage({
         sendQuickReply: plan.isWaha
             ? sendWahaQuickReplyAction.bind(null, inst.instanceName)
             : sendManualQuickReplyAction.bind(null, instActionCtx),
-        refetchChats: refetchChatsManualAction.bind(null, instActionCtx),
       } satisfies InstanceActionSet;
     });
   }
@@ -676,7 +674,6 @@ export default async function ChatsPage({
         sendQuickReply: plan.isWaha
             ? sendWahaQuickReplyAction.bind(null, inst.instanceName)
             : sendManualQuickReplyAction.bind(null, instActionCtx),
-        refetchChats: refetchChatsManualAction.bind(null, instActionCtx),
       } satisfies InstanceActionSet;
     });
   }
@@ -708,7 +705,6 @@ export default async function ChatsPage({
       sendText: sendManualChatPayloadAction.bind(null, ctxSinClave),
       sendWorkflow: sendManualWorkflowAction.bind(null, ctxSinClave),
       sendQuickReply: sendManualQuickReplyAction.bind(null, ctxSinClave),
-      refetchChats: refetchChatsManualAction.bind(null, ctxSinClave),
     } satisfies InstanceActionSet);
   }
 
@@ -727,7 +723,6 @@ export default async function ChatsPage({
       sendText: sendChannelTextAction.bind(null, inst.instanceName),
       sendWorkflow: sendChannelWorkflowAction.bind(null, inst.instanceName),
       sendQuickReply: sendChannelQuickReplyAction.bind(null, inst.instanceName),
-      refetchChats: fetchChannelChats.bind(null, inst.instanceName),
     } satisfies InstanceActionSet);
   }
 

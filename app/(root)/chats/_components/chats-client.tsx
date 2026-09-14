@@ -15,7 +15,7 @@ import {
   toggleChatPinAction,
 } from "@/actions/chat-conversation-actions";
 import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
-import { loadChatBootstrapData } from "@/actions/chat-bootstrap-actions";
+import type { ChatBootstrapResponse } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { sendMetaTemplate, traerMasChatsDeLaLinea, type MetaTemplateOption } from "@/actions/channel-chat-actions";
@@ -29,6 +29,7 @@ import {
   mensajeSoloPorElReloj,
 } from "@/lib/traza-panel";
 import { apuntarAccion, volcarLaColaDeAcciones } from "@/lib/cola-de-acciones";
+import { pedirSinCola } from "@/lib/pedir-sin-cola";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -456,7 +457,19 @@ export type InstanceActionSet = {
   sendText: (remoteJid: string, payload: OutgoingMessagePayload) => Promise<SendMessageResult>;
   sendWorkflow: (remoteJid: string, workflowId: string) => Promise<ChatToolActionResult>;
   sendQuickReply: (remoteJid: string, quickReplyId: number) => Promise<ChatToolActionResult>;
-  refetchChats: () => Promise<FetchChatsResult>;
+  /**
+   * La lista de esta linea NO va aqui.
+   *
+   * Habia un `refetchChats` por linea, y era una accion de servidor: Next las
+   * atiende de una en una, asi que las cuatro lineas de una cuenta se pedian en
+   * fila aunque el codigo dijera `Promise.allSettled`. Ahora van por
+   * `/api/chats/lista`, que es un `fetch` normal y sale de verdad a la vez.
+   *
+   * Si vuelve a hacer falta pedir la lista desde aqui, se pide por esa ruta. Un
+   * campo con una accion dentro de este juego es justo la puerta por la que
+   * esto se devuelve a la cola sin que nadie lo note: se ve como una App lenta,
+   * no como un error.
+   */
 };
 
 function mapSessionToChatContactSummary(session: Session): ChatContactSessionSummary {
@@ -1937,10 +1950,14 @@ export function ChatsClient({
 
     const timer = window.setTimeout(() => {
       const arrancoBootstrap = performance.now();
-      void apuntarAccion("loadChatBootstrapData (carga inicial)", () =>
-        loadChatBootstrapData({
-          sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
-        }),
+      // Por `/api`, no por una accion: esto esperaba su turno detras de las
+      // cuatro vueltas de la lista, y lo que trae —etiquetas, marcas de
+      // borrado, flujos, respuestas rapidas, asesores— es justo lo que deja la
+      // pantalla a medio pintar mientras no llega.
+      void pedirSinCola<ChatBootstrapResponse>(
+        "/api/chats/bootstrap",
+        { sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId] },
+        { success: false, message: "No se pudo cargar la pantalla de chats." },
       ).then((result) => {
         medicionRef.current.bootstrap = {
           ok: result.success,
@@ -2071,13 +2088,27 @@ export function ChatsClient({
     // Las 6 salen a la vez y se espera a TODAS, asi que una sola lenta manda
     // sobre el total: 31 s para 6 lineas puede ser seis de 31 s o cinco
     // rapidas y una colgada, y eso cambia por completo donde hay que mirar.
+    //
+    // Y salen de verdad a la vez porque van por `/api/chats/lista`, no por una
+    // accion de servidor. Esto era `s.refetchChats()` —una accion— y Next las
+    // atiende DE UNA EN UNA, asi que este `allSettled` no las paralelizaba: las
+    // encolaba. Medido en produccion con cuatro lineas: 1.150 ms de trabajo del
+    // servidor sumando las cuatro, y once segundos de reloj. Ver el comentario
+    // de la ruta, que lleva la tabla.
+    //
+    // Las acciones del juego (`sendText`, `warmMessages`, …) se quedan donde
+    // estaban: son de una en una y no compiten entre ellas.
     const soloLaPrimeraVez = !primeraVueltaMedidaRef.current;
     const arranco = performance.now();
     const results = await Promise.allSettled(
       instanceActionSets.map(async (s) => {
         const t0 = performance.now();
         try {
-          return await apuntarAccion(`lista: ${s.instanceName}`, () => s.refetchChats());
+          return await pedirSinCola<FetchChatsResult>(
+            "/api/chats/lista",
+            { instanceName: s.instanceName },
+            { success: false, message: `No se pudo pedir la lista de ${s.instanceName}.` },
+          );
         } finally {
           if (soloLaPrimeraVez) {
             tiemposPorLineaRef.current.push({ tardoMs: Math.round(performance.now() - t0) });
