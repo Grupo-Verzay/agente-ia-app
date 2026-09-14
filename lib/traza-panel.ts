@@ -36,12 +36,26 @@ let pedida = false;
  */
 let estaPestanaTraza = false;
 
-/** Arranca la traza. Se llama una vez, al montar la pantalla de Chats. */
-export async function iniciarTrazaDelPanel(): Promise<void> {
+/**
+ * Arranca la traza. Se llama una vez, al montar la pantalla de Chats.
+ *
+ * El interruptor llega **ya leido, con la pagina**. Esto era una accion de
+ * servidor y ademas la PRIMERA de la cola —montada en un efecto del cliente,
+ * salia antes que ninguna otra—, asi que `getSesionesDeLaCuenta`, que es la que
+ * pinta el asesor, las etiquetas y el chip de minutos de cada fila, se pasaba
+ * 2,7 s esperando detras de una consulta de una fila por su clave primaria.
+ *
+ * `desdeElServidor` es opcional a proposito: si algun dia se monta esto desde
+ * otra pantalla que no lo tenga, sigue funcionando como antes. Pero en Chats se
+ * pasa siempre, y entonces no hay ninguna ida al servidor.
+ */
+export async function iniciarTrazaDelPanel(
+  desdeElServidor?: TrazaConfigPanel,
+): Promise<void> {
   if (pedida) return;
   pedida = true;
   try {
-    configuracion = await leerTrazaConfigAction();
+    configuracion = desdeElServidor ?? (await leerTrazaConfigAction());
   } catch {
     configuracion = { activa: false, muestreo: 0 };
   }

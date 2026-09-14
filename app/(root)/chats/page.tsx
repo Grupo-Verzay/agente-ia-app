@@ -37,6 +37,7 @@ import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
 import { getTeamAdvisorInfos, type AdvisorInfo } from "@/actions/team-actions";
 import { listTagsAction } from "@/actions/tag-actions";
+import { leerTrazaConfigAction } from "@/actions/traza-actions";
 import { conLaCuentaPropia } from "@/lib/asesores";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { applyLidMappingToChats, type LidPhoneMap } from "./_components/lid-mapping";
@@ -459,6 +460,7 @@ export default async function ChatsPage({
     conteosPorLinea,
     initialTagsResult,
     initialClientValidation,
+    initialTrazaConfig,
   ] = await Promise.all([
     (async () => {
       const t = performance.now();
@@ -512,6 +514,19 @@ export default async function ChatsPage({
         select: { id: true },
       })
       .catch(() => null),
+    // El interruptor de la traza, tambien desde el SERVIDOR.
+    //
+    // Esto era una accion de servidor, y ademas la PRIMERA de la cola: montada
+    // en un efecto del cliente, salia antes que ninguna otra. Medido en
+    // produccion tardaba 2.713 ms y `getSesionesDeLaCuenta` -que es la que
+    // pinta el asesor, las etiquetas y el chip de minutos de cada fila- se
+    // pasaba 2.704 ms esperando detras de ella.
+    //
+    // Y su trabajo es leer UNA fila de UNA tabla por su clave primaria. Lo que
+    // costaban esos casi tres segundos no era la consulta: era ser la primera
+    // ida y vuelta de la pantalla. Aqui no cuesta ninguna: va dentro del
+    // `Promise.all` que ya estaba, en paralelo con las demas.
+    leerTrazaConfigAction().catch(() => ({ activa: false, muestreo: 0 })),
   ]);
   const __tBandeja = performance.now();
 
@@ -833,6 +848,7 @@ export default async function ChatsPage({
       releaseSessionAction={releaseSessionAction}
       transferSessionAction={transferSessionAction}
       clientValidationEnabled={Boolean(initialClientValidation)}
+      trazaConfig={initialTrazaConfig}
     />
   );
 }

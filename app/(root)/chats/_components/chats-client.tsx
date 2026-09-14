@@ -22,6 +22,7 @@ import { sendMetaTemplate, traerMasChatsDeLaLinea, type MetaTemplateOption } fro
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
 import { useChatsRealtime, type PresenciaContacto, type ConexionContacto, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
+import type { TrazaConfigPanel } from "@/lib/traza-panel-tipos";
 import {
   iniciarTrazaDelPanel,
   medirConsulta,
@@ -718,6 +719,13 @@ interface ChatsClientProps {
   releaseSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   transferSessionAction?: (sessionId: number, targetAdvisorId: string) => Promise<{ success: boolean; message?: string }>;
   clientValidationEnabled?: boolean;
+  /**
+   * El interruptor de la traza, ya leido en el servidor.
+   *
+   * Viene de la pagina y no de una accion: era la primera de la cola y dejaba
+   * a las insignias de cada fila esperando 2,7 s detras suyo.
+   */
+  trazaConfig?: TrazaConfigPanel;
 }
 
 export function ChatsClient({
@@ -746,6 +754,7 @@ export function ChatsClient({
   releaseSessionAction,
   transferSessionAction,
   clientValidationEnabled: initialClientValidationEnabled = false,
+  trazaConfig,
   instanceName,
   apiKeyData,
   instanceActionSets,
@@ -786,16 +795,20 @@ export function ChatsClient({
   /**
    * Arranca la traza del panel, una vez por carga de la pantalla.
    *
-   * Es la UNICA ida al servidor que añade toda esta instrumentacion: leer el
-   * interruptor. Todo lo demas se mide y se escribe en el navegador, asi que
-   * no le cuesta nada a `.144`. Y si la traza esta apagada -que es como nace-,
-   * ni siquiera se pone un reloj.
+   * Ya NO va al servidor: el interruptor llega con la pagina (`trazaConfig`).
+   * Esto era una accion, y la PRIMERA de la cola —un efecto del cliente sale
+   * antes que los demas—, asi que `getSesionesDeLaCuenta` se pasaba 2,7 s
+   * esperando detras de ella. Y lo que hacia era leer una fila por su clave
+   * primaria: lo que costaba no era la consulta, era ser la primera ida y
+   * vuelta de la pantalla.
+   *
+   * Todo lo demas de la traza se mide y se escribe en el navegador, asi que no
+   * le cuesta nada a `.144`. Y si esta apagada -que es como nace-, ni siquiera
+   * se pone un reloj.
    */
   useEffect(() => {
-    void apuntarAccion("leerTrazaConfigAction (interruptor de la traza)", () =>
-      iniciarTrazaDelPanel(),
-    );
-  }, []);
+    void iniciarTrazaDelPanel(trazaConfig);
+  }, [trazaConfig]);
 
   const [selectedJid, setSelectedJid] = useState(initialSelectedJid || "");
   const [selectedInstanceName, setSelectedInstanceName] = useState<string | null>(null);
@@ -2273,7 +2286,27 @@ export function ChatsClient({
     })();
   }, [selectedChannel, instancias, aplicarChatsFrescos, lidPhoneMap, currentChatsResult]);
 
-  const refreshSidebarData = useCallback(async () => {
+  /**
+   * Refresca la barra lateral. `forzar` SOLO desde el boton de refrescar.
+   *
+   * Esto iba con `forzar: true` siempre, y lo llaman los cuatro caminos de
+   * envio —texto, flujo, respuesta rapida y plantilla de Meta—, 350 ms despues
+   * de cada mensaje que manda el asesor. `forzar` se salta el minimo de 60 s,
+   * asi que **cada mensaje enviado volvia a bajar las sesiones enteras de la
+   * cuenta**. Medido en produccion: dos vueltas en el mismo arranque, 444 KB y
+   * 731 sesiones cada una, 15,9 s y 17,4 s; y como `getSesionesDeLaCuenta` es
+   * una accion de servidor, mientras corrian bloqueaban la cola.
+   *
+   * Y no traian nada nuevo: lo que estas sesiones dicen es a quien esta
+   * asignado un chat, sus etiquetas y su estado. Mandar un mensaje no cambia
+   * ninguna de las tres. Lo que si cambia —la fila, su ultimo mensaje y su
+   * orden— lo trae `refetchAllInstances`, que sigue corriendo igual.
+   *
+   * Es la misma regla que ya esta escrita para el reloj de 60 s: lo que se
+   * espacia es informacion de CRM, no mensajes. Al boton de refrescar se le
+   * sigue pagando la consulta cara, que es justo lo que se le pide.
+   */
+  const refreshSidebarData = useCallback(async (opciones?: { forzar?: boolean }) => {
     const chatRefreshResult = await refetchAllInstances();
     if (!chatRefreshResult.success) return;
 
@@ -2281,8 +2314,7 @@ export function ChatsClient({
     aplicarChatsFrescos(filtered);
 
     if (filtered.success) {
-      // Refresco pedido a mano: aqui si se paga la consulta cara.
-      await refreshChatSessions(filtered.data, { forzar: true });
+      await refreshChatSessions(filtered.data, { forzar: opciones?.forzar === true });
     }
   }, [refetchAllInstances, refreshChatSessions]);
 
@@ -4421,7 +4453,8 @@ export function ChatsClient({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    try { await refreshSidebarData(); } finally { setIsRefreshing(false); }
+    // El unico `forzar`: lo pidio una persona pulsando el boton.
+    try { await refreshSidebarData({ forzar: true }); } finally { setIsRefreshing(false); }
   };
 
   const handleChannelChange = (channel: string | null) => {
