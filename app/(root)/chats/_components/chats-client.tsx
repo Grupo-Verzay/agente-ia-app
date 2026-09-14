@@ -852,6 +852,10 @@ export function ChatsClient({
   // largo en `refreshChatSessions`. La lista NO depende de esto para traer los
   // mensajes.
   const ultimoRefrescoDeSesionesRef = useRef(0);
+  // Si la consulta propia de sesiones ya las dejo puestas. La carga inicial las
+  // pide tambien -las necesita para completar los asesores-, y sin esto llegaria
+  // despues a poner lo mismo y repintaria la lista entera por gusto.
+  const sesionesYaAplicadasRef = useRef(false);
   // El ciclo de la lista necesita poder disparar el sondeo del chat abierto. Va
   // por ref y no por dependencia: el sondeo se recrea con cada cambio de
   // seleccion, y meterlo en las dependencias reiniciaria el ciclo de la lista.
@@ -1668,6 +1672,54 @@ export function ChatsClient({
     bootstrapRequestedRef.current = true;
 
     let cancelled = false;
+
+    /**
+     * Cruzar las sesiones con los chats y dejarlas puestas.
+     *
+     * Conserva el `customName` que ya hubiera en memoria si la base todavia no
+     * lo trae: renombrar un chat escribe primero en local, y sin esto la
+     * siguiente vuelta lo pisaba con el nombre viejo.
+     */
+    const aplicarSesiones = (sesiones: ChatContactSessionSummary[]) => {
+      ultimoRefrescoDeSesionesRef.current = Date.now();
+      const mapa = emparejarSesiones(currentChatsResult.data, sesiones);
+      setChatSessions((prev) => {
+        const next = { ...mapa };
+        for (const jid of Object.keys(next)) {
+          if (!next[jid].customName && prev[jid]?.customName) {
+            next[jid] = { ...next[jid], customName: prev[jid].customName };
+          }
+        }
+        return next;
+      });
+    };
+
+    /**
+     * Las sesiones se piden POR SU CUENTA, y lo primero.
+     *
+     * De ellas cuelga casi todo lo que distingue una fila de otra: a quien esta
+     * asignada («Yo» / «Asignar»), desde cuando espera, sus etiquetas, sus
+     * contadores y los botones de la cabecera. Y viajaban dentro de
+     * `loadChatBootstrapData`, que es un `Promise.all` de siete consultas: las
+     * sesiones llegaban al ritmo de la MAS LENTA de las siete -las marcas de
+     * borrado, sobre todo-, no al suyo.
+     *
+     * Desde fuera eso era volver a Chats y ver la lista pelada unos segundos:
+     * los chats estaban -vienen del servidor- y todo lo demas aparecia despues,
+     * de golpe. Su propia consulta es una por cuenta y va por indice.
+     *
+     * El bootstrap sigue pidiendolas: las necesita para completar la lista de
+     * asesores con los que tienen chats asignados y no salen en el equipo. Lo
+     * que ya no hace es ser el unico camino por el que llegan a la pantalla.
+     */
+    void getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId).then(
+      (result) => {
+        if (cancelled || !result.success) return;
+        sesionesYaAplicadasRef.current = true;
+        aplicarSesiones(result.data ?? []);
+      },
+    );
+
     const timer = window.setTimeout(() => {
       void loadChatBootstrapData({
         sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
@@ -1681,20 +1733,12 @@ export function ChatsClient({
         setAdvisors(data.advisors);
         setClientValidationEnabled(data.clientValidationEnabled);
         setChatPreferences(data.chatPreferences);
-        // Las sesiones llegan sin emparejar; se cruzan aqui con los chats que
-        // ya tiene la pantalla. Cuenta como refresco: el reloj de 60 s no tiene
-        // que repetirlo nada mas arrancar.
-        ultimoRefrescoDeSesionesRef.current = Date.now();
-        const mapa = emparejarSesiones(currentChatsResult.data, data.sesionesDeLaCuenta);
-        setChatSessions((prev) => {
-          const next = { ...mapa };
-          for (const jid of Object.keys(next)) {
-            if (!next[jid].customName && prev[jid]?.customName) {
-              next[jid] = { ...next[jid], customName: prev[jid].customName };
-            }
-          }
-          return next;
-        });
+        // Si la consulta de arriba ya las puso, esta llega mas tarde y con lo
+        // mismo: repintar la lista entera por gusto es justo lo que esta
+        // pantalla no se puede permitir.
+        if (!sesionesYaAplicadasRef.current) {
+          aplicarSesiones(data.sesionesDeLaCuenta);
+        }
       });
     }, 100);
 
