@@ -645,10 +645,18 @@ export function ChatSidebar({
       }
 
       if (c.isUnreadLocal) unread++;
-      // En espera: la IA lo escalo -o se solto por tiempo- y NADIE lo ha
-      // tomado. Un chat puede estar leido y seguir esperando, por eso «No
-      // leidos» no lo cubre. En cuanto alguien se lo asigna, sale.
-      if (c.chatSession?.escalatedAt && !c.chatSession.assignedAdvisorId) enEspera++;
+      // En espera: pidio una persona y todavia no le ha contestado ninguna.
+      //
+      // La condicion es el sello y NADA MAS. Asignar no basta para dejar de
+      // esperar: `escalated_at` solo se limpia cuando alguien contesta de
+      // verdad (`quitarSelloDeEscalado`, desde `pausarIaPorIntervencionHumana`),
+      // cuando se devuelve a la IA o cuando se resuelve. Un chat asignado a
+      // alguien que aun no ha respondido sigue esperando, y es justo el que hay
+      // que ver.
+      //
+      // Asi el numero dice lo MISMO que las filas: es el mismo sello que pinta
+      // el chip naranja de minutos en la tarjeta.
+      if (c.chatSession?.escalatedAt) enEspera++;
       if (estaDestacado(c)) starred++;
       if (c.hasNotes) notes++;
 
@@ -766,7 +774,7 @@ export function ChatSidebar({
     }
 
     if (enEsperaOnly) {
-      list = list.filter((c) => c.chatSession?.escalatedAt && !c.chatSession.assignedAdvisorId);
+      list = list.filter((c) => c.chatSession?.escalatedAt);
     }
 
     if (starredOnly) {
