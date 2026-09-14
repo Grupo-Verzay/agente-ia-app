@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getSessionByRemoteJid } from '@/actions/session-action';
+import { apuntarAccion } from '@/lib/cola-de-acciones';
 import { updateLeadPushNameAction } from '@/actions/registro-action';
 import type { ChatContactSessionSummary, Session, SingleSessionResponse } from '@/types/session';
 
@@ -67,10 +68,9 @@ export function useChatSession({
       // de `remoteJid` + `aliases` y busca contra todos en una sola query, así que
       // una única llamada equivale al loop secuencial anterior (que hacía N
       // round-trips redundantes, uno por candidato) sin perder cobertura.
-      const resolved: SingleSessionResponse = await getSessionByRemoteJid(
-        effectiveUserIds,
-        remoteJid,
-        { aliases: candidates },
+      const resolved: SingleSessionResponse = await apuntarAccion(
+        "getSessionByRemoteJid (sesion del chat abierto)",
+        () => getSessionByRemoteJid(effectiveUserIds, remoteJid, { aliases: candidates }),
       );
 
       if (resolved?.success && resolved.data) {

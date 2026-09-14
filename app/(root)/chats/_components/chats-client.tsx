@@ -28,6 +28,7 @@ import {
   mensajePintado,
   mensajeSoloPorElReloj,
 } from "@/lib/traza-panel";
+import { apuntarAccion, volcarLaColaDeAcciones } from "@/lib/cola-de-acciones";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -778,7 +779,9 @@ export function ChatsClient({
    * ni siquiera se pone un reloj.
    */
   useEffect(() => {
-    void iniciarTrazaDelPanel();
+    void apuntarAccion("leerTrazaConfigAction (interruptor de la traza)", () =>
+      iniciarTrazaDelPanel(),
+    );
   }, []);
 
   const [selectedJid, setSelectedJid] = useState(initialSelectedJid || "");
@@ -1861,7 +1864,9 @@ export function ChatsClient({
     const reintentarLasSesiones = () => {
       window.setTimeout(() => {
         if (cancelled || sesionesYaAplicadasRef.current) return;
-        void getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId)
+        void apuntarAccion("getSesionesDeLaCuenta (reintento)", () =>
+          getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId),
+        )
           .then((otra) => {
             if (cancelled || !otra.success) {
               if (!cancelled) {
@@ -1885,7 +1890,9 @@ export function ChatsClient({
     };
 
     const arrancoSesiones = performance.now();
-    void getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId).then(
+    void apuntarAccion("getSesionesDeLaCuenta (las insignias de la fila)", () =>
+      getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId),
+    ).then(
       (result) => {
         const red = Math.round(performance.now() - arrancoSesiones);
         if (cancelled) return;
@@ -1930,9 +1937,11 @@ export function ChatsClient({
 
     const timer = window.setTimeout(() => {
       const arrancoBootstrap = performance.now();
-      void loadChatBootstrapData({
-        sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
-      }).then((result) => {
+      void apuntarAccion("loadChatBootstrapData (carga inicial)", () =>
+        loadChatBootstrapData({
+          sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
+        }),
+      ).then((result) => {
         medicionRef.current.bootstrap = {
           ok: result.success,
           idaYVuelta: Math.round(performance.now() - arrancoBootstrap),
@@ -2043,6 +2052,10 @@ export function ChatsClient({
         porOrigen,
         losDoceMasLentos: lentos,
       });
+      // Y quien ocupo cada turno de la cola de acciones, con nombres. Va aqui
+      // para que las dos lineas salgan juntas y se puedan cruzar: `salioEnMs`
+      // de la cola es derivado, y `pedidoEnMs` de arriba esta medido.
+      volcarLaColaDeAcciones();
     }, 40000);
 
     return () => {
@@ -2064,7 +2077,7 @@ export function ChatsClient({
       instanceActionSets.map(async (s) => {
         const t0 = performance.now();
         try {
-          return await s.refetchChats();
+          return await apuntarAccion(`lista: ${s.instanceName}`, () => s.refetchChats());
         } finally {
           if (soloLaPrimeraVez) {
             tiemposPorLineaRef.current.push({ tardoMs: Math.round(performance.now() - t0) });
@@ -2531,7 +2544,8 @@ export function ChatsClient({
         // repite sola —cada 5 s por pestaña con un chat abierto— y la que se
         // pasa de plazo justo cuando la base esta ocupada, que es lo que hay
         // que poder cruzar con las vueltas de la lista.
-        const consulta = medirConsulta(
+        const consulta = apuntarAccion("warmChatMessages (mensajes del chat abierto)", () =>
+          medirConsulta(
           "mensajes",
           () =>
             effectiveWarmMessages(remoteJid, {
@@ -2540,6 +2554,7 @@ export function ChatsClient({
               remoteJidAliases,
             }),
           { instancia: effectiveInstanceName },
+        ),
         );
 
         /**
