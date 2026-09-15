@@ -3,6 +3,7 @@
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
+import { laFechaQueRenueva } from '@/lib/fecha-de-renovacion';
 import { isAdminLike } from '@/lib/rbac';
 import { IaCredit, Plan } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -101,7 +102,7 @@ export async function getPlanCredits(plan: Plan): Promise<number> {
 export async function getOwnIaCredits(): Promise<{
   success: boolean;
   message: string;
-  data?: { total: number; used: number; available: number; renewalDate: Date };
+  data?: { total: number; used: number; available: number; renewalDate: Date | null };
 }> {
   try {
     const me = await currentUser();
@@ -113,10 +114,22 @@ export async function getOwnIaCredits(): Promise<{
     const usedCredits = Math.floor(record.used / 3085);
     const available = Math.max(0, record.total - usedCredits);
 
+    // La fecha que manda es la del PLAN, no la guardada en los créditos.
+    //
+    // En la misma pantalla convivían «Vencimiento 27 de septiembre» y
+    // «Renovación 14 de octubre»: dos columnas para un mismo concepto,
+    // escritas por seis sitios con tres criterios distintos, y el pago movía
+    // una sola. Ver `lib/fecha-de-renovacion.ts`.
+    const facturacion = await db.userBilling.findUnique({
+      where: { userId: me.id },
+      select: { dueDate: true },
+    });
+    const renewalDate = laFechaQueRenueva(facturacion?.dueDate, record.renewalDate);
+
     return {
       success: true,
       message: 'OK',
-      data: { total: record.total, used: usedCredits, available, renewalDate: record.renewalDate },
+      data: { total: record.total, used: usedCredits, available, renewalDate },
     };
   } catch (error) {
     console.error('[GET_OWN_CREDITS_ERROR]', error);
