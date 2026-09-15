@@ -1,3 +1,5 @@
+import type { AdjuntoDeTarea } from "@/lib/adjuntos-de-tarea-tipos";
+
 export const TASK_TYPES = [
   "Seguimiento",
   "Llamada",
@@ -37,4 +39,11 @@ export type TaskData = {
   status: TaskStatus;
   createdById: string;
   createdAt: string;
+  /**
+   * Los archivos que cuelgan de la tarea.
+   *
+   * Opcional porque `TaskData` la usan varias pantallas y solo el tablero de
+   * Proyectos los trae; las demas no pagan una consulta que no van a enseñar.
+   */
+  adjuntos?: AdjuntoDeTarea[];
 };
