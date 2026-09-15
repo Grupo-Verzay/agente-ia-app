@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { responderJson } from "@/lib/responder-json";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { resolveInstanceOwner } from "@/lib/chat-persistence";
 import { refetchChatsManualAction } from "@/actions/chat-manual-actions";
@@ -155,7 +156,9 @@ export async function POST(request: Request) {
 
   quizaPesarLaRespuesta(lineas);
 
-  return NextResponse.json({ lineas } satisfies RespuestaDeLaLista);
+  // Comprimida: ver `lib/responder-json.ts`. Esta respuesta llego a pesar
+  // 753 kB en crudo y sale cada 20 segundos por pestaña.
+  return responderJson(request, { lineas } satisfies RespuestaDeLaLista);
 }
 
 /** Una sola vez por arranque del contenedor: pesar cuesta otro `stringify`. */
