@@ -181,6 +181,10 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     const faviconRef = useRef<HTMLInputElement | null>(null);
     const [headerDaysRemaining, setHeaderDaysRemaining] = useState<number | null>(null);
     const [headerCredits, setHeaderCredits] = useState<number | null>(null);
+    // Con llave propia de la cuenta no hay tope. El numero no vale aqui: «0
+    // creditos» en rojo sobre una cuenta que paga su propia IA se lee como un
+    // problema que no existe.
+    const [creditosIlimitados, setCreditosIlimitados] = useState(false);
 
     const fetchClientData = useCallback(async () => {
         if (!userId) return toast.error("El usuario no existe.");
@@ -212,7 +216,10 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             }
         });
         getOwnIaCredits().then(r => {
-            if (r.success && r.data) setHeaderCredits(r.data.available);
+            if (r.success && r.data) {
+                setHeaderCredits(r.data.available);
+                setCreditosIlimitados(r.data.ilimitados);
+            }
         });
     }, []);
 
@@ -467,9 +474,13 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                             )}
                             {headerCredits !== null && (
                                 <div className="text-center hidden xs:block">
-                                    <p className={`text-sm font-bold leading-none ${headerCredits === 0 ? 'text-destructive' : 'text-foreground'}`}>
-                                        {headerCredits >= 1000 ? `${Math.round(headerCredits / 1000)}k` : headerCredits}
-                                    </p>
+                                    {creditosIlimitados ? (
+                                        <p className="text-sm font-bold leading-none text-green-600">∞</p>
+                                    ) : (
+                                        <p className={`text-sm font-bold leading-none ${headerCredits === 0 ? 'text-destructive' : 'text-foreground'}`}>
+                                            {headerCredits >= 1000 ? `${Math.round(headerCredits / 1000)}k` : headerCredits}
+                                        </p>
+                                    )}
                                     <p className="text-[10px] text-muted-foreground mt-0.5">créditos</p>
                                 </div>
                             )}

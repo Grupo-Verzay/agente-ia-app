@@ -14,6 +14,10 @@ export function CreditsProfileCard() {
         // Puede faltar: hay cuentas sin ficha de facturacion y sin fecha
         // guardada. Antes que un hueco sin explicar, se pinta un guion.
         renewalDate: Date | null;
+        // Con llave propia de la cuenta no hay tope: el consumo lo paga ella.
+        // Se decide en cada lectura comparando su key con las registradas de
+        // Verzay; no hay ninguna marca guardada.
+        ilimitados: boolean;
     } | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -58,6 +62,17 @@ export function CreditsProfileCard() {
                     </div>
                 ) : !data ? (
                     <p className="text-sm text-muted-foreground">Sin créditos configurados.</p>
+                ) : data.ilimitados ? (
+                    // Sin tope: la cuenta usa su propia llave de OpenAI y paga
+                    // su consumo. Enseñar aqui un total y una barra al 0% seria
+                    // enseñar un limite que no existe.
+                    <div className="flex flex-col flex-1">
+                        <p className="text-2xl font-semibold text-green-600">Ilimitados</p>
+                        <p className="pt-1 text-xs text-muted-foreground">
+                            Esta cuenta usa su propia API key de OpenAI, asi que su consumo de IA
+                            no descuenta creditos.
+                        </p>
+                    </div>
                 ) : (
                     <>
                         <div className="space-y-1.5 text-sm">

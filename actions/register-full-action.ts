@@ -18,6 +18,7 @@ import { cookies } from "next/headers";
 import { elegirServidorConCupo } from "@/lib/evolution-capacity";
 import { precioDePlanParaCuenta } from "@/lib/plan-pricing";
 import { diasDePruebaDeMarca } from "@/lib/trial-days.server";
+import { laLlaveParaUnaCuentaNueva } from "@/lib/llaves-de-verzay";
 
 /* ─────────────────────────────────────────
    Constants
@@ -373,6 +374,20 @@ export async function fullRegisterAction(
 
   const resolvedApiKeyId = apiKeyExists ? targetApiKeyId : null;
 
+  /* ── La llave de OpenAI que le toca a esta cuenta nueva ──
+   *
+   * Sale del registro del panel: la marcada por defecto, y cuando esa llega a
+   * su cupo, la siguiente libre. Antes era **una sola**, `SECRET_API_KEY`, la
+   * misma para todas y sin ningún tope: cuando OpenAI la bloqueaba se caían
+   * todas las cuentas a la vez y no había forma de repartirlas.
+   *
+   * La variable se conserva como respaldo para no dejar sin IA a una cuenta
+   * nueva mientras el registro esté vacío, que es como estará el día del
+   * despliegue. Se resuelve AQUÍ, fuera de la transacción: son consultas de
+   * lectura y meterlas dentro alargaría la transacción sin motivo. */
+  const llaveDeLaCasa = await laLlaveParaUnaCuentaNueva();
+  const claveDeOpenAi = llaveDeLaCasa?.clave ?? process.env.SECRET_API_KEY ?? null;
+
   /* ── Pre-lookup reseller for demo account creation ── */
   let resellerUserId: string | null = null;
   let resellerDemoLimit = 3;
@@ -542,13 +557,13 @@ export async function fullRegisterAction(
         })),
       });
 
-      // 6. AI config — auto-configure OpenAI with the default secret key
-      if (openaiProvider && process.env.SECRET_API_KEY) {
+      // 6. AI config — la llave que le tocó del registro (ver `claveDeOpenAi`)
+      if (openaiProvider && claveDeOpenAi) {
         await tx.userAiConfig.create({
           data: {
             userId: created.id,
             providerId: openaiProvider.id,
-            apiKey: process.env.SECRET_API_KEY,
+            apiKey: claveDeOpenAi,
             isActive: true,
           },
         });

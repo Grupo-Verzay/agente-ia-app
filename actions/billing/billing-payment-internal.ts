@@ -10,6 +10,7 @@
 
 import { db } from "@/lib/db";
 import { PaymentSource } from "@prisma/client";
+import { renovarLosCreditos } from "@/lib/renovar-creditos";
 
 import {
     getBillingUserRecord,
@@ -152,20 +153,22 @@ export async function markUserAsPaidInternal(
 // ---------------------------------------------------------------------------
 
 export async function setUserBillingDueDateInternal(userId: string, newDueDate: Date) {
-    // Los créditos renuevan CON el plan.
+    // Los créditos renuevan CON el plan: aquí se reponen.
     //
-    // Esto movía `dueDate` y `serviceEndsAt` y dejaba `IaCredit.renewalDate`
-    // donde estuviera, así que en Perfil › Cuenta salían dos fechas distintas
-    // para lo mismo —«Vencimiento 27 de septiembre» y «Renovación 14 de
-    // octubre»— y cada pago ensanchaba la diferencia. Hasta las cuentas que
-    // nacen alineadas (las del registro) se separaban en la primera renovación.
+    // Antes esto movía `dueDate` y `serviceEndsAt` y dejaba `IaCredit` donde
+    // estuviera, así que en Perfil › Cuenta salían dos fechas distintas para lo
+    // mismo —«Vencimiento 27 de septiembre» y «Renovación 14 de octubre»— y
+    // cada pago ensanchaba la diferencia.
     //
     // Lo que se ENSEÑA ya sale de una sola fuente (`lib/fecha-de-renovacion.ts`),
-    // pero la columna se mueve igual para que no mienta a quien la lea por otro
-    // lado. Y va aparte de la escritura de facturación, sin `await` que la
-    // bloquee: **un fallo aquí no puede tumbar el cobro**, que es lo que de
-    // verdad importa de esta función.
-    await alinearLosCreditos(userId, newDueDate);
+    // pero la fila se mueve igual para que no mienta a quien la lea por otro
+    // lado — y ahora, además, **se repone el consumo**: ver
+    // `renovarLosCreditos`.
+    //
+    // Va antes de la escritura de facturación y nunca revienta: **un fallo aquí
+    // no puede tumbar el cobro**, que es lo que de verdad importa de esta
+    // función.
+    await renovarLosCreditos(userId, newDueDate);
 
     await db.userBilling.upsert({
         where: { userId },
@@ -425,26 +428,4 @@ async function createAffiliateCommissionIfApplies(args: {
             paymentRef: args.paymentRef,
         },
     });
-}
-
-
-/**
- * Deja la fecha de los créditos igual que la del plan.
- *
- * Nunca revienta: si falla, lo peor es que una columna de respaldo se quede
- * atrás, y la pantalla ya no depende de ella. Pero **se dice**: una fecha que
- * se desalinea en silencio es justo como se llegó al fallo que esto arregla.
- */
-async function alinearLosCreditos(userId: string, fecha: Date) {
-    try {
-        // `updateMany` y no `update`: hay cuentas sin fila de créditos y un
-        // `update` sobre lo que no existe revienta. Aquí no se crea ninguna: si
-        // esta cuenta no tiene créditos, no hay nada que renovar.
-        await db.iaCredit.updateMany({ where: { userId }, data: { renewalDate: fecha } });
-    } catch (error) {
-        console.warn("[billing] no se pudo alinear la fecha de los creditos", {
-            userId,
-            error: error instanceof Error ? error.message : String(error),
-        });
-    }
 }

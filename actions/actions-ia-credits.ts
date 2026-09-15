@@ -4,6 +4,7 @@ import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
 import { laFechaQueRenueva } from '@/lib/fecha-de-renovacion';
+import { pagaElClienteSuIa } from '@/lib/llaves-de-verzay';
 import { isAdminLike } from '@/lib/rbac';
 import { IaCredit, Plan } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -102,14 +103,38 @@ export async function getPlanCredits(plan: Plan): Promise<number> {
 export async function getOwnIaCredits(): Promise<{
   success: boolean;
   message: string;
-  data?: { total: number; used: number; available: number; renewalDate: Date | null };
+  data?: {
+    total: number;
+    used: number;
+    available: number;
+    renewalDate: Date | null;
+    /** Con llave propia del cliente no hay tope: lo paga él. */
+    ilimitados: boolean;
+  };
 }> {
   try {
     const me = await currentUser();
     if (!me?.id) return { success: false, message: 'No autenticado' };
 
+    // La misma pregunta que se hace el motor antes de mirar los créditos: si la
+    // cuenta usa su propia llave de OpenAI, el consumo lo paga ella y los
+    // créditos no aplican. La regla se evalúa aquí, cada vez: no hay ninguna
+    // marca guardada que alguien tenga que mover.
+    //
+    // Va ANTES de leer la fila porque una cuenta con su propia key puede no
+    // tener ni fila de créditos, y eso salía como «Sin créditos configurados»
+    // —que se lee como un problema— cuando en realidad no tiene ninguno.
+    const ilimitados = await pagaElClienteSuIa(me.id);
+
     const record = await db.iaCredit.findUnique({ where: { userId: me.id } });
-    if (!record) return { success: false, message: 'Sin créditos configurados' };
+    if (!record) {
+      if (!ilimitados) return { success: false, message: 'Sin créditos configurados' };
+      return {
+        success: true,
+        message: 'OK',
+        data: { total: 0, used: 0, available: 0, renewalDate: null, ilimitados: true },
+      };
+    }
 
     const usedCredits = Math.floor(record.used / 3085);
     const available = Math.max(0, record.total - usedCredits);
@@ -129,7 +154,7 @@ export async function getOwnIaCredits(): Promise<{
     return {
       success: true,
       message: 'OK',
-      data: { total: record.total, used: usedCredits, available, renewalDate },
+      data: { total: record.total, used: usedCredits, available, renewalDate, ilimitados },
     };
   } catch (error) {
     console.error('[GET_OWN_CREDITS_ERROR]', error);

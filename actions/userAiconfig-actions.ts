@@ -9,6 +9,7 @@ import { isAdminOrReseller } from '@/lib/rbac';
 // 'use server' solo puede exportar funciones async, y además la compartimos con
 // el formulario del cliente para tener una sola fuente de verdad.
 import { validateProviderApiKey } from '@/lib/ai-key-validation';
+import { laLlaveParaUnaCuentaNueva } from '@/lib/llaves-de-verzay';
 
 /* ============================
    Tipos de respuesta y DTOs
@@ -682,9 +683,18 @@ export async function setUserDefaults(input: {
  */
 export async function autoConfigureUserAi(
   userId: string,
-  apiKey: string
+  apiKey?: string | null,
 ): Promise<ActionResult> {
-  if (!apiKey) return { success: false, message: 'api_key_required' };
+  // Sin llave escrita a mano, la que le toque del registro del panel: la
+  // marcada por defecto, y cuando esa llega a su cupo, la siguiente libre.
+  //
+  // Antes esto exigía que quien creaba el cliente escribiera una clave en el
+  // formulario. Si no la escribía, la cuenta nacía **sin IA** y sin ningún
+  // aviso: el agente simplemente no contestaba, y eso no se ve como un error de
+  // creación sino como «el bot está roto».
+  const laDelRegistro = apiKey?.trim() ? null : await laLlaveParaUnaCuentaNueva();
+  const claveFinal = apiKey?.trim() || laDelRegistro?.clave || '';
+  if (!claveFinal) return { success: false, message: 'api_key_required' };
 
   try {
     await ensureUser(userId);
@@ -698,8 +708,8 @@ export async function autoConfigureUserAi(
 
     await db.userAiConfig.upsert({
       where: { userId_providerId: { userId, providerId: openaiProvider.id } },
-      update: { apiKey, isActive: true },
-      create: { userId, providerId: openaiProvider.id, apiKey, isActive: true },
+      update: { apiKey: claveFinal, isActive: true },
+      create: { userId, providerId: openaiProvider.id, apiKey: claveFinal, isActive: true },
     });
 
     await db.user.update({
@@ -709,6 +719,13 @@ export async function autoConfigureUserAi(
         defaultAiModelId: openaiProvider.models[0]?.id ?? null,
       },
     });
+
+    if (laDelRegistro) {
+      console.info('[llaves] cuenta nueva asignada a una llave de Verzay', {
+        userId,
+        llave: laDelRegistro.nombre,
+      });
+    }
 
     return { success: true, message: 'ai_configured' };
   } catch {
