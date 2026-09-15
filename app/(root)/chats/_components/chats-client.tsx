@@ -189,7 +189,30 @@ const PREFETCH_TOP_CHATS = 14;
 // grueso del uso real sin bajar el archivo histórico completo (no satura Evolution
 // ni el pool). Los que queden fuera se calientan solos al abrirlos por primera vez.
 const BACKFILL_CHATS = 50;
-const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
+/**
+ * Cuanto espera el ciclo de la lista antes de su PRIMERA vuelta.
+ *
+ * Estuvo en 2.000 ms, y ese numero se leia mal: `desdeQueSeMontoMs` -que se
+ * mide DENTRO de este `setTimeout`- daba 2.006 con cuatro lineas y 2.029 con
+ * una, y parecia el coste de arrancar la pantalla. No lo era: era esta
+ * constante. No dependia de nada porque no medía nada.
+ *
+ * Para que esta: la pagina ya llega con su lista renderizada en el servidor, y
+ * esta espera evita que el cliente pida lo mismo otra vez nada mas montar,
+ * mientras Evolution todavia puede estar contestando a la carga inicial.
+ *
+ * Por que baja a 500: esa primera vuelta ya no compite con nada. Va por
+ * `/api/chats/lista` y no por la cola de acciones (#675), sale comprimida
+ * -de 753 a 114 kB (#689)- y pide las cuatro lineas en una sola peticion. Dos
+ * segundos de espera para no pisar algo que ya no se pisa son dos segundos en
+ * los que la lista se ve vieja.
+ *
+ * Lo que hay que vigilar al bajarlo: en una cuenta grande esa vuelta cuesta un
+ * segundo largo de servidor, y adelantarla la acerca a la hidratacion. Si se
+ * notara peor, el arreglo NO es volver a subir el numero a ojo: es arrancar
+ * cuando el bootstrap conteste, en vez de por reloj.
+ */
+const INITIAL_CHAT_SYNC_DELAY_MS = 500;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
 // Intervalo de refresco de la lista de chats.
 //
