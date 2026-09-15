@@ -593,28 +593,43 @@ Y dos que se quedan fuera a propósito: **Llamar por WhatsApp** —un grupo no
 tiene número al que llamar— y **Macros**, porque una macro puede llevar dentro
 `ADD_TAG`, `ASSIGN_ADVISOR` o `RESOLVE` y se ejecutaría a medias sin decirlo.
 
-### Y el id de un mensaje de grupo lleva el participante detrás
+### El id de un mensaje de grupo viene PELADO, y quién escribió va aparte
 
-Es la misma suposición equivocada en dos sitios, y costó que una conversación
-de grupo **fuera perdiendo sus mensajes sola**, sin que faltara ni una fila en
-la base.
+Esta sección decía lo contrario y estaba **mal**. Se deja escrito el error,
+porque el error es la lección.
 
-Un id serializado de Waha es `<fromMe>_<chat>_<id>` en un 1:1 y
-`<fromMe>_<chat>_<id>_<participante>` en un **grupo**. O sea que **el id de
-WhatsApp es el TERCER trozo, no el último**:
+Se diagnosticó «la conversación de grupo va perdiendo sus mensajes sola»
+**suponiendo la forma del id** en vez de mirando uno. La suposición era que
+Waha serializa `<fromMe>_<chat>_<id>_<participante>` en un grupo, y de ahí que
+la llave de deduplicación —`regexp_replace("messageId", '^(true|false)_.*_', '')`,
+con un `.*` codicioso— acabara siendo **quién escribió**. Se demostró el
+colapso en una prueba escrita a mano, se cambió el patrón, se desplegó, y **no
+arregló nada**, porque el supuesto era falso.
 
-- Al LEER la conversación, la deduplicación usaba
-  `regexp_replace("messageId", '^(true|false)_.*_', '')`. Ese `.*` es codicioso
-  y se comía hasta el último `_`, así que la llave acababa siendo **quién
-  escribió**: todos los mensajes de una misma persona en el grupo colapsaban en
-  uno y el `DISTINCT ON` se quedaba con el más reciente. Va
-  `'^(true|false)_[^_]+_'`, que quita los dos primeros trozos y nada más.
-- Al emparejar un ACUSE, el backend hacía `messageId.split('_').pop()`, con el
-  mismo resultado: el ✓✓ de un mensaje de grupo caía en otro mensaje del mismo
-  participante.
+Un id de grupo tal y como llega, sacado de los registros de producción:
 
-**Si hace falta sacar el id de WhatsApp de un id serializado, es el tercer
-trozo.** Nunca el último.
+```
+"remoteJid":"120363404825812021@g.us","fromMe":false,"id":"3EB0F2EE979A18E76A722E",
+"participant":"210101696733292@lid","participantAlt":"50761943156@s.whatsapp.net"
+```
+
+O sea: **el id viene pelado**, sin prefijos, y **el participante viaja aparte**,
+en `key.participant` / `key.participantAlt`. Así que ese `^(true|false)_.*_`
+nunca llegaba a casar con nada en un grupo y jamás fue la causa. El patrón se
+quedó en `'^(true|false)_[^_]+_'` porque es más correcto para los ids que
+**sí** vienen serializados (los 1:1 de Waha, `<fromMe>_<chat>_<id>`), pero
+**no arregló el síntoma por el que se cambió**.
+
+Dos reglas, y la segunda vale para todo este documento:
+
+1. **De un id serializado, el id de WhatsApp es el tercer trozo**
+   (`<fromMe>_<chat>_<id>`), y en un grupo **no hay cuarto trozo**. Quién
+   escribió no está en el id: está en `raw.key.participant`.
+2. **Una forma de dato se COMPROBA sobre un dato real antes de escribir código
+   que dependa de ella.** Una prueba escrita a mano confirma lo que ya se creía
+   —se le dan de comer los ids que uno imagina— y por eso pasó en verde
+   mientras la producción seguía igual. Un registro, una fila de la base o la
+   pantalla; una prueba unitaria sobre datos inventados, no.
 
 ## Una recarga tiene que decir por qué
 

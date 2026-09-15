@@ -1540,14 +1540,15 @@ export async function getPersistedMessages(params: {
       -- cuando el historial trae mensajes escritos con las dos formas.
       --
       -- Se quitan los DOS PRIMEROS segmentos, no "hasta el ultimo guion bajo".
-      -- El patron era ^(true|false)_.*_ y ese .* es codicioso: en un 1:1
-      -- daba igual porque el id lleva dos guiones bajos, pero el de un GRUPO
-      -- lleva ademas el participante, asi que recortaba hasta ahi y la llave
-      -- quedaba siendo QUIEN ESCRIBIO. Con eso, todos los mensajes de una misma
-      -- persona en el grupo colapsaban en uno y el DISTINCT ON se quedaba con el
-      -- mas reciente: la conversacion iba perdiendo lo anterior sola, sin que
-      -- faltara ni una fila en la base. El comentario de antes ya avisaba del
-      -- riesgo pensando en los ids de Meta; a los grupos se le habia pasado.
+      -- El patron era ^(true|false)_.*_ y ese .* es codicioso: si algun id
+      -- trajera un cuarto trozo, la llave se lo comeria y dos mensajes
+      -- distintos colapsarian en uno.
+      --
+      -- AVISO: este cambio se hizo creyendo que el id de un mensaje de GRUPO
+      -- llevaba el participante detras. NO lo lleva -llega pelado, y quien
+      -- escribio va en raw.key.participant-, asi que este patron nunca fue la
+      -- causa de que una conversacion de grupo perdiera mensajes. Se queda por
+      -- ser el recorte correcto, no por arreglar aquello.
       SELECT DISTINCT ON (regexp_replace("messageId", '^(true|false)_[^_]+_', ''), "fromMe") *
       FROM matched
       ORDER BY regexp_replace("messageId", '^(true|false)_[^_]+_', ''), "fromMe", "deleted" DESC, ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
