@@ -38,9 +38,17 @@ export function anchoDelAdjunto(tipo: MediaData['type']): string {
 
 interface MediaRendererProps {
   media: MediaData | undefined;
+  /**
+   * La nota de voz que mandamos ya la ESCUCHÓ el contacto.
+   *
+   * Es un booleano y no el estado del acuse a propósito: esto pinta adjuntos,
+   * no sabe de palomitas. Quien decide es la burbuja, que es la que tiene el
+   * estado y sabe si el mensaje es nuestro.
+   */
+  reproducido?: boolean;
 }
 
-export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }) => {
+export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media, reproducido }) => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const gallery = useMediaGallery();
 
@@ -106,11 +114,23 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
 
         {type === 'audio' && (
           <div className="p-2 bg-gray-50/90 dark:bg-gray-700 flex items-center gap-2 border border-gray-200/70 dark:border-gray-600 rounded-lg">
+            {/*
+              El micrófono es el tercer estado de una nota de voz, como en
+              WhatsApp: azul cuando el contacto la escuchó. No es lo mismo que
+              las dos palomitas azules —eso es que abrió el chat—, y por eso se
+              dice aquí y no allí. Lo que hace se lee al posarse encima.
+            */}
             <button
               type="button"
               onClick={() => setViewerOpen(true)}
-              className="flex-shrink-0 text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-              aria-label="Abrir reproductor"
+              className={cn(
+                'flex-shrink-0 transition-colors',
+                reproducido
+                  ? 'text-sky-500 dark:text-sky-400 hover:text-sky-600 dark:hover:text-sky-300'
+                  : 'text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400',
+              )}
+              title={reproducido ? 'Reproducido por el contacto' : 'Abrir reproductor'}
+              aria-label={reproducido ? 'Reproducido por el contacto' : 'Abrir reproductor'}
             >
               <Mic className="w-5 h-5" />
             </button>

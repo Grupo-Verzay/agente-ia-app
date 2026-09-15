@@ -62,7 +62,12 @@ interface MessageStatusIndicatorProps {
 export const MessageStatusIndicator: React.FC<MessageStatusIndicatorProps> = ({ status }) => {
   if (status === 'sending') return <Clock className="h-3 w-3 text-gray-300" aria-label="Enviando" />;
   if (status === 'failed') return <CircleAlert className="h-3 w-3 text-red-300" aria-label="No enviado" />;
-  if (status === 'read') return <CheckCheck className="h-3 w-3 text-sky-300" aria-label="Leido" />;
+  // `played` va con `read` a propósito: escuchada implica leída, y el tercer
+  // estado se enseña en el micrófono, no aquí. Sin esta rama, un audio
+  // escuchado caería al `return` de abajo y retrocedería a UNA palomita gris.
+  if (status === 'read' || status === 'played') {
+    return <CheckCheck className="h-3 w-3 text-sky-300" aria-label={status === 'played' ? 'Reproducido' : 'Leido'} />;
+  }
   if (status === 'delivered') return <CheckCheck className="h-3 w-3 text-gray-300" aria-label="Entregado" />;
   return <Check className="h-3 w-3 text-gray-300" aria-label="Enviado" />;
 };
@@ -456,7 +461,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </span>
           </button>
         )}
-        {media && <MediaRenderer media={media} />}
+        {media && <MediaRenderer media={media} reproducido={isUserMessage && status === 'played'} />}
         {message && (
           <div
             className={cn(

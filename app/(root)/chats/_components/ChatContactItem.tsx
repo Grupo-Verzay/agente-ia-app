@@ -757,7 +757,11 @@ function ChatContactItemBase({
  * asi que los colores no son los de MessageStatusIndicator.
  */
 const PalomitaDeLaFila = ({ estado }: { estado: NonNullable<SidebarContact["estadoDelUltimo"]> }) => {
-  if (estado === "read") return <CheckCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" aria-label="Leído" />;
+  // `played` con `read`: en la fila no cabe un tercer estado, y WhatsApp
+  // tampoco lo pone. Sin esta rama, un audio escuchado saldría con UNA palomita.
+  if (estado === "read" || estado === "played") {
+    return <CheckCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" aria-label={estado === "played" ? "Reproducido" : "Leído"} />;
+  }
   if (estado === "delivered") return <CheckCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Entregado" />;
   if (estado === "failed") return <span className="text-xs text-red-500" aria-label="No enviado">!</span>;
   return <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Enviado" />;
