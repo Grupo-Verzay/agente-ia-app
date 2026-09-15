@@ -1021,16 +1021,56 @@ export function ChatSidebar({
     );
   }, []);
 
-  const handleTabChange = useCallback((newTab: TabKey) => {
-    applyTab(newTab);
+  /**
+   * Los filtros de ESTADO de la barra, sueltos todos a la vez.
+   *
+   * «Todos», «Mías», «No leídos» y «En espera» son UN grupo: al elegir uno, el
+   * anterior se suelta. Nunca dos puestos.
+   *
+   * Estaba escrito a mano en `handleTabChange` y a «En espera» se le paso —se
+   * añadio despues y esa lista no se toco—, asi que se quedaba pegado: se ponia
+   * «En espera», se pulsaba «Todos», y seguia filtrando por espera sobre una
+   * pestaña que no le corresponde. La lista salia VACIA y desde fuera parecia
+   * que no habia chats.
+   *
+   * Por eso es UNA funcion y no una lista copiada en cada sitio: el dia que se
+   * añada otro filtro a esa fila, se añade aqui y lo sueltan todos los caminos.
+   * Copiarla es exactamente como nacio este fallo.
+   */
+  const soltarLosFiltrosDeEstado = useCallback(() => {
     setUnreadOnly(false);
+    setEnEsperaOnly(false);
     setStarredOnly(false);
     setNotesOnly(false);
     setClientStatusFilter(null);
     setServiceTypeFilter(null);
     setSelectedTagIds(new Set());
+  }, [setUnreadOnly]);
+
+  const handleTabChange = useCallback((newTab: TabKey) => {
+    applyTab(newTab);
+    soltarLosFiltrosDeEstado();
     void onSelectRemoteJid?.("");
-  }, [applyTab, onSelectRemoteJid, setUnreadOnly]);
+  }, [applyTab, onSelectRemoteJid, soltarLosFiltrosDeEstado]);
+
+  /**
+   * Poner uno de los filtros de estado suelta a los demas; quitarlo no toca a
+   * nadie.
+   *
+   * Las dos llamadas caen en el mismo pintado, asi que el `false` que deja
+   * `soltarLosFiltrosDeEstado` y el `true` de aqui no se ven por separado.
+   */
+  const ponerFiltroDeEstado = useCallback(
+    (estaPuesto: boolean, poner: (valor: boolean) => void) => {
+      if (estaPuesto) {
+        poner(false);
+        return;
+      }
+      soltarLosFiltrosDeEstado();
+      poner(true);
+    },
+    [soltarLosFiltrosDeEstado],
+  );
 
   const toggleTagFilter = useCallback((tagId: number) => {
     setSelectedTagIds((prev) => {
@@ -1400,15 +1440,16 @@ export function ChatSidebar({
 
           <ChatTabBar
             tab={tab}
+            hayFiltroDeEstado={unreadOnly || enEsperaOnly}
             onTabChange={handleTabChange}
             tabCounts={tabCounts}
             showMine={!!currentAdvisorId}
             onCompose={onCompose}
             unreadOnly={unreadOnly}
-            onToggleUnread={() => setUnreadOnly((v) => !v)}
+            onToggleUnread={() => ponerFiltroDeEstado(unreadOnly, setUnreadOnly)}
             unreadCount={filterCounts.unread}
             enEsperaOnly={enEsperaOnly}
-            onToggleEnEspera={() => setEnEsperaOnly((v) => !v)}
+            onToggleEnEspera={() => ponerFiltroDeEstado(enEsperaOnly, setEnEsperaOnly)}
             enEsperaCount={filterCounts.enEspera}
             starredOnly={starredOnly}
             onToggleStarred={() => setStarredOnly((v) => !v)}
