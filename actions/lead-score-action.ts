@@ -1,5 +1,6 @@
 "use server";
 
+import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { getDispositionMeta } from "@/lib/call-dispositions";
@@ -223,6 +224,7 @@ export async function scoreAllLeadsByUserId(): Promise<{
         const sessions = await db.session.findMany({
             where: {
                 userId: effectiveId,
+                ...SIN_GRUPOS,
                 OR: [
                     { crmFollowUps: { some: { summarySnapshot: { not: null } } } },
                     { registros: { some: { tipo: "REPORTE", resumen: { not: null } } } },

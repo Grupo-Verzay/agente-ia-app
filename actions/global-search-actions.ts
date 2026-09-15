@@ -1,5 +1,6 @@
 "use server";
 
+import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 
@@ -38,6 +39,7 @@ export async function globalSearchAction(query: string): Promise<{
       db.session.findMany({
         where: {
           userId: ownerId,
+          ...SIN_GRUPOS,
           OR: [{ pushName: contains }, { remoteJid: contains }],
         },
         orderBy: { updatedAt: "desc" },

@@ -1,5 +1,6 @@
 "use server";
 
+import { SIN_GRUPOS, sinGruposSql } from '@/lib/conversaciones-de-grupo';
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
@@ -38,13 +39,13 @@ export type WeeklyReportItem = {
 async function collectMetrics(userId: string, from: Date, to: Date): Promise<WeeklyMetrics> {
     const [sessions, scores, newSessions, followUps, registros] = await Promise.all([
         db.session.findMany({
-            where: { userId },
+            where: { userId, ...SIN_GRUPOS },
             select: { id: true, pushName: true, remoteJid: true, leadStatus: true },
         }),
         db.$queryRaw<{ id: number; lead_score: number | null }[]>`
-            SELECT id, lead_score FROM "Session" WHERE "userId" = ${userId}
+            SELECT id, lead_score FROM "Session" s WHERE s."userId" = ${userId} ${sinGruposSql('s')}
         `,
-        db.session.count({ where: { userId, createdAt: { gte: from, lte: to } } }),
+        db.session.count({ where: { userId, ...SIN_GRUPOS, createdAt: { gte: from, lte: to } } }),
         db.crmFollowUp.findMany({
             where: { userId, createdAt: { gte: from, lte: to } },
             select: { status: true },

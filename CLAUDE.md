@@ -546,6 +546,76 @@ encima una condición propia, porque borrar no es anclar: **un `agente` no
 borra**. Si se añade otra acción destructiva en Chats, va igual: la misma puerta
 que las demás, más lo suyo.
 
+## Un grupo TIENE ficha, y toda consulta de CRM la excluye
+
+Los grupos entran en la bandeja y su barra de arriba —etiquetas, asignar
+asesor, tareas, recordatorios, resolver— cuelga entera de `Session`. Sin ficha,
+un grupo se abría pelado: solo Mensajes y Notas. Con ficha, se ve como
+cualquier conversación.
+
+Pero **un grupo no es un lead**. No se cuenta, no se puntúa, no se exporta y no
+recibe campañas.
+
+**La marca es el propio `remoteJid`**, que termina en `@g.us` y eso es imposible
+en un 1:1. No hay columna nueva, a propósito: `Session` la toca también el
+backend y añadirle columnas desde la App es lo que reventó el #360; y sin
+columna, los grupos que ya tenían ficha de antes quedan marcados solos, sin
+backfill y sin dos clases de grupo.
+
+**La regla, y es la que hay que no olvidar:**
+
+> **Toda consulta de CRM nueva excluye los grupos.** Se importa de
+> `lib/conversaciones-de-grupo.ts` —`SIN_GRUPOS` para un `where` de Prisma,
+> `sinGruposSql(alias)` para SQL en crudo— y no se vuelve a escribir la
+> condición a mano. Escribirla en veinte sitios es garantizar que el
+> veintiuno se olvide, y un grupo colado en el CRM se ve como un lead falso
+> que nadie sabe de dónde salió.
+
+Están cubiertas las listas y contadores de `/sessions`, el CRM, el kanban, la
+búsqueda global, Analíticas, las métricas del agente, el informe semanal, la
+exportación, los segmentos de campaña y la puntuación de leads.
+
+**Chats NO es CRM.** `getSesionesDeLaCuenta` —la que alimenta la bandeja y la
+barra del chat abierto— **no** lleva el filtro, y no puede llevarlo: es
+justamente la que hace que un grupo se vea completo.
+
+Dos cosas más:
+
+1. **`cleanupJunkSessions` ya no borra grupos.** Esa cláusula (`LIKE '%@g.us'`)
+   era la que los consideraba basura, y se fue de ahí. Lo que mantiene a un
+   grupo fuera del CRM es que las consultas lo excluyen, **no** que alguien lo
+   borre por detrás.
+2. **No hay ninguna rutina de limpieza para esto, y no se monta.** Si se sale
+   del grupo o el grupo desaparece, su ficha se queda y sus mensajes caducan a
+   los 90 días como los demás. Si algún día estorban, se limpian a mano.
+
+Y dos que se quedan fuera a propósito: **Llamar por WhatsApp** —un grupo no
+tiene número al que llamar— y **Macros**, porque una macro puede llevar dentro
+`ADD_TAG`, `ASSIGN_ADVISOR` o `RESOLVE` y se ejecutaría a medias sin decirlo.
+
+### Y el id de un mensaje de grupo lleva el participante detrás
+
+Es la misma suposición equivocada en dos sitios, y costó que una conversación
+de grupo **fuera perdiendo sus mensajes sola**, sin que faltara ni una fila en
+la base.
+
+Un id serializado de Waha es `<fromMe>_<chat>_<id>` en un 1:1 y
+`<fromMe>_<chat>_<id>_<participante>` en un **grupo**. O sea que **el id de
+WhatsApp es el TERCER trozo, no el último**:
+
+- Al LEER la conversación, la deduplicación usaba
+  `regexp_replace("messageId", '^(true|false)_.*_', '')`. Ese `.*` es codicioso
+  y se comía hasta el último `_`, así que la llave acababa siendo **quién
+  escribió**: todos los mensajes de una misma persona en el grupo colapsaban en
+  uno y el `DISTINCT ON` se quedaba con el más reciente. Va
+  `'^(true|false)_[^_]+_'`, que quita los dos primeros trozos y nada más.
+- Al emparejar un ACUSE, el backend hacía `messageId.split('_').pop()`, con el
+  mismo resultado: el ✓✓ de un mensaje de grupo caía en otro mensaje del mismo
+  participante.
+
+**Si hace falta sacar el id de WhatsApp de un id serializado, es el tercer
+trozo.** Nunca el último.
+
 ## Una recarga tiene que decir por qué
 
 "La App se refresca sola cada cierto rato" es de lo más difícil de diagnosticar:
