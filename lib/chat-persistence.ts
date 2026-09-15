@@ -1426,6 +1426,42 @@ export async function persistEvolutionMessages(params: {
   }
 }
 
+/**
+ * Cuantas filas trae cada rama de `matched` antes de juntarlas.
+ *
+ * ## Se calcula sobre el FINAL de la pagina, no sobre su tamaño
+ *
+ * La consulta pagina con `OFFSET`. Pedir la tercera pagina es `OFFSET 52
+ * LIMIT 26`, o sea que hacen falta **78 filas** para poder llegar a la
+ * primera de esa pagina. Acotando por el tamaño (26) el recorte de dentro se
+ * queda corto y la pagina sale con huecos o vacia. La holgura va sobre
+ * `salta + pide`.
+ *
+ * ## Por que hace falta holgura
+ *
+ * Porque lo que se recorta aqui todavia no esta deduplicado. Un mismo mensaje
+ * puede estar guardado bajo dos formas de id -Waha lo serializa
+ * (`true_573001@c.us_3EB0A1B2`) y Evolution lo entrega pelado (`3EB0A1B2`)- y
+ * `deduped` las junta en una. Sin holgura, una conversacion con muchas parejas
+ * asi devolveria menos filas de las pedidas.
+ *
+ * Cuatro veces es de sobra: harian falta cuatro copias del MISMO mensaje para
+ * agotarla, y las formas conocidas son dos.
+ *
+ * ## Y por que las dos copias caen del mismo lado del corte
+ *
+ * Las dos llevan la hora que trae el propio mensaje de WhatsApp
+ * (`horaDelMensaje`), que es la misma: no es la hora de guardarlo. Y cuando una
+ * llega sin hora, el `ON CONFLICT` conserva a proposito la que ya estaba en vez
+ * de pisarla con la de ahora. Asi que el corte por fecha las deja juntas salvo
+ * justo en el borde, y el borde esta cuatro veces mas alla del final de la
+ * pagina.
+ */
+function topeDeCadaRama(salta: number, pide: number): number {
+  const finDeLaPagina = Math.max(0, salta) + Math.max(1, pide);
+  return finDeLaPagina * 4;
+}
+
 export async function getPersistedMessages(params: {
   /** Conjunto de cuentas autorizadas (dueño de la línea + cuentas del equipo/quien
    *  ve). Se consulta con IN (...) para no perder historial guardado bajo un userId
@@ -1441,45 +1477,44 @@ export async function getPersistedMessages(params: {
   if (!userIds.length) return [];
   const candidates = buildWhatsAppJidCandidates(params.remoteJid, params.aliases ?? []);
 
+  const salta = params.skip ?? 0;
+  const pide = params.take ?? 50;
+  const topePorRama = topeDeCadaRama(salta, pide);
+
+  // Un filtro que se repite en las tres ramas. Escrito una vez: si se toca en
+  // una y no en las otras, una rama devuelve filas que las demas descartan.
+  const filtroComun = Prisma.sql`
+    "userId" IN (${Prisma.join(userIds)})
+    ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+    AND "messageType" <> 'reactionMessage'
+    AND NOT (
+      "messageType" IN ('conversation', 'extendedTextMessage')
+      AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
+      AND "mediaUrl" IS NULL
+    )
+  `;
+
+  // Cada rama trae solo sus mas recientes. El `ORDER BY ... LIMIT` va DENTRO,
+  // que es lo que deja parar el recorrido del indice; sin el, Postgres leia la
+  // conversacion entera para devolver 26 filas.
+  const rama = (columna: Prisma.Sql) => Prisma.sql`
+    (SELECT *
+     FROM "chat_messages"
+     WHERE ${filtroComun}
+       AND ${columna} IN (${Prisma.join(candidates)})
+     ORDER BY "messageTimestamp" DESC, "id" DESC
+     LIMIT ${topePorRama})
+  `;
+
   return readWithTablesFallback(async () => {
   const __t0 = performance.now();
   const rows = await db.$queryRaw<PersistedChatMessageRow[]>`
     WITH matched AS (
-      SELECT *
-      FROM "chat_messages"
-      WHERE "userId" IN (${Prisma.join(userIds)})
-        ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
-        AND "messageType" <> 'reactionMessage'
-        AND NOT (
-          "messageType" IN ('conversation', 'extendedTextMessage')
-          AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
-          AND "mediaUrl" IS NULL
-        )
-        AND "remoteJid" IN (${Prisma.join(candidates)})
+      ${rama(Prisma.sql`"remoteJid"`)}
       UNION ALL
-      SELECT *
-      FROM "chat_messages"
-      WHERE "userId" IN (${Prisma.join(userIds)})
-        ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
-        AND "messageType" <> 'reactionMessage'
-        AND NOT (
-          "messageType" IN ('conversation', 'extendedTextMessage')
-          AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
-          AND "mediaUrl" IS NULL
-        )
-        AND "remoteJidAlt" IN (${Prisma.join(candidates)})
+      ${rama(Prisma.sql`"remoteJidAlt"`)}
       UNION ALL
-      SELECT *
-      FROM "chat_messages"
-      WHERE "userId" IN (${Prisma.join(userIds)})
-        ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
-        AND "messageType" <> 'reactionMessage'
-        AND NOT (
-          "messageType" IN ('conversation', 'extendedTextMessage')
-          AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
-          AND "mediaUrl" IS NULL
-        )
-        AND "senderPn" IN (${Prisma.join(candidates)})
+      ${rama(Prisma.sql`"senderPn"`)}
     ),
     deduped AS (
       -- "deleted" DESC primero: si un mismo mensaje quedó en varias filas (típico
@@ -1499,11 +1534,11 @@ export async function getPersistedMessages(params: {
     SELECT *
     FROM deduped
     ORDER BY "messageTimestamp" DESC, "id" DESC
-    OFFSET ${params.skip ?? 0}
-    LIMIT ${params.take ?? 50}
+    OFFSET ${salta}
+    LIMIT ${pide}
   `;
   const __ms = performance.now() - __t0;
-  if (__ms > 500) console.error(`[PERF] getPersistedMessages ${Math.round(__ms)}ms accounts=${userIds.length} rows=${rows.length}`);
+  if (__ms > 500) console.error(`[PERF] getPersistedMessages ${Math.round(__ms)}ms accounts=${userIds.length} rows=${rows.length} tope=${topePorRama}`);
 
   return rows.map(persistedRowToEvolutionMessage);
   });
