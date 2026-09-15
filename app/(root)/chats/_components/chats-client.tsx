@@ -43,7 +43,7 @@ import type {
   FindMessagesResult,
   SendMessageResult,
 } from "@/actions/chat-actions";
-import { idDeWhatsapp } from "./chat-message-utils";
+import { idDeWhatsapp, tieneAlgoQueEnsenar } from "./chat-message-utils";
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
@@ -1262,6 +1262,23 @@ export function ChatsClient({
         // versión eliminada con su contenido y su badge.
         const existingSame = map.get(getMessageKey(message));
         if (existingSame?.clientDeleted && !message.clientDeleted) {
+          continue;
+        }
+        // Ni pisar una version que SE PINTA con otra que no.
+        //
+        // Esto es lo que vaciaba una conversacion de GRUPO delante de quien la
+        // acababa de abrir: se pintaba entera desde nuestra base y, un par de
+        // segundos despues, la vuelta contra el proveedor traia esos mismos
+        // mensajes con solo los sobres dentro —sin texto, sin adjunto y
+        // rotulados con el nombre del sobre—. Misma llave, asi que pisaban a las
+        // buenas; y como la burbuja esconde los sobres, desaparecian de la
+        // pantalla. En el estado seguian estando los nueve: por eso la consulta
+        // decia nueve y se veia uno.
+        //
+        // Nuestra base manda, igual que en las dos reglas de aqui al lado. Si la
+        // nueva version no tiene nada que enseñar y la que ya estaba si, se
+        // conserva la que estaba.
+        if (existingSame && !tieneAlgoQueEnsenar(message) && tieneAlgoQueEnsenar(existingSame)) {
           continue;
         }
         // Preservar el marcador "Agente IA" (sentByAi): el eco/poll de Evolution NO
