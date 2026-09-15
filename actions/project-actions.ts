@@ -9,6 +9,7 @@ import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
 import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { filtroDeProyectosVisibles, mandaEnElProyecto } from "@/lib/project-roles";
+import { leerLosAdjuntos } from "@/lib/adjuntos-de-tarea";
 
 type Result<T> = { success: boolean; message: string; data?: T };
 
@@ -275,6 +276,9 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
       orderBy: [{ dueDate: "asc" }],
     });
 
+    // Los adjuntos de TODAS las tareas en una consulta, no una por tarjeta.
+    const adjuntos = await leerLosAdjuntos(tasks.map((t) => t.id));
+
     return {
       success: true,
       message: "Tareas cargadas.",
@@ -294,6 +298,7 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
         status: t.status as TaskStatus,
         createdById: t.createdById,
         createdAt: t.createdAt.toISOString(),
+        adjuntos: adjuntos.get(t.id) ?? [],
       })),
     };
   } catch (error) {

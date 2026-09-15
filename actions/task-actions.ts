@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { writeAuditLog } from "@/actions/audit-log-actions";
+import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
 
 import type { TaskData, TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
@@ -458,6 +459,12 @@ export async function deleteTaskAction(
       where: { id: taskId, ownerId },
     });
     if (result.count === 0) return { success: false, message: "No se encontro la tarea." };
+
+    // Sus archivos se van con ella. No hay clave foranea -`tasks` es del
+    // backend- asi que la limpieza es explicita, y esta funcion no revienta:
+    // si fallara, lo peor son unas filas huerfanas que nadie lee.
+    await olvidarLosAdjuntosDe(taskId);
+
     await writeAuditLog({
       userId: ownerId,
       actorId: user.id,
