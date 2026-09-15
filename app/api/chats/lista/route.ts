@@ -153,7 +153,54 @@ export async function POST(request: Request) {
     })),
   });
 
+  quizaPesarLaRespuesta(lineas);
+
   return NextResponse.json({ lineas } satisfies RespuestaDeLaLista);
+}
+
+/** Una sola vez por arranque del contenedor: pesar cuesta otro `stringify`. */
+let yaSePeso = false;
+
+/**
+ * DE QUE es el peso de esta respuesta, no solo cuanto pesa.
+ *
+ * El navegador ya dice el total (939 KB sin comprimir para cuatro lineas, cada
+ * 20 segundos). Lo que no dice es que parte de cada fila lo llena, y sin eso
+ * adelgazar es adivinar: se recorta un campo, baja poco, y no se sabe si el
+ * siguiente candidato vale la pena o el problema esta en otro sitio.
+ *
+ * Asi que se pesa la respuesta entera y, por separado, el trozo `message` de
+ * cada ultimo mensaje —el unico que quedo sin recortar a proposito, porque
+ * hacerlo por lista de tipos deja previsualizaciones en blanco sin un solo
+ * error—. Con `porMensajeKb` al lado del total se decide con el numero delante.
+ *
+ * Corre UNA vez por arranque: `JSON.stringify` de esto no es gratis y esta
+ * respuesta sale cada 20 segundos por pestaña.
+ */
+function quizaPesarLaRespuesta(lineas: RespuestaDeLaLista["lineas"]): void {
+  if (yaSePeso) return;
+  yaSePeso = true;
+  try {
+    const kb = (valor: unknown) => Math.round(JSON.stringify(valor ?? null).length / 1024);
+    let chats = 0;
+    let porMensajeKb = 0;
+    for (const l of lineas) {
+      if (!l.resultado.success) continue;
+      for (const chat of l.resultado.data) {
+        chats += 1;
+        if (chat.lastMessage?.message) porMensajeKb += kb(chat.lastMessage.message);
+      }
+    }
+    console.info("[chats] de que es el peso de la lista", {
+      totalKb: kb(lineas),
+      chats,
+      porMensajeKb,
+      // Lo que queda fuera de `message`: la fila, la clave y los alias.
+      elRestoKb: Math.max(0, kb(lineas) - porMensajeKb),
+    });
+  } catch {
+    // Medir no puede romper una vuelta de la lista.
+  }
 }
 
 async function unaLinea(

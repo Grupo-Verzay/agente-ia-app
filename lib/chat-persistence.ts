@@ -544,26 +544,57 @@ function inboxRowToChat(row: InboxRow): ChatData {
     rawSnapshot?.key?.senderPn,
     rawSnapshot?.senderPn,
   ]);
+  /**
+   * El ULTIMO MENSAJE de una fila, con lo que la fila usa y nada mas.
+   *
+   * Esta respuesta pesaba 939 KB sin comprimir para cuatro lineas, y se pide
+   * cada 20 segundos. Los adjuntos en base64 ya los quita el SQL
+   * (`recortarRawSql`), asi que lo que quedaba era este objeto: el mensaje
+   * entero de WhatsApp para pintar un nombre, una hora y una linea de texto.
+   *
+   * Se comprobo campo por campo QUE LEE el navegador de `lastMessage`, en
+   * `app/(root)/chats`:
+   *
+   *   messageTimestamp, messageType, message, status, pushName, senderPn, id,
+   *   y de `key`: id, fromMe, remoteJid, remoteJidAlt, senderPn.
+   *
+   * Y NO lee ninguno de estos, que son los que se van:
+   *
+   *   - `contextInfo`: el mas gordo de los cuatro. Lleva `mentionedJid`,
+   *     `externalAdReply` y el rastro de reenvio. El mensaje citado ya no
+   *     estaba —lo quita el SQL—, asi que aqui no queda nada que la fila mire.
+   *   - `participant`, `source`, `instanceId`, `sessionId`: la fila ya sabe de
+   *     que linea y de que sesion es; venian repetidos dentro del mensaje.
+   *
+   * Y `key` deja de esparcirse entero (`...rawSnapshot.key`): se escriben las
+   * cinco claves que se leen. Un `spread` mete lo que WhatsApp haya añadido ese
+   * dia, que es peso que nadie pidio y que nadie nota crecer.
+   *
+   * Lo que NO se toca es `message`. El SQL ya le quito lo pesado, y recortarlo
+   * por lista de tipos es justo como se rompen las previsualizaciones sin un
+   * solo error: quedarian filas con «-» y nadie sabria por que. Si despues de
+   * esto sigue pesando, se mide ese campo aparte y se decide con el numero.
+   */
   const lastMessage: LastMessage | null = row.messageId
     ? {
         id: String(row.messageId),
         key: {
-          ...(rawSnapshot?.key ?? {}),
           id: rawSnapshot?.key?.id || row.messageId,
           fromMe: rawSnapshot?.key?.fromMe ?? Boolean(row.fromMe),
           remoteJid: rawSnapshot?.key?.remoteJid || row.remoteJid,
           remoteJidAlt: rawSnapshot?.key?.remoteJidAlt || row.remoteJidAlt || undefined,
+          senderPn: rawSnapshot?.key?.senderPn ?? undefined,
         },
         pushName: rawSnapshot?.pushName ?? row.pushName,
         senderPn: rawSnapshot?.senderPn ?? undefined,
-        participant: rawSnapshot?.participant ?? null,
+        participant: null,
         messageType: rawSnapshot?.messageType || row.messageType || 'conversation',
         message: buildMessageContent(row),
-        contextInfo: rawSnapshot?.contextInfo ?? null,
+        contextInfo: null,
         source: rawSnapshot?.source ?? row.instanceType ?? 'local',
         messageTimestamp: rawSnapshot?.messageTimestamp ?? dateToEpochSeconds(timestamp),
-        instanceId: rawSnapshot?.instanceId ?? row.instanceName,
-        sessionId: rawSnapshot?.sessionId ?? String(row.sessionId),
+        instanceId: row.instanceName,
+        sessionId: String(row.sessionId),
         status: getPersistedDeliveryStatus(row),
       }
     : null;
