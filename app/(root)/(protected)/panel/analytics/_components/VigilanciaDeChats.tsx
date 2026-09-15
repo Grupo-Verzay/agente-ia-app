@@ -9,8 +9,14 @@ import {
 /**
  * Cuanto tarda Chats en verse, por cuenta, en los ultimos 30 dias.
  *
- * Va **arriba del todo de Analiticas**, lo primero que se ve: es el bloque que
- * avisa de que algo se degrado, y un aviso al que hay que bajar no avisa.
+ * Va **al final de Analiticas**, debajo de todo lo demas, y **dentro** del
+ * contenedor que scrollea (ver `VerzayAnalytics`). Colgarlo como hermano de esa
+ * pantalla deja la pagina sin scroll: el layout del panel envuelve a sus hijos
+ * en un `overflow-hidden`.
+ *
+ * Quien tiene que enterarse de una degradacion no lo hace mirando esta
+ * pantalla: **lo sabe por el WhatsApp del cron**. Esto es el detalle que se
+ * viene a consultar DESPUES de ese aviso, asi que no necesita ir primero.
  *
  * La puerta NO esta aqui. `leerLaVigilancia` devuelve `null` a quien no sea
  * superadministrador, asi que este componente ni se pinta; enseñar el bloque es
@@ -26,7 +32,11 @@ export function VigilanciaDeChats({ vista }: { vista: VistaDeLaVigilancia }) {
   const sinDatos = resumen.cuentas === 0;
 
   return (
-    <section className="mb-6 rounded-xl border bg-card p-4 sm:p-5">
+    // `shrink-0`: en una columna flex que scrollea, un hijo se encoge por
+    // defecto hasta su contenido minimo. Con una tabla dentro eso deja las
+    // filas aplastadas cuando la pagina es larga. El hueco entre bloques lo
+    // pone el `gap-3` del contenedor, no un margen de aqui.
+    <section className="shrink-0 rounded-xl border bg-card p-4 sm:p-5">
       <header className="mb-4 flex flex-wrap items-center gap-2">
         <Activity className="h-[21px] w-[21px] shrink-0 text-muted-foreground" />
         <h2 className="text-[19px] font-semibold">Rendimiento de Chats</h2>

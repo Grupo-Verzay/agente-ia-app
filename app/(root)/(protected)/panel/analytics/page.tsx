@@ -46,9 +46,6 @@ const AnalyticsPage = async () => {
     return <ResellerAnalytics data={mios.data} />
   }
 
-  // La vigilancia de rendimiento va ARRIBA DEL TODO: es lo que avisa de que
-  // algo se degradó, y un aviso al que hay que bajar no avisa.
-  //
   // `leerLaVigilancia` devuelve `null` a quien no sea superadministrador, así
   // que el bloque ni se pinta. La puerta está en la consulta y no aquí: una
   // pantalla no puede abrir más de lo que la consulta deja.
@@ -57,21 +54,29 @@ const AnalyticsPage = async () => {
     leerLaVigilancia(),
   ])
 
+  // El bloque va DENTRO de `VerzayAnalytics`, al final, y no como hermano suyo.
+  //
+  // No es solo orden: el layout del panel envuelve a sus hijos en un
+  // `flex-1 min-h-0 overflow-hidden`, así que **la página no scrollea**; quien
+  // scrollea es el contenedor interno de `VerzayAnalytics`. Colgado aquí como
+  // hermano, el bloque se quedaba fuera de ese contenedor, tapaba las tarjetas
+  // y recortaba todo lo de abajo sin dejar barra para llegar.
+  //
+  // Si algún día se añade otro bloque a esta pantalla, va por el mismo camino.
+  const bloqueDeVigilancia = vigilancia ? <VigilanciaDeChats vista={vigilancia} /> : null
+
   if (!result.success || !result.data) {
+    // Aquí tampoco puede ir suelto, por lo mismo: sin un contenedor que
+    // scrolle, el bloque se recorta contra el borde de la pantalla.
     return (
-      <>
-        {vigilancia && <VigilanciaDeChats vista={vigilancia} />}
+      <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto p-1">
         <SinDatos que="las estadísticas de plataforma" />
-      </>
+        {bloqueDeVigilancia}
+      </div>
     )
   }
 
-  return (
-    <>
-      {vigilancia && <VigilanciaDeChats vista={vigilancia} />}
-      <VerzayAnalytics data={result.data} />
-    </>
-  )
+  return <VerzayAnalytics data={result.data} vigilancia={bloqueDeVigilancia} />
 }
 
 export default AnalyticsPage

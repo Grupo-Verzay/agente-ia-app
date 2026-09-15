@@ -49,7 +49,21 @@ const fmtMonth = (key: string) => {
   return new Date(y, m - 1).toLocaleDateString("es-ES", { month: "short", year: "2-digit" })
 }
 
-export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
+export function VerzayAnalytics({
+  data,
+  vigilancia,
+}: {
+  data: VerzayAnalyticsData
+  /**
+   * El bloque de Rendimiento de Chats, ya pintado en el servidor.
+   *
+   * Viaja como nodo y no como dato a propósito: sale de un componente de
+   * servidor y este fichero es `"use client"`. Vacío para quien no sea
+   * superadministrador, porque la consulta ya devuelve `null` — la puerta está
+   * ahí, no aquí.
+   */
+  vigilancia?: React.ReactNode
+}) {
   const {
     totalUsers, activeUsers, suspendedUsers, unpaidUsers, activationRate,
     totalResellers, planDistribution, mostSoldPlan,
@@ -307,6 +321,19 @@ export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
 
         {/* ── Fila 4: Alertas de créditos ── */}
         <CreditAlertsWidget users={lowCreditUsers} canRecharge />
+
+        {/* ── Rendimiento de Chats (solo superadministrador) ──
+            Va DENTRO de este contenedor y no como hermano de la pantalla, y no
+            es una cuestión de orden: **este `div` es el único que scrollea**.
+            El layout del panel envuelve a sus hijos en un
+            `flex-1 min-h-0 overflow-hidden`, así que lo que quede fuera de aquí
+            se recorta sin barra y no hay forma de llegar a ello. Puesto arriba
+            como hermano, tapaba las tarjetas y dejaba la página sin scroll.
+
+            Llega como nodo ya pintado en el servidor: este componente es
+            `"use client"` y el bloque lee constantes de `lib/vigilancia-de-chats`,
+            que importa Prisma. Importarlo aquí se lo llevaría al navegador. */}
+        {vigilancia}
 
       </div>
     </TooltipProvider>
