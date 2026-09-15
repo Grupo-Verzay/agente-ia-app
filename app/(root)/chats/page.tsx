@@ -758,7 +758,16 @@ export default async function ChatsPage({
 
   const __tFin = performance.now();
   const __total = __tFin - __t0;
-  if (__total > 2000) {
+  // Umbral en 800 ms, no en 2.000.
+  //
+  // Con 2.000 este aviso practicamente no salia, y su ausencia se leyo como
+  // «la pagina tarda 2 s» cuando lo que tardaba era otra cosa (la espera de
+  // `INITIAL_CHAT_SYNC_DELAY_MS`, en el cliente). Un umbral que no dispara no
+  // informa de nada: no distingue «va bien» de «nadie esta mirando».
+  //
+  // 800 ms es donde una pantalla empieza a sentirse lenta, y es el numero que
+  // hace falta para decidir si el render del servidor necesita trabajo.
+  if (__total > 800) {
     console.error(
       `[PERF] ChatsPage ${Math.round(__total)}ms ` +
         `${__mark("fase1", __t0, __tFase1)} ` +
