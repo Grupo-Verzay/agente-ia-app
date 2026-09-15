@@ -34,6 +34,7 @@ import { expandirSesiones } from "@/lib/sesiones-por-el-cable";
 import type { RespuestaDeLasSesiones } from "@/app/api/chats/sesiones/route";
 import type { RespuestaDeLaLista } from "@/app/api/chats/lista/route";
 import type { RespuestaDePrecarga } from "@/lib/precarga-de-chats";
+import type { MedicionDeUnaCarga } from "@/lib/vigilancia-de-chats";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -165,6 +166,10 @@ const LINEAS_SIN_EVOLUTION = ['waha'];
 
 const hablaConEvolution = (instanceType?: string | null): boolean =>
   !LINEAS_SIN_EVOLUTION.includes((instanceType ?? '').trim().toLowerCase());
+
+/** Un numero de la medicion, o nada. Los trozos que no llegaron valen `undefined`. */
+const comoNumero = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isFinite(v) ? v : undefined;
 
 const INITIAL_MESSAGE_PAGE_SIZE = 25;
 // Max. de precargas simultaneas. Acota los picos cuando se hacen visibles
@@ -1070,8 +1075,19 @@ export function ChatsClient({
     sesiones?: Record<string, unknown>;
     bootstrap?: Record<string, unknown>;
     lista?: Record<string, unknown>;
+    precargaPronto?: number;
+    precargaTarde?: number;
     impreso: boolean;
   }>({ t0: 0, impreso: false });
+
+  /**
+   * La medicion de esta carga, esperando a que salga la siguiente peticion.
+   *
+   * NO se manda en una peticion propia: viaja de gorra en la vuelta siguiente
+   * del ciclo de la lista, que sale igualmente. Asi una carga normal no cuesta
+   * ni una peticion de mas, que es la condicion con la que se acepto vigilar.
+   */
+  const porAnotarRef = useRef<MedicionDeUnaCarga | null>(null);
 
   // Cuantas veces se ha rearmado el ciclo de la lista, y si su primera vuelta
   // llego a pedirse alguna vez. Ver el efecto del ciclo, mas abajo.
@@ -1098,6 +1114,26 @@ export function ChatsClient({
       sesiones: m.sesiones ?? "(no llego)",
       bootstrap: m.bootstrap ?? "(no llego)",
       listaEvolution: m.lista ?? "(no llego)",
+    });
+
+    // Y el numero que solo sabe el navegador: cuando la pantalla YA SE VE.
+    //
+    // Va dentro de un `requestAnimationFrame` a proposito. Aqui han llegado los
+    // datos, pero React todavia no ha pintado con ellos; el cuadro siguiente es
+    // lo mas cerca que se puede estar de lo que ve la persona. Medir antes
+    // daria un numero mejor que la verdad, que en un vigilante es lo peor que
+    // puede pasar.
+    const noLlegaron = [m.sesiones, m.bootstrap, m.lista].filter((x) => !x).length;
+    requestAnimationFrame(() => {
+      porAnotarRef.current = {
+        hastaQueSeVioMs: Math.round(performance.now() - m.t0),
+        listaMs: comoNumero(m.lista?.acaboEn),
+        bootstrapMs: comoNumero(m.bootstrap?.puestoEn),
+        precargaProntoMs: m.precargaPronto,
+        precargaTardeMs: m.precargaTarde,
+        noLlegaron,
+        chats,
+      };
     });
   }, []);
   // El ciclo de la lista necesita poder disparar el sondeo del chat abierto. Va
@@ -2195,9 +2231,19 @@ export function ChatsClient({
     const soloLaPrimeraVez = !primeraVueltaMedidaRef.current;
     const arranco = performance.now();
     const pedidas = instanceActionSets.map((s) => s.instanceName);
+    // La medicion de la carga viaja de gorra en esta vuelta, que sale
+    // igualmente. Se suelta ANTES de esperar la respuesta: si se soltara
+    // despues y la peticion fallara, se reintentaria en la vuelta siguiente y
+    // esa carga se contaria dos veces.
+    const medicion = porAnotarRef.current;
+    porAnotarRef.current = null;
+
     const respuesta = await pedirSinCola<RespuestaDeLaLista>(
       "/api/chats/lista",
-      { instanceNames: pedidas },
+      {
+        instanceNames: pedidas,
+        ...(medicion ? { medicionDeLaCarga: { ...medicion, lineas: pedidas.length } } : {}),
+      },
       { lineas: [] },
     );
     // El servidor devuelve una entrada por linea pedida, pero una respuesta que
@@ -3132,6 +3178,14 @@ export function ChatsClient({
               apiKeyData: pedido.objetivo.effectiveApiKeyData,
             },
           });
+        }
+
+        // Para la vigilancia: cual de las dos tandas fue, por su tamaño. Sirve
+        // para saber CUAL trozo se movio cuando una carga sale lenta.
+        const cuanto = comoNumero(respuesta.tardoMs);
+        if (cuanto !== undefined) {
+          if (pedidos.length <= PREFETCH_TOP_CHATS) medicionRef.current.precargaPronto = cuanto;
+          else medicionRef.current.precargaTarde = cuanto;
         }
 
         // Lo que no vino entero se dice. Su ausencia tambien informa: sin este

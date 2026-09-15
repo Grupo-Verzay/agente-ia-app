@@ -9,6 +9,8 @@ import {
 } from "@/actions/analytics-actions"
 import { ResellerAnalytics } from "../mis-estadisticas/_components/ResellerAnalytics"
 import { VerzayAnalytics } from "./_components/VerzayAnalytics"
+import { VigilanciaDeChats } from "./_components/VigilanciaDeChats"
+import { leerLaVigilancia } from "@/actions/vigilancia-actions"
 
 const SinDatos = ({ que }: { que: string }) => (
   <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
@@ -44,12 +46,32 @@ const AnalyticsPage = async () => {
     return <ResellerAnalytics data={mios.data} />
   }
 
-  const result = await getVerzayPlatformAnalytics()
+  // La vigilancia de rendimiento va ARRIBA DEL TODO: es lo que avisa de que
+  // algo se degradó, y un aviso al que hay que bajar no avisa.
+  //
+  // `leerLaVigilancia` devuelve `null` a quien no sea superadministrador, así
+  // que el bloque ni se pinta. La puerta está en la consulta y no aquí: una
+  // pantalla no puede abrir más de lo que la consulta deja.
+  const [result, vigilancia] = await Promise.all([
+    getVerzayPlatformAnalytics(),
+    leerLaVigilancia(),
+  ])
+
   if (!result.success || !result.data) {
-    return <SinDatos que="las estadísticas de plataforma" />
+    return (
+      <>
+        {vigilancia && <VigilanciaDeChats vista={vigilancia} />}
+        <SinDatos que="las estadísticas de plataforma" />
+      </>
+    )
   }
 
-  return <VerzayAnalytics data={result.data} />
+  return (
+    <>
+      {vigilancia && <VigilanciaDeChats vista={vigilancia} />}
+      <VerzayAnalytics data={result.data} />
+    </>
+  )
 }
 
 export default AnalyticsPage
