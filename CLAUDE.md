@@ -899,6 +899,41 @@ Cuatro cosas que hay que mantener:
    puerta cerrada. Todas preguntan ya por `cuentaQueManda`. **Si se añade otra
    pestaña al panel, va igual.**
 
+### Y la ACCIÓN de detrás, también
+
+Arreglar las páginas no bastó: la puerta se había movido una capa más abajo. La
+página de Suscripciones abría —pregunta por la cuenta— y
+`getAllSubscriptionsAdmin` contestaba con la lista vacía, porque seguía
+preguntando `isAdminLike(user.role)`, o sea por la **persona**. Igual en
+Reseller, Conexión, Enlaces de registro, Evo y el reparto de licencias. Desde
+fuera es peor que un «Acceso Denegado»: la pantalla se pinta entera y sale
+vacía, y parece que no hay datos.
+
+Se pregunta con **`rolQueManda(persona)`**, que es
+`(await cuentaQueManda(persona)).role` en una línea. Sin él eran dos líneas por
+sitio, y por eso a veintitantas acciones se les quedó el `user.role` de antes.
+**Ninguna acción del panel pregunta por `user.role`.**
+
+Y donde además se compara un id —«¿es este reseller el que pregunta?»— se
+compara contra **`cuenta.id`**, no contra `me.id`: al administrador de un
+reseller se le caía el permiso sobre sus propios clientes.
+
+### El caso que lo destapó: Rendimiento de Chats
+
+Dos pantallas iguales lado a lado y en una faltaba un recuadro. Yair —
+administrador de la cuenta de la casa— abría Analíticas y veía la plataforma
+entera, pero no el bloque de vigilancia: `leerLaVigilancia` preguntaba
+`isSuperAdmin(user.role)`, por la persona, y el equipo se crea con rol `user`.
+
+Ahora pregunta por `cuentaQueManda`. Eso **no** abre el bloque a cualquier
+administrador —el de una cuenta de cliente actúa por una cuenta que no es
+`super_admin`, así que sigue sin ver nada— y el WhatsApp de la vigilancia sigue
+saliendo solo hacia la cuenta de superadministrador, que se decide aparte en
+`elSuperAdministrador`.
+
+**«Superadministrador» en una consulta es la CUENTA, no la persona.** Es la
+misma regla de arriba: el rol no se hereda, el alcance sí.
+
 Y de paso: **de un reseller sale su cuenta principal, no su cartera**. Sus
 clientes los administra y los factura él; que aparecieran en la lista de la
 plataforma llenaba la pantalla de cuentas ajenas y dejaba repartir lo que no se

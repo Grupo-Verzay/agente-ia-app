@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/rbac";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { leerLosDiasVigilados, type DiaVigilado } from "@/lib/vigilancia-de-chats";
 import { juzgarElDia, redactarElAviso } from "@/lib/vigilancia-veredicto";
 import {
@@ -25,11 +26,27 @@ import { DIAS_QUE_SE_MIRAN, type VistaDeLaVigilancia } from "@/lib/vigilancia-vi
  * superadministrador. La puerta esta **aqui** y no en el componente: enseñar el
  * bloque o no es cosa de la pantalla; **que los datos salgan es cosa de esto**.
  * Es la misma regla de siempre: quien decide es la consulta, no la pantalla.
+ *
+ * ## Y «superadministrador» es la CUENTA, no la persona
+ *
+ * Esto preguntaba por `user.role`, o sea por la persona. El administrador de la
+ * cuenta de la casa se creo con rol `user`, asi que abria Analiticas —la pagina
+ * si pregunta por la cuenta— veia la plataforma entera... y este bloque no.
+ * Desde fuera: dos pantallas iguales lado a lado y en una falta un recuadro,
+ * sin ningun aviso que lo explique.
+ *
+ * Se pregunta por `cuentaQueManda`, como el resto del panel. Eso **no** abre el
+ * bloque a cualquier administrador: el de una cuenta de cliente sigue sin ver
+ * nada, porque la cuenta por la que actua no es `super_admin`. Y el WhatsApp
+ * sigue saliendo solo hacia la cuenta de superadministrador: eso se decide mas
+ * abajo, en `elSuperAdministrador`, y no se toca.
  */
 
 export async function leerLaVigilancia(): Promise<VistaDeLaVigilancia | null> {
   const user = await currentUser();
-  if (!user?.id || !isSuperAdmin(user.role)) return null;
+  if (!user?.id) return null;
+  const cuenta = await cuentaQueManda(user);
+  if (!isSuperAdmin(cuenta.role)) return null;
 
   const dias = await leerLosDiasVigilados(DIAS_QUE_SE_MIRAN);
   const nombres = await nombresDeLasCuentas(dias.map((d) => d.userId));

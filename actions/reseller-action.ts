@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { currentUser } from "@/lib/auth"
 import { isAdminLike } from "@/lib/rbac";
+import { rolQueManda } from "@/lib/cuenta-que-manda";
 import { Role, ThemeApp, User } from "@prisma/client"
 import { ResellerInfoResponse } from "@/schema/reseller";
 
@@ -16,7 +17,7 @@ interface ResellerAsUserResponse<T = User> {
 export const getClientsByReseller = async (resellerId: string) => {
     const user = await currentUser()
 
-    if (!user || !isAdminLike(user.role)) {
+    if (!user || !isAdminLike(await rolQueManda(user))) {
         throw new Error("No autorizado")
     }
 
@@ -47,7 +48,7 @@ export const getClientsByReseller = async (resellerId: string) => {
 /* Asignar user a reseller */
 export const assignClientToReseller = async (clientId: string, resellerId: string) => {
     const user = await currentUser()
-    if (!user || !isAdminLike(user.role)) throw new Error("No autorizado")
+    if (!user || !isAdminLike(await rolQueManda(user))) throw new Error("No autorizado")
 
     return await db.reseller.create({
         data: {
@@ -60,7 +61,7 @@ export const assignClientToReseller = async (clientId: string, resellerId: strin
 /* eliminar user de reseller */
 export const removeClientFromReseller = async (clientId: string, resellerId: string) => {
     const user = await currentUser()
-    if (!user || !isAdminLike(user.role)) throw new Error("No autorizado")
+    if (!user || !isAdminLike(await rolQueManda(user))) throw new Error("No autorizado")
 
     return await db.reseller.deleteMany({
         where: {

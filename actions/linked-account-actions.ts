@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isAdminLike } from "@/lib/rbac";
+import { rolQueManda } from "@/lib/cuenta-que-manda";
 import { cookies } from "next/headers";
 import type { Instancia, Plan } from "@prisma/client";
 
@@ -344,7 +345,7 @@ export async function removeLinkedAccount(linkedUserId: string): Promise<Result>
 export async function resetAllLinkedAccounts(): Promise<Result> {
   const user = await currentUser();
   if (!user) return { success: false, message: "No autorizado." };
-  if (!isAdminLike(user.role)) return { success: false, message: "Solo un administrador puede reiniciar los vínculos." };
+  if (!isAdminLike(await rolQueManda(user))) return { success: false, message: "Solo un administrador puede reiniciar los vínculos." };
 
   try {
     await db.$transaction(async (tx) => {

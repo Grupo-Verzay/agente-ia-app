@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { SubscriptionStatus } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
+import { rolQueManda } from "@/lib/cuenta-que-manda";
 import { revalidatePath } from "next/cache";
 
 export type UserSubscriptionWithPlan = {
@@ -115,7 +116,7 @@ export async function getAllSubscriptionsAdmin(filters?: {
   userId?: string;
 }) {
   const user = await currentUser();
-  if (!user || !isAdminLike(user.role)) return { success: false, data: [] };
+  if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, data: [] };
 
   try {
     const subs = await db.userSubscription.findMany({
@@ -150,7 +151,7 @@ export async function approveSubscription(
   opts: { startDate: Date; expiresAt: Date; adminNotes?: string }
 ) {
   const user = await currentUser();
-  if (!user || !isAdminLike(user.role)) return { success: false, message: "No autorizado" };
+  if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "No autorizado" };
 
   try {
     const sub = await db.userSubscription.update({
@@ -194,7 +195,7 @@ export async function approveSubscription(
 
 export async function rejectSubscription(subscriptionId: string, reason: string) {
   const user = await currentUser();
-  if (!user || !isAdminLike(user.role)) return { success: false, message: "No autorizado" };
+  if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "No autorizado" };
 
   try {
     await db.userSubscription.update({

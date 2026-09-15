@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { isAdminOrReseller } from "@/lib/rbac";
+import { rolQueManda } from "@/lib/cuenta-que-manda";
 import {
   contarInstancias,
   elegirServidorConCupo,
@@ -26,7 +27,7 @@ export async function getEvolutionCapacity(): Promise<{
   data: EvolutionServerCapacity[];
 }> {
   const user = await currentUser();
-  if (!user || !isAdminOrReseller(user.role)) {
+  if (!user || !isAdminOrReseller(await rolQueManda(user))) {
     return { success: false, message: "No autorizado", data: [] };
   }
 
@@ -39,7 +40,7 @@ export async function pickApiKeyWithCapacity(): Promise<{
   apiKeyId?: string;
 }> {
   const user = await currentUser();
-  if (!user || !isAdminOrReseller(user.role)) {
+  if (!user || !isAdminOrReseller(await rolQueManda(user))) {
     return { success: false, message: "No autorizado" };
   }
 
