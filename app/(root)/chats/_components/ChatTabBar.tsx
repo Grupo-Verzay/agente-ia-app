@@ -16,6 +16,14 @@ import type { ClientStatus, ServiceType } from "@/types/session";
 type ChatTabBarProps = {
   onTabChange: (tab: TabKey) => void;
   tab: TabKey;
+  /**
+   * Hay un filtro de estado puesto («No leídos», «En espera»).
+   *
+   * Van en el MISMO grupo excluyente que «Todos» y «Mías», asi que mientras uno
+   * de ellos mande, la pestaña no se pinta activa: si no, se ven dos encendidos
+   * a la vez y no hay forma de saber cual esta filtrando de verdad.
+   */
+  hayFiltroDeEstado?: boolean;
   tabCounts: TabCounts;
   showMine?: boolean;
   unreadOnly?: boolean;
@@ -52,12 +60,12 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
 ];
 
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
     const count = tabCounts[key];
-    const isActive = tab === key;
+    const isActive = tab === key && !hayFiltroDeEstado;
 
     return (
       <button
