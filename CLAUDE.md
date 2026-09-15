@@ -2038,6 +2038,51 @@ por `conLaTabla(...)`, que ante un `42P01` **olvida el recuerdo, la crea y
 reintenta una vez**. Una, no un bucle: si tampoco va la segunda, el problema no
 era que faltara la tabla.
 
+### Un centinela acaba impreso, y un registro vacío no es una respuesta
+
+Las dos formas en que esto se rompió en producción el día del despliegue. Las
+dos cuestan lo mismo de evitar y las dos se leen desde fuera como que la App
+miente.
+
+**1. Un valor centinela acaba en la pantalla de un cliente.** «Sin tope» se
+decía con números —`total: -1`, `available: 999999999`— y nadie los traducía:
+se metieron tal cual en la plantilla de un aviso de WhatsApp. Una clienta con
+plan Básico recibió
+
+> 🚨 URGENTE: solo tienes **999999999 de -1 créditos** disponibles (5%).
+
+mientras su panel decía, correctamente, 12.000 totales y 3.636 disponibles.
+
+Y el «5%» venía de la misma raíz. El porcentaje se calculaba
+`total > 0 ? Math.floor(available / total * 100) : 0`: con un total que no sirve
+**se inventaba un 0**, y un 0 % entra por debajo del umbral más pequeño, que es
+el más alarmante. **El respaldo no era neutro: era el peor caso posible.**
+
+Tres reglas:
+
+- **Un estado se dice con un campo, no con un número imposible.**
+  `getCreditsByUser` devuelve `{ ilimitado: true }` y el resto de campos ni
+  existen en esa rama. Con una unión discriminada **el compilador no deja**
+  leer `total` sin mirar antes `ilimitado`; un comentario pidiendo cuidado, no.
+- **Un número que no se puede calcular no se sustituye por otro.** Si no hay
+  porcentaje, no hay aviso — no hay «0 %». Se dice en la consola y se calla
+  hacia fuera.
+- **Quien decide qué aviso sale es puro y está probado**
+  (`aviso-de-creditos.ts`). El banco reproduce primero **el mensaje exacto de
+  la captura** con la lógica vieja, y solo después demuestra que la nueva no lo
+  manda. Sin ese primer paso no se sabe si se arregló la causa o algo parecido.
+
+**2. Una lista vacía no es «ninguno»: es «todavía no está configurado».** La
+regla de quién paga la IA preguntaba solo «¿está esta clave en el registro de
+Verzay?». Con el registro recién creado y vacío la respuesta era «no» para
+todas, así que **la plataforma entera pasó a ilimitada de golpe** — y de ahí
+que el aviso con centinelas saliera por todas partes a la vez.
+
+La condición correcta es **`hay registro Y la clave no está en él`**, y va igual
+en los dos lados (la App y el motor). Si se añade otra regla que dependa de una
+tabla que alguien tiene que llenar, se pregunta lo mismo: **distinguir «vacío»
+de «no aplica» antes de dejar que decida nada.**
+
 ## Los créditos se reponen AL PAGAR, y el cupo se lee de Panel › Planes
 
 Nada reponía los créditos al pagar. El motor tiene su reloj

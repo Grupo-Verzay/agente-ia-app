@@ -198,6 +198,14 @@ export async function esLlaveDeVerzay(clave: string | null | undefined): Promise
   return Boolean(filas[0]?.existe);
 }
 
+/** ¿Hay alguna llave registrada? Un registro vacío no decide nada. */
+export async function hayRegistroDeLlaves(): Promise<boolean> {
+  const filas = await conLaTabla(() => db.$queryRaw<Array<{ existe: boolean }>>`
+    SELECT EXISTS (SELECT 1 FROM "verzay_api_keys") AS existe
+  `);
+  return Boolean(filas[0]?.existe);
+}
+
 /**
  * ¿Paga el cliente su propia IA?
  *
@@ -213,6 +221,13 @@ export async function esLlaveDeVerzay(clave: string | null | undefined): Promise
  * **Sin key no es ilimitado.** Ese es el lado seguro: una cuenta sin
  * configuración de IA no puede correr el agente de todas formas, y darle
  * ilimitado taparía el problema de verdad.
+ *
+ * **Y un registro VACÍO tampoco es ilimitado.** Esto costó un aviso a una
+ * clienta el mismo día del despliegue: la primera versión preguntaba solo «¿está
+ * esta clave en el registro?», así que mientras nadie hubiera registrado
+ * ninguna llave la respuesta era «no» para todas y la plataforma entera pasaba
+ * a ilimitada de golpe. Un registro vacío no dice «ningún cliente usa nuestras
+ * llaves»: dice **«esto todavía no está configurado»**.
  */
 export async function pagaElClienteSuIa(userId: string): Promise<boolean> {
   try {
@@ -237,6 +252,8 @@ export async function pagaElClienteSuIa(userId: string): Promise<boolean> {
     const clave = elegida?.apiKey?.trim();
     if (!clave) return false;
 
+    // Ilimitado solo cuando HAY registro y la clave no está en él.
+    if (!(await hayRegistroDeLlaves())) return false;
     return !(await esLlaveDeVerzay(clave));
   } catch (error) {
     // Se consume como siempre, que es el lado seguro. Pero se dice: dar
