@@ -145,21 +145,48 @@ export function extensionDeArchivo(valor?: string | null): string {
 /**
  * El id de WhatsApp de un mensaje, venga como venga.
  *
- * Waha lo entrega SERIALIZADO —`true_573001@c.us_3EB0A1B2`— y Evolution entrega
- * el mismo mensaje con el id pelado —`3EB0A1B2`—. Guardados los dos, la
- * conversación pintaba el mismo mensaje DOS VECES: para el desduplicado eran
- * ids distintos. Se ve al cambiar una línea de proveedor, cuando el historial
- * trae mensajes escritos con las dos formas.
+ * Waha lo entrega SERIALIZADO y Evolution entrega el mismo mensaje con el id
+ * pelado. Guardados los dos, la conversación pintaba el mismo mensaje DOS
+ * VECES: para el desduplicado eran ids distintos.
  *
- * Solo se desarma la forma de Waha (`true_…_id` / `false_…_id`). Los ids de
- * Evolution, Meta y Telegram se devuelven intactos: un `wamid` de Meta puede
- * llevar guiones bajos dentro y recortarlo por ahí sí podría confundir dos
- * mensajes distintos.
+ * Y la forma serializada tiene DOS variantes:
+ *
+ *     1:1     true_573001@c.us_3EB0A1B2
+ *     GRUPO   false_1203634…@g.us_3EB0A1B2_210101696733292@lid
+ *                                          ^^^^^^^^^^^^^^^^^^^ quién escribió
+ *
+ * O sea que **el id de WhatsApp es el TERCER trozo, nunca el último**.
+ *
+ * Esto estaba con `/^(?:true|false)_.+_(.+)$/`, y ese `.+` es CODICIOSO: se
+ * comía hasta el último `_`, así que en un grupo la llave acababa siendo
+ * **quién escribió**. Todos los mensajes de una misma persona colapsaban en
+ * uno solo dentro del mapa de `mergeMessages`.
+ *
+ * Medido en producción, en un grupo de dos participantes con 9 mensajes:
+ *
+ *     [chats] abrir: se pintan los mensajes  { trae: 9, habia: 9 }
+ *     [chats] mensajes de la conversacion    { enElEstado: 9, sePintan: 9 }
+ *     [chats] sondeo del chat abierto        { habia: 2, trajo: 9 }
+ *     [chats] mensajes de la conversacion    { enElEstado: 2, sePintan: 2 }
+ *
+ * Una unión de 2 y 9 no puede dar 2: eso solo pasa si las llaves colapsan. Y
+ * 9 mensajes de 2 personas colapsan en exactamente 2. La apertura se salvaba
+ * porque `setMessages(openMessages)` guarda el arreglo TAL CUAL, sin mapa; el
+ * colapso llegaba en la primera mezcla, a los segundos. De ahí «se ve entera y
+ * luego se queda en uno».
+ *
+ * Se corta por trozos y se coge el tercero, igual que hace el backend al
+ * emparejar un acuse. Los ids de Evolution, Meta y Telegram se devuelven
+ * intactos: no empiezan por `true_`/`false_`, y un `wamid` de Meta puede llevar
+ * guiones bajos dentro.
  */
 export function idDeWhatsapp(id?: string | null): string {
   const limpio = (id ?? '').trim();
-  const serializado = /^(?:true|false)_.+_(.+)$/.exec(limpio);
-  return serializado ? serializado[1] : limpio;
+  const partes = limpio.split('_');
+  if (partes.length >= 3 && (partes[0] === 'true' || partes[0] === 'false')) {
+    return partes[2];
+  }
+  return limpio;
 }
 
 /**
@@ -741,8 +768,11 @@ function contextInfoConCita(m: EvolutionMessage): Record<string, any> | undefine
  * saltar a ella-.
  */
 function idCrudoDeMensaje(id: string): string {
-  const waha = /^(?:true|false)_[^_]+_(.+)$/.exec(id);
-  return waha ? waha[1] : id;
+  // El mismo criterio que `idDeWhatsapp`, y no una expresión aparte: dos formas
+  // de leer el mismo id es una que se corrige y otra que se queda mal. Esta se
+  // quedaba con `<id>_<participante>` en un grupo, así que la cita nunca
+  // encontraba su mensaje.
+  return idDeWhatsapp(id);
 }
 
 function citaDelMensaje(
