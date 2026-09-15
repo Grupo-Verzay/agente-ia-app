@@ -33,6 +33,7 @@ import { pedirSinCola } from "@/lib/pedir-sin-cola";
 import { expandirSesiones } from "@/lib/sesiones-por-el-cable";
 import type { RespuestaDeLasSesiones } from "@/app/api/chats/sesiones/route";
 import type { RespuestaDeLaLista } from "@/app/api/chats/lista/route";
+import type { RespuestaDePrecarga } from "@/lib/precarga-de-chats";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
   ChatData,
@@ -3025,25 +3026,147 @@ export function ChatsClient({
     [resolvePrefetchTarget, commitCache],
   );
 
+  // Las dos tandas de precarga van en UN paquete cada una.
+  //
+  // Sacar la precarga a `/api/chats/conversacion` quito la cola de acciones y el
+  // recorte por rama bajo la consulta de 36 ms a 1. Y aun asi seguian siendo
+  // **50 peticiones**: el navegador abre seis conexiones a la vez, asi que la
+  // mayoria de esos 175-350 ms medidos eran **turno**, no trabajo.
+  //
+  // Un paquete por tanda. Si el paquete revienta, los chats de esa tanda se
+  // abren al pulsarlos como se abrian antes: la precarga es best-effort y su
+  // fallo no se ve en pantalla.
+  const precargarEnPaquete = useCallback(
+    async (deLaLista: ChatData[]) => {
+      const pedidos: Array<{
+        instanceName: string;
+        remoteJid: string;
+        remoteJidAliases: string[];
+        cacheKey: string;
+        objetivo: ReturnType<typeof resolvePrefetchTarget>;
+      }> = [];
+
+      for (const contact of deLaLista) {
+        if (!contact.remoteJid) continue;
+        const objetivo = resolvePrefetchTarget(contact.remoteJid, contact.instanceName);
+        // Ya cacheado, en vuelo o intentado: nada que pedir. Es la misma guarda
+        // de `prefetchChat`, aplicada antes de armar el paquete.
+        if (
+          messageCacheRef.current.has(objetivo.cacheKey) ||
+          prefetchingRef.current.has(objetivo.cacheKey) ||
+          prefetchAttemptedRef.current.has(objetivo.cacheKey)
+        ) {
+          continue;
+        }
+        // Sin linea no hay nada que pedir: la ruta lo rechazaria con un 400 y
+        // ese 400 viajaria dentro del paquete de los demas. Se queda fuera y se
+        // abrira por su camino normal al pulsarlo.
+        const linea = objetivo.effectiveInstanceName;
+        if (!linea) continue;
+
+        prefetchingRef.current.add(objetivo.cacheKey);
+        pedidos.push({
+          instanceName: linea,
+          remoteJid: contact.remoteJid,
+          remoteJidAliases: identidadesParaPedirMensajes(objetivo.selectedContact, contact.remoteJid),
+          cacheKey: objetivo.cacheKey,
+          objetivo,
+        });
+      }
+
+      if (!pedidos.length) return;
+
+      try {
+        const respuesta = await pedirSinCola<RespuestaDePrecarga>(
+          "/api/chats/precarga",
+          {
+            chats: pedidos.map((p) => ({
+              instanceName: p.instanceName,
+              remoteJid: p.remoteJid,
+              remoteJidAliases: p.remoteJidAliases,
+            })),
+            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+          },
+          { success: false, chats: [], message: "No se pudo precargar el paquete." },
+        );
+
+        if (!respuesta?.success) return;
+
+        const porLlave = new Map(pedidos.map((p) => [`${p.instanceName}::${p.remoteJid}`, p]));
+        let listos = 0;
+        let pendientes = 0;
+
+        for (const chat of respuesta.chats ?? []) {
+          const pedido = porLlave.get(`${chat.instanceName}::${chat.remoteJid}`);
+          if (!pedido) continue;
+
+          // `pendiente` NO se marca como intentado: su trabajo sigue de fondo en
+          // el servidor y la tanda siguiente lo recoge ya de nuestra base.
+          // Marcarlo aqui seria renunciar a el para toda la sesion.
+          if (chat.estado === "pendiente") {
+            pendientes += 1;
+            continue;
+          }
+
+          // Lectura OK (con o sin datos) o rechazo firme: no se reintenta en
+          // esta sesion, igual que hace la precarga de a uno.
+          prefetchAttemptedRef.current.add(pedido.cacheKey);
+          if (chat.estado !== "listo") continue;
+
+          const resultado = chat.resultado;
+          if (!resultado?.success || !resultado.data?.length) continue;
+          // Otro flujo pudo poblar el cache mientras tanto; no lo pisamos.
+          if (messageCacheRef.current.has(pedido.cacheKey)) continue;
+
+          listos += 1;
+          commitCache(pedido.cacheKey, {
+            messages: resultado.data || [],
+            info: {
+              total: resultado.total,
+              pages: resultado.pages,
+              currentPage: resultado.currentPage,
+              nextPage: resultado.nextPage,
+              instanceName: pedido.instanceName,
+              remoteJid: pedido.remoteJid,
+              remoteJidAliases: pedido.remoteJidAliases,
+              apiKeyData: pedido.objetivo.effectiveApiKeyData,
+            },
+          });
+        }
+
+        // Lo que no vino entero se dice. Su ausencia tambien informa: sin este
+        // aviso, "a veces no precarga" no se ve como un error.
+        if (pendientes || listos < pedidos.length) {
+          console.info("[chats] paquete de precarga", {
+            pedidos: pedidos.length,
+            listos,
+            pendientes,
+            tardoMs: respuesta.tardoMs,
+          });
+        }
+      } finally {
+        // Pase lo que pase se sueltan los cupos: si no, un paquete que revienta
+        // deja esos chats marcados "en vuelo" para siempre y no se vuelven a
+        // precargar ni por la fila visible.
+        for (const pedido of pedidos) prefetchingRef.current.delete(pedido.cacheKey);
+      }
+    },
+    [resolvePrefetchTarget, commitCache],
+  );
+
   // Warm proactivo: al cargar/actualizar la lista, precalentamos en 2º plano los
   // primeros chats (los más probables de abrir) para que el click sea instantáneo
-  // sin depender de hover ni de que la fila se haga visible. La cola con límite de
-  // concurrencia evita picos y prefetchChat es idempotente (no repite ya hechos).
+  // sin depender de hover ni de que la fila se haga visible.
   useEffect(() => {
     if (!contacts.length) return;
     const timer = setTimeout(() => {
-      for (const contact of contacts.slice(0, PREFETCH_TOP_CHATS)) {
-        prefetchChat(contact.remoteJid, contact.instanceName);
-      }
+      void precargarEnPaquete(contacts.slice(0, PREFETCH_TOP_CHATS));
     }, 300);
     return () => clearTimeout(timer);
-  }, [contacts, prefetchChat]);
+  }, [contacts, precargarEnPaquete]);
 
   // Backfill acotado (una vez por sesión): tras cargar la lista, precalienta+persiste
   // en 2º plano los BACKFILL_CHATS más recientes para que abran instantáneo desde ya.
-  // Va por la MISMA cola con límite de concurrencia (máx. PREFETCH_MAX_CONCURRENT),
-  // así no satura Evolution ni agota el pool de la BD. prefetchChat es idempotente:
-  // los ya persistidos se leen local (barato) y no se repiten llamadas a Evolution.
   // No cancelamos el timer al cambiar la lista para que el backfill sí llegue a correr.
   useEffect(() => {
     if (backfillStartedRef.current || !contacts.length) return;
@@ -3052,11 +3175,9 @@ export function ChatsClient({
     // Arranca más tarde (2.5s) para NO competir con la carga inicial de Chats: así
     // la entrada se siente ágil y el precalentado corre cuando ya estás mirando.
     window.setTimeout(() => {
-      for (const contact of snapshot) {
-        prefetchChat(contact.remoteJid, contact.instanceName);
-      }
+      void precargarEnPaquete(snapshot);
     }, 2500);
-  }, [contacts, prefetchChat]);
+  }, [contacts, precargarEnPaquete]);
 
   const handleSelectFromSidebar = useCallback(
     async (remoteJid: string, contactInstanceName?: string) => {
