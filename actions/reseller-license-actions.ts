@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
-import { isAdminLike } from "@/lib/rbac";
+import { isAdminLike, isReseller } from "@/lib/rbac";
+import { cuentaQueManda, rolQueManda } from "@/lib/cuenta-que-manda";
 import { getEnrichedClients } from "@/actions/userClientDataActions";
 import type { ClientInterface } from "@/lib/types";
 
@@ -107,7 +108,7 @@ export async function assignLicenses(
 ) {
   try {
     const user = await currentUser();
-    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
+    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
 
     await db.resellerLicensePool.upsert({
       where: { resellerUserId_subscriptionPlanId: { resellerUserId, subscriptionPlanId } },
@@ -134,7 +135,7 @@ export async function migrateLegacyClientsToPool(
 ) {
   try {
     const user = await currentUser();
-    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
+    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
 
     const pool = await db.resellerLicensePool.findUnique({
       where: { resellerUserId_subscriptionPlanId: { resellerUserId, subscriptionPlanId } },
@@ -195,7 +196,7 @@ export async function migrateLegacyClientsToPool(
 export async function deleteLicensePool(poolId: string) {
   try {
     const user = await currentUser();
-    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
+    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
 
     await db.resellerLicensePool.delete({ where: { id: poolId } });
 
@@ -212,7 +213,7 @@ export async function deleteLicensePool(poolId: string) {
 export async function updateDemoLimit(resellerUserId: string, demoLimit: number) {
   try {
     const user = await currentUser();
-    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
+    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
 
     await db.reseller.updateMany({
       where: { resellerid: resellerUserId },
@@ -487,7 +488,7 @@ export async function createClientAccount(data: {
 export async function reconcileResellerLicenses() {
   try {
     const me = await currentUser();
-    if (!me || !isAdminLike(me.role)) return { success: false, message: "Sin permisos", updated: 0 };
+    if (!me || !isAdminLike(await rolQueManda(me))) return { success: false, message: "Sin permisos", updated: 0 };
 
     const clients = await db.user.findMany({
       where: { isDemo: false, demoResellerId: { not: null }, resellerSubscriptionPlanId: null },
@@ -631,7 +632,11 @@ export async function getPlanChangeOptions(clientId: string) {
     if (!resellerUserId) {
       return { success: false, message: "Este cliente no pertenece a ningún reseller.", data: null };
     }
-    const puede = isAdminLike(me.role) || (me.role === "reseller" && resellerUserId === me.id);
+    // Por que cuenta actua quien pregunta. El administrador de un reseller actua
+    // POR el reseller, asi que la comparacion es contra la CUENTA y no contra su
+    // propia fila: con `me.id` se le caia el permiso sobre sus propios clientes.
+    const manda = await cuentaQueManda(me);
+    const puede = isAdminLike(manda.role) || (isReseller(manda.role) && resellerUserId === manda.id);
     if (!puede) return { success: false, message: "Sin permisos sobre este cliente.", data: null };
 
     const pools = await db.resellerLicensePool.findMany({
@@ -701,7 +706,11 @@ export async function changeClientPlan(clientId: string, subscriptionPlanId: str
     if (!resellerUserId) {
       return { success: false, message: "Este cliente no pertenece a ningún reseller." };
     }
-    const puede = isAdminLike(me.role) || (me.role === "reseller" && resellerUserId === me.id);
+    // Por que cuenta actua quien pregunta. El administrador de un reseller actua
+    // POR el reseller, asi que la comparacion es contra la CUENTA y no contra su
+    // propia fila: con `me.id` se le caia el permiso sobre sus propios clientes.
+    const manda = await cuentaQueManda(me);
+    const puede = isAdminLike(manda.role) || (isReseller(manda.role) && resellerUserId === manda.id);
     if (!puede) return { success: false, message: "Sin permisos sobre este cliente." };
 
     if (client.isDemo) {

@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { isAdminLike } from '@/lib/rbac';
+import { rolQueManda } from "@/lib/cuenta-que-manda";
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -23,7 +24,7 @@ const SIN_CONFIGURAR: WahaServerData = { url: null, tieneApiKey: false };
 
 export async function obtenerServidorWaha(): Promise<WahaServerData> {
   const user = await currentUser();
-  if (!user || !isAdminLike(user.role)) return SIN_CONFIGURAR;
+  if (!user || !isAdminLike(await rolQueManda(user))) return SIN_CONFIGURAR;
 
   try {
     const config = await db.siteConfig.findFirst({
@@ -45,7 +46,7 @@ export async function guardarServidorWaha(params: {
   apiKey: string;
 }): Promise<{ success: boolean; message: string }> {
   const user = await currentUser();
-  if (!user || !isAdminLike(user.role)) {
+  if (!user || !isAdminLike(await rolQueManda(user))) {
     return { success: false, message: 'No tienes permiso para cambiar esto.' };
   }
 
@@ -87,7 +88,7 @@ export async function guardarServidorWaha(params: {
 
 export async function borrarServidorWaha(): Promise<{ success: boolean; message: string }> {
   const user = await currentUser();
-  if (!user || !isAdminLike(user.role)) {
+  if (!user || !isAdminLike(await rolQueManda(user))) {
     return { success: false, message: 'No tienes permiso para cambiar esto.' };
   }
 
@@ -118,7 +119,7 @@ export async function probarServidorWaha(params: {
   apiKey: string;
 }): Promise<{ success: boolean; message: string }> {
   const user = await currentUser();
-  if (!user || !isAdminLike(user.role)) {
+  if (!user || !isAdminLike(await rolQueManda(user))) {
     return { success: false, message: 'No tienes permiso para esto.' };
   }
 

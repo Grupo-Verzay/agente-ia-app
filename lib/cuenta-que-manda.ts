@@ -76,6 +76,23 @@ export async function cuentaQueManda(persona: {
     return { id: fila.id, role: fila.role };
 }
 
+/**
+ * El rol con el que se decide: el de la cuenta por la que se actúa.
+ *
+ * Atajo de `(await cuentaQueManda(persona)).role`, para los muchos sitios que
+ * solo necesitan preguntar «¿manda?» y no con qué id. Sin él cada acción
+ * repetía las dos líneas, y por eso a veintitantas se les quedó el `user.role`
+ * de antes: la pantalla abría y la acción de detrás contestaba «No autorizado».
+ */
+export async function rolQueManda(persona: {
+    id?: string | null;
+    role?: string | null;
+    ownerId?: string | null;
+    advisorRole?: string | null;
+}): Promise<string> {
+    return (await cuentaQueManda(persona)).role;
+}
+
 /** La fila de una cuenta, una sola vez por petición. */
 const leerLaCuenta = cache(async (id: string) =>
     db.user

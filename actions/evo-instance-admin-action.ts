@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { currentUser } from '@/lib/auth'
 import { isAdminLike } from '@/lib/rbac'
 
+import { rolQueManda } from "@/lib/cuenta-que-manda";
 interface ForceDeleteInput {
   instanceName: string
   apiKeyId?: string // usar credenciales guardadas de este ApiKey (servidor + key)
@@ -36,7 +37,7 @@ export async function getEvoServers(): Promise<{
   message?: string
 }> {
   const user = await currentUser()
-  if (!user || !isAdminLike(user.role)) return { success: false, message: 'No autorizado.' }
+  if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: 'No autorizado.' }
   try {
     const keys = await db.apiKey.findMany({ select: { id: true, url: true } })
     return { success: true, data: keys.map((k) => ({ id: k.id, url: k.url })) }
@@ -54,7 +55,7 @@ export async function forceDeleteEvoInstance(
   input: ForceDeleteInput,
 ): Promise<{ success: boolean; message: string }> {
   const user = await currentUser()
-  if (!user || !isAdminLike(user.role)) return { success: false, message: 'No autorizado.' }
+  if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: 'No autorizado.' }
 
   const instanceName = (input.instanceName || '').trim()
   if (!instanceName) return { success: false, message: 'Indica el nombre de la instancia.' }

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
+import { rolQueManda } from "@/lib/cuenta-que-manda";
 import { encodeApiKeyRef, buildRegisterUrl } from "@/lib/register-link";
 
 export interface RegisterLinkItem {
@@ -19,7 +20,7 @@ export type GetRegisterLinksResult =
 export async function getRegisterLinksAction(): Promise<GetRegisterLinksResult> {
   const user = await currentUser();
 
-  if (!user || !isAdminLike(user.role)) {
+  if (!user || !isAdminLike(await rolQueManda(user))) {
     return { success: false, error: "Acceso denegado." };
   }
 
