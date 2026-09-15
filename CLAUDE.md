@@ -1965,6 +1965,109 @@ mudanza no tuvo nada que ver. Es la forma barata de separar "lo rompió el cambi
 de "ya venía roto", y se mira **antes** de ponerse a buscar culpables en el
 cambio.
 
+## Quién paga la IA se PREGUNTA, no se marca
+
+Una cuenta consume créditos porque la llave de OpenAI que usa la paga Verzay. Si
+el cliente pone la suya, la paga él, y entonces los créditos no pintan nada:
+son ilimitados.
+
+Eso **no es una columna**. No hay ninguna marca de «esta cuenta es ilimitada»
+que alguien tenga que acordarse de poner y de quitar. Se compara la clave que la
+cuenta está usando **ahora mismo** contra el registro de llaves de Verzay
+(`verzay_api_keys`): si casa, consume; si no casa, no. Un cliente que quita su
+key y vuelve a la nuestra vuelve a consumir sin que nadie toque nada.
+
+La pregunta se hace en **dos sitios y con la misma respuesta**: la App
+(`pagaElClienteSuIa`, en `lib/llaves-de-verzay.ts`) para lo que se enseña, y el
+motor (`AiCreditsService.pagaElClienteSuIa`) para la puerta de verdad. Si los
+dos no dicen lo mismo no hay forma de saber cuál miente: la pantalla diría
+«ilimitados» y el motor seguiría descontando. Por eso los dos **eligen la clave
+igual que `getUserDefaultAiConfig`** —su proveedor por defecto activo, luego
+cualquiera activo, luego la primera—: decidir sobre una key distinta de la que
+el agente usa es decidir sobre otra cosa.
+
+Tres cosas que hay que mantener:
+
+1. **Sin key no es ilimitado**, y **un fallo de lectura tampoco**. Las dos
+   cosas se resuelven como «consume», que es el lado seguro: dar ilimitado por
+   un error es regalar consumo que paga Verzay. El motor además **lo dice**
+   cuando no puede leer el registro.
+2. **Una llave desactivada sigue siendo de Verzay.** El interruptor decide si
+   recibe cuentas nuevas, no quién paga el consumo de las que ya tiene.
+3. **Borrar una llave sin traspasar sus cuentas está prohibido**, y no solo
+   porque se queden sin servicio: al desaparecer del registro, sus cuentas
+   pasarían a contar como «llave propia del cliente» y recibirían créditos
+   ilimitados sobre una key muerta. El traspaso va **dentro de la misma
+   transacción** que el borrado.
+
+### El reparto es por cupo, y solo toca a las cuentas NUEVAS
+
+Antes la llave era **una sola**, `SECRET_API_KEY`, la misma para todas y sin
+ningún tope: el día que OpenAI la bloqueó se cayeron todas a la vez.
+
+Ahora Carlos registra varias en Panel › API keys, cada una con su cupo. Una
+cuenta nueva se lleva la marcada **por defecto**; cuando esa llega a su cupo, el
+reparto pasa solo a la siguiente libre (`elegirLaLlave`, puro y probado). Y
+**las cuentas que ya existen no se mueven nunca por esto**: se quedan con la que
+tienen. Lo único que las mueve es un traspaso explícito al borrar o al cambiarle
+la clave a su llave.
+
+Dos cosas:
+
+1. **El contador es un `COUNT`, no una columna.** Cuántas cuentas cuelgan de una
+   llave sale de `COUNT(DISTINCT "userId")` sobre `user_ai_configs`, que es
+   donde está la verdad. Guardado, se desincroniza en cuanto un cliente cambie
+   su key —que es justo lo que la regla de arriba espera que pase— y el reparto
+   decidiría sobre un número que ya no es cierto. Y `DISTINCT` porque una cuenta
+   tiene una fila por proveedor: contando filas, la misma cuenta cuenta dos
+   veces (el fallo de la línea de 576 chats que decía 1036).
+2. **La clave no viaja al navegador.** Lo que se pinta son los últimos cuatro
+   caracteres, que es lo único que hace falta para reconocerla.
+
+### Y el recuerdo de «ya creé la tabla» se cae solo si la tabla se va
+
+Las tablas de la App se crean con `CREATE TABLE IF NOT EXISTS` y el proceso
+recuerda que ya lo hizo. Ese recuerdo es **del proceso, no de la base**: si la
+tabla desaparece por debajo —una restauración, un entorno recién levantado—, el
+recuerdo sigue diciendo que existe y **todas** las consultas fallan con `42P01`
+hasta que alguien reinicie el contenedor.
+
+Lo encontró el banco de pruebas: con la tabla borrada a mano, ocho
+comprobaciones seguidas se caían y ninguna se recuperaba. Por eso el acceso va
+por `conLaTabla(...)`, que ante un `42P01` **olvida el recuerdo, la crea y
+reintenta una vez**. Una, no un bucle: si tampoco va la segunda, el problema no
+era que faltara la tabla.
+
+## Los créditos se reponen AL PAGAR, y el cupo se lee de Panel › Planes
+
+Nada reponía los créditos al pagar. El motor tiene su reloj
+(`renewDueCredits`, cada hora) que los repone cuando su `renewalDate` vence,
+pero esa fecha iba por libre: no la movía el cobro. Así que renovaba el mes que
+tocara hubiera pago o no, y el cliente que acababa de pagar seguía con el
+consumo del mes anterior encima. Desde fuera: **se paga y los créditos no
+vuelven.**
+
+Ahora el cobro los repone (`lib/renovar-creditos.ts`, llamado desde
+`setUserBillingDueDateInternal`): `used = 0`, `total` = el cupo del plan, y
+`renewalDate` = la nueva fecha de vencimiento, para que el reloj del motor no
+los reponga otra vez a mitad de ciclo.
+
+Tres cosas:
+
+1. **El cupo se LEE, no se escribe en código** (`lib/cupo-del-plan.ts`). Sale de
+   Panel › Planes, que es donde cada plan tiene su nombre comercial (Básico,
+   Esencial, Business…) y sus créditos. Detrás van, por orden, la suscripción
+   viva de la cuenta, la tabla vieja «Créditos por plan» —que es la que lee el
+   motor— y el respaldo escrito, **solo** para que una cuenta no se quede en
+   cero porque nadie configuró su plan. `deDondeSalio` dice cuál contestó: sin
+   eso, un cupo raro no se puede explicar.
+2. **`personalizado` conserva su total.** Es un acuerdo puesto a mano y
+   reponerle un número calculado se lo borraría en la primera renovación. El
+   consumo sí se repone.
+3. **Un fallo aquí no puede tumbar el cobro**, y tampoco puede ser mudo: unos
+   créditos que no se reponen en silencio no se ven como un error, se ven como
+   «la IA dejó de contestar».
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

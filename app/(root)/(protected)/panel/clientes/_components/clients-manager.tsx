@@ -129,7 +129,10 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         } as Parameters<typeof createUserWithPausar>[0]);
 
         if (result.success) {
-            if (result.data?.id && apiUrl) {
+            // Sin key escrita a mano, la acción coge la que toque del registro
+            // del panel (por defecto, o la siguiente con cupo). Antes el `&&
+            // apiUrl` dejaba la cuenta SIN IA en silencio si el campo iba vacío.
+            if (result.data?.id) {
                 await autoConfigureUserAi(result.data.id, apiUrl);
             }
             // Si el cliente heredó (o no) la key del reseller, el backend devuelve
