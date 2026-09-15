@@ -46,6 +46,30 @@ type Pareja = {
   segundos: number;
 };
 
+/**
+ * ¿Es admin la PERSONA que está sentada delante?
+ *
+ * `currentUser()` devuelve la fila de la cuenta en la que se está metido: con
+ * la cookie de «Ingresar» puesta, el `role` es el del CLIENTE (`user`), no el
+ * de quien entró. Así que un super admin que estaba mirando los chats de un
+ * cliente abría esta ruta y le salía «No autorizado», sin pista de por qué.
+ *
+ * Es la misma regla que ya está escrita para el administrador de una cuenta:
+ * **el rol no se hereda**. Aquí se mira el de siempre, el de la sesión real.
+ */
+async function esAdminDeVerdad(user: { role?: string | null; sessionUserId?: string | null; id: string }): Promise<boolean> {
+  if (isAdminLike(user.role)) return true;
+
+  const real = (user.sessionUserId ?? '').trim();
+  if (!real || real === user.id) return false;
+
+  const fila = await db.user
+    .findUnique({ where: { id: real }, select: { role: true } })
+    .catch(() => null);
+
+  return isAdminLike(fila?.role);
+}
+
 function autorizado(request: Request, esAdmin: boolean): boolean {
   if (esAdmin) return true;
   const esperada = (process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '').trim();
@@ -130,9 +154,63 @@ async function buscarParejas(params: {
   `;
 }
 
+/**
+ * Cuántas parejas hay DE VERDAD, sin el tope de la vuelta.
+ *
+ * El informe decía `parejasEncontradas: 500` con un tope de 500, que es un
+ * número que no informa de nada: no se sabe si son 500 o cinco mil. Es la regla
+ * de siempre —un contador es un `COUNT`, no el largo de lo que se pudo traer—,
+ * y aquí importa más, porque de ese número depende cuántas vueltas hay que dar.
+ *
+ * Misma condición que `buscarParejas`, sin `LIMIT`.
+ */
+async function contarParejas(params: {
+  userId: string;
+  instanceName?: string | null;
+  desde: Date;
+}): Promise<number> {
+  const linea = params.instanceName?.trim();
+  const filas = await db.$queryRaw<{ n: number }[]>`
+    SELECT COUNT(*)::int AS n FROM (
+      SELECT DISTINCT ON (nuestra."id") nuestra."id"
+        FROM "chat_messages" AS nuestra
+        JOIN "chat_messages" AS eco
+          ON eco."userId" = nuestra."userId"
+         AND eco."instanceName" = nuestra."instanceName"
+         AND eco."id" <> nuestra."id"
+         AND eco."fromMe" = TRUE
+         AND eco."messageId" NOT LIKE 'out\_%'
+         AND eco."mediaUrl" IS NULL
+         AND BTRIM(COALESCE(eco."content", '')) = BTRIM(COALESCE(nuestra."content", ''))
+         AND ABS(EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))) <= ${VENTANA_SEGUNDOS}
+         AND (
+               eco."remoteJid" = nuestra."remoteJid"
+            OR EXISTS (
+                 SELECT 1 FROM "chat_lid_map" AS m
+                  WHERE m."userId" = nuestra."userId"
+                    AND (
+                          (m."lid" = REPLACE(eco."remoteJid", '@lid', '') AND m."remoteJid" = nuestra."remoteJid")
+                       OR (m."lid" = REPLACE(nuestra."remoteJid", '@lid', '') AND m."remoteJid" = eco."remoteJid")
+                    )
+               )
+         )
+       WHERE nuestra."userId" = ${params.userId}
+         AND nuestra."fromMe" = TRUE
+         AND nuestra."messageId" LIKE 'out\_%'
+         AND (nuestra."raw" ->> 'sentByAi') = 'true'
+         AND nuestra."mediaUrl" IS NULL
+         AND BTRIM(COALESCE(nuestra."content", '')) <> ''
+         AND nuestra."messageTimestamp" >= ${params.desde}
+         ${linea ? Prisma.sql`AND nuestra."instanceName" = ${linea}` : Prisma.empty}
+       ORDER BY nuestra."id"
+    ) AS t
+  `;
+  return filas[0]?.n ?? 0;
+}
+
 export async function GET(request: Request) {
   const user = await currentUser().catch(() => null);
-  const esAdmin = !!user?.id && isAdminLike(user.role);
+  const esAdmin = !!user?.id && (await esAdminDeVerdad(user));
   if (!autorizado(request, esAdmin)) {
     return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
   }
@@ -186,6 +264,14 @@ export async function GET(request: Request) {
     segundosEntreLasDos: Math.round(p.segundos),
   }));
 
+  // El total de verdad, sin el tope: con `parejasEncontradas: 500` y tope 500 no
+  // se sabe si son 500 o cinco mil, que es justo lo que hay que saber para
+  // decidir cuántas vueltas dar.
+  const total = await contarParejas({ userId, instanceName, desde }).catch((error) => {
+    console.error('[duplicados] no se pudo contar el total', error);
+    return -1;
+  });
+
   if (!aplicar) {
     return NextResponse.json({
       ok: true,
@@ -193,10 +279,13 @@ export async function GET(request: Request) {
       cuenta: userId,
       linea: instanceName ?? '(todas las de la cuenta)',
       desde: desde.toISOString(),
-      parejasEncontradas: tratables.length,
+      parejasEnTotal: total >= 0 ? total : 'no se pudo contar (ver la consola)',
       seTrataraEnEstaVuelta: tratables.length,
+      topePorVuelta: limite,
+      faltanTrasEstaVuelta: total >= 0 ? Math.max(0, total - tratables.length) : null,
       muestra,
       comoAplicar: `${url.pathname}?userId=${userId}${instanceName ? `&instanceName=${instanceName}` : ''}&dias=${dias}&aplicar=si`,
+      siSonMuchas: 'se repite la misma llamada hasta que `parejasEnTotal` diga 0; `limite` sube el tamaño de la vuelta (máximo 2000).',
     });
   }
 
@@ -248,9 +337,11 @@ export async function GET(request: Request) {
     cuenta: userId,
     linea: instanceName ?? '(todas las de la cuenta)',
     desde: desde.toISOString(),
-    parejasEncontradas: tratables.length,
+    parejasEnTotal: total >= 0 ? total : 'no se pudo contar (ver la consola)',
+    tratadasEnEstaVuelta: tratables.length,
     limpiadas,
     fallos,
+    faltan: total >= 0 ? Math.max(0, total - limpiadas) : null,
     muestra,
     siQuedanMas: 'vuelve a llamar sin `aplicar` para ver si el informe ya dice 0.',
   });
