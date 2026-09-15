@@ -1941,22 +1941,36 @@ El motivo: el servidor de Next en modo `standalone` escucha en
 siempre define `HOSTNAME`**, con el id del contenedor. Así que Next no escuchaba
 en `0.0.0.0` sino en la IP de ese nombre, y `127.0.0.1` daba conexión rechazada.
 
-Para volver a ponerlo hacen falta **dos** cosas, no una:
+Hacían falta **dos** cosas, no una, y **ya están las dos**:
 
 - `ENV HOSTNAME=0.0.0.0` en la etapa `runner` del Dockerfile (es la receta
-  oficial de Next para Docker), o que el healthcheck pregunte por
-  `process.env.HOSTNAME` en vez de por `127.0.0.1`.
-- **Comprobarlo dentro de un contenedor, no en local.** En local `HOSTNAME` no
-  es el id de un contenedor, y por eso la prueba local decía que sí.
+  oficial de Next para Docker). Puesto.
+- **Comprobarlo en vez de suponerlo.** Arrancando el `server.js` real con
+  `HOSTNAME` apuntando a una IP distinta de `127.0.0.1` —que es lo que hace
+  Docker— la sonda da **conexión rechazada con la App viva**; con
+  `HOSTNAME=0.0.0.0` contestan `127.0.0.1`, `0.0.0.0` **y el nombre del
+  contenedor**, las tres con 200. Esa tercera es la que importa: es
+  estrictamente más amplio que antes, no distinto.
+
+Así que **el 3 está hecho**, con una sonda tolerante a propósito
+(`interval 10s, timeout 10s, retries 6, start-period 40s`): el hilo de Node es
+uno, una consulta pesada bloquea el bucle de eventos y durante ese rato
+`/api/health` tampoco contesta aunque la App esté bien. Con los valores del
+primer intento (`timeout 5s, retries 3`) un rato ocupado bastaba para que Swarm
+matara la tarea, y eso convierte una lentitud pasajera en una caída.
+
+**Lo que queda es el 2**, y no está en el repo: `Order: start-first` en el stack
+que corre, que se edita en Portainer.
 
 Y el orden importa: **el 3 va antes que el 2**. Con `start-first` y un
 healthcheck que no pasa, la tarea nueva nunca llega a sana y el despliegue se
-queda colgado, que es peor que los 100 segundos de ahora.
+queda colgado, que es peor que los 100 segundos de ahora. Por eso el 3 se
+despliega solo y se deja correr un rato antes de tocar el stack.
 
 Ojo con dónde se tocan: **el `docker-compose.yml` del repo es una plantilla**
 —dominio de ejemplo, límites distintos, un `pgbouncer` que en producción no
-existe—. El stack que corre de verdad se edita en Portainer. Lo único de esta
-lista que se arregla desde el repo es el `CMD` del `Dockerfile`.
+existe—. El stack que corre de verdad se edita en Portainer. Del repo salen el
+`CMD` y el `HEALTHCHECK` del `Dockerfile`; el `start-first`, no.
 
 ## Cerrados
 
