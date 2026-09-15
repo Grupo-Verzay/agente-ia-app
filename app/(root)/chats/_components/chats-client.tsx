@@ -2131,12 +2131,12 @@ export function ChatsClient({
     // El servidor devuelve una entrada por linea pedida, pero una respuesta que
     // no llego trae la lista vacia: se rellena para que el aviso de abajo diga
     // que falto, en vez de callarse.
-    const porLinea = new Map(respuesta.lineas.map((l) => [l.instanceName, l.resultado]));
+    const porLinea = new Map(respuesta.lineas.map((l) => [l.instanceName, l]));
     const results: Array<{ instanceName: string; resultado: FetchChatsResult }> = pedidas.map(
       (instanceName) => ({
         instanceName,
         resultado:
-          porLinea.get(instanceName) ??
+          porLinea.get(instanceName)?.resultado ??
           { success: false, message: `No llego la lista de ${instanceName}.` },
       }),
     );
@@ -2148,9 +2148,20 @@ export function ChatsClient({
       console.warn("[chats] la primera vuelta de la lista, linea por linea", {
         totalMs: Math.round(performance.now() - arranco),
         enUnaSolaPeticion: true,
+        // `empezoEnMs` es el dato que decide si las cuatro arrancan juntas.
+        //
+        //   0, 0, 0, 0          -> paralelas. El cuello es el hilo, no la cola.
+        //   0, 556, 1112, 1668  -> en serie, y hay algo que las encadena.
+        //
+        // Sin esto solo habia duraciones, y una duracion sola no separa las dos
+        // cosas: los cuatro `total` sumaban justo el total de la peticion -que
+        // parece serie- y a la vez los cuatro `acceso` salian identicos -que
+        // parece una promesa compartida, o sea paralelo-.
         lineas: results.map((r) => ({
           linea: r.instanceName,
           ok: r.resultado.success,
+          empezoEnMs: porLinea.get(r.instanceName)?.empezoEnMs ?? null,
+          acaboEnMs: porLinea.get(r.instanceName)?.acaboEnMs ?? null,
           servidor: r.resultado.tiempos ?? "(sin medir)",
         })),
       });

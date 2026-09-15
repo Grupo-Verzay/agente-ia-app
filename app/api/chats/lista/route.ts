@@ -64,8 +64,20 @@ export const runtime = "nodejs";
 const TOPE_DE_LINEAS = 40;
 
 export type RespuestaDeLaLista = {
-  /** Una entrada por linea pedida, en el mismo orden. */
-  lineas: Array<{ instanceName: string; resultado: FetchChatsResult }>;
+  /**
+   * Una entrada por linea pedida, en el mismo orden.
+   *
+   * `empezoEnMs` y `acaboEnMs` son instrumentacion: milisegundos desde que
+   * arranco la peticion. Viajan tambien al navegador para que el aviso de la
+   * consola pueda cruzarlos con lo que el mide por fuera, sin tener que pedir
+   * los registros del contenedor.
+   */
+  lineas: Array<{
+    instanceName: string;
+    resultado: FetchChatsResult;
+    empezoEnMs?: number;
+    acaboEnMs?: number;
+  }>;
 };
 
 export async function POST(request: Request) {
@@ -94,14 +106,52 @@ export async function POST(request: Request) {
 
   // Una vez, no una por linea. Es el motivo entero de que esto sea una sola
   // peticion.
+  const arrancoLaPeticion = Date.now();
   const cuentas = await getAssociatedAccountIds(user);
+  const trasElAcceso = Date.now() - arrancoLaPeticion;
 
+  /**
+   * CUANDO empieza cada linea, no solo cuanto tarda.
+   *
+   * Una duracion sola no distingue dos cosas que se ven igual desde fuera:
+   *
+   * - Las cuatro arrancan juntas y el trabajo pesado -parsear el JSON de la
+   *   bandeja- se las come una detras de otra, porque el hilo es de uno solo.
+   * - Las cuatro van en serie de verdad, y entonces `Promise.all` no esta
+   *   paralelizando nada y hay algo que las encadena.
+   *
+   * Medido en produccion, los cuatro `total` sumaban 2.225 ms y la peticion
+   * entera 2.227: si fueran paralelas, la ultima habria medido 2.227, no 596.
+   * Y a la vez los cuatro `acceso` salian casi identicos (65/68/72/67), que es
+   * lo que se espera de cuatro `await` sobre UNA promesa compartida.
+   *
+   * Las dos lecturas encajan con esos numeros, asi que hace falta el dato que
+   * si las separa: **los milisegundos desde que arranco la peticion** hasta que
+   * cada linea empieza.
+   *
+   *   0, 0, 0, 0            -> arrancan juntas. El cuello es CPU, no la cola.
+   *   0, 556, 1112, 1668    -> van en serie. Buscar que las encadena.
+   */
   const lineas = await Promise.all(
     pedidas.map(async (instanceName) => {
+      const empezoEnMs = Date.now() - arrancoLaPeticion;
       const resultado = await unaLinea(instanceName, cuentas, user.id);
-      return { instanceName, resultado };
+      const acaboEnMs = Date.now() - arrancoLaPeticion;
+      return { instanceName, resultado, empezoEnMs, acaboEnMs };
     }),
   );
+
+  console.info("[chats] las lineas de una vuelta de la lista", {
+    trasElAcceso,
+    totalMs: Date.now() - arrancoLaPeticion,
+    // Si todos los `empezoEnMs` son ~0, arrancan juntas.
+    lineas: lineas.map((l) => ({
+      linea: l.instanceName,
+      empezoEnMs: l.empezoEnMs,
+      acaboEnMs: l.acaboEnMs,
+      servidor: l.resultado.tiempos ?? "(sin medir)",
+    })),
+  });
 
   return NextResponse.json({ lineas } satisfies RespuestaDeLaLista);
 }
