@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { responderJson } from "@/lib/responder-json";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
+import { anotarUnaCarga, type MedicionDeUnaCarga } from "@/lib/vigilancia-de-chats";
 import { resolveInstanceOwner } from "@/lib/chat-persistence";
 import { refetchChatsManualAction } from "@/actions/chat-manual-actions";
 import { fetchChannelChats } from "@/actions/channel-chat-actions";
@@ -88,8 +89,21 @@ export async function POST(request: Request) {
   }
 
   const cuerpo = (await request.json().catch(() => null)) as
-    | { instanceNames?: unknown }
+    | { instanceNames?: unknown; medicionDeLaCarga?: unknown }
     | null;
+
+  // La medicion de la carga anterior viaja de gorra en esta peticion, que sale
+  // igualmente: asi una carga normal no cuesta ni una peticion de mas.
+  //
+  // `void` a proposito, y con su propio `catch`: **la vigilancia no puede hacer
+  // esperar a la pantalla que vigila**, ni tumbarla. Lo unico que puede pasar
+  // si esto falla es que falte una fila, y `anotarUnaCarga` ya lo avisa.
+  if (cuerpo?.medicionDeLaCarga) {
+    void anotarUnaCarga(
+      user.ownerId ?? user.id,
+      cuerpo.medicionDeLaCarga as MedicionDeUnaCarga,
+    ).catch(() => {});
+  }
   const pedidas = Array.isArray(cuerpo?.instanceNames)
     ? cuerpo!.instanceNames
         .filter((n): n is string => typeof n === "string")
