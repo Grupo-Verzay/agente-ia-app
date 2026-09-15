@@ -166,9 +166,21 @@ const hablaConEvolution = (instanceType?: string | null): boolean =>
   !LINEAS_SIN_EVOLUTION.includes((instanceType ?? '').trim().toLowerCase());
 
 const INITIAL_MESSAGE_PAGE_SIZE = 25;
-// Máx. de prefetch simultáneos que tocan Evolution. Acota los picos cuando se
-// hacen visibles muchas filas de golpe o al precalentar los chats de arriba.
-const PREFETCH_MAX_CONCURRENT = 4;
+// Max. de precargas simultaneas. Acota los picos cuando se hacen visibles
+// muchas filas de golpe o al precalentar los chats de arriba.
+//
+// Estuvo en 4, y durante mucho tiempo **daba igual el numero**: la precarga era
+// una accion de servidor y Next las atiende de una en una, asi que solo salia
+// una. Al sacarla a `/api/chats/conversacion` el tope paso a ser real... y a
+// notarse: cada peticion resuelve su propio `currentUser()` -2 a 4 consultas- y
+// cuatro a la vez, encima de la lista y de las sesiones, encarecieron todo lo
+// demas. Medido: `acceso` paso de 65-72 ms a 427-606, y el total de cada linea
+// de ~550 ms a 1.266-1.537.
+//
+// Dos, que es precargar de verdad sin convertir la bandeja en cuatro sesiones
+// de trabajo simultaneas contra un pool de diez conexiones. Lo que arreglaria
+// esto de raiz es que `currentUser()` no se resuelva entero en cada peticion.
+const PREFETCH_MAX_CONCURRENT = 2;
 // Cuántos chats de la parte superior (los más probables de abrir) se precalientan
 // proactivamente al cargar la lista, sin esperar hover ni que se hagan visibles.
 const PREFETCH_TOP_CHATS = 14;

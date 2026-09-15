@@ -868,8 +868,35 @@ async function hardDeleteLocalChat(
  * consulta solo tiene trabajo con las lineas de Evolution, que son las que
  * siguen guardando marca porque alli el chat sigue vivo en el telefono.
  */
+/**
+ * Cada cuanto se barren TODAS las marcas de una cuenta, por proceso.
+ *
+ * Esto corria en CADA carga de Chats, de cada asesor y de cada pestaña, y era
+ * lo mas caro del arranque: 1.111 ms de los 1.317 que tardaban las siete
+ * consultas juntas -las otras seis acaban por debajo de 60 ms-. Y para 314
+ * filas, porque lo que cuesta no son las marcas: son los tres `EXISTS` contra
+ * `chat_messages`, que es la tabla mas grande, por cada marca borrada.
+ *
+ * Se espacia porque **no es el camino vivo**. Cuando el contacto escribe, la
+ * marca la levanta el navegador: en memoria al momento, y en la base con
+ * `levantarMarcaDeBorradoAction`, chat por chat. Esto de aqui es la red de
+ * seguridad para lo que aquel no vio -otra pestaña, otro asesor, un mensaje que
+ * entro con la App cerrada-, y una red de seguridad no tiene que correr cada
+ * vez que alguien abre la pantalla.
+ *
+ * Es el mismo trato que ya tenia `crearFichasQueFaltan`, por el mismo motivo.
+ */
+const BARRER_MARCAS_CADA_MS = 5 * 60 * 1000;
+const ultimoBarridoDeMarcas = new Map<string, number>();
+
 async function levantarMarcasSiElContactoEscribio(userIds: string[]): Promise<void> {
   if (!userIds.length) return;
+  // Por cuenta: que una tenga mucho movimiento no puede dejar a las demas sin
+  // barrer, ni al reves.
+  const ahora = Date.now();
+  const llave = userIds.slice().sort().join("|");
+  if (ahora - (ultimoBarridoDeMarcas.get(llave) ?? 0) < BARRER_MARCAS_CADA_MS) return;
+  ultimoBarridoDeMarcas.set(llave, ahora);
   try {
     const revividas = await db.$queryRaw<
       Array<{ userId: string; instanceName: string; remoteJid: string }>
@@ -1121,11 +1148,24 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
     const user = await currentUser();
     if (!user?.id) throw new Error("No autorizado.");
 
-    await ensurePurgedAtColumn();
+    // Los cuatro pasos, cronometrados. `marcasDeBorrado` salia como un solo
+    // numero -1.111 ms- y dentro hay cuatro cosas distintas: sin esto, decidir
+    // cual adelgazar es a ojo.
+    const tiempos: Record<string, number> = {};
+    const medir = async <T,>(nombre: string, trabajo: () => Promise<T>): Promise<T> => {
+      const t0 = Date.now();
+      try {
+        return await trabajo();
+      } finally {
+        tiempos[nombre] = Date.now() - t0;
+      }
+    };
+
+    await medir("columna", () => ensurePurgedAtColumn());
     const userIds = await getAssociatedAccountIds(user);
-    await levantarMarcasSiElContactoEscribio(userIds);
-    await crearFichasQueFaltan(userIds);
-    const preferences = await chatConversationPreferenceTable.findMany({
+    await medir("levantarMarcas", () => levantarMarcasSiElContactoEscribio(userIds));
+    await medir("fichasQueFaltan", () => crearFichasQueFaltan(userIds));
+    const preferences = await medir("leerLasMarcas", () => chatConversationPreferenceTable.findMany({
       where: { userId: { in: userIds } },
       select: {
         userId: true,
@@ -1137,7 +1177,17 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
         purgedAt: true,
         updatedAt: true,
       },
-    });
+    }));
+
+    // Solo cuando duele. Por debajo de esto es ruido en cada carga de Chats.
+    const total = Object.values(tiempos).reduce((a, b) => a + b, 0);
+    if (total > 400) {
+      console.warn("[chats] las marcas de borrado van caras", {
+        ...tiempos,
+        total,
+        filas: preferences.length,
+      });
+    }
 
     const data = preferences.reduce<ChatConversationPreferenceMap>((acc, item) => {
       if (!item.userId) return acc;
