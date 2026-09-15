@@ -410,12 +410,20 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   useEffect(() => {
     const perdidas = messages.length - baseBubbles.length;
     const sobranId = new Set(baseBubbles.map((b) => b.id));
+    // La burbuja se identifica con `m.key.id || m.id`, y cuando no hay ninguno
+    // de los dos con un id inventado al vuelo (ver `toUIMessages`). Ese caso no
+    // se puede emparejar desde aqui, asi que se marca en vez de darlo por no
+    // pintado: un instrumento que miente es peor que no tenerlo, y es justo el
+    // error que se vino a evitar.
     const noSePintan = perdidas > 0
       ? messages
-          .filter((m) => !sobranId.has(m.key?.id ?? '') && !sobranId.has(String(m.id ?? '')))
+          .filter((m) => {
+            const id = m.key?.id || (m.id ? String(m.id) : '');
+            return !id || !sobranId.has(id);
+          })
           .slice(-12)
           .map((m) => ({
-            id: m.key?.id ?? m.id,
+            id: m.key?.id || m.id || '(sin id: no se puede emparejar)',
             tipo: m.messageType,
             claves: Object.keys((m.message ?? {}) as Record<string, unknown>).join(','),
             deQuien: m.key?.fromMe ? 'mio' : 'del contacto',
@@ -426,7 +434,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       chat: info?.remoteJid,
       enElEstado: messages.length,
       sePintan: baseBubbles.length,
-      conNotas: baseBubbles.length,
       noSePintan: perdidas,
       porQue: noSePintan,
     });
