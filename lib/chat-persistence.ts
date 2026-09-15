@@ -7,7 +7,7 @@ import {
   pickObservedAlternateRemoteJid,
   pickPreferredWhatsAppRemoteJid,
 } from '@/lib/whatsapp-jid';
-import { esSobreInternoDeWhatsapp } from '@/lib/whatsapp-message-kinds';
+import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
@@ -1219,7 +1219,18 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
   // Sobres internos de WhatsApp (la edición de un mensaje, el voto de una
   // encuesta): no se guardan. Pasaban el filtro de payload por no ser texto y
   // acababan como una burbuja vacía con el nombre del tipo.
-  if (esSobreInternoDeWhatsapp(input.messageType)) return;
+  //
+  // Por el tipo DE VERDAD, no por el rótulo: en un grupo el reparto de claves
+  // viaja junto al mensaje y descartando por el rótulo se tiraba el mensaje
+  // entero, sin fila y sin aviso. Un sobre de verdad no trae clave de
+  // contenido, conserva su nombre y se sigue descartando igual.
+  const tipoDeVerdad = tipoRealDeWhatsapp(
+    input.messageType,
+    (input.raw && typeof input.raw === 'object' && !Array.isArray(input.raw)
+      ? ((input.raw as Record<string, any>).message ?? input.raw)
+      : null) as Record<string, any> | null,
+  );
+  if (esSobreInternoDeWhatsapp(tipoDeVerdad)) return;
 
   if (isDeleteEvent) {
     // El cliente borró un mensaje ("eliminar para todos"). NO se persiste el
