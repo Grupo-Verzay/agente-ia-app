@@ -17,7 +17,6 @@ import {
 import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
 import type { ChatBootstrapResponse } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
-import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { sendMetaTemplate, traerMasChatsDeLaLinea, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
@@ -31,6 +30,8 @@ import {
 } from "@/lib/traza-panel";
 import { apuntarAccion, volcarLaColaDeAcciones } from "@/lib/cola-de-acciones";
 import { pedirSinCola } from "@/lib/pedir-sin-cola";
+import { expandirSesiones } from "@/lib/sesiones-por-el-cable";
+import type { RespuestaDeLasSesiones } from "@/app/api/chats/sesiones/route";
 import type { RespuestaDeLaLista } from "@/app/api/chats/lista/route";
 import { mencionaUnaPromesa } from "@/lib/commitment-detection";
 import type {
@@ -448,6 +449,42 @@ export type InstanceHealth = {
   messages?: number;
   updatedAt?: string;
 };
+
+/**
+ * Las sesiones de la cuenta, por `/api` y ya expandidas.
+ *
+ * Tres sitios las piden -el arranque, su reintento y el reloj de 60 s- y los
+ * tres tienen que pedirlas IGUAL. Cuando cada uno armaba su llamada, uno se
+ * quedo sin el reintento y otro sin medir; con una sola funcion eso no puede
+ * volver a pasar.
+ *
+ * Devuelve siempre algo: `pedirSinCola` no revienta, y aqui un fallo sale como
+ * `success: false` con su motivo, que es lo que los tres ya sabian tratar.
+ */
+async function pedirLasSesiones(
+  userIds: string[] | string,
+): Promise<
+  | { success: true; data: ChatContactSessionSummary[]; message: string; tiempos?: Record<string, number> }
+  | { success: false; message: string; tiempos?: Record<string, number> }
+> {
+  const sessionUserIds = Array.isArray(userIds) ? userIds : [userIds];
+  const respuesta = await pedirSinCola<RespuestaDeLasSesiones>(
+    "/api/chats/sesiones",
+    { sessionUserIds },
+    { success: false, message: "No se pudieron pedir las sesiones." },
+  );
+  if (!respuesta.success) {
+    return { success: false, message: respuesta.message, tiempos: respuesta.tiempos };
+  }
+  return {
+    success: true,
+    message: respuesta.message,
+    // Aqui se vuelven a montar las etiquetas desde el diccionario: a partir de
+    // esta linea el resto del codigo ve exactamente la forma de siempre.
+    data: expandirSesiones(respuesta.data),
+    tiempos: respuesta.tiempos,
+  };
+}
 
 export type InstanceActionSet = {
   instanceName: string;
@@ -1792,10 +1829,10 @@ export function ChatsClient({
       // diagnosticar sin saber cuantas sesiones vuelven, cuanto pesan y cuanto
       // tarda cada parte; con esto se ve de un vistazo.
       const arrancoEn = performance.now();
-      const result = await getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId);
+      const result = await pedirLasSesiones(sessionUserIds?.length ? sessionUserIds : userId);
       const tardoRed = Math.round(performance.now() - arrancoEn);
 
-      const sesiones = result.success ? result.data ?? [] : [];
+      const sesiones = result.success ? result.data : [];
       const arrancoEmparejar = performance.now();
       const mapa = result.success ? emparejarSesiones(chats, sesiones) : {};
       const tardoEmparejar = Math.round(performance.now() - arrancoEmparejar);
@@ -1894,9 +1931,7 @@ export function ChatsClient({
     const reintentarLasSesiones = () => {
       window.setTimeout(() => {
         if (cancelled || sesionesYaAplicadasRef.current) return;
-        void apuntarAccion("getSesionesDeLaCuenta (reintento)", () =>
-          getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId),
-        )
+        void pedirLasSesiones(sessionUserIds?.length ? sessionUserIds : userId)
           .then((otra) => {
             if (cancelled || !otra.success) {
               if (!cancelled) {
@@ -1907,7 +1942,7 @@ export function ChatsClient({
               return;
             }
             sesionesYaAplicadasRef.current = true;
-            aplicarSesiones(otra.data ?? []);
+            aplicarSesiones(otra.data);
             console.warn("[chats] las sesiones llegaron en el reintento");
           })
           .catch((error) => {
@@ -1920,20 +1955,21 @@ export function ChatsClient({
     };
 
     const arrancoSesiones = performance.now();
-    void apuntarAccion("getSesionesDeLaCuenta (las insignias de la fila)", () =>
-      getSesionesDeLaCuenta(sessionUserIds?.length ? sessionUserIds : userId),
-    ).then(
+    // Por `/api`, no por una accion: era la ultima grande que quedaba en la
+    // cola. `esperoEnColaMs` 0 pero `tardoMs` 1.743 con el servidor diciendo
+    // 454, y el hueco escalaba con la cantidad: es el traslado, no la consulta.
+    void pedirLasSesiones(sessionUserIds?.length ? sessionUserIds : userId).then(
       (result) => {
         const red = Math.round(performance.now() - arrancoSesiones);
         if (cancelled) return;
         const arrancoEmparejar = performance.now();
         if (result.success) {
           sesionesYaAplicadasRef.current = true;
-          aplicarSesiones(result.data ?? []);
+          aplicarSesiones(result.data);
         }
         medicionRef.current.sesiones = {
           ok: result.success,
-          cuantas: result.success ? (result.data ?? []).length : 0,
+          cuantas: result.success ? result.data.length : 0,
           idaYVuelta: red,
           emparejar: Math.round(performance.now() - arrancoEmparejar),
           puestasEn: Math.round(performance.now() - medicionRef.current.t0),
