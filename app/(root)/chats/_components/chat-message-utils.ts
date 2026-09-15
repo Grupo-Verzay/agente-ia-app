@@ -592,7 +592,13 @@ export function normalizeDeliveryState(status?: string): MessageDeliveryState {
   if (s === 'SERVER_ACK' || s === 'SENT') return 'sent';
   if (s === 'DELIVERY_ACK' || s === 'DELIVERED' || s === 'DEVICE_ACK') return 'delivered';
 
-  if (s === 'READ' || s === 'READ_ACK' || s === 'PLAYED' || s === 'PLAYED_ACK') return 'read';
+  if (s === 'READ' || s === 'READ_ACK') return 'read';
+
+  // `PLAYED` venía aplastado aquí dentro, junto con `READ`. El dato llegaba
+  // entero desde WhatsApp —Waha lo manda como `ack: 4`, el backend lo guarda en
+  // `raw.status` y por encima de READ en el rango del acuse— y se perdía en
+  // esta línea, la última antes del píxel.
+  if (s === 'PLAYED' || s === 'PLAYED_ACK') return 'played';
 
   if (s === 'ERROR' || s === 'FAILED' || s === 'FAIL') return 'failed';
 

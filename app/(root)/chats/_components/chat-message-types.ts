@@ -58,7 +58,19 @@ export type MediaData = {
   fileName?: string;
 };
 
-export type MessageDeliveryState = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+/**
+ * Lo lejos que llegó un mensaje NUESTRO.
+ *
+ * `played` es el tercer estado de una nota de voz: el contacto no solo la
+ * recibió y abrió el chat, la ESCUCHÓ. WhatsApp lo enseña en el micrófono, no
+ * en las palomitas, porque escuchada implica leída.
+ *
+ * OJO al añadir un valor aquí: quien compare contra uno concreto y no lo
+ * contemple se cae a su rama por defecto sin dar error. Los dos sitios que
+ * pintan esto son `MessageStatusIndicator` (la burbuja) y `PalomitaDeLaFila`
+ * (la fila de la lista), y los dos tratan `played` como `read`.
+ */
+export type MessageDeliveryState = 'sending' | 'sent' | 'delivered' | 'read' | 'played' | 'failed';
 
 export type UIBubble = {
   id: string;
