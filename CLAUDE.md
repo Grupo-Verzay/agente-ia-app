@@ -593,43 +593,63 @@ Y dos que se quedan fuera a propósito: **Llamar por WhatsApp** —un grupo no
 tiene número al que llamar— y **Macros**, porque una macro puede llevar dentro
 `ADD_TAG`, `ASSIGN_ADVISOR` o `RESOLVE` y se ejecutaría a medias sin decirlo.
 
-### El id de un mensaje de grupo viene PELADO, y quién escribió va aparte
+### El id de un mensaje de grupo: PELADO por el webhook, con el participante por la API
 
-Esta sección decía lo contrario y estaba **mal**. Se deja escrito el error,
-porque el error es la lección.
+Esta sección se ha escrito **tres veces** y las dos primeras estaban mal. La
+tercera es la que tiene los dos datos delante, no uno.
 
-Se diagnosticó «la conversación de grupo va perdiendo sus mensajes sola»
-**suponiendo la forma del id** en vez de mirando uno. La suposición era que
-Waha serializa `<fromMe>_<chat>_<id>_<participante>` en un grupo, y de ahí que
-la llave de deduplicación —`regexp_replace("messageId", '^(true|false)_.*_', '')`,
-con un `.*` codicioso— acabara siendo **quién escribió**. Se demostró el
-colapso en una prueba escrita a mano, se cambió el patrón, se desplegó, y **no
-arregló nada**, porque el supuesto era falso.
-
-Un id de grupo tal y como llega, sacado de los registros de producción:
+**Las dos formas existen, y por eso despistó tanto:**
 
 ```
-"remoteJid":"120363404825812021@g.us","fromMe":false,"id":"3EB0F2EE979A18E76A722E",
-"participant":"210101696733292@lid","participantAlt":"50761943156@s.whatsapp.net"
+webhook        "id":"3EB0F2EE979A18E76A722E"          ← PELADO
+               "participant":"210101696733292@lid"       (aparte, en key)
+
+API de Waha    false_1203634…@g.us_3EB0A1B2_2101016…@lid  ← SERIALIZADO
+                                             ^^^^^^^^^^^  quién escribió
 ```
 
-O sea: **el id viene pelado**, sin prefijos, y **el participante viaja aparte**,
-en `key.participant` / `key.participantAlt`. Así que ese `^(true|false)_.*_`
-nunca llegaba a casar con nada en un grupo y jamás fue la causa. El patrón se
-quedó en `'^(true|false)_[^_]+_'` porque es más correcto para los ids que
-**sí** vienen serializados (los 1:1 de Waha, `<fromMe>_<chat>_<id>`), pero
-**no arregló el síntoma por el que se cambió**.
+Así que **el id de WhatsApp es el TERCER trozo, nunca el último**, y quien mire
+solo una de las dos fuentes saca una conclusión falsa. Eso pasó dos veces:
+primero se supuso la forma serializada sin mirar ninguna, y después se miró
+**solo el webhook** y se concluyó que el id venía siempre pelado. Las dos veces
+se desplegó un cambio que no arreglaba el síntoma.
 
-Dos reglas, y la segunda vale para todo este documento:
+Lo que de verdad costaba la conversación era `idDeWhatsapp` en el navegador,
+con `/^(?:true|false)_.+_(.+)$/`: ese `.+` es **codicioso**, se come hasta el
+último `_`, y en un grupo la llave acaba siendo **quién escribió**. Todos los
+mensajes de una misma persona colapsan en uno dentro del mapa de
+`mergeMessages`.
 
-1. **De un id serializado, el id de WhatsApp es el tercer trozo**
-   (`<fromMe>_<chat>_<id>`), y en un grupo **no hay cuarto trozo**. Quién
-   escribió no está en el id: está en `raw.key.participant`.
-2. **Una forma de dato se COMPROBA sobre un dato real antes de escribir código
-   que dependa de ella.** Una prueba escrita a mano confirma lo que ya se creía
-   —se le dan de comer los ids que uno imagina— y por eso pasó en verde
-   mientras la producción seguía igual. Un registro, una fila de la base o la
-   pantalla; una prueba unitaria sobre datos inventados, no.
+Medido en producción, grupo de 9 mensajes y 2 participantes:
+
+```
+[chats] abrir: se pintan los mensajes  { trae: 9, habia: 9 }
+[chats] mensajes de la conversacion    { enElEstado: 9, sePintan: 9 }
+[chats] sondeo del chat abierto        { habia: 2, trajo: 9 }
+[chats] mensajes de la conversacion    { enElEstado: 2, sePintan: 2 }
+```
+
+**Una unión de 2 y 9 no puede dar 2.** Eso solo pasa si las llaves colapsan, y
+9 mensajes de 2 personas colapsan en exactamente 2. La apertura se salvaba
+porque `setMessages(openMessages)` guarda el arreglo **tal cual, sin mapa**; el
+colapso llegaba en la primera mezcla, a los segundos. De ahí el síntoma: «se ve
+entera y a los dos segundos se queda en uno».
+
+Tres reglas:
+
+1. **De un id serializado se coge el TERCER trozo**, cortando por `_`, y no se
+   usa una expresión con `.+` en medio. Lo hacen `idDeWhatsapp` (navegador),
+   `idCrudoDeMensaje` —que ahora llama a la anterior en vez de tener su propia
+   expresión— y el emparejador de acuses del backend.
+2. **Una forma de dato se comprueba en TODAS sus fuentes.** El webhook y la API
+   del mismo proveedor no entregan lo mismo. Mirar una y generalizar es lo que
+   costó las dos vueltas anteriores.
+3. **Un número que no puede ser señala el sitio.** `2 + 9 = 2` no es una pista
+   ambigua: es una llave que colapsa, y eso acota la búsqueda a la función que
+   construye la llave. Los avisos que lo revelaron —`enElEstado` frente a
+   `sePintan`, y `habia`/`trajo` en cada ciclo— separan «se pierden en el
+   estado» de «no se pintan», que es la pregunta que hay que contestar ANTES de
+   tocar nada.
 
 ## Una recarga tiene que decir por qué
 
