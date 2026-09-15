@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { cookies } from "next/headers";
+import { llaveDeLaSesion, recordarPorSesion } from "@/lib/cache-de-sesion";
 import type { Prisma } from "@prisma/client";
 
 const USER_SELECT = {
@@ -55,7 +56,9 @@ export type CurrentUser = DbUser & { effectiveId: string; sessionUserId: string 
 
 type AccountRole = "agente" | "administrador";
 
-const userCache = new WeakMap<Request, Promise<CurrentUser | null>>();
+// El cache por objeto `Request` que habia aqui se fue con la cache por sesion:
+// exigia que el llamador pasara el `Request` y NINGUNO lo hacia (comprobado en
+// todo el repo). La de `lib/cache-de-sesion.ts` no pide nada al llamador.
 
 /**
  * Usuario de la petición actual, memoizado.
@@ -77,11 +80,36 @@ const userCache = new WeakMap<Request, Promise<CurrentUser | null>>();
  */
 export const currentUser = cache(_currentUser);
 
-async function _currentUser(request?: Request): Promise<CurrentUser | null> {
-    if (request && userCache.has(request)) {
-        return userCache.get(request)!;
+/**
+ * Y una cache corta ENTRE peticiones, encima de la de React.
+ *
+ * `cache()` deduplica dentro de un render, y un route handler no abre ese
+ * ambito: ahi es un paso directo. Con Chats fuera de la cola de acciones, una
+ * carga son cinco peticiones resolviendo lo mismo desde cero.
+ *
+ * La llave son las cookies que deciden el resultado, asi que el conmutador de
+ * cuentas y el cierre de sesion se invalidan solos. Dura 5 s. Lo que se recuerda
+ * es QUIEN ERES, no a que llegas: el alcance se consulta en vivo en cada
+ * llamada. Todo el razonamiento esta en `lib/cache-de-sesion.ts`.
+ */
+async function _currentUser(): Promise<CurrentUser | null> {
+    let llave: string | null = null;
+    try {
+        llave = llaveDeLaSesion(cookies().getAll());
+    } catch {
+        // Fuera del ambito de una peticion no hay cookies que leer: se resuelve
+        // como siempre, sin recordar nada.
+        llave = null;
     }
 
+    return recordarPorSesion(llave, () => resolverElUsuario(), {
+        // Un `null` -sin sesion- no se cachea nunca: seria recordar que alguien
+        // no ha entrado, y eso tiene que volver a comprobarse siempre.
+        sirveParaCachear: (valor) => valor !== null,
+    });
+}
+
+async function resolverElUsuario(): Promise<CurrentUser | null> {
     const session = await auth();
     if (!session?.user?.id) return null;
 
@@ -276,10 +304,6 @@ async function _currentUser(request?: Request): Promise<CurrentUser | null> {
             sessionUserId: realUser.id,
         };
     });
-
-    if (request) {
-        userCache.set(request, userPromise);
-    }
 
     return userPromise;
 }
