@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import {
   buildWhatsAppJidCandidates,
+  isGroupJid,
   normalizeWhatsAppConversationJid,
   pickExplicitWhatsAppPhoneJid,
   pickObservedAlternateRemoteJid,
@@ -682,6 +683,16 @@ function avisarLineaSinDueno(instanceName: string | null | undefined, mirando: s
 }
 
 export async function upsertSessionFromChatMessage(input: PersistChatMessageInput) {
+  // UN GRUPO NO ES UN LEAD, y nunca lo fue: `cleanupJunkSessions` existe para
+  // borrar precisamente estas filas. Desde que los grupos entran en la bandeja
+  // esto deja de ser teorico —el reloj del chat abierto persiste los mensajes
+  // del grupo que se este mirando—, asi que la puerta se cierra aqui, que es
+  // donde se crea la basura y no donde se barre.
+  //
+  // La conversacion y sus mensajes SI se guardan: quien los escribe es
+  // `persistChatMessage`, y esto es solo la ficha de CRM.
+  if (isGroupJid(input.remoteJid) || isGroupJid(input.remoteJidAlt)) return;
+
   const remoteJid = normalizeStoredRemoteJid(input.remoteJid, [
     input.remoteJidAlt,
     input.senderPn,
@@ -1861,16 +1872,40 @@ export async function contarChatsPorLinea(params: {
         WHERE "userId" IN (${Prisma.join(userIds)})
           AND ("deletedAt" IS NOT NULL OR "archivedAt" IS NOT NULL)
       )
-      SELECT s."instanceId" AS linea, COUNT(DISTINCT s."remoteJid") AS total
-      FROM "Session" s
-      LEFT JOIN marcas m  ON m."userId"  = s."userId" AND m."remoteJid"  = s."remoteJid"
-      LEFT JOIN marcas ma ON ma."userId" = s."userId" AND ma."remoteJid" = s."remoteJidAlt"
-      WHERE s."userId" IN (${Prisma.join(userIds)})
-        AND s."remoteJid" NOT LIKE '%@lid'
-        ${lineas.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(lineas)})` : Prisma.empty}
-        AND m."remoteJid" IS NULL
-        AND ma."remoteJid" IS NULL
-      GROUP BY s."instanceId"
+      SELECT linea, SUM(total)::bigint AS total FROM (
+        SELECT s."instanceId" AS linea, COUNT(DISTINCT s."remoteJid") AS total
+        FROM "Session" s
+        LEFT JOIN marcas m  ON m."userId"  = s."userId" AND m."remoteJid"  = s."remoteJid"
+        LEFT JOIN marcas ma ON ma."userId" = s."userId" AND ma."remoteJid" = s."remoteJidAlt"
+        WHERE s."userId" IN (${Prisma.join(userIds)})
+          AND s."remoteJid" NOT LIKE '%@lid'
+          ${lineas.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(lineas)})` : Prisma.empty}
+          AND m."remoteJid" IS NULL
+          AND ma."remoteJid" IS NULL
+        GROUP BY s."instanceId"
+
+        UNION ALL
+
+        -- Y LOS GRUPOS, que no tienen ficha en Session y nunca la tendran: un
+        -- grupo no es un lead. Contaban cero mientras la lista si los enseña, y
+        -- eso es el fallo de siempre —un filtro que ofrece un numero al que no
+        -- se puede llegar—, del reves: la lista enseñaba MAS de lo que el
+        -- numero prometia, y solo en las lineas grandes, donde el Math.max
+        -- del navegador ya no lo tapa.
+        --
+        -- Sale de chat_conversations, que es donde vive un grupo, por
+        -- (userId, instanceName, remoteJid) -su indice unico-. Y descuenta las
+        -- mismas marcas, o vuelve el fallo de borrar y ver el numero igual.
+        SELECT c."instanceName" AS linea, COUNT(DISTINCT c."remoteJid") AS total
+        FROM "chat_conversations" c
+        LEFT JOIN marcas mg ON mg."userId" = c."userId" AND mg."remoteJid" = c."remoteJid"
+        WHERE c."userId" IN (${Prisma.join(userIds)})
+          AND c."remoteJid" LIKE '%@g.us'
+          ${lineas.length ? Prisma.sql`AND c."instanceName" IN (${Prisma.join(lineas)})` : Prisma.empty}
+          AND mg."remoteJid" IS NULL
+        GROUP BY c."instanceName"
+      ) AS todo
+      GROUP BY linea
     `;
 
     // Un contador nunca deberia costar; si algun dia cuesta, que se vea.
