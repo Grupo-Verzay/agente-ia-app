@@ -182,6 +182,82 @@ Tres cosas que hay que mantener:
    sigue escuchando y, si el chat sigue abierto cuando llega, **se pinta**. Nunca
    volver al `race` contra `reject`: eso tira trabajo ya hecho.
 
+## Muchas peticiones pequeñas son turno, no trabajo
+
+Cuando la misma pantalla pide lo mismo decenas de veces —una por fila, una por
+chat, una por lo que sea—, llega un punto en que bajar lo que cuesta cada una
+**deja de servir de nada**: el navegador abre **seis conexiones a la vez**, así
+que a partir de ahí lo que se mide es la cola.
+
+La señal de que se ha llegado a ese punto: la consulta medida contra la base
+tarda milisegundos y la petición tarda cientos, y **todas tardan parecido**. Ese
+número de más no está en ningún sitio del servidor porque no es trabajo; es
+esperar turno. Buscarlo en el servidor es perder la tarde.
+
+Lo que se hace entonces es **agrupar, y agrupar por las tandas que ya existen**.
+La precarga de Chats son dos —los primeros chats al entrar y el precalentado
+unos segundos después—, así que son **dos paquetes**, no uno gigante ni cinco
+inventados. Si se parte en más de las que hay, se está eligiendo un número al
+azar.
+
+Y lo que se agrupa se elige: **lo que llega de golpe va en paquete, lo que llega
+goteando va suelto.** La precarga por fila visible sigue de a una a propósito;
+meterla en un paquete sería esperar a que el paquete se llene, que es justo lo
+contrario de lo que se busca.
+
+### Un paquete que se pierde entero no puede verse como un error
+
+Un paquete tiene una avería que no tenían las peticiones sueltas: si revienta,
+se lleva a todos sus chats. Se acepta **solo** donde lo que se pierde es una
+mejora y no un dato: la precarga es best-effort, y si no llega, el chat se abre
+al pulsarlo como se abría antes. **Nada que la persona vaya a echar en falta se
+mete en un paquete que pueda perderse entero.**
+
+### Y las tres cosas que un paquete tiene que traer
+
+1. **`Promise.allSettled`, nunca `Promise.all`.** Con `all` un solo rechazo tira
+   las respuestas buenas que ya estaban resueltas. Cada cosa en su casilla, y la
+   casilla dice **de quién es**: sin eso, quien recibe el paquete no sabe a qué
+   fila pertenece cada resultado.
+2. **Su propio plazo, por debajo del de quien consulta por dentro.** Escalonados,
+   como el resto de plazos de Chats. Si se igualan, uno lento se come el paquete
+   entero y tarda más que las peticiones sueltas que vino a sustituir.
+3. **Tres estados, y `pendiente` NO es un fallo.** Lo que no llegó a tiempo
+   **sigue corriendo detrás** y se persiste, así que la vuelta siguiente lo
+   recoge ya de nuestra base — la regla de siempre, *agotar la espera no es
+   tirar la respuesta*, aplicada a un paquete. Por eso quien lo recibe **no lo
+   marca como intentado**: eso sería renunciar a él para toda la sesión. Un
+   `rechazado`, en cambio, sí es firme y dice por qué.
+
+## Dentro del servidor son turnos, no tandas
+
+Cuando una petición atiende muchas cosas a la vez hay que acotar cuántas corren
+en paralelo —el pool de Prisma es de **10 por proceso** y el proceso es uno, así
+que cincuenta consultas simultáneas se comen los turnos de la lista y del chat
+abierto, que son **mensajes**—.
+
+El cómo acotar no es indiferente, y esta es la trampa:
+
+```ts
+// MAL: lotes que se esperan unos a otros
+for (let i = 0; i < cosas.length; i += 5) {
+  await Promise.allSettled(cosas.slice(i, i + 5).map(hacer));
+}
+```
+
+Con lotes, **uno colgado retiene su lote entero** hasta el plazo, y los lotes de
+detrás no llegan ni a empezar. Medido en el banco de pruebas: 12 chats con 2
+colgados devolvía **4 listos y 8 pendientes**, cuando lo correcto son 10 y 2.
+
+O sea: es el mismo mal que se acaba de quitar fuera —esperar turno en vez de
+trabajar— reaparecido dentro. **Son N obreros tirando de una cola común**, no
+lotes de N: el que se queda pillado retiene su sitio y los demás siguen
+vaciando la cola. Y el resultado se guarda **por posición**, para que la
+respuesta salga en el orden en que se pidió aunque terminen desordenadas.
+
+La regla, corta: **si se acota la concurrencia, se acota con una cola, nunca con
+lotes.**
+
 ## Chats: resincronizar historial NO es novedad
 
 Cuando un asesor escribe desde la App, la IA se calla: `pausarIaPorIntervencionHumana`
@@ -555,6 +631,47 @@ Tres cosas:
 3. Cuando un legítimo reciba «No autorizado», **se arregla la pantalla que
    manda el id equivocado, no la regla.** El caso típico: pasar el id del asesor
    donde la regla espera el de su dueño.
+
+### Y si se recuerda para no repetirla, la llave son los DATOS que deciden
+
+Una pantalla son decenas de peticiones y cada una resuelve desde cero quién eres
+y a qué llegas. `currentUser()` son 2 a 4 consultas; `getAssociatedAccountIds`
+es un `UNION` en crudo. Cincuenta veces lo mismo para la misma respuesta.
+
+Se puede recordar unos segundos (`lib/cache-de-sesion.ts`), y lo único delicado
+es **con qué llave**. La regla: **la llave son las cosas que deciden la
+respuesta, todas, y nada más.**
+
+De ahí salen dos llaves distintas, y la diferencia importa:
+
+- **Quién eres** se decide con las **credenciales**: las cookies de sesión, el
+  `impersonate_user_id` y el `active_account_id`. Que la llave sea la credencial
+  es lo que hace que dos personas no puedan compartir entrada —la cookie es un
+  JWT firmado y distinto por persona— y que **el conmutador de cuentas se
+  invalide solo**: entrar escribe una cookie, salir la borra, y la petición
+  siguiente calcula otra llave. No hay una lista de sitios que haya que
+  acordarse de invalidar.
+- **A qué llegas** se decide con los **ids**, no con la sesión.
+  `getAssociatedAccountIds` solo mira `ownerId ?? id`, `sessionUserId` y el
+  propio, así que la llave son esos tres. Con los ids dentro no puede haber
+  cruce, y además se puede seguir llamando desde acciones donde no hay cookies
+  que leer.
+
+Tres cosas que hay que mantener:
+
+1. **Se guarda la PROMESA, no el valor.** Dos peticiones que entran a la vez
+   comparten una sola resolución en vez de lanzar dos. Es la mitad de la ganancia
+   cuando la pantalla arranca de golpe.
+2. **Un resultado recortado por un fallo NO se cachea.** Cuando la consulta de
+   vinculadas falla se sigue con la cuenta activa, que es el lado seguro; pero
+   guardarlo cinco segundos sería **propagar esa pérdida de acceso** a las
+   peticiones de al lado, y eso se ve como un «No autorizado» suelto e
+   irreproducible. La siguiente vuelve a preguntar. Lo mismo con un `null`: nunca
+   se recuerda que alguien no ha entrado.
+3. **El plazo es de segundos, y se sabe lo que cuesta.** Un cambio de rol o una
+   cuenta deshabilitada tardan eso en notarse. Se acepta a sabiendas **porque lo
+   que se recuerda es barato de equivocarse**; si algún día se cachea algo cuyo
+   error sea caro, el plazo no es la respuesta.
 
 ## Las notas son de la PERSONA, no de la cuenta
 
@@ -1441,6 +1558,61 @@ un lado y listar por otro.**
    mientras, no el destino. **Si vuelven a separarse se arregla la fuente, no se
    esconde el número**: un hueco donde antes había una cifra no explica nada, y
    el número es justo lo que se viene a mirar.
+
+## Una consulta que devuelve una página tiene que poder PARARSE
+
+Una consulta que junta varias fuentes, las deduplica y al final se queda con 26
+filas, **lee las tres fuentes enteras** si ninguna lleva su propio `LIMIT`. Los
+índices no arreglan eso: el índice deja encontrar las filas, pero sin un tope
+dentro no hay dónde parar, así que se traen todas, se ordenan y se tiran casi
+todas. El coste crece con el tamaño del dato, no con el de la página.
+
+Duele donde menos se ve: las conversaciones más largas son justo las de arriba
+de la lista, las primeras que se precargan. Medido: **36 ms para devolver 26
+mensajes de un chat de 16.000; con el tope dentro, 1 ms.**
+
+Así que **el `ORDER BY ... LIMIT` va DENTRO de cada rama**, entre paréntesis, no
+solo en la consulta de fuera.
+
+### El tope cubre el FINAL de la página, no su tamaño
+
+Es el error que se comete solo, y no se nota hasta la décima pulsada de «Cargar
+mensajes anteriores».
+
+Si la consulta pagina con `OFFSET`, la página 10 es `OFFSET 234 LIMIT 26`: hacen
+falta **260 filas** para llegar a la primera de esa página. Acotando por el
+tamaño (26) el recorte de dentro se queda corto y la página sale con huecos o
+directamente **vacía**, sin ningún error. Comprobado con datos:
+
+| página | tope sobre el tamaño | tope sobre el final |
+| --- | --- | --- |
+| 1 | 26 filas | 26 filas |
+| 3 | 26 filas | 26 filas |
+| 10 | **0 filas** | 26 filas |
+
+El tope se calcula sobre **`salta + pide`**.
+
+### Y con holgura, porque lo de dentro aún no está deduplicado
+
+Lo que se recorta en cada rama todavía tiene duplicados: el mismo mensaje puede
+estar guardado bajo dos formas de id —Waha lo serializa, Evolution lo entrega
+pelado— y el `DISTINCT ON` los junta **después**. Sin holgura, un chat con
+muchas parejas así devolvería menos filas de las pedidas. Va **por cuatro**:
+harían falta cuatro copias del mismo mensaje para agotarla, y las formas
+conocidas son dos.
+
+Lo que hace que esto sea seguro es que **las dos copias caen del mismo lado del
+corte**: las dos llevan la hora que trae el propio mensaje de WhatsApp, no la de
+guardarlo (`horaDelMensaje`), y cuando una llega sin hora el `ON CONFLICT`
+conserva a propósito la que ya estaba. Si algún día se cambia eso —si una copia
+pudiera sellarse con la hora de guardarla—, **esta holgura deja de bastar** y
+hay que volver aquí.
+
+### Y el filtro común se escribe una vez
+
+Tres ramas con el mismo `WHERE` copiado tres veces es una que se toca y dos que
+no. Se arma una vez y se inyecta en las tres: si no, una rama devuelve filas que
+las otras descartan y la deduplicación decide por azar.
 
 ## Chats: la lista es grande, no rehacerla por gusto
 
