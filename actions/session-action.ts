@@ -1,5 +1,6 @@
 ﻿'use server'
 
+import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
 import {
@@ -235,7 +236,7 @@ export async function getLeadsPorLinea(userId: string) {
 
     const filas = await db.session.groupBy({
       by: ["instanceId"],
-      where: { userId, NOT: { remoteJid: { endsWith: "@lid" } } },
+      where: { userId, ...SIN_GRUPOS, NOT: { remoteJid: { endsWith: "@lid" } } },
       _count: { _all: true },
     });
 
@@ -257,6 +258,7 @@ export async function getSessionsCountByUserId(userId: string, instanceId?: stri
     // no teléfonos → aparecían como "Você" sin número. No cuentan como leads.
     const baseWhere = {
       userId,
+      ...SIN_GRUPOS,
       NOT: { remoteJid: { endsWith: "@lid" } },
       ...(instanceId ? { instanceId } : {}),
     };
@@ -316,6 +318,7 @@ export async function getSessionsByUserId(
     const sessions = await db.session.findMany({
       where: {
         userId,
+        ...SIN_GRUPOS,
         // Ocultar sesiones fantasma por LID (@lid): ID de privacidad de WhatsApp
         // sin teléfono real, se mostraban como "Você" sin número.
         NOT: { remoteJid: { endsWith: "@lid" } },
@@ -681,6 +684,7 @@ export async function searchSessionsByUserId(
     const sessions = await db.session.findMany({
       where: {
         userId,
+        ...SIN_GRUPOS,
         // No mostrar sesiones fantasma por LID (@lid) tampoco en la búsqueda.
         NOT: { remoteJid: { endsWith: "@lid" } },
         // La busqueda respeta el filtro de linea: si no, buscar deshacia el
@@ -803,10 +807,17 @@ export async function deleteAllSessions(userId: string): Promise<SessionsListRes
 
 /**
  * Limpia "leads basura" de la cuenta indicada: sesiones que no son un contacto
- * 1:1 real (grupos @g.us, difusiones/estados, newsletters, JIDs @lid —IDs de
- * privacidad de WhatsApp sin teléfono— o JIDs sin número válido, que se mostraban
- * como "+0" o "Você"). Acotado a la cuenta activa del usuario. Las filas hijas se
- * borran en cascada (FK onDelete: Cascade).
+ * 1:1 real (difusiones/estados, newsletters, JIDs @lid —IDs de privacidad de
+ * WhatsApp sin teléfono— o JIDs sin número válido, que se mostraban como "+0" o
+ * "Você"). Acotado a la cuenta activa del usuario. Las filas hijas se borran en
+ * cascada (FK onDelete: Cascade).
+ *
+ * **Los GRUPOS ya no entran aquí.** Su ficha es legítima: es de donde cuelgan
+ * las etiquetas, el asesor asignado y las tareas de esa conversación. Lo que la
+ * mantiene fuera del CRM es que las consultas la excluyen por su `remoteJid`
+ * (`lib/conversaciones-de-grupo.ts`), no que alguien la borre por detrás. Y no
+ * hay ninguna rutina que las limpie: si un grupo deja de usarse, su ficha se
+ * queda y sus mensajes caducan a los 90 días como los demás.
  */
 export async function cleanupJunkSessions(
   userId: string,
@@ -826,7 +837,6 @@ export async function cleanupJunkSessions(
       WHERE "userId" = ${userId}
         AND (
           btrim("remoteJid") = ''
-          OR lower("remoteJid") LIKE '%@g.us'
           OR lower("remoteJid") LIKE '%broadcast%'
           OR lower("remoteJid") LIKE '%@newsletter'
           OR lower("remoteJid") LIKE '%@lid'
@@ -1192,6 +1202,7 @@ export async function getSessionsByUserIdToCRM(
     const sessions = await db.session.findMany({
       where: {
         userId,
+        ...SIN_GRUPOS,
         ...(status !== undefined && { status }),
       },
       orderBy: { createdAt: "desc" },

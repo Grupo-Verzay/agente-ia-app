@@ -1,5 +1,6 @@
 "use server";
 
+import { sinGruposSql } from '@/lib/conversaciones-de-grupo';
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -50,7 +51,7 @@ export async function getSessionsForExport(): Promise<
     LEFT JOIN "User" u ON u.id = s.assigned_advisor_id
     LEFT JOIN "SessionTag" st ON st."sessionId" = s.id
     LEFT JOIN "Tag" t ON t.id = st."tagId"
-    WHERE s."userId" = ${effectiveOwnerId}
+    WHERE s."userId" = ${effectiveOwnerId} ${sinGruposSql('s')}
     GROUP BY s.id, u.name, u.email
     ORDER BY s."createdAt" DESC
   `;

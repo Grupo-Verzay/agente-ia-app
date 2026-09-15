@@ -1,5 +1,6 @@
 "use server";
 
+import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { assertUserCanUseApp } from "@/actions/billing/helpers/app-access-guard";
 
@@ -24,7 +25,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         /* ── 1) Lead status distribution (estado actual, sin filtro de fecha) ── */
         const leadStatusGroups = await db.session.groupBy({
             by: ["leadStatus"],
-            where: { userId, leadStatus: { not: null } },
+            where: { userId, ...SIN_GRUPOS, leadStatus: { not: null } },
             _count: { _all: true },
         });
         const leadStatusCounts = { FRIO: 0, TIBIO: 0, CALIENTE: 0, FINALIZADO: 0, DESCARTADO: 0 };
@@ -67,12 +68,12 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
             .slice(0, 6);
 
         /* ── 4) Sesiones ── */
-        const totalSessions = await db.session.count({ where: { userId } });
-        const activeSessions = await db.session.count({ where: { userId, status: true } });
-        const agentActiveSessions = await db.session.count({ where: { userId, agentDisabled: false } });
-        const escalatedSessions = await db.session.count({ where: { userId, agentDisabled: true } });
+        const totalSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS } });
+        const activeSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS, status: true } });
+        const agentActiveSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS, agentDisabled: false } });
+        const escalatedSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS, agentDisabled: true } });
         const newSessions = dateFilter
-            ? await db.session.count({ where: { userId, createdAt: dateFilter } })
+            ? await db.session.count({ where: { userId, ...SIN_GRUPOS, createdAt: dateFilter } })
             : totalSessions;
 
         /* ── 4b) CrmFollowUp por status (histórico total) ── */

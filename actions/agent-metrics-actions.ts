@@ -1,5 +1,6 @@
 "use server";
 
+import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 
@@ -27,15 +28,15 @@ export async function getAgentMetrics(): Promise<{ success: boolean; data: Agent
 
   try {
     const [total, agentOn, agentOff, withAdvisor, hot, resolved, leadGroups] = await Promise.all([
-      db.session.count({ where: { userId: ownerId, status: true } }),
-      db.session.count({ where: { userId: ownerId, status: true, agentDisabled: false } }),
-      db.session.count({ where: { userId: ownerId, status: true, agentDisabled: true } }),
-      db.session.count({ where: { userId: ownerId, status: true, assignedAdvisorId: { not: null } } }),
-      db.session.count({ where: { userId: ownerId, status: true, leadStatus: "CALIENTE" } }),
-      db.session.count({ where: { userId: ownerId, status: true, leadStatus: "FINALIZADO" } }),
+      db.session.count({ where: { userId: ownerId, ...SIN_GRUPOS, status: true } }),
+      db.session.count({ where: { userId: ownerId, ...SIN_GRUPOS, status: true, agentDisabled: false } }),
+      db.session.count({ where: { userId: ownerId, ...SIN_GRUPOS, status: true, agentDisabled: true } }),
+      db.session.count({ where: { userId: ownerId, ...SIN_GRUPOS, status: true, assignedAdvisorId: { not: null } } }),
+      db.session.count({ where: { userId: ownerId, ...SIN_GRUPOS, status: true, leadStatus: "CALIENTE" } }),
+      db.session.count({ where: { userId: ownerId, ...SIN_GRUPOS, status: true, leadStatus: "FINALIZADO" } }),
       db.session.groupBy({
         by: ["leadStatus"],
-        where: { userId: ownerId, status: true },
+        where: { userId: ownerId, ...SIN_GRUPOS, status: true },
         _count: { leadStatus: true },
       }),
     ]);

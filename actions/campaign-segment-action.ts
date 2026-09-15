@@ -1,5 +1,6 @@
 "use server";
 
+import { sinGruposSql } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 
@@ -17,7 +18,7 @@ export async function getCampaignSegmentData(): Promise<{
 
     const [scores, sessionTags, tags] = await Promise.all([
         db.$queryRaw<SegmentScore[]>`
-            SELECT id, lead_score FROM "Session" WHERE "userId" = ${user.id}
+            SELECT id, lead_score FROM "Session" s WHERE s."userId" = ${user.id} ${sinGruposSql('s')}
         `,
         db.$queryRaw<SegmentSessionTag[]>`
             SELECT st."sessionId", st."tagId"

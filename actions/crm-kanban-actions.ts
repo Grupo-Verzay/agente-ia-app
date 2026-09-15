@@ -1,5 +1,6 @@
 'use server';
 
+import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import type { LeadStatus } from '@prisma/client';
@@ -29,7 +30,7 @@ export async function getKanbanSessionsAction(): Promise<{
         if (!user?.id) return { success: false, message: 'No autorizado.' };
 
         const sessions = await db.session.findMany({
-            where: { userId: user.effectiveId },
+            where: { userId: user.effectiveId, ...SIN_GRUPOS },
             include: {
                 sessionTags: { include: { tag: true } },
                 crmFollowUps: {

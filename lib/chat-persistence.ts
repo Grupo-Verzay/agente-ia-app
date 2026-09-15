@@ -2,7 +2,6 @@ import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import {
   buildWhatsAppJidCandidates,
-  isGroupJid,
   normalizeWhatsAppConversationJid,
   pickExplicitWhatsAppPhoneJid,
   pickObservedAlternateRemoteJid,
@@ -683,15 +682,18 @@ function avisarLineaSinDueno(instanceName: string | null | undefined, mirando: s
 }
 
 export async function upsertSessionFromChatMessage(input: PersistChatMessageInput) {
-  // UN GRUPO NO ES UN LEAD, y nunca lo fue: `cleanupJunkSessions` existe para
-  // borrar precisamente estas filas. Desde que los grupos entran en la bandeja
-  // esto deja de ser teorico —el reloj del chat abierto persiste los mensajes
-  // del grupo que se este mirando—, asi que la puerta se cierra aqui, que es
-  // donde se crea la basura y no donde se barre.
+  // UN GRUPO SI TIENE FICHA, y el CRM no la mira.
   //
-  // La conversacion y sus mensajes SI se guardan: quien los escribe es
-  // `persistChatMessage`, y esto es solo la ficha de CRM.
-  if (isGroupJid(input.remoteJid) || isGroupJid(input.remoteJidAlt)) return;
+  // En #700 esto devolvia antes de crearla, para no dejar leads falsos. El
+  // efecto fue que la barra de arriba de un grupo salia pelada —etiquetas,
+  // asignar, tareas y recordatorios cuelgan todos de `Session`— y dos grupos se
+  // veian distinto segun tuvieran ficha vieja o no.
+  //
+  // Ahora la ficha se crea y lo que se cierra es la otra punta: las consultas
+  // de CRM la excluyen por su `remoteJid` (`lib/conversaciones-de-grupo.ts`), y
+  // `cleanupJunkSessions` ya no la borra. La marca es el propio jid, asi que no
+  // hay columna nueva ni migracion, y los grupos con ficha antigua quedan
+  // marcados solos.
 
   const remoteJid = normalizeStoredRemoteJid(input.remoteJid, [
     input.remoteJidAlt,
@@ -1535,12 +1537,20 @@ export async function getPersistedMessages(params: {
       -- Waha lo serializa (true_573001@c.us_3EB0A1B2) y Evolution entrega el
       -- mismo mensaje pelado (3EB0A1B2): guardados los dos, la conversacion
       -- pintaba el mensaje DOS VECES. Pasa al cambiar una linea de proveedor,
-      -- cuando el historial trae mensajes escritos con las dos formas. Solo se
-      -- desarma la forma de Waha; los ids de Meta pueden llevar guiones bajos
-      -- dentro y recortarlos por ahi si podria confundir dos mensajes distintos.
-      SELECT DISTINCT ON (regexp_replace("messageId", '^(true|false)_.*_', ''), "fromMe") *
+      -- cuando el historial trae mensajes escritos con las dos formas.
+      --
+      -- Se quitan los DOS PRIMEROS segmentos, no "hasta el ultimo guion bajo".
+      -- El patron era ^(true|false)_.*_ y ese .* es codicioso: en un 1:1
+      -- daba igual porque el id lleva dos guiones bajos, pero el de un GRUPO
+      -- lleva ademas el participante, asi que recortaba hasta ahi y la llave
+      -- quedaba siendo QUIEN ESCRIBIO. Con eso, todos los mensajes de una misma
+      -- persona en el grupo colapsaban en uno y el DISTINCT ON se quedaba con el
+      -- mas reciente: la conversacion iba perdiendo lo anterior sola, sin que
+      -- faltara ni una fila en la base. El comentario de antes ya avisaba del
+      -- riesgo pensando en los ids de Meta; a los grupos se le habia pasado.
+      SELECT DISTINCT ON (regexp_replace("messageId", '^(true|false)_[^_]+_', ''), "fromMe") *
       FROM matched
-      ORDER BY regexp_replace("messageId", '^(true|false)_.*_', ''), "fromMe", "deleted" DESC, ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
+      ORDER BY regexp_replace("messageId", '^(true|false)_[^_]+_', ''), "fromMe", "deleted" DESC, ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
       )
     SELECT *
     FROM deduped
