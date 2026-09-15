@@ -389,6 +389,49 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   // Paso BARATO por tick: inyecta el base64 ya cacheado, aplica el filtro de
   // eliminados y marca `sentByAi`. Es O(n) con spreads superficiales, sin
   // re-parsear ni rehacer el matching de IA en cada media que llega.
+  /**
+   * QUE PASA CON LOS MENSAJES DE ESTA CONVERSACION, en cada cambio.
+   *
+   * Una conversacion de grupo se pinta entera y a los 2-3 segundos se queda con
+   * un solo mensaje. Ya se han dado DOS explicaciones razonables que resultaron
+   * no ser la causa, las dos razonadas sobre el codigo en vez de medidas sobre
+   * la pantalla. Esto mide.
+   *
+   * Dice cuantos mensajes hay en el estado y cuantas burbujas sobreviven al
+   * pintado, y de las que NO sobreviven dice su tipo y las claves de su
+   * `message`, que es lo unico que puede explicar por que no se pintan. Si los
+   * dos numeros son iguales, el problema no esta aqui y hay que mirar mas
+   * arriba: en cuantos mensajes llegan.
+   *
+   * Sale como `warn` a proposito: el build borra `log` y `debug` (ver la regla
+   * de `removeConsole` en CLAUDE.md), asi que un aviso en `log` no existiria en
+   * produccion — que es exactamente como se perdieron dos dias una vez.
+   */
+  useEffect(() => {
+    const perdidas = messages.length - baseBubbles.length;
+    const sobranId = new Set(baseBubbles.map((b) => b.id));
+    const noSePintan = perdidas > 0
+      ? messages
+          .filter((m) => !sobranId.has(m.key?.id ?? '') && !sobranId.has(String(m.id ?? '')))
+          .slice(-12)
+          .map((m) => ({
+            id: m.key?.id ?? m.id,
+            tipo: m.messageType,
+            claves: Object.keys((m.message ?? {}) as Record<string, unknown>).join(','),
+            deQuien: m.key?.fromMe ? 'mio' : 'del contacto',
+          }))
+      : [];
+
+    console.warn('[chats] mensajes de la conversacion', {
+      chat: info?.remoteJid,
+      enElEstado: messages.length,
+      sePintan: baseBubbles.length,
+      conNotas: baseBubbles.length,
+      noSePintan: perdidas,
+      porQue: noSePintan,
+    });
+  }, [messages, baseBubbles, info?.remoteJid]);
+
   const uiMessages = useMemo(() => {
     void mediaCacheTick;
     const cache = mediaCacheRef.current;
