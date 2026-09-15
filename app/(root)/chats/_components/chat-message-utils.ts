@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { esSobreInternoDeWhatsapp } from '@/lib/whatsapp-message-kinds';
+import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { epochToMs } from './chat-sidebar.utils';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
@@ -794,12 +794,17 @@ export function toUIMessages(
     // Sobres internos (la edición de un mensaje, el voto de una encuesta): sin
     // burbuja. No llevan texto legible y salían como "[Mensaje
     // secretEncryptedMessage]" debajo del mensaje que se editó.
-    if (esSobreInternoDeWhatsapp(m.messageType)) return null;
+    //
+    // Se mira el tipo DE VERDAD: en un grupo el reparto de claves viaja junto
+    // al mensaje y el rótulo puede ser el del sobre con el texto dentro. Con el
+    // rótulo a secas, ese mensaje no se pintaba nunca.
+    const tipoDelMensaje = tipoRealDeWhatsapp(m.messageType, messageData as Record<string, any>);
+    if (esSobreInternoDeWhatsapp(tipoDelMensaje)) return null;
 
-    if (isDeletedMessage(m.messageType, messageData as Record<string, any>)) {
+    if (isDeletedMessage(tipoDelMensaje, messageData as Record<string, any>)) {
       content = 'Mensaje eliminado';
     } else {
-      switch (m.messageType) {
+      switch (tipoDelMensaje) {
       case 'conversation':
         content = messageData?.conversation ? normalizeMessageLabel(messageData.conversation) : '';
         break;

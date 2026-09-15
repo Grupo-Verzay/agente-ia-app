@@ -29,3 +29,36 @@ const SOBRES_SIN_CONTENIDO = new Set([
 export function esSobreInternoDeWhatsapp(messageType?: string | null): boolean {
   return SOBRES_SIN_CONTENIDO.has((messageType ?? '').trim());
 }
+
+/**
+ * El tipo de verdad de un mensaje, que NO siempre es el que viene rotulado.
+ *
+ * **UN SOBRE SOLO ES UN SOBRE SI NO TRAE NADA DENTRO**, y esto es lo que lo
+ * decide. En un GRUPO, WhatsApp manda el reparto de claves
+ * (`senderKeyDistributionMessage`) JUNTO al mensaje, en el mismo `message`, y
+ * el aviso entero puede llegar rotulado con el nombre del sobre aunque dentro
+ * venga el texto. Escondiendo por el rótulo, ese mensaje no se pintaba: la
+ * conversación de grupo iba perdiendo mensajes sola, sin que faltara ni una
+ * fila en la base.
+ *
+ * Duele justo donde se vio: una línea RECIÉN metida en un grupo, porque cada
+ * miembro tiene que redistribuirle su clave y los primeros mensajes después de
+ * entrar llevan todos el sobre. En un grupo viejo ya está repartida y casi no
+ * aparece — de ahí que un grupo se viera completo y el otro no.
+ *
+ * Un sobre de verdad no tiene ninguna clave de contenido y conserva su nombre,
+ * así que se sigue escondiendo igual y no vuelve la burbuja "[Mensaje
+ * secretEncryptedMessage]" que motivó esta lista.
+ *
+ * El backend hace lo mismo, en `utils/sobres-sin-contenido.ts`.
+ */
+export function tipoRealDeWhatsapp(
+  messageType?: string | null,
+  message?: Record<string, any> | null,
+): string {
+  const rotulado = (messageType ?? '').trim();
+  if (!SOBRES_SIN_CONTENIDO.has(rotulado)) return rotulado;
+
+  const deVerdad = Object.keys(message ?? {}).find((k) => !SOBRES_SIN_CONTENIDO.has(k));
+  return deVerdad ?? rotulado;
+}

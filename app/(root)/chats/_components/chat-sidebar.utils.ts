@@ -2,7 +2,7 @@ import { type LucideIcon } from "lucide-react";
 import { buildWhatsAppJidCandidates, extractWhatsAppDigits, isLidJid } from "@/lib/whatsapp-jid";
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-visible";
 import { avatarSrcFor } from "@/lib/avatar";
-import { esSobreInternoDeWhatsapp } from "@/lib/whatsapp-message-kinds";
+import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from "@/lib/whatsapp-message-kinds";
 import { epochToMs } from "@/lib/epoch";
 import type { ChatData } from "@/actions/chat-actions";
 import type { ChatConversationPreference } from "@/types/chat";
@@ -464,7 +464,9 @@ export function lastTextFrom(chat: ChatData): {
   fromMe: boolean;
 } {
   const msg = chat.lastMessage?.message;
-  const type = chat.lastMessage?.messageType;
+  // El tipo DE VERDAD, no el rótulo: en un grupo el sobre del reparto de claves
+  // llega por delante con el texto dentro, y por el rótulo la fila salía vacía.
+  const type = tipoRealDeWhatsapp(chat.lastMessage?.messageType, msg as Record<string, any>);
   const id = chat.lastMessage?.key.id ?? "";
   const fromMe = chat.lastMessage?.key.fromMe ?? false;
   let text = "";
