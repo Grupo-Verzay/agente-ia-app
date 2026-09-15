@@ -11,7 +11,9 @@ export function CreditsProfileCard() {
         total: number;
         used: number;
         available: number;
-        renewalDate: Date;
+        // Puede faltar: hay cuentas sin ficha de facturacion y sin fecha
+        // guardada. Antes que un hueco sin explicar, se pinta un guion.
+        renewalDate: Date | null;
     } | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -22,7 +24,11 @@ export function CreditsProfileCard() {
     }, []);
 
     const usedPercent = data && data.total > 0 ? Math.min(100, Math.round((data.used / data.total) * 100)) : 0;
-    const renewalLabel = data
+    // La fecha sale del PLAN, no de la columna de los creditos: los creditos
+    // renuevan cuando renueva el plan, y tener dos columnas para lo mismo es lo
+    // que hacia que esta tarjeta dijera una fecha y la de al lado otra.
+    // Ver `lib/fecha-de-renovacion.ts`.
+    const renewalLabel = data?.renewalDate
         ? new Date(data.renewalDate).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })
         : '—';
 
