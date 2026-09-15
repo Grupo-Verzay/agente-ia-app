@@ -2881,13 +2881,15 @@ export function ChatsClient({
         instanceActionSets?.find((s) => s.instanceName === selectedContact?.instanceName) ?? null;
       const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
       const effectiveApiKeyData = hablaConEvolution(actionSet?.instanceType) ? apiKeyData : undefined;
-      const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
       const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
+      // Sin `effectiveWarmMessages`: la precarga va por `/api/chats/conversacion`
+      // y ya no usa la accion. Devolverla aqui es la puerta por la que esto se
+      // vuelve a meter en la cola de Next sin que nadie lo note -se ve como una
+      // App lenta, no como un error-.
       return {
         selectedContact,
         effectiveInstanceName,
         effectiveApiKeyData,
-        effectiveWarmMessages,
         cacheKey,
       };
     },
@@ -2922,13 +2924,28 @@ export function ChatsClient({
         // Evolution); si NO, trae de Evolution y lo persiste en 2º plano (backfill).
         // Así el chat queda listo para abrir instantáneo y la próxima sesión lo lee
         // de local. Se intenta una sola vez por sesión (prefetchAttemptedRef).
-        void t
-          .effectiveWarmMessages(rj, {
+        //
+        // Por `/api` y no por la accion de servidor, y ese es el arreglo: el tope
+        // de aqui arriba (`PREFETCH_MAX_CONCURRENT`, 4) **nunca llegaba a
+        // aplicarse**, porque Next atiende las acciones de una en una y la
+        // segunda esperaba a la primera aunque se dejaran salir cuatro. Medido:
+        // 54 acciones sumando 27.422 ms de espera, la peor de 2.310, devolviendo
+        // entre 0 y 7 KB cada una. No era trabajo: era turno.
+        //
+        // Lo que se pide no cambia: `localFirst` viaja igual y significa lo
+        // mismo. La apertura del chat sigue por su camino de siempre.
+        void pedirSinCola<FindMessagesResult>(
+          "/api/chats/conversacion",
+          {
+            instanceName: t.effectiveInstanceName,
+            remoteJid: rj,
             page: 1,
             pageSize: INITIAL_MESSAGE_PAGE_SIZE,
             remoteJidAliases: identidadesParaPedirMensajes(t.selectedContact, rj),
             localFirst: true,
-          })
+          },
+          { success: false, message: `No se pudo precargar ${rj}.` },
+        )
           .then((result) => {
             if (!result?.success) return;
             // Lectura OK (con o sin datos) → no reintentar este chat en la sesión.
