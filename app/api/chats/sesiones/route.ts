@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { responderJson } from "@/lib/responder-json";
 import { getSesionesDeLaCuenta } from "@/actions/session-action";
 import { comprimirSesiones, type SesionesPorElCable } from "@/lib/sesiones-por-el-cable";
 
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
   const porElCable = comprimirSesiones(resultado.data ?? []);
   const comprimirMs = Date.now() - arrancoComprimir;
 
-  return NextResponse.json({
+  return responderJson(request, {
     success: true,
     message: resultado.message,
     data: porElCable,

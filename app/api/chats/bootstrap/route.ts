@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { responderJson } from "@/lib/responder-json";
 import { loadChatBootstrapData } from "@/actions/chat-bootstrap-actions";
 
 export const dynamic = "force-dynamic";
@@ -35,5 +36,5 @@ export async function POST(request: Request) {
     : undefined;
 
   const resultado = await loadChatBootstrapData({ sessionUserIds });
-  return NextResponse.json(resultado);
+  return responderJson(request, resultado);
 }

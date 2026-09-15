@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { responderJson } from "@/lib/responder-json";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { resolveInstanceOwner } from "@/lib/chat-persistence";
 import { warmChatMessagesAction } from "@/actions/chat-manual-actions";
@@ -113,5 +114,5 @@ export async function POST(request: Request) {
       // igual que en la ruta de la lista.
       : await warmChatMessagesAction({ apiKeyData: null, instanceName }, remoteJid, opciones);
 
-  return NextResponse.json(resultado);
+  return responderJson(request, resultado);
 }
