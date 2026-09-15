@@ -162,6 +162,38 @@ export function idDeWhatsapp(id?: string | null): string {
   return serializado ? serializado[1] : limpio;
 }
 
+/**
+ * ¿Esta version del mensaje tiene algo que pintar?
+ *
+ * El mismo mensaje llega por dos caminos —nuestra base y el proveedor— y NO
+ * siempre trae lo mismo. La version del proveedor de un mensaje de GRUPO puede
+ * venir con solo los sobres dentro (`senderKeyDistributionMessage`,
+ * `messageContextInfo`): sin texto, sin adjunto y rotulada con el nombre del
+ * sobre, que es justo lo que la burbuja esconde.
+ *
+ * Se usa para NO dejar que una version asi pise a una que si se pinta. Es la
+ * misma idea que las otras dos salvaguardas de `mergeMessages` —el borrado y el
+ * marcador de la IA—: cuando las dos versiones no dicen lo mismo, manda la que
+ * conserva informacion.
+ */
+export function tieneAlgoQueEnsenar(m: EvolutionMessage): boolean {
+  const datos = (m?.message ?? {}) as Record<string, any>;
+
+  const texto =
+    datos.conversation ||
+    datos.extendedTextMessage?.text ||
+    datos.imageMessage?.caption ||
+    datos.videoMessage?.caption ||
+    datos.documentMessage?.caption ||
+    '';
+  if (typeof texto === 'string' && texto.trim()) return true;
+  if (datos.mediaUrl) return true;
+
+  // Una clave de contenido de verdad (`imageMessage`, `audioMessage`…) cuenta
+  // aunque venga sin pie: la burbuja la rotula.
+  return Object.keys(datos).some((k) => k.endsWith('Message') && !esSobreInternoDeWhatsapp(k));
+}
+
 export function extractMediaInfo(msg: any, type: MediaType): MediaData | null {
   const typeKey = `${type}Message`;
   const mediaObj = msg?.[typeKey] || {};
