@@ -2103,6 +2103,63 @@ en los dos lados (la App y el motor). Si se añade otra regla que dependa de una
 tabla que alguien tiene que llenar, se pregunta lo mismo: **distinguir «vacío»
 de «no aplica» antes de dejar que decida nada.**
 
+## `ia_credits.used` está en TOKENS y `total` en CRÉDITOS, a propósito
+
+Dos columnas de la misma fila, en dos unidades distintas. Es raro y hay que
+saberlo, porque **`used > total` es lo normal, no una corrupción**.
+
+La conversión es `1 crédito = 3.085 tokens`:
+
+- **Se escribe en tokens.** El único sitio que suma consumo es
+  `AiCreditsService.trackTokens`, con `used: { increment: tokensInt }`. Todo lo
+  demás que escribe `used` escribe **cero** (crear la cuenta, renovar, cambiar
+  de plan). La pantalla de admin, que deja teclear créditos consumidos, los
+  convierte antes de guardar (`onCreditsToTokens`).
+- **Se lee en créditos.** `Math.floor(used / 3085)`, y
+  `available = max(total - eso, 0)`. Lo hacen el motor (`getCreditsByUser`), el
+  Perfil (`getOwnIaCredits`) y Analíticas.
+
+### El falso positivo que genera, y cómo se reconoce
+
+Mirando la tabla en crudo salta esto: «de 39 cuentas, 19 tienen `used > total`,
+y son **todas** las que tienen consumo; el `used` mínimo es 38.320, por encima
+del plan más grande (25.000)». Parece corrupción y no lo es.
+
+**Esa comparación —38.320 contra 25.000— es tokens contra créditos, que es
+justo el error que se está investigando.** En créditos son 12, por debajo de
+cualquier plan. Y el umbral se cruza enseguida: **9 créditos consumidos ya son
+27.765 tokens**, así que cualquier cuenta con uso real pasa de su `total` en
+crudo. Por eso son 19 de 19.
+
+La prueba de que el dato está sano es **leerlo como tokens y ver si sale una
+cifra plausible**: el máximo de producción, 37.096.399, son 12.024 créditos —
+normal. Leído como créditos serían 37 millones contra planes de 25.000, que es
+imposible. Y la cuenta de la que había captura cuadra al dígito: 25.802.940
+tokens → 8.364 consumidos, 3.636 disponibles, los mismos que enseñaba su panel.
+
+> **«Recalcular» `used` dividiéndolo por 3.085 sería destructivo.** Los lectores
+> ya convierten, así que se aplicaría dos veces: esa cuenta pasaría de 8.364
+> créditos consumidos a **2**, y su saldo de 3.636 a 11.998 salidos de la nada.
+> Regalaría el consumo de todo el mes a las 19 cuentas a la vez.
+
+### Lo que sí hay que vigilar
+
+**Ninguna comparación toca `used` y `total` en la misma expresión.** Los bugs
+reales de esta familia han sido siempre ese: comparar sin convertir.
+
+Ya pasó en el voicebot, que hacía `credit.used >= credit.total` y por eso daba
+«sin créditos» a casi todo el mundo —bastaban **4 créditos** para agotar un cupo
+de 12.000—. Se arregló llamando a `getCreditsByUser`, que es la puerta del chat:
+**quien necesite saber si a una cuenta le quedan créditos pregunta ahí, no lee
+la fila.** Es la misma regla de los contadores de Chats: un número se calcula en
+un sitio, no en cada sitio que lo necesita.
+
+Y queda un cabo suelto conocido: la conversión está escrita en **tres sitios y
+con dos redondeos** —`TOKENS_PER_CREDIT` con `floor` en el motor,
+`onTokensToCredits` con `ceil` en la App, y seis `Math.floor(... / 3085)` a
+mano—. Por eso el Perfil y el `CreditsWidget` pueden diferir en un crédito para
+la misma cuenta. Unificarlo es un frente aparte, pendiente.
+
 ## Los créditos se reponen AL PAGAR, y el cupo se lee de Panel › Planes
 
 Nada reponía los créditos al pagar. El motor tiene su reloj
