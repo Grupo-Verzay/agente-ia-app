@@ -17,8 +17,10 @@ import { isAdminLike } from '@/lib/rbac';
  *
  * Esto limpia lo que ya estaba guardado. Dos pasadas, y la primera NO TOCA NADA:
  *
- *   GET /api/admin/limpiar-salientes-duplicados?userId=<cuenta>            → informe
- *   GET /api/admin/limpiar-salientes-duplicados?userId=<cuenta>&aplicar=si → limpia
+ *   GET …?userId=<cuenta>                       → informe de los TEXTOS
+ *   GET …?userId=<cuenta>&tipo=media            → informe de la MEDIA
+ *   GET …?userId=<cuenta>&tipo=todo             → informe de las dos
+ *   GET …?userId=<cuenta>&tipo=media&aplicar=si → limpia la media
  *
  * **Siempre acotado a una cuenta.** `userId` es obligatorio también en el
  * informe: una pasada global sobre `chat_messages` tocaría a todos los clientes,
@@ -28,11 +30,24 @@ import { isAdminLike } from '@/lib/rbac';
 /** Cuántos segundos puede tardar el eco en llegar. */
 const VENTANA_SEGUNDOS = 300;
 
+/**
+ * Y cuántos para la media, que va más apretada a propósito.
+ *
+ * Un texto se reconoce por su contenido exacto; una media no —dos videos de un
+ * mismo flujo, sin pie, son indistinguibles por lo que guardamos—, así que lo
+ * que la separa de su vecina es el reloj. En la pasada de los textos
+ * `segundosEntreLasDos` salió **0 en todas**: el eco llega el mismo segundo.
+ * Dos minutos es holgado de sobra y deja fuera al video siguiente del flujo.
+ */
+const VENTANA_MEDIA_SEGUNDOS = 120;
+
 /** Cuántas parejas se tratan por vuelta. Se repite hasta que el informe diga 0. */
 const TOPE_POR_VUELTA = 500;
 
 /** Cuántos días atrás se mira, por defecto. El fallo empezó con la mudanza a Waha. */
 const DIAS_POR_DEFECTO = 15;
+
+type Clase = 'texto' | 'media';
 
 type Pareja = {
   id_nuestra: bigint;
@@ -43,6 +58,9 @@ type Pareja = {
   jid_eco: string;
   linea: string;
   texto: string;
+  tipo: string;
+  url_nuestra: string | null;
+  url_eco: string | null;
   segundos: number;
 };
 
@@ -81,8 +99,23 @@ function autorizado(request: Request, esAdmin: boolean): boolean {
   return secreta === esperada;
 }
 
+/** El mismo contacto, aunque una fila esté por su número y la otra por su `@lid`. */
+const MISMO_CONTACTO = Prisma.sql`
+  (
+        eco."remoteJid" = nuestra."remoteJid"
+     OR EXISTS (
+          SELECT 1 FROM "chat_lid_map" AS m
+           WHERE m."userId" = nuestra."userId"
+             AND (
+                   (m."lid" = REPLACE(eco."remoteJid", '@lid', '') AND m."remoteJid" = nuestra."remoteJid")
+                OR (m."lid" = REPLACE(nuestra."remoteJid", '@lid', '') AND m."remoteJid" = eco."remoteJid")
+             )
+        )
+  )
+`;
+
 /**
- * Las parejas: nuestra copia con id inventado y su eco con el id de verdad.
+ * Las parejas de TEXTO: nuestra copia con id inventado y su eco con el de verdad.
  *
  * Cuatro condiciones, todas obligatorias:
  *
@@ -90,10 +123,7 @@ function autorizado(request: Request, esAdmin: boolean): boolean {
  * 2. **El mismo contacto**, que puede estar guardado por su número en una fila y
  *    por su `@lid` en la otra —es justo lo que pasaba—, así que vale el mismo
  *    `remoteJid` o el par que guarda `chat_lid_map`.
- * 3. **El mismo texto**, exacto. Solo texto: la media se empareja por su id, no
- *    por contenido (dos videos de un mismo flujo, sin pie y con segundos de
- *    diferencia, se parecen demasiado, y fundir dos mensajes distintos es peor
- *    que dejar uno repetido).
+ * 3. **El mismo texto**, exacto.
  * 4. **Dentro de la ventana** del eco, y con nuestra copia marcada como
  *    automática (`sentByAi`): dos mensajes iguales escritos por un asesor a mano
  *    no son una pareja y no se tocan.
@@ -101,23 +131,21 @@ function autorizado(request: Request, esAdmin: boolean): boolean {
  * Cada copia se empareja con el eco MÁS CERCANO en el tiempo (`DISTINCT ON`),
  * para que con varios envíos seguidos cada una se lleve el suyo.
  */
-async function buscarParejas(params: {
-  userId: string;
-  instanceName?: string | null;
-  desde: Date;
-  limite: number;
-}): Promise<Pareja[]> {
+function sqlDeTexto(params: { userId: string; instanceName?: string | null; desde: Date }) {
   const linea = params.instanceName?.trim();
-  return db.$queryRaw<Pareja[]>`
+  return Prisma.sql`
     SELECT DISTINCT ON (nuestra."id")
-           nuestra."id"          AS id_nuestra,
-           nuestra."messageId"   AS mid_nuestra,
-           nuestra."remoteJid"   AS jid_nuestra,
-           eco."id"              AS id_eco,
-           eco."messageId"       AS mid_eco,
-           eco."remoteJid"       AS jid_eco,
+           nuestra."id"           AS id_nuestra,
+           nuestra."messageId"    AS mid_nuestra,
+           nuestra."remoteJid"    AS jid_nuestra,
+           eco."id"               AS id_eco,
+           eco."messageId"        AS mid_eco,
+           eco."remoteJid"        AS jid_eco,
            nuestra."instanceName" AS linea,
            LEFT(BTRIM(COALESCE(nuestra."content", '')), 70) AS texto,
+           nuestra."messageType"  AS tipo,
+           NULL::text             AS url_nuestra,
+           NULL::text             AS url_eco,
            EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))::float AS segundos
       FROM "chat_messages" AS nuestra
       JOIN "chat_messages" AS eco
@@ -129,17 +157,7 @@ async function buscarParejas(params: {
        AND eco."mediaUrl" IS NULL
        AND BTRIM(COALESCE(eco."content", '')) = BTRIM(COALESCE(nuestra."content", ''))
        AND ABS(EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))) <= ${VENTANA_SEGUNDOS}
-       AND (
-             eco."remoteJid" = nuestra."remoteJid"
-          OR EXISTS (
-               SELECT 1 FROM "chat_lid_map" AS m
-                WHERE m."userId" = nuestra."userId"
-                  AND (
-                        (m."lid" = REPLACE(eco."remoteJid", '@lid', '') AND m."remoteJid" = nuestra."remoteJid")
-                     OR (m."lid" = REPLACE(nuestra."remoteJid", '@lid', '') AND m."remoteJid" = eco."remoteJid")
-                  )
-             )
-       )
+       AND ${MISMO_CONTACTO}
      WHERE nuestra."userId" = ${params.userId}
        AND nuestra."fromMe" = TRUE
        AND nuestra."messageId" LIKE 'out\\_%'
@@ -150,7 +168,141 @@ async function buscarParejas(params: {
        ${linea ? Prisma.sql`AND nuestra."instanceName" = ${linea}` : Prisma.empty}
      ORDER BY nuestra."id",
               ABS(EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))) ASC
-     LIMIT ${params.limite}
+  `;
+}
+
+/**
+ * Las parejas de MEDIA. Es el mismo caso, con una diferencia que manda en todo:
+ * **el contenido no sirve para reconocerlas.**
+ *
+ * En un texto la prueba es el texto. En una media no la hay:
+ *
+ * - **Las dos filas NO comparten el archivo.** Nuestra copia guarda la URL que
+ *   mandamos (`node.url`, el fichero nuestro); el eco guarda la que devuelve el
+ *   proveedor, que es otra cosa y otro dominio. Compararlas no encontraría ni
+ *   una pareja.
+ * - **El tamaño no está.** Nuestra copia escribe `raw: { sentByAi: true }` y
+ *   nada más: ahí no hay ni bytes, ni duración, ni nombre de fichero.
+ *
+ * Así que lo que empareja es el reloj, y por eso hace falta una regla que
+ * impida cruzar dos envíos distintos. Es **la vecindad mutua**: la pareja vale
+ * solo si el eco más cercano a nuestra copia es ese, **y** la copia más cercana
+ * a ese eco es la nuestra. Las dos direcciones, no una.
+ *
+ * Eso es lo que cierra el caso que de verdad duele —una copia nuestra cuyo eco
+ * nunca llegó—: sin la vecindad mutua le robaría el eco al video siguiente y
+ * borraríamos una fila que no tenía duplicado, o sea **un mensaje perdido**. Con
+ * ella, ese eco ya tiene dueño más cercano y la pareja se descarta.
+ *
+ * Cuando hay empate exacto (dos envíos en el MISMO segundo) la vecindad mutua
+ * deja fuera al segundo. No es un problema: **repetir la pasada lo recoge**,
+ * porque el primero ya no está. Por eso la pasada converge repitiéndola y nunca
+ * hace falta relajar la regla.
+ *
+ * Y encima de eso, tres condiciones más:
+ *
+ * 1. **El mismo tipo** (`videoMessage` con `videoMessage`), normalizando la
+ *    variante `documentWithCaptionMessage`, que es el mismo documento con otro
+ *    nombre.
+ * 2. **El mismo pie de foto**, contando como «sin pie» las etiquetas que el
+ *    webhook escribe cuando no hay ninguno (`[Video]`, `[Imagen]`…).
+ * 3. **El eco no puede venir ya marcado** como automático: si lo está, su copia
+ *    ya se limpió en una vuelta anterior y lo que tenemos delante es OTRO
+ *    mensaje.
+ */
+const TIPO_NORMALIZADO = (tabla: string) => Prisma.raw(
+  `CASE WHEN ${tabla}."messageType" = 'documentWithCaptionMessage' THEN 'documentMessage' ELSE ${tabla}."messageType" END`,
+);
+
+const PIE_NORMALIZADO = (tabla: string) => Prisma.raw(
+  `CASE WHEN BTRIM(COALESCE(${tabla}."content", '')) IN ('[Imagen]','[Video]','[Audio]','[Documento]','[Sticker]')` +
+    ` THEN '' ELSE BTRIM(COALESCE(${tabla}."content", '')) END`,
+);
+
+function sqlDeMedia(params: {
+  userId: string;
+  instanceName?: string | null;
+  desde: Date;
+  ventana: number;
+}) {
+  const linea = params.instanceName?.trim();
+  return Prisma.sql`
+    WITH candidatas AS (
+      SELECT nuestra."id"           AS id_nuestra,
+             nuestra."messageId"    AS mid_nuestra,
+             nuestra."remoteJid"    AS jid_nuestra,
+             eco."id"               AS id_eco,
+             eco."messageId"        AS mid_eco,
+             eco."remoteJid"        AS jid_eco,
+             nuestra."instanceName" AS linea,
+             ${PIE_NORMALIZADO('nuestra')} AS texto,
+             ${TIPO_NORMALIZADO('nuestra')} AS tipo,
+             nuestra."mediaUrl"     AS url_nuestra,
+             eco."mediaUrl"         AS url_eco,
+             EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))::float AS segundos,
+             ABS(EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))) AS cerca
+        FROM "chat_messages" AS nuestra
+        JOIN "chat_messages" AS eco
+          ON eco."userId" = nuestra."userId"
+         AND eco."instanceName" = nuestra."instanceName"
+         AND eco."id" <> nuestra."id"
+         AND eco."fromMe" = TRUE
+         AND eco."messageId" NOT LIKE 'out\\_%'
+         AND eco."mediaUrl" IS NOT NULL
+         AND (eco."raw" ->> 'sentByAi') IS DISTINCT FROM 'true'
+         AND ${TIPO_NORMALIZADO('eco')} = ${TIPO_NORMALIZADO('nuestra')}
+         AND ${PIE_NORMALIZADO('eco')} = ${PIE_NORMALIZADO('nuestra')}
+         AND ABS(EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))) <= ${params.ventana}
+         AND ${MISMO_CONTACTO}
+       WHERE nuestra."userId" = ${params.userId}
+         AND nuestra."fromMe" = TRUE
+         AND nuestra."messageId" LIKE 'out\\_%'
+         AND (nuestra."raw" ->> 'sentByAi') = 'true'
+         AND nuestra."mediaUrl" IS NOT NULL
+         AND ${TIPO_NORMALIZADO('nuestra')} IN
+             ('imageMessage','videoMessage','audioMessage','documentMessage')
+         AND nuestra."messageTimestamp" >= ${params.desde}
+         ${linea ? Prisma.sql`AND nuestra."instanceName" = ${linea}` : Prisma.empty}
+    ),
+    -- Para cada copia nuestra, su eco más cercano.
+    suEco AS (
+      SELECT DISTINCT ON (id_nuestra) *
+        FROM candidatas
+       ORDER BY id_nuestra, cerca ASC, id_eco ASC
+    ),
+    -- Y para cada eco, su copia más cercana. La pareja vale si coinciden.
+    suCopia AS (
+      SELECT DISTINCT ON (id_eco) id_eco, id_nuestra
+        FROM candidatas
+       ORDER BY id_eco, cerca ASC, id_nuestra ASC
+    )
+    SELECT suEco."id_nuestra", suEco."mid_nuestra", suEco."jid_nuestra",
+           suEco."id_eco", suEco."mid_eco", suEco."jid_eco",
+           suEco."linea", suEco."texto", suEco."tipo",
+           suEco."url_nuestra", suEco."url_eco", suEco."segundos"
+      FROM suEco
+      JOIN suCopia
+        ON suCopia."id_eco" = suEco."id_eco"
+       AND suCopia."id_nuestra" = suEco."id_nuestra"
+     ORDER BY suEco."id_nuestra"
+  `;
+}
+
+function sqlDeLaClase(
+  clase: Clase,
+  params: { userId: string; instanceName?: string | null; desde: Date; ventanaMedia: number },
+) {
+  return clase === 'media'
+    ? sqlDeMedia({ ...params, ventana: params.ventanaMedia })
+    : sqlDeTexto(params);
+}
+
+async function buscarParejas(
+  clase: Clase,
+  params: { userId: string; instanceName?: string | null; desde: Date; ventanaMedia: number; limite: number },
+): Promise<Pareja[]> {
+  return db.$queryRaw<Pareja[]>`
+    ${sqlDeLaClase(clase, params)} LIMIT ${params.limite}
   `;
 }
 
@@ -161,51 +313,27 @@ async function buscarParejas(params: {
  * número que no informa de nada: no se sabe si son 500 o cinco mil. Es la regla
  * de siempre —un contador es un `COUNT`, no el largo de lo que se pudo traer—,
  * y aquí importa más, porque de ese número depende cuántas vueltas hay que dar.
- *
- * Misma condición que `buscarParejas`, sin `LIMIT`.
  */
-async function contarParejas(params: {
-  userId: string;
-  instanceName?: string | null;
-  desde: Date;
-}): Promise<number> {
-  const linea = params.instanceName?.trim();
+async function contarParejas(
+  clase: Clase,
+  params: { userId: string; instanceName?: string | null; desde: Date; ventanaMedia: number },
+): Promise<number> {
   const filas = await db.$queryRaw<{ n: number }[]>`
-    SELECT COUNT(*)::int AS n FROM (
-      SELECT DISTINCT ON (nuestra."id") nuestra."id"
-        FROM "chat_messages" AS nuestra
-        JOIN "chat_messages" AS eco
-          ON eco."userId" = nuestra."userId"
-         AND eco."instanceName" = nuestra."instanceName"
-         AND eco."id" <> nuestra."id"
-         AND eco."fromMe" = TRUE
-         AND eco."messageId" NOT LIKE 'out\_%'
-         AND eco."mediaUrl" IS NULL
-         AND BTRIM(COALESCE(eco."content", '')) = BTRIM(COALESCE(nuestra."content", ''))
-         AND ABS(EXTRACT(EPOCH FROM (eco."messageTimestamp" - nuestra."messageTimestamp"))) <= ${VENTANA_SEGUNDOS}
-         AND (
-               eco."remoteJid" = nuestra."remoteJid"
-            OR EXISTS (
-                 SELECT 1 FROM "chat_lid_map" AS m
-                  WHERE m."userId" = nuestra."userId"
-                    AND (
-                          (m."lid" = REPLACE(eco."remoteJid", '@lid', '') AND m."remoteJid" = nuestra."remoteJid")
-                       OR (m."lid" = REPLACE(nuestra."remoteJid", '@lid', '') AND m."remoteJid" = eco."remoteJid")
-                    )
-               )
-         )
-       WHERE nuestra."userId" = ${params.userId}
-         AND nuestra."fromMe" = TRUE
-         AND nuestra."messageId" LIKE 'out\_%'
-         AND (nuestra."raw" ->> 'sentByAi') = 'true'
-         AND nuestra."mediaUrl" IS NULL
-         AND BTRIM(COALESCE(nuestra."content", '')) <> ''
-         AND nuestra."messageTimestamp" >= ${params.desde}
-         ${linea ? Prisma.sql`AND nuestra."instanceName" = ${linea}` : Prisma.empty}
-       ORDER BY nuestra."id"
-    ) AS t
+    SELECT COUNT(*)::int AS n FROM (${sqlDeLaClase(clase, params)}) AS t
   `;
   return filas[0]?.n ?? 0;
+}
+
+/** Lo que se enseña de cada pareja. La media enseña además los dos archivos. */
+function paraElInforme(p: Pareja) {
+  return {
+    linea: p.linea,
+    tipo: p.tipo,
+    texto: p.texto || '(sin pie)',
+    seQueda: { messageId: p.mid_eco, remoteJid: p.jid_eco, archivo: p.url_eco ?? undefined },
+    seBorra: { messageId: p.mid_nuestra, remoteJid: p.jid_nuestra, archivo: p.url_nuestra ?? undefined },
+    segundosEntreLasDos: Math.round(p.segundos),
+  };
 }
 
 export async function GET(request: Request) {
@@ -221,6 +349,21 @@ export async function GET(request: Request) {
   const aplicar = url.searchParams.get('aplicar') === 'si';
   const dias = Number(url.searchParams.get('dias') ?? DIAS_POR_DEFECTO) || DIAS_POR_DEFECTO;
   const limite = Math.min(Number(url.searchParams.get('limite') ?? TOPE_POR_VUELTA) || TOPE_POR_VUELTA, 2000);
+  const ventanaMedia = Math.min(
+    Number(url.searchParams.get('ventanaMedia') ?? VENTANA_MEDIA_SEGUNDOS) || VENTANA_MEDIA_SEGUNDOS,
+    VENTANA_SEGUNDOS,
+  );
+
+  // Por defecto solo los textos, que es lo que ya estaba corriendo. La media se
+  // pide a propósito, porque se reconoce por otra regla.
+  const pedido = (url.searchParams.get('tipo') ?? 'texto').trim().toLowerCase();
+  if (!['texto', 'media', 'todo'].includes(pedido)) {
+    return NextResponse.json(
+      { ok: false, error: '`tipo` solo admite `texto`, `media` o `todo`.' },
+      { status: 400 },
+    );
+  }
+  const clases: Clase[] = pedido === 'todo' ? ['texto', 'media'] : [pedido as Clase];
 
   // Sin cuenta no se corre, ni para mirar: una pasada global sobre
   // `chat_messages` tocaría a todos los clientes.
@@ -232,45 +375,54 @@ export async function GET(request: Request) {
   }
 
   const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
+  const comun = { userId, instanceName, desde, ventanaMedia };
 
-  let parejas: Pareja[];
-  try {
-    parejas = await buscarParejas({ userId, instanceName, desde, limite });
-  } catch (error) {
-    // Un fallo mudo aquí se lee como «no había duplicados», que es lo contrario
-    // de lo que pasa.
-    console.error('[duplicados] no se pudieron buscar las parejas', error);
-    return NextResponse.json(
-      { ok: false, error: 'No se pudieron buscar las parejas.' },
-      { status: 500 },
-    );
+  const porClase: Record<string, { enTotal: number | string; enEstaVuelta: number }> = {};
+  const tratables: Pareja[] = [];
+  // Un eco no puede adoptar dos copias, ni una copia irse dos veces.
+  const ecosVistos = new Set<string>();
+  const nuestrasVistas = new Set<string>();
+
+  for (const clase of clases) {
+    let parejas: Pareja[];
+    try {
+      parejas = await buscarParejas(clase, { ...comun, limite });
+    } catch (error) {
+      // Un fallo mudo aquí se lee como «no había duplicados», que es lo
+      // contrario de lo que pasa.
+      console.error(`[duplicados] no se pudieron buscar las parejas de ${clase}`, error);
+      return NextResponse.json(
+        { ok: false, error: `No se pudieron buscar las parejas de ${clase}.` },
+        { status: 500 },
+      );
+    }
+
+    const deEstaClase = parejas.filter((p) => {
+      if (ecosVistos.has(String(p.id_eco))) return false;
+      if (nuestrasVistas.has(String(p.id_nuestra))) return false;
+      ecosVistos.add(String(p.id_eco));
+      nuestrasVistas.add(String(p.id_nuestra));
+      return true;
+    });
+    tratables.push(...deEstaClase);
+
+    const total = await contarParejas(clase, comun).catch((error) => {
+      console.error(`[duplicados] no se pudo contar el total de ${clase}`, error);
+      return -1;
+    });
+    porClase[clase] = {
+      enTotal: total >= 0 ? total : 'no se pudo contar (ver la consola)',
+      enEstaVuelta: deEstaClase.length,
+    };
   }
 
-  // Un eco no puede adoptar dos copias: si dos filas nuestras apuntan al mismo,
-  // solo se trata la primera y la otra se deja para la vuelta siguiente.
-  const vistos = new Set<string>();
-  const tratables = parejas.filter((p) => {
-    const clave = String(p.id_eco);
-    if (vistos.has(clave)) return false;
-    vistos.add(clave);
-    return true;
-  });
+  const totalNumerico = clases.reduce((suma, clase) => {
+    const n = porClase[clase]?.enTotal;
+    return typeof n === 'number' && suma >= 0 ? suma + n : -1;
+  }, 0);
 
-  const muestra = tratables.slice(0, 20).map((p) => ({
-    linea: p.linea,
-    texto: p.texto,
-    seQueda: { messageId: p.mid_eco, remoteJid: p.jid_eco },
-    seBorra: { messageId: p.mid_nuestra, remoteJid: p.jid_nuestra },
-    segundosEntreLasDos: Math.round(p.segundos),
-  }));
-
-  // El total de verdad, sin el tope: con `parejasEncontradas: 500` y tope 500 no
-  // se sabe si son 500 o cinco mil, que es justo lo que hay que saber para
-  // decidir cuántas vueltas dar.
-  const total = await contarParejas({ userId, instanceName, desde }).catch((error) => {
-    console.error('[duplicados] no se pudo contar el total', error);
-    return -1;
-  });
+  const muestra = tratables.slice(0, 20).map(paraElInforme);
+  const cola = `userId=${userId}${instanceName ? `&instanceName=${instanceName}` : ''}&dias=${dias}&tipo=${pedido}`;
 
   if (!aplicar) {
     return NextResponse.json({
@@ -278,13 +430,16 @@ export async function GET(request: Request) {
       modo: 'informe (no se tocó nada)',
       cuenta: userId,
       linea: instanceName ?? '(todas las de la cuenta)',
+      mirando: pedido,
       desde: desde.toISOString(),
-      parejasEnTotal: total >= 0 ? total : 'no se pudo contar (ver la consola)',
+      parejasEnTotal: totalNumerico >= 0 ? totalNumerico : 'no se pudo contar (ver la consola)',
+      porClase,
       seTrataraEnEstaVuelta: tratables.length,
       topePorVuelta: limite,
-      faltanTrasEstaVuelta: total >= 0 ? Math.max(0, total - tratables.length) : null,
+      ventanaDeLaMedia: clases.includes('media') ? `${ventanaMedia}s` : undefined,
+      faltanTrasEstaVuelta: totalNumerico >= 0 ? Math.max(0, totalNumerico - tratables.length) : null,
       muestra,
-      comoAplicar: `${url.pathname}?userId=${userId}${instanceName ? `&instanceName=${instanceName}` : ''}&dias=${dias}&aplicar=si`,
+      comoAplicar: `${url.pathname}?${cola}&aplicar=si`,
       siSonMuchas: 'se repite la misma llamada hasta que `parejasEnTotal` diga 0; `limite` sube el tamaño de la vuelta (máximo 2000).',
     });
   }
@@ -323,25 +478,28 @@ export async function GET(request: Request) {
       fallos += 1;
       console.error('[duplicados] no se pudo limpiar una pareja', {
         linea: p.linea,
+        tipo: p.tipo,
         seBorra: p.mid_nuestra,
         error,
       });
     }
   }
 
-  console.info('[duplicados] pasada terminada', { cuenta: userId, limpiadas, fallos });
+  console.info('[duplicados] pasada terminada', { cuenta: userId, mirando: pedido, limpiadas, fallos });
 
   return NextResponse.json({
     ok: true,
     modo: 'aplicado',
     cuenta: userId,
     linea: instanceName ?? '(todas las de la cuenta)',
+    mirando: pedido,
     desde: desde.toISOString(),
-    parejasEnTotal: total >= 0 ? total : 'no se pudo contar (ver la consola)',
+    parejasEnTotal: totalNumerico >= 0 ? totalNumerico : 'no se pudo contar (ver la consola)',
+    porClase,
     tratadasEnEstaVuelta: tratables.length,
     limpiadas,
     fallos,
-    faltan: total >= 0 ? Math.max(0, total - limpiadas) : null,
+    faltan: totalNumerico >= 0 ? Math.max(0, totalNumerico - limpiadas) : null,
     muestra,
     siQuedanMas: 'vuelve a llamar sin `aplicar` para ver si el informe ya dice 0.',
   });
