@@ -67,40 +67,56 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-# NO hay `HEALTHCHECK` aqui, y quitarlo costo una tarde de la App reiniciandose
-# en bucle cada 55 segundos.
+# La señal de vida, que es lo que permite `Order: start-first` en el stack.
 #
-# Se puso uno (`node -e "fetch('http://127.0.0.1:3000/api/health')…"`) para poder
-# usar `Order: start-first` con garantias. En local pasaba; en produccion fallaba
-# SIEMPRE, y la cuenta cuadra exacta: 25s de `--start-period` + 3 intentos cada
-# 10s = 55s, que es justo cada cuanto Swarm mataba la tarea y creaba otra.
+# Sin ella Swarm apaga la tarea vieja en cuanto la nueva ARRANCA, que no es lo
+# mismo que cuando esta lista para contestar. Con ella, la vieja aguanta hasta
+# que la nueva contesta de verdad.
 #
-# El motivo: el servidor de Next en modo `standalone` escucha en
-# `process.env.HOSTNAME || '0.0.0.0'` (linea 9 de su `server.js`), y **Docker
-# siempre define `HOSTNAME`**, con el id del contenedor. Asi que Next no escucha
-# en `0.0.0.0` sino en la IP de ese nombre: `127.0.0.1` da conexion rechazada,
-# el healthcheck sale con 1, el contenedor pasa a `unhealthy` y Swarm lo tira.
-# Desde fuera se veia una App que se caia sola cada minuto.
+# ## Esto ya salio caro una vez, y por que ahora si
 #
-# Hacian falta DOS cosas, no una:
+# El primer intento tiraba la App en bucle cada 55 segundos, y la cuenta cuadra
+# exacta: 25s de `--start-period` + 3 intentos cada 10s. El motivo era que el
+# servidor de Next en `standalone` escucha en `process.env.HOSTNAME || '0.0.0.0'`
+# (linea 9 de su `server.js`) y **Docker siempre define `HOSTNAME`**, con el id
+# del contenedor: Next no escuchaba en todas las interfaces sino solo en la IP de
+# ese nombre, asi que `127.0.0.1` daba conexion rechazada, la sonda salia con 1 y
+# Swarm mataba una tarea perfectamente sana.
 #
-# 1. `ENV HOSTNAME=0.0.0.0` en esta misma etapa. HECHO, arriba, junto a `PORT`.
-# 2. Comprobarlo en el contenedor de verdad, no en local: en local `HOSTNAME` no
-#    es el id de un contenedor y por eso la prueba local decia que si.
+# Hacian falta DOS cosas y solo estaba una. Ahora estan las dos:
 #
-# El 2 es lo que falta. Hasta que alguien entre al contenedor que corre y vea
-# que `/api/health` contesta desde dentro, el `HEALTHCHECK` sigue SIN ponerse
-# aqui: una sonda que no pasa es peor que ninguna, porque Swarm mata tareas
-# sanas cada 55 segundos.
+# 1. `ENV HOSTNAME=0.0.0.0`, arriba junto a `PORT`.
+# 2. Reproducido, no supuesto. Arrancando el `server.js` real con `HOSTNAME`
+#    apuntando a una IP distinta de `127.0.0.1` -que es lo que hace Docker- la
+#    sonda da **conexion rechazada** con la App viva; con `HOSTNAME=0.0.0.0`
+#    contestan `127.0.0.1`, `0.0.0.0` **y el nombre del contenedor**, las tres
+#    con 200. Esto ultimo es lo que importa: es estrictamente mas amplio que
+#    antes, asi que el trafico que hoy entra por la IP del contenedor sigue
+#    entrando igual.
 #
-# Mientras tanto el stack se queda como este, que cuesta ~100 segundos de 502
-# por despliegue (ver el pendiente en CLAUDE.md) pero no tira la App.
+# ## Los numeros, y por que estos
 #
-# OJO con el `docker-compose.yml` del repo: ese SI trae un healthcheck contra
-# `127.0.0.1` y `order: start-first`, o sea lo que este comentario dice que no
-# se puede tener todavia. Es una plantilla y se contradice con esto; el stack
-# que corre de verdad se edita en Portainer. No dar por bueno lo que diga ese
-# archivo sin mirar el panel.
+# El hilo de Node es UNO. Una consulta pesada bloquea el bucle de eventos y
+# durante ese rato `/api/health` tampoco contesta, aunque la App este bien: se
+# han medido parones de 25 segundos. Por eso la sonda es **tolerante**: hacen
+# falta 6 fallos seguidos, o sea mas de un minuto sin dar señales, para que
+# Swarm de la tarea por muerta. Matar un contenedor ocupado seria convertir una
+# lentitud pasajera en una caida, que es justo el fallo que se arreglo.
+#
+# Y el `start-period` de 40s es holgado a proposito: Next arranca en ~280 ms,
+# pero mientras dura ese periodo un fallo no cuenta y un acierto SI marca sana.
+# O sea que no retrasa nada y cubre un arranque lento.
+#
+# El puerto se lee de `PORT` en vez de escribirlo a mano: si alguien lo cambia
+# arriba y aqui siguiera un 3000 fijo, la sonda fallaria siempre y volveriamos
+# al bucle de reinicios.
+HEALTHCHECK --interval=10s --timeout=10s --start-period=40s --retries=6 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# OJO con el `docker-compose.yml` del repo: es una PLANTILLA -dominio de ejemplo,
+# limites distintos, un `pgbouncer` que en produccion no existe-. El stack que
+# corre de verdad se edita en Portainer. No dar por bueno lo que diga ese archivo
+# sin mirar el panel.
 
 # El frontend NO gestiona el esquema de la BD. El repo BACKEND (api-webhook) es el
 # unico duenno de las migraciones y las aplica en su arranque
