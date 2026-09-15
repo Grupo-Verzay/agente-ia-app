@@ -2838,6 +2838,12 @@ export function ChatsClient({
             mensajeSoloPorElReloj(m?.key?.id);
           }
           if (areListsDifferent(messagesRef.current, nextMessages)) {
+            console.warn('[chats] sondeo del chat abierto', {
+              chat: remoteJid,
+              habia: messagesRef.current.length,
+              trajo: nextMessages.length,
+              tipos: nextMessages.slice(-12).map((m: any) => m?.messageType),
+            });
             setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo((currentInfo) => {
               const loadedPage = currentInfo?.currentPage ?? 1;
@@ -3383,6 +3389,9 @@ export function ChatsClient({
             remoteJidAliases,
             apiKeyData: effectiveApiKeyData,
           };
+          console.warn('[chats] abrir: se pintan los mensajes', {
+            chat: remoteJid, trae: openMessages.length, habia: messagesRef.current.length,
+          });
           setMessages(openMessages);
           setInfo(nextInfo);
           // Solo cacheamos cuando hay contenido real: un cache vacío haría que la
@@ -3421,6 +3430,15 @@ export function ChatsClient({
               .then((syncResult) => {
                 if (selectionRequestRef.current !== requestId || !syncResult?.success) return;
                 const merged = mergeMessages(messagesRef.current, syncResult.data || []);
+                console.warn('[chats] refresco de los 3,5s', {
+                  chat: remoteJid,
+                  habia: messagesRef.current.length,
+                  trajo: (syncResult.data || []).length,
+                  queda: merged.length,
+                  // Lo que trae el proveedor, tal cual. Si estos tipos no son los
+                  // que se pintan, aqui esta la respuesta.
+                  tipos: (syncResult.data || []).slice(-12).map((m: any) => m?.messageType),
+                });
                 const nextInfo = {
                   total: syncResult.total,
                   pages: syncResult.pages,
