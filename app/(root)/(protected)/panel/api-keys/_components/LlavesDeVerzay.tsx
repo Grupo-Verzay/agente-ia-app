@@ -233,8 +233,23 @@ export const LlavesDeVerzay = () => {
               <Card key={llave.id} className="border-border">
                 <CardHeader className="pb-2">
                   <div className="flex items-start gap-2">
-                    <CardTitle className="text-base min-w-0 flex-1 truncate" title={llave.nombre}>
-                      {llave.nombre}
+                    <CardTitle
+                      className="text-base min-w-0 flex-1 flex items-center gap-1.5"
+                      title={llave.nombre}
+                    >
+                      {/* La estrella va EN LA MISMA LÍNEA que el nombre, y sin
+                          texto al lado. Como etiqueta suelta debajo ocupaba una
+                          línea propia y solo la tenía una de las tres tarjetas,
+                          así que la rejilla salía escalonada. */}
+                      {llave.porDefecto && (
+                        <span title="Las cuentas nuevas se crean con esta llave">
+                          <Star
+                            className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500"
+                            aria-label="Llave por defecto"
+                          />
+                        </span>
+                      )}
+                      <span className="truncate">{llave.nombre}</span>
                     </CardTitle>
                     <div className="flex shrink-0 items-center gap-1">
                       <Button
@@ -268,11 +283,23 @@ export const LlavesDeVerzay = () => {
                       </Button>
                     </div>
                   </div>
+                  {/* La fila de estado SIEMPRE ocupa lo mismo, lleve chip o no.
+                      Es la misma idea que la tarjeta de Diagramas: una anatomía
+                      fija es lo que iguala las alturas sin recortar nada.
+
+                      Y el hueco se reserva con **el mismo chip puesto a
+                      invisible**, no con un `min-h` a ojo. Medido: el chip mide
+                      20,5 px, así que cualquier número redondo que se escriba
+                      aquí se queda corto o largo —y volvería a quedarse el día
+                      que alguien toque su tipografía—. Siendo el mismo
+                      elemento, las alturas no pueden separarse. */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {llave.porDefecto && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
-                        <Star className="h-3 w-3" />
-                        Por defecto
+                    {llave.activa && !llena && (
+                      <span
+                        aria-hidden
+                        className="invisible rounded-full px-2 py-0.5 text-[11px] font-medium"
+                      >
+                        &nbsp;
                       </span>
                     )}
                     {!llave.activa && (
