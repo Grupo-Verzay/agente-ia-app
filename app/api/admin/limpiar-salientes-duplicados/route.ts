@@ -5,6 +5,13 @@ import { currentUser } from '@/lib/auth';
 import { isAdminLike } from '@/lib/rbac';
 
 /**
+ * Esta ruta ESCRIBE. Nada de caché entre ella y quien la llama: una respuesta
+ * servida de caché diría que limpió lo que ya estaba limpio, o al revés, y es
+ * justo la clase de duda que costó esta sesión.
+ */
+export const dynamic = 'force-dynamic';
+
+/**
  * Limpia los salientes que quedaron guardados DOS veces.
  *
  * El origen se cerró en el backend (ver `api-webhook#145` y `#146`): un mensaje
@@ -63,6 +70,9 @@ type Pareja = {
   url_eco: string | null;
   segundos: number;
 };
+
+/** La pareja, ya con la clase por la que entró. */
+type ParejaConClase = Pareja & { clase: Clase };
 
 /**
  * ¿Es admin la PERSONA que está sentada delante?
@@ -377,8 +387,15 @@ export async function GET(request: Request) {
   const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
   const comun = { userId, instanceName, desde, ventanaMedia };
 
-  const porClase: Record<string, { enTotal: number | string; enEstaVuelta: number }> = {};
-  const tratables: Pareja[] = [];
+  const porClase: Record<string, {
+    antes: number | string;
+    enEstaVuelta: number;
+    limpiadas?: number;
+    yaNoEstaban?: number;
+    fallos?: number;
+    despues?: number | string;
+  }> = {};
+  const tratables: ParejaConClase[] = [];
   // Un eco no puede adoptar dos copias, ni una copia irse dos veces.
   const ecosVistos = new Set<string>();
   const nuestrasVistas = new Set<string>();
@@ -404,25 +421,33 @@ export async function GET(request: Request) {
       nuestrasVistas.add(String(p.id_nuestra));
       return true;
     });
-    tratables.push(...deEstaClase);
+    tratables.push(...deEstaClase.map((p) => ({ ...p, clase })));
 
     const total = await contarParejas(clase, comun).catch((error) => {
       console.error(`[duplicados] no se pudo contar el total de ${clase}`, error);
       return -1;
     });
     porClase[clase] = {
-      enTotal: total >= 0 ? total : 'no se pudo contar (ver la consola)',
+      antes: total >= 0 ? total : 'no se pudo contar (ver la consola)',
       enEstaVuelta: deEstaClase.length,
     };
   }
 
   const totalNumerico = clases.reduce((suma, clase) => {
-    const n = porClase[clase]?.enTotal;
+    const n = porClase[clase]?.antes;
     return typeof n === 'number' && suma >= 0 ? suma + n : -1;
   }, 0);
 
   const muestra = tratables.slice(0, 20).map(paraElInforme);
-  const cola = `userId=${userId}${instanceName ? `&instanceName=${instanceName}` : ''}&dias=${dias}&tipo=${pedido}`;
+  // La URL de aplicar tiene que llevar TODO lo que le dio forma a este informe.
+  // Le faltaban `limite` y `ventanaMedia`: quien corriera el informe con
+  // `&limite=2000` y luego pulsara este enlace aplicaba con 500, o sea sobre un
+  // conjunto distinto del que acababa de mirar. Un enlace que promete «aplica
+  // esto» tiene que aplicar ESTO.
+  const cola =
+    `userId=${userId}${instanceName ? `&instanceName=${instanceName}` : ''}` +
+    `&dias=${dias}&tipo=${pedido}&limite=${limite}` +
+    (clases.includes('media') ? `&ventanaMedia=${ventanaMedia}` : '');
 
   if (!aplicar) {
     return NextResponse.json({
@@ -444,12 +469,25 @@ export async function GET(request: Request) {
     });
   }
 
+  // Lo que se cuenta son FILAS BORRADAS, no vueltas del bucle que no reventaron.
+  //
+  // Antes `limpiadas` subía en cuanto la transacción no lanzaba, así que decía
+  // lo mismo tanto si borró la fila como si no había nada que borrar. Con eso,
+  // «limpiadas: 0» no distinguía «no hizo nada» de «ya estaba hecho», que son
+  // dos cosas opuestas y es justo la pregunta que uno viene a hacerle a este
+  // número. `$executeRaw` devuelve cuántas filas tocó: eso es lo que se cuenta.
   let limpiadas = 0;
+  let yaNoEstaban = 0;
   let fallos = 0;
+  let primerFallo: string | undefined;
+
+  const hechoPorClase: Record<string, { limpiadas: number; yaNoEstaban: number; fallos: number }> = {};
+  for (const clase of clases) hechoPorClase[clase] = { limpiadas: 0, yaNoEstaban: 0, fallos: 0 };
 
   for (const p of tratables) {
+    const cuenta = hechoPorClase[p.clase];
     try {
-      await db.$transaction(async (tx) => {
+      const borradas = await db.$transaction(async (tx) => {
         // 1. La marca «Agente IA» se la queda el eco ANTES de borrar nada: es lo
         //    único que aporta nuestra copia, y perderla dejaría el mensaje
         //    atribuido al asesor.
@@ -470,12 +508,24 @@ export async function GET(request: Request) {
              AND "lastMessageId" = ${p.mid_nuestra}
         `;
 
-        // 3. Y se borra la copia con el id inventado.
-        await tx.$executeRaw`DELETE FROM "chat_messages" WHERE "id" = ${p.id_nuestra}`;
+        // 3. Y se borra la copia con el id inventado. Lo que devuelve es el dato.
+        return tx.$executeRaw`DELETE FROM "chat_messages" WHERE "id" = ${p.id_nuestra}`;
       });
-      limpiadas += 1;
+
+      if (borradas > 0) {
+        limpiadas += borradas;
+        cuenta.limpiadas += borradas;
+      } else {
+        yaNoEstaban += 1;
+        cuenta.yaNoEstaban += 1;
+      }
     } catch (error) {
       fallos += 1;
+      cuenta.fallos += 1;
+      // El motivo viaja en la RESPUESTA, no solo a la consola del contenedor.
+      // Quien corre esto lo corre desde el navegador y no ve esa consola: un
+      // fallo que solo se escribe donde nadie mira es un fallo mudo.
+      if (!primerFallo) primerFallo = error instanceof Error ? error.message : String(error);
       console.error('[duplicados] no se pudo limpiar una pareja', {
         linea: p.linea,
         tipo: p.tipo,
@@ -485,7 +535,34 @@ export async function GET(request: Request) {
     }
   }
 
-  console.info('[duplicados] pasada terminada', { cuenta: userId, mirando: pedido, limpiadas, fallos });
+  // Y se vuelve a contar. Es la única forma de que la respuesta se explique
+  // sola: `antes` y `despues` salen los dos de la base, así que dicen lo que
+  // pasó de verdad y no lo que el bucle creyó que pasaba.
+  for (const clase of clases) {
+    const despues = await contarParejas(clase, comun).catch((error) => {
+      console.error(`[duplicados] no se pudo recontar ${clase}`, error);
+      return -1;
+    });
+    porClase[clase] = {
+      ...porClase[clase],
+      ...hechoPorClase[clase],
+      despues: despues >= 0 ? despues : 'no se pudo contar (ver la consola)',
+    };
+  }
+
+  const quedan = clases.reduce((suma, clase) => {
+    const n = porClase[clase]?.despues;
+    return typeof n === 'number' && suma >= 0 ? suma + n : -1;
+  }, 0);
+
+  console.info('[duplicados] pasada terminada', {
+    cuenta: userId,
+    mirando: pedido,
+    limpiadas,
+    yaNoEstaban,
+    fallos,
+    quedan,
+  });
 
   return NextResponse.json({
     ok: true,
@@ -494,13 +571,18 @@ export async function GET(request: Request) {
     linea: instanceName ?? '(todas las de la cuenta)',
     mirando: pedido,
     desde: desde.toISOString(),
-    parejasEnTotal: totalNumerico >= 0 ? totalNumerico : 'no se pudo contar (ver la consola)',
+    parejasAntes: totalNumerico >= 0 ? totalNumerico : 'no se pudo contar (ver la consola)',
+    parejasDespues: quedan >= 0 ? quedan : 'no se pudo contar (ver la consola)',
     porClase,
     tratadasEnEstaVuelta: tratables.length,
     limpiadas,
+    yaNoEstaban,
     fallos,
-    faltan: totalNumerico >= 0 ? Math.max(0, totalNumerico - limpiadas) : null,
+    primerFallo,
     muestra,
-    siQuedanMas: 'vuelve a llamar sin `aplicar` para ver si el informe ya dice 0.',
+    siQuedanMas:
+      quedan > 0
+        ? 'vuelve a llamar con `aplicar=si` hasta que `parejasDespues` diga 0.'
+        : 'no queda ninguna en esta ventana.',
   });
 }
