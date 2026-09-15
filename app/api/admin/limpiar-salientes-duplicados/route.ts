@@ -46,6 +46,30 @@ type Pareja = {
   segundos: number;
 };
 
+/**
+ * ¿Es admin la PERSONA que está sentada delante?
+ *
+ * `currentUser()` devuelve la fila de la cuenta en la que se está metido: con
+ * la cookie de «Ingresar» puesta, el `role` es el del CLIENTE (`user`), no el
+ * de quien entró. Así que un super admin que estaba mirando los chats de un
+ * cliente abría esta ruta y le salía «No autorizado», sin pista de por qué.
+ *
+ * Es la misma regla que ya está escrita para el administrador de una cuenta:
+ * **el rol no se hereda**. Aquí se mira el de siempre, el de la sesión real.
+ */
+async function esAdminDeVerdad(user: { role?: string | null; sessionUserId?: string | null; id: string }): Promise<boolean> {
+  if (isAdminLike(user.role)) return true;
+
+  const real = (user.sessionUserId ?? '').trim();
+  if (!real || real === user.id) return false;
+
+  const fila = await db.user
+    .findUnique({ where: { id: real }, select: { role: true } })
+    .catch(() => null);
+
+  return isAdminLike(fila?.role);
+}
+
 function autorizado(request: Request, esAdmin: boolean): boolean {
   if (esAdmin) return true;
   const esperada = (process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '').trim();
@@ -132,7 +156,7 @@ async function buscarParejas(params: {
 
 export async function GET(request: Request) {
   const user = await currentUser().catch(() => null);
-  const esAdmin = !!user?.id && isAdminLike(user.role);
+  const esAdmin = !!user?.id && (await esAdminDeVerdad(user));
   if (!autorizado(request, esAdmin)) {
     return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
   }
