@@ -154,7 +154,17 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                     title="Filtrar por estado del servicio"
                   >
                     <BadgeCheck className="h-4 w-4" />
-                    <span className="hidden md:inline">
+                    {/* Con un filtro puesto, la palabra se lee SIEMPRE, también
+                        en móvil. «Estado» —que no filtra nada— sí puede
+                        esconderse cuando no cabe.
+                        Importa desde que la pantalla nace en «Activos»: quien
+                        entra no puso ese filtro, así que en una pantalla
+                        estrecha se encontraría una lista recortada y, para
+                        explicarlo, solo un icono azul. Es la misma regla de
+                        siempre —un filtro puesto que no se nota es lo que hace
+                        pensar que faltan clientes—, que ahora hay que cumplir
+                        también sin que nadie lo haya tocado. */}
+                    <span className={servicio === 'todos' ? 'hidden md:inline' : 'inline'}>
                       {servicio === 'todos' ? 'Estado' : ETIQUETAS_DE_SERVICIO[servicio]}
                     </span>
                     <ChevronDown className="h-4 w-4" />
