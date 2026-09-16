@@ -9,6 +9,7 @@ import { toZonedTime } from "date-fns-tz";
 import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING, PRE_DELETE_WARN_DAYS } from "@/types/billing";
 import { deleteInstanceInternal, deleteInstanceEvolutionAware } from "@/actions/api-action";
 import { assertAdminOrReseller } from "./helpers/billing-helpers.server";
+import { anotarLaCohorteDelMes } from "@/actions/renovacion-mensual-actions";
 import {
     evaluateBillingLifecycle,
     getBillingDaysRemaining,
@@ -753,6 +754,32 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                 accessStatus: item.accessStatus,
                 billingStatus: item.billingStatus,
                 lastReminderAt: item.lastReminderAt ? item.lastReminderAt.toISOString() : null,
+            });
+        }
+
+        // La cohorte del mes, para la tarjeta de Renovación mensual.
+        //
+        // Va aquí porque este es el único sitio que corre TODOS los días, y la
+        // cohorte de un mes hay que cogerla mientras sus cuentas todavía tienen
+        // el vencimiento dentro: `dueDate` se pisa al cobrar y la fecha vieja
+        // no se puede recuperar después.
+        //
+        // Y **no puede tumbar el job**: cobrar, avisar y suspender es lo que de
+        // verdad importa de esta función. Pero tampoco es mudo — una cohorte
+        // que deja de anotarse en silencio se nota meses más tarde, como una
+        // tarjeta que lleva tiempo diciendo lo mismo.
+        try {
+            const anotada = await anotarLaCohorteDelMes();
+            pushLog({
+                at: new Date().toISOString(),
+                level: "INFO",
+                message: `Cohorte de renovación ${anotada.mes}: anotadas=${anotada.anotadas}, selladas=${anotada.selladas}.`,
+            });
+        } catch (error: any) {
+            pushLog({
+                at: new Date().toISOString(),
+                level: "ERROR",
+                message: `No se pudo anotar la cohorte de renovación: ${error?.message ?? error}.`,
             });
         }
 
