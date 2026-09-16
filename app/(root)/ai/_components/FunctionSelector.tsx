@@ -280,12 +280,14 @@ export const FunctionSelector = ({
                                 {step && (
                                     <CommandGroup heading="TEXTO">
                                         <CommandItem onSelect={addText}>
-                                            {/* "respuesta/regla" y no "regla" a secas: este es el
-                                                elemento que el cliente recibe —las plantillas lo
-                                                llaman el PRIMER elemento de TEXTO—, y llamarlo solo
-                                                regla hacía que se buscara la respuesta en otro lado.
+                                            {/* "respuesta" a secas: este es el elemento que el
+                                                cliente recibe —las plantillas lo llaman el PRIMER
+                                                elemento de TEXTO—. Antes decía "respuesta/regla"
+                                                porque hacía las dos cosas; ahora las reglas
+                                                internas tienen su propio campo, la nota de abajo,
+                                                así que la barra sobra y confunde.
                                                 Es un cambio de etiqueta: el prompt no cambia. */}
-                                            <span className="flex items-center gap-2">📝 Agregar respuesta/regla</span>
+                                            <span className="flex items-center gap-2">📝 Agregar respuesta</span>
                                         </CommandItem>
                                         {/* La nota va aquí, debajo de la respuesta, porque
                                             es lo mismo pero al revés: una la lee el cliente
