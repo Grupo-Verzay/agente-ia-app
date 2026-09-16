@@ -96,9 +96,18 @@ const DUE_TONES = {
 export function ProjectsClient({
   userId,
   team,
+  repartoDelTrabajo,
 }: {
   userId: string;
   team: AdvisorInfo[];
+  /**
+   * El reparto del trabajo, ya pintado en el servidor.
+   *
+   * Viaja como nodo y no como dato porque este fichero es `"use client"` y el
+   * bloque sale de una consulta. Vacío para quien no administra la cuenta,
+   * porque la consulta ya devuelve `null`: la puerta está ahí, no aquí.
+   */
+  repartoDelTrabajo?: React.ReactNode;
 }) {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -369,6 +378,11 @@ export function ProjectsClient({
         </div>
       )}
 
+      {/* El reparto va DEBAJO de los proyectos: se consulta de vez en cuando,
+          no es lo que se viene a hacer a esta pantalla. Vacío para quien no
+          administra la cuenta, porque la consulta ya devuelve `null`. */}
+      {repartoDelTrabajo && <div className="mt-4">{repartoDelTrabajo}</div>}
+
       <ProjectDialog
         open={creating || editing !== null}
         project={editing}
@@ -531,6 +545,18 @@ function ProjectCard({
             )}
             {project.members.length === 0 && (
               <span className="text-[11px] text-muted-foreground">Sin equipo</span>
+            )}
+            {/* Quién lo creó, junto a «Sin equipo». Va aquí y no en una fila
+                propia porque la tarjeta son tres filas fijas y una cuarta la
+                descuadraría (ver la regla de la tarjeta de Diagramas). Con
+                equipo, la raya lo separa de los avatares. */}
+            {project.createdByName && (
+              <span
+                className="ml-2 max-w-[9rem] truncate border-l pl-2 text-[11px] text-muted-foreground"
+                title={`Creado por ${project.createdByName}`}
+              >
+                {project.createdByName}
+              </span>
             )}
           </div>
 

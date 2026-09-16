@@ -12,6 +12,10 @@ import { filtroDeProyectosVisibles, mandaEnElProyecto } from "@/lib/project-role
 import { leerLosAdjuntos } from "@/lib/adjuntos-de-tarea";
 import { tareasConAlgoSinVer } from "@/lib/avisos-de-tarea";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
+import {
+  leerLosClientesDeLasTareas,
+  registrarElCierre,
+} from "@/actions/trabajo-de-tarea-actions";
 
 type Result<T> = { success: boolean; message: string; data?: T };
 
@@ -89,6 +93,14 @@ function toProjectData(
     overdueTasks,
     createdAt: project.createdAt.toISOString(),
     createdById: project.createdById,
+    // El nombre de quien lo creó. El id ya estaba; lo que faltaba era
+    // resolverlo, porque `loadPeople` solo miraba al responsable y a los
+    // miembros. Sin esto, el administrador ve proyectos de agentes y no sabe
+    // de quién son.
+    createdByName:
+      people.get(project.createdById)?.name ??
+      people.get(project.createdById)?.email ??
+      null,
     puedeGestionar:
       quienMira.gestionaLaCuenta || project.createdById === quienMira.id,
   };
@@ -124,7 +136,11 @@ export async function listProjectsAction(): Promise<Result<ProjectData[]>> {
     });
 
     const people = await loadPeople(
-      projects.flatMap((p) => [p.leadId ?? "", ...p.members.map((m) => m.userId)]),
+      projects.flatMap((p) => [
+        p.leadId ?? "",
+        p.createdById,
+        ...p.members.map((m) => m.userId),
+      ]),
     );
 
     return {
@@ -281,9 +297,12 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
     // Los adjuntos de TODAS las tareas en una consulta, no una por tarjeta.
     // Y lo mismo con el punto de «algo sin ver»: las dos por lista, o un tablero
     // de treinta tarjetas serían sesenta consultas.
-    const [adjuntos, sinVer] = await Promise.all([
+    // Y la cuenta de cada tarea, por lo mismo: una consulta para la lista, no
+    // una por tarjeta.
+    const [adjuntos, sinVer, clientes] = await Promise.all([
       leerLosAdjuntos(tasks.map((t) => t.id)),
       tareasConAlgoSinVer(tasks.map((t) => t.id), user.id),
+      leerLosClientesDeLasTareas(ownerId, tasks.map((t) => t.id)),
     ]);
 
     return {
@@ -307,6 +326,7 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
         createdAt: t.createdAt.toISOString(),
         adjuntos: adjuntos.get(t.id) ?? [],
         tieneAlgoSinVer: sinVer.has(t.id),
+        clienteId: clientes[t.id] ?? null,
       })),
     };
   } catch (error) {
@@ -402,6 +422,14 @@ export async function updateProjectTaskAction(
 const moveSchema = z.object({
   taskId: z.number().int().positive(),
   status: z.enum(["pending", "in_progress", "in_review", "done", "cancelled"]),
+  /**
+   * Cuánto costó, ya en minutos. Solo tiene sentido al mover a «Hecho», y ahí
+   * es **obligatorio**: arrastrar a esa columna es cerrar la tarea igual que el
+   * botón de Tareas, y si este camino no lo pidiera bastaría con arrastrar para
+   * saltarse el registro — y entonces el reparto cuenta unas tareas sí y otras
+   * no, que es peor que no contarlas.
+   */
+  minutosDeTrabajo: z.number().int().positive().optional(),
 });
 
 /** Arrastrar una tarjeta de columna: solo cambia el estado. */
@@ -411,6 +439,12 @@ export async function moveProjectTaskAction(
   try {
     const { user, ownerId } = await getAuth();
     const parsed = moveSchema.parse(input);
+
+    // Se comprueba ANTES de mover: si se moviera primero, una tarea sin tiempo
+    // quedaría cerrada y ya no hay forma de pedírselo a nadie.
+    if (parsed.status === "done" && !parsed.minutosDeTrabajo) {
+      throw new Error("Registra cuánto tiempo tomó la tarea.");
+    }
 
     // Un agente participa moviendo LO SUYO. Si no fuese asi, cualquiera podria
     // dar por hecha la tarea de otro desde el tablero.
@@ -447,6 +481,18 @@ export async function moveProjectTaskAction(
     // Arrastrarla a «Hecho» es darla por hecha, igual que el botón de Tareas:
     // le salta a quien la creó, para que pueda avisarle al cliente. Solo cuando
     // **cambia** de estado, o mover una tarjeta ya hecha volvería a avisar.
+    if (antes && antes.status !== "done") {
+      // Lo mismo vale para el tiempo: se sella una vez, al cerrarse de verdad.
+      // Arrastrar una tarjeta que ya estaba en «Hecho» no vuelve a contar.
+      await registrarElCierre({
+        taskId: antes.id,
+        ownerId,
+        minutos: parsed.minutosDeTrabajo as number,
+        cerradaPorId: user.id,
+        cerradaPorNombre: user.name?.trim() || user.email || null,
+      });
+    }
+
     if (antes && antes.status !== "done") {
       await avisarDeLaTarea({
         tipo: "hecha",

@@ -9,6 +9,7 @@ import { writeAuditLog } from "@/actions/audit-log-actions";
 import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
 import { olvidarElHiloDe } from "@/lib/avisos-de-tarea";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
+import { registrarElCierre } from "@/actions/trabajo-de-tarea-actions";
 
 import type { TaskData, TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
@@ -356,10 +357,22 @@ export async function completeTaskAction(
     type: string;
     dueDate: string;
   },
+  /**
+   * Cuánto costó, ya en minutos. **Obligatorio**, y se comprueba aquí y no
+   * solo en el formulario: sin esto la tarea se podría cerrar desde otro sitio
+   * sin tiempo, y una tarea cerrada sin tiempo ya no se puede recuperar —nadie
+   * vuelve a abrirla para apuntarlo—, así que el reparto quedaría corto para
+   * siempre y sin decir por qué.
+   */
+  minutosDeTrabajo?: number,
 ): Promise<{ success: boolean; message: string; data?: { nextTask?: TaskData } }> {
   try {
     const user = await getAuth();
     const ownerId = user.ownerId ?? user.id;
+
+    if (!Number.isFinite(minutosDeTrabajo) || (minutosDeTrabajo ?? 0) <= 0) {
+      return { success: false, message: "Registra cuánto tiempo tomó la tarea." };
+    }
     const parsedNextTask = nextTask ? nextTaskSchema.parse(nextTask) : undefined;
     const currentTask = await (db as any).task.findFirst({
       where: { id: taskId, ownerId },
@@ -392,6 +405,18 @@ export async function completeTaskAction(
           createdById: user.id,
         },
       });
+    });
+
+    // El tiempo y QUIÉN cerró. Va después de la transacción a propósito: la
+    // tarea ya está cerrada y esto no puede deshacerlo, así que no se mete
+    // dentro para no arriesgar el cierre por una tabla de la App. No es mudo:
+    // `registrarElCierre` avisa si falla.
+    await registrarElCierre({
+      taskId,
+      ownerId,
+      minutos: minutosDeTrabajo as number,
+      cerradaPorId: user.id,
+      cerradaPorNombre: user.name?.trim() || user.email || null,
     });
 
     // Dada por hecha: le salta a quien la creó, que es quien tiene que avisarle
