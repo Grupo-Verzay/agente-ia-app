@@ -2,6 +2,19 @@ export interface NavigationRoutesInterface {
     route: string
 }
 
+/**
+ * Las rutas que ofrece el desplegable de Panel › Modulos.
+ *
+ * **Una ruta que no este aqui NO se puede crear como modulo**, por mucho que la
+ * pagina exista: el campo es un `Select` sobre esta lista, no texto libre. Asi
+ * que una pantalla nueva que deba salir en el menu se añade AQUI el mismo dia
+ * que se crea su carpeta en `app/`; si no, queda solo alcanzable por su URL y
+ * eso equivale a que no exista.
+ *
+ * De esta lista tiran los dos formularios de modulos —el de `/panel/module` y
+ * el de `/admin/module`—, tanto para la ruta del modulo como para la de sus
+ * apartados.
+ */
 export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: '/canva' },
     { route: '/multiagente' },
@@ -34,6 +47,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/tags" },
     { route: "/tareas" },
     { route: "/proyectos" },
+    { route: "/tickets" },
     { route: "/ai" },
     { route: "/ai-image" },
     { route: "/products" },
@@ -69,6 +83,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/notas" },
     { route: "/copiloto" },
     { route: "/mis-formularios" },
+    { route: "/mis-tickets" },
     { route: "/mis-catalogo" },
     { route: "/integraciones" },
     { route: "#user-integrations" },
