@@ -1032,6 +1032,86 @@ Y una advertencia de sintaxis que costó dos errores de compilación: **dentro d
 un `$queryRaw` no puede haber acentos graves**, ni siquiera en un comentario
 SQL. Cierran el template literal y el fichero deja de parsear.
 
+## Renovación mensual: una columna que se pisa no tiene historia
+
+Los ingresos mensuales dicen cuánto entró. Lo que no se veía es **si se está
+fugando gente**: la cuenta que no paga se desactiva y al mes se elimina, y uno
+se enteraba mirando cuenta por cuenta.
+
+La medida es del último mes **cerrado**: de las cuentas cuyo vencimiento caía
+en él, cuántas siguieron. El mes en curso va a medias —quien vence el 28
+todavía no ha tenido ocasión— y medio mes siempre parece otra cosa de lo que
+fue; es el mismo criterio con el que la vigilancia juzga ayer y no hoy.
+
+**Y el dato histórico NO existía.** `UserBilling.dueDate` es una sola columna
+que se pisa: al cobrar, `setUserBillingDueDateInternal` la mueve al mes
+siguiente y la fecha vieja desaparece. Se miraron las otras fuentes posibles y
+ninguna sirve:
+
+| Dónde | Por qué no |
+| --- | --- |
+| `FinanceTransaction` | `createPaymentTransaction` **se salta la fila** si el cliente no tiene cuenta de finanzas por defecto. Y es el módulo de finanzas del propio cliente, no un registro de cobros de la plataforma. |
+| `UserBilling.lastPaymentAt` | Una columna más que se pisa: solo recuerda el último pago. |
+| `UserSubscription` | Solo se crean filas en el alta autogestionada (`user-subscription-actions`), no en las renovaciones. |
+
+O sea que del estado de hoy se puede sacar **quién no renovó** —su vencimiento
+se quedó clavado en su mes— y **no** el porcentaje, porque falta el
+denominador. Y al mes hasta esa mitad se borra sola con la cuenta.
+
+Así que hay una tabla, `renovaciones_mensuales`, de la App y con
+`CREATE TABLE IF NOT EXISTS`. **Ni una columna nueva en `UserBilling`**: esa
+tabla es del backend y añadirle columnas desde aquí es lo que reventó el #360.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se anota desde el trabajo DIARIO de facturación**, no al abrir la
+   pantalla. La cohorte de un mes hay que cogerla mientras sus cuentas todavía
+   tienen el vencimiento dentro; si solo corriera al abrir el panel, un mes en
+   que nadie entrara se perdería entero y no hay forma de recuperarlo. Y no
+   puede tumbar el job —cobrar y suspender es lo que importa— pero **tampoco es
+   mudo**: escribe su línea en el registro del job.
+2. **Sin clave foránea, y con el nombre y el correo COPIADOS dentro.** La
+   cuenta morosa se elimina al mes; si la fila se fuera con ella, el mes pasado
+   perdería justo a los que se fueron, que son los que la tarjeta viene a
+   enseñar. Comprobado en el banco: borrada la cuenta, la fila sigue con su
+   nombre y su correo.
+3. **`renovoEn` se SELLA y no se deduce al leer.** De una cuenta ya borrada no
+   hay `dueDate` que mirar, así que quien renovó y luego se dio de baja por
+   otra cosa contaría como fuga. Y el `ON CONFLICT` del anotado diario
+   **no lo toca**: una vez sellado, sellado.
+4. **Quien paga tarde cuenta igual.** El que vence el 31 y paga el 2 del
+   siguiente renovó su mes, así que el sellado mira el mes en curso **y el
+   anterior**. La fecha del sello no tiene que caer dentro del mes.
+
+### Y un mes sin cohorte completa NO tiene porcentaje
+
+Es la parte que no se puede ablandar. Un mes anterior a que empezara a
+anotarse tiene a los que no renovaron —deducidos de su vencimiento clavado— y
+le faltan los que sí. Dividir con eso da **0 %**, que es el peor número
+posible: parece una fuga total y es un dato que no existe.
+
+Ese mes se marca `parcial` y `porcentaje` sale **`null`**, y la tarjeta pinta
+«Todavía no se puede medir» con el motivo al lado. La lista sí se enseña, que
+esa es cierta. Es la regla de *un número que no se puede calcular no se
+sustituye por otro*, la misma que ya costó un WhatsApp diciéndole a una
+clienta «999999999 de -1 créditos».
+
+Lo mismo con cero cuentas: no se divide entre cero, sale `null`.
+
+**Se sabe desde cuándo se anota** mirando el `MIN("anotadoEn")` de la tabla. Sin
+eso no se puede distinguir «este mes no venció nadie» de «este mes no lo
+vimos», que es la distinción entera de esta tarjeta.
+
+### Los extremos del mes, con el final EXCLUSIVO
+
+`extremosDelMes` devuelve del día 1 a las 00:00 al día 1 del mes siguiente, y
+el final no se incluye. Así da igual que el mes tenga 28, 29, 30 o 31 días y no
+hay que contarlos: calculando un «último día» a mano, febrero y los meses de 31
+se equivocan por un día, y ese día es el que más vence. Probado con febrero
+normal y bisiesto, con 30 y 31, y con diciembre, que cruza de año —igual que
+`ultimoMesCerrado`, que en enero tiene que devolver diciembre **del año
+anterior**—.
+
 ## Chats: el menú de Acciones no puede crecer con el equipo
 
 En «Acciones» iban abiertas, una detrás de otra, las dos listas de asesores:

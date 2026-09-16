@@ -13,6 +13,8 @@ import { VigilanciaDeChats } from "./_components/VigilanciaDeChats"
 import { leerLaVigilancia } from "@/actions/vigilancia-actions"
 import { ActividadDeInstancias } from "./_components/ActividadDeInstancias"
 import { leerLaActividadDeInstancias } from "@/actions/actividad-de-instancias-actions"
+import { RenovacionMensual } from "./_components/RenovacionMensual"
+import { leerLaRenovacionMensual } from "@/actions/renovacion-mensual-actions"
 
 const SinDatos = ({ que }: { que: string }) => (
   <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
@@ -51,10 +53,11 @@ const AnalyticsPage = async () => {
   // `leerLaVigilancia` devuelve `null` a quien no sea superadministrador, así
   // que el bloque ni se pinta. La puerta está en la consulta y no aquí: una
   // pantalla no puede abrir más de lo que la consulta deja.
-  const [result, vigilancia, actividad] = await Promise.all([
+  const [result, vigilancia, actividad, renovacion] = await Promise.all([
     getVerzayPlatformAnalytics(),
     leerLaVigilancia(),
     leerLaActividadDeInstancias(),
+    leerLaRenovacionMensual(),
   ])
 
   // El bloque va DENTRO de `VerzayAnalytics`, al final, y no como hermano suyo.
@@ -72,9 +75,10 @@ const AnalyticsPage = async () => {
   // PRIMERA: dice si una línea está muerta ahora mismo, que es más urgente que
   // si Chats tarda un segundo de más en abrir.
   const bloquesInternos =
-    vigilancia || actividad ? (
+    vigilancia || actividad || renovacion ? (
       <>
         {actividad ? <ActividadDeInstancias vista={actividad} /> : null}
+        {renovacion ? <RenovacionMensual vista={renovacion} /> : null}
         {vigilancia ? <VigilanciaDeChats vista={vigilancia} /> : null}
       </>
     ) : null
