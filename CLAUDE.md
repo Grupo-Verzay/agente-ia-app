@@ -1200,6 +1200,49 @@ en `leerElTrabajo`, que devuelve `null` a quien no manda, y no en la pantalla:
 es un dato de gestión, y enseñárselo a quien lo produce lo convierte en otra
 cosa.
 
+### «Tipo de trabajo» NO es `Task.type`, y no puede serlo
+
+Montaje —armar y entregar un cliente nuevo— o soporte —atender a uno que ya
+funciona—. Cruzado con la cuenta y con el tiempo, contesta la pregunta entera:
+**cuánto cuesta entregar un cliente y cuánto cuesta mantenerlo.**
+
+`tasks` ya tiene una columna `type` —Seguimiento, Llamada, Reunión, Email,
+Tarea, más los tipos que cada cuenta se invente— y **parece el sitio**. No lo
+es, por dos motivos, y el segundo rompe cosas:
+
+1. **Son dos preguntas distintas.** `type` dice *qué clase de gestión es*; esto
+   dice *para qué*. Una llamada puede ser de montaje o de soporte, y metiéndolo
+   todo en una columna se pierde una de las dos.
+2. **`type` dispara automatizaciones.** `triggerTaskTypeAutomations` corre con
+   cada tarea creada, y CRM › Reglas tiene un panel entero colgado de esos
+   nombres. Una tarea de «montaje» empezaría a disparar —o a dejar de disparar—
+   lo que esa cuenta tenga configurado, sin que nadie lo pidiera.
+
+Va en `task_work`, al lado de la cuenta y de los minutos, que es lo que hay que
+cruzar. La columna entra con **`ALTER TABLE … ADD COLUMN IF NOT EXISTS`** y no
+reescribiendo el `CREATE`: la tabla ya existe en producción y un
+`CREATE TABLE IF NOT EXISTS` no toca una tabla que ya está — es el fallo que se
+comete solo al añadirle una columna a una tabla de la App que ya se desplegó.
+
+Tres cosas más:
+
+1. **Lo que llega de fuera pasa por la lista** (`comoTipoDeTrabajo`), en el
+   servidor y no solo al pintar el desplegable. Un valor inventado se quedaría
+   guardado y saldría en el reparto como una tercera columna que nadie sabe de
+   dónde salió. Y **se vuelve a filtrar al leer**, para que una fila rara —a
+   mano, o de antes de esta comprobación— salga como «sin tipo» y no rompa la
+   pantalla.
+2. **Es opcional, y el «sin tipo» SE ENSEÑA.** Una tarea interna no es montaje
+   ni soporte: no hay cliente que entregar ni que mantener, y forzar a elegir
+   metería ruido. Pero lo que no se rellena no se esconde: el reparto tiene su
+   columna «Sin tipo» y su aviso en ámbar. Sin eso, dos cuentas con el mismo
+   trabajo salen con cifras muy distintas solo porque en una se rellenó el campo
+   y en la otra no — y eso no se ve por ningún lado. Misma familia que las
+   tareas internas del reparto por cuenta: **si no suma, se dice.**
+3. **Montaje y soporte van en la MISMA fila** de la tabla, no en dos tablas.
+   Separados habría que buscar la cuenta dos veces y compararla de memoria, que
+   es justo lo que esta tarjeta viene a evitar.
+
 ### Los dos `ON CONFLICT` no se pisan
 
 `task_work` la escriben dos caminos distintos sobre la misma fila —anotar el

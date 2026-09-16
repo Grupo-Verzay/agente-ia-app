@@ -22,6 +22,7 @@
  */
 
 import { SERVER_TIME_ZONE } from "./utils";
+import type { TipoDeTrabajo } from "./tipo-de-trabajo";
 
 export const UNIDADES_DE_TIEMPO = ["minutos", "horas", "dias"] as const;
 export type UnidadDeTiempo = (typeof UNIDADES_DE_TIEMPO)[number];
@@ -99,6 +100,8 @@ export type CierreConTiempo = {
     personaNombre: string | null;
     clienteId: string | null;
     clienteNombre: string | null;
+    /** Montaje o soporte. `null` = sin tipo, que es un caso normal. */
+    tipoDeTrabajo: TipoDeTrabajo | null;
     minutos: number;
     cerradaEn: string;
 };

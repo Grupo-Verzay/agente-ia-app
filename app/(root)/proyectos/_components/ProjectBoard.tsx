@@ -20,6 +20,12 @@ import {
 } from "@/components/ui/dialog";
 import { TiempoDeTarea } from "@/components/shared/TiempoDeTarea";
 import {
+  NOMBRE_DEL_TIPO,
+  QUE_ES_CADA_TIPO,
+  TIPOS_DE_TRABAJO,
+  type TipoDeTrabajo,
+} from "@/lib/tipo-de-trabajo";
+import {
   clientesParaLaTareaAction,
   guardarElClienteDeLaTareaAction,
 } from "@/actions/trabajo-de-tarea-actions";
@@ -779,6 +785,8 @@ function TaskDialog({
   const [adjuntos, setAdjuntos] = useState<AdjuntoDeTarea[]>([]);
   // La cuenta a la que se le dedica. Vacío = tarea interna, que es normal.
   const [clienteId, setClienteId] = useState<string>("");
+  // Montaje o soporte. Vacío = sin tipo, y sale así en el reparto.
+  const [tipoDeTrabajo, setTipoDeTrabajo] = useState<string>("");
   // Solo hace falta cuando la tarjeta nace directamente en «Hecho».
   const [minutosDeTrabajo, setMinutosDeTrabajo] = useState<number | null>(null);
   const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
@@ -793,6 +801,7 @@ function TaskDialog({
     // Por defecto, hoy: una tarea sin fecha no aparece en los avisos de Tareas.
     setDueDate((task?.dueDate ?? new Date().toISOString()).slice(0, 10));
     setClienteId(task?.clienteId ?? "");
+    setTipoDeTrabajo(task?.tipoDeTrabajo ?? "");
     setMinutosDeTrabajo(null);
     // Se piden al abrir y no al montar: el diálogo vive montado todo el rato y
     // pedirlas una vez al arrancar el tablero sería una consulta que casi nunca
@@ -819,7 +828,11 @@ function TaskDialog({
         assignedToId,
       });
       if (res.success) {
-        await guardarElClienteDeLaTareaAction(task.id, clienteId || null);
+        await guardarElClienteDeLaTareaAction(
+          task.id,
+          clienteId || null,
+          tipoDeTrabajo || null,
+        );
       }
       setSaving(false);
       if (!res.success) { toast.error(res.message); return; }
@@ -842,7 +855,11 @@ function TaskDialog({
       return;
     }
 
-    await guardarElClienteDeLaTareaAction(res.data.id, clienteId || null);
+    await guardarElClienteDeLaTareaAction(
+      res.data.id,
+      clienteId || null,
+      tipoDeTrabajo || null,
+    );
 
     // createTaskAction siempre nace en "pending"; si se pidió otra columna, se
     // mueve acto seguido en vez de duplicar la lógica de creación.
@@ -976,6 +993,32 @@ function TaskDialog({
                 <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
+          </div>
+
+          {/* Va pegado a Cuenta porque los dos contestan a la misma pregunta:
+              a quién se le dedica el rato y para qué. Separados, se rellena uno
+              y se olvida el otro, y entonces el reparto no puede cruzar nada. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="task-tipo-trabajo">Tipo de trabajo</Label>
+            <select
+              id="task-tipo-trabajo"
+              value={tipoDeTrabajo}
+              onChange={(e) => setTipoDeTrabajo(e.target.value)}
+              disabled={!canManage}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-70"
+            >
+              <option value="">Sin tipo</option>
+              {TIPOS_DE_TRABAJO.map((t) => (
+                <option key={t} value={t}>{NOMBRE_DEL_TIPO[t]}</option>
+              ))}
+            </select>
+            {/* Qué es cada uno se dice aquí y no se deja adivinar: es la
+                diferencia entre medir bien y medir cualquier cosa. */}
+            <p className="text-xs text-muted-foreground">
+              {tipoDeTrabajo
+                ? QUE_ES_CADA_TIPO[tipoDeTrabajo as TipoDeTrabajo]
+                : "Montaje entrega un cliente nuevo; soporte mantiene uno que ya funciona."}
+            </p>
           </div>
         </div>
 
