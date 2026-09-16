@@ -1905,15 +1905,21 @@ export async function sendManualQuickReplyAction(
  *
  * `resolverContexto` es quien comprueba de quien es la linea: solo devuelve la
  * clave si la cuenta duena esta entre las asociadas al que mira.
+ *
+ * `identidades` son las del contacto que ya tiene la pantalla (las mismas con
+ * las que se piden los mensajes). Hacen falta porque casi todos los chats se
+ * abren por su `@lid`, y a Evolution hay que darle el telefono de verdad; solo
+ * eligen A QUE NUMERO se manda el gesto, no de quien es la linea.
  */
 export async function suscribirPresenciaEvolucionAction(
   context: ChatActionContext,
   remoteJid: string,
+  identidades: string[] = [],
 ): Promise<boolean> {
   context = await resolverContexto(context);
   if (!hasReadyContext(context)) return false;
   await requireCurrentUser();
-  return subscribeEvolutionPresence(context.apiKeyData, context.instanceName, remoteJid);
+  return subscribeEvolutionPresence(context.apiKeyData, context.instanceName, remoteJid, identidades);
 }
 
 export async function reactToMessageAction(

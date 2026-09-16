@@ -1445,19 +1445,56 @@ export async function markMessagesAsReadByIds(
  *
  * Es el hermano de `subscribeWahaPresence`. Un fallo aqui no es un error de la
  * pantalla: la conversacion funciona igual, solo que sin "escribiendo…".
+ *
+ * Y aqui estaba el fallo que dejo a Evolution sin "escribiendo…" entera. Esto
+ * se rendia ante cualquier `@lid`:
+ *
+ *     if (remoteJid.endsWith('@g.us') || remoteJid.includes('@lid')) return false;
+ *
+ * El motivo era correcto -un `@lid` es un id de privacidad y Evolution no lo
+ * resuelve a numero- pero la conclusion no: **casi todos los chats se abren por
+ * su `@lid`**, porque los webhooks vienen con `addressingMode: "lid"` (ver la
+ * regla de la pausa en CLAUDE.md). O sea que la suscripcion **no se intentaba
+ * nunca**, ni siquiera se llamaba a Evolution, y sin suscripcion WhatsApp no
+ * manda `composing`. Medido en produccion: en 25 minutos, **cero** eventos de
+ * escribiendo o grabando por Evolution, mientras Waha -que se suscribe leyendo
+ * la presencia, por otro camino- mandaba 208.
+ *
+ * Lo que faltaba no era rendirse, era **el numero de verdad**, que la pantalla
+ * ya tiene: viaja en `remoteJidAlt` / `senderPn` del propio chat. Es la regla de
+ * siempre -cuando una forma se queda corta, se completa con las demas
+ * identidades- aplicada tambien aqui.
+ *
+ * `identidades` solo elige A QUE NUMERO se manda el gesto; de quien es la linea
+ * lo sigue comprobando `resolverContexto` en la accion que llama.
  */
 export async function subscribeEvolutionPresence(
   apiKeyData: Pick<ApiKey, 'url' | 'key'>,
   instanceName: string,
   remoteJid: string,
+  identidades: string[] = [],
 ): Promise<boolean> {
   const { url: baseUrlRaw, key } = apiKeyData ?? ({} as Pick<ApiKey, 'url' | 'key'>);
   if (!baseUrlRaw || !key || !instanceName || !remoteJid) return false;
-  // Los grupos no tienen presencia que pintar, y un `@lid` es un id de
-  // privacidad: Evolution no lo resuelve a numero y contestaria un error.
-  if (remoteJid.endsWith('@g.us') || remoteJid.includes('@lid')) return false;
+  // Un grupo no tiene presencia que pintar: la conversacion solo enseña la del
+  // contacto, y Evolution manda la de cada participante.
+  if (remoteJid.endsWith('@g.us')) return false;
+  // De todas las identidades del contacto, la que es un telefono de verdad.
+  // Un `@lid` no vale: sus digitos no son un numero y Evolution contesta error.
+  const conTelefono = pickExplicitWhatsAppPhoneJid([remoteJid, ...identidades]);
+  if (!conTelefono) {
+    // Nunca mudo: sin esto, un chat sin telefono conocido se quedaba sin
+    // "escribiendo…" y no habia nada que mirar. Es justo lo que costo encontrar
+    // este fallo.
+    console.info('[presencia] no hay telefono con el que suscribirse en Evolution', {
+      instanceName,
+      pedido: remoteJid,
+      identidades: identidades.length,
+    });
+    return false;
+  }
   // El sufijo de dispositivo (`:39`) no es parte del numero.
-  const numero = remoteJid.split('@')[0].split(':')[0];
+  const numero = conTelefono.split('@')[0].split(':')[0];
   if (!numero) return false;
   const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/chat/sendPresence/${encodeURIComponent(instanceName)}`;
   const ctrl = new AbortController();
