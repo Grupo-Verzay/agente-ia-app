@@ -42,6 +42,7 @@ const AnalyticsView = dynamic(
 );
 import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 import { WeeklyReportsView, type ReportStats } from "./WeeklyReportsView";
+import { LoQueLaIaNoSupoView } from "./LoQueLaIaNoSupoView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
 import type { CallsKpis } from "@/actions/calls-crm-actions";
 
@@ -495,6 +496,13 @@ export const CrmDashboard = ({
                 {viewMode === "reportes" ? (
                     <div className="flex-1 min-h-0 overflow-y-auto">
                         <WeeklyReportsView onStatsLoaded={setReportStats} />
+                        {/* Lo que la IA no supo responder. Va en Informes y no en
+                            Analiticas a proposito: no es una metrica que se mire de
+                            reojo, es una lista de cosas concretas que hay que anadirle
+                            al entrenamiento. */}
+                        <div className="mt-6 border-t pt-6">
+                            <LoQueLaIaNoSupoView userId={userId} />
+                        </div>
                     </div>
                 ) : viewMode === "kanban" ? (
                     <div className="flex-1 min-h-0 flex flex-col">
