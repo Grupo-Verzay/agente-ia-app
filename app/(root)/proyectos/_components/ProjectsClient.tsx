@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Loader2, Plus, Trash2, Pencil, FolderKanban, Search, AlertCircle, Eye, ListTodo,
+  ChevronDown, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -106,6 +107,10 @@ export function ProjectsClient({
    * Viaja como nodo y no como dato porque este fichero es `"use client"` y el
    * bloque sale de una consulta. Vacío para quien no administra la cuenta,
    * porque la consulta ya devuelve `null`: la puerta está ahí, no aquí.
+   *
+   * Va PLEGADO, detrás de un botón de la fila de filtros. Que llegue ya
+   * resuelto es lo que permite tenerlo cerrado sin pagar nada: abrirlo no pide
+   * nada al servidor, y cerrado no se pinta, así que no ocupa alto.
    */
   repartoDelTrabajo?: React.ReactNode;
 }) {
@@ -118,6 +123,9 @@ export function ProjectsClient({
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"todos" | ProjectStatus | "mios">("todos");
+  // El reparto arranca CERRADO: es un dato que se consulta de vez en cuando,
+  // no lo que se viene a hacer a esta pantalla.
+  const [verReparto, setVerReparto] = useState(false);
   const carpetas = useCarpetas("proyecto");
 
   const load = useCallback(async () => {
@@ -327,6 +335,32 @@ export function ProjectsClient({
           sueltas={reparto.sueltas}
         />
 
+        {/* El reparto del trabajo, plegado. Va aquí —en la fila de filtros,
+            pegado a «Nueva carpeta»— y no suelto abajo: ahí ocupaba su alto
+            siempre, y como el bloque está FUERA de la rejilla que hace scroll,
+            ese alto se lo quitaba a los proyectos. Cerrado no ocupa nada
+            porque no se pinta, y no cuesta una consulta de más: llega ya
+            resuelto desde el servidor.
+            Sin él —quien no administra la cuenta— no hay ni botón: la puerta
+            es que la consulta devuelve `null`. */}
+        {repartoDelTrabajo && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={verReparto}
+            aria-controls="reparto-del-trabajo"
+            onClick={() => setVerReparto((v) => !v)}
+            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Reparto del trabajo
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 transition-transform", verReparto && "rotate-180")}
+            />
+          </Button>
+        )}
+
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* Crear lo puede cualquiera del equipo: el proyecto queda a su
@@ -336,6 +370,15 @@ export function ProjectsClient({
           </Button>
         </div>
       </ModuleToolbar>
+
+      {/* Abierto, se pinta pegado al botón que lo abrió. El alto que ocupa se
+          lo quita a la rejilla, que hace su propio scroll: los proyectos se
+          comprimen, no se van de la pantalla. */}
+      {repartoDelTrabajo && verReparto && (
+        <div id="reparto-del-trabajo" className="mb-3 shrink-0">
+          {repartoDelTrabajo}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -377,11 +420,6 @@ export function ProjectsClient({
           ))}
         </div>
       )}
-
-      {/* El reparto va DEBAJO de los proyectos: se consulta de vez en cuando,
-          no es lo que se viene a hacer a esta pantalla. Vacío para quien no
-          administra la cuenta, porque la consulta ya devuelve `null`. */}
-      {repartoDelTrabajo && <div className="mt-4">{repartoDelTrabajo}</div>}
 
       <ProjectDialog
         open={creating || editing !== null}

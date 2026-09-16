@@ -1,4 +1,5 @@
 import { AlertTriangle, Building2, Clock, UserRound } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
     diasPorPersona,
     enPalabras,
@@ -52,19 +53,26 @@ export function RepartoDelTrabajo({ cierres }: { cierres: CierreConTiempo[] }) {
                     icono={<Building2 className="h-4 w-4" />}
                     titulo="Por cuenta: montaje y soporte"
                 >
-                    {porCuenta.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                            Ninguna tarea cerrada tiene cuenta asignada.
-                        </p>
-                    ) : (
-                        <TablaDeTipos filas={porCuenta} />
-                    )}
+                    {/* Sin ninguna cuenta no se dice que no hay ninguna: eso
+                        era una frase que ocupaba el sitio de la tabla para
+                        contar lo que el conteo de abajo ya dice. Si no hay
+                        tabla, el dato ES el conteo de las internas. */}
+                    {porCuenta.length > 0 && <TablaDeTipos filas={porCuenta} />}
                     {/* Las internas no se reparten entre cuentas, pero tampoco
                         se esconden: sin esto, la suma de la tabla no cuadra con
-                        el total y parece que faltan tareas. */}
+                        el total y parece que faltan tareas.
+                        El «Y» delante solo cuando hay tabla a la que sumarse:
+                        suelto, una frase que empieza por «Y» se lee como si se
+                        hubiera perdido lo de antes. */}
                     {internas.length > 0 && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                            Y {internas.length}{" "}
+                        <p
+                            className={cn(
+                                "text-xs text-muted-foreground",
+                                porCuenta.length > 0 && "mt-2",
+                            )}
+                        >
+                            {porCuenta.length > 0 ? "Y " : ""}
+                            {internas.length}{" "}
                             {internas.length === 1 ? "tarea interna" : "tareas internas"} sin
                             cuenta ({enPalabras(internas.reduce((t, c) => t + c.minutos, 0))}).
                         </p>
