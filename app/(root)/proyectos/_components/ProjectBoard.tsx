@@ -283,15 +283,23 @@ function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boole
   return (
     <div
       className={cn(
-        "relative select-none space-y-2 rounded-lg border border-border bg-background p-3 shadow-sm",
+        // `flex flex-col gap-2` y no `space-y-2`, por el punto de aviso.
+        //
+        // `space-y-*` reparte el hueco con márgenes (`> * + *`), y un hijo
+        // ABSOLUTO también entra en esa cuenta: siendo el primero le regalaba un
+        // `mt-2` al título —la tarjeta con aviso salía 8px más alta— y puesto al
+        // final el margen se le sumaba a su propio `top`, o sea que el punto se
+        // movía 8px hacia abajo. Con `gap` no hay márgenes: lo que está fuera
+        // del flujo no cuenta ni recibe nada, y el punto se queda clavado en su
+        // esquina mida lo que mida la tarjeta.
+        "relative flex select-none flex-col gap-2 rounded-lg border border-border bg-background p-3 shadow-sm",
         sinVer && "border-indigo-400 ring-1 ring-indigo-400/40",
         dragging && "rotate-1 scale-105 opacity-80 shadow-lg",
       )}
     >
+      {/* Fuera del flujo, en la esquina: un punto dentro de la fila le quitaría
+          ancho al título, que es lo que de verdad se lee. */}
       {sinVer && (
-        // Fuera del flujo, como los botones de las tarjetas de Diagramas: un
-        // punto dentro de la fila le quitaría ancho al título, que es lo que
-        // de verdad se lee.
         <span
           className="absolute -right-1 -top-1 flex h-3 w-3"
           title="Tiene algo que no has visto"
@@ -301,12 +309,27 @@ function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boole
           <span className="relative inline-flex h-3 w-3 rounded-full bg-indigo-500 ring-2 ring-background" />
         </span>
       )}
-      {/* `whitespace-pre-wrap`: el texto se escribe en un textarea y puede traer
-          saltos de linea. Sin esto se pintaban todos seguidos, como si no
-          existieran, y lo que se ve no es lo que se escribio. */}
+
+      {/* El título, recortado a DOS líneas.
+
+          Sin recorte, una sola tarea larga se comía la columna entera y las
+          demás quedaban fuera de vista: había que desplazarse dentro de la
+          tarjeta para leerla, que es lo contrario de un tablero. El texto
+          completo se lee al abrir la tarea, y de paso en el `title`.
+
+          `whitespace-pre-wrap` se queda: lo que se pega aquí son varias líneas
+          —«Empresa: … Fecha: … Tarea: …»— y sin él se pintaban todas seguidas.
+          Medido en Chromium, `line-clamp` recorta igual de bien con `pre-wrap`.
+
+          Y `min-h-[2.75em]` reserva sitio para las dos líneas **aunque use
+          una**: es lo que iguala las alturas, el mismo patrón que la tarjeta de
+          Diagramas. El número no es a ojo: son 2 × 1.375em, que es lo que mide
+          una línea con `leading-snug`. Con `2.5em` —el de Diagramas, que va con
+          otro interlineado— las tarjetas quedaban 4px descuadradas. */}
       <p
+        title={task.title}
         className={cn(
-          "whitespace-pre-wrap break-words text-sm font-medium leading-snug",
+          "line-clamp-2 min-h-[2.75em] whitespace-pre-wrap break-words text-sm font-medium leading-snug",
           isDone && "text-muted-foreground line-through",
         )}
       >
@@ -332,6 +355,7 @@ function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boole
           {due.label}
         </span>
       </div>
+
     </div>
   );
 }

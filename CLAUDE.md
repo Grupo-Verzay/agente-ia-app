@@ -1071,6 +1071,51 @@ se avisa, así que `crearLosAvisos` no lanza. Pero **no es mudo**: un aviso que
 no sale sin decirlo se lee como «a mí no me llega nada», que es el fallo
 original otra vez.
 
+### La tarjeta del tablero se recorta, y el texto entero está al abrirla
+
+Una tarea con el texto largo —lo normal: se pega ahí «Empresa: … Fecha: …
+Tarea: …»— se comía la columna entera. Las demás quedaban fuera de vista y para
+leer esa había que desplazarse **dentro de la tarjeta**, que es exactamente lo
+contrario de lo que sirve un tablero.
+
+El título va a **dos líneas con «…»** (`line-clamp-2`), y el texto completo se
+lee al abrir la tarea —y en el `title` al posar el cursor—. La referencia es el
+kanban de `/tags`, donde todo va recortado y por eso se ven varias a la vez.
+
+Dos números que no son a ojo:
+
+1. **`min-h-[2.75em]` reserva sitio para las dos líneas aunque use una.** Es lo
+   que iguala las alturas, el mismo patrón que la tarjeta de Diagramas. Pero el
+   valor **depende del interlineado**: son 2 × 1.375em, que es lo que mide una
+   línea con `leading-snug`. Copiando el `2.5em` de Diagramas —que va con otro
+   interlineado— las tarjetas quedaban 4px descuadradas.
+2. Y `whitespace-pre-wrap` se queda. Medido en Chromium, `line-clamp` recorta y
+   pone los puntos igual de bien con `pre-wrap`, que era la duda razonable.
+
+Medido: tres tarjetas de ejemplo pasaron de 476px de columna a 283px, y las tres
+quedan a 89px exactos.
+
+#### `space-y-*` también le da margen a un hijo ABSOLUTO
+
+El punto de aviso de la tarjeta es `absolute` en la esquina, y la tarjeta iba con
+`space-y-2`. Eso reparte el hueco con márgenes (`> * + *`) y **un hijo fuera del
+flujo entra en esa cuenta igual**:
+
+- Siendo el **primero**, no recibe margen… pero se lo regala al título: la
+  tarjeta **con** aviso salía 8px más alta que las demás.
+- Movido al **final** para arreglar eso, el margen se le suma a su propio `top`
+  —en un absoluto con `top` puesto, `margin-top` desplaza la caja— y **el punto
+  se bajaba 8px**. Un arreglo que rompía la otra mitad.
+
+La tarjeta va con **`flex flex-col gap-2`**. Con `gap` no hay márgenes: lo que
+está fuera del flujo ni cuenta para el hueco ni recibe nada, y el punto se queda
+clavado en su esquina mida lo que mida la tarjeta.
+
+**Si una caja tiene dentro algo posicionado en absoluto, su hueco se reparte con
+`gap`, no con `space-y-*`.** Y se comprueba midiendo la posición del elemento
+absoluto antes y después, no mirando la pantalla: ocho píxeles no se ven, y
+descuadran igual.
+
 #### El `42P01` de Prisma NO está donde parece
 
 `conLasTablas` reintenta cuando la tabla no existe —el recuerdo de «ya la creé»
