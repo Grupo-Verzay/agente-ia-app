@@ -3284,10 +3284,16 @@ export function ChatsClient({
       // Evolution: lo mismo, con una diferencia: no se le puede PREGUNTAR la
       // presencia, solo suscribirse. Lo que haya llega luego por el socket,
       // igual que en Waha, y se pinta con el mismo aviso.
+      //
+      // Van TODAS las identidades del contacto, como en todo lo demas de esta
+      // pantalla: el chat casi siempre se abre por su `@lid`, y a Evolution hay
+      // que darle el telefono de verdad o no se suscribe (y sin suscripcion no
+      // hay "escribiendo…").
       if (hablaConEvolution(actionSet?.instanceType) && actionSet?.instanceName) {
         void suscribirPresenciaEvolucionAction(
           { apiKeyData, instanceName: actionSet.instanceName },
           remoteJid,
+          remoteJidAliases,
         );
       }
 
