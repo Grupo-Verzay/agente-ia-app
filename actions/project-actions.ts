@@ -10,6 +10,8 @@ import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { filtroDeProyectosVisibles, mandaEnElProyecto } from "@/lib/project-roles";
 import { leerLosAdjuntos } from "@/lib/adjuntos-de-tarea";
+import { tareasConAlgoSinVer } from "@/lib/avisos-de-tarea";
+import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
 
 type Result<T> = { success: boolean; message: string; data?: T };
 
@@ -277,7 +279,12 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
     });
 
     // Los adjuntos de TODAS las tareas en una consulta, no una por tarjeta.
-    const adjuntos = await leerLosAdjuntos(tasks.map((t) => t.id));
+    // Y lo mismo con el punto de «algo sin ver»: las dos por lista, o un tablero
+    // de treinta tarjetas serían sesenta consultas.
+    const [adjuntos, sinVer] = await Promise.all([
+      leerLosAdjuntos(tasks.map((t) => t.id)),
+      tareasConAlgoSinVer(tasks.map((t) => t.id), user.id),
+    ]);
 
     return {
       success: true,
@@ -299,6 +306,7 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
         createdById: t.createdById,
         createdAt: t.createdAt.toISOString(),
         adjuntos: adjuntos.get(t.id) ?? [],
+        tieneAlgoSinVer: sinVer.has(t.id),
       })),
     };
   } catch (error) {
@@ -333,7 +341,7 @@ export async function updateProjectTaskAction(
     // aunque no sea administrador de la cuenta.
     const tarea = await db.task.findFirst({
       where: { id: parsed.taskId, ownerId },
-      select: { projectId: true },
+      select: { id: true, projectId: true, assignedToId: true, createdById: true },
     });
     if (!tarea) throw new Error("Tarea no encontrada.");
     const puede = tarea.projectId
@@ -361,6 +369,24 @@ export async function updateProjectTaskAction(
       },
     });
     if (updated.count === 0) throw new Error("Tarea no encontrada.");
+
+    // Cambiar de responsable ES asignar. Sin esto, la persona a la que le pasan
+    // una tarea ya empezada no se entera de nada, que es el mismo caso.
+    if (parsed.assignedToId !== tarea.assignedToId) {
+      await avisarDeLaTarea({
+        tipo: "asignada",
+        tarea: {
+          id: tarea.id,
+          projectId: tarea.projectId,
+          ownerId,
+          title: parsed.title,
+          assignedToId: parsed.assignedToId,
+          createdById: tarea.createdById,
+        },
+        actorId: user.id,
+        actorNombre: user.name?.trim() || user.email || null,
+      });
+    }
 
     revalidatePath("/proyectos");
     return { success: true, message: "Tarea actualizada." };
@@ -392,6 +418,20 @@ export async function moveProjectTaskAction(
       ? { id: parsed.taskId, ownerId }
       : { id: parsed.taskId, ownerId, assignedToId: user.id };
 
+    // Se lee ANTES de moverla, y solo cuando va a «Hecho»: el aviso necesita
+    // saber quién la creó, y después del `update` ya daría igual pero sería una
+    // consulta en cada arrastre, que es lo que más se hace en este tablero.
+    const antes =
+      parsed.status === "done"
+        ? await db.task.findFirst({
+            where,
+            select: {
+              id: true, projectId: true, title: true,
+              assignedToId: true, createdById: true, status: true,
+            },
+          })
+        : null;
+
     const updated = await db.task.updateMany({
       where,
       data: { status: parsed.status },
@@ -402,6 +442,25 @@ export async function moveProjectTaskAction(
           ? "Tarea no encontrada."
           : "Solo puedes mover las tareas que tienes asignadas.",
       );
+    }
+
+    // Arrastrarla a «Hecho» es darla por hecha, igual que el botón de Tareas:
+    // le salta a quien la creó, para que pueda avisarle al cliente. Solo cuando
+    // **cambia** de estado, o mover una tarjeta ya hecha volvería a avisar.
+    if (antes && antes.status !== "done") {
+      await avisarDeLaTarea({
+        tipo: "hecha",
+        tarea: {
+          id: antes.id,
+          projectId: antes.projectId,
+          ownerId,
+          title: antes.title,
+          assignedToId: antes.assignedToId,
+          createdById: antes.createdById,
+        },
+        actorId: user.id,
+        actorNombre: user.name?.trim() || user.email || null,
+      });
     }
 
     revalidatePath("/proyectos");

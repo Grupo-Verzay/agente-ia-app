@@ -32,6 +32,7 @@ import { GuideUrl } from '@prisma/client';
 import { Button } from '../ui/button';
 import ThemeSwitcher from './ThemeSwitcher';
 import { NotificationCenter } from '@/components/shared/NotificationCenter';
+import { AvisoDeTareaEmergente } from '@/components/shared/AvisoDeTarea';
 import { GlobalSearch } from '@/components/shared/GlobalSearch';
 import { SupportButton } from './SupportButton';
 
@@ -263,6 +264,11 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
               <NotificationCenter />
             </div>
           </header>
+          {/* El aviso que interrumpe. Va aqui —y no en cada pantalla— porque
+              esta barra es la misma en todas: asi salta en Chats, en
+              Analiticas o donde este la persona. No pinta nada hasta que hay
+              algo que decir. */}
+          <AvisoDeTareaEmergente />
         </div >
     </>
   );

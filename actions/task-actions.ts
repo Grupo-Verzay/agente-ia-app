@@ -7,6 +7,8 @@ import { currentUser } from "@/lib/auth";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
+import { olvidarElHiloDe } from "@/lib/avisos-de-tarea";
+import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
 
 import type { TaskData, TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
@@ -125,6 +127,23 @@ export async function createTaskAction(
 
     // Automatizaciones por tipo de tarea (requieren sesión para el contexto de envío)
     if (parsed.sessionId) void triggerTaskTypeAutomations(parsed.sessionId, parsed.type);
+
+    // Al asignársela a otra persona, le salta en pantalla esté donde esté. Esto
+    // no puede tumbar la creación —la tarea ya existe— y por eso `avisarDeLaTarea`
+    // no lanza; lo que sí hace es dejar dicho en la consola cuando no sale.
+    await avisarDeLaTarea({
+      tipo: "asignada",
+      tarea: {
+        id: task.id,
+        projectId: task.projectId ?? null,
+        ownerId,
+        title: task.title,
+        assignedToId: task.assignedToId,
+        createdById: task.createdById,
+      },
+      actorId: user.id,
+      actorNombre: user.name?.trim() || user.email || null,
+    });
 
     await writeAuditLog({
       userId: ownerId,
@@ -375,6 +394,24 @@ export async function completeTaskAction(
       });
     });
 
+    // Dada por hecha: le salta a quien la creó, que es quien tiene que avisarle
+    // al cliente. Va con la tarea tal como estaba ANTES de cerrarla, que es de
+    // donde salen su autor y su proyecto.
+    await avisarDeLaTarea({
+      tipo: "hecha",
+      tarea: {
+        id: currentTask.id,
+        projectId: currentTask.projectId ?? null,
+        ownerId,
+        title: currentTask.title,
+        assignedToId: currentTask.assignedToId,
+        createdById: currentTask.createdById,
+      },
+      actorId: user.id,
+      actorNombre: user.name?.trim() || user.email || null,
+      texto: result || null,
+    });
+
     await writeAuditLog({
       userId: ownerId,
       actorId: user.id,
@@ -464,6 +501,9 @@ export async function deleteTaskAction(
     // backend- asi que la limpieza es explicita, y esta funcion no revienta:
     // si fallara, lo peor son unas filas huerfanas que nadie lee.
     await olvidarLosAdjuntosDe(taskId);
+    // Y su hilo de comentarios y sus avisos, por lo mismo: sin avisos huérfanos
+    // no salta una ventana emergente por una tarea que ya no existe.
+    await olvidarElHiloDe(taskId);
 
     await writeAuditLog({
       userId: ownerId,

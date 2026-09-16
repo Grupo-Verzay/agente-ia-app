@@ -46,4 +46,13 @@ export type TaskData = {
    * Proyectos los trae; las demas no pagan una consulta que no van a enseñar.
    */
   adjuntos?: AdjuntoDeTarea[];
+  /**
+   * Trae algo que QUIEN MIRA no ha abierto todavía: una asignación, un
+   * comentario, un «ya está». Es lo que pinta el punto de color en el tablero.
+   *
+   * Opcional por lo mismo que `adjuntos`: solo lo trae el tablero de Proyectos,
+   * y es **por persona**, no de la tarea — la misma tarjeta lleva punto para
+   * quien no la ha abierto y no para quien sí.
+   */
+  tieneAlgoSinVer?: boolean;
 };

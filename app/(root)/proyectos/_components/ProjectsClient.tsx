@@ -121,6 +121,25 @@ export function ProjectsClient({
 
   useEffect(() => { void load(); }, [load]);
 
+  // A dónde lleva un aviso: `?proyecto=<id>&tarea=<id>`. Se abre el tablero y,
+  // dentro, esa tarjeta.
+  //
+  // Se lee de `window.location` y no con `useSearchParams` a propósito: aquel
+  // obliga a envolver esto en un `<Suspense>` para el prerenderizado y es una
+  // trampa que se paga en el build. Aquí basta con leerlo una vez al montar.
+  const [destino, setDestino] = useState<{ proyecto: number; tarea: number | null } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const proyecto = Number(params.get("proyecto"));
+    if (!Number.isInteger(proyecto) || proyecto <= 0) return;
+    const tarea = Number(params.get("tarea"));
+    setDestino({ proyecto, tarea: Number.isInteger(tarea) && tarea > 0 ? tarea : null });
+    setOpenProjectId(proyecto);
+    // La dirección se limpia: si no, volver atrás en el tablero y recargar
+    // reabriría la misma tarea una y otra vez.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
   const openProject = useMemo(
     () => projects.find((p) => p.id === openProjectId) ?? null,
     [projects, openProjectId],
@@ -193,6 +212,7 @@ export function ProjectsClient({
         team={team}
         userId={userId}
         canManage={openProject.puedeGestionar}
+        abrirTareaId={destino?.proyecto === openProject.id ? destino.tarea : null}
         onBack={() => setOpenProjectId(null)}
         onProjectChanged={load}
       />
