@@ -1539,10 +1539,23 @@ Cuatro cosas que hay que mantener:
    elemento fuera esa nota **la perdía entera, sin decir nada**. Es el fallo que
    se comete solo al añadir un `fn` nuevo: hay que mirar las dos listas, la del
    render y la de «¿hay algo que escribir?».
-4. **Va ARRIBA de la respuesta.** Es `kind: "function"`, así que
-   `insertarElementoEnOrden` la coloca antes del primer texto — y tiene que ser
-   así: es una instrucción que el modelo debe haber leído **antes** de redactar
-   lo que sale. Los bloques viejos se enderezan solos al abrirlos.
+4. **Va la ÚLTIMA, detrás de todas las respuestas.** Es `kind: "function"`, así
+   que caía con las acciones y el paso se leía del revés: lo primero que se veía
+   era un recuadro con candado que el cliente no verá nunca, y la respuesta
+   —que es de lo que trata el paso— debajo. El orden de un paso es **título,
+   objetivo, acciones, respuestas, nota interna**.
+
+   El argumento con el que entró arriba —«el modelo tiene que haberla leído
+   antes de redactar»— **no se sostiene**: el prompt le llega entero de una vez,
+   así que tres líneas más arriba o más abajo no cambian lo que lee; lo que sí
+   cambia es cómo se lee el paso en la pantalla.
+
+   Por eso `lib/orden-de-elementos.ts` tiene **tres niveles y no dos** —acción,
+   respuesta, nota— y la nota se reconoce por su `fn` **antes** de mirar el
+   `kind`. Los dos constructores escriben los elementos en el orden del array,
+   así que ese módulo ordena la pantalla y el prompt a la vez: **no hay dos
+   órdenes que mantener a la par.** Los bloques viejos se enderezan solos al
+   abrirlos (`ordenarElementosDeLosPasos`), así que no hace falta migración.
 
 Y el `fn` nuevo entra también en el **esquema Zod** (`PromptElementSchema`). Sin
 eso, guardar un prompt con una nota dentro falla la validación de **todas** las
