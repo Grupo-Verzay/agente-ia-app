@@ -136,6 +136,13 @@ export const FunctionSelector = ({
         sheetUrl: null,
     });
 
+    const makeNotaInterna = (): ElementFunction => ({
+        id: nanoid(),
+        kind: "function",
+        fn: "nota_interna",
+        nota: null,
+    });
+
     const makeRouting = () => ({
         id: nanoid(),
         kind: "function" as const,
@@ -182,6 +189,9 @@ export const FunctionSelector = ({
         insertOrCreate(makeNotificar() as ElementItem);
     const addFunctionLeerGoogleSheets = () =>
         insertOrCreate(makeLeerGoogleSheets() as ElementItem);
+
+    const addNotaInterna = () =>
+        insertOrCreate(makeNotaInterna() as ElementItem);
 
     const addRouting = () =>
         insertOrCreate(makeRouting() as ElementItem);
@@ -276,6 +286,14 @@ export const FunctionSelector = ({
                                                 regla hacía que se buscara la respuesta en otro lado.
                                                 Es un cambio de etiqueta: el prompt no cambia. */}
                                             <span className="flex items-center gap-2">📝 Agregar respuesta/regla</span>
+                                        </CommandItem>
+                                        {/* La nota va aquí, debajo de la respuesta, porque
+                                            es lo mismo pero al revés: una la lee el cliente
+                                            y la otra no sale nunca de la conversación
+                                            interna. El candado es lo único que las separa
+                                            de un vistazo. */}
+                                        <CommandItem onSelect={addNotaInterna}>
+                                            <span className="flex items-center gap-2">🔒 Agregar nota interna</span>
                                         </CommandItem>
                                     </CommandGroup>
                                 )}

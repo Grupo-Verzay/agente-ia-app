@@ -5,6 +5,7 @@ import { FC } from "react";
 import {
     DataSubtype,
     ElementoLeerGoogleSheets,
+    ElementoNotaInterna,
     ElementRouting,
     PedidoFunctionEl,
     PropsActionSteeps,
@@ -21,6 +22,7 @@ import {
     ConsultaDatosCard,
     RoutingCard,
     LeerGoogleSheetsCard,
+    NotaInternaCard,
 } from "./";
 
 const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
@@ -38,6 +40,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     steps,
     updateRoutingRules,
     updateSheetUrl,
+    updateNotaInterna,
 }) => {
     if (el.kind === "text") {
         return (
@@ -105,6 +108,17 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
                 el={el as ElementoLeerGoogleSheets}
                 onRemove={() => removeElement(stepId, el.id)}
                 onChangeUrl={(url) => updateSheetUrl?.(stepId, el.id, url)}
+                isManagement={isManagement}
+            />
+        );
+    }
+
+    if (el.kind === "function" && el.fn === "nota_interna") {
+        return (
+            <NotaInternaCard
+                el={el as ElementoNotaInterna}
+                onRemove={() => removeElement(stepId, el.id)}
+                onChangeNota={(nota) => updateNotaInterna?.(stepId, el.id, nota)}
                 isManagement={isManagement}
             />
         );

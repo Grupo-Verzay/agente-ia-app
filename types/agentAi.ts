@@ -64,6 +64,7 @@ export const PromptElementSchema = z.union([
             "actualizar_datos",
             "enrutamiento",
             "leer_google_sheets",
+            "nota_interna",
         ]),
         subtype: z
             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
@@ -73,6 +74,8 @@ export const PromptElementSchema = z.union([
         flowId: z.string().nullable().optional(),
         flowName: z.string().nullable().optional(),
         notificationNumber: z.string().nullable().optional(),
+        /** Lo que escribe la nota interna del paso. Opcional a propósito. */
+        nota: z.string().nullable().optional(),
         /** La hoja que lee `leer_google_sheets`. Se guarda tal cual se pegó. */
         sheetUrl: z.string().nullable().optional(),
         rules: z.array(z.object({
@@ -541,6 +544,12 @@ export type ElementFunction =
         kind: "function";
         fn: "leer_google_sheets";
         sheetUrl: string | null;
+    }
+    | {
+        id: string;
+        kind: "function";
+        fn: "nota_interna";
+        nota: string | null;
     };
 
 export type RoutingRule = {
@@ -757,6 +766,7 @@ export type PropsActionSteeps = {
     steps?: Array<{ id: string; title?: string }>;
     updateRoutingRules?: (stepId: string, elId: string, rules: RoutingRule[]) => void;
     updateSheetUrl?: (stepId: string, elId: string, url: string) => void;
+    updateNotaInterna?: (stepId: string, elId: string, nota: string) => void;
 };
 
 export type ElementoLeerGoogleSheets = {
@@ -764,6 +774,20 @@ export type ElementoLeerGoogleSheets = {
     kind: "function";
     fn: "leer_google_sheets";
     sheetUrl?: string | null;
+};
+
+export type ElementoNotaInterna = {
+    id: string;
+    kind: "function";
+    fn: "nota_interna";
+    nota?: string | null;
+};
+
+export type PropsNotaInterna = {
+    el: ElementoNotaInterna;
+    onRemove: () => void;
+    onChangeNota: (nota: string) => void;
+    isManagement?: boolean;
 };
 
 export type PropsLeerGoogleSheets = {
@@ -790,7 +814,7 @@ export type TextElement = {
 export type FnCommon = {
     id: string;
     kind: "function";
-    fn: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento" | "leer_google_sheets";
+    fn: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento" | "leer_google_sheets" | "nota_interna";
     subtype?: "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas";
     prompt?: string;
     fields?: string[];
@@ -887,7 +911,7 @@ export const notifyPrompt = `**Función**: Ejecuta la tool 'Notificacion Asesor'
 export type AnyEl = {
     kind: "text" | "function";
     text?: string;
-    fn?: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento" | "leer_google_sheets";
+    fn?: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento" | "leer_google_sheets" | "nota_interna";
     subtype?: string;
     prompt?: string;
     fields?: string[];

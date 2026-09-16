@@ -1,4 +1,5 @@
 import { AnyElement, BuildCfg, DraftLike, flowBehaviorText, FnCommon, notifyPrompt, Step } from "@/types/agentAi";
+import { envolverLaNotaInterna } from "@/lib/nota-interna-de-paso";
 
 // Helper genérico para construir markdown de Steps (Extras, FAQ, Products, Training)
 const DEFAULTS: Required<Omit<BuildCfg, "sectionPrefix">> & { sectionPrefix: string } = {
@@ -104,6 +105,16 @@ function renderElement(el: AnyElement, behaviorText: string, k?: number): string
             out.push(`${prefix}> ${notifyPrompt}`);
             return out;
         }
+        case "nota_interna": {
+            // El envoltorio lo escribe `lib/nota-interna-de-paso`, el mismo que
+            // usa el otro constructor: si cada uno redactara el suyo, la misma
+            // nota se comportaria distinto segun por que camino se armo el
+            // prompt. Vacia no escribe nada.
+            const bloque = envolverLaNotaInterna((el as { nota?: string | null }).nota);
+            if (bloque) out.push(k !== undefined ? `- (${k})\n${bloque}` : bloque);
+            return out;
+        }
+
         case "leer_google_sheets": {
             // La URL va en el prompt: es como llega a la tool (parametro `url`).
             const hoja = (el as { sheetUrl?: string | null }).sheetUrl?.trim();
