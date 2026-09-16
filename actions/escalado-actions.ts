@@ -8,11 +8,11 @@ import { ESCALADO_POR_DEFECTO, type AjustesDeEscalado } from "@/lib/escalado-aju
 /**
  * Cómo se comporta la cuenta cuando una conversación se escala a un asesor.
  *
- * Son dos ajustes y viven juntos porque son la misma decisión vista de dos
- * lados: qué pasa con la IA al escalar, y cuánto se espera a que el asesor
- * conteste.
+ * Son tres ajustes y viven juntos porque son la misma decisión vista por tres
+ * lados: si la IA puede escalar sola, qué pasa con la IA al escalar, y cuánto
+ * se espera a que el asesor conteste.
  *
- * Las DOS columnas las crea el BACKEND con su migración, que es quien las
+ * Las TRES columnas las crea el BACKEND con su migración, que es quien las
  * aplica. A propósito NO se declaran en `schema.prisma`: una columna declarada
  * aquí y ausente en la base revienta en caliente cada consulta a `User` que no
  * liste columnas, que es como se cayó el panel de facturación en el #360. Se
@@ -35,15 +35,17 @@ export async function getAjustesDeEscalado(): Promise<AjustesDeEscalado> {
 
   try {
     const filas = await db.$queryRaw<
-      { apagarLaIaAlEscalar: boolean; minutosParaSoltar: number }[]
+      { escalarPorIa: boolean; apagarLaIaAlEscalar: boolean; minutosParaSoltar: number }[]
     >`
-      SELECT escalation_disables_ai AS "apagarLaIaAlEscalar",
-             auto_release_minutes   AS "minutosParaSoltar"
+      SELECT escalation_by_ai_enabled AS "escalarPorIa",
+             escalation_disables_ai   AS "apagarLaIaAlEscalar",
+             auto_release_minutes     AS "minutosParaSoltar"
       FROM "User" WHERE id = ${cuenta.id}
     `;
     const fila = filas[0];
     if (!fila) return ESCALADO_POR_DEFECTO;
     return {
+      escalarPorIa: fila.escalarPorIa !== false,
       apagarLaIaAlEscalar: fila.apagarLaIaAlEscalar !== false,
       minutosParaSoltar: Number(fila.minutosParaSoltar) || 0,
     };
@@ -53,6 +55,40 @@ export async function getAjustesDeEscalado(): Promise<AjustesDeEscalado> {
     console.warn("[escalado] no se pudieron leer los ajustes de la cuenta", String(error));
     return ESCALADO_POR_DEFECTO;
   }
+}
+
+/**
+ * Si la IA puede escalar ella sola, por lo que entiende del cliente.
+ *
+ * Encendido, "quiero hablar con un asesor", "páseme un humano" y "necesito
+ * hablar con alguien" llevan al mismo sitio sin que nadie las haya previsto.
+ * Apagado, solo escalan las palabras clave configuradas a mano.
+ *
+ * Lo que NO cambia al apagarlo: **el motivo se registra igual**. La
+ * conversación queda marcada con que ahí hizo falta una persona aunque no se
+ * llamara a ninguna, y eso es lo que permite ver después si a esta cuenta le
+ * convendría encenderlo. Una cuenta apagada no puede ser un agujero negro.
+ */
+export async function guardarEscalarPorIa(permitir: boolean): Promise<Resultado> {
+  const cuenta = await laCuentaQueConfigura();
+  if (!cuenta) return { success: false, message: "No autorizado." };
+
+  try {
+    await db.$executeRaw`
+      UPDATE "User" SET escalation_by_ai_enabled = ${permitir} WHERE id = ${cuenta.id}
+    `;
+  } catch (error) {
+    console.warn("[escalado] no se pudo guardar escalation_by_ai_enabled", String(error));
+    return { success: false, message: "Esta opción aún no está disponible en el servidor." };
+  }
+
+  revalidatePath("/profile");
+  return {
+    success: true,
+    message: permitir
+      ? "La IA podrá pasar una conversación a un asesor cuando el cliente lo pida."
+      : "La IA ya no escalará sola. Las palabras clave siguen funcionando.",
+  };
 }
 
 /**

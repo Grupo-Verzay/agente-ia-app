@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BotOff, Loader2, Timer } from "lucide-react";
+import { BotOff, Loader2, Timer, UserRoundSearch } from "lucide-react";
 import {
     getAjustesDeEscalado,
+    guardarEscalarPorIa,
     guardarApagarLaIaAlEscalar,
     guardarMinutosParaSoltar,
 } from "@/actions/escalado-actions";
@@ -15,11 +16,17 @@ import { Switch } from "@/components/ui/switch";
 /**
  * Qué hace la cuenta cuando una conversación se escala a un asesor.
  *
- * Los dos mandos van JUNTOS y en este orden porque el segundo depende del
- * primero: el reloj de soltado castiga un abandono —el cliente esperando a una
+ * Los tres mandos van JUNTOS y en este orden porque cada uno depende del de
+ * arriba. El primero decide si la IA puede escalar sola; los otros dos dicen
+ * qué pasa cuando se escala, venga de donde venga. Y el último depende del
+ * segundo: el reloj de soltado castiga un abandono —el cliente esperando a una
  * persona que no viene, con nadie contestando—, y con la IA encendida no hay
- * abandono que castigar. Así que cuando el de arriba está apagado, el de abajo
- * no corre, y aquí se dice en vez de dejarlo puesto mintiendo.
+ * abandono que castigar. Así que cuando ese está apagado, el de abajo no corre,
+ * y aquí se dice en vez de dejarlo puesto mintiendo.
+ *
+ * El primero NO desactiva a los otros dos, a propósito: apagarlo deja sin
+ * escalado por intención, pero las palabras clave configuradas siguen
+ * escalando, y a esas les siguen aplicando los dos de abajo.
  *
  * Esto vivía en Equipo, donde no lo veía media plataforma: los planes sin
  * equipo no tienen esa pantalla y también escalan.
@@ -36,7 +43,7 @@ interface Props {
 export function EscaladoCard({ readOnly }: Props) {
     const [ajustes, setAjustes] = useState<AjustesDeEscalado>(ESCALADO_POR_DEFECTO);
     const [cargando, setCargando] = useState(true);
-    const [guardando, setGuardando] = useState<null | "apagar" | "minutos">(null);
+    const [guardando, setGuardando] = useState<null | "porIa" | "apagar" | "minutos">(null);
 
     const traer = useCallback(async () => {
         setCargando(true);
@@ -60,7 +67,7 @@ export function EscaladoCard({ readOnly }: Props) {
     // «Guardando…» no llega a ejecutarse. El síntoma no sería un error: sería
     // un interruptor congelado.
     const pedir = async (
-        cual: "apagar" | "minutos",
+        cual: "porIa" | "apagar" | "minutos",
         hacer: () => Promise<{ success: boolean; message?: string }>,
         deshacer: () => void,
     ) => {
@@ -80,6 +87,16 @@ export function EscaladoCard({ readOnly }: Props) {
         } finally {
             setGuardando(null);
         }
+    };
+
+    const cambiarEscalarPorIa = (permitir: boolean) => {
+        const antes = ajustes.escalarPorIa;
+        setAjustes((p) => ({ ...p, escalarPorIa: permitir }));
+        void pedir(
+            "porIa",
+            () => guardarEscalarPorIa(permitir),
+            () => setAjustes((p) => ({ ...p, escalarPorIa: antes })),
+        );
     };
 
     const cambiarApagar = (apagar: boolean) => {
@@ -111,6 +128,31 @@ export function EscaladoCard({ readOnly }: Props) {
 
     return (
         <div className="space-y-4">
+            <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <UserRoundSearch className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold">Permitir que la IA escale sola</p>
+                    <p className="text-xs text-muted-foreground">
+                        {ajustes.escalarPorIa
+                            ? "La IA pasa la conversación a un asesor cuando el cliente pide hablar con una persona, aunque no esté escrito como palabra clave."
+                            : "Solo escalan las palabras clave que tengas configuradas. El motivo se sigue registrando igual, para que puedas ver cuántas veces habría hecho falta un asesor."}
+                    </p>
+                </div>
+                {guardando === "porIa" && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground mt-1" />
+                )}
+                <Switch
+                    checked={ajustes.escalarPorIa}
+                    disabled={bloqueado || guardando === "porIa"}
+                    onCheckedChange={cambiarEscalarPorIa}
+                    className="data-[state=checked]:bg-green-600"
+                />
+            </div>
+
+            <div className="border-t border-border/60" />
+
             <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <BotOff className="w-4 h-4 text-primary" />
