@@ -106,6 +106,14 @@ export type UIBubble = {
   groupSenderName?: string | null;
   groupSenderPhone?: string | null;
   sentByAi?: boolean;
+  /**
+   * La nota que la IA le deja al asesor al escalar la conversación.
+   *
+   * NO es un mensaje: no se le mandó a nadie, se escribió directamente en
+   * nuestra base. La burbuja tiene que dejarlo claro de un vistazo, porque un
+   * asesor que la confunda con un mensaje real creerá que el cliente leyó eso.
+   */
+  notaInterna?: boolean;
   /** El cliente eliminó este mensaje ("eliminar para todos"); se conserva con badge. */
   clientDeleted?: boolean;
   /** Alguien corrigió este mensaje desde la App; se pinta el badge «Editado». */

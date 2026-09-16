@@ -1039,6 +1039,22 @@ export function toUIMessages(
       // Marca persistida por el backend (respuesta del agente / nodo de flujo).
       // El emparejamiento por texto de chat-main puede sumar más, pero nunca la quita.
       ...((m as any).sentByAi === true ? { sentByAi: true } : {}),
+      // La nota que la IA le deja al asesor al escalar. Llega por el mismo
+      // camino que `sentByAi` y se pinta con la burbuja que ya existe para las
+      // notas del equipo (`isNote`): es lo mismo -algo que solo ve el equipo- y
+      // hacer una burbuja nueva seria tener dos formas de decir lo mismo.
+      //
+      // Sin `noteId` a proposito: esa es la llave de una nota de la pestana
+      // Notas, y es lo unico que enseña el boton de borrar. Esta no se borra
+      // desde ahi porque no vive en esa tabla.
+      ...((m as any).notaInterna === true
+        ? {
+            notaInterna: true as const,
+            isNote: true as const,
+            noteAuthorName: 'Agente IA',
+            noteAuthorEmail: '',
+          }
+        : {}),
       // El cliente eliminó este mensaje ("eliminar para todos"); lo conservamos y
       // el panel muestra el badge "Eliminado". También cuando llega como stub vacío.
       ...(m.clientDeleted === true || isEmptyDeletedStub ? { clientDeleted: true } : {}),

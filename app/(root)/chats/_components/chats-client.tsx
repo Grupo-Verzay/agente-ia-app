@@ -1289,6 +1289,14 @@ export function ChatsClient({
             !(message as { sentByAi?: boolean }).sentByAi) {
           message = { ...message, sentByAi: true } as EvolutionMessage;
         }
+        // Y lo mismo con la nota del escalado, por el mismo motivo y con una
+        // consecuencia peor: perder la marca no la pinta distinta, la pinta como
+        // un mensaje normal del asesor. O sea, el equipo leeria sus notas
+        // internas creyendo que el cliente las recibio.
+        if ((existingSame as { notaInterna?: boolean } | undefined)?.notaInterna &&
+            !(message as { notaInterna?: boolean }).notaInterna) {
+          message = { ...message, notaInterna: true } as EvolutionMessage;
+        }
         if (!isLocalOptimisticMessage(message)) {
           const content = getMessageContentForDedupe(message);
           // En milisegundos, igual que la ventana de abajo. La burbuja
