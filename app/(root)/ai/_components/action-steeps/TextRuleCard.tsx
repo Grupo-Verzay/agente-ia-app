@@ -47,7 +47,11 @@ export const TextRuleCard: FC<PropsTextRule> = ({ el, onRemove, onChange, isMana
             <CardHeader className="py-2 px-3 flex-row items-center justify-between">
                 <CardTitle className="text-md flex items-center gap-2">
                     <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                    REGLA/PARÁMETRO
+                    {/* Solo el rótulo. El icono, la clave del dato (`kind: "text"`)
+                        y lo que `markdownBuilder` escribe en el prompt
+                        (**REGLA/PARÁMETRO:**) se quedan como estaban: esto no
+                        migra nada. */}
+                    RESPUESTA
                 </CardTitle>
                 <ElementMenu onRemove={onRemove} onVariables={() => setShowVariables(true)} />
             </CardHeader>
