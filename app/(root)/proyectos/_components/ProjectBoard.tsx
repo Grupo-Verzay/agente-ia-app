@@ -45,6 +45,12 @@ import {
   type AdjuntoDeTarea, type TipoDeAdjunto,
 } from "@/lib/adjuntos-de-tarea-tipos";
 import { HiloDeLaTarea } from "./HiloDeLaTarea";
+import {
+  BloqueDeAdjuntos,
+  borrarDelBucket,
+  engancharLosDelAire,
+  type AdjuntoEnElAire,
+} from "./BloqueDeAdjuntos";
 
 function personLabel(person: { name: string | null; email: string | null }) {
   return person.name?.trim() || person.email || "Sin nombre";
@@ -58,227 +64,6 @@ function fmtDue(iso: string) {
     label: date.toLocaleDateString("es-CO", { day: "2-digit", month: "short" }),
     overdue,
   };
-}
-
-// ─── Adjuntos de una tarea ───────────────────────────────────────────────────
-
-/** Los cuatro de siempre, los mismos que el modal de recordatorios. */
-const OPCIONES_DE_ARCHIVO = [
-  { tipo: "image", label: "Imagen", accept: "image/*", Icon: ImageIcon, color: "text-sky-600" },
-  { tipo: "video", label: "Video", accept: "video/*", Icon: Video, color: "text-rose-600" },
-  { tipo: "audio", label: "Audio", accept: "audio/*", Icon: FileAudio, color: "text-emerald-600" },
-  { tipo: "document", label: "Doc.", accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,application/pdf", Icon: FileText, color: "text-amber-600" },
-] as const;
-
-function pesoLegible(bytes: number | null) {
-  if (!bytes) return null;
-  const mb = bytes / (1024 * 1024);
-  if (mb >= 1) return `${mb.toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-function iconoDe(tipo: TipoDeAdjunto) {
-  const opcion = OPCIONES_DE_ARCHIVO.find((o) => o.tipo === tipo) ?? OPCIONES_DE_ARCHIVO[3];
-  return opcion.Icon;
-}
-
-/**
- * Adjuntar archivos a una tarea.
- *
- * El archivo sube por `/api/upload` —la misma ruta que usa el recordatorio— y
- * lo que se guarda es su dirección. Dos cosas que conviene no deshacer:
- *
- * 1. **Solo con la tarea ya creada.** El adjunto cuelga de un `taskId`, y en
- *    una tarea nueva ese id todavía no existe; guardar el archivo en el aire
- *    obligaría a limpiarlo si luego se cancela. Se dice en pantalla en vez de
- *    dejar unos botones que no hacen nada.
- * 2. **Se guarda al momento, no al pulsar «Guardar».** Es lo mismo que hace el
- *    recordatorio y evita el caso peor: subir un archivo, cancelar el diálogo y
- *    dejarlo huérfano en el bucket.
- */
-function BloqueDeAdjuntos({
-  taskId,
-  userId,
-  adjuntos,
-  onCambio,
-}: {
-  taskId: number | null;
-  userId: string;
-  adjuntos: AdjuntoDeTarea[];
-  onCambio: (siguientes: AdjuntoDeTarea[]) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [accept, setAccept] = useState("image/*");
-  const [subiendo, setSubiendo] = useState(false);
-  const [quitando, setQuitando] = useState<string | null>(null);
-
-  const lleno = adjuntos.length >= TOPE_DE_ADJUNTOS_POR_TAREA;
-
-  const elegir = (opcion: (typeof OPCIONES_DE_ARCHIVO)[number]) => {
-    setAccept(opcion.accept);
-    requestAnimationFrame(() => inputRef.current?.click());
-  };
-
-  const alElegirArchivo = async (evento: React.ChangeEvent<HTMLInputElement>) => {
-    const archivo = evento.target.files?.[0];
-    // El valor se limpia SIEMPRE: si no, elegir dos veces el mismo archivo no
-    // dispara el evento la segunda vez y parece que el botón no hace nada.
-    if (inputRef.current) inputRef.current.value = "";
-    if (!archivo || !taskId) return;
-
-    const tipo: TipoDeAdjunto =
-      archivo.type.startsWith("image/") ? "image"
-        : archivo.type.startsWith("video/") ? "video"
-          : archivo.type.startsWith("audio/") ? "audio"
-            : "document";
-
-    setSubiendo(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", archivo);
-      formData.append("userID", userId);
-      formData.append("workflowID", "tareas");
-
-      const respuesta = await fetch("/api/upload", { method: "POST", body: formData });
-      const datos = await respuesta.json().catch(() => null);
-      if (!respuesta.ok || !datos?.url) {
-        throw new Error(datos?.error || "No se pudo subir el archivo.");
-      }
-
-      const res = await adjuntarArchivoATareaAction({
-        taskId,
-        url: datos.url as string,
-        nombre: archivo.name,
-        tipo,
-        mimeType: archivo.type || undefined,
-        tamanoBytes: archivo.size,
-      });
-      if (!res.success || !res.data) throw new Error(res.message);
-
-      onCambio([...adjuntos, res.data]);
-      toast.success("Archivo adjuntado.");
-    } catch (error) {
-      // Un fallo aquí no puede ser mudo: sin aviso se ve como un botón que no
-      // hace nada, que es de lo más difícil de contar por teléfono.
-      toast.error(error instanceof Error ? error.message : "No se pudo subir el archivo.");
-    } finally {
-      setSubiendo(false);
-    }
-  };
-
-  const quitar = async (adjunto: AdjuntoDeTarea) => {
-    if (!taskId) return;
-    setQuitando(adjunto.id);
-    const res = await quitarAdjuntoDeTareaAction({ taskId, adjuntoId: adjunto.id });
-    setQuitando(null);
-    if (!res.success) { toast.error(res.message); return; }
-    onCambio(adjuntos.filter((a) => a.id !== adjunto.id));
-  };
-
-  return (
-    <div className="space-y-2.5 rounded-lg border border-dashed bg-muted/30 p-3">
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        className="hidden"
-        onChange={(e) => void alElegirArchivo(e)}
-      />
-
-      <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-blue-600 shadow-sm">
-          <Paperclip className="h-4 w-4" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold leading-none">Archivos</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {taskId
-              ? "Opcional. Se guardan al elegirlos."
-              : "Podrás adjuntar archivos cuando la tarea esté creada."}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-2">
-        {OPCIONES_DE_ARCHIVO.map((opcion) => {
-          const Icon = opcion.Icon;
-          return (
-            <Button
-              key={opcion.tipo}
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!taskId || subiendo || lleno}
-              className="h-9 gap-1.5 px-2 text-sm font-medium bg-background hover:border-blue-200 hover:bg-blue-50/60"
-              onClick={() => elegir(opcion)}
-            >
-              <Icon className={`h-4 w-4 ${opcion.color}`} />
-              <span className="truncate">{opcion.label}</span>
-            </Button>
-          );
-        })}
-      </div>
-
-      {subiendo && (
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Subiendo…
-        </p>
-      )}
-
-      {adjuntos.length > 0 ? (
-        <ul className="space-y-1.5">
-          {adjuntos.map((adjunto) => {
-            const Icon = iconoDe(adjunto.tipo);
-            const peso = pesoLegible(adjunto.tamanoBytes);
-            return (
-              <li
-                key={adjunto.id}
-                className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2"
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <a
-                  href={adjunto.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-w-0 flex-1 hover:underline"
-                  title={adjunto.nombre}
-                >
-                  <p className="truncate text-xs font-medium">{adjunto.nombre}</p>
-                  {peso && <p className="text-xs text-muted-foreground">{peso}</p>}
-                </a>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  disabled={quitando === adjunto.id}
-                  onClick={() => void quitar(adjunto)}
-                >
-                  {quitando === adjunto.id
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Trash2 className="h-4 w-4" />}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        taskId && !subiendo && (
-          <p className="text-xs text-muted-foreground">
-            Selecciona una imagen, video, audio o documento.
-          </p>
-        )
-      )}
-
-      {lleno && (
-        <p className="text-xs text-amber-600">
-          Máximo {TOPE_DE_ADJUNTOS_POR_TAREA} archivos por tarea.
-        </p>
-      )}
-    </div>
-  );
 }
 
 // ─── Tarjeta ─────────────────────────────────────────────────────────────────
@@ -783,6 +568,9 @@ function TaskDialog({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adjuntos, setAdjuntos] = useState<AdjuntoDeTarea[]>([]);
+  // Los que subieron antes de que la tarea existiera. Se enganchan al crear
+  // y se borran del bucket si se cancela.
+  const [enElAire, setEnElAire] = useState<AdjuntoEnElAire[]>([]);
   // La cuenta a la que se le dedica. Vacío = tarea interna, que es normal.
   const [clienteId, setClienteId] = useState<string>("");
   // Montaje o soporte. Vacío = sin tipo, y sale así en el reparto.
@@ -795,6 +583,7 @@ function TaskDialog({
   useEffect(() => {
     if (!open) return;
     setAdjuntos(task?.adjuntos ?? []);
+    setEnElAire([]);
     setTitle(task?.title ?? "");
     setType(task?.type ?? TASK_TYPES[4]);
     setAssignedToId(task?.assignedToId ?? userId);
@@ -809,6 +598,25 @@ function TaskDialog({
     // que es lo que había antes de esto.
     void clientesParaLaTareaAction().then(setClientes);
   }, [open, task, userId]);
+
+  /**
+   * Cerrar sin guardar: lo que subió y no llegó a colgar de ninguna tarea se
+   * borra del bucket.
+   *
+   * Va por UN solo camino —la X, el clic fuera y «Cancelar» llaman aquí— porque
+   * con tres salidas distintas basta con olvidarse de una para que esa deje
+   * basura, y eso no se nota hasta que alguien mira cuánto ocupa el bucket.
+   *
+   * El diálogo se cierra **antes** de esperar al borrado: es limpieza de fondo
+   * y no tiene por qué retener la pantalla. Y si falla, `borrarDelBucket` lo
+   * dice en la consola y no lanza.
+   */
+  const cerrar = () => {
+    const sueltos = enElAire;
+    setEnElAire([]);
+    onClose();
+    for (const a of sueltos) void borrarDelBucket(a.url);
+  };
 
   const handleSave = async () => {
     if (!title.trim()) { toast.error("Ponle un título a la tarea."); return; }
@@ -861,6 +669,16 @@ function TaskDialog({
       tipoDeTrabajo || null,
     );
 
+    // Los archivos que se subieron mientras se redactaba ya están en el bucket;
+    // aquí se les pone por fin el id de la tarea. Va ANTES de avisar de que se
+    // guardó: si no, la tarjeta se refresca sin sus adjuntos y parece que se
+    // perdieron. Y se vacía la lista para que el `onClose` de después no los
+    // borre del bucket — ya no están en el aire, cuelgan de la tarea.
+    if (enElAire.length) {
+      await engancharLosDelAire(res.data.id, enElAire);
+      setEnElAire([]);
+    }
+
     // createTaskAction siempre nace en "pending"; si se pidió otra columna, se
     // mueve acto seguido en vez de duplicar la lógica de creación.
     //
@@ -891,7 +709,7 @@ function TaskDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && cerrar()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
@@ -949,6 +767,8 @@ function TaskDialog({
             userId={userId}
             adjuntos={adjuntos}
             onCambio={setAdjuntos}
+            enElAire={enElAire}
+            onCambioEnElAire={setEnElAire}
           />
 
           {/* El hilo, solo con la tarea ya creada: los comentarios cuelgan de un
@@ -1043,7 +863,7 @@ function TaskDialog({
           ) : <span />}
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} disabled={saving || deleting}>
+            <Button variant="outline" onClick={cerrar} disabled={saving || deleting}>
               {canManage ? "Cancelar" : "Cerrar"}
             </Button>
             {/* Sin permiso no hay botón de guardar: enseñarlo y que el servidor

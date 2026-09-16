@@ -1200,6 +1200,77 @@ en `leerElTrabajo`, que devuelve `null` a quien no manda, y no en la pantalla:
 es un dato de gestión, y enseñárselo a quien lo produce lo convierte en otra
 cosa.
 
+### Adjuntar: las tres formas son UNA función, y pegar es la que se usa
+
+Los adjuntos de una tarea entran por tres vías —el botón, arrastrar y soltar, y
+**pegar con Ctrl+V**— y la tercera es la que más se usa: uno recorta una captura
+y la pega, no la guarda en el escritorio para buscarla luego.
+
+**Las tres llaman a `subirArchivos` y a nadie más.** Con tres caminos separados,
+el día que se afine algo —el tope, el aviso, cómo se decide el tipo— se afina en
+uno y los otros dos se quedan atrás; y eso no se ve como un error sino como «a
+veces funciona».
+
+Tres cosas del pegado, y las tres importan:
+
+1. **El oyente cuelga del DIÁLOGO entero**, no del recuadro de archivos. Quien
+   acaba de recortar tiene el cursor donde sea, y obligarle a pinchar primero en
+   el bloque es pedirle que adivine.
+2. **Solo actúa si el portapapeles trae ARCHIVOS.** Sin esa condición, pegar
+   texto en el título dejaría de comportarse como siempre. El `preventDefault`
+   va dentro de esa condición, nunca antes.
+3. **Una captura pegada no trae nombre**: el portapapeles la llama «image.png»
+   siempre. Sin renombrarla, tres capturas salen con el mismo nombre y no hay
+   forma de distinguirlas; se les pone la hora.
+
+Y `dragover` necesita su `preventDefault` o el navegador abre el archivo en una
+pestaña en vez de soltarlo. El `dragleave` comprueba que se sale del bloque de
+verdad (`contains(relatedTarget)`): pasar por encima de un hijo dispara el
+`dragleave` del padre y el resaltado parpadea.
+
+### Se puede adjuntar ANTES de que la tarea exista, y por eso hay que limpiar
+
+Antes los botones salían apagados con un «podrás adjuntar cuando la tarea esté
+creada». Eso obliga a crear la tarea, reabrirla y volver a buscar la captura,
+justo cuando la tienes recién recortada.
+
+Ahora el archivo **sube igual** y se queda «en el aire»: en el bucket, con su
+dirección, sin colgar de ninguna tarea. Al guardar se enganchan con el id recién
+nacido (`engancharLosDelAire`); al cancelar se borran del bucket.
+
+Y ahí está la parte que no se puede olvidar:
+
+1. **El cierre va por UN solo camino.** La X, el clic fuera y «Cancelar» llaman
+   a `cerrar()`. Con tres salidas distintas basta con olvidarse de una para que
+   esa deje basura, y eso no se nota hasta que alguien mira cuánto ocupa el
+   bucket.
+2. **Al enganchar se vacía la lista del aire**, o el `onClose` de después
+   borraría del bucket unos archivos que ya cuelgan de la tarea.
+3. **Es best-effort a propósito.** Si el navegador se cierra a media faena el
+   archivo se queda — y eso ya pasaba: `quitarAdjuntoDeTareaAction` nunca ha
+   borrado el fichero, solo la fila. Lo que no puede pasar es que cancelar un
+   diálogo deje basura **cada vez**.
+
+#### Y la ruta que borra: tres condiciones, no una
+
+`/api/upload/borrar` es la primera que quita algo del bucket, y una ruta que
+borra lo que le digan es una ruta para vaciarle el bucket a otro. Solo pasa lo
+que cumple **las tres a la vez**, y quien lo decide es
+`llaveDelArchivoSubido` (`lib/llave-del-bucket.ts`), que es pura para poder
+probarse sin levantar nada:
+
+1. La dirección empieza por el prefijo público de **nuestro** bucket.
+2. La llave tiene **exactamente** la forma que escribe `/api/upload`:
+   `userID/workflowID/fichero`, tres trozos. Se **decodifica antes de contar**:
+   `%2e%2e` y `%2F` son `..` y `/` una vez decodificados, y contar sobre el
+   texto crudo dejaría pasar un salto de carpeta disfrazado.
+3. Ese `userID` es una cuenta sobre la que manda quien llama
+   (`assertCanAccessTargetUser`) — la misma puerta que la subida.
+
+Probados los diez intentos de salirse: `..`, `..` codificado, barra codificada,
+barra invertida, un trozo de más, uno de menos, trozo vacío, otro bucket, otro
+dominio y una codificación rota.
+
 ### «Tipo de trabajo» NO es `Task.type`, y no puede serlo
 
 Montaje —armar y entregar un cliente nuevo— o soporte —atender a uno que ya
