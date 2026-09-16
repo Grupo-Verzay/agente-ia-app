@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
+import { miniaturaDelAnuncio } from '@/lib/miniatura-del-anuncio';
 import { epochToMs } from './chat-sidebar.utils';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
@@ -1009,12 +1010,9 @@ export function toUIMessages(
     // que rige el resto de la pantalla con las identidades del contacto:
     // preguntar por una sola forma devuelve vacío sin error.
     const adReply = buscarAnuncio(messageData) ?? (m.contextInfo as any)?.externalAdReply;
-    const rawThumb = adReply?.mediaUrl || adReply?.thumbnail;
-    const thumbnailUrl = rawThumb
-      ? rawThumb.startsWith('data:') || rawThumb.startsWith('http')
-        ? rawThumb
-        : `data:image/jpeg;base64,${rawThumb}`
-      : undefined;
+    // De donde sale la imagen y por que en ese orden: `lib/miniatura-del-anuncio`.
+    // Manda `thumbnail` (base64, no caduca) sobre los enlaces de fbcdn, que si.
+    const thumbnailUrl = miniaturaDelAnuncio(adReply);
     const adPreview: UIBubble['adPreview'] = adReply
       ? { title: adReply.title, body: adReply.body, sourceUrl: adReply.sourceUrl, thumbnailUrl }
       : undefined;
