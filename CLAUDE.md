@@ -992,6 +992,97 @@ lista es el motivo del menú, scroll; si es una opción más entre otras,
 submenú** —y el submenú también con su `max-h`, como los de «Asignar agente» y
 «Asignar etiqueta» del menú de la fila—.
 
+## Proyectos: un aviso que espera es un aviso que no llega
+
+Se asignaba una tarea y la persona no se enteraba. No es que no hubiera aviso:
+es que estaba en Chats, no entra a Proyectos, y la campanita —con chats, citas,
+vencidas y menciones dentro— se aprende a despachar sin leer.
+
+Así que el aviso **interrumpe**: una ventana en medio de la pantalla, esté donde
+esté. Cuelga de `Breadcrumbs`, que es la barra de todas las pantallas, y no
+pinta nada hasta que hay algo que decir.
+
+Cinco cosas que hay que mantener:
+
+1. **No caduca y no se cierra sola.** Nada de temporizadores, ni `toast`. Se
+   sale por uno de los dos caminos —abrir o cerrar— y por eso van cerradas las
+   tres puertas de un diálogo normal: `hideCloseButton` y `preventDefault` en
+   Escape, en el clic de fuera y en `onInteractOutside`. Si algún día se deja
+   cerrar de otra forma, deja de ser esto y vuelve a ser la campanita.
+2. **Una ventana, aunque haya cinco avisos.** Van agrupados en una lista dentro
+   de la misma ventana. Encadenados son cinco clics para volver a lo que estabas
+   haciendo, y eso se aprende a despachar sin leer — que es justo el fallo del
+   que venimos.
+3. **Llega por el reloj, no por el tiempo real.** Un `setInterval` de 15 s
+   montado una sola vez contra una consulta de un solo índice
+   (`destinatarioId, atendidoEn`). Ni socket, ni salas, ni token: de ahí salen
+   los fallos mudos que cuestan noches. Con la pestaña de fondo no pregunta, y
+   al volver a ella pregunta de inmediato.
+4. **Lo pendiente vive en la base, no en la pestaña.** Quien no estaba conectado
+   se lo encuentra al entrar. Y por eso mismo la ventana **se cierra en todas
+   partes**: abrir la tarea en otra pestaña o en el móvil la deja atendida en la
+   base, y el reloj de las demás deja de traerla. Las pestañas no se hablan
+   entre ellas.
+5. **Nunca se avisa a quien hizo la acción**, y a nadie dos veces por lo mismo.
+   En un comentario la misma persona puede ser la asignada, la que creó la tarea
+   y una de las que ya escribieron: sale un aviso, no tres. Lo descuenta
+   `crearLosAvisos`, y por eso los destinatarios se calculan en **un solo
+   sitio** (`lib/avisar-de-la-tarea.ts`): con la lista escrita en cada
+   disparador, el cuarto se olvidaría de alguien, y eso no se ve como un error
+   sino como «a mí nunca me llega nada».
+
+### LEÍDO y VISTO son dos marcas, y hacen falta las dos
+
+Es lo que más cuesta ver y lo que no se puede simplificar:
+
+- **`atendidoEn` = leído.** El clic de la ventana, abrir o cerrar. Decide si la
+  ventana vuelve a salir y si el aviso sigue contando en la campanita.
+- **`vistoEn` = abrió la tarea.** Es lo único que quita el punto del tablero.
+
+Con una sola marca no se cumple el encargo: cerrar la ventana calla el aviso,
+pero **no** es haber leído la tarea, así que la tarjeta tiene que seguir
+marcada. Cerrar escribe solo `atendidoEn`; **abrir la tarea escribe las dos**.
+
+El punto es **por persona, no de la tarea**: la misma tarjeta lleva punto para
+quien no la ha abierto y no para quien sí (`tieneAlgoSinVer`). Y se calcula por
+lista (`tareasConAlgoSinVer`), no una consulta por tarjeta.
+
+### Los tres disparadores, y quién es «implicado»
+
+| Qué pasó | A quién le salta |
+| --- | --- |
+| Se le asigna la tarea (al crearla o al reasignarla) | al asignado |
+| Se da por hecha (botón o arrastrar a «Hecho») | a quien la creó, para que avise al cliente |
+| Alguien comenta | a los implicados |
+
+**Implicados = quien la creó + el asignado + todos los que ya han comentado.**
+Menos quien acaba de actuar.
+
+### Y las tablas son NUESTRAS, sin tocar `tasks`
+
+`task_comments` y `task_alerts` las crea la App con `CREATE TABLE IF NOT EXISTS`,
+como `task_attachments` y `flows`. **Ni una columna nueva en `tasks`**: esa tabla
+es del backend y añadirle columnas desde aquí es lo que reventó el #360. Sin
+clave foránea, así que al borrar una tarea la limpieza es explícita
+(`olvidarElHiloDe`) y no puede reventar el borrado.
+
+Y avisar **no puede tumbar lo que lo dispara**: la tarea ya está creada cuando
+se avisa, así que `crearLosAvisos` no lanza. Pero **no es mudo**: un aviso que
+no sale sin decirlo se lee como «a mí no me llega nada», que es el fallo
+original otra vez.
+
+#### El `42P01` de Prisma NO está donde parece
+
+`conLasTablas` reintenta cuando la tabla no existe —el recuerdo de «ya la creé»
+es del proceso, no de la base—. La primera versión preguntaba por `error.code`
+y **el reintento no se disparaba nunca**: en una consulta en crudo el `code` de
+primer nivel es el de Prisma (`P2010`) y el de Postgres viaja dentro, en
+`meta.code`.
+
+Lo cazó el banco borrando las tablas a mano: ocho consultas seguidas caían y
+ninguna se recuperaba. Se miran **los dos sitios**, `meta.code` y el texto del
+mensaje. Si se escribe otra comprobación de un código de Postgres, va igual.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

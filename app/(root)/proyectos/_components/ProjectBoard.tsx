@@ -33,6 +33,7 @@ import {
   TOPE_DE_ADJUNTOS_POR_TAREA,
   type AdjuntoDeTarea, type TipoDeAdjunto,
 } from "@/lib/adjuntos-de-tarea-tipos";
+import { HiloDeLaTarea } from "./HiloDeLaTarea";
 
 function personLabel(person: { name: string | null; email: string | null }) {
   return person.name?.trim() || person.email || "Sin nombre";
@@ -274,14 +275,32 @@ function BloqueDeAdjuntos({
 function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boolean }) {
   const due = fmtDue(task.dueDate);
   const isDone = task.status === "done";
+  // Algo que ESTA persona no ha abierto: se lo asignaron, alguien comentó,
+  // alguien la dio por hecha. No se quita al pasar por encima ni con el tiempo:
+  // solo al abrir la tarea, que es cuando de verdad se ha leído.
+  const sinVer = task.tieneAlgoSinVer === true;
 
   return (
     <div
       className={cn(
-        "select-none space-y-2 rounded-lg border border-border bg-background p-3 shadow-sm",
+        "relative select-none space-y-2 rounded-lg border border-border bg-background p-3 shadow-sm",
+        sinVer && "border-indigo-400 ring-1 ring-indigo-400/40",
         dragging && "rotate-1 scale-105 opacity-80 shadow-lg",
       )}
     >
+      {sinVer && (
+        // Fuera del flujo, como los botones de las tarjetas de Diagramas: un
+        // punto dentro de la fila le quitaría ancho al título, que es lo que
+        // de verdad se lee.
+        <span
+          className="absolute -right-1 -top-1 flex h-3 w-3"
+          title="Tiene algo que no has visto"
+          aria-label="Tiene algo que no has visto"
+        >
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-60" />
+          <span className="relative inline-flex h-3 w-3 rounded-full bg-indigo-500 ring-2 ring-background" />
+        </span>
+      )}
       {/* `whitespace-pre-wrap`: el texto se escribe en un textarea y puede traer
           saltos de linea. Sin esto se pintaban todos seguidos, como si no
           existieran, y lo que se ve no es lo que se escribio. */}
@@ -400,7 +419,19 @@ function BoardColumn({
         {tasks.map((task) => (
           canDrag(task)
             ? <DraggableTask key={task.id} task={task} onOpen={onOpenTask} />
-            : <TaskCard key={task.id} task={task} />
+            // Arrastrar no, pero abrir sí: aquí dentro está el hilo, y quien no
+            // puede mover una tarjeta también tiene que poder leerla y
+            // contestar. Si no, el punto de «sin ver» no se podría quitar.
+            : (
+              <button
+                key={task.id}
+                type="button"
+                className="w-full text-left"
+                onClick={() => onOpenTask(task)}
+              >
+                <TaskCard task={task} />
+              </button>
+            )
         ))}
         {tasks.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground/40">
@@ -419,6 +450,7 @@ export function ProjectBoard({
   team,
   userId,
   canManage,
+  abrirTareaId,
   onBack,
   onProjectChanged,
 }: {
@@ -427,6 +459,8 @@ export function ProjectBoard({
   userId: string;
   /** Dueño o administrador. Un agente solo mueve las tareas que tiene asignadas. */
   canManage: boolean;
+  /** Abrir esta tarea nada más cargar. Es a donde lleva un aviso. */
+  abrirTareaId?: number | null;
   onBack: () => void;
   onProjectChanged: () => void;
 }) {
@@ -450,6 +484,17 @@ export function ProjectBoard({
   }, [project.id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Venir de un aviso abre su tarea. Una sola vez: si no, cerrar el diálogo lo
+  // volvería a abrir en el render siguiente y no habría forma de salir.
+  const yaSeAbrio = useRef(false);
+  useEffect(() => {
+    if (yaSeAbrio.current || !abrirTareaId || !tasks.length) return;
+    const suya = tasks.find((t) => t.id === abrirTareaId);
+    if (!suya) return;
+    yaSeAbrio.current = true;
+    setEditingTask(suya);
+  }, [abrirTareaId, tasks]);
 
   // Un agente participa moviendo lo suyo; el servidor lo vuelve a comprobar.
   const puedeTocar = useCallback(
@@ -552,7 +597,7 @@ export function ProjectBoard({
                   color={col.color}
                   tasks={byColumn[col.status] ?? []}
                   onAdd={() => setAddingTo(col.status)}
-                  onOpenTask={(task) => { if (canManage) setEditingTask(task); }}
+                  onOpenTask={setEditingTask}
                   canDrag={puedeTocar}
                   canAdd={canManage}
                 />
@@ -577,7 +622,16 @@ export function ProjectBoard({
         initialStatus={addingTo ?? "pending"}
         team={team}
         userId={userId}
-        onClose={() => { setAddingTo(null); setEditingTask(null); }}
+        canManage={canManage}
+        onClose={() => {
+          const habiaTarea = editingTask !== null;
+          setAddingTo(null);
+          setEditingTask(null);
+          // Abrir la tarea quita su punto en el servidor. Se recarga para que
+          // también se caiga en pantalla: si no, la tarjeta se queda marcada
+          // hasta el siguiente refresco y parece que el punto no se apaga.
+          if (habiaTarea) void load();
+        }}
         onSaved={() => {
           setAddingTo(null);
           setEditingTask(null);
@@ -598,6 +652,7 @@ function TaskDialog({
   initialStatus,
   team,
   userId,
+  canManage,
   onClose,
   onSaved,
 }: {
@@ -608,6 +663,13 @@ function TaskDialog({
   initialStatus: string;
   team: AdvisorInfo[];
   userId: string;
+  /**
+   * Quien no lleva el proyecto **abre igual** la tarjeta: aquí dentro está el
+   * hilo, y el asignado tiene que poder leer y contestar. Lo que no puede es
+   * cambiar los campos, así que salen bloqueados y sin botón de guardar. El
+   * servidor lo vuelve a comprobar de todos modos.
+   */
+  canManage: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -691,7 +753,9 @@ function TaskDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{task ? "Editar tarea" : "Nueva tarea"}</DialogTitle>
+          <DialogTitle>
+            {!task ? "Nueva tarea" : canManage ? "Editar tarea" : "La tarea"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -706,6 +770,7 @@ function TaskDialog({
               id="task-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              readOnly={!canManage}
               rows={5}
               className="min-h-[7rem] resize-y"
               placeholder="Ej. Preparar los textos de la home"
@@ -719,7 +784,8 @@ function TaskDialog({
                 id="task-type"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!canManage}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-70"
               >
                 {TASK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
@@ -732,6 +798,7 @@ function TaskDialog({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
+                readOnly={!canManage}
               />
             </div>
           </div>
@@ -743,13 +810,21 @@ function TaskDialog({
             onCambio={setAdjuntos}
           />
 
+          {/* El hilo, solo con la tarea ya creada: los comentarios cuelgan de un
+              `taskId` y en una tarea nueva ese id todavía no existe. Misma
+              condición que los adjuntos. Se pinta para todo el mundo, también
+              para quien no puede editar: es el asignado quien tiene que poder
+              leer y contestar, y abrirlo es lo que apaga su punto. */}
+          {task && <HiloDeLaTarea taskId={task.id} userId={userId} />}
+
           <div className="space-y-1.5">
             <Label htmlFor="task-assignee">Responsable</Label>
             <select
               id="task-assignee"
               value={assignedToId}
               onChange={(e) => setAssignedToId(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              disabled={!canManage}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-70"
             >
               <option value={userId}>Yo</option>
               {team
@@ -762,7 +837,7 @@ function TaskDialog({
         </div>
 
         <DialogFooter className="sm:justify-between">
-          {task ? (
+          {task && canManage ? (
             <Button
               variant="ghost"
               onClick={() => void handleDelete()}
@@ -775,11 +850,18 @@ function TaskDialog({
           ) : <span />}
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} disabled={saving || deleting}>Cancelar</Button>
-            <Button onClick={() => void handleSave()} disabled={saving || deleting} className="gap-2">
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {task ? "Guardar" : "Crear tarea"}
+            <Button variant="outline" onClick={onClose} disabled={saving || deleting}>
+              {canManage ? "Cancelar" : "Cerrar"}
             </Button>
+            {/* Sin permiso no hay botón de guardar: enseñarlo y que el servidor
+                conteste «No autorizado» es la puerta cerrada detrás del menú
+                abierto. Lo que sí puede hacer aquí es comentar. */}
+            {canManage && (
+              <Button onClick={() => void handleSave()} disabled={saving || deleting} className="gap-2">
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {task ? "Guardar" : "Crear tarea"}
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>

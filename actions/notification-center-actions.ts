@@ -5,6 +5,8 @@ import { currentUser } from "@/lib/auth";
 import { getApiKeyById } from "@/actions/api-action";
 import { fetchChatsFromEvolution } from "@/actions/chat-actions";
 import { isEvolutionRestInstance } from "@/lib/instance-display-name";
+import { avisosDeLaCampanita } from "@/lib/avisos-de-tarea";
+import { aDondeLleva } from "@/lib/avisos-de-tarea-tipos";
 
 export type NotificationKind =
   | "task"
@@ -12,7 +14,13 @@ export type NotificationKind =
   | "connection"
   | "chat"
   | "mention"
-  | "followup";
+  | "followup"
+  /**
+   * Lo que pasa DENTRO de una tarea: te la asignaron, alguien la dio por hecha,
+   * alguien comentó. Aparte de `task` —que son las vencidas— a propósito: una
+   * es trabajo que se pasó de fecha y la otra es alguien hablándote.
+   */
+  | "tarea";
 
 export type NotificationCenterItem = {
   id: string;
@@ -36,6 +44,7 @@ const EMPTY_COUNTS: Record<NotificationKind, number> = {
   chat: 0,
   mention: 0,
   followup: 0,
+  tarea: 0,
 };
 
 const ITEMS_PER_KIND_LIMIT = 50;
@@ -202,6 +211,32 @@ export async function getNotificationCenterData(): Promise<{
       console.error("[notification-center] collab", e);
     }
 
+    // Lo que pasó dentro de una tarea. El registro de todo lo que salta en la
+    // ventana emergente: si la persona no estaba delante cuando pasó, lo lee
+    // aquí. Nada se pierde.
+    //
+    // Se enseña lo que no está **leído** (`atendido`), no lo que no está visto.
+    // Son dos marcas distintas a propósito: el clic de la ventana —abrir o
+    // cerrar— marca leído y descuenta de aquí; el punto del tablero es la otra,
+    // y solo se apaga abriendo la tarea.
+    let avisosDeTareas: NotificationCenterItem[] = [];
+    try {
+      avisosDeTareas = (await avisosDeLaCampanita(user.id))
+        .filter((a) => !a.atendido)
+        .map((a) => ({
+          id: `tarea:${a.id}`,
+          kind: "tarea" as const,
+          title: a.titulo,
+          description: a.texto,
+          href: aDondeLleva(a),
+          date: a.creadoEn,
+        }));
+    } catch (e) {
+      // Mudo aquí se lee como «no me llegó nada», que es el fallo que esto vino
+      // a arreglar.
+      console.warn("[notification-center] avisos de tarea", e);
+    }
+
     const connectionItems: NotificationCenterItem[] = [];
     if (instances.length === 0) {
       connectionItems.push({
@@ -222,6 +257,7 @@ export async function getNotificationCenterData(): Promise<{
       });
     }
     const items: NotificationCenterItem[] = [
+      ...avisosDeTareas,
       ...collabItems,
       ...connectionItems,
       ...unreadChats.map((chat) => ({
@@ -272,6 +308,7 @@ export async function getNotificationCenterData(): Promise<{
       chat: chatCount,
       mention: collabItems.length,
       followup: followupCount,
+      tarea: avisosDeTareas.length,
     };
 
     return {
