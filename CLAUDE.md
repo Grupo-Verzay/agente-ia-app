@@ -945,6 +945,93 @@ debe. `clientesDeLaCuenta` usa el mismo criterio que ya usaba `/panel/clientes`
 cliente a un reseller: `demoResellerId` y la tabla `reseller`. Que las dos
 listas digan lo mismo es la gracia: no se puede repartir lo que no se ve.
 
+## Una línea muerta no tiene filas: se cuenta desde `Instancias`
+
+Conexiones dice si el QR está enlazado y si el Robot está encendido. Las dos
+cosas pueden estar en verde y la línea no contestar nada —el webhook no llega,
+la sesión de Waha está colgada, el número está baneado—, y eso desde fuera se
+ve como «la IA dejó de responder». **Actividad de instancias** (Analíticas,
+solo superadministrador) lo dice de un vistazo con lo único que no se puede
+fingir: si pasaron mensajes.
+
+Rojo = no entró nada. Amarillo = entran y la IA no contestó ninguno. Verde =
+entran y contesta. **Las verdes no se listan**: una tabla con las cincuenta
+sanas dentro esconde las tres que fallan.
+
+Y la regla que sostiene la tarjeta entera:
+
+> **El universo sale de `Instancias`, nunca de los mensajes.** Agrupando
+> `chat_messages` por línea, una línea sin un solo mensaje **no tiene ninguna
+> fila** y no aparece en el resultado: las rojas —lo único que esto existe para
+> encontrar— desaparecerían justo del conteo que las cuenta. Se parte de las
+> líneas y los mensajes se pegan con un `LEFT JOIN`; sin mensajes, ceros, y el
+> cero **es** el dato.
+
+Es la misma familia que *un contador es un `COUNT`, no un `length`*: el número
+no puede salir de la lista de lo que se pudo cargar.
+
+Tres cosas más:
+
+1. **El orden de las dos preguntas no es intercambiable.** Primero «¿entró
+   algo?» y después «¿contestó la IA?». Al revés, una línea muerta —que tiene
+   cero respuestas igual que una amarilla— saldría amarilla, «recibió y no
+   contestó», que es lo contrario de lo que pasa.
+2. **Los grupos entran**, y no contradice la regla del CRM: esto no cuenta
+   leads, cuenta si pasan mensajes. Un mensaje de grupo prueba que la línea
+   vive igual que cualquier otro, y filtrarlo pintaría de rojo una línea sana.
+3. **Seguimientos, recordatorios y campañas NO llevan `sentByAi`** —
+   comprobado en el motor: ni `follow-up-runner` ni `reminders-runner` la
+   escriben—. Así que suman en «escribieron personas» aunque no las escribiera
+   nadie. No cambia el color, sí la columna, y la tarjeta lo dice en su pie. El
+   día que el motor marque esos envíos, la columna mejora sola.
+
+### Y para barrer por FECHA sin cuenta, un BRIN
+
+Los cinco índices de `chat_messages` empiezan **todos** por `userId`, así que
+una consulta de plataforma —«qué pasó en los últimos 7 días en todas las
+cuentas»— no puede entrar por ninguno y acaba barriendo la tabla entera.
+
+Lo primero que se probó fue lo que parecía obvio —guiar la consulta desde
+`Instancias` con un `LATERAL`, para que cada línea usara
+`chat_messages_user_instance_ts_idx`— y **salió peor**: 355 ms contra 435 ms
+del barrido, y `Heap Blocks: exact=303191` para 293.000 filas, o sea **un
+bloque por fila**. La tabla está ordenada por TIEMPO, no por línea, así que las
+filas de una línea concreta están desperdigadas de a una por página. Un índice
+que encuentra las filas no sirve de nada si hay que ir a buscarlas a 300.000
+sitios distintos.
+
+Lo que sí sirve es lo contrario: aprovechar ese orden. `messageTimestamp` va
+pegado al orden físico —los mensajes se anexan según llegan; la correlación
+medida es **1.0**— y eso es justo lo que un **BRIN** explota.
+
+Medido en banco con 4M filas (720 MB de tabla, más de lo que hoy pesa la base
+entera):
+
+| | tarda | bloques leídos |
+| --- | --- | --- |
+| barrido, sin índice de fecha | 435 ms | 91.460 |
+| guiada por `Instancias` (`LATERAL`) | 355 ms | 303.191 |
+| barrido + **BRIN** | **103 ms** | **7.214** |
+
+El BRIN ocupa **40 kB** —un btree de los que ya hay ocupa 325 MB— y se
+construye en 0,8 s, así que no es de los que hay que justificar en espacio.
+
+Dos cosas que hay que mantener:
+
+1. **El parámetro va moldeado**: `make_interval(days => $1::int)`. Prisma manda
+   el parámetro sin tipo y `make_interval` solo acepta `int`; sin el molde la
+   consulta puede caer con «no existe la función». Comprobado además que con el
+   parámetro sin tipo **sigue entrando por el BRIN**, también en la quinta
+   ejecución, que es donde Postgres puede caerse a plan genérico.
+2. **Si vuelve a hacer falta barrer por fecha, se mira este índice antes de
+   inventar otro.** Y si algún día los mensajes dejaran de insertarse por orden
+   de llegada, la correlación se rompe y el BRIN deja de servir: entonces hay
+   que volver aquí, no añadir un btree encima.
+
+Y una advertencia de sintaxis que costó dos errores de compilación: **dentro de
+un `$queryRaw` no puede haber acentos graves**, ni siquiera en un comentario
+SQL. Cierran el template literal y el fichero deja de parsear.
+
 ## Chats: el menú de Acciones no puede crecer con el equipo
 
 En «Acciones» iban abiertas, una detrás de otra, las dos listas de asesores:
