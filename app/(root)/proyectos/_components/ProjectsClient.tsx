@@ -4,9 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Loader2, Plus, Trash2, Pencil, FolderKanban, Search, AlertCircle, Eye, ListTodo,
-  ChevronDown, Clock,
+  ChevronDown, Clock, SlidersHorizontal, UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -94,6 +100,68 @@ const DUE_TONES = {
   idle: "bg-muted text-muted-foreground",
 };
 
+/**
+ * Un filtro de la barra, plegado.
+ *
+ * Enseña el CONCEPTO mientras no filtra («Estado») y el VALOR en cuanto filtra
+ * («En pausa»), en azul. Son las dos cosas a la vez: cerrado ocupa poco —que es
+ * lo que hace que la fila quepa— y un filtro puesto se nota, que es la regla de
+ * siempre: un filtro que no se ve es lo que hace pensar que faltan cosas.
+ *
+ * El rótulo sale de la misma lista que las opciones, así que no hay dos sitios
+ * que puedan decir cosas distintas.
+ */
+function FiltroDesplegable<T extends string>({
+  icono,
+  concepto,
+  opciones,
+  valor,
+  sinFiltrar,
+  onElegir,
+}: {
+  icono: React.ReactNode;
+  concepto: string;
+  opciones: { key: T; label: string }[];
+  valor: T;
+  /** El valor que NO filtra nada: con él puesto se enseña el concepto. */
+  sinFiltrar: T;
+  onElegir: (valor: T) => void;
+}) {
+  const filtrando = valor !== sinFiltrar;
+  const elegida = opciones.find((o) => o.key === valor);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title={concepto}
+          className={cn(
+            "h-7 shrink-0 gap-1.5 px-2 text-xs",
+            filtrando ? "border-sky-500 text-sky-600" : "text-muted-foreground",
+          )}
+        >
+          {icono}
+          {filtrando ? elegida?.label ?? concepto : concepto}
+          <ChevronDown className="h-3.5 w-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {opciones.map((o) => (
+          <DropdownMenuCheckboxItem
+            key={o.key}
+            checked={valor === o.key}
+            onCheckedChange={() => onElegir(o.key)}
+          >
+            {o.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function ProjectsClient({
   userId,
   team,
@@ -122,7 +190,13 @@ export function ProjectsClient({
   const [deleteTarget, setDeleteTarget] = useState<ProjectData | null>(null);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"todos" | ProjectStatus | "mios">("todos");
+  // DOS filtros, no uno. Antes era una sola variable con cinco valores, así que
+  // eran excluyentes: elegir «Míos» borraba el estado y elegir «Activos»
+  // borraba «Míos». No se podía pedir «mis proyectos activos», y «Todos» hacía
+  // de dos cosas a la vez —todos los estados y los de todo el mundo—, que es
+  // justo lo que confundía. Son preguntas distintas y se cruzan con Y.
+  const [estado, setEstado] = useState<"todos" | ProjectStatus>("todos");
+  const [responsable, setResponsable] = useState<"equipo" | "mios">("equipo");
   // El reparto arranca CERRADO: es un dato que se consulta de vez en cuando,
   // no lo que se viene a hacer a esta pantalla.
   const [verReparto, setVerReparto] = useState(false);
@@ -188,13 +262,13 @@ export function ProjectsClient({
         return false;
       }
       if (!enLaCarpeta(String(p.id))) return false;
-      if (filter === "todos") return true;
-      if (filter === "mios") {
+      if (estado !== "todos" && p.status !== estado) return false;
+      if (responsable === "mios") {
         return p.leadId === userId || p.members.some((m) => m.userId === userId);
       }
-      return p.status === filter;
+      return true;
     });
-  }, [projects, query, filter, userId, enLaCarpeta]);
+  }, [projects, query, estado, responsable, userId, enLaCarpeta]);
 
   // Cuántos hay en cada carpeta, para el número del chip. Sale de la lista
   // completa: el número dice lo que hay dentro, no lo que deja ver el filtro.
@@ -236,11 +310,16 @@ export function ProjectsClient({
     );
   }
 
-  const FILTERS: { key: typeof filter; label: string }[] = [
+  // El rótulo de cada opción. El del desplegable cerrado sale de aquí, así que
+  // no hay dos sitios que puedan decir cosas distintas.
+  const ESTADOS: { key: typeof estado; label: string }[] = [
     { key: "todos", label: "Todos" },
     { key: "activo", label: "Activos" },
     { key: "pausado", label: "En pausa" },
     { key: "terminado", label: "Terminados" },
+  ];
+  const RESPONSABLES: { key: typeof responsable; label: string }[] = [
+    { key: "equipo", label: "Del equipo" },
     { key: "mios", label: "Míos" },
   ];
 
@@ -306,26 +385,51 @@ export function ProjectsClient({
           />
         </div>
 
+        {/* Dos desplegables, no seis botones sueltos.
+            Medido a 1280 con el menú lateral abierto: la izquierda solo tiene
+            907px y con los chips necesitaba 1057, así que se partía en dos
+            líneas — y con `items-end` en la barra, el «+ Nuevo» bajaba con
+            ellas. Con dos desplegables COMPACTOS son 845px y cabe.
+            Compactos importa: con la etiqueta larga («Estado: Todos») son
+            959px y se seguiría partiendo. Así que el botón enseña el CONCEPTO
+            mientras no filtra y el VALOR en cuanto filtra, que además es el
+            patrón que ya usa Clientes. */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {FILTERS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setFilter(item.key)}
-              aria-pressed={filter === item.key}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs transition-colors",
-                filter === item.key
-                  ? "border-primary bg-primary/10 font-medium text-primary"
-                  : "border-border text-muted-foreground hover:border-primary/50",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
+          <FiltroDesplegable
+            icono={<SlidersHorizontal className="h-3.5 w-3.5" />}
+            concepto="Estado"
+            opciones={ESTADOS}
+            valor={estado}
+            sinFiltrar="todos"
+            onElegir={setEstado}
+          />
+          <FiltroDesplegable
+            icono={<UserRound className="h-3.5 w-3.5" />}
+            concepto="Responsable"
+            opciones={RESPONSABLES}
+            valor={responsable}
+            sinFiltrar="equipo"
+            onElegir={setResponsable}
+          />
         </div>
 
+        {/* Las carpetas SCROLLEAN, no parten la fila.
+            Es lo que queda creciendo sin tope: con dos carpetas la izquierda
+            vuelve a pedir 1012px de los 907 que tiene, y con cuatro, 1178. Es
+            la misma solución que la barra de Clientes —el trozo del medio se
+            desplaza cuando no cabe— y va desde aquí con `className`, no
+            cambiando el componente, que lo comparte Diagramas.
+            Las tres clases hacen falta y `flex-1` es la que NO es obvia.
+            Probado sin ella: no arregla nada. El padre es `flex-wrap`, así que
+            ante un desbordamiento PARTE LA LÍNEA antes de encoger a un hijo —
+            encoger solo ocurre dentro de un contenedor que no parte—. Con
+            `flex-1` la tira ocupa el hueco que sobra y ya no desborda la
+            línea: lo que crece se queda dentro de ella y se desplaza.
+            El precio, a sabiendas: «Reparto del trabajo» queda pegado a la
+            derecha del grupo en vez de junto a «Nueva carpeta». Sigue en la
+            misma fila y antes del «+ Nuevo», que es lo que se pedía. */}
         <BarraDeCarpetas
+          className="min-w-0 flex-1 flex-nowrap overflow-x-auto"
           tipo="proyecto"
           carpetas={carpetas.carpetas}
           seleccionada={carpetas.seleccionada}
