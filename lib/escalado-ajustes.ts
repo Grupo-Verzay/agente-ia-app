@@ -22,14 +22,23 @@ export type AjustesDeEscalado = {
    * permite ver después si a esta cuenta le convendría encenderlo.
    */
   escalarPorIa: boolean;
-  /** Si escalar apaga la IA en esa conversación. Por defecto sí. */
+  /**
+   * Si escalar apaga la IA en esa conversación. **Por defecto NO.**
+   *
+   * Quien pide un humano casi nunca deja de preguntar: sigue escribiendo cosas
+   * que la IA sí resuelve, y con la IA apagada le habla a una pared hasta que
+   * llega la persona. Callarla es una decisión de cada dueño.
+   *
+   * Y apagarla no es lo que impide que la IA conteste encima del asesor: de eso
+   * se encarga `Session.status`, que se apaga en cuanto escribe una persona.
+   */
   apagarLaIaAlEscalar: boolean;
   /** Minutos sin respuesta antes de soltar la conversación. 0 = no soltar. */
   minutosParaSoltar: number;
 };
 
 /**
- * Lo de siempre: escalar apaga la IA y no se suelta a nadie.
+ * Lo de siempre: escalar NO apaga la IA y no se suelta a nadie.
  *
  * Es también el respaldo cuando la columna todavía no existe —App desplegada
  * antes que el backend—, y por eso importa que sea exactamente el
@@ -38,6 +47,6 @@ export type AjustesDeEscalado = {
  */
 export const ESCALADO_POR_DEFECTO: AjustesDeEscalado = {
   escalarPorIa: true,
-  apagarLaIaAlEscalar: true,
+  apagarLaIaAlEscalar: false,
   minutosParaSoltar: 0,
 };

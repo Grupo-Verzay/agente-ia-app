@@ -45,8 +45,12 @@ export async function getAjustesDeEscalado(): Promise<AjustesDeEscalado> {
     const fila = filas[0];
     if (!fila) return ESCALADO_POR_DEFECTO;
     return {
+      // Cada uno cae del lado de SU valor por defecto cuando no se puede leer:
+      // escalar por IA viene encendido de serie, apagar la IA al escalar no.
+      // Un respaldo que no coincida con el DEFAULT de la columna enseña un
+      // interruptor que dice lo contrario de lo que la cuenta está haciendo.
       escalarPorIa: fila.escalarPorIa !== false,
-      apagarLaIaAlEscalar: fila.apagarLaIaAlEscalar !== false,
+      apagarLaIaAlEscalar: fila.apagarLaIaAlEscalar === true,
       minutosParaSoltar: Number(fila.minutosParaSoltar) || 0,
     };
   } catch (error) {
