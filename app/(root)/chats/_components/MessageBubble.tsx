@@ -135,6 +135,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onDelete,
 }) => {
   const [callOpen, setCallOpen] = useState(false);
+  /**
+   * ¿La miniatura del anuncio se quedó sin cargar?
+   *
+   * Los enlaces de Facebook van firmados y caducan, así que una tarjeta vieja
+   * acaba apuntando a una imagen que ya no existe. Sin esto salía el icono roto
+   * del navegador: la conversación se veía averiada por algo que no lo está y
+   * que no podemos evitar —el enlace caduca en su casa, no en la nuestra—.
+   *
+   * Se esconde la imagen y **se queda la tarjeta** con su título, su cuerpo y su
+   * dominio, que es lo que de verdad dice de dónde viene la persona. Es la
+   * misma idea que el respaldo del avatar: lo que no carga no puede dejar un
+   * hueco roto en medio.
+   *
+   * Por `src` y no un `true` pelado: si la vuelta siguiente trae otra
+   * miniatura, se intenta con esa en vez de darla por rota para siempre.
+   */
+  const [miniaturaRota, setMiniaturaRota] = useState<string | null>(null);
   // Sin avatar por mensaje (como WhatsApp en chats 1-a-1): burbujas limpias y
   // más espacio. El avatar del contacto ya se ve en la cabecera del chat.
   const showAvatar = false;
@@ -393,11 +410,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-white/5',
           )}>
             <div className="flex items-stretch min-h-[3.5rem]">
-              {adPreview.thumbnailUrl && (
+              {adPreview.thumbnailUrl && miniaturaRota !== adPreview.thumbnailUrl && (
                 <img
                   src={adPreview.thumbnailUrl}
                   alt="Vista previa del anuncio"
                   className="w-14 h-14 object-cover shrink-0"
+                  onError={() => setMiniaturaRota(adPreview.thumbnailUrl ?? null)}
                 />
               )}
               <div className="flex flex-col justify-center px-2 py-1.5 min-w-0">

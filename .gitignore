@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Carpetas de referencia externa (no pertenecen al proyecto)
 /forms/
+
+# Compilado temporal del banco de pruebas (ver lib/__tests__/*.test.mjs)
+lib/__tests__/.compilado/
