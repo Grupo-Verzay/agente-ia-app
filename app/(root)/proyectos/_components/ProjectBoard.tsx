@@ -18,6 +18,11 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { TiempoDeTarea } from "@/components/shared/TiempoDeTarea";
+import {
+  clientesParaLaTareaAction,
+  guardarElClienteDeLaTareaAction,
+} from "@/actions/trabajo-de-tarea-actions";
 import { cn } from "@/lib/utils";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { createTaskAction, deleteTaskAction } from "@/actions/task-actions";
@@ -538,6 +543,10 @@ export function ProjectBoard({
     return map;
   }, [tasks]);
 
+  // La tarea que se está cerrando desde el tablero, y su tiempo.
+  const [cerrando, setCerrando] = useState<TaskData | null>(null);
+  const [minutosDeTrabajo, setMinutosDeTrabajo] = useState<number | null>(null);
+
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     setActiveTask(null);
     const { active, over } = event;
@@ -547,6 +556,15 @@ export function ProjectBoard({
     const toStatus = String(over.id);
     if (!task || task.status === toStatus) return;
     if (!BOARD_COLUMNS.some((col) => col.status === toStatus)) return;
+
+    // Soltarla en «Hecho» es cerrarla, igual que el botón de Tareas, y cerrar
+    // pide el tiempo. Aquí NO se mueve la tarjeta todavía: pintarla en Hecho y
+    // devolverla si se cancela el diálogo la haría saltar a la vista. Se mueve
+    // cuando el cierre se confirma.
+    if (toStatus === "done") {
+      setCerrando(task);
+      return;
+    }
 
     const previous = tasks;
     setTasks((prev) =>
@@ -568,6 +586,32 @@ export function ProjectBoard({
     // El avance del proyecto se ve en la tarjeta de la lista.
     onProjectChanged();
   }, [tasks, onProjectChanged]);
+
+  /** Confirmar el cierre: ahora sí se mueve, con el tiempo registrado. */
+  const confirmarElCierre = useCallback(async () => {
+    if (!cerrando || !minutosDeTrabajo) return;
+    const task = cerrando;
+
+    const previous = tasks;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: "done" } : t)));
+    pendingRef.current = true;
+    const res = await moveProjectTaskAction({
+      taskId: task.id,
+      status: "done",
+      minutosDeTrabajo,
+    });
+    pendingRef.current = false;
+
+    setCerrando(null);
+    setMinutosDeTrabajo(null);
+
+    if (!res.success) {
+      setTasks(previous);
+      toast.error(res.message);
+      return;
+    }
+    onProjectChanged();
+  }, [cerrando, minutosDeTrabajo, tasks, onProjectChanged]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
@@ -663,6 +707,35 @@ export function ProjectBoard({
           onProjectChanged();
         }}
       />
+
+      {/* Cerrar desde el tablero pide lo mismo que el botón de Tareas.
+          No se puede escapar sin registrar: cerrar el diálogo devuelve la
+          tarjeta a su columna, no la da por hecha. */}
+      <Dialog
+        open={!!cerrando}
+        onOpenChange={(o) => {
+          if (!o) { setCerrando(null); setMinutosDeTrabajo(null); }
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Dar por hecha</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{cerrando?.title}</p>
+          <TiempoDeTarea minutos={minutosDeTrabajo} onChange={setMinutosDeTrabajo} autoFocus />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setCerrando(null); setMinutosDeTrabajo(null); }}
+            >
+              Cancelar
+            </Button>
+            <Button disabled={!minutosDeTrabajo} onClick={() => void confirmarElCierre()}>
+              Dar por hecha
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -704,6 +777,11 @@ function TaskDialog({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adjuntos, setAdjuntos] = useState<AdjuntoDeTarea[]>([]);
+  // La cuenta a la que se le dedica. Vacío = tarea interna, que es normal.
+  const [clienteId, setClienteId] = useState<string>("");
+  // Solo hace falta cuando la tarjeta nace directamente en «Hecho».
+  const [minutosDeTrabajo, setMinutosDeTrabajo] = useState<number | null>(null);
+  const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
 
   // Se repuebla al abrir: si no, el formulario conserva lo de la tarjeta anterior.
   useEffect(() => {
@@ -714,10 +792,22 @@ function TaskDialog({
     setAssignedToId(task?.assignedToId ?? userId);
     // Por defecto, hoy: una tarea sin fecha no aparece en los avisos de Tareas.
     setDueDate((task?.dueDate ?? new Date().toISOString()).slice(0, 10));
+    setClienteId(task?.clienteId ?? "");
+    setMinutosDeTrabajo(null);
+    // Se piden al abrir y no al montar: el diálogo vive montado todo el rato y
+    // pedirlas una vez al arrancar el tablero sería una consulta que casi nunca
+    // se usa. Si falla, la lista sale vacía y el campo queda en «Sin cuenta»,
+    // que es lo que había antes de esto.
+    void clientesParaLaTareaAction().then(setClientes);
   }, [open, task, userId]);
 
   const handleSave = async () => {
     if (!title.trim()) { toast.error("Ponle un título a la tarea."); return; }
+    // Nacer en «Hecho» es nacer cerrada, y cerrar pide el tiempo.
+    if (!task && initialStatus === "done" && !minutosDeTrabajo) {
+      toast.error("Registra cuánto tiempo tomó la tarea.");
+      return;
+    }
     setSaving(true);
 
     if (task) {
@@ -728,6 +818,9 @@ function TaskDialog({
         dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
         assignedToId,
       });
+      if (res.success) {
+        await guardarElClienteDeLaTareaAction(task.id, clienteId || null);
+      }
       setSaving(false);
       if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message);
@@ -749,12 +842,19 @@ function TaskDialog({
       return;
     }
 
+    await guardarElClienteDeLaTareaAction(res.data.id, clienteId || null);
+
     // createTaskAction siempre nace en "pending"; si se pidió otra columna, se
     // mueve acto seguido en vez de duplicar la lógica de creación.
+    //
+    // Y si esa columna es «Hecho», el movimiento es un cierre y lleva su
+    // tiempo: crear una tarea ya hecha es cerrarla. Sin esto, ese «+» era la
+    // puerta de atrás por la que una tarea se cerraba sin registrar nada.
     if (initialStatus !== "pending") {
       await moveProjectTaskAction({
         taskId: res.data.id,
         status: initialStatus as TaskData["status"],
+        ...(initialStatus === "done" ? { minutosDeTrabajo: minutosDeTrabajo as number } : {}),
       });
     }
 
@@ -858,7 +958,33 @@ function TaskDialog({
                 ))}
             </select>
           </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="task-cliente">Cuenta</Label>
+            <select
+              id="task-cliente"
+              value={clienteId}
+              onChange={(e) => setClienteId(e.target.value)}
+              disabled={!canManage}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-70"
+            >
+              {/* El vacío va primero y con nombre: sin cuenta es un caso
+                  normal —las tareas internas— y no un campo a medio rellenar.
+                  Dejarlo sin etiqueta haría pensar que falta elegir algo. */}
+              <option value="">Sin cuenta (interna)</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {/* Nacer en «Hecho» es nacer cerrada, y cerrar pide el tiempo. Solo
+            sale en ese caso: en las demás columnas no hay nada que registrar
+            todavía. */}
+        {!task && initialStatus === "done" && (
+          <TiempoDeTarea minutos={minutosDeTrabajo} onChange={setMinutosDeTrabajo} />
+        )}
 
         <DialogFooter className="sm:justify-between">
           {task && canManage ? (

@@ -48,6 +48,8 @@ export type ProjectData = {
   createdAt: string;
   /** Quién lo abrió. */
   createdById: string;
+  /** Quién lo creó, ya resuelto a nombre o correo. */
+  createdByName: string | null;
   /**
    * Si quien mira lo lleva: puede editarlo, borrarlo y manejar sus tareas.
    * Cierto para quien gestiona la cuenta y para quien creó el proyecto.

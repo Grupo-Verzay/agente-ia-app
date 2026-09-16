@@ -47,6 +47,16 @@ export type TaskData = {
    */
   adjuntos?: AdjuntoDeTarea[];
   /**
+   * La cuenta de la plataforma a la que se le dedica esta tarea, o `null` si es
+   * interna. **No es `ownerId`** —esa es la cuenta dueña de la agenda— ni
+   * `sessionId` —ese es un contacto de WhatsApp, un lead—.
+   *
+   * Vive en `task_work`, tabla de la App: `tasks` es del backend y no se le
+   * añaden columnas desde aquí (#360). Opcional por lo mismo que `adjuntos`:
+   * solo el tablero de Proyectos la trae.
+   */
+  clienteId?: string | null;
+  /**
    * Trae algo que QUIEN MIRA no ha abierto todavía: una asignación, un
    * comentario, un «ya está». Es lo que pinta el punto de color en el tablero.
    *

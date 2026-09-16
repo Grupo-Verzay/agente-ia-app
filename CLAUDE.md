@@ -1112,6 +1112,91 @@ normal y bisiesto, con 30 y 31, y con diciembre, que cruza de año —igual que
 `ultimoMesCerrado`, que en enero tiene que devolver diciembre **del año
 anterior**—.
 
+## Proyectos: medir el trabajo, y las tres cosas que no estaban guardadas
+
+Para saber cuánto trabajo lleva cada cliente y cada persona hacían falta tres
+datos, y **dos de los tres no existían**. Conviene saber cuáles antes de tocar
+nada:
+
+| Dato | ¿Estaba? |
+| --- | --- |
+| A qué **cuenta** se le dedica una tarea | **No.** `tasks` parece tenerlo y no lo tiene: `ownerId` es la cuenta dueña de la agenda, y `sessionId`/`contactJid` son un contacto de WhatsApp, un lead. Usar cualquiera de los dos daba un número que parece bueno y mide otra cosa. |
+| **Quién cerró** una tarea | **No.** Los dos caminos escribían `status: "done"` y nada más; quién lo hizo se sabía en ese instante y se tiraba. **Y no vale `assignedToId`**: un administrador cierra tareas de otros y desde el tablero puede mover cualquiera, así que mediría por quien no lo hizo. |
+| Quién **creó** un proyecto | **Sí**, `Project.createdById`. Lo que faltaba era resolver el nombre: `loadPeople` solo miraba al responsable y a los miembros. |
+
+Todo lo nuevo vive en `task_work`, tabla de la App con
+`CREATE TABLE IF NOT EXISTS` y **sin clave foránea**. `tasks` y `projects` son
+del BACKEND —lo dice `docs/db-migrations-ownership.md`— y añadirles columnas
+desde aquí es lo que reventó el #360.
+
+### Cerrar pide el tiempo, y los caminos son DOS
+
+Son `completeTaskAction` (el botón de Tareas) y `moveProjectTaskAction` con
+`status: "done"` (arrastrar a «Hecho» en el tablero). **Si uno lo pidiera y el
+otro no, bastaría con arrastrar para saltárselo** y el reparto contaría unas
+tareas sí y otras no, que es peor que no contarlas.
+
+Hay un tercer sitio que es el mismo: crear una tarjeta directamente en la
+columna «Hecho» con el «+». Nacer en Hecho es nacer cerrada, y ese `+` era la
+puerta de atrás.
+
+Tres cosas más:
+
+1. **Se comprueba también en la acción, no solo en el formulario.** Una tarea
+   cerrada sin tiempo no se recupera: nadie vuelve a abrirla para apuntarlo, así
+   que el reparto quedaría corto para siempre y sin decir por qué.
+2. **En el tablero, la tarjeta NO se mueve hasta confirmar.** Pintarla en Hecho
+   y devolverla si se cancela el diálogo la haría saltar a la vista.
+3. **El sello se pone una sola vez**, dentro del mismo `if (antes.status !==
+   "done")` que ya decidía el aviso: arrastrar una tarjeta que ya estaba en
+   Hecho no vuelve a contar.
+
+### Un día son OCHO horas, no veinticuatro
+
+Es lo que más se puede malinterpretar. Esto mide **trabajo**, no tiempo de
+reloj: quien apunta «2 días» quiere decir dos jornadas. Y el número es el mismo
+que el del aviso a propósito —`MINUTOS_DE_UNA_JORNADA`—, porque con 24 h por
+día apuntar un solo día ya pasaría de las ocho y la marca saltaría siempre, que
+es tanto como no tenerla.
+
+**Se guarda siempre en minutos.** La unidad es comodidad de quien escribe;
+guardar el par número+unidad obligaría a convertir en cada consulta y el sitio
+que se olvidara sumaría peras con manzanas.
+
+Y hay un tope (`TOPE_DE_MINUTOS`, 60 jornadas): sin él, teclear «800» con la
+unidad en días mete 320.000 minutos en la fila y el total de esa persona deja de
+significar nada para siempre.
+
+### La marca de las ocho horas es por PERSONA y DÍA
+
+No por tarea, y esa es la gracia: una tarea de diez horas marca su día ella
+sola, pero **cinco de dos horas también**, y ese segundo caso es justo el que no
+se ve mirando tarea a tarea. Probado con los dos.
+
+Y **supera, no iguala**: ocho horas justas no marcan.
+
+El día se calcula en la zona del servidor (`diaDelCierre`), no en UTC: con UTC
+a secas, todo lo que se cierre después de las 7 de la tarde en Colombia contaría
+en el día siguiente y una jornada de tarde se repartiría entre dos.
+
+**La persona no ve la marca**, solo quien administra la cuenta. La puerta está
+en `leerElTrabajo`, que devuelve `null` a quien no manda, y no en la pantalla:
+es un dato de gestión, y enseñárselo a quien lo produce lo convierte en otra
+cosa.
+
+### Los dos `ON CONFLICT` no se pisan
+
+`task_work` la escriben dos caminos distintos sobre la misma fila —anotar el
+cliente y sellar el cierre— y cada uno **solo toca lo suyo**:
+
+- Cerrar **conserva** el `clienteId` que ya hubiera. Pisarlo con un nulo sacaría
+  del reparto a la cuenta a la que se le dedicó el rato.
+- Cambiar el cliente después **conserva** los minutos y quién cerró.
+
+Comprobado contra Postgres en ese orden y en el contrario. Si se añade un tercer
+camino que escriba en esta tabla, va igual: nombra sus columnas y no arrastra
+las de al lado.
+
 ## Chats: el menú de Acciones no puede crecer con el equipo
 
 En «Acciones» iban abiertas, una detrás de otra, las dos listas de asesores:

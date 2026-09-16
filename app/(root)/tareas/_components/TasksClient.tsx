@@ -44,6 +44,7 @@ import {
 } from "@/actions/task-actions";
 import { TaskFormDialog } from "../../chats/_components/TaskFormDialog";
 import TooltipWrapper from "@/components/TooltipWrapper";
+import { TiempoDeTarea } from "@/components/shared/TiempoDeTarea";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   Seguimiento: <RefreshCw className="h-3.5 w-3.5" />,
@@ -113,6 +114,9 @@ export function TasksClient({ userId, userName }: Props) {
   const [loading, setLoading] = useState(true);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [completeTarget, setCompleteTarget] = useState<TaskData | null>(null);
+  // Cuánto costó, ya en minutos. `null` = todavía no hay un número usable,
+  // y con eso el botón de completar no deja seguir.
+  const [minutosDeTrabajo, setMinutosDeTrabajo] = useState<number | null>(null);
   const [resultText, setResultText] = useState("");
   const [completing, setCompleting] = useState(false);
   const [scheduleNext, setScheduleNext] = useState(false);
@@ -183,11 +187,19 @@ export function TasksClient({ userId, userName }: Props) {
       toast.error("Selecciona la fecha de la siguiente tarea.");
       return;
     }
+    // El tiempo es obligatorio. Se comprueba aquí y también en la acción: una
+    // tarea cerrada sin tiempo no se recupera, porque nadie vuelve a abrirla
+    // para apuntarlo.
+    if (!minutosDeTrabajo) {
+      toast.error("Registra cuánto tiempo tomó la tarea.");
+      return;
+    }
     setCompleting(true);
     const res = await completeTaskAction(
       completeTarget.id,
       resultText,
       scheduleNext ? { type: nextTaskType, dueDate: new Date(nextDueDate).toISOString() } : undefined,
+      minutosDeTrabajo,
     );
     setCompleting(false);
     if (res.success) {
@@ -199,6 +211,7 @@ export function TasksClient({ userId, userName }: Props) {
       setCompleteTarget(null);
       setResultText("");
       setScheduleNext(false);
+      setMinutosDeTrabajo(null);
     } else {
       toast.error(res.message);
     }
@@ -364,6 +377,10 @@ export function TasksClient({ userId, userName }: Props) {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">{completeTarget?.title}</p>
+          {/* Va ARRIBA del resultado, que es opcional: lo obligatorio se pide
+              primero, o se rellena lo de abajo y el botón no deja seguir sin
+              decir dónde está el problema. */}
+          <TiempoDeTarea minutos={minutosDeTrabajo} onChange={setMinutosDeTrabajo} autoFocus />
           <Textarea
             value={resultText}
             onChange={(e) => setResultText(e.target.value)}
