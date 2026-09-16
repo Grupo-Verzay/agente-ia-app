@@ -2403,6 +2403,170 @@ Tres cosas:
    créditos que no se reponen en silencio no se ven como un error, se ven como
    «la IA dejó de contestar».
 
+## Escalar a una persona: dos puertas, un solo camino
+
+Una conversación llega a un asesor por dos sitios —una **palabra clave** escrita
+a mano en el entrenamiento, o la **decisión del modelo** (`Escalar_A_Asesor`)— y
+los dos terminan en `escalarConversacion`, que es quien hace lo que no se puede
+hacer a medias: callar a la IA si toca, asignarla a alguien, avisarle y ponerle
+el **sello de espera** (`Session.escalated_at`).
+
+Media escalada es peor que ninguna, porque desde fuera parece resuelta.
+
+### El id con el que se escala NO es el de la memoria del chat
+
+Y esto costó que el camino del modelo estuviera roto desde el primer día sin que
+se notara. `buildEscalarAAsesorTool` hacía:
+
+```ts
+const sessionIdNum = parseInt(sessionId, 10);
+```
+
+Pero `sessionId` **no es `Session.id`**: es el de la memoria de la conversación
+(`buildChatHistorySessionId`), o sea `"VERZAY_VENTAS-573…@s.whatsapp.net"`.
+`parseInt` de eso es **`NaN` siempre**.
+
+Con `sesion = null` no se asigna, no se sella y ni se apaga la IA —todo eso va
+detrás de un `if (sessionId)`— **pero el aviso por WhatsApp sí sale**, porque
+solo necesita la cuenta y el número. El síntoma exacto: la IA escala, al asesor
+le llega el aviso, y el chat no aparece esperando en la bandeja de nadie. La
+palabra clave no lo sufría porque pasa `sessionData?.id`, la fila de verdad.
+
+**Dos cosas con nombres parecidos que son cosas distintas**, y por eso van con
+nombres que no se puedan confundir: `sessionId` (la memoria) y `sessionDbId` (la
+fila). No se parsea ninguno para sacar el otro.
+
+Y era peor de lo que parece: con una línea cuyo nombre empiece por dígitos,
+`parseInt("123-57319…")` da `123` y se habría sellado y asignado **la
+conversación de otro**.
+
+Lo que lo escondió fue un `return null` mudo en `asignarConversacionEscalada`.
+Ahora avisa. Es la regla de siempre: **un fallo nunca puede ser mudo**, y aquí
+el síntoma —«el escalado no deja el chat en espera»— no se parece a un error.
+
+### El motivo es un DATO, no una frase
+
+El motivo existía como texto libre que el modelo escribía y que solo se
+interpolaba en el aviso de WhatsApp. Sirve para leerlo y para nada más: no se
+puede contar, ni filtrar, ni decidir nada con él.
+
+Se guarda en `Session`, y son dos valores:
+
+| | quién decidió que hacía falta una persona |
+| --- | --- |
+| `cliente_pidio_humano` | lo pidió el cliente. **También la palabra clave**: una palabra clave es el cliente pidiéndolo con la forma que alguien previó. |
+| `ia_sin_respuesta` | no lo pidió nadie: la IA no supo resolverlo, o el cliente se quejó de no estar siendo atendido. |
+
+Esa diferencia mide cosas distintas: lo primero es demanda de atención humana;
+lo segundo son **huecos del entrenamiento**, que se pueden arreglar.
+
+Tres cosas que hay que mantener:
+
+1. **La lista es cerrada y vive en un solo sitio**, `motivo-del-escalado.ts`,
+   puro. **Lo que conteste el modelo no se da por bueno**: lo que no está en la
+   lista cae en el valor por defecto. Si el dato estructurado admitiera texto
+   libre serían mil valores distintos y no se podría contar ni uno.
+2. **El por defecto es el más común a propósito** (`cliente_pidio_humano`).
+   Equivocarse hacia `ia_sin_respuesta` inventaría un hueco del entrenamiento
+   que no existe, y eso manda a alguien a arreglar lo que no está roto.
+3. **El motivo se guarda ANTES que todo lo demás.** Si asignar, avisar o sellar
+   tarda o revienta, el dato ya está. Al revés quedaría una conversación
+   escalada sin motivo, que es el caso que nadie sabría explicar después.
+
+Y se registra **aunque la cuenta tenga apagado el escalado por IA**. Antes,
+apagada, la herramienta ni se le daba al modelo: sin herramienta no hay forma de
+que exprese que ahí hacía falta una persona, así que no había nada que
+registrar. Una cuenta apagada era un agujero negro. Ahora la herramienta existe
+igual y **solo deja constancia**: `escalation_reason` con `escalated_at` en nulo
+significa **«aquí hizo falta una persona y no se llamó a ninguna»**, que es justo
+lo que dice si a esa cuenta le conviene encenderlo.
+
+Con la cuenta apagada el prompt además le dice al modelo que **no le prometa un
+asesor al cliente**. Prometer a alguien que no viene es peor que no escalar.
+
+### Escalar NO apaga la IA
+
+`escalation_disables_ai` nació en `true` porque era lo que se venía haciendo,
+pero solo lo hacían las pocas cuentas que escalaban por palabra clave. Al
+encender el escalado por intención para todas, ese `true` pasó a decidir el
+comportamiento de clientes con **cuatro años de IA respondiendo siempre**, y se
+les quedaba muda en cuanto alguien pedía un asesor.
+
+Quien pide un humano casi nunca deja de preguntar: sigue escribiendo cosas que
+la IA sí resuelve —horarios, precios, un dato— y con la IA apagada **le habla a
+una pared** hasta que llega la persona. Callarla es decisión de cada dueño, y se
+enciende en Perfil › Comportamiento.
+
+Apagarla **no** es lo que impide que la IA conteste encima del asesor: de eso se
+encarga `Session.status`, que se apaga en cuanto escribe una persona, desde la
+App o desde el móvil. Esto solo decide si se calla ANTES, por el mero hecho de
+escalar.
+
+### El sello de espera lo quita una PERSONA, venga de donde venga
+
+El sello (`Session.escalated_at`) es lo que pone un chat en la bandeja de espera
+del asesor. Lo ponía el escalado y lo quitaba **solo la App**: desde
+`pausarIaPorIntervencionHumana` —por donde pasan sus cuatro caminos de envío— y
+desde soltar o resolver a mano.
+
+Pero **responder desde el WhatsApp del teléfono no pasa por la App**: entra por
+el webhook del backend. Ese camino ya pausaba la IA —eso funcionaba— y no tocaba
+el sello en ningún sitio: `stopOrResumeConversation` no lo menciona, y el
+backend entero solo lo **escribía** (en `auto-assign`), nunca lo borraba.
+
+Así que un asesor que atiende desde su móvil —que es lo que hace media
+plataforma— dejaba la conversación marcada como esperando **para siempre**. La
+bandeja de espera llena de chats ya atendidos, sin forma de distinguirlos de los
+que sí esperan.
+
+**Lo que cuenta es quién escribió, no por dónde entró.** El sello se quita en la
+MISMA rama del webhook que ya pausa la IA.
+
+Y es seguro ahí, que es la parte que hay que entender antes de tocarlo: llegar a
+esa rama **ya significa «lo escribió una persona»**, y no es una suposición
+nueva —es la misma condición con la que se decide pausar la IA, que es más
+consecuente que esto—. En Waha lo garantiza el normalizador, que descarta lo que
+sale por la API (la IA, los flujos, la App) y solo deja pasar `source: 'app'`, o
+sea el móvil:
+
+```ts
+if (esPropio && msg.source !== 'app') { … return []; }
+```
+
+Ese filtro existe porque sin él «la IA contestaba, Waha nos devolvía su propio
+mensaje como propio y **pausaba a la IA justo después de que hablara**». Si esa
+condición se equivocara, hoy la IA se estaría pausando sola tras cada respuesta.
+
+De ahí se sigue lo importante: **un mensaje de la IA nunca saca el chat de la
+espera**, porque no llega hasta ahí. Que la IA siga hablando no es atención
+humana.
+
+Cuatro cosas del borrado del sello:
+
+1. Se busca por **todas las identidades** del contacto, como el resto de la
+   pantalla. Con una sola, la fila guardada bajo otra forma no se encuentra y el
+   sello se queda puesto.
+2. **No se cruza un `@lid` con su número.** Sus dígitos son un id de privacidad;
+   fabricar el JID sacaría de la espera la conversación de otro.
+3. **Sin ninguna identidad no se consulta.** Un `UPDATE` sin contacto en el
+   `WHERE` sacaría de la espera **todas** las conversaciones de la cuenta.
+4. Va **antes** del `await` que pausa, y nunca lanza —el asesor está hablando
+   con un cliente y eso manda—, pero tampoco es mudo.
+
+### Un `DEFAULT` no toca a las filas que ya existen
+
+Se aprendió dos veces seguidas, con las dos migraciones del escalado:
+`escalation_by_ai_enabled` a `true` y `escalation_disables_ai` a `false`.
+
+`ALTER COLUMN … SET DEFAULT` solo vale para las cuentas **nuevas**. Las que ya
+están tienen el valor viejo escrito en su fila, así que sin un `UPDATE` al lado
+el cambio **no se activa para ningún cliente actual** — y desde fuera parece que
+se desplegó algo que no hace nada.
+
+Son dos cosas y hacen falta las dos. Y la segunda es la que cambia producción de
+golpe, así que se decide a sabiendas: qué pasa con las cuentas que ya existen no
+es un detalle de la migración, es la decisión.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
