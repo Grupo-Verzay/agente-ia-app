@@ -1,5 +1,6 @@
 import { AnyEl, AnyStep, flowBehaviorText as initialFlowBehaviorText, notifyPrompt, PromptBuildConfig } from "@/types/agentAi";
 import { variablesDelPaso, variablesParaLaTabla } from "@/lib/variables-del-paso";
+import { envolverLaNotaInterna } from "@/lib/nota-interna-de-paso";
 
 export const transformSubtype = (subtype?: string): string | undefined => {
     const transformMap: Record<string, string> = {
@@ -209,6 +210,13 @@ function formatElement(el: AnyEl, k: number, flowBehaviorText: string, cfg: Prom
                 return out;
             }
 
+            case "nota_interna": {
+                // Mismo envoltorio que el otro constructor, de un solo sitio.
+                const bloque = envolverLaNotaInterna((el as { nota?: string | null }).nota);
+                if (bloque) out.push(`- (${k})\n${bloque}\n`);
+                return out;
+            }
+
             case "leer_google_sheets": {
                 // La URL viaja EN EL PROMPT porque es asi como llega a la tool: el
                 // modelo la pasa como parametro `url`. Sin ella la tool usa la hoja
@@ -322,6 +330,13 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
 
         const hasActions = els.some((el: AnyEl) => {
             if (el.kind === "function") {
+                // La nota cuenta **solo si tiene algo escrito**: si no, un paso
+                // con la tarjeta puesta y en blanco abriria la seccion ELEMENTOS
+                // para no poner nada dentro. Y tiene que contar, o un paso cuyo
+                // unico elemento fuese la nota se quedaria sin ella.
+                if (el.fn === "nota_interna") {
+                    return !!envolverLaNotaInterna((el as { nota?: string | null }).nota);
+                }
                 return el.fn === "ejecutar_flujo" || el.fn === "notificar_asesor" || el.fn === "leer_google_sheets";
             }
             if (el.kind === "text") {

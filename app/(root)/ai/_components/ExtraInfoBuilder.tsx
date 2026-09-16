@@ -350,6 +350,23 @@ export function ExtraInfoBuilder({
         );
     };
 
+    const updateNotaInterna = (extraId: string, elId: string, nota: string) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === extraId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "nota_interna"
+                                ? { ...e, nota }
+                                : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
     const setFlowOnElement = (extraId: string, elId: string, flow: Workflow) => {
         setItems((prev) =>
             prev.map((s) =>
@@ -633,6 +650,7 @@ export function ExtraInfoBuilder({
                                                                                                             removePedidoField={removePedidoField}
                                                                                                             onSubtypeChange={onSubtypeChange}
                                                                                                             updateSheetUrl={updateSheetUrl}
+                                                                                                            updateNotaInterna={updateNotaInterna}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>

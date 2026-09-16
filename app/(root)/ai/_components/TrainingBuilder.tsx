@@ -430,6 +430,23 @@ export function TrainingBuilder({
     );
   };
 
+  const updateNotaInterna = (stepId: string, elId: string, nota: string) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+            ...s,
+            elements: s.elements.map((e) =>
+              e.id === elId && e.kind === "function" && e.fn === "nota_interna"
+                ? ({ ...e, nota } as typeof e)
+                : e
+            ),
+          }
+          : s
+      )
+    );
+  };
+
   const setFlowOnElement = (stepId: string, elId: string, flow: Workflow) => {
     setSteps((prev) =>
       prev.map((s) =>
@@ -931,6 +948,7 @@ export function TrainingBuilder({
                                                       steps={steps}
                                                       updateRoutingRules={updateRoutingRules}
                                                       updateSheetUrl={updateSheetUrl}
+                                                                                                            updateNotaInterna={updateNotaInterna}
                                                     />
                                                   </div>
                                                 </div>

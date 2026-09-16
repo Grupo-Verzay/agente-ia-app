@@ -1128,6 +1128,45 @@ Lo cazó el banco borrando las tablas a mano: ocho consultas seguidas caían y
 ninguna se recuperaba. Se miran **los dos sitios**, `meta.code` y el texto del
 mensaje. Si se escribe otra comprobación de un código de Postgres, va igual.
 
+## Agente: una prohibición que no viaja en el prompt no existe
+
+La **nota interna** de un paso es una instrucción que el modelo lee y obedece
+pero no dice: «este paso es solo para quien ya pagó», «no ofrezcas aquí el
+descuento». Se agrega desde el menú del editor, en TEXTO, justo debajo de la
+respuesta, con candado.
+
+Lo delicado no es la pantalla, es que la prohibición **sea cierta**. Llamarla
+«interna» en la interfaz no le dice nada al modelo: el modelo solo sabe lo que
+se le escribe. Así que las tres reglas viajan **dentro del bloque**, no en un
+comentario del código —no emitirla ni parafraseada, no aplicarla fuera de este
+paso, y no tocar `current_step`, que lo decide el motor de flujo—.
+
+Cuatro cosas que hay que mantener:
+
+1. **El envoltorio lo escribe UNA función**, `envolverLaNotaInterna`
+   (`lib/nota-interna-de-paso.ts`), y es pura. Los constructores de prompt son
+   **dos** —`markdownBuilder` y `buildSectionedPrompt`— y tienen que escribir
+   exactamente lo mismo: con el texto copiado en cada uno, el día que se afine
+   la prohibición se afina en uno y la misma nota se comporta distinto según por
+   qué camino se armó el prompt.
+2. **Vacía no escribe nada.** El campo es opcional, así que una tarjeta recién
+   puesta y en blanco no puede meterle al modelo una cabecera sin instrucción:
+   solo gasta contexto y le da una regla sobre la nada.
+3. **Pero cuando tiene contenido, cuenta como elemento.** `hasActions` decide si
+   se escribe la sección ELEMENTOS, y sin contar la nota un paso cuyo único
+   elemento fuera esa nota **la perdía entera, sin decir nada**. Es el fallo que
+   se comete solo al añadir un `fn` nuevo: hay que mirar las dos listas, la del
+   render y la de «¿hay algo que escribir?».
+4. **Va ARRIBA de la respuesta.** Es `kind: "function"`, así que
+   `insertarElementoEnOrden` la coloca antes del primer texto — y tiene que ser
+   así: es una instrucción que el modelo debe haber leído **antes** de redactar
+   lo que sale. Los bloques viejos se enderezan solos al abrirlos.
+
+Y el `fn` nuevo entra también en el **esquema Zod** (`PromptElementSchema`). Sin
+eso, guardar un prompt con una nota dentro falla la validación de **todas** las
+secciones —`patchSection` las revalida— y rompe cualquier edición sobre ese
+prompt, que es un fallo mucho más ancho que la nota.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

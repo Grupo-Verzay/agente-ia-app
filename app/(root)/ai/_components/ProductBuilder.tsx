@@ -289,6 +289,23 @@ export const ProductBuilder = ({
         );
     };
 
+    const updateNotaInterna = (productId: string, elId: string, nota: string) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === productId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "nota_interna"
+                                ? { ...e, nota }
+                                : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
     const setFlowOnElement = (productId: string, elId: string, flow: Workflow) => {
         setItems((prev) =>
             prev.map((s) =>
@@ -589,6 +606,7 @@ export const ProductBuilder = ({
                                                                                                             removePedidoField={removePedidoField}
                                                                                                             onSubtypeChange={onSubtypeChange}
                                                                                                             updateSheetUrl={updateSheetUrl}
+                                                                                                            updateNotaInterna={updateNotaInterna}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>
