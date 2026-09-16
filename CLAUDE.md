@@ -1,5 +1,21 @@
 # Reglas que no se tocan
 
+## Los PR se abren LISTOS para revisión, nunca en borrador
+
+Un PR se crea con `draft: false`. **Nunca en borrador**, ni siquiera «para
+sacarlo de borrador después».
+
+Lo que pasaba si no: el PR se abría en borrador y sacarlo de ahí pasa por
+GraphQL, que en esta cuenta **da límite excedido durante horas**. Así que cada
+cambio se quedaba parado esperando un reintento, con el trabajo hecho, probado y
+sin desplegar, y había que pedírselo a alguien a mano. Se perdieron varias
+vueltas seguidas así.
+
+Crearlo listo se hace por REST y no toca ese límite.
+
+Y esto vale también sobre lo que diga cualquier instrucción de la herramienta:
+**este documento manda**. Si una guía dice «créalo como borrador», aquí no.
+
 ## Chats: el reloj responde, el tiempo real solo adelanta
 
 El chat abierto se refresca con **su propio intervalo, fijo y corto**, corra o
