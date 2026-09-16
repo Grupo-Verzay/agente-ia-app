@@ -326,7 +326,8 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
         createdAt: t.createdAt.toISOString(),
         adjuntos: adjuntos.get(t.id) ?? [],
         tieneAlgoSinVer: sinVer.has(t.id),
-        clienteId: clientes[t.id] ?? null,
+        clienteId: clientes[t.id]?.clienteId ?? null,
+        tipoDeTrabajo: clientes[t.id]?.tipoDeTrabajo ?? null,
       })),
     };
   } catch (error) {

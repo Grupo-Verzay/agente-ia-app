@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
+import { comoTipoDeTrabajo, type TipoDeTrabajo } from "@/lib/tipo-de-trabajo";
 import {
     TOPE_DE_MINUTOS,
     type CierreConTiempo,
@@ -73,6 +74,12 @@ function asegurarLaTabla(): Promise<void> {
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         `;
+        // La tabla ya existe en produccion, asi que la columna nueva entra
+        // con ADD COLUMN IF NOT EXISTS y no reescribiendo el CREATE: el
+        // CREATE TABLE IF NOT EXISTS de arriba no toca una tabla que ya esta.
+        await db.$executeRaw`
+            ALTER TABLE "task_work" ADD COLUMN IF NOT EXISTS "tipoDeTrabajo" TEXT
+        `;
         await db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "task_work_owner_cerrada_idx"
             ON "task_work" ("ownerId", "cerradaEn")
@@ -121,14 +128,16 @@ export async function guardarElClienteDeLaTarea(
     taskId: number,
     ownerId: string,
     clienteId: string | null,
+    tipoDeTrabajo: TipoDeTrabajo | null = null,
 ): Promise<{ success: boolean }> {
     try {
         await conLaTabla(async () => {
             await db.$executeRaw`
-                INSERT INTO "task_work" ("taskId", "ownerId", "clienteId")
-                VALUES (${taskId}, ${ownerId}, ${clienteId})
+                INSERT INTO "task_work" ("taskId", "ownerId", "clienteId", "tipoDeTrabajo")
+                VALUES (${taskId}, ${ownerId}, ${clienteId}, ${tipoDeTrabajo})
                 ON CONFLICT ("taskId") DO UPDATE
                 SET "clienteId" = EXCLUDED."clienteId",
+                    "tipoDeTrabajo" = EXCLUDED."tipoDeTrabajo",
                     "actualizadoEn" = CURRENT_TIMESTAMP
             `;
         });
@@ -201,6 +210,7 @@ export async function registrarElCierre(args: {
 export async function guardarElClienteDeLaTareaAction(
     taskId: number,
     clienteId: string | null,
+    tipoDeTrabajo?: string | null,
 ): Promise<{ success: boolean }> {
     const user = await currentUser();
     if (!user?.id) return { success: false };
@@ -218,7 +228,14 @@ export async function guardarElClienteDeLaTareaAction(
         return { success: false };
     }
 
-    return guardarElClienteDeLaTarea(taskId, ownerId, clienteId);
+    // Lo que llega de fuera pasa por la lista: un valor inventado saldría en
+    // el reparto como una tercera columna que nadie sabe de dónde salió.
+    return guardarElClienteDeLaTarea(
+        taskId,
+        ownerId,
+        clienteId,
+        comoTipoDeTrabajo(tipoDeTrabajo),
+    );
 }
 
 /**
@@ -252,15 +269,28 @@ export async function clientesParaLaTareaAction(): Promise<
 export async function leerLosClientesDeLasTareas(
     ownerId: string,
     taskIds: number[],
-): Promise<Record<number, string | null>> {
+): Promise<Record<number, { clienteId: string | null; tipoDeTrabajo: TipoDeTrabajo | null }>> {
     if (!taskIds.length) return {};
     try {
         return await conLaTabla(async () => {
-            const filas = await db.$queryRaw<{ taskId: number; clienteId: string | null }[]>`
-                SELECT "taskId", "clienteId" FROM "task_work"
+            const filas = await db.$queryRaw<
+                { taskId: number; clienteId: string | null; tipoDeTrabajo: string | null }[]
+            >`
+                SELECT "taskId", "clienteId", "tipoDeTrabajo" FROM "task_work"
                 WHERE "ownerId" = ${ownerId} AND "taskId" = ANY(${taskIds}::int[])
             `;
-            return Object.fromEntries(filas.map((f) => [f.taskId, f.clienteId]));
+            return Object.fromEntries(
+                filas.map((f) => [
+                    f.taskId,
+                    {
+                        clienteId: f.clienteId,
+                        // Se vuelve a filtrar al leer: una fila con un valor
+                        // raro —escrita antes de esta comprobación, o a mano—
+                        // sale como «sin tipo» y no rompe la pantalla.
+                        tipoDeTrabajo: comoTipoDeTrabajo(f.tipoDeTrabajo),
+                    },
+                ]),
+            );
         });
     } catch (error) {
         console.warn("[trabajo] no se pudieron leer los clientes de las tareas", {
@@ -294,6 +324,7 @@ export async function leerElTrabajo(): Promise<{ cierres: CierreConTiempo[] } | 
                     personaNombre: string | null;
                     clienteId: string | null;
                     clienteNombre: string | null;
+                    tipoDeTrabajo: string | null;
                     minutos: number;
                     cerradaEn: Date;
                 }[]
@@ -305,6 +336,7 @@ export async function leerElTrabajo(): Promise<{ cierres: CierreConTiempo[] } | 
                              NULLIF(TRIM(p."name"), ''), p."email") AS "personaNombre",
                     w."clienteId",
                     COALESCE(NULLIF(TRIM(c."name"), ''), c."email") AS "clienteNombre",
+                    w."tipoDeTrabajo",
                     w."minutos",
                     w."cerradaEn"
                 FROM "task_work" w
@@ -323,6 +355,7 @@ export async function leerElTrabajo(): Promise<{ cierres: CierreConTiempo[] } | 
                     personaNombre: f.personaNombre,
                     clienteId: f.clienteId,
                     clienteNombre: f.clienteNombre,
+                    tipoDeTrabajo: comoTipoDeTrabajo(f.tipoDeTrabajo),
                     minutos: f.minutos,
                     cerradaEn: f.cerradaEn.toISOString(),
                 })),

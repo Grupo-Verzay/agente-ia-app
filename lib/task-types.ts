@@ -57,6 +57,12 @@ export type TaskData = {
    */
   clienteId?: string | null;
   /**
+   * Para qué es el rato: montaje (entregar un cliente nuevo) o soporte
+   * (mantener uno que ya funciona). **No es `Task.type`**, que dice qué
+   * clase de gestión es y además dispara automatizaciones.
+   */
+  tipoDeTrabajo?: "montaje" | "soporte" | null;
+  /**
    * Trae algo que QUIEN MIRA no ha abierto todavía: una asignación, un
    * comentario, un «ya está». Es lo que pinta el punto de color en el tablero.
    *

@@ -3,10 +3,14 @@ import {
     diasPorPersona,
     enPalabras,
     MINUTOS_DE_UNA_JORNADA,
-    totalPorCliente,
     totalPorPersona,
     type CierreConTiempo,
 } from "@/lib/tiempo-de-tarea";
+import {
+    porCuentaYTipo,
+    totalesPorTipo,
+    type CuentaConSusTipos,
+} from "@/lib/tipo-de-trabajo";
 
 /**
  * Cuánto trabajo lleva cada cuenta y cada persona.
@@ -35,7 +39,8 @@ export function RepartoDelTrabajo({ cierres }: { cierres: CierreConTiempo[] }) {
         );
     }
 
-    const porCliente = totalPorCliente(cierres);
+    const porCuenta = porCuentaYTipo(cierres);
+    const totales = totalesPorTipo(cierres);
     const porPersona = totalPorPersona(cierres);
     const excedidos = diasPorPersona(cierres).filter((d) => d.pasado);
     const internas = cierres.filter((c) => !c.clienteId);
@@ -43,20 +48,16 @@ export function RepartoDelTrabajo({ cierres }: { cierres: CierreConTiempo[] }) {
     return (
         <Marco>
             <div className="grid gap-4 lg:grid-cols-2">
-                <Columna icono={<Building2 className="h-4 w-4" />} titulo="Por cuenta">
-                    {porCliente.length === 0 ? (
+                <Columna
+                    icono={<Building2 className="h-4 w-4" />}
+                    titulo="Por cuenta: montaje y soporte"
+                >
+                    {porCuenta.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                             Ninguna tarea cerrada tiene cuenta asignada.
                         </p>
                     ) : (
-                        <Tabla
-                            filas={porCliente.map((c) => ({
-                                id: c.id,
-                                nombre: c.nombre ?? c.id,
-                                tareas: c.tareas,
-                                minutos: c.minutos,
-                            }))}
-                        />
+                        <TablaDeTipos filas={porCuenta} />
                     )}
                     {/* Las internas no se reparten entre cuentas, pero tampoco
                         se esconden: sin esto, la suma de la tabla no cuadra con
@@ -66,6 +67,18 @@ export function RepartoDelTrabajo({ cierres }: { cierres: CierreConTiempo[] }) {
                             Y {internas.length}{" "}
                             {internas.length === 1 ? "tarea interna" : "tareas internas"} sin
                             cuenta ({enPalabras(internas.reduce((t, c) => t + c.minutos, 0))}).
+                        </p>
+                    )}
+                    {/* Lo que no se rellenó no se esconde. Sin esto, dos cuentas
+                        con el mismo trabajo salen con cifras distintas solo
+                        porque en una se puso el tipo y en la otra no, y eso no
+                        se ve por ningún lado. */}
+                    {totales.sinTipo.tareas > 0 && (
+                        <p className="mt-1 text-xs text-amber-600">
+                            {totales.sinTipo.tareas}{" "}
+                            {totales.sinTipo.tareas === 1 ? "tarea cerrada" : "tareas cerradas"} sin
+                            tipo de trabajo ({enPalabras(totales.sinTipo.minutos)}). Mientras haya
+                            tareas sin tipo, el reparto entre montaje y soporte se queda corto.
                         </p>
                     )}
                 </Columna>
@@ -156,6 +169,67 @@ function Columna({
             </p>
             {children}
         </div>
+    );
+}
+
+/**
+ * Una fila por cuenta, con montaje y soporte en columnas.
+ *
+ * Es la tabla que contesta la pregunta entera —cuánto cuesta entregar un
+ * cliente y cuánto mantenerlo— y por eso van en la MISMA fila: en dos tablas
+ * separadas habría que buscar la cuenta dos veces y compararla de memoria.
+ *
+ * Un cero se pinta apagado y no en blanco: un hueco se lee como «no se sabe»,
+ * y aquí sí se sabe — es cero.
+ */
+function TablaDeTipos({ filas }: { filas: CuentaConSusTipos[] }) {
+    const haySinTipo = filas.some((f) => f.sinTipo.tareas > 0);
+    return (
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <table className="w-full min-w-[24rem] text-sm">
+                <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                        <th className="py-1.5 pr-3 font-medium">Cuenta</th>
+                        <th className="py-1.5 pr-3 font-medium">Montaje</th>
+                        <th className="py-1.5 pr-3 font-medium">Soporte</th>
+                        {haySinTipo && <th className="py-1.5 font-medium">Sin tipo</th>}
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas.map((f) => (
+                        <tr key={f.id} className="border-b last:border-0">
+                            <td className="py-1.5 pr-3">
+                                <span
+                                    className="block max-w-[13rem] truncate"
+                                    title={f.nombre ?? f.id}
+                                >
+                                    {f.nombre ?? f.id}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                    {f.total.tareas}{" "}
+                                    {f.total.tareas === 1 ? "tarea" : "tareas"}
+                                </span>
+                            </td>
+                            <Casilla dato={f.montaje} />
+                            <Casilla dato={f.soporte} />
+                            {haySinTipo && <Casilla dato={f.sinTipo} />}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function Casilla({ dato }: { dato: { tareas: number; minutos: number } }) {
+    if (dato.tareas === 0) {
+        return <td className="py-1.5 pr-3 tabular-nums text-muted-foreground/50">—</td>;
+    }
+    return (
+        <td className="py-1.5 pr-3 tabular-nums">
+            {enPalabras(dato.minutos)}
+            <span className="ml-1 text-xs text-muted-foreground">({dato.tareas})</span>
+        </td>
     );
 }
 
