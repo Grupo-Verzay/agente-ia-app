@@ -11,6 +11,8 @@ import { ResellerAnalytics } from "../mis-estadisticas/_components/ResellerAnaly
 import { VerzayAnalytics } from "./_components/VerzayAnalytics"
 import { VigilanciaDeChats } from "./_components/VigilanciaDeChats"
 import { leerLaVigilancia } from "@/actions/vigilancia-actions"
+import { ActividadDeInstancias } from "./_components/ActividadDeInstancias"
+import { leerLaActividadDeInstancias } from "@/actions/actividad-de-instancias-actions"
 
 const SinDatos = ({ que }: { que: string }) => (
   <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
@@ -49,9 +51,10 @@ const AnalyticsPage = async () => {
   // `leerLaVigilancia` devuelve `null` a quien no sea superadministrador, así
   // que el bloque ni se pinta. La puerta está en la consulta y no aquí: una
   // pantalla no puede abrir más de lo que la consulta deja.
-  const [result, vigilancia] = await Promise.all([
+  const [result, vigilancia, actividad] = await Promise.all([
     getVerzayPlatformAnalytics(),
     leerLaVigilancia(),
+    leerLaActividadDeInstancias(),
   ])
 
   // El bloque va DENTRO de `VerzayAnalytics`, al final, y no como hermano suyo.
@@ -63,7 +66,18 @@ const AnalyticsPage = async () => {
   // y recortaba todo lo de abajo sin dejar barra para llegar.
   //
   // Si algún día se añade otro bloque a esta pantalla, va por el mismo camino.
-  const bloqueDeVigilancia = vigilancia ? <VigilanciaDeChats vista={vigilancia} /> : null
+  //
+  // Los dos van juntos en el mismo hueco: son los dos bloques internos de la
+  // casa y comparten el mismo motivo para estar ahí abajo. Actividad va
+  // PRIMERA: dice si una línea está muerta ahora mismo, que es más urgente que
+  // si Chats tarda un segundo de más en abrir.
+  const bloquesInternos =
+    vigilancia || actividad ? (
+      <>
+        {actividad ? <ActividadDeInstancias vista={actividad} /> : null}
+        {vigilancia ? <VigilanciaDeChats vista={vigilancia} /> : null}
+      </>
+    ) : null
 
   if (!result.success || !result.data) {
     // Aquí tampoco puede ir suelto, por lo mismo: sin un contenedor que
@@ -71,12 +85,12 @@ const AnalyticsPage = async () => {
     return (
       <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto p-1">
         <SinDatos que="las estadísticas de plataforma" />
-        {bloqueDeVigilancia}
+        {bloquesInternos}
       </div>
     )
   }
 
-  return <VerzayAnalytics data={result.data} vigilancia={bloqueDeVigilancia} />
+  return <VerzayAnalytics data={result.data} vigilancia={bloquesInternos} />
 }
 
 export default AnalyticsPage
