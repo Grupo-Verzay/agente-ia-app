@@ -127,9 +127,12 @@ de mensajes rebotando en Traefik mientras el contenedor reiniciaba. Pero la
 reacción del cliente lo multiplicaba por diez.
 
 > Cuando se escribió esto se dio por hecho que el corte duraba segundos. Medido
-> después, son **unos 100 segundos** por despliegue (ver el pendiente 1). El
-> corte es más largo de lo que se creía, así que esta regla importa más, no
-> menos: encima del minuto y medio del servidor, el sondeo añadía el suyo.
+> después, eran **unos 100 segundos** por despliegue. Eso ya está cerrado —con
+> `start-first` y dos réplicas siempre queda una atendiendo, ver *los 100
+> segundos de caída por despliegue* en Cerrados— pero **la regla se queda**: un
+> `502` puede volver por otro camino (Traefik, la base, el propio despliegue de
+> Evolution), y lo que esta regla evita es que el sondeo le añada medio minuto
+> por su cuenta.
 
 El sondeo dobla su espera en cada fallo —10s, 20s, 40s— y esa espera **solo se
 borraba cuando volvía bien una consulta de mensajes**. El ciclo de la lista, que
@@ -2229,95 +2232,92 @@ Tres cosas:
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
 
-## 1. Cada despliegue deja la App caída un minuto y medio
+## 1. El stack pisa el healthcheck de la imagen, y con los valores malos
 
-El contenedor no reiniciaba solo: **reiniciaba porque lo redesplegábamos**
-(ver *por qué reiniciaba el contenedor*, en Cerrados). Lo que sigue abierto no
-es el reinicio, es lo que cuesta cada uno.
+**No se toca ahora**: queda anotado para ajustarlo con calma. Ahora mismo pasa
+—los contenedores están `healthy` y el despliegue completa—, así que no urge;
+pero los números son los que ya costaron una caída una vez.
 
-El servicio va con **una sola réplica** y con `Order: stop-first`: Swarm
-**apaga la vieja antes de levantar la nueva**, así que entre las dos no hay
-nadie escuchando y Traefik solo puede contestar `502`. Medido en el despliegue
-de las 01:05 del 2026-09-02:
+El `docker-compose.yml` del stack define su propio bloque `healthcheck:`, y un
+`healthcheck` de compose **pisa el `HEALTHCHECK` de la imagen**. Así que el del
+Dockerfile —que es el bueno, y el que este documento describía como puesto— no
+es el que corre:
 
-| momento | reloj (UTC) |
-| --- | --- |
-| empieza la actualización | 01:05:53 |
-| la tarea vieja termina de morir | 01:06:07 |
-| arranca el contenedor nuevo | 01:07:33 |
-| Next.js listo | 01:07:34.5 |
+| | Dockerfile (y la plantilla del repo) | Lo que corre de verdad |
+| --- | --- | --- |
+| `interval` | 10s | 10s |
+| `timeout` | **10s** | **5s** |
+| `retries` | **6** | **3** |
+| `start-period` | **40s** | **20s** |
 
-**Unos 100 segundos sin App.** Arrancar no es el problema —Next tarda 280 ms—:
-el tiempo se va en apagar la vieja y en bajar la imagen, y **las dos cosas
-pasan con el sitio caído**. Con 30 despliegues en un día (2026-09-01) eso es
-casi una hora de `502` repartida en el día.
+Leído del servicio con `docker service inspect`, no del panel.
 
-De esos 100 segundos, **14 son apagar la vieja, y no hacen falta**. El
-contenedor arranca con `CMD ["sh", "-c", "node server.js"]` y ese `sh` **no
-ejecuta a Node en su lugar, lo cuelga debajo**: el PID 1 es `sh`
-(`SigCgt: 0000000000010002`, o sea que solo atiende `SIGHUP` y `SIGCHLD`).
-Docker manda `SIGTERM` **solo al PID 1**, y el núcleo se lo traga porque el
-PID 1 no lo atiende. Node ni se entera. Pasados los 10 s de gracia llega el
-`SIGKILL`, y de ahí el `exit 137` de todas las tareas: **no es falta de
-memoria, es que nadie escucha la orden de apagarse.**
+**Por qué importa**: `timeout 5s, retries 3` son exactamente los del primer
+intento de healthcheck, el que tumbó la App cada minuto (ver el cierre del
+pendiente en Cerrados). El hilo de Node es uno: una consulta pesada bloquea el
+bucle de eventos y durante ese rato `/api/health` tampoco contesta aunque la App
+esté bien —se han medido parones de 25 segundos—. Con estos números bastan **15
+segundos** de estrechez para dar la tarea por muerta; con los del Dockerfile
+hacen falta más de un minuto.
 
-Tres cosas que lo arreglarían, de menos a más:
+Y ahora hay una consecuencia más que antes no existía: con `failure_action:
+rollback` puesto, una lentitud pasajera durante un despliegue no solo mata la
+tarea nueva, **revierte el despliegue entero**.
 
-1. `CMD ["node", "server.js"]` (sin el `sh`). Node pasa a ser el PID 1, recibe
-   el `SIGTERM` y sale limpio. Ahorra los 10-14 s y quita el `exit 137`.
-2. `Order: start-first` en el stack, para que la nueva esté escuchando **antes**
-   de apagar la vieja. Es lo que se lleva el minuto y medio entero.
-3. Un `healthcheck` contra `/api/health` (el backend ya tiene uno). Sin él
-   Traefik no sabe si la nueva está lista y manda tráfico a un puerto que aún
-   no contesta.
+Dos formas de arreglarlo, y la segunda es mejor:
 
-El punto 1 ya está hecho. **El 3 se intentó y salió caro**, y esto es lo que
-hay que saber antes de volver a intentarlo:
+1. Copiar los cuatro valores del Dockerfile al `healthcheck:` del stack.
+2. **Quitar el bloque `healthcheck:` del stack** y dejar que mande el de la
+   imagen. Es una cosa menos que mantener sincronizada, y el Dockerfile ya lleva
+   los valores buenos con su explicación al lado.
 
-El healthcheck preguntaba por `http://127.0.0.1:3000/api/health`. En local
-pasaba; en producción fallaba **siempre**, y la cuenta cuadra exacta: 25 s de
-`--start-period` más 3 intentos cada 10 s son los **55 segundos** que tardaba
-Swarm en dar el contenedor por muerto, tirarlo y crear otro. Desde fuera: la App
-caída cada minuto, con tareas que salían con `exit 0` —el `SIGTERM` limpio del
-punto 1, que esa parte sí funcionó—.
+Y dónde se toca: **el `docker-compose.yml` del repo es una plantilla** —dominio
+de ejemplo, límites distintos, un `pgbouncer` que en producción no existe—. El
+stack que corre de verdad se edita en Portainer. Del repo salen el `CMD` y el
+`HEALTHCHECK` del `Dockerfile`; el `healthcheck:` del stack y el `start-first`,
+no.
 
-El motivo: el servidor de Next en modo `standalone` escucha en
-`process.env.HOSTNAME || '0.0.0.0'` (línea 9 de su `server.js`), y **Docker
-siempre define `HOSTNAME`**, con el id del contenedor. Así que Next no escuchaba
-en `0.0.0.0` sino en la IP de ese nombre, y `127.0.0.1` daba conexión rechazada.
-
-Hacían falta **dos** cosas, no una, y **ya están las dos**:
-
-- `ENV HOSTNAME=0.0.0.0` en la etapa `runner` del Dockerfile (es la receta
-  oficial de Next para Docker). Puesto.
-- **Comprobarlo en vez de suponerlo.** Arrancando el `server.js` real con
-  `HOSTNAME` apuntando a una IP distinta de `127.0.0.1` —que es lo que hace
-  Docker— la sonda da **conexión rechazada con la App viva**; con
-  `HOSTNAME=0.0.0.0` contestan `127.0.0.1`, `0.0.0.0` **y el nombre del
-  contenedor**, las tres con 200. Esa tercera es la que importa: es
-  estrictamente más amplio que antes, no distinto.
-
-Así que **el 3 está hecho**, con una sonda tolerante a propósito
-(`interval 10s, timeout 10s, retries 6, start-period 40s`): el hilo de Node es
-uno, una consulta pesada bloquea el bucle de eventos y durante ese rato
-`/api/health` tampoco contesta aunque la App esté bien. Con los valores del
-primer intento (`timeout 5s, retries 3`) un rato ocupado bastaba para que Swarm
-matara la tarea, y eso convierte una lentitud pasajera en una caída.
-
-**Lo que queda es el 2**, y no está en el repo: `Order: start-first` en el stack
-que corre, que se edita en Portainer.
-
-Y el orden importa: **el 3 va antes que el 2**. Con `start-first` y un
-healthcheck que no pasa, la tarea nueva nunca llega a sana y el despliegue se
-queda colgado, que es peor que los 100 segundos de ahora. Por eso el 3 se
-despliega solo y se deja correr un rato antes de tocar el stack.
-
-Ojo con dónde se tocan: **el `docker-compose.yml` del repo es una plantilla**
-—dominio de ejemplo, límites distintos, un `pgbouncer` que en producción no
-existe—. El stack que corre de verdad se edita en Portainer. Del repo salen el
-`CMD` y el `HEALTHCHECK` del `Dockerfile`; el `start-first`, no.
+La regla, que es la que se aprendió aquí: **cuando un ajuste vive en dos sitios,
+hay que saber cuál gana.** El repo decía «el healthcheck está puesto» y era
+cierto —en la imagen—, pero lo que corría era otro. Se comprueba en el servicio,
+nunca en el fichero.
 
 ## Cerrados
+
+- **Los 100 segundos de caída por despliegue.** Cerrado, y medido en el
+  servicio, no en el fichero. Los tres pasos están:
+
+  1. `CMD ["node", "server.js"]` sin el `sh`, para que Node sea el PID 1 y
+     reciba el `SIGTERM`.
+  2. `Order: start-first` en el stack, que es el que se llevaba el minuto y
+     medio entero.
+  3. El `healthcheck` contra `/api/health`, con `ENV HOSTNAME=0.0.0.0` —sin eso
+     Next escucha en la IP del nombre del contenedor y `127.0.0.1` da conexión
+     rechazada, que fue lo que tumbó el primer intento—.
+
+  Confirmado con `docker service inspect` sobre `agente-app_verzay_app`:
+
+  ```
+  UpdateConfig  : Order "start-first", FailureAction "rollback", Parallelism 1
+  RollbackConfig: Order "stop-first"
+  replicas      : 2
+  ```
+
+  Y con un despliegue de verdad, el del 2026-09-15 a las 21:45 UTC:
+
+  | | antes (2026-09-02) | ahora |
+  | --- | --- | --- |
+  | actualización | 01:05:53 → 01:07:34 | 21:45:39 → 21:46:39 |
+  | duración | ~100 s | **60 s** |
+  | sin nadie escuchando | **todo ese rato** | **nunca** |
+
+  Lo que cambia no es que tarde menos: es que con `start-first` y **2 réplicas**
+  siempre queda una atendiendo mientras entra la nueva. Traefik ya no tiene por
+  qué contestar `502` durante un despliegue.
+
+  Queda un cabo suelto que es ahora el pendiente 1: **el stack define su propio
+  `healthcheck:` y pisa al de la imagen**, con los valores cortos que ya
+  costaron una caída. Pasa, pero conviene ajustarlo.
 
 - **Wompi de punta a punta.** Confirmado con dinero real el 2 de septiembre de
   2026: un cliente pagó y la cuenta se reactivó sola. Era el único pendiente que
@@ -2356,7 +2356,8 @@ existe—. El stack que corre de verdad se edita en Portainer. Del repo salen el
   `false`, y el consumo se mueve entre **480 y 545 MiB de los 1536 MiB** del
   límite (~31 %). El host va a 1,7 GiB de 23,5 GiB y lleva 228 días sin
   reiniciar. El `exit 137` despistaba: aquí no es el `SIGKILL` del gestor de
-  memoria, es el de Docker al agotarse los 10 s de gracia (ver el pendiente 1).
+  memoria, es el de Docker al agotarse los 10 s de gracia — el `sh` como PID 1,
+  que se quitó al cerrar *los 100 segundos de caída por despliegue*.
 
   Se deja puesto el latido `[chats] latido del detector`: lo que diagnostica es
   que el ciclo de la lista corre, que es el fallo de la conversación atrasada,
