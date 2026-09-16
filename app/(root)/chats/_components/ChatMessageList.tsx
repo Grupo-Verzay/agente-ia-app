@@ -32,7 +32,14 @@ type RenderedListItem =
 function estimateItemHeight(item: RenderedListItem) {
   if (item.type === 'date') return ESTIMATED_DATE_HEIGHT;
 
-  if (item.message.isNote) return ESTIMATED_NOTE_HEIGHT;
+  // La nota crece con su texto, igual que una burbuja normal. Con la altura
+  // fija de antes bastaba para las notas del equipo, que son una linea; el
+  // resumen del escalado son cinco, y una estimacion corta en una lista
+  // virtualizada se nota como un salto del scroll al llegar a ella.
+  if (item.message.isNote) {
+    const letras = item.message.content?.length ?? 0;
+    return ESTIMATED_NOTE_HEIGHT + Math.min(180, Math.floor(letras / 55) * 22);
+  }
   if (item.message.media || item.message.adPreview || item.message.kind === 'sticker') {
     return ESTIMATED_MEDIA_HEIGHT;
   }
@@ -244,6 +251,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     a.sentByAi === b.sentByAi &&
     a.avatarSrc === b.avatarSrc &&
     a.isNote === b.isNote &&
+    a.notaInterna === b.notaInterna &&
     a.noteId === b.noteId &&
     a.noteAuthorName === b.noteAuthorName &&
     a.noteAuthorEmail === b.noteAuthorEmail &&

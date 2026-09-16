@@ -509,6 +509,11 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
   // (respuestas del agente y nodos de flujo). Fiable, no depende de heurística.
   const sentByAi =
     !!row.raw && typeof row.raw === 'object' && (row.raw as any).sentByAi === true;
+  // La nota que la IA le deja al asesor al escalar. Va en `raw`, al lado de
+  // `sentByAi` y por el mismo motivo: `chat_messages` la crean tres sitios
+  // distintos y añadirle una columna desde aqui es lo que reventó el #360.
+  const notaInterna =
+    !!row.raw && typeof row.raw === 'object' && (row.raw as any).notaInterna === true;
 
   return {
     id: String(row.id),
@@ -533,6 +538,7 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
       rawSnapshot?.contextInfo ??
       ((row.raw as { contextInfo?: Record<string, unknown> } | null)?.contextInfo ?? null),
     ...(sentByAi ? { sentByAi: true } : {}),
+    ...(notaInterna ? { notaInterna: true } : {}),
     ...(row.deleted ? { clientDeleted: true } : {}),
     // Corregido desde la App. La marca ya estaba guardada —es lo que impide que
     // el sondeo devuelva el texto viejo— pero no llegaba a la pantalla, asi que
