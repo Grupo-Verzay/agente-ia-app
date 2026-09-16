@@ -13,6 +13,15 @@
  */
 
 export type AjustesDeEscalado = {
+  /**
+   * Si la IA puede escalar ella sola, por lo que entiende del cliente.
+   *
+   * Apagado, solo escalan las palabras clave configuradas a mano. Pero el
+   * motivo se sigue registrando igual: la conversación queda marcada con que
+   * ahí hizo falta una persona, aunque no se llamara a ninguna. Eso es lo que
+   * permite ver después si a esta cuenta le convendría encenderlo.
+   */
+  escalarPorIa: boolean;
   /** Si escalar apaga la IA en esa conversación. Por defecto sí. */
   apagarLaIaAlEscalar: boolean;
   /** Minutos sin respuesta antes de soltar la conversación. 0 = no soltar. */
@@ -28,6 +37,7 @@ export type AjustesDeEscalado = {
  * enseñar lo que la cuenta está haciendo de verdad, no un valor inventado.
  */
 export const ESCALADO_POR_DEFECTO: AjustesDeEscalado = {
+  escalarPorIa: true,
   apagarLaIaAlEscalar: true,
   minutosParaSoltar: 0,
 };
