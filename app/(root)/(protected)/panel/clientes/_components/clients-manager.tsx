@@ -63,7 +63,17 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     // «En total hay 35 pero no todos son clientes activos». Este filtro es el
     // que separa unos de otros, y va aparte de los contadores de QR y Robot:
     // aquellos dicen cómo está la conexión, este si el servicio está al día.
-    const [servicio, setServicio] = useState<EstadoDelServicio>('todos');
+    //
+    // NACE EN «Activos», que es la vista de trabajo diaria: quien abre esta
+    // pantalla viene a atender a los clientes que pagan, no a repasar los
+    // suspendidos. «Todos» sigue a un clic.
+    //
+    // Y es estado del componente a propósito, no algo guardado: la elección de
+    // quien mira se respeta MIENTRAS ESTÉ en la pantalla, y al volver otro día
+    // se arranca otra vez en la vista de trabajo. Guardarlo en `localStorage`
+    // sería lo contrario —un filtro puesto hace tres semanas decidiendo lo que
+    // se ve hoy—, que es justo lo que hace pensar que faltan clientes.
+    const [servicio, setServicio] = useState<EstadoDelServicio>('activos');
 
 
     const handleCreate = async (formData: UserFormValues & { subscriptionPlanId?: string }) => {
