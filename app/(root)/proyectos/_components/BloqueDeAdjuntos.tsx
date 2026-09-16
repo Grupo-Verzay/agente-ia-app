@@ -107,6 +107,8 @@ export function BloqueDeAdjuntos({
     onCambio,
     enElAire,
     onCambioEnElAire,
+    carpeta = "tareas",
+    queEs = "tarea",
 }: {
     /** `null` mientras la tarea no existe. Ya no apaga nada. */
     taskId: number | null;
@@ -116,6 +118,15 @@ export function BloqueDeAdjuntos({
     /** Los que subieron antes de que la tarea existiera. */
     enElAire: AdjuntoEnElAire[];
     onCambioEnElAire: (siguientes: AdjuntoEnElAire[]) => void;
+    /**
+     * Los dos unicos huecos donde esto sabia que era «una tarea»: la carpeta
+     * del bucket y las palabras de los avisos. Van como props con el valor de
+     * siempre por defecto, para que un ticket use ESTE componente y no una
+     * copia — con dos copias, el dia que se afine el tope o el pegado se afina
+     * en una y la otra se queda atras.
+     */
+    carpeta?: string;
+    queEs?: string;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const zonaRef = useRef<HTMLDivElement>(null);
@@ -130,8 +141,8 @@ export function BloqueDeAdjuntos({
     // Lo que hay ahora mismo, leído por referencia: los manejadores de `paste`
     // y `drop` se montan una vez y si dependieran del estado se volverían a
     // montar en cada subida.
-    const estado = useRef({ taskId, adjuntos, enElAire, subiendo, lleno });
-    estado.current = { taskId, adjuntos, enElAire, subiendo, lleno };
+    const estado = useRef({ taskId, adjuntos, enElAire, subiendo, lleno, carpeta, queEs });
+    estado.current = { taskId, adjuntos, enElAire, subiendo, lleno, carpeta, queEs };
 
     const elegir = (opcion: (typeof OPCIONES_DE_ARCHIVO)[number]) => {
         setAccept(opcion.accept);
@@ -152,7 +163,7 @@ export function BloqueDeAdjuntos({
         const hueco = TOPE_DE_ADJUNTOS_POR_TAREA
             - estado.current.adjuntos.length - estado.current.enElAire.length;
         if (hueco <= 0) {
-            toast.error(`Máximo ${TOPE_DE_ADJUNTOS_POR_TAREA} archivos por tarea.`);
+            toast.error(`Máximo ${TOPE_DE_ADJUNTOS_POR_TAREA} archivos por ${estado.current.queEs}.`);
             return;
         }
         // Se dice lo que NO va a entrar. Sin esto, soltar seis archivos con
@@ -176,7 +187,7 @@ export function BloqueDeAdjuntos({
                 const formData = new FormData();
                 formData.append("file", archivo);
                 formData.append("userID", userId);
-                formData.append("workflowID", "tareas");
+                formData.append("workflowID", estado.current.carpeta);
 
                 const respuesta = await fetch("/api/upload", { method: "POST", body: formData });
                 const datos = await respuesta.json().catch(() => null);
@@ -385,7 +396,7 @@ export function BloqueDeAdjuntos({
 
             {lleno && (
                 <p className="text-xs text-amber-600">
-                    Máximo {TOPE_DE_ADJUNTOS_POR_TAREA} archivos por tarea.
+                    Máximo {TOPE_DE_ADJUNTOS_POR_TAREA} archivos por {queEs}.
                 </p>
             )}
         </div>

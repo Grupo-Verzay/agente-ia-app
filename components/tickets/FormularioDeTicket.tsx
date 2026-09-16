@@ -1,0 +1,208 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Loader2, LifeBuoy } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    BloqueDeAdjuntos,
+    borrarDelBucket,
+    type AdjuntoEnElAire,
+} from "@/app/(root)/proyectos/_components/BloqueDeAdjuntos";
+import { abrirTicketAction } from "@/actions/tickets-actions";
+import {
+    queLeFaltaAlTicket,
+    TOPE_DEL_TITULO,
+    TOPE_DE_LA_DESCRIPCION,
+} from "@/lib/tickets";
+
+/**
+ * El formulario con el que un cliente abre un ticket.
+ *
+ * ## Los adjuntos son los MISMOS de Proyectos
+ *
+ * `BloqueDeAdjuntos` tal cual, con `taskId={null}`: el ticket no existe todavía
+ * cuando se sube el archivo, así que todo cae «en el aire» —subido al bucket,
+ * sin colgar de nada— y se engancha al guardar. Es exactamente el camino que ya
+ * existía para una tarea que aún no se ha creado, y por eso el pegado con
+ * Ctrl+V, el arrastrar y el tope vienen puestos sin escribir una línea.
+ *
+ * ## Y el cierre va por UN solo camino
+ *
+ * La X, el clic fuera y «Cancelar» llaman a `cerrar()`, que borra del bucket lo
+ * que quedó en el aire. Con tres salidas distintas basta con olvidarse de una
+ * para que esa deje basura, y eso no se nota hasta que alguien mira cuánto
+ * ocupa el bucket.
+ */
+export function FormularioDeTicket({
+    abierto,
+    onAbierto,
+    userId,
+    whatsappPorDefecto,
+    onCreado,
+}: {
+    abierto: boolean;
+    onAbierto: (v: boolean) => void;
+    userId: string;
+    /** El número de la cuenta, para no hacer teclearlo cada vez. */
+    whatsappPorDefecto?: string | null;
+    onCreado?: () => void;
+}) {
+    const [titulo, setTitulo] = useState("");
+    const [descripcion, setDescripcion] = useState("");
+    const [whatsapp, setWhatsapp] = useState(whatsappPorDefecto ?? "");
+    const [enElAire, setEnElAire] = useState<AdjuntoEnElAire[]>([]);
+    const [guardando, setGuardando] = useState(false);
+
+    // Lo que hay en el aire, por referencia: el cierre corre desde un manejador
+    // montado una vez y con el estado en las dependencias se volvería a montar
+    // en cada subida.
+    const aire = useRef(enElAire);
+    aire.current = enElAire;
+
+    useEffect(() => {
+        if (abierto) setWhatsapp((v) => v || (whatsappPorDefecto ?? ""));
+    }, [abierto, whatsappPorDefecto]);
+
+    /** El único camino de salida. Lo que subió y no se usó se borra del bucket. */
+    const cerrar = () => {
+        if (guardando) return;
+        const sobrantes = aire.current;
+        setEnElAire([]);
+        onAbierto(false);
+        // Best-effort a propósito: nunca lanza y no bloquea el cierre.
+        for (const a of sobrantes) void borrarDelBucket(a.url);
+    };
+
+    const enviar = async () => {
+        const falta = queLeFaltaAlTicket({ titulo, descripcion, whatsapp });
+        if (falta) {
+            toast.error(falta);
+            return;
+        }
+
+        setGuardando(true);
+        try {
+            const res = await abrirTicketAction({
+                titulo: titulo.trim(),
+                descripcion: descripcion.trim(),
+                whatsapp: whatsapp.trim(),
+                adjuntos: enElAire.map((a) => ({
+                    url: a.url,
+                    nombre: a.nombre,
+                    tipo: a.tipo,
+                    mimeType: a.mimeType,
+                    tamanoBytes: a.tamanoBytes,
+                })),
+            });
+            if (!res.success) {
+                toast.error(res.message);
+                return;
+            }
+            toast.success(res.message);
+            // Se vacía ANTES de cerrar: si no, `cerrar()` borraría del bucket
+            // unos archivos que ya cuelgan del ticket recién creado.
+            setEnElAire([]);
+            aire.current = [];
+            setTitulo("");
+            setDescripcion("");
+            onAbierto(false);
+            onCreado?.();
+        } catch (error) {
+            // Una acción no solo devuelve `success: false`: puede reventar, y sin
+            // esto el botón se queda en «Enviando…» para siempre.
+            console.warn("[tickets] no se pudo abrir el ticket", error);
+            toast.error("No se pudo enviar tu solicitud. Inténtalo de nuevo.");
+        } finally {
+            setGuardando(false);
+        }
+    };
+
+    return (
+        <Dialog open={abierto} onOpenChange={(v) => (v ? onAbierto(true) : cerrar())}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <LifeBuoy className="h-5 w-5 text-primary" />
+                        Pedir soporte
+                    </DialogTitle>
+                    <DialogDescription>
+                        Cuéntanos qué pasa y te avisamos por WhatsApp cuando esté resuelto.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="ticket-titulo">Título</Label>
+                        <Input
+                            id="ticket-titulo"
+                            value={titulo}
+                            maxLength={TOPE_DEL_TITULO}
+                            onChange={(e) => setTitulo(e.target.value)}
+                            placeholder="Ej.: No me carga el código QR"
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="ticket-descripcion">¿Qué está pasando?</Label>
+                        <Textarea
+                            id="ticket-descripcion"
+                            value={descripcion}
+                            maxLength={TOPE_DE_LA_DESCRIPCION}
+                            onChange={(e) => setDescripcion(e.target.value)}
+                            rows={5}
+                            placeholder="Cuéntanos con detalle: qué hiciste, qué esperabas y qué salió."
+                        />
+                    </div>
+
+                    <BloqueDeAdjuntos
+                        taskId={null}
+                        userId={userId}
+                        adjuntos={[]}
+                        onCambio={() => {
+                            /* Sin ticket todavía no hay nada guardado: todo cae en el aire. */
+                        }}
+                        enElAire={enElAire}
+                        onCambioEnElAire={setEnElAire}
+                        carpeta="tickets"
+                        queEs="ticket"
+                    />
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="ticket-whatsapp">WhatsApp para avisarte</Label>
+                        <Input
+                            id="ticket-whatsapp"
+                            value={whatsapp}
+                            onChange={(e) => setWhatsapp(e.target.value)}
+                            placeholder="Ej.: 573001234567"
+                            inputMode="tel"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Solo te escribimos cuando el ticket quede resuelto.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                    <Button type="button" variant="outline" onClick={cerrar} disabled={guardando}>
+                        Cancelar
+                    </Button>
+                    <Button type="button" onClick={() => void enviar()} disabled={guardando}>
+                        {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {guardando ? "Enviando…" : "Enviar"}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}

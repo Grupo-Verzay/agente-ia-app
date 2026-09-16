@@ -2962,6 +2962,101 @@ Son dos cosas y hacen falta las dos. Y la segunda es la que cambia producción d
 golpe, así que se decide a sabiendas: qué pasa con las cuentas que ya existen no
 es un detalle de la migración, es la decisión.
 
+## Tickets: el WhatsApp sale al PASAR a resuelto, no al estar
+
+Proyectos es el trabajo interno del equipo; un ticket es de un CLIENTE. Van
+separados a propósito: el cliente abre el suyo desde un botón flotante y lo
+sigue en «Mis tickets», y **nunca entra a Proyectos**. Por dentro se reutiliza
+lo que ya había —`BloqueDeAdjuntos` con sus tres vías, el bucket, el envío por
+WhatsApp—, pero los datos no se mezclan.
+
+Cinco estados, **los cinco los ve el cliente**: recibido, en proceso, en
+revisión, resuelto y descartado. Descartar exige un motivo escrito, que el
+cliente lee: un ticket que desaparece sin explicación se lee como que nadie lo
+miró, y la persona vuelve a abrirlo.
+
+Y la regla que no se puede ablandar, porque lo que sale de aquí **no se puede
+recoger**:
+
+> **Solo se avisa al PASAR a resuelto** (`avisaAlCliente(antes, despues)`, en
+> `lib/tickets.ts`, puro y probado). Dos cosas, y las dos importan: solo
+> `resuelto` —un ticket que va y viene entre «en proceso» y «en revisión» le
+> mandaría cuatro WhatsApps a quien no pidió seguimiento, y eso se aprende a
+> ignorar, con lo que el aviso que sí importa se ignora también—; y **pasar**,
+> no estar — guardar dos veces el mismo estado no puede mandar otro aviso por
+> cada pulsación.
+
+De ahí salen tres piezas que van juntas:
+
+1. **El estado anterior se lee ANTES del `UPDATE`.** Preguntarlo después leería
+   el que se acaba de escribir y `avisaAlCliente` diría siempre que no.
+2. **El `UPDATE` va condicionado al estado que se creía**
+   (`AND "estado" = ${antes}`). Dos administradores resolviendo el mismo ticket
+   a la vez tocan uno una fila y el otro cero — comprobado contra Postgres:
+   `UPDATE 1` y luego `UPDATE 0` —, y **solo avisa el que tocó fila**. Sin esa
+   condición salen dos WhatsApps por un solo cierre.
+3. **El aviso nunca lanza y nunca es mudo.** El estado ya está guardado y eso
+   manda; pero un aviso que no sale sin decirlo se lee como «al cliente no le
+   llega nada», que es de lo más difícil de diagnosticar. Sale `[tickets] aviso
+   de resuelto enviado`, y su ausencia con un ticket resuelto señala el sitio.
+
+### Y las tablas son NUESTRAS: `tasks` no se toca
+
+`tickets_de_soporte`, `ticket_attachments` y `tickets_config` las crea la App
+con `CREATE TABLE IF NOT EXISTS`, como `flows` y `task_attachments`. **Ni una
+columna nueva en `tasks`**: es del backend y añadirle columnas desde aquí es lo
+que reventó el #360. Y aunque fuera nuestra, tampoco: un ticket colgado de
+`tasks` aparecería en el tablero interno, en el reparto del trabajo y en los
+avisos de tarea, que es justo lo contrario del encargo.
+
+El acceso va por `conLasTablas(...)`, que ante un `42P01` olvida el recuerdo de
+«ya las creé» —que es **del proceso, no de la base**—, las crea y reintenta
+**una** vez. Y mira los dos sitios donde Prisma esconde el código de Postgres:
+`meta.code` y el texto, no solo `code`.
+
+### El destino es uno, y sin él no hay botón
+
+A qué cuenta caen los tickets se elige en Panel › Notificaciones, y se **copia
+dentro de cada ticket** al crearlo: si mañana cambia el destino, los que ya
+estaban abiertos se quedan con quien los estaba atendiendo.
+
+**Sin destino configurado el botón flotante no se pinta.** Un botón que guarda
+en la nada es peor que no tener botón: el cliente se queda esperando una
+respuesta que nadie va a ver. Y no se inventa uno —mandarlos a la primera cuenta
+admin que aparezca sería elegir por alguien que no lo ha pedido—.
+
+### Y quién ve qué se decide por la CUENTA, no por `cuentaQueManda`
+
+El botón es uno y hace dos cosas: para un cliente abre el formulario, para la
+cuenta de destino lleva al tablero. La comparación con el destino es con la
+**cuenta** (`ownerId ?? id`), que es bajo la que se archiva el ticket, y no con
+`cuentaQueManda`: para un `agente` de la cuenta de destino eso devuelve su
+propio id, así que le ofrecía abrir un ticket que la acción luego rechaza. Un
+botón que al pulsarlo da error es peor que no tenerlo. Ese `agente` no ve
+ninguno: ni abre tickets ni los administra.
+
+La puerta del tablero es `laCuentaQueConfigura` **más** que esa cuenta sea la
+configurada — la misma puerta que el resto de ajustes de cuenta, más lo suyo. Y
+está en la acción, no en la pantalla: la pantalla pinta lo que la consulta le
+devuelva.
+
+### Los adjuntos son el componente de Proyectos, no una copia
+
+`BloqueDeAdjuntos` con `taskId={null}`: el ticket no existe cuando se sube el
+archivo, así que todo cae «en el aire» —en el bucket, sin colgar de nada— y se
+engancha al guardar, que es el camino que ya existía para una tarea sin crear.
+De ahí vienen gratis el pegado con Ctrl+V, el arrastrar y el tope.
+
+Lo único que sabía que era «una tarea» eran la carpeta del bucket y las palabras
+de los avisos, y van como props (`carpeta`, `queEs`) con el valor de siempre por
+defecto. **No se hace una copia del componente**: con dos, el día que se afine
+el tope o el pegado se afina en una y la otra se queda atrás, y eso no se ve
+como un error sino como «a veces funciona».
+
+Y el cierre del formulario va por **un solo camino** (`cerrar()`), que borra del
+bucket lo que quedó en el aire. Con tres salidas basta con olvidarse de una para
+que esa deje basura cada vez.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

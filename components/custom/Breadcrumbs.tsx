@@ -35,6 +35,7 @@ import { NotificationCenter } from '@/components/shared/NotificationCenter';
 import { AvisoDeTareaEmergente } from '@/components/shared/AvisoDeTarea';
 import { GlobalSearch } from '@/components/shared/GlobalSearch';
 import { SupportButton } from './SupportButton';
+import { BotonDeSoporte } from '@/components/tickets/BotonDeSoporte';
 
 export const breadcrumbLabels: Record<string, string> = {
   flow: 'flujo',
@@ -269,6 +270,11 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
               Analiticas o donde este la persona. No pinta nada hasta que hay
               algo que decir. */}
           <AvisoDeTareaEmergente />
+          {/* El boton flotante de soporte. Va aqui por lo mismo que el aviso:
+              esta barra es la misma en todas las pantallas, asi que el boton
+              esta donde este la persona. No pinta nada si la cuenta no puede
+              abrir tickets ni los recibe. */}
+          <BotonDeSoporte />
         </div >
     </>
   );

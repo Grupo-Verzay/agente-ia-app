@@ -4,9 +4,11 @@ import { cuentaQueManda } from '@/lib/cuenta-que-manda'
 import { getResellerBillingConfig } from '@/actions/billing/reseller-billing-actions'
 import { getPlatformBillingMessages } from '@/actions/admin/site-config-actions'
 import { getConnectionAlertConfig } from '@/actions/admin/connection-alert-actions'
+import { leerElDestinoAction } from '@/actions/tickets-actions'
 import { ResellerBillingForm } from './_components/ResellerBillingForm'
 import { PlatformBillingForm } from './_components/PlatformBillingForm'
 import { ConnectionAlertForm } from './_components/ConnectionAlertForm'
+import { DestinoDeTicketsForm } from './_components/DestinoDeTicketsForm'
 
 export default async function NotificacionesPage() {
   const user = await currentUser()
@@ -22,12 +24,18 @@ export default async function NotificacionesPage() {
   const puedeEditarAviso = isAdminLike(cuenta.role)
   const connectionAlert = puedeEditarAviso ? await getConnectionAlertConfig() : null
 
+  // El destino de los tickets es un ajuste de la PLATAFORMA, asi que lo toca la
+  // misma gente que el aviso de desconexion.
+  const destino = puedeEditarAviso ? await leerElDestinoAction() : null
+  const destinoInicial = destino?.success ? (destino.data ?? null) : null
+
   // Verzay (rol admin) edita los mensajes de cobro de la plataforma.
   if (isAdmin(cuenta.role)) {
     const messages = await getPlatformBillingMessages()
     return (
       <div className="flex h-full flex-col gap-4 overflow-y-auto py-4">
         {connectionAlert && <ConnectionAlertForm initial={connectionAlert} />}
+        {destinoInicial && <DestinoDeTicketsForm initial={destinoInicial} />}
         <PlatformBillingForm initial={messages} />
       </div>
     )
@@ -38,6 +46,7 @@ export default async function NotificacionesPage() {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto py-4">
       {connectionAlert && <ConnectionAlertForm initial={connectionAlert} />}
+      {destinoInicial && <DestinoDeTicketsForm initial={destinoInicial} />}
       <ResellerBillingForm initial={billing} />
     </div>
   )
