@@ -58,11 +58,13 @@ export const TextRuleCard: FC<PropsTextRule> = ({ el, onRemove, onChange, isMana
             <CardContent className="px-3 pb-3 pt-0">
                 <Textarea
                     ref={areaRef}
-                    // Aquí va lo que el cliente recibe: las plantillas hablan del
-                    // "PRIMER elemento de TEXTO" y este es ese elemento. Decía
-                    // solo "regla adicional", así que quien buscaba dónde escribir
-                    // la respuesta pasaba de largo y la dejaba en blanco.
-                    placeholder="Respuesta que recibe el cliente, o una regla adicional para este paso…"
+                    // Aquí va lo que el cliente recibe, y nada más: las plantillas
+                    // hablan del "PRIMER elemento de TEXTO" y este es ese elemento.
+                    // Decía además "o una regla adicional para este paso" —de
+                    // cuando el campo hacía las dos cosas—, y eso ahora invita a
+                    // seguir metiendo instrucciones internas en lo que sale al
+                    // cliente, que es justo lo que la nota interna vino a separar.
+                    placeholder="Respuesta que recibe el cliente"
                     value={el.text}
                     onChange={(e) => onChange(e.target.value)}
                     onSelect={recordarCursor}
