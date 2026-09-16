@@ -11,6 +11,7 @@ import {
   FileText,
   MessageCircle,
   ListChecks,
+  ClipboardCheck,
   PlugZap,
   RefreshCw,
   UserRound,
@@ -106,6 +107,13 @@ const KIND_META: Record<
     filterClass: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
     activeClass: "border-blue-400 bg-blue-100 text-blue-800",
   },
+  tarea: {
+    label: "Mis tareas",
+    Icon: ClipboardCheck,
+    color: "text-indigo-600",
+    filterClass: "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
+    activeClass: "border-indigo-400 bg-indigo-100 text-indigo-800",
+  },
   followup: {
     label: "Seguimientos",
     Icon: ListChecks,
@@ -115,11 +123,11 @@ const KIND_META: Record<
   },
 };
 
-const FILTER_ORDER: NotificationKind[] = ["mention", "chat", "appointment", "task", "followup", "connection"];
+const FILTER_ORDER: NotificationKind[] = ["tarea", "mention", "chat", "appointment", "task", "followup", "connection"];
 
 const EMPTY_DATA: NotificationCenterData = {
   total: 0,
-  counts: { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0 },
+  counts: { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0, tarea: 0 },
   items: [],
 };
 
@@ -149,7 +157,7 @@ export function NotificationCenter() {
       if (res.success) {
         const dismissed = loadDismissed();
         const items = res.data.items.filter((i) => !dismissed.has(i.id));
-        const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0 } as Record<NotificationKind, number>;
+        const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0, tarea: 0 } as Record<NotificationKind, number>;
         for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
         setData({ items, counts, total: items.length });
       }
@@ -293,7 +301,17 @@ export function NotificationCenter() {
           <div className="grid shrink-0 grid-cols-6 gap-1 px-2 py-2">
             {summary.map(([kind, count], index) => {
               const meta = KIND_META[kind];
-              const balanceFiveItems = summary.length === 5 && index >= 3;
+              // Tres por fila (`col-span-2` sobre seis columnas). Lo que sobra
+              // se reparte la última fila entera en vez de quedarse pegado a la
+              // izquierda con un hueco al lado.
+              //
+              // Estaba escrito solo para el caso de cinco. Al entrar el séptimo
+              // chip esa condición dejó de aplicar y el último salía suelto, que
+              // es justo lo que aquel arreglo evitaba. Ahora sale de la cuenta:
+              // sobra uno → ancho completo; sobran dos → a medias.
+              const sobran = summary.length % 3;
+              const enLaUltimaFila = sobran !== 0 && index >= summary.length - sobran;
+              const anchoDelResto = sobran === 1 ? "col-span-6" : "col-span-3";
               return (
                 <button
                   key={kind}
@@ -301,7 +319,7 @@ export function NotificationCenter() {
                   onClick={() => setActiveKind(kind)}
                   className={cn(
                     "col-span-2 flex min-w-0 items-center justify-between gap-1 rounded-md border px-1.5 py-1 text-left transition-colors",
-                    balanceFiveItems && "col-span-3",
+                    enLaUltimaFila && anchoDelResto,
                     meta.filterClass,
                     activeKind === kind && meta.activeClass,
                   )}
