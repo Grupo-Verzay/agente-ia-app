@@ -5,6 +5,7 @@ import {
     FileText,
     Image as ImageIcon,
     Phone,
+    UserRound,
     Video,
 } from "lucide-react";
 import {
@@ -76,6 +77,12 @@ export function DetalleDelTicket({
                             {/* El número solo se enseña donde hay algo que hacer
                                 con él: es a donde sale el aviso de resuelto, y
                                 en «Mis tickets» es el suyo propio. */}
+                            {ticket.responsableNombre && (
+                                <span className="inline-flex items-center gap-1">
+                                    <UserRound className="h-3 w-3" />
+                                    {ticket.responsableNombre}
+                                </span>
+                            )}
                             {deQuien && ticket.whatsapp && (
                                 <span className="inline-flex items-center gap-1">
                                     <Phone className="h-3 w-3" />

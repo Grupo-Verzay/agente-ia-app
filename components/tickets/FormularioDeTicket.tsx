@@ -20,6 +20,8 @@ import {
     type AdjuntoEnElAire,
 } from "@/app/(root)/proyectos/_components/BloqueDeAdjuntos";
 import { abrirTicketAction } from "@/actions/tickets-actions";
+import { SelectorDeCuenta, type CuentaElegible } from "@/components/tickets/SelectorDeCuenta";
+import type { AdvisorInfo } from "@/actions/team-actions";
 import {
     queLeFaltaAlTicket,
     TOPE_DEL_TITULO,
@@ -49,6 +51,8 @@ export function FormularioDeTicket({
     onAbierto,
     userId,
     whatsappPorDefecto,
+    cuentas = [],
+    equipo = [],
     onCreado,
 }: {
     abierto: boolean;
@@ -56,6 +60,14 @@ export function FormularioDeTicket({
     userId: string;
     /** El número de la cuenta, para no hacer teclearlo cada vez. */
     whatsappPorDefecto?: string | null;
+    /**
+     * A nombre de qué otras cuentas se puede abrir. **Vacío es el caso normal**
+     * —un cliente abre los suyos— y entonces el selector no se pinta y el
+     * formulario queda exactamente como estaba.
+     */
+    cuentas?: CuentaElegible[];
+    /** El equipo que atiende, para elegir responsable. Vacío, no se pinta. */
+    equipo?: AdvisorInfo[];
     onCreado?: () => void;
 }) {
     const [titulo, setTitulo] = useState("");
@@ -63,6 +75,9 @@ export function FormularioDeTicket({
     const [whatsapp, setWhatsapp] = useState(whatsappPorDefecto ?? "");
     const [enElAire, setEnElAire] = useState<AdjuntoEnElAire[]>([]);
     const [guardando, setGuardando] = useState(false);
+    /** A nombre de qué cuenta. Nulo = a nombre de la propia. */
+    const [aNombreDe, setANombreDe] = useState<string | null>(null);
+    const [responsableId, setResponsableId] = useState<string>("");
 
     // Lo que hay en el aire, por referencia: el cierre corre desde un manejador
     // montado una vez y con el estado en las dependencias se volvería a montar
@@ -97,6 +112,8 @@ export function FormularioDeTicket({
                 titulo: titulo.trim(),
                 descripcion: descripcion.trim(),
                 whatsapp: whatsapp.trim(),
+                clienteId: aNombreDe ?? undefined,
+                responsableId: responsableId || undefined,
                 adjuntos: enElAire.map((a) => ({
                     url: a.url,
                     nombre: a.nombre,
@@ -116,6 +133,8 @@ export function FormularioDeTicket({
             aire.current = [];
             setTitulo("");
             setDescripcion("");
+            setANombreDe(null);
+            setResponsableId("");
             onAbierto(false);
             onCreado?.();
         } catch (error) {
@@ -142,6 +161,25 @@ export function FormularioDeTicket({
                 </DialogHeader>
 
                 <div className="space-y-4">
+                    {/* Va lo PRIMERO: de quién es el ticket cambia a quién se le
+                        avisa al resolverlo, así que no puede quedar debajo del
+                        todo, donde se rellena sin mirar. */}
+                    {cuentas.length > 0 && (
+                        <div className="space-y-1.5">
+                            <Label>¿De qué cuenta es?</Label>
+                            <SelectorDeCuenta
+                                cuentas={cuentas}
+                                elegida={aNombreDe}
+                                onElegir={setANombreDe}
+                                etiquetaVacia="A nombre de mi cuenta"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                El ticket nace como si lo hubiera abierto esa cuenta: le sale en «Mis
+                                tickets» y recibe el WhatsApp al resolverse.
+                            </p>
+                        </div>
+                    )}
+
                     <div className="space-y-1.5">
                         <Label htmlFor="ticket-titulo">Título</Label>
                         <Input
@@ -177,6 +215,25 @@ export function FormularioDeTicket({
                         carpeta="tickets"
                         queEs="ticket"
                     />
+
+                    {equipo.length > 0 && (
+                        <div className="space-y-1.5">
+                            <Label htmlFor="ticket-responsable">Responsable</Label>
+                            <select
+                                id="ticket-responsable"
+                                value={responsableId}
+                                onChange={(e) => setResponsableId(e.target.value)}
+                                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="">Sin asignar</option>
+                                {equipo.map((persona) => (
+                                    <option key={persona.id} value={persona.id}>
+                                        {persona.name?.trim() || persona.email || persona.id}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     <div className="space-y-1.5">
                         <Label htmlFor="ticket-whatsapp">WhatsApp para avisarte</Label>

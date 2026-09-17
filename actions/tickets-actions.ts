@@ -5,7 +5,9 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { cuentaQueManda, rolQueManda } from "@/lib/cuenta-que-manda";
+import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
+import { clientesDeLaCuenta, cuentasParaCompartir, type CuentaCliente } from "@/lib/cuentas-cliente";
 import { laCuentaQueConfigura } from "@/lib/cuenta-que-configura";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 import { isAdminLike } from "@/lib/rbac";
@@ -24,6 +26,7 @@ import {
   type Ticket,
 } from "@/lib/tickets";
 import {
+  asignarElResponsable,
   cambiarElEstado,
   contarPorEstado,
   crearElTicket,
@@ -83,6 +86,17 @@ const abrirSchema = z.object({
   descripcion: z.string().trim().min(1).max(TOPE_DE_LA_DESCRIPCION),
   whatsapp: z.string().trim().max(40),
   adjuntos: z.array(adjuntoSchema).max(TOPE_DE_ADJUNTOS_POR_TICKET).default([]),
+  /**
+   * Abrirlo A NOMBRE de otra cuenta. Vacío = a nombre de la propia, que es como
+   * funcionaba y como lo usa un cliente desde «Mis tickets».
+   *
+   * El caso: el cliente escribe por WhatsApp y alguien de la casa lo registra.
+   * El ticket nace siendo suyo —le sale en «Mis tickets» y recibe el aviso al
+   * resolverse—, y quién lo tecleó queda en `creadoPorId`.
+   */
+  clienteId: z.string().trim().max(120).optional(),
+  /** Quién lo atiende, del equipo de la cuenta de destino. */
+  responsableId: z.string().trim().max(120).optional(),
 });
 
 /** La cuenta del cliente: la CUENTA, no la persona. Un ticket es de la cuenta. */
@@ -193,9 +207,30 @@ export async function abrirTicketAction(
       throw new Error("Todavía no hay a dónde enviar los tickets. Avísale a tu proveedor.");
     }
 
-    const { user, clienteId } = await laCuentaDeQuienPide();
+    const { user, clienteId: miCuenta } = await laCuentaDeQuienPide();
+
+    // A nombre de quién nace. Vacío = a nombre de la propia, como siempre.
+    const pedida = parsed.clienteId?.trim() || null;
+    let clienteId = miCuenta;
+    if (pedida && pedida !== miCuenta) {
+      // **La puerta, y está en el servidor**: abrir un ticket a nombre de otra
+      // cuenta es escribir en su bandeja y mandarle un WhatsApp cuando se
+      // resuelva. Pasa la misma regla que todo lo que recibe un `userId`: uno
+      // mismo, el asesor sobre su dueño, cuentas vinculadas, admin y super
+      // admin sobre todo, el reseller sobre sus clientes.
+      await assertCanAccessTargetUser(pedida);
+      clienteId = pedida;
+    }
+
     if (clienteId === destino) {
       throw new Error("Esta cuenta recibe los tickets; no abre los suyos propios.");
+    }
+
+    // Quien lo atiende tiene que ser del equipo que atiende. Sin esto, el id
+    // que llega del navegador pondría de responsable a cualquiera.
+    const responsableId = parsed.responsableId?.trim() || null;
+    if (responsableId && !(await esDelEquipoQueAtiende(destino, responsableId))) {
+      throw new Error("Ese responsable no es del equipo que atiende los tickets.");
     }
 
     const id = randomUUID();
@@ -204,6 +239,7 @@ export async function abrirTicketAction(
       clienteId,
       creadoPorId: user.id,
       destinoId: destino,
+      responsableId,
       titulo: parsed.titulo,
       descripcion: parsed.descripcion,
       whatsapp: soloDigitos(parsed.whatsapp),
@@ -409,6 +445,100 @@ async function avisarAlCliente(ticket: Ticket, id: string): Promise<boolean> {
       error: error instanceof Error ? error.message : String(error),
     });
     return false;
+  }
+}
+
+/**
+ * ¿Esta persona es del equipo que atiende los tickets?
+ *
+ * El mismo universo que `getTeamAdvisorInfos`, que es de donde sale la lista
+ * que se ofrece: la propia cuenta de destino, su equipo (`ownerId`) y las
+ * cuentas vinculadas a ella. Con un criterio más estrecho, el desplegable
+ * ofrecería gente que al guardar se cae sin decir por qué.
+ */
+async function esDelEquipoQueAtiende(destinoId: string, personaId: string): Promise<boolean> {
+  if (personaId === destinoId) return true;
+
+  const fila = await db.user.findUnique({
+    where: { id: personaId },
+    select: { ownerId: true },
+  });
+  if (fila?.ownerId === destinoId) return true;
+
+  const enlazadas = await db.$queryRaw<Array<{ n: bigint }>>`
+    SELECT COUNT(*)::bigint AS n FROM "linked_accounts"
+    WHERE "master_user_id" = ${destinoId} AND "linked_user_id" = ${personaId}
+  `;
+  return Number(enlazadas[0]?.n ?? 0) > 0;
+}
+
+/**
+ * A nombre de qué cuentas puedo abrir un ticket.
+ *
+ * **Vacío no es un fallo**: significa que quien pregunta solo puede abrir los
+ * suyos, que es el caso de cualquier cliente. La pantalla no pinta el selector
+ * y el formulario queda exactamente como estaba.
+ *
+ * La lista se acota a lo que la acción va a **aceptar de verdad**
+ * (`assertCanAccessTargetUser`): un admin manda sobre todas, un reseller sobre
+ * su cartera. Ofrecer cuentas que luego se caen es la puerta cerrada detrás del
+ * menú abierto.
+ */
+export async function cuentasParaAbrirTicketAction(): Promise<Result<CuentaCliente[]>> {
+  try {
+    const user = await currentUser();
+    if (!user?.id) throw new Error("No autorizado.");
+    const miCuenta = user.ownerId ?? user.id;
+    const destino = await elDestinoDeLosTickets();
+
+    const rol = await rolQueManda(user);
+    const cuentas = isAdminLike(rol)
+      ? await cuentasParaCompartir(miCuenta)
+      : rol === "reseller"
+        ? await clientesDeLaCuenta({ id: miCuenta, role: rol })
+        : [];
+
+    return {
+      success: true,
+      message: "",
+      // La cuenta de destino no se lista: es la que atiende, y un ticket suyo
+      // contra sí misma lo rechaza la acción.
+      data: cuentas.filter((c) => c.id !== destino && c.id !== miCuenta),
+    };
+  } catch (error) {
+    console.error("[cuentasParaAbrirTicketAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudieron cargar las cuentas.",
+      data: [],
+    };
+  }
+}
+
+/** Cambiar quién atiende un ticket. La puerta es la misma que moverlo. */
+export async function asignarResponsableAction(
+  ticketId: string,
+  responsableId: string | null,
+): Promise<Result<null>> {
+  try {
+    const destino = await laCuentaQueLosRecibe();
+    const limpio = responsableId?.trim() || null;
+    if (limpio && !(await esDelEquipoQueAtiende(destino, limpio))) {
+      throw new Error("Ese responsable no es del equipo que atiende los tickets.");
+    }
+
+    const cambio = await asignarElResponsable({ id: ticketId, destinoId: destino, responsableId: limpio });
+    if (!cambio) throw new Error("Ese ticket no está aquí.");
+
+    revalidatePath("/tickets");
+    revalidatePath("/mis-tickets");
+    return { success: true, message: limpio ? "Responsable asignado." : "Sin responsable.", data: null };
+  } catch (error) {
+    console.error("[asignarResponsableAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo asignar el responsable.",
+    };
   }
 }
 

@@ -84,6 +84,14 @@ function asegurarLasTablas(): Promise<void> {
         "avisadoEn" TIMESTAMP(3)
       )
     `;
+    // Quien lo atiende, de la cuenta de destino. Entra con ALTER y no
+    // reescribiendo el CREATE de arriba: la tabla YA existe en produccion y un
+    // `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya esta — es el fallo
+    // que se comete solo al anadirle una columna a una tabla de la App ya
+    // desplegada.
+    await db.$executeRaw`
+      ALTER TABLE "tickets_de_soporte" ADD COLUMN IF NOT EXISTS "responsableId" TEXT
+    `;
     // Las dos pantallas: la del cliente entra por su cuenta, la del
     // administrador por el destino. Las dos ordenan por fecha, asi que va
     // dentro del indice y no como un ordenamiento aparte.
@@ -203,6 +211,8 @@ export async function crearElTicket(input: {
   titulo: string;
   descripcion: string;
   whatsapp: string;
+  /** Quién lo atiende. Nulo = sin asignar, que es lo normal al abrirlo. */
+  responsableId: string | null;
   adjuntos: Array<{
     id: string;
     url: string;
@@ -219,10 +229,12 @@ export async function crearElTicket(input: {
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`
         INSERT INTO "tickets_de_soporte"
-          ("id", "clienteId", "creadoPorId", "destinoId", "titulo", "descripcion", "whatsapp", "estado")
+          ("id", "clienteId", "creadoPorId", "destinoId", "titulo", "descripcion",
+           "whatsapp", "estado", "responsableId")
         VALUES (
           ${input.id}, ${input.clienteId}, ${input.creadoPorId}, ${input.destinoId},
-          ${input.titulo}, ${input.descripcion}, ${input.whatsapp}, 'recibido'
+          ${input.titulo}, ${input.descripcion}, ${input.whatsapp}, 'recibido',
+          ${input.responsableId}
         )
       `;
       for (const a of input.adjuntos) {
@@ -268,6 +280,28 @@ export async function cambiarElEstado(input: {
   });
 }
 
+/**
+ * Cambia quién lo atiende.
+ *
+ * Va acotado por `destinoId` como todo lo demás: el id del ticket llega del
+ * navegador y no decide de quién es.
+ */
+export async function asignarElResponsable(input: {
+  id: string;
+  destinoId: string;
+  responsableId: string | null;
+}): Promise<boolean> {
+  return conLasTablas(async () => {
+    const tocadas = await db.$executeRaw`
+      UPDATE "tickets_de_soporte"
+      SET "responsableId" = ${input.responsableId},
+          "actualizadoEn" = CURRENT_TIMESTAMP
+      WHERE "id" = ${input.id} AND "destinoId" = ${input.destinoId}
+    `;
+    return tocadas > 0;
+  });
+}
+
 /** Sella que el aviso salió. Nunca vuelve a salir por el mismo cierre. */
 export async function sellarElAviso(id: string): Promise<void> {
   await conLasTablas(async () => {
@@ -291,7 +325,9 @@ type FilaDeTicket = {
   creadoEn: Date;
   actualizadoEn: Date;
   avisadoEn: Date | null;
+  responsableId: string | null;
   clienteNombre?: string | null;
+  responsableNombre?: string | null;
 };
 
 function comoTicket(f: FilaDeTicket): Ticket {
@@ -310,7 +346,9 @@ function comoTicket(f: FilaDeTicket): Ticket {
     creadoEn: f.creadoEn.toISOString(),
     actualizadoEn: f.actualizadoEn.toISOString(),
     avisadoEn: f.avisadoEn ? f.avisadoEn.toISOString() : null,
+    responsableId: f.responsableId ?? null,
     clienteNombre: f.clienteNombre ?? null,
+    responsableNombre: f.responsableNombre ?? null,
   };
 }
 
@@ -321,11 +359,14 @@ export const TOPE_DE_TICKETS = 300;
 export async function losTicketsDelCliente(clienteId: string): Promise<Ticket[]> {
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<FilaDeTicket[]>`
-      SELECT "id", "clienteId", "destinoId", "titulo", "descripcion", "whatsapp",
-             "estado", "motivoDescarte", "creadoEn", "actualizadoEn", "avisadoEn"
-      FROM "tickets_de_soporte"
-      WHERE "clienteId" = ${clienteId}
-      ORDER BY "creadoEn" DESC
+      SELECT t."id", t."clienteId", t."destinoId", t."titulo", t."descripcion",
+             t."whatsapp", t."estado", t."motivoDescarte", t."creadoEn",
+             t."actualizadoEn", t."avisadoEn", t."responsableId",
+             COALESCE(NULLIF(TRIM(u."name"), ''), u."email") AS "responsableNombre"
+      FROM "tickets_de_soporte" t
+      LEFT JOIN "User" u ON u."id" = t."responsableId"
+      WHERE t."clienteId" = ${clienteId}
+      ORDER BY t."creadoEn" DESC
       LIMIT ${TOPE_DE_TICKETS}
     `;
     return filas.map(comoTicket);
@@ -352,10 +393,12 @@ export async function losTicketsDelDestino(
     const filas = await db.$queryRaw<FilaDeTicket[]>`
       SELECT t."id", t."clienteId", t."destinoId", t."titulo", t."descripcion",
              t."whatsapp", t."estado", t."motivoDescarte", t."creadoEn",
-             t."actualizadoEn", t."avisadoEn",
-             COALESCE(NULLIF(TRIM(u."name"), ''), u."email") AS "clienteNombre"
+             t."actualizadoEn", t."avisadoEn", t."responsableId",
+             COALESCE(NULLIF(TRIM(u."name"), ''), u."email") AS "clienteNombre",
+             COALESCE(NULLIF(TRIM(r."name"), ''), r."email") AS "responsableNombre"
       FROM "tickets_de_soporte" t
       LEFT JOIN "User" u ON u."id" = t."clienteId"
+      LEFT JOIN "User" r ON r."id" = t."responsableId"
       WHERE t."destinoId" = ${destinoId}
       ${filtro}
       ORDER BY t."creadoEn" DESC
@@ -387,7 +430,8 @@ export async function elTicket(id: string): Promise<Ticket | null> {
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<FilaDeTicket[]>`
       SELECT "id", "clienteId", "destinoId", "titulo", "descripcion", "whatsapp",
-             "estado", "motivoDescarte", "creadoEn", "actualizadoEn", "avisadoEn"
+             "estado", "motivoDescarte", "creadoEn", "actualizadoEn", "avisadoEn",
+             "responsableId"
       FROM "tickets_de_soporte"
       WHERE "id" = ${id}
       LIMIT 1

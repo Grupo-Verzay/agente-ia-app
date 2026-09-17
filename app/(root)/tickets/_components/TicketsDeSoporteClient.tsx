@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Inbox, Kanban, List, Loader2, RefreshCw } from "lucide-react";
+import { Inbox, Loader2, Plus, RefreshCw, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -13,10 +13,20 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { TarjetaDeTicket } from "@/components/tickets/TarjetaDeTicket";
 import { DetalleDelTicket } from "@/components/tickets/DetalleDelTicket";
+import { FormularioDeTicket } from "@/components/tickets/FormularioDeTicket";
+import type { CuentaElegible } from "@/components/tickets/SelectorDeCuenta";
+import type { AdvisorInfo } from "@/actions/team-actions";
+import { CabeceraDeTickets } from "./CabeceraDeTickets";
 import { TableroDeTickets } from "./TableroDeTickets";
 import { MenuDeEstado } from "./MenuDeEstado";
 import {
@@ -27,6 +37,7 @@ import {
     type EstadoDeTicket,
 } from "@/lib/tickets";
 import {
+    asignarResponsableAction,
     moverTicketAction,
     ticketsDeSoporteAction,
     type TicketConAdjuntos,
@@ -59,7 +70,18 @@ const CADA_CUANTO_SE_REFRESCA_EL_RELOJ = 60_000;
  *    entra por la MISMA acción que el menú — no hay un segundo camino que
  *    pudiera saltarse esa garantía.
  */
-export function TicketsDeSoporteClient() {
+export function TicketsDeSoporteClient({
+    userId,
+    equipo = [],
+    cuentas = [],
+}: {
+    /** Quien sube los archivos del formulario. Lo pide `/api/upload`. */
+    userId: string;
+    /** El equipo que atiende: para elegir responsable. */
+    equipo?: AdvisorInfo[];
+    /** A nombre de qué cuentas se puede abrir un ticket desde aquí. */
+    cuentas?: CuentaElegible[];
+}) {
     const [vista, setVista] = useState<Vista>("tablero");
     const [tickets, setTickets] = useState<TicketConAdjuntos[]>([]);
     const [porEstado, setPorEstado] = useState<Record<string, number>>({});
@@ -71,6 +93,9 @@ export function TicketsDeSoporteClient() {
     /** El ticket que se está descartando, mientras se escribe el motivo. */
     const [descartando, setDescartando] = useState<TicketConAdjuntos | null>(null);
     const [motivo, setMotivo] = useState("");
+    const [creando, setCreando] = useState(false);
+    /** Filtro por responsable, solo en la lista. `null` = todos. */
+    const [responsable, setResponsable] = useState<string | null>(null);
 
     // La hora se calcula UNA vez por repintado y se reparte: leyendo `Date.now()`
     // dentro de cada tarjeta, dos tarjetas del mismo repintado pueden caer a
@@ -194,69 +219,162 @@ export function TicketsDeSoporteClient() {
 
     const total = Object.values(porEstado).reduce((n, v) => n + v, 0);
 
+    /** Asignar a quién lo atiende. Se pinta al momento, como todo lo demás. */
+    const asignar = async (ticket: TicketConAdjuntos, personaId: string | null) => {
+        const previos = tickets;
+        const nombre = equipo.find((p) => p.id === personaId);
+        setTickets((prev) =>
+            prev.map((t) =>
+                t.id === ticket.id
+                    ? {
+                          ...t,
+                          responsableId: personaId,
+                          responsableNombre: personaId
+                              ? nombre?.name?.trim() || nombre?.email || personaId
+                              : null,
+                      }
+                    : t,
+            ),
+        );
+        try {
+            const res = await asignarResponsableAction(ticket.id, personaId);
+            if (!res.success) {
+                setTickets(previos);
+                toast.error(res.message);
+                return;
+            }
+            toast.success(res.message);
+        } catch (e) {
+            console.warn("[tickets] no se pudo asignar el responsable", e);
+            setTickets(previos);
+            toast.error("No se pudo asignar el responsable.");
+        }
+    };
+
+    // El filtro por responsable es de la LISTA, y se aplica aquí: el servidor ya
+    // trae los de esta cuenta y filtrar allí sería otra vuelta de red por un
+    // desplegable que se cambia a cada rato.
+    const visibles =
+        vista === "lista" && responsable !== null
+            ? tickets.filter((t) =>
+                  responsable === "" ? !t.responsableId : t.responsableId === responsable,
+              )
+            : tickets;
+
+    const nombreDelFiltro =
+        responsable === null
+            ? "Responsable"
+            : responsable === ""
+              ? "Sin asignar"
+              : equipo.find((p) => p.id === responsable)?.name?.trim() ||
+                equipo.find((p) => p.id === responsable)?.email ||
+                "Responsable";
+
     return (
-        <div className="flex h-full min-h-0 flex-col gap-3 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                    <h1 className="text-lg font-semibold">Tickets de soporte</h1>
-                    <p className="text-xs text-muted-foreground">
-                        {cargando ? "Cargando…" : `${total} en total`}
-                    </p>
-                </div>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void cargar()}
-                    disabled={cargando}
-                    className="h-9 w-9 px-0"
-                    title="Actualizar"
-                >
-                    <RefreshCw className={cn("h-4 w-4", cargando && "animate-spin")} />
-                </Button>
-            </div>
-
-            <ModuleToolbar>
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                    <div className="flex shrink-0 gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
-                        <BotonDeVista
-                            activo={vista === "tablero"}
-                            onClick={() => setVista("tablero")}
-                            icono={<Kanban className="h-3.5 w-3.5" />}
-                        >
-                            Tablero
-                        </BotonDeVista>
-                        <BotonDeVista
-                            activo={vista === "lista"}
-                            onClick={() => setVista("lista")}
-                            icono={<List className="h-3.5 w-3.5" />}
-                        >
-                            Lista
-                        </BotonDeVista>
-                    </div>
-
-                    {/* Los chips son de la lista: en el tablero cada estado ya
-                        tiene su columna, y filtrar por uno dejaría las otras
-                        cuatro vacías sin decir por qué. Los contadores salen de
-                        un `COUNT` del servidor, no del `length` de lo cargado. */}
-                    {vista === "lista" && (
-                        <div className="flex flex-wrap gap-1.5">
-                            <Chip activo={filtro === null} onClick={() => setFiltro(null)} n={total}>
-                                Todos
-                            </Chip>
-                            {ESTADOS_DE_TICKET.map((e) => (
-                                <Chip
-                                    key={e}
-                                    activo={filtro === e}
-                                    onClick={() => setFiltro(e)}
-                                    n={porEstado[e] ?? 0}
-                                >
-                                    {ETIQUETAS_DE_ESTADO[e]}
+        // El MISMO contenedor de Etiquetas, clase por clase: sin `py-4` propio y
+        // con `gap-2`. Ese padding y la fila de título eran la franja que el
+        // tablero se estaba perdiendo.
+        <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
+            <CabeceraDeTickets
+                vista={vista}
+                onVista={setVista}
+                filtros={
+                    vista === "lista" ? (
+                        <>
+                            {/* Los chips son de la lista: en el tablero cada estado
+                                ya tiene su columna, y filtrar por uno dejaría las
+                                otras cuatro vacías sin decir por qué. Los contadores
+                                salen de un `COUNT` del servidor, no del `length` de
+                                lo cargado. */}
+                            <div className="flex flex-wrap gap-1.5">
+                                <Chip activo={filtro === null} onClick={() => setFiltro(null)} n={total}>
+                                    Todos
                                 </Chip>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </ModuleToolbar>
+                                {ESTADOS_DE_TICKET.map((e) => (
+                                    <Chip
+                                        key={e}
+                                        activo={filtro === e}
+                                        onClick={() => setFiltro(e)}
+                                        n={porEstado[e] ?? 0}
+                                    >
+                                        {ETIQUETAS_DE_ESTADO[e]}
+                                    </Chip>
+                                ))}
+                            </div>
+
+                            {equipo.length > 0 && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className={cn(
+                                                "h-8 gap-1.5 px-2.5 text-xs",
+                                                responsable !== null && "border-primary text-primary",
+                                            )}
+                                        >
+                                            <UserRound className="h-3.5 w-3.5" />
+                                            {nombreDelFiltro}
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    {/* La lista crece con el equipo, así que va con
+                                        su tope sobre el hueco real, no sobre la
+                                        ventana. */}
+                                    <DropdownMenuContent
+                                        align="start"
+                                        className="w-52 overflow-y-auto"
+                                        style={{
+                                            maxHeight:
+                                                "min(70vh, var(--radix-dropdown-menu-content-available-height))",
+                                        }}
+                                    >
+                                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                                            Filtrar por responsable
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuItem onSelect={() => setResponsable(null)}>
+                                            Todos
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => setResponsable("")}>
+                                            Sin asignar
+                                        </DropdownMenuItem>
+                                        {equipo.map((p) => (
+                                            <DropdownMenuItem key={p.id} onSelect={() => setResponsable(p.id)}>
+                                                {p.name?.trim() || p.email || p.id}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                        </>
+                    ) : null
+                }
+                acciones={
+                    <div className="flex shrink-0 items-center gap-2">
+                        <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
+                            {cargando ? "Cargando…" : `${total} en total`}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void cargar()}
+                            disabled={cargando}
+                            className="h-9 w-9 px-0"
+                            title="Actualizar"
+                        >
+                            <RefreshCw className={cn("h-4 w-4", cargando && "animate-spin")} />
+                        </Button>
+                        {/* Registrar el ticket de alguien que escribió por
+                            WhatsApp. Solo sale si hay cuentas a nombre de las que
+                            se pueda abrir: un botón que al pulsarlo no tiene a
+                            quién asignarle el ticket es peor que no tenerlo. */}
+                        {cuentas.length > 0 && (
+                            <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreando(true)}>
+                                <Plus className="h-4 w-4" /> Nuevo
+                            </Button>
+                        )}
+                    </div>
+                }
+            />
 
             {cargando ? (
                 <div className="flex flex-1 items-center justify-center">
@@ -278,16 +396,16 @@ export function TicketsDeSoporteClient() {
                     onSoltar={pedirElCambio}
                     onAbrir={setAbierto}
                 />
-            ) : tickets.length === 0 ? (
+            ) : visibles.length === 0 ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 text-center">
                     <Inbox className="h-7 w-7 text-muted-foreground/40" />
                     <p className="text-sm font-medium">
-                        {filtro ? "Ninguno en este estado" : "Sin tickets"}
+                        {filtro || responsable !== null ? "Ninguno con ese filtro" : "Sin tickets"}
                     </p>
                 </div>
             ) : (
                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                    {tickets.map((t) => (
+                    {visibles.map((t) => (
                         <TarjetaDeTicket
                             key={t.id}
                             ticket={t}
@@ -313,6 +431,34 @@ export function TicketsDeSoporteClient() {
                 onCerrar={() => setAbierto(null)}
                 acciones={
                     abierto && (
+                        <div className="space-y-2">
+                            {/* Asignable también AL ABRIR, no solo al crearlo: casi
+                                siempre se decide quién lo coge después de leerlo. */}
+                            {equipo.length > 0 && (
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-muted-foreground">Responsable</span>
+                                    <select
+                                        value={abierto.responsableId ?? ""}
+                                        onChange={(e) => {
+                                            const suyo = abierto;
+                                            const elegido = e.target.value || null;
+                                            setAbierto({
+                                                ...suyo,
+                                                responsableId: elegido,
+                                            });
+                                            void asignar(suyo, elegido);
+                                        }}
+                                        className="h-8 max-w-[14rem] rounded-md border border-input bg-background px-2 text-xs"
+                                    >
+                                        <option value="">Sin asignar</option>
+                                        {equipo.map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name?.trim() || p.email || p.id}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-muted-foreground">Cambiar el estado</span>
                             <MenuDeEstado
@@ -328,8 +474,22 @@ export function TicketsDeSoporteClient() {
                                 }}
                             />
                         </div>
+                        </div>
                     )
                 }
+            />
+
+            {/* El mismo formulario que usa el cliente, con dos campos más: a
+                nombre de qué cuenta y quién lo atiende. Uno solo, no una copia:
+                los adjuntos, el tope y el cierre que limpia el bucket vienen
+                puestos. */}
+            <FormularioDeTicket
+                abierto={creando}
+                onAbierto={setCreando}
+                userId={userId}
+                cuentas={cuentas}
+                equipo={equipo}
+                onCreado={() => void cargar()}
             />
 
             <Dialog
@@ -377,34 +537,6 @@ export function TicketsDeSoporteClient() {
                 </DialogContent>
             </Dialog>
         </div>
-    );
-}
-
-function BotonDeVista({
-    activo,
-    onClick,
-    icono,
-    children,
-}: {
-    activo: boolean;
-    onClick: () => void;
-    icono: React.ReactNode;
-    children: React.ReactNode;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                activo
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-            )}
-        >
-            {icono}
-            {children}
-        </button>
     );
 }
 
