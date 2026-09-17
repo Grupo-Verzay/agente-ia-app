@@ -2,6 +2,7 @@ import { runBillingDailyJobSystem } from "@/actions/billing/billing-job-actions"
 import { runResellerBillingForAll } from "@/actions/billing/reseller-billing-actions";
 import { purgarCuentasEliminadasPendientes } from "@/lib/purge-account.server";
 import { podarRevisionesDePromptsPendientes } from "@/lib/prompt-revisions-cleanup.server";
+import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -62,8 +63,23 @@ export async function POST(request: Request) {
     podaRevisiones = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // Los recordatorios de Cobros: la cartera de cada cuenta con SUS clientes.
+  //
+  // Cuelga de aquí porque este cron ya lo llama n8n una vez al día; con ruta
+  // propia habría que añadirle su flujo y hasta entonces no saldría ni un
+  // aviso. Va envuelto: **un fallo suyo no puede tumbar el cobro de la
+  // plataforma**, que es lo que de verdad importa de esta ruta. Y no es mudo —
+  // su cuenta sale en la respuesta.
+  let cobros: unknown = null;
+  try {
+    cobros = await runRecordatoriosDeCobros();
+  } catch (e) {
+    cobros = { error: e instanceof Error ? e.message : String(e) };
+    console.warn("[cobros] la vuelta diaria reventó", { error: cobros });
+  }
+
   return NextResponse.json(
-    { ...result, resellerBilling, purgaCuentas, podaRevisiones },
+    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros },
     { status: result.success ? 200 : 500 },
   );
 }

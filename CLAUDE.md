@@ -1759,6 +1759,109 @@ Y del lado de los datos: `getEnrichedClients` trae **solo los dos estados**
 (`accessStatus`, `billingStatus`), no la fila entera. El `price` es un `Decimal`
 y no viaja a un componente de cliente.
 
+## Cobros: la cartera de una cuenta NO es el cobro de la plataforma
+
+Se parecen tanto que la tentación es fundirlos, y son cosas distintas. El de
+Verzay vive en `actions/billing/**` sobre `UserBilling`, cobra licencias de la
+App y sus ramas **suspenden y borran cuentas**. Cobros es la cartera de una
+cuenta cliente con SUS clientes —internet, streaming, cualquier suscripción— y
+lo peor que hace es mandar un WhatsApp.
+
+Así que es **código nuevo con el mismo patrón**, no una generalización de aquel:
+cuatro tablas de la App (`cobros`, `cobro_adjuntos`, `cobro_ciclos`,
+`cobros_config`) con `CREATE TABLE IF NOT EXISTS` y el reintento del `42P01`
+mirando `meta.code`. **`UserBilling` no se toca**, ni para leer. Fundirlos
+habría hecho que confirmarle el pago a un cliente de internet moviera el
+vencimiento de la licencia de la App.
+
+Lo que sí se reutiliza, y por eso no hay envío nuevo:
+`sendViaWhatsAppDispatcher` (Evolution, Waha y Meta en una llamada),
+`resolveWhatsAppDispatcherLine` con **`includeAdminFallback: false`**,
+`BloqueDeAdjuntos` con `taskId={null}` y el reloj de `/api/cron/billing`.
+
+**El respaldo a la línea de Verzay se apaga a propósito.** Sin ese `false`, una
+cuenta sin línea conectada mandaría los cobros desde el número oficial de la
+plataforma: desde fuera, un desconocido pidiéndole dinero a un cliente que no
+sabe quién es. Es preferible que no salga y que la pantalla lo diga —lo dice, en
+la cabecera y en la configuración—.
+
+### La guarda de una confirmación es el VENCIMIENTO, no el estado
+
+Es la trampa del cobro recurrente y la cazó el banco. Confirmar un pago **anota
+el ciclo, salta el vencimiento y devuelve la fila a `pendiente`**, así que el
+estado no distingue un ciclo del siguiente. Con `AND "estado" = 'pendiente'` a
+secas, dos confirmaciones a la vez pasaban **las dos**: la segunda se quedaba
+esperando en el `FOR UPDATE` y al despertar encontraba la fila otra vez en
+`pendiente`. Medido: el vencimiento saltaba **60 días en vez de 30**, o sea un
+mes regalado por un doble clic.
+
+Lo que identifica un ciclo es **la fecha que se está cerrando**. Quien confirma
+manda el vencimiento que vio y el `UPDATE` lleva
+`AND "vence" IS NOT DISTINCT FROM ${venceQueSeVio}`; si la fila ya no lo tiene,
+alguien se adelantó y esta no toca nada. Vale también para una deuda sin fecha,
+que después de la primera confirmación ya tiene una. Esa fecha **solo se
+compara, nunca se escribe**: una lista que llega de fuera no puede decidir a qué
+día salta el ciclo.
+
+Y las tres escrituras van en **una transacción**, porque a medias cada pareja
+miente: sin el ciclo se pierde que ese cliente lleva ocho meses pagando; sin
+borrar las marcas de recordatorio, el ciclo nuevo **nace mudo** porque el
+anti-spam del viejo se come su primer aviso.
+
+### Lo que no salió no se anota
+
+Dos casos, y los dos se ven igual de mal si se hacen al revés:
+
+1. **Sin línea conectada no se anota.** El día que la cuenta conecte la suya,
+   la deuda vuelve a entrar por ese mismo hito en vez de haberlo perdido.
+2. **Un envío fallido tampoco.** Anotarlo haría que el anti-spam diera por
+   escrito un mensaje que no salió, y ese hito se perdería para siempre sin que
+   nadie se entere.
+
+Anotar es decir «ya se le escribió». Si no se le escribió, no se dice.
+
+### A quién se le insiste, y los tres hitos
+
+Los recordatorios son **tres días exactos y no un rango**: N antes, el día 0 y N
+después. «Cualquier día en negativo» es lo que hacía que un cliente del cobro de
+la plataforma recibiera uno el día 1, otro el 2 y otro el 3 hasta la suspensión;
+aquí nace corregido.
+
+Y **paran en «comprobante recibido» y no vuelven** hasta el ciclo siguiente. En
+ese estado la pelota está en nuestra cancha —mandó el soporte y espera que
+alguien lo mire—, así que seguir cobrándole es el peor mensaje posible.
+
+### El estado se guarda; la situación se CALCULA
+
+Como la fila vuelve a `pendiente` en cuanto se confirma, pintar el estado
+guardado a secas dejaría una cartera entera de clientes al día en «Pendiente»,
+que es tanto como no decir nada. `situacionDelCobro` sale de la fecha
+—`comprobante`, `vencida`, `porVencer`, `alDia`, `sinFecha`— y el orden de la
+tabla es ese: **arriba lo que pide algo de tu parte**, y lo que está al día al
+final, porque no hace falta mirarlo.
+
+### `Number(null)` es 0, no `NaN`
+
+Costó un caso del banco. `comoDiasDeGracia(null)` devolvía **0** —un cero
+perfectamente válido, porque en la gracia el cero SÍ es una respuesta: «al día
+siguiente ya está vencida»— en vez del valor por defecto. Un `null` colado
+apagaba la gracia de esa fila sin que nadie lo hubiera pedido.
+
+**«No hay valor» y «vale cero» se separan a mano**, antes de convertir. Si se
+escribe otro saneador de números donde el cero signifique algo, va igual.
+
+### Y la ruta no está montada: la puerta va en la acción
+
+`/cobros` entra en `navigationRoutes` —el desplegable de «Editar módulo»— y **no
+se monta en ningún módulo**: se asigna a mano. Eso tiene una consecuencia que no
+es obvia: el guardián del layout arma `rutasNegadas` con las rutas que **sí**
+están en algún módulo y denegadas, así que una que no está en ninguno nunca
+entra ahí y se alcanza escribiendo la URL.
+
+Por eso cada acción resuelve la cuenta y pasa por `assertCanAccessTargetUser`, y
+la pantalla solo pinta lo que le devuelvan. **Si se añade otra pantalla que se
+vaya a asignar a mano, va igual**: la puerta en la acción, nunca en la página.
+
 ## Next: no bajar de 14.2.25, y cómo comprobarlo
 
 La App estuvo en Next `14.2.4` con la CVE-2025-29927: una cabecera

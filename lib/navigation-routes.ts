@@ -90,6 +90,9 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/google-sheets" },
     { route: "/afiliados" },
     { route: "/clientes" },
+    // La cartera de cobro de una cuenta con SUS clientes. Entra en el
+    // desplegable y **no** se monta en ningun modulo: se asigna a mano.
+    { route: "/cobros" },
     { route: "/cotizaciones" },
     { route: "/credits" },
     { route: "/messages" },
