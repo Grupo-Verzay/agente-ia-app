@@ -1780,6 +1780,65 @@ La carpeta es de la **cuenta**, con `effectiveId`, que es el mismo valor con el
 que agrupan Proyectos (`ownerId ?? id`) y Diagramas. Si se usara otro, las
 carpetas quedarían en una cuenta y las cosas en otra.
 
+### Y el ORDEN de las tarjetas, por lo mismo y por una razón más
+
+Las tarjetas de Proyectos y de Diagramas se reordenan arrastrándolas, con el
+mismo patrón de los módulos —`@dnd-kit`, y el asa `GripVertical` en una esquina,
+no la tarjeta entera: estas están llenas de botones y con los oyentes en la
+tarjeta cada clic compite con un arrastre—.
+
+**El orden es de la CUENTA, uno solo**, como las carpetas: lo que coloca alguien
+lo ve su equipo. No es una preferencia de cada persona; si lo fuera, dos asesores
+mirando la misma pantalla verían dos pantallas distintas y no podrían decirse «el
+tercero empezando por arriba». Lo mueve quien administra (`canManageWorkspace`);
+un **agente lo ve y no lo toca**, y la puerta está en `guardarElOrdenAction`, no
+en la pantalla — esconder el asa evita el arrastre accidental, no la petición.
+
+Y **Diagramas usa exactamente el mismo mecanismo**, por un motivo que no es el de
+siempre y conviene no confundir:
+
+> Con `Project` vale la razón conocida —es del BACKEND y añadirle columnas desde
+> aquí es lo que reventó el #360—. Pero `flows` **sí es tabla nuestra** y
+> admitiría una columna `orden`, así que la pregunta es legítima. No se puede
+> igual: **una cosa compartida tiene UNA fila y DOS sitios.** Un proyecto
+> compartido con la cuenta de un cliente sale en las dos pantallas y cada cuenta
+> lo coloca donde quiera; una columna en la fila solo guarda una posición, así
+> que moverlo en una cuenta se lo movería a la otra. `flow_shares` tiene el mismo
+> problema. **La posición es de la pareja cuenta + cosa**, y por eso vive en
+> `work_item_order`, al lado de `work_folder_items`.
+
+Tres cosas que hay que mantener:
+
+1. **Sin nada guardado, la lista sale TAL CUAL llegó.** El mapa vacío no ordena
+   nada, así que esto no cambió ninguna pantalla hasta que alguien arrastró la
+   primera tarjeta: el orden de siempre —lo último editado arriba— seguía
+   mandando. Y **lo que no tiene posición va PRIMERO**: un proyecto creado hoy no
+   puede caer al fondo de cuarenta tarjetas colocadas hace un mes, porque crear
+   algo y no verlo se lee como que no se creó.
+2. **Arrastrar guarda la lista COMPLETA, no la que se ve.** Es la trampa, y no se
+   nota probando sin filtros: la rejilla puede estar filtrada por texto, estado,
+   responsable o carpeta, así que se mueven las visibles y hay que escribir
+   todas. Calculando `0..n` sobre lo visible, lo escondido pierde su sitio y
+   salta al principio **al quitar el filtro**, que es cuando ya nadie relaciona
+   las dos cosas. El banco lo reproduce a propósito antes de probar lo bueno.
+   Por eso el movimiento se calcula sobre la lista entera
+   (`moverEnLaListaCompleta`), usando el sitio que ocupa en ella la tarjeta sobre
+   la que se soltó.
+3. **Una consulta, no una por tarjeta.** Los módulos guardan con un
+   `updateModuleOrder` por tarjeta y con ocho se aguanta; con cuarenta proyectos
+   serían cuarenta peticiones por arrastre, que es «muchas peticiones pequeñas
+   son turno, no trabajo». Va un `INSERT ... ON CONFLICT` de varias filas. Y los
+   **ids repetidos se descartan antes**: dos veces la misma fila en un mismo
+   `INSERT` y Postgres rechaza el comando entero.
+
+Y dos de rejilla, medidas y no a ojo: la tarjeta pasa a colgar del envoltorio y
+no de la rejilla, así que **necesita `h-full`** o deja de estirarse hasta la
+altura de su fila y vuelve la rejilla escalonada; y el hueco del asa se reserva
+con un `pl-*` **solo en la primera fila** de la tarjeta —el asa está arriba, y
+desplazar la tarjeta entera dejaría el resto descolgado—. La estrategia de
+`@dnd-kit` es **`rectSortingStrategy`**, no la `verticalListSortingStrategy` de
+los módulos: esto es una rejilla de varias columnas y aquella solo sabe de una.
+
 ### Un fichero `'use server'` SOLO exporta funciones asíncronas
 
 Esto costó la primera versión entera. `actions/carpetas-actions.ts` exportaba

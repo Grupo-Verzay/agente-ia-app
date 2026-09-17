@@ -63,6 +63,11 @@ import {
 } from '@/actions/flow-actions';
 import type { FlowVisibility } from '@/lib/flow-visibility';
 import { BarraDeCarpetas, MoverACarpeta, useCarpetas } from '@/components/shared/Carpetas';
+import {
+  RejillaOrdenable,
+  TarjetaOrdenable,
+  useOrdenDeTarjetas,
+} from '@/components/shared/OrdenDeTarjetas';
 import { CompartirConCuentasDialog } from '@/components/shared/CompartirConCuentasDialog';
 
 /**
@@ -104,7 +109,7 @@ function cuandoSeTocó(fecha: Date | string): string {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export function DiagramasListClient() {
+export function DiagramasListClient({ puedeOrdenar = false }: { puedeOrdenar?: boolean }) {
   const router = useRouter();
   const [flows, setFlows] = useState<FlowSummary[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -116,10 +121,16 @@ export function DiagramasListClient() {
   const [duplicando, setDuplicando] = useState<string | null>(null);
   const [compartiendo, setCompartiendo] = useState<FlowSummary | null>(null);
   const carpetas = useCarpetas('diagrama');
+  const orden = useOrdenDeTarjetas('diagrama', puedeOrdenar);
+
+  // La lista ENTERA ya colocada. Es la que se guarda al arrastrar, no la
+  // filtrada: con una carpeta puesta se mueven las visibles, pero las demás
+  // tienen que conservar su sitio.
+  const todasColocadas = orden.colocar(flows ?? [], (f) => f.id);
 
   // Lo que se ve con la carpeta puesta. Lo recibido de otra cuenta también se
   // puede archivar: es tuyo en tu pantalla aunque el original sea de otro.
-  const visibles = (flows ?? []).filter((f) => carpetas.enLaCarpeta(f.id));
+  const visibles = todasColocadas.filter((f) => carpetas.enLaCarpeta(f.id));
   const cuentaPorCarpeta: Record<string, number> = {};
   let sueltas = 0;
   for (const f of flows ?? []) {
@@ -247,16 +258,24 @@ export function DiagramasListClient() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <RejillaOrdenable
+          ids={todasColocadas.map((f) => f.id)}
+          puedeOrdenar={orden.puedeOrdenar}
+          onMover={(ids, arrastrada, soltadaSobre) => void orden.mover(ids, arrastrada, soltadaSobre)}
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        >
           {visibles.length === 0 && (
             <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
               Esta carpeta está vacía.
             </p>
           )}
           {visibles.map((flow) => (
+            <TarjetaOrdenable key={flow.id} id={flow.id} puedeOrdenar={orden.puedeOrdenar}>
+            {/* `h-full` porque ahora la tarjeta cuelga del envoltorio y no de la
+                rejilla: sin él dejaría de estirarse hasta la altura de su fila y
+                volvería la rejilla escalonada que costó rediseñarla. */}
             <Card
-              key={flow.id}
-              className="group flex cursor-pointer flex-col transition-colors hover:border-primary/60 hover:bg-accent/40"
+              className="group flex h-full cursor-pointer flex-col transition-colors hover:border-primary/60 hover:bg-accent/40"
               onClick={() => router.push(`/diagramas/${flow.id}`)}
             >
               {/* TRES FILAS, siempre las mismas: nombre, pasos y fecha, y el
@@ -264,7 +283,12 @@ export function DiagramasListClient() {
                   tarjetas, y todas con la misma altura: antes los datos iban en
                   una fila que se partía sola, así que una tarjeta ocupaba una
                   línea y la de al lado tres, y la rejilla salía escalonada. */}
-              <CardHeader className="flex flex-row items-start gap-3 space-y-0 p-4 pb-2">
+              {/* Sitio reservado para el asa, como el `pl-8` de la cabecera de
+                  un módulo. Solo cuando se puede ordenar: al agente no le sale
+                  asa y no tiene por qué perder ese hueco. */}
+              <CardHeader
+                className={`flex flex-row items-start gap-3 space-y-0 p-4 pb-2 ${orden.puedeOrdenar ? 'pl-9' : ''}`}
+              >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                   <DiagramIcon className="h-4.5 w-4.5 text-primary" />
                 </span>
@@ -432,8 +456,9 @@ export function DiagramasListClient() {
                 </div>
               </CardContent>
             </Card>
+            </TarjetaOrdenable>
           ))}
-        </div>
+        </RejillaOrdenable>
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

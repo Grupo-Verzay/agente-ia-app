@@ -39,6 +39,11 @@ import {
   type ProjectData, type ProjectStatus,
 } from "@/lib/project-types";
 import { BarraDeCarpetas, MoverACarpeta, useCarpetas } from "@/components/shared/Carpetas";
+import {
+  RejillaOrdenable,
+  TarjetaOrdenable,
+  useOrdenDeTarjetas,
+} from "@/components/shared/OrdenDeTarjetas";
 import { CompartirConCuentasDialog } from "@/components/shared/CompartirConCuentasDialog";
 import type { Carpeta as CarpetaDeProyecto } from "@/lib/carpetas";
 import { ProjectBoard } from "./ProjectBoard";
@@ -169,9 +174,12 @@ export function ProjectsClient({
   userId,
   team,
   repartoDelTrabajo,
+  puedeOrdenar = false,
 }: {
   userId: string;
   team: AdvisorInfo[];
+  /** Si sale el asa para arrastrar. La puerta de verdad está en la acción. */
+  puedeOrdenar?: boolean;
   /**
    * El reparto del trabajo, ya pintado en el servidor.
    *
@@ -206,6 +214,7 @@ export function ProjectsClient({
   // no lo que se viene a hacer a esta pantalla.
   const [verReparto, setVerReparto] = useState(false);
   const carpetas = useCarpetas("proyecto");
+  const orden = useOrdenDeTarjetas("proyecto", puedeOrdenar);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -260,9 +269,19 @@ export function ProjectsClient({
   // cada render y no servía de nada.
   const { enLaCarpeta } = carpetas;
 
+  // La lista ENTERA ya colocada. Es la que se guarda al arrastrar, no la
+  // filtrada: aquí hay tres filtros encima —texto, estado y responsable, más la
+  // carpeta— y guardando solo lo visible, lo escondido perdería su sitio sin que
+  // nadie lo notara hasta quitar el filtro.
+  const { colocar } = orden;
+  const todosColocados = useMemo(
+    () => colocar(projects, (p) => String(p.id)),
+    [projects, colocar],
+  );
+
   const visibleProjects = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return projects.filter((p) => {
+    return todosColocados.filter((p) => {
       if (q && !p.name.toLowerCase().includes(q) && !(p.description ?? "").toLowerCase().includes(q)) {
         return false;
       }
@@ -273,7 +292,7 @@ export function ProjectsClient({
       }
       return true;
     });
-  }, [projects, query, estado, responsable, userId, enLaCarpeta]);
+  }, [todosColocados, query, estado, responsable, userId, enLaCarpeta]);
 
   // Cuántos hay en cada carpeta, para el número del chip. Sale de la lista
   // completa: el número dice lo que hay dentro, no lo que deja ver el filtro.
@@ -517,22 +536,33 @@ export function ProjectsClient({
           )}
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 items-stretch gap-3 overflow-y-auto pb-2 sm:grid-cols-2 lg:grid-cols-3">
+        <RejillaOrdenable
+          ids={todosColocados.map((p) => String(p.id))}
+          puedeOrdenar={orden.puedeOrdenar}
+          onMover={(ids, arrastrada, soltadaSobre) => void orden.mover(ids, arrastrada, soltadaSobre)}
+          className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 items-stretch gap-3 overflow-y-auto pb-2 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {visibleProjects.map((project) => (
-            <ProjectCard
+            <TarjetaOrdenable
               key={project.id}
-              project={project}
-              canManage={project.puedeGestionar}
-              carpetas={carpetas.carpetas}
-              carpetaActual={carpetas.deCadaCosa[String(project.id)] ?? null}
-              onMoverACarpeta={(id) => void carpetas.mover(String(project.id), id)}
-              onOpen={() => setOpenProjectId(project.id)}
-              onEdit={() => setEditing(project)}
-              onDelete={() => setDeleteTarget(project)}
-              onCompartir={() => setCompartiendo(project)}
-            />
+              id={String(project.id)}
+              puedeOrdenar={orden.puedeOrdenar}
+            >
+              <ProjectCard
+                project={project}
+                canManage={project.puedeGestionar}
+                puedeOrdenar={orden.puedeOrdenar}
+                carpetas={carpetas.carpetas}
+                carpetaActual={carpetas.deCadaCosa[String(project.id)] ?? null}
+                onMoverACarpeta={(id) => void carpetas.mover(String(project.id), id)}
+                onOpen={() => setOpenProjectId(project.id)}
+                onEdit={() => setEditing(project)}
+                onDelete={() => setDeleteTarget(project)}
+                onCompartir={() => setCompartiendo(project)}
+              />
+            </TarjetaOrdenable>
           ))}
-        </div>
+        </RejillaOrdenable>
       )}
 
       <ProjectDialog
@@ -594,6 +624,7 @@ export function ProjectsClient({
 function ProjectCard({
   project,
   canManage,
+  puedeOrdenar,
   carpetas,
   carpetaActual,
   onMoverACarpeta,
@@ -604,6 +635,8 @@ function ProjectCard({
 }: {
   project: ProjectData;
   canManage: boolean;
+  /** Si hay asa en la esquina, para reservarle su hueco. */
+  puedeOrdenar: boolean;
   carpetas: CarpetaDeProyecto[];
   carpetaActual: string | null;
   onMoverACarpeta: (carpetaId: string | null) => void;
@@ -628,7 +661,11 @@ function ProjectCard({
       onClick={onOpen}
     >
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start gap-2">
+        {/* Sitio reservado para el asa, como el `pl-8` de la cabecera de un
+            módulo, y solo en la PRIMERA fila: el asa está arriba, así que
+            desplazar la tarjeta entera dejaría el resto descolgado. Al agente no
+            le sale asa y no pierde ese hueco. */}
+        <div className={cn("flex items-start gap-2", puedeOrdenar && "pl-7")}>
           <p className="min-w-0 flex-1 font-semibold leading-snug">{project.name}</p>
           {/* Quietas hasta que el puntero entra o llega el teclado: la papelera
               roja permanente era lo más llamativo de la tarjeta. Van en la fila,
