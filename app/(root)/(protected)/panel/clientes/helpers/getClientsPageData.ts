@@ -5,6 +5,7 @@ import { getEnrichedClients } from "@/actions/userClientDataActions";
 import { obtenerApiKeys } from "@/actions/api-action";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
+import { rolConElQueReparte } from "@/lib/gestion-de-clientes";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { db } from "@/lib/db";
 import { PLAN_LABELS } from "@/types/plans";
@@ -25,6 +26,14 @@ type ClientsPageData = {
     apikeys: ApiKey[];
     availableApikeys: ApiKey[];
     currentUserRol: string;
+    /**
+     * Con qué rol reparte roles quien mira. NO es `currentUserRol`: un súper
+     * administrador metido en otra cuenta reparte como súper administrador,
+     * aunque la cuenta en la que esté sea de un cliente. Con esto el
+     * desplegable de rol lista exactamente lo que la acción de guardar va a
+     * aceptar — misma función, `lib/roles-que-puede-otorgar.ts`.
+     */
+    rolQueReparte: string;
     countries: Country[];
     allModules: ModuleWithItems[];
     resellerPools: ResellerPoolOption[];
@@ -43,6 +52,7 @@ export async function getClientsPageData(): Promise<
         // mismo criterio —si la cuenta es un reseller, los del reseller; si es
         // de la casa, los de la casa sin los de ningún reseller—.
         const cuenta = await cuentaQueManda(user);
+        const rolQueReparte = await rolConElQueReparte(user);
 
         // Un colaborador del equipo no tiene rol de admin, pero puede tener
         // clientes asignados: entonces ve esos y solo esos. Es lo que le permite
@@ -147,6 +157,7 @@ export async function getClientsPageData(): Promise<
                 // esto es la fachada de una puerta que ya está abierta, no la
                 // puerta.
                 currentUserRol: cuenta.role,
+                rolQueReparte,
                 countries,
                 allModules: allModules as ModuleWithItems[],
                 resellerPools,

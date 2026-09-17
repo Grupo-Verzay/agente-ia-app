@@ -3159,6 +3159,72 @@ Tres cosas que hay que mantener:
    cliente*, sino entera. Es lo que se pidió; si algún día hace falta el otro
    modo, es una condición aparte, no quitar esta.
 
+## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
+
+En Panel › Clientes el desplegable de rol listaba **los cinco** roles a
+cualquiera que abriera la pantalla (`Object.values(Role)`), y `updateClientData`
+copiaba el `role` del formulario **tal cual** a `db.user.update`. La única
+puerta que había —`exigirGestionDelCliente`— contesta «¿gestionas a este
+cliente?» y nada más. La segunda pregunta, **qué rol le estás poniendo**, no la
+hacía nadie.
+
+Así que un `admin` podía hacerse a sí mismo o a un compañero «Super
+administrador». Y desde Verzay | Atencion —cuenta vinculada, rol `admin`— el
+listado devolvía **a su propia madre**, Grupo Verzay, porque `getEnrichedClients`
+trae a todo el que no tenga `ownerId`: con la fila delante se le podía abrir la
+ficha y degradarla.
+
+La regla, y las dos mitades que hay que mantener juntas:
+
+> **Nadie otorga un rol igual o superior al suyo.** Un `admin` llega hasta
+> `reseller`; «Administrador» y «Super administrador» **solo los reparte un
+> súper administrador de verdad** —el de la PERSONA (`esSuperAdminDeVerdad`), no
+> el de la cuenta en la que esté metida—. El súper administrador es la única
+> excepción, y tiene que serlo: con «ni igual ni superior» aplicado a él no
+> quedaría nadie capaz de crear otro.
+
+Y la mitad que se olvida: **se miran las DOS puntas, el rol nuevo y el que ya
+tenía**. Sin eso, un `admin` no puede ascender a nadie a `super_admin` pero sí
+puede **degradar** al súper administrador a `user` —que es «otorgar un rol
+inferior», permitido por la letra— y quedarse mandando él. Es la misma escalada
+por el otro lado.
+
+Quien lo decide es `lib/roles-que-puede-otorgar.ts`, **puro y sin imports**, y
+lo usan los dos lados:
+
+1. **El servidor manda.** `elRolQueSePuedeGuardar` en `updateClientData`,
+   `elRolConElQueNace` en `createUserWithPausar`. **Esconder la opción no cierra
+   la petición directa**: el desplegable es la fachada de esa puerta, no la
+   puerta. Y el veredicto se devuelve como dato, no con un `throw`: el `catch`
+   de estas acciones convierte cualquier excepción en «Error interno al
+   actualizar los datos», que es tanto como no decir por qué.
+2. **El desplegable sale de la MISMA función**, con `rolQueReparte` calculado en
+   el servidor (`rolConElQueReparte`) y bajado como prop. Con dos listas, el día
+   que se afine una el otro lado se queda atrás y aparece un «No autorizado»
+   sobre una opción que la pantalla ofrecía.
+
+Tres cosas más:
+
+- **La puerta de un solo campo existe y es la que se olvida.**
+  `updateClientDataByField` escribe `{ [field]: valor }` con el nombre que le
+  manden, y su portero solo mira si quien llama tiene rol de admin o reseller.
+  Era una segunda puerta al `role`. Ahora `role`, `password` y los campos de
+  identidad se rechazan en seco por ahí: el rol se cambia en Clientes, que es
+  donde pasa por la regla.
+- **`id`, `ownerId` y `tokenVersion` no se copian de un formulario.**
+  `assignNonBooleanFields` copia lo que venga, así que la identidad de la fila
+  —quién es y de quién cuelga— se escribía igual que el teléfono.
+- **Una cuenta vinculada no manda sobre la cuenta de la que cuelga.**
+  `cuentasDeLasQueCuelga` las resuelve por los dos caminos de siempre
+  (`linked_accounts` y `owner_id`), y se aplica en los dos sitios: se filtran
+  del listado y se rechazan en `puedeGestionarAlCliente`, que es la llave de
+  Editar, Módulos, Asignar y Eliminar. **La dirección importa**: la madre manda
+  sobre la hija, no al revés. Y va **antes** del `isAdminLike`, porque la cuenta
+  vinculada de este caso tiene rol `admin` y esa línea la dejaba pasar.
+
+El súper administrador de plataforma no se filtra por ninguna de las dos cosas:
+su regla sigue siendo ver y administrar todo, en cualquier cuenta.
+
 ## Enseñar un panel y dejar pasar a su ruta son dos preguntas
 
 La misma pregunta —«¿cuál panel es el tuyo?»— estaba escrita **cuatro veces**,

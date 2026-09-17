@@ -34,11 +34,13 @@ interface Props {
     apikeys: ApiKey[],
     availableApikeys: ApiKey[],
     currentUserRol: string,
+    /** Con qué rol reparte roles quien mira. Lo calcula el servidor. */
+    rolQueReparte: string,
     countries: Country[],
     allModules: ModuleWithItems[],
 };
 
-export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries, allModules }: Props) => {
+export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, rolQueReparte, countries, allModules }: Props) => {
     const router = useRouter();
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -277,6 +279,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     setOpenCreateDialog={setOpenCreateDialog}
                     openCreateDialog={openCreateDialog}
                     apikeys={availableApikeys}
+                    rolQueReparte={rolQueReparte}
                 />
             )}
             {/* Dialog editar */}
@@ -288,6 +291,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     user={user}
                     apikeys={apikeys}
                     currentUserRol={currentUserRol}
+                    rolQueReparte={rolQueReparte}
                 />
             )}
             {/* Dialog cambiar plan */}

@@ -24,7 +24,12 @@ import {
 import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox";
 import { PLAN_LEVEL_LABELS, PLANS } from "@/types/plans";
 import { getPlanLabelsForMyBrand } from "@/actions/subscription-plan-actions";
-import { ApiKey, Role } from "@prisma/client";
+import { ApiKey } from "@prisma/client";
+import {
+  NOMBRE_DEL_ROL,
+  rolesQuePuedeOtorgar,
+  type RolDePlataforma,
+} from "@/lib/roles-que-puede-otorgar";
 import { userSchema, UserFormValues } from "@/schema/user";
 import { Country } from "@/components/custom/CountryCodeSelect";
 import { toast } from "sonner";
@@ -39,15 +44,6 @@ const PLAN_SUPPORTS_CRM: Record<string, boolean> = {
   personalizado: true,
 };
 
-const ROLES = Object.values(Role);
-const ROLE_LABELS: Record<Role, string> = {
-  user: "Usuario",
-  affiliate: "Afiliado",
-  reseller: "Reseller",
-  admin: "Administrador",
-  super_admin: "Super administrador",
-};
-
 interface Props {
   openCreateDialog: boolean;
   setOpenCreateDialog: (open: boolean) => void;
@@ -55,6 +51,8 @@ interface Props {
   apikeys: ApiKey[];
   countries: Country[];
   currentUserRol?: string;
+  /** Con qué rol reparte roles quien mira. Lo calcula el servidor. */
+  rolQueReparte: string;
   resellerPools?: ResellerPoolOption[];
 }
 
@@ -64,9 +62,14 @@ export const CreateDialog = ({
   handleCreate,
   apikeys,
   currentUserRol,
+  rolQueReparte,
   resellerPools = [],
 }: Props) => {
   const isReseller = currentUserRol === 'reseller';
+  // Solo los roles que quien mira puede otorgar. La misma lista que comprueba
+  // la accion de crear, para que el desplegable no ofrezca lo que el servidor
+  // va a rechazar.
+  const ROLES: RolDePlataforma[] = rolesQuePuedeOtorgar(rolQueReparte);
 
   // Los nombres con los que SU marca vende cada nivel. La tabla interna decía
   // "Agencias" para el nivel 6 y "Enterprise" para el 5, que no es como los
@@ -244,14 +247,14 @@ export const CreateDialog = ({
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs font-semibold text-foreground">Rol</Label>
-                    <Select onValueChange={(v) => setValue("role", v as "user" | "reseller" | "admin" | "super_admin")} defaultValue="user">
+                    <Select onValueChange={(v) => setValue("role", v as RolDePlataforma)} defaultValue="user">
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona un rol" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
                           {ROLES.map((role) => (
-                            <SelectItem key={role} value={role}>{ROLE_LABELS[role]}</SelectItem>
+                            <SelectItem key={role} value={role}>{NOMBRE_DEL_ROL[role]}</SelectItem>
                           ))}
                         </SelectGroup>
                       </SelectContent>

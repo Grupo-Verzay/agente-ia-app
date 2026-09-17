@@ -11,7 +11,15 @@ import { currentUser } from '@/lib/auth';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
 import { clientesDelAsesor } from '@/lib/clientes-del-asesor';
 import { cuentaQueManda } from '@/lib/cuenta-que-manda';
-import { exigirGestionDelCliente, puedeAdministrarClientes, puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
+import {
+  cuentasDeLasQueCuelga,
+  elRolConElQueNace,
+  elRolQueSePuedeGuardar,
+  exigirGestionDelCliente,
+  puedeAdministrarClientes,
+  puedeGestionarAlCliente,
+} from '@/lib/gestion-de-clientes';
+import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad';
 import { purgarCuentaEliminada } from '@/lib/purge-account.server';
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
@@ -29,7 +37,20 @@ type FilterOptions = {
   // el panel de Verzay no liste los clientes de los resellers.
   excludeResellerClients?: boolean;
 };
-const RESTRICTED_FIELDS = new Set<string>(['openMsg', 'passPlainTxt']);
+// Campos que NUNCA se copian de un formulario, por mucho que lleguen. `id` y
+// `ownerId` son la identidad de la fila —quién es y de quién cuelga—, y
+// `tokenVersion` es lo que invalida las sesiones: los tres se escribían tal
+// cual porque `assignNonBooleanFields` copia lo que venga. El `role` no está
+// aquí porque sí se puede cambiar, pero solo pasando por
+// `elRolQueSePuedeGuardar` (ver más abajo).
+const RESTRICTED_FIELDS = new Set<string>([
+  'openMsg',
+  'passPlainTxt',
+  'id',
+  'ownerId',
+  'owner_id',
+  'tokenVersion',
+]);
 const BOOLEAN_FIELDS = [
   'muteAgentResponses',
   'onFacebook',
@@ -79,6 +100,26 @@ const clientesPermitidos = async (): Promise<Set<string> | null> => {
 };
 
 /**
+ * Las cuentas que esta lista NO puede enseñar: aquellas de las que cuelga la
+ * cuenta que mira.
+ *
+ * Desde una cuenta vinculada con rol `admin` —Verzay | Atencion bajo Grupo
+ * Verzay— esta consulta devolvía a su propia madre, porque trae a todo el que
+ * no tenga `ownerId`. Y con la fila delante se le podía abrir la ficha.
+ *
+ * El súper administrador de plataforma no se filtra: su regla es ver y
+ * administrar todo, en cualquier cuenta.
+ */
+const cuentasQueNoSeEnsenan = async (): Promise<string[]> => {
+  const me = await currentUser();
+  if (!me) return [];
+  if (esSuperAdminDeVerdad(me)) return [];
+  const cuenta = await cuentaQueManda(me);
+  if (!cuenta.id) return [];
+  return cuentasDeLasQueCuelga(cuenta.id);
+};
+
+/**
  * Quien manda en el panel de Clientes: la plataforma, un reseller sobre los
  * suyos, y el `administrador` de una cuenta, que actua por ella.
  *
@@ -109,6 +150,7 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
     // asignados: entonces lee, y solo los suyos. Se acota aquí y no en quien
     // llama, para que ninguna pantalla pueda pedir de más por descuido.
     const soloEstos = await clientesPermitidos();
+    const prohibidas = await cuentasQueNoSeEnsenan();
 
     let userIds: string[] | undefined;
 
@@ -172,12 +214,18 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       // base unos segundos mientras se purgan sus datos, y sin esto reaparecían
       // en la lista después de borrarlas.
       where: userIds
-        ? { id: { in: userIds }, ownerId: null, deletedAt: null }
+        ? {
+            id: { in: userIds.filter((id) => !prohibidas.includes(id)) },
+            ownerId: null,
+            deletedAt: null,
+          }
         : {
             ownerId: null,
             deletedAt: null,
             ...(filter?.excludeResellerClients ? { demoResellerId: null } : {}),
-            ...(resellerAssignedIds.length ? { id: { notIn: resellerAssignedIds } } : {}),
+            ...(resellerAssignedIds.length || prohibidas.length
+              ? { id: { notIn: [...resellerAssignedIds, ...prohibidas] } }
+              : {}),
           },
       include: {
         pausar: true,
@@ -481,6 +529,16 @@ export const updateClientDataByField = async (
     if (!field) {
       return { success: false, message: 'El campo no existe en este formulario.' };
     }
+    // Esta acción escribe `{ [field]: valor }` con el nombre que le manden, así
+    // que es una segunda puerta al `role` — y su portero, `ensureSelfOrAdmin`,
+    // solo mira si quien llama tiene rol de admin o reseller. Ninguna pantalla
+    // manda estos campos por aquí (Perfil escribe datos de la ficha y el tema),
+    // así que se cierran en seco: el rol se cambia en Clientes, que es donde
+    // pasa por `elRolQueSePuedeGuardar`.
+    if (RESTRICTED_FIELDS.has(field) || field === 'role' || field === 'password') {
+      console.warn('[clientes] se intentó escribir un campo protegido por el camino de un solo campo', { field });
+      return { success: false, message: `El campo "${field}" no se cambia por aquí.` };
+    }
 
     const isBooleanField = (BOOLEAN_FIELDS as readonly string[]).includes(field);
     const parsedValue = isBooleanField ? (value === 'true' || value === 'on') : value;
@@ -519,6 +577,19 @@ export const updateClientData = async (userId: string, formData: FormData) => {
     assignNonBooleanFields(formData, dataToUpdate);
 
     if (!formData.has('password')) delete dataToUpdate.password;
+
+    // El rol NO se copia a ciegas. `exigirGestionDelCliente` contesta «¿gestionas
+    // a este cliente?» y nada más; el rol que se le pone es otra pregunta, y era
+    // la que faltaba: un `admin` podía escribir `super_admin` en el formulario y
+    // la acción lo guardaba. Se mira el que pide y el que ya tenía — degradar a
+    // quien está por encima es la misma escalada por el otro lado.
+    if ('role' in dataToUpdate) {
+      const fila = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const veredicto = await elRolQueSePuedeGuardar(me, dataToUpdate.role, fila?.role);
+      if (!veredicto.ok) return { success: false, message: veredicto.motivo };
+      if (veredicto.rol === undefined) delete dataToUpdate.role;
+      else dataToUpdate.role = veredicto.rol;
+    }
 
     if (Object.keys(dataToUpdate).length === 0) {
       return { success: false, message: "No se encontraron campos válidos para actualizar." };
@@ -657,6 +728,13 @@ export const createUserWithPausar = async (
     const cuenta = await cuentaQueManda(me);
 
     const { openingPhrase, subscriptionPlanId, ...userFields } = userData;
+
+    // Con qué rol nace. Es el mismo agujero que el de editar, un paso antes:
+    // el formulario mandaba el rol y `createUserWithPausar` lo guardaba, así
+    // que un `admin` podía crearse un «Super administrador» de cero.
+    const conQueRol = await elRolConElQueNace(me, userFields.role);
+    if (!conQueRol.ok) return { success: false, message: conQueRol.motivo };
+    userFields.role = conQueRol.rol ?? 'user';
 
     // Si el creador es reseller, vincular el cliente a su pool y heredar su
     // configuración de Evolution/IA cuando el formulario no la trae (esos
