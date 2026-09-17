@@ -434,10 +434,59 @@ export type CobroParaEnviar = {
     monto: number | null;
     moneda: string;
     vence: Date | null;
+    /** La línea escrita a mano en ESTA deuda. Ver `conLaNota`. */
+    notaDePago: string | null;
 };
 
+/** Lo que cabe en la nota de una deuda. Una cuenta bancaria con su titular, o un enlace. */
+export const TOPE_DE_LA_NOTA = 1000;
+
 /**
- * El texto que se le manda, ya con sus variables puestas.
+ * «Sin nota» se guarda como `null`, nunca como espacios ni cadena vacía.
+ *
+ * Y se aplica **al escribir**, en `cobros-db`, no solo en la acción: con el
+ * saneado únicamente en la acción, la columna admitía `"   "` en cuanto alguien
+ * llamara a la función de la base por otro camino, y entonces `null` y «espacios»
+ * serían dos formas de decir lo mismo — que es como se acaba teniendo lectores
+ * que no se ponen de acuerdo. Lo cazó el banco.
+ */
+export function comoNotaDePago(valor: unknown): string | null {
+    const texto = String(valor ?? "").trim();
+    if (!texto) return null;
+    return texto.slice(0, TOPE_DE_LA_NOTA);
+}
+
+/**
+ * La nota de la deuda va **al final del mensaje, siempre, y pegada por fuera de
+ * la plantilla**. Es la decisión de esta función y conviene entender por qué,
+ * porque las otras dos formas que parecen mejores fallan en silencio:
+ *
+ * - **Como `{variable}` nueva.** Cada cuenta ya tiene sus tres mensajes
+ *   guardados y editados; una variable que no está escrita en ellos no se
+ *   sustituye en ninguna parte. La cuenta escribiría el número de cuenta, lo
+ *   guardaría, y al cliente no le llegaría — sin un solo error. Es la misma
+ *   familia que «una prohibición que no viaja en el prompt no existe».
+ * - **Metida dentro de `{pago}`.** Sale bien con las plantillas por defecto y
+ *   desaparece en cuanto alguien quitó ese `{pago}` de la suya. Una rama que
+ *   solo se equivoca con los datos que ya tienen los clientes es la que nadie
+ *   prueba.
+ *
+ * Al final y sin condiciones no hay plantilla que la pueda perder. Y **no
+ * reemplaza a `{pago}`**: los datos de pago de la cuenta son fijos y de toda la
+ * cartera; esto es lo de ESTE cobro, y los dos pueden salir a la vez.
+ *
+ * No se le pone ninguna cabecera: la línea la escribe entera la persona, y
+ * añadirle un «Puedes pagar así» delante sería ponerle palabras que no puso.
+ */
+export function conLaNota(mensaje: string, nota: string | null | undefined): string {
+    const limpia = (nota ?? "").trim();
+    if (!limpia) return mensaje;
+    const base = mensaje.trimEnd();
+    return base ? `${base}\n\n${limpia}` : limpia;
+}
+
+/**
+ * El texto que se le manda, ya con sus variables puestas y con la nota al final.
  *
  * Vive aquí, con el resto de lo puro, porque lo usan **dos** caminos —el botón
  * «Cobrar ahora» y la vuelta diaria— y tienen que armar exactamente lo mismo.
@@ -451,7 +500,7 @@ export function textoDelCobro(
     hito: Hito,
     ahora: Date,
 ): string {
-    return aplicarVariables(config.mensajes[hito], {
+    const plantilla = aplicarVariables(config.mensajes[hito], {
         cliente: cobro.contactoNombre.trim(),
         monto: montoConMoneda(cobro.monto, cobro.moneda),
         vence: fechaCorta(cobro.vence),
@@ -459,6 +508,7 @@ export function textoDelCobro(
         concepto: cobro.concepto.trim(),
         pago: config.datosDePago.trim(),
     });
+    return conLaNota(plantilla, cobro.notaDePago);
 }
 
 /* ── Las formas que viajan a la pantalla ──────────────────────────────────── */
@@ -477,6 +527,14 @@ export type Cobro = {
     monto: number | null;
     moneda: string;
     vence: string | null;
+    /**
+     * La línea de texto libre de ESTA deuda, la que sale al final del mensaje.
+     *
+     * Vive en la fila y no en `cobros_config.datosDePago` porque es justo lo
+     * contrario de aquello: los datos de pago de la cuenta son uno solo para
+     * toda la cartera, y esto cambia por contacto, por producto y por servicio.
+     */
+    notaDePago: string | null;
     estado: EstadoDeCobro;
     diasDeLicencia: number;
     diasDeGracia: number;

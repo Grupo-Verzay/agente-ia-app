@@ -123,6 +123,7 @@ async function enviarUno(
                 monto: cobro.monto,
                 moneda: cobro.moneda,
                 vence: cobro.vence,
+                notaDePago: cobro.notaDePago,
             },
             config: datos.config,
             hito,

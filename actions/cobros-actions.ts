@@ -9,9 +9,11 @@ import { canManageWorkspace } from "@/lib/workspace-roles";
 import {
     comoDiasDeGracia,
     comoDiasDeLicencia,
+    comoNotaDePago,
     MENSAJES_POR_DEFECTO,
     soloDigitos,
     TOPE_DE_DIAS,
+    TOPE_DE_LA_NOTA,
     type CicloDeCobro,
     type CobroConAdjuntos,
     type ConfigDeCobros,
@@ -93,6 +95,9 @@ const CobroSchema = z.object({
     monto: z.number().nonnegative().nullable().optional(),
     moneda: z.string().trim().min(1).max(10).default("COP"),
     vence: z.string().trim().nullable().optional(),
+    // La línea de texto libre de esta deuda. Opcional a propósito: se puede
+    // cobrar sin ella, con ella, o con ella y un adjunto.
+    notaDePago: z.string().trim().max(TOPE_DE_LA_NOTA).nullable().optional(),
     diasDeLicencia: z.number().int().min(1).max(TOPE_DE_DIAS),
     diasDeGracia: z.number().int().min(0).max(TOPE_DE_DIAS),
 });
@@ -172,6 +177,7 @@ export async function crearCobroAction(
             monto: datos.monto ?? null,
             moneda: datos.moneda,
             vence: comoFecha(datos.vence),
+            notaDePago: comoNotaDePago(datos.notaDePago),
             diasDeLicencia: comoDiasDeLicencia(datos.diasDeLicencia),
             diasDeGracia: comoDiasDeGracia(datos.diasDeGracia),
             adjuntos: archivos.map((a) => ({
@@ -211,6 +217,7 @@ export async function editarCobroAction(id: string, entrada: unknown): Promise<R
             monto: datos.monto ?? null,
             moneda: datos.moneda,
             vence: comoFecha(datos.vence),
+            notaDePago: comoNotaDePago(datos.notaDePago),
             diasDeLicencia: comoDiasDeLicencia(datos.diasDeLicencia),
             diasDeGracia: comoDiasDeGracia(datos.diasDeGracia),
         });

@@ -3,6 +3,7 @@ import {
     comoDiasDeGracia,
     comoDiasDeLicencia,
     comoEstadoDeCobro,
+    comoNotaDePago,
     configPorDefecto,
     HITOS,
     MENSAJES_POR_DEFECTO,
@@ -82,6 +83,22 @@ function asegurarLasTablas(): Promise<void> {
         "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `;
+        // La linea de texto libre de cada deuda: una cuenta bancaria con su
+        // banco y su titular, un enlace de pago. Entra con
+        // `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` y **no** reescribiendo el
+        // `CREATE` de arriba: la tabla ya existe en produccion y un
+        // `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya esta. Es el
+        // fallo que se comete solo al anadirle una columna a una tabla de la App
+        // que ya se desplego.
+        //
+        // Aqui y no en `cobros_config`: aquello son los datos de pago de la
+        // CUENTA, uno solo para toda la cartera; esto cambia por contacto, por
+        // producto y por servicio. Y tampoco en `cobro_adjuntos`, que es una
+        // tabla de archivos: una fila sin fichero seria una fila que miente.
+        await db.$executeRaw`
+      ALTER TABLE "cobros" ADD COLUMN IF NOT EXISTS "notaDePago" TEXT
+    `;
+
         // La pantalla entra por cuenta y ordena por vencimiento: lo que primero
         // hay que mirar es lo que esta a punto de vencer o ya vencio. Va dentro
         // del indice y no como un ordenamiento aparte.
@@ -211,6 +228,7 @@ type FilaDeCobro = {
     monto: unknown;
     moneda: string;
     vence: Date | null;
+    notaDePago: string | null;
     estado: string;
     diasDeLicencia: number;
     diasDeGracia: number;
@@ -251,6 +269,10 @@ function aCobro(fila: FilaDeCobro): Cobro {
         monto: comoNumero(fila.monto),
         moneda: fila.moneda,
         vence: fila.vence ? fila.vence.toISOString() : null,
+        // Una fila anterior a la columna trae `null`, y eso es exactamente lo
+        // que significa: esa deuda no tiene nota. Ni backfill ni dos clases de
+        // cobro.
+        notaDePago: comoNotaDePago(fila.notaDePago),
         estado: comoEstadoDeCobro(fila.estado),
         diasDeLicencia: comoDiasDeLicencia(fila.diasDeLicencia),
         diasDeGracia: comoDiasDeGracia(fila.diasDeGracia),
@@ -277,7 +299,7 @@ export async function laCarteraDe(ownerId: string): Promise<CobroConAdjuntos[]> 
     return conLasTablas(async () => {
         const filas = await db.$queryRaw<FilaDeCobro[]>`
       SELECT c."id", c."ownerId", c."contactoNombre", c."contactoTelefono", c."contactoJid",
-             c."concepto", c."monto", c."moneda", c."vence", c."estado",
+             c."concepto", c."monto", c."moneda", c."vence", c."notaDePago", c."estado",
              c."diasDeLicencia", c."diasDeGracia", c."ultimoRecordatorioEn", c."ultimoHito",
              c."confirmadaEn", c."creadoEn",
              (SELECT COUNT(*) FROM "cobro_ciclos" k WHERE k."cobroId" = c."id") AS "ciclosPagados"
@@ -438,6 +460,7 @@ export type NuevoCobro = {
     monto: number | null;
     moneda: string;
     vence: Date | null;
+    notaDePago: string | null;
     diasDeLicencia: number;
     diasDeGracia: number;
     adjuntos: Array<{
@@ -459,11 +482,12 @@ export async function crearElCobro(nuevo: NuevoCobro): Promise<void> {
             await tx.$executeRaw`
         INSERT INTO "cobros"
           ("id", "ownerId", "creadoPorId", "contactoNombre", "contactoTelefono", "contactoJid",
-           "concepto", "monto", "moneda", "vence", "estado", "diasDeLicencia", "diasDeGracia")
+           "concepto", "monto", "moneda", "vence", "notaDePago", "estado",
+           "diasDeLicencia", "diasDeGracia")
         VALUES (
           ${nuevo.id}, ${nuevo.ownerId}, ${nuevo.creadoPorId}, ${nuevo.contactoNombre},
           ${nuevo.contactoTelefono}, ${nuevo.contactoJid}, ${nuevo.concepto},
-          ${nuevo.monto}, ${nuevo.moneda}, ${nuevo.vence}, 'pendiente',
+          ${nuevo.monto}, ${nuevo.moneda}, ${nuevo.vence}, ${comoNotaDePago(nuevo.notaDePago)}, 'pendiente',
           ${comoDiasDeLicencia(nuevo.diasDeLicencia)}, ${comoDiasDeGracia(nuevo.diasDeGracia)}
         )
       `;
@@ -488,6 +512,7 @@ export async function editarElCobro(input: {
     monto: number | null;
     moneda: string;
     vence: Date | null;
+    notaDePago: string | null;
     diasDeLicencia: number;
     diasDeGracia: number;
 }): Promise<boolean> {
@@ -500,6 +525,7 @@ export async function editarElCobro(input: {
         "monto" = ${input.monto},
         "moneda" = ${input.moneda},
         "vence" = ${input.vence},
+        "notaDePago" = ${comoNotaDePago(input.notaDePago)},
         "diasDeLicencia" = ${comoDiasDeLicencia(input.diasDeLicencia)},
         "diasDeGracia" = ${comoDiasDeGracia(input.diasDeGracia)},
         "actualizadoEn" = CURRENT_TIMESTAMP
@@ -712,6 +738,14 @@ export type CobroDelRunner = {
     monto: number | null;
     moneda: string;
     vence: Date | null;
+    /**
+     * La nota viaja también aquí, y no solo en «Cobrar ahora».
+     *
+     * Los dos caminos arman el mensaje con la misma función; si la vuelta diaria
+     * no la trajera, la línea saldría al mandarlo a mano y desaparecería en los
+     * recordatorios automáticos — que son la mayoría de los mensajes que salen.
+     */
+    notaDePago: string | null;
     estado: EstadoDeCobro;
     ultimoRecordatorioEn: Date | null;
     ultimoRecordatorioVence: Date | null;
@@ -734,7 +768,7 @@ export async function losCobrosQuePodrianTocarHoy(): Promise<CobroDelRunner[]> {
             Array<Omit<CobroDelRunner, "estado" | "monto"> & { estado: string; monto: unknown }>
         >`
       SELECT "id", "ownerId", "contactoNombre", "contactoTelefono", "contactoJid",
-             "concepto", "monto", "moneda", "vence", "estado",
+             "concepto", "monto", "moneda", "vence", "notaDePago", "estado",
              "ultimoRecordatorioEn", "ultimoRecordatorioVence"
       FROM "cobros"
       WHERE "estado" = 'pendiente'

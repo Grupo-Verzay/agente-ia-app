@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
     BloqueDeAdjuntos,
     borrarDelBucket,
@@ -21,6 +22,7 @@ import {
 import {
     DIAS_DE_GRACIA_POR_DEFECTO,
     DIAS_DE_LICENCIA_POR_DEFECTO,
+    TOPE_DE_LA_NOTA,
     type CobroConAdjuntos,
 } from "@/lib/cobros";
 import type { AdjuntoDeTarea } from "@/lib/adjuntos-de-tarea-tipos";
@@ -60,6 +62,7 @@ export function FormularioDeCobro({
     const [vence, setVence] = useState("");
     const [licencia, setLicencia] = useState(String(DIAS_DE_LICENCIA_POR_DEFECTO));
     const [gracia, setGracia] = useState(String(DIAS_DE_GRACIA_POR_DEFECTO));
+    const [nota, setNota] = useState("");
     const [enElAire, setEnElAire] = useState<AdjuntoEnElAire[]>([]);
     const [guardando, setGuardando] = useState(false);
 
@@ -73,6 +76,7 @@ export function FormularioDeCobro({
         setVence(cobro?.vence ? cobro.vence.slice(0, 10) : "");
         setLicencia(String(cobro?.diasDeLicencia ?? DIAS_DE_LICENCIA_POR_DEFECTO));
         setGracia(String(cobro?.diasDeGracia ?? DIAS_DE_GRACIA_POR_DEFECTO));
+        setNota(cobro?.notaDePago ?? "");
         setEnElAire([]);
     }, [abierto, cobro]);
 
@@ -117,6 +121,7 @@ export function FormularioDeCobro({
                     monto: montoLimpio,
                     moneda: moneda.trim() || "COP",
                     vence: vence || null,
+                    notaDePago: nota.trim() || null,
                     diasDeLicencia: Number(licencia) || DIAS_DE_LICENCIA_POR_DEFECTO,
                     diasDeGracia: Number(gracia) || 0,
                 },
@@ -259,6 +264,34 @@ export function FormularioDeCobro({
                             />
                         </div>
                     )}
+
+                    {/*
+                        Debajo de los adjuntos, y **en los dos casos**: crear y
+                        editar. Los adjuntos de una deuda que ya existe se
+                        gestionan desde su detalle, pero esto se cambia cada mes
+                        —otra cuenta, otro enlace— así que tiene que poder
+                        editarse aquí. Con el campo solo al crear, cambiar el
+                        número de cuenta obligaría a borrar la deuda y rehacerla,
+                        y con ella se iría el historial de ciclos.
+                    */}
+                    <div className="space-y-1.5">
+                        <Label htmlFor="cobro-nota">Datos de pago de este cobro (opcional)</Label>
+                        <Textarea
+                            id="cobro-nota"
+                            value={nota}
+                            onChange={(e) => setNota(e.target.value)}
+                            maxLength={TOPE_DE_LA_NOTA}
+                            rows={3}
+                            placeholder={
+                                "Ej.: Bancolombia ahorros 123-456789-00, a nombre de Marta Restrepo\n" +
+                                "o un enlace de pago"
+                            }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Se manda al final del mensaje, después de la plantilla. Es de este cobro
+                            y no de la cuenta: cada contacto puede tener el suyo.
+                        </p>
+                    </div>
                 </div>
 
                 {/*
@@ -291,6 +324,7 @@ export type DatosDelFormulario = {
     monto: number | null;
     moneda: string;
     vence: string | null;
+    notaDePago: string | null;
     diasDeLicencia: number;
     diasDeGracia: number;
 };
