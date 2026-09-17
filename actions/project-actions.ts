@@ -10,7 +10,7 @@ import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { filtroDeProyectosVisibles, mandaEnElProyecto } from "@/lib/project-roles";
 import { accesoAlProyecto } from "@/lib/acceso-al-proyecto";
-import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
+import { cuentasParaCompartir } from "@/lib/cuentas-cliente";
 import {
   comoPermiso,
   conCuantasCuentasSeComparten,
@@ -671,9 +671,10 @@ export type CuentaDestinoDeProyecto = {
 /**
  * A qué cuentas se les puede enseñar este proyecto, y a cuáles ya.
  *
- * Son las cuentas de cliente sobre las que manda quien pregunta: un admin las
- * tiene todas; un reseller, las suyas. **La misma lista que usa Diagramas**
- * (`clientesDeLaCuenta`), para que no haya dos ideas de «mis cuentas».
+ * **Todas las cuentas de la plataforma menos la propia**, sea cual sea su rol —
+ * la misma lista que usa Diagramas (`cuentasParaCompartir`), para que las dos
+ * pantallas ofrezcan lo mismo. El rol no decide quién puede recibir algo
+ * compartido.
  */
 export async function getProjectShareTargetsAction(
   projectId: number,
@@ -688,17 +689,15 @@ export async function getProjectShareTargetsAction(
     }
 
     const [cuentas, yaTiene] = await Promise.all([
-      clientesDeLaCuenta({ id: ownerId, role: user.role ?? "user" }),
+      cuentasParaCompartir(ownerId),
       losDestinosDelProyecto(projectId),
     ]);
 
     return {
       success: true,
       message: "",
-      // La propia cuenta no se lista: ya lo tiene, y marcarla no querría decir
-      // nada.
+      // La propia ya la quita la consulta.
       data: cuentas
-        .filter((c) => c.id !== ownerId)
         .map((c) => ({
           ...c,
           compartido: yaTiene.has(c.id),
@@ -730,7 +729,9 @@ export async function setProjectSharesAction(
     // Solo cuentas sobre las que se manda de verdad: lo que llegue del navegador
     // no decide a quién se le enseña un proyecto. Y una entrada por cuenta —si
     // el navegador manda la misma dos veces, manda la última—.
-    const cuentas = await clientesDeLaCuenta({ id: ownerId, role: user.role ?? "user" });
+    // La MISMA lista que se ofrece, no una más estrecha: con dos criterios, el
+    // buscador ofrece cuentas que al guardar se caen sin decir por qué.
+    const cuentas = await cuentasParaCompartir(ownerId);
     const suyas = new Set(cuentas.map((c) => c.id));
     const porCuenta = new Map<string, PermisoDeProyecto>();
     for (const destino of destinos) {
