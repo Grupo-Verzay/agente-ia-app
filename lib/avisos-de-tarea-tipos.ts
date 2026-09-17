@@ -106,3 +106,26 @@ export function tituloDelAviso(
 export function esTipoDeAviso(v: string): v is TipoDeAviso {
   return (TIPOS_DE_AVISO as readonly string[]).includes(v);
 }
+
+/**
+ * De quién es un aviso: **la PERSONA, no la fila efectiva**.
+ *
+ * Los avisos se **escriben** con el id de la persona —`sessionUserId ?? id`, la
+ * misma regla con la que se firma un mensaje del chat de equipo (#761)— y se
+ * venían **leyendo** con `user.id`, que es el de la cuenta EFECTIVA.
+ *
+ * Coinciden siempre salvo dentro de otra cuenta —el conmutador de vinculadas o
+ * «Ingresar»—, y ahí los avisos de esa persona **no le aparecían**: ni la
+ * ventana que interrumpe, ni la campanita, ni se podían marcar como leídos. Es
+ * la misma asimetría que partió el General en dos, por otra puerta.
+ *
+ * Puro y aquí, al lado del tipo, para que los cuatro sitios que preguntan lo
+ * hagan igual: la ventana, la campanita, el centro de notificaciones y el clic
+ * que los atiende.
+ */
+export function elDestinatarioDeLosAvisos(
+  user: { id?: string | null; sessionUserId?: string | null } | null | undefined,
+): string | null {
+  const persona = user?.sessionUserId?.trim() || user?.id?.trim();
+  return persona || null;
+}

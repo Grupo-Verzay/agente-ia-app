@@ -2206,6 +2206,112 @@ se cambió de canal, esa respuesta trae los mensajes de la conversación anterio
 y **se descarta**: comparando contra la referencia, no contra el estado. Sin esa
 comprobación se ve como un canal que se cambia solo a los pocos segundos.
 
+### Sin leer: una MARCA por persona y canal, no un conjunto
+
+Sin señal, nadie se entera de nada: había que abrir el panel para saber si
+alguien había escrito. El botón del borde lleva ahora el número de lo que falta
+por leer, sumando todos los canales **donde la persona pertenece**, directos
+incluidos.
+
+Lo leído vive en `team_chat_reads (personaId, canalId, leidoHasta)`, con la
+pareja como clave. **Una marca, no un conjunto de mensajes leídos**: un chat
+crece sin límite y un conjunto crecería con él; esto es una fila por persona y
+canal, y no crece nunca.
+
+El contador de un canal son los mensajes **posteriores a su marca** y **de otra
+persona**. Y las tres condiciones tienen cada una su motivo:
+
+1. **Posteriores a la marca.** Sin marca no hay nada leído, así que la primera
+   vez sale lo que haya. Es lo cierto —nadie los ha leído— y evita lo otro:
+   sembrar la marca al vuelo abriría una ventana de un ciclo entero en la que un
+   mensaje recién llegado se daría por leído solo, y un mensaje que se pierde
+   así **no vuelve a avisar nunca**.
+2. **De otra persona.** Lo que uno escribe no le llega a él.
+3. **De un canal donde PERTENECE**, no de los que puede leer. Un administrador
+   lee todos los directos de su cuenta; contárselos le pondría encima el tráfico
+   de todo el mundo, que es tanto como no tener contador.
+
+**La hora que se guarda es la del ÚLTIMO MENSAJE QUE SE ENSEÑÓ, nunca `now()`.**
+Con `now()`, un mensaje que entrara entre leer el hilo y escribir la marca
+quedaría dado por leído sin que nadie lo hubiera visto.
+
+Y **la marca solo avanza**, con el `WHERE` del `ON CONFLICT`. Son dos cosas de
+una: releer un canal viejo no resucita como sin leer los mensajes de en medio,
+y **cuando no hay nada que mover Postgres no escribe la fila** — que importa
+porque esto se llama en cada vuelta del reloj del panel abierto. Comprobado
+contra Postgres: repetir la misma marca devuelve `INSERT 0 0`.
+
+**Y cuando el canal cruza cuentas no hace falta nada**, que es la gracia: un
+canal que cruza tiene **un id y un hilo** —sus mensajes cuelgan de la cuenta
+dueña—, así que el conteo va por `canalId` y la marca es de (persona, canal),
+la misma esté la persona en la cuenta que esté. El **único** sitio donde la
+familia importa es el general, que no tiene fila de canal: ahí se cuenta con
+`cuentaId IN (familia)`, igual que se lee. Medido: mirando solo la cuenta
+propia saldrían 2 en vez de 3.
+
+#### El contador tiene su propio reloj, y es el contrario del otro
+
+El del hilo corre **solo con el panel abierto**, porque cuelga del layout y se
+trae mensajes. Este corre **siempre**, porque de eso va: enterarse con el panel
+cerrado. Por eso va a **15 s** —el ritmo de la ventana que interrumpe, no los 5
+del chat abierto— y **no se trae ni un mensaje: solo cuenta**, en una consulta
+para todos los canales. Una por canal serían tantas peticiones como canales
+tenga la cuenta, cada vuelta.
+
+Dos cosas que hay que mantener:
+
+1. **El número baja al momento, no en la vuelta siguiente.** Abrir un canal lo
+   marca leído en el servidor, pero el contador vive en otro sitio y con otro
+   reloj: sin avisarle, el número se quedaría puesto hasta quince segundos
+   después de haber leído, y eso se ve como un contador roto. El aviso es un
+   evento del navegador (`chat-equipo:leido`) y **no un contexto** porque el
+   hilo se pinta en dos sitios —el panel, que cuelga del layout, y la ruta, que
+   no—: un contexto obligaría a envolver los dos.
+2. **Solo se avisa cuando de verdad se marcó algo nuevo.** El hilo compara el
+   último mensaje con el que ya dio por leído; sin esa comparación, cada vuelta
+   del reloj de 5 s dispararía el contador y este pasaría a preguntar cada cinco
+   segundos en vez de cada quince — o sea, triplicar el coste de lo que se
+   escribió para ser barato.
+
+Y el número va **fuera del flujo** (`absolute`) sobre un botón `relative`: el
+botón mide 36 px y es la mitad de una pareja alineada, así que crecer lo
+descuadraría. Re-medido en Chromium al tocar esa columna, como manda la regla:
+la pareja sigue en 76 px, centrada en 400 a 1280×800, con sus 4 px de hueco.
+
+### La campanita: solo menciones, y al MENSAJE
+
+La campanita ya recibía las menciones —`getNotificationCenterData` incluye
+`avisosDeLaCampanita` y pinta cada aviso con `aDondeLleva`—, así que lo único
+que faltaba era **aterrizar en el mensaje**: el enlace llevaba al canal y en uno
+con tráfico eso es el final del hilo, que no es encontrar la mención.
+
+El aviso lleva ahora `?canal=…&mensaje=…`, cada burbuja tiene su `id` y la que
+traía el aviso se señala con un anillo aparte —en un canal con varias menciones
+tuyas, el resaltado ámbar de siempre no distingue cuál es—.
+
+Dos cosas del aterrizaje:
+
+1. **Solo la primera vez.** Si no, cada vuelta del reloj devolvería la vista a
+   la mención y no se podría seguir leyendo.
+2. **Si el mensaje no está —quedó fuera de los últimos que se traen— se sigue
+   como siempre, al final.** Mejor el hilo que una pantalla quieta.
+
+Y **la campanita es solo para menciones**, no para todo mensaje nuevo: con un
+canal activo sonaría todo el día y se aprendería a despacharla sin leer, que es
+el fallo del que viene la ventana que interrumpe. Lo demás lo dice el contador.
+
+#### Un aviso es de la PERSONA, y se leía con la fila efectiva
+
+Se **escriben** con `sessionUserId ?? id` —la regla de #761— y se **leían** con
+`user.id`, que es el de la cuenta EFECTIVA. Coinciden siempre salvo dentro de
+otra cuenta —el conmutador o «Ingresar»—, y ahí los avisos de esa persona **no
+le aparecían**: ni la ventana, ni la campanita, ni se podían marcar como leídos.
+
+Es la misma asimetría que partió el General en dos, por otra puerta. Lo decide
+`elDestinatarioDeLosAvisos` (`lib/avisos-de-tarea-tipos.ts`, puro), y lo
+preguntan los cuatro sitios: la ventana, la campanita, el centro de
+notificaciones y el clic que los atiende.
+
 ### El panel: la ruta sola no sirve
 
 El equipo vive en Chats y no va a salir de ahí para hablar. Una ruta obliga a

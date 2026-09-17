@@ -8,6 +8,7 @@ import { useChatStore } from "@/stores/ai-chat/useChatStore";
 import { ChatLauncher } from "@/app/(root)/ai-chat/components/ChatLauncher";
 import { ChatSheet } from "@/app/(root)/ai-chat/components/ChatSheet";
 import { PanelDeEquipo } from "@/components/chat-equipo/PanelDeEquipo";
+import { useSinLeerDelEquipo } from "@/hooks/useSinLeerDelEquipo";
 
 /**
  * Los dos botones del borde derecho, como PAREJA.
@@ -40,6 +41,10 @@ export function BotonesDelBorde() {
     const copilotoAbierto = useChatStore((s) => s.isOpen);
     const abrirCopiloto = useChatStore((s) => s.setOpen);
     const [equipoAbierto, setEquipoAbierto] = useState(false);
+    // El contador corre SIEMPRE, también con el panel cerrado: de eso va. El
+    // reloj del hilo es el contrario —solo con el panel abierto— porque esto
+    // cuelga del layout y aquel se trae los mensajes.
+    const sinLeer = useSinLeerDelEquipo();
 
     // Nunca los dos a la vez: son dos paneles en el mismo sitio, y abiertos a
     // la vez uno taparía al otro sin decir cuál está delante.
@@ -72,7 +77,7 @@ export function BotonesDelBorde() {
                     className={cn(
                         // La misma anatomía que el del copiloto: 36 px y media
                         // luna contra el borde. Si uno cambia, cambian los dos.
-                        "group flex h-9 w-9 items-center justify-center rounded-l-full border border-r-0 border-primary/25 bg-background text-primary shadow-lg shadow-black/10 transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                        "group relative flex h-9 w-9 items-center justify-center rounded-l-full border border-r-0 border-primary/25 bg-background text-primary shadow-lg shadow-black/10 transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                         equipoAbierto && "bg-primary text-primary-foreground",
                     )}
                 >
@@ -81,8 +86,25 @@ export function BotonesDelBorde() {
                     ) : (
                         <MessagesSquare className="h-4 w-4" />
                     )}
+                    {/* El número va FUERA del botón en el flujo —`absolute`—
+                        para no empujar su icono: el botón mide 36 px y es la
+                        mitad de una pareja alineada, así que crecer lo
+                        descuadraría. Se esconde con el panel abierto, donde ya
+                        está bajando a cero. */}
+                    {!equipoAbierto && sinLeer > 0 && (
+                        <span
+                            aria-hidden
+                            className="pointer-events-none absolute -left-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground shadow"
+                        >
+                            {sinLeer > 99 ? "99+" : sinLeer}
+                        </span>
+                    )}
                     <span className="sr-only">
-                        {equipoAbierto ? "Cerrar chat del equipo" : "Abrir chat del equipo"}
+                        {equipoAbierto
+                            ? "Cerrar chat del equipo"
+                            : sinLeer > 0
+                              ? `Abrir chat del equipo, ${sinLeer} sin leer`
+                              : "Abrir chat del equipo"}
                     </span>
                 </button>
             </div>

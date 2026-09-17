@@ -24,17 +24,24 @@ export const dynamic = "force-dynamic";
  * lo que la consulta deja. Quien entra a una cuenta ajena con «Ingresar» ve
  * los canales de ESA cuenta (#756).
  *
- * `?canal=` es por dónde llega un aviso de mención, para abrir la conversación
- * donde se dijo y no el general. Si ese canal no es suyo, la acción devuelve
- * el general: lo que llega del navegador no decide a qué se llega.
+ * `?canal=` y `?mensaje=` son por dónde llega un aviso de mención: el primero
+ * abre la conversación donde se dijo y no el general, y el segundo pone delante
+ * el mensaje — en un canal con tráfico, aterrizar al final del hilo no es
+ * encontrar la mención. Si ese canal no es suyo, la acción devuelve el general:
+ * lo que llega del navegador no decide a qué se llega.
  */
 export default async function ChatDeEquipoPage({
     searchParams,
 }: {
-    searchParams?: { canal?: string };
+    searchParams?: { canal?: string; mensaje?: string };
 }) {
     const user = await currentUser();
     if (!user) redirect("/login");
 
-    return <HiloDelEquipo canalInicial={searchParams?.canal} />;
+    return (
+        <HiloDelEquipo
+            canalInicial={searchParams?.canal}
+            mensajeInicial={searchParams?.mensaje}
+        />
+    );
 }
