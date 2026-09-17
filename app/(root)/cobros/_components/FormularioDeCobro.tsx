@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -260,7 +261,15 @@ export function FormularioDeCobro({
                     )}
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                {/*
+                    `DialogFooter` y no un `flex justify-end` a mano: ese es el
+                    pie de toda la App —lleva `justify-between`, así que
+                    «Cancelar» queda a la izquierda y la acción a la derecha—.
+                    Escribiéndolo a mano los dos botones acababan pegados a la
+                    derecha, y este diálogo se leía distinto de los otros ciento
+                    y pico que ya usan el componente.
+                */}
+                <DialogFooter className="pt-2">
                     <Button type="button" variant="outline" onClick={cerrar} disabled={guardando}>
                         Cancelar
                     </Button>
@@ -268,7 +277,7 @@ export function FormularioDeCobro({
                         {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {guardando ? "Guardando…" : cobro ? "Guardar" : "Crear"}
                     </Button>
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

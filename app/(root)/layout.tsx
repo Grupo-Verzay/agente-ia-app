@@ -36,7 +36,6 @@ import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
 import type { UserNavPref } from "@/types/nav-preference";
 import { getUserIntegrations } from "@/actions/user-integration-actions";
 import { resolveModuleItemDest } from "@/lib/canva-embed";
-import { getClientPanelTabs } from "@/lib/client-panel-tabs";
 
 // Branding por reseller: favicon y título de pestaña según el reseller del
 // usuario logueado (con fallback al favicon global de SiteConfig y luego al
@@ -461,9 +460,19 @@ export default async function RootGroupLayout({
             excluirSoloReseller: true,
             ocultarBloqueadas,
         });
-    // El panel del cliente ya se descartó arriba si no era el suyo, así que
-    // aquí solo queda cuando de verdad le toca.
-    const clientPanelTabs = getClientPanelTabs(modules);
+    // Aquí había una SEGUNDA barra, `getClientPanelTabs(modules)`, y siempre
+    // sobró: `soloElPanelQueLeToca` deja **un solo** panel entre las variantes,
+    // así que esa búsqueda encuentra `/client-panel` únicamente cuando es el
+    // elegido — y entonces `panelTabs` ya lo está pintando con los mismos
+    // apartados. O sea: o salía vacía, o salía la misma barra dos veces.
+    //
+    // Lo segundo es lo que se veía en una cuenta cliente: las pestañas
+    // repetidas en TODOS sus apartados (Informes, Proyectos, Cobros…), no solo
+    // en el que se acabara de montar. Comprobado en banco con las funciones
+    // reales, rol por rol.
+    //
+    // **Las pestañas las pone el panel que le tocó, y solo él.** Si hace falta
+    // otra barra para otra cosa, que no salga de un módulo que ya pinta esta.
 
     return (
         <>
@@ -474,7 +483,6 @@ export default async function RootGroupLayout({
                     <Breadcrumbs />
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden ${themeClass}`}>
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
-                        <PanelAwareTabNav tabs={clientPanelTabs} excludePanelRoutes panelRoutes={["/client-panel"]} />
                         <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-0 sm:p-1">
                             <div className="app-module-content flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-none border-0 sm:rounded-md sm:border sm:border-border/70">
                                 <LockedRouteGuard

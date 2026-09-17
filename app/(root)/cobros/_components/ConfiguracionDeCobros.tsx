@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -224,7 +225,7 @@ export function ConfiguracionDeCobros({
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                <DialogFooter className="pt-2">
                     <Button type="button" variant="outline" onClick={onCerrar} disabled={guardando}>
                         Cancelar
                     </Button>
@@ -232,7 +233,7 @@ export function ConfiguracionDeCobros({
                         {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {guardando ? "Guardando…" : "Guardar"}
                     </Button>
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
