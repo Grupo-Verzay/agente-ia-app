@@ -3,23 +3,30 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LifeBuoy } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { puedoAbrirTicketsAction } from "@/actions/tickets-actions";
 import { FormularioDeTicket } from "./FormularioDeTicket";
 
 /**
- * El botón flotante de soporte, en todas las pantallas.
+ * «Soporte», en la barra de arriba.
  *
- * Cuelga de `Breadcrumbs` —la barra que es la misma en toda la App— y no de
- * cada pantalla: así está donde esté la persona, que es lo que pedía el
- * encargo. **No pinta nada hasta que hay algo que pintar**, igual que el aviso
- * de tarea.
+ * ## Por qué ya no flota
+ *
+ * Estaba como botón flotante en la esquina de abajo a la derecha, y ahí
+ * **tapaba el campo de escribir y el micrófono de Chats** — justo encima de lo
+ * que más se usa de la App. Un botón que estorba a la tarea principal no se
+ * gana esa esquina, por muy a mano que quede.
+ *
+ * Y había otro botón, «Ayuda», dos centímetros más arriba en la barra, que
+ * abría un WhatsApp de soporte. Dos botones para lo mismo, uno de ellos
+ * estorbando. Ahora es **uno solo**, en la barra, donde ya estaban el buscador
+ * y la campana: nada tapa nada y no hay dos caminos para pedir ayuda.
  *
  * ## Un botón, dos comportamientos, y los decide quién eres
  *
- * - Para una cuenta cliente: abre el formulario.
- * - Para la cuenta de destino: lleva al tablero. Esa cuenta no abre tickets
- *   consigo misma; los atiende.
+ * - Cuenta cliente: abre el formulario de ticket nuevo.
+ * - Cuenta de destino: lleva al tablero. Esa cuenta no abre tickets consigo
+ *   misma; los atiende.
  *
  * Quién es cada uno lo dice el servidor (`puedoAbrirTicketsAction`), no la
  * pantalla: enseñar el botón no es abrir la puerta — quien decide de verdad es
@@ -28,7 +35,9 @@ import { FormularioDeTicket } from "./FormularioDeTicket";
  * ## Y sin destino configurado no sale
  *
  * Un botón que guarda en la nada es peor que no tener botón: el cliente se
- * queda esperando una respuesta que nadie va a ver.
+ * queda esperando una respuesta que nadie va a ver. La barra es un `flex` con
+ * `gap`, así que al no pintarse **no queda hueco**: el buscador y la campana se
+ * juntan y ya.
  */
 export function BotonDeSoporte() {
     const router = useRouter();
@@ -59,9 +68,11 @@ export function BotonDeSoporte() {
 
     if (!estado || (!estado.puede && !estado.soyElDestino)) return null;
 
-    // En sus propias pantallas el botón sobra: ahí ya hay uno que hace lo mismo
-    // y encima tapa la lista.
-    if (pathname.startsWith("/mis-tickets") || pathname.startsWith("/tickets")) return null;
+    // En sus propias pantallas sobra: «Mis tickets» ya tiene su «Nuevo ticket»,
+    // y en el tablero el botón llevaría a la página en la que ya estás.
+    if (pathname.startsWith("/mis-tickets") || pathname.startsWith("/tickets")) {
+        return null;
+    }
 
     const alPulsar = () => {
         if (estado.soyElDestino) router.push("/tickets");
@@ -70,20 +81,20 @@ export function BotonDeSoporte() {
 
     return (
         <>
-            <button
+            <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={alPulsar}
                 title={estado.soyElDestino ? "Tickets de soporte" : "Pedir soporte"}
                 aria-label={estado.soyElDestino ? "Tickets de soporte" : "Pedir soporte"}
-                className={cn(
-                    "fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full",
-                    "bg-primary text-primary-foreground shadow-lg shadow-primary/30",
-                    "transition-transform hover:scale-105 focus-visible:outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                )}
+                // El mismo aspecto que tenía «Ayuda»: la barra se ve igual, lo
+                // que cambia es lo que hace el botón.
+                className="h-9 gap-1.5 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
             >
                 <LifeBuoy className="h-5 w-5" />
-            </button>
+                <span className="hidden sm:inline">Soporte</span>
+            </Button>
 
             {estado.puede && estado.userId && (
                 <FormularioDeTicket

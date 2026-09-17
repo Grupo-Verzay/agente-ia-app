@@ -34,7 +34,6 @@ import ThemeSwitcher from './ThemeSwitcher';
 import { NotificationCenter } from '@/components/shared/NotificationCenter';
 import { AvisoDeTareaEmergente } from '@/components/shared/AvisoDeTarea';
 import { GlobalSearch } from '@/components/shared/GlobalSearch';
-import { SupportButton } from './SupportButton';
 import { BotonDeSoporte } from '@/components/tickets/BotonDeSoporte';
 
 export const breadcrumbLabels: Record<string, string> = {
@@ -257,11 +256,12 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                   </Dialog>
               )}
               <GlobalSearch />
-              <SupportButton
-                label="Ayuda"
-                message="Hola, necesito ayuda con la plataforma."
-                className="text-primary hover:text-primary hover:bg-primary/10 border border-primary/30"
-              />
+              {/* «Soporte»: abre el ticket nuevo, o lleva al tablero si esta es
+                  la cuenta que los atiende. Antes era «Ayuda» y abria un
+                  WhatsApp; eso convivia con el boton flotante de tickets, que
+                  ademas tapaba el campo de escribir de Chats. Un solo camino
+                  para pedir ayuda, y en la barra. */}
+              <BotonDeSoporte />
               <NotificationCenter />
             </div>
           </header>
@@ -270,11 +270,6 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
               Analiticas o donde este la persona. No pinta nada hasta que hay
               algo que decir. */}
           <AvisoDeTareaEmergente />
-          {/* El boton flotante de soporte. Va aqui por lo mismo que el aviso:
-              esta barra es la misma en todas las pantallas, asi que el boton
-              esta donde este la persona. No pinta nada si la cuenta no puede
-              abrir tickets ni los recibe. */}
-          <BotonDeSoporte />
         </div >
     </>
   );
