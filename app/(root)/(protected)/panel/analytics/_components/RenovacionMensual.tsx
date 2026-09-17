@@ -14,7 +14,7 @@ import {
  *
  * Va junto a las otras dos tarjetas internas, dentro del contenedor que
  * scrollea de `VerzayAnalytics`. La puerta no está aquí: la consulta devuelve
- * `null` a quien no sea superadministrador.
+ * `null` a quien no pueda verla (`puedeVerLaAnaliticaDeLaCasa`).
  *
  * **Lo que más importa de este componente es lo que NO hace**: cuando el mes
  * no tiene cohorte completa no enseña un porcentaje. Un 0 % ahí no diría «se

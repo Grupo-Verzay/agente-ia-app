@@ -58,9 +58,8 @@ export function VerzayAnalytics({
    * El bloque de Rendimiento de Chats, ya pintado en el servidor.
    *
    * Viaja como nodo y no como dato a propósito: sale de un componente de
-   * servidor y este fichero es `"use client"`. Vacío para quien no sea
-   * superadministrador, porque la consulta ya devuelve `null` — la puerta está
-   * ahí, no aquí.
+   * servidor y este fichero es `"use client"`. Vacío para quien no pueda verlo,
+   * porque la consulta ya devuelve `null` — la puerta está ahí, no aquí.
    */
   vigilancia?: React.ReactNode
 }) {
@@ -322,7 +321,7 @@ export function VerzayAnalytics({
         {/* ── Fila 4: Alertas de créditos ── */}
         <CreditAlertsWidget users={lowCreditUsers} canRecharge />
 
-        {/* ── Rendimiento de Chats (solo superadministrador) ──
+        {/* ── Los bloques internos de la casa ──
             Va DENTRO de este contenedor y no como hermano de la pantalla, y no
             es una cuestión de orden: **este `div` es el único que scrollea**.
             El layout del panel envuelve a sus hijos en un

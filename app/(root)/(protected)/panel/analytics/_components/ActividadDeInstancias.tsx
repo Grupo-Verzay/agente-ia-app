@@ -14,7 +14,8 @@ import {
  * único `div` con barra y se recorta sin forma de llegar a ella—.
  *
  * La puerta NO está aquí: `leerLaActividadDeInstancias` devuelve `null` a
- * quien no sea superadministrador y entonces esto ni se pinta.
+ * quien no pueda verla —`puedeVerLaAnaliticaDeLaCasa`— y entonces esto ni se
+ * pinta.
  *
  * **Las verdes no se listan, y es la mitad del diseño.** Una tabla con las
  * cincuenta líneas sanas dentro esconde las tres que fallan; el número verde

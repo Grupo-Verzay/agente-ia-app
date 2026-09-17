@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { toast } from "sonner"
 import { rechargeIaCredit } from "@/actions/actions-ia-credits"
 import type { LowCreditUserItem } from "@/actions/analytics-actions"
 
@@ -26,9 +27,31 @@ function RechargePopover({ user, onSuccess }: { user: LowCreditUserItem; onSucce
 
   const handleSave = () => {
     const total = isUnlimited ? -1 : parseInt(newTotal, 10)
-    if (!isUnlimited && (isNaN(total) || total < 0)) return
+    if (!isUnlimited && (isNaN(total) || total < 0)) {
+      toast.error("Escribe un número de créditos válido")
+      return
+    }
     startTransition(async () => {
-      await rechargeIaCredit(user.id, total)
+      // La respuesta se MIRA. Antes se tiraba: `rechargeIaCredit` puede
+      // contestar «No autorizado» o fallar contra la base, y el diálogo se
+      // cerraba igual sin decir nada. Desde fuera eso no se ve como un error,
+      // se ve como un botón que no hace nada — la misma familia que el
+      // «Guardando…» colgado de Carpetas: un fallo nunca puede ser mudo.
+      let res: Awaited<ReturnType<typeof rechargeIaCredit>>
+      try {
+        res = await rechargeIaCredit(user.id, total)
+      } catch (e) {
+        console.error("[creditos] la recarga reventó", e)
+        toast.error("No se pudieron guardar los créditos. Inténtalo de nuevo.")
+        return
+      }
+      if (!res.success) {
+        toast.error(res.message || "No se pudieron guardar los créditos")
+        return
+      }
+      toast.success(
+        isUnlimited ? "Créditos ilimitados" : `Créditos actualizados a ${total.toLocaleString()}`,
+      )
       setOpen(false)
       onSuccess()
     })

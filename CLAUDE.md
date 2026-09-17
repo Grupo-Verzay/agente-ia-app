@@ -3225,6 +3225,52 @@ Tres cosas más:
 El súper administrador de plataforma no se filtra por ninguna de las dos cosas:
 su regla sigue siendo ver y administrar todo, en cualquier cuenta.
 
+## Analíticas: una cuenta administradora es de la CASA, no un cliente
+
+`/panel/analytics` abría para una cuenta administradora —la página pregunta
+`isAdminLike` de la cuenta que manda— y salía **a trozos**: las tres tarjetas
+marcadas «interno» —Renovación mensual, Actividad de instancias y Rendimiento
+de Chats— llevaban **su propia** condición, `isSuperAdmin(cuenta.role)`,
+escrita tres veces en tres acciones.
+
+Ni «Acceso Denegado» ni error: la pantalla se pintaba entera y con tres huecos.
+Es el mismo síntoma que ya costó una sesión con el bloque de vigilancia —«dos
+pantallas iguales lado a lado y en una falta un recuadro»—, y por el mismo
+motivo: **dos fórmulas para la misma pantalla.**
+
+> **Quién ve la Analítica de la casa se pregunta UNA vez**,
+> `puedeVerLaAnaliticaDeLaCasa` (`lib/analitica-de-la-casa.ts`), y lo preguntan
+> **la página y las cuatro acciones** que la alimentan. Pasan las cuentas de la
+> casa —`admin` y `super_admin`— y el súper administrador de verdad esté donde
+> esté. `user`, `affiliate` y `reseller` siguen fuera: esos ven **su cartera**,
+> que es otra pantalla (`getAnalyticsDeMiCartera` / `getResellerAnalytics`).
+
+Lo que separa a la casa de un cliente es **el rol de la CUENTA por la que se
+actúa**, no la palabra «interno» de cada tarjeta. Esa palabra es solo el
+subtítulo del recuadro —no es ninguna marca compartida, no la lee nadie y no
+aparece en ninguna otra pantalla—, así que abrir las tarjetas no tiene efecto
+en ningún otro sitio.
+
+Tres cosas que hay que mantener:
+
+1. **Si se añade otra tarjeta interna a Analíticas, va por esa función**, y no
+   volviendo a escribir la condición. Era exactamente lo que había: tres copias
+   y una cuarta distinta en la página.
+2. **La puerta sigue en la consulta, no en la pantalla.** Las tres devuelven
+   `null` a quien no pueda verlas y entonces el bloque ni se pinta. Esconder la
+   tarjeta nunca fue la puerta.
+3. **A quién se le AVISA es otra pregunta.** El WhatsApp de la vigilancia sigue
+   saliendo solo hacia la cuenta de superadministrador (`elSuperAdministrador`),
+   y no se toca: mirar un dato interno y recibir un aviso a las tres de la
+   mañana no son lo mismo.
+
+Y de paso, «Recargar» de las alertas de créditos: el botón **tiraba la
+respuesta** de `rechargeIaCredit`, así que un «No autorizado» o un fallo contra
+la base cerraban el diálogo igual, sin decir nada. Desde fuera eso no se ve como
+un error, se ve como un botón que no hace nada — la misma familia que el
+«Guardando…» colgado de Carpetas. Ahora la mira y lo dice, y lo que reviente cae
+en un `catch` con su aviso.
+
 ## Enseñar un panel y dejar pasar a su ruta son dos preguntas
 
 La misma pregunta —«¿cuál panel es el tuyo?»— estaba escrita **cuatro veces**,
