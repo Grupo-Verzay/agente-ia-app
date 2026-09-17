@@ -8,6 +8,7 @@ import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
 import { guardarElDetalle, olvidarElDetalleDe } from "@/lib/detalle-de-tarea";
+import { alFinalDelTablero, olvidarLaTarjeta } from "@/lib/orden-de-tablero-db";
 import { olvidarElHiloDe } from "@/lib/avisos-de-tarea";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
 import { registrarElCierre } from "@/actions/trabajo-de-tarea-actions";
@@ -146,6 +147,13 @@ export async function createTaskAction(
     // título, así que no depende de esto, pero la tarjeta que se refresca justo
     // después sí — sin ello se abriría sin su detalle y parecería perdido.
     await guardarElDetalle({ taskId: task.id, ownerId, detalle: parsed.detalle });
+
+    // Una tarjeta nueva entra al FINAL de su columna, nunca arriba: colarse por
+    // delante pisaría el orden que puso alguien a mano. Solo si es de un
+    // proyecto — sin tablero no hay columna en la que ponerse.
+    if (task.projectId) {
+      await alFinalDelTablero("proyecto", String(task.projectId), String(task.id));
+    }
 
     // Automatizaciones por tipo de tarea (requieren sesión para el contexto de envío)
     if (parsed.sessionId) void triggerTaskTypeAutomations(parsed.sessionId, parsed.type);
@@ -463,7 +471,9 @@ export async function deleteTaskAction(
     const ownerId = user.ownerId ?? user.id;
     const task = await (db as any).task.findFirst({
       where: { id: taskId, ownerId },
-      select: { title: true },
+      // `projectId` hace falta para limpiar su sitio en el tablero: la llave de
+      // `orden_en_tablero` es el proyecto, no la cuenta.
+      select: { title: true, projectId: true },
     });
     const result = await (db as any).task.deleteMany({
       where: { id: taskId, ownerId },
@@ -479,6 +489,9 @@ export async function deleteTaskAction(
     await olvidarElHiloDe(taskId);
     // Y su texto largo, por lo mismo.
     await olvidarElDetalleDe(taskId);
+    // Y su sitio en el tablero. Sin esto, una tarea nueva podría heredar el
+    // número de una borrada y aparecer donde estaba aquella.
+    if (task?.projectId) await olvidarLaTarjeta("proyecto", String(task.projectId), String(taskId));
 
     await writeAuditLog({
       userId: ownerId,

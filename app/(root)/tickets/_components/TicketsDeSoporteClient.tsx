@@ -86,6 +86,18 @@ export function TicketsDeSoporteClient({
     const [vista, setVista] = useState<Vista>("tablero");
     const [tickets, setTickets] = useState<TicketConAdjuntos[]>([]);
     const [porEstado, setPorEstado] = useState<Record<string, number>>({});
+    /** La cuenta que recibe los tickets: es el tablero cuyo orden se guarda. */
+    const [destino, setDestino] = useState("");
+    /**
+     * Sube cada vez que llegan datos del servidor.
+     *
+     * Es la señal con la que el tablero tira lo que movió en pantalla: las
+     * posiciones vienen dentro de cada ticket, y dejar las de encima taparía
+     * para siempre lo que reordenó otra persona. Un contador y no la identidad
+     * del arreglo, porque `setTickets` también crea uno nuevo al pintar un
+     * cambio al momento — y eso NO es un dato del servidor.
+     */
+    const [cargadoEn, setCargadoEn] = useState(0);
     const [filtro, setFiltro] = useState<EstadoDeTicket | null>(null);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -122,6 +134,8 @@ export function TicketsDeSoporteClient({
                 } else {
                     setTickets(res.data?.tickets ?? []);
                     setPorEstado(res.data?.porEstado ?? {});
+                    setDestino(res.data?.destino ?? "");
+                    setCargadoEn((n) => n + 1);
                 }
             } catch (e) {
                 // Sin esto el «Cargando…» se queda puesto para siempre.
@@ -392,6 +406,8 @@ export function TicketsDeSoporteClient({
                 <TableroDeTickets
                     tickets={tickets}
                     porEstado={porEstado}
+                    destino={destino}
+                    cargadoEn={cargadoEn}
                     moviendo={moviendo}
                     ahora={ahora}
                     onSoltar={pedirElCambio}

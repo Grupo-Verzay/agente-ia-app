@@ -9,6 +9,10 @@ import { cuentaQueManda, rolQueManda } from "@/lib/cuenta-que-manda";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { clientesDeLaCuenta, cuentasParaCompartir, type CuentaCliente } from "@/lib/cuentas-cliente";
 import { laCuentaQueConfigura } from "@/lib/cuenta-que-configura";
+import {
+  alFinalDelTablero,
+  posicionesDelTablero,
+} from "@/lib/orden-de-tablero-db";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 import { isAdminLike } from "@/lib/rbac";
 import {
@@ -253,6 +257,10 @@ export async function abrirTicketAction(
       })),
     });
 
+    // Entra al FINAL de su columna —«recibido»—, nunca arriba: colarse por
+    // delante pisaría el orden que puso alguien a mano en el tablero.
+    await alFinalDelTablero("tickets", destino, id);
+
     revalidatePath("/mis-tickets");
     revalidatePath("/panel/tickets");
     return { success: true, message: "Listo, ya lo recibimos.", data: { id } };
@@ -305,18 +313,35 @@ async function laCuentaQueLosRecibe(): Promise<string> {
 
 export async function ticketsDeSoporteAction(
   estado?: string | null,
-): Promise<Result<{ tickets: TicketConAdjuntos[]; porEstado: Record<string, number> }>> {
+): Promise<
+  Result<{
+    tickets: TicketConAdjuntos[];
+    porEstado: Record<string, number>;
+    /** La cuenta que los recibe: ES el tablero, y con eso se guarda su orden. */
+    destino: string;
+  }>
+> {
   try {
     const destino = await laCuentaQueLosRecibe();
     const filtro = estado ? comoEstadoDeTicket(estado) : null;
-    const [tickets, porEstado] = await Promise.all([
+    // Y las posiciones del tablero, en la misma tanda: una consulta para el
+    // tablero entero, no una por tarjeta. La llave es la cuenta que RECIBE los
+    // tickets, que es de quien es el tablero.
+    const [tickets, porEstado, posiciones] = await Promise.all([
       losTicketsDelDestino(destino, filtro),
       contarPorEstado(destino),
+      posicionesDelTablero("tickets", destino),
     ]);
+    const conSuSitio = tickets.map((t) => ({
+      ...t,
+      // Sin fila significa «nunca se colocó», y eso es lo que lo deja salir con
+      // los de antes en vez de inventarle un sitio.
+      posicion: posiciones[t.id] ?? null,
+    }));
     return {
       success: true,
       message: "",
-      data: { tickets: await conSusAdjuntos(tickets), porEstado },
+      data: { tickets: await conSusAdjuntos(conSuSitio), porEstado, destino },
     };
   } catch (error) {
     console.error("[ticketsDeSoporteAction]", error);
@@ -374,6 +399,11 @@ export async function moverTicketAction(
         message: "Alguien acaba de cambiarlo. Actualiza y vuelve a intentarlo.",
       };
     }
+
+    // Cambiar de columna lo manda al final de la nueva, por lo mismo. Va
+    // DESPUÉS del `cambio`: si otro se adelantó no se mueve nada, así que
+    // tampoco se le busca sitio.
+    await alFinalDelTablero("tickets", destino, parsed.id);
 
     let avisado = false;
     if (hayQueAvisar) avisado = await avisarAlCliente(ticket, parsed.id);

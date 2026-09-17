@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     DndContext,
     DragEndEvent,
     DragOverlay,
     DragStartEvent,
     PointerSensor,
-    useDraggable,
+    closestCenter,
     useDroppable,
     useSensor,
     useSensors,
@@ -19,14 +19,22 @@ import {
     ESTADOS_DE_TICKET,
     ETIQUETAS_DE_ESTADO,
     comoEstadoDeTicket,
+    exigeMotivo,
     type EstadoDeTicket,
 } from "@/lib/tickets";
+import {
+    ColumnaOrdenable,
+    TarjetaDelTablero,
+    useOrdenDeColumna,
+} from "@/components/shared/OrdenDeColumna";
+import { ordenarLaColumna, resolverElArrastre } from "@/lib/orden-del-tablero";
 import type { TicketConAdjuntos } from "@/actions/tickets-actions";
 
 /**
- * El tablero: una columna por estado y arrastrar para cambiarlo.
+ * El tablero: una columna por estado, arrastrar entre columnas para cambiarlo y
+ * arrastrar dentro de una para reordenarla.
  *
- * Es el mismo patrón del tablero de Proyectos —dnd-kit, `useDraggable` por
+ * Es el mismo patrón del tablero de Proyectos —dnd-kit, `useSortable` por
  * tarjeta y `useDroppable` por columna— y por los mismos motivos:
  *
  * - **El sensor exige mover 6 px** antes de considerar que se está arrastrando.
@@ -37,12 +45,15 @@ import type { TicketConAdjuntos } from "@/actions/tickets-actions";
  *   primero (lo decide quien recibe `onSoltar`). Pintarla en la columna y
  *   devolverla si se cancela el diálogo la haría saltar a la vista.
  *
- * Quien decide qué pasa al soltar es el padre, no esto: aquí solo se sabe qué
- * tarjeta cayó en qué columna.
+ * Quién decide qué pasa al CAMBIAR de columna es el padre, no esto. El orden
+ * dentro de una columna sí se resuelve aquí, con las mismas piezas que
+ * Proyectos: `resolverElArrastre` y `useOrdenDeColumna`.
  */
 export function TableroDeTickets({
     tickets,
     porEstado,
+    destino,
+    cargadoEn,
     moviendo,
     ahora,
     onSoltar,
@@ -51,6 +62,10 @@ export function TableroDeTickets({
     tickets: TicketConAdjuntos[];
     /** Cuántos hay de verdad en cada estado, del `COUNT` del servidor. */
     porEstado: Record<string, number>;
+    /** La cuenta que los recibe: ES el tablero cuyo orden se guarda. */
+    destino: string;
+    /** Sube con cada carga del servidor. Ver `useEffect` de abajo. */
+    cargadoEn: number;
     moviendo: string | null;
     ahora: number;
     onSoltar: (ticket: TicketConAdjuntos, estado: EstadoDeTicket) => void;
@@ -59,6 +74,18 @@ export function TableroDeTickets({
     const [arrastrando, setArrastrando] = useState<TicketConAdjuntos | null>(null);
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+    // Quien llega a este tablero ya pasó la puerta de la cuenta que los recibe:
+    // un `agente` no ve ninguno. La de verdad está en la acción, como siempre.
+    const orden = useOrdenDeColumna("tickets", destino, Boolean(destino));
+
+    // Una carga del servidor trae las posiciones dentro de cada ticket, así que
+    // lo que se movió en pantalla sobra: dejarlo encima taparía para siempre lo
+    // que reordenó otra persona.
+    const { olvidarLoDeEncima } = orden;
+    useEffect(() => {
+        olvidarLoDeEncima();
+    }, [cargadoEn, destino, olvidarLoDeEncima]);
 
     const porColumna = useMemo(() => {
         const mapa: Record<EstadoDeTicket, TicketConAdjuntos[]> = {
@@ -69,12 +96,35 @@ export function TableroDeTickets({
             descartado: [],
         };
         for (const t of tickets) mapa[t.estado].push(t);
+        // Cada columna se coloca por separado: el número solo se compara con el
+        // de las tarjetas de su misma columna.
+        for (const estado of ESTADOS_DE_TICKET) {
+            mapa[estado] = ordenarLaColumna(
+                mapa[estado],
+                Object.fromEntries(
+                    mapa[estado]
+                        .map((t) => [t.id, orden.posicionDe(t.id, t.posicion)] as const)
+                        .filter(([, p]) => p !== null) as Array<[string, number]>,
+                ),
+                (t) => t.id,
+            );
+        }
         return mapa;
-    }, [tickets]);
+    }, [tickets, orden]);
+
+    const idsPorColumna = useMemo(() => {
+        const mapa: Record<string, string[]> = {};
+        for (const estado of ESTADOS_DE_TICKET) mapa[estado] = porColumna[estado].map((t) => t.id);
+        return mapa;
+    }, [porColumna]);
 
     return (
         <DndContext
             sensors={sensors}
+            // Con tarjetas que también son destino, el rectángulo más cercano
+            // es lo que decide entre qué dos se soltó. Sin esto, dnd-kit se
+            // queda con la columna y el reorden no llega a calcularse nunca.
+            collisionDetection={closestCenter}
             onDragStart={(e: DragStartEvent) =>
                 setArrastrando(
                     (e.active.data.current as { ticket?: TicketConAdjuntos } | undefined)?.ticket ?? null,
@@ -85,12 +135,47 @@ export function TableroDeTickets({
                 const { active, over } = e;
                 if (!over) return;
                 const ticket = (active.data.current as { ticket?: TicketConAdjuntos } | undefined)?.ticket;
+                if (!ticket) return;
+
+                // Qué significa haberla soltado lo decide una función pura, la
+                // misma que usa el tablero de Proyectos: o nada, o cambio de
+                // columna, o reordenar dentro de la suya.
+                const que = resolverElArrastre({
+                    arrastrada: ticket.id,
+                    soltadaSobre: String(over.id),
+                    columnaDeLaArrastrada: ticket.estado,
+                    columnas: ESTADOS_DE_TICKET,
+                    idsPorColumna,
+                });
+
+                if (que.que === "reordenar") {
+                    void orden.reordenar(que.ids);
+                    return;
+                }
+                if (que.que !== "otra-columna") return;
+
                 // Lo que llega del arrastre pasa por la lista, igual que lo que
                 // llega del navegador en la acción: `over.id` es una cadena
                 // cualquiera hasta que alguien lo comprueba.
-                const destino = comoEstadoDeTicket(String(over.id));
-                if (!ticket || !destino || ticket.estado === destino) return;
-                onSoltar(ticket, destino);
+                const estado = comoEstadoDeTicket(que.columna);
+                if (!estado || ticket.estado === estado) return;
+
+                // Entra al final de la columna nueva, igual que hace el
+                // servidor. Sin esto se quedaría con el número de su columna
+                // anterior y aparecería en mitad de la nueva.
+                //
+                // Salvo cuando va a pedir un motivo: ahí la tarjeta **no se
+                // mueve todavía** —el padre abre el diálogo primero— y darle ya
+                // el sitio de la otra columna la haría saltar al fondo de la
+                // suya si se cancela. Es la misma razón por la que tampoco se
+                // repinta el estado.
+                if (!exigeMotivo(estado)) {
+                    orden.ponerAlFinal(
+                        ticket.id,
+                        (porColumna[estado] ?? []).map((t) => orden.posicionDe(t.id, t.posicion)),
+                    );
+                }
+                onSoltar(ticket, estado);
             }}
         >
             <div className="min-h-0 flex-1 overflow-x-auto pb-2">
@@ -100,6 +185,7 @@ export function TableroDeTickets({
                             key={estado}
                             estado={estado}
                             tickets={porColumna[estado]}
+                            ids={idsPorColumna[estado]}
                             deVerdad={porEstado[estado] ?? porColumna[estado].length}
                             moviendo={moviendo}
                             ahora={ahora}
@@ -128,6 +214,7 @@ export function TableroDeTickets({
 function Columna({
     estado,
     tickets,
+    ids,
     deVerdad,
     moviendo,
     ahora,
@@ -135,6 +222,8 @@ function Columna({
 }: {
     estado: EstadoDeTicket;
     tickets: TicketConAdjuntos[];
+    /** Los mismos tickets, solo sus ids: es lo que `SortableContext` necesita. */
+    ids: string[];
     deVerdad: number;
     moviendo: string | null;
     ahora: number;
@@ -170,15 +259,17 @@ function Columna({
                     isOver && "bg-primary/5 ring-2 ring-inset ring-primary/30",
                 )}
             >
-                {tickets.map((t) => (
-                    <TarjetaArrastrable
-                        key={t.id}
-                        ticket={t}
-                        moviendo={moviendo === t.id}
-                        ahora={ahora}
-                        onAbrir={onAbrir}
-                    />
-                ))}
+                <ColumnaOrdenable ids={ids}>
+                    {tickets.map((t) => (
+                        <TarjetaArrastrable
+                            key={t.id}
+                            ticket={t}
+                            moviendo={moviendo === t.id}
+                            ahora={ahora}
+                            onAbrir={onAbrir}
+                        />
+                    ))}
+                </ColumnaOrdenable>
 
                 {tickets.length === 0 && (
                     <div className="flex h-20 items-center justify-center text-xs text-muted-foreground/40">
@@ -210,38 +301,27 @@ function TarjetaArrastrable({
     ahora: number;
     onAbrir: (ticket: TicketConAdjuntos) => void;
 }) {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-        id: ticket.id,
-        data: { ticket },
-    });
-
-    const style = transform
-        ? {
-              transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-              zIndex: 50,
-              position: "relative" as const,
-          }
-        : undefined;
-
     return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            {...listeners}
-            {...attributes}
+        <TarjetaDelTablero
+            id={ticket.id}
+            puedeArrastrar
             className={cn("cursor-grab active:cursor-grabbing", moviendo && "opacity-60")}
         >
-            <TarjetaDeTicket
-                ticket={ticket}
-                deQuien={ticket.clienteNombre ?? ticket.clienteId}
-                ahora={ahora}
-                arrastrando={isDragging}
-                // El sensor exige 6 px, así que un clic limpio llega aquí y abre
-                // el ticket; soltarlo después de arrastrar, no.
-                onAbrir={() => {
-                    if (!isDragging) onAbrir(ticket);
-                }}
-            />
-        </div>
+            {(arrastrando) => (
+                <TarjetaDeTicket
+                    ticket={ticket}
+                    deQuien={ticket.clienteNombre ?? ticket.clienteId}
+                    ahora={ahora}
+                    arrastrando={arrastrando}
+                    // Se queda en la tarjeta y no en el envoltorio: es lo que le
+                    // da el cursor y el resaltado al pasar por encima. El sensor
+                    // exige 6 px, así que un clic limpio llega aquí y abre el
+                    // ticket; soltarlo después de arrastrar, no.
+                    onAbrir={() => {
+                        if (!arrastrando) onAbrir(ticket);
+                    }}
+                />
+            )}
+        </TarjetaDelTablero>
     );
 }

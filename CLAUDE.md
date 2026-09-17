@@ -1551,6 +1551,104 @@ se avisa, así que `crearLosAvisos` no lanza. Pero **no es mudo**: un aviso que
 no sale sin decirlo se lee como «a mí no me llega nada», que es el fallo
 original otra vez.
 
+### El orden DENTRO de una columna: la llave es el TABLERO, no la cuenta
+
+Las tarjetas se arrastraban de una columna a otra y **no se podían reordenar
+dentro de la suya**. Con varias tareas o tickets del mismo día la fecha no
+ordena nada y lo más urgente podía quedar de último.
+
+Lo tienen los dos tableros —el de un proyecto y el de tickets— y lo comparten
+todo: `lib/orden-del-tablero.ts` (puro), `lib/orden-de-tablero-db.ts`,
+`actions/orden-de-tablero-actions.ts` y `components/shared/OrdenDeColumna.tsx`.
+Con dos copias, el día que se afine el arrastre se afina en una y la otra se
+queda atrás, que no se ve como un error sino como «en tickets a veces no
+funciona».
+
+La posición vive en **`orden_en_tablero`**, tabla de la App con
+`CREATE TABLE IF NOT EXISTS` y sin clave foránea, con llave
+`(tipo, tableroId, tarjetaId)`. En Proyectos no hay elección —`tasks` es del
+BACKEND y añadirle columnas desde aquí es lo que reventó el #360—; en Tickets sí
+la habría, porque `tickets_de_soporte` es nuestra, y **aun así va aquí**: dos
+mecanismos para lo mismo es uno que se afina y otro que se queda.
+
+**Y la llave es el TABLERO, no la cuenta.** Es la diferencia con
+`lib/orden-de-las-tarjetas.ts` —la rejilla de Proyectos y Diagramas—, donde la
+posición es de la pareja **cuenta + cosa** porque un proyecto compartido sale en
+dos pantallas y cada cuenta lo coloca donde quiera. Aquí es al revés: un
+proyecto compartido es **UN tablero** que abren las dos cuentas, con las mismas
+tarjetas —«un proyecto, un juego de tareas»—. Con la cuenta en la llave, la
+dueña y la invitada verían el mismo tablero ordenado de dos maneras.
+
+#### El número es del TABLERO; la comparación, de la COLUMNA
+
+Cada tarjeta guarda un entero y **solo se compara con las de su columna**. Eso
+deja «entrar al final» en una sola consulta y sin saber en qué columna va a
+caer: `máximo del tablero + 1` es, por definición, mayor que el máximo de
+cualquiera de sus columnas. Lo usan las tres puertas por las que una tarjeta
+llega a una columna —crearla, moverla de columna y, en tickets, abrirla—, y por
+eso reordenar una columna a `0,1,2…` no rompe nada aunque deje sus números por
+debajo de los de otra: entre columnas no se comparan nunca.
+
+Y el `SELECT MAX` va **dentro** del `INSERT`: con dos consultas, dos tarjetas
+creadas a la vez leerían el mismo máximo y se llevarían el mismo número.
+Comprobado lanzando las dos en paralelo contra Postgres.
+
+#### Lo que NO tiene posición va PRIMERO
+
+Suena al revés y es lo que hace falta:
+
+- Una columna que nadie ha tocado **no tiene ni una posición guardada**, así que
+  sale exactamente como salía antes. Esto no cambió ningún tablero hasta que
+  alguien arrastró la primera tarjeta.
+- Y una tarjeta **nueva SÍ trae posición**, así que cae en el grupo de las
+  colocadas y queda **la última**. Que es el encargo: nunca arriba, para no
+  pisar el orden que puso una persona a mano.
+
+Con «sin colocar» al final pasaría lo contrario: la tarjeta nueva saldría
+arriba del todo. Es la trampa que solo se ve con una columna a medio colocar, y
+el banco la reproduce a propósito.
+
+#### Dos administradores reordenando a la vez: gana la última, pero gana ENTERA
+
+**Se guarda la columna entera, no la tarjeta que se movió.** Guardando una sola
+posición habría que hacerle sitio corriendo a las demás, y dos personas a la vez
+dejarían la columna con dos tarjetas en el mismo hueco o con un salto. Con la
+columna entera cada escritura es una foto completa y coherente: Postgres las
+serializa y la columna acaba en el orden que vio una persona, **nunca mezclando
+las dos** —que daría un orden que no eligió nadie—. Si tocan columnas distintas
+ni se rozan: son filas con `tarjetaId` distinto.
+
+Se acepta a sabiendas y **sin candado de versión**, a diferencia de confirmar un
+cobro: allí lo que se pierde es un mes de licencia y aquí un arrastre, que se ve
+al instante y se deshace volviéndolo a arrastrar. Un diálogo de «alguien
+reordenó mientras tanto» sale más caro que el problema que evita. El banco lo
+ejecuta —dos `guardarLaColumna` en paralelo sobre la misma columna— y comprueba
+las dos cosas: que el resultado es uno de los dos órdenes completos, y que no se
+pierde ni se duplica ninguna tarjeta.
+
+#### Y tres cosas del lado de la pantalla
+
+1. **`useSortable` en vez de `useDraggable`**, y `collisionDetection=
+   {closestCenter}`. La tarjeta pasa a ser también un destino: sin eso no hay
+   forma de saber **entre qué dos** se soltó, solo en qué columna. Y sin
+   `closestCenter` dnd-kit se queda con la columna y el reorden no llega a
+   calcularse nunca. La estrategia es `verticalListSortingStrategy` —una columna
+   es una sola columna de tarjetas apiladas—, no la `rectSortingStrategy` de la
+   rejilla.
+2. **El `DndContext` sigue siendo uno, el del tablero.** `ColumnaOrdenable` solo
+   pone el `SortableContext`: dos contextos anidados se roban los eventos y el
+   cambio de columna dejaría de funcionar.
+3. **Lo que se movió en pantalla se tira en cuanto llegan datos del servidor.**
+   Las posiciones viajan dentro de cada tarjeta, así que dejar las de encima
+   taparía para siempre lo que reordenó otra persona. En Tickets la señal es un
+   contador que sube en cada carga y **no la identidad del arreglo**: el padre
+   también crea uno nuevo al pintar un cambio al momento, y eso no es un dato
+   del servidor.
+
+Y un agente que arrastre dentro de su columna **no se queda sin respuesta**: sale
+«Solo un administrador puede reordenar el tablero». Mover de columna lo suyo
+sigue igual que siempre.
+
 ### La tarjeta del tablero se recorta, y el texto entero está al abrirla
 
 Una tarea con el texto largo —lo normal: se pega ahí «Empresa: … Fecha: …
