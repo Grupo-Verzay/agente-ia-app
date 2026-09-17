@@ -6,8 +6,17 @@
  * importa Prisma. Es el mismo reparto que `adjuntos-de-tarea-tipos`.
  */
 
-/** Los tres momentos en que a alguien le salta un aviso. */
-export const TIPOS_DE_AVISO = ["asignada", "hecha", "comentario"] as const;
+/**
+ * Los momentos en que a alguien le salta un aviso.
+ *
+ * Los tres primeros son de una tarea. El cuarto, `mencion`, es del **chat
+ * interno del equipo**: reutiliza esta misma tubería a propósito —la misma
+ * tabla, la misma ventana que interrumpe, la misma campanita— porque el fallo
+ * que esto vino a arreglar es justo el contrario: un aviso más, en otro sitio,
+ * con otra forma de despacharse, se aprende a ignorar como se ignoraba la
+ * campanita.
+ */
+export const TIPOS_DE_AVISO = ["asignada", "hecha", "comentario", "mencion"] as const;
 export type TipoDeAviso = (typeof TIPOS_DE_AVISO)[number];
 
 /**
@@ -34,7 +43,13 @@ export type ComentarioDeTarea = {
 
 export type AvisoDeTarea = {
   id: string;
-  taskId: number;
+  /**
+   * La tarea, cuando el aviso es de una.
+   *
+   * **`null` en los del chat de equipo**, que no cuelgan de ninguna. Es lo
+   * único que distingue a los dos, y de ahí sale a dónde lleva el clic.
+   */
+  taskId: number | null;
   projectId: number | null;
   tipo: TipoDeAviso;
   /** Qué pasó, ya redactado. El servidor lo escribe una vez. */
@@ -49,8 +64,12 @@ export type AvisoDeTarea = {
   visto: boolean;
 };
 
-/** A dónde lleva un aviso: al tablero de su proyecto, o a Tareas si va suelta. */
-export function aDondeLleva(aviso: { projectId: number | null; taskId: number }): string {
+/**
+ * A dónde lleva un aviso: al chat del equipo, al tablero de su proyecto, o a
+ * Tareas si la tarea va suelta.
+ */
+export function aDondeLleva(aviso: { projectId: number | null; taskId: number | null }): string {
+  if (aviso.taskId === null) return "/chat-equipo";
   return aviso.projectId
     ? `/proyectos?proyecto=${aviso.projectId}&tarea=${aviso.taskId}`
     : "/tareas";
@@ -63,6 +82,7 @@ export function tituloDelAviso(
   tituloDeLaTarea: string,
 ): string {
   const persona = quien?.trim() || "Alguien del equipo";
+  if (tipo === "mencion") return `${persona} te mencionó en el chat del equipo`;
   if (tipo === "asignada") return `${persona} te asignó «${tituloDeLaTarea}»`;
   if (tipo === "hecha") return `${persona} terminó «${tituloDeLaTarea}»`;
   return `${persona} comentó en «${tituloDeLaTarea}»`;

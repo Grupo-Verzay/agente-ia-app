@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BellRing, CheckCircle2, MessageSquare, UserPlus } from "lucide-react";
+import { AtSign, BellRing, CheckCircle2, MessageSquare, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -70,12 +70,14 @@ const ICONO = {
   asignada: UserPlus,
   hecha: CheckCircle2,
   comentario: MessageSquare,
+  mencion: AtSign,
 } as const;
 
 const COLOR = {
   asignada: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   hecha: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   comentario: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  mencion: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
 } as const;
 
 function cuando(iso: string) {
