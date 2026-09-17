@@ -18,7 +18,7 @@ import { canManageWorkspace } from "@/lib/workspace-roles";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { VISIBILIDADES, type FlowVisibility } from "@/lib/flow-visibility";
-import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
+import { cuentasParaCompartir } from "@/lib/cuentas-cliente";
 
 export interface FlowSummary {
   id: string;
@@ -700,9 +700,11 @@ export type CompartirCon = { accountUserId: string; permiso: PermisoCompartido }
 /**
  * A qué cuentas se les puede enseñar este diagrama, y a cuáles ya.
  *
- * Son las cuentas de cliente sobre las que manda quien pregunta: un admin las
- * tiene todas; un reseller, las suyas. La misma lista que reparte clientes entre
- * el equipo, para que no haya dos ideas de "mis cuentas".
+ * **Todas las cuentas de la plataforma menos la propia**, sea cual sea su rol.
+ * El rol no decide quién puede RECIBIR algo compartido: una cuenta
+ * administradora o un reseller lo abren igual que un cliente. Con la lista de
+ * «mis clientes» puesta aquí, las administradoras no salían en el buscador y no
+ * había forma de compartirles nada.
  */
 export async function getFlowShareTargetsAction(
   flowId: string,
@@ -719,7 +721,7 @@ export async function getFlowShareTargetsAction(
     }
 
     const [cuentas, compartidas] = await Promise.all([
-      clientesDeLaCuenta({ id: ctx.cuenta, role: user?.role ?? "user" }),
+      cuentasParaCompartir(ctx.cuenta),
       db.$queryRaw<{ accountUserId: string; permiso: string }[]>`
         SELECT "accountUserId", "permiso" FROM "flow_shares" WHERE "flowId" = ${flowId}
       `,
@@ -730,9 +732,8 @@ export async function getFlowShareTargetsAction(
     );
     return {
       success: true,
-      // La propia cuenta no se lista: ya lo tiene, y marcarla no querria decir nada.
+      // La propia ya la quita la consulta.
       data: cuentas
-        .filter((c) => c.id !== ctx.cuenta)
         .map((c) => ({
           ...c,
           compartido: yaTiene.has(c.id),
@@ -760,9 +761,11 @@ export async function setFlowSharesAction(
       return { success: false, message: "Solo quien lo creó o un administrador puede compartirlo." };
     }
 
-    // Solo cuentas sobre las que se manda de verdad: lo que llegue del navegador
-    // no decide a quien se le enseña un diagrama.
-    const cuentas = await clientesDeLaCuenta({ id: ctx.cuenta, role: user?.role ?? "user" });
+    // Solo cuentas que existen de verdad: lo que llegue del navegador no decide
+    // a quien se le enseña un diagrama. Es la MISMA lista que se ofrece, no una
+    // más estrecha: con dos criterios, el buscador ofrece cuentas que al guardar
+    // se caen sin decir por qué.
+    const cuentas = await cuentasParaCompartir(ctx.cuenta);
     const suyas = new Set(cuentas.map((c) => c.id));
     // Una entrada por cuenta -si el navegador manda la misma dos veces, manda la
     // ultima- y el permiso se normaliza aqui: cualquier cosa que no sea

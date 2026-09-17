@@ -20,6 +20,34 @@ export type CuentaCliente = {
  * se les enseña un diagrama. Es la misma pregunta, y conviene que tenga una sola
  * respuesta.
  */
+/**
+ * A qué cuentas se les puede ENSEÑAR algo: un diagrama, un proyecto.
+ *
+ * Es una pregunta distinta de `clientesDeLaCuenta`, y por eso es otra función.
+ * Aquella contesta «a qué clientes administro» —y de ahí sus filtros: rol
+ * `user`/`affiliate`, sin los de un reseller—; esta contesta «con quién puedo
+ * compartir», y ahí **el rol no pinta nada**: una cuenta administradora, un
+ * reseller o una afiliada reciben un proyecto igual que cualquier otra. Con el
+ * filtro de la otra puesto, Verzay | Atencion no salía en el buscador por ser
+ * administradora, y no había forma de compartirle nada.
+ *
+ * Se excluye **solo la cuenta propia**: ya lo tiene, y marcarla no querría decir
+ * nada.
+ *
+ * Lo que sí se mantiene es `ownerId: null`, y **no es un filtro de rol**: quien
+ * cuelga de otra cuenta es una persona de un equipo, no una cuenta. Compartir
+ * con ella escribiría una fila que no puede ver nadie —lo recibido se busca por
+ * la CUENTA (`ownerId ?? id`), así que el id de un asesor no casa nunca—, o sea
+ * una opción en la lista que al elegirla no hace nada.
+ */
+export async function cuentasParaCompartir(cuentaPropia: string): Promise<CuentaCliente[]> {
+  return db.user.findMany({
+    where: { ownerId: null, id: { not: cuentaPropia } },
+    select: { id: true, name: true, email: true, company: true },
+    orderBy: [{ company: "asc" }, { email: "asc" }],
+  });
+}
+
 export async function clientesDeLaCuenta(owner: {
   id: string;
   role: string;
