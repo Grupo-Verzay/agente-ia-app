@@ -3,13 +3,19 @@ import "server-only";
 import { db } from "@/lib/db";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { parseItemIds } from "@/lib/permisos";
-import { elPanelQueLeToca, rutasDePanelParaElMenu } from "@/lib/sidebar-modules";
+import {
+    elPanelQueLeToca,
+    rolQueAbrePuertas,
+    rutasDePanelParaElMenu,
+} from "@/lib/sidebar-modules";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 
 type Persona = {
     role: string;
     /** El rol de la persona real (ver `lib/super-admin-de-verdad.ts`). */
     rolDeLaPersona?: string | null;
+    /** El rol de la CUENTA en la que trabaja (ver `lib/auth.ts`). */
+    rolDeLaCuenta?: string | null;
     ownerId?: string | null;
     advisorRole?: string | null;
     deniedModuleItems?: string | null;
@@ -34,7 +40,11 @@ export async function apartadosDelPanel(persona: Persona) {
     // superadministrador. Se recorre en orden de preferencia y se toma el
     // primero que exista, que es lo que deja funcionar a los administradores
     // mientras nadie haya creado todavia el modulo /panel-admin.
-    const candidatas = rutasDePanelParaElMenu(persona.role);
+    // El MISMO rol con el que abre puertas el menu y el layout. Con
+    // `persona.role` —el suyo, `user` si es del equipo— a un administrador se le
+    // buscaba el panel del cliente y sus apartados no aparecian por ningun lado.
+    const rolDeLaPuerta = rolQueAbrePuertas(persona);
+    const candidatas = rutasDePanelParaElMenu(rolDeLaPuerta);
     const panelesExistentes = await db.module.findMany({
         where: { route: { in: candidatas } },
         // Desempate por id: los submódulos guardados antes de que se sellaran con
@@ -43,7 +53,7 @@ export async function apartadosDelPanel(persona: Persona) {
         include: { moduleItems: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
     });
     // La misma regla que el layout, el menu y Equipo (`elPanelQueLeToca`).
-    const panelModule = elPanelQueLeToca(persona.role, panelesExistentes, {
+    const panelModule = elPanelQueLeToca(rolDeLaPuerta, panelesExistentes, {
         paraElMenu: true,
     });
     if (!panelModule) return null;
@@ -57,7 +67,7 @@ export async function apartadosDelPanel(persona: Persona) {
     const esAgente =
         !mandaDeVerdad && !!persona.ownerId && persona.advisorRole !== "administrador";
     const mandaLoConcedido =
-        !mandaDeVerdad && (esAgente || !isAdminOrReseller(persona.role));
+        !mandaDeVerdad && (esAgente || !isAdminOrReseller(rolDeLaPuerta));
 
     const items = (panelModule.moduleItems ?? []).filter((item) =>
         mandaLoConcedido && panelModule.adminOnly
