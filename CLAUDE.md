@@ -1788,6 +1788,195 @@ Tres cosas que hay que mantener:
    `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo que se
    comete solo al añadirle una columna a una tabla de la App ya desplegada.
 
+## Los paneles laterales: UNA medida para toda la plataforma
+
+Convivían **tres anchos** para lo mismo, y uno al lado de otro se ve a la
+primera:
+
+| ventana | lista de Chats | ficha de Contacto | copiloto |
+| --- | --- | --- | --- |
+| 768 | 320 | 320 | 440 |
+| 1024 | 352 | **320** | 440 |
+| 1280+ | 384 | **320** | 440 |
+
+La lista baja con la ventana, la ficha se quedaba clavada en 320 desde 768 —así
+que la columna derecha de Chats salía más estrecha que la izquierda— y los dos
+paneles del borde iban a 440 siempre.
+
+> **Manda la escala de la LISTA DE CHATS** —18/20/22/24 rem—, y vive en
+> `--ancho-lateral` (`app/globals.css`). La usan los cuatro: la lista, la ficha
+> de Contacto, el copiloto y el chat del equipo. **Si hay que cambiar el ancho
+> de un panel, se cambia ahí.** Escribirlo a mano en uno es volver a tener tres.
+
+Y las clases de la forma —dónde arranca, hasta dónde baja, el borde, la
+sombra— se escriben **una vez**, en `lib/panel-lateral.ts`. El copiloto y el
+chat del equipo las importan.
+
+### El alto de la barra NO está escrito: se mide
+
+Los paneles arrancan justo debajo de la barra de arriba, y **la barra no tiene
+altura declarada**. Va con `h-18`, que no existe en la escala de Tailwind —salta
+de 16 a 20—, así que esa clase **no hace nada** y el alto lo pone el contenido.
+
+Poner un número sería copiar a ojo algo que cambia con el zoom, con el tamaño de
+letra del navegador y el día que se añada un botón a la barra. Y de eso depende
+lo único que no puede fallar: con un número de menos, **el panel tapa el
+buscador y la campanita**.
+
+Lo mide `MedidaDeLaBarra` con un `ResizeObserver` y lo publica en
+`--alto-de-la-barra`, sobre `document.documentElement` — los paneles son
+`fixed`, no cuelgan de la barra en el árbol, así que la variable tiene que
+llegarles esté donde esté cada uno.
+
+### En Chats acomodan; fuera, se superponen
+
+La ficha de Contacto ya acomodaba la conversación porque es un hermano del flex.
+El copiloto y el chat del equipo cuelgan del layout y no pueden ser hermanos de
+nada, pero el contenedor de la bandeja ya lleva `data-chat-view`: con un panel
+abierto se le reserva la franja por la derecha (`padding-right`). El efecto es
+el mismo y no hay que mover ningún panel de sitio. **Fuera de Chats la regla no
+aplica** —está acotada a ese atributo—, así que el panel se abre encima sin
+empujar ni encoger nada.
+
+Y de ahí salieron dos cosas que solo se ven midiendo:
+
+1. **La conversación se quedaba en CERO.** Con la ficha abierta *y* un panel,
+   los tres anchos no caben y el que desaparecía era justo el del medio:
+   quedaban dos columnas de fichas, una al lado de otra, sin nada que leer entre
+   ellas. La conversación tiene **suelo** (`md:min-w-[15rem]`) y quien cede es
+   la ficha, que enseña datos que no cambian mientras se habla.
+2. **La ficha se superpone mientras haya un panel abierto.** No es una
+   preferencia: **no caben**. Medido en Chromium, los cuatro en fila necesitan
+   ~1.400 px. Superponerse es lo que la ficha ya hacía en un móvil
+   (`absolute inset-0` con `md:static`), así que no es un comportamiento nuevo.
+3. **La franja se reserva DONDE CABE**, de `lg` para arriba: la lista (22rem)
+   más el suelo (15rem) más el panel (22rem) son 944 px y entran en 1.024. Por
+   debajo el panel se abre encima, como en el resto de la plataforma. Acomodar
+   lo que no cabe es dejar la conversación sin sitio, que es peor que taparla
+   un rato.
+
+Medido con los dos paneles abiertos: 1440 → 672 px de conversación; 1280 → 512;
+1024 → 320; y por debajo, superpuesto.
+
+### Y Tailwind NO mira `lib/`
+
+Esto casi se despliega roto y el build pasó limpio. Las clases de
+`lib/panel-lateral.ts` no generaban **ni una** regla: `content` de
+`tailwind.config.ts` listaba `pages`, `components`, `app` y `src`, y **no
+`lib`**. Los paneles habrían salido sin ancho, sin `top` y sin alto, o sea
+invisibles, sin un solo error en ninguna parte.
+
+Se añadió `./lib/**/*.{ts,tsx}`. Y la forma de comprobarlo, que es la que lo
+cazó: **buscar la DECLARACIÓN en el build, no la clase en el código.**
+
+```
+npm run build && grep -oF "top:var(--alto-de-la-barra)" .next/static/css/*.css | wc -l
+```
+
+Cero significa que esa clase no existe en producción. Es la misma familia que la
+regla de `removeConsole`: el código llega, lo que no está es lo compilado.
+
+## Chat de equipo: CANALES y DIRECTOS, no un hilo único
+
+Un hilo único por cuenta no aguanta un equipo de verdad: ventas lee lo de
+desarrollo, desarrollo lee lo de marketing, y **el ruido cruzado hace que se
+abandone**. Un chat que se abandona es peor que no tenerlo, porque lo que se
+escribe ahí ya no lo lee nadie.
+
+**La tabla no se rehace.** `team_chat_messages` recibe `canalId` con
+`ADD COLUMN IF NOT EXISTS`, y las filas que ya estaban —con `canalId` nulo— son
+el canal **general**. Sin backfill y sin dos clases de mensaje. Comprobado
+contra Postgres con mensajes viejos dentro: sobreviven, y el general se lee con
+`("canalId" IS NULL OR "canalId" = 'general')`. **Sin esa condición el general
+sale vacío el día del despliegue y parecen borrados.**
+
+Dos tablas nuevas de la App, con `CREATE TABLE IF NOT EXISTS` y sin clave
+foránea, como `task_comments` y `tickets_de_soporte`: `team_channels` y
+`team_channel_members`.
+
+**Las tres decisiones que conviene no deshacer:**
+
+1. **El general no tiene lista de miembros.** Es de toda la cuenta y punto, y
+   **no es una fila**: es la constante `CANAL_GENERAL`. Con filas habría que
+   crearlo en cada cuenta, acordarse de hacerlo en las que ya existen y meter a
+   cada persona nueva — y el día que se olvide alguien se queda fuera del único
+   canal donde está todo el mundo, que no se ve como un error sino como «a mí no
+   me llega nada».
+2. **Un directo ES un canal**, de `tipo: "directo"` y dos miembros. Así los
+   mensajes, las menciones, los avisos y el lector del hilo son **los mismos**:
+   no hay una segunda tubería que mantener a la par. Su identidad es la pareja
+   **ordenada** (`llaveDelDirecto`), con índice único parcial por cuenta: el
+   directo de A con B y el de B con A son el mismo, y cada uno lo abre desde su
+   lado. Sin ordenar saldrían dos canales con los mismos dos miembros y la mitad
+   de los mensajes en cada uno — que desde fuera se lee como «me escribió y no
+   me llegó». Comprobado insertando los dos lados: el segundo no crea nada, y
+   otra cuenta sí puede tener la misma pareja.
+3. **Quién manda es la puerta que ya existe**, `canManageWorkspace`: dueño,
+   `administrador` y superadministrador de verdad; el `agente` participa pero no
+   manda. Escribir aquí una condición nueva es lo que dejó fuera a media gente
+   en Clientes, Equipo y Analíticas.
+
+### Leer y escribir son dos preguntas, y en los directos NO coinciden
+
+| | lee | escribe |
+| --- | --- | --- |
+| general | todo el mundo | todo el mundo |
+| área | quien pertenece, **y quien manda** | quien pertenece, **y quien manda** |
+| directo | los dos, **y quien manda** | **solo los dos** |
+
+El administrador tiene acceso de lectura a todos los directos de su cuenta: es
+una herramienta de trabajo, no un canal privado, y es una decisión tomada a
+propósito. **No se avisa de eso en ninguna pantalla.**
+
+Pero **leer un directo ajeno no es poder escribir en él**. Meterse a escribir en
+la conversación de otros dos no es supervisar, es suplantar: el mensaje saldría
+dentro de un hilo de dos con un tercero dentro, y ninguno de los dos lo
+esperaría. Las dos reglas viven en `lib/canales-de-equipo.ts`, puras y probadas.
+
+### El canal decide a quién se menciona, y el aviso lleva el canal dentro
+
+Las menciones se acotan a **la gente de ese canal**, no a la de la cuenta: en un
+canal de tres, `@` y un nombre de fuera no es una mención. Y se decide en el
+**servidor**, como siempre: lo que diga el navegador sobre a quién mencionó
+sería una lista de destinatarios que llega de fuera.
+
+El aviso sigue siendo el mismo —la misma tabla, la misma ventana que interrumpe,
+la misma campanita— y lo único nuevo es que **lleva el canal dentro**:
+`task_alerts` recibe `enlace` con `ADD COLUMN IF NOT EXISTS`, y `aDondeLleva` lo
+prefiere cuando está. Sin eso, quien te menciona en «ventas» te manda al general
+y ahí no hay nada que leer.
+
+### Y lo que llega del navegador no decide a qué se llega
+
+El canal viaja en cada llamada, así que:
+
+- **Al leer**, si el canal pedido no está entre los que esa persona ve, se
+  contesta con el general. No se dice «no puedes»: se devuelve lo suyo.
+- **Al escribir**, se comprueba que se pueda escribir **ahí**, no solo que haya
+  sesión. Sin eso, cualquiera escribiría en el directo de otros dos poniendo su
+  id a mano.
+- **Al crear o asignar**, los miembros se filtran contra el equipo de esa
+  cuenta. Una lista de fuera metería en un canal a alguien de otra cuenta, y
+  entonces sus mensajes le llegarían.
+- **Al renombrar**, el `UPDATE` va acotado a la cuenta **y al tipo `area`**: ni
+  se renombra un canal de otra cuenta, ni se le pone nombre a un directo, que se
+  llama con la otra persona. Comprobado: las dos tentativas tocan cero filas.
+
+### El dueño de la cuenta no estaba en la lista
+
+`getTeamAdvisorInfos` busca por `owner_id`, así que devuelve al equipo y a las
+cuentas vinculadas — pero **no al dueño**, cuya fila no cuelga de nadie. Con un
+hilo único eso solo significaba que al dueño no se le podía mencionar; **con
+directos significa que nadie puede escribirle**, que es la mitad de para lo que
+esto sirve. Se añade delante y se deduplica por id.
+
+### Y una vuelta del reloj que llega tarde no pinta encima
+
+El reloj de 5 s pide el canal que estaba abierto cuando salió. Si mientras tanto
+se cambió de canal, esa respuesta trae los mensajes de la conversación anterior
+y **se descarta**: comparando contra la referencia, no contra el estado. Sin esa
+comprobación se ve como un canal que se cambia solo a los pocos segundos.
+
 ### El panel: la ruta sola no sirve
 
 El equipo vive en Chats y no va a salir de ahí para hablar. Una ruta obliga a

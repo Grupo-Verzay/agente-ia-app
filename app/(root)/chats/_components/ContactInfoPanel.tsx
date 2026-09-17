@@ -360,8 +360,11 @@ export function ContactInfoPanel({
     }));
   })();
 
+  // Mismo ancho que la lista de la izquierda y que los demás paneles:
+  // `--ancho-lateral`. Estaba en `md:w-80` —320 px fijos—, así que a partir de
+  // 1024 px la columna derecha salía más estrecha que la izquierda.
   return (
-    <aside className="flex flex-col w-full md:w-80 shrink-0 border-l bg-background h-full overflow-hidden absolute inset-0 z-20 md:static md:z-auto md:inset-auto">
+    <aside data-ficha-de-contacto className="flex flex-col w-full md:w-[var(--ancho-lateral)] shrink-0 border-l bg-background h-full overflow-hidden absolute inset-0 z-20 md:static md:z-auto md:inset-auto">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
         <span className="text-sm font-semibold">Contacto</span>

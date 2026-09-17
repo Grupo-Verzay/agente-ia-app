@@ -109,6 +109,13 @@ function asegurarLasTablas(): Promise<void> {
     await db.$executeRaw`
       ALTER TABLE "task_alerts" ALTER COLUMN "taskId" DROP NOT NULL
     `;
+    // A donde lleva el clic, cuando no se puede deducir del aviso. Con canales
+    // en el chat del equipo, «/chat-equipo» a secas abriria el general y el
+    // mensaje estaria en otro sitio; el enlace lo dice. Mismo camino y mismo
+    // motivo que el `DROP NOT NULL` de arriba.
+    await db.$executeRaw`
+      ALTER TABLE "task_alerts" ADD COLUMN IF NOT EXISTS "enlace" TEXT
+    `;
   })().catch((error) => {
     tablasListas = null;
     throw error;
@@ -229,6 +236,8 @@ export type AvisoPorGuardar = {
   tipo: TipoDeAviso;
   titulo: string;
   texto: string | null;
+  /** A dónde lleva el clic, cuando el aviso no cuelga de una tarea. */
+  enlace?: string | null;
 };
 
 /**
@@ -256,12 +265,13 @@ export async function crearLosAvisos(avisos: AvisoPorGuardar[]): Promise<number>
     return await conLasTablas(() => db.$executeRaw`
       INSERT INTO "task_alerts"
         ("id", "taskId", "projectId", "ownerId", "destinatarioId",
-         "actorId", "actorNombre", "tipo", "titulo", "texto")
+         "actorId", "actorNombre", "tipo", "titulo", "texto", "enlace")
       VALUES ${Prisma.join(
         pendientes.map(
           (a) => Prisma.sql`(
             ${a.id}, ${a.taskId}, ${a.projectId}, ${a.ownerId}, ${a.destinatarioId},
-            ${a.actorId}, ${a.actorNombre}, ${a.tipo}, ${a.titulo}, ${a.texto}
+            ${a.actorId}, ${a.actorNombre}, ${a.tipo}, ${a.titulo}, ${a.texto},
+            ${a.enlace ?? null}
           )`,
         ),
       )}
@@ -285,6 +295,7 @@ function aAviso(f: {
   tipo: string;
   titulo: string;
   texto: string | null;
+  enlace?: string | null;
   actorNombre: string | null;
   creadoEn: Date;
   atendidoEn: Date | null;
@@ -297,6 +308,7 @@ function aAviso(f: {
     tipo: esTipoDeAviso(f.tipo) ? f.tipo : "comentario",
     titulo: f.titulo,
     texto: f.texto,
+    enlace: f.enlace ?? null,
     actorNombre: f.actorNombre,
     creadoEn: f.creadoEn.toISOString(),
     atendido: f.atendidoEn !== null,
@@ -315,7 +327,7 @@ export async function avisosPorSaltar(destinatarioId: string): Promise<AvisoDeTa
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<Parameters<typeof aAviso>[0][]>`
       SELECT "id", "taskId", "projectId", "tipo", "titulo", "texto",
-             "actorNombre", "creadoEn", "atendidoEn", "vistoEn"
+             "enlace", "actorNombre", "creadoEn", "atendidoEn", "vistoEn"
       FROM "task_alerts"
       WHERE "destinatarioId" = ${destinatarioId} AND "atendidoEn" IS NULL
       ORDER BY "creadoEn" ASC
@@ -333,7 +345,7 @@ export async function avisosDeLaCampanita(destinatarioId: string): Promise<Aviso
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<Parameters<typeof aAviso>[0][]>`
       SELECT "id", "taskId", "projectId", "tipo", "titulo", "texto",
-             "actorNombre", "creadoEn", "atendidoEn", "vistoEn"
+             "enlace", "actorNombre", "creadoEn", "atendidoEn", "vistoEn"
       FROM "task_alerts"
       WHERE "destinatarioId" = ${destinatarioId}
       ORDER BY "creadoEn" DESC

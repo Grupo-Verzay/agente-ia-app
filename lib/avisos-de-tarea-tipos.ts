@@ -56,6 +56,14 @@ export type AvisoDeTarea = {
   titulo: string;
   /** El detalle: el comentario, el título de la tarea… */
   texto: string | null;
+  /**
+   * A dónde lleva el clic, cuando no se puede deducir del aviso.
+   *
+   * Con canales, «/chat-equipo» a secas abre el general y el mensaje puede
+   * estar en otro sitio: el que menciona a alguien en «ventas» le manda al
+   * general y ahí no hay nada que leer.
+   */
+  enlace?: string | null;
   actorNombre: string | null;
   creadoEn: string;
   /** El clic obligatorio de la ventana emergente. */
@@ -68,7 +76,14 @@ export type AvisoDeTarea = {
  * A dónde lleva un aviso: al chat del equipo, al tablero de su proyecto, o a
  * Tareas si la tarea va suelta.
  */
-export function aDondeLleva(aviso: { projectId: number | null; taskId: number | null }): string {
+export function aDondeLleva(aviso: {
+  projectId: number | null;
+  taskId: number | null;
+  enlace?: string | null;
+}): string {
+  // Lo que el aviso diga manda: es lo unico que sabe en que canal se escribio.
+  const enlace = aviso.enlace?.trim();
+  if (enlace?.startsWith("/")) return enlace;
   if (aviso.taskId === null) return "/chat-equipo";
   return aviso.projectId
     ? `/proyectos?proyecto=${aviso.projectId}&tarea=${aviso.taskId}`

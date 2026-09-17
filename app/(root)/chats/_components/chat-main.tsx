@@ -1107,7 +1107,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   return (
     <div className="relative flex h-full w-full min-w-[100px] sm:border-l sm:border-r border-border overflow-hidden">
       {/* ── Chat area ── */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      {/* El SUELO de la conversación. Con la ficha de Contacto abierta y
+          además un panel lateral encima —copiloto o chat del equipo— los tres
+          anchos no caben, y el que se quedaba en CERO era justo este: la
+          conversación desaparecía y quedaban dos columnas de fichas. Con el
+          suelo, quien cede es la ficha, que enseña datos que no cambian
+          mientras se habla. Medido en Chromium a 1024 y a 768. */}
+      <div className="flex flex-col flex-1 min-w-0 md:min-w-[15rem] overflow-hidden">
       <ChatHeader
         header={header}
         presencia={presencia}

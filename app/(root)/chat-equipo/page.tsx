@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 
 import { currentUser } from "@/lib/auth";
-import { hiloDelEquipoAction } from "@/actions/chat-de-equipo-actions";
 import { HiloDelEquipo } from "@/components/chat-equipo/HiloDelEquipo";
 
 export const dynamic = "force-dynamic";
 
 /**
- * El chat interno del equipo: **un hilo por cuenta**.
+ * El chat interno del equipo: **canales y directos, por cuenta**.
  *
  * Es la MISMA pantalla que el panel lateral —los dos pintan `HiloDelEquipo`—,
  * y se queda para quien la quiera montar como módulo en su menú. Por donde se
@@ -20,28 +19,22 @@ export const dynamic = "force-dynamic";
  * sabría nada de los permisos de cada persona.
  *
  * Y la puerta no está aquí: está en la acción, que resuelve la cuenta desde
- * `currentUser()`. La pantalla pinta lo que la consulta le devuelva — así no
- * puede abrir más de lo que la consulta deja. Quien entra a una cuenta ajena
- * con «Ingresar» ve el hilo de ESA cuenta (#756).
+ * `currentUser()` y devuelve **solo los canales que esa persona puede leer**.
+ * La pantalla pinta lo que la consulta le devuelva — así no puede abrir más de
+ * lo que la consulta deja. Quien entra a una cuenta ajena con «Ingresar» ve
+ * los canales de ESA cuenta (#756).
+ *
+ * `?canal=` es por dónde llega un aviso de mención, para abrir la conversación
+ * donde se dijo y no el general. Si ese canal no es suyo, la acción devuelve
+ * el general: lo que llega del navegador no decide a qué se llega.
  */
-export default async function ChatDeEquipoPage() {
+export default async function ChatDeEquipoPage({
+    searchParams,
+}: {
+    searchParams?: { canal?: string };
+}) {
     const user = await currentUser();
     if (!user) redirect("/login");
 
-    const res = await hiloDelEquipoAction();
-    if (!res.success) {
-        return (
-            <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-                {res.message}
-            </div>
-        );
-    }
-
-    return (
-        <HiloDelEquipo
-            inicial={res.data.mensajes}
-            yo={res.data.yo}
-            equipo={res.data.equipo}
-        />
-    );
+    return <HiloDelEquipo canalInicial={searchParams?.canal} />;
 }

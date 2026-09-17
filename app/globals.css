@@ -332,3 +332,76 @@
     padding-right: 0.5rem !important;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Los paneles laterales, con UNA medida para toda la plataforma
+
+   Convivían tres anchos distintos: la lista de Chats bajaba de 384 a 320 con
+   la ventana, la ficha de Contacto se quedaba clavada en 320 desde 768, y el
+   copiloto iba a 440 siempre. Uno al lado de otro se ve a la primera, y no hay
+   forma de arreglarlo en un sitio si el número está escrito en tres.
+
+   Manda la escala de la LISTA DE CHATS —18/20/22/24 rem—, que es la que ya se
+   usa todo el día, y vive aquí para que los cuatro tiren de ella: la lista, la
+   ficha de Contacto, el copiloto y el chat del equipo. En móvil es la pantalla
+   entera, como ya lo eran los dos paneles.
+
+   Si algún día hay que cambiar el ancho de un panel, se cambia aquí y cambian
+   todos. Escribirlo a mano en uno es volver a tener tres.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --ancho-lateral: 100vw;
+  /* Lo mide `MedidaDeLaBarra` y lo reescribe en cuanto cambia. El 0 de aquí es
+     solo el valor con el que arranca el primer pintado. */
+  --alto-de-la-barra: 0px;
+}
+@media (min-width: 640px)  { :root { --ancho-lateral: 18rem; } }
+@media (min-width: 768px)  { :root { --ancho-lateral: 20rem; } }
+@media (min-width: 1024px) { :root { --ancho-lateral: 22rem; } }
+@media (min-width: 1280px) { :root { --ancho-lateral: 24rem; } }
+
+/* Chats acomoda la conversación, no la deja tapada.
+
+   La ficha de Contacto ya lo hacía porque es un hermano del flex: la
+   conversación se encoge y se sigue leyendo entera. El copiloto y el chat del
+   equipo cuelgan del layout, así que no pueden ser hermanos de nada — pero el
+   contenedor de Chats ya lleva `data-chat-view`, y con un panel abierto se le
+   reserva la franja por la derecha. El efecto es el mismo y no hay que mover
+   ningún panel de sitio.
+
+   Solo de `sm` para arriba: en móvil el panel ocupa la pantalla entera, así
+   que no hay nada que acomodar. */
+[data-chat-view] {
+  transition: padding-right 500ms cubic-bezier(0.17, 0.61, 0.54, 0.9);
+}
+
+/* Y la ficha de Contacto se superpone mientras haya un panel abierto.
+
+   No es una preferencia: NO CABEN. Medido en Chromium, con la lista, la
+   conversación con su suelo de 15rem, la ficha y el panel, los cuatro al mismo
+   ancho, harían falta ~1.400 px para ponerlos en fila. Por debajo de eso la
+   conversación se quedaba en CERO y quedaban dos columnas de fichas, una al
+   lado de otra, sin nada que leer entre ellas.
+
+   Superponerse es lo que la ficha ya hace en un móvil (`absolute inset-0` y
+   `md:static`), así que no es un comportamiento nuevo: es el mismo, aplicado
+   también cuando el sitio se lo come un panel. */
+:root[data-panel-lateral="abierto"] [data-ficha-de-contacto] {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  width: auto;
+}
+
+/* La franja se reserva DONDE CABE.
+
+   De `lg` para arriba: la lista (22rem) más el suelo de la conversación
+   (15rem) más el panel (22rem) son 944 px y entran en 1.024. Por debajo no
+   entran, así que ahí el panel se abre encima, como en el resto de la
+   plataforma. Acomodar lo que no cabe es dejar la conversación sin sitio, que
+   es peor que taparla un rato. */
+@media (min-width: 1024px) {
+  :root[data-panel-lateral="abierto"] [data-chat-view] {
+    padding-right: var(--ancho-lateral);
+  }
+}

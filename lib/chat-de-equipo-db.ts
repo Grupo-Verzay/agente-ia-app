@@ -2,6 +2,10 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { TOPE_DE_MENSAJES, type MensajeDeEquipo } from "@/lib/chat-de-equipo";
+import {
+    CANAL_GENERAL,
+    type TipoDeCanal,
+} from "@/lib/canales-de-equipo";
 
 /**
  * La tabla del chat interno del equipo.
@@ -16,8 +20,12 @@ import { TOPE_DE_MENSAJES, type MensajeDeEquipo } from "@/lib/chat-de-equipo";
  * hilo siga diciendo quién escribió aunque esa persona salga del equipo.
  *
  * `cuentaId` es la cuenta —`ownerId ?? id`, el mismo valor con el que agrupan
- * Carpetas, Proyectos y Diagramas—, y es lo que hace que el hilo sea **uno por
- * cuenta**: no hay canales que elegir, la cuenta ES el hilo.
+ * Carpetas, Proyectos y Diagramas—. Dentro de ella, `canalId` dice en qué
+ * canal cae cada mensaje; `NULL` es el **general**, que es donde estaban los
+ * mensajes de cuando el hilo era uno solo.
+ *
+ * Aquí viven también las dos tablas de los canales, `team_channels` y
+ * `team_channel_members`, por lo mismo: son de la App y las crea la App.
  */
 
 let tablaLista: Promise<void> | null = null;
@@ -54,6 +62,57 @@ function asegurarLaTabla(): Promise<void> {
         await db.$executeRaw`
             ALTER TABLE "team_chat_messages"
             ADD COLUMN IF NOT EXISTS "escritoDesde" TEXT
+        `;
+        // En que canal cae el mensaje. Entra por el mismo camino y por el
+        // mismo motivo: la tabla ya esta en produccion. Y entra NULLABLE a
+        // proposito — `NULL` es el general, asi que los mensajes de cuando el
+        // hilo era uno solo se quedan donde estaban, sin backfill y sin dos
+        // clases de mensaje.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "canalId" TEXT
+        `;
+        // El indice del reloj, ahora por canal: es la consulta que corre cada
+        // pocos segundos por panel abierto.
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "team_chat_messages_canal_idx"
+            ON "team_chat_messages" ("cuentaId", "canalId", "creadoEn")
+        `;
+        await db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "team_channels" (
+                "id" TEXT PRIMARY KEY,
+                "cuentaId" TEXT NOT NULL,
+                "tipo" TEXT NOT NULL,
+                "nombre" TEXT NOT NULL,
+                "llave" TEXT,
+                "creadoPorId" TEXT,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "team_channels_cuenta_idx"
+            ON "team_channels" ("cuentaId")
+        `;
+        // La pareja de un directo, ordenada, es su identidad. UNICO porque el
+        // directo lo puede abrir cualquiera de los dos y a la vez: sin esto
+        // saldrian dos canales con los mismos dos miembros y la mitad de los
+        // mensajes en cada uno.
+        await db.$executeRaw`
+            CREATE UNIQUE INDEX IF NOT EXISTS "team_channels_llave_key"
+            ON "team_channels" ("cuentaId", "llave")
+            WHERE "llave" IS NOT NULL
+        `;
+        await db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "team_channel_members" (
+                "canalId" TEXT NOT NULL,
+                "personaId" TEXT NOT NULL,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("canalId", "personaId")
+            )
+        `;
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "team_channel_members_persona_idx"
+            ON "team_channel_members" ("personaId")
         `;
     })().catch((error) => {
         tablaLista = null;
@@ -127,16 +186,34 @@ const aMensaje = (f: Fila): MensajeDeEquipo => ({
  * entra por el índice— y se le dan la vuelta para pintarlos. Pidiéndolos `ASC`
  * el tope devolvería los PRIMEROS, o sea la conversación de hace un año.
  */
-export async function leerElHilo(cuentaId: string): Promise<MensajeDeEquipo[]> {
+export async function leerElHilo(
+    cuentaId: string,
+    canalId: string,
+): Promise<MensajeDeEquipo[]> {
     return conLaTabla(async () => {
-        const filas = await db.$queryRaw<Fila[]>`
-            SELECT "id", "autorId", "autorNombre", "escritoDesde",
-                   "texto", "mencionados", "creadoEn"
-            FROM "team_chat_messages"
-            WHERE "cuentaId" = ${cuentaId}
-            ORDER BY "creadoEn" DESC
-            LIMIT ${TOPE_DE_MENSAJES}
-        `;
+        const filas =
+            canalId === CANAL_GENERAL
+                // El general se lee con el `NULL` dentro: ahi estan los
+                // mensajes de cuando el hilo era uno solo. Sin esa condicion
+                // el general saldria vacio el dia del despliegue y parecerian
+                // borrados.
+                ? await db.$queryRaw<Fila[]>`
+                    SELECT "id", "autorId", "autorNombre", "escritoDesde",
+                           "texto", "mencionados", "creadoEn"
+                    FROM "team_chat_messages"
+                    WHERE "cuentaId" = ${cuentaId}
+                      AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})
+                    ORDER BY "creadoEn" DESC
+                    LIMIT ${TOPE_DE_MENSAJES}
+                `
+                : await db.$queryRaw<Fila[]>`
+                    SELECT "id", "autorId", "autorNombre", "escritoDesde",
+                           "texto", "mencionados", "creadoEn"
+                    FROM "team_chat_messages"
+                    WHERE "cuentaId" = ${cuentaId} AND "canalId" = ${canalId}
+                    ORDER BY "creadoEn" DESC
+                    LIMIT ${TOPE_DE_MENSAJES}
+                `;
         return filas.map(aMensaje).reverse();
     });
 }
@@ -144,6 +221,7 @@ export async function leerElHilo(cuentaId: string): Promise<MensajeDeEquipo[]> {
 export async function guardarUnMensaje(input: {
     id: string;
     cuentaId: string;
+    canalId: string;
     autorId: string;
     autorNombre: string | null;
     /** La cuenta desde la que se escribió, si no es la de quien firma. */
@@ -153,12 +231,159 @@ export async function guardarUnMensaje(input: {
 }): Promise<void> {
     await conLaTabla(() => db.$executeRaw`
         INSERT INTO "team_chat_messages"
-            ("id", "cuentaId", "autorId", "autorNombre", "escritoDesde",
-             "texto", "mencionados")
+            ("id", "cuentaId", "canalId", "autorId", "autorNombre",
+             "escritoDesde", "texto", "mencionados")
         VALUES (
-            ${input.id}, ${input.cuentaId}, ${input.autorId},
+            ${input.id}, ${input.cuentaId}, ${input.canalId}, ${input.autorId},
             ${input.autorNombre}, ${input.escritoDesde},
             ${input.texto}, ${input.mencionados}
         )
     `);
+}
+
+// ── Los canales ─────────────────────────────────────────────────────────────
+
+export type FilaDeCanal = {
+    id: string;
+    tipo: TipoDeCanal;
+    nombre: string;
+    llave: string | null;
+    miembros: string[];
+};
+
+/**
+ * Los canales guardados de una cuenta, con sus miembros.
+ *
+ * **El general NO sale de aquí**: no es una fila, es una constante, y quien
+ * llama lo pone delante. Guardarlo obligaría a crearlo en cada cuenta y a
+ * acordarse de hacerlo en las que ya existen — o sea un backfill para algo que
+ * no necesita ninguno.
+ *
+ * Los miembros se traen en la MISMA consulta, agregados. Pidiéndolos aparte
+ * serían una consulta por canal, y esto lo lee la pantalla en cada apertura.
+ */
+export async function canalesDeLaCuenta(cuentaId: string): Promise<FilaDeCanal[]> {
+    return conLaTabla(() => db.$queryRaw<FilaDeCanal[]>`
+        SELECT c."id", c."tipo", c."nombre", c."llave",
+               COALESCE(
+                   ARRAY_AGG(m."personaId") FILTER (WHERE m."personaId" IS NOT NULL),
+                   '{}'
+               ) AS "miembros"
+        FROM "team_channels" c
+        LEFT JOIN "team_channel_members" m ON m."canalId" = c."id"
+        WHERE c."cuentaId" = ${cuentaId}
+        GROUP BY c."id", c."tipo", c."nombre", c."llave", c."creadoEn"
+        ORDER BY c."creadoEn" ASC
+    `);
+}
+
+/** Un canal concreto, para comprobar de quién es antes de tocarlo. */
+export async function elCanal(
+    cuentaId: string,
+    canalId: string,
+): Promise<FilaDeCanal | null> {
+    const filas = await conLaTabla(() => db.$queryRaw<FilaDeCanal[]>`
+        SELECT c."id", c."tipo", c."nombre", c."llave",
+               COALESCE(
+                   ARRAY_AGG(m."personaId") FILTER (WHERE m."personaId" IS NOT NULL),
+                   '{}'
+               ) AS "miembros"
+        FROM "team_channels" c
+        LEFT JOIN "team_channel_members" m ON m."canalId" = c."id"
+        WHERE c."cuentaId" = ${cuentaId} AND c."id" = ${canalId}
+        GROUP BY c."id", c."tipo", c."nombre", c."llave"
+    `);
+    return filas[0] ?? null;
+}
+
+export async function crearUnCanal(input: {
+    id: string;
+    cuentaId: string;
+    nombre: string;
+    creadoPorId: string;
+    miembros: string[];
+}): Promise<void> {
+    await conLaTabla(async () => {
+        await db.$executeRaw`
+            INSERT INTO "team_channels"
+                ("id", "cuentaId", "tipo", "nombre", "llave", "creadoPorId")
+            VALUES (${input.id}, ${input.cuentaId}, 'area', ${input.nombre}, NULL, ${input.creadoPorId})
+        `;
+        await ponerLosMiembros(input.id, input.miembros);
+    });
+}
+
+export async function renombrarUnCanal(
+    cuentaId: string,
+    canalId: string,
+    nombre: string,
+): Promise<number> {
+    return conLaTabla(() => db.$executeRaw`
+        UPDATE "team_channels"
+        SET "nombre" = ${nombre}
+        WHERE "cuentaId" = ${cuentaId} AND "id" = ${canalId} AND "tipo" = 'area'
+    `);
+}
+
+/**
+ * La lista de miembros de un canal, **entera**.
+ *
+ * Se borra y se vuelve a escribir dentro de una transacción: con dos consultas
+ * sueltas, un fallo entre medias dejaría el canal sin nadie dentro, que es
+ * peor que no haber cambiado nada.
+ */
+export async function ponerLosMiembros(canalId: string, personas: string[]): Promise<void> {
+    const limpias = Array.from(new Set(personas.map((p) => p.trim()).filter(Boolean)));
+    await conLaTabla(() =>
+        db.$transaction(async (tx) => {
+            await tx.$executeRaw`DELETE FROM "team_channel_members" WHERE "canalId" = ${canalId}`;
+            for (const personaId of limpias) {
+                await tx.$executeRaw`
+                    INSERT INTO "team_channel_members" ("canalId", "personaId")
+                    VALUES (${canalId}, ${personaId})
+                    ON CONFLICT DO NOTHING
+                `;
+            }
+        }),
+    );
+}
+
+/**
+ * El directo de dos personas, creándolo si todavía no existe.
+ *
+ * El `ON CONFLICT DO NOTHING` sobre la llave es lo que hace que abrirlo los dos
+ * a la vez —cada uno desde su lado— no cree dos canales. Y después se LEE, en
+ * vez de fiarse de lo que devolvió el `INSERT`: si el conflicto saltó, el id
+ * bueno es el que ya estaba, no el que se acaba de generar.
+ */
+export async function abrirElDirecto(input: {
+    id: string;
+    cuentaId: string;
+    llave: string;
+    miembros: [string, string];
+}): Promise<string> {
+    return conLaTabla(async () => {
+        await db.$executeRaw`
+            INSERT INTO "team_channels"
+                ("id", "cuentaId", "tipo", "nombre", "llave", "creadoPorId")
+            VALUES (${input.id}, ${input.cuentaId}, 'directo', '', ${input.llave}, ${input.miembros[0]})
+            ON CONFLICT ("cuentaId", "llave") WHERE "llave" IS NOT NULL DO NOTHING
+        `;
+        const filas = await db.$queryRaw<{ id: string }[]>`
+            SELECT "id" FROM "team_channels"
+            WHERE "cuentaId" = ${input.cuentaId} AND "llave" = ${input.llave}
+        `;
+        const id = filas[0]?.id ?? input.id;
+        // Los dos miembros se AÑADEN, no se reescribe la lista: abrirlo es
+        // algo que pasa cada vez que se pulsa el nombre, y un borrar-y-poner
+        // ahí dejaría el directo un instante sin nadie dentro en cada clic.
+        for (const personaId of input.miembros) {
+            await db.$executeRaw`
+                INSERT INTO "team_channel_members" ("canalId", "personaId")
+                VALUES (${id}, ${personaId})
+                ON CONFLICT DO NOTHING
+            `;
+        }
+        return id;
+    });
 }

@@ -1,8 +1,16 @@
 "use client";
 
+import { useEffect } from "react";
 import { Trash2, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import {
+    FRANJA_LATERAL,
+    FRANJA_LATERAL_MOVIL,
+    HOJA_LATERAL,
+    HOJA_LATERAL_MOVIL,
+    avisarDelPanelLateral,
+} from "@/lib/panel-lateral";
 import { MessageList } from "./MessageList";
 import { ChatComposer } from "./ChatComposer";
 import { QuickActions } from "./QuickActions";
@@ -26,9 +34,17 @@ export function ChatSheet({
     const desktopPanelId = "ai-chat-sheet-desktop";
     const mobilePanelId = "ai-chat-sheet-mobile";
 
+    // Chats acomoda la conversación mientras haya un panel abierto, igual que
+    // ya hace con la ficha de Contacto. Fuera de Chats esto no hace nada: la
+    // regla de CSS está acotada a `[data-chat-view]`.
+    useEffect(() => {
+        avisarDelPanelLateral(open);
+        return () => avisarDelPanelLateral(false);
+    }, [open]);
+
     return (
         <>
-            <div className="pointer-events-none fixed right-0 top-0 z-50 hidden h-[100dvh] w-[min(440px,calc(100vw-3.5rem))] sm:block">
+            <div className={FRANJA_LATERAL}>
                 <ChatPanel
                     panelId={desktopPanelId}
                     moduleLabel={ctx.moduleLabel ?? "Seccion actual"}
@@ -38,7 +54,7 @@ export function ChatSheet({
                 />
             </div>
 
-            <div className="pointer-events-none fixed inset-0 z-50 sm:hidden">
+            <div className={FRANJA_LATERAL_MOVIL}>
                 <ChatPanel
                     mobile
                     panelId={mobilePanelId}
@@ -76,13 +92,7 @@ function ChatPanel({
         <section
             id={panelId}
             aria-label="Copiloto IA"
-            className={cn(
-                "pointer-events-auto flex flex-col overflow-hidden bg-background shadow-2xl shadow-black/10 transition-transform duration-500 [transition-timing-function:cubic-bezier(0.17,0.61,0.54,0.9)]",
-                mobile
-                    ? "absolute inset-0 h-[100dvh] w-screen border-0 shadow-none"
-                    : "absolute right-0 top-0 h-[100dvh] w-full rounded-l-lg border border-r-0",
-                className,
-            )}
+            className={cn(mobile ? HOJA_LATERAL_MOVIL : HOJA_LATERAL, className)}
         >
             <header
                 className={cn(
