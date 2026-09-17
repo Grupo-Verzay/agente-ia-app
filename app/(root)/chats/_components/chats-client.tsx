@@ -5228,13 +5228,17 @@ export function ChatsClient({
   return (
     <>
     <div data-full-bleed data-chat-view className="flex h-full w-full overflow-hidden">
+      {/* El ancho de ESTA columna es el de todos los paneles laterales de la
+          App: sale de `--ancho-lateral` (app/globals.css), que es la misma
+          escala de siempre (18/20/22/24 rem) movida a un solo sitio. La ficha
+          de Contacto, el copiloto y el chat del equipo tiran de ahí. */}
       <div
         className={`${
           isChatListCollapsed
             ? "hidden"
             : isSidebarVisible
-              ? "w-full sm:w-[18rem] md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
-              : "hidden md:block md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
+              ? "w-full sm:w-[var(--ancho-lateral)]"
+              : "hidden md:block md:w-[var(--ancho-lateral)]"
         } h-full flex-shrink-0 transition-all duration-300 sm:border-r border-border`}
       >
         <ChatSidebar

@@ -6,6 +6,15 @@ module.exports = {
 		"./components/**/*.{ts,tsx}",
 		"./app/**/*.{ts,tsx}",
 		"./src/**/*.{ts,tsx}",
+		// `lib` tambien, y no es por gusto: ahi vive `panel-lateral.ts`, que es
+		// donde estan escritas las clases de los paneles laterales para que no
+		// haya dos copias. Sin esta linea Tailwind NO las ve —solo mira estos
+		// globos— y no genera ninguna: el panel se renderiza sin ancho, sin
+		// `top` y sin alto, o sea invisible, y el build pasa limpio. Es un
+		// fallo mudo de los de este documento: nada falla, simplemente no
+		// existe el CSS. Se comprueba buscando la declaracion en `.next`, no
+		// la clase en el codigo.
+		"./lib/**/*.{ts,tsx}",
 	],
 	prefix: "",
 	theme: {

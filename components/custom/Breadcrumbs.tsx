@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from '../ui/sidebar';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getGuidesForPath } from '@/actions/guide-actions';
 import { getWorkflowNameById } from '@/actions/workflow-actions';
 import { getFormNameById } from '@/actions/form-name-actions';
@@ -34,6 +34,7 @@ import ThemeSwitcher from './ThemeSwitcher';
 import { NotificationCenter } from '@/components/shared/NotificationCenter';
 import { AvisoDeTareaEmergente } from '@/components/shared/AvisoDeTarea';
 import { GlobalSearch } from '@/components/shared/GlobalSearch';
+import { MedidaDeLaBarra } from '@/components/shared/MedidaDeLaBarra';
 import { BotonDeSoporte } from '@/components/tickets/BotonDeSoporte';
 
 export const breadcrumbLabels: Record<string, string> = {
@@ -67,6 +68,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
     [pathname]
   );
 
+  const laBarra = useRef<HTMLDivElement>(null);
   const [guides, setGuides] = useState<GuideUrl[]>([]);
   const [workflowName, setWorkflowName] = useState<string | null>(null);
   const [formName, setFormName] = useState<string | null>(null);
@@ -130,7 +132,11 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
 
   return (
     <>
-      <div className={`h-18 shrink-0 ${isFlow && 'flex flex-1'}`}>
+      {/* Lo que mide esta barra decide dónde arrancan los paneles laterales:
+          justo debajo, sin taparla nunca. Su alto NO está escrito en ninguna
+          clase —`h-18` no existe en Tailwind—, así que se mide. */}
+      <MedidaDeLaBarra de={laBarra} />
+      <div ref={laBarra} className={`h-18 shrink-0 ${isFlow && 'flex flex-1'}`}>
           <header className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white">
             <Breadcrumb className="py-3 flex flex-row flex-1 overflow-hidden dark:bg-gray-900 dark:text-white">
               <BreadcrumbList>
