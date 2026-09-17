@@ -11,7 +11,7 @@ import {
 } from "recharts"
 import {
   Users, UserCheck, Building2, DollarSign,
-  Trophy, AlertTriangle, Clock, Zap,
+  Trophy, Clock, Zap,
 } from "lucide-react"
 import type { VerzayAnalyticsData } from "@/actions/analytics-actions"
 import { CreditAlertsWidget } from "@/components/custom/CreditAlertsWidget"
@@ -64,7 +64,7 @@ export function VerzayAnalytics({
   vigilancia?: React.ReactNode
 }) {
   const {
-    totalUsers, activeUsers, suspendedUsers, unpaidUsers, activationRate,
+    totalUsers, activeUsers, suspendedUsers, activationRate,
     totalResellers, planDistribution, mostSoldPlan,
     monthlyRevenue, newUsersByMonth, resellerPerformance,
     totalRevenueUSD, platformCredits, usersExpiringSoon, lowCreditUsers,
@@ -112,27 +112,13 @@ export function VerzayAnalytics({
           </div>
         </div>
 
-        {/* ── Alertas ── */}
-        {(unpaidUsers > 0 || usersExpiringSoon.length > 0) && (
-          <div className="flex flex-wrap gap-2">
-            {unpaidUsers > 0 && (
-              <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>
-                  <strong>{unpaidUsers}</strong> usuario{unpaidUsers !== 1 ? "s" : ""} con pago pendiente
-                </span>
-              </div>
-            )}
-            {usersExpiringSoon.length > 0 && (
-              <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-400">
-                <Clock className="h-4 w-4 shrink-0" />
-                <span>
-                  <strong>{usersExpiringSoon.length}</strong> usuario{usersExpiringSoon.length !== 1 ? "s" : ""} próximo{usersExpiringSoon.length !== 1 ? "s" : ""} a vencer (7 días)
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+        {/*
+          Aquí iban dos avisos —«N usuarios con pago pendiente» y «N usuarios
+          próximos a vencer (7 días)»— y se han quitado a propósito: eso vive en
+          Instancias, que es donde se actúa, y el recordatorio y el cobro los
+          manda el sistema solo. Repetirlo aquí como alerta competía con el
+          detalle de verdad.
+        */}
 
         {/* ── Fila 1: Nuevos usuarios + Ingresos mensuales ── */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
