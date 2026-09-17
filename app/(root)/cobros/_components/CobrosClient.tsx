@@ -34,6 +34,14 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { AdjuntoEnElAire } from "@/app/(root)/proyectos/_components/BloqueDeAdjuntos";
 import {
@@ -539,7 +547,15 @@ export function CobrosClient({
     );
 }
 
-/** El historial de ciclos: lo que recuerda cuánto lleva pagando este cliente. */
+/**
+ * El historial de ciclos: lo que recuerda cuánto lleva pagando este cliente.
+ *
+ * Es un `Dialog` de verdad, no un `div` con fondo oscuro puesto a mano. Aquello
+ * se cerraba solo con el clic de fuera: sin Escape, sin foco atrapado dentro y
+ * sin que un lector de pantalla supiera que se había abierto nada. Y es el
+ * tercer diálogo de Cobros, así que con el componente comparte también el pie
+ * —`DialogFooter`, con «Cerrar» donde va—.
+ */
 function HistorialDeCiclos({
     cobro,
     ciclos,
@@ -550,16 +566,12 @@ function HistorialDeCiclos({
     onCerrar: () => void;
 }) {
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={onCerrar}
-        >
-            <div
-                className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg border bg-background p-4"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h2 className="text-base font-semibold">Ciclos pagados</h2>
-                <p className="mb-3 text-sm text-muted-foreground">{cobro.contactoNombre}</p>
+        <Dialog open onOpenChange={(v) => !v && onCerrar()}>
+            <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-base">Ciclos pagados</DialogTitle>
+                    <DialogDescription>{cobro.contactoNombre}</DialogDescription>
+                </DialogHeader>
 
                 {ciclos.length === 0 ? (
                     <p className="py-6 text-center text-sm text-muted-foreground">
@@ -586,12 +598,12 @@ function HistorialDeCiclos({
                     </ul>
                 )}
 
-                <div className="mt-4 flex justify-end">
+                <DialogFooter className="pt-2">
                     <Button variant="outline" onClick={onCerrar}>
                         Cerrar
                     </Button>
-                </div>
-            </div>
-        </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }

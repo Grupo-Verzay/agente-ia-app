@@ -1850,6 +1850,22 @@ apagaba la gracia de esa fila sin que nadie lo hubiera pedido.
 **«No hay valor» y «vale cero» se separan a mano**, antes de convertir. Si se
 escribe otro saneador de números donde el cero signifique algo, va igual.
 
+### El pie de un diálogo es `DialogFooter`, no un `justify-end` a mano
+
+Los tres diálogos de Cobros nacieron con `<div className="flex justify-end
+gap-2">` y los dos botones acababan amontonados a la derecha. El pie de la casa
+es `DialogFooter` (`components/ui/dialog.tsx`), que lleva **`justify-between`**:
+«Cancelar» a la izquierda y la acción principal a la derecha, como en «Editar
+pagos» de Instancias y en los ciento y pico sitios que ya lo usan.
+
+Escribirlo a mano no es «lo mismo pero más corto»: es una pantalla que se lee
+distinta de todas las demás, y nadie lo nota hasta que las pone lado a lado.
+
+Y de paso, el tercero —el historial de ciclos— **era un `div` con fondo oscuro**,
+no un diálogo: se cerraba solo con el clic de fuera, sin Escape, sin foco
+atrapado dentro y sin que un lector de pantalla supiera que se había abierto
+nada. Un diálogo se hace con `Dialog`.
+
 ### Y la ruta no está montada: la puerta va en la acción
 
 `/cobros` entra en `navigationRoutes` —el desplegable de «Editar módulo»— y **no
@@ -3433,6 +3449,23 @@ Dos reglas, y la segunda es la que lo cierra de verdad:
 Y `rolDeLaCuenta` **no se derrama sobre `role`**: en `currentUser()` se
 desestructura fuera del spread de las credenciales del dueño. Derramarlo sería
 heredar el rol, que es lo que este documento prohíbe desde el principio.
+
+### Y la barra de pestañas la pinta UNO, no dos
+
+El layout montaba **dos** `PanelAwareTabNav`: una con `panelTabs` —el panel que
+le tocó— y otra con `getClientPanelTabs(modules)`. Y la segunda siempre sobró,
+porque `soloElPanelQueLeToca` deja **un solo** panel entre las variantes: esa
+búsqueda encuentra `/client-panel` únicamente cuando es el elegido, y entonces
+la primera ya lo estaba pintando con los mismos apartados.
+
+Desde fuera, en una cuenta cliente: **la barra repetida**, dos filas idénticas
+—Informes, Proyectos, Diagramas, Finanzas…— en **todos** sus apartados. Es fácil
+culpar a la pantalla que se acaba de montar; no era ninguna pantalla, era el
+layout. Comprobado en banco con las funciones reales, rol por rol: la segunda
+barra o sale vacía o sale copiada, nunca aporta nada.
+
+**Las pestañas las pone el panel que le tocó, y solo él.** Si hiciera falta otra
+barra, que no salga de un módulo que ya pinta esta.
 
 Un nivel más abajo pasaba lo mismo y va por el mismo sitio: las **pestañas del
 panel** (`panelModule`) se buscaban a mano con `/panel-admin ?? /panel ?? /admin`
