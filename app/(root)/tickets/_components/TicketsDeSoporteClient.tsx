@@ -10,6 +10,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -516,7 +517,9 @@ export function TicketsDeSoporteClient({
                             placeholder="Ej.: ya está resuelto en otro ticket; o no depende de la plataforma."
                         />
                     </div>
-                    <div className="flex justify-end gap-2">
+                    {/* `DialogFooter`: «Cancelar» a la izquierda y la acción a
+                        la derecha, como el resto de la App. */}
+                    <DialogFooter>
                         <Button variant="outline" onClick={() => setDescartando(null)}>
                             Cancelar
                         </Button>
@@ -533,7 +536,7 @@ export function TicketsDeSoporteClient({
                             )}
                             Descartar
                         </Button>
-                    </div>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
