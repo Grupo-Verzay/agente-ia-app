@@ -107,6 +107,18 @@ export type CurrentUser = DbUser & {
      * sigue siendo borrar la cookie, que no pregunta ningun rol.
      */
     porImpersonacion: boolean;
+    /**
+     * El nombre de la PERSONA que está sentada delante.
+     *
+     * `name`, arriba, es el de la fila EFECTIVA: dentro de una cuenta ajena es
+     * el de esa cuenta. Para firmar algo que escribe una persona —el chat
+     * interno del equipo— eso no vale: el mensaje quedaba a nombre de la cuenta
+     * y el equipo no sabía quién había hablado.
+     *
+     * No cuesta ni una consulta, por lo mismo que `rolDeLaPersona`: la fila
+     * real ya se lee y hasta ahora se tiraba su nombre.
+     */
+    nombreDeLaPersona: string | null;
 };
 
 type AccountRole = "agente" | "administrador";
@@ -176,6 +188,9 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
         select: {
             id: true,
             role: true,
+            // El nombre de la PERSONA real. Esta consulta ya se hace —hace
+            // falta para los permisos—, asi que el dato sale gratis.
+            name: true,
             deniedModuleItems: true,
             grantedModuleItems: true,
             canTakeUnassigned: true,
@@ -306,6 +321,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                 effectiveId: effectiveUserId,
                 sessionUserId: realUser.id,
                 rolDeLaPersona: realUser.role,
+                nombreDeLaPersona: realUser.name,
                 // Con el conmutador, `u` ya ES la fila de la cuenta.
                 rolDeLaCuenta: u.role,
                 porImpersonacion,
@@ -362,6 +378,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                     effectiveId: u.ownerId,
                     sessionUserId: realUser.id,
                     rolDeLaPersona: realUser.role,
+                    nombreDeLaPersona: realUser.name,
                     rolDeLaCuenta: rolDeSuCuenta ?? u.role,
                     porImpersonacion,
                 };
@@ -374,6 +391,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
             effectiveId: u.ownerId ?? u.id,
             sessionUserId: realUser.id,
             rolDeLaPersona: realUser.role,
+            nombreDeLaPersona: realUser.name,
             // Sin dueño, la cuenta es uno mismo.
             rolDeLaCuenta: u.role,
             porImpersonacion,

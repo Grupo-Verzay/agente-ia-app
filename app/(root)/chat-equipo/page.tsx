@@ -2,12 +2,17 @@ import { redirect } from "next/navigation";
 
 import { currentUser } from "@/lib/auth";
 import { hiloDelEquipoAction } from "@/actions/chat-de-equipo-actions";
-import { ChatDeEquipoClient } from "./_components/ChatDeEquipoClient";
+import { HiloDelEquipo } from "@/components/chat-equipo/HiloDelEquipo";
 
 export const dynamic = "force-dynamic";
 
 /**
  * El chat interno del equipo: **un hilo por cuenta**.
+ *
+ * Es la MISMA pantalla que el panel lateral —los dos pintan `HiloDelEquipo`—,
+ * y se queda para quien la quiera montar como módulo en su menú. Por donde se
+ * usa de verdad es el panel: el equipo vive en Chats y no va a salir de ahí
+ * para hablar.
  *
  * La pantalla **no pinta ninguna barra de pestañas**, y es a propósito: esa la
  * pone el módulo desde el layout (`PanelAwareTabNav` con los `moduleItems`).
@@ -33,7 +38,7 @@ export default async function ChatDeEquipoPage() {
     }
 
     return (
-        <ChatDeEquipoClient
+        <HiloDelEquipo
             inicial={res.data.mensajes}
             yo={res.data.yo}
             equipo={res.data.equipo}

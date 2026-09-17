@@ -21,6 +21,11 @@ import {
 /**
  * El hilo del equipo.
  *
+ * Lo pintan **los dos sitios**: el panel lateral —que es por donde se usa— y la
+ * ruta `/chat-equipo`, para quien la quiera montar como módulo. Con dos copias,
+ * el día que se afine algo se afina en una y la otra se queda atrás, y eso no
+ * se ve como un error sino como «a veces funciona».
+ *
  * # El reloj responde
  *
  * Un `setInterval` montado **una sola vez** que lee todo por referencia. No se
@@ -38,14 +43,24 @@ import {
  * como un error: se nota como un chat que no trae los mensajes de los demás,
  * que es mucho peor de diagnosticar.
  */
-export function ChatDeEquipoClient({
+export function HiloDelEquipo({
     inicial,
     yo,
     equipo,
+    activo = true,
 }: {
     inicial: MensajeDeEquipo[];
     yo: string;
     equipo: PersonaMencionable[];
+    /**
+     * Si el reloj tiene que correr.
+     *
+     * En la ruta siempre; en el panel, solo con el panel abierto. Esto cuelga
+     * del layout, o sea de TODAS las pantallas: un sondeo corriendo con el
+     * panel cerrado sería una consulta cada cinco segundos por pestaña para
+     * algo que nadie está mirando.
+     */
+    activo?: boolean;
 }) {
     const [mensajes, setMensajes] = useState<MensajeDeEquipo[]>(inicial);
     const [texto, setTexto] = useState("");
@@ -57,6 +72,7 @@ export function ChatDeEquipoClient({
 
     // ── El reloj ────────────────────────────────────────────────────────────
     useEffect(() => {
+        if (!activo) return;
         let vivo = true;
 
         const traer = async () => {
@@ -86,7 +102,7 @@ export function ChatDeEquipoClient({
             clearInterval(id);
             document.removeEventListener("visibilitychange", alVolver);
         };
-    }, []);
+    }, [activo]);
 
     // Pegado abajo: un chat se lee por el final.
     useEffect(() => {

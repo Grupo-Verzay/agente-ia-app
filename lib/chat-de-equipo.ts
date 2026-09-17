@@ -44,6 +44,14 @@ export const CADA_CUANTO_MS = 5_000;
 
 export type MensajeDeEquipo = {
     id: string;
+    /**
+     * Quién escribió: **la PERSONA**, no la cuenta.
+     *
+     * Dentro de una cuenta ajena por «Ingresar», `currentUser()` devuelve la
+     * fila de ESA cuenta, así que firmar con ella dejaba el mensaje a nombre
+     * del cliente y el equipo no sabía quién había hablado. Un mensaje lo
+     * escribe alguien, y ese alguien tiene nombre.
+     */
     autorId: string;
     /**
      * Se guarda junto al mensaje para que siga diciendo quién escribió aunque
@@ -51,6 +59,13 @@ export type MensajeDeEquipo = {
      * tarea y que `assignedToName`.
      */
     autorNombre: string | null;
+    /**
+     * Desde qué cuenta se escribió, **solo cuando no es la de quien firma**.
+     *
+     * Es el rastro de haber entrado con «Ingresar». No se pierde —quién actuó
+     * por quién es un dato— pero no se pinta: lo que se lee es quién habló.
+     */
+    escritoDesde: string | null;
     texto: string;
     /** A quién se mencionó. Es lo que decide a quién le saltó el aviso. */
     mencionados: string[];
@@ -109,4 +124,67 @@ export function extraerMenciones(
 /** Lo que se puede guardar de un texto: recortado y sin espacios de sobra. */
 export function comoSeGuardaElTexto(texto: unknown): string {
     return String(texto ?? "").trim().slice(0, TOPE_DEL_MENSAJE);
+}
+
+/** Lo que `currentUser()` aporta para decidir quién firma y en qué hilo. */
+export type QuienEscribe = {
+    id?: string | null;
+    name?: string | null;
+    ownerId?: string | null;
+    sessionUserId?: string | null;
+    nombreDeLaPersona?: string | null;
+    porImpersonacion?: boolean | null;
+};
+
+export type Firma = {
+    /** Quién escribió: la PERSONA. */
+    personaId: string;
+    nombre: string | null;
+    /** El hilo: la CUENTA. */
+    cuentaId: string;
+    /** Desde qué cuenta, solo si no es la de quien firma. */
+    escritoDesde: string | null;
+};
+
+/**
+ * Quién firma un mensaje y en qué hilo cae.
+ *
+ * **Firma la PERSONA, no la cuenta.** `currentUser()` devuelve la fila de la
+ * cuenta EFECTIVA, así que dentro de una cuenta ajena por «Ingresar» firmar con
+ * ella dejaba el mensaje a nombre del cliente y el equipo no sabía quién había
+ * hablado. Un mensaje lo escribe alguien, y ese alguien tiene nombre:
+ * `sessionUserId` y `nombreDeLaPersona` son siempre los de quien está sentado
+ * delante.
+ *
+ * **El hilo sigue siendo el de la CUENTA.** Son dos preguntas distintas y es
+ * justo lo que pide el caso: se entra a una cuenta ajena para ver lo suyo —su
+ * hilo—, y lo que se escriba ahí lo lee su equipo, con el nombre de quien lo
+ * escribió.
+ *
+ * Y no se pierde de dónde salió: `escritoDesde` guarda la cuenta, **solo
+ * cuando de verdad son dos distintas**. Escribiéndolo siempre sería ruido en
+ * todas las filas para el caso que nunca pasa.
+ *
+ * Es puro para poder probarlo sin levantar nada, que es lo que hace falta:
+ * este es exactamente el sitio donde un despiste firma con quien no es.
+ */
+export function quienFirma(user: QuienEscribe): Firma | null {
+    const idEfectivo = user?.id?.trim();
+    if (!idEfectivo) return null;
+
+    const personaId = user.sessionUserId?.trim() || idEfectivo;
+    const cuentaId = user.ownerId?.trim() || idEfectivo;
+
+    // El nombre de la persona real. Cuando la fila efectiva YA es la suya
+    // —el caso normal, y el del conmutador de cuentas— su `name` sirve igual.
+    const nombre =
+        user.nombreDeLaPersona?.trim() ||
+        (personaId === idEfectivo ? user.name?.trim() || null : null);
+
+    return {
+        personaId,
+        nombre: nombre || null,
+        cuentaId,
+        escritoDesde: user.porImpersonacion ? cuentaId : null,
+    };
 }
