@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip } from "lucide-react";
+import { Paperclip, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     COLORES_DE_ESTADO,
@@ -115,6 +115,17 @@ export function TarjetaDeTicket({
                     <span className="inline-flex items-center gap-0.5">
                         <Paperclip className="h-3 w-3" />
                         {ticket.adjuntos.length}
+                    </span>
+                )}
+                {/* Quién lo atiende. En el tablero es lo que contesta «¿de quién
+                    estoy esperando?» sin abrir nada. */}
+                {ticket.responsableNombre && (
+                    <span
+                        className="inline-flex max-w-[9rem] items-center gap-0.5 truncate"
+                        title={`Responsable: ${ticket.responsableNombre}`}
+                    >
+                        <UserRound className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{ticket.responsableNombre}</span>
                     </span>
                 )}
             </div>

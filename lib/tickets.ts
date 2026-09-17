@@ -187,8 +187,17 @@ export type Ticket = {
   actualizadoEn: string;
   /** Cuándo salió el aviso de resuelto. Nulo = todavía no. */
   avisadoEn: string | null;
+  /**
+   * Quién lo atiende, de la cuenta que los recibe. Nulo = sin asignar.
+   *
+   * Es de la cuenta de DESTINO, no de la del cliente: el responsable es quien
+   * lo resuelve, y quien lo resuelve está en el equipo que atiende.
+   */
+  responsableId?: string | null;
   /** Para la lista del administrador: de quién es. */
   clienteNombre?: string | null;
+  /** El responsable, ya resuelto a nombre o correo. */
+  responsableNombre?: string | null;
 };
 
 /** Tope de lo que se escribe, para que un pegado enorme no entre a la base. */
