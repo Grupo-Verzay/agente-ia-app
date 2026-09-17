@@ -1,15 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, MessageSquare, Send } from "lucide-react";
+import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import {
-  comentarLaTareaAction, leerElHiloAction,
-} from "@/actions/avisos-de-tarea-actions";
+import { leerElHiloAction } from "@/actions/avisos-de-tarea-actions";
 import {
   TOPE_DE_COMENTARIO, type ComentarioDeTarea,
 } from "@/lib/avisos-de-tarea-tipos";
@@ -21,24 +18,45 @@ import {
  * queda escrito quién dijo qué y cuándo, para leerlo después. Un chat aparte
  * obliga a contar otra vez de qué se está hablando.
  *
- * Dos cosas de comportamiento:
+ * Tres cosas de comportamiento:
  *
  * 1. **Abrirlo cuenta como haberlo leído.** `leerElHiloAction` quita de paso el
  *    punto del tablero y calla lo que quedara por saltar en la ventana
  *    emergente. Por eso este componente se monta también para quien no puede
  *    editar la tarea: el asignado tiene que poder leer y contestar, y es justo
  *    la persona a la que va dirigido todo esto.
- * 2. **El botón se ve pulsado.** Pasa a «Enviando…» antes de que conteste el
- *    servidor; si no, se pulsa cinco veces.
+ * 2. **El bloque sale también al CREAR la tarea** (`taskId` en `null`). Antes
+ *    iba detrás de un `task &&` y no aparecía nunca al crear, ni creándola ya
+ *    en curso: había que guardar, reabrir y entonces escribir, justo cuando lo
+ *    que se quiere decir se tiene en la cabeza. Sin id no hay hilo que leer
+ *    —todavía no existe—, pero sí se puede escribir.
+ * 3. **No tiene botón propio.** El comentario se guarda **con el resto del
+ *    formulario**, al guardar la tarea. Por eso el texto no vive aquí sino en
+ *    el formulario, que es quien guarda: con el borrador dentro de este
+ *    componente no habría forma de que el guardado lo alcanzara. Un «Comentar»
+ *    al lado de «Guardar» son dos botones para una misma acción, y el de
+ *    guardar no se llevaba lo escrito.
  */
-export function HiloDeLaTarea({ taskId, userId }: { taskId: number; userId: string }) {
+export function HiloDeLaTarea({
+  taskId,
+  userId,
+  texto,
+  onTexto,
+}: {
+  /** `null` mientras la tarea no existe: se puede escribir, no hay hilo. */
+  taskId: number | null;
+  userId: string;
+  texto: string;
+  onTexto: (texto: string) => void;
+}) {
   const [comentarios, setComentarios] = useState<ComentarioDeTarea[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [texto, setTexto] = useState("");
-  const [enviando, setEnviando] = useState(false);
+  const [cargando, setCargando] = useState(taskId !== null);
   const finalRef = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
+    // Sin tarea no hay nada que pedir, y pedirlo sería un «No autorizado» por
+    // un id que no existe.
+    if (taskId === null) { setComentarios([]); setCargando(false); return; }
     setCargando(true);
     const res = await leerElHiloAction(taskId);
     if (res.success && res.data) setComentarios(res.data);
@@ -55,17 +73,6 @@ export function HiloDeLaTarea({ taskId, userId }: { taskId: number; userId: stri
     finalRef.current?.scrollIntoView({ block: "end" });
   }, [comentarios.length]);
 
-  const enviar = useCallback(async () => {
-    const limpio = texto.trim();
-    if (!limpio || enviando) return;
-    setEnviando(true);
-    const res = await comentarLaTareaAction({ taskId, texto: limpio });
-    setEnviando(false);
-    if (!res.success || !res.data) { toast.error(res.message); return; }
-    setComentarios((previos) => [...previos, res.data!]);
-    setTexto("");
-  }, [taskId, texto, enviando]);
-
   return (
     <div className="space-y-2.5 rounded-lg border border-dashed bg-muted/30 p-3">
       <div className="flex items-center gap-2">
@@ -77,9 +84,11 @@ export function HiloDeLaTarea({ taskId, userId }: { taskId: number; userId: stri
           <p className="mt-1 text-xs text-muted-foreground">
             {cargando
               ? "Cargando el hilo…"
-              : comentarios.length === 0
-                ? "Nadie ha escrito todavía."
-                : `${comentarios.length} en el hilo. A los implicados les salta el aviso.`}
+              : taskId === null
+                ? "Se guardará junto con la tarea."
+                : comentarios.length === 0
+                  ? "Nadie ha escrito todavía."
+                  : `${comentarios.length} en el hilo. A los implicados les salta el aviso.`}
           </p>
         </div>
       </div>
@@ -117,28 +126,22 @@ export function HiloDeLaTarea({ taskId, userId }: { taskId: number; userId: stri
 
       <Textarea
         value={texto}
-        onChange={(e) => setTexto(e.target.value.slice(0, TOPE_DE_COMENTARIO))}
+        onChange={(e) => onTexto(e.target.value.slice(0, TOPE_DE_COMENTARIO))}
         rows={2}
         className="min-h-[3.5rem] resize-y bg-background"
         placeholder="Escribe un comentario…"
       />
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">
+      {/* Sin botón: lo escrito aquí se guarda con «Guardar», abajo. Se dice,
+          porque un recuadro de texto sin botón al lado se lee como que no se
+          va a guardar y la gente no lo usa. */}
+      <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>Se envía al guardar la tarea.</span>
+        <span>
           {texto.length > TOPE_DE_COMENTARIO - 200
             ? `${TOPE_DE_COMENTARIO - texto.length} caracteres`
             : ""}
         </span>
-        <Button
-          type="button"
-          size="sm"
-          className="gap-1.5"
-          disabled={!texto.trim() || enviando}
-          onClick={() => void enviar()}
-        >
-          {enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-          {enviando ? "Enviando…" : "Comentar"}
-        </Button>
-      </div>
+      </p>
     </div>
   );
 }

@@ -47,6 +47,16 @@ export type TaskData = {
    */
   adjuntos?: AdjuntoDeTarea[];
   /**
+   * El «Qué hay que hacer»: el texto largo, que se lee al ABRIR la tarea. La
+   * tarjeta enseña `title`, que ahora es el título corto.
+   *
+   * Vive en `task_details`, tabla de la App: `tasks` es del backend y no se le
+   * añaden columnas desde aquí (#360). Opcional por lo mismo que `adjuntos`, y
+   * **`null` en una tarea de antes de que esto existiera**: esas llevan su
+   * texto largo todavía dentro de `title`.
+   */
+  detalle?: string | null;
+  /**
    * La cuenta de la plataforma a la que se le dedica esta tarea, o `null` si es
    * interna. **No es `ownerId`** —esa es la cuenta dueña de la agenda— ni
    * `sessionId` —ese es un contacto de WhatsApp, un lead—.

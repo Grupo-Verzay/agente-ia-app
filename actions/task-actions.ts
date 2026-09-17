@@ -7,6 +7,7 @@ import { currentUser } from "@/lib/auth";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
+import { guardarElDetalle, olvidarElDetalleDe } from "@/lib/detalle-de-tarea";
 import { olvidarElHiloDe } from "@/lib/avisos-de-tarea";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
 import { registrarElCierre } from "@/actions/trabajo-de-tarea-actions";
@@ -71,6 +72,12 @@ const createSchema = z.object({
   contactName: z.string().nullable().optional(),
   contactJid: z.string().nullable().optional(),
   title: z.string().trim().min(1),
+  /**
+   * El «Qué hay que hacer»: el texto largo, que vive en `task_details` y no en
+   * `tasks` —del backend—. Opcional: las tareas que se crean desde Chats, los
+   * seguimientos y las promesas del cliente no lo traen y no lo necesitan.
+   */
+  detalle: z.string().optional(),
   type: z.string().min(1),
   dueDate: z.string().min(1),
   sendWhatsApp: z.boolean().optional(),
@@ -134,6 +141,11 @@ export async function createTaskAction(
         projectId: parsed.projectId ?? null,
       },
     });
+
+    // El texto largo, en nuestra tabla. Va antes de avisar: el aviso lleva el
+    // título, así que no depende de esto, pero la tarjeta que se refresca justo
+    // después sí — sin ello se abriría sin su detalle y parecería perdido.
+    await guardarElDetalle({ taskId: task.id, ownerId, detalle: parsed.detalle });
 
     // Automatizaciones por tipo de tarea (requieren sesión para el contexto de envío)
     if (parsed.sessionId) void triggerTaskTypeAutomations(parsed.sessionId, parsed.type);
@@ -465,6 +477,8 @@ export async function deleteTaskAction(
     // Y su hilo de comentarios y sus avisos, por lo mismo: sin avisos huérfanos
     // no salta una ventana emergente por una tarea que ya no existe.
     await olvidarElHiloDe(taskId);
+    // Y su texto largo, por lo mismo.
+    await olvidarElDetalleDe(taskId);
 
     await writeAuditLog({
       userId: ownerId,
