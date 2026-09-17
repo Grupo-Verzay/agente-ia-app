@@ -2743,6 +2743,41 @@ Y el formato de salida es el mismo que el de entrada, con una excepción a
 propósito: todo lo que no sea PNG sale como JPEG. Un PNG de una foto pesa
 muchísimo más y el tope del adjunto son 8 MB.
 
+## Chats: «Compromiso detectado» se quitó; «Promesa del cliente» NO
+
+Eran dos detectores en el mismo fichero y se confunden con solo mirar el
+nombre. **Se retiró uno y se quedó el otro**, así que conviene saber cuál es
+cuál antes de tocar nada de esto:
+
+| | qué miraba | qué hacía |
+| --- | --- | --- |
+| **Compromiso detectado** — *retirado* | lo que escribía el **asesor**, al enviar | abría una **ventana encima** para que confirmara una tarea, una cita o un recordatorio |
+| **Promesa del cliente** — *sigue* | un mensaje **entrante** del cliente | crea el seguimiento solo y lo dice con un aviso. Ninguna ventana. |
+
+El primero se fue entero: `lib/commitment-detection.ts`,
+`CommitmentTaskDialog.tsx`, `predictAdvisorCommitmentAction` —que además
+llamaba a OpenAI en cada envío de texto— y `createDetectedAppointmentAction`.
+El segundo vive ahora en **`lib/promesa-del-cliente.ts`**, solo. Compartir
+fichero era justo el riesgo: quitar uno se llevaba el otro por delante.
+
+Tres cosas que hay que mantener:
+
+1. **No se borró ni una fila.** No había tabla ni columna suyas: lo que el
+   asesor confirmaba en aquella ventana se escribía en `tasks` y en
+   `Appointment`, que son tareas y citas de verdad y siguen ahí. Un detector
+   que se retira no se lleva por delante lo que la gente ya confirmó.
+2. **Por eso el `title: startsWith "Compromiso:"` de la campanita se queda**
+   (`notification-center-actions.ts`). Ya nadie escribe tareas con ese título,
+   pero las que hay siguen pendientes; quitar esa línea no borraría ninguna,
+   las sacaría del grupo «Seguimientos» y las mandaría a «Vencidas». Un filtro
+   sobre datos viejos **no es código muerto**.
+3. **Sin fecha no hay promesa.** `mencionaUnaPromesa` es el filtro barato del
+   navegador —solo mira si el texto suena— y `detectClientPromise` es quien
+   decide, ya en el servidor, y se rinde si no hay día. Un seguimiento sin
+   fecha es una tarea que nadie hace. Comprobado además que el filtro barato
+   nunca descarta nada que el servidor sí agendaría: si se equivocara por ese
+   lado, la tarea no se crearía jamás y no habría error que mirar.
+
 ## Evolution esconde el motivo en `response.message`
 
 «Error al crear la instancia en la API», y nada más. El servidor sí había dicho

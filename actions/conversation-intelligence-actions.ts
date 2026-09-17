@@ -3,11 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import {
-  detectClientPromise,
-  detectCommitment,
-  type DetectedCommitment,
-} from "@/lib/commitment-detection";
+import { detectClientPromise } from "@/lib/promesa-del-cliente";
 
 type IntelligenceResult = {
   requested?: string;
@@ -156,136 +152,6 @@ ${conversation}`;
     return JSON.parse(raw) as IntelligenceResult;
   } catch {
     return null;
-  }
-}
-
-type AdvisorCommitmentPrediction = {
-  hasCommitment?: boolean;
-  kind?: DetectedCommitment["kind"];
-  title?: string;
-  type?: DetectedCommitment["type"];
-  dueDate?: string;
-};
-
-export async function predictAdvisorCommitmentAction(text: string, context = "") {
-  const user = await currentUser();
-  if (!user?.id || !text?.trim()) return { success: false, commitment: null };
-
-  const localCommitment = detectCommitment(text, undefined, context);
-  if (localCommitment) return { success: true, commitment: localCommitment };
-
-  const ownerId = user.ownerId ?? user.id;
-  // La cuenta ya fue rechazada por el proveedor hace poco: no se vuelve a
-  // intentar. La detección local (detectCommitment, arriba) sigue funcionando.
-  if (isAiAuthBlocked(ownerId)) return { success: true, commitment: null };
-
-  const cfg = await getAiConfig(ownerId);
-  if (!cfg) return { success: true, commitment: null };
-
-  const now = new Date();
-  const prompt = `Analiza el mensaje que un asesor acaba de enviar a un cliente.
-Detecta solamente compromisos futuros concretos del asesor que deban convertirse en tarea, recordatorio o cita.
-No detectes saludos, preguntas, información ya enviada, acciones del cliente ni frases vagas sin fecha interpretable.
-
-Devuelve SOLO JSON con esta forma:
-{
-  "hasCommitment": true o false,
-  "kind": "task" | "reminder" | "appointment",
-  "title": "acción breve para el asesor",
-  "type": "Seguimiento" | "Llamada" | "Reunión" | "Email" | "Tarea",
-  "dueDate": "fecha ISO 8601"
-}
-
-Fecha y hora actual: ${now.toISOString()}.
-Si no existe un compromiso futuro claro o no puedes determinar una fecha futura, responde {"hasCommitment":false}.
-
-MENSAJE DEL ASESOR:
-${text.trim()}
-
-CONTEXTO RECIENTE:
-${context.trim() || "Sin contexto"}`;
-
-  try {
-    let raw = "{}";
-    if (cfg.provider === "google") {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: cfg.apiKey });
-      const result = await ai.models.generateContent({
-        model: cfg.model,
-        contents: prompt,
-        config: { responseMimeType: "application/json", temperature: 0 },
-      });
-      raw = result.text ?? "{}";
-    } else {
-      const OpenAI = (await import("openai")).default;
-      const client = new OpenAI({ apiKey: cfg.apiKey });
-      const result = await client.chat.completions.create({
-        model: cfg.model,
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        max_completion_tokens: 300,
-      });
-      raw = result.choices[0]?.message?.content ?? "{}";
-    }
-
-    // El proveedor puede devolver cadena VACÍA (no null), y entonces el ?? de
-    // arriba no aplica y JSON.parse revienta. Se trata como "sin compromiso".
-    const prediction = (raw.trim()
-      ? JSON.parse(raw)
-      : {}) as AdvisorCommitmentPrediction;
-    const dueDate = prediction.dueDate ? new Date(prediction.dueDate) : null;
-    const validKinds = new Set<DetectedCommitment["kind"]>(["task", "reminder", "appointment"]);
-    const validTypes = new Set<DetectedCommitment["type"]>([
-      "Seguimiento", "Llamada", "Reunión", "Email", "Tarea",
-    ]);
-
-    if (
-      prediction.hasCommitment !== true ||
-      !prediction.kind ||
-      !validKinds.has(prediction.kind) ||
-      !prediction.title?.trim() ||
-      !prediction.type ||
-      !validTypes.has(prediction.type) ||
-      !dueDate ||
-      Number.isNaN(dueDate.getTime()) ||
-      dueDate <= now
-    ) {
-      return { success: true, commitment: null };
-    }
-
-    const commitment: DetectedCommitment = {
-      kind: prediction.kind,
-      title: prediction.title.trim().slice(0, 160),
-      type: prediction.type,
-      dueDate,
-      sourceText: text.trim(),
-    };
-    return { success: true, commitment };
-  } catch (error) {
-    // Se identifica la CUENTA y el final de su key: cuando el proveedor rechaza
-    // las credenciales, el error solo trae la key enmascarada y no había forma
-    // de saber a qué cuenta corregirle la configuración.
-    const keyTail = cfg.apiKey ? `…${cfg.apiKey.slice(-4)}` : "sin key";
-
-    if (isAiAuthError(error)) {
-      // Credenciales inválidas: no se arregla reintentando. Se anota la cuenta
-      // para dejar de llamar al proveedor durante un rato y se registra UNA
-      // línea clara, en vez de repetir el error con cada mensaje.
-      aiAuthRejectedAt.set(ownerId, Date.now());
-      console.error(
-        `[predictAdvisorCommitmentAction] credenciales rechazadas: ` +
-          `cuenta=${await nombreDeCuenta(ownerId)} ` +
-          `proveedor=${cfg.provider} key=${keyTail}. Se deja de intentar ` +
-          `${Math.round(AI_AUTH_BACKOFF_MS / 60_000)} min en esta cuenta.`,
-      );
-      return { success: false, commitment: null };
-    }
-
-    console.error(
-      `[predictAdvisorCommitmentAction] cuenta=${ownerId} proveedor=${cfg.provider} key=${keyTail}`,
-      error,
-    );
-    return { success: false, commitment: null };
   }
 }
 
