@@ -33,9 +33,11 @@ import {
     guardarUnMensaje,
     laGenteDeLasCuentas,
     leerElHilo,
+    marcarLeido,
     ponerLasCuentas,
     ponerLosMiembros,
     renombrarUnCanal,
+    sinLeerPorCanal,
     type FilaDeCanal,
 } from "@/lib/chat-de-equipo-db";
 import {
@@ -302,6 +304,27 @@ export async function hiloDelEquipoAction(
 
         const soyLaMadre = esLaCuentaMadre(quien.familia, quien.cuentaId);
 
+        // Tener el canal delante ES haberlo leído, así que la marca se pone
+        // aquí y con la hora del ÚLTIMO MENSAJE QUE SE ENSEÑA — nunca `now()`:
+        // un mensaje que entrara entre esta consulta y la marca quedaría dado
+        // por leído sin que nadie lo hubiera visto, y un mensaje que se pierde
+        // así no vuelve a avisar nunca.
+        //
+        // No lanza: el hilo ya está leído y eso es lo que la persona vino a
+        // hacer. Pero no es mudo — una marca que no se guarda se ve como un
+        // contador que no baja.
+        const ultimo = mensajes[mensajes.length - 1];
+        if (ultimo) {
+            await marcarLeido(quien.persona.id, canal.id, new Date(ultimo.creadoEn)).catch(
+                (error) => {
+                    console.warn("[chat-equipo] no se pudo marcar el canal como leído", {
+                        canal: canal.id,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                },
+            );
+        }
+
         return {
             success: true,
             data: {
@@ -433,9 +456,14 @@ export async function enviarAlEquipoAction(
                     tipo: "mencion" as const,
                     titulo: tituloDelAviso("mencion", quien.persona.nombre, ""),
                     texto: limpio,
-                    // El canal viaja en el aviso para que el clic abra la
-                    // conversación donde se dijo, y no el general.
-                    enlace: `/chat-equipo?canal=${encodeURIComponent(canal.id)}`,
+                    // El canal Y el mensaje viajan en el aviso. El canal, para
+                    // que el clic abra la conversación donde se dijo y no el
+                    // general; el mensaje, porque en un canal con tráfico
+                    // aterrizar al final del hilo no es encontrar la mención —
+                    // hay que ponerla delante.
+                    enlace:
+                        `/chat-equipo?canal=${encodeURIComponent(canal.id)}` +
+                        `&mensaje=${encodeURIComponent(mensaje.id)}`,
                 })),
             );
         }
@@ -634,5 +662,61 @@ export async function abrirDirectoAction(
     } catch (error) {
         console.error("[chat-equipo] no se pudo abrir el directo", error);
         return { success: false, message: "No se pudo abrir la conversación." };
+    }
+}
+
+/**
+ * Cuántos mensajes sin leer tiene quien mira, en total y por canal.
+ *
+ * Es lo que alimenta el número del botón del borde, así que corre **con el
+ * panel cerrado** y en todas las pantallas de la App. De ahí las dos cosas que
+ * la hacen barata: una consulta para todos los canales, y nada de traerse los
+ * mensajes — solo se cuentan.
+ *
+ * **Suma solo los canales donde se PERTENECE**, no los que se pueden leer. Un
+ * administrador lee todos los directos de su cuenta; contárselos le pondría
+ * encima el tráfico de todo el mundo, que es tanto como no tener contador.
+ */
+export async function sinLeerDelEquipoAction(): Promise<
+    Respuesta<{ total: number; porCanal: Record<string, number> }>
+> {
+    try {
+        const quien = await quienYDonde();
+        if (!quien) return { success: false, message: "No autorizado." };
+
+        const [filas, gente] = await Promise.all([
+            canalesQueAlcanzan(quien.cuentaId),
+            laGente(quien.familia),
+        ]);
+        const canales = losCanalesQueVe(
+            filas,
+            quien.persona.id,
+            quien.cuentaId,
+            quien.manda,
+            gente,
+        );
+
+        const mios = canales.filter((c) => c.pertenezco && c.tipo !== "general").map((c) => c.id);
+        const cuentas = await sinLeerPorCanal({
+            personaId: quien.persona.id,
+            canales: mios,
+            familia: quien.familia.cuentas,
+            // El general es de toda la familia y se pertenece a él siempre.
+            conGeneral: canales.some((c) => c.tipo === "general"),
+        });
+
+        const porCanal: Record<string, number> = {};
+        let total = 0;
+        for (const c of cuentas) {
+            porCanal[c.canalId] = c.sinLeer;
+            total += c.sinLeer;
+        }
+
+        return { success: true, data: { total, porCanal } };
+    } catch (error) {
+        // Mudo aquí se ve como «el contador nunca sube», que es justo el fallo
+        // que esto viene a arreglar.
+        console.warn("[chat-equipo] no se pudo contar lo que falta por leer", error);
+        return { success: false, message: "No se pudo contar." };
     }
 }

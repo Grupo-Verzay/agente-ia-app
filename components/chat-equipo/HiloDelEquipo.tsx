@@ -37,6 +37,7 @@ import {
     renombrarCanalAction,
     type HiloAbierto,
 } from "@/actions/chat-de-equipo-actions";
+import { avisarDeQueSeLeyo } from "@/hooks/useSinLeerDelEquipo";
 
 /**
  * El chat del equipo: los canales y el hilo abierto.
@@ -68,6 +69,7 @@ import {
 export function HiloDelEquipo({
     activo = true,
     canalInicial,
+    mensajeInicial,
 }: {
     /**
      * Si el reloj tiene que correr y si hay que cargar.
@@ -80,6 +82,13 @@ export function HiloDelEquipo({
     activo?: boolean;
     /** El canal con el que abrir, si se llega desde un aviso de mención. */
     canalInicial?: string;
+    /**
+     * El mensaje al que ir, si se llega desde un aviso de mención.
+     *
+     * En un canal con tráfico, aterrizar al final del hilo no es encontrar la
+     * mención: hay que ponerla delante.
+     */
+    mensajeInicial?: string;
 }) {
     const [datos, setDatos] = useState<HiloAbierto | null>(null);
     const [fallo, setFallo] = useState<string | null>(null);
@@ -89,6 +98,10 @@ export function HiloDelEquipo({
     const [listaAbierta, setListaAbierta] = useState(false);
 
     const abajoDelTodo = useRef<HTMLDivElement | null>(null);
+    // El último mensaje que ya se dio por leído. Sirve para no avisar al
+    // contador en cada vuelta del reloj: solo cuando de verdad se marcó algo
+    // nuevo. Sin esto, el contador —que va a 15 s— pasaría a preguntar cada 5.
+    const yaMarcado = useRef<string | null>(null);
     // El ciclo lee el canal por referencia: si entrara en las dependencias,
     // cambiar de canal remontaría el `setInterval` y perdería su cadencia.
     const canalRef = useRef(canalId);
@@ -104,6 +117,17 @@ export function HiloDelEquipo({
         // solo a los pocos segundos.
         if (pedido !== canalRef.current) return null;
         setDatos(res.data);
+
+        // El servidor acaba de marcar este canal como leído hasta su último
+        // mensaje. El contador del botón vive en otro sitio y con otro reloj,
+        // así que se le avisa — si no, el número se quedaría puesto hasta
+        // quince segundos después de haberlo leído, que se ve como roto.
+        const ultimo = res.data.mensajes[res.data.mensajes.length - 1];
+        const marca = `${res.data.canalId}::${ultimo?.id ?? ""}`;
+        if (yaMarcado.current !== marca) {
+            yaMarcado.current = marca;
+            avisarDeQueSeLeyo();
+        }
         // El servidor manda: si el canal pedido no existe para esta persona,
         // devuelve el general y la pantalla se pone donde de verdad está.
         setCanalId(res.data.canalId);
@@ -162,9 +186,24 @@ export function HiloDelEquipo({
     }, [activo, traer]);
 
     // Pegado abajo: un chat se lee por el final.
+    //
+    // Salvo cuando se llega desde un aviso de mención: entonces manda el
+    // mensaje, y solo la PRIMERA vez —`buscado`—. Si no, cada vuelta del reloj
+    // devolvería la vista a la mención y no se podría seguir leyendo.
+    const buscado = useRef(false);
     useEffect(() => {
+        if (mensajeInicial && !buscado.current && datos?.mensajes.length) {
+            const nodo = document.getElementById(`mensaje-${mensajeInicial}`);
+            if (nodo) {
+                buscado.current = true;
+                nodo.scrollIntoView({ block: "center" });
+                return;
+            }
+            // Si no está —quedó fuera de los últimos que se traen— se sigue
+            // como siempre: al final. Mejor el hilo que una pantalla quieta.
+        }
         abajoDelTodo.current?.scrollIntoView({ block: "end" });
-    }, [datos?.mensajes.length, canalId]);
+    }, [datos?.mensajes.length, canalId, mensajeInicial]);
 
     const canal = useMemo(
         () => datos?.canales.find((c) => c.id === canalId) ?? datos?.canales[0] ?? null,
@@ -283,6 +322,7 @@ export function HiloDelEquipo({
                                 mensaje={m}
                                 mio={m.autorId === datos.yo}
                                 meMencionan={m.mencionados.includes(datos.yo)}
+                                buscado={m.id === mensajeInicial}
                                 nombrePorId={nombrePorId}
                             />
                         ))}
@@ -812,11 +852,14 @@ function Burbuja({
     mensaje,
     mio,
     meMencionan,
+    buscado = false,
     nombrePorId,
 }: {
     mensaje: MensajeDeEquipo;
     mio: boolean;
     meMencionan: boolean;
+    /** El mensaje al que traía el aviso: se señala para encontrarlo de un vistazo. */
+    buscado?: boolean;
     nombrePorId: Map<string, string>;
 }) {
     const quien = mensaje.autorNombre?.trim() || nombrePorId.get(mensaje.autorId) || "Alguien";
@@ -828,7 +871,11 @@ function Burbuja({
     });
 
     return (
-        <div className={`flex flex-col gap-1 ${mio ? "items-end" : "items-start"}`}>
+        <div
+            // El id es por donde lo encuentra el aviso de la mención.
+            id={`mensaje-${mensaje.id}`}
+            className={`flex flex-col gap-1 ${mio ? "items-end" : "items-start"}`}
+        >
             <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">{mio ? "Tú" : quien}</span>
                 <span>{hora}</span>
@@ -842,6 +889,9 @@ function Burbuja({
                     // Una mención se ve sin leer el texto: es lo que hace que
                     // volver al hilo desde el aviso valga para algo.
                     meMencionan ? "ring-2 ring-amber-400/60" : "",
+                    // Y el que traía el aviso, además, señalado: en un canal
+                    // con tráfico la mención puede no ser la única resaltada.
+                    buscado ? "ring-2 ring-primary ring-offset-2" : "",
                 ].join(" ")}
             >
                 {mensaje.texto}

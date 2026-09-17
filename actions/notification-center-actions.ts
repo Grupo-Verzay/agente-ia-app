@@ -6,6 +6,7 @@ import { getApiKeyById } from "@/actions/api-action";
 import { fetchChatsFromEvolution } from "@/actions/chat-actions";
 import { isEvolutionRestInstance } from "@/lib/instance-display-name";
 import { avisosDeLaCampanita } from "@/lib/avisos-de-tarea";
+import { elDestinatarioDeLosAvisos } from "@/lib/avisos-de-tarea-tipos";
 import { aDondeLleva } from "@/lib/avisos-de-tarea-tipos";
 
 export type NotificationKind =
@@ -227,7 +228,9 @@ export async function getNotificationCenterData(): Promise<{
     // y solo se apaga abriendo la tarea.
     let avisosDeTareas: NotificationCenterItem[] = [];
     try {
-      avisosDeTareas = (await avisosDeLaCampanita(user.id))
+      // La PERSONA, no la fila efectiva: dentro de otra cuenta los avisos se
+      // escriben con su id y se leían con el de la cuenta, así que no salían.
+      avisosDeTareas = (await avisosDeLaCampanita(elDestinatarioDeLosAvisos(user) ?? user.id))
         .filter((a) => !a.atendido)
         .map((a) => ({
           id: `tarea:${a.id}`,

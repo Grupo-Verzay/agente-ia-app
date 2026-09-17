@@ -133,6 +133,19 @@ function asegurarLaTabla(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "team_channel_accounts_cuenta_idx"
             ON "team_channel_accounts" ("cuentaId")
         `;
+        // Hasta donde ha leido cada persona en cada canal.
+        //
+        // Una MARCA, no un conjunto de mensajes leidos: un chat crece sin
+        // limite y un conjunto creceria con el. Esto es una fila por persona y
+        // canal, y no crece nunca.
+        await db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "team_chat_reads" (
+                "personaId" TEXT NOT NULL,
+                "canalId" TEXT NOT NULL,
+                "leidoHasta" TIMESTAMP(3) NOT NULL,
+                PRIMARY KEY ("personaId", "canalId")
+            )
+        `;
     })().catch((error) => {
         tablaLista = null;
         throw error;
@@ -517,4 +530,112 @@ export async function laGenteDeLasCuentas(cuentas: string[]): Promise<FilaDePers
         });
         return [] as FilaDePersona[];
     });
+}
+
+// ── Lo que falta por leer ───────────────────────────────────────────────────
+
+export type SinLeerDeUnCanal = { canalId: string; sinLeer: number };
+
+/**
+ * Cuántos mensajes sin leer tiene una persona en cada canal.
+ *
+ * # Las tres condiciones, y cada una arregla algo distinto
+ *
+ * 1. **Posterior a su marca.** Sin marca no hay nada leído, así que sale todo
+ *    lo que haya. Es lo cierto —nadie los ha leído— y evita lo otro: sembrar la
+ *    marca al vuelo, que abriría una ventana de un ciclo entero en la que un
+ *    mensaje recién llegado se daría por leído solo.
+ * 2. **De otra persona.** Lo que uno escribe no le llega a él.
+ * 3. **De un canal donde PERTENECE.** Esa lista la decide quien llama, y no es
+ *    la de los canales que puede leer: un administrador lee todos los directos
+ *    de su cuenta, y contárselos le pondría encima el tráfico de todo el mundo
+ *    — que es tanto como no tener contador.
+ *
+ * # Y el general va aparte, porque no es una fila
+ *
+ * Sus mensajes se reparten entre las cuentas de la familia y su `canalId` puede
+ * ser `NULL` —los de cuando el hilo era uno solo—, así que se cuenta con las
+ * dos condiciones, igual que se lee.
+ *
+ * Una sola consulta para todos los canales: esto corre cada pocos segundos, con
+ * el panel cerrado, en todas las pantallas de la App. Una por canal serían
+ * tantas peticiones como canales tenga la cuenta, cada vuelta.
+ */
+export async function sinLeerPorCanal(input: {
+    personaId: string;
+    /** Los canales donde pertenece. El general NO va aquí: se cuenta aparte. */
+    canales: string[];
+    /** Las cuentas de la familia, para el general. */
+    familia: string[];
+    /** Si el general entra en la cuenta. Siempre, salvo que no haya familia. */
+    conGeneral: boolean;
+}): Promise<SinLeerDeUnCanal[]> {
+    const canales = Array.from(new Set(input.canales.filter(Boolean)));
+    const familia = Array.from(new Set(input.familia.filter(Boolean)));
+
+    return conLaTabla(async () => {
+        const salida: SinLeerDeUnCanal[] = [];
+
+        if (input.conGeneral && familia.length) {
+            const filas = await db.$queryRaw<{ sinLeer: bigint }[]>`
+                SELECT COUNT(*)::bigint AS "sinLeer"
+                FROM "team_chat_messages" m
+                LEFT JOIN "team_chat_reads" r
+                       ON r."personaId" = ${input.personaId}
+                      AND r."canalId" = ${CANAL_GENERAL}
+                WHERE m."cuentaId" IN (${Prisma.join(familia)})
+                  AND (m."canalId" IS NULL OR m."canalId" = ${CANAL_GENERAL})
+                  AND m."autorId" <> ${input.personaId}
+                  AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
+            `;
+            const n = Number(filas[0]?.sinLeer ?? 0);
+            if (n > 0) salida.push({ canalId: CANAL_GENERAL, sinLeer: n });
+        }
+
+        if (canales.length) {
+            const filas = await db.$queryRaw<{ canalId: string; sinLeer: bigint }[]>`
+                SELECT m."canalId", COUNT(*)::bigint AS "sinLeer"
+                FROM "team_chat_messages" m
+                LEFT JOIN "team_chat_reads" r
+                       ON r."personaId" = ${input.personaId}
+                      AND r."canalId" = m."canalId"
+                WHERE m."canalId" IN (${Prisma.join(canales)})
+                  AND m."autorId" <> ${input.personaId}
+                  AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
+                GROUP BY m."canalId"
+            `;
+            for (const f of filas) salida.push({ canalId: f.canalId, sinLeer: Number(f.sinLeer) });
+        }
+
+        return salida;
+    });
+}
+
+/**
+ * Marca un canal como leído hasta un momento dado.
+ *
+ * **La hora es la del último mensaje que se ENSEÑÓ, no `now()`.** Con `now()`,
+ * un mensaje que entrara entre que se leyó el hilo y que se escribe la marca
+ * quedaría dado por leído sin que nadie lo hubiera visto — y un mensaje que se
+ * pierde así no vuelve a avisar nunca.
+ *
+ * Y la marca solo AVANZA, con el `WHERE` del `ON CONFLICT`. Dos cosas de una:
+ * releer un canal viejo no puede hacer que vuelvan a salir como sin leer los
+ * mensajes de en medio, y **cuando no hay nada que mover, Postgres no escribe
+ * la fila**. Eso importa porque esto se llama en cada vuelta del reloj del
+ * panel abierto: con un `SET` incondicional serían escrituras cada cinco
+ * segundos por cada persona que tenga el panel delante.
+ */
+export async function marcarLeido(
+    personaId: string,
+    canalId: string,
+    hasta: Date,
+): Promise<void> {
+    await conLaTabla(() => db.$executeRaw`
+        INSERT INTO "team_chat_reads" ("personaId", "canalId", "leidoHasta")
+        VALUES (${personaId}, ${canalId}, ${hasta})
+        ON CONFLICT ("personaId", "canalId") DO UPDATE
+        SET "leidoHasta" = EXCLUDED."leidoHasta"
+        WHERE "team_chat_reads"."leidoHasta" < EXCLUDED."leidoHasta"
+    `);
 }

@@ -16,6 +16,7 @@ import {
 } from "@/lib/avisos-de-tarea";
 import {
   TOPE_DE_COMENTARIO,
+  elDestinatarioDeLosAvisos,
   type AvisoDeTarea,
   type ComentarioDeTarea,
 } from "@/lib/avisos-de-tarea-tipos";
@@ -179,8 +180,9 @@ export async function leerElHiloAction(
 export async function avisosPorSaltarAction(): Promise<Resultado<AvisoDeTarea[]>> {
   try {
     const user = await currentUser();
-    if (!user?.id) return { success: false, message: "No autorizado.", data: [] };
-    return { success: true, message: "Avisos.", data: await avisosPorSaltar(user.id) };
+    const yo = elDestinatarioDeLosAvisos(user);
+    if (!yo) return { success: false, message: "No autorizado.", data: [] };
+    return { success: true, message: "Avisos.", data: await avisosPorSaltar(yo) };
   } catch (error) {
     // Mudo aquí se vería como «la ventana no salta», que es el fallo original.
     console.warn("[tareas] no se pudieron leer los avisos por saltar", {
@@ -194,8 +196,9 @@ export async function avisosPorSaltarAction(): Promise<Resultado<AvisoDeTarea[]>
 export async function avisosDeLaCampanitaAction(): Promise<Resultado<AvisoDeTarea[]>> {
   try {
     const user = await currentUser();
-    if (!user?.id) return { success: false, message: "No autorizado.", data: [] };
-    return { success: true, message: "Avisos.", data: await avisosDeLaCampanita(user.id) };
+    const yo = elDestinatarioDeLosAvisos(user);
+    if (!yo) return { success: false, message: "No autorizado.", data: [] };
+    return { success: true, message: "Avisos.", data: await avisosDeLaCampanita(yo) };
   } catch (error) {
     console.warn("[tareas] no se pudo leer el historial de avisos", {
       error: error instanceof Error ? error.message : String(error),
@@ -217,7 +220,7 @@ export async function atenderLosAvisosAction(ids: string[]): Promise<Resultado<n
     if (!user?.id) return { success: false, message: "No autorizado." };
     // El `destinatarioId` va en el `WHERE`: sin él, con unos ids a mano se
     // callarían los avisos de otra persona.
-    await atenderLosAvisos(ids, user.id);
+    await atenderLosAvisos(ids, elDestinatarioDeLosAvisos(user) ?? user.id);
     return { success: true, message: "Avisos atendidos." };
   } catch (error) {
     console.error("[atenderLosAvisosAction]", error);
