@@ -2472,6 +2472,68 @@ plataforma: desde fuera, un desconocido pidiéndole dinero a un cliente que no
 sabe quién es. Es preferible que no salga y que la pantalla lo diga —lo dice, en
 la cabecera y en la configuración—.
 
+### Los datos de pago son DOS: los de la cuenta y los de este cobro
+
+`cobros_config.datosDePago` es el `{pago}` de la plantilla: uno solo para toda
+la cartera. Pero lo que de verdad se teclea a diario es **distinto en cada
+deuda** —«Bancolombia ahorros 123, a nombre de Marta», un enlace de pago
+distinto por contacto, por producto o por servicio—, y eso no cabe en un dato
+fijo de la cuenta.
+
+Va en **`cobros.notaDePago`**, en la fila, y entra con
+**`ALTER TABLE … ADD COLUMN IF NOT EXISTS`** y no reescribiendo el `CREATE`: la
+tabla ya existe en producción y un `CREATE TABLE IF NOT EXISTS` no toca una que
+ya está. Es el fallo que se comete solo al añadirle una columna a una tabla de
+la App ya desplegada. Ni en `cobros_config` —que es de la cuenta entera— ni en
+`cobro_adjuntos`, que es una tabla de archivos: una fila sin fichero es una fila
+que miente. Las deudas de antes traen `null`, que significa exactamente «esta no
+tiene»: sin backfill y sin dos clases de cobro.
+
+**La nota va al final del mensaje, pegada por FUERA de la plantilla**
+(`conLaNota`, puro). Y esa es la decisión, porque las dos formas que parecen
+mejores fallan **en silencio**:
+
+1. **Como `{variable}` nueva.** Cada cuenta ya tiene sus tres mensajes
+   guardados y editados; una variable que no está escrita en ellos no se
+   sustituye en ninguna parte. Se escribiría el número de cuenta, se guardaría
+   bien, y al cliente no le llegaría — sin un solo error. Es la familia de *una
+   prohibición que no viaja en el prompt no existe*.
+2. **Metida dentro de `{pago}`.** Sale bien con las plantillas por defecto y
+   desaparece en cuanto alguien quitó ese `{pago}` de la suya. Una rama que solo
+   se equivoca con los datos que ya tienen los clientes es la que nadie prueba.
+
+Al final y **sin ninguna condición delante** no hay plantilla que la pueda
+perder. Probado con una plantilla sin `{pago}` y con otra sin ninguna variable.
+
+Cuatro cosas más:
+
+1. **No reemplaza a `{pago}`**: los dos salen. Son dos datos distintos, no dos
+   formas del mismo.
+2. **Viaja también en la vuelta diaria** (`losCobrosQuePodrianTocarHoy`), no
+   solo en «Cobrar ahora». Por ahí sale la mayoría de los mensajes; si solo la
+   trajera el botón, la línea saldría al mandarlo a mano y desaparecería en los
+   recordatorios, que es el «a veces funciona» de siempre.
+3. **Se puede editar en una deuda que ya existe**, no solo al crearla. El número
+   de cuenta cambia; si solo se pudiera al crear, cambiarlo obligaría a borrar la
+   deuda y rehacerla, y con ella se iría su historial de ciclos.
+4. **Es LITERAL: se pega después de sustituir las variables.** Un `{monto}`
+   escrito a mano en la nota sale tal cual, que es lo que se escribió.
+
+Y el saneado —vacía o con espacios es `null`, nunca cadena vacía— está en
+`comoNotaDePago` y se aplica **al escribir**, en `cobros-db`, no solo en la
+acción. Con él únicamente en la acción la columna admitía `"   "` en cuanto
+alguien llamara a la función de la base por otro camino, y entonces `null` y
+«espacios» serían dos formas de decir lo mismo. Lo cazó el banco.
+
+> **Y lo que conviene saber antes de tocar esto: los ADJUNTOS de un cobro no
+> salen.** Se guardan, se cuentan en la tabla y se ven en la App, pero
+> `sendViaWhatsAppDispatcher` es **solo texto** y `mandarElCobro` no manda
+> ningún archivo. Así que hoy «solo texto» y «texto + adjunto» mandan lo mismo,
+> y «solo adjunto» no manda nada. Mandarlos es un frente aparte y no pequeño:
+> los caminos de media de los tres proveedores piden `currentUser()` y pausan la
+> IA del contacto, y **la vuelta diaria corre desde el cron, sin sesión**. Media
+> función —que salga a mano y no en los recordatorios— sería peor que ninguna.
+
 ### La guarda de una confirmación es el VENCIMIENTO, no el estado
 
 Es la trampa del cobro recurrente y la cazó el banco. Confirmar un pago **anota
