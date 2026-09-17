@@ -822,6 +822,64 @@ Dos cosas:
 
 Si se añade otra acción de notas que reciba un `userId`, va por esa función.
 
+### Pero «de quién son» y «a quién le LLEGA» son dos preguntas
+
+La regla de arriba cerró un agujero y abrió, sin querer, la duda contraria.
+Compartir se hace **con una CUENTA** —el selector ofrece cuentas y
+`note_shares.userId` guarda el id de una cuenta—, y la búsqueda se hacía con el
+id de la **persona**. Así que:
+
+- El **dueño** de la cuenta destino las veía: su id ES el de la fila.
+- Su **administrador** entraba con el suyo, `note_shares` no lo conocía, y la
+  lista le salía **vacía**. Ni error, ni aviso: simplemente no estaban.
+
+Es el caso de Yair en «Verzay | Atencion». Y no se arregla ablandando
+`elDuenoDeLasNotas`: si esa devolviera la cuenta, un `agente` abriría `/notas` y
+vería **todas las notas privadas** de su dueño, que es justo el incidente de
+arriba. Son dos preguntas y van en dos funciones:
+
+| Pregunta | Quién la contesta | Con qué |
+| --- | --- | --- |
+| ¿De quién SON estas notas? | `elDuenoDeLasNotas` | siempre la **persona** |
+| ¿A quién le LLEGA un compartido? | `identidadesQueRecibenCompartidos` (`lib/notas-compartidas.ts`, puro) | la persona **y** su cuenta si es su `administrador` |
+
+Un **`agente` no hereda**, a propósito: participa en lo que le asignen, y una
+nota compartida con la cuenta no se le asignó a él. Es el mismo reparto de
+`cuentaQueManda` y de `canManageWorkspace`.
+
+Y es puro, no `cuentaQueManda`, porque aquí solo hace falta el **id** de la
+cuenta —que ya viaja en la sesión— y no su rol, que costaría una consulta. Es el
+mismo motivo por el que `rolQueAbrePuertas` se escribió puro al lado del suyo.
+
+Cuatro cosas que hay que mantener:
+
+1. **Los cinco lectores de `note_shares` van por ahí**: la lista, abrir, editar,
+   fijar y ordenar. Con uno fuera, la nota sale en la lista y al pulsarla dice
+   «No autorizado», que es peor que no verla.
+2. **Entre dos filas para la misma nota gana la que MÁS deja hacer.** Puede
+   haber una compartida con la persona y otra con su cuenta; quitarle la edición
+   por tener además una de lectura sería un permiso que cambia según por dónde
+   se mire.
+3. **Y sale UNA vez.** El `DISTINCT ON (n.id)` de `getSharedNotes` es por eso, y
+   obliga a que el orden de la lista —fijadas arriba, luego el orden propio— vaya
+   en la consulta de fuera.
+4. **Lo que ya es suyo no entra en «compartidas conmigo».** Con la cuenta
+   dentro, quien comparte una nota propia con su propia cuenta la vería en las
+   dos listas. Antes no podía pasar, porque compartir con uno mismo está
+   prohibido.
+
+**Fijar y ordenar pasan a ser de la CUENTA** cuando la nota llegó por ella: se
+escriben sobre su fila, así que el dueño y sus administradores ven el mismo
+orden. Es coherente con que el compartido sea de la cuenta, y es lo que ya
+pasaba entre dos pestañas del dueño.
+
+**Proyectos NO tiene este fallo**, y conviene saber por qué para no «arreglarlo»:
+`project_shares` también guarda la cuenta, pero `getAuth()` de
+`project-actions` resuelve `user.ownerId ?? user.id`, o sea **ya la cuenta**.
+Comprobado en banco con las acciones reales: el administrador ve el proyecto
+recibido, y el agente también lo ve sin poder trabajarlo — que es lo que la
+sección de Proyectos compartidos ya decía.
+
 ## El equipo entra por su cartera, no por su rol
 
 Un asesor del equipo con la pestaña concedida abría Panel › **Instancias** y

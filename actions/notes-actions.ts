@@ -6,6 +6,7 @@ import type { NoteFolder, UserNote } from '@prisma/client'
 import { getAuditActorId, writeAuditLog } from './audit-log-actions'
 import { currentUser } from '@/lib/auth'
 import { getAssociatedAccountIds } from '@/lib/cuentas-asociadas'
+import { identidadesQueRecibenCompartidos } from '@/lib/notas-compartidas'
 
 export type NoteFolderWithCount = NoteFolder & { _count: { notes: number } }
 export type UserNoteListItem = Pick<
@@ -50,6 +51,41 @@ async function elDuenoDeLasNotas(pedido: string): Promise<string | null> {
     })
   }
   return user.id
+}
+
+/**
+ * Bajo qué identidades le llega a quien mira una nota compartida.
+ *
+ * **Es otra pregunta que la de arriba, y por eso son dos funciones.**
+ * `elDuenoDeLasNotas` dice de quién SON las notas y contesta siempre «de quien
+ * mira»; sin eso, un `agente` vería las notas privadas de su dueño. Esto dice
+ * a quién le LLEGA lo que otra cuenta compartió, y ahí sí cuenta la cuenta:
+ * compartir se hace **con una cuenta** y `note_shares` guarda su id, así que
+ * buscando solo por el id de la persona, su administrador no encuentra nada.
+ *
+ * Quién hereda está en `lib/notas-compartidas.ts`, que es puro: administrador
+ * sí, agente no.
+ */
+async function quienesMeCompartenA(): Promise<string[]> {
+  const user = await currentUser()
+  return identidadesQueRecibenCompartidos(user ?? {})
+}
+
+/**
+ * El share de una nota para quien mira, mirando TODAS sus identidades.
+ *
+ * Si hay dos filas —una compartida con la persona y otra con su cuenta— gana
+ * **la que más deja hacer**: cuando a alguien se le dio edición por un camino,
+ * quitársela por tener además una de lectura sería un permiso que desaparece
+ * según por dónde se mire.
+ */
+async function elShareDeLaNota(noteId: string, identidades: string[]) {
+  if (identidades.length === 0) return null
+  return db.noteShare.findFirst({
+    where: { noteId, userId: { in: identidades } },
+    select: { canEdit: true },
+    orderBy: { canEdit: 'desc' },
+  })
 }
 
 // ── Folders ──────────────────────────────────────────────────────────────────
@@ -177,11 +213,9 @@ export async function getNote(id: string, userId: string) {
     if (data.userId === quienMira) {
       return { success: true, data, canEdit: true, isOwner: true, ownerName: null }
     }
-    // Compartida: acceso solo si existe un share para esta cuenta.
-    const share = await db.noteShare.findUnique({
-      where: { noteId_userId: { noteId: id, userId: quienMira } },
-      select: { canEdit: true },
-    })
+    // Compartida: acceso si hay un share para cualquiera de sus identidades
+    // —la suya, o la de la cuenta de la que es administrador—.
+    const share = await elShareDeLaNota(id, await quienesMeCompartenA())
     if (!share) return { success: false, error: 'No autorizado.' }
     const owner = await db.user.findUnique({
       where: { id: data.userId },
@@ -251,10 +285,7 @@ export async function updateNote(
     // Cuenta que NO es dueña: solo puede editar si tiene un share con canEdit,
     // y únicamente contenido/título (no fija, archiva, mueve ni etiqueta).
     if (existing.userId !== quienEdita) {
-      const share = await db.noteShare.findUnique({
-        where: { noteId_userId: { noteId: id, userId: quienEdita } },
-        select: { canEdit: true },
-      })
+      const share = await elShareDeLaNota(id, await quienesMeCompartenA())
       if (!share?.canEdit) return { success: false, error: 'No tienes permiso para editar esta nota.' }
       const safe: { content?: object; title?: string } = {}
       if (payload.content !== undefined) safe.content = payload.content
@@ -517,16 +548,40 @@ export async function getSharedNotes(userId: string): Promise<{ success: boolean
   try {
     const quienMira = await elDuenoDeLasNotas(userId)
     if (!quienMira) return { success: false, data: [], error: 'No autorizado.' }
+    const identidades = await quienesMeCompartenA()
+    if (identidades.length === 0) return { success: true, data: [] }
+
+    // `DISTINCT ON (n.id)` porque una misma nota puede llegar por dos caminos
+    // —compartida con la persona y compartida con su cuenta—; sin él saldría
+    // dos veces en la lista. Se queda con la que más deja hacer.
+    //
+    // Y se descarta lo que ya es SUYO: con la cuenta dentro, alguien que
+    // comparte una nota propia con su propia cuenta la vería a la vez en «mis
+    // notas» y en «compartidas conmigo». Antes no podía pasar, porque
+    // compartir con uno mismo está prohibido.
+    // El `DISTINCT ON` obliga a que su `ORDER BY` empiece por `n.id`, así que
+    // el orden de la LISTA —fijadas arriba, luego el orden propio del receptor—
+    // va en la consulta de fuera. Mezclarlos daría un orden que no es ninguno
+    // de los dos.
     const rows = await db.$queryRaw<SharedNoteListItem[]>`
-      SELECT n.id, n.title, n.emoji, n.color, ns."isPinned", n."isArchived", n."folderId",
-             n."contactJid", n."contactName", n."updatedAt", n."createdAt",
-             ns."canEdit", COALESCE(u.name, u.email) AS "ownerName"
-      FROM "note_shares" ns
-      JOIN "user_notes" n ON n.id = ns."noteId"
-      JOIN "User" u ON u.id = n."userId"
-      WHERE ns."userId" = ${quienMira}
-        AND n."isArchived" = false
-      ORDER BY ns."isPinned" DESC, ns."order" ASC, n."updatedAt" DESC
+      SELECT q.id, q.title, q.emoji, q.color, q."isPinned", q."isArchived", q."folderId",
+             q."contactJid", q."contactName", q."updatedAt", q."createdAt",
+             q."canEdit", q."ownerName"
+      FROM (
+        SELECT DISTINCT ON (n.id)
+               n.id, n.title, n.emoji, n.color, ns."isPinned", n."isArchived", n."folderId",
+               n."contactJid", n."contactName", n."updatedAt", n."createdAt",
+               ns."canEdit", ns."order" AS "ordenPropio",
+               COALESCE(u.name, u.email) AS "ownerName"
+        FROM "note_shares" ns
+        JOIN "user_notes" n ON n.id = ns."noteId"
+        JOIN "User" u ON u.id = n."userId"
+        WHERE ns."userId" = ANY(${identidades}::text[])
+          AND n."isArchived" = false
+          AND n."userId" <> ${quienMira}
+        ORDER BY n.id, ns."canEdit" DESC
+      ) q
+      ORDER BY q."isPinned" DESC, q."ordenPropio" ASC, q."updatedAt" DESC
     `
     return { success: true, data: rows }
   } catch (e) {
@@ -540,7 +595,14 @@ export async function setNoteSharePin(noteId: string, userId: string, isPinned: 
   try {
     const quienMira = await elDuenoDeLasNotas(userId)
     if (!quienMira) return { success: false, error: 'No autorizado.' }
-    const res = await db.noteShare.updateMany({ where: { noteId, userId: quienMira }, data: { isPinned } })
+    // Se escribe sobre TODAS sus identidades: cuando la nota llegó por la
+    // cuenta, el fijado es **de la cuenta** y lo comparten su dueño y sus
+    // administradores. Es lo mismo que pasa hoy entre dos pestañas del dueño, y
+    // es coherente con que el compartido sea de la cuenta y no de la persona.
+    const res = await db.noteShare.updateMany({
+      where: { noteId, userId: { in: await quienesMeCompartenA() } },
+      data: { isPinned },
+    })
     if (res.count === 0) return { success: false, error: 'No tienes esta nota compartida.' }
     return { success: true }
   } catch {
@@ -553,7 +615,11 @@ export async function updateNoteShareOrder(noteId: string, userId: string, order
   try {
     const quienMira = await elDuenoDeLasNotas(userId)
     if (!quienMira) return { success: false }
-    await db.noteShare.updateMany({ where: { noteId, userId: quienMira }, data: { order } })
+    // Igual que el fijado: si llegó por la cuenta, el orden es de la cuenta.
+    await db.noteShare.updateMany({
+      where: { noteId, userId: { in: await quienesMeCompartenA() } },
+      data: { order },
+    })
     return { success: true }
   } catch {
     return { success: false }
