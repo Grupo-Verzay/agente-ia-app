@@ -1562,6 +1562,60 @@ eso, guardar un prompt con una nota dentro falla la validación de **todas** las
 secciones —`patchSection` las revalida— y rompe cualquier edición sobre ese
 prompt, que es un fallo mucho más ancho que la nota.
 
+## Proyectos compartidos: un proyecto, un juego de tareas
+
+Un proyecto se comparte con otra cuenta igual que un diagrama, y con **el mismo
+diálogo** (`components/shared/CompartirConCuentasDialog.tsx`, que ahora usan las
+dos pantallas: lo que cambia son las acciones, que entran por `cargar` y
+`guardar`). «Solo lectura» lo ve y nada más; «Puede editar» trabaja sobre el
+MISMO proyecto —crea, mueve y cierra tareas—, no sobre una copia.
+
+Esto **no es** la privacidad con el equipo (Privado / Solo lectura / Editable,
+que aquí es `filtroDeProyectosVisibles`): aquella reparte dentro de una cuenta y
+esto cruza a la de un cliente. Son dos ideas distintas y siguen separadas; en
+Diagramas ya costó una confusión entera creer que marcar «Editable» le daba algo
+al cliente.
+
+La tabla es `project_shares`, de la App y con `CREATE TABLE IF NOT EXISTS`. **Ni
+una columna en `Project`**: esa tabla es del backend y añadirle columnas desde
+aquí es lo que reventó el #360. Sin clave foránea, así que al borrar un proyecto
+la limpieza es explícita (`olvidarLosCompartidosDe`) y no puede reventar el
+borrado.
+
+**La regla que lo sostiene todo:**
+
+> **Las tareas de un proyecto cuelgan de la cuenta DUEÑA, escríbalas quien las
+> escriba.** `createTaskAction` resuelve el `ownerId` desde el proyecto, no desde
+> quien llama. Guardándolas bajo la cuenta invitada se quedarían fuera de los dos
+> tableros: el dueño pide las de su cuenta y no las vería, y la invitada abre el
+> tablero del proyecto, que tampoco es el suyo. Un proyecto, un juego de tareas.
+
+De ahí sale la respuesta a «¿y el tiempo?»: `task_work` se escribe bajo esa misma
+cuenta dueña, con `cerradaPorId` de quien cerró. Así que **las horas que pone la
+cuenta invitada salen en el «Reparto del trabajo» de la cuenta DUEÑA**, con el
+nombre de la persona que las hizo, y **no** en el de la invitada. Es lo correcto
+—el trabajo es del proyecto, y el proyecto es de su dueño— y es lo único que
+permite sumar: partido en dos mitades, nadie puede juntarlas.
+
+Cuatro cosas más que hay que mantener:
+
+1. **Quién puede qué se pregunta en UN solo sitio**, `accesoAlProyecto`
+   (`lib/acceso-al-proyecto.ts`), y **en el servidor**. Lo usan listar, abrir el
+   tablero, crear, editar, mover, comentar y adjuntar. Con la condición escrita
+   en cada acción, la octava se olvida — es lo que dejó un chat que se podía
+   anclar y no se podía borrar.
+2. **En uno recibido no manda nadie de esta cuenta.** Ni se edita la ficha, ni se
+   borra, ni se reparte a más cuentas, ni se borran sus tareas: eso se queda en
+   la cuenta dueña. «Puede editar» es crear, mover y cerrar, que es lo que se
+   ofreció.
+3. **Un proyecto que no se comparte se contesta como si no existiera.** Decir «no
+   puedes» ya revela que existe y de quién es. Misma regla que `getFlowAction`.
+4. **Un agente de la cuenta invitada lo ve pero no lo toca.** Participa en lo que
+   le asignen, y en un proyecto de otra cuenta no le asignan nada. Y el bloque de
+   «Cuenta» y «Tipo de trabajo» **no se pinta** en uno recibido: esa es la
+   contabilidad de la cuenta dueña, y la lista de clientes que vería la invitada
+   es la suya.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

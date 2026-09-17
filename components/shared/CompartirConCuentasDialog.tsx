@@ -15,44 +15,67 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import {
-  getFlowShareTargetsAction,
-  setFlowSharesAction,
-  type CuentaDestino,
-  type PermisoCompartido,
-} from '@/actions/flow-actions';
 
 /** Sin tildes y en minúsculas, para buscar "Audífonos" escribiendo "audifonos". */
 function normalizar(texto: string) {
   return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+export type PermisoCompartido = 'lectura' | 'edicion';
+
+export type CuentaDestino = {
+  id: string;
+  name: string | null;
+  email: string;
+  company: string;
+  compartido: boolean;
+  /** Con qué permiso se le comparte hoy. `lectura` si aún no se le comparte. */
+  permiso: PermisoCompartido;
+};
+
+export type CompartirCon = { accountUserId: string; permiso: PermisoCompartido };
+
 /**
- * A qué otras cuentas se les enseña este diagrama.
+ * A qué otras cuentas se les enseña esto.
  *
- * Es distinto de la visibilidad: aquella reparte dentro del equipo de una misma
- * cuenta, y esto cruza a la cuenta de un cliente.
+ * Es distinto de la visibilidad con el equipo: aquella reparte dentro de una
+ * misma cuenta, y esto cruza a la cuenta de un cliente.
  *
- * Cada cuenta lleva su propio permiso. En "Solo lectura" lo ve y saca su copia;
- * en "Puede editar" trabaja sobre el mismo diagrama, no sobre una copia, y lo
- * que escriba lo ves tú.
+ * Cada cuenta lleva su propio permiso. En "Solo lectura" lo ve y nada más; en
+ * "Puede editar" trabaja sobre lo mismo, no sobre una copia, y lo que haga lo
+ * ves tú.
  *
- * Antes esto era un interruptor a secas y todo lo compartido era de lectura.
- * Se compartia creyendo que el cliente podia editar -la visibilidad de la
- * tarjeta dice "Editable", pero eso es para el equipo de uno-, el cliente
- * trabajaba encima y no se guardaba nada.
+ * Antes esto era un interruptor a secas y todo lo compartido era de lectura. Se
+ * compartía creyendo que el cliente podía editar —la visibilidad de la tarjeta
+ * dice "Editable", pero eso es para el equipo de uno—, el cliente trabajaba
+ * encima y no se guardaba nada.
+ *
+ * ## Es UNO, no uno por pantalla
+ *
+ * Lo usan Diagramas y Proyectos. Lo que cambia entre los dos son los datos, y
+ * entran por `cargar` y `guardar` —las acciones de cada uno—; el buscador, el
+ * interruptor por cuenta, el selector de permiso y el «N de M cuentas» son los
+ * mismos. Con dos copias, el día que se afine algo se afina en una y la otra se
+ * queda atrás, y eso no se ve como un error sino como «en Proyectos funciona
+ * distinto».
  */
 export function CompartirConCuentasDialog({
   open,
   setOpen,
-  flowId,
-  flowName,
+  titulo,
+  queSeVe,
+  cargar,
+  guardar,
   onSaved,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
-  flowId: string;
-  flowName: string;
+  /** El nombre de lo que se comparte, para la cabecera. */
+  titulo: string;
+  /** Dónde lo verán: «Diagramas», «Proyectos». */
+  queSeVe: string;
+  cargar: () => Promise<{ ok: boolean; cuentas: CuentaDestino[]; message?: string }>;
+  guardar: (destinos: CompartirCon[]) => Promise<{ ok: boolean; message?: string }>;
   onSaved: () => void;
 }) {
   const [cuentas, setCuentas] = useState<CuentaDestino[]>([]);
@@ -64,17 +87,32 @@ export function CompartirConCuentasDialog({
 
   useEffect(() => {
     if (!open) return;
+    let vivo = true;
     setLoading(true);
     setBusqueda('');
-    getFlowShareTargetsAction(flowId)
+    cargar()
       .then((res) => {
-        const lista = res.success ? res.data : [];
-        setCuentas(lista);
-        setElegidas(new Map(lista.filter((c) => c.compartido).map((c) => [c.id, c.permiso])));
-        if (!res.success) toast.error(res.message);
+        if (!vivo) return;
+        setCuentas(res.cuentas);
+        setElegidas(new Map(res.cuentas.filter((c) => c.compartido).map((c) => [c.id, c.permiso])));
+        if (!res.ok && res.message) toast.error(res.message);
       })
-      .finally(() => setLoading(false));
-  }, [open, flowId]);
+      .catch((error) => {
+        // Sin esto el diálogo se queda en «Cargando cuentas…» para siempre: una
+        // acción no solo devuelve un fallo, puede reventar.
+        console.warn('[compartir] no se pudieron cargar las cuentas', error);
+        if (vivo) toast.error('No se pudieron cargar las cuentas.');
+      })
+      .finally(() => {
+        if (vivo) setLoading(false);
+      });
+    return () => {
+      vivo = false;
+    };
+    // `cargar` llega nueva en cada render del padre; depender de ella volvería a
+    // pedir la lista sin parar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const consulta = normalizar(busqueda.trim());
   const visibles = useMemo(
@@ -87,14 +125,16 @@ export function CompartirConCuentasDialog({
     [cuentas, consulta],
   );
 
-  const guardar = () => {
+  const alGuardar = () => {
     startSaving(async () => {
-      const res = await setFlowSharesAction(
-        flowId,
+      const res = await guardar(
         [...elegidas].map(([accountUserId, permiso]) => ({ accountUserId, permiso })),
-      );
-      if (!res.success) {
-        toast.error(res.message);
+      ).catch((error) => {
+        console.warn('[compartir] no se pudo guardar', error);
+        return { ok: false, message: 'No se pudo guardar con quién se comparte.' };
+      });
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo guardar con quién se comparte.');
         return;
       }
       const conEdicion = [...elegidas.values()].filter((p) => p === 'edicion').length;
@@ -115,12 +155,12 @@ export function CompartirConCuentasDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-primary" />
-            Compartir — {flowName}
+            Compartir — {titulo}
           </DialogTitle>
           <DialogDescription>
-            Lo verán en su propio listado de Diagramas. En <strong>Solo lectura</strong> lo miran y
-            sacan su copia; en <strong>Puede editar</strong> trabajan sobre este mismo diagrama y sus
-            cambios te llegan a ti.
+            Lo verán en su propio listado de {queSeVe}. En <strong>Solo lectura</strong> lo miran y
+            nada más; en <strong>Puede editar</strong> trabajan sobre esto mismo y sus cambios te
+            llegan a ti.
           </DialogDescription>
         </DialogHeader>
 
@@ -164,9 +204,7 @@ export function CompartirConCuentasDialog({
                               key={op}
                               type="button"
                               aria-pressed={permiso === op}
-                              onClick={() =>
-                                setElegidas((prev) => new Map(prev).set(c.id, op))
-                              }
+                              onClick={() => setElegidas((prev) => new Map(prev).set(c.id, op))}
                               className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
                                 permiso === op
                                   ? 'bg-primary text-primary-foreground'
@@ -198,14 +236,14 @@ export function CompartirConCuentasDialog({
         </div>
 
         <DialogFooter className="flex-row items-center justify-between sm:justify-between">
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <span className="text-xs tabular-nums text-muted-foreground">
             {loading ? '' : `${elegidas.size} de ${cuentas.length} cuentas`}
           </span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
               Cancelar
             </Button>
-            <Button variant="save" onClick={guardar} disabled={loading || saving}>
+            <Button variant="save" onClick={alGuardar} disabled={loading || saving}>
               {saving ? 'Guardando…' : 'Guardar'}
             </Button>
           </div>
