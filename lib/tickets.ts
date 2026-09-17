@@ -46,6 +46,76 @@ export const COLORES_DE_ESTADO: Record<EstadoDeTicket, string> = {
   descartado: "bg-muted text-muted-foreground",
 };
 
+/**
+ * El color de cada columna del tablero.
+ *
+ * Es un hexadecimal y no una clase de Tailwind porque la cabecera de la columna
+ * lo usa con opacidades calculadas (`${color}0A`, `${color}52`), igual que el
+ * tablero de Proyectos. Son los mismos cinco colores que `COLORES_DE_ESTADO`,
+ * en su versión sólida: dos escalas distintas para lo mismo se ven disparejas
+ * cuando el sello y su columna quedan uno al lado del otro.
+ */
+export const COLOR_DE_COLUMNA: Record<EstadoDeTicket, string> = {
+  recibido: "#0EA5E9",
+  en_proceso: "#F59E0B",
+  en_revision: "#8B5CF6",
+  resuelto: "#10B981",
+  descartado: "#94A3B8",
+};
+
+/**
+ * ¿Es un estado del que ya no se espera nada?
+ *
+ * Los dos finales se leen distinto en la tarjeta: de uno abierto interesa
+ * **cuánto lleva esperando**, y de uno cerrado, cuánto hace que se cerró.
+ * Decir «esperando hace 3 días» de un ticket resuelto es mentir con un dato
+ * cierto.
+ */
+export function esEstadoFinal(estado: EstadoDeTicket): boolean {
+  return estado === "resuelto" || estado === "descartado";
+}
+
+/**
+ * Cuánto hace, en palabras.
+ *
+ * Puro y con la hora de ahora por parámetro: leyendo `Date.now()` por dentro no
+ * hay forma de probarlo, y esto es justo lo que se mira de un vistazo para
+ * saber qué ticket lleva más tiempo sin atender.
+ */
+export function cuantoHace(desdeIso: string, ahoraMs: number): string {
+  const desde = new Date(desdeIso).getTime();
+  // Una fecha que no se entiende no se sustituye por «hace 0 min»: eso pondría
+  // el ticket más viejo arriba del todo como si acabara de entrar.
+  if (!Number.isFinite(desde)) return "";
+  const segundos = Math.max(0, Math.floor((ahoraMs - desde) / 1000));
+  if (segundos < 3600) return `hace ${Math.max(1, Math.floor(segundos / 60))} min`;
+  if (segundos < 86400) return `hace ${Math.floor(segundos / 3600)} h`;
+  const dias = Math.floor(segundos / 86400);
+  if (dias === 1) return "ayer";
+  if (dias < 30) return `hace ${dias} días`;
+  return new Date(desde).toLocaleDateString();
+}
+
+/**
+ * Lo que dice la tarjeta debajo del título: cuánto lleva esperando.
+ *
+ * De un ticket abierto se mide desde que ENTRÓ, no desde el último cambio de
+ * estado: lo que hay que ver es cuánto lleva el cliente esperando, y moverlo de
+ * «recibido» a «en proceso» no le quita ni un minuto de espera. De uno cerrado
+ * se mide desde `actualizadoEn`, que es cuando se cerró.
+ */
+export function laEspera(
+  ticket: Pick<Ticket, "estado" | "creadoEn" | "actualizadoEn">,
+  ahoraMs: number,
+): string {
+  if (esEstadoFinal(ticket.estado)) {
+    const cuando = cuantoHace(ticket.actualizadoEn, ahoraMs);
+    return cuando ? `${ticket.estado === "resuelto" ? "Resuelto" : "Descartado"} ${cuando}` : "";
+  }
+  const cuando = cuantoHace(ticket.creadoEn, ahoraMs);
+  return cuando ? `Esperando ${cuando}` : "";
+}
+
 /** Lo que llega de fuera no se da por bueno: lo que no está en la lista, no es. */
 export function comoEstadoDeTicket(valor: unknown): EstadoDeTicket | null {
   const texto = String(valor ?? "").trim();

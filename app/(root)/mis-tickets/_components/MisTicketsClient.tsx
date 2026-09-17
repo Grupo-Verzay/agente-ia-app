@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { FormularioDeTicket } from "@/components/tickets/FormularioDeTicket";
 import { TarjetaDeTicket } from "@/components/tickets/TarjetaDeTicket";
+import { DetalleDelTicket } from "@/components/tickets/DetalleDelTicket";
 import { misTicketsAction, type TicketConAdjuntos } from "@/actions/tickets-actions";
 
 export function MisTicketsClient({
@@ -23,6 +24,16 @@ export function MisTicketsClient({
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [abierto, setAbierto] = useState(false);
+    /** El ticket que se está leyendo. La tarjeta es compacta: el texto está aquí. */
+    const [leyendo, setLeyendo] = useState<TicketConAdjuntos | null>(null);
+
+    // Una sola hora para todas las tarjetas del repintado, y se refresca sola:
+    // «hace 5 min» que se queda clavado media hora es peor que no ponerlo.
+    const [ahora, setAhora] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setAhora(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, []);
 
     const cargar = useCallback(async () => {
         setCargando(true);
@@ -111,10 +122,24 @@ export function MisTicketsClient({
             ) : (
                 <div className="space-y-2">
                     {tickets.map((t) => (
-                        <TarjetaDeTicket key={t.id} ticket={t} />
+                        <TarjetaDeTicket
+                            key={t.id}
+                            ticket={t}
+                            ahora={ahora}
+                            onAbrir={() => setLeyendo(t)}
+                        />
                     ))}
                 </div>
             )}
+
+            {/* El mismo diálogo que usa el administrador: si fueran dos, el día
+                que el motivo del descarte cambie de sitio el cliente dejaría de
+                verlo sin que nadie se entere. */}
+            <DetalleDelTicket
+                ticket={leyendo}
+                ahora={ahora}
+                onCerrar={() => setLeyendo(null)}
+            />
 
             <FormularioDeTicket
                 abierto={abierto}

@@ -8,9 +8,11 @@ import { TicketsDeSoporteClient } from "./_components/TicketsDeSoporteClient";
  * devuelva y enseña «No autorizado» solo si esta lo dice — así la pantalla no
  * puede abrir de más que la consulta.
  *
- * Entrega 1: una **lista** con los cinco estados y el motivo obligatorio al
- * descartar. El tablero con arrastrar y soltar es la entrega 2; esto ya sirve
- * de punta a punta.
+ * Son **dos vistas**, el mismo patrón de Etiquetas: el tablero kanban por
+ * defecto —una columna por estado, y se arrastra para cambiarlo— y una segunda
+ * de lista para gestionar. El motivo obligatorio al descartar y el aviso de
+ * WhatsApp al resolver son los mismos por los dos caminos: los dos llaman a
+ * `moverTicketAction`.
  */
 export default function TicketsPage() {
     return <TicketsDeSoporteClient />;
