@@ -3,6 +3,7 @@
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isAdmin, isAdminOrReseller } from "@/lib/rbac";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { buildBillingServiceAccessState } from "./service-access";
 import { facturacionQueMandaEn } from "./billing-owner";
 
@@ -33,13 +34,33 @@ export async function assertCanAccessTargetUser(targetUserId: string) {
     // Si la tabla aún no existe, continuar con los checks normales
   }
 
-  if (!isAdminOrReseller(actor.role)) {
+  // Y por último el ROL. Se pregunta por la CUENTA por la que se actúa, no por
+  // la persona: el `administrador` de una cuenta es su mano derecha y hace lo
+  // que ella hace, sin que haya que repartirle los clientes de uno en uno.
+  //
+  // Preguntando por `actor.role` —que es lo que había— un administrador no
+  // pasaba nunca: el equipo se crea con rol `user` y no cambia. Desde fuera:
+  // Yair, administrador de «Verzay | Atencion», llenaba el formulario de un
+  // ticket a nombre de un cliente de la casa y al enviarlo le salía
+  // «No autorizado», mientras que desde la cuenta madre —cuya fila SÍ tiene rol
+  // de admin— el mismo formulario funcionaba. Menú abierto, puerta cerrada: la
+  // pantalla que ofrece las cuentas ya preguntaba por la cuenta (`rolQueManda`)
+  // y esta puerta seguía preguntando por la persona.
+  //
+  // Un `agente` sigue sin pasar: `cuentaQueManda` le devuelve su propio id y su
+  // propio rol. Participa, pero no manda — el mismo reparto de siempre.
+  const cuenta = await cuentaQueManda(actor);
+
+  if (!isAdminOrReseller(cuenta.role)) {
     throw new Error("No autorizado.");
   }
 
-  if (actor.role === "reseller") {
+  if (cuenta.role === "reseller") {
+    // Contra `cuenta.id` y no contra `actor.id`, por lo mismo: la cartera
+    // cuelga de la cuenta del reseller, así que con el id de la persona su
+    // administrador se quedaba sin permiso sobre sus propios clientes.
     const assignment = await db.reseller.findFirst({
-      where: { resellerid: actor.id, userId: cleanTarget },
+      where: { resellerid: cuenta.id, userId: cleanTarget },
       select: { id: true },
     });
     if (!assignment) throw new Error("No autorizado.");

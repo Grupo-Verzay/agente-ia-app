@@ -756,6 +756,46 @@ Tres cosas:
    manda el id equivocado, no la regla.** El caso típico: pasar el id del asesor
    donde la regla espera el de su dueño.
 
+### Y la propia `assertCanAccessTargetUser` preguntaba por la PERSONA
+
+La regla existía y estaba puesta en 26 sitios, y aun así tenía dentro el fallo
+que este documento describe tres veces: **su última comprobación era el rol de
+la PERSONA**, `isAdminOrReseller(actor.role)`.
+
+Desde fuera: Yair —administrador de «Verzay | Atencion»— llenaba el formulario
+de un ticket a nombre de un cliente de la casa, pulsaba Enviar y le salía
+**«No autorizado»**; desde la cuenta madre, cuya fila sí tiene rol de admin, el
+mismo formulario funcionaba. Menú abierto, puerta cerrada: la pantalla que le
+ofrecía las cuentas ya preguntaba por la cuenta (`rolQueManda`) y la puerta de
+detrás seguía preguntando por él.
+
+Y el equipo **se crea con rol `user` y no cambia nunca**, así que ningún
+administrador pasaba jamás por ahí.
+
+Ahora pregunta por **`cuentaQueManda(actor)`**, igual que las acciones del
+panel. Tres cosas que hay que mantener:
+
+1. **El orden de las puertas no cambia.** Primero uno mismo, luego su dueño,
+   luego las cuentas vinculadas y **al final** el rol. Eso mantiene baratos los
+   caminos cortos —`cuentaQueManda` solo corre para lo que antes se rechazaba— y
+   explica por qué el fallo se veía intermitente: a nombre de la cuenta madre sí
+   funcionaba, porque `linked_accounts` lo salvaba **antes** de llegar al rol.
+   Buscar «por qué a veces sí» sin ver esa rama es perder la tarde.
+2. **Donde se compara un id, se compara contra `cuenta.id`.** La rama del
+   reseller buscaba `resellerid: actor.id`, así que al administrador de un
+   reseller se le caía el permiso sobre sus propios clientes. Es el mismo fallo
+   dormido en la misma puerta, sin reportar todavía.
+3. **Un `agente` no pasa, y eso se prueba.** `cuentaQueManda` le devuelve su
+   propio id y su propio rol: participa, no manda. Y el administrador de una
+   cuenta **cliente** tampoco gana nada — lo que se hereda es el **alcance de su
+   cuenta**, no un permiso suelto.
+
+El banco corre en **dos modos**, con la puerta vieja y con la nueva. La única
+comprobación que cambia entre ellos es el fallo; todo el bloque de «esto no se
+puede haber aflojado» pasa **igual en los dos**, y eso es lo que prueba que no
+se abrió nada de paso. Sin el modo roto no se sabe si se arregló la causa o
+algo parecido.
+
 ### Y si se recuerda para no repetirla, la llave son los DATOS que deciden
 
 Una pantalla son decenas de peticiones y cada una resuelve desde cero quién eres
