@@ -7,6 +7,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -250,7 +251,15 @@ export function FormularioDeTicket({
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                {/*
+                  `DialogFooter`, no un `flex justify-end` a mano: el de la App
+                  ya reparte «Cancelar» a la izquierda y la acción a la derecha
+                  (`justify-between`), que es como salen los demás diálogos
+                  —«Editar pagos» de Instancias, Compartir, Carpetas—. Con los
+                  dos pegados a la derecha, cancelar queda justo al lado de
+                  enviar.
+                */}
+                <DialogFooter className="pt-2">
                     <Button type="button" variant="outline" onClick={cerrar} disabled={guardando}>
                         Cancelar
                     </Button>
@@ -258,7 +267,7 @@ export function FormularioDeTicket({
                         {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {guardando ? "Enviando…" : "Enviar"}
                     </Button>
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

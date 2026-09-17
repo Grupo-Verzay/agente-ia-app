@@ -85,6 +85,28 @@ export type CurrentUser = DbUser & {
      * heredar el rol, que es lo que este documento prohibe desde el principio.
      */
     rolDeLaCuenta: string | null;
+    /**
+     * Se ha entrado a ESTA cuenta con «Ingresar».
+     *
+     * No es lo mismo que el conmutador de cuentas vinculadas, y la diferencia
+     * es la que decide quien manda dentro:
+     *
+     * - **Conmutador** (`active_account_id`): se cambia entre cuentas PROPIAS,
+     *   las que cuelgan del mismo equipo. Ahi el rol de la persona sigue
+     *   contando — es lo que hace que un superadministrador administre su
+     *   cuenta vinculada sin cambiar de sesion.
+     * - **«Ingresar»** (`impersonate_user_id`): se entra a la cuenta de un
+     *   CLIENTE, y se entra justamente para ver lo que ve el. Que el rol propio
+     *   se colara dentro convertia esa pantalla en otra cosa: el super
+     *   administrador veia la Analitica de plataforma donde el cliente ve su
+     *   cartera, y el menu, los apartados y los botones de Chats le salian
+     *   abiertos de mas.
+     *
+     * Con esta marca el rol propio **deja de contar mientras se esta dentro**
+     * (ver `elRolPropioQueCuenta`, en `lib/super-admin-de-verdad.ts`). Salir
+     * sigue siendo borrar la cookie, que no pregunta ningun rol.
+     */
+    porImpersonacion: boolean;
 };
 
 type AccountRole = "agente" | "administrador";
@@ -286,6 +308,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                 rolDeLaPersona: realUser.role,
                 // Con el conmutador, `u` ya ES la fila de la cuenta.
                 rolDeLaCuenta: u.role,
+                porImpersonacion,
             };
         }
 
@@ -340,6 +363,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                     sessionUserId: realUser.id,
                     rolDeLaPersona: realUser.role,
                     rolDeLaCuenta: rolDeSuCuenta ?? u.role,
+                    porImpersonacion,
                 };
             }
         }
@@ -352,6 +376,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
             rolDeLaPersona: realUser.role,
             // Sin dueño, la cuenta es uno mismo.
             rolDeLaCuenta: u.role,
+            porImpersonacion,
         };
     });
 

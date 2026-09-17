@@ -41,14 +41,50 @@ import { isAdminLike, isSuperAdmin } from "@/lib/rbac";
  *    entra en otra cuenta— solo lo dice `rolDeLaPersona`. Preguntar por uno
  *    solo deja fuera la mitad de los casos.
  */
+export type Persona = {
+    role?: string | null;
+    rolDeLaPersona?: string | null;
+    /** Se entró a esta cuenta con «Ingresar» (ver `lib/auth.ts`). */
+    porImpersonacion?: boolean | null;
+};
+
+/**
+ * El rol PROPIO, cuando cuenta.
+ *
+ * # La excepción, y por qué no es una excepción
+ *
+ * La regla de arriba —quien manda en la plataforma manda esté donde esté— se
+ * escribió para el **conmutador de cuentas vinculadas**: cambiar a una cuenta
+ * del propio equipo y seguir pudiendo administrarla. Eso sigue igual.
+ *
+ * Pero «Ingresar» en la cuenta de un CLIENTE es otra cosa, y es justo la
+ * contraria: **se entra para ver lo que ve él**. Con el rol propio colándose
+ * dentro, esa pantalla dejaba de ser la suya — Analíticas le enseñaba la
+ * plataforma entera donde el cliente ve su cartera, y el menú, los apartados
+ * del panel y los botones de Chats le salían abiertos de más. Mirar una cuenta
+ * «como la ve su dueño» y verla con poderes de superadministrador son dos
+ * cosas distintas, y el botón dice la primera.
+ *
+ * Así que dentro de una cuenta ajena por «Ingresar» **el rol propio no
+ * cuenta**. Y no hace falta tocar los diez sitios que preguntan: todos pasan
+ * por aquí.
+ *
+ * Salir no queda nunca cerrado: es borrar la cookie (`/api/logout`), que no
+ * pregunta ningún rol.
+ */
+export function elRolPropioQueCuenta(
+    persona: Persona | null | undefined,
+): string | null | undefined {
+    if (!persona) return null;
+    if (persona.porImpersonacion) return null;
+    return persona.rolDeLaPersona;
+}
+
 export function esSuperAdminDeVerdad(
-    persona:
-        | { role?: string | null; rolDeLaPersona?: string | null }
-        | null
-        | undefined,
+    persona: Persona | null | undefined,
 ): boolean {
     if (!persona) return false;
-    return isSuperAdmin(persona.role) || isSuperAdmin(persona.rolDeLaPersona);
+    return isSuperAdmin(persona.role) || isSuperAdmin(elRolPropioQueCuenta(persona));
 }
 
 /**
@@ -59,11 +95,8 @@ export function esSuperAdminDeVerdad(
  * la persona viaja en `currentUser()`.
  */
 export function esAdminDeVerdad(
-    persona:
-        | { role?: string | null; rolDeLaPersona?: string | null }
-        | null
-        | undefined,
+    persona: Persona | null | undefined,
 ): boolean {
     if (!persona) return false;
-    return isAdminLike(persona.role) || isAdminLike(persona.rolDeLaPersona);
+    return isAdminLike(persona.role) || isAdminLike(elRolPropioQueCuenta(persona));
 }

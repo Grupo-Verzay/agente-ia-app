@@ -3,6 +3,7 @@ import type { CurrentUser } from '@/lib/auth';
 import type { ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
 import { isAdminLike, isSuperAdmin } from '@/lib/rbac';
+import { elRolPropioQueCuenta } from '@/lib/super-admin-de-verdad';
 import { parseItemIds } from '@/lib/permisos';
 
 // Rutas de panel administrativo y del panel del cliente. Se mantienen aquí para
@@ -101,7 +102,10 @@ export function elPanelQueLeToca<T extends { route: string }>(
  *
  * No es `user.role` —el de la fila efectiva— ni el de la cuenta a secas:
  *
- * - Quien manda en la plataforma manda esté donde esté (#746).
+ * - Quien manda en la plataforma manda esté donde esté (#746) — salvo dentro
+ *   de una cuenta ajena por «Ingresar», donde el rol propio deja de contar a
+ *   propósito: ahí se entra para ver lo que ve su dueño
+ *   (`elRolPropioQueCuenta`).
  * - Un **administrador** del equipo actua POR su cuenta, asi que abre lo que
  *   ella abre. Es la regla de `cuentaQueManda`, escrita aqui en version pura
  *   para que tambien la pueda usar el menu, que corre en el navegador.
@@ -117,8 +121,9 @@ export function rolQueAbrePuertas(persona: {
     rolDeLaCuenta?: string | null;
     ownerId?: string | null;
     advisorRole?: string | null;
+    porImpersonacion?: boolean | null;
 }): string {
-    if (isSuperAdmin(persona.rolDeLaPersona) || isSuperAdmin(persona.role)) {
+    if (isSuperAdmin(elRolPropioQueCuenta(persona)) || isSuperAdmin(persona.role)) {
         return "super_admin";
     }
     const esAgente = !!persona.ownerId && persona.advisorRole !== "administrador";

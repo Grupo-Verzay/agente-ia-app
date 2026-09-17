@@ -3154,10 +3154,25 @@ Tres cosas que hay que mantener:
    superadministrador a la que entra otro tiene su rol en `role`; un super admin
    que entra en otra cuenta, solo en `rolDeLaPersona`. Preguntar por uno solo
    deja fuera la mitad de los casos.
-3. **Tiene consecuencia, y se acepta a sabiendas**: al entrar a la cuenta de un
-   cliente con «Ingresar», el superadministrador ya no la ve *como la ve el
-   cliente*, sino entera. Es lo que se pidió; si algún día hace falta el otro
-   modo, es una condición aparte, no quitar esta.
+3. **Y la excepción: «Ingresar» NO es el conmutador.** Esta regla se escribió
+   para el **conmutador de cuentas vinculadas** —cambiar a una cuenta del
+   propio equipo y seguir administrándola—, y ahí sigue igual. Entrar en la
+   cuenta de un **cliente** con «Ingresar» es lo contrario: **se entra para ver
+   lo que ve él**. Con el rol propio colándose dentro, Analíticas le enseñaba
+   la plataforma entera donde el cliente ve su cartera, y el menú, los
+   apartados del panel y los botones de Chats le salían abiertos de más.
+
+   Lo distingue `porImpersonacion`, que `currentUser()` ya sabía (la cookie
+   `impersonate_user_id`, frente a `active_account_id`), y lo aplica
+   **`elRolPropioQueCuenta`**: dentro de una cuenta ajena por «Ingresar», el
+   rol propio no cuenta. Va ahí y no en los diez sitios que preguntan —los
+   diez pasan por `esSuperAdminDeVerdad`, `esAdminDeVerdad` o
+   `rolQueAbrePuertas`, y los tres lo usan—.
+
+   Lo que decide dentro es **el rol de la fila en la que se está**: entrar en
+   una cuenta de la casa sigue enseñando lo de la casa, porque es lo que esa
+   cuenta ve. Y salir nunca queda cerrado: es borrar la cookie
+   (`/api/logout`), que no pregunta ningún rol.
 
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 
@@ -3253,6 +3268,10 @@ en ningún otro sitio.
 
 Tres cosas que hay que mantener:
 
+0. **Con «Ingresar» puesto manda la cuenta en la que se está**, no quien entró
+   (ver la excepción de *«Súper administrador» es la PERSONA*). Un
+   superadministrador dentro de la cuenta de un cliente ve **su cartera**, que
+   es la pantalla del cliente; dentro de una cuenta de la casa, la de la casa.
 1. **Si se añade otra tarjeta interna a Analíticas, va por esa función**, y no
    volviendo a escribir la condición. Era exactamente lo que había: tres copias
    y una cuarta distinta en la página.
