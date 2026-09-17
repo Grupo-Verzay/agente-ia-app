@@ -1535,6 +1535,73 @@ Dos números que no son a ojo:
 Medido: tres tarjetas de ejemplo pasaron de 476px de columna a 283px, y las tres
 quedan a 89px exactos.
 
+#### El TÍTULO es corto, y el texto largo se fue a `task_details`
+
+La tarjeta pintaba `tasks.title`, y ahí es donde se pegaba todo —«Empresa: …
+Fecha: … Tarea: …»—, así que recortado a dos líneas no se entendía a golpe de
+vista. Recortar mejor no era la respuesta: **eran dos datos metidos en un
+campo.**
+
+Y la solución no podía ser una columna nueva: `tasks` es del BACKEND y añadirle
+columnas desde la App es lo que reventó el #360. De las dos formas que quedan se
+eligió la que arregla el fallo en todas partes:
+
+> **`title` pasa a ser el título corto y el texto largo se va a
+> `task_details`**, tabla nuestra con `CREATE TABLE IF NOT EXISTS`. `title` es
+> el campo que ya enseñan `/tareas`, la campanita, los avisos de tarea y los
+> recordatorios, así que **todas esas pantallas mejoran solas**. Al revés —el
+> corto en la tabla lateral y el ladrillo en `title`— se habría arreglado la
+> tarjeta y dejado el ladrillo en todas las demás, que es el fallo del que
+> venimos.
+
+**Las tareas que ya existen no se tocaron: ni una fila.** Su `title` sigue
+trayendo el texto largo, y la tarjeta enseña su **primera línea**
+(`tituloDeLaTarjeta`), que ya se lee mucho mejor que dos líneas recortadas de un
+ladrillo; el texto entero sigue al abrirla y en el `title` del elemento. En
+cuanto alguien la edite, le pone su título y queda como las nuevas. Medido en
+Chromium con el ladrillo real: antes el texto se salía de la tarjeta, ahora
+cabe, y las tarjetas siguen midiendo **89px exactos**.
+
+Un backfill —cortar la primera línea y mover el resto— queda **descartado
+mientras nadie lo pida**: es un `UPDATE` masivo sobre una tabla del backend,
+reescribe datos reales de clientes y no se deshace.
+
+Tres cosas que hay que mantener:
+
+1. **Una sola regla al pintar, sin preguntar si la tarea es nueva o vieja.**
+   `tituloDeLaTarjeta` corta por la primera línea siempre: en una nueva el
+   título ya es de una línea y lo devuelve tal cual. Un `if (tiene detalle)`
+   sería una rama que solo se ejerce con datos viejos — la que nadie prueba y la
+   que se rompe.
+2. **Al guardar, los saltos del título se APLASTAN, no se corta ahí.** Quien
+   pega un texto de varias líneas en el título quiere que se vea entero; cortar
+   por el primer `Enter` sería tirar lo que acaba de escribir sin decírselo.
+3. **Vaciar el detalle BORRA la fila**, no deja una con cadena vacía: si no, la
+   tarea seguiría diciendo que tiene detalle y al abrirla no habría nada.
+
+#### El comentario se guarda con la tarea, y por eso no tiene botón
+
+El bloque de Comentarios iba detrás de un `task &&` —un comentario cuelga de un
+`taskId` y en una tarea nueva ese id no existe todavía— así que **no salía nunca
+al crear**, ni creándola directamente en curso. Había que guardar, reabrir y
+entonces escribir, justo cuando lo que se quiere decir se tiene en la cabeza.
+
+Ahora sale siempre, y lo que lo hace posible es que **el borrador vive en el
+formulario, no dentro del hilo**: se guarda con el resto, con el id recién
+nacido, por el mismo camino que ya seguían los adjuntos. Con el texto dentro del
+componente no habría forma de que el guardado lo alcanzara.
+
+Y de ahí sale lo otro: **se quitó «Comentar»**. Un botón al lado de «Guardar»
+son dos botones para una misma acción, y el de guardar no se llevaba lo escrito
+— se escribía el comentario, se pulsaba Guardar y el comentario se perdía. Lo
+que sí hace falta es **decirlo**: el bloque lleva «Se envía al guardar la
+tarea», porque un recuadro de texto sin botón al lado se lee como que no se va a
+guardar y la gente no lo usa.
+
+Guardar el comentario **nunca lanza y nunca es mudo**: la tarea ya está guardada
+cuando se llama, así que un fallo ahí no puede deshacerla; pero un comentario
+que se escribe y no aparece se lee como que la App pierde lo que escribes.
+
 #### `space-y-*` también le da margen a un hijo ABSOLUTO
 
 El punto de aviso de la tarjeta es `absolute` en la esquina, y la tarjeta iba con

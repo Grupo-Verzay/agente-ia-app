@@ -21,6 +21,7 @@ import {
   type PermisoDeProyecto,
 } from "@/lib/proyectos-compartidos";
 import { leerLosAdjuntos } from "@/lib/adjuntos-de-tarea";
+import { detallesDeLasTareas, guardarElDetalle } from "@/lib/detalle-de-tarea";
 import { tareasConAlgoSinVer } from "@/lib/avisos-de-tarea";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
 import {
@@ -390,11 +391,14 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
     // de treinta tarjetas serían sesenta consultas.
     // Y la cuenta de cada tarea, por lo mismo: una consulta para la lista, no
     // una por tarjeta.
-    const [adjuntos, sinVer, clientes] = await Promise.all([
+    // Y el detalle —el texto largo que antes vivía dentro de `title`— por lo
+    // mismo: una consulta para la lista, no una por tarjeta.
+    const [adjuntos, sinVer, clientes, detalles] = await Promise.all([
       leerLosAdjuntos(tasks.map((t) => t.id)),
       tareasConAlgoSinVer(tasks.map((t) => t.id), user.id),
       // También por la cuenta dueña: `task_work` se escribe bajo ella.
       leerLosClientesDeLasTareas(acceso.ownerId, tasks.map((t) => t.id)),
+      detallesDeLasTareas(tasks.map((t) => t.id)),
     ]);
 
     return {
@@ -417,6 +421,9 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
         createdById: t.createdById,
         createdAt: t.createdAt.toISOString(),
         adjuntos: adjuntos.get(t.id) ?? [],
+        // Sin fila es una tarea de antes de que esto existiera: su texto largo
+        // sigue dentro de `title` y la tarjeta enseña su primera línea.
+        detalle: detalles[t.id] ?? null,
         tieneAlgoSinVer: sinVer.has(t.id),
         clienteId: clientes[t.id]?.clienteId ?? null,
         tipoDeTrabajo: clientes[t.id]?.tipoDeTrabajo ?? null,
@@ -434,6 +441,8 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
 const editTaskSchema = z.object({
   taskId: z.number().int().positive(),
   title: z.string().trim().min(1, "La tarea necesita un título."),
+  /** El «Qué hay que hacer». Vacío borra el que hubiera, no deja uno en blanco. */
+  detalle: z.string().optional(),
   type: z.string().trim().min(1),
   dueDate: z.string().min(1),
   assignedToId: z.string().trim().min(1),
@@ -495,6 +504,15 @@ export async function updateProjectTaskAction(
       },
     });
     if (updated.count === 0) throw new Error("Tarea no encontrada.");
+
+    // El detalle va bajo la cuenta DUEÑA de la tarea, no bajo la de quien
+    // edita: en un proyecto compartido las tareas cuelgan de la dueña, y con
+    // la otra el texto quedaría archivado en una cuenta y la tarea en otra.
+    await guardarElDetalle({
+      taskId: parsed.taskId,
+      ownerId: tarea.ownerId,
+      detalle: parsed.detalle,
+    });
 
     // Cambiar de responsable ES asignar. Sin esto, la persona a la que le pasan
     // una tarea ya empezada no se entera de nada, que es el mismo caso.

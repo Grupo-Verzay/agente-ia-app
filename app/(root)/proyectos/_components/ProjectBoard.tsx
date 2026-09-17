@@ -45,6 +45,13 @@ import {
   type AdjuntoDeTarea, type TipoDeAdjunto,
 } from "@/lib/adjuntos-de-tarea-tipos";
 import { HiloDeLaTarea } from "./HiloDeLaTarea";
+import { comentarLaTareaAction } from "@/actions/avisos-de-tarea-actions";
+import {
+  TOPE_DE_TITULO,
+  limpiarTitulo,
+  textoCompletoDeLaTarea,
+  tituloDeLaTarjeta,
+} from "@/lib/titulo-de-la-tarea";
 import {
   BloqueDeAdjuntos,
   borrarDelBucket,
@@ -106,30 +113,34 @@ function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boole
         </span>
       )}
 
-      {/* El título, recortado a DOS líneas.
+      {/* EL TÍTULO, que ahora es corto de verdad.
 
-          Sin recorte, una sola tarea larga se comía la columna entera y las
-          demás quedaban fuera de vista: había que desplazarse dentro de la
-          tarjeta para leerla, que es lo contrario de un tablero. El texto
-          completo se lee al abrir la tarea, y de paso en el `title`.
+          Antes aquí se pintaba el texto largo —lo que se pega es «Empresa: …
+          Fecha: … Tarea: …»— recortado a dos líneas, y no se entendía a golpe
+          de vista. Ahora `title` es el título y el «Qué hay que hacer» se lee
+          al abrir la tarea.
 
-          `whitespace-pre-wrap` se queda: lo que se pega aquí son varias líneas
-          —«Empresa: … Fecha: … Tarea: …»— y sin él se pintaban todas seguidas.
-          Medido en Chromium, `line-clamp` recorta igual de bien con `pre-wrap`.
+          `tituloDeLaTarjeta` es lo que hace que las tareas de ANTES se lean
+          igual de bien sin tocar ni una fila: de su texto largo enseña la
+          primera línea. En una tarea nueva el título ya es de una línea, así
+          que lo devuelve tal cual.
 
-          Y `min-h-[2.75em]` reserva sitio para las dos líneas **aunque use
-          una**: es lo que iguala las alturas, el mismo patrón que la tarjeta de
-          Diagramas. El número no es a ojo: son 2 × 1.375em, que es lo que mide
-          una línea con `leading-snug`. Con `2.5em` —el de Diagramas, que va con
-          otro interlineado— las tarjetas quedaban 4px descuadradas. */}
+          Se queda el recorte a dos líneas por si el título es de los largos, y
+          `min-h-[2.75em]` reserva sitio para las dos **aunque use una**: es lo
+          que iguala las alturas. El número no es a ojo: son 2 × 1.375em, lo que
+          mide una línea con `leading-snug`. Con `2.5em` —el de Diagramas, que
+          va con otro interlineado— las tarjetas quedaban 4px descuadradas.
+
+          Y el `title` del elemento lleva las DOS partes: posar el cursor sigue
+          diciendo todo lo que decía antes. */}
       <p
-        title={task.title}
+        title={textoCompletoDeLaTarea(task.title, task.detalle)}
         className={cn(
-          "line-clamp-2 min-h-[2.75em] whitespace-pre-wrap break-words text-sm font-medium leading-snug",
+          "line-clamp-2 min-h-[2.75em] break-words text-sm font-medium leading-snug",
           isDone && "text-muted-foreground line-through",
         )}
       >
-        {task.title}
+        {tituloDeLaTarjeta(task.title)}
       </p>
 
       {(task.adjuntos?.length ?? 0) > 0 && (
@@ -591,6 +602,13 @@ function TaskDialog({
   onSaved: () => void;
 }) {
   const [title, setTitle] = useState("");
+  // El «Qué hay que hacer». Vive aparte del título desde que la tarjeta enseña
+  // el título: antes los dos eran el mismo campo y por eso se leía tan mal.
+  const [detalle, setDetalle] = useState("");
+  // El comentario que se está escribiendo. Vive AQUÍ y no dentro del hilo
+  // porque se guarda con el resto del formulario, no con un botón propio: así
+  // se puede escribir también en una tarea que todavía no existe.
+  const [comentario, setComentario] = useState("");
   const [type, setType] = useState<string>(TASK_TYPES[4]);
   const [assignedToId, setAssignedToId] = useState(userId);
   const [dueDate, setDueDate] = useState("");
@@ -614,6 +632,8 @@ function TaskDialog({
     setAdjuntos(task?.adjuntos ?? []);
     setEnElAire([]);
     setTitle(task?.title ?? "");
+    setDetalle(task?.detalle ?? "");
+    setComentario("");
     setType(task?.type ?? TASK_TYPES[4]);
     setAssignedToId(task?.assignedToId ?? userId);
     // Por defecto, hoy: una tarea sin fecha no aparece en los avisos de Tareas.
@@ -647,6 +667,26 @@ function TaskDialog({
     for (const a of sueltos) void borrarDelBucket(a.url);
   };
 
+  /**
+   * El comentario del formulario, ya con la tarea existiendo.
+   *
+   * Nunca lanza: la tarea ya está guardada cuando se llama a esto, y que el
+   * comentario falle no puede deshacerlo. Pero **no es mudo** — un comentario
+   * que se escribe y no aparece se lee como que la App pierde lo que escribes.
+   */
+  const guardarElComentario = async (taskId: number) => {
+    const limpio = comentario.trim();
+    if (!limpio) return;
+    try {
+      const res = await comentarLaTareaAction({ taskId, texto: limpio });
+      if (!res.success) { toast.error(res.message); return; }
+      setComentario("");
+    } catch (error) {
+      console.warn("[tareas] no se pudo guardar el comentario", { taskId, error });
+      toast.error("La tarea se guardó, pero el comentario no salió.");
+    }
+  };
+
   const handleSave = async () => {
     if (!title.trim()) { toast.error("Ponle un título a la tarea."); return; }
     // Nacer en «Hecho» es nacer cerrada, y cerrar pide el tiempo.
@@ -659,7 +699,8 @@ function TaskDialog({
     if (task) {
       const res = await updateProjectTaskAction({
         taskId: task.id,
-        title: title.trim(),
+        title: limpiarTitulo(title),
+        detalle,
         type,
         dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
         assignedToId,
@@ -671,6 +712,7 @@ function TaskDialog({
           tipoDeTrabajo || null,
         );
       }
+      if (res.success) await guardarElComentario(task.id);
       setSaving(false);
       if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message);
@@ -680,7 +722,8 @@ function TaskDialog({
 
     const res = await createTaskAction({
       assignedToId,
-      title: title.trim(),
+      title: limpiarTitulo(title),
+      detalle,
       type,
       dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
       projectId,
@@ -709,6 +752,11 @@ function TaskDialog({
       await engancharLosDelAire(res.data.id, enElAire);
       setEnElAire([]);
     }
+
+    // Y el comentario que se escribió mientras se redactaba, con el id recién
+    // nacido. Mismo camino que los adjuntos, y por el mismo motivo: va ANTES de
+    // avisar de que se guardó, o la tarjeta se refresca sin él.
+    await guardarElComentario(res.data.id);
 
     // createTaskAction siempre nace en "pending"; si se pidió otra columna, se
     // mueve acto seguido en vez de duplicar la lógica de creación.
@@ -750,20 +798,35 @@ function TaskDialog({
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="task-title">Qué hay que hacer</Label>
-            {/* Un textarea y no un `Input`: lo que se pega aquí son varias
-                líneas —«Empresa: … Fecha: … Tarea: …»— y en una sola línea no
-                se veía el contenido y los saltos se perdían al escribir.
-                Mismo tamaño y comportamiento que el campo «Mensaje» del modal
-                de recordatorios, que es la referencia. */}
-            <Textarea
+            <Label htmlFor="task-title">Título</Label>
+            {/* Un `Input` y no un textarea, a propósito: esto es lo que se
+                lee en la tarjeta del tablero, en `/tareas` y en la campanita,
+                y tiene que caber de un vistazo. El texto largo va en el campo
+                de abajo, que es donde antes acababa todo junto. */}
+            <Input
               id="task-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value.slice(0, TOPE_DE_TITULO))}
+              readOnly={!canManage}
+              placeholder="Ej. Textos de la home"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="task-detalle">Qué hay que hacer</Label>
+            {/* Aquí sí un textarea: lo que se pega son varias líneas
+                —«Empresa: … Fecha: … Tarea: …»— y en una sola no se ve el
+                contenido y los saltos se pierden al escribir. Mismo tamaño y
+                comportamiento que el campo «Mensaje» del modal de
+                recordatorios, que es la referencia. */}
+            <Textarea
+              id="task-detalle"
+              value={detalle}
+              onChange={(e) => setDetalle(e.target.value)}
               readOnly={!canManage}
               rows={5}
               className="min-h-[7rem] resize-y"
-              placeholder="Ej. Preparar los textos de la home"
+              placeholder="El detalle: qué se espera, con quién, qué hace falta…"
             />
           </div>
 
@@ -802,12 +865,22 @@ function TaskDialog({
             onCambioEnElAire={setEnElAire}
           />
 
-          {/* El hilo, solo con la tarea ya creada: los comentarios cuelgan de un
-              `taskId` y en una tarea nueva ese id todavía no existe. Misma
-              condición que los adjuntos. Se pinta para todo el mundo, también
-              para quien no puede editar: es el asignado quien tiene que poder
-              leer y contestar, y abrirlo es lo que apaga su punto. */}
-          {task && <HiloDeLaTarea taskId={task.id} userId={userId} />}
+          {/* El hilo sale SIEMPRE, también al crear.
+              Antes iba detrás de un `task &&` porque un comentario cuelga de un
+              `taskId` y en una tarea nueva ese id no existe todavía. Eso dejaba
+              sin poder decir nada justo cuando más se tiene en la cabeza, y ni
+              creando la tarjeta ya en curso salía. Ahora el borrador vive en el
+              formulario y se guarda al guardar la tarea, con el id recién
+              nacido — el mismo camino que ya seguían los adjuntos.
+              Se pinta para todo el mundo, también para quien no puede editar:
+              es el asignado quien tiene que poder leer y contestar, y abrirlo es
+              lo que apaga su punto. */}
+          <HiloDeLaTarea
+            taskId={task?.id ?? null}
+            userId={userId}
+            texto={comentario}
+            onTexto={setComentario}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="task-assignee">Responsable</Label>
