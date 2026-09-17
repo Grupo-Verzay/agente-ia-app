@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    Building2,
     Hash,
     Loader2,
     Lock,
@@ -358,7 +359,7 @@ function BarraDeCanales({
                 aria-expanded={abierta}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/60 sm:px-6"
             >
-                <IconoDeCanal tipo={canal.tipo} />
+                <IconoDeCanal canal={canal} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {canal.nombre}
                 </span>
@@ -377,6 +378,7 @@ function BarraDeCanales({
                                 activo={c.id === canal.id}
                                 mando={datos.mando}
                                 gente={datos.gente}
+                                cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
                                 onElegir={onElegir}
                                 onRefrescar={onRefrescar}
                             />
@@ -384,6 +386,7 @@ function BarraDeCanales({
                         {datos.mando &&
                             (creando ? (
                                 <FormularioDeCanal
+                                    cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
                                     onListo={(id) => {
                                         setCreando(false);
                                         onRefrescar();
@@ -410,6 +413,7 @@ function BarraDeCanales({
                                 activo={c.id === canal.id}
                                 mando={datos.mando}
                                 gente={datos.gente}
+                                cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
                                 onElegir={onElegir}
                                 onRefrescar={onRefrescar}
                             />
@@ -447,8 +451,12 @@ function Grupo({ titulo, children }: { titulo: string; children: React.ReactNode
     );
 }
 
-function IconoDeCanal({ tipo }: { tipo: CanalDeEquipo["tipo"] }) {
-    const Icono = tipo === "directo" ? Users : tipo === "general" ? Hash : Hash;
+function IconoDeCanal({ canal }: { canal: Pick<CanalDeEquipo, "tipo" | "cuentas"> }) {
+    // Un canal que cruza cuentas se ve distinto de uno de la casa: quien
+    // escribe ahí está hablándole a gente de otra cuenta, y eso conviene
+    // saberlo ANTES de escribir, no después.
+    const Icono =
+        canal.tipo === "directo" ? Users : canal.cuentas.length ? Building2 : Hash;
     return <Icono className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
 
@@ -457,6 +465,7 @@ function FilaDeCanal({
     activo,
     mando,
     gente,
+    cuentasDeLaFamilia,
     onElegir,
     onRefrescar,
 }: {
@@ -464,19 +473,26 @@ function FilaDeCanal({
     activo: boolean;
     mando: boolean;
     gente: PersonaMencionable[];
+    cuentasDeLaFamilia: { id: string; nombre: string }[];
     onElegir: (id: string) => void;
     onRefrescar: () => void;
 }) {
     const [editando, setEditando] = useState(false);
     // Solo los canales de área se retocan: el general no es una fila y un
     // directo se llama con la otra persona, no con lo que alguien escriba.
-    const seRetoca = mando && canal.tipo === "area";
+    //
+    // Y un canal que CRUZA solo lo retoca su dueña — la lista de cuentas
+    // llega vacía para todas las demás, así que el lápiz no se pinta y la
+    // acción tampoco lo dejaría pasar.
+    const seRetoca =
+        mando && canal.tipo === "area" && (!canal.cuentas.length || cuentasDeLaFamilia.length > 0);
 
     if (editando) {
         return (
             <AjustesDeCanal
                 canal={canal}
                 gente={gente}
+                cuentasDeLaFamilia={cuentasDeLaFamilia}
                 onListo={() => {
                     setEditando(false);
                     onRefrescar();
@@ -495,7 +511,7 @@ function FilaDeCanal({
                     activo ? "bg-primary/10 text-primary" : "hover:bg-muted/60",
                 ].join(" ")}
             >
-                <IconoDeCanal tipo={canal.tipo} />
+                <IconoDeCanal canal={canal} />
                 <span className="min-w-0 flex-1 truncate">{canal.nombre}</span>
                 {/* Un canal que se lee sin pertenecer —lo que ve quien
                     administra— se marca: por qué sale ahí no es evidente. */}
@@ -517,15 +533,22 @@ function FilaDeCanal({
     );
 }
 
-function FormularioDeCanal({ onListo }: { onListo: (id: string | null) => void }) {
+function FormularioDeCanal({
+    cuentasDeLaFamilia,
+    onListo,
+}: {
+    cuentasDeLaFamilia: { id: string; nombre: string }[];
+    onListo: (id: string | null) => void;
+}) {
     const [nombre, setNombre] = useState("");
+    const [cuentas, setCuentas] = useState<Set<string>>(new Set());
     const [guardando, setGuardando] = useState(false);
 
     const crear = async () => {
         if (guardando) return;
         setGuardando(true);
         try {
-            const res = await crearCanalAction(nombre, []);
+            const res = await crearCanalAction(nombre, [], Array.from(cuentas));
             if (!res.success) {
                 toast.error(res.message);
                 return;
@@ -542,21 +565,81 @@ function FormularioDeCanal({ onListo }: { onListo: (id: string | null) => void }
     };
 
     return (
-        <div className="flex items-center gap-1 px-2 py-1.5">
-            <input
-                autoFocus
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value.slice(0, TOPE_DEL_NOMBRE))}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter") void crear();
-                    if (e.key === "Escape") onListo(null);
-                }}
-                placeholder="ventas, marketing…"
-                className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        <div className="my-1 rounded-md border border-border bg-muted/30 p-2">
+            <div className="flex items-center gap-1">
+                <input
+                    autoFocus
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value.slice(0, TOPE_DEL_NOMBRE))}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") void crear();
+                        if (e.key === "Escape") onListo(null);
+                    }}
+                    placeholder="ventas, marketing…"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                />
+                <Button size="sm" disabled={guardando || !nombre.trim()} onClick={() => void crear()}>
+                    {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Crear"}
+                </Button>
+            </div>
+            <CuentasDelCanal
+                cuentasDeLaFamilia={cuentasDeLaFamilia}
+                marcadas={cuentas}
+                onCambiar={setCuentas}
             />
-            <Button size="sm" disabled={guardando || !nombre.trim()} onClick={() => void crear()}>
-                {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Crear"}
-            </Button>
+        </div>
+    );
+}
+
+/**
+ * Qué cuentas vinculadas entran en el canal.
+ *
+ * **No se pinta si no hay ninguna que ofrecer**: la lista llega vacía para
+ * todas las cuentas que no son la madre, así que quien no reparte canales
+ * entre cuentas no ve un bloque que no puede usar.
+ *
+ * Y lo que dice el pie es lo que hace falta saber antes de marcar una casilla:
+ * entra la CUENTA entera, no una persona.
+ */
+function CuentasDelCanal({
+    cuentasDeLaFamilia,
+    marcadas,
+    onCambiar,
+}: {
+    cuentasDeLaFamilia: { id: string; nombre: string }[];
+    marcadas: Set<string>;
+    onCambiar: (v: Set<string>) => void;
+}) {
+    if (!cuentasDeLaFamilia.length) return null;
+
+    return (
+        <div className="mt-2 border-t border-border pt-2">
+            <p className="px-1 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Cuentas vinculadas
+            </p>
+            <div className="max-h-32 overflow-y-auto">
+                {cuentasDeLaFamilia.map((c) => (
+                    <label
+                        key={c.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
+                    >
+                        <input
+                            type="checkbox"
+                            checked={marcadas.has(c.id)}
+                            onChange={(e) => {
+                                const copia = new Set(marcadas);
+                                if (e.target.checked) copia.add(c.id);
+                                else copia.delete(c.id);
+                                onCambiar(copia);
+                            }}
+                        />
+                        <span className="min-w-0 truncate">{c.nombre}</span>
+                    </label>
+                ))}
+            </div>
+            <p className="px-1 pt-1 text-[11px] text-muted-foreground">
+                Entra toda la gente de esas cuentas.
+            </p>
         </div>
     );
 }
@@ -565,14 +648,19 @@ function FormularioDeCanal({ onListo }: { onListo: (id: string | null) => void }
 function AjustesDeCanal({
     canal,
     gente,
+    cuentasDeLaFamilia,
     onListo,
 }: {
     canal: CanalDeEquipo;
     gente: PersonaMencionable[];
+    cuentasDeLaFamilia: { id: string; nombre: string }[];
     onListo: () => void;
 }) {
     const [nombre, setNombre] = useState(canal.nombre);
     const [dentro, setDentro] = useState<Set<string>>(new Set());
+    // Las cuentas SÍ vienen en la lista de canales, así que se pueden marcar
+    // desde el primer pintado — al contrario que la gente, que se pide aparte.
+    const [cuentas, setCuentas] = useState<Set<string>>(new Set(canal.cuentas));
     const [cargado, setCargado] = useState(false);
     const [guardando, setGuardando] = useState(false);
 
@@ -602,7 +690,15 @@ function AjustesDeCanal({
         try {
             const [r1, r2] = await Promise.all([
                 renombrarCanalAction(canal.id, nombre),
-                ponerMiembrosAction(canal.id, Array.from(dentro)),
+                ponerMiembrosAction(
+                    canal.id,
+                    Array.from(dentro),
+                    // Solo se mandan las cuentas si esta pantalla las puede
+                    // ofrecer. Mandando un array vacío desde una cuenta que no
+                    // las ve, un canal que cruzaba se quedaría sin ninguna al
+                    // guardar solo la gente.
+                    cuentasDeLaFamilia.length ? Array.from(cuentas) : undefined,
+                ),
             ]);
             if (!r1.success) toast.error(r1.message);
             else if (!r2.success) toast.error(r2.message);
@@ -649,6 +745,11 @@ function AjustesDeCanal({
                     ))
                 )}
             </div>
+            <CuentasDelCanal
+                cuentasDeLaFamilia={cuentasDeLaFamilia}
+                marcadas={cuentas}
+                onCambiar={setCuentas}
+            />
             {/* Cancelar a la izquierda y la acción a la derecha, como el resto
                 de la App. */}
             <div className="mt-2 flex items-center justify-between gap-2">

@@ -59,6 +59,13 @@ export type CanalDeEquipo = {
     pertenezco: boolean;
     /** Si quien mira puede escribir aquí. */
     puedoEscribir: boolean;
+    /**
+     * Las cuentas que entran, cuando el canal CRUZA cuentas vinculadas.
+     *
+     * Vacío es un canal de una sola cuenta, que sigue funcionando como antes:
+     * su pertenencia va por persona.
+     */
+    cuentas: string[];
 };
 
 /**
@@ -89,6 +96,36 @@ export function canalDeLaFila(canalId: string | null | undefined): string {
  */
 export function comoSeGuardaElNombre(texto: string | null | undefined): string {
     return (texto ?? "").trim().replace(/\s+/g, " ").slice(0, TOPE_DEL_NOMBRE);
+}
+
+/**
+ * Si alguien pertenece a un canal.
+ *
+ * **Un canal con cuentas manda por CUENTA**, y esa es la regla entera del
+ * alcance nuevo: si la cuenta de quien mira está dentro, toda su gente está
+ * dentro. Así la madre elige cuentas —que es lo que ve en su panel— y no tiene
+ * que ir persona por persona de un equipo que no administra, ni acordarse de
+ * añadir a cada persona nueva que entre en esa cuenta.
+ *
+ * Un canal sin cuentas es el de siempre: pertenencia por persona.
+ *
+ * Y se miran **las dos listas**, no una u otra: un canal que cruza puede tener
+ * además invitados sueltos, y quitarle a una persona su sitio porque su cuenta
+ * no está sería una pertenencia que cambia según por dónde se mire.
+ */
+export function perteneceAlCanal(input: {
+    personas: string[];
+    cuentas: string[];
+    yo: string;
+    miCuenta: string;
+}): boolean {
+    if (input.cuentas.length && input.cuentas.includes(input.miCuenta)) return true;
+    return input.personas.includes(input.yo);
+}
+
+/** ¿Este canal cruza cuentas? Lo dice tener cuentas, no una marca aparte. */
+export function cruzaCuentas(canal: { cuentas: string[] }): boolean {
+    return canal.cuentas.length > 0;
 }
 
 /**

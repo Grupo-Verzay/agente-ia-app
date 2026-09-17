@@ -1983,6 +1983,128 @@ foránea, como `task_comments` y `tickets_de_soporte`: `team_channels` y
    manda. Escribir aquí una condición nueva es lo que dejó fuera a media gente
    en Clientes, Equipo y Analíticas.
 
+### El espacio es la FAMILIA, no la cuenta: `ownerId ?? id` no sube a la madre
+
+Esto se desplegó partido y **nadie veía un error**. Desde Grupo Verzay se
+escribía en General y la gente de Verzay | Atencion no lo veía; ellos escribían
+en el suyo y tampoco llegaba. Cada uno veía **solo lo que él mismo había
+escrito**.
+
+No era una asimetría entre escribir y leer —las dos usan el mismo id—: es que
+**el id no es el mismo para cada persona**.
+
+| quién | su fila | `cuentaId` del hilo |
+| --- | --- | --- |
+| Grupo Verzay | cuenta raíz, sin `ownerId` | `grupo` |
+| Yair, administrador de Verzay \| Atencion | `owner_id` = Atencion | `atencion` |
+
+Una cuenta se cuelga de otra por **dos caminos** y solo uno deja rastro en la
+fila: `owner_id` —una persona del equipo, o una sub-cuenta creada desde Equipo—
+y **`linked_accounts`**, una cuenta que ya existía y se vincula. Verzay |
+Atencion es del segundo tipo: de primer nivel, sin `owner_id`. Así que
+`ownerId ?? id` **nunca sube a la madre** y salían dos Generales.
+
+Y lo que lo convierte en fallo y no en diseño: **`getTeamAdvisorInfos` SÍ
+cruza**. Desde Grupo Verzay devolvía «Verzay | Atencion» como gente
+mencionable, o sea que la lista de a quién se podía mencionar **alcanzaba más
+lejos que el hilo donde caían los mensajes**. Es literalmente lo que la regla de
+la sección anterior prohibía; el camino de las vinculadas se la saltaba.
+
+> **El espacio del chat es la FAMILIA**: la cuenta raíz y sus vinculadas
+> (`laFamiliaDeLaCuenta`, `lib/familia-de-cuentas.ts`). El General **se escribe
+> bajo la raíz y se lee sobre toda la familia**, y la gente mencionable sale de
+> los equipos de todas sus cuentas.
+
+Las dos mitades hacen falta y cada una arregla una cosa:
+
+- **Escribir bajo la raíz** hace que converja: a partir de ahora todo cae en un
+  sitio.
+- **Leer sobre la familia** hace que **lo que ya se escribió no desaparezca**.
+  Los mensajes viejos siguen bajo la cuenta con la que se escribieron; leyendo
+  solo bajo la raíz se habrían esfumado el día del despliegue, que es peor que
+  el fallo que se venía a arreglar. **Sin migración y sin tocar ni una fila.**
+
+Comprobado contra Postgres con las cinco cuentas reales: antes cada lado veía
+**1 mensaje**; después los tres —madre, Atencion y Ventas— ven **4**, los viejos
+incluidos, y **una cuenta ajena a la familia ve 0**.
+
+Tres cosas que hay que mantener:
+
+1. **Un solo nivel.** `linked_accounts` modela «esta cuenta cuelga de esta
+   otra», no un árbol. Buscar nietas sería inventarse una jerarquía que nadie
+   configuró, y un ciclo metido a mano en esa tabla colgaría la consulta.
+2. **Si cuelga de varias, la raíz se elige ORDENADA.** La tabla no lo impide, y
+   sin un orden estable dos peticiones elegirían raíces distintas y volverían a
+   partir el hilo — el mismo fallo por otra puerta.
+3. **Un fallo al resolver la familia no lanza, pero no es mudo.** Se sigue con
+   la cuenta sola, que es el lado seguro —se ve de menos, nunca de más—; y se
+   escribe, porque una familia recortada se nota como «mis mensajes no le llegan
+   a nadie».
+
+### Un canal puede CRUZAR cuentas, y entonces la pertenencia es por CUENTA
+
+La madre reparte un canal entre sus cuentas vinculadas —Atencion, Ventas,
+Notificaciones— y toda su gente lo ve **desde su propia cuenta**, sin
+«Ingresar» ni cambiar de sitio.
+
+Se monta sobre las tablas que ya había, con una más: `team_channel_accounts`
+(`canalId`, `cuentaId`). **Aparte y no una fila más en `team_channel_members`**:
+ahí una cuenta y una persona caerían en la misma columna —una cuenta también es
+una fila de `User`— y no habría forma de saber cuál es cuál.
+
+> **Si un canal tiene cuentas, manda la CUENTA**: quien esté en una de ellas
+> está dentro, sin que nadie le haya añadido. Es lo único que funciona aquí: la
+> madre **no administra** el equipo de la cuenta vinculada, así que no puede ir
+> persona por persona ni acordarse de añadir a cada una que entre después.
+
+Un canal sin cuentas es el de siempre, por persona, y **no cambia nada**. Y se
+miran **las dos listas**: un canal que cruza puede tener además invitados
+sueltos, y quitarle su sitio a una persona porque su cuenta no está sería una
+pertenencia que cambia según por dónde se mire.
+
+Cuatro cosas que hay que mantener:
+
+1. **Solo la madre reparte** (`esLaCuentaMadre` más `canManageWorkspace`), y
+   **solo entre las cuentas de SU familia**. Las dos mitades: sin la primera, el
+   administrador de una vinculada se metería en las cuentas hermanas; sin la
+   segunda, una lista que llega del navegador nombraría cualquier cuenta de la
+   plataforma y su gente empezaría a leer ese canal. El administrador de una
+   vinculada **participa, escribe y menciona, pero no toca la lista de cuentas**
+   —`elCanal` acota por la cuenta de quien llama, así que un canal que cruza
+   solo lo edita su dueña—.
+2. **Los mensajes de un canal cuelgan de la cuenta DUEÑA del canal**, los
+   escriba quien los escriba. Es la misma regla que ya rige en Proyectos
+   compartidos, y aquí es lo que impide que el hilo se parta en tantos trozos
+   como cuentas tenga dentro. Por eso la consulta de un canal **acota por su id
+   y no por cuenta**: el acceso ya se comprobó antes, y añadir la cuenta de
+   quien lee volvería a partirlo.
+3. **Las cuentas solo se tocan si llegan.** `ponerMiembrosAction` recibe las
+   cuentas como opcional: sin el campo, guardar solo la gente dejaría un canal
+   que cruzaba **sin ninguna cuenta**, y desaparecería de la pantalla de todas
+   menos de la suya.
+4. **Un directo se crea bajo la RAÍZ de la familia.** Entre dos personas de
+   cuentas hermanas, creándolo bajo la de quien lo abre saldría duplicado —uno
+   por cada lado, con la mitad de los mensajes en cada uno—, que es el mismo
+   fallo que la llave ordenada evita dentro de una cuenta.
+
+### Las menciones y los avisos cuando el canal cruza
+
+Las menciones se acotan a **la gente del canal**, que cuando cruza es la de sus
+cuentas. Y los avisos **cruzan sin tocar nada**, que es lo que hace que esto
+funcione sin una tubería nueva:
+
+> `task_alerts` se lee por **`destinatarioId`** —la persona— y no por cuenta
+> (`avisosPorSaltar`, `avisosDeLaCampanita`). Así que una mención en un canal
+> que cruza le llega a su persona **en su propia cuenta**, sin que haya que
+> saber nada de familias. El `ownerId` del aviso se guarda con la cuenta del
+> canal: es contabilidad, no permiso.
+
+Lo único que hacía falta es que **el clic aterrice**: `/chat-equipo?canal=<id>`
+resuelve porque el listado dejó de ser «los canales de mi cuenta» y pasó a ser
+«los de mi cuenta **más** aquellos en los que está mi cuenta»
+(`canalesQueAlcanzan`). Sin eso el aviso llegaría y al pulsarlo se abriría el
+General.
+
 ### Leer y escribir son dos preguntas, y en los directos NO coinciden
 
 | | lee | escribe |
