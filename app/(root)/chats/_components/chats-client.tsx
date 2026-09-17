@@ -35,7 +35,7 @@ import type { RespuestaDeLasSesiones } from "@/app/api/chats/sesiones/route";
 import type { RespuestaDeLaLista } from "@/app/api/chats/lista/route";
 import type { RespuestaDePrecarga } from "@/lib/precarga-de-chats";
 import type { MedicionDeUnaCarga } from "@/lib/vigilancia-de-chats";
-import { mencionaUnaPromesa } from "@/lib/commitment-detection";
+import { mencionaUnaPromesa } from "@/lib/promesa-del-cliente";
 import type {
   ChatData,
   EvolutionMessage,
@@ -59,12 +59,7 @@ import {
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
-import { CommitmentTaskDialog } from "./CommitmentTaskDialog";
-import { detectCommitment, type DetectedCommitment } from "@/lib/commitment-detection";
-import {
-  createClientPromiseFollowUpAction,
-  predictAdvisorCommitmentAction,
-} from "@/actions/conversation-intelligence-actions";
+import { createClientPromiseFollowUpAction } from "@/actions/conversation-intelligence-actions";
 import {
   buildWhatsAppJidCandidates,
   fmtPhone,
@@ -120,30 +115,6 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
   const la = getLastIdTimestamp(a);
   const lb = getLastIdTimestamp(b);
   return la.id !== lb.id || la.ts !== lb.ts;
-}
-
-function getCommitmentMessageText(message: EvolutionMessage) {
-  const body = message.message ?? {};
-  return (
-    body.conversation ||
-    body.extendedTextMessage?.text ||
-    body.imageMessage?.caption ||
-    body.videoMessage?.caption ||
-    body.documentMessage?.caption ||
-    ""
-  ).trim();
-}
-
-function buildCommitmentContext(list: EvolutionMessage[]) {
-  return list
-    .slice(-8)
-    .map((message) => {
-      const text = getCommitmentMessageText(message);
-      if (!text) return null;
-      return `${message.key?.fromMe ? "ASESOR" : "CLIENTE"}: ${text}`;
-    })
-    .filter(Boolean)
-    .join("\n");
 }
 
 type ApiKeyData = { url: string; key: string };
@@ -985,7 +956,6 @@ export function ChatsClient({
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
   const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
-  const [detectedCommitment, setDetectedCommitment] = useState<DetectedCommitment | null>(null);
 
   const goToChatTab = useCallback((tab: TabKey, unread = false) => {
     setChatListTab(tab);
@@ -3595,23 +3565,6 @@ export function ChatsClient({
       //    quedaban dos burbujas (la del id de respuesta + la del id del poll). Ese
       //    swap era la causa del "se envió 2 veces" en imágenes y del cuadro+audio.
 
-      if (payload.kind === "text") {
-        const commitmentContext = buildCommitmentContext(messagesRef.current);
-        const immediateCommitment = detectCommitment(payload.text, undefined, commitmentContext);
-        setDetectedCommitment(immediateCommitment);
-
-        // El detector local cubre frases frecuentes sin latencia. Cuando no hay
-        // coincidencia, la IA interpreta expresiones naturales más variadas.
-        if (!immediateCommitment) {
-          const sentToJid = selectedJid;
-          void predictAdvisorCommitmentAction(payload.text, commitmentContext).then((prediction) => {
-            if (prediction.commitment && sentToJid === selectedJidRef.current) {
-              setDetectedCommitment(prediction.commitment);
-            }
-          });
-        }
-      }
-
       window.setTimeout(() => {
         void pollAndCompareMessages(selectedJid, currentContact?.aliases);
         void refreshSidebarData();
@@ -5462,22 +5415,6 @@ export function ChatsClient({
         advisorRole={advisorRole}
       />
     )}
-    <CommitmentTaskDialog
-      commitment={detectedCommitment}
-      assignedToId={currentAdvisorId ?? userId}
-      assignedToName={
-        advisors.find((advisor) => advisor.id === (currentAdvisorId ?? userId))?.name ?? null
-      }
-      sessionId={currentContactSession?.id}
-      contactName={
-        currentContactSession?.customName?.trim() ||
-        currentContactSession?.pushName?.trim() ||
-        currentContact?.pushName?.trim() ||
-        null
-      }
-      contactJid={selectedJid || null}
-      onClose={() => setDetectedCommitment(null)}
-    />
     </>
   );
 }

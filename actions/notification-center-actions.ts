@@ -68,6 +68,12 @@ export async function getNotificationCenterData(): Promise<{
   const ownerId = user.ownerId ?? user.id;
   const now = new Date();
   const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  // El «Compromiso:» se queda aunque ya nadie escriba tareas con ese titulo: la
+  // deteccion que las creaba —la ventana de «Compromiso detectado»— se retiro,
+  // pero sus filas siguen en la base y son tareas de verdad, con su fecha y su
+  // asesor. Quitar esta linea no borraria ninguna: las sacaria del grupo de
+  // Seguimientos y las mandaria a Vencidas, que es cambiarle la campanita a
+  // quien no ha pedido nada. «Promesa cliente:» si sigue escribiendose.
   const followupWhere = {
     ownerId,
     status: "pending",
