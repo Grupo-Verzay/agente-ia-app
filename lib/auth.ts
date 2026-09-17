@@ -71,6 +71,20 @@ export type CurrentUser = DbUser & {
      * en la plataforma sigue mandando este donde este.
      */
     rolDeLaPersona: string | null;
+    /**
+     * El rol de plataforma de la CUENTA en la que se esta trabajando.
+     *
+     * Ni el tuyo (`rolDeLaPersona`) ni necesariamente el de la fila efectiva:
+     * para un miembro del equipo, `role` es el suyo —`user`, porque el equipo se
+     * crea asi— y el de su cuenta es otro. Con esa confusion, a un administrador
+     * del equipo de una cuenta `admin` el MENU le escondia «Panel» mientras la
+     * PUERTA le dejaba entrar escribiendo la URL.
+     *
+     * No cuesta una consulta: la rama que lee las credenciales del dueño ya va a
+     * esa fila. **Se coge aparte y NUNCA se derrama sobre `role`** — eso seria
+     * heredar el rol, que es lo que este documento prohibe desde el principio.
+     */
+    rolDeLaCuenta: string | null;
 };
 
 type AccountRole = "agente" | "administrador";
@@ -270,6 +284,8 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                 effectiveId: effectiveUserId,
                 sessionUserId: realUser.id,
                 rolDeLaPersona: realUser.role,
+                // Con el conmutador, `u` ya ES la fila de la cuenta.
+                rolDeLaCuenta: u.role,
             };
         }
 
@@ -277,6 +293,10 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
             const ownerCreds = await db.user.findUnique({
                 where: { id: u.ownerId },
                 select: {
+                    // El rol de la CUENTA. Esta consulta ya se hace, asi que el
+                    // dato sale gratis; se guarda aparte, sin pisar el de la
+                    // persona.
+                    role: true,
                     apiKey: true,
                     apiKeyId: true,
                     apiUrl: true,
@@ -307,13 +327,19 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                 },
             });
             if (ownerCreds) {
+                // `role` se saca del spread A PROPOSITO: derramarlo sobre `u`
+                // convertiria a cada miembro del equipo en lo que sea su cuenta,
+                // y eso es heredar el rol. Va a su propio campo, que solo leen
+                // las reglas que preguntan por la CUENTA.
+                const { role: rolDeSuCuenta, ...credencialesDelDueno } = ownerCreds;
                 return {
                     ...u,
-                    ...ownerCreds,
+                    ...credencialesDelDueno,
                     ...permisosDeLaPersona,
                     effectiveId: u.ownerId,
                     sessionUserId: realUser.id,
                     rolDeLaPersona: realUser.role,
+                    rolDeLaCuenta: rolDeSuCuenta ?? u.role,
                 };
             }
         }
@@ -324,6 +350,8 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
             effectiveId: u.ownerId ?? u.id,
             sessionUserId: realUser.id,
             rolDeLaPersona: realUser.role,
+            // Sin dueño, la cuenta es uno mismo.
+            rolDeLaCuenta: u.role,
         };
     });
 

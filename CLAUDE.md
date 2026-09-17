@@ -3126,6 +3126,52 @@ Y la otra mitad, que es la que cerraba la puerta:
 > cortaba **antes** de mirar `concedidos`/`negados`. `esPanelAjeno` sigue
 > filtrando `modules` —el menú—, que es para lo que sirve.
 
+### Y el menú NO vuelve a decidir: se queda con el que la puerta dejó
+
+Quitar el corte de `esPanelAjeno` abrió la **ruta**, y el menú siguió
+escondiendo la **opción**. Yair —administrador del equipo en una cuenta
+`admin`— entraba a `/panel` escribiendo la URL y no veía «Panel» en el menú
+lateral.
+
+La causa es la segunda mitad de la misma enfermedad: **dos formulaciones con
+dos roles distintos**. La puerta elegía con el rol de la CUENTA
+(`/panel-admin`) y sacaba `/panel` de `modules`; el menú volvía a elegir con
+`user.role` —el de la PERSONA, que en el equipo es `user`— y su lista de
+candidatas **no incluye `/panel-admin`**. Buscaba `/panel`, que la puerta acababa
+de quitar, no encontraba nada y escondía la entrada.
+
+Reproducido en el banco con las funciones reales:
+
+```
+puerta      -> /panel-admin
+menu ANTES  -> NADA          <- la opcion no se pintaba
+menu AHORA  -> /panel-admin
+```
+
+Dos reglas, y la segunda es la que lo cierra de verdad:
+
+1. **El rol con el que se abren puertas es `rolQueAbrePuertas(persona)`**
+   (`lib/sidebar-modules.ts`, puro). Superadministrador manda siempre;
+   un **administrador** de equipo abre lo que abre su cuenta (`rolDeLaCuenta`,
+   que ahora viaja en `currentUser()` sin costar una consulta); un **agente** no
+   hereda nada. Es `cuentaQueManda` escrito en versión pura, para que lo pueda
+   usar también el menú, que corre en el navegador.
+2. **El menú no elige: recoge.** `soloElPanelQueLeToca` devuelve *el elegido* y
+   *la lista sin los ajenos* de una sola pasada; después solo queda uno, y el
+   menú se queda con ese (`modules.find(esVarianteDePanel)`). **No puede haber
+   discrepancia porque ya no hay dos fórmulas.**
+
+Y `rolDeLaCuenta` **no se derrama sobre `role`**: en `currentUser()` se
+desestructura fuera del spread de las credenciales del dueño. Derramarlo sería
+heredar el rol, que es lo que este documento prohíbe desde el principio.
+
+Un nivel más abajo pasaba lo mismo y va por el mismo sitio: las **pestañas del
+panel** (`panelModule`) se buscaban a mano con `/panel-admin ?? /panel ?? /admin`
+—sin contemplar el del reseller ni el del cliente—, y `apartadosDelPanel` y la
+**portada** (`MainHome`) preguntaban por `persona.role`. Los tres usan ya
+`rolQueAbrePuertas`. **Si se añade otro sitio que decida qué panel o qué
+apartado se ve, va por ahí**: no se vuelve a preguntar por `user.role`.
+
 ## Una lista de líneas sale de `Instancias`, no de las credenciales de quien mira
 
 `getAvailableInstances` —el desplegable de «Línea que lo envía» de Panel ›

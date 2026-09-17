@@ -9,7 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
-import { ADMIN_PANEL_ROUTE, elPanelQueLeToca, esVarianteDePanel } from "@/lib/sidebar-modules";
+import { esVarianteDePanel, rolQueAbrePuertas, soloElPanelQueLeToca } from "@/lib/sidebar-modules";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import { facturacionQueMandaEn } from "@/actions/billing/helpers/billing-owner";
@@ -314,7 +314,11 @@ export default async function RootGroupLayout({
             // Un agente de una cuenta vinculada hereda el rol del dueño. Sin
             // descontarlo aquí, "Solo Admin" no lo frenaba y veía el panel de
             // administración entero.
-            const esAdmin = isAdmin(user?.role) && !esAgente;
+            // El rol que ABRE PUERTAS: un administrador del equipo actua por
+            // su cuenta, y su `role` propio es `user`. Sin esto, los modulos
+            // «Solo Admin» —el Panel entre ellos— se le caian aqui mismo, antes
+            // de que nadie llegara a elegir cual panel es el suyo.
+            const esAdmin = isAdmin(rolQueAbrePuertas(user)) && !esAgente;
             // Mismo criterio que las rutas bloqueadas y que el sidebar: una sola
             // regla decide a quién le aplica el plan.
             const filtraPorPlan = aplicaBloqueoPorPlan(user);
@@ -358,16 +362,19 @@ export default async function RootGroupLayout({
     // A quien trabaja en una cuenta ajena le toca el panel de ESA cuenta: un
     // agente de una cuenta de administración usa el del equipo, aunque su propio
     // rol sea el de un usuario cualquiera.
-    const rolDeLaCuenta = user.ownerId
-        ? (await db.user
-            .findUnique({ where: { id: user.ownerId }, select: { role: true } })
-            .catch(() => null))?.role ?? user.role
-        : user.role;
-    const suPanelId = elPanelQueLeToca(rolDeLaCuenta, modules)?.id ?? null;
+    // El rol de la cuenta ya viaja en `currentUser()` (`rolDeLaCuenta`), asi
+    // que esta consulta se va: era la misma fila que ya se lee para traer el
+    // plan y las credenciales del dueño.
+    const rolDeLaCuenta = user.rolDeLaCuenta ?? user.role;
+
+    // UNA decision, y de ella salen las dos cosas: cual es el suyo y la lista
+    // sin los ajenos. El menu no vuelve a elegir: se queda con el que sobreviva.
+    const { elegido: suPanel, visibles } = soloElPanelQueLeToca(rolDeLaCuenta, modules);
+    const suPanelId = suPanel?.id ?? null;
     const esPanelAjeno = (m: { id: string; route: string }) =>
         esVarianteDePanel(m.route) && m.id !== suPanelId;
 
-    modules = modules.filter((m) => !esPanelAjeno(m));
+    modules = visibles;
 
     // Las rutas tapadas se sacan de TODOS los módulos, no de `modules`: ahí ya
     // no están, y sin ellas el que sabe la URL entraba igual.
@@ -406,10 +413,11 @@ export default async function RootGroupLayout({
     // administrador solo le sobrevive el suyo y a un superadministrador solo
     // el de siempre. Sin esto, un administrador abría un submódulo y arriba le
     // salían las pestañas del superadministrador.
-    const panelModule = porFechaDeCreacion(
-        modules.find((m) => m.route === ADMIN_PANEL_ROUTE) ??
-        modules.find((m) => m.route === "/panel" || m.route === "/admin"),
-    );
+    // El MISMO panel que eligio la puerta, no una busqueda a mano. Escrita
+    // aparte, esta se quedaba con `/panel-admin ?? /panel ?? /admin` y no
+    // contemplaba ni el del reseller ni el del cliente: un nivel mas abajo
+    // pasaba lo mismo que arriba — entrar a un apartado y quedarse sin barra.
+    const panelModule = porFechaDeCreacion(suPanel ?? undefined);
     const resellerModule =
         user.role === 'reseller'
             ? porFechaDeCreacion(modules.find((m) => m.route === "/reseller-panel"))

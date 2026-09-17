@@ -2,7 +2,7 @@ import type { User } from '@prisma/client';
 import type { CurrentUser } from '@/lib/auth';
 import type { ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
-import { isAdminLike } from '@/lib/rbac';
+import { isAdminLike, isSuperAdmin } from '@/lib/rbac';
 import { parseItemIds } from '@/lib/permisos';
 
 // Rutas de panel administrativo y del panel del cliente. Se mantienen aquí para
@@ -96,6 +96,67 @@ export function elPanelQueLeToca<T extends { route: string }>(
     return null;
 }
 
+/**
+ * El rol con el que esta persona ABRE PUERTAS.
+ *
+ * No es `user.role` —el de la fila efectiva— ni el de la cuenta a secas:
+ *
+ * - Quien manda en la plataforma manda esté donde esté (#746).
+ * - Un **administrador** del equipo actua POR su cuenta, asi que abre lo que
+ *   ella abre. Es la regla de `cuentaQueManda`, escrita aqui en version pura
+ *   para que tambien la pueda usar el menu, que corre en el navegador.
+ * - Un **agente** no hereda nada: participa, no manda.
+ *
+ * Sin esto, `canAccessRoute` cerraba los modulos «Solo Admin» a un
+ * administrador del equipo —su `role` es `user`, porque el equipo se crea
+ * asi— y el menu le escondia «Panel» mientras la puerta le dejaba entrar.
+ */
+export function rolQueAbrePuertas(persona: {
+    role?: string | null;
+    rolDeLaPersona?: string | null;
+    rolDeLaCuenta?: string | null;
+    ownerId?: string | null;
+    advisorRole?: string | null;
+}): string {
+    if (isSuperAdmin(persona.rolDeLaPersona) || isSuperAdmin(persona.role)) {
+        return "super_admin";
+    }
+    const esAgente = !!persona.ownerId && persona.advisorRole !== "administrador";
+    if (esAgente) return persona.role ?? "";
+    return persona.rolDeLaCuenta ?? persona.role ?? "";
+}
+
+/**
+ * LA decision sobre los paneles, y se toma UNA vez: cual le toca y los demas
+ * fuera.
+ *
+ * # Por que devuelve la lista ya filtrada
+ *
+ * Antes la puerta elegia por su lado y el menu **volvia a elegir** por el suyo,
+ * con otro rol y con otra lista de rutas candidatas. A un administrador del
+ * equipo de una cuenta que usa `/panel-admin` le pasaba esto: la puerta elegia
+ * `/panel-admin` y sacaba `/panel` de `modules`; el menu buscaba con SU rol
+ * (`user`, el del equipo), cuya lista no incluye `/panel-admin`, y como
+ * `/panel` ya no estaba... no encontraba ninguno y escondia la entrada. Entraba
+ * escribiendo la URL y no la veia en el menu.
+ *
+ * Con esto **el menu ya no decide**: se queda con el que sobrevivio. Si la
+ * puerta deja entrar, el menu lo enseña; no hay dos formulas que puedan
+ * discrepar porque solo hay una.
+ */
+export function soloElPanelQueLeToca<T extends { id: string; route: string }>(
+    rolDeLaCuenta: string | null | undefined,
+    modules: readonly T[],
+): { elegido: T | null; visibles: T[] } {
+    const elegido = elPanelQueLeToca(rolDeLaCuenta, modules);
+    return {
+        elegido,
+        visibles: modules.filter(
+            (m) => !esVarianteDePanel(m.route) || m.id === elegido?.id,
+        ),
+    };
+}
+
 /** Si una ruta es una de las variantes de "Panel". En el menu va solo una. */
 export function esVarianteDePanel(route: string): boolean {
     return (
@@ -137,10 +198,12 @@ export function getVisibleSidebarModules(
     // del equipo sigue ahí es porque puede entrar —aunque sea un agente al que
     // solo se le concedieron dos apartados—. Si no lo tiene, le toca el de
     // cliente.
-    const panelDelRol = elPanelQueLeToca(
-        user.role,
-        modules.filter((m) => m.showInSidebar),
-        { paraElMenu: true },
+    // El menu NO vuelve a decidir cual panel es el suyo: `soloElPanelQueLeToca`
+    // ya lo decidio en el layout y los ajenos no estan en `modules`. Aqui solo
+    // se recoge el que sobrevivio. Volver a elegir —con otro rol y otra lista—
+    // es lo que escondia «Panel» a quien SI podia entrar.
+    const panelDelRol = modules.find(
+        (m) => m.showInSidebar && esVarianteDePanel(m.route),
     );
 
     return modules
@@ -158,7 +221,10 @@ export function getVisibleSidebarModules(
             if (esVarianteDePanel(link.route) && link.id !== panelDelRol?.id) return false;
             const access = canAccessRoute({
                 route: link.route,
-                userRole: user.role,
+                // El rol que ABRE PUERTAS, no el de la fila: un administrador
+                // del equipo tiene `role: "user"` y se quedaba fuera de todo lo
+                // marcado «Solo Admin», empezando por el propio Panel.
+                userRole: rolQueAbrePuertas(user),
                 userPlan: user.plan,
                 modules,
                 label: link.label,

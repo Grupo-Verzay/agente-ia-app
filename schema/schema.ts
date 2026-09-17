@@ -28,7 +28,7 @@ export type UserWithApiKeys = CurrentUser & {
  */
 export type UserConServicios = Omit<
     UserWithApiKeys,
-    'effectiveId' | 'sessionUserId' | 'rolDeLaPersona'
+    'effectiveId' | 'sessionUserId' | 'rolDeLaPersona' | 'rolDeLaCuenta'
 > & {
     services: Service[];
     // No hay sesion en esa pagina, asi que no hay "usuario efectivo", ni
@@ -37,6 +37,7 @@ export type UserConServicios = Omit<
     effectiveId?: string;
     sessionUserId?: string;
     rolDeLaPersona?: string | null;
+    rolDeLaCuenta?: string | null;
 };
 
 export interface ScheduleInterface {

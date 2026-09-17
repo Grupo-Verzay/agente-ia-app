@@ -7,7 +7,7 @@ import { HomeIcon, RocketLaunchIcon, ChartBarIcon, ChevronRightIcon } from '@her
 import { iconMap, ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
 import { isAdminLike } from '@/lib/rbac';
-import { esVarianteDePanel, rutasDePanelPara } from '@/lib/sidebar-modules';
+import { esVarianteDePanel, rolQueAbrePuertas, rutasDePanelPara } from '@/lib/sidebar-modules';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -70,7 +70,10 @@ export function MainHome({
     // Los tres paneles (/panel, /reseller-panel, /client-panel) comparten label
     // "Panel"; un admin tiene acceso a los tres. Mostrar solo el del rol para no
     // duplicar tarjetas "Panel".
-    const candidatos = rutasDePanelPara(user.role);
+    // El mismo rol que usan el menu y la puerta. Con el de la persona, a un
+    // administrador del equipo la portada le ofrecia el panel del cliente.
+    const rolDeLaPuerta = rolQueAbrePuertas(user);
+    const candidatos = rutasDePanelPara(rolDeLaPuerta);
     const rolePanel =
       candidatos.find((route) => modules.some((m) => m.route === route)) ?? candidatos[0];
 
@@ -79,7 +82,7 @@ export function MainHome({
       .filter((moduleComponent) => {
         const access = canAccessRoute({
           route: moduleComponent.route,
-          userRole: user.role,
+          userRole: rolDeLaPuerta,
           userPlan: user.plan,
           modules,
           label: moduleComponent.label,
