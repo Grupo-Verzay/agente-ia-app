@@ -1,5 +1,7 @@
 import "server-only";
 
+import { Prisma } from "@prisma/client";
+
 import { db } from "@/lib/db";
 import { TOPE_DE_MENSAJES, type MensajeDeEquipo } from "@/lib/chat-de-equipo";
 import {
@@ -114,6 +116,23 @@ function asegurarLaTabla(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "team_channel_members_persona_idx"
             ON "team_channel_members" ("personaId")
         `;
+        // Las CUENTAS que entran en un canal, cuando cruza cuentas vinculadas.
+        // Tabla aparte y no una fila mas en `team_channel_members`: ahi una
+        // cuenta y una persona serian la misma columna —una cuenta tambien es
+        // una fila de `User`— y no habria forma de saber cual es cual.
+        await db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "team_channel_accounts" (
+                "canalId" TEXT NOT NULL,
+                "cuentaId" TEXT NOT NULL,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("canalId", "cuentaId")
+            )
+        `;
+        // El indice del listado: «que canales alcanzan a MI cuenta».
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "team_channel_accounts_cuenta_idx"
+            ON "team_channel_accounts" ("cuentaId")
+        `;
     })().catch((error) => {
         tablaLista = null;
         throw error;
@@ -187,30 +206,47 @@ const aMensaje = (f: Fila): MensajeDeEquipo => ({
  * el tope devolvería los PRIMEROS, o sea la conversación de hace un año.
  */
 export async function leerElHilo(
-    cuentaId: string,
+    cuentas: string[],
     canalId: string,
 ): Promise<MensajeDeEquipo[]> {
+    const deLaFamilia = cuentas.filter(Boolean);
+    if (!deLaFamilia.length) return [];
+
     return conLaTabla(async () => {
         const filas =
             canalId === CANAL_GENERAL
-                // El general se lee con el `NULL` dentro: ahi estan los
-                // mensajes de cuando el hilo era uno solo. Sin esa condicion
-                // el general saldria vacio el dia del despliegue y parecerian
-                // borrados.
+                // El general se lee sobre TODA LA FAMILIA, y con el `NULL`
+                // dentro. Las dos condiciones arreglan un caso cada una:
+                //
+                // - La familia: `ownerId ?? id` no sube a la cuenta madre, asi
+                //   que Grupo Verzay leia bajo `grupo` y la gente de Verzay |
+                //   Atencion bajo `atencion` — dos Generales, cada uno viendo
+                //   solo lo suyo, y sin un error en ninguna parte.
+                // - El `NULL`: ahi estan los mensajes de cuando el hilo era uno
+                //   solo. Sin eso el general saldria vacio el dia del
+                //   despliegue y parecerian borrados.
+                //
+                // Y leer sobre la familia es ademas lo que hace que lo que ya
+                // se escribio bajo cada cuenta se siga viendo: lo nuevo cae
+                // bajo la raiz, lo viejo se queda donde esta y se lee igual.
                 ? await db.$queryRaw<Fila[]>`
                     SELECT "id", "autorId", "autorNombre", "escritoDesde",
                            "texto", "mencionados", "creadoEn"
                     FROM "team_chat_messages"
-                    WHERE "cuentaId" = ${cuentaId}
+                    WHERE "cuentaId" IN (${Prisma.join(deLaFamilia)})
                       AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})
                     ORDER BY "creadoEn" DESC
                     LIMIT ${TOPE_DE_MENSAJES}
                 `
+                // Un canal tiene id propio y ya se comprobo que se puede
+                // llegar a el, asi que la cuenta no acota nada mas — y acotar
+                // por la de quien lee partiria en trozos el hilo de un canal
+                // que cruza cuentas.
                 : await db.$queryRaw<Fila[]>`
                     SELECT "id", "autorId", "autorNombre", "escritoDesde",
                            "texto", "mencionados", "creadoEn"
                     FROM "team_chat_messages"
-                    WHERE "cuentaId" = ${cuentaId} AND "canalId" = ${canalId}
+                    WHERE "canalId" = ${canalId}
                     ORDER BY "creadoEn" DESC
                     LIMIT ${TOPE_DE_MENSAJES}
                 `;
@@ -220,6 +256,15 @@ export async function leerElHilo(
 
 export async function guardarUnMensaje(input: {
     id: string;
+    /**
+     * La cuenta bajo la que cae el mensaje.
+     *
+     * **Es la del CANAL, no la de quien escribe** —para el general, la raíz de
+     * la familia—. Es la misma regla que ya rige en Proyectos compartidos: las
+     * tareas de un proyecto cuelgan de la cuenta dueña, las escriba quien las
+     * escriba. Guardándolo bajo la cuenta de quien escribe, el hilo de un canal
+     * que cruza se partiría en tantos trozos como cuentas tenga dentro.
+     */
     cuentaId: string;
     canalId: string;
     autorId: string;
@@ -248,7 +293,11 @@ export type FilaDeCanal = {
     tipo: TipoDeCanal;
     nombre: string;
     llave: string | null;
+    /** La cuenta DUEÑA del canal. Bajo ella caen sus mensajes. */
+    cuentaId: string;
     miembros: string[];
+    /** Las cuentas que entran, si el canal cruza. Vacío = canal de una cuenta. */
+    cuentas: string[];
 };
 
 /**
@@ -262,17 +311,25 @@ export type FilaDeCanal = {
  * Los miembros se traen en la MISMA consulta, agregados. Pidiéndolos aparte
  * serían una consulta por canal, y esto lo lee la pantalla en cada apertura.
  */
-export async function canalesDeLaCuenta(cuentaId: string): Promise<FilaDeCanal[]> {
+export async function canalesQueAlcanzan(cuentaId: string): Promise<FilaDeCanal[]> {
     return conLaTabla(() => db.$queryRaw<FilaDeCanal[]>`
-        SELECT c."id", c."tipo", c."nombre", c."llave",
+        SELECT c."id", c."tipo", c."nombre", c."llave", c."cuentaId",
                COALESCE(
-                   ARRAY_AGG(m."personaId") FILTER (WHERE m."personaId" IS NOT NULL),
+                   (SELECT ARRAY_AGG(m."personaId")
+                    FROM "team_channel_members" m WHERE m."canalId" = c."id"),
                    '{}'
-               ) AS "miembros"
+               ) AS "miembros",
+               COALESCE(
+                   (SELECT ARRAY_AGG(a."cuentaId")
+                    FROM "team_channel_accounts" a WHERE a."canalId" = c."id"),
+                   '{}'
+               ) AS "cuentas"
         FROM "team_channels" c
-        LEFT JOIN "team_channel_members" m ON m."canalId" = c."id"
         WHERE c."cuentaId" = ${cuentaId}
-        GROUP BY c."id", c."tipo", c."nombre", c."llave", c."creadoEn"
+           OR EXISTS (
+                SELECT 1 FROM "team_channel_accounts" a
+                WHERE a."canalId" = c."id" AND a."cuentaId" = ${cuentaId}
+           )
         ORDER BY c."creadoEn" ASC
     `);
 }
@@ -283,15 +340,19 @@ export async function elCanal(
     canalId: string,
 ): Promise<FilaDeCanal | null> {
     const filas = await conLaTabla(() => db.$queryRaw<FilaDeCanal[]>`
-        SELECT c."id", c."tipo", c."nombre", c."llave",
+        SELECT c."id", c."tipo", c."nombre", c."llave", c."cuentaId",
                COALESCE(
-                   ARRAY_AGG(m."personaId") FILTER (WHERE m."personaId" IS NOT NULL),
+                   (SELECT ARRAY_AGG(m."personaId")
+                    FROM "team_channel_members" m WHERE m."canalId" = c."id"),
                    '{}'
-               ) AS "miembros"
+               ) AS "miembros",
+               COALESCE(
+                   (SELECT ARRAY_AGG(a."cuentaId")
+                    FROM "team_channel_accounts" a WHERE a."canalId" = c."id"),
+                   '{}'
+               ) AS "cuentas"
         FROM "team_channels" c
-        LEFT JOIN "team_channel_members" m ON m."canalId" = c."id"
         WHERE c."cuentaId" = ${cuentaId} AND c."id" = ${canalId}
-        GROUP BY c."id", c."tipo", c."nombre", c."llave"
     `);
     return filas[0] ?? null;
 }
@@ -302,6 +363,8 @@ export async function crearUnCanal(input: {
     nombre: string;
     creadoPorId: string;
     miembros: string[];
+    /** Las cuentas que entran, si cruza. Vacío = canal de una sola cuenta. */
+    cuentas?: string[];
 }): Promise<void> {
     await conLaTabla(async () => {
         await db.$executeRaw`
@@ -310,7 +373,32 @@ export async function crearUnCanal(input: {
             VALUES (${input.id}, ${input.cuentaId}, 'area', ${input.nombre}, NULL, ${input.creadoPorId})
         `;
         await ponerLosMiembros(input.id, input.miembros);
+        if (input.cuentas?.length) await ponerLasCuentas(input.id, input.cuentas);
     });
+}
+
+/**
+ * Qué cuentas entran en un canal, **entera**.
+ *
+ * Se borra y se vuelve a escribir dentro de una transacción, como la lista de
+ * personas: con dos consultas sueltas, un fallo entre medias dejaría el canal
+ * sin ninguna cuenta dentro y desaparecería de la pantalla de todo el mundo
+ * menos de la madre, que es peor que no haber cambiado nada.
+ */
+export async function ponerLasCuentas(canalId: string, cuentas: string[]): Promise<void> {
+    const limpias = Array.from(new Set(cuentas.map((c) => c.trim()).filter(Boolean)));
+    await conLaTabla(() =>
+        db.$transaction(async (tx) => {
+            await tx.$executeRaw`DELETE FROM "team_channel_accounts" WHERE "canalId" = ${canalId}`;
+            for (const cuentaId of limpias) {
+                await tx.$executeRaw`
+                    INSERT INTO "team_channel_accounts" ("canalId", "cuentaId")
+                    VALUES (${canalId}, ${cuentaId})
+                    ON CONFLICT DO NOTHING
+                `;
+            }
+        }),
+    );
 }
 
 export async function renombrarUnCanal(
@@ -385,5 +473,48 @@ export async function abrirElDirecto(input: {
             `;
         }
         return id;
+    });
+}
+
+// ── La gente ────────────────────────────────────────────────────────────────
+
+export type FilaDePersona = { id: string; name: string | null; email: string | null };
+
+/**
+ * La gente de unas cuantas cuentas: sus equipos **y las cuentas mismas**.
+ *
+ * Existe porque `getTeamAdvisorInfos` resuelve la cuenta por dentro, desde
+ * `currentUser()`, así que solo sabe mirar desde un lado. Aquí hacen falta
+ * varias a la vez: la familia entera.
+ *
+ * Dos cosas que no son evidentes:
+ *
+ * 1. **La cuenta misma entra.** Su fila no cuelga de nadie —`owner_id` en
+ *    nulo—, así que un `WHERE owner_id IN (…)` la deja fuera. Con un hilo único
+ *    eso solo significaba que al dueño no se le podía mencionar; con directos
+ *    significa que nadie puede escribirle.
+ * 2. **Se ordena y se deduplica en la consulta.** La misma persona puede caer
+ *    por dos caminos —es cuenta vinculada y además está en el equipo de otra—,
+ *    y salir dos veces en la lista de con quién hablar es un directo duplicado
+ *    esperando a que alguien pulse el segundo.
+ */
+export async function laGenteDeLasCuentas(cuentas: string[]): Promise<FilaDePersona[]> {
+    const ids = Array.from(new Set(cuentas.map((c) => c.trim()).filter(Boolean)));
+    if (!ids.length) return [];
+
+    return db.$queryRaw<FilaDePersona[]>`
+        SELECT DISTINCT ON (u.id) u.id, u.name, u.email
+        FROM "User" u
+        WHERE u.id IN (${Prisma.join(ids)})
+           OR u."owner_id" IN (${Prisma.join(ids)})
+        ORDER BY u.id, u.name ASC
+    `.catch((error) => {
+        // Sin gente no se puede mencionar ni abrir un directo, y eso se lee
+        // como «el chat no conoce a nadie». Se dice.
+        console.warn("[chat-equipo] no se pudo leer la gente de la familia", {
+            cuentas: ids.length,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return [] as FilaDePersona[];
     });
 }
