@@ -1674,6 +1674,83 @@ Cuatro cosas más que hay que mantener:
    contabilidad de la cuenta dueña, y la lista de clientes que vería la invitada
    es la suya.
 
+## Chat de equipo: un hilo por CUENTA, y el aviso es el que ya existía
+
+Hasta ahora no había ningún sitio donde hablar entre personas. Lo que había
+—y se confunde con esto— son dos conversaciones **atadas a algo**: los
+**comentarios de tarea** cuelgan de una tarea, y las **notas internas** de un
+chat cuelgan de un lead. Para cualquier otra cosa no existía nada.
+
+`/chat-equipo` es **un hilo por cuenta**, sin canales y sin temas. La cuenta ES
+el hilo: `cuentaId` es `ownerId ?? id`, el mismo valor con el que agrupan
+Carpetas, Proyectos y Diagramas — y, lo que de verdad importa, **el mismo con
+el que `getTeamAdvisorInfos` busca al equipo**. Si el hilo saliera de un id y
+la lista de mencionables de otro, se podría mencionar a gente que no lee ese
+hilo.
+
+**La tabla es NUESTRA**: `team_chat_messages`, con `CREATE TABLE IF NOT EXISTS`
+y sin clave foránea, como `task_comments`, `flows` y `tickets_de_soporte`. El
+nombre del autor se **copia dentro**, para que el hilo siga diciendo quién
+escribió aunque esa persona salga del equipo.
+
+**La regla, y es la que sostiene la mención:**
+
+> **La lista de gente manda, no el texto.** Una mención es `@` seguido del
+> nombre —o del correo— de alguien del equipo de ESA cuenta; lo que no case con
+> nadie es una arroba, no una mención. Sin eso, «escríbele a hola@verzay.com»
+> le saltaría la ventana que interrumpe a quien no toca, y avisar de más es
+> exactamente lo que enseña a ignorar los avisos.
+
+Y se decide **en el servidor** (`extraerMenciones`, puro y probado). Lo que
+diga el navegador sobre a quién mencionó no se da por bueno: sería una lista de
+destinatarios que llega de fuera.
+
+### El aviso es el MISMO, y por eso `task_alerts` admite no tener tarea
+
+Un aviso más, en otro sitio y con otra forma de despacharse, se aprende a
+ignorar — que es justo el fallo del que viene la ventana que interrumpe. Así
+que una mención usa **la misma tabla, la misma ventana y la misma campanita**
+que un comentario de tarea: `tipo: "mencion"`.
+
+Lo único que lo distingue es que **`taskId` va en `null`**, y de ahí sale que
+el clic lleve a `/chat-equipo` en vez de a un tablero (`aDondeLleva`).
+
+Tres cosas que hay que mantener:
+
+1. **La columna se hizo opcional con `ALTER TABLE … ALTER COLUMN … DROP NOT
+   NULL`**, no reescribiendo el `CREATE`: la tabla ya existe en producción y un
+   `CREATE TABLE IF NOT EXISTS` no toca una que ya está. `DROP NOT NULL` no se
+   queja si ya está quitado, así que se puede repetir en cada arranque.
+   Comprobado contra Postgres con una fila vieja dentro: sigue intacta.
+2. **El punto del tablero no se entera**, y es lo correcto: esa consulta acota
+   con `taskId IN (…)` y un `NULL` no entra en un `IN`. Comprobado.
+3. **La llave de deduplicación de `crearLosAvisos` es `taskId ?? "chat"`.** Sin
+   eso, todos los avisos del chat compartirían la llave `null` y una segunda
+   mención a otra persona en el mismo envío se perdería.
+
+### Y la pantalla no pinta pestañas
+
+La barra la pone **el módulo**, desde el layout (`PanelAwareTabNav` con sus
+`moduleItems`). Pintándola también en la pantalla saldrían dos, una debajo de
+otra, y la de la pantalla no sabría nada de los permisos de cada persona. La
+ruta entra en `navigationRoutes` —sin eso no se puede elegir en «Editar
+módulo», por mucho que la página exista— y **no se monta en ningún módulo**: se
+asigna a mano.
+
+Dos cosas más del hilo:
+
+- **El reloj responde.** Un `setInterval` montado una sola vez, de 5 s, que lee
+  por referencia. Aquí no hay tiempo real que lo adelante, así que ese número es
+  lo único que trae los mensajes de los demás. Y su `catch` **escribe**: un
+  refresco que falla en silencio no se nota como un error, se nota como un chat
+  que no trae nada.
+- **Se piden los ÚLTIMOS, no los primeros.** `ORDER BY "creadoEn" DESC LIMIT n`
+  y se le da la vuelta al pintar. Pidiéndolos `ASC`, el tope devolvería la
+  conversación de hace un año.
+
+Y quien entra a una cuenta ajena con «Ingresar» ve **el hilo de esa cuenta**:
+sale gratis de `currentUser()`, que ya resuelve ese caso (#756).
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

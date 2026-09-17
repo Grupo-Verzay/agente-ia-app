@@ -100,6 +100,15 @@ function asegurarLasTablas(): Promise<void> {
       CREATE INDEX IF NOT EXISTS "task_alerts_tarea_idx"
       ON "task_alerts" ("taskId", "destinatarioId")
     `;
+    // El chat del equipo usa esta misma tabla y NO cuelga de ninguna tarea, asi
+    // que la columna deja de ser obligatoria. Va con `ALTER` y no reescribiendo
+    // el `CREATE`: la tabla ya existe en produccion y un
+    // `CREATE TABLE IF NOT EXISTS` no toca una que ya esta — es el fallo que se
+    // comete solo al cambiarle algo a una tabla de la App ya desplegada.
+    // `DROP NOT NULL` no se queja si ya esta quitado, asi que se puede repetir.
+    await db.$executeRaw`
+      ALTER TABLE "task_alerts" ALTER COLUMN "taskId" DROP NOT NULL
+    `;
   })().catch((error) => {
     tablasListas = null;
     throw error;
@@ -210,7 +219,8 @@ export async function quienesHanComentado(taskId: number): Promise<string[]> {
 
 export type AvisoPorGuardar = {
   id: string;
-  taskId: number;
+  /** `null` en los del chat de equipo, que no cuelgan de ninguna tarea. */
+  taskId: number | null;
   projectId: number | null;
   ownerId: string;
   destinatarioId: string;
@@ -233,7 +243,9 @@ export async function crearLosAvisos(avisos: AvisoPorGuardar[]): Promise<number>
   const vistos = new Set<string>();
   const pendientes = avisos.filter((a) => {
     if (!a.destinatarioId || a.destinatarioId === a.actorId) return false;
-    const llave = `${a.taskId}::${a.destinatarioId}`;
+    // Sin tarea —el chat del equipo— la llave es el propio hilo: un mensaje
+    // que menciona a la misma persona dos veces sigue siendo un aviso.
+    const llave = `${a.taskId ?? "chat"}::${a.destinatarioId}`;
     if (vistos.has(llave)) return false;
     vistos.add(llave);
     return true;
@@ -268,7 +280,7 @@ export async function crearLosAvisos(avisos: AvisoPorGuardar[]): Promise<number>
 
 function aAviso(f: {
   id: string;
-  taskId: number;
+  taskId: number | null;
   projectId: number | null;
   tipo: string;
   titulo: string;
@@ -280,7 +292,7 @@ function aAviso(f: {
 }): AvisoDeTarea {
   return {
     id: f.id,
-    taskId: Number(f.taskId),
+    taskId: f.taskId === null ? null : Number(f.taskId),
     projectId: f.projectId === null ? null : Number(f.projectId),
     tipo: esTipoDeAviso(f.tipo) ? f.tipo : "comentario",
     titulo: f.titulo,
