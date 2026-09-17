@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth"
-import { isAdminLike, isReseller } from "@/lib/rbac"
+import { isReseller } from "@/lib/rbac"
 import { cuentaQueManda } from "@/lib/cuenta-que-manda"
+import { puedeVerLaAnaliticaDeLaCasa } from "@/lib/analitica-de-la-casa"
 import AccessDenied from "@/app/AccessDenied"
 import {
   getAnalyticsDeMiCartera,
@@ -40,7 +41,7 @@ const AnalyticsPage = async () => {
   // personal, que está vacía, y le salía «Acceso Denegado».
   const cuenta = await cuentaQueManda(user)
 
-  if (!isAdminLike(cuenta.role)) {
+  if (!(await puedeVerLaAnaliticaDeLaCasa(user))) {
     // Un reseller ya tiene su cartera por otro camino (sus clientes asignados);
     // el resto del equipo, por `advisor_clients`.
     const mios = isReseller(cuenta.role)
@@ -50,9 +51,11 @@ const AnalyticsPage = async () => {
     return <ResellerAnalytics data={mios.data} />
   }
 
-  // `leerLaVigilancia` devuelve `null` a quien no sea superadministrador, así
+  // Las tres consultas internas devuelven `null` a quien no pueda verlas, así
   // que el bloque ni se pinta. La puerta está en la consulta y no aquí: una
-  // pantalla no puede abrir más de lo que la consulta deja.
+  // pantalla no puede abrir más de lo que la consulta deja. Y las cuatro
+  // preguntan lo MISMO que el `if` de arriba —`puedeVerLaAnaliticaDeLaCasa`—,
+  // que es lo que evita que esta pantalla vuelva a salir a trozos.
   const [result, vigilancia, actividad, renovacion] = await Promise.all([
     getVerzayPlatformAnalytics(),
     leerLaVigilancia(),

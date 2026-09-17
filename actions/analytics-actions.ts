@@ -2,9 +2,9 @@
 
 import { db } from "@/lib/db"
 import { currentUser } from "@/lib/auth"
-import { isAdminLike } from "@/lib/rbac"
 import { clientesDelAsesor } from "@/lib/clientes-del-asesor"
 import { cuentaQueManda } from "@/lib/cuenta-que-manda"
+import { puedeVerLaAnaliticaDeLaCasa } from "@/lib/analitica-de-la-casa"
 import { BillingStatus, Plan, Prisma, ServiceAccessStatus } from "@prisma/client"
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────
@@ -329,11 +329,12 @@ export async function getVerzayPlatformAnalytics(): Promise<{
   const user = await currentUser()
   if (!user) return { success: false, message: "No autorizado" }
 
-  // Las de plataforma las ve quien manda en la plataforma, y el administrador
-  // de esa cuenta con ella: actúa por ella. Preguntando por SU rol —`user`—
-  // esta pantalla le contestaba «No se pudieron cargar las estadísticas».
-  const cuenta = await cuentaQueManda(user)
-  if (!isAdminLike(cuenta.role)) {
+  // Las de plataforma las ven las cuentas de la CASA, y la pregunta se hace en
+  // un solo sitio: `puedeVerLaAnaliticaDeLaCasa` (`lib/analitica-de-la-casa.ts`),
+  // la misma que usan la página y las tres tarjetas internas. Con la condición
+  // escrita aquí y otra distinta en cada tarjeta —que es como estaba—, la
+  // pantalla y sus datos discrepaban y salía a trozos.
+  if (!(await puedeVerLaAnaliticaDeLaCasa(user))) {
     return { success: false, message: "No autorizado" }
   }
 

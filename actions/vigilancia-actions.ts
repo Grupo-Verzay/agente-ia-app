@@ -2,8 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { isSuperAdmin } from "@/lib/rbac";
-import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { puedeVerLaAnaliticaDeLaCasa } from "@/lib/analitica-de-la-casa";
 import { leerLosDiasVigilados, type DiaVigilado } from "@/lib/vigilancia-de-chats";
 import { juzgarElDia, redactarElAviso } from "@/lib/vigilancia-veredicto";
 import {
@@ -27,26 +26,27 @@ import { DIAS_QUE_SE_MIRAN, type VistaDeLaVigilancia } from "@/lib/vigilancia-vi
  * bloque o no es cosa de la pantalla; **que los datos salgan es cosa de esto**.
  * Es la misma regla de siempre: quien decide es la consulta, no la pantalla.
  *
- * ## Y «superadministrador» es la CUENTA, no la persona
+ * ## Y quien la ve lo decide UNA funcion, la misma que la pagina
  *
- * Esto preguntaba por `user.role`, o sea por la persona. El administrador de la
- * cuenta de la casa se creo con rol `user`, asi que abria Analiticas —la pagina
- * si pregunta por la cuenta— veia la plataforma entera... y este bloque no.
- * Desde fuera: dos pantallas iguales lado a lado y en una falta un recuadro,
- * sin ningun aviso que lo explique.
+ * Esto preguntaba por `user.role`, o sea por la persona; luego por
+ * `cuentaQueManda(...)` con `isSuperAdmin`, que era su propia condicion, y por
+ * eso una cuenta ADMINISTRADORA abria Analiticas —la pagina pide `isAdminLike`—
+ * y veia la pantalla sin este recuadro. Dos formulas para la misma pantalla.
  *
- * Se pregunta por `cuentaQueManda`, como el resto del panel. Eso **no** abre el
- * bloque a cualquier administrador: el de una cuenta de cliente sigue sin ver
- * nada, porque la cuenta por la que actua no es `super_admin`. Y el WhatsApp
- * sigue saliendo solo hacia la cuenta de superadministrador: eso se decide mas
- * abajo, en `elSuperAdministrador`, y no se toca.
+ * Ahora las dos preguntan lo mismo, `puedeVerLaAnaliticaDeLaCasa`
+ * (`lib/analitica-de-la-casa.ts`): las cuentas de la casa —administradora y
+ * superadministradora— ven la Analitica completa; `user`, `affiliate` y
+ * `reseller` siguen fuera, con su cartera por otro camino.
+ *
+ * Y el WhatsApp sigue saliendo solo hacia la cuenta de superadministrador: eso
+ * se decide mas abajo, en `elSuperAdministrador`, y es otra pregunta —a quien
+ * se le avisa— que no se toca.
  */
 
 export async function leerLaVigilancia(): Promise<VistaDeLaVigilancia | null> {
   const user = await currentUser();
   if (!user?.id) return null;
-  const cuenta = await cuentaQueManda(user);
-  if (!isSuperAdmin(cuenta.role)) return null;
+  if (!(await puedeVerLaAnaliticaDeLaCasa(user))) return null;
 
   const dias = await leerLosDiasVigilados(DIAS_QUE_SE_MIRAN);
   const nombres = await nombresDeLasCuentas(dias.map((d) => d.userId));

@@ -19,7 +19,8 @@ import {
  * viene a consultar DESPUES de ese aviso, asi que no necesita ir primero.
  *
  * La puerta NO esta aqui. `leerLaVigilancia` devuelve `null` a quien no sea
- * superadministrador, asi que este componente ni se pinta; enseñar el bloque es
+ * pueda verla (`puedeVerLaAnaliticaDeLaCasa`), asi que este componente ni se
+ * pinta; enseñar el bloque es
  * cosa de la pantalla, **que los datos salgan es cosa de la consulta**.
  */
 export function VigilanciaDeChats({ vista }: { vista: VistaDeLaVigilancia }) {

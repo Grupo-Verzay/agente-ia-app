@@ -2,8 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { isSuperAdmin } from "@/lib/rbac";
-import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { puedeVerLaAnaliticaDeLaCasa } from "@/lib/analitica-de-la-casa";
 import {
     DIAS_DE_ACTIVIDAD,
     type LineaConActividad,
@@ -48,19 +47,19 @@ import {
  * grupo demuestra que la línea está viva igual que cualquier otro, y filtrarlo
  * pintaría de rojo una línea que funciona.
  *
- * ## Es solo para el superadministrador
+ * ## Es para las cuentas de la CASA
  *
  * Como la vigilancia de Chats: la puerta está **aquí** y no en la pantalla.
- * Devuelve `null` a quien no sea, así que el bloque ni se pinta. Y
- * «superadministrador» es la CUENTA por la que se actúa, no la persona —el
- * equipo de la casa se crea con rol `user`—, así que se pregunta por
- * `cuentaQueManda`, igual que el resto del panel.
+ * Devuelve `null` a quien no la pueda ver, así que el bloque ni se pinta. Quién
+ * la puede ver lo contesta `puedeVerLaAnaliticaDeLaCasa`
+ * (`lib/analitica-de-la-casa.ts`), **la misma función que decide la página**:
+ * una cuenta administradora es de la casa y ve la Analítica completa; `user`,
+ * `affiliate` y `reseller` no.
  */
 export async function leerLaActividadDeInstancias(): Promise<VistaDeLaActividad | null> {
     const user = await currentUser();
     if (!user?.id) return null;
-    const cuenta = await cuentaQueManda(user);
-    if (!isSuperAdmin(cuenta.role)) return null;
+    if (!(await puedeVerLaAnaliticaDeLaCasa(user))) return null;
 
     const empezo = Date.now();
     try {

@@ -2,8 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { isSuperAdmin } from "@/lib/rbac";
-import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { puedeVerLaAnaliticaDeLaCasa } from "@/lib/analitica-de-la-casa";
 import {
     claveDeMes,
     esCohorteParcial,
@@ -160,15 +159,15 @@ export async function anotarLaCohorteDelMes(): Promise<{
 /**
  * Lo que enseña la tarjeta: el último mes CERRADO.
  *
- * Solo para el superadministrador, y la puerta está **aquí** y no en la
- * pantalla: devuelve `null` a quien no sea y entonces el bloque ni se pinta.
- * Y «superadministrador» es la CUENTA por la que se actúa, no la persona.
+ * Para las cuentas de la CASA, y la puerta está **aquí** y no en la pantalla:
+ * devuelve `null` a quien no la pueda ver y entonces el bloque ni se pinta.
+ * Quién puede lo contesta `puedeVerLaAnaliticaDeLaCasa`, la misma función que
+ * decide la página (`lib/analitica-de-la-casa.ts`).
  */
 export async function leerLaRenovacionMensual(): Promise<VistaDeLaRenovacion | null> {
     const user = await currentUser();
     if (!user?.id) return null;
-    const cuenta = await cuentaQueManda(user);
-    if (!isSuperAdmin(cuenta.role)) return null;
+    if (!(await puedeVerLaAnaliticaDeLaCasa(user))) return null;
 
     const mes = ultimoMesCerrado(new Date());
 
