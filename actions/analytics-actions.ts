@@ -69,7 +69,6 @@ export interface VerzayAnalyticsData {
   totalUsers: number
   activeUsers: number
   suspendedUsers: number
-  unpaidUsers: number
   activationRate: number
   totalResellers: number
   planDistribution: PlanDistItem[]
@@ -344,12 +343,14 @@ export async function getVerzayPlatformAnalytics(): Promise<{
   const sevenDaysFromNow = new Date()
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
 
-  const [totalUsers, activeUsers, suspendedUsers, unpaidUsers, totalResellers, usersByPlan] =
+  // El conteo de morosos (`billingStatus: UNPAID`) se fue con el aviso que
+  // alimentaba: era su único consumidor. Ese dato vive en Instancias, que es
+  // donde se actúa sobre él.
+  const [totalUsers, activeUsers, suspendedUsers, totalResellers, usersByPlan] =
     await Promise.all([
       db.user.count({ where: { role: "user" } }),
       db.user.count({ where: { role: "user", billing: { accessStatus: ServiceAccessStatus.ACTIVE } } }),
       db.user.count({ where: { role: "user", billing: { accessStatus: ServiceAccessStatus.SUSPENDED } } }),
-      db.user.count({ where: { role: "user", billing: { billingStatus: BillingStatus.UNPAID } } }),
       db.user.count({ where: { role: "reseller" } }),
       db.user.groupBy({ by: ["plan"], where: { role: "user" }, _count: { _all: true } }),
     ])
@@ -512,7 +513,6 @@ export async function getVerzayPlatformAnalytics(): Promise<{
       totalUsers,
       activeUsers,
       suspendedUsers,
-      unpaidUsers,
       activationRate,
       totalResellers,
       planDistribution,
