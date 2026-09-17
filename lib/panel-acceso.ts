@@ -3,10 +3,13 @@ import "server-only";
 import { db } from "@/lib/db";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { parseItemIds } from "@/lib/permisos";
-import { rutasDePanelParaElMenu } from "@/lib/sidebar-modules";
+import { elPanelQueLeToca, rutasDePanelParaElMenu } from "@/lib/sidebar-modules";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 
 type Persona = {
     role: string;
+    /** El rol de la persona real (ver `lib/super-admin-de-verdad.ts`). */
+    rolDeLaPersona?: string | null;
     ownerId?: string | null;
     advisorRole?: string | null;
     deniedModuleItems?: string | null;
@@ -39,15 +42,22 @@ export async function apartadosDelPanel(persona: Persona) {
         // cada consulta los devuelve en otro orden.
         include: { moduleItems: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
     });
-    const panelModule = candidatas
-        .map((route) => panelesExistentes.find((m) => m.route === route))
-        .find(Boolean);
+    // La misma regla que el layout, el menu y Equipo (`elPanelQueLeToca`).
+    const panelModule = elPanelQueLeToca(persona.role, panelesExistentes, {
+        paraElMenu: true,
+    });
     if (!panelModule) return null;
 
     const concedidos = parseItemIds(persona.grantedModuleItems);
     const negados = parseItemIds(persona.deniedModuleItems);
-    const esAgente = !!persona.ownerId && persona.advisorRole !== "administrador";
-    const mandaLoConcedido = esAgente || !isAdminOrReseller(persona.role);
+    // El superadministrador no es el `agente` de nadie, aunque haya entrado a
+    // una cuenta por el conmutador: sin esto, los apartados «Solo Admin» le
+    // quedaban cerrados dentro de las cuentas de sus propios clientes.
+    const mandaDeVerdad = esSuperAdminDeVerdad(persona);
+    const esAgente =
+        !mandaDeVerdad && !!persona.ownerId && persona.advisorRole !== "administrador";
+    const mandaLoConcedido =
+        !mandaDeVerdad && (esAgente || !isAdminOrReseller(persona.role));
 
     const items = (panelModule.moduleItems ?? []).filter((item) =>
         mandaLoConcedido && panelModule.adminOnly

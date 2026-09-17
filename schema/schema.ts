@@ -26,12 +26,17 @@ export type UserWithApiKeys = CurrentUser & {
  * `currentUser()` -no hay sesion: entra el cliente final-, hace su propia
  * consulta y SI trae los servicios, que son sobre los que el cliente elige.
  */
-export type UserConServicios = Omit<UserWithApiKeys, 'effectiveId' | 'sessionUserId'> & {
+export type UserConServicios = Omit<
+    UserWithApiKeys,
+    'effectiveId' | 'sessionUserId' | 'rolDeLaPersona'
+> & {
     services: Service[];
-    // No hay sesion en esa pagina, asi que no hay "usuario efectivo" ni
-    // "usuario de la sesion": entra el cliente final, sin cuenta.
+    // No hay sesion en esa pagina, asi que no hay "usuario efectivo", ni
+    // "usuario de la sesion", ni rol de la persona: entra el cliente final,
+    // sin cuenta. Los tres van juntos por el mismo motivo.
     effectiveId?: string;
     sessionUserId?: string;
+    rolDeLaPersona?: string | null;
 };
 
 export interface ScheduleInterface {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
-import { isAdminLike } from '@/lib/rbac';
+import { esAdminDeVerdad } from '@/lib/super-admin-de-verdad';
 import { getPersistedMessages } from '@/lib/chat-persistence';
 
 /**
@@ -43,23 +43,10 @@ type FilaDeGrupo = {
   sessionId: number | null;
 };
 
-/**
- * ¿Es admin la PERSONA que está sentada delante? `currentUser()` devuelve la
- * fila de la cuenta en la que se está metido, así que con la cookie de
- * «Ingresar» puesta el `role` es el del cliente. Misma regla que la ruta de
- * duplicados.
- */
-async function esAdminDeVerdad(user: { role?: string | null; sessionUserId?: string | null; id: string }): Promise<boolean> {
-  if (isAdminLike(user.role)) return true;
-  const real = (user.sessionUserId ?? '').trim();
-  if (!real || real === user.id) return false;
-  const fila = await db.user.findUnique({ where: { id: real }, select: { role: true } }).catch(() => null);
-  return isAdminLike(fila?.role);
-}
 
 export async function GET(request: Request) {
   const user = await currentUser().catch(() => null);
-  if (!user?.id || !(await esAdminDeVerdad(user))) {
+  if (!user?.id || !(esAdminDeVerdad(user))) {
     return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
   }
 

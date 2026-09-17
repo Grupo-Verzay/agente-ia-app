@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { currentUser } from '@/lib/auth'
+import { esAdminDeVerdad } from '@/lib/super-admin-de-verdad'
 import { isAdmin } from '@/lib/rbac'
 import {
   resolveSystemNotificationInstanceName,
@@ -150,9 +151,30 @@ export async function getDefaultMessages() {
 }
 
 /**
- * Lista las instancias Evolution disponibles para el usuario actual,
- * usando sus credenciales (apiKey) guardadas. Sirve para el selector de
- * instancia en lugar de escribir el nombre a mano.
+ * Las lineas entre las que se puede elegir: **de NUESTRA tabla `Instancias`**.
+ *
+ * # Por que no se le pregunta a Evolution
+ *
+ * Antes esto llamaba a `fetchInstances` con la `ApiKey` de quien mirara, asi
+ * que la lista era «lo que devuelva ESE servidor Evolution». Con el rol de
+ * superadministrador viviendo en una fila distinta —otra `apiKey`, otro
+ * servidor— el desplegable paso de ~30 lineas a **7**, y la linea elegida para
+ * el aviso (`VERZAY_NOTIFICACIONES`) salia con punto gris y sin aparecer en la
+ * lista: no es que estuviera desconectada, es que esa consulta no sabia nada de
+ * ella. Y la prueba de envio rebotaba con «No tienes acceso a la instancia X»,
+ * porque validaba contra esa misma lista corta.
+ *
+ * Es la regla que ya rige en «Actividad de instancias»: **el universo sale de
+ * `Instancias`, nunca del proveedor.** Una linea que no conteste sigue estando
+ * en la tabla, y tiene que poder elegirse; el estado es un adorno, no el censo.
+ *
+ * # El estado se cruza APARTE, y no puede quitar filas
+ *
+ * La conexion sigue viniendo de Evolution, pero se pide a **los servidores de
+ * los dueños de esas lineas**, una vez por servidor distinto y en paralelo. Si
+ * uno no contesta, sus lineas salen igual con `unknown`: el punto queda gris y
+ * la linea se puede seguir eligiendo. Perder el color es un detalle; perder la
+ * linea era el fallo.
  */
 export async function getAvailableInstances(): Promise<{
   success: boolean
@@ -162,92 +184,100 @@ export async function getAvailableInstances(): Promise<{
   const user = await currentUser()
   if (!user) return { success: false, message: 'No autenticado', data: [] }
 
-  const dbUser = await db.user.findUnique({
-    where: { id: user.id },
-    select: { apiKey: { select: { url: true, key: true } } },
-  })
-
-  if (!dbUser?.apiKey?.url || !dbUser.apiKey.key) {
-    return { success: false, message: 'No tienes credenciales Evolution configuradas.', data: [] }
-  }
-
-  const baseUrl = normalizeBaseUrl(dbUser.apiKey.url)
-
   try {
-    const res = await fetch(`${baseUrl}/instance/fetchInstances`, {
-      method: 'GET',
-      headers: { apikey: dbUser.apiKey.key, Accept: 'application/json' },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) {
-      return { success: false, message: `Evolution respondió ${res.status}`, data: [] }
-    }
-    const raw = await res.json()
-    const list = Array.isArray(raw) ? raw : []
-    let data = list
-      .map((i: any) => ({
-        name: i?.name ?? i?.instance?.instanceName ?? '',
-        status: i?.connectionStatus ?? i?.instance?.status ?? 'unknown',
-      }))
-      .filter((i: { name: string }) => !!i.name)
+    // Quien manda en la plataforma las ve todas; un reseller, solo las suyas.
+    // Se pregunta por la PERSONA: con el conmutador de cuentas, `user.role` es
+    // el de la cuenta en la que se esta metido, no el de quien mira.
+    const mandaEnTodo = esAdminDeVerdad(user)
 
-    let ownerIds: Set<string> | null = null
-
-    // Evolution devuelve TODAS las instancias del servidor. Los admins ven
-    // todas; un reseller solo debe ver SUS instancias (su cuenta principal +
-    // las de sus clientes), no las de toda la plataforma.
-    if (user.role !== 'admin' && user.role !== 'super_admin') {
+    let ownerIds: string[] | null = null
+    if (!mandaEnTodo) {
       const [demoClients, assignments] = await Promise.all([
         db.user.findMany({ where: { demoResellerId: user.id }, select: { id: true } }),
         db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
       ])
-      // En una variable propia y no sobre `ownerIds`: al ser un `let` que
-      // empieza en null, TypeScript no daba por hecho que aqui ya tenia valor.
       const mios = new Set<string>([user.id])
       demoClients.forEach((c) => mios.add(c.id))
       assignments.forEach((a) => { if (a.userId) mios.add(a.userId) })
-      ownerIds = mios
-
-      const myInstancias = await db.instancia.findMany({
-        where: { userId: { in: Array.from(ownerIds) } },
-        select: { instanceName: true },
-      })
-      const allowed = new Set(myInstancias.map((i) => i.instanceName))
-      data = data.filter((i: { name: string }) => allowed.has(i.name))
+      ownerIds = Array.from(mios)
     }
 
-    const metaInstances = await db.instancia.findMany({
-      where: {
-        ...(ownerIds ? { userId: { in: Array.from(ownerIds) } } : {}),
-        instanceType: { equals: 'Meta', mode: 'insensitive' },
-        OR: [
-          { metaChannel: null },
-          { metaChannel: { equals: 'whatsapp', mode: 'insensitive' } },
-        ],
-      },
+    const lineas = await db.instancia.findMany({
+      where: ownerIds ? { userId: { in: ownerIds } } : {},
       select: {
         instanceName: true,
+        instanceType: true,
         metaAccessToken: true,
         metaPhoneNumberId: true,
+        user: { select: { apiKey: { select: { url: true, key: true } } } },
       },
     })
 
-    const existingNames = new Set(data.map((item) => item.name))
-    for (const instance of metaInstances) {
-      const name = instance.instanceName?.trim()
-      if (!name || existingNames.has(name)) continue
-      existingNames.add(name)
-      data.push({
-        name,
-        status: instance.metaAccessToken && instance.metaPhoneNumberId ? 'open' : 'unknown',
+    // Un servidor por cada par (url, key) distinto, no uno por linea: con 30
+    // lineas de la misma cuenta eso serian 30 consultas identicas.
+    const servidores = new Map<string, { url: string; key: string }>()
+    for (const l of lineas) {
+      const cred = l.user?.apiKey
+      if (!cred?.url || !cred.key) continue
+      servidores.set(`${cred.url}::${cred.key}`, { url: cred.url, key: cred.key })
+    }
+
+    const estados = new Map<string, string>()
+    await Promise.allSettled(
+      Array.from(servidores.values()).map(async (cred) => {
+        const base = normalizeBaseUrl(cred.url)
+        if (!base) return
+        const res = await fetch(`${base}/instance/fetchInstances`, {
+          method: 'GET',
+          headers: { apikey: cred.key, Accept: 'application/json' },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(8000),
+        })
+        if (!res.ok) throw new Error(`Evolution respondio ${res.status}`)
+        const raw = await res.json().catch(() => null)
+        for (const i of Array.isArray(raw) ? raw : []) {
+          const nombre = (i?.name ?? i?.instance?.instanceName ?? '').trim()
+          if (!nombre) continue
+          estados.set(nombre, i?.connectionStatus ?? i?.instance?.status ?? 'unknown')
+        }
+      }),
+    )
+
+    const data: { name: string; status: string }[] = []
+    const vistos = new Set<string>()
+    for (const l of lineas) {
+      const name = l.instanceName?.trim()
+      if (!name || vistos.has(name)) continue
+      vistos.add(name)
+
+      // Los canales de Meta no pasan por Evolution: su «conectada» es tener las
+      // credenciales puestas, que es lo que ya hacia esto antes.
+      const esMeta = (l.instanceType ?? '').toLowerCase() === 'meta'
+      const status = esMeta
+        ? l.metaAccessToken && l.metaPhoneNumberId ? 'open' : 'unknown'
+        : estados.get(name) ?? 'unknown'
+
+      data.push({ name, status })
+    }
+
+    data.sort((a, b) => a.name.localeCompare(b.name))
+
+    // Cuantas se quedaron sin estado: si son todas, Evolution no contesto y
+    // conviene saberlo antes de concluir que «no hay ninguna conectada».
+    const sinEstado = data.filter((d) => d.status === 'unknown').length
+    if (sinEstado > 0) {
+      console.info('[instancias] lineas sin estado de conexion', {
+        sinEstado,
+        total: data.length,
+        servidores: servidores.size,
       })
     }
 
     return { success: true, message: 'Instancias obtenidas', data }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    return { success: false, message: `Error consultando Evolution: ${message}`, data: [] }
+    console.warn('[instancias] no se pudieron listar las lineas', { message })
+    return { success: false, message: `Error listando instancias: ${message}`, data: [] }
   }
 }
 

@@ -56,6 +56,46 @@ export function rutasDePanelParaElMenu(role?: string | null): string[] {
     return [...PANEL_ROUTES, CLIENT_PANEL_ROUTE];
 }
 
+/**
+ * De los paneles que existen, CUAL le toca a este rol. Uno solo.
+ *
+ * # Por que vive aqui y no en cuatro sitios
+ *
+ * Habia cuatro resolutores de esta misma pregunta, y **no coincidian**:
+ *
+ * | Donde | Sobre que | Con que rol | Con que lista |
+ * | --- | --- | --- | --- |
+ * | el layout (`suPanelId`) | modulos YA filtrados | el de `ownerId` | `rutasDePanelPara` |
+ * | `panelDeLaCuenta` (Equipo) | filas de `Module` sin filtrar | `owner.role` | `rutasDePanelPara` |
+ * | `getVisibleSidebarModules` | modulos filtrados | `user.role` | `rutasDePanelParaElMenu` |
+ * | `apartadosDelPanel` | filas de `Module` | `persona.role` | `rutasDePanelParaElMenu` |
+ *
+ * Tres origenes de rol y dos listas de rutas. Discrepaban justo cuando el
+ * modulo panel se caia por un filtro: entonces el dialogo de Permisos decia
+ * «este apartado esta activo» y el guard del layout cerraba la ruta. De ahi
+ * salia «Seccion no habilitada» con los 42 permisos puestos.
+ *
+ * Ahora la REGLA es una: se recorren las rutas candidatas **en orden de
+ * preferencia** y se toma la primera que exista en la lista que se pase. Lo
+ * unico que cambia entre los cuatro es esa lista —unos miran los modulos ya
+ * filtrados, otros las filas de la base— y eso es legitimo: son preguntas
+ * distintas sobre el mismo criterio.
+ */
+export function elPanelQueLeToca<T extends { route: string }>(
+    role: string | null | undefined,
+    modulos: readonly T[],
+    opciones?: { paraElMenu?: boolean },
+): T | null {
+    const candidatas = opciones?.paraElMenu
+        ? rutasDePanelParaElMenu(role)
+        : rutasDePanelPara(role);
+    for (const ruta of candidatas) {
+        const encontrado = modulos.find((m) => m.route === ruta);
+        if (encontrado) return encontrado;
+    }
+    return null;
+}
+
 /** Si una ruta es una de las variantes de "Panel". En el menu va solo una. */
 export function esVarianteDePanel(route: string): boolean {
     return (
@@ -97,10 +137,11 @@ export function getVisibleSidebarModules(
     // del equipo sigue ahí es porque puede entrar —aunque sea un agente al que
     // solo se le concedieron dos apartados—. Si no lo tiene, le toca el de
     // cliente.
-    const candidatosDePanel = rutasDePanelParaElMenu(user.role);
-    const panelDelRol = candidatosDePanel
-        .map((route) => modules.find((m) => m.showInSidebar && m.route === route))
-        .find(Boolean);
+    const panelDelRol = elPanelQueLeToca(
+        user.role,
+        modules.filter((m) => m.showInSidebar),
+        { paraElMenu: true },
+    );
 
     return modules
         .filter((link) => link.showInSidebar)

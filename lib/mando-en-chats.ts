@@ -1,5 +1,7 @@
 import "server-only";
 
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+
 /**
  * Quién manda dentro del equipo de una cuenta, en Chats.
  *
@@ -23,10 +25,17 @@ import "server-only";
  */
 export function puedeBorrarEnChats(persona: {
     id?: string | null;
+    role?: string | null;
+    rolDeLaPersona?: string | null;
     ownerId?: string | null;
     advisorRole?: string | null;
 } | null | undefined): boolean {
     if (!persona?.id) return false;
+
+    // Quien manda en la plataforma no se queda fuera por entrar a una cuenta
+    // ajena. Va antes de la condicion de `advisorRole`, que es la que lo
+    // dejaba fuera.
+    if (esSuperAdminDeVerdad(persona)) return true;
 
     // `ownerId` puesto = se está actuando dentro del equipo de una cuenta. Sin
     // él se actúa como la cuenta misma, y entonces sí.

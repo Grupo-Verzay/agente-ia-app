@@ -3057,6 +3057,91 @@ Y el cierre del formulario va por **un solo camino** (`cerrar()`), que borra del
 bucket lo que quedó en el aire. Con tres salidas basta con olvidarse de una para
 que esa deje basura cada vez.
 
+## «Súper administrador» es la PERSONA, y pasa por encima de todo
+
+`currentUser()` devuelve la fila de la cuenta **efectiva**. Con el conmutador de
+cuentas vinculadas, o con la cookie de «Ingresar», esa fila es la de la cuenta
+en la que se está metido, así que **`user.role` deja de ser el tuyo**: un
+superadministrador dentro de una cuenta `admin` era, para las 48 puertas que
+preguntan por la cuenta, un `admin`; dentro de la de un cliente, un `user`.
+
+Y veinte ficheros más cierran por `advisorRole !== "administrador"`. De esos
+veinte, **ninguno eximía al superadministrador**. Desde fuera: la cuenta que
+administra la plataforma entera abría Panel › Notificaciones de una cuenta suya
+y le salía «Sección no habilitada», con los 42 permisos puestos.
+
+> **La regla, y es la que manda sobre las demás:** quien es superadministrador
+> de plataforma lo es **esté en la cuenta que esté**. Se pregunta con
+> `esSuperAdminDeVerdad(persona)` (`lib/super-admin-de-verdad.ts`), y va como
+> **salida temprana**, antes de cualquier condición de `advisorRole` o de
+> cuenta — detrás no sirve de nada, que es justo lo que pasaba.
+
+Está puesta en `workspace-roles`, `cuenta-que-configura`, `panel-acceso`,
+`mando-en-chats`, el `esAgente` del layout y las acciones de tickets.
+
+**No cuesta ni una consulta, y esa es la parte de diseño.** La primera forma de
+escribirla era la de `esAdminDeVerdad` —que vivía en dos rutas de `/api`— y ante
+un rol efectivo insuficiente iba a la base a leer el rol de `sessionUserId`. No
+hace falta ir: `resolverElUsuario` **ya lee la fila de la persona real** —la
+necesita para los permisos— y lo único que hacía era tirar su `role`. Ahora lo
+propaga en `rolDeLaPersona`, y con eso la regla es **pura y síncrona**.
+
+Que sea síncrona no es un detalle: `canManageWorkspace` y `puedeBorrarEnChats`
+**no son `async`** y tienen decenas de llamadores. Con una regla asíncrona había
+que volverlos `async` y arrastrar el cambio por medio repo.
+
+Tres cosas que hay que mantener:
+
+1. **Esto NO hereda el rol.** `user.role` sigue siendo el de la fila efectiva
+   para todo lo demás y `cuentaQueManda` sigue decidiendo el alcance por cuenta.
+   Lo único que dice esta regla es que quien manda en la plataforma sigue
+   mandando.
+2. **Se miran los DOS lados**, `role` y `rolDeLaPersona`. Una cuenta de
+   superadministrador a la que entra otro tiene su rol en `role`; un super admin
+   que entra en otra cuenta, solo en `rolDeLaPersona`. Preguntar por uno solo
+   deja fuera la mitad de los casos.
+3. **Tiene consecuencia, y se acepta a sabiendas**: al entrar a la cuenta de un
+   cliente con «Ingresar», el superadministrador ya no la ve *como la ve el
+   cliente*, sino entera. Es lo que se pidió; si algún día hace falta el otro
+   modo, es una condición aparte, no quitar esta.
+
+## Enseñar un panel y dejar pasar a su ruta son dos preguntas
+
+La misma pregunta —«¿cuál panel es el tuyo?»— estaba escrita **cuatro veces**,
+con **tres** orígenes de rol y **dos** listas de rutas: el layout (`suPanelId`),
+`panelDeLaCuenta` de Equipo, `getVisibleSidebarModules` y `apartadosDelPanel`.
+Discrepaban justo cuando el módulo panel se caía por un filtro, y entonces el
+diálogo de Permisos decía «activo» y el guard del layout cerraba la ruta.
+
+Ahora la regla es **una**, `elPanelQueLeToca` (`lib/sidebar-modules.ts`): recorre
+las rutas candidatas en orden de preferencia y devuelve la primera que exista en
+la lista que se le pase. Lo único que cambia entre los cuatro es esa lista —unos
+miran los módulos ya filtrados, otros las filas de `Module`—, y eso sí es
+legítimo: son preguntas distintas sobre el mismo criterio.
+
+Y la otra mitad, que es la que cerraba la puerta:
+
+> **Un panel ajeno se esconde del MENÚ, pero no cierra una ruta que los permisos
+> conceden.** En `rutasNegadas` había un `esPanelAjeno(m) ? false : …` que
+> cortaba **antes** de mirar `concedidos`/`negados`. `esPanelAjeno` sigue
+> filtrando `modules` —el menú—, que es para lo que sirve.
+
+## Una lista de líneas sale de `Instancias`, no de las credenciales de quien mira
+
+`getAvailableInstances` —el desplegable de «Línea que lo envía» de Panel ›
+Notificaciones— llamaba a `fetchInstances` con la `ApiKey` **de quien mirara**.
+Con el rol de superadministrador viviendo en otra fila —otra `apiKey`, otro
+servidor— el desplegable pasó de ~30 líneas a **7**, `VERZAY_NOTIFICACIONES`
+salía con punto gris y sin aparecer en la lista, y la prueba de envío rebotaba
+con «No tienes acceso a la instancia X» porque validaba contra esa lista corta.
+
+Es la misma regla que ya rige en *Actividad de instancias*: **el universo sale de
+`Instancias`, nunca del proveedor.** El estado de conexión se cruza **aparte**,
+preguntando una vez por cada par `(url, key)` distinto, en paralelo y
+best-effort. Una línea cuyo servidor no conteste **sale igual**, con `unknown`:
+el punto queda gris y se puede seguir eligiendo. Perder el color es un detalle;
+perder la línea era el fallo.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
