@@ -14,7 +14,14 @@ import { DatabaseBackup, Wrench } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ClientInterface } from "@/lib/types"
-import { ApiKey, Role } from "@prisma/client"
+import { ApiKey } from "@prisma/client"
+import {
+  NOMBRE_DEL_ROL,
+  esRolDePlataforma,
+  puedeCambiarElRol,
+  rolesQuePuedeOtorgar,
+  type RolDePlataforma,
+} from "@/lib/roles-que-puede-otorgar"
 import {
   Select,
   SelectContent,
@@ -99,6 +106,13 @@ interface Props {
   user: ClientInterface
   apikeys: ApiKey[]
   currentUserRol: string
+  /**
+   * Con qué rol reparte roles quien mira. Lo calcula el SERVIDOR
+   * (`rolConElQueReparte`) y es lo mismo que comprueba la acción al guardar:
+   * esconder una opción no cierra la petición directa, así que el desplegable
+   * es la fachada de esa puerta, no la puerta.
+   */
+  rolQueReparte: string
 }
 
 export const EditDialog = ({
@@ -108,15 +122,26 @@ export const EditDialog = ({
   user,
   apikeys,
   currentUserRol,
+  rolQueReparte,
 }: Props) => {
-  const ROLES = Object.values(Role);
-  const ROLE_LABELS: Record<Role, string> = {
-    user: 'Usuario',
-    affiliate: 'Afiliado',
-    reseller: 'Reseller',
-    admin: 'Administrador',
-    super_admin: 'Super administrador',
-  };
+  // Los roles que este puede poner, y si puede tocar el de ESTA cuenta. Lo
+  // segundo mira las dos puntas: con un cliente que ya tiene un rol igual o
+  // superior al suyo no hay cambio posible —ni siquiera hacia abajo, que sería
+  // degradar a quien manda—, así que el desplegable va apagado.
+  const otorgables = rolesQuePuedeOtorgar(rolQueReparte);
+  const puedeTocarElRol = puedeCambiarElRol(
+    rolQueReparte,
+    user.role,
+    otorgables.find((r) => r !== user.role) ?? user.role,
+  );
+  // El actual se ofrece siempre, para que el desplegable enseñe lo que la
+  // cuenta tiene hoy en vez de salir en blanco.
+  const ROLES = Array.from(
+    new Set<string>([
+      ...(esRolDePlataforma(user.role) ? [user.role] : []),
+      ...(puedeTocarElRol ? otorgables : []),
+    ]),
+  );
 
   const etiquetaDelCliente = user.company || user.name || user.email || 'este usuario';
 
@@ -275,7 +300,7 @@ export const EditDialog = ({
 
       case 'role':
         return (
-          <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
+          <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly || !puedeTocarElRol}>
             <SelectTrigger>
               <SelectValue placeholder={label ?? "Selecciona un rol"} />
             </SelectTrigger>
@@ -283,7 +308,7 @@ export const EditDialog = ({
               <SelectGroup>
                 {ROLES.map(role => (
                   <SelectItem key={role} value={role}>
-                    {ROLE_LABELS[role]}
+                    {NOMBRE_DEL_ROL[role as RolDePlataforma] ?? role}
                   </SelectItem>
                 ))}
               </SelectGroup>

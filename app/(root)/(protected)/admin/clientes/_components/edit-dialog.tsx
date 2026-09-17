@@ -11,7 +11,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ClientInterface } from "@/lib/types"
-import { ApiKey, Plan, Role } from "@prisma/client"
+import { ApiKey, Plan } from "@prisma/client"
+import {
+  NOMBRE_DEL_ROL,
+  esRolDePlataforma,
+  puedeCambiarElRol,
+  rolesQuePuedeOtorgar,
+  type RolDePlataforma,
+} from "@/lib/roles-que-puede-otorgar"
 import {
   Select,
   SelectContent,
@@ -38,6 +45,8 @@ interface Props {
   user: ClientInterface
   apikeys: ApiKey[]
   currentUserRol: string
+  /** Con qué rol reparte roles quien mira. Lo calcula el servidor. */
+  rolQueReparte: string
 }
 
 export const EditDialog = ({
@@ -47,15 +56,23 @@ export const EditDialog = ({
   user,
   apikeys,
   currentUserRol,
+  rolQueReparte,
 }: Props) => {
-  const ROLES = Object.values(Role);
-  const ROLE_LABELS: Record<Role, string> = {
-    user: 'Usuario',
-    affiliate: 'Afiliado',
-    reseller: 'Reseller',
-    admin: 'Administrador',
-    super_admin: 'Super administrador',
-  };
+  // Ver `panel/clientes/_components/edit-dialog.tsx`: la misma regla, la misma
+  // función. Quien decide es la acción de servidor; esto solo evita ofrecer lo
+  // que va a rechazar.
+  const otorgables = rolesQuePuedeOtorgar(rolQueReparte);
+  const puedeTocarElRol = puedeCambiarElRol(
+    rolQueReparte,
+    user.role,
+    otorgables.find((r) => r !== user.role) ?? user.role,
+  );
+  const ROLES = Array.from(
+    new Set<string>([
+      ...(esRolDePlataforma(user.role) ? [user.role] : []),
+      ...(puedeTocarElRol ? otorgables : []),
+    ]),
+  );
 
   const [tz, setTz] = useState<string>(user.timezone ?? "");
   const [enSi, setEnSi] = useState<boolean>(user.enabledSynthesizer ?? false);
@@ -197,7 +214,7 @@ export const EditDialog = ({
 
       case 'role':
         return (
-          <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
+          <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly || !puedeTocarElRol}>
             <SelectTrigger>
               <SelectValue placeholder={label ?? "Selecciona un rol"} />
             </SelectTrigger>
@@ -205,7 +222,7 @@ export const EditDialog = ({
               <SelectGroup>
                 {ROLES.map(role => (
                   <SelectItem key={role} value={role}>
-                    {ROLE_LABELS[role]}
+                    {NOMBRE_DEL_ROL[role as RolDePlataforma] ?? role}
                   </SelectItem>
                 ))}
               </SelectGroup>

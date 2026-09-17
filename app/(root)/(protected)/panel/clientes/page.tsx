@@ -13,7 +13,7 @@ export default async function ClientesPage({ searchParams }: { searchParams?: { 
     return <h1>{res.message}</h1>;
   }
 
-  const { users, apikeys, availableApikeys, currentUserRol, countries, allModules, resellerPools } = res.data;
+  const { users, apikeys, availableApikeys, currentUserRol, rolQueReparte, countries, allModules, resellerPools } = res.data;
 
   return (
     <ClientsManager
@@ -21,6 +21,7 @@ export default async function ClientesPage({ searchParams }: { searchParams?: { 
       apikeys={apikeys}
       availableApikeys={availableApikeys}
       currentUserRol={currentUserRol}
+      rolQueReparte={rolQueReparte}
       countries={countries}
       allModules={allModules}
       resellerPools={resellerPools}

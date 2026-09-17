@@ -5,6 +5,7 @@ import { getEnrichedClients } from "@/actions/userClientDataActions";
 import { obtenerApiKeys } from "@/actions/api-action";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { isAdminOrReseller } from "@/lib/rbac";
+import { rolConElQueReparte } from "@/lib/gestion-de-clientes";
 import { db } from "@/lib/db";
 import type { ClientInterface } from "@/lib/types";
 import type { ApiKey } from "@prisma/client";
@@ -16,6 +17,8 @@ type ClientsPageData = {
     apikeys: ApiKey[];
     availableApikeys: ApiKey[];
     currentUserRol: string;
+    /** Con qué rol reparte roles quien mira (ver el helper de Panel › Clientes). */
+    rolQueReparte: string;
     countries: Country[];
     allModules: ModuleWithItems[];
 };
@@ -28,6 +31,8 @@ export async function getClientsPageData(): Promise<
         const user = await currentUser();
         if (!user) return { success: false, message: "No autorizado." };
         if (!isAdminOrReseller(user.role)) return { success: false, message: "No autorizado." };
+
+        const rolQueReparte = await rolConElQueReparte(user);
 
         const usersPromise =
             user.role === "reseller"
@@ -64,6 +69,7 @@ export async function getClientsPageData(): Promise<
                 apikeys,
                 availableApikeys,
                 currentUserRol: user.role,
+                rolQueReparte,
                 countries,
                 allModules: allModules as ModuleWithItems[],
             },

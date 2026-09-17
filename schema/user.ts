@@ -26,7 +26,11 @@ export const userSchema = z.object({
         .string()
         .min(30, "URL demasiado corta")
         .or(z.literal("")),
-    role: z.enum(["user", "admin", "reseller", "super_admin"], {
+    // Los cinco roles de plataforma, en el orden de `JERARQUIA_DE_ROLES`.
+    // Faltaba `affiliate`, que sí existe en la base y sí salía en el
+    // desplegable: elegirlo hacía fallar la validación del formulario entero
+    // con «Revisa los campos obligatorios», sin decir qué campo.
+    role: z.enum(["user", "affiliate", "reseller", "admin", "super_admin"], {
         required_error: "Debes seleccionar un rol",
     }),
     plan: z.enum(PLAN_VALUES),
