@@ -9,7 +9,7 @@ import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminLike, isAdminOrReseller, isSuperAdmin } from "@/lib/rbac";
 import { aplicaBloqueoPorPlan, buildPanelTabs } from "@/lib/panel-tabs";
 import { aplicarPermisos, parseItemIds } from "@/lib/permisos";
-import { ADMIN_PANEL_ROUTE, esVarianteDePanel, rutasDePanelPara } from "@/lib/sidebar-modules";
+import { ADMIN_PANEL_ROUTE, elPanelQueLeToca, esVarianteDePanel } from "@/lib/sidebar-modules";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
 import { facturacionQueMandaEn } from "@/actions/billing/helpers/billing-owner";
@@ -23,6 +23,7 @@ import BillingLockScreen from "@/components/shared/BillingLockScreen";
 import { etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
 import { whatsappDeLaMarca } from "@/lib/brand-support.server";
 import { LockedRouteGuard } from "@/components/shared/LockedRouteGuard";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -284,8 +285,13 @@ export default async function RootGroupLayout({
     // A un agente no le vale el rol de la cuenta en la que entra: al cambiarse a
     // una cuenta vinculada hereda el rol del dueño, y sin esto un agente veía el
     // panel de administración entero.
-    const esAgente = !!user.ownerId && user.advisorRole !== 'administrador';
-    const mandaLoConcedido = esAgente || !isAdminOrReseller(user.role);
+    // Quien manda en la plataforma nunca es «agente» de una cuenta ajena: entra
+    // a arreglarla y tiene que verla entera. Sin esto, el superadministrador
+    // dentro de una cuenta vinculada perdia los modulos «Solo Admin» —el panel
+    // entre ellos— y acababa en «Seccion no habilitada».
+    const mandaDeVerdad = esSuperAdminDeVerdad(user);
+    const esAgente = !mandaDeVerdad && !!user.ownerId && user.advisorRole !== 'administrador';
+    const mandaLoConcedido = !mandaDeVerdad && (esAgente || !isAdminOrReseller(user.role));
     const tieneConcedidos = (m: { moduleItems?: { id: string }[] | null }) =>
         (m.moduleItems ?? []).some((it) => concedidos.has(it.id));
 
@@ -357,11 +363,7 @@ export default async function RootGroupLayout({
             .findUnique({ where: { id: user.ownerId }, select: { role: true } })
             .catch(() => null))?.role ?? user.role
         : user.role;
-    const candidatosDePanel = rutasDePanelPara(rolDeLaCuenta);
-    const suPanelId =
-        candidatosDePanel
-            .map((route) => modules.find((m) => m.route === route))
-            .find(Boolean)?.id ?? null;
+    const suPanelId = elPanelQueLeToca(rolDeLaCuenta, modules)?.id ?? null;
     const esPanelAjeno = (m: { id: string; route: string }) =>
         esVarianteDePanel(m.route) && m.id !== suPanelId;
 
@@ -379,12 +381,18 @@ export default async function RootGroupLayout({
     for (const m of allModules) {
         for (const item of m.moduleItems ?? []) {
             const ruta = item.url.replace('/admin/', '/panel/');
+            // Un panel ajeno se esconde del MENU —eso pasa una linea mas
+            // arriba, al filtrar `modules`— pero NO cierra una ruta que los
+            // permisos conceden. Aqui estaba `esPanelAjeno(m) ? false : ...`, y
+            // cortaba antes de mirar `concedidos`/`negados`: por eso una cuenta
+            // con los 42 apartados activos recibia «Seccion no habilitada».
+            //
+            // Enseñar y dejar pasar son dos preguntas distintas; fundirlas es
+            // lo que convirtio un detalle de menu en una puerta cerrada.
             const laVe =
-                esPanelAjeno(m)
-                    ? false
-                    : mandaLoConcedido && m.adminOnly
-                        ? concedidos.has(item.id)
-                        : !negados.has(item.id);
+                mandaLoConcedido && m.adminOnly
+                    ? concedidos.has(item.id)
+                    : !negados.has(item.id);
             (laVe ? rutasAbiertas : rutasCerradas).add(ruta);
         }
     }

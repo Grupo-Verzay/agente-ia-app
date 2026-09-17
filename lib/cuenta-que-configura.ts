@@ -2,6 +2,7 @@ import "server-only";
 
 import { currentUser } from "@/lib/auth";
 import { cuentaQueManda, type CuentaQueManda } from "@/lib/cuenta-que-manda";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 
 /**
  * La cuenta que configura, o `null` si quien pregunta no puede configurar nada.
@@ -22,6 +23,10 @@ import { cuentaQueManda, type CuentaQueManda } from "@/lib/cuenta-que-manda";
 export async function laCuentaQueConfigura(): Promise<CuentaQueManda | null> {
     const user = await currentUser();
     if (!user?.id) return null;
+    // El superadministrador configura cualquier cuenta, tambien aquellas en las
+    // que entra como parte del equipo. Sin esto, entrar a una cuenta ajena le
+    // devolvia `null` y con el `null` se cerraban todos los ajustes de cuenta.
+    if (esSuperAdminDeVerdad(user)) return cuentaQueManda(user);
     if (user.ownerId && user.advisorRole !== "administrador") return null;
     return cuentaQueManda(user);
 }

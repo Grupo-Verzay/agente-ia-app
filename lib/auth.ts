@@ -52,7 +52,26 @@ const USER_SELECT = {
 
 type DbUser = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;
 
-export type CurrentUser = DbUser & { effectiveId: string; sessionUserId: string };
+export type CurrentUser = DbUser & {
+    effectiveId: string;
+    sessionUserId: string;
+    /**
+     * El rol de plataforma de la PERSONA que esta sentada delante.
+     *
+     * `role`, arriba, es el de la fila EFECTIVA: con el conmutador de cuentas o
+     * con la cookie de «Ingresar», esa fila es la de la cuenta en la que se
+     * esta metido, asi que `role` deja de ser el tuyo. Un superadministrador
+     * dentro de una cuenta `admin` era, para todo el codigo, un `admin`.
+     *
+     * Este campo no cuesta ni una consulta: `resolverElUsuario` ya lee la fila
+     * real —la necesita para los permisos— y hasta ahora tiraba su `role`.
+     *
+     * **No se usa para heredar nada.** Lo unico que decide es lo que dice
+     * `esSuperAdminDeVerdad` (`lib/super-admin-de-verdad.ts`): que quien manda
+     * en la plataforma sigue mandando este donde este.
+     */
+    rolDeLaPersona: string | null;
+};
 
 type AccountRole = "agente" | "administrador";
 
@@ -250,6 +269,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                 advisorRole: accountRole,
                 effectiveId: effectiveUserId,
                 sessionUserId: realUser.id,
+                rolDeLaPersona: realUser.role,
             };
         }
 
@@ -293,6 +313,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                     ...permisosDeLaPersona,
                     effectiveId: u.ownerId,
                     sessionUserId: realUser.id,
+                    rolDeLaPersona: realUser.role,
                 };
             }
         }
@@ -302,6 +323,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
             ...permisosDeLaPersona,
             effectiveId: u.ownerId ?? u.id,
             sessionUserId: realUser.id,
+            rolDeLaPersona: realUser.role,
         };
     });
 

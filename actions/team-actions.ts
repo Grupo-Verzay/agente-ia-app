@@ -9,7 +9,7 @@ import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions"
 import { getAllModules } from "@/actions/module-actions";
 import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
 import { parseItemIds, serializeItemIds } from "@/lib/permisos";
-import { ADMIN_PANEL_ROUTE, rutasDePanelPara } from "@/lib/sidebar-modules";
+import { ADMIN_PANEL_ROUTE, elPanelQueLeToca, rutasDePanelPara } from "@/lib/sidebar-modules";
 import { isAdminLike } from "@/lib/rbac";
 import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
 import type { Role } from "@prisma/client";
@@ -262,15 +262,14 @@ const PANEL_ROUTES = ["/panel", "/admin", ADMIN_PANEL_ROUTE, "/reseller-panel", 
 
 /** La variante de "Panel" que le corresponde a la cuenta, por su rol. */
 async function panelDeLaCuenta(role: string): Promise<string | null> {
-  // Mismo orden de preferencia que el menu y que la portada: una sola regla
-  // para los tres, o acaban discrepando sobre a que panel pertenece alguien.
-  const rutas = rutasDePanelPara(role);
-
+  // La MISMA regla que el layout y que el menu: `elPanelQueLeToca`. Cuando cada
+  // uno la escribia por su cuenta, el dialogo de Permisos y el guard del layout
+  // llegaban a conclusiones distintas sobre el mismo apartado.
   const existentes = await db.module.findMany({
-    where: { route: { in: rutas } },
+    where: { route: { in: rutasDePanelPara(role) } },
     select: { route: true },
   });
-  return rutas.find((r) => existentes.some((m) => m.route === r)) ?? null;
+  return elPanelQueLeToca(role, existentes)?.route ?? null;
 }
 
 export async function updateAdvisorPermissions(

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { laCuentaQueConfigura } from "@/lib/cuenta-que-configura";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 import { isAdminLike } from "@/lib/rbac";
 import {
   ESTADOS_DE_TICKET,
@@ -122,6 +123,17 @@ export async function puedoAbrirTicketsAction(): Promise<{
     // ticket... que `abrirTicketAction` rechaza, porque el ticket se archiva
     // bajo su cuenta, que ES la de destino. Un boton que al pulsarlo da error es
     // peor que no tenerlo.
+    // El superadministrador atiende el tablero desde donde esté, así que para
+    // él el botón lleva allí aunque su cuenta no sea la de destino.
+    if (esSuperAdminDeVerdad(user)) {
+      return {
+        puede: false,
+        soyElDestino: true,
+        userId: user.id,
+        whatsapp: null,
+      };
+    }
+
     const laCuenta = user.ownerId ?? user.id;
     const esDeLaCuentaDestino = laCuenta === destino;
     // Ver el tablero si ademas manda en ella: el `agente` de la cuenta de
@@ -241,10 +253,17 @@ export async function misTicketsAction(): Promise<Result<TicketConAdjuntos[]>> {
  * pasa — es la misma condición de `laCuentaQueConfigura`.
  */
 async function laCuentaQueLosRecibe(): Promise<string> {
-  const cuenta = await laCuentaQueConfigura();
-  if (!cuenta?.id) throw new Error("No autorizado.");
   const destino = await elDestinoDeLosTickets();
-  if (!destino || destino !== cuenta.id) throw new Error("No autorizado.");
+  if (!destino) throw new Error("Todavía no hay una cuenta que reciba los tickets.");
+
+  // El superadministrador los atiende SIN cambiar de cuenta. Es la regla de la
+  // plataforma: ve y administra todo esté donde esté. Antes tenía que entrar a
+  // la cuenta de destino para ver su propio tablero de soporte.
+  const user = await currentUser();
+  if (esSuperAdminDeVerdad(user)) return destino;
+
+  const cuenta = await laCuentaQueConfigura();
+  if (!cuenta?.id || destino !== cuenta.id) throw new Error("No autorizado.");
   return destino;
 }
 
@@ -406,6 +425,7 @@ async function avisarAlCliente(ticket: Ticket, id: string): Promise<boolean> {
 async function puedeElegirElDestino(): Promise<boolean> {
   const user = await currentUser();
   if (!user?.id) return false;
+  if (esSuperAdminDeVerdad(user)) return true;
   const cuenta = await cuentaQueManda(user);
   return isAdminLike(cuenta.role);
 }

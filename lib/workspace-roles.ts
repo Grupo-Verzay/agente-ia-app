@@ -1,4 +1,5 @@
 import { isAdminLike } from "@/lib/rbac";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 
 /**
  * Quién puede CREAR contenido compartido del equipo: proyectos y diagramas.
@@ -13,9 +14,14 @@ import { isAdminLike } from "@/lib/rbac";
  */
 export function canManageWorkspace(user: {
   role?: string | null;
+  rolDeLaPersona?: string | null;
   ownerId?: string | null;
   advisorRole?: string | null;
 }): boolean {
+  // Quien manda en la plataforma manda aqui tambien, este en la cuenta que
+  // este. Va PRIMERO: por debajo se pregunta por `advisorRole`, y entrando a
+  // una cuenta ajena como su `agente` el superadministrador se quedaba fuera.
+  if (esSuperAdminDeVerdad(user)) return true;
   // Admin o super admin de la plataforma.
   if (isAdminLike(user.role)) return true;
   // Dueño de su propia cuenta: no cuelga de nadie.
