@@ -29,7 +29,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 
 import { themeClass } from "@/types/generic";
-import { ChatWidget } from "./ai-chat/components";
+import { BotonesDelBorde } from "@/components/chat-equipo/BotonesDelBorde";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
 import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
 import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
@@ -495,7 +495,9 @@ export default async function RootGroupLayout({
                             </div>
                         </div>
                     </main>
-                    <ChatWidget />
+                    {/* El copiloto y el chat del equipo: una pareja de botones
+                        en el borde derecho, con su panel cada uno. */}
+                    <BotonesDelBorde />
                     <ChatOnboardingModal />
                     <TaskNotificationProvider />
                     <ChatUnreadProvider />

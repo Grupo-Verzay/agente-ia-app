@@ -42,6 +42,19 @@ function asegurarLaTabla(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "team_chat_messages_cuenta_idx"
             ON "team_chat_messages" ("cuentaId", "creadoEn")
         `;
+        // Desde que cuenta se escribio, cuando NO es la de quien firma.
+        //
+        // `autorId` y `autorNombre` son la PERSONA, siempre; esto es el rastro
+        // de haber escrito desde dentro de una cuenta ajena con «Ingresar».
+        // Entra con `ALTER TABLE … ADD COLUMN IF NOT EXISTS` y no reescribiendo
+        // el `CREATE`: la tabla ya existe en produccion y un
+        // `CREATE TABLE IF NOT EXISTS` no toca una que ya esta — es el fallo
+        // que se comete solo al añadirle una columna a una tabla de la App ya
+        // desplegada.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "escritoDesde" TEXT
+        `;
     })().catch((error) => {
         tablaLista = null;
         throw error;
@@ -91,6 +104,7 @@ type Fila = {
     id: string;
     autorId: string;
     autorNombre: string | null;
+    escritoDesde: string | null;
     texto: string;
     mencionados: string[] | null;
     creadoEn: Date;
@@ -100,6 +114,7 @@ const aMensaje = (f: Fila): MensajeDeEquipo => ({
     id: f.id,
     autorId: f.autorId,
     autorNombre: f.autorNombre,
+    escritoDesde: f.escritoDesde,
     texto: f.texto,
     mencionados: f.mencionados ?? [],
     creadoEn: f.creadoEn.toISOString(),
@@ -115,7 +130,8 @@ const aMensaje = (f: Fila): MensajeDeEquipo => ({
 export async function leerElHilo(cuentaId: string): Promise<MensajeDeEquipo[]> {
     return conLaTabla(async () => {
         const filas = await db.$queryRaw<Fila[]>`
-            SELECT "id", "autorId", "autorNombre", "texto", "mencionados", "creadoEn"
+            SELECT "id", "autorId", "autorNombre", "escritoDesde",
+                   "texto", "mencionados", "creadoEn"
             FROM "team_chat_messages"
             WHERE "cuentaId" = ${cuentaId}
             ORDER BY "creadoEn" DESC
@@ -130,15 +146,19 @@ export async function guardarUnMensaje(input: {
     cuentaId: string;
     autorId: string;
     autorNombre: string | null;
+    /** La cuenta desde la que se escribió, si no es la de quien firma. */
+    escritoDesde: string | null;
     texto: string;
     mencionados: string[];
 }): Promise<void> {
     await conLaTabla(() => db.$executeRaw`
         INSERT INTO "team_chat_messages"
-            ("id", "cuentaId", "autorId", "autorNombre", "texto", "mencionados")
+            ("id", "cuentaId", "autorId", "autorNombre", "escritoDesde",
+             "texto", "mencionados")
         VALUES (
             ${input.id}, ${input.cuentaId}, ${input.autorId},
-            ${input.autorNombre}, ${input.texto}, ${input.mencionados}
+            ${input.autorNombre}, ${input.escritoDesde},
+            ${input.texto}, ${input.mencionados}
         )
     `);
 }

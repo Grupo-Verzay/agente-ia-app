@@ -8,6 +8,7 @@ import { tituloDelAviso } from "@/lib/avisos-de-tarea-tipos";
 import {
     comoSeGuardaElTexto,
     extraerMenciones,
+    quienFirma,
     type MensajeDeEquipo,
     type PersonaMencionable,
 } from "@/lib/chat-de-equipo";
@@ -30,13 +31,21 @@ type Respuesta<T> = { success: true; data: T } | { success: false; message: stri
  * entra a ver lo que ve su dueño, y el chat interno no es una excepción.
  */
 async function quienYDonde(): Promise<
-    { persona: { id: string; nombre: string | null }; cuentaId: string } | null
+    { persona: { id: string; nombre: string | null }; cuentaId: string; escritoDesde: string | null } | null
 > {
     const user = await currentUser();
     if (!user?.id) return null;
+
+    // Quién firma y en qué hilo cae lo decide UNA función, y es pura
+    // (`lib/chat-de-equipo.ts`): este es exactamente el sitio donde un
+    // despiste firma con quien no es, así que se prueba sin levantar nada.
+    const firma = quienFirma(user);
+    if (!firma) return null;
+
     return {
-        persona: { id: user.id, nombre: user.name ?? null },
-        cuentaId: user.ownerId ?? user.id,
+        persona: { id: firma.personaId, nombre: firma.nombre },
+        cuentaId: firma.cuentaId,
+        escritoDesde: firma.escritoDesde,
     };
 }
 
@@ -92,6 +101,7 @@ export async function enviarAlEquipoAction(
             id: randomUUID(),
             autorId: quien.persona.id,
             autorNombre: quien.persona.nombre,
+            escritoDesde: quien.escritoDesde,
             texto: limpio,
             mencionados,
             creadoEn: new Date().toISOString(),
@@ -102,6 +112,7 @@ export async function enviarAlEquipoAction(
             cuentaId: quien.cuentaId,
             autorId: mensaje.autorId,
             autorNombre: mensaje.autorNombre,
+            escritoDesde: quien.escritoDesde,
             texto: mensaje.texto,
             mencionados,
         });

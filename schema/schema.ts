@@ -28,7 +28,7 @@ export type UserWithApiKeys = CurrentUser & {
  */
 export type UserConServicios = Omit<
     UserWithApiKeys,
-    'effectiveId' | 'sessionUserId' | 'rolDeLaPersona' | 'rolDeLaCuenta' | 'porImpersonacion'
+    'effectiveId' | 'sessionUserId' | 'rolDeLaPersona' | 'rolDeLaCuenta' | 'porImpersonacion' | 'nombreDeLaPersona'
 > & {
     services: Service[];
     // No hay sesion en esa pagina, asi que no hay "usuario efectivo", ni
@@ -40,6 +40,7 @@ export type UserConServicios = Omit<
     rolDeLaCuenta?: string | null;
     // Tampoco se ha «Ingresado» a ninguna cuenta: no hay sesion que impersonar.
     porImpersonacion?: boolean;
+    nombreDeLaPersona?: string | null;
 };
 
 export interface ScheduleInterface {

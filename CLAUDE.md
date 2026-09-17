@@ -1751,6 +1751,81 @@ Dos cosas más del hilo:
 Y quien entra a una cuenta ajena con «Ingresar» ve **el hilo de esa cuenta**:
 sale gratis de `currentUser()`, que ya resuelve ese caso (#756).
 
+### Firma la PERSONA; el hilo es de la CUENTA
+
+Son dos preguntas distintas y estaban contestadas con el mismo dato. El mensaje
+se guardaba con el id de la fila **efectiva**, que es la que devuelve
+`currentUser()`, así que quien entraba por «Ingresar» a una cuenta ajena y
+escribía dejaba el mensaje **firmado como el cliente**. El equipo leía su
+propio nombre diciendo cosas que no había dicho nadie de allí.
+
+Un mensaje lo escribe alguien, y ese alguien tiene nombre. Lo decide una sola
+función pura, `quienFirma` (`lib/chat-de-equipo.ts`), y son tres campos:
+
+| | de dónde sale | por qué |
+| --- | --- | --- |
+| `autorId` | `sessionUserId ?? id` | la **persona** que está sentada delante |
+| `cuentaId` | `ownerId ?? id` | el **hilo**, que sigue siendo el de la cuenta |
+| `escritoDesde` | la cuenta, **solo** si `porImpersonacion` | de dónde salió, sin ensuciar el caso normal |
+
+El nombre viaja en **`nombreDeLaPersona`**, nuevo en `currentUser()` y **gratis**:
+`resolverElUsuario` ya lee la fila de la persona real —la necesita para
+`rolDeLaPersona`— y lo único que hacía era tirar su `name`. Es el mismo patrón
+con el que se resolvió `rolDeLaPersona` en su día: no hace falta ir a la base,
+hace falta dejar de tirar lo que ya se trajo.
+
+Tres cosas que hay que mantener:
+
+1. **El `name` de la fila efectiva NO sirve para firmar.** Dentro de una cuenta
+   ajena ese nombre es el del cliente. Solo vale cuando la fila efectiva ya es
+   la de la persona —el caso normal—, y por eso `quienFirma` lo usa **solo**
+   cuando `personaId === id`. Sin esa condición vuelve el fallo entero.
+2. **El hilo no se mueve.** Se entra a una cuenta para ver lo suyo, así que lo
+   que se escriba ahí lo lee su equipo. Firmar con la persona y mandar el
+   mensaje a otro hilo sería peor que el fallo original.
+3. **`escritoDesde` entra con `ALTER TABLE … ADD COLUMN IF NOT EXISTS`**, no
+   reescribiendo el `CREATE`: la tabla ya está en producción y un
+   `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo que se
+   comete solo al añadirle una columna a una tabla de la App ya desplegada.
+
+### El panel: la ruta sola no sirve
+
+El equipo vive en Chats y no va a salir de ahí para hablar. Una ruta obliga a
+irse de donde se está —y volver, y perder el chat abierto—, así que el hilo se
+abre **como panel lateral encima de cualquier pantalla**, con la misma forma
+que el del copiloto (`ChatSheet`).
+
+La pantalla es **la misma** en los dos sitios: `components/chat-equipo/HiloDelEquipo.tsx`
+lo pintan el panel y la ruta. Con dos copias, el día que se afine el reloj o el
+envío se afina en una y la otra se queda atrás, que no se ve como un error sino
+como «a veces funciona». La ruta se queda **tal cual** para quien quiera
+montarla en un módulo.
+
+Tres cosas que hay que mantener:
+
+1. **La posición de la pareja se calcula UNA vez**, en `BotonesDelBorde.tsx`:
+   una columna `fixed right-0 top-1/2 -translate-y-1/2` y dentro los dos
+   botones, el copiloto encima y el del equipo debajo. Cada uno conserva su
+   forma —36 px, media luna contra el borde—; lo único que pierden es decidir
+   dónde se ponen. `ChatLauncher` acepta `className` y `cn` es `tailwind-merge`,
+   así que sus clases de posición las gana la que se le pasa: no hay que
+   tocarlo. Puestos cada uno por su lado habría dos cálculos que mantener a la
+   par, y el día que uno se mueva el otro se queda.
+2. **No tapa la caja de escribir de Chats**, y está medido en Chromium, no a
+   ojo: la pareja mide 76 px centrados en la mitad de la ventana. A 1280×800 su
+   centro cae en 400 —el centro exacto— y quedan **290 px** libres hasta el
+   compositor; en un móvil de 390×667, **223 px**. Si se añade un tercer botón
+   a la columna, se vuelve a medir: el hueco se come por abajo.
+3. **El reloj solo corre con el panel abierto** (`activo`). Esto cuelga del
+   layout, o sea de **todas** las pantallas: un sondeo de 5 s corriendo siempre,
+   en todas las pestañas del equipo, es una consulta cada cinco segundos por
+   pantalla abierta para un panel que nadie está mirando. Y el hilo **no se pide
+   hasta abrirlo**, por lo mismo.
+
+Nunca están los dos paneles abiertos a la vez: abrir uno cierra el otro. Son dos
+paneles en el mismo sitio, y abiertos a la vez uno taparía al otro sin decir
+cuál está delante.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se
