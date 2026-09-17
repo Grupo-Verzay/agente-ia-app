@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Loader2, Plus, Trash2, Pencil, FolderKanban, Search, AlertCircle, Eye, ListTodo,
+  Share2, Building2,
   ChevronDown, Clock, SlidersHorizontal, UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,12 +32,14 @@ import { cn } from "@/lib/utils";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import {
   listProjectsAction, saveProjectAction, deleteProjectAction,
+  getProjectShareTargetsAction, setProjectSharesAction,
 } from "@/actions/project-actions";
 import {
   BOARD_COLUMNS, PROJECT_STATUSES, PROJECT_STATUS_LABELS,
   type ProjectData, type ProjectStatus,
 } from "@/lib/project-types";
 import { BarraDeCarpetas, MoverACarpeta, useCarpetas } from "@/components/shared/Carpetas";
+import { CompartirConCuentasDialog } from "@/components/shared/CompartirConCuentasDialog";
 import type { Carpeta as CarpetaDeProyecto } from "@/lib/carpetas";
 import { ProjectBoard } from "./ProjectBoard";
 
@@ -188,6 +191,8 @@ export function ProjectsClient({
   const [editing, setEditing] = useState<ProjectData | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProjectData | null>(null);
+  /** El proyecto que se está compartiendo con otras cuentas. */
+  const [compartiendo, setCompartiendo] = useState<ProjectData | null>(null);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   // DOS filtros, no uno. Antes era una sola variable con cinco valores, así que
@@ -302,7 +307,11 @@ export function ProjectsClient({
         project={openProject}
         team={team}
         userId={userId}
-        canManage={openProject.puedeGestionar}
+        // Trabajar en el tablero y MANDAR en el proyecto son dos cosas: en uno
+        // recibido con permiso de edición se crean y se mueven tareas, pero no
+        // se edita la ficha ni se borra nada.
+        canManage={openProject.puedeEditarTareas}
+        recibido={openProject.recibido}
         abrirTareaId={destino?.proyecto === openProject.id ? destino.tarea : null}
         onBack={() => setOpenProjectId(null)}
         onProjectChanged={load}
@@ -520,6 +529,7 @@ export function ProjectsClient({
               onOpen={() => setOpenProjectId(project.id)}
               onEdit={() => setEditing(project)}
               onDelete={() => setDeleteTarget(project)}
+              onCompartir={() => setCompartiendo(project)}
             />
           ))}
         </div>
@@ -532,6 +542,28 @@ export function ProjectsClient({
         onClose={() => { setCreating(false); setEditing(null); }}
         onSaved={() => { setCreating(false); setEditing(null); void load(); }}
       />
+
+      {/* El MISMO diálogo de Diagramas: buscador de cuentas, interruptor por
+          cuenta y «N de M cuentas». Lo que cambia son las acciones. */}
+      {compartiendo && (
+        <CompartirConCuentasDialog
+          open={!!compartiendo}
+          setOpen={(v) => !v && setCompartiendo(null)}
+          titulo={compartiendo.name}
+          queSeVe="Proyectos"
+          cargar={async () => {
+            const res = await getProjectShareTargetsAction(compartiendo.id);
+            return res.success && res.data
+              ? { ok: true, cuentas: res.data }
+              : { ok: false, cuentas: [], message: res.message };
+          }}
+          guardar={async (destinos) => {
+            const res = await setProjectSharesAction(compartiendo.id, destinos);
+            return res.success ? { ok: true } : { ok: false, message: res.message };
+          }}
+          onSaved={() => void load()}
+        />
+      )}
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -568,6 +600,7 @@ function ProjectCard({
   onOpen,
   onEdit,
   onDelete,
+  onCompartir,
 }: {
   project: ProjectData;
   canManage: boolean;
@@ -577,6 +610,7 @@ function ProjectCard({
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onCompartir: () => void;
 }) {
   const total = BOARD_COLUMNS.reduce((sum, col) => sum + (project.taskCounts[col.status] ?? 0), 0);
   const due = describeDue(project.dueDate);
@@ -611,6 +645,17 @@ function ProjectCard({
             />
             {canManage && (
               <>
+              {/* Compartir con otras cuentas es de quien manda en el proyecto,
+                  igual que en Diagramas: en uno recibido no sale, porque
+                  repartirlo sigue siendo de quien lo hizo. */}
+              <Button
+                variant="outline" size="icon" className="h-6 w-6"
+                title="Compartir con otras cuentas"
+                aria-label={`Compartir ${project.name}`}
+                onClick={(e) => { e.stopPropagation(); onCompartir(); }}
+              >
+                <Share2 className="h-3 w-3" />
+              </Button>
               <Button
                 variant="outline" size="icon"
                 className="h-6 w-6 text-muted-foreground hover:text-red-600"
@@ -629,6 +674,34 @@ function ProjectCard({
               </>
             )}
           </div>
+          {/* De dónde viene, o a cuántas cuentas se les está enseñando. Sin
+              esto, en la cuenta invitada aparecen proyectos que nadie de allí
+              creó y no hay forma de saber de quién son. */}
+          {project.recibido ? (
+            <Badge
+              variant="outline"
+              className="shrink-0 gap-1 border-sky-500/40 bg-sky-500/10 text-[10px] text-sky-600 dark:text-sky-400"
+              title={`Compartido por ${project.deLaCuenta ?? "otra cuenta"}${
+                project.puedeEditarTareas ? " · puedes editar" : " · solo lectura"
+              }`}
+            >
+              <Building2 className="h-3 w-3" />
+              <span className="max-w-[7rem] truncate">{project.deLaCuenta ?? "Compartido"}</span>
+            </Badge>
+          ) : (
+            project.compartidoCon > 0 && (
+              <Badge
+                variant="outline"
+                className="shrink-0 gap-1 text-[10px] text-muted-foreground"
+                title={`Se lo estás enseñando a ${project.compartidoCon} ${
+                  project.compartidoCon === 1 ? "cuenta" : "cuentas"
+                }`}
+              >
+                <Share2 className="h-3 w-3" />
+                {project.compartidoCon}
+              </Badge>
+            )
+          )}
           <Badge variant="outline" className={cn("shrink-0 text-[10px] uppercase", STATUS_STYLES[project.status])}>
             {PROJECT_STATUS_LABELS[project.status]}
           </Badge>

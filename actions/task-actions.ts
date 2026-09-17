@@ -13,7 +13,7 @@ import { registrarElCierre } from "@/actions/trabajo-de-tarea-actions";
 
 import type { TaskData, TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
-import { mandaEnElProyecto } from "@/lib/project-roles";
+import { accesoAlProyecto } from "@/lib/acceso-al-proyecto";
 
 async function getAuth() {
   const user = await currentUser();
@@ -89,16 +89,25 @@ export async function createTaskAction(
   try {
     const user = await getAuth();
     const parsed = createSchema.parse(input);
-    const ownerId = user.ownerId ?? user.id;
+    let ownerId = user.ownerId ?? user.id;
 
     // Dentro de un proyecto manda quien lleve ESE proyecto: quien gestiona la
     // cuenta, y quien lo creó. Fuera de proyectos las tareas siguen igual que
     // siempre, que es como funcionaba antes de que existieran.
-    if (parsed.projectId && !(await mandaEnElProyecto(user, ownerId, parsed.projectId))) {
-      return {
-        success: false,
-        message: "Solo quien lleva el proyecto o un administrador puede crear sus tareas.",
-      };
+    if (parsed.projectId) {
+      const acceso = await accesoAlProyecto(user, ownerId, parsed.projectId);
+      if (!acceso || !acceso.puedeTrabajar) {
+        return {
+          success: false,
+          message: "Solo quien lleva el proyecto o un administrador puede crear sus tareas.",
+        };
+      }
+      // **La tarea cuelga de la cuenta DUEÑA del proyecto**, no de quien la
+      // escribe. En un proyecto compartido, guardarla bajo la cuenta invitada la
+      // dejaría fuera del tablero de las dos: el dueño no la vería —su tablero
+      // pide las de su cuenta— y la invitada tampoco, porque el tablero es el
+      // del proyecto. Un proyecto, un juego de tareas.
+      ownerId = acceso.ownerId;
     }
     const assignedUser = parsed.assignedToName
       ? null

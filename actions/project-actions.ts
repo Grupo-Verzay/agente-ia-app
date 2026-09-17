@@ -9,6 +9,17 @@ import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
 import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { filtroDeProyectosVisibles, mandaEnElProyecto } from "@/lib/project-roles";
+import { accesoAlProyecto } from "@/lib/acceso-al-proyecto";
+import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
+import {
+  comoPermiso,
+  conCuantasCuentasSeComparten,
+  guardarLosDestinosDelProyecto,
+  losDestinosDelProyecto,
+  losProyectosQueMeComparten,
+  olvidarLosCompartidosDe,
+  type PermisoDeProyecto,
+} from "@/lib/proyectos-compartidos";
 import { leerLosAdjuntos } from "@/lib/adjuntos-de-tarea";
 import { tareasConAlgoSinVer } from "@/lib/avisos-de-tarea";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
@@ -65,6 +76,17 @@ function toProjectData(
   people: Map<string, { name: string | null; email: string | null }>,
   /** Quien mira: para decir, proyecto a proyecto, si lo lleva él. */
   quienMira: { id: string; gestionaLaCuenta: boolean },
+  /**
+   * Lo que cambia entre uno propio y uno que otra cuenta nos enseña. Por
+   * defecto, uno propio sin compartir: así los sitios que ya llamaban a esto no
+   * tienen que saber de compartidos.
+   */
+  compartir: {
+    recibido: boolean;
+    puedeEditarTareas: boolean;
+    compartidoCon: number;
+    deLaCuenta: string | null;
+  } = { recibido: false, puedeEditarTareas: true, compartidoCon: 0, deLaCuenta: null },
 ): ProjectData {
   const taskCounts: Record<string, number> = {};
   const now = Date.now();
@@ -101,8 +123,15 @@ function toProjectData(
       people.get(project.createdById)?.name ??
       people.get(project.createdById)?.email ??
       null,
+    // En uno recibido no manda nadie de esta cuenta: ni se edita, ni se borra,
+    // ni se reparte a más cuentas.
     puedeGestionar:
-      quienMira.gestionaLaCuenta || project.createdById === quienMira.id,
+      !compartir.recibido &&
+      (quienMira.gestionaLaCuenta || project.createdById === quienMira.id),
+    recibido: compartir.recibido,
+    puedeEditarTareas: compartir.puedeEditarTareas,
+    compartidoCon: compartir.compartidoCon,
+    deLaCuenta: compartir.deLaCuenta,
   };
 }
 
@@ -124,29 +153,85 @@ export async function listProjectsAction(): Promise<Result<ProjectData[]>> {
     const { user, ownerId } = await getAuth();
     const quienMira = { id: user.id, gestionaLaCuenta: canManageWorkspace(user) };
 
-    const projects = await db.project.findMany({
-      // Los de la cuenta, pero solo los que tienen que ver con quien mira: un
-      // agente ve los suyos, no el trabajo entero de su dueño.
-      where: { ownerId, ...filtroDeProyectosVisibles(user) },
-      include: {
-        members: { select: { userId: true } },
-        tasks: { select: { status: true, dueDate: true } },
-      },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    });
+    const incluir = {
+      members: { select: { userId: true } },
+      tasks: { select: { status: true, dueDate: true } },
+    } as const;
 
-    const people = await loadPeople(
-      projects.flatMap((p) => [
-        p.leadId ?? "",
-        p.createdById,
-        ...p.members.map((m) => m.userId),
+    // Dos grupos, como en Diagramas: los de esta cuenta y los que otra cuenta le
+    // está enseñando.
+    //
+    // Los recibidos **no pasan por `filtroDeProyectosVisibles`**, y es a
+    // propósito: ese filtro reparte dentro de un equipo por `createdById`,
+    // `leadId` y miembros, y en un proyecto de otra cuenta ninguna de esas
+    // personas es de aquí — se quedaría fuera siempre. Lo que se compartió es
+    // «a esta cuenta», así que lo ve la cuenta.
+    const compartidos = await losProyectosQueMeComparten(ownerId);
+    const idsRecibidos = [...compartidos.keys()];
+
+    const [propios, recibidos] = await Promise.all([
+      db.project.findMany({
+        // Los de la cuenta, pero solo los que tienen que ver con quien mira: un
+        // agente ve los suyos, no el trabajo entero de su dueño.
+        where: { ownerId, ...filtroDeProyectosVisibles(user) },
+        include: incluir,
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      }),
+      idsRecibidos.length
+        ? db.project.findMany({
+            // `ownerId: { not: ownerId }` y no solo el id: si un proyecto propio
+            // acabara con una fila de compartido apuntando a su propia cuenta,
+            // saldría dos veces en la lista.
+            where: { id: { in: idsRecibidos }, ownerId: { not: ownerId } },
+            include: incluir,
+            orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Con cuántas cuentas comparto cada uno de los MÍOS: es lo que pinta el
+    // sello de la tarjeta. Una sola consulta agrupada, no una por tarjeta.
+    const [people, compartidoCon] = await Promise.all([
+      loadPeople([
+        ...propios.flatMap((p) => [p.leadId ?? "", p.createdById, ...p.members.map((m) => m.userId)]),
+        ...recibidos.flatMap((p) => [p.leadId ?? "", p.createdById, ...p.members.map((m) => m.userId)]),
+        // De quién es cada proyecto recibido. Sin esto, en la cuenta invitada
+        // salen proyectos sin decir de dónde vienen.
+        ...recibidos.map((p) => p.ownerId),
       ]),
-    );
+      conCuantasCuentasSeComparten(propios.map((p) => p.id)),
+    ]);
+
+    const nombreDeCuenta = (id: string) =>
+      people.get(id)?.name ?? people.get(id)?.email ?? null;
 
     return {
       success: true,
       message: "Proyectos cargados.",
-      data: projects.map((p) => toProjectData(p, people, quienMira)),
+      data: [
+        ...propios.map((p) =>
+          toProjectData(p, people, quienMira, {
+            recibido: false,
+            // En uno propio, tocar el tablero es lo que ya decidía quién manda
+            // en el proyecto: no cambia nada de lo que había.
+            puedeEditarTareas:
+              quienMira.gestionaLaCuenta || p.createdById === quienMira.id,
+            compartidoCon: compartidoCon.get(p.id) ?? 0,
+            deLaCuenta: null,
+          }),
+        ),
+        ...recibidos.map((p) =>
+          toProjectData(p, people, quienMira, {
+            recibido: true,
+            // Recibido: hace falta permiso de edición Y mandar en esta cuenta,
+            // el mismo reparto que `accesoAlProyecto` comprueba en el servidor.
+            puedeEditarTareas:
+              compartidos.get(p.id) === "edicion" && quienMira.gestionaLaCuenta,
+            compartidoCon: 0,
+            deLaCuenta: nombreDeCuenta(p.ownerId),
+          }),
+        ),
+      ],
     };
   } catch (error) {
     console.error("[listProjectsAction]", error);
@@ -257,6 +342,11 @@ export async function deleteProjectAction(projectId: number): Promise<Result<nul
     // NULL). Perder trabajo es peor que dejar una tarea sin proyecto.
     await db.project.delete({ where: { id: projectId } });
 
+    // Y con quién se compartía se va con él. No hay clave foránea —la tabla es
+    // de la App y `projects` del backend—, así que la limpieza es explícita y
+    // no puede tumbar el borrado.
+    await olvidarLosCompartidosDe(projectId);
+
     await writeAuditLog({
       userId: ownerId,
       actorId: user.id,
@@ -282,15 +372,16 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
   try {
     const { user, ownerId } = await getAuth();
     // Con el id a mano se pedía el tablero de cualquier proyecto de la cuenta.
-    // Se abre el que se puede ver, que es el mismo criterio de la lista.
-    const visible = await db.project.findFirst({
-      where: { id: projectId, ownerId, ...filtroDeProyectosVisibles(user) },
-      select: { id: true },
-    });
-    if (!visible) throw new Error("Proyecto no encontrado.");
+    // Se abre el que se puede ver, y eso lo decide un solo sitio: uno propio
+    // según la privacidad del equipo, uno recibido según su permiso.
+    const acceso = await accesoAlProyecto(user, ownerId, projectId);
+    if (!acceso) throw new Error("Proyecto no encontrado.");
 
+    // Las tareas cuelgan de la cuenta DUEÑA del proyecto, no de quien mira: en
+    // uno compartido las dos cuentas ven exactamente las mismas tarjetas. Con
+    // el `ownerId` de quien mira, la cuenta invitada abriría el tablero vacío.
     const tasks = await db.task.findMany({
-      where: { projectId, ownerId },
+      where: { projectId, ownerId: acceso.ownerId },
       orderBy: [{ dueDate: "asc" }],
     });
 
@@ -302,7 +393,8 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
     const [adjuntos, sinVer, clientes] = await Promise.all([
       leerLosAdjuntos(tasks.map((t) => t.id)),
       tareasConAlgoSinVer(tasks.map((t) => t.id), user.id),
-      leerLosClientesDeLasTareas(ownerId, tasks.map((t) => t.id)),
+      // También por la cuenta dueña: `task_work` se escribe bajo ella.
+      leerLosClientesDeLasTareas(acceso.ownerId, tasks.map((t) => t.id)),
     ]);
 
     return {
@@ -360,14 +452,27 @@ export async function updateProjectTaskAction(
 
     // Editar la tarjeta de un proyecto va con el proyecto: quien lo lleva puede,
     // aunque no sea administrador de la cuenta.
+    //
+    // La tarea se busca **sin acotar por cuenta**: en un proyecto compartido las
+    // tareas cuelgan de la cuenta dueña, así que con `ownerId` la invitada no
+    // encontraría ninguna. Quién puede tocarla lo decide `accesoAlProyecto` una
+    // línea más abajo, que es la puerta de verdad.
     const tarea = await db.task.findFirst({
-      where: { id: parsed.taskId, ownerId },
-      select: { id: true, projectId: true, assignedToId: true, createdById: true },
+      where: { id: parsed.taskId },
+      select: { id: true, ownerId: true, projectId: true, assignedToId: true, createdById: true },
     });
     if (!tarea) throw new Error("Tarea no encontrada.");
-    const puede = tarea.projectId
-      ? await mandaEnElProyecto(user, ownerId, tarea.projectId)
-      : canManageWorkspace(user);
+
+    let puede: boolean;
+    if (tarea.projectId) {
+      const acceso = await accesoAlProyecto(user, ownerId, tarea.projectId);
+      // Que la tarea sea de la misma cuenta que su proyecto se comprueba: sin
+      // eso, un id de tarea de otra cuenta con un `projectId` compartido
+      // pasaría la puerta.
+      puede = !!acceso && acceso.ownerId === tarea.ownerId && acceso.puedeTrabajar;
+    } else {
+      puede = tarea.ownerId === ownerId && canManageWorkspace(user);
+    }
     if (!puede) {
       throw new Error("Solo quien lleva el proyecto o un administrador puede editar sus tareas.");
     }
@@ -447,11 +552,33 @@ export async function moveProjectTaskAction(
       throw new Error("Registra cuánto tiempo tomó la tarea.");
     }
 
+    // De qué proyecto es, para saber bajo qué cuenta cuelga: en uno compartido
+    // las tareas son de la cuenta dueña, no de quien las mueve.
+    const deQuienEs = await db.task.findFirst({
+      where: { id: parsed.taskId },
+      select: { ownerId: true, projectId: true },
+    });
+    if (!deQuienEs) throw new Error("Tarea no encontrada.");
+
+    let cuentaDeLaTarea = ownerId;
+    if (deQuienEs.ownerId !== ownerId) {
+      // No es de esta cuenta: solo pasa si viene de un proyecto que nos
+      // comparten con permiso de edición. El id que llega del navegador no
+      // decide nada.
+      const acceso = deQuienEs.projectId
+        ? await accesoAlProyecto(user, ownerId, deQuienEs.projectId)
+        : null;
+      if (!acceso || acceso.ownerId !== deQuienEs.ownerId || !acceso.puedeTrabajar) {
+        throw new Error("Tarea no encontrada.");
+      }
+      cuentaDeLaTarea = acceso.ownerId;
+    }
+
     // Un agente participa moviendo LO SUYO. Si no fuese asi, cualquiera podria
     // dar por hecha la tarea de otro desde el tablero.
     const where = canManageWorkspace(user)
-      ? { id: parsed.taskId, ownerId }
-      : { id: parsed.taskId, ownerId, assignedToId: user.id };
+      ? { id: parsed.taskId, ownerId: cuentaDeLaTarea }
+      : { id: parsed.taskId, ownerId: cuentaDeLaTarea, assignedToId: user.id };
 
     // Se lee ANTES de moverla, y solo cuando va a «Hecho»: el aviso necesita
     // saber quién la creó, y después del `update` ya daría igual pero sería una
@@ -487,7 +614,13 @@ export async function moveProjectTaskAction(
       // Arrastrar una tarjeta que ya estaba en «Hecho» no vuelve a contar.
       await registrarElCierre({
         taskId: antes.id,
-        ownerId,
+        // Bajo la cuenta DUEÑA del proyecto, y a nombre de quien lo hizo. En un
+        // proyecto compartido eso significa que las horas se apuntan en el
+        // «Reparto del trabajo» de la cuenta dueña —que es de quien es el
+        // proyecto— con el nombre de la persona de la otra cuenta que cerró la
+        // tarea. Guardarlas bajo la cuenta invitada partiría el reparto de un
+        // mismo proyecto en dos mitades que nadie puede sumar.
+        ownerId: cuentaDeLaTarea,
         minutos: parsed.minutosDeTrabajo as number,
         cerradaPorId: user.id,
         cerradaPorNombre: user.name?.trim() || user.email || null,
@@ -500,7 +633,7 @@ export async function moveProjectTaskAction(
         tarea: {
           id: antes.id,
           projectId: antes.projectId,
-          ownerId,
+          ownerId: cuentaDeLaTarea,
           title: antes.title,
           assignedToId: antes.assignedToId,
           createdById: antes.createdById,
@@ -517,6 +650,118 @@ export async function moveProjectTaskAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : "No se pudo mover la tarea.",
+    };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Compartir un proyecto con otras cuentas
+ * ------------------------------------------------------------------ */
+
+export type CuentaDestinoDeProyecto = {
+  id: string;
+  name: string | null;
+  email: string;
+  company: string;
+  compartido: boolean;
+  /** Con qué permiso se le comparte hoy. `lectura` si aún no se le comparte. */
+  permiso: PermisoDeProyecto;
+};
+
+/**
+ * A qué cuentas se les puede enseñar este proyecto, y a cuáles ya.
+ *
+ * Son las cuentas de cliente sobre las que manda quien pregunta: un admin las
+ * tiene todas; un reseller, las suyas. **La misma lista que usa Diagramas**
+ * (`clientesDeLaCuenta`), para que no haya dos ideas de «mis cuentas».
+ */
+export async function getProjectShareTargetsAction(
+  projectId: number,
+): Promise<Result<CuentaDestinoDeProyecto[]>> {
+  try {
+    const { user, ownerId } = await getAuth();
+
+    const acceso = await accesoAlProyecto(user, ownerId, projectId);
+    if (!acceso) throw new Error("Proyecto no encontrado.");
+    if (!acceso.puedeGestionar) {
+      throw new Error("Solo quien creó el proyecto o un administrador puede compartirlo.");
+    }
+
+    const [cuentas, yaTiene] = await Promise.all([
+      clientesDeLaCuenta({ id: ownerId, role: user.role ?? "user" }),
+      losDestinosDelProyecto(projectId),
+    ]);
+
+    return {
+      success: true,
+      message: "",
+      // La propia cuenta no se lista: ya lo tiene, y marcarla no querría decir
+      // nada.
+      data: cuentas
+        .filter((c) => c.id !== ownerId)
+        .map((c) => ({
+          ...c,
+          compartido: yaTiene.has(c.id),
+          permiso: yaTiene.get(c.id) ?? "lectura",
+        })),
+    };
+  } catch (error) {
+    console.error("[getProjectShareTargetsAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudieron cargar las cuentas.",
+    };
+  }
+}
+
+export async function setProjectSharesAction(
+  projectId: number,
+  destinos: Array<{ accountUserId: string; permiso: PermisoDeProyecto }>,
+): Promise<Result<null>> {
+  try {
+    const { user, ownerId } = await getAuth();
+
+    const acceso = await accesoAlProyecto(user, ownerId, projectId);
+    if (!acceso) throw new Error("Proyecto no encontrado.");
+    if (!acceso.puedeGestionar) {
+      throw new Error("Solo quien creó el proyecto o un administrador puede compartirlo.");
+    }
+
+    // Solo cuentas sobre las que se manda de verdad: lo que llegue del navegador
+    // no decide a quién se le enseña un proyecto. Y una entrada por cuenta —si
+    // el navegador manda la misma dos veces, manda la última—.
+    const cuentas = await clientesDeLaCuenta({ id: ownerId, role: user.role ?? "user" });
+    const suyas = new Set(cuentas.map((c) => c.id));
+    const porCuenta = new Map<string, PermisoDeProyecto>();
+    for (const destino of destinos) {
+      if (destino.accountUserId === ownerId) continue;
+      if (!suyas.has(destino.accountUserId)) continue;
+      porCuenta.set(destino.accountUserId, comoPermiso(destino.permiso));
+    }
+
+    await guardarLosDestinosDelProyecto(
+      projectId,
+      [...porCuenta].map(([accountUserId, permiso]) => ({ accountUserId, permiso })),
+      user.id,
+    );
+
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: user.id,
+      entityType: "project",
+      entityId: String(projectId),
+      action: "updated",
+      summary: `Compartio el proyecto con ${porCuenta.size} cuenta(s)`,
+      metadata: { cuentas: [...porCuenta.keys()] },
+    }).catch(() => {});
+
+    revalidatePath("/proyectos");
+    return { success: true, message: "Listo." };
+  } catch (error) {
+    console.error("[setProjectSharesAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo guardar con quién se comparte.",
     };
   }
 }

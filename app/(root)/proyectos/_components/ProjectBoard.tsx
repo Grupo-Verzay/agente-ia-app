@@ -270,6 +270,7 @@ export function ProjectBoard({
   team,
   userId,
   canManage,
+  recibido = false,
   abrirTareaId,
   onBack,
   onProjectChanged,
@@ -277,8 +278,22 @@ export function ProjectBoard({
   project: ProjectData;
   team: AdvisorInfo[];
   userId: string;
-  /** Dueño o administrador. Un agente solo mueve las tareas que tiene asignadas. */
+  /**
+   * Puede trabajar en el tablero: crear, editar y mover cualquier tarjeta. Un
+   * agente solo mueve las que tiene asignadas, y en un proyecto recibido de solo
+   * lectura no se toca nada.
+   */
   canManage: boolean;
+  /**
+   * El proyecto es de OTRA cuenta y nos lo están enseñando.
+   *
+   * Con permiso de edición se trabaja en él —crear, mover y cerrar tareas— pero
+   * **no se borra nada**: borrar una tarea del proyecto de otro no es
+   * «trabajar en él», y lo destructivo se queda en la cuenta dueña. La puerta de
+   * verdad está en el servidor; esto es para no enseñar un botón que va a
+   * contestar que no.
+   */
+  recibido?: boolean;
   /** Abrir esta tarea nada más cargar. Es a donde lleva un aviso. */
   abrirTareaId?: number | null;
   onBack: () => void;
@@ -482,6 +497,8 @@ export function ProjectBoard({
         team={team}
         userId={userId}
         canManage={canManage}
+        puedeBorrar={canManage && !recibido}
+        recibido={recibido}
         onClose={() => {
           const habiaTarea = editingTask !== null;
           setAddingTo(null);
@@ -541,6 +558,8 @@ function TaskDialog({
   team,
   userId,
   canManage,
+  puedeBorrar,
+  recibido,
   onClose,
   onSaved,
 }: {
@@ -558,6 +577,16 @@ function TaskDialog({
    * servidor lo vuelve a comprobar de todos modos.
    */
   canManage: boolean;
+  /** Borrar es aparte: en un proyecto recibido no se borra ni con edición. */
+  puedeBorrar: boolean;
+  /**
+   * El proyecto es de otra cuenta. Con esto no se pinta el bloque de «Cuenta» y
+   * «Tipo de trabajo»: eso es la contabilidad de la cuenta DUEÑA —a cuál de SUS
+   * clientes se le dedica el rato— y la lista de cuentas que vería la invitada
+   * es la suya, que no pinta nada aquí. Guardarlo tampoco funcionaría: la acción
+   * resuelve el dueño por quien llama.
+   */
+  recibido: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -596,8 +625,8 @@ function TaskDialog({
     // pedirlas una vez al arrancar el tablero sería una consulta que casi nunca
     // se usa. Si falla, la lista sale vacía y el campo queda en «Sin cuenta»,
     // que es lo que había antes de esto.
-    void clientesParaLaTareaAction().then(setClientes);
-  }, [open, task, userId]);
+    if (!recibido) void clientesParaLaTareaAction().then(setClientes);
+  }, [open, task, userId, recibido]);
 
   /**
    * Cerrar sin guardar: lo que subió y no llegó a colgar de ninguna tarea se
@@ -635,7 +664,7 @@ function TaskDialog({
         dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
         assignedToId,
       });
-      if (res.success) {
+      if (res.success && !recibido) {
         await guardarElClienteDeLaTareaAction(
           task.id,
           clienteId || null,
@@ -663,11 +692,13 @@ function TaskDialog({
       return;
     }
 
-    await guardarElClienteDeLaTareaAction(
-      res.data.id,
-      clienteId || null,
-      tipoDeTrabajo || null,
-    );
+    if (!recibido) {
+      await guardarElClienteDeLaTareaAction(
+        res.data.id,
+        clienteId || null,
+        tipoDeTrabajo || null,
+      );
+    }
 
     // Los archivos que se subieron mientras se redactaba ya están en el bucket;
     // aquí se les pone por fin el id de la tarea. Va ANTES de avisar de que se
@@ -796,6 +827,8 @@ function TaskDialog({
             </select>
           </div>
 
+          {!recibido && (
+          <>
           <div className="space-y-1.5">
             <Label htmlFor="task-cliente">Cuenta</Label>
             <select
@@ -840,6 +873,8 @@ function TaskDialog({
                 : "Montaje entrega un cliente nuevo; soporte mantiene uno que ya funciona."}
             </p>
           </div>
+          </>
+          )}
         </div>
 
         {/* Nacer en «Hecho» es nacer cerrada, y cerrar pide el tiempo. Solo
@@ -850,7 +885,7 @@ function TaskDialog({
         )}
 
         <DialogFooter className="sm:justify-between">
-          {task && canManage ? (
+          {task && puedeBorrar ? (
             <Button
               variant="ghost"
               onClick={() => void handleDelete()}

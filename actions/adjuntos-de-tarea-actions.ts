@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { canManageWorkspace } from "@/lib/workspace-roles";
-import { mandaEnElProyecto } from "@/lib/project-roles";
+import { accesoAlProyecto } from "@/lib/acceso-al-proyecto";
 import {
   contarLosAdjuntos,
   guardarUnAdjunto,
@@ -44,27 +44,35 @@ const adjuntarSchema = z.object({
  * Comprueba que se puede tocar ESTA tarea, y devuelve de quien es.
  *
  * Copia exacta de la condicion de `updateProjectTaskAction`: se resuelve el
- * dueño desde la propia tarea, no desde lo que llegue del navegador.
+ * dueño desde la propia tarea, no desde lo que llegue del navegador. En un
+ * proyecto compartido eso significa la cuenta DUEÑA del proyecto, que es de
+ * quien cuelgan sus tareas — y sus archivos con ellas.
  */
 async function puedeTocarLaTarea(taskId: number) {
   const user = await currentUser();
   if (!user?.id) throw new Error("No autorizado.");
-  const ownerId = user.ownerId ?? user.id;
+  const suCuenta = user.ownerId ?? user.id;
 
   const tarea = await db.task.findFirst({
-    where: { id: taskId, ownerId },
-    select: { projectId: true },
+    where: { id: taskId },
+    select: { ownerId: true, projectId: true },
   });
   if (!tarea) throw new Error("Tarea no encontrada.");
 
-  const puede = tarea.projectId
-    ? await mandaEnElProyecto(user, ownerId, tarea.projectId)
-    : canManageWorkspace(user);
-  if (!puede) {
-    throw new Error("Solo quien lleva el proyecto o un administrador puede editar sus tareas.");
+  if (tarea.projectId) {
+    const acceso = await accesoAlProyecto(user, suCuenta, tarea.projectId);
+    if (!acceso || acceso.ownerId !== tarea.ownerId) throw new Error("Tarea no encontrada.");
+    if (!acceso.puedeTrabajar) {
+      throw new Error("Solo quien lleva el proyecto o un administrador puede editar sus tareas.");
+    }
+  } else {
+    if (tarea.ownerId !== suCuenta) throw new Error("Tarea no encontrada.");
+    if (!canManageWorkspace(user)) {
+      throw new Error("Solo quien lleva el proyecto o un administrador puede editar sus tareas.");
+    }
   }
 
-  return { user, ownerId };
+  return { user, ownerId: tarea.ownerId };
 }
 
 export async function adjuntarArchivoATareaAction(

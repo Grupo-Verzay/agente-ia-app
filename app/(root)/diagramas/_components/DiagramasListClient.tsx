@@ -57,11 +57,13 @@ import {
   deleteFlowAction,
   duplicateFlowAction,
   setFlowVisibilityAction,
+  getFlowShareTargetsAction,
+  setFlowSharesAction,
   type FlowSummary,
 } from '@/actions/flow-actions';
 import type { FlowVisibility } from '@/lib/flow-visibility';
 import { BarraDeCarpetas, MoverACarpeta, useCarpetas } from '@/components/shared/Carpetas';
-import { CompartirConCuentasDialog } from './CompartirConCuentasDialog';
+import { CompartirConCuentasDialog } from '@/components/shared/CompartirConCuentasDialog';
 
 /**
  * Con quien se comparte cada diagrama, dicho en la pantalla. El icono va en la
@@ -475,8 +477,18 @@ export function DiagramasListClient() {
         <CompartirConCuentasDialog
           open={!!compartiendo}
           setOpen={(v) => !v && setCompartiendo(null)}
-          flowId={compartiendo.id}
-          flowName={compartiendo.name}
+          titulo={compartiendo.name}
+          queSeVe="Diagramas"
+          cargar={async () => {
+            const res = await getFlowShareTargetsAction(compartiendo.id);
+            return res.success
+              ? { ok: true, cuentas: res.data }
+              : { ok: false, cuentas: [], message: res.message };
+          }}
+          guardar={async (destinos) => {
+            const res = await setFlowSharesAction(compartiendo.id, destinos);
+            return res.success ? { ok: true } : { ok: false, message: res.message };
+          }}
           onSaved={() => void load()}
         />
       )}

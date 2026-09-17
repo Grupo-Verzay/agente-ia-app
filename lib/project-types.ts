@@ -53,6 +53,27 @@ export type ProjectData = {
   /**
    * Si quien mira lo lleva: puede editarlo, borrarlo y manejar sus tareas.
    * Cierto para quien gestiona la cuenta y para quien creó el proyecto.
+   * **Siempre falso en uno recibido**: repartirlo sigue siendo de quien lo hizo.
    */
   puedeGestionar: boolean;
+  /**
+   * Llegó compartido desde OTRA cuenta.
+   *
+   * Es lo que distingue «este proyecto es nuestro» de «nos lo están enseñando»,
+   * y de ahí cuelga todo lo demás: no se edita la ficha, no se borra, no se
+   * comparte a más cuentas y no se borran sus tareas.
+   */
+  recibido: boolean;
+  /**
+   * Crear, mover, editar y cerrar tareas.
+   *
+   * En uno propio es cierto para quien lo ve; en uno recibido, solo con permiso
+   * de edición. Sin esto, un proyecto de solo lectura se dejaría tocar entero y
+   * no se guardaría nada — el fallo que ya costó trabajo perdido en Diagramas.
+   */
+  puedeEditarTareas: boolean;
+  /** A cuántas cuentas se les está enseñando. Cero en los recibidos. */
+  compartidoCon: number;
+  /** De qué cuenta viene, ya resuelto a nombre. Solo en los recibidos. */
+  deLaCuenta: string | null;
 };

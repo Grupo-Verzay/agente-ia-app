@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { filtroDeProyectosVisibles } from "@/lib/project-roles";
+import { accesoAlProyecto } from "@/lib/acceso-al-proyecto";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
 import {
   atenderLosAvisos,
@@ -34,18 +34,22 @@ type Resultado<T> = { success: boolean; message: string; data?: T };
 /**
  * La tarea, si esta persona puede verla. Si no, se corta.
  *
- * Dos puertas, las mismas que ya usa el tablero: la tarea es de MI cuenta, y si
- * cuelga de un proyecto, ese proyecto es de los que yo veo
- * (`filtroDeProyectosVisibles`). Sin la segunda, con el id a mano se leería el
- * hilo de un proyecto en el que no se está.
+ * Dos puertas, las mismas que ya usa el tablero: si la tarea cuelga de un
+ * proyecto, manda `accesoAlProyecto` —el mismo sitio que decide el tablero, así
+ * que un proyecto compartido trae su hilo con él—; y si va suelta, tiene que ser
+ * de MI cuenta. Sin esto, con el id a mano se leería el hilo de un proyecto en el
+ * que no se está.
  */
-async function laTareaQuePuedoVer(taskId: number) {
+async function laTareaQuePuedoVer(taskId: number, escribir = false) {
   const user = await currentUser();
   if (!user?.id) throw new Error("No autorizado.");
   const ownerId = user.ownerId ?? user.id;
 
+  // Sin acotar por cuenta: en un proyecto compartido las tareas cuelgan de la
+  // cuenta dueña. Quién puede llegar a ella se decide abajo, y para una tarea
+  // suelta se sigue exigiendo que sea de la propia cuenta, como siempre.
   const tarea = await db.task.findFirst({
-    where: { id: taskId, ownerId },
+    where: { id: taskId },
     select: {
       id: true,
       ownerId: true,
@@ -58,14 +62,20 @@ async function laTareaQuePuedoVer(taskId: number) {
   if (!tarea) throw new Error("Tarea no encontrada.");
 
   if (tarea.projectId) {
-    const visible = await db.project.findFirst({
-      where: { id: tarea.projectId, ownerId, ...filtroDeProyectosVisibles(user) },
-      select: { id: true },
-    });
-    if (!visible) throw new Error("Tarea no encontrada.");
+    const acceso = await accesoAlProyecto(user, ownerId, tarea.projectId);
+    if (!acceso || acceso.ownerId !== tarea.ownerId) throw new Error("Tarea no encontrada.");
+    // Leer el hilo lo puede quien ve el proyecto; **escribir en uno RECIBIDO
+    // de solo lectura, no**: ahí se mira y no se cambia nada, y un comentario es
+    // un cambio. En uno propio no se toca nada de lo que ya había: quien ve el
+    // proyecto comenta, como hasta ahora.
+    if (escribir && acceso.recibido && !acceso.puedeTrabajar) {
+      throw new Error("Este proyecto es de solo lectura.");
+    }
+  } else if (tarea.ownerId !== ownerId) {
+    throw new Error("Tarea no encontrada.");
   }
 
-  return { user, ownerId, tarea };
+  return { user, ownerId: tarea.ownerId, tarea };
 }
 
 const comentarSchema = z.object({
@@ -85,7 +95,7 @@ export async function comentarLaTareaAction(
 ): Promise<Resultado<ComentarioDeTarea>> {
   try {
     const parsed = comentarSchema.parse(input);
-    const { user, ownerId, tarea } = await laTareaQuePuedoVer(parsed.taskId);
+    const { user, ownerId, tarea } = await laTareaQuePuedoVer(parsed.taskId, true);
 
     const autorNombre = user.name?.trim() || user.email || null;
     const comentario: ComentarioDeTarea = {
