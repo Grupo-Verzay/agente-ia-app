@@ -9,6 +9,8 @@ import {
     Lock,
     MessagesSquare,
     Pencil,
+    Phone,
+    PhoneOff,
     Plus,
     Send,
     Users,
@@ -427,7 +429,14 @@ export function HiloDelEquipo({
                     </div>
                 ) : (
                     <div className="mx-auto flex max-w-3xl flex-col gap-3">
-                        {datos.mensajes.map((m) => (
+                        {datos.mensajes.map((m) =>
+                            m.llamada ? (
+                                <MarcaDeLlamada
+                                    key={m.id}
+                                    mensaje={m}
+                                    mio={m.autorId === datos.yo}
+                                />
+                            ) : (
                             <Burbuja
                                 key={m.id}
                                 mensaje={m}
@@ -436,7 +445,8 @@ export function HiloDelEquipo({
                                 buscado={m.id === mensajeInicial}
                                 nombrePorId={nombrePorId}
                             />
-                        ))}
+                            ),
+                        )}
                         <div ref={abajoDelTodo} />
                     </div>
                 )}
@@ -533,20 +543,45 @@ function BarraDeCanales({
 
     return (
         <div className="shrink-0 border-b border-border bg-background">
-            <button
-                type="button"
-                onClick={onAlternar}
-                aria-expanded={abierta}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/60 sm:px-6"
-            >
-                <IconoDeCanal canal={canal} />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {canal.nombre}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                    {abierta ? "Cerrar" : "Cambiar"}
-                </span>
-            </button>
+            <div className="flex items-center">
+                <button
+                    type="button"
+                    onClick={onAlternar}
+                    aria-expanded={abierta}
+                    className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/60 sm:px-6"
+                >
+                    <IconoDeCanal canal={canal} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {canal.nombre}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                        {abierta ? "Cerrar" : "Cambiar"}
+                    </span>
+                </button>
+                {/* Llamar: SOLO en un directo.
+                  *
+                  * Un canal de varias personas no tiene «el otro», y una
+                  * llamada de uno a uno no sabria a quien sonarle. La puerta de
+                  * verdad esta en la accion —comprueba que sea un directo y que
+                  * quien llama pertenezca—; esto es la fachada. */}
+                {canal.tipo === "directo" && (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            window.dispatchEvent(
+                                new CustomEvent("llamada:salir", {
+                                    detail: { canalId: canal.id, conQuien: canal.nombre },
+                                }),
+                            )
+                        }
+                        aria-label={`Llamar a ${canal.nombre}`}
+                        title={`Llamar a ${canal.nombre}`}
+                        className="mr-2 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40"
+                    >
+                        <Phone className="h-4 w-4" />
+                    </button>
+                )}
+            </div>
 
             {abierta && (
                 <div className="max-h-[min(50vh,320px)] overflow-y-auto border-t border-border px-2 py-2">
@@ -1052,6 +1087,46 @@ function ListaDeMenciones({
                     </button>
                 ))}
             </div>
+        </div>
+    );
+}
+
+/**
+ * El registro de una llamada.
+ *
+ * **No se pinta como una burbuja**: nadie escribió eso, lo dejó la llamada al
+ * terminar. Va centrado y en gris, como una marca del hilo — igual que en
+ * cualquier mensajería. Pintado como un mensaje más, parecería que alguien
+ * escribió «Llamada de voz · 3:07».
+ */
+function MarcaDeLlamada({
+    mensaje,
+    mio,
+}: {
+    mensaje: MensajeDeEquipo;
+    mio: boolean;
+}) {
+    const fin = mensaje.llamada?.fin;
+    const perdida = fin === "sin_respuesta" || fin === "no_disponible";
+    const rota = fin === "sin_conexion" || fin === "rechazada";
+
+    return (
+        <div className="flex justify-center py-1">
+            <span
+                className={[
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px]",
+                    perdida || rota
+                        ? "border-destructive/30 bg-destructive/5 text-destructive"
+                        : "border-border bg-muted/40 text-muted-foreground",
+                ].join(" ")}
+            >
+                {perdida || rota ? (
+                    <PhoneOff className="h-3 w-3 shrink-0" />
+                ) : (
+                    <Phone className="h-3 w-3 shrink-0" />
+                )}
+                <span>{mio ? mensaje.texto : mensaje.texto.replace("Llamada", "Llamada")}</span>
+            </span>
         </div>
     );
 }

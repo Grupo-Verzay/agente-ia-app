@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { TOPE_DE_MENSAJES, type MensajeDeEquipo } from "@/lib/chat-de-equipo";
 import type { ChatCompartido } from "@/lib/chat-compartido";
+import { esFinDeLlamada, type FinDeLlamada } from "@/lib/llamada-de-voz";
 import {
     CANAL_GENERAL,
     type TipoDeCanal,
@@ -106,6 +107,23 @@ function asegurarLaTabla(): Promise<void> {
         await db.$executeRaw`
             ALTER TABLE "team_chat_messages"
             ADD COLUMN IF NOT EXISTS "chatNumero" TEXT
+        `;
+        // El registro de una llamada de voz: como acabo y cuanto duro.
+        //
+        // Va como un MENSAJE MAS del directo —en su sitio por fecha, leido por
+        // el mismo lector de siempre— y no en una tabla aparte, que obligaria a
+        // mezclar dos listas al pintar el hilo. Lo que lo distingue son estas
+        // dos columnas, igual que la tarjeta de una conversacion compartida.
+        //
+        // Por `ADD COLUMN IF NOT EXISTS` y no reescribiendo el `CREATE`: la
+        // tabla ya esta en produccion.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "llamadaFin" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "llamadaSegundos" INTEGER
         `;
         // El indice del reloj, ahora por canal: es la consulta que corre cada
         // pocos segundos por panel abierto.
@@ -237,6 +255,8 @@ type Fila = {
     chatIdentidades: string[] | null;
     chatNombre: string | null;
     chatNumero: string | null;
+    llamadaFin: string | null;
+    llamadaSegundos: number | null;
 };
 
 const aMensaje = (f: Fila): MensajeDeEquipo => ({
@@ -263,6 +283,12 @@ const aMensaje = (f: Fila): MensajeDeEquipo => ({
                   numero: f.chatNumero,
               }
             : null,
+    // El registro de una llamada. `esFinDeLlamada` filtra al LEER, para que una
+    // fila rara —a mano, o de una version anterior— no llegue a la pantalla
+    // como un final que no existe.
+    llamada: esFinDeLlamada(f.llamadaFin)
+        ? { fin: f.llamadaFin, segundos: Number(f.llamadaSegundos ?? 0) }
+        : null,
 });
 
 /**
@@ -300,7 +326,8 @@ export async function leerElHilo(
                     SELECT "id", "autorId", "autorNombre", "escritoDesde",
                            "texto", "mencionados", "creadoEn",
                            "chatLinea", "chatJid", "chatIdentidades",
-                           "chatNombre", "chatNumero"
+                           "chatNombre", "chatNumero",
+                           "llamadaFin", "llamadaSegundos"
                     FROM "team_chat_messages"
                     WHERE "cuentaId" IN (${Prisma.join(deLaFamilia)})
                       AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})
@@ -315,7 +342,8 @@ export async function leerElHilo(
                     SELECT "id", "autorId", "autorNombre", "escritoDesde",
                            "texto", "mencionados", "creadoEn",
                            "chatLinea", "chatJid", "chatIdentidades",
-                           "chatNombre", "chatNumero"
+                           "chatNombre", "chatNumero",
+                           "llamadaFin", "llamadaSegundos"
                     FROM "team_chat_messages"
                     WHERE "canalId" = ${canalId}
                     ORDER BY "creadoEn" DESC
@@ -351,19 +379,23 @@ export async function guardarUnMensaje(input: {
      * línea es suya. Esa pregunta es de la acción, que es donde está la sesión.
      */
     chat: ChatCompartido | null;
+    /** El registro de una llamada de voz, cuando el mensaje es eso. */
+    llamada?: { fin: FinDeLlamada; segundos: number } | null;
 }): Promise<void> {
     await conLaTabla(() => db.$executeRaw`
         INSERT INTO "team_chat_messages"
             ("id", "cuentaId", "canalId", "autorId", "autorNombre",
              "escritoDesde", "texto", "mencionados",
-             "chatLinea", "chatJid", "chatIdentidades", "chatNombre", "chatNumero")
+             "chatLinea", "chatJid", "chatIdentidades", "chatNombre", "chatNumero",
+             "llamadaFin", "llamadaSegundos")
         VALUES (
             ${input.id}, ${input.cuentaId}, ${input.canalId}, ${input.autorId},
             ${input.autorNombre}, ${input.escritoDesde},
             ${input.texto}, ${input.mencionados},
             ${input.chat?.linea ?? null}, ${input.chat?.jid ?? null},
             ${input.chat?.identidades ?? []},
-            ${input.chat?.nombre ?? null}, ${input.chat?.numero ?? null}
+            ${input.chat?.nombre ?? null}, ${input.chat?.numero ?? null},
+            ${input.llamada?.fin ?? null}, ${input.llamada?.segundos ?? null}
         )
     `);
 }

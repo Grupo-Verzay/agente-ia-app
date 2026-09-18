@@ -81,6 +81,14 @@ export type MensajeDeEquipo = {
      * pantalla vacía. Ver `lib/chat-compartido.ts`.
      */
     chat?: ChatCompartido | null;
+    /**
+     * El registro de una llamada de voz, cuando el mensaje es eso.
+     *
+     * Va como un mensaje más del directo —en su sitio por fecha— y no en una
+     * lista aparte: así lo trae el lector de siempre y no hay dos hilos que
+     * mezclar al pintar.
+     */
+    llamada?: { fin: string; segundos: number } | null;
 };
 
 /** Lo mínimo que hace falta saber de alguien para mencionarlo. */
