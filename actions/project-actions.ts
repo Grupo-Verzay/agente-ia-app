@@ -16,6 +16,7 @@ import {
   posicionesDelTablero,
 } from "@/lib/orden-de-tablero-db";
 import { cuentasParaCompartir } from "@/lib/cuentas-cliente";
+import { apuntarLoQueHizo } from "@/lib/apuntar-actividad";
 import {
   comoPermiso,
   conCuantasCuentasSeComparten,
@@ -680,6 +681,12 @@ export async function moveProjectTaskAction(
     if (deQuienEs.projectId) {
       await alFinalDelTablero("proyecto", String(deQuienEs.projectId), String(parsed.taskId));
     }
+
+    // Actividad del equipo: la mueve quien la mueve, no a quién esté asignada.
+    // Un administrador arrastra tarjetas de otros, así que `assignedToId`
+    // mediría por quien no lo hizo — es el mismo motivo por el que `task_work`
+    // guarda `cerradaPorId` y no el asignado.
+    await apuntarLoQueHizo(user, "tarea_movida");
 
     revalidatePath("/proyectos");
     return { success: true, message: "Tarea actualizada." };

@@ -2,6 +2,8 @@
 'use server'
 
 import { db } from "@/lib/db"
+import { currentUser } from "@/lib/auth"
+import { apuntarLoQueHizo } from "@/lib/apuntar-actividad"
 import { whereSeguimientosDelLead } from "@/lib/registros-del-lead"
 import { seguimientosSchema } from "@/schema/seguimientos"
 
@@ -26,6 +28,14 @@ export const createSeguimiento = async (input: unknown) => {
     const seguimiento = await db.seguimiento.create({
       data: validated.data,
     })
+
+    // Actividad del equipo. Con `refId`, para poder cerrar el círculo el día
+    // que el cliente conteste: esa es justo la pareja que la tercera capa viene
+    // a poder medir. No lanza — el seguimiento ya está creado.
+    const quien = await currentUser()
+    if (quien) {
+      await apuntarLoQueHizo(quien, "seguimiento_hecho", String(seguimiento.id))
+    }
 
     return {
       success: true,

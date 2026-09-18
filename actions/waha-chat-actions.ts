@@ -9,6 +9,7 @@ import { anteponerFirmaDelAsesor } from '@/lib/firma-del-asesor';
 import { ensureWahaSessionEvents, getWahaPresence, sendWahaMedia, sendWahaText, type PresenciaWaha, type WahaMediaType } from '@/lib/waha';
 import { canonicalToWahaJid } from '@/lib/waha-jid';
 import { subirAdjuntoSaliente } from '@/lib/adjuntos-salientes';
+import { apuntarLoQueHizo, apuntarUnaVezAlDia } from '@/lib/apuntar-actividad';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
 import type { SendMessageResult } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
@@ -71,6 +72,21 @@ async function lineaWahaAutorizada(instanceName: string): Promise<
 /** Lo que se guarda de un adjunto: la URL si la hay; un `data:` gigante no va a la base. */
 function mediaUrlParaGuardar(mediaUrl?: string): string | null {
   return mediaUrl && /^https?:\/\//i.test(mediaUrl) ? mediaUrl : null;
+}
+
+/**
+ * Apunta el envío en la Actividad del equipo.
+ *
+ * Resuelve la persona aquí y no la recibe: quien manda es **quien está sentado
+ * delante**, y eso lo sabe `currentUser()`. El `userId` que estas funciones ya
+ * tienen a mano es el de la CUENTA dueña de la línea, que no es lo mismo — con
+ * él, el trabajo de todo el equipo se le apuntaría a la cuenta.
+ */
+async function apuntarElEnvio(remoteJid: string): Promise<void> {
+  const quien = await currentUser();
+  if (!quien) return;
+  await apuntarLoQueHizo(quien, 'mensaje_enviado');
+  await apuntarUnaVezAlDia(quien, 'chat_atendido', remoteJid);
 }
 
 export async function sendWahaTextAction(
@@ -161,6 +177,10 @@ export async function sendWahaTextAction(
         }),
         messageTimestamp: ahora,
       });
+      // Actividad del equipo, y solo tras `persistChatMessage`: hasta aqui no
+      // se llega si el envio fallo. Los tres caminos de envio lo apuntan igual
+      // — con uno fuera, los numeros serian «a veces funciona».
+      await apuntarElEnvio(remoteJid);
       return { success: true, message: 'Enviado.', remoteJid };
     }
 
@@ -200,6 +220,10 @@ export async function sendWahaTextAction(
       }),
       messageTimestamp: ahora,
     });
+    // Actividad del equipo, y solo tras `persistChatMessage`: hasta aqui no
+    // se llega si el envio fallo. Los tres caminos de envio lo apuntan igual —
+    // con uno fuera, los numeros serian «a veces funciona».
+    await apuntarElEnvio(remoteJid);
     return { success: true, message: 'Enviado.', remoteJid };
   } catch (error) {
     console.error('[sendWahaTextAction]', error);

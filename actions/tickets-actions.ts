@@ -14,6 +14,7 @@ import {
   posicionesDelTablero,
 } from "@/lib/orden-de-tablero-db";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+import { apuntarComoAcabo, apuntarLoQueHizo } from "@/lib/apuntar-actividad";
 import { isAdminLike } from "@/lib/rbac";
 import {
   ESTADOS_DE_TICKET,
@@ -261,6 +262,11 @@ export async function abrirTicketAction(
     // delante pisaría el orden que puso alguien a mano en el tablero.
     await alFinalDelTablero("tickets", destino, id);
 
+    // Actividad del equipo. Con `refId`, para poder cerrar el círculo cuando
+    // el ticket se resuelva y saber cuánto tardó. No lanza: el ticket ya está
+    // creado y medirlo no puede deshacerlo.
+    await apuntarLoQueHizo(user, "ticket_creado", id);
+
     revalidatePath("/mis-tickets");
     revalidatePath("/panel/tickets");
     return { success: true, message: "Listo, ya lo recibimos.", data: { id } };
@@ -404,6 +410,22 @@ export async function moverTicketAction(
     // DESPUÉS del `cambio`: si otro se adelantó no se mueve nada, así que
     // tampoco se le busca sitio.
     await alFinalDelTablero("tickets", destino, parsed.id);
+
+    // Actividad del equipo. Va **detrás del `cambio`** a propósito: si otro
+    // administrador se adelantó, esta llamada no tocó ninguna fila y tampoco
+    // tiene que contarse como trabajo suyo. Es la misma condición que decide
+    // si sale el WhatsApp, y por la misma razón.
+    const quienMueve = await currentUser();
+    if (quienMueve) {
+      await apuntarLoQueHizo(quienMueve, "ticket_cerrado");
+      // Y se cierra el círculo del ticket_creado: cuánto tardó en resolverse.
+      // Solo cuando de verdad acabó — pasar a «en revisión» no es un final.
+      if (parsed.estado === "resuelto") {
+        await apuntarComoAcabo("ticket_creado", parsed.id, "cerrado");
+      } else if (parsed.estado === "descartado") {
+        await apuntarComoAcabo("ticket_creado", parsed.id, "descartado");
+      }
+    }
 
     let avisado = false;
     if (hayQueAvisar) avisado = await avisarAlCliente(ticket, parsed.id);

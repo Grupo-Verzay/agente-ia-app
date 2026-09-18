@@ -6,6 +6,7 @@ import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { canManageWorkspace } from "@/lib/workspace-roles";
+import { apuntarComoAcabo, apuntarLoQueHizo } from "@/lib/apuntar-actividad";
 import {
     comoDiasDeGracia,
     comoDiasDeLicencia,
@@ -319,6 +320,12 @@ export async function confirmarPagoAction(
             vencia: cerrado.vencia?.toISOString() ?? null,
             siguienteVence: cerrado.siguienteVence.toISOString(),
         });
+
+        // Se cierra el círculo del cobro que se mandó: **pagado**, y con él
+        // cuánto tardó en pagarse. Esta es justo la pareja que la tercera capa
+        // existe para poder medir cuando haya meses detrás.
+        await apuntarComoAcabo("cobro_enviado", String(id ?? "").trim(), "pagado");
+
         revalidatePath("/cobros");
         return { success: true, data: { siguienteVence: cerrado.siguienteVence.toISOString() } };
     } catch (error) {
@@ -458,7 +465,7 @@ export async function guardarConfigAction(entrada: unknown): Promise<Respuesta<C
  */
 export async function cobrarAhoraAction(id: string): Promise<Respuesta<{ linea: string }>> {
     try {
-        const { ownerId } = await laCuenta();
+        const { user, ownerId } = await laCuenta();
         const cartera = await laCarteraDe(ownerId);
         const cobro = cartera.find((c) => c.id === String(id ?? "").trim());
         if (!cobro) return { success: false, message: "Esa deuda ya no está." };
@@ -482,6 +489,13 @@ export async function cobrarAhoraAction(id: string): Promise<Respuesta<{ linea: 
         if (!resultado.ok) return { success: false, message: resultado.motivo };
 
         console.info("[cobros] cobro enviado a mano", { cobro: cobro.id, linea: resultado.linea, hito });
+
+        // Actividad del equipo, y solo **después** de que saliera de verdad:
+        // más arriba hay un `return` cuando el envío falla. Apuntarlo antes
+        // sería la misma trampa que anotar un hito que no salió — ver «lo que
+        // no salió no se anota».
+        await apuntarLoQueHizo(user, "cobro_enviado", cobro.id);
+
         return { success: true, data: { linea: resultado.linea } };
     } catch (error) {
         return {

@@ -20,6 +20,7 @@ import {
   puedeGestionarAlCliente,
 } from '@/lib/gestion-de-clientes';
 import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad';
+import { apuntarUnaVezAlDia } from '@/lib/apuntar-actividad';
 import { purgarCuentaEliminada } from '@/lib/purge-account.server';
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
@@ -596,6 +597,12 @@ export const updateClientData = async (userId: string, formData: FormData) => {
     }
 
     await db.user.update({ where: { id: userId }, data: dataToUpdate });
+
+    // Actividad del equipo: «clientes tocados». El `refId` es el cliente, así
+    // que la deduplicación por día la hace la misma fila de resultado — tocar
+    // dos veces la ficha del mismo cliente en un día es un cliente tocado, no
+    // dos. Nunca lanza: la ficha ya está guardada.
+    await apuntarUnaVezAlDia(me, "cliente_tocado", userId);
 
     return { success: true, message: "Datos del cliente actualizados correctamente." };
   } catch (error) {
