@@ -4,6 +4,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
@@ -138,7 +139,7 @@ export async function createTaskAction(
         type: parsed.type,
         dueDate: new Date(parsed.dueDate),
         status: "pending",
-        createdById: user.id,
+        createdById: laPersona(user).id,
         projectId: parsed.projectId ?? null,
       },
     });
@@ -171,8 +172,8 @@ export async function createTaskAction(
         assignedToId: task.assignedToId,
         createdById: task.createdById,
       },
-      actorId: user.id,
-      actorNombre: user.name?.trim() || user.email || null,
+      actorId: laPersona(user).id,
+      actorNombre: laPersona(user).nombre,
     });
 
     await writeAuditLog({
@@ -358,7 +359,7 @@ export async function completeTaskAction(
           type: parsedNextTask.type,
           dueDate: new Date(parsedNextTask.dueDate),
           status: "pending",
-          createdById: user.id,
+          createdById: laPersona(user).id,
         },
       });
     });
@@ -371,8 +372,8 @@ export async function completeTaskAction(
       taskId,
       ownerId,
       minutos: minutosDeTrabajo as number,
-      cerradaPorId: user.id,
-      cerradaPorNombre: user.name?.trim() || user.email || null,
+      cerradaPorId: laPersona(user).id,
+      cerradaPorNombre: laPersona(user).nombre,
     });
 
     // Dada por hecha: le salta a quien la creó, que es quien tiene que avisarle
@@ -388,8 +389,8 @@ export async function completeTaskAction(
         assignedToId: currentTask.assignedToId,
         createdById: currentTask.createdById,
       },
-      actorId: user.id,
-      actorNombre: user.name?.trim() || user.email || null,
+      actorId: laPersona(user).id,
+      actorNombre: laPersona(user).nombre,
       texto: result || null,
     });
 

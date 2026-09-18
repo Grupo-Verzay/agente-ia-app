@@ -229,6 +229,30 @@ export function quienFirma(user: QuienEscribe): Firma | null {
 }
 
 /**
+ * Quién está sentado delante, para FIRMAR lo que hace.
+ *
+ * Es `quienFirma` con el `null` resuelto, y existe para que las escrituras que
+ * solo necesitan «la persona y su nombre» no tengan que repetir el fallback en
+ * cada sitio — que es exactamente como se coló la fila efectiva en el autor de
+ * un comentario, en quién cerró una tarea y en quién creó una.
+ *
+ * **Se usa al ESCRIBIR** lo que luego se lee por persona: `tasks.createdById`,
+ * `task_comments.autorId`, `task_work.cerradaPorId` y el `actorId` de un aviso.
+ * Dentro de otra cuenta, `user.id` es la fila del cliente: firmar con ella deja
+ * el aviso a nombre de quien no lo hizo y el destinatario fuera de su propia
+ * campanita.
+ */
+export function laPersonaQueActua(
+    user: QuienEscribe,
+): { id: string; nombre: string | null } {
+    const firma = quienFirma(user);
+    return {
+        id: firma?.personaId ?? user?.id?.trim() ?? "",
+        nombre: firma?.nombre ?? user?.name?.trim() ?? null,
+    };
+}
+
+/**
  * La arroba que se está escribiendo, si es que hay una.
  *
  * # Por qué es puro y por qué se prueba

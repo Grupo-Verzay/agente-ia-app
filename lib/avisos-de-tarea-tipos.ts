@@ -1,3 +1,5 @@
+import { quienFirma } from "@/lib/chat-de-equipo";
+
 /**
  * Comentarios de una tarea y avisos que salen de ella. Solo tipos y constantes.
  *
@@ -110,22 +112,23 @@ export function esTipoDeAviso(v: string): v is TipoDeAviso {
 /**
  * De quién es un aviso: **la PERSONA, no la fila efectiva**.
  *
- * Los avisos se **escriben** con el id de la persona —`sessionUserId ?? id`, la
- * misma regla con la que se firma un mensaje del chat de equipo (#761)— y se
- * venían **leyendo** con `user.id`, que es el de la cuenta EFECTIVA.
+ * `sessionUserId ?? id`, la misma regla con la que se firma un mensaje del chat
+ * de equipo (#761). Coinciden siempre salvo dentro de otra cuenta —el
+ * conmutador de vinculadas o «Ingresar»—, y ahí los avisos de esa persona **no
+ * le aparecían**: ni la ventana que interrumpe, ni la campanita, ni se podían
+ * marcar como leídos.
  *
- * Coinciden siempre salvo dentro de otra cuenta —el conmutador de vinculadas o
- * «Ingresar»—, y ahí los avisos de esa persona **no le aparecían**: ni la
- * ventana que interrumpe, ni la campanita, ni se podían marcar como leídos. Es
- * la misma asimetría que partió el General en dos, por otra puerta.
+ * Y la primera vez esto se arregló **solo del lado de leer**, que es lo que
+ * dejó la tabla con las DOS identidades dentro: el aviso se creaba para la
+ * persona y `vistoEn` se escribía contra la fila efectiva, así que el punto del
+ * tablero no se quitaba nunca. Ahora los dos lados preguntan aquí.
  *
- * Puro y aquí, al lado del tipo, para que los cuatro sitios que preguntan lo
- * hagan igual: la ventana, la campanita, el centro de notificaciones y el clic
- * que los atiende.
+ * **Delega en `quienFirma` a propósito.** Son la misma pregunta —quién está
+ * sentado delante— y dos funciones que la contestan por separado es una que se
+ * afina y otra que se queda; eso es exactamente lo que este documento prohíbe.
  */
 export function elDestinatarioDeLosAvisos(
   user: { id?: string | null; sessionUserId?: string | null } | null | undefined,
 ): string | null {
-  const persona = user?.sessionUserId?.trim() || user?.id?.trim();
-  return persona || null;
+  return quienFirma(user ?? {})?.personaId ?? null;
 }

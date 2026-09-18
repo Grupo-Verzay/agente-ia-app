@@ -5253,6 +5253,99 @@ Tres cosas que hay que mantener:
    cuenta ve. Y salir nunca queda cerrado: es borrar la cookie
    (`/api/logout`), que no pregunta ningún rol.
 
+## Lo que se LEE por persona se ESCRIBE por persona
+
+`currentUser()` devuelve la fila **efectiva** —la cuenta en la que se está
+metido—, y medio repo usaba `user.id` como si fuera la persona. Lo es **salvo
+dentro de otra cuenta** («Ingresar» o el conmutador de vinculadas), y por eso
+esta familia de fallo no se ve en ninguna prueba manual: en el caso normal los
+dos ids son el mismo.
+
+> **Un dato que se lee con `sessionUserId ?? id` se escribe con
+> `sessionUserId ?? id`.** Lo contesta una sola función,
+> `laPersonaQueActua(user)` (`lib/chat-de-equipo.ts`), que es `quienFirma` con
+> el `null` resuelto — la misma con la que firma el chat de equipo y con la que
+> cuenta la Actividad del equipo.
+
+Y `elDestinatarioDeLosAvisos` **delega en ella**. Antes eran dos funciones
+contestando la misma pregunta por separado, que es como se arregló este fallo
+**la primera vez y solo a medias**: se corrigió el lado de leer y la tabla se
+quedó con las dos identidades dentro.
+
+### Lo que rompía, y no daba ningún error
+
+| dónde | se escribía | se lee | el síntoma |
+| --- | --- | --- | --- |
+| `task_alerts.destinatarioId` (vía `tasks.createdById` y el autor de un comentario) | efectiva | persona | el aviso queda a nombre del cliente: **ni ventana, ni campanita, nunca** |
+| `task_alerts.vistoEn` / `atendidoEn` | efectiva | persona | el `UPDATE` toca **0 filas**: el punto del tablero no se quita jamás |
+| el punto del tablero (`tareasConAlgoSinVer`) | — | efectiva | preguntaba por un id que nunca tiene avisos: **siempre 0**, o sea «todo leído» |
+| `task_comments.autorId` y `autorNombre` | efectiva | persona | el comentario sale firmado por el cliente y el «Tú» del hilo no acierta |
+| el `actorId` de un aviso | efectiva | persona | `crearLosAvisos` descuenta con `destinatarioId === actorId`: **uno se avisa a sí mismo** |
+| `task_work.cerradaPorId` | efectiva | persona (Actividad) | el Reparto del trabajo y la Actividad del equipo cuentan el mismo rato a dos ids distintos |
+| `Session.assigned_advisor_id` (`takeSession`) | efectiva | persona (el desplegable de asesores) | «Asignarme» deja el chat tomado y **«Mías» sale vacía** |
+| `clientesDelAsesor` | — | efectiva | dentro de otra cuenta lee la cartera **del cliente**: Clientes, Instancias y Analíticas contestan con una lista que no es la suya |
+
+Medido contra Postgres: marcar visto con la efectiva devuelve `UPDATE 0` y con
+la persona `UPDATE 1`. Y el `0` de arriba es la trampa entera — el contador del
+punto también daba `0`, así que **las dos mitades del fallo se tapaban entre
+ellas** y desde fuera parecía que no había nada que ver.
+
+### Tres cosas que hay que mantener
+
+1. **El asesor de un chat es la PERSONA en los dos lados.** `takeSession`
+   escribe `laPersonaQueActua(user).id` y `releaseSession` compara con lo mismo;
+   `assignSessionToAdvisor` ya recibía ids del desplegable, que son personas.
+   Cambiar solo el filtro habría dejado «Asignarme» escribiendo una cosa y
+   «Mías» buscando otra — peor que el fallo original.
+2. **`clientesDelAsesor` parte de la persona; la herencia del administrador NO
+   se toca.** Lo único que cambia es de quién se parte: `laPersonaDetras`
+   resuelve la fila real **solo cuando los dos ids difieren** —una consulta que
+   en el caso normal no se hace— y después `cuentaQueManda` decide igual que
+   siempre. Que un `administrador` actúe por su cuenta es a propósito y sigue.
+3. **`audit_logs`, `AssignmentLog.assignedBy` y `generateConversationIntelligence`
+   se quedan con la fila efectiva**, a propósito y por ahora: son «quién lo
+   hizo», otra familia, y entran con los latentes (tickets y cobros).
+
+### Y de lo ya escrito, qué se puede recuperar: NADA, y por qué
+
+Es la parte incómoda y conviene que esté escrita. El valor guardado es **el id
+de la cuenta**, y una cuenta tiene muchas personas detrás; peor aún, quien
+actuaba venía normalmente de **otra cuenta distinta**, así que su rastro no está
+en la fila por ningún lado:
+
+- `autorNombre` y `cerradaPorNombre` **también** se copiaron de la fila efectiva,
+  así que el nombre tampoco la identifica.
+- `AssignmentLog.assignedBy` y `audit_logs.actor_id` guardaban el mismo id
+  efectivo, así que no sirven de contraprueba.
+
+Deducir la persona sería **inventar un autor**, y eso es peor que un autor
+equivocado: quedaría indistinguible de un dato bueno. Así que no hay backfill.
+
+**Lo que sí se arregla solo**, sin tocar ninguna fila:
+
+- el **punto del tablero** y los avisos sin ver: esas filas no están mal, están
+  **sin leer**. Abrir la tarea ahora las marca y el punto se apaga.
+- **«Mías»**, el **«Tú»** del hilo y la **cartera**: no guardan nada, se calculan
+  al pintar. Quedan bien desde el despliegue.
+
+**Lo que queda mal para siempre** son las filas escritas desde dentro de otra
+cuenta: el autor de esos comentarios, quién cerró esas tareas y quién creó esas
+tareas. Cuánto es se mide así —**no se ejecutó**, esta sesión no tiene acceso a
+producción—:
+
+```sql
+SELECT 'task_comments.autorId' AS donde, count(*) AS filas
+FROM "task_comments" c JOIN "User" u ON u.id = c."autorId" WHERE u."owner_id" IS NULL
+UNION ALL SELECT 'task_work.cerradaPorId', count(*)
+FROM "task_work" w JOIN "User" u ON u.id = w."cerradaPorId" WHERE u."owner_id" IS NULL
+UNION ALL SELECT 'tasks.createdById', count(*)
+FROM "tasks" t JOIN "User" u ON u.id = t."createdById" WHERE u."owner_id" IS NULL;
+```
+
+Es un **techo, no la cifra**: un dueño sin `owner_id` que trabaja en su propia
+cuenta cuenta ahí y está perfectamente bien. Lo que de verdad importa del número
+es si es cero.
+
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 
 En Panel › Clientes el desplegable de rol listaba **los cinco** roles a
