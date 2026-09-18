@@ -1024,8 +1024,17 @@ function TaskDialog({
           <TiempoDeTarea minutos={minutosDeTrabajo} onChange={setMinutosDeTrabajo} />
         )}
 
-        <DialogFooter className="sm:justify-between">
-          {task && puedeBorrar ? (
+        {/* Los tres van como hijos DIRECTOS del pie: cancelar pegado al borde
+            izquierdo y la acción al derecho, con Eliminar en medio.
+            Estaban «Cancelar» y «Crear tarea» dentro de un <div>, así que el
+            pie veía un solo hijo y los mandaba juntos a la derecha — y el
+            `<span />` de relleno ocupaba el borde izquierdo por ellos. */}
+        <DialogFooter>
+          <Button variant="outline" onClick={cerrar} disabled={saving || deleting}>
+            {canManage ? "Cancelar" : "Cerrar"}
+          </Button>
+
+          {task && puedeBorrar && (
             <Button
               variant="ghost"
               onClick={() => void handleDelete()}
@@ -1035,22 +1044,17 @@ function TaskDialog({
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Eliminar
             </Button>
-          ) : <span />}
+          )}
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={cerrar} disabled={saving || deleting}>
-              {canManage ? "Cancelar" : "Cerrar"}
+          {/* Sin permiso no hay botón de guardar: enseñarlo y que el servidor
+              conteste «No autorizado» es la puerta cerrada detrás del menú
+              abierto. Lo que sí puede hacer aquí es comentar. */}
+          {canManage && (
+            <Button onClick={() => void handleSave()} disabled={saving || deleting} className="gap-2">
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {task ? "Guardar" : "Crear tarea"}
             </Button>
-            {/* Sin permiso no hay botón de guardar: enseñarlo y que el servidor
-                conteste «No autorizado» es la puerta cerrada detrás del menú
-                abierto. Lo que sí puede hacer aquí es comentar. */}
-            {canManage && (
-              <Button onClick={() => void handleSave()} disabled={saving || deleting} className="gap-2">
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                {task ? "Guardar" : "Crear tarea"}
-              </Button>
-            )}
-          </div>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

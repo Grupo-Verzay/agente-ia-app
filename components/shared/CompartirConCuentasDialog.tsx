@@ -235,18 +235,17 @@ export function CompartirConCuentasDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-row items-center justify-between sm:justify-between">
+        {/* Hijos DIRECTOS del pie: ver `components/ui/dialog.tsx`. */}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
           <span className="text-xs tabular-nums text-muted-foreground">
             {loading ? '' : `${elegidas.size} de ${cuentas.length} cuentas`}
           </span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button variant="save" onClick={alGuardar} disabled={loading || saving}>
-              {saving ? 'Guardando…' : 'Guardar'}
-            </Button>
-          </div>
+          <Button variant="save" onClick={alGuardar} disabled={loading || saving}>
+            {saving ? 'Guardando…' : 'Guardar'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
