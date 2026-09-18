@@ -2847,6 +2847,76 @@ directos de su cuenta —decisión tomada a propósito— y eso no le deja llama
 desde ellos. Meterse en la conversación de otros dos no es supervisar, y una
 llamada lo es mucho más que un mensaje.
 
+### Quien hace sonar el timbre NO es quien sabe que ya se contestó
+
+El timbre lo genera `OyenteDeLlamadas`, que cuelga del layout —tiene que sonar
+estés donde estés—, y lo paraba al desaparecer la llamada entrante. Pero una
+llamada **sigue siendo la misma después de contestarla**: `entrante` no cambia,
+así que el timbre seguía sonando **toda la conversación**.
+
+Y sonaba en las **dos puntas** aunque el tono se genere en una sola. Esa es la
+parte que despista: el micro de quien contesta ya está abierto, así que su
+propio timbre se le colaba por el micrófono a quien llamó. **Una causa, dos
+síntomas** — y buscar un segundo tono en el lado de quien llama es perder la
+tarde, porque ahí no hay ninguno.
+
+Dos cosas que hay que mantener:
+
+1. **Lo dice la ventana, no el oyente.** `LaLlamada` avisa con `onSonando`, y va
+   como **booleano**, no como un «cállate» de una sola dirección: si contestar
+   falla —sin micro, permiso denegado— la llamada **sigue sonando en la otra
+   punta** y aquí tiene que volver a sonar. Un aviso de un solo sentido dejaría
+   esa llamada muda para siempre, que es peor que el fallo original.
+2. **Hay un estado `conectando`, y no sobra.** Es el que va de pulsar
+   «Contestar» a tener el audio puesto: pedir el micro, armar la respuesta y
+   esperar a ICE son varios segundos, **con el diálogo de permiso del navegador
+   delante**. Sin ese estado el estado seguía siendo `sonando` todo ese rato.
+   Un estado que no se nombra no se puede apagar.
+
+### La tarjeta se arrastra y se pliega, y solo una vez conectada
+
+Fija en medio de la pantalla, una llamada de diez minutos tapa aquello sobre lo
+que se está hablando. Una vez conectada se arrastra y se pliega a una barra con
+el rato y el botón de colgar.
+
+**Solo conectada**, a propósito: mientras suena son dos botones y una decisión
+de un segundo, y poder arrastrar una llamada entrante solo añade formas de no
+darle a Contestar.
+
+Cinco cosas que no se ven mirando la pantalla y descuadran igual:
+
+1. **La caja que sostiene la POSICIÓN es una, y el `<audio>` vive en ella.**
+   Partirlo en dos ventanas —una plegada y otra desplegada— desmontaría el
+   `<audio>` al plegar, y con él el `srcObject` que trae la voz del otro: la
+   llamada seguiría abierta y **muda**. Lo que cambia es lo de dentro.
+2. **Antes del primer arrastre la ventana la centra el CSS.** Aplicarle un
+   desplazamiento sin fijar antes dónde está de verdad (`getBoundingClientRect`)
+   la manda a la esquina en el primer píxel. Se fija y luego se mueve.
+3. **La captura del puntero va en el ASA**, que es quien lleva los manejadores:
+   en otro elemento, los eventos siguientes se le redirigen a él y el arrastre
+   se suelta a medias en cuanto el cursor sale de la ventana. Y de ahí sale la
+   otra mitad: **ningún botón puede ir DENTRO del asa** —el `click` no llegaría
+   a salir, porque los eventos ya están redirigidos—. El de plegar va fuera,
+   posicionado encima.
+4. **`touch-none` en el asa.** Sin él, en un móvil el navegador se queda el
+   gesto para desplazar la página y la ventana no se mueve nunca.
+5. **`w-fit`, nunca `w-auto`.** Sin posición propia la caja va con `inset-x-0`,
+   y un ancho automático entre `left:0` y `right:0` **se estira**: la barra
+   pequeña salía de lado a lado de la pantalla.
+
+Y **dónde puede quedarse** es lo único de esto que se prueba sin navegador, así
+que es puro: `dentroDeLaPantalla` (`lib/llamada-de-voz.ts`). No es decoración —
+la ventana lleva dentro el botón de colgar, y dejarla salir por un borde es
+dejar una llamada abierta sin forma de cortarla y con el micro encendido. Se
+recoloca al **redimensionar** y al **plegar o desplegar**, que cambia el tamaño:
+desplegar una barra pegada al borde de abajo la sacaría por ahí.
+
+El suelo de cada eje es el **margen**, no el máximo: en una ventana más estrecha
+que la tarjeta el máximo sale negativo, y sin ese suelo la ventana se iría hacia
+arriba y hacia la izquierda, fuera de la pantalla. El banco lo prueba con un
+móvil de 390×667.
+
+
 ## Chats → equipo: la conversación se SEÑALA, no se cuenta
 
 Para que el equipo viera un caso de WhatsApp, el asesor copiaba el texto a mano

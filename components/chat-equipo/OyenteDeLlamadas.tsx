@@ -40,6 +40,19 @@ export function OyenteDeLlamadas() {
     const [saliente, setSaliente] = useState<{ canalId: string } | null>(null);
     /** Con quién es la llamada abierta. Lo pone quien la abre, de los dos lados. */
     const [conQuien, setConQuien] = useState("");
+    /**
+     * Si hay que estar timbrando ahora mismo.
+     *
+     * Lo dice la ventana de la llamada, que es quien sabe si ya se contestó.
+     * Aquí NO se puede deducir de `entrante`: esa llamada sigue siendo la misma
+     * después de contestarla, y por eso el timbre sonaba durante toda la
+     * conversación.
+     *
+     * Arranca en `true` para que suene desde la primera vuelta, sin esperar a
+     * que la ventana se monte y diga lo suyo: medio segundo de silencio al
+     * principio de un timbre se nota.
+     */
+    const [timbrando, setTimbrando] = useState(true);
 
     // El sonido se monta una vez y se reutiliza: crear un `AudioContext` por
     // vuelta los va dejando abiertos hasta que el navegador se queja.
@@ -59,6 +72,7 @@ export function OyenteDeLlamadas() {
             // dos llamadas a la vez se atienden de una en una, y pisar la que
             // está sonando con otra es la forma de perder las dos.
             if (datos.entrante && !abiertaRef.current) {
+                setTimbrando(true);
                 setEntrante({
                     id: datos.entrante.id,
                     canalId: datos.entrante.canalId,
@@ -114,8 +128,10 @@ export function OyenteDeLlamadas() {
     //
     // Se genera con WebAudio y no con un fichero: un `.mp3` habría que subirlo,
     // servirlo y esperar a que cargue justo cuando hace falta que suene ya.
+    const debeTimbrar = Boolean(entrante) && timbrando;
+
     useEffect(() => {
-        if (!entrante) {
+        if (!debeTimbrar) {
             tonoRef.current?.parar();
             tonoRef.current = null;
             return;
@@ -174,7 +190,7 @@ export function OyenteDeLlamadas() {
             tonoRef.current?.parar();
             tonoRef.current = null;
         };
-    }, [entrante]);
+    }, [debeTimbrar]);
 
     // Salir a llamar desde la cabecera del directo.
     useEffect(() => {
@@ -195,7 +211,13 @@ export function OyenteDeLlamadas() {
                 canalId={entrante.canalId}
                 conQuien={entrante.deQuien}
                 entrante={{ id: entrante.id, oferta: entrante.oferta }}
-                onCerrar={() => setEntrante(null)}
+                onSonando={setTimbrando}
+                onCerrar={() => {
+                    setEntrante(null);
+                    // Rearmado para la siguiente: sin esto, la llamada de
+                    // después entraría muda.
+                    setTimbrando(true);
+                }}
             />
         );
     }
