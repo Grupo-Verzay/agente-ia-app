@@ -131,6 +131,75 @@ function asegurarLaTabla(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "team_chat_messages_canal_idx"
             ON "team_chat_messages" ("cuentaId", "canalId", "creadoEn")
         `;
+        // La CITA: el mensaje al que responde este, si responde a alguno.
+        //
+        // Tres columnas COPIADAS, y esa es la decision entera: el recuadro de
+        // la cita se pinta con lo que hay en ESTA fila, sin mirar el original
+        // para nada. Es el mismo criterio con el que `autorNombre` ya se copia
+        // —para que el hilo siga diciendo quien escribio aunque esa persona
+        // salga del equipo—, aplicado al texto del mensaje citado.
+        //
+        // `citaId` solo sirve para SALTAR. Si el original desaparece, el
+        // recuadro se sigue pintando con el nombre y el extracto de aqui; lo
+        // unico que cambia es que la pantalla avisa de que ya no esta, y eso se
+        // pregunta al leer y no se guarda como marca (ver `CitaDeMensaje`).
+        //
+        // Entran por `ADD COLUMN IF NOT EXISTS` y NULLABLE, por lo mismo que
+        // las de arriba: la tabla ya esta en produccion, un
+        // `CREATE TABLE IF NOT EXISTS` no la toca, y un mensaje normal no cita
+        // nada — sin dos clases de mensaje y sin backfill.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "citaId" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "citaAutorNombre" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "citaExtracto" TEXT
+        `;
+        // La BUSQUEDA por texto. **Es este indice el que evita recorrer la
+        // tabla**, y conviene decirlo asi porque lo primero que se penso fue lo
+        // contrario.
+        //
+        // La idea de partida era que lo que acotaba eran **los canales que la
+        // persona puede leer** —unos pocos, ya resueltos por
+        // `canalesQueAlcanzan`— y que el indice solo ayudaba dentro de ese
+        // trozo. Medido con 60.000 mensajes en 30 canales, el plan dice otra
+        // cosa:
+        //
+        //     Bitmap Heap Scan
+        //       Filter: ("canalId" = ANY (...))        <- la lista, DESPUES
+        //       -> Bitmap Index Scan on ..._texto_idx  <- esto es lo que manda
+        //
+        // O sea: **el GIN manda y la lista de canales se aplica como filtro
+        // encima.** Los numeros lo confirman: 5 ms con el indice contra 40 ms
+        // sin el, con el mismo recorte por canal. Y buscar en 3 canales no es
+        // mas rapido que en los 30 (5 ms contra 3 ms): con menos filas que
+        // casan, al `LIMIT` le cuesta mas llenarse.
+        //
+        // Asi que las dos cosas hacen falta y hacen cosas distintas, que es lo
+        // que no se puede volver a confundir:
+        //
+        // - **La lista de canales es la PUERTA.** No se busca donde no se puede
+        //   leer. Es correccion, no velocidad.
+        // - **El GIN es la velocidad.** Sin el, la consulta crece con el tamaño
+        //   de la tabla aunque el recorte por canal siga puesto.
+        //
+        // `'spanish'` para que «facturas» encuentre «factura»; el prefijo del
+        // termino que se esta tecleando lo pone `comoConsultaDeBusqueda`.
+        //
+        // Y **sin `CREATE EXTENSION`**: `pg_trgm` haria falta para un `ILIKE
+        // '%x%'` con indice, pero instalar una extension pide permisos que la
+        // App no tiene por que tener, y el dia que no los tenga esto fallaria
+        // al arrancar. La busqueda de texto completo viene con Postgres.
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "team_chat_messages_texto_idx"
+            ON "team_chat_messages"
+            USING GIN (to_tsvector('spanish', "texto"))
+        `;
         await db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "team_channels" (
                 "id" TEXT PRIMARY KEY,
@@ -257,9 +326,20 @@ type Fila = {
     chatNumero: string | null;
     llamadaFin: string | null;
     llamadaSegundos: number | null;
+    citaId: string | null;
+    citaAutorNombre: string | null;
+    citaExtracto: string | null;
 };
 
-const aMensaje = (f: Fila): MensajeDeEquipo => ({
+/**
+ * De fila a mensaje.
+ *
+ * `vivas` son los ids de mensajes citados que TODAVIA existen. Se pasa desde
+ * fuera porque se resuelve de una vez para toda la pagina —un `IN` sobre la
+ * clave primaria— y no una consulta por mensaje. Sin el conjunto, la cita se
+ * da por viva: es lo que pasa en los caminos que no citan nada.
+ */
+const aMensaje = (f: Fila, vivas?: Set<string>): MensajeDeEquipo => ({
     id: f.id,
     autorId: f.autorId,
     autorNombre: f.autorNombre,
@@ -289,7 +369,33 @@ const aMensaje = (f: Fila): MensajeDeEquipo => ({
     llamada: esFinDeLlamada(f.llamadaFin)
         ? { fin: f.llamadaFin, segundos: Number(f.llamadaSegundos ?? 0) }
         : null,
+    // La cita se pinta con lo que hay en ESTA fila. Lo unico que se pregunta
+    // por el original es si sigue ahi, para poder decirlo.
+    cita: f.citaId
+        ? {
+              id: f.citaId,
+              autorNombre: f.citaAutorNombre,
+              extracto: f.citaExtracto ?? "",
+              sigueAhi: vivas ? vivas.has(f.citaId) : true,
+          }
+        : null,
 });
+
+/** Cuales de estos mensajes citados siguen existiendo. */
+async function lasCitasQueSiguenAhi(filas: Fila[]): Promise<Set<string>> {
+    const citados = Array.from(
+        new Set(filas.map((f) => f.citaId).filter((x): x is string => Boolean(x))),
+    );
+    if (citados.length === 0) return new Set();
+    // Una sola consulta por pagina, por clave primaria. Guardarlo como marca
+    // en la fila obligaria a que cada camino que borre un mensaje se acordara
+    // de ponerla, y el dia que alguien borre por otro lado la marca miente.
+    const vivas = await db.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "team_chat_messages"
+        WHERE "id" IN (${Prisma.join(citados)})
+    `;
+    return new Set(vivas.map((v) => v.id));
+}
 
 /**
  * El hilo de una cuenta, del más antiguo al más nuevo.
@@ -327,7 +433,8 @@ export async function leerElHilo(
                            "texto", "mencionados", "creadoEn",
                            "chatLinea", "chatJid", "chatIdentidades",
                            "chatNombre", "chatNumero",
-                           "llamadaFin", "llamadaSegundos"
+                           "llamadaFin", "llamadaSegundos",
+                           "citaId", "citaAutorNombre", "citaExtracto"
                     FROM "team_chat_messages"
                     WHERE "cuentaId" IN (${Prisma.join(deLaFamilia)})
                       AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})
@@ -343,13 +450,169 @@ export async function leerElHilo(
                            "texto", "mencionados", "creadoEn",
                            "chatLinea", "chatJid", "chatIdentidades",
                            "chatNombre", "chatNumero",
-                           "llamadaFin", "llamadaSegundos"
+                           "llamadaFin", "llamadaSegundos",
+                           "citaId", "citaAutorNombre", "citaExtracto"
                     FROM "team_chat_messages"
                     WHERE "canalId" = ${canalId}
                     ORDER BY "creadoEn" DESC
                     LIMIT ${TOPE_DE_MENSAJES}
                 `;
-        return filas.map(aMensaje).reverse();
+        const vivas = await lasCitasQueSiguenAhi(filas);
+        return filas.map((f) => aMensaje(f, vivas)).reverse();
+    });
+}
+
+/**
+ * Buscar por texto en los canales que esa persona puede leer.
+ *
+ * **La lista de canales es la PUERTA, no la optimización.** Llega ya resuelta
+ * por `canalesQueAlcanzan` —la misma que arma el listado—, así que aquí no se
+ * vuelve a decidir quién lee qué. Escribir una segunda condición de permisos en
+ * esta consulta sería tener dos que mantener a la par, y el día que se separen
+ * la búsqueda enseña lo que la lista esconde.
+ *
+ * Lo que evita recorrer la tabla es **el GIN**, no esa lista: medido, el plan
+ * entra por el índice de texto y aplica los canales como filtro encima (ver el
+ * comentario del índice). Las dos cosas hacen falta y hacen cosas distintas.
+ *
+ * El **general** va aparte porque no es un canal con fila: son los mensajes de
+ * la familia con `canalId` nulo o `'general'`, igual que se leen.
+ */
+export async function buscarEnElEquipo(input: {
+    /** Los canales con fila a los que llega. Ya comprobados. */
+    canalIds: string[];
+    /** La familia, para el general. */
+    cuentas: string[];
+    /** Ya saneada por `comoConsultaDeBusqueda`. Nunca texto en crudo. */
+    consulta: string;
+    /** Acotar a un solo canal, cuando se busca «en este canal». */
+    soloEsteCanal?: string | null;
+    tope: number;
+}): Promise<Array<Fila & { canalId: string | null }>> {
+    const deLaFamilia = input.cuentas.filter(Boolean);
+    const canales = input.canalIds.filter(Boolean);
+
+    // Sin nada que mirar no se consulta. Un `IN ()` vacío es un error de
+    // sintaxis, y buscar en cero canales no puede devolver nada de todas
+    // formas.
+    const puedeElGeneral =
+        deLaFamilia.length > 0 &&
+        (!input.soloEsteCanal || input.soloEsteCanal === CANAL_GENERAL);
+    const canalesQueTocan = input.soloEsteCanal
+        ? canales.filter((c) => c === input.soloEsteCanal)
+        : canales;
+    if (canalesQueTocan.length === 0 && !puedeElGeneral) return [];
+
+    // El alcance, montado con las dos mitades que hagan falta. Se arma una vez
+    // y se inyecta: con la condición copiada en dos ramas, una devolvería filas
+    // que la otra descarta.
+    const trozos: Prisma.Sql[] = [];
+    if (canalesQueTocan.length > 0) {
+        trozos.push(Prisma.sql`"canalId" IN (${Prisma.join(canalesQueTocan)})`);
+    }
+    if (puedeElGeneral) {
+        trozos.push(
+            Prisma.sql`("cuentaId" IN (${Prisma.join(deLaFamilia)})
+                        AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL}))`,
+        );
+    }
+    const alcance = Prisma.join(trozos, " OR ");
+
+    return conLaTabla(() => db.$queryRaw<Array<Fila & { canalId: string | null }>>`
+        SELECT "id", "autorId", "autorNombre", "escritoDesde",
+               "texto", "mencionados", "creadoEn", "canalId",
+               "chatLinea", "chatJid", "chatIdentidades",
+               "chatNombre", "chatNumero",
+               "citaId", "citaAutorNombre", "citaExtracto"
+        FROM "team_chat_messages"
+        WHERE (${alcance})
+          AND to_tsvector('spanish', "texto") @@ to_tsquery('spanish', ${input.consulta})
+        ORDER BY "creadoEn" DESC
+        LIMIT ${input.tope}
+    `);
+}
+
+/**
+ * El hilo ALREDEDOR de un mensaje, no los últimos.
+ *
+ * Hace falta justamente para la búsqueda: un resultado de hace tres meses no
+ * está entre los últimos `TOPE_DE_MENSAJES`, así que pulsarlo aterrizaba al
+ * final del hilo y el anillo no aparecía nunca — el mismo caso que el salto de
+ * la campanita ya admite («si no está, se sigue como siempre, al final»), que
+ * en un aviso reciente es aceptable y aquí sería el fallo entero.
+ *
+ * Se traen los de antes y los de después **en dos consultas acotadas**, no un
+ * `OFFSET` sobre el hilo: contar cuántos hay antes de ese mensaje obliga a
+ * recorrerlos, y es lo que la regla de *una consulta que devuelve una página
+ * tiene que poder pararse* prohíbe.
+ */
+export async function elHiloAlrededorDe(input: {
+    canalId: string;
+    cuentas: string[];
+    mensajeId: string;
+}): Promise<MensajeDeEquipo[]> {
+    const deLaFamilia = input.cuentas.filter(Boolean);
+    const mitad = Math.floor(TOPE_DE_MENSAJES / 2);
+
+    return conLaTabla(async () => {
+        const centro = await db.$queryRaw<Array<{ creadoEn: Date }>>`
+            SELECT "creadoEn" FROM "team_chat_messages" WHERE "id" = ${input.mensajeId}
+        `;
+        // Sin el mensaje no hay alrededor: se contesta vacío y quien llama se
+        // cae al hilo normal. Es lo correcto —el mensaje pudo borrarse entre
+        // buscarlo y pulsarlo— y no un error que enseñar.
+        if (centro.length === 0) return [];
+        const cuando = centro[0].creadoEn;
+
+        const alcance =
+            input.canalId === CANAL_GENERAL
+                ? Prisma.sql`"cuentaId" IN (${Prisma.join(deLaFamilia.length ? deLaFamilia : [""])})
+                             AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})`
+                : Prisma.sql`"canalId" = ${input.canalId}`;
+
+        const [antes, despues] = await Promise.all([
+            db.$queryRaw<Fila[]>`
+                SELECT "id", "autorId", "autorNombre", "escritoDesde",
+                       "texto", "mencionados", "creadoEn",
+                       "chatLinea", "chatJid", "chatIdentidades",
+                       "chatNombre", "chatNumero",
+                       "citaId", "citaAutorNombre", "citaExtracto"
+                FROM "team_chat_messages"
+                WHERE (${alcance}) AND "creadoEn" <= ${cuando}
+                ORDER BY "creadoEn" DESC
+                LIMIT ${mitad}
+            `,
+            db.$queryRaw<Fila[]>`
+                SELECT "id", "autorId", "autorNombre", "escritoDesde",
+                       "texto", "mencionados", "creadoEn",
+                       "chatLinea", "chatJid", "chatIdentidades",
+                       "chatNombre", "chatNumero",
+                       "citaId", "citaAutorNombre", "citaExtracto"
+                FROM "team_chat_messages"
+                WHERE (${alcance}) AND "creadoEn" > ${cuando}
+                ORDER BY "creadoEn" ASC
+                LIMIT ${mitad}
+            `,
+        ]);
+
+        const filas = [...antes.reverse(), ...despues];
+        const vivas = await lasCitasQueSiguenAhi(filas);
+        return filas.map((f) => aMensaje(f, vivas));
+    });
+}
+
+/** Un mensaje suelto, para comprobar que se puede citar. */
+export async function elMensaje(
+    id: string,
+): Promise<{ id: string; canalId: string | null; cuentaId: string; autorNombre: string | null; texto: string } | null> {
+    return conLaTabla(async () => {
+        const filas = await db.$queryRaw<
+            Array<{ id: string; canalId: string | null; cuentaId: string; autorNombre: string | null; texto: string }>
+        >`
+            SELECT "id", "canalId", "cuentaId", "autorNombre", "texto"
+            FROM "team_chat_messages" WHERE "id" = ${id}
+        `;
+        return filas[0] ?? null;
     });
 }
 
@@ -381,13 +644,23 @@ export async function guardarUnMensaje(input: {
     chat: ChatCompartido | null;
     /** El registro de una llamada de voz, cuando el mensaje es eso. */
     llamada?: { fin: FinDeLlamada; segundos: number } | null;
+    /**
+     * El mensaje citado, ya COPIADO.
+     *
+     * Llega con el nombre y el extracto dentro, no con un id que haya que ir a
+     * buscar: eso es lo que hace que la cita no dependa del original. Y ya
+     * comprobado por quien llama —que sea del MISMO canal—, porque esa
+     * pregunta necesita la sesión y aquí no la hay.
+     */
+    cita: { id: string; autorNombre: string | null; extracto: string } | null;
 }): Promise<void> {
     await conLaTabla(() => db.$executeRaw`
         INSERT INTO "team_chat_messages"
             ("id", "cuentaId", "canalId", "autorId", "autorNombre",
              "escritoDesde", "texto", "mencionados",
              "chatLinea", "chatJid", "chatIdentidades", "chatNombre", "chatNumero",
-             "llamadaFin", "llamadaSegundos")
+             "llamadaFin", "llamadaSegundos",
+             "citaId", "citaAutorNombre", "citaExtracto")
         VALUES (
             ${input.id}, ${input.cuentaId}, ${input.canalId}, ${input.autorId},
             ${input.autorNombre}, ${input.escritoDesde},
@@ -395,7 +668,9 @@ export async function guardarUnMensaje(input: {
             ${input.chat?.linea ?? null}, ${input.chat?.jid ?? null},
             ${input.chat?.identidades ?? []},
             ${input.chat?.nombre ?? null}, ${input.chat?.numero ?? null},
-            ${input.llamada?.fin ?? null}, ${input.llamada?.segundos ?? null}
+            ${input.llamada?.fin ?? null}, ${input.llamada?.segundos ?? null},
+            ${input.cita?.id ?? null}, ${input.cita?.autorNombre ?? null},
+            ${input.cita?.extracto ?? null}
         )
     `);
 }

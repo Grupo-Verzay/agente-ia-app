@@ -332,6 +332,9 @@ async function anotarEnElDirecto(fila: FilaDeLlamada): Promise<void> {
             texto: comoSeCuentaLaLlamada(fin, segundos),
             mencionados: [],
             chat: null,
+            // Una llamada no cita a nadie: el registro lo deja la llamada al
+            // terminar, no alguien respondiendo a un mensaje.
+            cita: null,
             llamada: { fin, segundos },
         });
     } catch (error) {
