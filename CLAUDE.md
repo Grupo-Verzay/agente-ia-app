@@ -2662,6 +2662,155 @@ botón mide 36 px y es la mitad de una pareja alineada, así que crecer lo
 descuadraría. Re-medido en Chromium al tocar esa columna, como manda la regla:
 la pareja sigue en 76 px, centrada en 400 a 1280×800, con sus 4 px de hueco.
 
+### Y el SONIDO: solo un directo o una mención, nunca el general a secas
+
+Un contador y una campanita solo avisan a quien está mirando la pantalla, que
+es justo quien no lo necesita. El sonido es para el resto.
+
+**Qué suena está en `lib/aviso-del-equipo.ts`, puro y probado**, y la regla se
+puede decir en una línea: **un directo, o que te mencionen — en cualquier canal,
+el general incluido**. Un mensaje del general sin mención **no suena nunca**: es
+el canal donde está todo el mundo, y sonar con cada cosa que se dice ahí es
+exactamente lo que hace que se silencie el aviso entero, con lo que el que
+importa se pierde también. Es la misma familia que *la campanita es solo para
+menciones*.
+
+Tampoco suena con lo que uno escribe —eso ya lo descarta el servidor, que no
+cuenta como sin leer lo propio— ni con **el canal que se tiene delante**. Y
+«delante» son **dos cosas**: el panel abierto en ese canal **y** la pestaña a la
+vista. Con la pestaña de fondo el canal sigue abierto en la pantalla y no lo
+está mirando nadie — que es cuando hay que sonar.
+
+#### Y la mención sale de `mencionados`, no de `task_alerts`
+
+La fuente que parece obvia es el aviso de la campanita, que ya existe. No lo es,
+por dos cosas: el canal viaja ahí **dentro de una URL** (`enlace`), así que
+habría que parsearla para saber de qué canal era; y ese aviso se apaga al
+atenderlo, que es una vida distinta de la de «sin leer».
+
+`team_chat_messages.mencionados` ya guarda a quién se mencionó, **decidido por
+el servidor al escribir y sobre la gente de ESE canal**. Es el mismo dato, en la
+misma fila que el mensaje, con la misma marca de leído — una consulta, no dos
+tablas que mantener a la par.
+
+#### El tono: más agudo y más corto, y MÁS BAJO
+
+El de los chats de clientes va de 880 a 1100 Hz y dura 450 ms
+(`playNotificationSound`, en `hooks/chats/useAdvisorNotifications`). El del
+equipo arranca **por encima de donde acaba aquel** —1320 a 1760 Hz— y dura
+**180 ms**, menos de la mitad.
+
+Y **con menos volumen, no más**: 0,14 contra 0,25. Lo que distingue un aviso de
+otro es el timbre, no los decibelios; dos tonos compitiendo por ser el más
+fuerte acaban los dos apagados. Un mensaje de un cliente es dinero esperando,
+uno del equipo es un compañero: se reconoce sin levantar la vista y sin asustar
+a nadie. El banco compara los cuatro números contra los del otro tono, para que
+nadie los suba sin darse cuenta.
+
+#### Con la pestaña de fondo: se quitó el guardián, y aun así el navegador manda
+
+El reloj del contador se saltaba la vuelta con `document.hidden`, igual que el
+oyente de llamadas. Tenía sentido cuando lo único que hacía era pintar un número
+que nadie miraba; con sonido es al revés, **la pestaña de fondo es justo el
+caso**, así que el guardián se fue.
+
+Lo que **no** se puede arreglar desde aquí, y conviene no volver a intentarlo:
+el navegador **ralentiza los temporizadores de una pestaña escondida**, y a los
+cinco minutos los deja en una vuelta por minuto. O sea que de fondo esto
+pregunta **menos** que en primer plano, no más, y el sonido puede llegar con
+hasta un minuto de retraso. Es del navegador y no hay `setInterval` que lo
+esquive. Al volver a la pestaña se pregunta de inmediato.
+
+#### Que no suene dos veces con dos pestañas: `localStorage` y un candado
+
+Las pestañas **no se hablan entre ellas**, y `localStorage` es lo único que
+comparten — el mismo motivo por el que el mando de la jornada vive ahí. La marca
+de «hasta aquí ya sonó» se guarda con esa llave, **por persona** (dos cuentas en
+el mismo navegador no pueden pisarse), y **solo suena quien consigue
+escribirla**: las demás leen un número que ya es mayor o igual que el suyo y se
+callan.
+
+La comparación y la escritura van dentro de un candado de `navigator.locks`, que
+sí es común a todas las pestañas: sin él, dos que preguntaran a la vez podrían
+leer las dos antes de que escribiera ninguna. Donde no exista se hace igual sin
+candado — la ventana para colarse es de milisegundos y lo que se pierde es un
+pitido de más, no un mensaje.
+
+Y **la marca avanza aunque no suene**, que es lo que menos se ve: lo que se
+descarta por tenerlo delante **ya está visto**, y dejarlo por detrás de la marca
+lo haría sonar al cambiar de canal. La marca dice «hasta aquí ya lo sé», no
+«hasta aquí ya sonó». Nunca retrocede, para que una respuesta que llega tarde no
+resucite avisos ya dados por vistos.
+
+**Las dos funciones tienen que estar de acuerdo en qué es una fila válida.** Lo
+cazó el banco: `laMarcaDespues` no filtraba las filas rotas, así que una sin
+canal no sonaba —eso sí lo miraba la otra— pero **sí empujaba la marca**, y se
+tragaba en silencio todos los avisos buenos que llegaran después con una hora
+menor. Por eso la condición es una función (`esUnAviso`) y no dos copias.
+
+#### El sonido es de la PERSONA; los avisos del navegador, del DISPOSITIVO
+
+Dos interruptores en la cabecera del panel, junto a la equis, y **dos sitios
+distintos donde se guardan**, que no es un descuido:
+
+| | dónde vive | por qué |
+| --- | --- | --- |
+| el sonido | `preferencias_de_persona`, tabla de la App | te sigue a cualquier equipo; y dentro de una cuenta ajena con «Ingresar» sigue siendo el tuyo, no el del cliente |
+| los avisos del navegador | `localStorage` de ESE navegador | **el permiso es del navegador**: guardado contra la persona, el ordenador de la oficina —donde nadie lo dio— diría «activados» y no avisaría nunca |
+
+La tabla es de la App con `CREATE TABLE IF NOT EXISTS` y sin clave foránea. **Ni
+una columna en `User`**: esa es del backend y añadirle columnas desde aquí es lo
+que reventó el #360.
+
+**Encendido por defecto**, y por eso la ausencia de fila vale `true`: nadie tiene
+que ir a encenderlo para enterarse de que le escribieron, que es el fallo del
+que venimos. Apagarlo es una decisión; no haberlo tocado, no.
+
+Y la preferencia **viaja en la misma vuelta del contador**, no en una consulta
+suya: es el reloj que corre en todas las pantallas de todo el mundo, y partirlo
+en tres acciones sería triplicar sus peticiones para pintar un número y dar un
+pitido.
+
+#### El permiso se pide en el BOTÓN, y si dicen que no se dice
+
+Nunca al entrar. Un cuadro de permiso que salta solo al abrir la App se despacha
+con «Bloquear» sin leerlo —es lo que hace todo el mundo— y entonces la decisión
+queda tomada **para siempre y en contra**: `denied` es terminal, el navegador no
+vuelve a preguntar por mucho que se le pida desde el código. Detrás de un botón
+que dice lo que hace, la respuesta significa algo.
+
+Y con `denied` el interruptor **no se queda encendido fingiendo**: vuelve a su
+sitio y explica el único camino que queda —desbloquearlo desde el candado de la
+barra de direcciones—, más la mitad que importa: **el sonido sigue
+funcionando**. Son dos cosas distintas y por eso son dos botones.
+
+> Ojo, que esto **no** vale para Chats: `useAdvisorNotifications` sigue pidiendo
+> el permiso al montar, como siempre. Cambiarlo es otro frente; lo que no podía
+> ser es que una función nueva copiara esa costumbre.
+
+#### Con la plataforma CERRADA hace falta Web Push, y sí se puede sin el backend
+
+Hoy no está, y lo que hay llega hasta donde llega: con la pestaña de fondo o la
+ventana minimizada suena y avisa; **con el navegador cerrado del todo, no**. No
+hay ningún reloj corriendo.
+
+La pregunta de si eso se puede cubrir sin tocar el backend tiene respuesta, y es
+**sí**, por un motivo que no es obvio: **el mensaje del equipo se escribe en una
+acción de servidor de ESTA App**, no en el backend. Así que el empujón puede
+salir de ahí mismo. Lo que haría falta:
+
+- `web-push` como dependencia, y un par de llaves VAPID **en variables de
+  entorno** —la privada nunca en el repo—.
+- Una tabla nuestra para las suscripciones, con su limpieza: una suscripción
+  caducada contesta `410` y esa fila se borra, o se acumulan para siempre.
+- Un `push` en `public/sw.js`, que hoy solo tiene `notificationclick`.
+
+Y sus límites, que hay que decir antes de prometerlo: en iOS solo funciona con
+la App **instalada** como PWA, y en escritorio el navegador tiene que estar
+corriendo aunque sea de fondo — con el navegador cerrado de verdad no llega nada
+hasta que se vuelve a abrir.
+
+
 ### La campanita: solo menciones, y al MENSAJE
 
 La campanita ya recibía las menciones —`getNotificationCenterData` incluye

@@ -4,6 +4,8 @@ import { randomUUID } from "crypto";
 
 import { currentUser } from "@/lib/auth";
 import { crearLosAvisos } from "@/lib/avisos-de-tarea";
+import { ponerElSonido, quiereSonido } from "@/lib/preferencias-de-persona-db";
+import type { AvisoDelEquipo } from "@/lib/aviso-del-equipo";
 import { tituloDelAviso } from "@/lib/avisos-de-tarea-tipos";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import {
@@ -38,6 +40,7 @@ import {
     elHiloAlrededorDe,
     elMensaje,
     guardarUnMensaje,
+    loQuePuedeSonar,
     laGenteDeLasCuentas,
     leerElHilo,
     marcarLeido,
@@ -1026,8 +1029,36 @@ export async function buscarEnElEquipoAction(
  * administrador lee todos los directos de su cuenta; contárselos le pondría
  * encima el tráfico de todo el mundo, que es tanto como no tener contador.
  */
+/**
+ * Cuántos mensajes faltan por leer, **qué de eso merece sonar**, y si esta
+ * persona quiere que suene.
+ *
+ * Las tres cosas en una vuelta a propósito. Es el reloj que corre en TODAS las
+ * pantallas de todo el mundo con el panel cerrado: partirlo en tres acciones
+ * sería triplicar sus peticiones para pintar un número y dar un pitido — «muchas
+ * peticiones pequeñas son turno, no trabajo», aplicado al reloj más caro de
+ * tener.
+ *
+ * Y la preferencia viaja aquí y no en su propia consulta por lo mismo: es una
+ * lectura de una fila de dos columnas, pegada a una consulta que ya va.
+ */
 export async function sinLeerDelEquipoAction(): Promise<
-    Respuesta<{ total: number; porCanal: Record<string, number> }>
+    Respuesta<{
+        total: number;
+        porCanal: Record<string, number>;
+        avisos: AvisoDelEquipo[];
+        sonido: boolean;
+        /**
+         * De quién es esta vuelta.
+         *
+         * Va aquí y no como prop desde el layout porque la llave de «esto ya
+         * sonó» es de la PERSONA —dos cuentas en el mismo navegador no pueden
+         * pisarse— y quien sabe quién es de verdad es el servidor: dentro de
+         * una cuenta ajena con «Ingresar» la fila efectiva es la del cliente y
+         * la persona es otra.
+         */
+        personaId: string;
+    }>
 > {
     try {
         const quien = await quienYDonde();
@@ -1049,14 +1080,29 @@ export async function sinLeerDelEquipoAction(): Promise<
             gente,
         );
 
-        const mios = canales.filter((c) => c.pertenezco && c.tipo !== "general").map((c) => c.id);
-        const cuentas = await sinLeerPorCanal({
-            personaId: quien.persona.id,
-            canales: mios,
-            familia: quien.familia.cuentas,
-            // El general es de toda la familia y se pertenece a él siempre.
-            conGeneral: canales.some((c) => c.tipo === "general"),
-        });
+        const mios = canales.filter((c) => c.pertenezco && c.tipo !== "general");
+        const conGeneral = canales.some((c) => c.tipo === "general");
+
+        // Los canales donde PERTENECE, no los que puede leer. Quien administra
+        // lee todos los directos de su cuenta, y sonarle con el tráfico de todo
+        // el mundo es tanto como no tener sonido.
+        const [cuentas, avisos, sonido] = await Promise.all([
+            sinLeerPorCanal({
+                personaId: quien.persona.id,
+                canales: mios.map((c) => c.id),
+                familia: quien.familia.cuentas,
+                // El general es de toda la familia y se pertenece a él siempre.
+                conGeneral,
+            }),
+            loQuePuedeSonar({
+                personaId: quien.persona.id,
+                directos: mios.filter((c) => c.tipo === "directo").map((c) => c.id),
+                otros: mios.filter((c) => c.tipo !== "directo").map((c) => c.id),
+                familia: quien.familia.cuentas,
+                conGeneral,
+            }),
+            quiereSonido(quien.persona.id),
+        ]);
 
         const porCanal: Record<string, number> = {};
         let total = 0;
@@ -1065,11 +1111,38 @@ export async function sinLeerDelEquipoAction(): Promise<
             total += c.sinLeer;
         }
 
-        return { success: true, data: { total, porCanal } };
+        return {
+            success: true,
+            data: { total, porCanal, avisos, sonido, personaId: quien.persona.id },
+        };
     } catch (error) {
         // Mudo aquí se ve como «el contador nunca sube», que es justo el fallo
         // que esto viene a arreglar.
         console.warn("[chat-equipo] no se pudo contar lo que falta por leer", error);
         return { success: false, message: "No se pudo contar." };
+    }
+}
+
+/**
+ * Encender o apagar el sonido del chat del equipo.
+ *
+ * Se guarda contra la PERSONA —`quienYDonde` resuelve `sessionUserId ?? id`—,
+ * así que dentro de una cuenta ajena con «Ingresar» se sigue guardando para
+ * quien está sentado delante y no para el cliente. Es el mismo reparto de
+ * `quienFirma`.
+ */
+export async function cambiarSonidoDelEquipoAction(
+    quiere: boolean,
+): Promise<Respuesta<{ sonido: boolean }>> {
+    try {
+        const quien = await quienYDonde();
+        if (!quien) return { success: false, message: "No autorizado." };
+        await ponerElSonido(quien.persona.id, quiere);
+        return { success: true, data: { sonido: quiere } };
+    } catch (error) {
+        // Un interruptor que no dice que no ha guardado es un interruptor que
+        // se vuelve solo a su sitio y nadie sabe por qué.
+        console.warn("[chat-equipo] no se pudo guardar el sonido", error);
+        return { success: false, message: "No se pudo guardar la preferencia." };
     }
 }

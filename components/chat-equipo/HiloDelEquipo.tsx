@@ -56,7 +56,7 @@ import {
     renombrarCanalAction,
     type HiloAbierto,
 } from "@/actions/chat-de-equipo-actions";
-import { avisarDeQueSeLeyo } from "@/hooks/useSinLeerDelEquipo";
+import { avisarDeQueSeLeyo, avisarDelCanalAbierto } from "@/hooks/useSinLeerDelEquipo";
 
 /**
  * El chat del equipo: los canales y el hilo abierto.
@@ -144,6 +144,20 @@ export function HiloDelEquipo({
     // cambiar de canal remontaría el `setInterval` y perdería su cadencia.
     const canalRef = useRef(canalId);
     canalRef.current = canalId;
+
+    // Qué canal se tiene DELANTE, para que no suene con él.
+    //
+    // Solo con el hilo activo: con el panel cerrado no hay ningún canal
+    // delante, y dejar el último puesto silenciaría justo ese para siempre.
+    // Y al desmontar se limpia, o pasa lo mismo.
+    //
+    // La otra mitad de «delante» —si la pestaña está a la vista— la pone quien
+    // pregunta: aquí no se sabe, y con la pestaña de fondo el canal sigue
+    // abierto en la pantalla sin que lo mire nadie.
+    useEffect(() => {
+        avisarDelCanalAbierto(activo ? canalId : null);
+        return () => avisarDelCanalAbierto(null);
+    }, [activo, canalId]);
 
     // A qué mensaje ir, por referencia: el ciclo se monta una vez y esto
     // cambia al pulsar un resultado.
