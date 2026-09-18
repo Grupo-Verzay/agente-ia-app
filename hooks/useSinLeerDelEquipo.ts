@@ -181,10 +181,21 @@ function avisarEnElSistema(aviso: AvisoDelEquipo) {
                         : "Te mencionaron en el chat del equipo.",
                 icon: "/icon-192.png",
                 badge: "/favicon-48.png",
-                // La misma etiqueta para todos: dos avisos seguidos se
-                // sustituyen en vez de apilarse, que es lo que convierte la
-                // bandeja del sistema en una lista que nadie lee.
-                tag: "chat-equipo",
+                // La etiqueta es **la del canal**, y tiene que ser LA MISMA
+                // que usa el empuje de `lib/empujar-aviso.ts`. Dos motivos, y
+                // el segundo es el que obligó a cambiarla:
+                //
+                // 1. Dentro de una conversación los avisos se sustituyen en vez
+                //    de apilarse, que es de donde sale el volumen y lo que
+                //    convierte la bandeja del sistema en una lista que nadie
+                //    lee. Dos conversaciones distintas sí son dos avisos: son
+                //    dos cosas distintas que atender.
+                // 2. **Con la pestaña abierta llegan los DOS caminos**: este y
+                //    el empuje. Con etiquetas distintas el mismo mensaje saldría
+                //    dos veces —uno genérico y otro con el texto—, que es
+                //    exactamente el avisar de más del que viene todo esto. Con
+                //    la misma, el segundo sustituye al primero y sale uno.
+                tag: `chat-equipo-${aviso.canalId}`,
                 data: { url: `/chat-equipo?canal=${encodeURIComponent(aviso.canalId)}` },
             },
         );

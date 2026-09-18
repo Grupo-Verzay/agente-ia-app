@@ -18,6 +18,10 @@ import {
     HOJA_LATERAL_MOVIL,
     avisarDelPanelLateral,
 } from "@/lib/panel-lateral";
+import {
+    darDeBajaEsteDispositivo,
+    suscribirEsteDispositivo,
+} from "@/lib/avisos-push-navegador";
 import { HiloDelEquipo } from "@/components/chat-equipo/HiloDelEquipo";
 
 /**
@@ -226,7 +230,16 @@ function AvisosDelNavegador() {
         setSePuede(hay);
         // Encendido solo si además el permiso sigue concedido: quien lo revoca
         // desde el navegador no puede quedarse con el icono en azul.
-        setEncendido(hay && Notification.permission === "granted" && quiereAvisosDelNavegador());
+        const puesto =
+            hay && Notification.permission === "granted" && quiereAvisosDelNavegador();
+        setEncendido(puesto);
+        // Y se refresca la suscripción de quien ya los tenía puestos. Dos
+        // motivos, y el segundo es el que no se ve: el navegador puede rotar
+        // una suscripción por su cuenta, y **quien activó los avisos antes de
+        // que esto existiera no tiene ninguna** — sin esta línea seguiría sin
+        // recibir nada con la plataforma cerrada, sin un solo error, hasta que
+        // se le ocurriera apagar y volver a encender el botón.
+        if (puesto) void suscribirEsteDispositivo();
     }, []);
 
     if (!sePuede) return null;
@@ -235,6 +248,10 @@ function AvisosDelNavegador() {
         if (encendido) {
             ponerAvisosDelNavegador(false);
             setEncendido(false);
+            // Apagar los avisos da de baja el dispositivo, no solo apaga el
+            // icono: si solo se apagara aquí, el empuje seguiría llegándole al
+            // teléfono a quien lo apagó desde el portátil.
+            void darDeBajaEsteDispositivo();
             return;
         }
         let permiso = Notification.permission;
@@ -259,7 +276,21 @@ function AvisosDelNavegador() {
         }
         ponerAvisosDelNavegador(true);
         setEncendido(true);
-        toast.success("Avisos del navegador activados.");
+
+        // Y la otra mitad: suscribir este dispositivo para que además llegue
+        // con la plataforma CERRADA. Se hace después de encender el icono, no
+        // antes: con el permiso ya concedido los avisos de pestaña abierta
+        // funcionan seguro, y esto solo puede añadir.
+        //
+        // Un `false` aquí **no es un fallo del botón**: lo más probable es que
+        // las llaves VAPID todavía no estén puestas en el servidor. Se dice lo
+        // que sí funciona, que es lo único que le importa a quien lo pulsa.
+        const conLaAppCerrada = await suscribirEsteDispositivo();
+        toast.success(
+            conLaAppCerrada
+                ? "Avisos del navegador activados, también con la plataforma cerrada."
+                : "Avisos del navegador activados mientras la plataforma esté abierta.",
+        );
     };
 
     return (
