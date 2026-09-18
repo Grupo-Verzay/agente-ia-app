@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { db } from "@/lib/db";
@@ -298,20 +299,28 @@ export async function takeSession(sessionId: number): Promise<Result> {
   const { ownerId } = user;
   if (!ownerId) return { success: false, message: "Solo asesores pueden tomar conversaciones." };
 
+  // El asesor es la PERSONA, no la fila efectiva. `assigned_advisor_id` se
+  // compara con los ids que trae el desplegable de asesores —que son personas—
+  // y con el de quien mira para el filtro «Mías», así que escribir aquí el id
+  // de la cuenta dejaba una conversación tomada que su propio dueño no veía.
+  const yo = laPersona(user).id;
+
   const rows = await db.$queryRaw<{ assigned_advisor_id: string | null }[]>`
     SELECT assigned_advisor_id FROM "Session" WHERE id = ${sessionId}
   `;
   if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
-  if (rows[0].assigned_advisor_id && rows[0].assigned_advisor_id !== user.id) {
+  if (rows[0].assigned_advisor_id && rows[0].assigned_advisor_id !== yo) {
     return { success: false, message: "Esta conversación ya fue tomada por otro asesor." };
   }
 
   await db.$executeRaw`
-    UPDATE "Session" SET assigned_advisor_id = ${user.id} WHERE id = ${sessionId}
+    UPDATE "Session" SET assigned_advisor_id = ${yo} WHERE id = ${sessionId}
   `;
 
-  await logAssignment(sessionId, user.id, user.id, "taken");
-  void triggerAdvisorAutomations(sessionId, user.id);
+  // `assignedBy` se queda con la fila efectiva: es el registro de quién lo
+  // hizo, o sea la familia de `audit_logs`, y ese bloque no se toca todavía.
+  await logAssignment(sessionId, yo, user.id, "taken");
+  void triggerAdvisorAutomations(sessionId, yo);
 
   return { success: true };
 }
@@ -324,7 +333,8 @@ export async function releaseSession(sessionId: number): Promise<Result> {
     SELECT assigned_advisor_id FROM "Session" WHERE id = ${sessionId}
   `;
   if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
-  if (rows[0].assigned_advisor_id !== user.id) {
+  // Con la MISMA identidad con la que se tomó, o nadie puede soltar lo suyo.
+  if (rows[0].assigned_advisor_id !== laPersona(user).id) {
     return { success: false, message: "Solo puedes liberar tus propias conversaciones." };
   }
 

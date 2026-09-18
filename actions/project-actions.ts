@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
 import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
@@ -405,7 +406,7 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
     // tablero, no dos.
     const [adjuntos, sinVer, clientes, detalles, posiciones] = await Promise.all([
       leerLosAdjuntos(tasks.map((t) => t.id)),
-      tareasConAlgoSinVer(tasks.map((t) => t.id), user.id),
+      tareasConAlgoSinVer(tasks.map((t) => t.id), laPersona(user).id),
       // También por la cuenta dueña: `task_work` se escribe bajo ella.
       leerLosClientesDeLasTareas(acceso.ownerId, tasks.map((t) => t.id)),
       detallesDeLasTareas(tasks.map((t) => t.id)),
@@ -541,8 +542,8 @@ export async function updateProjectTaskAction(
           assignedToId: parsed.assignedToId,
           createdById: tarea.createdById,
         },
-        actorId: user.id,
-        actorNombre: user.name?.trim() || user.email || null,
+        actorId: laPersona(user).id,
+        actorNombre: laPersona(user).nombre,
       });
     }
 
@@ -654,8 +655,8 @@ export async function moveProjectTaskAction(
         // mismo proyecto en dos mitades que nadie puede sumar.
         ownerId: cuentaDeLaTarea,
         minutos: parsed.minutosDeTrabajo as number,
-        cerradaPorId: user.id,
-        cerradaPorNombre: user.name?.trim() || user.email || null,
+        cerradaPorId: laPersona(user).id,
+        cerradaPorNombre: laPersona(user).nombre,
       });
     }
 
@@ -670,8 +671,8 @@ export async function moveProjectTaskAction(
           assignedToId: antes.assignedToId,
           createdById: antes.createdById,
         },
-        actorId: user.id,
-        actorNombre: user.name?.trim() || user.email || null,
+        actorId: laPersona(user).id,
+        actorNombre: laPersona(user).nombre,
       });
     }
 

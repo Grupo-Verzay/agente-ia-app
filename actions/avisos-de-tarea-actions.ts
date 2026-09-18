@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { quienFirma } from "@/lib/chat-de-equipo";
 import { accesoAlProyecto } from "@/lib/acceso-al-proyecto";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
 import {
@@ -45,6 +46,12 @@ async function laTareaQuePuedoVer(taskId: number, escribir = false) {
   const user = await currentUser();
   if (!user?.id) throw new Error("No autorizado.");
   const ownerId = user.ownerId ?? user.id;
+  // Quién está sentado delante, que NO es `user.id` dentro de otra cuenta. De
+  // aquí salen el autor del comentario, el actor del aviso y la marca de visto:
+  // los tres se escribían con la fila efectiva y los avisos se leen con la
+  // persona, así que dentro de una cuenta ajena el aviso no llegaba y el punto
+  // del tablero no se quitaba nunca.
+  const persona = quienFirma(user);
 
   // Sin acotar por cuenta: en un proyecto compartido las tareas cuelgan de la
   // cuenta dueña. Quién puede llegar a ella se decide abajo, y para una tarea
@@ -76,7 +83,7 @@ async function laTareaQuePuedoVer(taskId: number, escribir = false) {
     throw new Error("Tarea no encontrada.");
   }
 
-  return { user, ownerId: tarea.ownerId, tarea };
+  return { user, persona, ownerId: tarea.ownerId, tarea };
 }
 
 const comentarSchema = z.object({
@@ -96,13 +103,14 @@ export async function comentarLaTareaAction(
 ): Promise<Resultado<ComentarioDeTarea>> {
   try {
     const parsed = comentarSchema.parse(input);
-    const { user, ownerId, tarea } = await laTareaQuePuedoVer(parsed.taskId, true);
+    const { user, persona, ownerId, tarea } = await laTareaQuePuedoVer(parsed.taskId, true);
 
-    const autorNombre = user.name?.trim() || user.email || null;
+    const autorId = persona?.personaId ?? user.id;
+    const autorNombre = persona?.nombre || user.name?.trim() || user.email || null;
     const comentario: ComentarioDeTarea = {
       id: randomUUID(),
       taskId: tarea.id,
-      autorId: user.id,
+      autorId,
       autorNombre,
       texto: parsed.texto,
       creadoEn: new Date().toISOString(),
@@ -112,7 +120,7 @@ export async function comentarLaTareaAction(
       id: comentario.id,
       taskId: tarea.id,
       ownerId,
-      autorId: user.id,
+      autorId,
       autorNombre,
       texto: parsed.texto,
     });
@@ -120,14 +128,16 @@ export async function comentarLaTareaAction(
     await avisarDeLaTarea({
       tipo: "comentario",
       tarea,
-      actorId: user.id,
+      // El actor va con la MISMA identidad que los destinatarios, o el
+      // descuento de `crearLosAvisos` no casa y uno se avisa a sí mismo.
+      actorId: autorId,
       actorNombre: autorNombre,
       texto: parsed.texto,
     });
 
     // Quien escribe ya lo ha leído: que su propio comentario no le deje el
     // punto puesto en el tablero.
-    await marcarLaTareaComoVista(tarea.id, user.id).catch(() => 0);
+    await marcarLaTareaComoVista(tarea.id, autorId).catch(() => 0);
 
     return { success: true, message: "Comentario publicado.", data: comentario };
   } catch (error) {
@@ -150,10 +160,10 @@ export async function leerElHiloAction(
   taskId: number,
 ): Promise<Resultado<ComentarioDeTarea[]>> {
   try {
-    const { user, tarea } = await laTareaQuePuedoVer(taskId);
+    const { user, persona, tarea } = await laTareaQuePuedoVer(taskId);
     const comentarios = await leerLosComentarios(tarea.id);
 
-    await marcarLaTareaComoVista(tarea.id, user.id).catch((error) => {
+    await marcarLaTareaComoVista(tarea.id, persona?.personaId ?? user.id).catch((error) => {
       console.warn("[tareas] no se pudo marcar la tarea como vista", {
         taskId: tarea.id,
         error: error instanceof Error ? error.message : String(error),
@@ -231,8 +241,8 @@ export async function atenderLosAvisosAction(ids: string[]): Promise<Resultado<n
 /** Abrió la tarea desde el tablero: se le quita el punto. */
 export async function marcarLaTareaVistaAction(taskId: number): Promise<Resultado<null>> {
   try {
-    const { user, tarea } = await laTareaQuePuedoVer(taskId);
-    await marcarLaTareaComoVista(tarea.id, user.id);
+    const { user, persona, tarea } = await laTareaQuePuedoVer(taskId);
+    await marcarLaTareaComoVista(tarea.id, persona?.personaId ?? user.id);
     return { success: true, message: "Vista." };
   } catch (error) {
     console.error("[marcarLaTareaVistaAction]", error);

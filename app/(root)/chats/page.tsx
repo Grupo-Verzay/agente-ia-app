@@ -6,6 +6,7 @@ import Link from "next/link";
 import { MessagesSquare } from "lucide-react";
 import type { ApiKey, Instancia } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { db } from "@/lib/db";
 import {
   sendWahaTextAction,
@@ -856,7 +857,11 @@ export default async function ChatsPage({
   const initialMessages: EvoMsgFromAction[] = [];
 
   const advisorRole: string | null = user.advisorRole;
-  const currentAdvisorId: string = user.id;
+  // Quien mira, para el filtro «Mías» y para «Asignarme». Es la PERSONA:
+  // `assigned_advisor_id` guarda ids de personas —los del desplegable de
+  // asesores— así que comparándolo con la fila efectiva, un agente dentro de
+  // otra cuenta veía «Mías» VACÍA teniendo chats asignados.
+  const currentAdvisorId: string = laPersonaQueActua(user).id;
   // La clave de la linea seleccionada, con respaldo en la de la cuenta propia
   // para no cambiar nada en el caso de siempre (un dueño con su unica linea).
   const claveActiva = whatsappInstancia ? claveDeLaLinea(whatsappInstancia) ?? apiKey : apiKey;
