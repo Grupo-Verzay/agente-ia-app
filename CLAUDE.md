@@ -3343,6 +3343,106 @@ Tres cosas más:
 Y **se cobra DESPUÉS de tener el texto**: cobrar antes y que la llamada falle
 sería cobrar por algo que no se entregó.
 
+## Salud del envío: un envío automático que falla deja rastro, o no ha fallado
+
+Los recordatorios de Cobros y los avisos de desconexión llevaban **días sin
+salir por Waha** y nadie se enteró hasta que se miró a mano. No es que no
+hubiera error: es que el error se lo quedaba quien llamaba, en su `return`, y
+ahí se acababa. Desde fuera eso no se parece a un fallo — se parece a que la
+plataforma no le escribe a nadie, que es el síntoma más caro de diagnosticar de
+todo este documento.
+
+`/panel/salud-envios` (súper administrador) lista lo que la plataforma manda
+sola —cobros, desconexiones, facturación, prueba de 7 días, informe semanal y
+el aviso de ticket resuelto— con fecha, cuenta, proveedor, destinatario, si
+salió y **el motivo del fallo**. Arriba, el resumen por proveedor y los avisos.
+
+La tabla es de la App, `envios_automaticos`, con `CREATE TABLE IF NOT EXISTS` y
+sin clave foránea: la cuenta se puede eliminar y el registro de lo que se le
+mandó tiene que sobrevivirla — el nombre sale de un **`LEFT JOIN`**, no de un
+`JOIN`, o esas filas desaparecerían justo cuando hacen falta.
+
+**La regla, y es la que sostiene que esto no se quede a medias:**
+
+> **Lo anota el DESPACHADOR, no cada llamador.** Los seis caminos automáticos
+> pasan todos por `sendViaWhatsAppDispatcher`, así que ahí hay un solo sitio que
+> sabe qué proveedor se usó, qué línea, a quién y cómo fue. Con la anotación
+> escrita en cada llamador, el séptimo se olvida — y un camino que no anota se
+> ve exactamente igual que uno que funciona.
+
+Y por eso el despachador se partió en dos: `mandarElTexto` es el cuerpo de
+siempre, intacto, y `sendViaWhatsAppDispatcher` lo envuelve y anota. **Lo que
+decide si se anota es el parámetro `registro`**, no una heurística: un envío sin
+él —el asesor escribiendo a mano desde Chats— no entra. Esto es lo que sale
+solo.
+
+Seis cosas que hay que mantener:
+
+1. **Anotar NUNCA tumba el envío.** `anotarElEnvio` lleva todo dentro de un
+   `try` y avisa por consola; no lanza. Se prueba tirando la tabla por debajo a
+   mitad de vuelo: el mensaje sigue contando como bueno y el registro se
+   recupera solo, porque el recuerdo de «ya la creé» es del proceso y `conLaTabla`
+   lo olvida ante un `42P01`.
+2. **Los dos caminos que NO pasan por el despachador se anotan en su sitio**, y
+   son justo los dos fallos más silenciosos: no hay ninguna línea conectada
+   (`anotarQueNoHabiaLinea`, proveedor **`ninguno`**) y la rama de plantilla de
+   Meta que se devuelve antes. **`ninguno` es un proveedor más**: sin esa
+   casilla, «a esta cuenta no le llega nada porque se quedó sin línea» no
+   tendría ni una fila, y confundirlo con un fallo de Waha manda a mirar el
+   servidor equivocado.
+3. **Un proveedor que nadie usa NO está roto.** Los dos avisos exigen
+   `total > 0`. Una plataforma sin ninguna línea Meta vería «Meta no ha
+   conseguido enviar nada» todos los días de su vida, y un aviso que sale
+   siempre se aprende a despachar sin leer — con lo que el día que Waha se caiga
+   de verdad, ese también se ignora.
+4. **Un proveedor muerto da UN aviso, no dos.** Con cero aciertos la tasa es del
+   100 %, así que `sin_acierto` corta y no se emite además `tasa_de_fallo`: dos
+   avisos para un solo problema es ruido. Y la tasa **no se juzga por debajo de
+   `MINIMO_PARA_JUZGAR`** (5): un envío y un fallo son el 100 % y eso no dice
+   nada.
+5. **Sin intentos la tasa es `null`, nunca `0`.** Es la regla de *un número que
+   no se puede calcular no se sustituye por otro*: un «0 % de fallo» sobre cero
+   envíos diría que todo va perfecto, que es el peor número posible en una
+   pantalla que existe para cazar que no salga nada.
+6. **El resumen y los avisos se calculan SIN los filtros de cuenta y estado.**
+   Filtrando por «Fallaron» la tasa saldría del 100 % siempre, y el aviso
+   destacado pasaría a ser una consecuencia de lo que se acaba de pulsar en vez
+   de un dato. Los días sí acotan, que es la ventana de la pregunta.
+
+La lista va topada (`TOPE_DE_LA_LISTA`, 500) y **lo que se recorta se dice**; se
+guardan 30 días, podados con un `DELETE` que corre **una de cada cien vueltas**
+y en su propio `try` — un barrido que se cuelga no puede retener el envío que lo
+disparó.
+
+### Y los anchos de la tabla están medidos, con las dos puntas
+
+Siete columnas, y la que importa es la última: el **motivo**. Costó dos
+correcciones, una por cada extremo, y las dos se ven midiendo y no mirando.
+
+- Con el reparto automático, `573001112233@s.whatsapp.net` es **un token sin
+  espacios**: su ancho mínimo manda sobre el `w-*` declarado, `truncate` no
+  llega a recortar nada y la tabla se salía de su caja —1233 px dentro de
+  1216—. Va `table-fixed`.
+- Pero fijado el reparto, en una ventana estrecha lo que se encoge es la
+  **última** columna, o sea el motivo: medido a 1024 px se quedaba en **94 px**,
+  que para leer por qué rebotó un mensaje es lo mismo que no enseñarlo. Es el
+  mismo defecto de antes reaparecido por el otro lado. Va `min-w-[60rem]` —las
+  seis fijas (44rem) más las 16rem del motivo— con `overflow-x-auto` en el
+  padre: por debajo de ahí la tabla se **desplaza**, que es preferible a
+  recortar justo lo que se viene a leer.
+
+Medido en Chromium sobre el hueco real del panel, no sobre la ventana:
+
+| ventana | caja | tabla | motivo | la tabla se desplaza |
+| --- | --- | --- | --- | --- |
+| 1440 | 1216 | 1214 | **510** | no |
+| 1280 | 1056 | 1054 | **350** | no |
+| 1024 | 800 | 960 | **256** | sí |
+
+La página no desborda en ninguna, el resumen se queda en cuatro tarjetas por
+fila y la cuenta recorta con puntos suspensivos, con el nombre entero en su
+`title`.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

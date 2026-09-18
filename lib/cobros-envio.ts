@@ -1,6 +1,7 @@
 import {
     resolveWhatsAppDispatcherLine,
     sendMediaViaWhatsAppDispatcher,
+    anotarQueNoHabiaLinea,
     sendViaWhatsAppDispatcher,
     type WhatsAppDispatcherLine,
 } from "@/actions/whatsapp-dispatcher";
@@ -71,6 +72,15 @@ export async function mandarElCobro(args: {
 
     const linea = args.linea ?? (await laLineaDeLaCuenta(args.ownerId));
     if (!linea) {
+        // Sin línea el mensaje no llega ni al despachador, así que este fallo
+        // —el más silencioso de todos: la cuenta se quedó sin línea y a sus
+        // clientes no les llega nada— solo se puede anotar aquí.
+        await anotarQueNoHabiaLinea({
+            tipo: "cobro",
+            cuentaId: args.ownerId,
+            destinatario: jid,
+            motivo: "Esta cuenta no tiene una línea de WhatsApp conectada para enviar el cobro.",
+        });
         return {
             ok: false,
             motivo: "Esta cuenta no tiene una línea de WhatsApp conectada para enviar el cobro.",
@@ -84,6 +94,11 @@ export async function mandarElCobro(args: {
         dispatcher: linea,
         remoteJid: jid,
         text: texto,
+        // La constancia la deja el despachador, que es por donde pasan los seis
+        // caminos automáticos. Los ADJUNTOS no entran aquí: cada uno ya tiene
+        // su propio sello en su fila (`anotarElEnvioDelAdjunto`), que es lo que
+        // la pantalla de Cobros enseña debajo del archivo.
+        registro: { tipo: "cobro", cuentaId: args.ownerId },
     });
 
     if (!envio?.success) {
