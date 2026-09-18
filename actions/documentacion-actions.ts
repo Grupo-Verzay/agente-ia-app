@@ -1,0 +1,1129 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
+import { comoConsultaDeBusqueda } from "@/lib/busqueda-del-equipo";
+import {
+    TOPE_DE_FILAS,
+    TOPE_DE_RESULTADOS,
+    comoEstados,
+    comoId,
+    comoTipoDeDocumento,
+    comoTipoDeMencion,
+    comoTitulo,
+    comoVista,
+    documentoVacio,
+    extractoConLoBuscado,
+    type FilaDeLista,
+    type Mencion,
+    type TipoDeDocumento,
+    type TipoDeMencion,
+    type Vista,
+} from "@/lib/documentacion";
+import {
+    comoPermiso,
+    comoSujeto,
+    comoVisibilidad,
+    laCuentaDeQuienMira,
+    type Acceso,
+    type Permiso,
+    type SujetoDePermiso,
+    type VisibilidadDeEspacio,
+} from "@/lib/documentacion-permisos";
+import {
+    accesoAEsteDocumento,
+    accesoAEsteEspacio,
+    losEspaciosQueAlcanza,
+    losQueAlcanzaDeEstos,
+} from "@/lib/acceso-al-documento";
+import {
+    LoCambioOtro,
+    borrarDocumento,
+    borrarEspacio,
+    borrarFila,
+    crearDocumento,
+    crearEspacio,
+    crearFila,
+    cuantasFilasTiene,
+    editarEspacio,
+    editarFila,
+    guardarDocumento,
+    laFila,
+    lasFilasDe,
+    lasVersionesDe,
+    laVersion,
+    loQueNombra,
+    losDocumentosDe,
+    losPermisosDe,
+    losQueNombran,
+    ponerPermiso,
+    quitarPermiso,
+    buscarDocumentos,
+    type DocumentoEnLista,
+    type Espacio,
+    type Version,
+} from "@/lib/documentacion-db";
+import {
+    alFinalDelTablero,
+    olvidarLaTarjeta,
+    posicionesDelTablero,
+} from "@/lib/orden-de-tablero-db";
+
+/**
+ * Las acciones de Documentación.
+ *
+ * **La puerta está aquí, no en la pantalla.** `/documentos` entra en
+ * `navigationRoutes` y **no se monta en ningún módulo**: se asigna a mano. El
+ * guardián del layout solo cierra rutas que sí están en algún módulo y
+ * denegadas, así que una que no está en ninguno se alcanza escribiendo la URL.
+ * Por eso cada acción resuelve el acceso con `acceso-al-documento` y la página
+ * solo pinta lo que le devuelvan. Es lo mismo que ya rige en `/cobros`.
+ *
+ * ## Firmar con la persona, alcanzar con la cuenta
+ *
+ * Es lo que el encargo pedía y lo que el resto de la plataforma ya hace:
+ *
+ * - **Firmar** — `creadoPorId`, `actualizadoPorId` y el autor de cada versión
+ *   salen de `laPersonaQueActua(user)`. Dentro de una cuenta ajena con
+ *   «Ingresar», quien escribe es la persona sentada delante, no el cliente.
+ * - **Alcanzar** — a qué espacios se llega sale de la fila EFECTIVA
+ *   (`laCuentaDeQuienMira`). Resolver la persona aquí es lo que rompió la
+ *   cartera de clientes en el #783.
+ *
+ * ## Y por eso esto se puede ofrecer como módulo a una cuenta cliente
+ *
+ * No hay ni un id de Verzay en todo el módulo. Cada espacio cuelga de su
+ * `cuentaId`, y una cuenta cliente que reciba la pestaña ve la suya y nada más.
+ */
+
+type Respuesta<T> = { success: true; data: T } | { success: false; message: string };
+
+const NO = (message: string) => ({ success: false as const, message });
+
+/** Quien mira, con lo que hace falta para decidir alcance y firma. */
+async function quienLlama() {
+    const user = await currentUser();
+    if (!user?.id) return null;
+    const persona = laPersonaQueActua(user);
+    return {
+        user,
+        cuenta: laCuentaDeQuienMira(user),
+        personaId: persona.id,
+        personaNombre: persona.nombre,
+    };
+}
+
+/* ────────────────────────────── Los espacios ────────────────────────────── */
+
+export type ArbolDeDocumentacion = {
+    espacios: Array<{
+        espacio: Espacio;
+        puedeEditar: boolean;
+        puedeGestionar: boolean;
+        recibido: boolean;
+        documentos: DocumentoEnLista[];
+    }>;
+    /** Las plantillas que alcanza, aparte: se copian, no se leen. */
+    plantillas: DocumentoEnLista[];
+    puedeCrearEspacio: boolean;
+};
+
+export async function leerElArbolAction(): Promise<ArbolDeDocumentacion | null> {
+    const quien = await quienLlama();
+    if (!quien) return null;
+
+    const { espacios, permisos } = await losEspaciosQueAlcanza(quien.user);
+    if (espacios.length === 0) {
+        return { espacios: [], plantillas: [], puedeCrearEspacio: true };
+    }
+
+    const porId = new Map(espacios.map((e) => [e.espacio.id, e.espacio]));
+    const todos = await losDocumentosDe(espacios.map((e) => e.espacio.id));
+
+    // **El mismo filtro que abrir.** Un documento restringido desaparece
+    // también de aquí: ver la regla en `documentacion-permisos.ts`.
+    const visibles = losQueAlcanzaDeEstos(quien.user, todos, porId, permisos);
+
+    const plantillas = visibles.filter((d) => d.tipo === "plantilla");
+    const normales = visibles.filter((d) => d.tipo !== "plantilla");
+
+    return {
+        espacios: espacios.map(({ espacio, acceso }) => ({
+            espacio,
+            puedeEditar: acceso.puedeEditar,
+            puedeGestionar: acceso.puedeGestionar,
+            recibido: acceso.recibido,
+            documentos: normales.filter((d) => d.espacioId === espacio.id),
+        })),
+        plantillas,
+        puedeCrearEspacio: true,
+    };
+}
+
+export async function crearEspacioAction(input: {
+    nombre: unknown;
+    icono?: unknown;
+    descripcion?: unknown;
+    visibilidad?: unknown;
+}): Promise<Respuesta<Espacio>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const nombre = comoTitulo(input.nombre);
+    if (!nombre) return NO("El espacio necesita un nombre.");
+
+    try {
+        const espacio = await crearEspacio({
+            // **La cuenta, no la persona**: el espacio es de la cuenta y lo ve
+            // su equipo.
+            cuentaId: quien.cuenta,
+            nombre,
+            icono: typeof input.icono === "string" ? input.icono.slice(0, 32) : null,
+            descripcion:
+                typeof input.descripcion === "string" ? input.descripcion.slice(0, 500) : null,
+            visibilidad: comoVisibilidad(input.visibilidad) ?? "cuenta",
+            // **La persona, no la cuenta**: quién lo creó tiene que sobrevivir
+            // a que se cambie de cuenta.
+            creadoPorId: quien.personaId,
+            creadoPorNombre: quien.personaNombre,
+        });
+        revalidatePath("/documentos");
+        return { success: true, data: espacio };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo crear el espacio", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo crear el espacio.");
+    }
+}
+
+export async function editarEspacioAction(input: {
+    id: unknown;
+    nombre?: unknown;
+    icono?: unknown;
+    descripcion?: unknown;
+    visibilidad?: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el espacio.");
+
+    const acceso = await accesoAEsteEspacio(quien.user, id);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeGestionar) {
+        return NO("Solo quien administra la cuenta puede cambiar un espacio.");
+    }
+
+    const nombre = input.nombre === undefined ? undefined : comoTitulo(input.nombre);
+    if (input.nombre !== undefined && !nombre) return NO("El espacio necesita un nombre.");
+
+    try {
+        await editarEspacio({
+            id,
+            // La guarda de arriba ya descarto el `null`; TS no lo estrecha solo
+            // porque la condicion mira `input.nombre` y no esta variable.
+            nombre: nombre ?? undefined,
+            icono:
+                input.icono === undefined
+                    ? undefined
+                    : typeof input.icono === "string"
+                      ? input.icono.slice(0, 32)
+                      : null,
+            descripcion:
+                input.descripcion === undefined
+                    ? undefined
+                    : typeof input.descripcion === "string"
+                      ? input.descripcion.slice(0, 500)
+                      : null,
+            visibilidad:
+                input.visibilidad === undefined
+                    ? undefined
+                    : (comoVisibilidad(input.visibilidad) ?? undefined),
+        });
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo editar el espacio", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo guardar el espacio.");
+    }
+}
+
+export async function borrarEspacioAction(input: { id: unknown }): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el espacio.");
+
+    const acceso = await accesoAEsteEspacio(quien.user, id);
+    if (!acceso) return NO("No autorizado.");
+    // En uno RECIBIDO no manda nadie de esta cuenta: repartirlo sigue siendo de
+    // quien lo hizo. `puedeGestionar` ya es falso ahí, pero se dice aparte
+    // porque el motivo es otro y el aviso tiene que explicarlo.
+    if (acceso.acceso.recibido) {
+        return NO("Este espacio es de otra cuenta: solo puede borrarlo su dueña.");
+    }
+    if (!acceso.acceso.puedeGestionar) {
+        return NO("Solo quien administra la cuenta puede borrar un espacio.");
+    }
+
+    try {
+        await borrarEspacio(id);
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo borrar el espacio", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo borrar el espacio.");
+    }
+}
+
+/* ───────────────────────────── Los documentos ───────────────────────────── */
+
+export type DocumentoAbierto = {
+    id: string;
+    espacioId: string;
+    cuentaId: string;
+    tipo: TipoDeDocumento;
+    titulo: string;
+    contenido: unknown;
+    estados: string[];
+    vista: Vista | null;
+    restringido: boolean;
+    version: number;
+    actualizadoPorNombre: string | null;
+    actualizadoEn: Date;
+    puedeEditar: boolean;
+    puedeGestionar: boolean;
+    recibido: boolean;
+    /** Lo que este documento nombra. */
+    menciones: Mencion[];
+    /** Las filas, si es una lista. */
+    filas: FilaDeLista[];
+    /**
+     * Dónde está colocada cada fila dentro de su columna, del tablero
+     * compartido. Lo que no esté aquí no se ha movido nunca y sale como salía.
+     */
+    posiciones: Record<string, number>;
+};
+
+export async function abrirDocumentoAction(input: {
+    id: unknown;
+}): Promise<Respuesta<DocumentoAbierto>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el documento.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    // «No lo alcanzas» y «no existe» se contestan igual: decir «no puedes» ya
+    // revela que existe y de quién es.
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+
+    const { documento, acceso } = encontrado;
+    const esLista = documento.tipo === "lista";
+    const [menciones, filas, posiciones] = await Promise.all([
+        loQueNombra(documento.id),
+        esLista ? lasFilasDe(documento.id) : Promise.resolve([]),
+        esLista
+            ? posicionesDelTablero("documentacion", documento.id)
+            : Promise.resolve({} as Record<string, number>),
+    ]);
+
+    return {
+        success: true,
+        data: {
+            id: documento.id,
+            espacioId: documento.espacioId,
+            cuentaId: documento.cuentaId,
+            tipo: documento.tipo,
+            titulo: documento.titulo,
+            contenido: documento.contenido,
+            estados: documento.estados,
+            vista: documento.vista,
+            restringido: documento.restringido,
+            version: documento.version,
+            actualizadoPorNombre: documento.actualizadoPorNombre,
+            actualizadoEn: documento.actualizadoEn,
+            puedeEditar: acceso.puedeEditar,
+            puedeGestionar: acceso.puedeGestionar,
+            recibido: acceso.recibido,
+            menciones,
+            filas,
+            posiciones,
+        },
+    };
+}
+
+export async function crearDocumentoAction(input: {
+    espacioId: unknown;
+    titulo: unknown;
+    tipo?: unknown;
+    /** El id de una plantilla de la que copiar el cuerpo. */
+    desdePlantilla?: unknown;
+}): Promise<Respuesta<{ id: string }>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const espacioId = comoId(input.espacioId);
+    if (!espacioId) return NO("Falta el espacio.");
+
+    const acceso = await accesoAEsteEspacio(quien.user, espacioId);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeEditar) return NO("No puedes escribir en este espacio.");
+
+    const titulo = comoTitulo(input.titulo);
+    if (!titulo) return NO("El documento necesita un título.");
+
+    const tipo = comoTipoDeDocumento(input.tipo) ?? "documento";
+
+    // La plantilla se COPIA, y se comprueba que se alcance: sin eso, pasar el
+    // id de una plantilla ajena sería la forma de leer su contenido entero.
+    let contenido: unknown = documentoVacio();
+    let estados: string[] | undefined;
+    const plantillaId = comoId(input.desdePlantilla);
+    if (plantillaId) {
+        const plantilla = await accesoAEsteDocumento(quien.user, plantillaId);
+        if (!plantilla) return NO("Esa plantilla no existe o no tienes acceso.");
+        contenido = plantilla.documento.contenido;
+        estados = plantilla.documento.estados;
+    }
+
+    try {
+        const documento = await crearDocumento({
+            // **La cuenta DUEÑA del espacio**, no la de quien escribe. Es la
+            // misma regla que en Proyectos compartidos: un espacio, un juego de
+            // documentos. Guardándolo bajo la cuenta invitada se quedaría fuera
+            // de los dos árboles.
+            cuentaId: acceso.acceso.cuentaId,
+            espacioId,
+            tipo,
+            titulo,
+            contenido,
+            estados,
+            vista: tipo === "lista" ? "tabla" : null,
+            creadoPorId: quien.personaId,
+            creadoPorNombre: quien.personaNombre,
+        });
+        revalidatePath("/documentos");
+        return { success: true, data: { id: documento.id } };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo crear el documento", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo crear el documento.");
+    }
+}
+
+export async function guardarDocumentoAction(input: {
+    id: unknown;
+    titulo: unknown;
+    contenido: unknown;
+    estados?: unknown;
+    vista?: unknown;
+    versionQueSeVio?: unknown;
+}): Promise<
+    Respuesta<{ version: number; huboCambio: boolean; textoRecortado: boolean }> & {
+        loCambioOtro?: boolean;
+    }
+> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el documento.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeEditar) return NO("No puedes editar este documento.");
+
+    const titulo = comoTitulo(input.titulo);
+    if (!titulo) return NO("El documento necesita un título.");
+
+    try {
+        const resultado = await guardarDocumento({
+            id,
+            titulo,
+            contenido: input.contenido,
+            estados: input.estados === undefined ? undefined : comoEstados(input.estados),
+            vista: input.vista === undefined ? undefined : comoVista(input.vista),
+            versionQueSeVio:
+                typeof input.versionQueSeVio === "number" ? input.versionQueSeVio : undefined,
+            // **La PERSONA firma el cambio.** Dentro de una cuenta ajena con
+            // «Ingresar», el historial tiene que decir quién estaba sentado
+            // delante y no el nombre del cliente.
+            autorId: quien.personaId,
+            autorNombre: quien.personaNombre,
+        });
+        revalidatePath("/documentos");
+        return { success: true, data: resultado };
+    } catch (error) {
+        // **Se distingue a proposito.** Un «no se pudo guardar» generico aqui
+        // hace que la persona lo reintente, y reintentar es justo lo que pisa
+        // el trabajo del otro.
+        if (error instanceof LoCambioOtro) {
+            return {
+                ...NO(
+                    "Alguien guardó este documento mientras lo editabas. Vuelve a abrirlo para no pisar su cambio.",
+                ),
+                loCambioOtro: true,
+            };
+        }
+        console.warn("[documentacion] no se pudo guardar el documento", {
+            documentoId: id,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo guardar. Vuelve a intentarlo.");
+    }
+}
+
+export async function borrarDocumentoAction(input: { id: unknown }): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el documento.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeGestionar) return NO("No puedes borrar este documento.");
+
+    try {
+        await borrarDocumento(id);
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo borrar el documento", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo borrar el documento.");
+    }
+}
+
+/** Cambiar quién alcanza un documento, y si está restringido. */
+export async function restringirDocumentoAction(input: {
+    id: unknown;
+    restringido: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el documento.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeGestionar) return NO("No puedes cambiar sus permisos.");
+
+    try {
+        const { db } = await import("@/lib/db");
+        await db.$executeRaw`
+            UPDATE "doc_documentos"
+            SET "restringido" = ${Boolean(input.restringido)}, "actualizadoEn" = CURRENT_TIMESTAMP
+            WHERE "id" = ${id}
+        `;
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo cambiar el acceso", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo cambiar el acceso.");
+    }
+}
+
+/* ────────────────────────────── Los permisos ────────────────────────────── */
+
+export type PermisoConNombre = {
+    sujetoTipo: SujetoDePermiso;
+    sujetoId: string;
+    sujetoNombre: string | null;
+    permiso: Permiso;
+};
+
+export async function leerLosPermisosAction(input: {
+    objetoTipo: unknown;
+    objetoId: unknown;
+}): Promise<Respuesta<PermisoConNombre[]>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoId = comoId(input.objetoId);
+    if (!objetoId) return NO("Falta el objeto.");
+
+    const acceso =
+        objetoTipo === "espacio"
+            ? await accesoAEsteEspacio(quien.user, objetoId)
+            : await accesoAEsteDocumento(quien.user, objetoId);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeGestionar) return NO("No puedes ver sus permisos.");
+
+    const filas = await losPermisosDe({ objetoTipo, objetoId });
+    const ids = Array.from(new Set(filas.map((f) => f.sujetoId)));
+
+    const { db } = await import("@/lib/db");
+    const gente = ids.length
+        ? await db.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+        : [];
+    const nombres = new Map(gente.map((g) => [g.id, g.name]));
+
+    return {
+        success: true,
+        data: filas.map((f) => ({
+            sujetoTipo: f.sujetoTipo,
+            sujetoId: f.sujetoId,
+            sujetoNombre: nombres.get(f.sujetoId) ?? null,
+            permiso: f.permiso,
+        })),
+    };
+}
+
+export async function ponerPermisoAction(input: {
+    objetoTipo: unknown;
+    objetoId: unknown;
+    sujetoTipo: unknown;
+    sujetoId: unknown;
+    permiso: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoId = comoId(input.objetoId);
+    const sujetoTipo = comoSujeto(input.sujetoTipo);
+    const sujetoId = comoId(input.sujetoId);
+    const permiso = comoPermiso(input.permiso);
+    if (!objetoId || !sujetoTipo || !sujetoId || !permiso) return NO("Faltan datos.");
+
+    const acceso =
+        objetoTipo === "espacio"
+            ? await accesoAEsteEspacio(quien.user, objetoId)
+            : await accesoAEsteDocumento(quien.user, objetoId);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+
+    // El sujeto tiene que EXISTIR. Sin esto se pueden dejar filas apuntando a
+    // un id inventado: no abren nada, pero el diálogo las pinta como si
+    // alguien tuviera acceso, que es peor que no tener la fila.
+    const { db } = await import("@/lib/db");
+    const existe = await db.user.findUnique({ where: { id: sujetoId }, select: { id: true } });
+    if (!existe) return NO("Esa cuenta o persona no existe.");
+
+    try {
+        await ponerPermiso({ objetoTipo, objetoId, sujetoTipo, sujetoId, permiso });
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo guardar el permiso", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo guardar el permiso.");
+    }
+}
+
+export async function quitarPermisoAction(input: {
+    objetoTipo: unknown;
+    objetoId: unknown;
+    sujetoTipo: unknown;
+    sujetoId: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoId = comoId(input.objetoId);
+    const sujetoTipo = comoSujeto(input.sujetoTipo);
+    const sujetoId = comoId(input.sujetoId);
+    if (!objetoId || !sujetoTipo || !sujetoId) return NO("Faltan datos.");
+
+    const acceso =
+        objetoTipo === "espacio"
+            ? await accesoAEsteEspacio(quien.user, objetoId)
+            : await accesoAEsteDocumento(quien.user, objetoId);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+
+    try {
+        await quitarPermiso({ objetoTipo, objetoId, sujetoTipo, sujetoId });
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo quitar el permiso", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo quitar el permiso.");
+    }
+}
+
+/* ────────────────────────────── El historial ────────────────────────────── */
+
+export async function leerElHistorialAction(input: {
+    id: unknown;
+}): Promise<Respuesta<Version[]>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el documento.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+
+    return { success: true, data: await lasVersionesDe(id) };
+}
+
+export async function leerUnaVersionAction(input: {
+    id: unknown;
+    version: unknown;
+}): Promise<Respuesta<Version>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    const version = Number(input.version);
+    if (!id || !Number.isInteger(version)) return NO("Faltan datos.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+
+    const fila = await laVersion({ documentoId: id, version });
+    if (!fila) return NO("Esa versión ya no está.");
+    return { success: true, data: fila };
+}
+
+/**
+ * Vuelve a una versión anterior.
+ *
+ * **Volver atrás es un cambio más, no un borrado.** Se guarda como una versión
+ * nueva con el contenido de la vieja, así que el historial conserva que se
+ * volvió y desde dónde. Reescribiendo la fila del documento y tirando las
+ * versiones de en medio, deshacer una vuelta atrás sería imposible — y es justo
+ * lo que se hace cuando alguien se equivoca al restaurar.
+ */
+export async function volverALaVersionAction(input: {
+    id: unknown;
+    version: unknown;
+}): Promise<Respuesta<{ version: number }>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    const version = Number(input.version);
+    if (!id || !Number.isInteger(version)) return NO("Faltan datos.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeEditar) return NO("No puedes editar este documento.");
+
+    const vieja = await laVersion({ documentoId: id, version });
+    if (!vieja) return NO("Esa versión ya no está.");
+
+    try {
+        const resultado = await guardarDocumento({
+            id,
+            titulo: vieja.titulo,
+            contenido: vieja.contenido,
+            autorId: quien.personaId,
+            autorNombre: quien.personaNombre,
+        });
+        revalidatePath("/documentos");
+        return { success: true, data: { version: resultado.version } };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo volver a la version", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo volver a esa versión.");
+    }
+}
+
+/* ────────────────────────────── La búsqueda ─────────────────────────────── */
+
+export type ResultadoDeBusqueda = {
+    id: string;
+    titulo: string;
+    espacioId: string;
+    espacioNombre: string;
+    tipo: TipoDeDocumento;
+    extracto: string;
+    actualizadoEn: Date;
+};
+
+export async function buscarAction(input: {
+    texto: unknown;
+}): Promise<Respuesta<ResultadoDeBusqueda[]>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const crudo = typeof input.texto === "string" ? input.texto : "";
+    const consulta = comoConsultaDeBusqueda(crudo);
+    if (!consulta) return { success: true, data: [] };
+
+    const { espacios, permisos } = await losEspaciosQueAlcanza(quien.user);
+    if (espacios.length === 0) return { success: true, data: [] };
+
+    const porId = new Map(espacios.map((e) => [e.espacio.id, e.espacio]));
+
+    try {
+        const crudos = await buscarDocumentos({
+            consulta,
+            // La PUERTA: no se busca donde no se puede leer. Y sale de la misma
+            // función que arma el árbol, para que no haya dos condiciones de
+            // permisos que mantener a la par.
+            espacioIds: espacios.map((e) => e.espacio.id),
+            tope: TOPE_DE_RESULTADOS,
+        });
+
+        // Y el filtro fino encima, por si hay documentos restringidos dentro de
+        // un espacio que sí se alcanza.
+        const visibles = losQueAlcanzaDeEstos(quien.user, crudos, porId, permisos);
+
+        return {
+            success: true,
+            data: visibles.map((d) => ({
+                id: d.id,
+                titulo: d.titulo,
+                espacioId: d.espacioId,
+                espacioNombre: porId.get(d.espacioId)?.nombre ?? "",
+                tipo: d.tipo,
+                extracto: extractoConLoBuscado(d.texto, crudo),
+                actualizadoEn: d.actualizadoEn,
+            })),
+        };
+    } catch (error) {
+        console.warn("[documentacion] la busqueda fallo", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo buscar. Vuelve a intentarlo.");
+    }
+}
+
+/* ───────────────────────────── Los retroenlaces ─────────────────────────── */
+
+export type DocumentoQueNombra = {
+    id: string;
+    titulo: string;
+    espacioNombre: string;
+    actualizadoEn: Date;
+};
+
+/**
+ * Los documentos que nombran a una cosa: el retroenlace.
+ *
+ * **Filtrado por lo que quien pregunta alcanza.** Es la mitad que importa y la
+ * más fácil de olvidar, porque esto no se pide desde la pantalla de
+ * documentación: se pide desde la ficha de una tarea o de un ticket. Sin el
+ * filtro, abrir una tarea enseñaría el título de un documento restringido que
+ * esa persona no puede abrir — una fuga por la puerta de al lado.
+ */
+export async function losDocumentosQueNombranAction(input: {
+    tipo: unknown;
+    refId: unknown;
+}): Promise<Respuesta<DocumentoQueNombra[]>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const tipo = comoTipoDeMencion(input.tipo);
+    const refId = comoId(input.refId);
+    if (!tipo || !refId) return NO("Faltan datos.");
+
+    try {
+        const candidatos = await losQueNombran({ tipo, refId });
+        if (candidatos.length === 0) return { success: true, data: [] };
+
+        const { espacios, permisos } = await losEspaciosQueAlcanza(quien.user);
+        const porId = new Map(espacios.map((e) => [e.espacio.id, e.espacio]));
+
+        const visibles = losQueAlcanzaDeEstos(
+            quien.user,
+            candidatos.map((c) => ({
+                id: c.documentoId,
+                cuentaId: c.cuentaId,
+                espacioId: c.espacioId,
+                restringido: c.restringido,
+                creadoPorId: c.creadoPorId,
+                titulo: c.titulo,
+                actualizadoEn: c.actualizadoEn,
+            })),
+            porId,
+            permisos,
+        );
+
+        return {
+            success: true,
+            data: visibles.map((d) => ({
+                id: d.id,
+                titulo: d.titulo,
+                espacioNombre: porId.get(d.espacioId)?.nombre ?? "",
+                actualizadoEn: d.actualizadoEn,
+            })),
+        };
+    } catch (error) {
+        console.warn("[documentacion] no se pudieron leer los retroenlaces", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudieron leer los documentos.");
+    }
+}
+
+/* ─────────────────────── Lo que se puede mencionar ──────────────────────── */
+
+export type Mencionable = { tipo: TipoDeMencion; refId: string; etiqueta: string };
+
+/**
+ * Lo que se puede mencionar desde un documento, para el selector de la arroba.
+ *
+ * **Solo lo de la cuenta de quien escribe.** El selector es una lista que sale
+ * del servidor, así que ofrecer algo de otra cuenta sería enseñar el nombre de
+ * un cliente ajeno dentro de un desplegable.
+ */
+export async function loQueSePuedeMencionarAction(input: {
+    texto: unknown;
+}): Promise<Respuesta<Mencionable[]>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const buscado = typeof input.texto === "string" ? input.texto.trim().slice(0, 60) : "";
+    const { db } = await import("@/lib/db");
+    const contiene = buscado ? { contains: buscado, mode: "insensitive" as const } : undefined;
+
+    try {
+        const [clientes, tareas, tickets, documentos] = await Promise.all([
+            db.user.findMany({
+                where: { ownerId: quien.cuenta, ...(contiene ? { name: contiene } : {}) },
+                select: { id: true, name: true },
+                take: 8,
+            }),
+            db.task.findMany({
+                where: { ownerId: quien.cuenta, ...(contiene ? { title: contiene } : {}) },
+                select: { id: true, title: true },
+                orderBy: { id: "desc" },
+                take: 8,
+            }),
+            db.$queryRaw<Array<{ id: string; titulo: string }>>`
+                SELECT "id", "titulo" FROM "tickets_de_soporte"
+                WHERE ("clienteId" = ${quien.cuenta} OR "destinoId" = ${quien.cuenta})
+                ORDER BY "creadoEn" DESC LIMIT 8
+            `.catch(() => []),
+            db.$queryRaw<Array<{ id: string; titulo: string }>>`
+                SELECT "id", "titulo" FROM "doc_documentos"
+                WHERE "cuentaId" = ${quien.cuenta} AND "tipo" <> 'plantilla'
+                ORDER BY "actualizadoEn" DESC LIMIT 8
+            `.catch(() => []),
+        ]);
+
+        const salida: Mencionable[] = [
+            ...clientes.map((c) => ({
+                tipo: "cliente" as const,
+                refId: c.id,
+                etiqueta: c.name ?? c.id,
+            })),
+            ...tareas.map((t) => ({
+                tipo: "tarea" as const,
+                refId: String(t.id),
+                etiqueta: t.title ?? String(t.id),
+            })),
+            ...tickets.map((t) => ({ tipo: "ticket" as const, refId: t.id, etiqueta: t.titulo })),
+            ...documentos.map((d) => ({
+                tipo: "documento" as const,
+                refId: d.id,
+                etiqueta: d.titulo,
+            })),
+        ];
+
+        return { success: true, data: salida };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo leer lo mencionable", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        // Se devuelve vacío y no un fallo: sin selector todavía se puede
+        // escribir. Pero no es mudo, que un selector que nunca ofrece nada se
+        // lee como que mencionar no funciona.
+        return { success: true, data: [] };
+    }
+}
+
+/* ─────────────────────────── Las filas de una lista ─────────────────────── */
+
+async function accesoAlaListaDeLaFila(user: Parameters<typeof accesoAEsteDocumento>[0], filaId: string) {
+    const fila = await laFila(filaId);
+    if (!fila) return null;
+    const encontrado = await accesoAEsteDocumento(user, fila.documentoId);
+    if (!encontrado) return null;
+    return { fila, acceso: encontrado.acceso };
+}
+
+export async function crearFilaAction(input: {
+    documentoId: unknown;
+    titulo: unknown;
+    estado?: unknown;
+    fecha?: unknown;
+    asignadoId?: unknown;
+    notas?: unknown;
+}): Promise<Respuesta<FilaDeLista>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const documentoId = comoId(input.documentoId);
+    if (!documentoId) return NO("Falta la lista.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, documentoId);
+    if (!encontrado) return NO("Esa lista no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeEditar) return NO("No puedes escribir en esta lista.");
+    if (encontrado.documento.tipo !== "lista") return NO("Eso no es una lista.");
+
+    const titulo = comoTitulo(input.titulo);
+    if (!titulo) return NO("La fila necesita un título.");
+
+    const cuantas = await cuantasFilasTiene(documentoId);
+    if (cuantas >= TOPE_DE_FILAS) {
+        return NO(`Una lista admite ${TOPE_DE_FILAS} filas. Divídela en dos.`);
+    }
+
+    // El estado se comprueba contra las columnas de ESTA lista: uno inventado
+    // sería una fila que no sale en ninguna columna del tablero.
+    const estados = encontrado.documento.estados;
+    const pedido = typeof input.estado === "string" ? input.estado.trim() : "";
+    const estado = estados.includes(pedido) ? pedido : estados[0];
+
+    const asignadoId = comoId(input.asignadoId);
+    let asignadoNombre: string | null = null;
+    if (asignadoId) {
+        const { db } = await import("@/lib/db");
+        const quienEs = await db.user.findUnique({
+            where: { id: asignadoId },
+            select: { name: true },
+        });
+        asignadoNombre = quienEs?.name ?? null;
+    }
+
+    try {
+        const fila = await crearFila({
+            documentoId,
+            cuentaId: encontrado.documento.cuentaId,
+            titulo,
+            estado,
+            fecha: comoFecha(input.fecha),
+            asignadoId,
+            asignadoNombre,
+            notas: typeof input.notas === "string" ? input.notas.slice(0, 2000) : null,
+            creadoPorId: quien.personaId,
+        });
+        // Entra al FINAL de su columna. Sin esto la fila nueva saldría arriba
+        // del todo y pisaría el orden que puso una persona a mano — es la misma
+        // regla que en los otros dos tableros.
+        await alFinalDelTablero("documentacion", documentoId, fila.id);
+        return { success: true, data: fila };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo crear la fila", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo crear la fila.");
+    }
+}
+
+export async function editarFilaAction(input: {
+    id: unknown;
+    titulo?: unknown;
+    estado?: unknown;
+    fecha?: unknown;
+    notas?: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta la fila.");
+
+    const encontrado = await accesoAlaListaDeLaFila(quien.user, id);
+    if (!encontrado) return NO("Esa fila no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeEditar) return NO("No puedes editar esta lista.");
+
+    const titulo = input.titulo === undefined ? undefined : comoTitulo(input.titulo);
+    if (input.titulo !== undefined && !titulo) return NO("La fila necesita un título.");
+
+    // El estado se comprueba contra las columnas de ESTA lista, igual que al
+    // crear: uno inventado sería una fila que no sale en ninguna columna.
+    let estado: string | undefined;
+    if (typeof input.estado === "string") {
+        const pedido = input.estado.trim();
+        const abierta = await accesoAEsteDocumento(quien.user, encontrado.fila.documentoId);
+        const estados = abierta?.documento.estados ?? [];
+        if (!estados.includes(pedido)) return NO("Esa columna ya no existe en la lista.");
+        estado = pedido;
+    }
+
+    try {
+        await editarFila({
+            id,
+            titulo: titulo ?? undefined,
+            estado,
+            fecha: input.fecha === undefined ? undefined : comoFecha(input.fecha),
+            notas:
+                input.notas === undefined
+                    ? undefined
+                    : typeof input.notas === "string"
+                      ? input.notas.slice(0, 2000)
+                      : null,
+        });
+        // Al cambiar de columna se va al final de la nueva. Sin esto conserva
+        // el número de su columna ANTERIOR, que pertenece a otra banda, y
+        // aparece en mitad de la nueva hasta que alguien recarga — que es justo
+        // «no se queda donde la dejo».
+        if (estado && estado !== encontrado.fila.estado) {
+            await alFinalDelTablero("documentacion", encontrado.fila.documentoId, id);
+        }
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo editar la fila", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo guardar la fila.");
+    }
+}
+
+export async function borrarFilaAction(input: { id: unknown }): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta la fila.");
+
+    const encontrado = await accesoAlaListaDeLaFila(quien.user, id);
+    if (!encontrado) return NO("Esa fila no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeEditar) return NO("No puedes editar esta lista.");
+
+    try {
+        await borrarFila(id);
+        // Sin clave foránea, la limpieza es explícita. `olvidarLaTarjeta` nunca
+        // lanza: no puede reventar el borrado.
+        await olvidarLaTarjeta("documentacion", encontrado.fila.documentoId, id);
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo borrar la fila", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo borrar la fila.");
+    }
+}
+
+/**
+ * Una fecha que llega del navegador.
+ *
+ * `null` y «fecha inválida» son dos cosas: la primera es «esta fila no tiene
+ * fecha» y es legítima —el calendario la cuenta aparte y lo dice—; la segunda
+ * es un dato roto, y guardarlo dejaría una fila que el calendario no sabe dónde
+ * poner. Las dos acaban en `null` a propósito, pero por caminos distintos.
+ */
+function comoFecha(valor: unknown): Date | null {
+    if (valor === null || valor === undefined || valor === "") return null;
+    const fecha = valor instanceof Date ? valor : new Date(String(valor));
+    return isNaN(fecha.getTime()) ? null : fecha;
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import { useEditor, EditorContent, type AnyExtension, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
@@ -22,15 +22,39 @@ import { Separator } from '@/components/ui/separator'
 
 const lowlight = createLowlight(common)
 
+/**
+ * El editor de texto de la casa. Lo usan Notas y Documentacion.
+ *
+ * Las tres props de abajo entraron para Documentacion y **van todas con su
+ * valor de siempre por defecto**, asi que Notas se comporta exactamente igual
+ * que antes: es la misma forma en que `BloqueDeAdjuntos` se abrio a Tickets sin
+ * copiarlo. Con dos editores, el dia que se afine la barra o los estilos se
+ * afina en uno y el otro se queda atras — y eso no se ve como un error, se ve
+ * como «en Notas va distinto».
+ */
 interface Props {
   initialContent?: object
   onChange: (content: object) => void
   editable?: boolean
+  /** Extensiones de mas. Documentacion mete aqui el nodo de mencion. */
+  extensiones?: AnyExtension[]
+  /** El editor ya montado, para quien necesite mandarle cosas (la mencion). */
+  alMontar?: (editor: Editor | null) => void
+  placeholder?: string
 }
 
-export default function TiptapEditor({ initialContent, onChange, editable = true }: Props) {
+export default function TiptapEditor({
+  initialContent,
+  onChange,
+  editable = true,
+  extensiones,
+  alMontar,
+  placeholder,
+}: Props) {
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  const alMontarRef = useRef(alMontar)
+  alMontarRef.current = alMontar
 
   const editor = useEditor({
     extensions: [
@@ -38,7 +62,9 @@ export default function TiptapEditor({ initialContent, onChange, editable = true
         codeBlock: false,
         heading: { levels: [1, 2, 3] },
       }),
-      Placeholder.configure({ placeholder: 'Escribe algo, o usa / para insertar bloques...' }),
+      Placeholder.configure({
+        placeholder: placeholder ?? 'Escribe algo, o usa / para insertar bloques...',
+      }),
       TaskList,
       TaskItem.configure({ nested: true }),
       CodeBlockLowlight.configure({ lowlight }),
@@ -46,6 +72,7 @@ export default function TiptapEditor({ initialContent, onChange, editable = true
       Link.configure({ openOnClick: false }),
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      ...(extensiones ?? []),
     ],
     content: initialContent ?? '',
     editable,
@@ -53,6 +80,13 @@ export default function TiptapEditor({ initialContent, onChange, editable = true
       onChangeRef.current(editor.getJSON())
     },
   })
+
+  // Se avisa por referencia, no con `alMontar` en las dependencias: la funcion
+  // llega nueva en cada pintado del padre y eso reengancharia el efecto en cada
+  // tecla.
+  useEffect(() => {
+    alMontarRef.current?.(editor)
+  }, [editor])
 
   useEffect(() => {
     return () => { editor?.destroy() }

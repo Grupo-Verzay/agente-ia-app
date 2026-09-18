@@ -55,6 +55,7 @@ import {
   resolverElArrastre,
 } from "@/lib/orden-del-tablero";
 import { HiloDeLaTarea } from "./HiloDeLaTarea";
+import { DocumentosQueLoNombran } from "@/components/shared/DocumentosQueLoNombran";
 import { comentarLaTareaAction } from "@/actions/avisos-de-tarea-actions";
 import {
   TOPE_DE_TITULO,
@@ -972,6 +973,12 @@ function TaskDialog({
             texto={comentario}
             onTexto={setComentario}
           />
+
+          {/* El otro sentido de una mención: los documentos donde se nombró
+              esta tarea. No pinta nada mientras no haya ninguno, así que en el
+              caso normal —y al crear, que todavía no tiene id— el diálogo se ve
+              exactamente igual que antes. */}
+          <DocumentosQueLoNombran tipo="tarea" refId={task?.id ?? null} />
 
           <div className="space-y-1.5">
             <Label htmlFor="task-assignee">Responsable</Label>

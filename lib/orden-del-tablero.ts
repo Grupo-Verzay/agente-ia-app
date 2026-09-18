@@ -32,8 +32,15 @@
 /** id de la tarjeta → su posición. Lo que no esté aquí no se ha colocado nunca. */
 export type PosicionesDelTablero = Record<string, number>;
 
-/** Los dos tableros que tienen esto. La lista es cerrada a propósito. */
-export const TIPOS_DE_TABLERO = ["proyecto", "tickets"] as const;
+/**
+ * Los tableros que tienen esto. La lista es cerrada a propósito.
+ *
+ * `documentacion` es la vista de tablero de una lista, y su `tableroId` es el
+ * id del documento. Entra aquí y **no** estrena mecanismo propio: dos formas de
+ * guardar la misma posición son una que se afina y otra que se queda atrás, que
+ * no se ve como un error sino como «en las listas a veces no funciona».
+ */
+export const TIPOS_DE_TABLERO = ["proyecto", "tickets", "documentacion"] as const;
 export type TipoDeTablero = (typeof TIPOS_DE_TABLERO)[number];
 
 /**
