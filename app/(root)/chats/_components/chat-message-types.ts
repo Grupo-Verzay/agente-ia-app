@@ -85,6 +85,10 @@ export type UIBubble = {
   call?: { direction: 'incoming' | 'outgoing'; isVideo?: boolean; durationSecs?: number; status?: string };
   /** Emoji de reacción pegado a este mensaje (estilo WhatsApp) */
   reaction?: string;
+  /** El texto de una nota de voz, transcrito. Va debajo del audio, no en su lugar. */
+  transcripcion?: string;
+  /** Por qué esa nota no tiene texto, cuando hay algo que contar. */
+  transcripcionMotivo?: 'muy_larga' | 'fallo';
   quotedMessage?: {
     id: string;
     content: string;

@@ -40,6 +40,7 @@ import {
 import { mensajeDeWahaParaGuardar } from "@/lib/waha-historial";
 import { canonicalToWahaJid, wahaJidToCanonical } from "@/lib/waha-jid";
 import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
+import { transcribirLasNotasQueFalten } from "@/lib/transcribir-notas";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
 import {
   fetchChatsFromEvolution,
@@ -850,6 +851,26 @@ export async function warmChatMessagesAction(
         message: "Mensajes cargados desde historial local.",
       });
       tiempos.base = Date.now() - arrancoBase;
+
+      // Las notas de voz que falten por transcribir.
+      //
+      // De FONDO, sin `await`: la conversacion no espera a OpenAI para
+      // pintarse. Lo que salga se guarda, asi que la vuelta siguiente del
+      // reloj —cinco segundos— ya lo trae. Es la regla de siempre de Chats,
+      // «agotar la espera no es tirar la respuesta», aplicada aqui.
+      //
+      // La cuenta que PAGA es la dueña de la linea (`effectiveOwnerId`), que es
+      // la que recibe el mensaje — no la de quien mira: un asesor de una cuenta
+      // vinculada abriendo este chat no puede cargarle el consumo a la suya.
+      void transcribirLasNotasQueFalten({
+        duenoDeLaLinea: effectiveOwnerId,
+        userIds: readUserIds,
+        instanceName: hasReadyContext(context) ? context.instanceName : undefined,
+        candidatos: buildWhatsAppJidCandidates(remoteJid, options?.remoteJidAliases ?? []),
+        apiKeyData: hasReadyContext(context)
+          ? { url: context.apiKeyData.url, key: context.apiKeyData.key }
+          : null,
+      });
 
       // WhatsApp Mensajeria (waha): el historial que ya tiene WhatsApp.
       //

@@ -92,6 +92,10 @@ interface MessageBubbleProps {
   call?: UIBubble['call'];
   /** Emoji de reacción pegado al mensaje (estilo WhatsApp) */
   reaction?: string;
+  /** El texto de una nota de voz, transcrito. Va debajo del audio, no en su lugar. */
+  transcripcion?: string;
+  /** Por qué esa nota no tiene texto, cuando hay algo que contar. */
+  transcripcionMotivo?: "muy_larga" | "fallo";
   /** Teléfono del contacto (solo dígitos) para "devolver llamada" */
   callPhone?: string;
   /** Nombre del contacto: el de la cabecera. Lo usan la llamada y la cita. */
@@ -123,6 +127,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   kind,
   call,
   reaction,
+  transcripcion,
+  transcripcionMotivo,
   callPhone,
   contactName,
   quotedMessage,
@@ -479,7 +485,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </span>
           </button>
         )}
-        {media && <MediaRenderer media={media} reproducido={isUserMessage && status === 'played'} />}
+        {media && (
+          <MediaRenderer
+            media={media}
+            reproducido={isUserMessage && status === 'played'}
+            transcripcion={transcripcion}
+            transcripcionMotivo={transcripcionMotivo}
+          />
+        )}
         {message && (
           <div
             className={cn(

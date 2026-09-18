@@ -569,6 +569,23 @@ export type EvolutionMessage = {
    * fila de la lista. Ver `guardarReaccion` en lib/chat-persistence.
    */
   reaccion?: string;
+  /**
+   * El texto de una nota de voz, transcrito.
+   *
+   * Se enseña DEBAJO del audio, sin quitarlo: el audio es lo que mandó el
+   * cliente y la transcripción es una ayuda, no un sustituto. Ver
+   * `lib/transcripcion-de-voz.ts`.
+   */
+  transcripcion?: string;
+  /**
+   * Por qué esa nota no tiene texto.
+   *
+   * Sin esto, una nota sin transcripción al lado de otras con transcripción se
+   * lee como que la función está rota, y eso es una llamada a soporte. No sale
+   * para el caso de «sin créditos»: ahí el audio llega normal, como cualquier
+   * otro, que es lo pedido.
+   */
+  transcripcionMotivo?: "muy_larga" | "fallo";
 };
 
 export type LastMessage = {

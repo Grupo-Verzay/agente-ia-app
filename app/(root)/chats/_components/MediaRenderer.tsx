@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import type { MediaData } from './chat-message-types';
 import { MediaViewer, useMediaGallery } from './media-viewer';
 import { DocumentCard } from './DocumentCard';
+import { porQueNoHayTexto } from '@/lib/transcripcion-de-voz';
 
 /**
  * El ancho de un adjunto, que es tambien el del PIE que lo acompana.
@@ -46,9 +47,24 @@ interface MediaRendererProps {
    * estado y sabe si el mensaje es nuestro.
    */
   reproducido?: boolean;
+  /**
+   * El texto de la nota de voz, ya transcrito.
+   *
+   * Va DEBAJO del audio y no en su lugar: el audio es lo que mandó el cliente
+   * —con su tono y sus pausas— y el texto es una ayuda para leerlo de un
+   * vistazo, no un sustituto.
+   */
+  transcripcion?: string;
+  /** Por qué esta nota no tiene texto, cuando hay un motivo que contar. */
+  transcripcionMotivo?: "muy_larga" | "fallo";
 }
 
-export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media, reproducido }) => {
+export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({
+  media,
+  reproducido,
+  transcripcion,
+  transcripcionMotivo,
+}) => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const gallery = useMediaGallery();
 
@@ -136,6 +152,24 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media, 
             </button>
             <audio src={url} controls className="flex-1 h-8" preload="metadata" />
           </div>
+        )}
+
+        {/* La transcripcion, debajo del audio y sin quitarlo.
+          *
+          * Y el MOTIVO cuando no hay texto: una nota sin transcripcion al lado
+          * de otras con transcripcion se lee como que la funcion esta rota, y
+          * eso acaba en una llamada a soporte. No sale para el caso de «sin
+          * creditos» —ahi el audio llega normal, como cualquier otro—, asi que
+          * lo unico que se explica es lo que es propio de ESTA nota. */}
+        {type === 'audio' && transcripcion && (
+          <p className="mt-1 whitespace-pre-wrap break-words px-1 text-[13px] leading-snug text-gray-700 dark:text-gray-200">
+            {transcripcion}
+          </p>
+        )}
+        {type === 'audio' && !transcripcion && transcripcionMotivo && (
+          <p className="mt-1 px-1 text-[11px] italic text-gray-500 dark:text-gray-400">
+            {porQueNoHayTexto(transcripcionMotivo)}
+          </p>
         )}
 
         {type === 'document' && (
