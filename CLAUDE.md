@@ -2873,6 +2873,119 @@ Las variables, que van en el stack de Portainer y **nunca en el repo**:
 Se generan una vez con `npx web-push generate-vapid-keys`.
 
 
+### La VOZ: las dos funciones salen de Chats, no de una copia
+
+Dictar al campo de escritura y mandar una nota de voz ya existían en la bandeja,
+así que aquí no se escribió ningún grabador nuevo:
+
+| | de dónde sale |
+| --- | --- |
+| dictado | `hooks/useSpeechDictation` — la Web Speech API del navegador, gratis y sin servidor |
+| grabación | `hooks/useAudioRecording` — **se mudó** desde `app/(root)/chats/_components/hooks/` |
+
+Y esa mudanza es la parte que importa: el hook es headless —devuelve estado y no
+pinta nada—, así que las dos pantallas le ponen los botones que les toquen sobre
+**un solo grabador**. Copiado, el día que se afine el formato que elige o el
+temporizador se afina en una pantalla y la otra se queda atrás, que no se ve
+como un error sino como «en el chat del equipo a veces no funciona». Lo mismo
+con `base64FromBlob` y `RecordedAudioData`, que viven ya en
+`lib/audio-del-navegador.ts` y se **re-exportan** desde los ficheros de Chats
+para que allí no cambiara ni un import.
+
+**El audio NO viaja dentro del mensaje.** Se sube al bucket por el mismo
+`/api/upload` de los adjuntos de una tarea —que ya comprueba sesión y que la
+carpeta sea de una cuenta sobre la que se manda— y la fila guarda su dirección
+(`audioUrl`, `audioSegundos`, `audioMime`, con `ADD COLUMN IF NOT EXISTS` porque
+la tabla ya está desplegada). Metido en la fila, un opus de un minuto son ~60 kB
+de base64 que **la consulta del reloj se trae con la página entera cada cinco
+segundos**, para no volver a mirarse nunca.
+
+Y la dirección que llega del navegador **no se da por buena**: pasa por
+`comoSeGuardaLaNota`, que la valida con `llaveDelArchivoSubido` —la misma
+función que ya decide qué se puede borrar del bucket, no una segunda regla—. Sin
+eso, la burbuja pintaría un `<audio>` apuntando a donde le dijeran y el botón de
+transcribir mandaría a **nuestro servidor** a descargar esa dirección, que es una
+petición saliendo de dentro de la red con el destino elegido por quien la manda.
+
+### Transcribir: BAJO DEMANDA, y se paga una sola vez
+
+Las notas de un **cliente** en Chats se transcriben solas: el asesor tiene que
+saber qué le dijeron sin ponerse los auriculares. Un canal del equipo es al
+revés —son compañeros hablando todo el día— y transcribir cada nota a seis
+créditos el minuto es una factura que nadie pidió. Aquí hay un botón debajo de
+cada nota y **nunca se transcribe sola**.
+
+**La tarifa es la MISMA y no se vuelve a escribir**: `costoDeLaNota`, seis
+créditos por minuto prorrateado por segundos, con su `ceil` y su mínimo de uno.
+Y lo que comparten los dos caminos —leer los créditos, elegir la clave de OpenAI
+y descontar— se fue a `lib/creditos-de-transcripcion.ts`, que ahora usan los dos.
+Con una copia en cada sitio, el día que cambie el precio uno de los dos cobraría
+otra cosa, y eso no se ve: se nota meses después en la factura.
+
+**Cuatro cosas que hay que mantener:**
+
+1. **Paga la CUENTA, nunca la persona**, y dentro de una familia la **madre**
+   (`laCuentaQuePagaLaTranscripcion`). `ia_credits` tiene una fila por cuenta:
+   cobrarle a la persona sería cobrarle a una fila que normalmente no existe, y
+   entonces `losCreditosQueQuedan` devolvería 0 y **nadie podría transcribir
+   nada**. Y la raíz de la familia porque `ownerId ?? id` **no sube a la
+   madre** — sin eso, el chat interno de la casa cobraría a tres bolsas
+   distintas según quién pulsara el botón.
+2. **La puerta es PERTENECER, no poder leer.** Un administrador lee los
+   directos de su cuenta —decisión tomada a propósito— y eso no le deja gastar
+   créditos transcribiendo la conversación de otros dos. Es el mismo reparto con
+   el que ya se cuenta lo sin leer y con el que suena el aviso. El general lo
+   tiene todo el mundo, así que esto no cierra nada que estuviera abierto: lo
+   único que deja fuera es el directo ajeno.
+3. **Se guarda, así que solo se paga una vez.** La columna `transcripcion` es
+   por eso, y la lectura va **antes** de resolver canales y créditos: en cuanto
+   alguien la pide una vez, ese es el camino común. Sin guardarla, en un canal
+   de ocho personas la misma nota se pagaría ocho veces. El `UPDATE` lleva
+   `WHERE "transcripcion" IS NULL`, así que dos a la vez escriben una sola vez
+   —comprobado contra Postgres: `UPDATE 1` y luego `UPDATE 0`—.
+4. **Un fallo NO deja marca y NO cobra.** En Chats una nota que falla se marca
+   para no reintentarla, porque ahí nadie la pidió; aquí la pidió una persona,
+   así que un fallo de OpenAI es de hoy y el botón sigue. Marcarlo dejaría esa
+   nota sin transcribir para siempre y sin decir por qué.
+
+**Y el precio se ve ANTES de pulsar.** El botón dice «Transcribir (3 créditos)»,
+porque la duración **es** el precio; un botón que gasta créditos sin decir
+cuántos es un cheque en blanco, y eso reaparece como «¿por qué bajaron mis
+créditos?». Una nota por encima del tope **no ofrece botón**: dice «Demasiado
+larga para transcribirla», porque un botón que al pulsarlo da error es peor que
+no tenerlo.
+
+#### Los segundos se acotan, pero NO al tope de lo transcribible
+
+Es el fallo que se cometió escribiendo esto y lo cazó releer el propio diff. La
+duración llega del navegador y hay que acotarla —es lo que decide el precio—,
+pero recortarla a `TOPE_DE_SEGUNDOS` (diez minutos) era **peor que no
+recortarla**: una nota de media hora se guardaba como de diez, y entonces
+`queHacerConLaNota` la daba por transcribible y **se cobraban diez minutos por
+transcribir treinta**.
+
+El techo que se aplica es un absurdo (`TECHO_DE_SEGUNDOS`, seis horas) que solo
+evita un entero imposible. **Lo que decide si se transcribe sigue siendo la
+regla de siempre, con la duración de verdad delante.** El banco lo prueba
+encadenando las dos: se guarda media hora y se comprueba que la regla la
+rechaza.
+
+#### Un mensaje de solo voz tiene el texto VACÍO, y eso se nota en tres sitios
+
+Una nota **es** el mensaje, así que se envía sin escribir nada. De ahí salen
+tres huecos que hay que tapar a mano, y los tres se leen como que la App está
+rota:
+
+1. **El aviso y el empuje** salían con el cuerpo en blanco. Un aviso vacío no
+   dice ni quién escribió ni de qué, y se despacha sin mirar — que es el fallo
+   del que viene toda esta familia. Sale «🎤 Nota de voz».
+2. **La cita** de una nota salía como un recuadro vacío, que es lo único para lo
+   que no sirve una cita. Igual.
+3. **Enter con una nota grabada pendiente** la perdía: enviaba solo el texto y
+   la grabación se iba sin decir nada. El manejador de Enter pasa la grabación
+   como lo hace el botón.
+
+
 ### La campanita: solo menciones, y al MENSAJE
 
 La campanita ya recibía las menciones —`getNotificationCenterData` incluye

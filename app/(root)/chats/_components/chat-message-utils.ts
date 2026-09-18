@@ -60,19 +60,13 @@ export function formatConversationDateLabel(timestamp?: number): string {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
-export function base64FromBlob(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Error leyendo blob'));
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      const commaIndex = dataUrl.indexOf(',');
-      if (commaIndex === -1) return reject(new Error('Formato de Data URL inválido.'));
-      resolve(dataUrl.substring(commaIndex + 1));
-    };
-    reader.readAsDataURL(blob);
-  });
-}
+/**
+ * Leer un blob como base64.
+ *
+ * **Vive en `lib/audio-del-navegador`** desde que el chat del equipo tambien
+ * graba: se re-exporta aqui para que los usos de Chats no cambien.
+ */
+export { base64FromBlob } from "@/lib/audio-del-navegador";
 
 /**
  * Lo que se enseña cuando el mensaje trae adjunto pero el archivo no esta.

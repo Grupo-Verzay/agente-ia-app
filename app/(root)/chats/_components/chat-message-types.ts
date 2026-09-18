@@ -130,11 +130,11 @@ export type UIBubble = {
   noteMentionNames?: string[];
 };
 
-export type RecordedAudioData = {
-  /** Base64 puro sin prefijo */
-  base64Pure: string;
-  /** Data URL completa para el reproductor de audio */
-  dataUrlWithPrefix: string;
-  mimetype: string;
-  durationSecs: number;
-};
+/**
+ * Lo grabado por el microfono.
+ *
+ * **El tipo vive en `lib/audio-del-navegador`** desde que el chat del equipo
+ * tambien graba notas de voz: uno solo, no dos que se separen. Se re-exporta
+ * aqui para que nada de Chats tenga que cambiar de import.
+ */
+export type { RecordedAudioData } from "@/lib/audio-del-navegador";

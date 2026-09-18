@@ -8,6 +8,7 @@ import type { ChatCompartido } from "@/lib/chat-compartido";
 import { esFinDeLlamada, type FinDeLlamada } from "@/lib/llamada-de-voz";
 import {
     CANAL_GENERAL,
+    canalDeLaFila,
     type TipoDeCanal,
 } from "@/lib/canales-de-equipo";
 
@@ -159,6 +160,40 @@ function asegurarLaTabla(): Promise<void> {
         await db.$executeRaw`
             ALTER TABLE "team_chat_messages"
             ADD COLUMN IF NOT EXISTS "citaExtracto" TEXT
+        `;
+        // La NOTA DE VOZ, y su transcripcion. Cuatro columnas mas, con
+        // `ADD COLUMN IF NOT EXISTS` porque la tabla ya esta desplegada: un
+        // `CREATE TABLE IF NOT EXISTS` no toca una que ya existe, y ese es el
+        // fallo que se comete solo al anadirle una columna a una tabla de la
+        // App ya desplegada.
+        //
+        // El audio NO se guarda aqui: se sube al bucket como cualquier adjunto
+        // y la fila guarda su direccion. Un opus de un minuto son ~60 kB en
+        // base64 dentro de cada fila, y la consulta del reloj se trae la pagina
+        // entera cada cinco segundos — eso es meter el audio en el camino
+        // caliente para no volver a leerlo nunca.
+        //
+        // Los mensajes que ya estaban traen `null` en las cuatro, que significa
+        // exactamente «este no es una nota de voz»: sin backfill y sin dos
+        // clases de mensaje.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "audioUrl" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "audioSegundos" INTEGER
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "audioMime" TEXT
+        `;
+        // La transcripcion se GUARDA, y ese es el motivo de la columna: se cobra
+        // por minuto de audio, asi que pedirla dos veces no puede costar dos
+        // veces. Quien la pida despues la lee de aqui y no toca ni un credito.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "transcripcion" TEXT
         `;
         // La BUSQUEDA por texto. **Es este indice el que evita recorrer la
         // tabla**, y conviene decirlo asi porque lo primero que se penso fue lo
@@ -329,6 +364,10 @@ type Fila = {
     citaId: string | null;
     citaAutorNombre: string | null;
     citaExtracto: string | null;
+    audioUrl: string | null;
+    audioSegundos: number | null;
+    audioMime: string | null;
+    transcripcion: string | null;
 };
 
 /**
@@ -379,6 +418,19 @@ const aMensaje = (f: Fila, vivas?: Set<string>): MensajeDeEquipo => ({
               sigueAhi: vivas ? vivas.has(f.citaId) : true,
           }
         : null,
+    // La nota de voz. Hace falta la DIRECCION: sin ella no hay nada que
+    // reproducir, y los segundos solos serian una burbuja vacia que dice «0:12».
+    audio: f.audioUrl
+        ? {
+              url: f.audioUrl,
+              segundos: Number(f.audioSegundos ?? 0),
+              mime: f.audioMime,
+          }
+        : null,
+    // La transcripcion ya pagada, si alguien la pidio. `null` es «todavia no»,
+    // no «no se pudo»: un fallo no deja marca a proposito, para que se pueda
+    // volver a intentar.
+    transcripcion: f.transcripcion,
 });
 
 /** Cuales de estos mensajes citados siguen existiendo. */
@@ -434,7 +486,8 @@ export async function leerElHilo(
                            "chatLinea", "chatJid", "chatIdentidades",
                            "chatNombre", "chatNumero",
                            "llamadaFin", "llamadaSegundos",
-                           "citaId", "citaAutorNombre", "citaExtracto"
+                           "citaId", "citaAutorNombre", "citaExtracto",
+                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
                     FROM "team_chat_messages"
                     WHERE "cuentaId" IN (${Prisma.join(deLaFamilia)})
                       AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})
@@ -451,7 +504,8 @@ export async function leerElHilo(
                            "chatLinea", "chatJid", "chatIdentidades",
                            "chatNombre", "chatNumero",
                            "llamadaFin", "llamadaSegundos",
-                           "citaId", "citaAutorNombre", "citaExtracto"
+                           "citaId", "citaAutorNombre", "citaExtracto",
+                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
                     FROM "team_chat_messages"
                     WHERE "canalId" = ${canalId}
                     ORDER BY "creadoEn" DESC
@@ -523,7 +577,8 @@ export async function buscarEnElEquipo(input: {
                "texto", "mencionados", "creadoEn", "canalId",
                "chatLinea", "chatJid", "chatIdentidades",
                "chatNombre", "chatNumero",
-               "citaId", "citaAutorNombre", "citaExtracto"
+               "citaId", "citaAutorNombre", "citaExtracto",
+                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
         FROM "team_chat_messages"
         WHERE (${alcance})
           AND to_tsvector('spanish', "texto") @@ to_tsquery('spanish', ${input.consulta})
@@ -576,7 +631,8 @@ export async function elHiloAlrededorDe(input: {
                        "texto", "mencionados", "creadoEn",
                        "chatLinea", "chatJid", "chatIdentidades",
                        "chatNombre", "chatNumero",
-                       "citaId", "citaAutorNombre", "citaExtracto"
+                       "citaId", "citaAutorNombre", "citaExtracto",
+                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
                 FROM "team_chat_messages"
                 WHERE (${alcance}) AND "creadoEn" <= ${cuando}
                 ORDER BY "creadoEn" DESC
@@ -587,7 +643,8 @@ export async function elHiloAlrededorDe(input: {
                        "texto", "mencionados", "creadoEn",
                        "chatLinea", "chatJid", "chatIdentidades",
                        "chatNombre", "chatNumero",
-                       "citaId", "citaAutorNombre", "citaExtracto"
+                       "citaId", "citaAutorNombre", "citaExtracto",
+                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
                 FROM "team_chat_messages"
                 WHERE (${alcance}) AND "creadoEn" > ${cuando}
                 ORDER BY "creadoEn" ASC
@@ -604,12 +661,27 @@ export async function elHiloAlrededorDe(input: {
 /** Un mensaje suelto, para comprobar que se puede citar. */
 export async function elMensaje(
     id: string,
-): Promise<{ id: string; canalId: string | null; cuentaId: string; autorNombre: string | null; texto: string } | null> {
+): Promise<{
+    id: string;
+    canalId: string | null;
+    cuentaId: string;
+    autorNombre: string | null;
+    texto: string;
+    /** Si es una nota de voz. Su `texto` esta vacio, y una cita en blanco no dice nada. */
+    audioUrl: string | null;
+} | null> {
     return conLaTabla(async () => {
         const filas = await db.$queryRaw<
-            Array<{ id: string; canalId: string | null; cuentaId: string; autorNombre: string | null; texto: string }>
+            Array<{
+                id: string;
+                canalId: string | null;
+                cuentaId: string;
+                autorNombre: string | null;
+                texto: string;
+                audioUrl: string | null;
+            }>
         >`
-            SELECT "id", "canalId", "cuentaId", "autorNombre", "texto"
+            SELECT "id", "canalId", "cuentaId", "autorNombre", "texto", "audioUrl"
             FROM "team_chat_messages" WHERE "id" = ${id}
         `;
         return filas[0] ?? null;
@@ -653,6 +725,14 @@ export async function guardarUnMensaje(input: {
      * pregunta necesita la sesión y aquí no la hay.
      */
     cita: { id: string; autorNombre: string | null; extracto: string } | null;
+    /**
+     * La nota de voz, cuando el mensaje es una.
+     *
+     * Llega con la direccion del bucket **ya subida** por quien llama: aqui no
+     * se sube nada. Es el mismo reparto que el resto de esta tabla —la accion
+     * tiene la sesion, esto solo escribe—.
+     */
+    audio?: { url: string; segundos: number; mime: string | null } | null;
 }): Promise<void> {
     await conLaTabla(() => db.$executeRaw`
         INSERT INTO "team_chat_messages"
@@ -660,7 +740,8 @@ export async function guardarUnMensaje(input: {
              "escritoDesde", "texto", "mencionados",
              "chatLinea", "chatJid", "chatIdentidades", "chatNombre", "chatNumero",
              "llamadaFin", "llamadaSegundos",
-             "citaId", "citaAutorNombre", "citaExtracto")
+             "citaId", "citaAutorNombre", "citaExtracto",
+             "audioUrl", "audioSegundos", "audioMime")
         VALUES (
             ${input.id}, ${input.cuentaId}, ${input.canalId}, ${input.autorId},
             ${input.autorNombre}, ${input.escritoDesde},
@@ -670,8 +751,71 @@ export async function guardarUnMensaje(input: {
             ${input.chat?.nombre ?? null}, ${input.chat?.numero ?? null},
             ${input.llamada?.fin ?? null}, ${input.llamada?.segundos ?? null},
             ${input.cita?.id ?? null}, ${input.cita?.autorNombre ?? null},
-            ${input.cita?.extracto ?? null}
+            ${input.cita?.extracto ?? null},
+            ${input.audio?.url ?? null}, ${input.audio?.segundos ?? null},
+            ${input.audio?.mime ?? null}
         )
+    `);
+}
+
+/**
+ * La nota de voz de un mensaje, para poder transcribirla.
+ *
+ * Devuelve tambien su `canalId`, que es lo que decide **quien puede pedirla**:
+ * la puerta se pregunta contra el canal del MENSAJE, no contra el que diga el
+ * navegador. Sin eso, mandar el id de un mensaje de un directo ajeno seria
+ * transcribirlo con los creditos de quien lo pide.
+ */
+export async function elAudioDelMensaje(id: string): Promise<{
+    id: string;
+    canalId: string;
+    audioUrl: string | null;
+    audioSegundos: number | null;
+    audioMime: string | null;
+    transcripcion: string | null;
+} | null> {
+    if (!id) return null;
+    const filas = await conLaTabla(() => db.$queryRaw<Array<{
+        id: string;
+        canalId: string | null;
+        audioUrl: string | null;
+        audioSegundos: number | null;
+        audioMime: string | null;
+        transcripcion: string | null;
+    }>>`
+        SELECT "id", "canalId", "audioUrl", "audioSegundos", "audioMime", "transcripcion"
+        FROM "team_chat_messages"
+        WHERE "id" = ${id}
+        LIMIT 1
+    `);
+    const f = filas[0];
+    if (!f) return null;
+    return {
+        id: f.id,
+        // Un mensaje de cuando el hilo era uno solo trae `canalId` nulo: ese es
+        // el general. Es la misma traduccion que hace el lector del hilo.
+        canalId: canalDeLaFila(f.canalId),
+        audioUrl: f.audioUrl,
+        audioSegundos: f.audioSegundos === null ? null : Number(f.audioSegundos),
+        audioMime: f.audioMime,
+        transcripcion: f.transcripcion,
+    };
+}
+
+/**
+ * Guardar la transcripcion de una nota.
+ *
+ * **Solo si no la tenia ya** (`WHERE "transcripcion" IS NULL`): dos personas
+ * pulsando «Transcribir» a la vez escriben una sola vez y la segunda no pisa
+ * nada. Lo que evita cobrar dos veces es la lectura de antes; esto evita que
+ * dos textos distintos se turnen en la pantalla.
+ */
+export async function guardarLaTranscripcion(id: string, texto: string): Promise<void> {
+    if (!id || !texto) return;
+    await conLaTabla(() => db.$executeRaw`
+        UPDATE "team_chat_messages"
+           SET "transcripcion" = ${texto}
+         WHERE "id" = ${id} AND "transcripcion" IS NULL
     `);
 }
 

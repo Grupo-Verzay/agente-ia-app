@@ -1,8 +1,21 @@
 'use client';
 
+/**
+ * Grabar una nota de voz. **Uno solo para toda la plataforma.**
+ *
+ * Vivia dentro de Chats (`app/(root)/chats/_components/hooks/`) y se mudo aqui
+ * al usarlo tambien el chat del equipo. Copiarlo habria sido dos grabadores que
+ * mantener a la par —el formato que se elige, el temporizador, apagar el
+ * microfono al terminar— y eso se lee como «en el chat del equipo a veces no
+ * funciona», que es el peor sintoma posible.
+ *
+ * Es headless a proposito: devuelve estado y no pinta nada, asi que cada
+ * pantalla le pone los botones que le toquen.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { base64FromBlob } from '../chat-message-utils';
-import type { RecordedAudioData } from '../chat-message-types';
+import { base64FromBlob } from '@/lib/audio-del-navegador';
+import type { RecordedAudioData } from '@/lib/audio-del-navegador';
 
 interface UseAudioRecordingReturn {
   isRecording: boolean;
