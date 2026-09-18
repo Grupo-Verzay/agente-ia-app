@@ -2464,6 +2464,125 @@ Cinco cosas que hay que mantener:
 Y la lista se pinta **por encima** de la caja: debajo está el borde de la
 ventana, y en un panel lateral no hay sitio para desplegar nada hacia abajo.
 
+### Buscar: la lista de canales es la PUERTA; el GIN es la velocidad
+
+Se empezó con la idea contraria y **la medida la desmintió**, así que conviene
+no volver a escribirla mal.
+
+La idea de partida era: «no hace falta índice de texto, porque lo que acota es
+la lista de canales que esa persona puede leer —unos pocos, ya resueltos por
+`canalesQueAlcanzan`— y dentro de ese trozo hay poco que mirar». Medido con
+**60.000 mensajes en 30 canales**, el plan dice otra cosa:
+
+```
+Bitmap Heap Scan
+  Filter: ("canalId" = ANY (...))          <- la lista, DESPUÉS
+  -> Bitmap Index Scan on ..._texto_idx    <- esto es lo que manda
+```
+
+| | tarda |
+| --- | --- |
+| acotada a 3 canales, **con** GIN | **5 ms** |
+| acotada a 3 canales, **sin** GIN | 40 ms |
+| los 30 canales, con GIN | 3 ms |
+
+Dos cosas que salen de ahí:
+
+1. **El GIN es lo que evita recorrer la tabla**, no el recorte por canal: con
+   el mismo recorte, quitarlo multiplica por ocho — y eso crece con la tabla.
+2. **Buscar en menos canales no es más rápido.** 3 ms en los 30 contra 5 ms en
+   tres: con menos filas que casan, al `LIMIT` le cuesta más llenarse. Es
+   contraintuitivo y es justo lo que hace que la primera explicación sonara
+   bien.
+
+Así que **las dos cosas hacen falta y hacen cosas distintas**:
+
+- **La lista de canales es la PUERTA.** No se busca donde no se puede leer, y
+  llega ya resuelta por las mismas funciones que arman el listado del hilo
+  (`canalesQueAlcanzan` + `losCanalesQueVe`). Escribir aquí una condición de
+  permisos propia sería tener dos que mantener a la par, y el día que se
+  separen la búsqueda se convierte en la forma de leer lo que la lista esconde.
+- **El GIN es la velocidad**, y nada más.
+
+Tres cosas más:
+
+1. **Sin `CREATE EXTENSION`.** `pg_trgm` haría falta para un `ILIKE '%x%'` con
+   índice, pero instalar una extensión pide permisos que la App no tiene por
+   qué tener, y el día que no los tenga esto falla **al arrancar**. La búsqueda
+   de texto completo viene con Postgres.
+2. **Lo que se teclea NUNCA llega en crudo a `to_tsquery`.** Esa función tiene
+   su propia sintaxis, y un `!` suelto no es una búsqueda rara: **revienta la
+   consulta entera** con un error de sintaxis. `comoConsultaDeBusqueda` se queda
+   solo con letras y números —`\p{L}`, que conserva acentos y eñes; con
+   `[a-z0-9]` a secas «pequeño» se partía en «peque» y «o»— y los operadores los
+   pone ella.
+3. **El prefijo va solo en el ÚLTIMO término.** `plainto_tsquery` escaparía solo
+   y no vale: convierte todo en palabras enteras, así que «factu» no encuentra
+   «factura» y en una caja de búsqueda eso se lee como que no hay resultados.
+   Pero quien ya escribió «factura pendiente» quiere las dos enteras, no todo lo
+   que empiece por «pendiente».
+
+Y el **general** se busca aparte dentro de la misma consulta, con
+`cuentaId IN (familia) AND (canalId IS NULL OR = 'general')`: no es una fila de
+canal. Sin el `NULL`, los mensajes de cuando el hilo era uno solo serían
+inencontrables y parecería que se borraron — el mismo caso que ya tuvo que
+arreglarse al leerlo.
+
+#### Y un resultado viejo necesita el hilo ALREDEDOR, no los últimos
+
+El salto de la campanita admite a propósito que «si el mensaje no está, se sigue
+al final». Para una mención reciente eso es aceptable; **para un resultado de
+búsqueda es el fallo entero**: lo que se encuentra suele ser de hace semanas, no
+está entre los últimos `TOPE_DE_MENSAJES`, y pulsarlo aterrizaba al final del
+hilo sin el anillo y sin decir nada.
+
+`elHiloAlrededorDe` trae la mitad de antes y la mitad de después **en dos
+consultas acotadas**, no con un `OFFSET`: contar cuántos mensajes hay antes de
+ese obliga a recorrerlos, que es lo que prohíbe *una consulta que devuelve una
+página tiene que poder pararse*. Y si el mensaje ya no está devuelve vacío y
+quien llama se cae al hilo normal — se pudo borrar entre encontrarlo y pulsarlo,
+y eso no es un error que enseñar.
+
+### Citar: el texto se COPIA en la respuesta, no se referencia
+
+La pregunta es qué guarda la fila de la respuesta para no depender del original,
+y la respuesta es **todo lo que hace falta para pintarlo**: `citaId`,
+`citaAutorNombre` y `citaExtracto`, tres columnas con
+`ADD COLUMN IF NOT EXISTS` porque la tabla ya está en producción.
+
+Es el mismo criterio que esta tabla ya usaba con `autorNombre` —copiado para que
+el hilo siga diciendo quién escribió aunque esa persona salga del equipo—,
+aplicado al texto. **El recuadro se pinta con cero `JOIN` al original.**
+
+Lo único que se le pregunta al original es **si sigue existiendo**, y eso:
+
+- se pregunta **al leer**, con un `IN` sobre la clave primaria y **una sola
+  consulta por página**;
+- **no se guarda como marca en la fila.** Una marca obligaría a que cada camino
+  que borre un mensaje se acordara de ponerla, y el día que alguien borre por
+  otro lado se queda mintiendo. Preguntarlo siempre acierta.
+
+Comprobado en el banco borrando el original: la cita sigue con su autor y su
+texto, y lo único que cambia es que deja de ser pulsable y lo dice.
+
+Cuatro cosas que hay que mantener:
+
+1. **Solo se cita del MISMO canal**, comprobado en el servidor. Es lo que impide
+   que una cita sea la forma de sacar contenido de donde no se puede leer: quien
+   administra lee los directos de su cuenta, así que sin esta condición podría
+   citar un directo dentro del general y enseñárselo al equipo con un clic.
+2. **El navegador manda el `id`, no el texto.** Aceptando el extracto de fuera,
+   cualquiera publicaría una cita falsa con el nombre de otro y con el aspecto de
+   una de verdad. El servidor lo copia del original.
+3. **Sin hilos anidados, a propósito.** La cita es un adorno de la respuesta, no
+   una rama: la conversación sigue siendo una sola lista. Y el borrador de la
+   cita vive **en el formulario**, junto al texto, no dentro del hilo — por eso
+   se manda con él y se limpia al enviar, como los adjuntos de una tarea.
+4. **Un `id` que llega de fuera se comprueba que sea una CADENA.** `String(7)`
+   daba `"7"` y pasaba el filtro: no llega a hacer daño —ese mensaje no existe y
+   la acción lo rechaza— pero es aceptar un tipo que nunca puede ser un id. Lo
+   cazó el banco.
+
 ### Y una vuelta del reloj que llega tarde no pinta encima
 
 El reloj de 5 s pide el canal que estaba abierto cuando salió. Si mientras tanto
