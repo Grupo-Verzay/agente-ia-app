@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { cuentaQueManda, rolQueManda } from "@/lib/cuenta-que-manda";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { clientesDeLaCuenta, cuentasParaCompartir, type CuentaCliente } from "@/lib/cuentas-cliente";
@@ -242,7 +243,11 @@ export async function abrirTicketAction(
     await crearElTicket({
       id,
       clienteId,
-      creadoPorId: user.id,
+      // Quién lo tecleó es una FIRMA: la persona, no la fila efectiva. Quien
+      // abre un ticket desde dentro de otra cuenta —el conmutador o
+      // «Ingresar»— lo dejaba a nombre de esa cuenta. `clienteId` y `destino`
+      // siguen siendo cuentas: eso es alcance y no se toca.
+      creadoPorId: laPersonaQueActua(user).id,
       destinoId: destino,
       responsableId,
       titulo: parsed.titulo,

@@ -5361,9 +5361,12 @@ ellas** y desde fuera parecía que no había nada que ver.
 2. **`clientesDelAsesor` NO entra aquí**: es alcance, no firma, y va por la fila
    efectiva. Entró en esta lista por error y costó una regresión; el porqué está
    en la sección de abajo.
-3. **`audit_logs`, `AssignmentLog.assignedBy` y `generateConversationIntelligence`
-   se quedan con la fila efectiva**, a propósito y por ahora: son «quién lo
-   hizo», otra familia, y entran con los latentes (tickets y cobros).
+3. **Los latentes ya entraron**: `audit_logs.actor_id`,
+   `tickets_de_soporte.creadoPorId`, `cobros.creadoPorId` y los dos
+   `confirmadaPorId` firman con la persona. Lo que **se queda con la fila
+   efectiva** es `AssignmentLog.assignedBy`, el `actorId` de
+   `generateConversationIntelligence` y el de `collab_notifications`: no se han
+   mirado todavía y no entran aquí por parecerse.
 
 ### Y de lo ya escrito, qué se puede recuperar: NADA, y por qué
 
@@ -5457,6 +5460,62 @@ Y por qué no se vio en las pruebas: el administrador que llega por `owner_id`
 propia fila sí lleva la herencia dentro. Solo falla el que llega por
 `linked_accounts`. Probar un administrador no basta: **hay que probar los dos
 caminos por los que alguien llega a una cuenta.**
+
+### Y las cinco firmas que quedaban: `audit_logs`, tickets y cobros
+
+Eran los tres «latentes» del inventario: columnas que **se escriben y todavía no
+se leen contra la persona en ninguna pantalla**, así que no rompían nada hoy —y
+precisamente por eso se arreglan ahora, antes de que algo empiece a leerlas y el
+fallo aparezca con años de historial mal firmado detrás.
+
+| columna | qué guarda |
+| --- | --- |
+| `audit_logs.actor_id` | quién tocó el dato auditado |
+| `tickets_de_soporte.creadoPorId` | quién tecleó el ticket |
+| `cobros.creadoPorId` | quién creó la deuda |
+| `cobros.confirmadaPorId` | quién confirmó el pago |
+| `cobro_ciclos.confirmadaPorId` | lo mismo, en la fila del ciclo |
+
+Las dos últimas salen **del mismo valor**: `confirmarElPago` lo escribe en las
+dos tablas, así que firmarlo una vez en la acción las arregla a la vez.
+
+Tres cosas que hay que mantener:
+
+1. **`getAuditActorId` es quien decide, y por eso se arregló ahí.** Dieciséis de
+   los veinticuatro sitios que escriben `actor_id` la llaman en vez de calcular
+   el id a mano; los ocho de Proyectos y Tareas que lo tenían escrito pasan por
+   `laPersonaQueActua`. Si se añade otro sitio que audite, va por esa función.
+2. **Lo que NO se tocó, y no es un olvido**: los `writeAuditLog` del **modo
+   dueño** por WhatsApp (`lib/owner-commands.ts`, `lib/owner-training.ts`) pasan
+   `actorId: ownerId` porque **ahí no hay sesión ninguna** — el dueño ES la
+   persona que escribió. Meterles `laPersonaQueActua` sería inventarse una
+   sesión que no existe.
+3. **Sin backfill, y a propósito.** Es la misma razón que ya está escrita arriba:
+   el valor viejo es el id de una cuenta, y de él no se puede deducir quién
+   estaba sentado delante. Deducirlo sería inventar un autor, que es peor que
+   uno equivocado porque no se distingue de un dato bueno.
+
+Medido contra Postgres con el esquema real, corriendo las **acciones** de verdad
+—`crearCobroAction`, `confirmarPagoAction`, `abrirTicketAction`— y leyendo
+después la columna. Cinco comprobaciones; con el código anterior fallaban
+**cuatro**:
+
+| cómo se llega a la cuenta | antes | ahora |
+| --- | --- | --- |
+| `owner_id` (Yair, del equipo) | la persona | la persona |
+| `linked_accounts` (el conmutador) | **la cuenta** | la persona |
+| «Ingresar» | **la cuenta** | la persona |
+
+Y la mitad que de verdad protege: el banco comprueba **en la misma fila** que la
+columna de alcance de al lado no se movió —`audit_logs.user_id`,
+`cobros.ownerId`, `cobro_ciclos.ownerId`, `tickets.clienteId` y `destinoId`
+siguen siendo la CUENTA—. Sin esa mitad, «arreglar la firma» puede estar
+moviendo el alcance sin que nadie se entere, que es exactamente la regresión de
+la sección de arriba.
+
+Y el mismo patrón otra vez: el camino de `owner_id` **pasaba ya con el código
+viejo**, porque ahí la fila efectiva y la persona son la misma. Probar solo ese
+camino habría dado un banco verde sobre un fallo intacto.
 
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 

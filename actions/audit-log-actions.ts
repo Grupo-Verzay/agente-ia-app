@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { db } from "@/lib/db";
 
 export type AuditEntityType = "crm" | "appointment" | "note" | "task" | "project";
@@ -72,10 +73,24 @@ async function ensureAuditLogTable() {
   auditTableReady = true;
 }
 
+/**
+ * Quién hizo esto: la PERSONA, no la fila efectiva.
+ *
+ * `actor_id` es una firma —«quién tocó este dato»— y por eso va con
+ * `sessionUserId ?? id` (ver *lo que se LEE por persona se ESCRIBE por
+ * persona*). Con `user.id` a secas, todo lo que alguien hiciera desde dentro
+ * de otra cuenta —el conmutador de vinculadas o «Ingresar»— quedaba firmado
+ * **con el nombre de esa cuenta**, y un historial que atribuye mal es peor que
+ * no tenerlo: no se distingue de un dato bueno.
+ *
+ * Esto **no toca ningún alcance**. `userId` —de quién es el dato auditado—
+ * sigue saliendo de la cuenta, que es lo correcto: son dos preguntas
+ * distintas (*FIRMAR y ALCANZAR son dos preguntas*).
+ */
 export async function getAuditActorId() {
   try {
     const user = await currentUser();
-    return user?.id ?? null;
+    return laPersonaQueActua(user ?? {}).id || null;
   } catch {
     return null;
   }

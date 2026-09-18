@@ -178,7 +178,7 @@ export async function createTaskAction(
 
     await writeAuditLog({
       userId: ownerId,
-      actorId: user.id,
+      actorId: laPersona(user).id,
       entityType: "task",
       entityId: String(task.id),
       action: "created",
@@ -396,7 +396,7 @@ export async function completeTaskAction(
 
     await writeAuditLog({
       userId: ownerId,
-      actorId: user.id,
+      actorId: laPersona(user).id,
       entityType: "task",
       entityId: String(taskId),
       action: "completed",
@@ -410,7 +410,7 @@ export async function completeTaskAction(
     if (createdNextTask) {
       await writeAuditLog({
         userId: ownerId,
-        actorId: user.id,
+        actorId: laPersona(user).id,
         entityType: "task",
         entityId: String(createdNextTask.id),
         action: "created",
@@ -451,7 +451,7 @@ export async function cancelTaskAction(
     if (result.count === 0) return { success: false, message: "No se encontro la tarea." };
     await writeAuditLog({
       userId: ownerId,
-      actorId: user.id,
+      actorId: laPersona(user).id,
       entityType: "task",
       entityId: String(taskId),
       action: "cancelled",
@@ -496,7 +496,7 @@ export async function deleteTaskAction(
 
     await writeAuditLog({
       userId: ownerId,
-      actorId: user.id,
+      actorId: laPersona(user).id,
       entityType: "task",
       entityId: String(taskId),
       action: "deleted",

@@ -305,7 +305,7 @@ export async function saveProjectAction(
 
     await writeAuditLog({
       userId: ownerId,
-      actorId: user.id,
+      actorId: laPersona(user).id,
       entityType: "project",
       entityId: String(projectId),
       action: parsed.id ? "updated" : "created",
@@ -357,7 +357,7 @@ export async function deleteProjectAction(projectId: number): Promise<Result<nul
 
     await writeAuditLog({
       userId: ownerId,
-      actorId: user.id,
+      actorId: laPersona(user).id,
       entityType: "project",
       entityId: String(projectId),
       action: "deleted",
@@ -794,7 +794,7 @@ export async function setProjectSharesAction(
 
     await writeAuditLog({
       userId: ownerId,
-      actorId: user.id,
+      actorId: laPersona(user).id,
       entityType: "project",
       entityId: String(projectId),
       action: "updated",

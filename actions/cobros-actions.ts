@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { apuntarComoAcabo, apuntarLoQueHizo } from "@/lib/apuntar-actividad";
@@ -170,7 +171,9 @@ export async function crearCobroAction(
         await crearElCobro({
             id,
             ownerId,
-            creadoPorId: user.id,
+            // Quién la creó es una FIRMA: la persona. `ownerId` —de quién es
+            // la cartera— sigue siendo la cuenta, que es alcance y no se toca.
+            creadoPorId: laPersonaQueActua(user).id,
             contactoNombre: datos.contactoNombre,
             contactoTelefono: soloDigitos(datos.contactoTelefono),
             contactoJid: datos.contactoJid?.trim() || null,
@@ -307,7 +310,11 @@ export async function confirmarPagoAction(
             ownerId,
             antes,
             venceQueSeVio: visto,
-            confirmadaPorId: user.id,
+            // Va a las DOS tablas —`cobros` y la fila del ciclo— desde este
+            // único valor, así que firmarlo aquí las arregla a la vez. Quién
+            // confirmó un pago es lo que se mira cuando un cobro se discute:
+            // con la fila efectiva, dentro de otra cuenta quedaba a su nombre.
+            confirmadaPorId: laPersonaQueActua(user).id,
             cicloId: randomUUID(),
             ahora: new Date(),
         });
