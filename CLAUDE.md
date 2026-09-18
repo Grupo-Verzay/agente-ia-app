@@ -2199,6 +2199,122 @@ hilo único eso solo significaba que al dueño no se le podía mencionar; **con
 directos significa que nadie puede escribirle**, que es la mitad de para lo que
 esto sirve. Se añade delante y se deduplica por id.
 
+### Y las cuentas se colaron en DIRECTOS, que es una lista de personas
+
+Arreglar lo de arriba metiendo las cuentas de la familia en la lista de gente
+tuvo su reverso: en **DIRECTOS** empezaron a salir «Verzay | Atencion», «Verzay
+Ventas» y las demás. Son **líneas**, no personas, y un directo es entre dos
+personas — abrir uno con una cuenta es abrir una conversación con un sitio.
+
+Lo decide `soloLasPersonas` (`lib/canales-de-equipo.ts`, puro), y las **dos
+mitades hacen falta**:
+
+- **Quien cuelga de una cuenta es una persona**: el equipo, que trae `owner_id`.
+- **Y la cuenta RAÍZ también**, porque es el inicio de sesión del dueño:
+  escribirle ahí es escribirle a él. Sin esta mitad vuelve el agujero que las
+  cuentas vinieron a tapar — nadie del equipo podría escribirle al jefe.
+
+Lo sabe la consulta, no una heurística sobre el nombre:
+`(u."owner_id" IS NULL) AS "esCuenta"`, que es el mismo criterio con el que
+`getTeamAdvisorInfos` reparte a unas y otras.
+
+Y por eso la lista de gente y el **mapa de nombres** son dos cosas: `gente` son
+solo personas, pero una cuenta sí puede firmar un mensaje viejo o ser la otra
+parte de un directo que ya existía. Sin el mapa (`nombres`, con las cuentas
+dentro) esas burbujas salían como **«Alguien»**. **Quitar a alguien de una lista
+no es quitarle el nombre.**
+
+### Un directo se encuentra porque estás DENTRO, no por la cuenta de la que cuelga
+
+Pulsar a alguien en DIRECTOS **volvía al canal General**, siempre, y en silencio.
+
+Las dos mitades no casaban: `abrirElDirecto` cuelga el directo de la **raíz de
+la familia** —lo hace a propósito, para que entre cuentas hermanas no salga
+duplicado— y la lista se pedía con `c."cuentaId" = <la cuenta de quien mira>`.
+Los dos valores **solo coinciden en la raíz**, así que desde cualquier cuenta
+vinculada el canal recién creado no aparecía en la lista; y como lo que se pide
+y no está se contesta con el general, la pantalla se iba ahí sin decir nada. Es
+la misma asimetría que partió el General en dos (`ownerId ?? id` no sube a la
+madre), por otra puerta.
+
+Medido contra Postgres con las cuentas reales, antes y después:
+
+| quién mira | antes | ahora |
+| --- | --- | --- |
+| Yair (cuenta Atencion) | solo el área | sus **dos** directos y el área |
+| Sofía (cuenta Ventas) | **nada** | su directo |
+| administrador de Atencion | solo el área | los directos de **su** gente |
+| una cuenta ajena a la familia | — | **0** |
+
+Tres cosas que hay que mantener:
+
+1. **La pertenencia se pregunta por la PERSONA** (`team_channel_members`), no
+   por la cuenta del canal. Es lo único que no cambia según por dónde se
+   entre.
+2. **Supervisar sigue siendo «los directos de la gente de MI cuenta»**, y por
+   eso esa rama mira `u."id" = cuenta OR u."owner_id" = cuenta`. Por la cuenta
+   de la que cuelga el canal ya no vale: ahora cuelgan **todos** de la raíz, así
+   que solo los leería la raíz — el administrador de una vinculada se quedaría
+   sin ver los de su propio equipo, y la raíz vería los de todas.
+3. **Y el caerse al general dejó de ser mudo.** Ese silencio es lo que hizo que
+   un fallo se leyera como comportamiento: «pulso y vuelve al General» no se
+   parece a un error. Sale `[chat-equipo] se pidió un canal que no está en la
+   lista` con el canal, la cuenta y la persona.
+
+Y un efecto de al lado que no se había reportado: en un directo que se lee **sin
+pertenecer** —lo que ve quien administra— `conQuienId` se quedaba con el primer
+miembro que no fuera uno mismo, aunque uno no estuviera dentro. Eso envenenaba
+la lista de «con quién no he hablado todavía» y sacaba de ella a alguien con
+quien no hay ningún directo. **`conQuienId` solo se calcula cuando se pertenece**;
+supervisando, no hay «el otro».
+
+### El selector de menciones no existía: la caja prometía una lista que nadie construyó
+
+Escribir `@` no ofrecía a nadie, en ningún sitio. Y no era que la lista saliera
+vacía: **no había ninguna lista**. `datos.equipo` —la gente de ese canal, que el
+servidor ya calculaba y ya mandaba— solo lo consumía el diálogo de ajustes de
+canal, y la caja de escribir era un `Textarea` pelado cuyo `placeholder` decía
+«@ para mencionar».
+
+O sea: la mención funcionaba **solo escribiendo el nombre exacto**, de memoria y
+sin una letra de más. Y cuando no casaba, el servidor la trataba como una arroba
+cualquiera: ni aviso, ni error, ni nada. **Un texto de ayuda que promete algo
+que no existe es peor que no ponerlo.**
+
+Las reglas son puras y están probadas (`lib/chat-de-equipo.ts`), que es lo que
+permite comprobar la que de verdad importa:
+
+> **El selector ofrece exactamente lo que el servidor mencionaría.** La arroba
+> tiene que **abrir palabra** —ni justo detrás de una letra ni de un número—,
+> que es la MISMA condición con la que `extraerMenciones` decide que
+> `hola@verzay.com` no es una mención. Si las dos no estuvieran de acuerdo, la
+> lista ofrecería a alguien que luego no se menciona: el texto sale, nadie
+> recibe el aviso, y no hay ningún error que mirar. El banco lo prueba
+> **encadenando las dos**: se elige de la lista y se comprueba que
+> `extraerMenciones` devuelve a esa persona.
+
+Cinco cosas que hay que mantener:
+
+1. **Se ofrece `datos.equipo`, no `datos.gente`.** La gente de ESE canal, no la
+   de la cuenta: en un canal de tres, ofrecer a alguien de fuera es ofrecer una
+   mención que el servidor no va a reconocer.
+2. **Se escribe el nombre exacto y con un espacio detrás.** Es la forma que el
+   servidor reconoce; sin el espacio, lo siguiente que se teclee se pega al
+   nombre y deja de ser una mención.
+3. **El cursor se coloca DESPUÉS del pintado.** En un `<textarea>` controlado,
+   moverlo antes lo deja donde estaba y lo siguiente que se escriba sale en
+   mitad del nombre.
+4. **`onMouseDown`, nunca `onClick`.** El `blur` de la caja cierra la lista y
+   llega **antes** que el `click`: con `onClick` el botón desaparecía justo
+   antes de que su pulsación llegara, y elegir con el ratón no hacía nada.
+5. **Con la lista abierta manda la lista.** Enter mete el nombre; solo con la
+   lista cerrada envía. Al revés, elegir a alguien mandaría el mensaje a medio
+   escribir. Escape la cierra, y se guarda **la posición** de la arroba que se
+   quiso callar: una marca suelta se levantaría con el carácter siguiente.
+
+Y la lista se pinta **por encima** de la caja: debajo está el borde de la
+ventana, y en un panel lateral no hay sitio para desplegar nada hacia abajo.
+
 ### Y una vuelta del reloj que llega tarde no pinta encima
 
 El reloj de 5 s pide el canal que estaba abierto cuando salió. Si mientras tanto

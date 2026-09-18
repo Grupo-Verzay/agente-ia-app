@@ -183,6 +183,32 @@ export function ordenDeLosCanales(a: CanalDeEquipo, b: CanalDeEquipo): number {
     return a.nombre.localeCompare(b.nombre, "es");
 }
 
+/**
+ * La gente con la que se puede hablar: **personas, no cuentas**.
+ *
+ * `laGenteDeLasCuentas` devuelve las cuentas de la familia además de sus
+ * equipos, y eso entró a propósito —el dueño no aparecía por ningún lado y
+ * nadie podía escribirle—. Pero se llevó por delante la lista de directos: ahí
+ * salían «Verzay | Atencion» y «Verzay Ventas», que son LÍNEAS. Un directo es
+ * entre dos personas; una cuenta no es alguien con quien conversar.
+ *
+ * La regla, y las dos mitades hacen falta:
+ *
+ * - **Quien cuelga de una cuenta es una persona**: el equipo.
+ * - **Y la cuenta RAÍZ también**, porque es el inicio de sesión del dueño —
+ *   escribirle ahí es escribirle a él—. Sin esta mitad, nadie del equipo podría
+ *   escribirle al jefe, que es justo el agujero que las cuentas vinieron a
+ *   tapar.
+ *
+ * Las demás cuentas de la familia se quedan fuera: son sitios, no gente.
+ */
+export function soloLasPersonas<T extends { id: string; esCuenta?: boolean }>(
+    gente: T[],
+    raiz: string,
+): T[] {
+    return gente.filter((p) => !p.esCuenta || p.id === raiz);
+}
+
 export function esTipoDeCanal(v: string): v is TipoDeCanal {
     return (TIPOS_DE_CANAL as readonly string[]).includes(v);
 }

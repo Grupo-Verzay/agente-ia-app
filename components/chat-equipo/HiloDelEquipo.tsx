@@ -19,7 +19,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
     CADA_CUANTO_MS,
     TOPE_DEL_MENSAJE,
+    aQuienSeOfrece,
     comoSeLlama,
+    laArrobaQueSeEscribe,
+    ponerLaMencion,
+    type ArrobaEnCurso,
     type MensajeDeEquipo,
     type PersonaMencionable,
 } from "@/lib/chat-de-equipo";
@@ -96,7 +100,15 @@ export function HiloDelEquipo({
     const [texto, setTexto] = useState("");
     const [enviando, setEnviando] = useState(false);
     const [listaAbierta, setListaAbierta] = useState(false);
+    // La arroba que se está escribiendo ahora mismo, si es que hay una.
+    const [arroba, setArroba] = useState<ArrobaEnCurso | null>(null);
+    const [elegido, setElegido] = useState(0);
+    // Dónde se pulsó Escape. Cerrar el selector no puede ser una marca suelta:
+    // la arroba sigue ahí y el siguiente carácter volvería a abrirlo. Se guarda
+    // la POSICIÓN de la que uno se quiso deshacer, y solo esa queda callada.
+    const [cerradaEn, setCerradaEn] = useState<number | null>(null);
 
+    const cajaDeEscribir = useRef<HTMLTextAreaElement | null>(null);
     const abajoDelTodo = useRef<HTMLDivElement | null>(null);
     // El último mensaje que ya se dio por leído. Sirve para no avisar al
     // contador en cada vuelta del reloj: solo cuando de verdad se marcó algo
@@ -242,6 +254,7 @@ export function HiloDelEquipo({
                 return;
             }
             setTexto("");
+            setArroba(null);
             // Se pinta al momento y el reloj lo confirma en su vuelta: el
             // servidor manda, pero escribir no puede sentirse lento.
             setDatos((antes) =>
@@ -259,19 +272,111 @@ export function HiloDelEquipo({
         }
     }, [texto, enviando, canalId]);
 
-    /** Enter envía, Mayús+Enter hace salto de línea. */
+    /**
+     * A quién se le está ofreciendo ahora mismo.
+     *
+     * Sale de `datos.equipo` —la gente de ESTE canal—, no de la de la cuenta:
+     * en un canal de tres, ofrecer a alguien de fuera es ofrecer una mención
+     * que el servidor luego no reconoce. Es la misma lista con la que
+     * `extraerMenciones` decide al leer.
+     */
+    const ofrecidos = useMemo(() => {
+        if (!arroba || arroba.desde === cerradaEn) return [];
+        return aQuienSeOfrece(datos?.equipo ?? [], arroba.buscado);
+    }, [arroba, cerradaEn, datos?.equipo]);
+
+    /**
+     * Mirar si se está escribiendo una arroba, en cada tecleo y en cada
+     * movimiento del cursor.
+     *
+     * También al mover el cursor y no solo al escribir: quien vuelve con las
+     * flechas al `@` de arriba está editando esa mención, y la lista tiene que
+     * estar ahí igual que si acabara de teclearla.
+     */
+    const mirarLaArroba = useCallback((valor: string, cursor: number) => {
+        const cual = laArrobaQueSeEscribe(valor, cursor);
+        setArroba(cual);
+        setElegido(0);
+    }, []);
+
+    /**
+     * Poner la mención elegida y devolver el cursor a su sitio.
+     *
+     * El cursor se mueve **después** del pintado, con el valor ya puesto: en un
+     * `<textarea>` controlado, colocarlo antes lo deja donde estaba y lo
+     * siguiente que se teclee sale en mitad del nombre.
+     */
+    const meterLaMencion = useCallback(
+        (persona: PersonaMencionable) => {
+            const caja = cajaDeEscribir.current;
+            if (!arroba || !caja) return;
+            const puesto = ponerLaMencion(texto, arroba, persona, caja.selectionStart ?? texto.length);
+            setTexto(puesto.texto.slice(0, TOPE_DEL_MENSAJE));
+            setArroba(null);
+            setCerradaEn(null);
+            requestAnimationFrame(() => {
+                const c = cajaDeEscribir.current;
+                if (!c) return;
+                c.focus();
+                c.setSelectionRange(puesto.cursor, puesto.cursor);
+            });
+        },
+        [arroba, texto],
+    );
+
+    /**
+     * Las teclas de la caja de escribir.
+     *
+     * Con el selector abierto **manda el selector**: las flechas mueven, Enter
+     * y Tab meten el nombre y Escape lo cierra. Sin él, Enter envía y
+     * Mayús+Enter hace salto de línea, como siempre.
+     *
+     * El orden importa: si Enter enviara primero, elegir a alguien de la lista
+     * mandaría el mensaje a medio escribir.
+     */
     const alTeclear = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (ofrecidos.length) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setElegido((i) => (i + 1) % ofrecidos.length);
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setElegido((i) => (i - 1 + ofrecidos.length) % ofrecidos.length);
+                return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                meterLaMencion(ofrecidos[elegido] ?? ofrecidos[0]);
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                setCerradaEn(arroba?.desde ?? null);
+                return;
+            }
+        }
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             void enviar();
         }
     };
 
+    /**
+     * Cómo se llama cada id.
+     *
+     * Del mapa del servidor, que trae **también las cuentas**: `gente` son solo
+     * personas —una cuenta no es alguien con quien conversar— pero una cuenta
+     * sí puede firmar un mensaje viejo o ser la otra parte de un directo que ya
+     * existía, y sin ella esa burbuja saldría como «Alguien».
+     */
     const nombrePorId = useMemo(() => {
         const m = new Map<string, string>();
+        for (const [id, nombre] of Object.entries(datos?.nombres ?? {})) m.set(id, nombre);
         for (const p of datos?.gente ?? []) m.set(p.id, comoSeLlama(p));
         return m;
-    }, [datos?.gente]);
+    }, [datos?.gente, datos?.nombres]);
 
     if (fallo) {
         return (
@@ -332,10 +437,39 @@ export function HiloDelEquipo({
             </div>
 
             <div className="shrink-0 border-t border-border bg-background px-3 py-3 sm:px-6">
-                <div className="mx-auto flex max-w-3xl items-end gap-2">
+                <div className="relative mx-auto flex max-w-3xl items-end gap-2">
+                    {/* La lista va POR ENCIMA de la caja, no debajo: debajo está
+                        el borde de la ventana y en un panel lateral no hay sitio
+                        para desplegar nada hacia abajo. */}
+                    <ListaDeMenciones
+                        gente={ofrecidos}
+                        elegido={elegido}
+                        onElegir={meterLaMencion}
+                        onSenalar={setElegido}
+                    />
                     <Textarea
+                        ref={cajaDeEscribir}
                         value={texto}
-                        onChange={(e) => setTexto(e.target.value.slice(0, TOPE_DEL_MENSAJE))}
+                        onChange={(e) => {
+                            const valor = e.target.value.slice(0, TOPE_DEL_MENSAJE);
+                            setTexto(valor);
+                            mirarLaArroba(valor, e.target.selectionStart ?? valor.length);
+                        }}
+                        onKeyUp={(e) => {
+                            // Solo al MOVERSE. Sin esta condición, cada tecla
+                            // pasaría dos veces por aquí —una en `onChange` y
+                            // otra aquí— y volvería a abrir lo que Escape
+                            // acababa de cerrar.
+                            if (!e.key.startsWith("Arrow") && e.key !== "Home" && e.key !== "End")
+                                return;
+                            const c = e.currentTarget;
+                            mirarLaArroba(c.value, c.selectionStart ?? c.value.length);
+                        }}
+                        onClick={(e) => {
+                            const c = e.currentTarget;
+                            mirarLaArroba(c.value, c.selectionStart ?? c.value.length);
+                        }}
+                        onBlur={() => setArroba(null)}
                         onKeyDown={alTeclear}
                         rows={1}
                         placeholder="@ para mencionar"
@@ -845,6 +979,74 @@ function AbrirDirecto({
             )}
             <span className="min-w-0 truncate">{comoSeLlama(persona)}</span>
         </button>
+    );
+}
+
+/**
+ * El selector de menciones: a quién se le está ofreciendo.
+ *
+ * # Por qué existe
+ *
+ * Porque la caja de escribir prometía «@ para mencionar» y **no había ninguna
+ * lista**. La mención solo funcionaba escribiendo el nombre exacto, de memoria
+ * y sin una letra de más — y cuando no casaba, el servidor la trataba como una
+ * arroba cualquiera: ni aviso, ni error, ni nada. Un texto de ayuda que promete
+ * algo que no existe es peor que no ponerlo.
+ *
+ * # Y `onMouseDown`, no `onClick`
+ *
+ * Porque el `onBlur` de la caja cierra la lista, y el `blur` llega **antes**
+ * que el `click`: con `onClick` el botón desaparecía justo antes de que su
+ * pulsación llegara y elegir con el ratón no hacía nada. Con `onMouseDown` se
+ * elige antes de que la caja pierda el foco.
+ */
+function ListaDeMenciones({
+    gente,
+    elegido,
+    onElegir,
+    onSenalar,
+}: {
+    gente: PersonaMencionable[];
+    elegido: number;
+    onElegir: (persona: PersonaMencionable) => void;
+    onSenalar: (i: number) => void;
+}) {
+    if (!gente.length) return null;
+
+    return (
+        <div className="absolute bottom-full left-0 z-20 mb-2 w-full max-w-sm overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+            <p className="border-b border-border px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Mencionar
+            </p>
+            {/* Su propio scroll: la lista crece con el equipo, y sin tope un
+                canal de treinta personas taparía la conversación entera. */}
+            <div className="max-h-52 overflow-y-auto py-1">
+                {gente.map((p, i) => (
+                    <button
+                        key={p.id}
+                        type="button"
+                        // Antes del `blur` de la caja, o el botón se va sin que
+                        // llegue su pulsación.
+                        onMouseDown={(e) => {
+                            e.preventDefault();
+                            onElegir(p);
+                        }}
+                        onMouseEnter={() => onSenalar(i)}
+                        className={[
+                            "flex w-full flex-col items-start gap-0 px-2 py-1.5 text-left transition-colors",
+                            i === elegido ? "bg-primary/10 text-primary" : "hover:bg-muted/60",
+                        ].join(" ")}
+                    >
+                        <span className="w-full truncate text-sm">{comoSeLlama(p)}</span>
+                        {p.name?.trim() && p.email ? (
+                            <span className="w-full truncate text-[11px] text-muted-foreground">
+                                {p.email}
+                            </span>
+                        ) : null}
+                    </button>
+                ))}
+            </div>
+        </div>
     );
 }
 
