@@ -463,7 +463,9 @@ export async function guardarConfigAction(entrada: unknown): Promise<Respuesta<C
  * quitaría al cliente el recordatorio automático de hoy —que es justo el día en
  * que vence—, y desde fuera parecería que el sistema dejó de avisar.
  */
-export async function cobrarAhoraAction(id: string): Promise<Respuesta<{ linea: string }>> {
+export async function cobrarAhoraAction(
+    id: string,
+): Promise<Respuesta<{ linea: string; adjuntosEnviados: number; adjuntosFallidos: number }>> {
     try {
         const { user, ownerId } = await laCuenta();
         const cartera = await laCarteraDe(ownerId);
@@ -485,10 +487,18 @@ export async function cobrarAhoraAction(id: string): Promise<Respuesta<{ linea: 
             config,
             hito,
             ahora,
+            // Los archivos ya vienen dentro de la fila: `laCarteraDe` los trae.
+            // Salen DESPUÉS del texto y no deciden si el cobro salió.
+            adjuntos: cobro.adjuntos,
         });
         if (!resultado.ok) return { success: false, message: resultado.motivo };
 
-        console.info("[cobros] cobro enviado a mano", { cobro: cobro.id, linea: resultado.linea, hito });
+        console.info("[cobros] cobro enviado a mano", {
+            cobro: cobro.id,
+            linea: resultado.linea,
+            hito,
+            adjuntos: resultado.adjuntos,
+        });
 
         // Actividad del equipo, y solo **después** de que saliera de verdad:
         // más arriba hay un `return` cuando el envío falla. Apuntarlo antes
@@ -496,7 +506,17 @@ export async function cobrarAhoraAction(id: string): Promise<Respuesta<{ linea: 
         // no salió no se anota».
         await apuntarLoQueHizo(user, "cobro_enviado", cobro.id);
 
-        return { success: true, data: { linea: resultado.linea } };
+        return {
+            success: true,
+            data: {
+                linea: resultado.linea,
+                adjuntosEnviados: resultado.adjuntos.enviados,
+                // Se devuelve para que la pantalla lo DIGA. El cobro salió —por
+                // eso `success` es `true`— pero un archivo que se quedó dentro
+                // hay que poder verlo sin ir a buscarlo a la consola.
+                adjuntosFallidos: resultado.adjuntos.fallidos.length,
+            },
+        };
     } catch (error) {
         return {
             success: false,

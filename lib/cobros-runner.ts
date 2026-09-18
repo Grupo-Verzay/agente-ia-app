@@ -6,9 +6,11 @@ import {
 import {
     anotarElRecordatorio,
     lasConfigsDe,
+    losAdjuntosDeLosCobros,
     losCobrosQuePodrianTocarHoy,
     type CobroDelRunner,
 } from "@/lib/cobros-db";
+import type { AdjuntoDeCobro } from "@/lib/cobros";
 import { laLineaDeLaCuenta, mandarElCobro } from "@/lib/cobros-envio";
 import type { WhatsAppDispatcherLine } from "@/actions/whatsapp-dispatcher";
 
@@ -50,6 +52,9 @@ export type ResumenDeCobros = {
     sinLinea: number;
     fallidos: number;
     porHito: Record<Hito, number>;
+    /** Los archivos que salieron detrás de los mensajes, y los que no. */
+    adjuntosEnviados: number;
+    adjuntosFallidos: number;
 };
 
 export async function runRecordatoriosDeCobros(ahora: Date = new Date()): Promise<ResumenDeCobros> {
@@ -59,6 +64,8 @@ export async function runRecordatoriosDeCobros(ahora: Date = new Date()): Promis
         sinLinea: 0,
         fallidos: 0,
         porHito: { antes: 0, elDia: 0, despues: 0 },
+        adjuntosEnviados: 0,
+        adjuntosFallidos: 0,
     };
 
     const candidatos = await losCobrosQuePodrianTocarHoy();
@@ -75,12 +82,34 @@ export async function runRecordatoriosDeCobros(ahora: Date = new Date()): Promis
     // veces para obtener siempre la misma respuesta.
     const porCuenta = new Map<string, PorCuenta>();
 
+    // Primero se decide QUÉ sale y luego se manda, en dos pasadas. La razón es
+    // la segunda: con la lista cerrada se piden los archivos de todas esas
+    // deudas **en una sola consulta**. Preguntándolos dentro del bucle serían
+    // decenas de consultas para leer lo mismo — «muchas peticiones pequeñas son
+    // turno, no trabajo», por dentro.
+    const aEnviar: Array<{ cobro: CobroDelRunner; hito: Hito }> = [];
     for (const cobro of candidatos) {
         const config = configs.get(cobro.ownerId);
         if (!config) continue;
-
         const hito = tocaRecordatorio(cobro, config.recordatorios, ahora);
-        if (!hito) continue;
+        if (hito) aEnviar.push({ cobro, hito });
+    }
+    if (aEnviar.length === 0) return resumen;
+
+    // Best-effort: si esto falla, los cobros salen **sin sus archivos** en vez
+    // de no salir. El texto es lo que hay que entregar.
+    let adjuntos = new Map<string, AdjuntoDeCobro[]>();
+    try {
+        adjuntos = await losAdjuntosDeLosCobros(aEnviar.map((x) => x.cobro.id));
+    } catch (error) {
+        console.warn("[cobros] no se pudieron leer los adjuntos; los cobros saldrán sin ellos", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+
+    for (const { cobro, hito } of aEnviar) {
+        const config = configs.get(cobro.ownerId);
+        if (!config) continue;
 
         let datos = porCuenta.get(cobro.ownerId);
         if (!datos) {
@@ -96,7 +125,7 @@ export async function runRecordatoriosDeCobros(ahora: Date = new Date()): Promis
             continue;
         }
 
-        await enviarUno(cobro, datos, hito, ahora, resumen);
+        await enviarUno(cobro, datos, hito, ahora, resumen, adjuntos.get(cobro.id) ?? []);
     }
 
     if (resumen.enviados > 0 || resumen.fallidos > 0 || resumen.sinLinea > 0) {
@@ -111,6 +140,7 @@ async function enviarUno(
     hito: Hito,
     ahora: Date,
     resumen: ResumenDeCobros,
+    adjuntos: AdjuntoDeCobro[],
 ): Promise<void> {
     try {
         const resultado = await mandarElCobro({
@@ -129,6 +159,7 @@ async function enviarUno(
             hito,
             ahora,
             linea: datos.linea,
+            adjuntos,
         });
 
         if (!resultado.ok) {
@@ -155,6 +186,11 @@ async function enviarUno(
         }
         resumen.enviados++;
         resumen.porHito[hito]++;
+        // Los archivos **no deciden** si el recordatorio salió: el hito se anota
+        // arriba pase lo que pase con ellos. Si dependiera de esto, un adjunto
+        // roto le mandaría al cliente el mismo mensaje todos los días.
+        resumen.adjuntosEnviados += resultado.adjuntos.enviados;
+        resumen.adjuntosFallidos += resultado.adjuntos.fallidos.length;
     } catch (error) {
         resumen.fallidos++;
         console.warn("[cobros] reventó el envío de un recordatorio", {

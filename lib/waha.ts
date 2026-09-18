@@ -984,3 +984,64 @@ export async function getWahaChats(params: {
   if (!simple.ok) return simple;
   return { ok: true, chats: Array.isArray(simple.datos) ? simple.datos : [] };
 }
+
+/* ── Lo que se GUARDA de un saliente ──────────────────────────────────────── */
+
+/**
+ * La etiqueta de un adjunto, para cuando no hay pie que enseñar.
+ *
+ * Vive aqui y no dentro de la accion de Chats porque el despachador de
+ * notificaciones —que manda cobros y avisos por esta misma linea— guarda sus
+ * salientes igual. Con una copia en cada sitio, el dia que se afine una el otro
+ * se queda atras, y eso no se ve como un error sino como «a veces funciona».
+ */
+export function etiquetaDeMediaWaha(mediatype: string, ptt?: boolean): string {
+  if (mediatype === 'audio') return ptt ? '🎤 Nota de voz' : '🎵 Audio';
+  if (mediatype === 'image') return '📷 Imagen';
+  if (mediatype === 'video') return '🎥 Video';
+  return '📎 Documento';
+}
+
+/**
+ * El `raw` que se guarda con el mensaje, con la MISMA forma que un mensaje de
+ * Evolution (`key`, `message`, `messageTimestamp`, `status`). La pantalla lee
+ * las filas guardadas a traves de `getRawEvolutionSnapshot`, que reconoce esa
+ * forma; un objeto cualquiera se colaba entero dentro de `message` y la
+ * burbuja llevaba campos que no eran suyos. Sellado en SEGUNDOS, como todo lo
+ * nuestro.
+ */
+export function snapshotDeSalienteWaha(params: {
+  messageId: string | null;
+  remoteJid: string;
+  messageType: string;
+  message: Record<string, unknown>;
+  fecha: Date;
+  replyTo?: string | null;
+  citado?: Record<string, unknown> | null;
+}): Record<string, unknown> {
+  return {
+    key: { id: params.messageId ?? null, fromMe: true, remoteJid: params.remoteJid },
+    messageType: params.messageType,
+    message: params.message,
+    messageTimestamp: Math.floor(params.fecha.getTime() / 1000),
+    // Una palomita: llego al servidor. Las siguientes las traen los acuses
+    // (message.ack) y las escribe el backend en raw.status.
+    status: 'SERVER_ACK',
+    source: 'waha',
+    origen: 'waha-app',
+    ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+    // La cita, con la MISMA forma que la manda WhatsApp (`contextInfo.stanzaId`
+    // + `quotedMessage`). `replyTo` de aqui arriba es la forma de Waha y solo la
+    // entiende el envio; guardada asi, la conversacion la lee igual venga de la
+    // linea que venga. Sin esto la respuesta salia suelta, sin decir a que
+    // mensaje contestaba.
+    ...(params.replyTo
+      ? {
+          contextInfo: {
+            stanzaId: params.replyTo,
+            ...(params.citado ? { quotedMessage: params.citado } : {}),
+          },
+        }
+      : {}),
+  };
+}

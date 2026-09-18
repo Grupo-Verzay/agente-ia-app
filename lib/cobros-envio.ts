@@ -1,15 +1,21 @@
 import {
     resolveWhatsAppDispatcherLine,
+    sendMediaViaWhatsAppDispatcher,
     sendViaWhatsAppDispatcher,
     type WhatsAppDispatcherLine,
 } from "@/actions/whatsapp-dispatcher";
 import {
     jidDelCobro,
+    mediatypeDelAdjunto,
+    puedeSalirElAdjunto,
     textoDelCobro,
+    TOPE_DE_ADJUNTOS_QUE_SALEN,
+    type AdjuntoDeCobro,
     type CobroParaEnviar,
     type ConfigDeCobros,
     type Hito,
 } from "@/lib/cobros";
+import { anotarElEnvioDelAdjunto } from "@/lib/cobros-db";
 
 /**
  * Mandar un cobro por WhatsApp.
@@ -22,7 +28,19 @@ import {
  * Waha o Meta es `sendViaWhatsAppDispatcher`, que ya sabe distinguirlos.
  */
 
-export type ResultadoDelEnvio = { ok: true; linea: string } | { ok: false; motivo: string };
+/**
+ * Cómo le fue a los archivos. **No decide si el cobro salió**: el cobro es el
+ * texto, y un adjunto que no sale no puede tirar un recordatorio que sí llegó.
+ */
+export type ResumenDeAdjuntos = {
+    enviados: number;
+    /** Los que no salieron, con su motivo. Cada uno queda anotado en su fila. */
+    fallidos: Array<{ nombre: string; motivo: string }>;
+};
+
+export type ResultadoDelEnvio =
+    | { ok: true; linea: string; adjuntos: ResumenDeAdjuntos }
+    | { ok: false; motivo: string };
 
 /**
  * La línea por la que sale el mensaje: **la de la propia cuenta, y solo esa**.
@@ -45,6 +63,8 @@ export async function mandarElCobro(args: {
     ahora: Date;
     /** Si ya se resolvió antes —la vuelta diaria la resuelve una vez por cuenta—. */
     linea?: WhatsAppDispatcherLine | null;
+    /** Los archivos de la deuda. Salen DESPUÉS del texto, y nunca lo tumban. */
+    adjuntos?: AdjuntoDeCobro[];
 }): Promise<ResultadoDelEnvio> {
     const jid = jidDelCobro(args.cobro);
     if (!jid) return { ok: false, motivo: "La deuda no tiene un número al que escribir." };
@@ -69,5 +89,93 @@ export async function mandarElCobro(args: {
     if (!envio?.success) {
         return { ok: false, motivo: envio?.message?.trim() || "No se pudo enviar el mensaje." };
     }
-    return { ok: true, linea: linea.instanceName };
+
+    const adjuntos = await mandarLosAdjuntos({
+        linea,
+        jid,
+        adjuntos: args.adjuntos ?? [],
+    });
+    return { ok: true, linea: linea.instanceName, adjuntos };
+}
+
+/**
+ * Los archivos de la deuda, **después** del texto y de uno en uno.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **Un archivo que falla no tumba el cobro.** El texto ya salió y es lo que
+ *    de verdad hay que entregar; devolver un fallo aquí haría que la vuelta
+ *    diaria no anotara el hito y el cliente recibiera el MISMO recordatorio
+ *    mañana, y pasado — un adjunto roto convertido en spam. Por eso esto no
+ *    devuelve `ok`, devuelve un resumen.
+ * 2. **Y tampoco se pierde en silencio.** Cada archivo deja su constancia en su
+ *    propia fila (`anotarElEnvioDelAdjunto`), que es lo que la pantalla enseña
+ *    debajo del archivo; y el conjunto sale por consola. Un adjunto que no llega
+ *    sin decir por qué se lee como que la función no sirve.
+ * 3. **En serie, no en paralelo.** Son mensajes a una persona y tienen que
+ *    llegar en su orden; y varios envíos a la vez por la misma línea es
+ *    exactamente lo que hace que WhatsApp la mire con lupa.
+ */
+async function mandarLosAdjuntos(args: {
+    linea: WhatsAppDispatcherLine;
+    jid: string;
+    adjuntos: AdjuntoDeCobro[];
+}): Promise<ResumenDeAdjuntos> {
+    const resumen: ResumenDeAdjuntos = { enviados: 0, fallidos: [] };
+    // El tope se vuelve a aplicar aquí y no solo al adjuntar: una deuda puede
+    // traer filas de antes de que existiera.
+    const lista = args.adjuntos.slice(0, TOPE_DE_ADJUNTOS_QUE_SALEN);
+    if (lista.length === 0) return resumen;
+
+    for (const adjunto of lista) {
+        const puede = puedeSalirElAdjunto(adjunto);
+        if (!puede.ok) {
+            resumen.fallidos.push({ nombre: adjunto.nombre, motivo: puede.motivo });
+            await anotarElEnvioDelAdjunto(adjunto.id, puede);
+            continue;
+        }
+
+        let envio: { success: boolean; message: string };
+        try {
+            envio = await sendMediaViaWhatsAppDispatcher({
+                dispatcher: args.linea,
+                remoteJid: args.jid,
+                media: {
+                    mediatype: mediatypeDelAdjunto(adjunto.tipo),
+                    mediaUrl: adjunto.url,
+                    mimetype: adjunto.mimeType,
+                    fileName: adjunto.nombre,
+                    // Sin pie: el mensaje de cobro salió entero un momento
+                    // antes, y repetirlo debajo de cada archivo sería mandárselo
+                    // al cliente tantas veces como archivos lleve la deuda.
+                    caption: null,
+                },
+            });
+        } catch (error) {
+            // Que un proveedor reviente no puede llevarse por delante los
+            // archivos de detrás ni el cobro que ya salió.
+            envio = {
+                success: false,
+                message: error instanceof Error ? error.message : String(error),
+            };
+        }
+
+        if (envio.success) {
+            resumen.enviados++;
+            await anotarElEnvioDelAdjunto(adjunto.id, { ok: true });
+        } else {
+            const motivo = envio.message?.trim() || "No se pudo enviar el archivo.";
+            resumen.fallidos.push({ nombre: adjunto.nombre, motivo });
+            await anotarElEnvioDelAdjunto(adjunto.id, { ok: false, motivo });
+        }
+    }
+
+    if (resumen.fallidos.length > 0) {
+        console.warn("[cobros] adjuntos que no salieron", {
+            linea: args.linea.instanceName,
+            enviados: resumen.enviados,
+            fallidos: resumen.fallidos,
+        });
+    }
+    return resumen;
 }
