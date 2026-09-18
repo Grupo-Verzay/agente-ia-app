@@ -101,6 +101,35 @@ export type MensajeDeEquipo = {
      * respuesta. La conversación sigue siendo una sola lista.
      */
     cita?: CitaDeMensaje | null;
+    /**
+     * La nota de voz, cuando el mensaje es una.
+     *
+     * El audio **no viaja dentro del mensaje**: viaja su dirección en el
+     * bucket, como cualquier adjunto. Metido en la fila, un opus de un minuto
+     * son ~60 kB de base64 que la consulta del reloj se trae **cada cinco
+     * segundos** con la página entera — o sea el audio dentro del camino
+     * caliente para no volver a leerlo nunca.
+     */
+    audio?: NotaDeVozDelEquipo | null;
+    /**
+     * El texto de la nota, **si alguien lo pidió**.
+     *
+     * `null` es «todavía nadie lo ha pedido», no «no se pudo»: se transcribe
+     * **bajo demanda y nunca sola**, porque cuesta créditos y un canal con
+     * tráfico los gastaría sin que nadie lo hubiera pedido. Y una vez pagada se
+     * guarda, así que pedirla otra vez no vuelve a cobrar.
+     */
+    transcripcion?: string | null;
+};
+
+/** Una nota de voz del chat del equipo. */
+export type NotaDeVozDelEquipo = {
+    /** Dónde está el audio, en nuestro bucket. */
+    url: string;
+    /** Cuánto dura. Es lo que decide lo que costaría transcribirla. */
+    segundos: number;
+    /** Con qué formato se grabó, para que el reproductor no adivine. */
+    mime: string | null;
 };
 
 /** Lo mínimo que hace falta saber de alguien para mencionarlo. */

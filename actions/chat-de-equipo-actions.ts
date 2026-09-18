@@ -6,6 +6,19 @@ import { currentUser } from "@/lib/auth";
 import { crearLosAvisos } from "@/lib/avisos-de-tarea";
 import { ponerElSonido, quiereSonido } from "@/lib/preferencias-de-persona-db";
 import { aQuienSeLeEmpuja, type AvisoDelEquipo } from "@/lib/aviso-del-equipo";
+import {
+    comoSeGuardaLaNota,
+    laCuentaQuePagaLaTranscripcion,
+    puedePedirLaTranscripcion,
+} from "@/lib/nota-de-voz-del-equipo";
+import { costoDeLaNota, queHacerConLaNota } from "@/lib/transcripcion-de-voz";
+import { llaveDelArchivoSubido } from "@/lib/llave-del-bucket";
+import {
+    descontarLaTranscripcion,
+    laClaveDeOpenAi,
+    losCreditosQueQuedan,
+    pedirleElTextoAOpenAi,
+} from "@/lib/creditos-de-transcripcion";
 import { empujarAviso } from "@/lib/empujar-aviso";
 import { tituloDelAviso } from "@/lib/avisos-de-tarea-tipos";
 import { canManageWorkspace } from "@/lib/workspace-roles";
@@ -39,7 +52,9 @@ import {
     crearUnCanal,
     elCanal,
     elHiloAlrededorDe,
+    elAudioDelMensaje,
     elMensaje,
+    guardarLaTranscripcion,
     guardarUnMensaje,
     loQuePuedeSonar,
     laGenteDeLasCuentas,
@@ -567,13 +582,44 @@ export async function enviarAlEquipoAction(
      * quien quisiera — una cita falsa que parece la de verdad.
      */
     citaPedida?: string | null,
+    /**
+     * La nota de voz, cuando el mensaje es una.
+     *
+     * Llega **ya subida al bucket** por el navegador, por el mismo `/api/upload`
+     * que usan los adjuntos de una tarea — que ya comprueba sesión y que la
+     * carpeta sea de una cuenta sobre la que se manda. Aquí se vuelve a
+     * comprobar que la dirección sea de NUESTRO bucket y con la forma que
+     * escribe esa ruta: lo que llega del navegador no decide qué se guarda.
+     */
+    audioPedido?: { url?: string; segundos?: number; mime?: string | null } | null,
 ): Promise<Respuesta<{ mensaje: MensajeDeEquipo; canalId: string }>> {
     try {
         const quien = await quienYDonde();
         if (!quien) return { success: false, message: "No autorizado." };
 
         const limpio = comoSeGuardaElTexto(texto);
-        if (!limpio) return { success: false, message: "Escribe algo antes de enviar." };
+        // La nota de voz, saneada antes de mirar nada más: si la dirección no
+        // es de nuestro bucket no hay nota, y entonces el mensaje vuelve a
+        // necesitar texto.
+        const audio = comoSeGuardaLaNota(audioPedido, {
+            publicUrl: process.env.S3_PUBLIC_URL,
+            nombre: process.env.S3_BUCKET_NAME || "verzay-media",
+        });
+        if (audioPedido?.url && !audio) {
+            // No es mudo: un botón de enviar que se pulsa y publica un mensaje
+            // vacío se lee como que la App perdió la grabación.
+            console.warn("[chat-equipo] llegó una nota de voz que no es de nuestro bucket", {
+                url: audioPedido.url,
+            });
+            return { success: false, message: "No se pudo adjuntar la nota de voz." };
+        }
+        // Una nota de voz ES el mensaje: con ella, el texto sobra. Sin esta
+        // condición, grabar y enviar contestaba «Escribe algo antes de enviar»
+        // con la nota ya subida al bucket — o sea, el botón no hace nada y
+        // además deja basura.
+        if (!limpio && !audio) {
+            return { success: false, message: "Escribe algo o graba una nota antes de enviar." };
+        }
 
         const chat = chatPedido ? comoSeGuardaElChat(chatPedido) : null;
         if (chatPedido && !chat) {
@@ -647,7 +693,12 @@ export async function enviarAlEquipoAction(
             cita = {
                 id: original.id,
                 autorNombre: original.autorNombre,
-                extracto: comoExtractoDeCita(original.texto),
+                // Una nota de voz no tiene texto, así que su extracto saldría
+                // EN BLANCO: un recuadro de cita vacío no dice a qué se está
+                // respondiendo, que es lo único para lo que sirve.
+                extracto:
+                    comoExtractoDeCita(original.texto) ||
+                    (original.audioUrl ? "🎤 Nota de voz" : ""),
             };
         }
 
@@ -678,6 +729,10 @@ export async function enviarAlEquipoAction(
             chat,
             // Recién escrita, el original está: se acaba de comprobar.
             cita: cita ? { ...cita, sigueAhi: true } : null,
+            audio,
+            // Recién enviada, nadie la ha pedido todavía: se transcribe **bajo
+            // demanda**, nunca sola.
+            transcripcion: null,
         };
 
         await guardarUnMensaje({
@@ -691,7 +746,15 @@ export async function enviarAlEquipoAction(
             mencionados,
             chat,
             cita,
+            audio,
         });
+
+        // Lo que se lee en un aviso cuando el mensaje es solo una nota de voz.
+        // Sin esto, la ventana que interrumpe y el empuje al teléfono salían
+        // con el cuerpo **vacío**: un aviso en blanco no dice ni quién escribió
+        // ni de qué, y se despacha sin mirar — que es el fallo del que viene
+        // toda esta familia.
+        const loQueSeLee = limpio || (audio ? "🎤 Nota de voz" : "");
 
         if (mencionados.length) {
             // El MISMO aviso de los comentarios de tarea: la misma tabla, la
@@ -715,7 +778,7 @@ export async function enviarAlEquipoAction(
                     actorNombre: quien.persona.nombre,
                     tipo: "mencion" as const,
                     titulo: tituloDelAviso("mencion", quien.persona.nombre, ""),
-                    texto: limpio,
+                    texto: loQueSeLee,
                     // El canal Y el mensaje viajan en el aviso. El canal, para
                     // que el clic abra la conversación donde se dijo y no el
                     // general; el mensaje, porque en un canal con tráfico
@@ -757,7 +820,7 @@ export async function enviarAlEquipoAction(
                     canal.tipo === "directo"
                         ? quien.persona.nombre || "Mensaje del equipo"
                         : `${quien.persona.nombre || "Alguien"} en ${canal.nombre}`,
-                texto: limpio,
+                texto: loQueSeLee,
                 url:
                     `/chat-equipo?canal=${encodeURIComponent(canal.id)}` +
                     `&mensaje=${encodeURIComponent(mensaje.id)}`,
@@ -1190,5 +1253,200 @@ export async function cambiarSonidoDelEquipoAction(
         // se vuelve solo a su sitio y nadie sabe por qué.
         console.warn("[chat-equipo] no se pudo guardar el sonido", error);
         return { success: false, message: "No se pudo guardar la preferencia." };
+    }
+}
+
+/**
+ * Transcribir una nota de voz del chat del equipo, **bajo demanda**.
+ *
+ * # Por qué bajo demanda y nunca sola
+ *
+ * Las notas de voz de Chats se transcriben solas porque son de un CLIENTE y el
+ * asesor tiene que saber qué le dijeron sin ponerse los auriculares. Un canal
+ * del equipo es al revés: son compañeros hablando todo el día, y transcribir
+ * cada nota a seis créditos el minuto es una factura que nadie pidió. Aquí la
+ * paga quien la quiere, cuando la quiere.
+ *
+ * # Y se guarda, así que solo se paga UNA vez
+ *
+ * Si la fila ya tiene texto se devuelve ese y **no se toca un solo crédito**.
+ * Es la mitad que importa: en un canal de ocho personas, sin guardarla, la
+ * misma nota se pagaría ocho veces.
+ *
+ * # La puerta es PERTENECER, no poder leer
+ *
+ * Un administrador lee los directos de su cuenta —decisión tomada a propósito—
+ * y eso no le deja gastar créditos transcribiendo la conversación de otros dos.
+ * Es el mismo reparto con el que ya se cuenta lo sin leer y con el que suena el
+ * aviso.
+ *
+ * # Y paga la CUENTA, nunca la persona
+ *
+ * `ia_credits` tiene una fila por cuenta; cobrarle a la persona sería cobrarle
+ * a una fila que normalmente no existe, y entonces nadie podría transcribir
+ * nada. Va a la **raíz de la familia**, así que en el chat interno de Grupo
+ * Verzay lo paga Grupo Verzay escriba quien escriba desde Atención o Ventas.
+ */
+export async function transcribirNotaDelEquipoAction(
+    mensajeId: string,
+): Promise<Respuesta<{ transcripcion: string; yaEstaba: boolean }>> {
+    try {
+        const quien = await quienYDonde();
+        if (!quien) return { success: false, message: "No autorizado." };
+
+        const id = comoIdDeMensaje(mensajeId);
+        if (!id) return { success: false, message: "Ese mensaje no existe." };
+
+        const fila = await elAudioDelMensaje(id);
+        if (!fila?.audioUrl) {
+            return { success: false, message: "Ese mensaje no es una nota de voz." };
+        }
+
+        // Ya pagada: se devuelve y no se cobra. Va ANTES de resolver canales y
+        // créditos — es el camino más común en cuanto alguien la pide una vez,
+        // y no necesita ninguna de las dos cosas.
+        if (fila.transcripcion) {
+            return {
+                success: true,
+                data: { transcripcion: fila.transcripcion, yaEstaba: true },
+            };
+        }
+
+        // La puerta: el canal del MENSAJE, no el que diga el navegador.
+        const [filas, gente] = await Promise.all([
+            canalesQueAlcanzan({
+                cuentaId: quien.cuentaId,
+                personaId: quien.persona.id,
+                manda: quien.manda,
+            }),
+            laGente(quien.familia),
+        ]);
+        const canales = losCanalesQueVe(
+            filas,
+            quien.persona.id,
+            quien.cuentaId,
+            quien.manda,
+            gente,
+        );
+        const canal = canales.find((c) => c.id === fila.canalId);
+        if (!canal || !puedePedirLaTranscripcion(canal)) {
+            return {
+                success: false,
+                message: "Solo quien participa en la conversación puede transcribirla.",
+            };
+        }
+
+        // Quién paga: la cuenta de quien pide, y la madre dentro de una familia.
+        const paga = laCuentaQuePagaLaTranscripcion({
+            cuentaId: quien.cuentaId,
+            raizDeLaFamilia: quien.familia.raiz,
+        });
+
+        // La MISMA tarifa de Chats —seis créditos por minuto prorrateado— y la
+        // misma comprobación, que va en CRÉDITOS y nunca toca `used` y `total`
+        // en la misma expresión.
+        const quedan = await losCreditosQueQuedan(paga);
+        const que = queHacerConLaNota({
+            segundos: fila.audioSegundos ?? 0,
+            creditosDisponibles: quedan,
+        });
+
+        if (que.hacer === "saltar") {
+            return {
+                success: false,
+                message: "La nota es demasiado larga para transcribirla.",
+            };
+        }
+        if (que.hacer === "esperar") {
+            // Se dice con el número delante: «no hay créditos» sin decir cuántos
+            // hacían falta no le sirve a quien tiene que recargar.
+            const costo = costoDeLaNota(fila.audioSegundos ?? 0);
+            return {
+                success: false,
+                message: `No hay créditos suficientes: hacen falta ${costo.creditos} y quedan ${quedan ?? 0}.`,
+            };
+        }
+
+        const clave = await laClaveDeOpenAi(paga);
+        if (!clave) {
+            return { success: false, message: "Esta cuenta no tiene configurada su IA." };
+        }
+
+        const audio = await bajarLaNota(fila.audioUrl);
+        if (!audio) return { success: false, message: "No se pudo leer la nota de voz." };
+
+        const texto = await pedirleElTextoAOpenAi({
+            audio: audio.bytes,
+            clave,
+            nombre: audio.nombre,
+        });
+        if (!texto) {
+            // **No se cobra y no se deja marca.** Un fallo de OpenAI es de hoy,
+            // no de la nota: marcarlo dejaría esa nota sin transcribir para
+            // siempre, y quien la pidió no tiene forma de saber por qué.
+            return { success: false, message: "No se pudo transcribir. Inténtalo otra vez." };
+        }
+
+        await guardarLaTranscripcion(id, texto);
+
+        // Se cobra DESPUÉS de tener el texto: cobrar antes y que la llamada
+        // falle sería cobrar por algo que no se entregó. Y no se cobra cuando
+        // la cuenta paga su propia IA (`quedan === null`).
+        if (quedan !== null) {
+            await descontarLaTranscripcion(paga, que.costo.tokens);
+        }
+
+        console.info("[chat-equipo] nota de voz transcrita", {
+            mensaje: id,
+            canal: canal.id,
+            paga,
+            segundos: fila.audioSegundos,
+            creditos: quedan === null ? "ilimitados" : que.costo.creditos,
+        });
+
+        return { success: true, data: { transcripcion: texto, yaEstaba: false } };
+    } catch (error) {
+        console.warn("[chat-equipo] no se pudo transcribir la nota de voz", error);
+        return { success: false, message: "No se pudo transcribir. Inténtalo otra vez." };
+    }
+}
+
+/**
+ * Bajarse la nota del bucket.
+ *
+ * La dirección **ya se comprobó al guardarla** (`comoSeGuardaLaNota`), y se
+ * vuelve a comprobar aquí: entre las dos cosas hay una fila en la base, y una
+ * fila puede haberse escrito por otro camino o haberse tocado a mano. Una
+ * petición que sale de nuestro servidor hacia una dirección que no controlamos
+ * es lo que no puede pasar.
+ *
+ * El **nombre** sale de la llave del bucket, y no es cosmético: su extensión es
+ * lo que le dice el formato a OpenAI.
+ */
+async function bajarLaNota(
+    url: string,
+): Promise<{ bytes: Buffer; nombre: string } | null> {
+    const bucket = process.env.S3_BUCKET_NAME || "verzay-media";
+    const llave = llaveDelArchivoSubido(url, process.env.S3_PUBLIC_URL, bucket);
+    if (!llave) {
+        console.warn("[chat-equipo] la nota no apunta a nuestro bucket", { url });
+        return null;
+    }
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) {
+            console.warn("[chat-equipo] no se pudo bajar la nota de voz", {
+                estado: res.status,
+            });
+            return null;
+        }
+        const bytes = Buffer.from(await res.arrayBuffer());
+        if (!bytes.length) return null;
+        const nombre = llave.llave.split("/").pop() || "nota.webm";
+        return { bytes, nombre };
+    } catch (error) {
+        console.warn("[chat-equipo] falló la descarga de la nota de voz", error);
+        return null;
     }
 }

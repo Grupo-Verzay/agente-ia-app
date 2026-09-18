@@ -39,7 +39,7 @@ import { ContactEditDialog } from './ContactEditDialog';
 import { ContactInfoPanel } from './ContactInfoPanel';
 import { TaskFormDialog } from './TaskFormDialog';
 import { useChatSession } from './hooks/useChatSession';
-import { useAudioRecording } from './hooks/useAudioRecording';
+import { useAudioRecording } from '@/hooks/useAudioRecording';
 import { useMediaCache } from './hooks/useMediaCache';
 import { toUIMessages } from './chat-message-utils';
 import type { ComposeMedia } from './attachment-menu';

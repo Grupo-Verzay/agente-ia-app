@@ -8,12 +8,17 @@ import {
     Loader2,
     Lock,
     MessagesSquare,
+    Mic,
+    MicOff,
     Pencil,
     Phone,
     PhoneOff,
     Plus,
     Search,
     Send,
+    Square,
+    Trash2,
+    Type,
     X,
     Users,
 } from "lucide-react";
@@ -54,8 +59,24 @@ import {
     hiloDelEquipoAction,
     ponerMiembrosAction,
     renombrarCanalAction,
+    transcribirNotaDelEquipoAction,
     type HiloAbierto,
 } from "@/actions/chat-de-equipo-actions";
+// Las DOS funciones de voz salen de donde ya estaban en Chats, no de una copia:
+// el dictado es `useSpeechDictation` y la grabación `useAudioRecording`, que se
+// mudó a `hooks/` justo por esto. Con una copia aquí, el día que se afine el
+// formato o el temporizador se afina en una pantalla y la otra se queda atrás.
+import { useAudioRecording } from "@/hooks/useAudioRecording";
+import { useSpeechDictation } from "@/hooks/useSpeechDictation";
+import {
+    comoArchivoDeAudio,
+    type RecordedAudioData,
+} from "@/lib/audio-del-navegador";
+import {
+    comoSeLeeElCosto,
+    comoSeLeeLaDuracion,
+} from "@/lib/nota-de-voz-del-equipo";
+import { TOPE_DE_SEGUNDOS, costoDeLaNota } from "@/lib/transcripcion-de-voz";
 import { avisarDeQueSeLeyo, avisarDelCanalAbierto } from "@/hooks/useSinLeerDelEquipo";
 
 /**
@@ -126,6 +147,19 @@ export function HiloDelEquipo({
     // en el FORMULARIO y no dentro del hilo: es parte de lo que se va a enviar,
     // igual que el texto, así que se manda con él y se limpia al enviar.
     const [citando, setCitando] = useState<MensajeDeEquipo | null>(null);
+
+    // Las DOS funciones de voz, tal cual salen de Chats. El dictado escribe en
+    // la misma caja; la grabación deja la nota lista para enviar.
+    const dictado = useSpeechDictation();
+    const {
+        isRecording: grabando,
+        recordSecs: segundosGrabados,
+        recordedAudio: grabada,
+        startRecording: empezarAGrabar,
+        stopRecordingAndPreview: terminarDeGrabar,
+        cancelRecording: cancelarGrabacion,
+        clearRecordedAudio: limpiarGrabacion,
+    } = useAudioRecording(enviando);
     const [busqueda, setBusqueda] = useState("");
     const [soloEsteCanal, setSoloEsteCanal] = useState(true);
     const [resultados, setResultados] = useState<ResultadoDeBusqueda[] | null>(null);
@@ -359,12 +393,43 @@ export function HiloDelEquipo({
         [traer],
     );
 
-    const enviar = useCallback(async () => {
+    /**
+     * Enviar: texto, una nota de voz, o las dos cosas.
+     *
+     * La nota **se sube antes** y lo que viaja en la acción es su dirección.
+     * Mandarla en base64 dentro del mensaje la metería en la fila, y esa fila
+     * la trae el reloj con la página entera **cada cinco segundos**: un opus de
+     * un minuto son ~60 kB que viajarían una y otra vez para no volver a
+     * mirarse nunca.
+     */
+    const enviar = useCallback(async (grabada?: RecordedAudioData | null) => {
         const limpio = texto.trim();
-        if (!limpio || enviando) return;
+        // Una nota de voz ES el mensaje: con ella, el texto sobra.
+        if ((!limpio && !grabada) || enviando) return;
         setEnviando(true);
         try {
-            const res = await enviarAlEquipoAction(limpio, canalId, undefined, citando?.id ?? null);
+            let audio: { url: string; segundos: number; mime: string } | undefined;
+            if (grabada) {
+                const subida = await subirLaNota(grabada, datos?.yo ?? null);
+                if (!subida) {
+                    // Sin dirección no hay nota, y publicar el mensaje sin ella
+                    // se leería como que el botón no hizo nada.
+                    toast.error("No se pudo subir la nota de voz.");
+                    return;
+                }
+                audio = {
+                    url: subida,
+                    segundos: grabada.durationSecs,
+                    mime: grabada.mimetype,
+                };
+            }
+            const res = await enviarAlEquipoAction(
+                limpio,
+                canalId,
+                undefined,
+                citando?.id ?? null,
+                audio,
+            );
             if (!res.success) {
                 // Un botón que no dice por qué no hizo nada es un botón que se
                 // pulsa cinco veces.
@@ -377,6 +442,7 @@ export function HiloDelEquipo({
             // acaba de mandar. Dejándola puesta, la respuesta siguiente saldría
             // citando lo mismo sin que nadie lo pidiera.
             setCitando(null);
+            limpiarGrabacion();
             // Se pinta al momento y el reloj lo confirma en su vuelta: el
             // servidor manda, pero escribir no puede sentirse lento.
             setDatos((antes) =>
@@ -392,7 +458,28 @@ export function HiloDelEquipo({
         } finally {
             setEnviando(false);
         }
-    }, [texto, enviando, canalId, citando]);
+    }, [texto, enviando, canalId, citando, datos?.yo, limpiarGrabacion]);
+
+    /**
+     * Pintar la transcripción recién pagada, sin esperar al reloj.
+     *
+     * El reloj la traería en su vuelta —ya está guardada en la fila—, pero eso
+     * son hasta cinco segundos de un botón que se pulsó y no cambió nada. Y
+     * pintarla aquí no puede desincronizar nada: es exactamente lo que el
+     * servidor acaba de guardar.
+     */
+    const pintarLaTranscripcion = useCallback((id: string, texto: string) => {
+        setDatos((antes) =>
+            !antes
+                ? antes
+                : {
+                      ...antes,
+                      mensajes: antes.mensajes.map((m) =>
+                          m.id === id ? { ...m, transcripcion: texto } : m,
+                      ),
+                  },
+        );
+    }, []);
 
     /**
      * A quién se le está ofreciendo ahora mismo.
@@ -481,7 +568,10 @@ export function HiloDelEquipo({
         }
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            void enviar();
+            // Con una nota grabada pendiente, Enter la manda TAMBIÉN. Sin
+            // pasarla aquí se enviaba solo el texto y la grabación se perdía
+            // sin decir nada, que es el peor sitio donde perder trabajo.
+            void enviar(grabada);
         }
     };
 
@@ -576,6 +666,11 @@ export function HiloDelEquipo({
                                 nombrePorId={nombrePorId}
                                 onCitar={datos.puedoEscribir ? setCitando : undefined}
                                 onSaltar={(id) => void irAlMensaje(id)}
+                                // PERTENECER, no poder leer. Un administrador
+                                // lee los directos de su cuenta y eso no le
+                                // deja gastar créditos en ellos.
+                                puedoTranscribir={canal.pertenezco}
+                                onTranscrita={pintarLaTranscripcion}
                             />
                             ),
                         )}
@@ -608,6 +703,49 @@ export function HiloDelEquipo({
                             className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
                             <X className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                ) : null}
+                {/* La nota ya grabada, ENCIMA de la caja: se escucha antes de
+                    mandarla y se puede tirar. Una nota que sale sin haberla
+                    podido oír es una que hay que mandar otra vez. */}
+                {grabada ? (
+                    <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+                        <audio
+                            src={grabada.dataUrlWithPrefix}
+                            controls
+                            className="h-9 min-w-0 flex-1"
+                        />
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                            {comoSeLeeLaDuracion(grabada.durationSecs)}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => limpiarGrabacion()}
+                            disabled={enviando}
+                            aria-label="Descartar la nota de voz"
+                            title="Descartar"
+                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                ) : null}
+                {/* Mientras se graba, que se vea que se está grabando: un botón
+                    que no cambia hasta que vuelve la respuesta es un botón que
+                    se pulsa cinco veces. */}
+                {grabando ? (
+                    <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs">
+                        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
+                        <span className="font-medium tabular-nums">
+                            Grabando {comoSeLeeLaDuracion(segundosGrabados)}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => cancelarGrabacion()}
+                            className="ml-auto shrink-0 rounded px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                            Cancelar
                         </button>
                     </div>
                 ) : null}
@@ -650,9 +788,62 @@ export function HiloDelEquipo({
                         className="max-h-40 min-h-[40px] flex-1 resize-y"
                         disabled={enviando || !canal.puedoEscribir}
                     />
+                    {/* El DICTADO escribe en esta misma caja. Solo se pinta
+                        donde el navegador lo tiene: un botón que al pulsarlo
+                        dice «tu navegador no puede» es peor que no tenerlo. */}
+                    {dictado.supported && !grabada ? (
+                        <Button
+                            type="button"
+                            variant={dictado.listening ? "default" : "outline"}
+                            size="icon"
+                            onClick={() => dictado.toggle(texto, setTexto)}
+                            disabled={enviando || grabando || !canal.puedoEscribir}
+                            aria-pressed={dictado.listening}
+                            aria-label={dictado.listening ? "Dejar de dictar" : "Dictar"}
+                            title={
+                                dictado.listening
+                                    ? "Dictando… pulsa para parar"
+                                    : "Dictar: lo que digas se escribe aquí"
+                            }
+                            className="shrink-0"
+                        >
+                            <Type className="h-4 w-4" />
+                        </Button>
+                    ) : null}
+                    {/* Y la NOTA DE VOZ, que es un mensaje, no texto. */}
+                    {!grabada ? (
+                        <Button
+                            type="button"
+                            variant={grabando ? "destructive" : "outline"}
+                            size="icon"
+                            onClick={() =>
+                                grabando ? terminarDeGrabar() : void empezarAGrabar()
+                            }
+                            disabled={enviando || dictado.listening || !canal.puedoEscribir}
+                            aria-pressed={grabando}
+                            aria-label={grabando ? "Terminar la nota de voz" : "Grabar una nota de voz"}
+                            title={
+                                grabando
+                                    ? `Grabando ${comoSeLeeLaDuracion(segundosGrabados)} — pulsa para terminar`
+                                    : "Grabar una nota de voz"
+                            }
+                            className="shrink-0"
+                        >
+                            {grabando ? (
+                                <Square className="h-4 w-4" />
+                            ) : (
+                                <Mic className="h-4 w-4" />
+                            )}
+                        </Button>
+                    ) : null}
                     <Button
-                        onClick={() => void enviar()}
-                        disabled={enviando || !texto.trim() || !canal.puedoEscribir}
+                        onClick={() => void enviar(grabada)}
+                        disabled={
+                            enviando ||
+                            grabando ||
+                            (!texto.trim() && !grabada) ||
+                            !canal.puedoEscribir
+                        }
                         className="shrink-0"
                     >
                         {enviando ? (
@@ -1301,6 +1492,8 @@ function Burbuja({
     nombrePorId,
     onCitar,
     onSaltar,
+    puedoTranscribir = false,
+    onTranscrita,
 }: {
     mensaje: MensajeDeEquipo;
     mio: boolean;
@@ -1312,6 +1505,16 @@ function Burbuja({
     onCitar?: (m: MensajeDeEquipo) => void;
     /** Ir al mensaje citado, cuando la cita se pulsa. */
     onSaltar?: (id: string) => void;
+    /**
+     * Si esta persona puede pedir la transcripción de una nota de voz.
+     *
+     * Es **pertenecer al canal**, no poder leerlo: un administrador lee los
+     * directos de su cuenta y eso no le deja gastar créditos transcribiendo la
+     * conversación de otros dos.
+     */
+    puedoTranscribir?: boolean;
+    /** Pintar la transcripción recién pagada sin esperar al reloj. */
+    onTranscrita?: (id: string, texto: string) => void;
 }) {
     const quien = mensaje.autorNombre?.trim() || nombrePorId.get(mensaje.autorId) || "Alguien";
     const hora = new Date(mensaje.creadoEn).toLocaleString([], {
@@ -1363,9 +1566,131 @@ function Burbuja({
                 {mensaje.cita ? (
                     <RecuadroDeCita cita={mensaje.cita} onSaltar={onSaltar} />
                 ) : null}
+                {/* La NOTA DE VOZ, con el texto debajo si alguien lo pidió.
+                    El audio no se quita: es lo que se dijo, con su tono y sus
+                    pausas; el texto es una ayuda para leerlo de un vistazo. Es
+                    la misma decisión que en Chats. */}
+                {mensaje.audio ? (
+                    <NotaDeVoz
+                        mensaje={mensaje}
+                        puedoPedirla={puedoTranscribir}
+                        onTranscrita={onTranscrita}
+                    />
+                ) : null}
                 {mensaje.texto}
             </div>
             {mensaje.chat ? <TarjetaDeChat chat={mensaje.chat} /> : null}
+        </div>
+    );
+}
+
+/**
+ * Una nota de voz, y su botón de transcribir.
+ *
+ * # Bajo demanda, nunca sola
+ *
+ * Las notas de un CLIENTE en Chats se transcriben solas porque el asesor tiene
+ * que saber qué le dijeron sin ponerse los auriculares. Un canal del equipo es
+ * al revés: son compañeros hablando todo el día, y transcribir cada nota a seis
+ * créditos el minuto es una factura que nadie pidió.
+ *
+ * # Y el precio se ve ANTES de pulsar
+ *
+ * El botón dice lo que va a costar, porque la duración **es** el precio. Un
+ * botón que gasta créditos sin decir cuántos es un cheque en blanco, y eso
+ * reaparece como «¿por qué bajaron mis créditos?».
+ *
+ * # Una vez pagada, se queda
+ *
+ * El texto se guarda en la fila, así que el botón desaparece y quien la pida
+ * después la lee sin que cueste nada. Sin eso, en un canal de ocho personas la
+ * misma nota se pagaría ocho veces.
+ */
+function NotaDeVoz({
+    mensaje,
+    puedoPedirla,
+    onTranscrita,
+}: {
+    mensaje: MensajeDeEquipo;
+    /** Solo quien PERTENECE al canal, no quien solo puede leerlo. */
+    puedoPedirla: boolean;
+    onTranscrita?: (id: string, texto: string) => void;
+}) {
+    const [pidiendo, setPidiendo] = useState(false);
+    const audio = mensaje.audio;
+    if (!audio) return null;
+
+    const costo = costoDeLaNota(audio.segundos).creditos;
+    // Una nota por encima del tope no se transcribe, así que **no se ofrece**:
+    // un botón que al pulsarlo da error es peor que no tenerlo. Y se dice por
+    // qué — sin eso, una nota sin botón al lado de otras con botón se lee como
+    // que la función está rota.
+    const muyLarga = audio.segundos > TOPE_DE_SEGUNDOS;
+
+    const pedirla = async () => {
+        if (pidiendo) return;
+        setPidiendo(true);
+        try {
+            const res = await transcribirNotaDelEquipoAction(mensaje.id);
+            if (!res.success) {
+                // Sin créditos, muy larga, o un fallo de OpenAI: los tres dicen
+                // qué pasó. Un botón que se queda igual no se distingue de uno
+                // roto.
+                toast.error(res.message);
+                return;
+            }
+            onTranscrita?.(mensaje.id, res.data.transcripcion);
+        } catch (error) {
+            // Una acción no solo devuelve `success: false`: puede reventar, y
+            // entonces el «Transcribiendo…» se quedaría puesto para siempre.
+            console.warn("[chat-equipo] la transcripción reventó", error);
+            toast.error("No se pudo transcribir. Inténtalo otra vez.");
+        } finally {
+            setPidiendo(false);
+        }
+    };
+
+    return (
+        <div className="mb-1 flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+                <audio
+                    src={audio.url}
+                    controls
+                    preload="none"
+                    className="h-9 min-w-0 flex-1"
+                />
+                {audio.segundos > 0 ? (
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                        {comoSeLeeLaDuracion(audio.segundos)}
+                    </span>
+                ) : null}
+            </div>
+
+            {mensaje.transcripcion ? (
+                <div className="rounded border-l-2 border-primary/40 bg-background/60 px-2 py-1 text-xs text-muted-foreground">
+                    {mensaje.transcripcion}
+                </div>
+            ) : muyLarga ? (
+                <span className="self-start text-[11px] text-muted-foreground">
+                    Demasiado larga para transcribirla.
+                </span>
+            ) : puedoPedirla ? (
+                <button
+                    type="button"
+                    onClick={() => void pedirla()}
+                    disabled={pidiendo}
+                    className="self-start text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-60"
+                >
+                    {pidiendo ? (
+                        <span className="inline-flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Transcribiendo…
+                        </span>
+                    ) : (
+                        `Transcribir (${comoSeLeeElCosto(costo)})`
+                    )}
+                </button>
+            ) : null}
         </div>
     );
 }
@@ -1587,4 +1912,45 @@ function TarjetaDeChat({ chat }: { chat: ChatCompartido }) {
             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         </a>
     );
+}
+
+/**
+ * Subir la nota al bucket, por la MISMA ruta que los adjuntos de una tarea.
+ *
+ * `/api/upload` ya comprueba sesión y que la carpeta sea de una cuenta sobre la
+ * que se manda, así que no hace falta una ruta nueva — y una ruta nueva que
+ * escribe en el bucket es una puerta más que auditar.
+ *
+ * La carpeta es la de **quien graba**, no la de la cuenta que paga: son dos
+ * preguntas distintas. La carpeta solo tiene que pasar la puerta de la subida
+ * —el id propio siempre la pasa— y quién paga la transcripción lo decide el
+ * servidor después, con la cuenta y su familia.
+ *
+ * Devuelve `null` cuando no se pudo, y **lo dice**: una grabación que se pierde
+ * en silencio se lee como que el botón de enviar no hace nada.
+ */
+async function subirLaNota(
+    grabada: RecordedAudioData,
+    quienGraba: string | null,
+): Promise<string | null> {
+    if (!quienGraba) return null;
+    try {
+        const cuerpo = new FormData();
+        cuerpo.append("file", comoArchivoDeAudio(grabada));
+        cuerpo.append("userID", quienGraba);
+        cuerpo.append("workflowID", "chat-equipo");
+
+        const res = await fetch("/api/upload", { method: "POST", body: cuerpo });
+        if (!res.ok) {
+            console.warn("[chat-equipo] no se pudo subir la nota de voz", {
+                estado: res.status,
+            });
+            return null;
+        }
+        const datos = (await res.json()) as { url?: string };
+        return datos.url?.trim() || null;
+    } catch (error) {
+        console.warn("[chat-equipo] falló la subida de la nota de voz", error);
+        return null;
+    }
 }
