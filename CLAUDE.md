@@ -5283,7 +5283,6 @@ quedó con las dos identidades dentro.
 | el `actorId` de un aviso | efectiva | persona | `crearLosAvisos` descuenta con `destinatarioId === actorId`: **uno se avisa a sí mismo** |
 | `task_work.cerradaPorId` | efectiva | persona (Actividad) | el Reparto del trabajo y la Actividad del equipo cuentan el mismo rato a dos ids distintos |
 | `Session.assigned_advisor_id` (`takeSession`) | efectiva | persona (el desplegable de asesores) | «Asignarme» deja el chat tomado y **«Mías» sale vacía** |
-| `clientesDelAsesor` | — | efectiva | dentro de otra cuenta lee la cartera **del cliente**: Clientes, Instancias y Analíticas contestan con una lista que no es la suya |
 
 Medido contra Postgres: marcar visto con la efectiva devuelve `UPDATE 0` y con
 la persona `UPDATE 1`. Y el `0` de arriba es la trampa entera — el contador del
@@ -5297,11 +5296,9 @@ ellas** y desde fuera parecía que no había nada que ver.
    `assignSessionToAdvisor` ya recibía ids del desplegable, que son personas.
    Cambiar solo el filtro habría dejado «Asignarme» escribiendo una cosa y
    «Mías» buscando otra — peor que el fallo original.
-2. **`clientesDelAsesor` parte de la persona; la herencia del administrador NO
-   se toca.** Lo único que cambia es de quién se parte: `laPersonaDetras`
-   resuelve la fila real **solo cuando los dos ids difieren** —una consulta que
-   en el caso normal no se hace— y después `cuentaQueManda` decide igual que
-   siempre. Que un `administrador` actúe por su cuenta es a propósito y sigue.
+2. **`clientesDelAsesor` NO entra aquí**: es alcance, no firma, y va por la fila
+   efectiva. Entró en esta lista por error y costó una regresión; el porqué está
+   en la sección de abajo.
 3. **`audit_logs`, `AssignmentLog.assignedBy` y `generateConversationIntelligence`
    se quedan con la fila efectiva**, a propósito y por ahora: son «quién lo
    hizo», otra familia, y entran con los latentes (tickets y cobros).
@@ -5325,8 +5322,8 @@ equivocado: quedaría indistinguible de un dato bueno. Así que no hay backfill.
 
 - el **punto del tablero** y los avisos sin ver: esas filas no están mal, están
   **sin leer**. Abrir la tarea ahora las marca y el punto se apaga.
-- **«Mías»**, el **«Tú»** del hilo y la **cartera**: no guardan nada, se calculan
-  al pintar. Quedan bien desde el despliegue.
+- **«Mías»** y el **«Tú»** del hilo: no guardan nada, se calculan al pintar.
+  Quedan bien desde el despliegue.
 
 **Lo que queda mal para siempre** son las filas escritas desde dentro de otra
 cuenta: el autor de esos comentarios, quién cerró esas tareas y quién creó esas
@@ -5345,6 +5342,59 @@ FROM "tasks" t JOIN "User" u ON u.id = t."createdById" WHERE u."owner_id" IS NUL
 Es un **techo, no la cifra**: un dueño sin `owner_id` que trabaja en su propia
 cuenta cuenta ahí y está perfectamente bien. Lo que de verdad importa del número
 es si es cero.
+
+### Pero FIRMAR y ALCANZAR son dos preguntas, y el alcance va por la efectiva
+
+Aplicar la regla de arriba a `clientesDelAsesor` fue un error, y costó una
+regresión en producción: Yair, administrador de una cuenta, recibía **«No
+autorizado para gestionar este cliente»** al guardar en Editar pagos sobre
+clientes que lleva todos los días.
+
+La regla que manda es la del principio de este documento —**el administrador de
+una cuenta actúa POR la cuenta**: alcanza sin limitación todo lo que ella
+alcanza, clientes, instancias y analíticas, para listar y para guardar, y solo
+en las cuentas donde se le nombró administrador—. Y el dato que dice con qué
+cuenta se está actuando es **la fila efectiva**, que es justo lo que resolver la
+persona tira.
+
+> **Un dato que se FIRMA va con la persona; un alcance se pregunta a la fila
+> EFECTIVA.** La primera contesta «quién hizo esto» y tiene que sobrevivir a que
+> se cambie de cuenta; la segunda contesta «hasta dónde llego ahora mismo», y
+> eso lo decide la cuenta con la que se entró.
+
+Las dos puntas se rompen a la vez al confundirlas, y las dos se vieron:
+
+- **Se queda corto.** Un administrador llega a su cuenta por **dos caminos**, y
+  solo uno deja rastro en su fila: `owner_id` y **`linked_accounts`**. Por el
+  segundo su propia fila no cuelga de nadie y no tiene `advisorRole`, así que
+  `cuentaQueManda` sobre ELLA devuelve su id con rol `user` y la cartera sale
+  `[]`. Es la misma asimetría que ya partió el General del chat de equipo en
+  dos: **`ownerId ?? id` no sube a la madre.**
+- **Y se pasa.** Dentro de un cliente con «Ingresar» se entra para ver lo que ve
+  él —la excepción escrita en *«Súper administrador» es la PERSONA*— y ahí el
+  rol propio no cuenta. Con la persona resuelta, el alcance de quien entró se
+  colaba dentro.
+
+Y la parte que hace la regla fácil de aplicar: **cuando los dos ids difieren
+—el conmutador y «Ingresar», los únicos dos casos— la fila efectiva YA es la
+respuesta correcta.** No hay ningún caso en que resolver la persona mejore el
+alcance, así que la consulta que se quitó no dejó nada sin contestar.
+
+Medido contra Postgres con las filas del caso, corriendo el código de verdad
+—`clientesDelAsesor`, `cuentaQueManda` y `assertBillingScope`—:
+
+| quién | antes | ahora |
+| --- | --- | --- |
+| administrador con su propio usuario (`owner_id`) | sin límite | sin límite |
+| administrador **por cuenta vinculada** | **«No autorizado»** | sin límite |
+| agente con un cliente asignado | ese y solo ese | igual |
+| súper administrador dentro de un cliente por «Ingresar» | **la plataforma** | lo que ve el cliente |
+
+Y por qué no se vio en las pruebas: el administrador que llega por `owner_id`
+—que es el caso que se probó— **pasa igual por los dos caminos**, porque su
+propia fila sí lleva la herencia dentro. Solo falla el que llega por
+`linked_accounts`. Probar un administrador no basta: **hay que probar los dos
+caminos por los que alguien llega a una cuenta.**
 
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 
