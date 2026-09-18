@@ -514,6 +514,22 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
   // distintos y añadirle una columna desde aqui es lo que reventó el #360.
   const notaInterna =
     !!row.raw && typeof row.raw === 'object' && (row.raw as any).notaInterna === true;
+  // La transcripcion de una nota de voz, y el motivo cuando no la hay. Van en
+  // `raw` por lo MISMO que `sentByAi` y `notaInterna`: `chat_messages` la
+  // escriben tres sitios distintos y añadirle columnas desde aqui es lo que
+  // reventó el #360. Ver `lib/transcribir-notas.ts`.
+  const rawObj =
+    !!row.raw && typeof row.raw === 'object' && !Array.isArray(row.raw)
+      ? (row.raw as Record<string, unknown>)
+      : null;
+  const transcripcion =
+    typeof rawObj?.transcripcion === 'string' && rawObj.transcripcion.trim()
+      ? rawObj.transcripcion.trim()
+      : null;
+  const transcripcionMotivo =
+    rawObj?.transcripcionMotivo === 'muy_larga' || rawObj?.transcripcionMotivo === 'fallo'
+      ? rawObj.transcripcionMotivo
+      : null;
 
   return {
     id: String(row.id),
@@ -539,6 +555,8 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
       ((row.raw as { contextInfo?: Record<string, unknown> } | null)?.contextInfo ?? null),
     ...(sentByAi ? { sentByAi: true } : {}),
     ...(notaInterna ? { notaInterna: true } : {}),
+    ...(transcripcion ? { transcripcion } : {}),
+    ...(transcripcionMotivo ? { transcripcionMotivo } : {}),
     ...(row.deleted ? { clientDeleted: true } : {}),
     // Corregido desde la App. La marca ya estaba guardada —es lo que impide que
     // el sondeo devuelva el texto viejo— pero no llegaba a la pantalla, asi que

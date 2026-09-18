@@ -1129,6 +1129,30 @@ export function toUIMessages(
       if (emoji) b.reaction = emoji;
     }
   }
+
+  // La transcripción de una nota de voz, por el mismo camino que la reacción:
+  // viaja colgada del mensaje —en `raw`, no en una columna— y se pega a su
+  // burbuja aquí. Ver `lib/transcribir-notas.ts`.
+  const textos = new Map<string, { texto?: string; motivo?: 'muy_larga' | 'fallo' }>();
+  for (const m of messages) {
+    const id = m.key?.id ?? '';
+    if (!id) continue;
+    const conTexto = m as { transcripcion?: unknown; transcripcionMotivo?: unknown };
+    const texto = typeof conTexto.transcripcion === 'string' ? conTexto.transcripcion : undefined;
+    const motivo =
+      conTexto.transcripcionMotivo === 'muy_larga' || conTexto.transcripcionMotivo === 'fallo'
+        ? conTexto.transcripcionMotivo
+        : undefined;
+    if (texto || motivo) textos.set(id, { texto, motivo });
+  }
+  if (textos.size) {
+    for (const b of result) {
+      const dato = textos.get(b.id);
+      if (!dato) continue;
+      if (dato.texto) b.transcripcion = dato.texto;
+      if (dato.motivo) b.transcripcionMotivo = dato.motivo;
+    }
+  }
   return result;
 }
 

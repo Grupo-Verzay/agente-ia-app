@@ -2657,6 +2657,128 @@ quien no alcanza esa cuenta tampoco tiene por qué saberlo.
   `comoSeGuardaElChat` devuelve `null` y la acción lo **dice**. Publicar el
   mensaje sin la tarjeta se leería como que el botón no hizo nada.
 
+## Notas de voz: se paga por MINUTO y el contador mide TOKENS
+
+Una nota de voz que entra se transcribe sola y el texto sale **debajo del
+audio, sin quitarlo**: el audio es lo que mandó el cliente —con su tono y sus
+pausas— y el texto es una ayuda para leerlo de un vistazo, no un sustituto.
+
+Y **no hay cliente nuevo**: `actions/calls-recording-actions.ts` ya transcribía
+las grabaciones de llamadas con `gpt-4o-transcribe` y respaldo en `whisper-1`.
+Lo que faltaba era el **cobro**, que ese camino no hace.
+
+### La conversión, que es la parte que hay que entender
+
+`ia_credits.used` está en **tokens** y `total` en **créditos**. Whisper se cobra
+**por minuto de audio**: no hay ningún recuento de tokens que escribir, así que
+hay que fabricarlo — y eso es una **decisión de precio**, no un cálculo.
+
+Por eso la tarifa es **un solo número escrito con su aritmética al lado**,
+`CREDITOS_POR_MINUTO_DE_AUDIO` (`lib/transcripcion-de-voz.ts`, puro). Este
+documento ya avisa de que la conversión de 3.085 está en tres sitios con dos
+redondeos y de que es un cabo suelto; meter un cuarto con su propia cuenta lo
+empeora.
+
+La cadena es **`segundos → créditos → tokens`**, en ese orden, y el redondeo se
+hace **una sola vez, al final**:
+
+```
+tokens = ceil( segundos / 60 × CREDITOS_POR_MINUTO × 3085 )
+```
+
+Tres cosas de esa línea, y las tres son fallos conocidos de esta casa:
+
+1. **Prorrateado, no por minuto empezado.** Redondear al minuto cobraría una
+   nota de 4 segundos como 60 —quince veces de más— y en una línea de notas
+   cortas se come los créditos en una tarde.
+2. **`ceil`, nunca `floor`, y nunca cero.** Con `floor`, una nota de 5 segundos
+   costaría **cero**: se transcribiría gratis para siempre y el contador no se
+   movería mientras el consumo sí ocurre. Es la familia de *un número que no se
+   puede calcular no se sustituye por otro*.
+3. **La comprobación de si alcanza va en CRÉDITOS, jamás en tokens.** Es la
+   regla explícita de este documento: *ninguna comparación toca `used` y `total`
+   en la misma expresión*. Ese fallo ya pasó en el voicebot —bastaban 4 créditos
+   para agotar un cupo de 12.000—. Aquí entra `creditosDisponibles`, calculado
+   como lo calcula el Perfil, y el costo también en créditos; la conversión a
+   tokens ocurre **después**, solo para escribir.
+
+**No se cobra cuando la cuenta paga su propia IA** (`pagaElClienteSuIa`, la
+misma pregunta que se hace el motor). Y `null` —ilimitados— **no es cero**: son
+dos respuestas distintas, y confundirlas dejaría a esas cuentas sin transcribir
+nada.
+
+**Y paga la cuenta DUEÑA DE LA LÍNEA**, que es la que recibe el mensaje. Un
+asesor de una cuenta vinculada abriendo ese chat no puede cargarle el consumo a
+la suya.
+
+### Una nota muy larga no se recorta: no se transcribe, y se dice
+
+La duración **viene dentro del propio mensaje** (`audioMessage.seconds`), así
+que la decisión se toma antes de descargar un byte y antes de tocar los
+créditos.
+
+**El tope no es técnico.** Una nota en opus de diez minutos pesa poco más de un
+mega, lejísimos de los 25 MB que admite la API. Es un límite de **gasto**: una
+grabación de cuarenta minutos reenviada a un chat son cientos de créditos en un
+solo mensaje, sin que nadie lo haya pedido, y eso reaparece como «¿por qué
+bajaron mis créditos?».
+
+**Y no se recorta. Nunca.** Transcribir los dos primeros minutos de una nota de
+diez y enseñarlo como «la transcripción» es peor que no transcribir: el asesor
+lo lee, actúa, y lo que importaba estaba en el minuto siete. Es *media escalada
+es peor que ninguna* — una transcripción a medias no se ve como incompleta, se
+ve como completa.
+
+### «Sin créditos» es ESPERAR; «muy larga» es SALTAR
+
+La diferencia decide si se deja marca, y no es intercambiable:
+
+| | se marca | se reintenta |
+| --- | --- | --- |
+| muy larga, o falló la llamada | sí | no — mañana seguirá siendo igual de larga |
+| sin créditos | **no** | sí, en cuanto haya |
+
+Marcando el segundo, esa nota no se transcribiría **jamás** aunque la cuenta
+recargue esta tarde. Quedarse sin créditos es de hoy, no de la nota.
+
+Y del lado de la pantalla, la otra mitad de esa distinción: **el motivo se
+enseña; la falta de créditos no.** Una nota sin texto al lado de otras con texto
+se lee como que la función está rota —y eso es una llamada a soporte—, así que
+lo que es propio de ESA nota se explica en una línea discreta debajo. Sin
+créditos, en cambio, el audio llega **normal**, como cualquier otro: ni aviso ni
+error para el asesor. Solo la consola lo dice.
+
+### Dónde corre, y por qué no es un webhook
+
+**La App no recibe los webhooks de WhatsApp**: los recibe el backend, que es
+otro repositorio. Así que «cuando llega la nota» aquí significa **cuando la App
+la ve**, o sea en el reloj de la conversación abierta.
+
+Corre **de fondo, sin `await`**: la conversación no espera a OpenAI para
+pintarse, el resultado se guarda y la vuelta siguiente del reloj —cinco
+segundos— ya lo trae. Es *agotar la espera no es tirar la respuesta* aplicado
+aquí.
+
+Tres cosas más:
+
+1. **La transcripción va en `raw`, NO en una columna nueva.** Es la misma
+   decisión que ya tomaron `sentByAi` y `notaInterna`, con su motivo escrito al
+   lado: **`chat_messages` la escriben tres sitios distintos** —la App, el
+   webhook del backend y el chat-store— y añadirle columnas desde aquí es lo que
+   reventó el #360. Se escribe con un **merge de JSONB**
+   (`raw || jsonb_build_object(...)`): escribir el objeto entero se llevaría por
+   delante la foto de Evolution, los acuses y las reacciones. Comprobado contra
+   Postgres con las tres cosas dentro.
+2. **Se atiende un puñado por vuelta.** Abrir una conversación vieja con
+   doscientas notas sin transcribir no puede disparar doscientas llamadas de
+   golpe.
+3. **Los créditos se leen UNA vez por vuelta**, no una por nota: con una
+   consulta por nota, diez notas pendientes son diez lecturas de la misma fila
+   — «muchas peticiones pequeñas son turno, no trabajo», por dentro.
+
+Y **se cobra DESPUÉS de tener el texto**: cobrar antes y que la llamada falle
+sería cobrar por algo que no se entregó.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se
