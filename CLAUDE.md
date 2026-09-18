@@ -3343,14 +3343,101 @@ acción. Con él únicamente en la acción la columna admitía `"   "` en cuanto
 alguien llamara a la función de la base por otro camino, y entonces `null` y
 «espacios» serían dos formas de decir lo mismo. Lo cazó el banco.
 
-> **Y lo que conviene saber antes de tocar esto: los ADJUNTOS de un cobro no
-> salen.** Se guardan, se cuentan en la tabla y se ven en la App, pero
-> `sendViaWhatsAppDispatcher` es **solo texto** y `mandarElCobro` no manda
-> ningún archivo. Así que hoy «solo texto» y «texto + adjunto» mandan lo mismo,
-> y «solo adjunto» no manda nada. Mandarlos es un frente aparte y no pequeño:
-> los caminos de media de los tres proveedores piden `currentUser()` y pausan la
-> IA del contacto, y **la vuelta diaria corre desde el cron, sin sesión**. Media
-> función —que salga a mano y no en los recordatorios— sería peor que ninguna.
+### Los adjuntos SÍ salen, y el obstáculo no era el que estaba escrito aquí
+
+Durante meses los archivos de un cobro se guardaban, se contaban y se veían en
+la App, y al cliente le llegaba **solo el texto**. Este documento decía que
+mandarlos era un frente grande porque «los caminos de media de los tres
+proveedores piden `currentUser()` y pausan la IA, y la vuelta diaria corre sin
+sesión». **Eso era falso**, y conviene saber por qué para no volver a
+descartarlo por el mismo motivo:
+
+| | ¿pide sesión? | ¿qué hay ya? |
+| --- | --- | --- |
+| Evolution | **no** | `sendMediaByUrl`, HTTP con url + apikey |
+| Waha | **no** | `sendWahaMedia` en `lib/waha.ts`, HTTP |
+| Meta | **no** | `sendChannelTextAction` ya tiene su rama `kind: 'media'` |
+
+Quien pide sesión es la **acción** de Chats (`sendWahaTextAction`, por
+`lineaWahaAutorizada`), no la primitiva que hay debajo. Mirar la acción y
+concluir que el proveedor exige sesión es la misma familia de error que ya costó
+tres versiones en el id de un mensaje de grupo: **una capa no habla por la de
+abajo.**
+
+`sendViaWhatsAppDispatcher` solo mandaba texto por un motivo mucho más simple:
+**nació para avisos**, que son todos de texto —facturación, prueba, vigilancia,
+informe semanal, tickets—, así que su firma no tenía sitio para un archivo y
+cada proveedor iba con `kind: 'text'` escrito a mano. No había ningún obstáculo
+técnico: faltaba la función.
+
+#### Y de paso destapó que el despachador estaba MUDO en toda línea Waha
+
+El despachador llamaba a `sendWahaTextAction`, que empieza por `currentUser()`.
+Desde una vuelta de cron **no hay sesión**, así que devolvía «No autorizado» y
+el mensaje no salía: los recordatorios de Cobros, los avisos de facturación, el
+seguimiento de prueba y el informe semanal **llevaban callados en toda línea
+Waha**, sin un solo error que mirar. Desde fuera no se parece a un fallo: se
+parece a que la App no le escribe a nadie.
+
+> **Un despachador del servidor no pasa por una acción.** Es lo que Evolution ya
+> cumplía —`sendingMessages` siempre fue una función suelta—; Waha entra ahora
+> por sus primitivas de `lib/waha.ts`. La puerta de `sendWahaTextAction`
+> (`currentUser` + `assertCanAccessTargetUser`) se queda intacta donde tiene
+> sentido: en la llamada que llega del navegador.
+
+Dos diferencias del camino nuevo, a propósito: **no pausa la IA** —un cobro
+automático no es un asesor interviniendo, y Evolution nunca la pausó— y **no
+antepone la firma del asesor**, que depende de `currentUser()` y debajo de un
+aviso automático sería una firma falsa. Lo que sí se conserva es **la burbuja**:
+el saliente se guarda igual, con el id que devolvió Waha para que el eco del
+webhook no lo duplique. Por eso `snapshotDeSalienteWaha` y `etiquetaDeMediaWaha`
+se mudaron a `lib/waha.ts`: con una copia en cada sitio, el día que se afine una
+el otro se queda atrás.
+
+#### Un archivo que falla no puede perder el cobro, ni perderse en silencio
+
+Es la regla entera de esta parte, y las dos mitades hacen falta:
+
+1. **El cobro es el TEXTO.** `mandarLosAdjuntos` no devuelve `ok`, devuelve un
+   resumen. Si devolviera un fallo, la vuelta diaria no anotaría el hito y al
+   cliente le llegaría el **mismo recordatorio mañana, y pasado**: un adjunto
+   roto convertido en spam. Y al revés: si el texto no sale, **no sale ningún
+   archivo** — una factura suelta, sin el mensaje que la explica, es peor que
+   nada.
+2. **Y queda constancia, archivo por archivo.** `cobro_adjuntos` recibe
+   `ultimoEnvioEn`, `ultimoFalloEn` y `ultimoFallo` con
+   `ALTER TABLE … ADD COLUMN IF NOT EXISTS` —la tabla ya está en producción y un
+   `CREATE TABLE IF NOT EXISTS` no toca una que ya está—. Las filas de antes
+   traen `null` en las tres, que significa «de esta no se sabe» y **no** «no
+   salió»: sin backfill y sin dos clases de adjunto.
+
+**Son dos sellos y no uno, y no se pisan.** Un envío bueno no borra el motivo
+del fallo anterior y un fallo no borra la fecha del último envío bueno; la
+pantalla avisa comparándolos (`losQueNoSalieron`). Con una sola columna, «nunca
+salió» y «salió y hoy falló» serían el mismo dato, y el aviso o no se encendería
+nunca o no se apagaría nunca. Comprobado contra Postgres en los dos órdenes.
+
+Cinco cosas más:
+
+1. **Cada archivo va en su propio `try`.** Sin él, un proveedor que revienta se
+   llevaba los archivos de detrás y el resumen entero. Medido en el banco: con
+   el `try`, el archivo siguiente al que explota sí sale.
+2. **En serie, no en paralelo.** Son mensajes a una persona y llegan en su
+   orden; y varios envíos a la vez por la misma línea es lo que hace que
+   WhatsApp la mire con lupa.
+3. **Sin pie.** El mensaje de cobro salió entero un momento antes; repetirlo
+   debajo de cada archivo es mandárselo al cliente tantas veces como archivos
+   lleve la deuda.
+4. **El `mediatype` se filtra contra la lista cerrada y lo que no encaje sale
+   como `document`.** WhatsApp abre un documento siempre; un `mediatype`
+   inventado le saca un 400 al proveedor y el archivo no sale. Equivocarse hacia
+   `document` entrega.
+5. **La vuelta diaria lee los adjuntos de TODAS las deudas en una consulta**
+   (`losAdjuntosDeLosCobros`), en una segunda pasada después de decidir cuáles
+   salen. Una consulta por deuda serían decenas para leer lo mismo. Medido:
+   0,36 ms para 30 deudas sobre 40.000 filas, entrando por
+   `cobro_adjuntos_cobro_idx`. Y si esa lectura falla, **los cobros salen sin
+   sus archivos en vez de no salir**.
 
 ### La guarda de una confirmación es el VENCIMIENTO, no el estado
 

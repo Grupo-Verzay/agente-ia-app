@@ -1,10 +1,20 @@
 'use server';
 
-import { sendWahaTextAction } from '@/actions/waha-chat-actions';
-import { getWahaSession } from '@/lib/waha';
+import {
+  etiquetaDeMediaWaha,
+  getWahaSession,
+  sendWahaMedia,
+  sendWahaText,
+  snapshotDeSalienteWaha,
+  type WahaMediaType,
+} from '@/lib/waha';
+import { canonicalToWahaJid } from '@/lib/waha-jid';
 import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 import { sendingMessages } from '@/actions/sending-messages-actions';
+import { sendMediaByUrl } from '@/actions/chat-actions';
+import { persistChatMessage } from '@/lib/chat-persistence';
 import { db } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 
 type DispatcherInstance = {
   instanceId: string | null;
@@ -508,15 +518,11 @@ export async function sendViaWhatsAppDispatcher(args: {
   }
 
   if (args.dispatcher.provider === 'waha') {
-    const result = await sendWahaTextAction(args.dispatcher.instanceName, args.remoteJid, {
-      kind: 'text',
-      text: args.text,
+    return enviarPorWaha({
+      dispatcher: args.dispatcher,
+      remoteJid: args.remoteJid,
+      texto: args.text,
     });
-    return {
-      success: result.success,
-      message: result.message,
-      error: result.success ? undefined : result.message,
-    };
   }
 
   if (!args.dispatcher.serverUrl || !args.dispatcher.instanceId) {
@@ -534,4 +540,232 @@ export async function sendViaWhatsAppDispatcher(args: {
     text: args.text,
     history: args.history,
   });
+}
+
+/* ── Waha, sin sesion ─────────────────────────────────────────────────────── */
+
+/**
+ * Mandar por una linea Waha **desde el servidor**, sin sesion de navegador.
+ *
+ * Antes esto llamaba a `sendWahaTextAction`, que es una accion de la pantalla
+ * de Chats y empieza por `currentUser()`. Desde una vuelta de cron **no hay
+ * sesion**, asi que devolvia «No autorizado» y el mensaje no salia nunca: los
+ * recordatorios de Cobros, los avisos de facturacion, el seguimiento de prueba
+ * y el informe semanal estaban callados en toda linea Waha, sin un solo error
+ * que mirar. El sintoma no se parece a un fallo: se parece a que la App no le
+ * escribe a nadie.
+ *
+ * La regla que lo evita, y es la misma que ya cumplia Evolution: **un
+ * despachador del servidor no pasa por una accion.** `sendingMessages` siempre
+ * fue una funcion suelta; Waha entra ahora por sus primitivas de `lib/waha.ts`,
+ * que solo hablan HTTP. La puerta de `sendWahaTextAction`
+ * (`currentUser` + `assertCanAccessTargetUser`) se queda intacta donde tiene
+ * sentido: en la llamada que llega del navegador.
+ *
+ * Dos diferencias con aquel camino, a proposito:
+ *
+ * 1. **No se pausa la IA.** Un cobro o un aviso de la plataforma no es un
+ *    asesor interviniendo en la conversacion; Evolution nunca la pauso.
+ * 2. **No se antepone la firma del asesor.** Depende de `currentUser()`, que
+ *    aqui no existe, y una firma personal debajo de un aviso automatico seria
+ *    falsa.
+ *
+ * Lo que si se conserva es **la burbuja**: el saliente se guarda en nuestra
+ * base igual que antes, con el id que devolvio Waha para que un eco por webhook
+ * no lo duplique.
+ */
+async function enviarPorWaha(params: {
+  dispatcher: WhatsAppDispatcherLine;
+  remoteJid: string;
+  texto?: string;
+  media?: AdjuntoParaDespachar;
+}): Promise<{ success: boolean; message: string; error?: string }> {
+  const chatId = canonicalToWahaJid(params.remoteJid);
+  if (!chatId) {
+    return {
+      success: false,
+      message: 'El contacto no tiene una identidad valida.',
+      error: 'INVALID_WAHA_JID',
+    };
+  }
+
+  const ahora = new Date();
+  const guardar = async (messageId: string | null, messageType: string, contenido: string, mensaje: Record<string, unknown>, mediaUrl?: string | null) => {
+    try {
+      await persistChatMessage({
+        userId: params.dispatcher.id,
+        instanceName: params.dispatcher.instanceName,
+        instanceType: 'waha',
+        remoteJid: params.remoteJid,
+        fromMe: true,
+        messageId,
+        messageType,
+        content: contenido,
+        mediaUrl: mediaUrl ?? null,
+        raw: snapshotDeSalienteWaha({
+          messageId,
+          remoteJid: params.remoteJid,
+          messageType,
+          message: mensaje,
+          fecha: ahora,
+        }) as unknown as Prisma.InputJsonValue,
+        messageTimestamp: ahora,
+      });
+    } catch (error) {
+      // El mensaje YA salio: no se puede deshacer y no se devuelve un fallo por
+      // esto. Pero tampoco es mudo — sin burbuja, la conversacion parece no
+      // haber recibido nada.
+      console.warn('[dispatcher] el saliente de Waha salio pero no se pudo guardar', {
+        instancia: params.dispatcher.instanceName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  if (params.media) {
+    const envio = await sendWahaMedia({
+      session: params.dispatcher.instanceName,
+      chatId,
+      mediatype: params.media.mediatype as WahaMediaType,
+      mediaUrl: params.media.mediaUrl,
+      mimetype: params.media.mimetype,
+      fileName: params.media.fileName,
+      caption: params.media.caption,
+      ptt: false,
+    });
+    if (!envio.ok) return { success: false, message: envio.message, error: envio.message };
+
+    const tipo = params.media.mediatype;
+    const contenido =
+      params.media.caption?.trim() || params.media.fileName || etiquetaDeMediaWaha(tipo);
+    await guardar(
+      envio.messageId,
+      `${tipo}Message`,
+      contenido,
+      {
+        conversation: contenido,
+        mediaUrl: params.media.mediaUrl,
+        [`${tipo}Message`]: {
+          caption: params.media.caption?.trim() || undefined,
+          fileName: params.media.fileName ?? undefined,
+          mimetype: params.media.mimetype ?? undefined,
+          mediaUrl: params.media.mediaUrl,
+        },
+      },
+      params.media.mediaUrl,
+    );
+    return { success: true, message: 'Enviado.' };
+  }
+
+  const texto = (params.texto ?? '').trim();
+  if (!texto) return { success: false, message: 'El mensaje esta vacio.', error: 'EMPTY_TEXT' };
+
+  const envio = await sendWahaText({ session: params.dispatcher.instanceName, chatId, text: texto });
+  if (!envio.ok) return { success: false, message: envio.message, error: envio.message };
+
+  await guardar(envio.messageId, 'conversation', texto, { conversation: texto });
+  return { success: true, message: 'Enviado.' };
+}
+
+/* ── Adjuntos ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Un archivo tal y como lo espera cualquiera de los tres proveedores.
+ *
+ * `mediaUrl` es **una direccion http(s)**, no un `data:`. Los tres caminos
+ * saben descargarla —Evolution la convierte a base64, Waha la descarga y el
+ * backend de canales la reenvia— y ninguno tiene que cargar el fichero entero
+ * en memoria de la App para pasarselo al de al lado.
+ */
+export type AdjuntoParaDespachar = {
+  mediatype: 'image' | 'video' | 'audio' | 'document';
+  mediaUrl: string;
+  mimetype?: string | null;
+  fileName?: string | null;
+  caption?: string | null;
+};
+
+/**
+ * Mandar un ARCHIVO por la misma linea por la que sale el texto.
+ *
+ * Este despachador nacio para **avisos**, que son todos de texto, y por eso su
+ * firma no tenia sitio para un adjunto y cada proveedor iba con `kind: 'text'`
+ * escrito a mano. No habia ningun motivo tecnico detras: las tres primitivas de
+ * media existian desde siempre y ninguna necesita sesion —`sendMediaByUrl` es
+ * HTTP contra Evolution, `sendWahaMedia` es HTTP contra Waha, y el camino de
+ * canales ya tiene su rama `kind: 'media'`—. Lo unico que faltaba era esta
+ * funcion.
+ *
+ * **Va aparte de `sendViaWhatsAppDispatcher` y no como un parametro opcional
+ * suyo**: quien manda un archivo casi siempre manda antes un texto, y son dos
+ * mensajes distintos en el telefono del cliente. Con las dos cosas en una sola
+ * llamada, un fallo del archivo no se podria distinguir de un fallo del texto,
+ * y el texto —que es lo que de verdad hay que entregar— se daria por perdido.
+ */
+export async function sendMediaViaWhatsAppDispatcher(args: {
+  dispatcher: WhatsAppDispatcherLine;
+  remoteJid: string;
+  media: AdjuntoParaDespachar;
+}): Promise<{ success: boolean; message: string; error?: string }> {
+  if (!/^https?:\/\//i.test(args.media.mediaUrl || '')) {
+    return {
+      success: false,
+      message: 'El archivo no tiene una direccion publica desde la que enviarlo.',
+      error: 'MEDIA_URL_NO_PUBLICA',
+    };
+  }
+
+  if (args.dispatcher.provider === 'meta') {
+    const res = await sendChannelTextAction(args.dispatcher.instanceName, args.remoteJid, {
+      kind: 'media',
+      mediatype: args.media.mediatype,
+      mediaUrl: args.media.mediaUrl,
+      mimetype: args.media.mimetype ?? undefined,
+      fileName: args.media.fileName ?? undefined,
+      caption: args.media.caption ?? undefined,
+      ptt: false,
+    });
+    return {
+      success: Boolean(res?.success),
+      message: res?.message ?? 'No se pudo enviar el archivo.',
+      error: res?.success ? undefined : res?.message,
+    };
+  }
+
+  if (args.dispatcher.provider === 'waha') {
+    return enviarPorWaha({
+      dispatcher: args.dispatcher,
+      remoteJid: args.remoteJid,
+      media: args.media,
+    });
+  }
+
+  if (!args.dispatcher.serverUrl || !args.dispatcher.instanceId) {
+    return {
+      success: false,
+      message: 'Dispatcher Evolution sin configuracion completa.',
+      error: 'MISSING_EVOLUTION_DISPATCHER',
+    };
+  }
+
+  // La misma credencial con la que sale el texto: el token de la instancia,
+  // no la key de la cuenta. Si se mezclaran, el archivo saldria por una linea
+  // y el texto por otra.
+  const res = await sendMediaByUrl(
+    { url: args.dispatcher.serverUrl, key: args.dispatcher.instanceId },
+    args.dispatcher.instanceName,
+    args.remoteJid,
+    {
+      mediatype: args.media.mediatype,
+      mediaUrl: args.media.mediaUrl,
+      mimetype: args.media.mimetype ?? undefined,
+      fileName: args.media.fileName ?? undefined,
+      caption: args.media.caption ?? undefined,
+    },
+  );
+  return {
+    success: Boolean(res?.success),
+    message: res?.message ?? 'No se pudo enviar el archivo.',
+    error: res?.success ? undefined : res?.message,
+  };
 }

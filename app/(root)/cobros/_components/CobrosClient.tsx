@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+    AlertTriangle,
     CheckCheck,
     FileText,
     History,
@@ -62,6 +63,7 @@ import {
     fechaCorta,
     montoConMoneda,
     situacionDelCobro,
+    type AdjuntoDeCobro,
     type CicloDeCobro,
     type CobroConAdjuntos,
     type ConfigDeCobros,
@@ -69,6 +71,23 @@ import {
 } from "@/lib/cobros";
 import { FormularioDeCobro, type DatosDelFormulario } from "./FormularioDeCobro";
 import { ConfiguracionDeCobros } from "./ConfiguracionDeCobros";
+
+/**
+ * Los archivos cuyo último intento falló.
+ *
+ * Se compara con el último envío bueno y no se mira el fallo a secas: un
+ * archivo que falló ayer y salió hoy ya no tiene nada que decir, y dejarlo
+ * marcado sería un aviso que no se apaga nunca. Las filas de antes de que esto
+ * existiera traen las dos fechas en `null` y no salen: «no se sabe» no es «no
+ * salió».
+ */
+function losQueNoSalieron(adjuntos: AdjuntoDeCobro[]): AdjuntoDeCobro[] {
+    return adjuntos.filter((a) => {
+        if (!a.ultimoFalloEn) return false;
+        if (!a.ultimoEnvioEn) return true;
+        return new Date(a.ultimoFalloEn).getTime() > new Date(a.ultimoEnvioEn).getTime();
+    });
+}
 
 /** El color de cada situación. El rojo se reserva para lo que ya se pasó. */
 const COLOR: Record<SituacionDelCobro, string> = {
@@ -203,6 +222,44 @@ export function CobrosClient({
             console.warn("[cobros] una acción no llegó a volver", { id, error });
             toast.error("No se pudo completar.");
             return false;
+        } finally {
+            setOcupada(null);
+        }
+    };
+
+    /**
+     * «Cobrar ahora», y **lo que pasó con los archivos se dice**.
+     *
+     * El cobro sale aunque un adjunto no —el texto es lo que hay que entregar—,
+     * así que un «Cobro enviado» a secas dejaría al asesor creyendo que el
+     * cliente recibió la factura cuando no la recibió. El motivo de cada archivo
+     * queda además en su propia fila, debajo del archivo.
+     */
+    const cobrarAhoraConAviso = async (id: string) => {
+        setOcupada(id);
+        try {
+            const res = await cobrarAhoraAction(id);
+            if (!res.success || !res.data) {
+                toast.error(res.message ?? "No se pudo enviar.");
+                return null;
+            }
+            const { adjuntosEnviados, adjuntosFallidos } = res.data;
+            if (adjuntosFallidos > 0) {
+                toast.warning(
+                    `Cobro enviado, pero ${adjuntosFallidos} ${adjuntosFallidos === 1 ? "archivo no salió" : "archivos no salieron"}.`,
+                );
+            } else if (adjuntosEnviados > 0) {
+                toast.success(
+                    `Cobro enviado con ${adjuntosEnviados} ${adjuntosEnviados === 1 ? "archivo" : "archivos"}.`,
+                );
+            } else {
+                toast.success("Cobro enviado.");
+            }
+            return res.data;
+        } catch (error) {
+            console.warn("[cobros] cobrar ahora no llegó a volver", { id, error });
+            toast.error("No se pudo enviar.");
+            return null;
         } finally {
             setOcupada(null);
         }
@@ -375,6 +432,29 @@ export function CobrosClient({
                                                 {c.adjuntos.length}
                                             </span>
                                         )}
+                                        {/*
+                                          Los archivos que no salieron, y POR QUÉ.
+                                          El motivo es propio de ESE archivo —una
+                                          dirección que no sirve, un rechazo del
+                                          proveedor— y sin él, un adjunto que el
+                                          cliente no recibió se lee como que la
+                                          función está rota. Misma regla que el
+                                          motivo de una nota de voz sin
+                                          transcribir: lo que es de esa fila se
+                                          explica en esa fila.
+                                        */}
+                                        {losQueNoSalieron(c.adjuntos).map((a) => (
+                                            <span
+                                                key={a.id}
+                                                className="mt-0.5 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-500"
+                                                title={a.ultimoFallo ?? undefined}
+                                            >
+                                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                                <span className="line-clamp-1">
+                                                    No salió: {a.nombre}
+                                                </span>
+                                            </span>
+                                        ))}
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap text-right tabular-nums">
                                         {montoConMoneda(c.monto, c.moneda) || "—"}
@@ -428,10 +508,11 @@ export function CobrosClient({
                                             >
                                                 <DropdownMenuItem
                                                     onClick={async () => {
-                                                        const ok = await pedir(c.id, () =>
-                                                            cobrarAhoraAction(c.id),
-                                                        );
-                                                        if (ok) toast.success("Cobro enviado.");
+                                                        const res = await cobrarAhoraConAviso(c.id);
+                                                        // Los archivos se anotan en su fila, así que
+                                                        // hay que releer para pintar el aviso de los
+                                                        // que no salieron.
+                                                        if (res && res.adjuntosFallidos > 0) await refrescar();
                                                     }}
                                                 >
                                                     <Send className="mr-2 h-4 w-4" />

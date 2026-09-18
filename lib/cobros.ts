@@ -554,6 +554,11 @@ export type AdjuntoDeCobro = {
     tipo: string;
     mimeType: string | null;
     tamanoBytes: number | null;
+    /** Cuándo salió por WhatsApp la última vez. `null` = todavía nunca. */
+    ultimoEnvioEn: string | null;
+    /** Cuándo falló la última vez, y por qué. Los dos van juntos o ninguno. */
+    ultimoFalloEn: string | null;
+    ultimoFallo: string | null;
 };
 
 export type CobroConAdjuntos = Cobro & { adjuntos: AdjuntoDeCobro[] };
@@ -587,4 +592,62 @@ export function configPorDefecto(ownerId: string): ConfigDeCobros {
         mensajes: { ...MENSAJES_POR_DEFECTO },
         recordatorios: { ...RECORDATORIOS_POR_DEFECTO },
     };
+}
+
+/* ── Los adjuntos que salen por WhatsApp ──────────────────────────────────── */
+
+/**
+ * Cuántos archivos de una misma deuda salen por WhatsApp.
+ *
+ * Es el mismo tope con el que se pueden adjuntar (`TOPE_DE_ADJUNTOS_POR_COBRO`,
+ * 10), y se vuelve a aplicar **al enviar** y no solo al adjuntar: una deuda
+ * puede traer filas de antes de que existiera el tope, y diez mensajes seguidos
+ * a un cliente ya es mucho; veinte es una línea reportada.
+ */
+export const TOPE_DE_ADJUNTOS_QUE_SALEN = 10;
+
+/** Los cuatro que entienden los tres proveedores. */
+const MEDIATYPES = ["image", "video", "audio", "document"] as const;
+export type MediatypeDeAdjunto = (typeof MEDIATYPES)[number];
+
+/**
+ * Cómo sale un archivo por WhatsApp: su `mediatype`.
+ *
+ * Sale del `tipo` que ya guarda la fila, **filtrado contra la lista cerrada**.
+ * Lo que no esté en ella sale como `document`, que es lo que WhatsApp sabe
+ * enseñar siempre: una imagen mandada como documento se abre igual, y un
+ * `mediatype` inventado hace que el proveedor conteste un 400 y el archivo no
+ * salga. Equivocarse hacia `document` entrega; equivocarse hacia el error, no.
+ */
+export function mediatypeDelAdjunto(tipo: string | null | undefined): MediatypeDeAdjunto {
+    const limpio = String(tipo ?? "").trim().toLowerCase();
+    return (MEDIATYPES as readonly string[]).includes(limpio)
+        ? (limpio as MediatypeDeAdjunto)
+        : "document";
+}
+
+/**
+ * Un archivo que se puede enviar, o el motivo por el que no.
+ *
+ * La única condición que puede fallar es la **dirección**: los tres caminos
+ * descargan el archivo de una URL pública —Evolution la convierte a base64,
+ * Waha la descarga, el backend de canales la reenvía—, así que un `data:` o una
+ * ruta relativa no se puede mandar por ninguno.
+ *
+ * Y devuelve el motivo en vez de un `false` pelado, porque **ese motivo se
+ * guarda**: un archivo que no sale sin decir por qué es exactamente el fallo
+ * mudo que este documento prohíbe.
+ */
+export function puedeSalirElAdjunto(
+    adjunto: Pick<AdjuntoDeCobro, "url">,
+): { ok: true } | { ok: false; motivo: string } {
+    const url = String(adjunto.url ?? "").trim();
+    if (!url) return { ok: false, motivo: "El archivo no tiene dirección." };
+    if (!/^https?:\/\//i.test(url)) {
+        return {
+            ok: false,
+            motivo: "El archivo no tiene una dirección pública desde la que enviarlo.",
+        };
+    }
+    return { ok: true };
 }

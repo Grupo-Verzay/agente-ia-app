@@ -129,6 +129,21 @@ function asegurarLasTablas(): Promise<void> {
       CREATE INDEX IF NOT EXISTS "cobro_adjuntos_cobro_idx"
       ON "cobro_adjuntos" ("cobroId")
     `;
+        // Constancia de cada archivo: cuándo salió por última vez y, si no
+        // salió, por qué. Entra con `ALTER TABLE … ADD COLUMN IF NOT EXISTS` y
+        // **no reescribiendo el `CREATE`**: la tabla ya existe en producción y
+        // un `CREATE TABLE IF NOT EXISTS` no toca una que ya está. Es el fallo
+        // que se comete solo al añadirle una columna a una tabla de la App ya
+        // desplegada.
+        //
+        // Las filas de antes traen `null` en las tres, que significa exactamente
+        // «de esta no se sabe»: sin backfill y sin dos clases de adjunto.
+        await db.$executeRaw`
+      ALTER TABLE "cobro_adjuntos"
+        ADD COLUMN IF NOT EXISTS "ultimoEnvioEn" TIMESTAMP(3),
+        ADD COLUMN IF NOT EXISTS "ultimoFalloEn" TIMESTAMP(3),
+        ADD COLUMN IF NOT EXISTS "ultimoFallo" TEXT
+    `;
 
         // El historial de ciclos pagados. Es lo unico que recuerda que este
         // cliente lleva ocho meses pagando: la fila de `cobros` solo guarda el
@@ -309,18 +324,9 @@ export async function laCarteraDe(ownerId: string): Promise<CobroConAdjuntos[]> 
     `;
         if (filas.length === 0) return [];
 
-        const adjuntos = await db.$queryRaw<
-            Array<{
-                id: string;
-                cobroId: string;
-                url: string;
-                nombre: string;
-                tipo: string;
-                mimeType: string | null;
-                tamanoBytes: bigint | null;
-            }>
-        >`
-      SELECT a."id", a."cobroId", a."url", a."nombre", a."tipo", a."mimeType", a."tamanoBytes"
+        const adjuntos = await db.$queryRaw<FilaDeAdjunto[]>`
+      SELECT a."id", a."cobroId", a."url", a."nombre", a."tipo", a."mimeType", a."tamanoBytes",
+             a."ultimoEnvioEn", a."ultimoFalloEn", a."ultimoFallo"
       FROM "cobro_adjuntos" a
       JOIN "cobros" c ON c."id" = a."cobroId"
       WHERE c."ownerId" = ${ownerId}
@@ -330,15 +336,7 @@ export async function laCarteraDe(ownerId: string): Promise<CobroConAdjuntos[]> 
         const porCobro = new Map<string, CobroConAdjuntos["adjuntos"]>();
         for (const a of adjuntos) {
             const lista = porCobro.get(a.cobroId) ?? [];
-            lista.push({
-                id: a.id,
-                cobroId: a.cobroId,
-                url: a.url,
-                nombre: a.nombre,
-                tipo: (TIPOS_DE_ADJUNTO as readonly string[]).includes(a.tipo) ? a.tipo : "document",
-                mimeType: a.mimeType,
-                tamanoBytes: a.tamanoBytes === null ? null : Number(a.tamanoBytes),
-            });
+            lista.push(aAdjunto(a));
             porCobro.set(a.cobroId, lista);
         }
 
@@ -689,6 +687,121 @@ export async function borrarElCobro(id: string, ownerId: string): Promise<boolea
 }
 
 /* ── Adjuntos ─────────────────────────────────────────────────────────────── */
+
+type FilaDeAdjunto = {
+    id: string;
+    cobroId: string;
+    url: string;
+    nombre: string;
+    tipo: string;
+    mimeType: string | null;
+    tamanoBytes: bigint | null;
+    ultimoEnvioEn: Date | null;
+    ultimoFalloEn: Date | null;
+    ultimoFallo: string | null;
+};
+
+/**
+ * Una fila de `cobro_adjuntos`, saneada.
+ *
+ * El `tipo` **se vuelve a filtrar al leer** contra la lista cerrada: una fila
+ * rara —escrita a mano, o de antes de que existiera esa comprobación— sale como
+ * «document» y no rompe la pantalla ni el envío. Es la misma regla con la que
+ * se lee el tipo de trabajo de una tarea.
+ */
+function aAdjunto(a: FilaDeAdjunto): CobroConAdjuntos["adjuntos"][number] {
+    return {
+        id: a.id,
+        cobroId: a.cobroId,
+        url: a.url,
+        nombre: a.nombre,
+        tipo: (TIPOS_DE_ADJUNTO as readonly string[]).includes(a.tipo) ? a.tipo : "document",
+        mimeType: a.mimeType,
+        tamanoBytes: a.tamanoBytes === null ? null : Number(a.tamanoBytes),
+        ultimoEnvioEn: a.ultimoEnvioEn ? a.ultimoEnvioEn.toISOString() : null,
+        ultimoFalloEn: a.ultimoFalloEn ? a.ultimoFalloEn.toISOString() : null,
+        ultimoFallo: a.ultimoFallo,
+    };
+}
+
+/**
+ * Los adjuntos de VARIAS deudas, en una sola consulta.
+ *
+ * La vuelta diaria manda decenas de cobros seguidos y cada uno puede llevar
+ * archivos. Una consulta por deuda serían decenas para leer lo mismo —«muchas
+ * peticiones pequeñas son turno, no trabajo», por dentro—, así que se piden
+ * todos de golpe y se reparten por `cobroId`.
+ *
+ * Se devuelve **un Map**, y las deudas sin adjuntos simplemente no tienen
+ * entrada: quien lee usa `?? []`.
+ */
+export async function losAdjuntosDeLosCobros(
+    ids: string[],
+): Promise<Map<string, CobroConAdjuntos["adjuntos"]>> {
+    const porCobro = new Map<string, CobroConAdjuntos["adjuntos"]>();
+    const limpios = [...new Set(ids.map((i) => String(i ?? "").trim()).filter(Boolean))];
+    if (limpios.length === 0) return porCobro;
+
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<FilaDeAdjunto[]>`
+      SELECT "id", "cobroId", "url", "nombre", "tipo", "mimeType", "tamanoBytes",
+             "ultimoEnvioEn", "ultimoFalloEn", "ultimoFallo"
+      FROM "cobro_adjuntos"
+      WHERE "cobroId" = ANY(${limpios})
+      ORDER BY "creadoEn" ASC
+    `;
+        for (const f of filas) {
+            const lista = porCobro.get(f.cobroId) ?? [];
+            lista.push(aAdjunto(f));
+            porCobro.set(f.cobroId, lista);
+        }
+        return porCobro;
+    });
+}
+
+/**
+ * Dejar constancia de cómo le fue a un archivo.
+ *
+ * Es lo que convierte «el adjunto no llegó» en algo que se puede mirar. Un
+ * envío que falla y no deja rastro se lee como que la función no sirve, que es
+ * de lo más difícil de diagnosticar.
+ *
+ * **Nunca lanza.** El cobro ya salió cuando esto se llama —el texto es lo que
+ * de verdad hay que entregar—, así que un fallo escribiendo la constancia no
+ * puede llevarse por delante el envío; pero tampoco es mudo.
+ *
+ * Y los dos sellos **no se pisan**: un envío bueno no borra el motivo del fallo
+ * anterior y un fallo no borra la fecha del último envío bueno. Con una sola
+ * columna no se podría distinguir «nunca salió» de «salió y hoy falló».
+ */
+export async function anotarElEnvioDelAdjunto(
+    id: string,
+    resultado: { ok: true } | { ok: false; motivo: string },
+): Promise<void> {
+    try {
+        await conLasTablas(async () => {
+            if (resultado.ok) {
+                await db.$executeRaw`
+          UPDATE "cobro_adjuntos"
+          SET "ultimoEnvioEn" = CURRENT_TIMESTAMP
+          WHERE "id" = ${id}
+        `;
+                return;
+            }
+            await db.$executeRaw`
+        UPDATE "cobro_adjuntos"
+        SET "ultimoFalloEn" = CURRENT_TIMESTAMP,
+            "ultimoFallo" = ${resultado.motivo.slice(0, 400)}
+        WHERE "id" = ${id}
+      `;
+        });
+    } catch (error) {
+        console.warn("[cobros] no se pudo anotar cómo le fue a un adjunto", {
+            adjunto: id,
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+}
 
 export async function adjuntarAlCobro(input: {
     id: string;

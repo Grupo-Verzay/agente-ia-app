@@ -6,7 +6,16 @@ import { currentUser } from '@/lib/auth';
 import { persistChatMessage, resolveInstanceOwner } from '@/lib/chat-persistence';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
 import { anteponerFirmaDelAsesor } from '@/lib/firma-del-asesor';
-import { ensureWahaSessionEvents, getWahaPresence, sendWahaMedia, sendWahaText, type PresenciaWaha, type WahaMediaType } from '@/lib/waha';
+import {
+  ensureWahaSessionEvents,
+  etiquetaDeMediaWaha,
+  getWahaPresence,
+  sendWahaMedia,
+  sendWahaText,
+  snapshotDeSalienteWaha,
+  type PresenciaWaha,
+  type WahaMediaType,
+} from '@/lib/waha';
 import { canonicalToWahaJid } from '@/lib/waha-jid';
 import { subirAdjuntoSaliente } from '@/lib/adjuntos-salientes';
 import { apuntarLoQueHizo, apuntarUnaVezAlDia } from '@/lib/apuntar-actividad';
@@ -53,6 +62,20 @@ type OutgoingPayload = {
 };
 
 const TIPOS_DE_MEDIA: ReadonlySet<string> = new Set(['image', 'video', 'audio', 'document']);
+
+/**
+ * El snapshot compartido (`lib/waha.ts`), con el tipo que pide Prisma.
+ *
+ * La funcion vive en el lib porque la usa tambien el despachador de
+ * notificaciones, que no puede importar de un fichero `'use server'`; los
+ * `undefined` los descarta `JSON.stringify` al guardar y el tipo de Prisma no
+ * los contempla, de ahi el cast.
+ */
+function snapshotDeSaliente(
+  params: Parameters<typeof snapshotDeSalienteWaha>[0],
+): Prisma.InputJsonValue {
+  return snapshotDeSalienteWaha(params) as unknown as Prisma.InputJsonValue;
+}
 
 async function lineaWahaAutorizada(instanceName: string): Promise<
   { ok: true; userId: string } | { ok: false; message: string }
@@ -145,7 +168,7 @@ export async function sendWahaTextAction(
 
       const ahora = new Date();
       const mediaUrl = mediaUrlParaGuardar(archivo);
-      const texto = String(payload.caption ?? payload.fileName ?? etiquetaDeMedia(mediatype, payload.ptt));
+      const texto = String(payload.caption ?? payload.fileName ?? etiquetaDeMediaWaha(mediatype, payload.ptt));
       await persistChatMessage({
         userId: linea.userId,
         instanceName,
@@ -233,59 +256,6 @@ export async function sendWahaTextAction(
       remoteJid,
     };
   }
-}
-
-/**
- * El `raw` que se guarda con el mensaje, con la MISMA forma que un mensaje de
- * Evolution (`key`, `message`, `messageTimestamp`, `status`). La pantalla lee
- * las filas guardadas a traves de `getRawEvolutionSnapshot`, que reconoce esa
- * forma; un objeto cualquiera se colaba entero dentro de `message` y la
- * burbuja llevaba campos que no eran suyos. Sellado en SEGUNDOS, como todo lo
- * nuestro.
- */
-function snapshotDeSaliente(params: {
-  messageId: string | null;
-  remoteJid: string;
-  messageType: string;
-  message: Record<string, unknown>;
-  fecha: Date;
-  replyTo?: string | null;
-  citado?: Record<string, unknown> | null;
-}): Prisma.InputJsonValue {
-  // Los `undefined` los descarta JSON.stringify al guardar; el tipo de Prisma no
-  // los contempla, de ahi el cast.
-  return {
-    key: { id: params.messageId ?? null, fromMe: true, remoteJid: params.remoteJid },
-    messageType: params.messageType,
-    message: params.message,
-    messageTimestamp: Math.floor(params.fecha.getTime() / 1000),
-    // Una palomita: llego al servidor. Las siguientes las traen los acuses
-    // (message.ack) y las escribe el backend en raw.status.
-    status: 'SERVER_ACK',
-    source: 'waha',
-    origen: 'waha-app',
-    ...(params.replyTo ? { replyTo: params.replyTo } : {}),
-    // La cita, con la MISMA forma que la manda WhatsApp (`contextInfo.stanzaId`
-    // + `quotedMessage`). `replyTo` de aqui arriba es la forma de Waha y solo la
-    // entiende el envio; guardada asi, la conversacion la lee igual venga de la
-    // linea que venga. Sin esto la respuesta salia suelta, sin decir a que
-    // mensaje contestaba.
-    ...(params.replyTo
-      ? {
-          contextInfo: {
-            stanzaId: params.replyTo,
-            ...(params.citado ? { quotedMessage: params.citado } : {}),
-          },
-        }
-      : {}),
-  } as unknown as Prisma.InputJsonValue;
-}
-
-function etiquetaDeMedia(mediatype: string, ptt?: boolean): string {
-  if (mediatype === 'audio') return ptt ? '🎤 Nota de voz' : '🎵 Audio';
-  if (mediatype === 'image') return '📷 Imagen';
-  if (mediatype === 'video') return '🎥 Video';
-  return '📎 Documento';
 }
 
 /**
