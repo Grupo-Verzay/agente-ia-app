@@ -13,6 +13,8 @@ import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 import { sendingMessages } from '@/actions/sending-messages-actions';
 import { sendMediaByUrl } from '@/actions/chat-actions';
 import { persistChatMessage } from '@/lib/chat-persistence';
+import { anotarElEnvio } from '@/lib/salud-del-envio-db';
+import type { TipoDeEnvio } from '@/lib/salud-del-envio';
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 
@@ -504,7 +506,59 @@ export async function resolveWhatsAppDispatcherLineByInstanceName(
   };
 }
 
+/**
+ * De qué envío automático es esto, para dejar constancia.
+ *
+ * **Opcional a propósito.** Este despachador lo usan también el chat de Chats y
+ * el modo dueño por WhatsApp, que son una persona pulsando un botón y viendo el
+ * resultado en su pantalla: ahí no hay nada silencioso que registrar, y
+ * anotarlos llenaría la tabla de ruido. Lo que se anota es lo que sale SOLO.
+ */
+export type RegistroDelEnvio = {
+  tipo: TipoDeEnvio;
+  /** La cuenta a la que se le atribuye. La vigilancia no tiene. */
+  cuentaId?: string | null;
+};
+
+/**
+ * Mandar un texto por la línea que sea, y **dejar constancia de cómo fue**.
+ *
+ * El registro va AQUÍ y no en cada llamador, que es lo que hace que sirva: los
+ * seis caminos automáticos —cobros, desconexión, facturación, prueba de 7 días,
+ * informe semanal y el aviso de ticket resuelto— pasan todos por esta función,
+ * así que una sola línea los cubre y el séptimo que se añada queda cubierto
+ * solo. Con la anotación escrita en cada disparador, el cuarto se olvida — y un
+ * envío que no se anota es exactamente el que nadie echa en falta.
+ *
+ * Y **anotar no puede cambiar lo que pasó**: `anotarElEnvio` no lanza nunca
+ * (ver `lib/salud-del-envio-db.ts`). El mensaje salió o no salió antes de
+ * llegar a esa línea, y eso no se deshace.
+ */
 export async function sendViaWhatsAppDispatcher(args: {
+  dispatcher: WhatsAppDispatcherLine;
+  remoteJid: string;
+  text: string;
+  history?: Parameters<typeof sendingMessages>[0]['history'];
+  registro?: RegistroDelEnvio;
+}) {
+  const resultado = await mandarElTexto(args);
+
+  if (args.registro) {
+    await anotarElEnvio({
+      tipo: args.registro.tipo,
+      proveedor: args.dispatcher.provider,
+      cuentaId: args.registro.cuentaId ?? args.dispatcher.id,
+      linea: args.dispatcher.instanceName,
+      destinatario: args.remoteJid,
+      salio: Boolean(resultado?.success),
+      motivo: resultado?.message,
+    });
+  }
+
+  return resultado;
+}
+
+async function mandarElTexto(args: {
   dispatcher: WhatsAppDispatcherLine;
   remoteJid: string;
   text: string;
@@ -768,4 +822,39 @@ export async function sendMediaViaWhatsAppDispatcher(args: {
     message: res?.message ?? 'No se pudo enviar el archivo.',
     error: res?.success ? undefined : res?.message,
   };
+}
+
+/* ── Lo que no llega al despachador ───────────────────────────────────────── */
+
+/**
+ * Anotar un envío que **no llegó a intentarse** porque no había línea.
+ *
+ * Es el único caso que el despachador no puede ver, y no por descuido: los seis
+ * caminos automáticos resuelven su línea ANTES y se rinden si no la hay
+ * —`resolveWhatsAppDispatcherLine` devuelve `null`—, así que ese mensaje nunca
+ * pasa por `sendViaWhatsAppDispatcher`. Sin esta función, el fallo más
+ * silencioso de todos —la cuenta se quedó sin línea conectada y a su gente no
+ * le llega nada— sería justo el que no aparece en la pantalla de salud.
+ *
+ * Va con `proveedor: 'ninguno'`, que es lo cierto: no falló Waha, es que no
+ * había por dónde. Confundirlo con un fallo de Waha mandaría a mirar el
+ * servidor equivocado.
+ *
+ * No lanza, por lo mismo que `anotarElEnvio`.
+ */
+export async function anotarQueNoHabiaLinea(args: {
+  tipo: TipoDeEnvio;
+  cuentaId?: string | null;
+  destinatario?: string | null;
+  motivo?: string | null;
+}) {
+  await anotarElEnvio({
+    tipo: args.tipo,
+    proveedor: 'ninguno',
+    cuentaId: args.cuentaId,
+    linea: null,
+    destinatario: args.destinatario,
+    salio: false,
+    motivo: args.motivo ?? 'No hay ninguna línea de WhatsApp conectada para enviar.',
+  });
 }

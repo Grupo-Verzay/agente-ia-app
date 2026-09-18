@@ -483,6 +483,7 @@ async function avisarAlCliente(ticket: Ticket, id: string): Promise<boolean> {
         type: "notification",
         additionalKwargs: { kind: "ticket-resuelto", ticketId: id },
       },
+      registro: { tipo: "ticket", cuentaId: ticket.destinoId },
     });
 
     if (!res.success) {

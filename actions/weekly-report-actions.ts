@@ -319,6 +319,7 @@ export async function generateWeeklyReportForUser(userId: string): Promise<{
                     userId,
                 },
             },
+            registro: { tipo: "informe_semanal", cuentaId: userId },
         });
         if (res.success) {
             await db.$executeRaw`UPDATE weekly_reports SET sent_at = NOW() WHERE id = ${reportId}`;

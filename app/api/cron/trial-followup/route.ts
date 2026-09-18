@@ -297,6 +297,7 @@ async function runTrialFollowUps() {
             day: targetDay,
           },
         },
+        registro: { tipo: 'prueba', cuentaId: user.id },
       })
       if (!sendResult.success) throw new Error(sendResult.message)
       await recordLog('SENT')

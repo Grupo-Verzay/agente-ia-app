@@ -94,6 +94,10 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     // La cartera de cobro de una cuenta con SUS clientes. Entra en el
     // desplegable y **no** se monta en ningun modulo: se asigna a mano.
     { route: "/cobros" },
+    // Que salio y que fallo de lo que la plataforma manda sola. Es un apartado
+    // del panel y su puerta esta en la accion (`puedeVerLaAnaliticaDeLaCasa`),
+    // asi que asignarla no se la abre a nadie que no la pudiera ver ya.
+    { route: "/panel/salud-envios" },
     { route: "/actividad-equipo" },
     { route: "/cotizaciones" },
     { route: "/credits" },

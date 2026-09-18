@@ -388,6 +388,7 @@ export async function sendBillingTemplateMessage(args: {
         remoteJid,
         text,
         history,
+        registro: { tipo: "facturacion", cuentaId: args.billing.userId },
     });
 
     return {

@@ -7,6 +7,7 @@ import { leerLosDiasVigilados, type DiaVigilado } from "@/lib/vigilancia-de-chat
 import { juzgarElDia, redactarElAviso } from "@/lib/vigilancia-veredicto";
 import {
   resolveWhatsAppDispatcherLine,
+  anotarQueNoHabiaLinea,
   sendViaWhatsAppDispatcher,
 } from "@/actions/whatsapp-dispatcher";
 import { normalizeChatHistoryRemoteJid } from "@/lib/chat-history/build-session-id";
@@ -121,6 +122,13 @@ export async function avisarSiElDiaSeSalioDeLoNormal(): Promise<{
   const linea = await resolveWhatsAppDispatcherLine({ includeAdminFallback: true });
   if (!linea) {
     console.warn("[vigilancia] HAY QUE AVISAR y no hay linea por donde", { dia: ayer, texto });
+    // Sin linea no se llega al despachador: esto se anota aqui o no se anota.
+    await anotarQueNoHabiaLinea({
+      tipo: "desconexion",
+      cuentaId: jefe.id,
+      destinatario: jefe.notificationNumber,
+      motivo: "Ninguna linea conectada para enviar el aviso de vigilancia.",
+    });
     return { success: false, aviso: veredicto.motivo, message: "Ninguna linea conectada para enviar." };
   }
 
@@ -133,6 +141,10 @@ export async function avisarSiElDiaSeSalioDeLoNormal(): Promise<{
       type: "notification",
       additionalKwargs: { kind: "vigilancia-de-chats", userId: jefe.id },
     },
+    // La vigilancia avisa de lineas que dejaron de pasar mensajes, asi que
+    // comparte tipo con el aviso de desconexion: las dos son «una linea se
+    // cayo y hay que decirlo».
+    registro: { tipo: "desconexion", cuentaId: jefe.id },
   });
 
   if (!res.success) {

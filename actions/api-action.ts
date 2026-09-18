@@ -4,7 +4,12 @@ import { db } from "@/lib/db";
 import { ApiKey } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { resolveSystemNotificationDispatcherLine, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
+import {
+  anotarQueNoHabiaLinea,
+  resolveSystemNotificationDispatcherLine,
+  sendViaWhatsAppDispatcher,
+} from "./whatsapp-dispatcher";
+import { anotarElEnvio } from "@/lib/salud-del-envio-db";
 import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { crearSesionDeWaha, sePuedeCrearEnWaha } from "@/lib/crear-linea-waha";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
@@ -45,16 +50,41 @@ export async function sendQrDisconnectedNotification(
     (targetUser?.role === 'super_admin' ? targetUser.id : null);
 
   const dispatcher = await resolveSystemNotificationDispatcherLine(ownerUserId);
-  if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
+  if (!dispatcher) {
+    // Este aviso lo dispara un cron cada pocas horas y nadie lee su excepcion:
+    // sin linea de notificaciones, la plataforma deja de avisar de las
+    // desconexiones y el sintoma es que a nadie le llega nada. Queda anotado
+    // ANTES de lanzar, que es lo unico que lo hace visible.
+    await anotarQueNoHabiaLinea({
+      tipo: "desconexion",
+      cuentaId: ownerUserId ?? userId,
+      destinatario: remoteJid,
+      motivo: "No hay linea de notificaciones conectada.",
+    });
+    throw new Error("No hay linea de notificaciones conectada.");
+  }
 
   if (dispatcher.provider === "meta") {
     const templateName = "whatsapp_desvinculado_qr";
     const templateList = await listMetaTemplates(dispatcher.instanceName);
     const template = templateList.templates.find((item) => item.name === templateName);
     if (templateList.success && template) {
-      return sendMetaTemplate(dispatcher.instanceName, remoteJid, template, [
+      // Una plantilla de Meta NO pasa por el despachador, asi que su resultado
+      // se anota aqui o no se anota en ninguna parte. Es el mismo caso que la
+      // falta de linea: un camino que se sale antes de la funcion que registra.
+      const envio = await sendMetaTemplate(dispatcher.instanceName, remoteJid, template, [
         "agente.ia-app.com/profile",
       ]);
+      await anotarElEnvio({
+        tipo: "desconexion",
+        proveedor: "meta",
+        cuentaId: ownerUserId ?? userId,
+        linea: dispatcher.instanceName,
+        destinatario: remoteJid,
+        salio: Boolean(envio?.success),
+        motivo: envio?.message,
+      });
+      return envio;
     }
   }
 
@@ -71,6 +101,7 @@ export async function sendQrDisconnectedNotification(
         reason: 'evolution_disconnect',
       },
     },
+    registro: { tipo: 'desconexion', cuentaId: userId },
   });
 }
 
