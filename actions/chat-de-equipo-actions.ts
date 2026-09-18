@@ -23,6 +23,7 @@ import {
     perteneceAlCanal,
     puedeEscribirEnElCanal,
     puedeLeerElCanal,
+    soloLasPersonas,
     type CanalDeEquipo,
 } from "@/lib/canales-de-equipo";
 import {
@@ -56,8 +57,22 @@ export type HiloAbierto = {
     yo: string;
     /** Quién se puede mencionar AQUÍ: la gente de este canal, no la de la cuenta. */
     equipo: PersonaMencionable[];
-    /** Todo el equipo, para elegir con quién abrir un directo y a quién meter. */
+    /**
+     * Las PERSONAS: con quién se abre un directo y a quién se mete en un canal.
+     *
+     * No incluye las cuentas vinculadas de la familia —«Verzay | Atencion»,
+     * «Verzay Ventas»—: son líneas, no gente. Salían en DIRECTOS y un directo
+     * es entre dos personas.
+     */
     gente: PersonaMencionable[];
+    /**
+     * Cómo se llama cada id, cuentas incluidas.
+     *
+     * Aparte de `gente` a propósito: una cuenta no es alguien con quien hablar,
+     * pero sí puede aparecer como autor de un mensaje viejo o como la otra
+     * parte de un directo que ya existía. Sin este mapa saldría «Alguien».
+     */
+    nombres: Record<string, string>;
     puedoEscribir: boolean;
     /** Si quien mira crea, renombra y asigna canales. */
     mando: boolean;
@@ -137,6 +152,13 @@ async function laGente(familia: Familia): Promise<PersonaMencionable[]> {
     return (await laGenteDeLasCuentas(familia.cuentas)).map(comoPersona);
 }
 
+/** El mapa de nombres, cuentas incluidas: para nombrar, no para hablar. */
+function losNombres(gente: PersonaMencionable[]): Record<string, string> {
+    const mapa: Record<string, string> = {};
+    for (const p of gente) mapa[p.id] = p.name?.trim() || p.email || "Alguien";
+    return mapa;
+}
+
 /**
  * Una fila de `User` como persona mencionable.
  *
@@ -145,10 +167,16 @@ async function laGente(familia: Familia): Promise<PersonaMencionable[]> {
  * no convierte cada `@` del texto en una mención suya — que es lo que pasaría
  * sin esa guarda.
  */
-const comoPersona = (f: { id: string; name: string | null; email: string | null }) => ({
+const comoPersona = (f: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    esCuenta?: boolean;
+}) => ({
     id: f.id,
     name: f.name,
     email: f.email ?? "",
+    esCuenta: Boolean(f.esCuenta),
 });
 
 /**
@@ -191,7 +219,13 @@ function losCanalesQueVe(
         });
         if (!puedeLeerElCanal({ tipo: f.tipo, pertenece, manda })) continue;
 
-        const otro = f.tipo === "directo" ? f.miembros.find((m) => m !== yo) ?? null : null;
+        // Con quién es el directo, **solo si estoy dentro**. En uno que se
+        // supervisa sin ser parte, «el miembro que no soy yo» es uno de los dos
+        // ajenos — y eso lo metía en «con quien ya hablo», sacándolo de la lista
+        // de con quién abrir uno. O sea: el nombre que se pulsa no era el que
+        // parecía.
+        const pertenezcoAlDirecto = f.tipo === "directo" && f.miembros.includes(yo);
+        const otro = pertenezcoAlDirecto ? f.miembros.find((m) => m !== yo) ?? null : null;
         lista.push({
             id: f.id,
             tipo: f.tipo,
@@ -230,7 +264,9 @@ async function losMencionablesDe(
     // cuentas del canal, que es de donde sale la pertenencia.
     if (fila?.cuentas.length) {
         const filas = await laGenteDeLasCuentas(fila.cuentas);
-        const dentro = new Map(filas.map((f) => [f.id, comoPersona(f)]));
+        const dentro = new Map<string, PersonaMencionable>(
+            filas.map((f) => [f.id, comoPersona(f)]),
+        );
         // Y los invitados sueltos que además tenga, sin repetir a nadie.
         for (const p of gente) if (fila.miembros.includes(p.id)) dentro.set(p.id, p);
         return Array.from(dentro.values());
@@ -277,7 +313,11 @@ export async function hiloDelEquipoAction(
         if (!quien) return { success: false, message: "No autorizado." };
 
         const [filas, gente] = await Promise.all([
-            canalesQueAlcanzan(quien.cuentaId),
+            canalesQueAlcanzan({
+                cuentaId: quien.cuentaId,
+                personaId: quien.persona.id,
+                manda: quien.manda,
+            }),
             laGente(quien.familia),
         ]);
 
@@ -293,7 +333,19 @@ export async function hiloDelEquipoAction(
         // pedido no está entre los que esta persona ve, se cae al general en
         // vez de contestar con él.
         const pedido = canalDeLaFila(canalPedido);
-        const canal = canales.find((c) => c.id === pedido) ?? canales[0];
+        const encontrado = canales.find((c) => c.id === pedido);
+        const canal = encontrado ?? canales[0];
+        if (!encontrado && pedido !== CANAL_GENERAL) {
+            // La caída al general NO puede ser muda. Así es como se veía el
+            // directo que no se abría: se pulsaba un nombre y la pantalla
+            // volvía al General, sin un error en ninguna parte.
+            console.warn("[chat-equipo] se pidió un canal que no está en la lista", {
+                pedido,
+                cuenta: quien.cuentaId,
+                persona: quien.persona.id,
+                canales: canales.length,
+            });
+        }
 
         const fila = filas.find((f) => f.id === canal.id) ?? null;
         const [mensajes, equipo] = await Promise.all([
@@ -332,8 +384,9 @@ export async function hiloDelEquipoAction(
                 canalId: canal.id,
                 mensajes,
                 yo: quien.persona.id,
-                equipo,
-                gente,
+                equipo: soloLasPersonas(equipo, quien.familia.raiz),
+                gente: soloLasPersonas(gente, quien.familia.raiz),
+                nombres: losNombres(gente),
                 puedoEscribir: canal.puedoEscribir,
                 mando: quien.manda,
                 // Solo la madre reparte canales entre cuentas, así que solo
@@ -380,7 +433,11 @@ export async function enviarAlEquipoAction(
         if (!limpio) return { success: false, message: "Escribe algo antes de enviar." };
 
         const [filas, gente] = await Promise.all([
-            canalesQueAlcanzan(quien.cuentaId),
+            canalesQueAlcanzan({
+                cuentaId: quien.cuentaId,
+                personaId: quien.persona.id,
+                manda: quien.manda,
+            }),
             laGente(quien.familia),
         ]);
         const canales = losCanalesQueVe(
@@ -685,7 +742,11 @@ export async function sinLeerDelEquipoAction(): Promise<
         if (!quien) return { success: false, message: "No autorizado." };
 
         const [filas, gente] = await Promise.all([
-            canalesQueAlcanzan(quien.cuentaId),
+            canalesQueAlcanzan({
+                cuentaId: quien.cuentaId,
+                personaId: quien.persona.id,
+                manda: quien.manda,
+            }),
             laGente(quien.familia),
         ]);
         const canales = losCanalesQueVe(

@@ -324,7 +324,14 @@ export type FilaDeCanal = {
  * Los miembros se traen en la MISMA consulta, agregados. Pidiéndolos aparte
  * serían una consulta por canal, y esto lo lee la pantalla en cada apertura.
  */
-export async function canalesQueAlcanzan(cuentaId: string): Promise<FilaDeCanal[]> {
+export async function canalesQueAlcanzan(input: {
+    cuentaId: string;
+    /** Quién mira. Un directo se encuentra porque está DENTRO, no por la cuenta. */
+    personaId: string;
+    /** Si además supervisa los directos de la gente de su cuenta. */
+    manda: boolean;
+}): Promise<FilaDeCanal[]> {
+    const { cuentaId, personaId, manda } = input;
     return conLaTabla(() => db.$queryRaw<FilaDeCanal[]>`
         SELECT c."id", c."tipo", c."nombre", c."llave", c."cuentaId",
                COALESCE(
@@ -342,6 +349,32 @@ export async function canalesQueAlcanzan(cuentaId: string): Promise<FilaDeCanal[
            OR EXISTS (
                 SELECT 1 FROM "team_channel_accounts" a
                 WHERE a."canalId" = c."id" AND a."cuentaId" = ${cuentaId}
+           )
+           -- Un DIRECTO se encuentra porque estás DENTRO, no por la cuenta de
+           -- la que cuelga. Cuelga de la RAÍZ de la familia —para que entre
+           -- cuentas hermanas no salga duplicado— y se buscaba por la cuenta de
+           -- quien mira: solo coinciden en la raíz, así que desde cualquier
+           -- vinculada el directo no aparecía y el servidor se caía al general.
+           OR (
+                c."tipo" = 'directo'
+                AND EXISTS (
+                    SELECT 1 FROM "team_channel_members" m
+                    WHERE m."canalId" = c."id" AND m."personaId" = ${personaId}
+                )
+           )
+           -- Y quien manda sigue leyendo los directos de LA GENTE DE SU CUENTA,
+           -- que es como estaba escrita la regla. Por la cuenta de la que
+           -- cuelgan ya no vale: ahora cuelgan todos de la raíz, así que solo
+           -- los leería la raíz.
+           OR (
+                ${manda}::boolean
+                AND c."tipo" = 'directo'
+                AND EXISTS (
+                    SELECT 1 FROM "team_channel_members" m
+                    JOIN "User" u ON u."id" = m."personaId"
+                    WHERE m."canalId" = c."id"
+                      AND (u."id" = ${cuentaId} OR u."owner_id" = ${cuentaId})
+                )
            )
         ORDER BY c."creadoEn" ASC
     `);
@@ -491,7 +524,13 @@ export async function abrirElDirecto(input: {
 
 // ── La gente ────────────────────────────────────────────────────────────────
 
-export type FilaDePersona = { id: string; name: string | null; email: string | null };
+export type FilaDePersona = {
+    id: string;
+    name: string | null;
+    email: string | null;
+    /** Es una CUENTA de la familia, no alguien del equipo. */
+    esCuenta: boolean;
+};
 
 /**
  * La gente de unas cuantas cuentas: sus equipos **y las cuentas mismas**.
@@ -516,7 +555,8 @@ export async function laGenteDeLasCuentas(cuentas: string[]): Promise<FilaDePers
     if (!ids.length) return [];
 
     return db.$queryRaw<FilaDePersona[]>`
-        SELECT DISTINCT ON (u.id) u.id, u.name, u.email
+        SELECT DISTINCT ON (u.id) u.id, u.name, u.email,
+               (u."owner_id" IS NULL) AS "esCuenta"
         FROM "User" u
         WHERE u.id IN (${Prisma.join(ids)})
            OR u."owner_id" IN (${Prisma.join(ids)})

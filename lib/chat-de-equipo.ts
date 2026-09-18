@@ -77,6 +77,14 @@ export type PersonaMencionable = {
     id: string;
     name: string | null;
     email: string;
+    /**
+     * Es una CUENTA de la familia, no alguien del equipo.
+     *
+     * Lo decide `soloLasPersonas`: las cuentas vinculadas son líneas y no salen
+     * en DIRECTOS ni entre los mencionables. La raíz sí, porque es el inicio de
+     * sesión del dueño.
+     */
+    esCuenta?: boolean;
 };
 
 /** Cómo se le llama a alguien cuando no tiene nombre puesto. */
@@ -187,4 +195,94 @@ export function quienFirma(user: QuienEscribe): Firma | null {
         cuentaId,
         escritoDesde: user.porImpersonacion ? cuentaId : null,
     };
+}
+
+/**
+ * La arroba que se está escribiendo, si es que hay una.
+ *
+ * # Por qué es puro y por qué se prueba
+ *
+ * Porque **el selector no existía**: el `placeholder` decía «@ para mencionar»
+ * y no había ninguna lista. La mención funcionaba solo si escribías el nombre
+ * exacto, y nada te lo proponía. Esto es lo que decide cuándo ofrecerla, y
+ * equivocarse aquí se ve de dos formas malas: una lista que sale cuando no
+ * toca —al escribir un correo— o una que no sale nunca.
+ *
+ * # Las tres condiciones
+ *
+ * 1. **La arroba tiene que abrir palabra.** Ni justo después de una letra ni de
+ *    un número: es la misma condición con la que el servidor decide que
+ *    `hola@verzay.com` **no** es una mención, y las dos tienen que estar de
+ *    acuerdo o la lista ofrecería a alguien que luego no se menciona.
+ * 2. **Sin salto de línea dentro.** Lo que se escribe después de un Enter es
+ *    otra frase, no la continuación del nombre.
+ * 3. **Con un tope de largo.** Un nombre tiene dos o tres palabras; sin tope,
+ *    un párrafo entero detrás de una arroba se quedaría buscando para siempre.
+ */
+export const TOPE_DE_LO_QUE_SE_BUSCA = 40;
+
+export type ArrobaEnCurso = { desde: number; buscado: string };
+
+export function laArrobaQueSeEscribe(
+    texto: string,
+    cursor: number,
+): ArrobaEnCurso | null {
+    const hasta = Math.max(0, Math.min(cursor, texto.length));
+    const desde = texto.lastIndexOf("@", hasta - 1);
+    if (desde < 0) return null;
+
+    // Ni justo después de una letra o un número: eso es un correo, no una
+    // mención. La misma condición que `extraerMenciones` aplica al leer.
+    const antes = desde > 0 ? texto[desde - 1] : "";
+    if (antes && /[\p{L}\p{N}]/u.test(antes)) return null;
+
+    const buscado = texto.slice(desde + 1, hasta);
+    if (buscado.includes("\n")) return null;
+    if (buscado.length > TOPE_DE_LO_QUE_SE_BUSCA) return null;
+
+    return { desde, buscado };
+}
+
+/**
+ * A quién se le ofrece, para lo que se lleva escrito.
+ *
+ * Sin nada escrito salen todos —abrir la lista con solo `@` es lo que hace que
+ * sirva para no tener que recordar el nombre—. Con algo escrito, se busca **en
+ * el nombre y en el correo**, en cualquier parte y sin distinguir mayúsculas:
+ * quien busca «silvera» tiene que encontrar a «Yair Silvera».
+ */
+export function aQuienSeOfrece(
+    gente: PersonaMencionable[],
+    buscado: string,
+    tope = 8,
+): PersonaMencionable[] {
+    const q = buscado.trim().toLowerCase();
+    const casan = q
+        ? gente.filter(
+              (p) =>
+                  (p.name ?? "").toLowerCase().includes(q) ||
+                  p.email.toLowerCase().includes(q),
+          )
+        : gente;
+    return casan.slice(0, tope);
+}
+
+/**
+ * El texto con la mención ya puesta, y dónde queda el cursor.
+ *
+ * Se escribe **el nombre tal cual**, que es la forma que el servidor reconoce
+ * (`@` más el nombre o el correo, exacto). Y se deja un espacio detrás: sin él,
+ * lo siguiente que se teclee se pega al nombre y deja de ser una mención.
+ */
+export function ponerLaMencion(
+    texto: string,
+    arroba: ArrobaEnCurso,
+    persona: PersonaMencionable,
+    cursor: number,
+): { texto: string; cursor: number } {
+    const nombre = comoSeLlama(persona);
+    const antes = texto.slice(0, arroba.desde);
+    const despues = texto.slice(Math.min(cursor, texto.length));
+    const puesto = `@${nombre} `;
+    return { texto: `${antes}${puesto}${despues}`, cursor: antes.length + puesto.length };
 }
