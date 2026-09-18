@@ -179,18 +179,17 @@ export function AdvisorClientsDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-row items-center justify-between sm:justify-between">
+        {/* Hijos DIRECTOS del pie: ver `components/ui/dialog.tsx`. */}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
           <span className="text-xs text-muted-foreground tabular-nums">
             {loading ? "" : `${asignados.size} de ${clientes.length} asignados`}
           </span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button variant="save" onClick={guardar} disabled={loading || saving}>
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </div>
+          <Button variant="save" onClick={guardar} disabled={loading || saving}>
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

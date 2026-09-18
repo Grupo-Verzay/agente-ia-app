@@ -69,6 +69,22 @@ const DialogHeader = ({
 )
 DialogHeader.displayName = "DialogHeader"
 
+/**
+ * El pie de la casa: **cancelar pegado al borde izquierdo y la accion pegada al
+ * derecho**, en extremos opuestos. Nunca los dos juntos a la derecha.
+ *
+ * Dos cosas, y la segunda es la que se olvida:
+ *
+ * - `justify-between` reparte a los HIJOS DIRECTOS. Metiendo los dos botones
+ *   dentro de un `<div className="flex gap-2">` el pie ve **un solo hijo**, lo
+ *   manda a un extremo y los botones salen amontonados. Es justo lo que le
+ *   pasaba al dialogo de crear tarea de Proyectos.
+ * - Con **un solo boton** —guardar, sin cancelar— `justify-between` lo deja a
+ *   la IZQUIERDA, que es el mismo fallo por el otro lado: una accion colgando
+ *   del borde que no le toca. Por eso el `:only-child` se empuja con `ml-auto`.
+ *   Asi el caso de un boton sale bien sin que cada dialogo tenga que acordarse
+ *   de escribir `justify-end`, que es lo que hacia que se perdiera la regla.
+ */
 const DialogFooter = ({
   className,
   ...props
@@ -76,6 +92,7 @@ const DialogFooter = ({
   <div
     className={cn(
       "flex flex-row flex-wrap items-center justify-between gap-2",
+      "[&>*:only-child]:ml-auto",
       className
     )}
     {...props}

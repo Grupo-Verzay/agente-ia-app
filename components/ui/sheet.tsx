@@ -94,7 +94,12 @@ const SheetFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      // El mismo pie que `DialogFooter`. Iba con `sm:justify-end`, o sea los
+      // dos botones juntos a la derecha: la regla de la casa escrita al reves.
+      // Hoy no lo importa nadie, y precisamente por eso: el dia que alguien
+      // monte un panel con pie, saldria distinto de los ciento y pico dialogos.
+      "flex flex-row flex-wrap items-center justify-between gap-2",
+      "[&>*:only-child]:ml-auto",
       className
     )}
     {...props}

@@ -155,18 +155,19 @@ export function ClientAdvisorsDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-row items-center justify-between sm:justify-between">
+        {/* Los tres van como hijos DIRECTOS del pie. Metidos en un <div>, el
+            pie ve UN solo hijo y Cancelar y Guardar salen juntos a la derecha,
+            que es la regla de la casa escrita al reves. La cuenta va en medio. */}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
           <span className="text-xs text-muted-foreground tabular-nums">
             {loading ? "" : `${asignados.size} de ${miembros.length} asignados`}
           </span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button variant="save" onClick={guardar} disabled={loading || saving}>
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </div>
+          <Button variant="save" onClick={guardar} disabled={loading || saving}>
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

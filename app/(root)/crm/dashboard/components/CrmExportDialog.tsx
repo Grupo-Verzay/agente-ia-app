@@ -331,31 +331,31 @@ export function CrmExportDialog({
                 <Separator />
 
                 {/* Footer */}
-                <DialogFooter className="flex-row items-center justify-between gap-3 px-6 py-4">
+                {/* Hijos DIRECTOS del pie: ver `components/ui/dialog.tsx`. El
+                    formato queda en medio, entre los dos extremos. */}
+                <DialogFooter className="gap-3 px-6 py-4">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onOpenChange(false)}
+                        disabled={isExporting}
+                    >
+                        Cancelar
+                    </Button>
+
                     <p className="text-xs text-muted-foreground">
                         Formato: <span className="font-medium text-foreground">.xlsx</span>
                     </p>
 
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onOpenChange(false)}
-                            disabled={isExporting}
-                        >
-                            Cancelar
-                        </Button>
-
-                        <Button
-                            size="sm"
-                            onClick={handleExport}
-                            disabled={isExporting || selectedColumns.length === 0}
-                            className="gap-2"
-                        >
-                            <Download className="h-4 w-4" />
-                            {isExporting ? "Exportando…" : "Exportar Excel"}
-                        </Button>
-                    </div>
+                    <Button
+                        size="sm"
+                        onClick={handleExport}
+                        disabled={isExporting || selectedColumns.length === 0}
+                        className="gap-2"
+                    >
+                        <Download className="h-4 w-4" />
+                        {isExporting ? "Exportando…" : "Exportar Excel"}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

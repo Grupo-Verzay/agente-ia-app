@@ -65,7 +65,11 @@ const AlertDialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
+      // El mismo pie que `DialogFooter`, y por los mismos motivos: ver el
+      // comentario de `components/ui/dialog.tsx`. Los dos tienen que decir lo
+      // mismo o un dialogo de confirmacion se lee distinto de uno normal.
       "flex flex-row flex-wrap items-center justify-between gap-2",
+      "[&>*:only-child]:ml-auto",
       className
     )}
     {...props}

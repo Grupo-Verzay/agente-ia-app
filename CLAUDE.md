@@ -2935,6 +2935,58 @@ no un diálogo: se cerraba solo con el clic de fuera, sin Escape, sin foco
 atrapado dentro y sin que un lector de pantalla supiera que se había abierto
 nada. Un diálogo se hace con `Dialog`.
 
+#### Y `justify-between` reparte a los HIJOS DIRECTOS
+
+Usar `DialogFooter` **no basta**, y por eso la regla se estaba perdiendo con el
+pie correcto puesto. `justify-between` reparte a los hijos directos, así que
+metiendo los dos botones dentro de un `<div className="flex gap-2">` el pie ve
+**un solo hijo**, lo manda a un extremo y los botones salen amontonados. Es
+exactamente lo que le pasaba al diálogo de crear tarea de Proyectos — que además
+llevaba un `<span />` de relleno ocupando el borde izquierdo **por ellos**, o
+sea la forma más difícil de ver de romper la regla: el pie parecía bien escrito.
+
+Medido en Chromium sobre un pie de 420 px, y no mirando la pantalla, que es de
+lo que no se entera nadie:
+
+| | Cancelar | la acción |
+| --- | --- | --- |
+| con envoltorio | **+198 px** del borde izquierdo | −1 px del derecho |
+| hijos directos | +1 px | −1 px |
+
+Y el mismo fallo tiene una **segunda mitad, por el otro lado**: con **un solo
+botón** —guardar, sin cancelar— `justify-between` lo deja a la **izquierda**.
+Eran 17 diálogos con la acción colgando del borde que no le toca, y cada uno se
+arreglaba escribiendo `justify-end` a mano, que es justo lo que hace que la
+regla se pierda.
+
+Las dos cosas se arreglan **en el pie compartido**, no diálogo por diálogo:
+
+```
+"flex flex-row flex-wrap items-center justify-between gap-2 [&>*:only-child]:ml-auto"
+```
+
+Tres cosas que hay que mantener:
+
+1. **Los botones van como hijos DIRECTOS del pie.** Si hace falta un dato en
+   medio —«3 de 12 asignados», «Formato: .xlsx»— va **entre los dos**, como un
+   hijo más, no pegado a uno de ellos. Con tres, `justify-between` los deja
+   izquierda / centro / derecha, que es donde tienen que estar.
+2. **Un tercer botón destructivo va en MEDIO**, no en el borde izquierdo: ese
+   borde es de cancelar. Es el caso de «Eliminar» en la tarea de Proyectos.
+3. **Los tres pies dicen lo mismo**: `DialogFooter`, `AlertDialogFooter` y
+   `SheetFooter`. El de `Sheet` iba con `sm:justify-end` —la regla escrita al
+   revés— y hoy no lo importa nadie; precisamente por eso: el día que alguien
+   monte un panel con pie, saldría distinto de los ciento y pico diálogos y
+   nadie sabría de dónde salió.
+
+Y cómo se comprueba que la clase existe en producción, que es la misma familia
+que `removeConsole` y que las clases de `lib/`: se busca la **declaración** en
+el build, no la clase en el código.
+
+```
+npm run build && grep -c "only-child" .next/static/css/*.css
+```
+
 ### Y la ruta no está montada: la puerta va en la acción
 
 `/cobros` entra en `navigationRoutes` —el desplegable de «Editar módulo»— y **no
