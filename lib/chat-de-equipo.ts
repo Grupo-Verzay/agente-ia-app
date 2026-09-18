@@ -28,6 +28,8 @@
  * mete este texto dentro de la ventana que interrumpe, y un texto sin límite la
  * desborda y tapa la pantalla entera.
  */
+import type { ChatCompartido } from "@/lib/chat-compartido";
+
 export const TOPE_DEL_MENSAJE = 2000;
 
 /** Cuántos mensajes se traen de golpe. */
@@ -70,6 +72,15 @@ export type MensajeDeEquipo = {
     /** A quién se mencionó. Es lo que decide a quién le saltó el aviso. */
     mencionados: string[];
     creadoEn: string;
+    /**
+     * La conversación de Chats que el mensaje señala, si señala alguna.
+     *
+     * Va como DATO y no como una dirección escrita dentro del texto: así quien
+     * recibe puede comprobar el acceso **antes** de pintar el botón y decir por
+     * qué no puede abrirla, en vez de ofrecer un enlace que aterriza en una
+     * pantalla vacía. Ver `lib/chat-compartido.ts`.
+     */
+    chat?: ChatCompartido | null;
 };
 
 /** Lo mínimo que hace falta saber de alguien para mencionarlo. */

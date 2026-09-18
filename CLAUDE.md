@@ -2564,6 +2564,99 @@ Nunca están los dos paneles abiertos a la vez: abrir uno cierra el otro. Son do
 paneles en el mismo sitio, y abiertos a la vez uno taparía al otro sin decir
 cuál está delante.
 
+## Chats → equipo: la conversación se SEÑALA, no se cuenta
+
+Para que el equipo viera un caso de WhatsApp, el asesor copiaba el texto a mano
+y lo explicaba. Lo que faltaba no era poder contarlo: era poder **señalar la
+conversación**, y que quien lo pulse caiga dentro sin buscarla.
+
+**El enlace NO viaja como texto dentro del mensaje.** Va en columnas de la fila
+—`chatLinea`, `chatJid`, `chatIdentidades`, `chatNombre`, `chatNumero`, con
+`ALTER TABLE … ADD COLUMN IF NOT EXISTS` porque la tabla ya está desplegada— y
+lo que entiende de ellas es `lib/chat-compartido.ts`, puro. Tres motivos:
+
+1. **La burbuja pinta texto plano** (`whitespace-pre-wrap`). Una dirección
+   escrita ahí no es pulsable, y ponerse a reconocer enlaces dentro del texto es
+   la familia de fallo de la que va medio este documento.
+2. **Con el dato aparte, quien recibe puede comprobar el acceso ANTES de pintar
+   el botón** y decir por qué no se abre, en vez de ofrecer un enlace que
+   aterriza en una pantalla vacía. Es la mitad que de verdad importa.
+3. **El nombre y el número se COPIAN dentro**, como `autorNombre`: el mensaje
+   sigue diciendo de quién se hablaba aunque después se borre el chat.
+
+Y **cinco columnas, no un blob**: cada una se escribe y se lee por su nombre, así
+que una clave mal puesta falla en vez de guardarse en silencio.
+
+### La LÍNEA va en el enlace, y no es opcional
+
+`/chats?jid=…&instance=…`. La ruta **ya existía** —`searchParams.jid` e
+`instance` en la página de Chats—, así que esto no inventa un camino nuevo: lo
+escribe en un sitio (`aDondeLlevaElChat`).
+
+Lo que no se puede ablandar es la línea. El mismo contacto tiene conversación en
+dos líneas —le escribe a Ventas y a Atención, es lo normal—, así que sin ella el
+aterrizaje elegiría **la primera fila que aparezca**: es exactamente el fallo de
+`ownerForJid` y `lineaDelJid` que ya costó una sesión con las marcas de borrado.
+
+Y se guardan **todas las identidades** del contacto, con la pedida delante. La
+lista lo devuelve por la que Evolution dé esa vuelta; preguntar por una sola
+forma «devuelve correcto y vacío», que es la regla de siempre de Chats.
+
+**El número se COPIA de lo que la pantalla ya sabe y nunca se deduce de un
+`@lid`.** Sus dígitos son un id de privacidad, no un teléfono. `elNumeroQueSeEnsena`
+mira el **dominio** (`@s.whatsapp.net` / `@c.us`) y no la pinta de los dígitos:
+fiarlo al largo del número es que el día que un `@lid` tenga quince cifras se
+enseñe como teléfono al que llamar — y podría ser el de otro contacto.
+
+### Y quien lo abre sin acceso ve un aviso, no una pantalla vacía
+
+Es la pregunta entera de esta función, y son **tres casos que no se pueden
+confundir**:
+
+1. **La línea no está en su bandeja.** La bandeja alcanza **un solo nivel y en
+   los dos sentidos** (`linked_accounts`: desde una vinculada se ven las líneas
+   de la madre, y desde la madre las de sus vinculadas) — **no alcanza a las
+   hermanas**. Así que un canal que cruza Atención y Ventas puede ponerle
+   delante a alguien de Ventas una conversación de una línea de Atención. Sin
+   nada, eso aterrizaba con `selectedJid` puesto y sin fila: cabecera con el jid
+   crudo, conversación vacía y ninguna explicación — que no se lee como «no
+   tienes acceso», se lee como que la App está rota. Ahora la página compara la
+   línea pedida con las que resolvió y pinta `SinAccesoALaLinea`.
+2. **La línea sí está, pero el chat no entró en la página cargada.** La bandeja
+   está topada en 300 (`TOPE_DE_LA_BANDEJA`). Una conversación vieja es
+   perfectamente accesible y simplemente no viene en la primera página. **Eso no
+   es falta de permiso** y no puede tratarse como tal: decirle «no tienes
+   acceso» a quien sí lo tiene es peor que la pantalla vacía. Por eso la puerta
+   mira la LÍNEA y no si el chat está en la lista.
+3. **No está en el canal.** No llega a pasar leyendo —solo se ofrecen canales
+   donde participa—, y aun así **la puerta de Chats no pregunta por el canal**:
+   el canal decide quién lee el mensaje, la línea decide quién abre la
+   conversación. Dos preguntas, dos puertas, como las notas.
+
+El aviso dice **las tres cosas que hacen falta para no quedarse mirando**: que
+la conversación existe, que no se abre porque es de otra cuenta —no por un
+error— y a quién pedírsela. Y no dice de quién es la línea ni qué hay dentro:
+quien no alcanza esa cuenta tampoco tiene por qué saberlo.
+
+### Y del lado de quien comparte
+
+- **Solo se ofrecen los canales donde se puede ESCRIBIR** (`puedoEscribir`), no
+  donde se puede leer. Un administrador lee los directos de su cuenta y no
+  escribe en ellos, así que ofrecérselos sería ofrecer un destino que la acción
+  luego rechaza — y un botón que al pulsarlo da error es peor que no tenerlo.
+- **Y se vuelve a comprobar en el servidor.** Lo que diga el navegador sobre en
+  qué canal publica no se da por bueno, igual que con las menciones.
+- **La línea compartida tiene que ser suya** (`esMiLinea`: `resolveInstanceOwner`
+  más `assertCanAccessTargetUser`). Sin eso, cualquiera publicaría en su canal
+  una referencia a una línea ajena, con el nombre y el número de un contacto que
+  no es suyo. Esconder el botón no cierra la petición directa.
+- **Los canales se piden al ABRIR el diálogo**, no en cada carga de Chats. Esa
+  pantalla es de las más caras de la App; una consulta más en cada entrada, para
+  un diálogo que casi nunca se abre, es «esperar turno en vez de trabajar».
+- **Media referencia no es una referencia**: sin línea o sin jid,
+  `comoSeGuardaElChat` devuelve `null` y la acción lo **dice**. Publicar el
+  mensaje sin la tarjeta se leería como que el botón no hizo nada.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

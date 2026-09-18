@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Building2,
+    ExternalLink,
     Hash,
     Loader2,
     Lock,
@@ -32,6 +33,11 @@ import {
     TOPE_DEL_NOMBRE,
     type CanalDeEquipo,
 } from "@/lib/canales-de-equipo";
+import {
+    aDondeLlevaElChat,
+    elNumeroQueSeEnsena,
+    type ChatCompartido,
+} from "@/lib/chat-compartido";
 import {
     abrirDirectoAction,
     crearCanalAction,
@@ -1098,6 +1104,47 @@ function Burbuja({
             >
                 {mensaje.texto}
             </div>
+            {mensaje.chat ? <TarjetaDeChat chat={mensaje.chat} /> : null}
         </div>
+    );
+}
+
+/**
+ * La conversación de Chats que señala un mensaje.
+ *
+ * Va **fuera de la burbuja**, debajo: dentro se confundiría con lo que alguien
+ * escribió, y esto no lo escribió nadie — lo puso el botón de compartir.
+ *
+ * Y es un enlace de verdad (`<a href>`), no un botón que navega: así se puede
+ * abrir en otra pestaña con el botón de en medio, que es justo lo que hace
+ * quien no quiere perder el canal que está leyendo.
+ *
+ * **La comprobación de si se puede abrir NO está aquí.** Está en la pantalla de
+ * Chats, que es la que sabe qué líneas ve esta persona; ofrecer el enlace y que
+ * allí se explique es mejor que esconderlo, porque un botón que desaparece no
+ * dice por qué. Ver `lib/chat-compartido.ts`.
+ */
+function TarjetaDeChat({ chat }: { chat: ChatCompartido }) {
+    const numero = elNumeroQueSeEnsena(chat);
+
+    return (
+        <a
+            href={aDondeLlevaElChat(chat)}
+            className="flex w-full max-w-[85%] items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 transition-colors hover:border-primary/50 hover:bg-muted/40"
+        >
+            <MessagesSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-sm font-medium">
+                    {chat.nombre?.trim() || numero || "Conversación"}
+                </span>
+                <span className="truncate text-[11px] text-muted-foreground">
+                    {/* El número solo si se sabe de verdad: los dígitos de un
+                        `@lid` son un id de privacidad y enseñarlos como
+                        teléfono es peor que no enseñar nada. */}
+                    {[numero, chat.linea].filter(Boolean).join(" · ")}
+                </span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </a>
     );
 }

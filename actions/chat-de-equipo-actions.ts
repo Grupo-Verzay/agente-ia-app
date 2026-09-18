@@ -13,6 +13,9 @@ import {
     type MensajeDeEquipo,
     type PersonaMencionable,
 } from "@/lib/chat-de-equipo";
+import { comoSeGuardaElChat } from "@/lib/chat-compartido";
+import { resolveInstanceOwner } from "@/lib/chat-persistence";
+import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import {
     CANAL_GENERAL,
     NOMBRE_DEL_GENERAL,
@@ -421,9 +424,101 @@ export async function hiloDelEquipoAction(
  *    sale sin decirlo se lee como «a mí nunca me llega nada», que es el fallo
  *    original de todo este asunto.
  */
+/**
+ * Los canales donde esta persona PUEDE ESCRIBIR, para el diálogo de Chats.
+ *
+ * Trae lo mínimo —id, nombre y tipo— y **ni un mensaje**: se pide al abrir el
+ * diálogo, desde una pantalla que ya es de las más caras de la App. Llamar a
+ * `hiloDelEquipoAction` aquí traería el hilo entero del general por el gusto de
+ * pintar un desplegable.
+ *
+ * Y se filtra por `puedoEscribir`, no por `pertenezco`: un administrador LEE
+ * los directos de su cuenta y **no escribe en ellos** —meterse en la
+ * conversación de otros dos no es supervisar, es suplantar—, así que
+ * ofrecérselos sería ofrecer un destino que la acción luego rechaza. Un botón
+ * que al pulsarlo da error es peor que no tenerlo.
+ */
+export async function canalesParaCompartirAction(): Promise<
+    Respuesta<{ canales: { id: string; nombre: string; tipo: string }[] }>
+> {
+    try {
+        const quien = await quienYDonde();
+        if (!quien) return { success: false, message: "No autorizado." };
+
+        const [filas, gente] = await Promise.all([
+            canalesQueAlcanzan({
+                cuentaId: quien.cuentaId,
+                personaId: quien.persona.id,
+                manda: quien.manda,
+            }),
+            laGente(quien.familia),
+        ]);
+        const canales = losCanalesQueVe(
+            filas,
+            quien.persona.id,
+            quien.cuentaId,
+            quien.manda,
+            gente,
+        )
+            .filter((c) => c.puedoEscribir)
+            .map((c) => ({ id: c.id, nombre: c.nombre, tipo: c.tipo }));
+
+        return { success: true, data: { canales } };
+    } catch (error) {
+        // Mudo aquí se ve como un desplegable vacío, que se lee como «no
+        // tengo ningún canal» y no como un fallo.
+        console.warn("[chat-equipo] no se pudieron leer los canales para compartir", error);
+        return { success: false, message: "No se pudieron cargar los canales." };
+    }
+}
+
+/**
+ * Si esa línea es de una cuenta sobre la que manda quien está llamando.
+ *
+ * Es la misma puerta que el resto de la App —`assertCanAccessTargetUser` sobre
+ * el dueño que resuelve `resolveInstanceOwner`—, y va aquí y no en la pantalla
+ * por el motivo de siempre: **esconder el botón no cierra la petición
+ * directa**. Sin esto, cualquiera publicaría en su canal una referencia a una
+ * línea ajena, con el nombre y el número de un contacto que no es suyo.
+ *
+ * Y **no lanza**: devuelve un `false` que quien llama convierte en un aviso.
+ * Un `throw` aquí acabaría en el `catch` de la acción como «Error interno»,
+ * que es tanto como no decir por qué.
+ */
+async function esMiLinea(instanceName: string): Promise<boolean> {
+    try {
+        const linea = await resolveInstanceOwner(instanceName);
+        if (!linea?.userId) return false;
+        await assertCanAccessTargetUser(linea.userId);
+        return true;
+    } catch (error) {
+        console.warn("[chat-equipo] no se pudo compartir esa línea", {
+            instanceName,
+            error: error instanceof Error ? error.message : error,
+        });
+        return false;
+    }
+}
+
 export async function enviarAlEquipoAction(
     texto: string,
     canalPedido?: string,
+    /**
+     * La conversación de Chats que el mensaje señala, si señala alguna.
+     *
+     * Llega del navegador, así que **no se da por buena**: se sanea y, sobre
+     * todo, se comprueba que esa línea sea de una cuenta sobre la que quien
+     * escribe manda. Sin eso, cualquiera publicaría una referencia a una línea
+     * ajena y el equipo del canal vería nombre y número de un contacto que no
+     * es suyo.
+     */
+    chatPedido?: {
+        linea?: string;
+        jid?: string;
+        identidades?: string[];
+        nombre?: string | null;
+        numero?: string | null;
+    },
 ): Promise<Respuesta<{ mensaje: MensajeDeEquipo; canalId: string }>> {
     try {
         const quien = await quienYDonde();
@@ -431,6 +526,22 @@ export async function enviarAlEquipoAction(
 
         const limpio = comoSeGuardaElTexto(texto);
         if (!limpio) return { success: false, message: "Escribe algo antes de enviar." };
+
+        const chat = chatPedido ? comoSeGuardaElChat(chatPedido) : null;
+        if (chatPedido && !chat) {
+            // Media referencia no es una referencia: sin línea no hay a dónde
+            // llevar y sin jid no hay qué abrir. Y se dice, porque desde fuera
+            // un mensaje que sale sin la tarjeta se lee como que el botón no
+            // hizo nada.
+            console.warn("[chat-equipo] se pidió compartir un chat incompleto", {
+                linea: chatPedido.linea,
+                tieneJid: Boolean(chatPedido.jid),
+            });
+            return { success: false, message: "No se pudo identificar esa conversación." };
+        }
+        if (chat && !(await esMiLinea(chat.linea))) {
+            return { success: false, message: "Esa conversación no es de una línea tuya." };
+        }
 
         const [filas, gente] = await Promise.all([
             canalesQueAlcanzan({
@@ -477,6 +588,7 @@ export async function enviarAlEquipoAction(
             texto: limpio,
             mencionados,
             creadoEn: new Date().toISOString(),
+            chat,
         };
 
         await guardarUnMensaje({
@@ -488,6 +600,7 @@ export async function enviarAlEquipoAction(
             escritoDesde: quien.escritoDesde,
             texto: mensaje.texto,
             mencionados,
+            chat,
         });
 
         if (mencionados.length) {
