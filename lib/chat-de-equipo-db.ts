@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { TOPE_DE_MENSAJES, type MensajeDeEquipo } from "@/lib/chat-de-equipo";
+import type { ChatCompartido } from "@/lib/chat-compartido";
 import {
     CANAL_GENERAL,
     type TipoDeCanal,
@@ -73,6 +74,38 @@ function asegurarLaTabla(): Promise<void> {
         await db.$executeRaw`
             ALTER TABLE "team_chat_messages"
             ADD COLUMN IF NOT EXISTS "canalId" TEXT
+        `;
+        // La conversacion de Chats que el mensaje senala, si senala alguna.
+        //
+        // Cinco columnas y no un blob: cada una se escribe y se lee por su
+        // nombre, asi que una clave mal puesta falla en vez de guardarse. Y
+        // entran por `ADD COLUMN IF NOT EXISTS` por lo mismo que las de arriba
+        // — la tabla ya esta en produccion —, todas NULLABLE: un mensaje
+        // normal no senala nada y no hay dos clases de mensaje.
+        //
+        // `chatNumero` se COPIA de lo que la pantalla ya sabe y no se deduce
+        // del jid: los digitos de un `@lid` son un id de privacidad, no un
+        // telefono, y fabricarlo daria un numero falso que ademas podria ser
+        // el de otro contacto.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "chatLinea" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "chatJid" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "chatIdentidades" TEXT[] NOT NULL DEFAULT '{}'
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "chatNombre" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "chatNumero" TEXT
         `;
         // El indice del reloj, ahora por canal: es la consulta que corre cada
         // pocos segundos por panel abierto.
@@ -199,6 +232,11 @@ type Fila = {
     texto: string;
     mencionados: string[] | null;
     creadoEn: Date;
+    chatLinea: string | null;
+    chatJid: string | null;
+    chatIdentidades: string[] | null;
+    chatNombre: string | null;
+    chatNumero: string | null;
 };
 
 const aMensaje = (f: Fila): MensajeDeEquipo => ({
@@ -209,6 +247,22 @@ const aMensaje = (f: Fila): MensajeDeEquipo => ({
     texto: f.texto,
     mencionados: f.mencionados ?? [],
     creadoEn: f.creadoEn.toISOString(),
+    // La conversación señalada, cuando el mensaje señala alguna. Hacen falta
+    // las DOS mitades —la línea y el jid—: sin línea no hay a dónde llevar y
+    // sin jid no hay qué abrir, así que media referencia no es una referencia.
+    chat:
+        f.chatLinea && f.chatJid
+            ? {
+                  linea: f.chatLinea,
+                  jid: f.chatJid,
+                  // La pedida delante: es la que se le devuelve a la pantalla.
+                  identidades: Array.from(
+                      new Set([f.chatJid, ...(f.chatIdentidades ?? [])]),
+                  ),
+                  nombre: f.chatNombre,
+                  numero: f.chatNumero,
+              }
+            : null,
 });
 
 /**
@@ -244,7 +298,9 @@ export async function leerElHilo(
                 // bajo la raiz, lo viejo se queda donde esta y se lee igual.
                 ? await db.$queryRaw<Fila[]>`
                     SELECT "id", "autorId", "autorNombre", "escritoDesde",
-                           "texto", "mencionados", "creadoEn"
+                           "texto", "mencionados", "creadoEn",
+                           "chatLinea", "chatJid", "chatIdentidades",
+                           "chatNombre", "chatNumero"
                     FROM "team_chat_messages"
                     WHERE "cuentaId" IN (${Prisma.join(deLaFamilia)})
                       AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})
@@ -257,7 +313,9 @@ export async function leerElHilo(
                 // que cruza cuentas.
                 : await db.$queryRaw<Fila[]>`
                     SELECT "id", "autorId", "autorNombre", "escritoDesde",
-                           "texto", "mencionados", "creadoEn"
+                           "texto", "mencionados", "creadoEn",
+                           "chatLinea", "chatJid", "chatIdentidades",
+                           "chatNombre", "chatNumero"
                     FROM "team_chat_messages"
                     WHERE "canalId" = ${canalId}
                     ORDER BY "creadoEn" DESC
@@ -286,15 +344,26 @@ export async function guardarUnMensaje(input: {
     escritoDesde: string | null;
     texto: string;
     mencionados: string[];
+    /**
+     * La conversación de Chats que señala, si señala alguna.
+     *
+     * Ya saneada y ya comprobada por quien llama: aquí no se decide si esa
+     * línea es suya. Esa pregunta es de la acción, que es donde está la sesión.
+     */
+    chat: ChatCompartido | null;
 }): Promise<void> {
     await conLaTabla(() => db.$executeRaw`
         INSERT INTO "team_chat_messages"
             ("id", "cuentaId", "canalId", "autorId", "autorNombre",
-             "escritoDesde", "texto", "mencionados")
+             "escritoDesde", "texto", "mencionados",
+             "chatLinea", "chatJid", "chatIdentidades", "chatNombre", "chatNumero")
         VALUES (
             ${input.id}, ${input.cuentaId}, ${input.canalId}, ${input.autorId},
             ${input.autorNombre}, ${input.escritoDesde},
-            ${input.texto}, ${input.mencionados}
+            ${input.texto}, ${input.mencionados},
+            ${input.chat?.linea ?? null}, ${input.chat?.jid ?? null},
+            ${input.chat?.identidades ?? []},
+            ${input.chat?.nombre ?? null}, ${input.chat?.numero ?? null}
         )
     `);
 }

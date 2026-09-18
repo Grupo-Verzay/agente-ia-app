@@ -1126,6 +1126,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         instanceType={instanceType}
         instanceName={info?.instanceName}
         remoteJid={info?.remoteJid}
+        // Las mismas identidades con las que se piden los mensajes: la lista
+        // devuelve al contacto por la que Evolution de esa vuelta, asi que
+        // compartir solo una es la forma de que despues no se encuentre.
+        identidadesDelChat={info?.remoteJidAliases}
         onBackToList={onBackToList}
         onOpenContactEditor={() => setIsContactEditorOpen(true)}
         onSessionTagsChange={onSessionTagsChange}

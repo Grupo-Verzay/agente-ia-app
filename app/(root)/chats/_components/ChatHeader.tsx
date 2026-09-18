@@ -3,7 +3,8 @@
 import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, SquarePen, Search, X } from 'lucide-react';
+import { CompartirConElEquipo } from "@/components/chat-equipo/CompartirConElEquipo";
+import { ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -104,6 +105,15 @@ interface ChatHeaderProps {
   instanceType?: string;
   instanceName?: string;
   remoteJid?: string;
+  /**
+   * Todas las identidades conocidas del contacto.
+   *
+   * Para compartir la conversación con el equipo: la lista lo devuelve por la
+   * que Evolution dé esa vuelta, así que guardar solo una es la forma de que
+   * después no se encuentre. Es la misma regla con la que se piden los
+   * mensajes.
+   */
+  identidadesDelChat?: string[];
   onBackToList: () => void;
   onOpenContactEditor: () => void;
   onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
@@ -143,6 +153,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   instanceType,
   instanceName,
   remoteJid,
+  identidadesDelChat,
   onBackToList,
   onOpenContactEditor,
   onSessionTagsChange,
@@ -191,6 +202,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [compartirAbierto, setCompartirAbierto] = useState(false);
   const [confirmDeleteLid, setConfirmDeleteLid] = useState(false);
   const [deletingLid, setDeletingLid] = useState(false);
   // ¿El aviso de @lid de ESTE chat ya se cerró? Se relee al cambiar de chat.
@@ -406,6 +418,25 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
          */}
         {canTake && (canLiberate || canResolve || canReopen || puedeAgregarParticipante) && (
           <div className="my-1 border-t border-border/50" />
+        )}
+
+        {/* Enviar al equipo.
+          *
+          * Va SUELTO y no dentro de un submenu: no es una lista que crezca con
+          * el equipo, es una accion sola. La regla de este menu es que lo que
+          * crece se pliega; esto no crece.
+          *
+          * Pide linea y jid porque sin las dos no hay a donde llevar: el mismo
+          * contacto tiene conversacion en dos lineas, asi que sin la linea el
+          * enlace elegiria «la primera fila que aparezca». */}
+        {instanceName && remoteJid && (
+          <DropdownMenuItem
+            onSelect={() => setCompartirAbierto(true)}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <Share2 className="h-3.5 w-3.5 shrink-0" />
+            Enviar al equipo
+          </DropdownMenuItem>
         )}
 
         {/* Transferir — solo para agentes con sesión propia */}
@@ -996,6 +1027,24 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       )}
 
       <MergeLidDialog open={mergeOpen} onOpenChange={setMergeOpen} lidJid={remoteJid ?? ''} instanceName={instanceName} />
+
+      {/* Compartir con el equipo.
+        *
+        * El numero se COPIA de lo que la pantalla ya sabe y no se saca del jid:
+        * los digitos de un `@lid` son un id de privacidad, no un telefono. */}
+      {instanceName && remoteJid && (
+        <CompartirConElEquipo
+          abierto={compartirAbierto}
+          onCerrar={() => setCompartirAbierto(false)}
+          chat={{
+            linea: instanceName,
+            jid: remoteJid,
+            identidades: Array.from(new Set([remoteJid, ...(identidadesDelChat ?? [])])),
+            nombre: displayedContactName || null,
+            numero: displayedWhatsapp || null,
+          }}
+        />
+      )}
 
       <TaskFormDialog
         open={taskDialogOpen}

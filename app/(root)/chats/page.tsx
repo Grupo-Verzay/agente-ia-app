@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { MessagesSquare } from "lucide-react";
 import type { ApiKey, Instancia } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -176,6 +178,38 @@ function dedupeChatsByIdentity(chats: ChatData[]) {
     });
 }
 
+/**
+ * Lo que ve quien abre un enlace a una conversacion que no alcanza.
+ *
+ * Dice **las tres cosas que hacen falta** para no quedarse mirando: que la
+ * conversacion existe, por que no se abre (es de otra cuenta, no de un error),
+ * y que hay algo que hacer (pedirle acceso a quien administra esa cuenta). Un
+ * «No autorizado» a secas manda a la persona a preguntar que se rompio.
+ *
+ * Y no dice de quien es la linea ni cuantas conversaciones tiene: quien no
+ * alcanza esa cuenta tampoco tiene por que saber que hay dentro. Misma regla
+ * que un proyecto no compartido, que se contesta como si no existiera.
+ */
+function SinAccesoALaLinea({ linea }: { linea: string }) {
+  return (
+    <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
+      <MessagesSquare className="h-10 w-10 text-muted-foreground/40" />
+      <h1 className="text-lg font-medium">Esta conversacion no es de tus lineas</h1>
+      <p className="max-w-md text-sm text-muted-foreground">
+        Te la compartieron desde un canal que alcanza a varias cuentas, pero la
+        linea <span className="font-medium text-foreground">{linea}</span> no
+        esta entre las que ves. Pidele acceso a quien administra esa cuenta.
+      </p>
+      <Link
+        href="/chats"
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        Ir a mis chats
+      </Link>
+    </div>
+  );
+}
+
 export default async function ChatsPage({
   searchParams,
 }: {
@@ -284,6 +318,36 @@ export default async function ChatsPage({
   const instancias = sinLineasRepetidas(
     esAgenteDeLaCuenta ? ownInstancias : [...ownInstancias, ...linkedInstancias],
   );
+
+  /* ─── Un enlace a una conversacion de OTRA cuenta ───
+   *
+   * El chat del equipo puede señalar una conversacion, y un canal que cruza
+   * cuentas vinculadas pone ese enlace delante de gente de otra cuenta. La
+   * bandeja alcanza UN SOLO NIVEL y en los dos sentidos (`linked_accounts`:
+   * desde una vinculada se ven las lineas de la madre, y desde la madre las de
+   * sus vinculadas) — no alcanza a las HERMANAS. Asi que alguien de Ventas
+   * puede recibir el enlace de una conversacion de una linea de Atencion.
+   *
+   * Sin esto aterrizaba con `selectedJid` puesto y sin fila: cabecera con el
+   * jid crudo, conversacion vacia y ninguna explicacion. Eso no se lee como
+   * «no tienes acceso», se lee como que la App esta rota.
+   *
+   * Se comprueba por la LINEA, no por el canal: el canal decide quien lee el
+   * mensaje, la linea decide quien abre la conversacion. Son dos preguntas.
+   *
+   * Y solo cuando se pide una linea concreta: sin `?instance=` no hay nada que
+   * comprobar, que es como se entra a Chats siempre.
+   */
+  const lineaPedida = searchParams?.instance?.trim();
+  if (lineaPedida && !instancias.some((i) => i.instanceName === lineaPedida)) {
+    console.warn("[chats] se pidio una conversacion de una linea que no se ve", {
+      linea: lineaPedida,
+      cuenta: effectiveOwnerId,
+      persona: user.id,
+      lineasQueVe: instancias.length,
+    });
+    return <SinAccesoALaLinea linea={lineaPedida} />;
+  }
 
   /* ─── La API key de CADA linea, no una sola para todas ───
    *
