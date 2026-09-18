@@ -25,7 +25,10 @@ import { cn } from '@/lib/utils'
 import type { UserNoteWithContent } from '@/actions/notes-actions'
 
 const TiptapEditor = dynamic(
-  () => import('./BlockNoteEditorInner'),
+  // Compartido con Documentacion: una sola barra de herramientas y un solo
+  // juego de estilos. Con dos copias, el dia que se afine una la otra se queda
+  // atras, y eso no se ve como un error sino como «en Notas va distinto».
+  () => import('@/components/shared/EditorDeTexto'),
   { ssr: false, loading: () => <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">Cargando editor...</div> }
 )
 

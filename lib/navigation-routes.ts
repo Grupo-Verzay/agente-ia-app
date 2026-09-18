@@ -98,6 +98,11 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     // del panel y su puerta esta en la accion (`puedeVerLaAnaliticaDeLaCasa`),
     // asi que asignarla no se la abre a nadie que no la pudiera ver ya.
     { route: "/panel/salud-envios" },
+    // La documentacion interna de una cuenta. Entra en el desplegable y **no**
+    // se monta en ningun modulo: se asigna a mano, y por eso la puerta esta en
+    // la accion y no en la pagina. Pensada desde el principio para poder
+    // ofrecersela tambien a una cuenta cliente.
+    { route: "/documentos" },
     { route: "/actividad-equipo" },
     { route: "/cotizaciones" },
     { route: "/credits" },

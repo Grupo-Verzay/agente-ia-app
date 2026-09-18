@@ -78,6 +78,25 @@ async function laColumnaQueSePuedeGuardar(
         return ids.filter((id) => validos.has(id));
     }
 
+    if (tipo === "documentacion") {
+        // La vista de tablero de una lista. La puerta es la MISMA con la que se
+        // crea y se edita una fila —`accesoAEsteDocumento().puedeEditar`—, y no
+        // una condición nueva: escribir aquí la suya es como se acabó teniendo
+        // un chat que se podía anclar y no se podía borrar.
+        const { accesoAEsteDocumento } = await import("@/lib/acceso-al-documento");
+        const acceso = await accesoAEsteDocumento(user, tableroId);
+        // Una lista que no se alcanza se contesta como si no existiera.
+        if (!acceso) throw new Error("Tablero no encontrado.");
+        if (!acceso.acceso.puedeEditar) throw new Error("No puedes ordenar esta lista.");
+
+        const filas = await db.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "doc_filas"
+      WHERE "documentoId" = ${tableroId} AND "id" = ANY(${ids}::text[])
+    `;
+        const validos = new Set(filas.map((f) => f.id));
+        return ids.filter((id) => validos.has(id));
+    }
+
     // Tickets. La puerta es la misma de `ticketsDeSoporteAction`: la cuenta
     // configurada, o el superadministrador esté donde esté.
     const destino = await elDestinoDeLosTickets();

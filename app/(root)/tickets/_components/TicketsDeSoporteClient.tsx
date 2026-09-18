@@ -29,6 +29,7 @@ import type { CuentaElegible } from "@/components/tickets/SelectorDeCuenta";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { CabeceraDeTickets } from "./CabeceraDeTickets";
 import { TableroDeTickets } from "./TableroDeTickets";
+import { DocumentosQueLoNombran } from "@/components/shared/DocumentosQueLoNombran";
 import { MenuDeEstado } from "./MenuDeEstado";
 import {
     ESTADOS_DE_TICKET,
@@ -491,6 +492,11 @@ export function TicketsDeSoporteClient({
                                 }}
                             />
                         </div>
+
+                        {/* Los documentos donde se nombró este ticket. No pinta
+                            nada si no hay ninguno, así que en el caso normal el
+                            panel se ve exactamente igual que antes. */}
+                        <DocumentosQueLoNombran tipo="ticket" refId={abierto.id} />
                         </div>
                     )
                 }

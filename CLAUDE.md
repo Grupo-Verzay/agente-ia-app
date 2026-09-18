@@ -3556,6 +3556,249 @@ La página no desborda en ninguna, el resumen se queda en cuatro tarjetas por
 fila y la cuenta recorta con puntos suspensivos, con el nombre entero en su
 `title`.
 
+## Documentación: lo que se menciona tiene que poder ENCONTRARSE
+
+`/documentos` es la documentación interna de una cuenta: espacios, documentos
+con editor de texto, listas con tres vistas, plantillas, buscador, historial de
+versiones y permisos. Lo que hasta ahora vivía en archivos de Word sueltos.
+
+**Y se pensó desde el principio como módulo de CLIENTE, no como pantalla de la
+casa.** No hay ni un id de Verzay en todo el módulo: cada espacio cuelga de su
+`cuentaId`, la ruta entra en `navigationRoutes` y **no se monta en ninguno**
+—se asigna a mano, como `/cobros`—, y la puerta vive en la acción. Ofrecérselo
+mañana a una cuenta cliente es asignarle una pestaña, no tocar código.
+
+> Ojo con el nombre: **`/documentacion` ya existe y es otra cosa** — una landing
+> pública e indexada sobre cómo conectar el API de Meta, con su `generateMetadata`
+> y su canónica. Por eso esto es `/documentos`. El build lo caza («two parallel
+> pages resolve to the same path»), pero conviene saberlo antes de elegir ruta.
+
+### La regla de la que cuelga todo
+
+> **La mención y el buscador son UNA función.** La etiqueta de una mención entra
+> en el texto plano que indexa el GIN, así que buscar el nombre de un cliente
+> saca el procedimiento que lo nombra. Sin eso el buscador contesta «sin
+> resultados» con toda normalidad, el documento sigue ahí, y no hay ningún error
+> que mirar — la familia de fallo mudo de la que va medio este documento.
+
+Y su pareja, que es la de seguridad:
+
+> **Lo que no se puede ABRIR no se puede LISTAR, ni buscar, ni asomar por un
+> retroenlace.** Las cuatro preguntan a la misma función (`accesoAlDocumento`).
+> Con dos condiciones llega el día en que discrepan, y entonces el documento sale
+> en el árbol y al pulsarlo dice «No autorizado»: el «menú abierto, puerta
+> cerrada» que este repositorio ya pagó en Clientes, en Equipo, en Analíticas y
+> en el panel.
+
+El retroenlace es donde esa segunda mitad se olvida, porque **no se pide desde
+la pantalla de documentación**: se pide desde la ficha de una tarea o de un
+ticket. Sin el filtro, abrir una tarea enseñaría el título de un documento
+restringido. El banco lo prueba desde las tres puertas a la vez.
+
+### Seis tablas de la App, y el texto plano aparte
+
+`doc_espacios`, `doc_documentos`, `doc_versiones`, `doc_menciones`,
+`doc_permisos` y `doc_filas`, todas con `CREATE TABLE IF NOT EXISTS` y **sin
+clave foránea**. Nada cuelga de `tasks`, `Project`, `Session` ni `User`:
+añadirles columnas desde aquí es lo que reventó el #360.
+
+`doc_documentos` guarda el cuerpo **dos veces a propósito**: `contenido` (el
+JSON del editor) y `texto` (el mismo cuerpo aplanado). El segundo es lo que
+indexa el GIN y de donde sale el extracto de un resultado. Calcularlo al leer
+sería aplanar el JSON de todos los documentos de la cuenta en cada búsqueda.
+
+**Y `texto` va topado a 100.000 caracteres, que no es comodidad: es lo que
+impide que guardar falle.** Un `tsvector` de Postgres no puede pasar de 1 MB —no
+se degrada, da error—, así que sin el tope un documento largo **no se podría
+guardar**, y el error saldría al escribir, donde nadie lo relacionaría con la
+búsqueda. El contenido entero se guarda igual; lo que se recorta es la copia que
+se indexa, y **se dice** (`textoRecortado`).
+
+### Aplanar el contenido: iterativo, con presupuesto, y de una pasada
+
+`leerElContenido` saca el texto y las menciones **en un solo recorrido**, y es
+iterativo con un tope de nodos, nunca recursivo. Tres motivos, los tres reales:
+
+1. El contenido llega **del navegador**, así que su forma no es de fiar. Con
+   recursión, un JSON hondo es un desbordamiento de pila y un 500 sin explicar.
+   El banco lo ejerce con 60.000 de hondo: termina y llega al fondo.
+2. Dos recorridos es pagar dos veces en el camino más caliente que tiene esto
+   —cada guardado de cada documento—.
+3. Y si un día uno se recortara por el presupuesto y el otro no, el documento
+   quedaría indexado hasta la mitad y con menciones de la otra mitad. Un estado
+   que nadie sabría explicar.
+
+Los bloques separan con salto de línea: sin eso «del cliente» y «El siguiente»
+dan `clienteEl`, una palabra que no existe y que no encuentra nadie.
+
+### Una versión por CAMBIO, no por guardado — y el JSONB no se compara como texto
+
+Esto lo cazó el banco y **es el fallo que más lejos habría llegado sin él.**
+
+La comparación era `JSON.stringify(lo que hay) === JSON.stringify(lo que llega)`.
+Pero **JSONB normaliza el orden de las claves al guardar**, así que los dos
+textos no coinciden nunca aunque el dato sea idéntico. Con el guardado
+automático puesto, eso significa **una versión nueva cada dos segundos y medio**,
+para siempre: el historial se llena de entradas iguales hasta que volver atrás
+deja de servir para nada, que es exactamente como se estropea un historial de
+versiones.
+
+**La comparación se hace en SQL**, con el `=` de jsonb, que compara el DATO y no
+su texto. Si se escribe otra comparación de un JSONB contra lo que manda el
+navegador, va igual.
+
+Y dos cosas más del historial:
+
+- **Volver atrás es un cambio MÁS, no un borrado.** Se guarda como una versión
+  nueva con el contenido de la vieja, así que el historial conserva que se volvió
+  y desde dónde. Reescribiendo la fila y tirando lo de en medio, deshacer una
+  vuelta atrás sería imposible — y es justo lo que hace falta cuando alguien se
+  equivoca al restaurar.
+- **El autor se COPIA dentro** (`autorNombre`), como en el chat de equipo: el
+  historial sigue diciendo quién cambió qué aunque esa persona salga del equipo.
+
+### Dos personas a la vez: no se pisa, y se DICE
+
+Un documento no es un arrastre de tablero, que se deshace volviéndolo a
+arrastrar: lo que se pierde es el párrafo de alguien. Así que el guardado manda
+la versión que tenía delante y, si la guardada es mayor, **no escribe**: lanza
+`LoCambioOtro`.
+
+Y se distingue de cualquier otro fallo a propósito. Un «no se pudo guardar»
+genérico haría que la persona lo reintentara, **y reintentar es justo lo que pisa
+el trabajo del otro**. La pantalla para el guardado automático y lo explica.
+
+La comprobación va **dentro del `FOR UPDATE`**: fuera, dos guardados simultáneos
+leerían los dos la misma versión y pasarían los dos.
+
+### Firmar con la persona, alcanzar con la cuenta
+
+Es el reparto ya unificado del resto de la plataforma, aplicado aquí:
+
+| | qué contesta | con qué |
+| --- | --- | --- |
+| **firmar** | quién escribió esto | la **persona** (`laPersonaQueActua`) |
+| **alcanzar** | hasta dónde llego | la **cuenta** (la fila efectiva) |
+
+Así que `creadoPorId`, `actualizadoPorId` y el autor de cada versión son la
+persona —dentro de una cuenta ajena con «Ingresar», el historial dice quién
+estaba sentado delante y no el nombre del cliente—, y a qué espacios se llega
+sale de `laCuentaDeQuienMira`. Resolver la persona ahí es lo que rompió la
+cartera de clientes en el #783.
+
+Y **los documentos de un espacio cuelgan de la cuenta DUEÑA**, los escriba quien
+los escriba. Es la misma regla que en Proyectos compartidos: un espacio, un juego
+de documentos. Guardándolos bajo la cuenta invitada se quedarían fuera de los dos
+árboles.
+
+### Los permisos: `sujetoTipo`, y un agente SÍ lee
+
+`doc_permisos` guarda `sujetoTipo` (`persona` | `cuenta`) y no un id a secas, que
+es lo contrario de `note_shares`. Allí funciona una columna ambigua porque
+compartir una nota significa una sola cosa; aquí significan dos, y compartir con
+una **cuenta** tiene que alcanzar a su equipo entero — que es el caso que hace
+posible dárselo a un cliente, porque quien comparte no administra ese equipo y no
+puede acordarse de añadir a cada persona que entre después. Una cuenta también es
+una fila de `User`, así que sin el tipo no habría forma de distinguirlas: es la
+misma razón por la que `team_channel_accounts` se hizo aparte.
+
+**Y un `agente` sí lee lo que alcanza su cuenta.** Es una divergencia a propósito
+de la regla de las notas, donde no hereda: allí una nota compartida con la cuenta
+no se le asignó a él; aquí compartir un espacio con la cuenta de un cliente **es**
+para que lo lea su gente, y dejarlos fuera vaciaría la función. Lo que no cambia
+es la otra mitad: **participa, no manda**. Crear, borrar y repartir siguen siendo
+de quien gestiona la cuenta.
+
+Cuatro cosas más:
+
+1. **Un espacio restringido lo sigue viendo quien administra la cuenta.** Es la
+   misma decisión, tomada a propósito, que deja al administrador leer los
+   directos de su cuenta en el chat de equipo: es una herramienta de trabajo, no
+   un cajón privado. Y sin ella un espacio se vuelve inalcanzable el día que su
+   creador se va.
+2. **En uno RECIBIDO no manda nadie de esta cuenta**, ni con edición: repartirlo
+   sigue siendo de quien lo hizo. Igual que en Proyectos y en Diagramas.
+3. **Entre dos filas gana la que MÁS deja hacer.** Puede haber una para la
+   persona y otra para su cuenta; quitarle la edición por tener además una de
+   lectura sería un permiso que cambia según por dónde se mire.
+4. **Un permiso a un id que no existe se rechaza.** No abre nada, pero el diálogo
+   lo pintaría como si alguien tuviera acceso, que es peor que no tener la fila.
+
+### Las tres vistas son TRES pintores y UN dato
+
+`doc_filas` es el único dato de una lista: la tabla, el tablero y el calendario
+leen esas mismas filas. No hay tres copias que mantener a la par, que es justo lo
+que hace que en otras herramientas «el calendario a veces no coincide».
+
+**El calendario dice cuántas filas deja fuera.** Una fila sin fecha no cabe en un
+calendario y eso no tiene vuelta; lo que no puede pasar es que desaparezca en
+silencio: con 60 filas y 20 fechas, el calendario enseña 20 y desde fuera se lee
+como que se perdieron 40. Es la regla de siempre —*si no suma, se dice*—.
+
+Y **el tablero no pierde una fila con un estado que ya no existe**: cae en la
+primera columna. Dejarla fuera sería borrarla de la vista sin borrarla de la
+base — no está y sigue contando.
+
+El orden dentro de una columna va por **`orden_en_tablero`, el tablero compartido
+de Proyectos y Tickets**, con un `tipo` nuevo. Un mecanismo propio para lo mismo
+es uno que se afina y otro que se queda atrás.
+
+### El editor es el de Notas, y la mención no trajo dependencias
+
+`components/shared/EditorDeTexto.tsx` lo usan Notas y Documentación. Las tres
+props que entraron para esto —`extensiones`, `alMontar`, `placeholder`— van todas
+con su valor de siempre por defecto, así que **Notas se comporta exactamente
+igual**. Es la misma forma en que `BloqueDeAdjuntos` se abrió a Tickets sin
+copiarlo.
+
+El nodo de mención se escribe con `Node.create`, que **`@tiptap/react` ya
+reexporta**: cero dependencias nuevas, frente a las dos que habría traído
+`@tiptap/extension-mention` para darnos un selector imperativo que además habría
+que envolver. El selector se escribe en React con las reglas que ya costaron una
+vuelta en el chat de equipo: la arroba tiene que **abrir palabra** —la MISMA
+condición con la que el servidor decide, o la lista ofrecería algo que luego no
+se menciona—, `onMouseDown` y nunca `onClick`, y con la lista abierta manda la
+lista.
+
+Y el nodo es un **átomo**: sin eso se puede meter el cursor dentro y borrar media
+etiqueta, y entonces la mención sigue contando para el retroenlace mientras en
+pantalla pone otra cosa.
+
+### Los anchos, medidos
+
+Con `table-fixed` **el ancho total manda sobre el declarado de cada columna**:
+con `min-w-[48rem]`, las cuatro columnas fijas (29rem) le dejaban al TÍTULO 224 px
+en vez de las 18rem escritas ahí mismo — la columna que de verdad se lee salía la
+más apretada. Y el número final sale de medir y no de redondear: a 1280 el
+documento se queda con **734 px útiles** (768 menos el `p-4` de su caja y menos
+los 2 px del borde), así que 47rem se desplazaba 16 px y 46rem, 2 — un scroll que
+no aporta y que hace parecer que algo está roto.
+
+| ventana | árbol | documento | columna del título | la tabla se desplaza |
+| --- | --- | --- | --- | --- |
+| 1440 | 320 | 928 | **430** | no |
+| 1280 | 320 | 768 | **270** | no |
+| 1024 | 288 | 544 | **256** | sí |
+
+El árbol no crece hasta `xl` por lo mismo: con 20rem desde `lg`, a 1280 el
+documento se quedaba en 768 y la tabla se desplazaba por 32 px de nada. **Quien
+cede es el árbol**, que enseña títulos recortados con su `title` encima, y no el
+documento, que es lo que se viene a leer — la misma decisión que en Chats, donde
+la conversación tiene suelo y quien cede es la ficha.
+
+Y las tarjetas del tablero miden **39 px las dos**, con una y con dos líneas: es
+lo que reserva `min-h-[2.75em]`, y el número depende del interlineado (2 × 1.375em
+con `leading-snug`).
+
+### Y lo que queda a medias, dicho
+
+**El sentido que el encargo pedía está entero**: desde una tarea o un ticket se
+ven los documentos que los nombran. El de ida aterriza exacto **solo entre
+documentos**; en cliente, tarea y ticket el id viaja en la URL —el enlace queda
+listo— pero hoy lleva a su lista y no a la ficha, porque esas tres pantallas
+todavía no leen su `searchParam`. Si se añade ese aterrizaje, va ahí y no
+inventando un segundo camino.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se
