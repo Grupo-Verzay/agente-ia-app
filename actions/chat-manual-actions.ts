@@ -42,6 +42,7 @@ import { canonicalToWahaJid, wahaJidToCanonical } from "@/lib/waha-jid";
 import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
 import { transcribirLasNotasQueFalten } from "@/lib/transcribir-notas";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
+import { apuntarLoQueHizo, apuntarUnaVezAlDia } from "@/lib/apuntar-actividad";
 import {
   fetchChatsFromEvolution,
   findMessagesByRemoteJid,
@@ -1546,6 +1547,17 @@ export async function sendManualChatPayloadAction(
     instanceType: "evolution",
     historyType: "notification",
   });
+
+  // Actividad del equipo, y **solo si salió**. Va aquí y no arriba, junto a la
+  // pausa: la pausa se hace antes del envío a propósito, pero contar un mensaje
+  // que rebotó sería anotar algo que no pasó — la misma regla que en Cobros.
+  if (result.success && user?.id) {
+    await apuntarLoQueHizo(user, "mensaje_enviado");
+    // El chat se da por atendido una vez por conversación y día: el contador
+    // de arriba ya cuenta los mensajes, y sumar «chat atendido» por cada uno
+    // convertiría las dos columnas en la misma.
+    await apuntarUnaVezAlDia(user, "chat_atendido", remoteJid);
+  }
 
   // Cierre de la conversación: la frase de despedida del asesor apaga la firma y
   // cancela los seguimientos pendientes. La pausa de la IA ya quedó hecha arriba.

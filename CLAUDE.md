@@ -4880,6 +4880,152 @@ best-effort. Una línea cuyo servidor no conteste **sale igual**, con `unknown`:
 el punto queda gris y se puede seguir eligiendo. Perder el color es un detalle;
 perder la línea era el fallo.
 
+## Actividad del equipo: una fila es un CUBO, no un latido
+
+Mide dónde pasa su jornada cada persona y qué hizo en ella. Lo delicado no es
+la pantalla: es que medir tiempo **con una fila por latido** llena la base.
+
+Con 250 personas y jornadas de 8 horas, un latido cada 30 s son **240.000 filas
+al día** —87 millones al año— para contar una cosa que cabe en un número.
+
+> **El navegador ACUMULA y manda su total; el servidor guarda un cubo por
+> `(persona, día, sección, pestaña)`.** Una jornada entera son **seis filas**,
+> una por sección, no novecientas. Medido en el banco: 480 envíos de ocho horas
+> dejaron 6 filas, y dos meses de un equipo de diez son **7.200** frente a las
+> ~576.000 de un latido cada 30 s.
+
+Y de ahí salen, gratis, las otras dos respuestas.
+
+### Qué pasa si se cierra el navegador de golpe: NO hay fila abierta
+
+Es la pregunta que parece pedir un evento de salida, y la respuesta es que **no
+puede haberlo**. Modelado como «entró a las 9, salió a las 18» hace falta que
+llegue el cierre, y el día que no llegue —un cierre a lo bruto, un corte de
+luz— esa fila se queda abierta y la persona aparece con **catorce horas**.
+
+Un cubo no tiene estado abierto: lo que se pierde es la cola, **como mucho un
+envío**. Se intenta no perderlo con `visibilitychange` → `hidden` y `pagehide`
+—`beforeunload` no vale, en móvil no se dispara— y con `sendBeacon`, que el
+navegador entrega aunque la página ya no exista; un `fetch` en ese momento lo
+cancela él mismo. Con un corte de luz no se dispara nada y se pierde ese
+minuto: ese es el suelo y no se disimula.
+
+### Reenviar no puede contar dos veces: `GREATEST`, no `+`
+
+Lo que viaja es el **acumulado**, y el servidor guarda
+`GREATEST(lo que hay, lo que llega)`. Eso hace dos cosas a la vez:
+
+- Un **reintento** tras un corte de red es inofensivo. Con una suma, cada
+  reintento inflaría la jornada y no habría forma de saberlo después.
+- Un **envío perdido** lo arregla el siguiente, que ya trae el total. No hay
+  nada que reconciliar.
+
+Por eso la llave lleva `pestanaId`: sin él, dos pestañas con totales distintos
+se pisarían con `GREATEST` y ganaría la más vieja.
+
+### El tope va sobre el DÍA, no sobre el envío
+
+Esto lo cazó el banco al primer intento y conviene no volver a escribirlo mal.
+La primera versión puso un tope de **15 minutos por envío**, razonando que «un
+minuto de reloj no trae más de un minuto de trabajo». Pero lo que viaja es el
+acumulado, así que ese tope no recortaba un pico: **recortaba la jornada
+entera**. Ocho horas repartidas en seis secciones salían como **90 minutos**
+—seis topes de 900 s— sin un solo error por ningún lado.
+
+**Un tope mal colocado no se ve como un fallo: se ve como un equipo que no
+trabaja.** El tope del servidor es lo que no puede ser cierto de ninguna manera
+(16 h por sección y día); lo que protege de un reloj que salta —el portátil que
+despierta de suspensión— es `MAXIMO_POR_VUELTA_MS`, **en el navegador**, que es
+quien sabe cuánto duraba su propia vuelta. Ahí sí es un incremento y ahí sí va
+corto.
+
+### Con dos pestañas cuenta la ÚLTIMA que se tocó
+
+Dos pestañas abiertas —una en Chats y otra en Proyectos, que es lo normal—
+acumularían las dos el mismo minuto y el día saldría de dieciséis horas.
+`document.visibilityState` **no lo evita**: en dos ventanas lado a lado las dos
+están «visible».
+
+La regla es una frase y resuelve los dos problemas de golpe: **manda aquella
+donde la persona tocó algo la última vez**. No se cuenta dos veces, y además el
+tiempo cae en la sección donde de verdad se está trabajando — un mando por
+orden de llegada dejaría contando a la pestaña de Chats mientras se trabaja en
+la de Proyectos.
+
+Vive en `localStorage`, que es lo único compartido entre pestañas, y **todo va
+en `try/catch`**: en una ventana privada leer puede lanzar, y sin eso el
+contador entero se cae en los navegadores donde más se mira la privacidad. Sin
+mando no se bloquea a nadie: se cuenta, que es preferible a no contar.
+
+### Tres capas, y solo la tercera crece con el trabajo
+
+| tabla | una fila por | crece con |
+| --- | --- | --- |
+| `actividad_jornada` | persona · día · sección · pestaña | el calendario |
+| `actividad_acciones` | persona · día · tipo | el calendario |
+| `actividad_resultados` | acción de verdad | lo que hace la gente |
+
+Las dos primeras **ya vienen sumadas por día**: la forma de escribirlas ES el
+resumen, así que no hay ningún trabajo nocturno que agregue nada ni ventana en
+la que el resumen esté a medias. Medido con dos meses de un equipo de diez
+dentro: **un mes tarda 3 ms**, entrando por `actividad_jornada_cuenta_dia_idx`
+y no barriendo la tabla.
+
+**Ninguna consulta de la pantalla toca `chat_messages`, `tasks` ni `cobros`.**
+Contar «mensajes del mes pasado» barriendo la tabla grande es exactamente el
+problema que describe la regla del BRIN; aquí el contador se escribe cuando
+pasa la cosa y leerlo no cuesta nada. Eso es lo que hace que **lo que crece con
+el reloj no tenga una fila por evento**, y lo que crece con el trabajo real sí.
+
+### Lo que cuenta cosas DISTINTAS no se cuenta por evento
+
+«Chats atendidos» sumando uno por mensaje diría lo mismo que «mensajes
+enviados» con otro nombre, y entonces sobra una de las dos. «Clientes tocados»
+por cada edición contaría tres veces al mismo cliente en una tarde.
+
+Se deduplica **sin ninguna tabla nueva** (`anotarUnaVezAlDia`): el id de la
+fila de resultado se construye a mano —`tipo:persona:día:cosa`— y decide el
+`ON CONFLICT DO NOTHING`. **Quien decide es la base**, por las filas que dice
+haber tocado, y no un `SELECT` previo nuestro: dos peticiones a la vez verían
+las dos que no existe y sumarían las dos.
+
+### Se apunta cuando SALIÓ, y los tres caminos de envío por igual
+
+Un mensaje se apunta **después** de `persistChatMessage`, no junto a la pausa
+de la IA: hasta ahí no se llega si el envío rebotó, y contar un envío fallido
+es la misma trampa que anotar un hito de cobro que no salió. Igual en Cobros
+—detrás del `return` del fallo— y en Tickets, donde va **detrás del `cambio`**:
+si otro administrador se adelantó, esa llamada no tocó ninguna fila y tampoco
+es trabajo suyo. Es la misma condición que decide si sale el WhatsApp.
+
+Y los **tres** caminos de envío lo apuntan —el de Evolution, el de Waha y el de
+los canales de credenciales—. Con uno fuera, los números serían «a veces
+funciona», que es peor que no tenerlos.
+
+### Es de la PERSONA, y por eso reutiliza `quienFirma`
+
+De quién es el tiempo lo decide el servidor con la sesión, **nunca el cuerpo de
+la petición**: si el navegador pudiera decir a nombre de quién va, cualquiera le
+escribiría la jornada a otro. Y la pregunta —quién es la persona, cuál es su
+cuenta— es **exactamente** la del chat de equipo, así que se usa `quienFirma` y
+no una fórmula nueva: dentro de una cuenta ajena por «Ingresar» el tiempo es de
+quien está sentado delante, no del cliente.
+
+Lo mismo con `apuntarLoQueHizo`: existe para que instrumentar sea **una línea**
+en cada sitio. Con la resolución de la persona copiada en cada llamador, el
+octavo se equivoca — y aquí equivocarse significa apuntarle el trabajo a otro.
+
+### La tercera capa se guarda desde el primer día y no se enseña
+
+Cuánto tardó en cerrarse un ticket, si un cobro se pagó. **No se pinta**: sin
+meses detrás, un porcentaje contra nada no dice nada. Pero se guarda ya, porque
+empezar a guardarlo el día que haga falta es empezar de cero justo entonces. La
+pantalla lo dice en su pie, para que no parezca que falta.
+
+Y se cierra **el último tramo abierto** de ese `refId`, no todos: un ticket se
+puede reabrir y volver a cerrar, y cerrarlos todos de golpe le pondría a un
+tramo de horas la antigüedad del primero.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

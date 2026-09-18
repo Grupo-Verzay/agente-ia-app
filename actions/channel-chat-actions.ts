@@ -16,6 +16,7 @@ import type {
 import type { ChatToolActionResult } from '@/types/chat';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
+import { apuntarLoQueHizo, apuntarUnaVezAlDia } from '@/lib/apuntar-actividad';
 
 type ChannelOutgoingPayload = { kind: string; text?: string; [key: string]: unknown };
 
@@ -37,6 +38,21 @@ function mediaFallbackLabel(payload: ChannelOutgoingPayload) {
   if (mediatype === 'audio') return payload.ptt === false ? '🎧 Audio' : '🎙️ Nota de voz';
   if (mediatype === 'document') return '📄 Documento';
   return '📎 Archivo';
+}
+
+/**
+ * Apunta el envio en la Actividad del equipo.
+ *
+ * Se llama SOLO tras haber persistido el mensaje, o sea cuando de verdad salio:
+ * contar un envio que rebotó seria anotar algo que no paso. Y resuelve la
+ * persona aqui —`currentUser()`— porque el `userId` que estas funciones tienen a
+ * mano es el de la CUENTA dueña de la linea, no el de quien escribe.
+ */
+async function apuntarElEnvio(remoteJid: string): Promise<void> {
+  const quien = await currentUser();
+  if (!quien) return;
+  await apuntarLoQueHizo(quien, 'mensaje_enviado');
+  await apuntarUnaVezAlDia(quien, 'chat_atendido', remoteJid);
 }
 
 async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: string, text: string) {
@@ -203,6 +219,7 @@ export async function sendChannelTextAction(
           messageTimestamp: new Date(),
         });
       }
+      await apuntarElEnvio(remoteJid);
       return { success: true, message: 'Enviado.', remoteJid };
     }
     const text = await applyAdvisorSignatureIfEnabled(
@@ -244,6 +261,7 @@ export async function sendChannelTextAction(
         messageTimestamp: new Date(),
       });
     }
+    await apuntarElEnvio(remoteJid);
     return { success: true, message: 'Enviado.', remoteJid };
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar.', remoteJid };
@@ -322,6 +340,7 @@ export async function sendMetaTemplate(
         messageTimestamp: new Date(),
       });
     }
+    await apuntarElEnvio(remoteJid);
     return { success: true, message: 'Plantilla enviada.', remoteJid };
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar la plantilla.', remoteJid };

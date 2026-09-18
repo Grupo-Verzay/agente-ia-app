@@ -36,6 +36,7 @@ import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
 import type { UserNavPref } from "@/types/nav-preference";
 import { getUserIntegrations } from "@/actions/user-integration-actions";
 import { resolveModuleItemDest } from "@/lib/canva-embed";
+import { ContadorDeJornada } from "@/components/actividad/ContadorDeJornada";
 
 // Branding por reseller: favicon y título de pestaña según el reseller del
 // usuario logueado (con fallback al favicon global de SiteConfig y luego al
@@ -477,6 +478,11 @@ export default async function RootGroupLayout({
     return (
         <>
             <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} userIntegrations={userIntegrations} initialTheme={initialTheme} />
+            {/* Cuenta dónde pasa la jornada cada persona. No pinta nada, y
+                cuelga del layout porque mide TODAS las pantallas, no una.
+                Su reloj no manda nada: acumula, y manda su total una vez por
+                minuto. Ver `components/actividad/ContadorDeJornada.tsx`. */}
+            <ContadorDeJornada />
             <SidebarProvider defaultOpen={defaultOpen}>
                 <AppSidebar user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} planLabel={planLabelSidebar} />
                 <SidebarInset className="h-screen h-[100dvh] flex flex-col min-w-0 overflow-x-hidden">
