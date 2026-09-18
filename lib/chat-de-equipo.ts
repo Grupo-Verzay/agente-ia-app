@@ -83,6 +83,14 @@ export type MensajeDeEquipo = {
      */
     chat?: ChatCompartido | null;
     /**
+     * El registro de una llamada de voz, cuando el mensaje es eso.
+     *
+     * Va como un mensaje más del directo —en su sitio por fecha— y no en una
+     * lista aparte: así lo trae el lector de siempre y no hay dos hilos que
+     * mezclar al pintar.
+     */
+    llamada?: { fin: string; segundos: number } | null;
+    /**
      * El mensaje al que responde, si responde a alguno.
      *
      * Sale entero de la fila de ESTE mensaje —el nombre y el extracto están

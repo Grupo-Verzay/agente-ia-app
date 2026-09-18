@@ -30,6 +30,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 
 import { themeClass } from "@/types/generic";
 import { BotonesDelBorde } from "@/components/chat-equipo/BotonesDelBorde";
+import { OyenteDeLlamadas } from "@/components/chat-equipo/OyenteDeLlamadas";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
 import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
 import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
@@ -504,6 +505,10 @@ export default async function RootGroupLayout({
                     {/* El copiloto y el chat del equipo: una pareja de botones
                         en el borde derecho, con su panel cada uno. */}
                     <BotonesDelBorde />
+                    {/* Una llamada tiene que sonar estes donde estes, asi
+                      * que el oyente cuelga de aqui — como la ventana que
+                      * interrumpe de los avisos de tarea. */}
+                    <OyenteDeLlamadas />
                     <ChatOnboardingModal />
                     <TaskNotificationProvider />
                     <ChatUnreadProvider />

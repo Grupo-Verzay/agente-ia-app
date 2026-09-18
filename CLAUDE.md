@@ -2734,6 +2734,119 @@ Nunca están los dos paneles abiertos a la vez: abrir uno cierra el otro. Son do
 paneles en el mismo sitio, y abiertos a la vez uno taparía al otro sin decir
 cuál está delante.
 
+## Llamadas de voz: la señalización va por la BASE, no por un socket
+
+Llamar de navegador a navegador dentro de un directo, sin WhatsApp y sin
+teléfono. **Solo uno a uno**: un canal de área no tiene «el otro», y una llamada
+de uno a uno no sabría a quién sonarle (`laOtraPersona` se rinde con cualquier
+canal que no sea un directo de exactamente dos).
+
+**El WebRTC no es nuevo.** `CallDialog` lleva tiempo en producción haciendo esto
+contra AstraCalls: micro, `RTCPeerConnection`, `ontrack` a un `<audio>`, y
+—esto es lo que importa— **espera a que ICE termine de recolectar** antes de
+mandar **una sola** oferta. Lo único nuevo es que la otra punta es otro
+navegador.
+
+### Por qué la base y no el socket
+
+El socket de tiempo real **no es nuestro**: `/api/realtime/token` solo firma un
+token para **escuchar** el socket.io del backend, que es otro repositorio.
+Mandar una oferta SDP por ahí sería tocarlo.
+
+Y no hace falta, **porque el WebRTC de esta App es non-trickle**: por el canal
+viajan **dos mensajes** —la oferta y la respuesta—, no un goteo de candidatos.
+Las dos viven en dos columnas de `llamadas_de_voz`, que es a la vez el registro
+y el canal.
+
+Lo que cuesta, y hay que saberlo antes de tocar el número:
+
+- **El timbre tarda hasta una vuelta del reloj** (3 s). Quien llama puede
+  esperar eso a que suene al otro lado.
+- **El reloj corre en TODAS las pantallas**, porque una llamada tiene que sonar
+  estés donde estés — cuelga del layout, como la ventana que interrumpe. Es una
+  consulta corta sobre un índice, y con la pestaña de fondo no pregunta.
+- **Lo que NO espera es saber si la otra persona está.** Eso se contesta al
+  instante, antes de empezar a sonar.
+
+### El latido sale gratis del mismo reloj
+
+«Si no tiene sesión abierta, que no espere sonando» no necesitó nada nuevo: la
+misma vuelta que escucha llamadas **deja su latido** al pasar
+(`presencia_del_equipo`, una fila por persona que se pisa — no un histórico, que
+crecería sin fin). Disponible = visto en los últimos ~30 s.
+
+**Sin latido NO está disponible**, y ese es el lado seguro: mejor decir «no
+está» y que se use el teléfono de siempre, que dejar a alguien escuchando un
+tono que no suena en ningún sitio. Y **no se anota nada** en el directo: no
+hubo llamada, no llegó a sonar — anotarla llenaría el hilo de «no disponible»
+cada vez que alguien lo intenta.
+
+El margen es de **varias vueltas**, no de una: con una sola, una pestaña ocupada
+te deja «no disponible» estando delante, y eso se ve como que la función no
+funciona.
+
+### Sin TURN hay llamadas que NO conectan, y eso se dice
+
+Esta es la parte que no se puede ablandar, porque no es una decisión de código:
+
+> **STUN no transporta audio.** Solo dice cuál es tu dirección pública. Cuando
+> las dos puntas están detrás de NAT simétrico —oficinas con cortafuegos, algún
+> operador móvil, CGNAT— **no existe ninguna ruta directa** y el audio necesita
+> un relevo, que es TURN. Sin él, ese porcentaje de llamadas se pierde.
+
+La cifra de la industria ronda el 8-20 %. En un equipo interno será el extremo
+bajo casi siempre… y **el 100 % dentro de ciertas redes corporativas**, que es
+lo que hay que tener en la cabeza: no es «a veces falla un poco», es «desde esa
+oficina no funciona nunca».
+
+Así que lo único que el código puede hacer es **no perderlo en silencio**: si la
+conexión no llega a `connected`, se corta y se anota `sin_conexion`, que en el
+directo se lee **«no se pudo conectar»** — y no «se cortó», que mandaría a
+buscar el fallo donde no está.
+
+**Y encenderlo no es tocar código.** `losServidoresIce` lee `TURN_URL`,
+`TURN_USER` y `TURN_PASSWORD` del entorno: sin ellas va solo STUN —directo
+siempre que se pueda, que es lo pedido— y con ellas entra el relevo **detrás**
+del STUN, que es lo que mantiene el coste casi en cero: WebRTC prefiere la ruta
+directa y solo releva cuando no hay otra.
+
+**Las credenciales se resuelven en el SERVIDOR** y viajan en la respuesta de una
+acción, nunca en una `NEXT_PUBLIC_`: con ellas en el paquete del navegador
+cualquiera usaría vuestro relevo para su propio tráfico.
+
+Y la cuenta, para cuando toque decidirlo: voz en Opus ≈ 32 kbps por sentido, o
+sea **~29 MB por hora** de llamada **relevada** (solo la minoría lo es). Un
+equipo con 200 llamadas de 4 minutos al mes, con el 15 % relevado, son **~58 MB
+al mes**. **El coste no es el ancho de banda: es tener el servidor.**
+
+### Y las tres cosas del registro
+
+La llamada queda escrita en el directo **como un mensaje más** —en su sitio por
+fecha, leído por el mismo lector de siempre— con dos columnas que la distinguen
+(`llamadaFin`, `llamadaSegundos`, por `ADD COLUMN IF NOT EXISTS`). En una tabla
+aparte habría que mezclar dos listas al pintar el hilo.
+
+1. **La duración se cuenta desde que se CONTESTÓ**, no desde que se llamó. El
+   rato sonando no es conversación: contarlo haría que una llamada de diez
+   segundos que tardó treinta en contestarse saliera como de cuarenta.
+2. **Colgar los dos a la vez escribe UN registro.** `terminarLaLlamada` va
+   condicionado a que no estuviera ya terminada y devuelve la fila solo si tocó
+   una; la otra punta llega, toca cero y no anota. Comprobado contra Postgres.
+3. **El timbre se cierra en el SERVIDOR, por la hora de la fila.** Con un
+   contador en la pantalla de quien llama, si esa pestaña se cierra a mitad la
+   llamada se quedaría sonando para siempre en la otra punta.
+
+Y **el SDP se borra al terminar**: son un par de kilobytes que ya no sirven y
+que llevan dentro las direcciones IP de las dos puntas.
+
+### Lo que esto NO tiene, y es a propósito
+
+Sin video, sin salas, sin grabación y sin llamadas de grupo. Y **la puerta de
+quién puede llamar es la de escribir, no la de leer**: un administrador lee los
+directos de su cuenta —decisión tomada a propósito— y eso no le deja llamar
+desde ellos. Meterse en la conversación de otros dos no es supervisar, y una
+llamada lo es mucho más que un mensaje.
+
 ## Chats → equipo: la conversación se SEÑALA, no se cuenta
 
 Para que el equipo viera un caso de WhatsApp, el asesor copiaba el texto a mano
