@@ -7,7 +7,7 @@ import {
     accionesEnCero,
     type Desenlace,
     type EnvioDeJornada,
-    type JornadaDeUnaPersona,
+    type MedidasDeLaJornada,
     type Seccion,
     type TipoDeAccion,
 } from "@/lib/actividad-del-equipo";
@@ -430,23 +430,20 @@ export async function laJornadaDe(args: {
     personaIds: string[];
     desde: string;
     hasta: string;
-}): Promise<Map<string, JornadaDeUnaPersona>> {
-    const mapa = new Map<string, JornadaDeUnaPersona>();
+}): Promise<Map<string, MedidasDeLaJornada>> {
+    const mapa = new Map<string, MedidasDeLaJornada>();
     if (args.personaIds.length === 0) return mapa;
 
-    const dame = (personaId: string): JornadaDeUnaPersona => {
-        let ya = mapa.get(personaId);
-        if (!ya) {
-            ya = {
-                personaId,
-                personaNombre: null,
-                porSeccion: seccionesEnCero(),
-                segundos: 0,
-                acciones: accionesEnCero(),
-            };
-            mapa.set(personaId, ya);
-        }
-        return ya;
+    const dame = (personaId: string): MedidasDeLaJornada => {
+        const ya = mapa.get(personaId);
+        if (ya) return ya;
+        const nueva: MedidasDeLaJornada = {
+            porSeccion: seccionesEnCero(),
+            segundos: 0,
+            acciones: accionesEnCero(),
+        };
+        mapa.set(personaId, nueva);
+        return nueva;
     };
 
     await conLasTablas(async () => {

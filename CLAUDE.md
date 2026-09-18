@@ -5455,6 +5455,68 @@ Lo mismo con `apuntarLoQueHizo`: existe para que instrumentar sea **una línea**
 en cada sitio. Con la resolución de la persona copiada en cada llamador, el
 octavo se equivoca — y aquí equivocarse significa apuntarle el trabajo a otro.
 
+### La CASA y los CLIENTES: se reparte por la cuenta de la PERSONA
+
+El súper administrador veía en la misma tabla a su equipo y a gente de cuentas
+cliente, revueltos y sin saber de quién era cada fila. Van en dos bloques: la
+casa arriba —lo único visible al entrar— y los clientes detrás de una barra
+plegada, con el mismo desplegable del reparto del trabajo de Proyectos (un botón
+con su `aria-expanded` y el chevron que gira, y el contenido **sin montar**
+mientras está cerrado, que es lo que hace que tenerlo cerrado no cueste nada).
+
+> **El reparto y la columna «Cuenta» salen de la cuenta a la que PERTENECE cada
+> persona** —`owner_id ?? id` de su fila en `User`—, **nunca de
+> `actividad_jornada.cuentaId`**, que dice contra qué cuenta se guardó el rato.
+
+Los dos valores coinciden casi siempre y se separan justo en el caso que
+importa: quien entra en la cuenta de un cliente con **«Ingresar»** escribe su
+jornada bajo la cuenta del cliente, porque `quienFirma` resuelve
+`ownerId ?? id` de la fila EFECTIVA. Comprobado contra Postgres con las cuentas
+reales, y las dos mitades del fallo se ven en la misma tabla:
+
+| | por la cuenta de la actividad | por la cuenta de la persona |
+| --- | --- | --- |
+| Yair, administrador de una vinculada, que ese día entró a un cliente | **CLIENTES** | ARRIBA |
+| Pedro, del cliente | CLIENTES | CLIENTES |
+
+Y la otra mitad, que es la que obliga a listar la casa **desde `User` y no desde
+quien registró algo**: una casa que ese mes trabajó dentro de cuentas de
+clientes dejaría el bloque de arriba **vacío**. Aquí el cero es el dato —Sofía,
+sin nada registrado, sale igual—, y ese bloque no puede quedarse en blanco.
+
+Cuatro cosas que hay que mantener:
+
+1. **La casa es la FAMILIA, no la cuenta sola** (`laFamiliaDeLaCuenta`).
+   `ownerId ?? id` **no sube a la madre**, así que sin esto las cuentas
+   vinculadas —«Verzay | Atencion», «Verzay Ventas»— saldrían como clientes de
+   su propia casa. Es el mismo fallo que ya partió el General del chat de
+   equipo en dos, por otra puerta.
+2. **Los clientes SÍ se parten de quien ha registrado algo.** `User` entera son
+   todas las cuentas de la plataforma, y una tabla con las que nunca han abierto
+   la App no dice nada. Las dos listas se arman con criterios distintos **a
+   propósito**, y cada uno responde a su pregunta.
+3. **El reparto es puro** (`repartirEnDosBloques`), y por eso la acción manda
+   `cuentasDeLaFamilia` como dato en vez de partir la lista ella. Lo que decide
+   la pantalla se prueba en el banco sin levantar nada.
+4. **Para quien no es súper administrador no cambia nada.** Su rama declara
+   familia a las cuentas de la gente que ya le devuelve su propia consulta, así
+   que todos caen arriba y **la barra ni se pinta** — sin resolver ninguna
+   familia, que sería una consulta más para no cambiar nada. Y la barra tampoco
+   sale con cero clientes: una barra que se abre y sale vacía se lee como que la
+   pantalla está rota.
+
+Y una separación que hizo falta para que el tipo no mintiera: `laJornadaDe` lee
+`actividad_jornada` y `actividad_acciones`, que **solo saben de `personaId`**,
+así que devuelve `MedidasDeLaJornada` —sin quién es—. Con un solo tipo, esa
+consulta tenía que inventarse un `cuentaId` que no está en sus tablas y el único
+candidato a mano era justo el dato equivocado. **Quién es cada persona y de qué
+cuenta es lo resuelve la acción, contra `User`.**
+
+Medido en Chromium a 1280×900, que es la regla de siempre para una columna
+nueva: la barra ocupa el ancho entero (1.248 px, el mismo de las tablas) con su
+chevron pegado al borde derecho, y la tabla con la columna «Cuenta» dentro
+**no desborda** — 224 px para la persona y 148 para la cuenta.
+
 ### La tercera capa se guarda desde el primer día y no se enseña
 
 Cuánto tardó en cerrarse un ticket, si un cobro se pagó. **No se pinta**: sin
