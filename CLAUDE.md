@@ -2788,27 +2788,89 @@ funcionando**. Son dos cosas distintas y por eso son dos botones.
 > el permiso al montar, como siempre. Cambiarlo es otro frente; lo que no podía
 > ser es que una función nueva copiara esa costumbre.
 
-#### Con la plataforma CERRADA hace falta Web Push, y sí se puede sin el backend
+#### Con la plataforma CERRADA: Web Push, y sin tocar el backend
 
-Hoy no está, y lo que hay llega hasta donde llega: con la pestaña de fondo o la
-ventana minimizada suena y avisa; **con el navegador cerrado del todo, no**. No
-hay ningún reloj corriendo.
+El sonido y la campanita necesitan una pestaña abierta. Esto es lo único que
+llega sin ella: el servicio de empuje del navegador —FCM, Mozilla, Apple— se lo
+entrega al service worker, que lo pinta con el navegador de fondo.
 
-La pregunta de si eso se puede cubrir sin tocar el backend tiene respuesta, y es
-**sí**, por un motivo que no es obvio: **el mensaje del equipo se escribe en una
-acción de servidor de ESTA App**, no en el backend. Así que el empujón puede
-salir de ahí mismo. Lo que haría falta:
+**Y no hizo falta tocar el backend**, por el motivo que lo hacía posible: el
+mensaje del equipo se escribe en una **acción de servidor de ESTA App**, así que
+el empujón sale de ahí mismo (`lib/empujar-aviso.ts`, llamado desde
+`enviarAlEquipoAction`).
 
-- `web-push` como dependencia, y un par de llaves VAPID **en variables de
-  entorno** —la privada nunca en el repo—.
-- Una tabla nuestra para las suscripciones, con su limpieza: una suscripción
-  caducada contesta `410` y esa fila se borra, o se acumulan para siempre.
-- Un `push` en `public/sw.js`, que hoy solo tiene `notificationclick`.
+Sus límites, que se dicen antes de prometerlos: en **iOS** solo funciona con la
+App **instalada** como PWA; en **escritorio** el navegador tiene que estar
+corriendo aunque sea de fondo — cerrado del todo no llega nada hasta que se
+vuelve a abrir, y entonces el servicio entrega lo que tenía guardado.
 
-Y sus límites, que hay que decir antes de prometerlo: en iOS solo funciona con
-la App **instalada** como PWA, y en escritorio el navegador tiene que estar
-corriendo aunque sea de fondo — con el navegador cerrado de verdad no llega nada
-hasta que se vuelve a abrir.
+**La regla que lo sostiene, y es la misma del sonido:**
+
+> **A quién se le empuja lo decide `aQuienSeLeEmpuja`, en
+> `lib/aviso-del-equipo.ts`, al lado de `loQueMereceSonar`.** Un directo, o una
+> mención en cualquier canal, el general incluido; el general sin mención no
+> empuja a nadie, y el autor nunca. Escrita aquí y copiada allí, el día que se
+> afine una la otra se queda atrás — y eso no se ve como un error: se ve como
+> «a veces suena y no me llega el aviso».
+
+Cinco cosas que hay que mantener:
+
+1. **Sin las llaves VAPID todo queda inerte, y eso no es un fallo.**
+   `hayWebPush()` devuelve `false`, no se suscribe nadie y no se empuja nada;
+   el sonido, el contador y la campanita siguen exactamente igual. Desplegar
+   esto antes de configurar las variables no puede romper nada. El botón lo
+   dice al encenderlo: «activados **mientras la plataforma esté abierta**»
+   frente a «también con la plataforma cerrada».
+2. **La suscripción es del DISPOSITIVO, no de la persona.** La llave primaria
+   es el `endpoint`, no el `personaId`: la misma persona en el portátil y en el
+   móvil son dos filas. Y apagar los avisos **da de baja el dispositivo en la
+   base**, no solo apaga el icono — si no, el empuje seguiría llegándole al
+   teléfono a quien lo apagó desde el portátil.
+3. **Lo que caduca se borra en el momento.** Un `404` o un `410` es el servicio
+   de empuje diciendo que esa dirección ya no existe; sin borrarla, cada mensaje
+   la vuelve a intentar para siempre. Comprobado contra FCM de verdad: un
+   endpoint inventado contesta exactamente `410 push subscription has
+   unsubscribed or expired`, que es la rama que limpia.
+4. **`Promise.allSettled`, nunca `Promise.all`.** Una suscripción caducada es lo
+   normal, y con `all` un solo rechazo tiraría los envíos buenos ya resueltos.
+   Y va **de fondo, sin `await`**: hablar con FCM puede tardar segundos que
+   quien escribe no tiene por qué esperar; el mensaje ya está guardado.
+5. **`web-push` va en `serverComponentsExternalPackages`**, como `sharp`. Es una
+   librería de criptografía con `require` dinámicos dentro (`asn1.js`, `jwa`,
+   `http_ece`); empaquetada por webpack funciona, pero externalizada corre el
+   paquete de verdad — y un fallo de empaquetado ahí solo se vería al intentar
+   empujar un aviso, o sea donde nadie está mirando. Comprobado que las cuatro
+   caen en `.next/standalone/node_modules`.
+
+**Y la etiqueta es la misma en los dos caminos**, que es el fallo que casi se
+despliega: con la pestaña abierta llegan los **dos** —el aviso de
+`avisarEnElSistema` y el empuje—, así que con etiquetas distintas el mismo
+mensaje sale **dos veces**, uno genérico y otro con el texto. Es literalmente el
+avisar de más del que viene esta función entera. La etiqueta es
+`chat-equipo-<canal>` en los dos sitios: el segundo sustituye al primero y sale
+uno. Y de paso agrupa por conversación, que es de donde sale el volumen; dos
+conversaciones distintas sí son dos avisos, porque son dos cosas que atender.
+
+Y al montar se **refresca la suscripción de quien ya tenía el botón puesto**.
+Sin esa línea, quien activó los avisos antes de que esto existiera no tendría
+ninguna y seguiría sin recibir nada con la plataforma cerrada, sin un solo
+error, hasta que se le ocurriera apagar y volver a encender.
+
+**Las llaves no se cambian a la ligera**: una suscripción está firmada contra la
+pública con la que nació, así que al cambiarlas todas las que hay dejan de valer.
+Por eso el navegador compara la suya con la que le da el servidor y **se
+resuscribe solo** si no coinciden; sin eso, el empuje fallaría siempre y en
+silencio.
+
+Las variables, que van en el stack de Portainer y **nunca en el repo**:
+
+| | qué es |
+| --- | --- |
+| `VAPID_PUBLIC_KEY` | la pública. Baja al navegador, para eso está. |
+| `VAPID_PRIVATE_KEY` | la privada. **Solo en el entorno.** Firma cada envío. |
+| `VAPID_SUBJECT` | opcional, un `mailto:`. A quién reclamar. Por defecto `mailto:soporte@verzay.com`. |
+
+Se generan una vez con `npx web-push generate-vapid-keys`.
 
 
 ### La campanita: solo menciones, y al MENSAJE

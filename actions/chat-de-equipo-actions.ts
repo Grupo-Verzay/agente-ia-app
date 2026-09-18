@@ -5,7 +5,8 @@ import { randomUUID } from "crypto";
 import { currentUser } from "@/lib/auth";
 import { crearLosAvisos } from "@/lib/avisos-de-tarea";
 import { ponerElSonido, quiereSonido } from "@/lib/preferencias-de-persona-db";
-import type { AvisoDelEquipo } from "@/lib/aviso-del-equipo";
+import { aQuienSeLeEmpuja, type AvisoDelEquipo } from "@/lib/aviso-del-equipo";
+import { empujarAviso } from "@/lib/empujar-aviso";
 import { tituloDelAviso } from "@/lib/avisos-de-tarea-tipos";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import {
@@ -725,6 +726,51 @@ export async function enviarAlEquipoAction(
                         `&mensaje=${encodeURIComponent(mensaje.id)}`,
                 })),
             );
+        }
+
+        // Y el EMPUJE, que es lo único que llega con la plataforma cerrada.
+        //
+        // Las condiciones son **las mismas que las del sonido** y por eso las
+        // decide la misma función, `aQuienSeLeEmpuja`, que vive al lado de
+        // `loQueMereceSonar`: un directo, o una mención en cualquier canal. Con
+        // la regla copiada aquí, el día que se afine una la otra se queda
+        // atrás, y eso no se ve como un error — se ve como «a veces suena y no
+        // me llega el aviso».
+        //
+        // Va **de fondo, sin `await`**: el mensaje ya está guardado, y hablar
+        // con FCM o con Apple puede tardar segundos que quien escribe no tiene
+        // por qué esperar. `empujarAviso` nunca lanza y, sin las llaves VAPID
+        // puestas, no hace absolutamente nada.
+        const aEmpujar = aQuienSeLeEmpuja({
+            tipo: canal.tipo,
+            miembros: fila?.miembros ?? [],
+            autorId: quien.persona.id,
+            mencionados,
+        });
+        if (aEmpujar.length) {
+            void empujarAviso(aEmpujar, {
+                // En un directo, quién escribe basta. En un canal, además
+                // dónde: `canal.nombre` de un directo es el nombre de la OTRA
+                // persona resuelto para quien mira, así que ahí diría el nombre
+                // de quien recibe el aviso.
+                titulo:
+                    canal.tipo === "directo"
+                        ? quien.persona.nombre || "Mensaje del equipo"
+                        : `${quien.persona.nombre || "Alguien"} en ${canal.nombre}`,
+                texto: limpio,
+                url:
+                    `/chat-equipo?canal=${encodeURIComponent(canal.id)}` +
+                    `&mensaje=${encodeURIComponent(mensaje.id)}`,
+                // **La misma etiqueta que usa `avisarEnElSistema`** en
+                // `hooks/useSinLeerDelEquipo`, y no es un detalle: con la
+                // pestaña abierta llegan los dos caminos, y con etiquetas
+                // distintas el mismo mensaje saldría dos veces. Además agrupa
+                // por conversación: cinco mensajes del mismo canal son un
+                // aviso, no cinco.
+                etiqueta: `chat-equipo-${canal.id}`,
+            }).catch((error) => {
+                console.warn("[push] falló el empuje del chat de equipo", error);
+            });
         }
 
         return { success: true, data: { mensaje, canalId: canal.id } };

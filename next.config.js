@@ -27,7 +27,13 @@ const nextConfig = {
     // sharp es un módulo nativo: se usa en runtime en /api/brand-icon para
     // normalizar el logo del reseller a ícono cuadrado. Externalizarlo evita
     // que webpack intente empaquetarlo.
-    serverComponentsExternalPackages: ["sharp"],
+    // `web-push` firma y cifra cada aviso con el crypto de Node (`asn1.js`,
+    // `jwa`, `http_ece`). Empaquetado funciona, pero es una libreria de
+    // criptografia con `require` dinamicos dentro: externalizarla hace que en
+    // produccion corra el paquete de verdad y no una copia reescrita por
+    // webpack, que es una clase de fallo que solo se veria al intentar empujar
+    // un aviso -o sea, en el sitio donde nadie esta mirando-.
+    serverComponentsExternalPackages: ["sharp", "web-push"],
   },
   images: {
     remotePatterns: [

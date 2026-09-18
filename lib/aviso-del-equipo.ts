@@ -129,3 +129,75 @@ export function laMarcaDespues(avisos: AvisoDelEquipo[], marca: number): number 
 export function llaveDeLaMarca(personaId: string): string {
     return `equipo_ya_sono_${personaId || "sin-persona"}`;
 }
+
+/**
+ * A quién se le EMPUJA un aviso con la plataforma cerrada.
+ *
+ * Es **la misma pregunta que el sonido**, del lado del servidor: un directo, o
+ * una mención en cualquier canal, el general incluido. Un mensaje del general
+ * sin mención no empuja a nadie — es el canal donde está todo el mundo, y
+ * avisar con cada cosa que se dice ahí es exactamente lo que enseña a despachar
+ * los avisos sin leerlos, con lo que el que importa se pierde también.
+ *
+ * Y está **aquí**, al lado de `loQueMereceSonar`, a propósito: son la misma
+ * regla contada dos veces —una en el navegador, otra en el servidor— y con el
+ * texto copiado en dos ficheros el día que se afine una, la otra se queda
+ * atrás. Eso no se ve como un error: se ve como «a veces suena y no llega el
+ * aviso», que es de lo más difícil de diagnosticar.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **Nunca al autor.** Lo que uno escribe no le avisa a él. En el sonido lo
+ *    descarta el servidor al contar lo sin leer; aquí hay que descontarlo a
+ *    mano, porque el autor puede estar en los miembros y en los mencionados.
+ * 2. **De un directo se avisa a los miembros**, no a quien lo pueda leer: quien
+ *    administra lee los directos de su cuenta, y empujarle el tráfico de todo
+ *    el mundo al teléfono es tanto como no tener avisos.
+ * 3. **Sin repetidos.** La misma persona puede ser miembro del directo y estar
+ *    mencionada dentro; sale un aviso, no dos.
+ */
+export function aQuienSeLeEmpuja(input: {
+    /** Qué clase de canal es. Solo un directo avisa sin mención. */
+    tipo: "general" | "area" | "directo";
+    /** Los miembros del canal. En un directo son exactamente dos. */
+    miembros: string[];
+    /** Quién escribió. Nunca recibe. */
+    autorId: string;
+    /** A quién se mencionó, ya decidido por el servidor sobre la gente del canal. */
+    mencionados: string[];
+}): string[] {
+    const fuera = new Set<string>();
+    const salen: string[] = [];
+
+    const sumar = (id: string) => {
+        const limpio = (id ?? "").trim();
+        if (!limpio) return;
+        if (limpio === input.autorId) return;
+        if (fuera.has(limpio)) return;
+        fuera.add(limpio);
+        salen.push(limpio);
+    };
+
+    if (input.tipo === "directo") {
+        for (const id of input.miembros) sumar(id);
+    }
+    for (const id of input.mencionados) sumar(id);
+
+    return salen;
+}
+
+/**
+ * Cuánto del mensaje entra en un aviso del sistema.
+ *
+ * Se recorta y **se dice que se recortó**: un aviso cortado en seco parece el
+ * mensaje entero, y quien lo lee actúa sobre medio texto. Los saltos de línea
+ * se aplastan porque un aviso del sistema es una línea — con ellos dentro, el
+ * navegador se queda con el primer trozo y el resto no lo ve nadie.
+ */
+export const TOPE_DEL_TEXTO_DEL_AVISO = 160;
+
+export function comoTextoDeAviso(texto: string): string {
+    const limpio = (texto ?? "").replace(/\s+/g, " ").trim();
+    if (limpio.length <= TOPE_DEL_TEXTO_DEL_AVISO) return limpio;
+    return `${limpio.slice(0, TOPE_DEL_TEXTO_DEL_AVISO - 1)}…`;
+}
