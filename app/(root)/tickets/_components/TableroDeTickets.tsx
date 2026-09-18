@@ -27,7 +27,11 @@ import {
     TarjetaDelTablero,
     useOrdenDeColumna,
 } from "@/components/shared/OrdenDeColumna";
-import { ordenarLaColumna, resolverElArrastre } from "@/lib/orden-del-tablero";
+import {
+    laTarjetaArrastrada,
+    ordenarLaColumna,
+    resolverElArrastre,
+} from "@/lib/orden-del-tablero";
 import type { TicketConAdjuntos } from "@/actions/tickets-actions";
 
 /**
@@ -125,17 +129,32 @@ export function TableroDeTickets({
             // es lo que decide entre qué dos se soltó. Sin esto, dnd-kit se
             // queda con la columna y el reorden no llega a calcularse nunca.
             collisionDetection={closestCenter}
+            // Por id, no por un objeto colgado del arrastre: es el mismo
+            // canal que se perdio al soltar, y sin el la copia flotante salia
+            // vacia.
             onDragStart={(e: DragStartEvent) =>
-                setArrastrando(
-                    (e.active.data.current as { ticket?: TicketConAdjuntos } | undefined)?.ticket ?? null,
-                )
+                setArrastrando(laTarjetaArrastrada(e.active.id, tickets, (t) => t.id))
             }
             onDragEnd={(e: DragEndEvent) => {
                 setArrastrando(null);
                 const { active, over } = e;
                 if (!over) return;
-                const ticket = (active.data.current as { ticket?: TicketConAdjuntos } | undefined)?.ticket;
-                if (!ticket) return;
+                // El ticket se resuelve por SU ID, no por `data.current`.
+                //
+                // Ahi viajaba antes (`useDraggable({ data: { ticket } })`), y
+                // al pasar la tarjeta a `useSortable` en el #769 ese `data` se
+                // quedo por el camino: `ticket` era `undefined` y este
+                // manejador se iba por el `return` antes de decidir nada. El
+                // `id` es el unico canal que no se puede perder, porque sin el
+                // dnd-kit no arrastra.
+                const ticket = laTarjetaArrastrada(active.id, tickets, (t) => t.id);
+                if (!ticket) {
+                    console.warn("[tickets] se solto una tarjeta que no esta en la lista", {
+                        arrastrada: String(active.id),
+                        tarjetas: tickets.length,
+                    });
+                    return;
+                }
 
                 // Qué significa haberla soltado lo decide una función pura, la
                 // misma que usa el tablero de Proyectos: o nada, o cambio de

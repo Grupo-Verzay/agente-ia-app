@@ -155,6 +155,21 @@ export function ColumnaOrdenable({ ids, children }: { ids: string[]; children: R
  * `useSortable` en vez de `useDraggable` es todo el cambio: la tarjeta pasa a
  * ser también un destino, y sin eso no hay forma de saber **entre qué dos**
  * tarjetas se soltó — solo en qué columna.
+ *
+ * # Y lo único que viaja es el `id`. No se le cuelga un `data`.
+ *
+ * Al cambiar de `useDraggable` a `useSortable` se perdió el `data: { task }`
+ * que la tarjeta llevaba, y los dos tableros seguían leyéndolo al soltar. El
+ * resultado fue que **dejaron de moverse las tarjetas, en los dos, y sin un
+ * solo error**: el manejador se iba por su `if (!task) return` antes de decidir
+ * nada, así que cambiar de columna y reordenar —que salen de la misma función—
+ * cayeron a la vez. Y la tarjeta seguía levantándose, porque el `transform` se
+ * aplica aquí y no depende de ese dato.
+ *
+ * Ahora quien recibe el arrastre busca la tarjeta **por su id** en la lista que
+ * ya tiene. El `id` no se puede perder: sin él dnd-kit no arrastra nada. Un
+ * segundo canal que solo sirve para transportar es justo lo que un refactor se
+ * deja, y su pérdida no la nota nadie hasta que un cliente lo prueba.
  */
 export function TarjetaDelTablero({
     id,
