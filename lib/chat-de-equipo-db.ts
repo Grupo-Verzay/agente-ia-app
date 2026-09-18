@@ -1055,3 +1055,129 @@ export async function marcarLeido(
         WHERE "team_chat_reads"."leidoHasta" < EXCLUDED."leidoHasta"
     `);
 }
+
+/**
+ * Qué tiene esta persona sin leer que MEREZCA sonar.
+ *
+ * Es el hermano de `sinLeerPorCanal` y va sobre la misma tabla, con la misma
+ * marca de leído — porque la pregunta es la misma con una condición más
+ * encima: **un directo, o una mención**. Un mensaje del general sin mención no
+ * suena nunca, y por eso no puede salir de aquí.
+ *
+ * # Por qué la mención sale de `team_chat_messages` y no de `task_alerts`
+ *
+ * El aviso de una mención también existe en `task_alerts` —es el que enciende
+ * la campanita y la ventana que interrumpe— y era la fuente que parecía obvia.
+ * No lo es: ahí el canal viaja dentro de `enlace`, o sea **dentro de una
+ * URL**, así que habría que parsearla para saber de qué canal era; y el aviso
+ * se apaga al atenderlo, que es una vida distinta de la de «sin leer». La
+ * columna `mencionados` ya guarda a quién se mencionó, decidido por el
+ * servidor al escribir y sobre la gente de ESE canal. Es el mismo dato, en la
+ * misma fila, sin una segunda tabla que mantener a la par.
+ *
+ * # Y devuelve la HORA, no un contador
+ *
+ * Quien decide si suena compara contra lo último que ya sonó, así que lo que
+ * hace falta es **cuándo** llegó lo más nuevo, no cuántos hay. Con un contador
+ * no habría forma de distinguir «sigue habiendo tres sin leer» de «ha entrado
+ * uno más», y sonaría en cada vuelta del reloj.
+ */
+export type AvisoSinLeer = {
+    canalId: string;
+    /** Del más nuevo sin leer, en milisegundos. */
+    cuando: number;
+    motivo: "directo" | "mencion";
+};
+
+export async function loQuePuedeSonar(input: {
+    personaId: string;
+    /** Los directos donde pertenece. Cualquier mensaje suyo sin leer suena. */
+    directos: string[];
+    /** Los demás canales donde pertenece. Ahí solo suena una mención. */
+    otros: string[];
+    /** Las cuentas de la familia, para el general — que no es una fila. */
+    familia: string[];
+    conGeneral: boolean;
+}): Promise<AvisoSinLeer[]> {
+    const directos = Array.from(new Set(input.directos.filter(Boolean)));
+    const otros = Array.from(new Set(input.otros.filter(Boolean)));
+    const familia = Array.from(new Set(input.familia.filter(Boolean)));
+
+    return conLaTabla(async () => {
+        const salida: AvisoSinLeer[] = [];
+
+        // Los directos: cualquier mensaje de la otra persona sin leer.
+        if (directos.length) {
+            const filas = await db.$queryRaw<{ canalId: string; cuando: Date }[]>`
+                SELECT m."canalId", MAX(m."creadoEn") AS "cuando"
+                FROM "team_chat_messages" m
+                LEFT JOIN "team_chat_reads" r
+                       ON r."personaId" = ${input.personaId}
+                      AND r."canalId" = m."canalId"
+                WHERE m."canalId" IN (${Prisma.join(directos)})
+                  AND m."autorId" <> ${input.personaId}
+                  AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
+                GROUP BY m."canalId"
+            `;
+            for (const f of filas) {
+                salida.push({
+                    canalId: f.canalId,
+                    cuando: f.cuando.getTime(),
+                    motivo: "directo",
+                });
+            }
+        }
+
+        // Los demás canales: solo si le mencionaron a ella.
+        if (otros.length) {
+            const filas = await db.$queryRaw<{ canalId: string; cuando: Date }[]>`
+                SELECT m."canalId", MAX(m."creadoEn") AS "cuando"
+                FROM "team_chat_messages" m
+                LEFT JOIN "team_chat_reads" r
+                       ON r."personaId" = ${input.personaId}
+                      AND r."canalId" = m."canalId"
+                WHERE m."canalId" IN (${Prisma.join(otros)})
+                  AND m."autorId" <> ${input.personaId}
+                  AND ${input.personaId} = ANY(m."mencionados")
+                  AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
+                GROUP BY m."canalId"
+            `;
+            for (const f of filas) {
+                salida.push({
+                    canalId: f.canalId,
+                    cuando: f.cuando.getTime(),
+                    motivo: "mencion",
+                });
+            }
+        }
+
+        // Y el general aparte, con las dos condiciones de siempre: no es una
+        // fila de canal y su `canalId` puede ser `NULL` —los mensajes de
+        // cuando el hilo era uno solo—. Sin esa mitad, una mención de entonces
+        // sería inencontrable aquí igual que lo era al leer.
+        if (input.conGeneral && familia.length) {
+            const filas = await db.$queryRaw<{ cuando: Date | null }[]>`
+                SELECT MAX(m."creadoEn") AS "cuando"
+                FROM "team_chat_messages" m
+                LEFT JOIN "team_chat_reads" r
+                       ON r."personaId" = ${input.personaId}
+                      AND r."canalId" = ${CANAL_GENERAL}
+                WHERE m."cuentaId" IN (${Prisma.join(familia)})
+                  AND (m."canalId" IS NULL OR m."canalId" = ${CANAL_GENERAL})
+                  AND m."autorId" <> ${input.personaId}
+                  AND ${input.personaId} = ANY(m."mencionados")
+                  AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
+            `;
+            const cuando = filas[0]?.cuando;
+            if (cuando) {
+                salida.push({
+                    canalId: CANAL_GENERAL,
+                    cuando: cuando.getTime(),
+                    motivo: "mencion",
+                });
+            }
+        }
+
+        return salida;
+    });
+}

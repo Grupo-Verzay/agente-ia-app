@@ -44,7 +44,10 @@ export function BotonesDelBorde() {
     // El contador corre SIEMPRE, también con el panel cerrado: de eso va. El
     // reloj del hilo es el contrario —solo con el panel abierto— porque esto
     // cuelga del layout y aquel se trae los mensajes.
-    const sinLeer = useSinLeerDelEquipo();
+    // Y este mismo reloj es el que suena: lo que trae la vuelta ya dice qué
+    // merece sonar y si esta persona lo quiere. Un segundo reloj para el sonido
+    // sería preguntar dos veces lo mismo en todas las pantallas de la App.
+    const { total: sinLeer, sonido } = useSinLeerDelEquipo();
 
     // Nunca los dos a la vez: son dos paneles en el mismo sitio, y abiertos a
     // la vez uno taparía al otro sin decir cuál está delante.
@@ -110,7 +113,11 @@ export function BotonesDelBorde() {
             </div>
 
             <ChatSheet open={copilotoAbierto} onOpenChange={alternarCopiloto} />
-            <PanelDeEquipo abierto={equipoAbierto} onCerrar={() => setEquipoAbierto(false)} />
+            <PanelDeEquipo
+                abierto={equipoAbierto}
+                sonido={sonido}
+                onCerrar={() => setEquipoAbierto(false)}
+            />
         </>
     );
 }
