@@ -49,7 +49,11 @@ import {
   TarjetaDelTablero,
   useOrdenDeColumna,
 } from "@/components/shared/OrdenDeColumna";
-import { ordenarLaColumna, resolverElArrastre } from "@/lib/orden-del-tablero";
+import {
+  laTarjetaArrastrada,
+  ordenarLaColumna,
+  resolverElArrastre,
+} from "@/lib/orden-del-tablero";
 import { HiloDeLaTarea } from "./HiloDeLaTarea";
 import { comentarLaTareaAction } from "@/actions/avisos-de-tarea-actions";
 import {
@@ -401,8 +405,26 @@ export function ProjectBoard({
     const { active, over } = event;
     if (!over || pendingRef.current) return;
 
-    const task = (active.data.current as { task?: TaskData } | undefined)?.task;
-    if (!task) return;
+    // La tarjeta se resuelve por SU ID, no por un objeto colgado del arrastre.
+    //
+    // Antes viajaba en `data.current.task` (`useDraggable({ data: { task } })`),
+    // y al pasar la tarjeta a `useSortable` en el #769 ese `data` se quedo por
+    // el camino: `task` era `undefined` y este manejador se iba por el `return`
+    // ANTES de decidir nada, asi que dejaron de funcionar las dos cosas a la
+    // vez —cambiar de columna y reordenar— sin un solo error.
+    //
+    // El `id` es el unico canal que no se puede perder: dnd-kit no arrastra
+    // nada sin el. Un segundo canal es justo lo que un refactor olvida.
+    const task = laTarjetaArrastrada(active.id, tasks, (t) => t.id);
+    if (!task) {
+      // Mudo aqui es lo que costo este fallo: se ve como «la tarjeta no se
+      // queda donde la dejo», que no se parece a un error.
+      console.warn("[tablero] se solto una tarjeta que no esta en la lista", {
+        arrastrada: String(active.id),
+        tarjetas: tasks.length,
+      });
+      return;
+    }
 
     // Qué significa haberla soltado lo decide una función pura, la misma que
     // usa el tablero de Tickets: o nada, o cambio de columna, o reordenar
@@ -533,8 +555,10 @@ export function ProjectBoard({
           // lo que decide entre qué dos se soltó. Sin esto dnd-kit se queda con
           // la columna y el reorden no llega a calcularse nunca.
           collisionDetection={closestCenter}
+          // Por id, como al soltar. Leyendolo de `data` la copia flotante
+          // salia vacia desde el #769 — el mismo canal perdido.
           onDragStart={(e: DragStartEvent) =>
-            setActiveTask((e.active.data.current as { task?: TaskData } | undefined)?.task ?? null)
+            setActiveTask(laTarjetaArrastrada(e.active.id, tasks, (t) => t.id))
           }
           onDragEnd={handleDragEnd}
         >

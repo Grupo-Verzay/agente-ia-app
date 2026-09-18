@@ -111,6 +111,35 @@ export function moverEnLaColumna(
 }
 
 /**
+ * La tarjeta que se está arrastrando, buscada **por su id**.
+ *
+ * # Por qué por el id y no por un objeto colgado del arrastre
+ *
+ * Antes viajaba en `data.current` (`useDraggable({ id, data: { task } })`), y
+ * al pasar la tarjeta a `useSortable` ese `data` se quedó por el camino. Los
+ * dos tableros seguían leyéndolo, así que **dejaron de moverse las tarjetas en
+ * los dos** —ni cambiar de columna ni reordenar— y **sin un solo error**: el
+ * manejador se iba por su `if (!task) return` antes de llegar a decidir nada.
+ *
+ * El `id` es el único canal que no se puede perder: sin él dnd-kit no arrastra.
+ * Un segundo canal que solo sirve para transportar es lo que un refactor se
+ * deja, y su pérdida no la nota nadie hasta que alguien lo prueba en pantalla.
+ *
+ * Se compara **como texto en los dos lados**: en Proyectos el id de la tarea es
+ * un número y el de dnd-kit siempre llega como cadena, así que `===` en crudo
+ * no casaría nunca — y sería este mismo fallo otra vez, igual de mudo.
+ */
+export function laTarjetaArrastrada<T>(
+    idArrastrado: string | number,
+    tarjetas: T[],
+    idDe: (t: T) => string | number,
+): T | null {
+    const buscado = String(idArrastrado ?? "").trim();
+    if (!buscado) return null;
+    return tarjetas.find((t) => String(idDe(t)) === buscado) ?? null;
+}
+
+/**
  * Qué significa haber soltado una tarjeta. Es lo único que los dos tableros
  * tienen que decidir, y se decide aquí para que decidan igual.
  */

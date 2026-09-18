@@ -1626,6 +1626,57 @@ ejecuta —dos `guardarLaColumna` en paralelo sobre la misma columna— y compru
 las dos cosas: que el resultado es uno de los dos órdenes completos, y que no se
 pierde ni se duplica ninguna tarjeta.
 
+#### Lo único que viaja en el arrastre es el ID
+
+Esto **rompió los dos tableros en producción** y no dijo nada. Ni cambiar de
+columna —que llevaba funcionando desde siempre— ni reordenar dentro de la
+columna. La tarjeta se levantaba al arrastrarla y al soltarla se quedaba donde
+estaba: sin error, sin aviso y sin nada en la consola.
+
+La causa es de una línea. La tarjeta se registraba con el objeto colgado del
+arrastre:
+
+```ts
+useDraggable({ id, data: { task } })   // y en Tickets, data: { ticket }
+```
+
+Al pasar a `useSortable` —que es lo que hace que una tarjeta sea también un
+destino, y sin lo cual no hay reordenar— **ese `data` se quedó por el camino**.
+Los dos tableros seguían leyéndolo:
+
+```ts
+const task = (active.data.current as { task?: TaskData })?.task;
+if (!task) return;   // ← se iba por aquí SIEMPRE
+```
+
+Y ese `return` está **antes** de `resolverElArrastre`, así que las dos cosas
+—que salen de la misma función— cayeron a la vez. No es que un arrastre se
+comiera al otro: es que ninguno de los dos llegaba a decidirse.
+
+Dos cosas que hay que mantener:
+
+1. **Se busca la tarjeta por su `id`, con `laTarjetaArrastrada`.** El `id` es el
+   único canal que **no se puede perder**: sin él dnd-kit no arrastra nada, así
+   que su ausencia se ve al instante. Un segundo canal que solo sirve para
+   transportar un objeto es justo lo que un refactor se deja, y su pérdida no la
+   nota nadie hasta que un cliente lo prueba. **No se le vuelve a colgar un
+   `data` a la tarjeta.**
+2. **Y se compara como TEXTO en los dos lados.** En Proyectos `task.id` es un
+   número y `active.id` llega **siempre** como cadena: un `===` en crudo no
+   casaría nunca y sería este mismo fallo otra vez, igual de mudo. Esa mitad sí
+   la cubre el banco.
+
+Y el `if` que no encuentra la tarjeta **ya no es mudo**: sale
+`[tablero] se solto una tarjeta que no esta en la lista`. Un manejador de
+arrastre que se rinde en silencio no se ve como un error — se ve como «la
+tarjeta no se queda donde la dejo», que es lo que costó esta vuelta entera.
+
+**Lo que ningún banco iba a cazar, y conviene saberlo:** el fallo no estaba en
+la decisión —que es pura y estaba bien— sino en **lo que se le entregaba**. El
+#769 además no dejó banco ninguno; ahora está
+(`lib/__tests__/orden-del-tablero.test.mjs`, 16 casos), pero lo que de verdad
+protege contra la repetición es haber quitado el canal, no el banco.
+
 #### Y tres cosas del lado de la pantalla
 
 1. **`useSortable` en vez de `useDraggable`**, y `collisionDetection=
