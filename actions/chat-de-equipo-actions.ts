@@ -31,9 +31,12 @@ import {
 } from "@/lib/canales-de-equipo";
 import {
     abrirElDirecto,
+    buscarEnElEquipo,
     canalesQueAlcanzan,
     crearUnCanal,
     elCanal,
+    elHiloAlrededorDe,
+    elMensaje,
     guardarUnMensaje,
     laGenteDeLasCuentas,
     leerElHilo,
@@ -44,6 +47,13 @@ import {
     sinLeerPorCanal,
     type FilaDeCanal,
 } from "@/lib/chat-de-equipo-db";
+import {
+    TOPE_DE_RESULTADOS,
+    comoConsultaDeBusqueda,
+    comoExtractoDeCita,
+    comoIdDeMensaje,
+    type ResultadoDeBusqueda,
+} from "@/lib/busqueda-del-equipo";
 import {
     esLaCuentaMadre,
     laFamiliaDeLaCuenta,
@@ -310,6 +320,16 @@ async function lasCuentasVinculadas(
 /** El hilo de un canal, con la lista de canales al lado. */
 export async function hiloDelEquipoAction(
     canalPedido?: string,
+    /**
+     * El mensaje al que hay que llegar, si se viene de un resultado de búsqueda
+     * o de un aviso.
+     *
+     * Sin esto se traen los ÚLTIMOS `TOPE_DE_MENSAJES`, y un resultado de hace
+     * tres meses no está entre ellos: se aterrizaba al final del hilo y el
+     * anillo no aparecía nunca. Con esto se trae el hilo **alrededor** de ese
+     * mensaje.
+     */
+    mensajePedido?: string | null,
 ): Promise<Respuesta<HiloAbierto>> {
     try {
         const quien = await quienYDonde();
@@ -351,9 +371,24 @@ export async function hiloDelEquipoAction(
         }
 
         const fila = filas.find((f) => f.id === canal.id) ?? null;
+        // Si se viene a por un mensaje concreto, el hilo se trae ALREDEDOR de
+        // él. Y si ese mensaje ya no está —se pudo borrar entre encontrarlo y
+        // pulsarlo— se cae al hilo de siempre: mejor el final de la
+        // conversación que una pantalla vacía.
+        const aPorUno = comoIdDeMensaje(mensajePedido);
         const [mensajes, equipo] = await Promise.all([
-            // El general se lee sobre la familia entera; un canal, por su id.
-            leerElHilo(quien.familia.cuentas, canal.id),
+            aPorUno
+                ? elHiloAlrededorDe({
+                      canalId: canal.id,
+                      cuentas: quien.familia.cuentas,
+                      mensajeId: aPorUno,
+                  }).then((alrededor) =>
+                      alrededor.length
+                          ? alrededor
+                          : leerElHilo(quien.familia.cuentas, canal.id),
+                  )
+                // El general se lee sobre la familia entera; un canal, por su id.
+                : leerElHilo(quien.familia.cuentas, canal.id),
             losMencionablesDe(canal, fila, gente),
         ]);
 
@@ -519,6 +554,15 @@ export async function enviarAlEquipoAction(
         nombre?: string | null;
         numero?: string | null;
     },
+    /**
+     * El mensaje al que se responde, si se responde a alguno.
+     *
+     * Llega solo el **id**: el nombre y el extracto los copia el servidor del
+     * original, no el navegador. Si los mandara el navegador, cualquiera
+     * publicaría un recuadro de cita con el texto que quisiera a nombre de
+     * quien quisiera — una cita falsa que parece la de verdad.
+     */
+    citaPedida?: string | null,
 ): Promise<Respuesta<{ mensaje: MensajeDeEquipo; canalId: string }>> {
     try {
         const quien = await quienYDonde();
@@ -564,6 +608,45 @@ export async function enviarAlEquipoAction(
             return { success: false, message: "No puedes escribir en este canal." };
         }
 
+        // La CITA. Se resuelve aquí, con el canal ya comprobado, y son dos
+        // preguntas distintas:
+        //
+        // 1. **El texto lo copia el servidor del original**, no el navegador.
+        //    Aceptando el extracto de fuera, cualquiera publicaría una cita
+        //    falsa con el nombre de otro y con el aspecto de una de verdad.
+        // 2. **Solo se cita del MISMO canal.** Es lo que impide que una cita
+        //    sea una forma de sacar contenido de donde no se puede leer: quien
+        //    administra lee los directos de su cuenta, así que sin esta
+        //    condición podría citar un directo dentro del general y enseñárselo
+        //    a todo el equipo con un clic.
+        let cita: { id: string; autorNombre: string | null; extracto: string } | null = null;
+        const idCitado = comoIdDeMensaje(citaPedida);
+        if (citaPedida && !idCitado) {
+            console.warn("[chat-equipo] se pidió citar un id que no lo es", { citaPedida });
+        }
+        if (idCitado) {
+            const original = await elMensaje(idCitado);
+            const mismoCanal = original && canalDeLaFila(original.canalId) === canal.id;
+            if (!mismoCanal) {
+                // No es mudo: desde fuera, un mensaje que sale sin el recuadro
+                // se lee como que la cita no funciona.
+                console.warn("[chat-equipo] se pidió citar un mensaje de otro canal", {
+                    citado: idCitado,
+                    canal: canal.id,
+                    existe: Boolean(original),
+                });
+                return {
+                    success: false,
+                    message: "Solo puedes citar un mensaje de esta misma conversación.",
+                };
+            }
+            cita = {
+                id: original.id,
+                autorNombre: original.autorNombre,
+                extracto: comoExtractoDeCita(original.texto),
+            };
+        }
+
         // A quién se mencionó lo decide el SERVIDOR, y sobre la gente de ESTE
         // canal. Lo que diga el navegador no se da por bueno: sería una lista
         // de destinatarios que llega de fuera.
@@ -589,6 +672,8 @@ export async function enviarAlEquipoAction(
             mencionados,
             creadoEn: new Date().toISOString(),
             chat,
+            // Recién escrita, el original está: se acaba de comprobar.
+            cita: cita ? { ...cita, sigueAhi: true } : null,
         };
 
         await guardarUnMensaje({
@@ -601,6 +686,7 @@ export async function enviarAlEquipoAction(
             texto: mensaje.texto,
             mencionados,
             chat,
+            cita,
         });
 
         if (mencionados.length) {
@@ -832,6 +918,99 @@ export async function abrirDirectoAction(
     } catch (error) {
         console.error("[chat-equipo] no se pudo abrir el directo", error);
         return { success: false, message: "No se pudo abrir la conversación." };
+    }
+}
+
+/**
+ * Buscar por texto en lo que esa persona puede leer.
+ *
+ * **La puerta es la de siempre y no hay una segunda.** El alcance sale de
+ `canalesQueAlcanzan` + `losCanalesQueVe`, exactamente las mismas funciones que
+ * arman el listado del hilo, así que lo que la lista esconde la búsqueda no lo
+ * encuentra. Escribir aquí una condición propia sería tener dos reglas de
+ * permisos que mantener a la par, y el día que se separen esto se convierte en
+ * la forma de leer lo que no se puede leer.
+ *
+ * Lo que se teclea **nunca llega en crudo a la consulta**: pasa por
+ * `comoConsultaDeBusqueda`, que se queda solo con letras y números y pone los
+ * operadores. `to_tsquery` tiene su propia sintaxis y un `!` suelto no es una
+ * búsqueda rara — revienta la consulta entera.
+ */
+export async function buscarEnElEquipoAction(
+    texto: string,
+    /** `null` = en todos los canales que alcanzo; un id = solo en ese. */
+    soloEsteCanal?: string | null,
+): Promise<Respuesta<{ resultados: ResultadoDeBusqueda[] }>> {
+    try {
+        const quien = await quienYDonde();
+        if (!quien) return { success: false, message: "No autorizado." };
+
+        const consulta = comoConsultaDeBusqueda(texto);
+        // Escribir una letra no es buscar: devolver medio hilo como
+        // «resultados» es ruido, no una respuesta.
+        if (!consulta) return { success: true, data: { resultados: [] } };
+
+        const [filas, gente] = await Promise.all([
+            canalesQueAlcanzan({
+                cuentaId: quien.cuentaId,
+                personaId: quien.persona.id,
+                manda: quien.manda,
+            }),
+            laGente(quien.familia),
+        ]);
+        const canales = losCanalesQueVe(
+            filas,
+            quien.persona.id,
+            quien.cuentaId,
+            quien.manda,
+            gente,
+        );
+
+        // Acotar a un canal es acotar a uno de los MÍOS. Un id que llega de
+        // fuera y no está en la lista no acota a ese canal: se ignora y se
+        // busca en todos los que alcanzo, que es lo suyo.
+        const pedido = soloEsteCanal ? canalDeLaFila(soloEsteCanal) : null;
+        const acotado = pedido && canales.some((c) => c.id === pedido) ? pedido : null;
+        if (soloEsteCanal && !acotado) {
+            console.warn("[chat-equipo] se pidió buscar en un canal que no está en la lista", {
+                pedido: soloEsteCanal,
+                persona: quien.persona.id,
+            });
+        }
+
+        const nombreDeCanal = new Map(canales.map((c) => [c.id, c.nombre]));
+
+        const filasEncontradas = await buscarEnElEquipo({
+            // Solo los canales CON FILA: el general no es una fila y se busca
+            // por la familia, dentro de la consulta.
+            canalIds: canales.filter((c) => c.id !== CANAL_GENERAL).map((c) => c.id),
+            cuentas: quien.familia.cuentas,
+            consulta,
+            soloEsteCanal: acotado,
+            tope: TOPE_DE_RESULTADOS,
+        });
+
+        const resultados: ResultadoDeBusqueda[] = filasEncontradas.map((f) => {
+            const canalId = canalDeLaFila(f.canalId);
+            return {
+                id: f.id,
+                canalId,
+                // El nombre viaja con el resultado para que la lista no tenga
+                // que buscarlo: un resultado que dice «en algún canal» no
+                // ayuda a decidir si es el que se busca.
+                canalNombre: nombreDeCanal.get(canalId) ?? NOMBRE_DEL_GENERAL,
+                autorNombre: f.autorNombre,
+                texto: f.texto,
+                creadoEn: f.creadoEn.toISOString(),
+            };
+        });
+
+        return { success: true, data: { resultados } };
+    } catch (error) {
+        // Un buscador que falla en silencio se lee como «no hay resultados»,
+        // que es la peor respuesta posible: parece que el mensaje no existe.
+        console.error("[chat-equipo] no se pudo buscar", error);
+        return { success: false, message: "No se pudo buscar. Inténtalo de nuevo." };
     }
 }
 

@@ -29,6 +29,7 @@
  * desborda y tapa la pantalla entera.
  */
 import type { ChatCompartido } from "@/lib/chat-compartido";
+import type { CitaDeMensaje } from "@/lib/busqueda-del-equipo";
 
 export const TOPE_DEL_MENSAJE = 2000;
 
@@ -81,6 +82,17 @@ export type MensajeDeEquipo = {
      * pantalla vacía. Ver `lib/chat-compartido.ts`.
      */
     chat?: ChatCompartido | null;
+    /**
+     * El mensaje al que responde, si responde a alguno.
+     *
+     * Sale entero de la fila de ESTE mensaje —el nombre y el extracto están
+     * copiados—, así que el recuadro se pinta sin mirar el original. Lo único
+     * que se pregunta por él es `sigueAhi`, para poder decir que ya no está.
+     *
+     * **Sin hilos anidados**: la cita no cuelga de nada, es un adorno de la
+     * respuesta. La conversación sigue siendo una sola lista.
+     */
+    cita?: CitaDeMensaje | null;
 };
 
 /** Lo mínimo que hace falta saber de alguien para mencionarlo. */

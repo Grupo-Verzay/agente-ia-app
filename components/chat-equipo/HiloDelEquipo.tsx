@@ -10,7 +10,9 @@ import {
     MessagesSquare,
     Pencil,
     Plus,
+    Search,
     Send,
+    X,
     Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -39,7 +41,12 @@ import {
     type ChatCompartido,
 } from "@/lib/chat-compartido";
 import {
+    MINIMO_PARA_BUSCAR,
+    type ResultadoDeBusqueda,
+} from "@/lib/busqueda-del-equipo";
+import {
     abrirDirectoAction,
+    buscarEnElEquipoAction,
     crearCanalAction,
     enviarAlEquipoAction,
     hiloDelEquipoAction,
@@ -113,6 +120,17 @@ export function HiloDelEquipo({
     // la arroba sigue ahí y el siguiente carácter volvería a abrirlo. Se guarda
     // la POSICIÓN de la que uno se quiso deshacer, y solo esa queda callada.
     const [cerradaEn, setCerradaEn] = useState<number | null>(null);
+    // El mensaje que se está citando, mientras se escribe la respuesta. Vive
+    // en el FORMULARIO y no dentro del hilo: es parte de lo que se va a enviar,
+    // igual que el texto, así que se manda con él y se limpia al enviar.
+    const [citando, setCitando] = useState<MensajeDeEquipo | null>(null);
+    const [busqueda, setBusqueda] = useState("");
+    const [soloEsteCanal, setSoloEsteCanal] = useState(true);
+    const [resultados, setResultados] = useState<ResultadoDeBusqueda[] | null>(null);
+    const [buscando, setBuscando] = useState(false);
+    // A qué mensaje hay que llegar. Arranca con el del aviso, si lo hay, y
+    // cambia al pulsar un resultado o una cita.
+    const [aPorEste, setAPorEste] = useState<string | null>(mensajeInicial ?? null);
 
     const cajaDeEscribir = useRef<HTMLTextAreaElement | null>(null);
     const abajoDelTodo = useRef<HTMLDivElement | null>(null);
@@ -125,9 +143,17 @@ export function HiloDelEquipo({
     const canalRef = useRef(canalId);
     canalRef.current = canalId;
 
-    const traer = useCallback(async (cual?: string) => {
+    // A qué mensaje ir, por referencia: el ciclo se monta una vez y esto
+    // cambia al pulsar un resultado.
+    const aPorEsteRef = useRef<string | null>(mensajeInicial ?? null);
+    aPorEsteRef.current = aPorEste;
+
+    const traer = useCallback(async (cual?: string, mensaje?: string | null) => {
         const pedido = cual ?? canalRef.current;
-        const res = await hiloDelEquipoAction(pedido);
+        // El mensaje solo se pide cuando se viene A POR ÉL. En las vueltas del
+        // reloj no: el hilo se traería centrado en un mensaje viejo para
+        // siempre y no se vería entrar nada nuevo.
+        const res = await hiloDelEquipoAction(pedido, mensaje ?? undefined);
         if (!res.success) return res.message;
         // Una vuelta del reloj que salió con el canal anterior NO puede pintar
         // encima del que se acaba de abrir: llega tarde, con los mensajes de
@@ -159,7 +185,7 @@ export function HiloDelEquipo({
         let vivo = true;
         void (async () => {
             try {
-                const malo = await traer(canalInicial || CANAL_GENERAL);
+                const malo = await traer(canalInicial || CANAL_GENERAL, aPorEsteRef.current);
                 if (vivo && malo) setFallo(malo);
             } catch (error) {
                 // Un panel que se abre vacío y no dice por qué se lee como que
@@ -172,6 +198,76 @@ export function HiloDelEquipo({
             vivo = false;
         };
     }, [activo, datos, traer, canalInicial]);
+
+    /**
+     * Ir a un mensaje: el de un resultado de búsqueda o el de una cita.
+     *
+     * Si ya está en pantalla se salta y ya —no hace falta ir al servidor—. Si
+     * no, se pide el hilo **alrededor** de él: un mensaje de hace tres meses no
+     * está entre los últimos que se traen, y sin esto pulsarlo aterrizaba al
+     * final del hilo sin decir nada.
+     */
+    const irAlMensaje = useCallback(
+        async (id: string, canalDelMensaje?: string) => {
+            setResultados(null);
+            setAPorEste(id);
+            aPorEsteRef.current = id;
+            buscado.current = false;
+
+            const nodo = document.getElementById(`mensaje-${id}`);
+            const mismoCanal = !canalDelMensaje || canalDelMensaje === canalRef.current;
+            if (nodo && mismoCanal) {
+                nodo.scrollIntoView({ block: "center" });
+                buscado.current = true;
+                return;
+            }
+            try {
+                const malo = await traer(canalDelMensaje ?? canalRef.current, id);
+                if (malo) toast.error(malo);
+            } catch (error) {
+                // Un resultado que se pulsa y no hace nada se lee como que la
+                // búsqueda está rota.
+                console.warn("[chat-equipo] no se pudo ir al mensaje", error);
+                toast.error("No se pudo abrir ese mensaje.");
+            }
+        },
+        [traer],
+    );
+
+    /**
+     * Buscar.
+     *
+     * Se dispara **al enviar el formulario**, no en cada tecla: una consulta por
+     * carácter son diez consultas para escribir «facturas», y aquí no hay nada
+     * que se gane con ver resultados a medio escribir. El servidor decide qué
+     * se puede leer, así que la lista nunca trae lo que la persona no vería.
+     */
+    const buscar = useCallback(async () => {
+        const loQueSeBusca = busqueda.trim();
+        if (loQueSeBusca.length < MINIMO_PARA_BUSCAR) {
+            setResultados(null);
+            return;
+        }
+        setBuscando(true);
+        try {
+            const res = await buscarEnElEquipoAction(
+                loQueSeBusca,
+                soloEsteCanal ? canalRef.current : null,
+            );
+            if (!res.success) {
+                toast.error(res.message);
+                return;
+            }
+            setResultados(res.data.resultados);
+        } catch (error) {
+            // Un buscador que falla en silencio se lee como «no hay
+            // resultados», que es peor: parece que el mensaje no existe.
+            console.warn("[chat-equipo] no se pudo buscar", error);
+            toast.error("No se pudo buscar. Inténtalo de nuevo.");
+        } finally {
+            setBuscando(false);
+        }
+    }, [busqueda, soloEsteCanal]);
 
     // ── El reloj ────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -210,8 +306,8 @@ export function HiloDelEquipo({
     // devolvería la vista a la mención y no se podría seguir leyendo.
     const buscado = useRef(false);
     useEffect(() => {
-        if (mensajeInicial && !buscado.current && datos?.mensajes.length) {
-            const nodo = document.getElementById(`mensaje-${mensajeInicial}`);
+        if (aPorEste && !buscado.current && datos?.mensajes.length) {
+            const nodo = document.getElementById(`mensaje-${aPorEste}`);
             if (nodo) {
                 buscado.current = true;
                 nodo.scrollIntoView({ block: "center" });
@@ -221,7 +317,7 @@ export function HiloDelEquipo({
             // como siempre: al final. Mejor el hilo que una pantalla quieta.
         }
         abajoDelTodo.current?.scrollIntoView({ block: "end" });
-    }, [datos?.mensajes.length, canalId, mensajeInicial]);
+    }, [datos?.mensajes.length, canalId, aPorEste]);
 
     const canal = useMemo(
         () => datos?.canales.find((c) => c.id === canalId) ?? datos?.canales[0] ?? null,
@@ -252,7 +348,7 @@ export function HiloDelEquipo({
         if (!limpio || enviando) return;
         setEnviando(true);
         try {
-            const res = await enviarAlEquipoAction(limpio, canalId);
+            const res = await enviarAlEquipoAction(limpio, canalId, undefined, citando?.id ?? null);
             if (!res.success) {
                 // Un botón que no dice por qué no hizo nada es un botón que se
                 // pulsa cinco veces.
@@ -261,6 +357,10 @@ export function HiloDelEquipo({
             }
             setTexto("");
             setArroba(null);
+            // La cita se limpia al enviar, como el texto: es parte de lo que se
+            // acaba de mandar. Dejándola puesta, la respuesta siguiente saldría
+            // citando lo mismo sin que nadie lo pidiera.
+            setCitando(null);
             // Se pinta al momento y el reloj lo confirma en su vuelta: el
             // servidor manda, pero escribir no puede sentirse lento.
             setDatos((antes) =>
@@ -276,7 +376,7 @@ export function HiloDelEquipo({
         } finally {
             setEnviando(false);
         }
-    }, [texto, enviando, canalId]);
+    }, [texto, enviando, canalId, citando]);
 
     /**
      * A quién se le está ofreciendo ahora mismo.
@@ -411,6 +511,22 @@ export function HiloDelEquipo({
                 onRefrescar={() => void traer()}
             />
 
+            <BarraDeBusqueda
+                texto={busqueda}
+                onTexto={setBusqueda}
+                soloEsteCanal={soloEsteCanal}
+                onAlcance={setSoloEsteCanal}
+                buscando={buscando}
+                resultados={resultados}
+                nombreDelCanal={canal.nombre}
+                onBuscar={buscar}
+                onCerrar={() => {
+                    setResultados(null);
+                    setBusqueda("");
+                }}
+                onAbrirResultado={(r) => void irAlMensaje(r.id, r.canalId)}
+            />
+
             <div className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-6">
                 {datos.mensajes.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
@@ -433,8 +549,10 @@ export function HiloDelEquipo({
                                 mensaje={m}
                                 mio={m.autorId === datos.yo}
                                 meMencionan={m.mencionados.includes(datos.yo)}
-                                buscado={m.id === mensajeInicial}
+                                buscado={m.id === aPorEste}
                                 nombrePorId={nombrePorId}
+                                onCitar={datos.puedoEscribir ? setCitando : undefined}
+                                onSaltar={(id) => void irAlMensaje(id)}
                             />
                         ))}
                         <div ref={abajoDelTodo} />
@@ -443,6 +561,32 @@ export function HiloDelEquipo({
             </div>
 
             <div className="shrink-0 border-t border-border bg-background px-3 py-3 sm:px-6">
+                {/* Lo que se está citando, ENCIMA de la caja y no dentro: es
+                    contexto de lo que se va a escribir, y dentro se confundiría
+                    con el texto propio. Con su X, porque citar por error y no
+                    poder deshacerlo obliga a enviar y corregir después. */}
+                {citando ? (
+                    <div className="mx-auto mb-2 flex max-w-3xl items-start gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+                        <div className="min-w-0 flex-1 border-l-2 border-primary/50 pl-2 text-xs">
+                            <div className="font-medium text-foreground/80">
+                                {citando.autorNombre?.trim() ||
+                                    nombrePorId.get(citando.autorId) ||
+                                    "Alguien"}
+                            </div>
+                            <div className="line-clamp-2 whitespace-pre-wrap text-muted-foreground">
+                                {citando.texto}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setCitando(null)}
+                            aria-label="Quitar la cita"
+                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                ) : null}
                 <div className="relative mx-auto flex max-w-3xl items-end gap-2">
                     {/* La lista va POR ENCIMA de la caja, no debajo: debajo está
                         el borde de la ventana y en un panel lateral no hay sitio
@@ -1062,6 +1206,8 @@ function Burbuja({
     meMencionan,
     buscado = false,
     nombrePorId,
+    onCitar,
+    onSaltar,
 }: {
     mensaje: MensajeDeEquipo;
     mio: boolean;
@@ -1069,6 +1215,10 @@ function Burbuja({
     /** El mensaje al que traía el aviso: se señala para encontrarlo de un vistazo. */
     buscado?: boolean;
     nombrePorId: Map<string, string>;
+    /** Responder citando este mensaje. Sin permiso de escritura no se ofrece. */
+    onCitar?: (m: MensajeDeEquipo) => void;
+    /** Ir al mensaje citado, cuando la cita se pulsa. */
+    onSaltar?: (id: string) => void;
 }) {
     const quien = mensaje.autorNombre?.trim() || nombrePorId.get(mensaje.autorId) || "Alguien";
     const hora = new Date(mensaje.creadoEn).toLocaleString([], {
@@ -1084,9 +1234,21 @@ function Burbuja({
             id={`mensaje-${mensaje.id}`}
             className={`flex flex-col gap-1 ${mio ? "items-end" : "items-start"}`}
         >
-            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <div className="group flex items-center gap-2 px-1 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">{mio ? "Tú" : quien}</span>
                 <span>{hora}</span>
+                {onCitar ? (
+                    <button
+                        type="button"
+                        onClick={() => onCitar(mensaje)}
+                        // Sale al posar el cursor, como las acciones de una
+                        // tarjeta. Pero **fuera del flujo no hace falta**: es
+                        // una sola palabra corta y no le quita ancho a nada.
+                        className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 hover:text-foreground hover:underline"
+                    >
+                        Citar
+                    </button>
+                ) : null}
             </div>
             <div
                 className={[
@@ -1102,9 +1264,194 @@ function Burbuja({
                     buscado ? "ring-2 ring-primary ring-offset-2" : "",
                 ].join(" ")}
             >
+                {/* La cita va DENTRO de la burbuja y encima del texto: es
+                    contexto de esta respuesta, no un mensaje aparte. Fuera se
+                    leería como dos mensajes seguidos. */}
+                {mensaje.cita ? (
+                    <RecuadroDeCita cita={mensaje.cita} onSaltar={onSaltar} />
+                ) : null}
                 {mensaje.texto}
             </div>
             {mensaje.chat ? <TarjetaDeChat chat={mensaje.chat} /> : null}
+        </div>
+    );
+}
+
+/**
+ * El mensaje citado, dentro de la respuesta.
+ *
+ * Se pinta con lo que trae la fila de la respuesta —el nombre y el extracto
+ * están copiados—, así que **no depende del original para nada**. Lo único que
+ * se pregunta por él es si sigue existiendo, y eso solo cambia dos cosas: el
+ * recuadro deja de ser pulsable y lo dice.
+ */
+/**
+ * La barra de búsqueda y su lista de resultados.
+ *
+ * **Se busca al enviar el formulario**, no en cada tecla: una consulta por
+ * carácter son diez para escribir «facturas», y ver resultados a medio escribir
+ * no ayuda a encontrar nada. Enter busca y Escape cierra, que es lo que la gente
+ * ya intenta hacer.
+ *
+ * Y el alcance es explícito —este canal o todos— en vez de adivinarlo: quien
+ * busca «factura» en el canal de ventas casi siempre quiere el de ventas, pero
+ * quien no se acuerda de dónde lo leyó quiere todos, y eso no se puede deducir.
+ */
+function BarraDeBusqueda({
+    texto,
+    onTexto,
+    soloEsteCanal,
+    onAlcance,
+    buscando,
+    resultados,
+    nombreDelCanal,
+    onBuscar,
+    onCerrar,
+    onAbrirResultado,
+}: {
+    texto: string;
+    onTexto: (v: string) => void;
+    soloEsteCanal: boolean;
+    onAlcance: (v: boolean) => void;
+    buscando: boolean;
+    /** `null` = todavía no se ha buscado. `[]` = se buscó y no hay nada. */
+    resultados: ResultadoDeBusqueda[] | null;
+    nombreDelCanal: string;
+    onBuscar: () => void;
+    onCerrar: () => void;
+    onAbrirResultado: (r: ResultadoDeBusqueda) => void;
+}) {
+    return (
+        <div className="shrink-0 border-b border-border bg-background">
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    onBuscar();
+                }}
+                className="flex items-center gap-2 px-3 py-2 sm:px-6"
+            >
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <input
+                    value={texto}
+                    onChange={(e) => onTexto(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") onCerrar();
+                    }}
+                    placeholder={`Buscar en ${soloEsteCanal ? nombreDelCanal : "todos los canales"}…`}
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+                <label className="flex shrink-0 cursor-pointer items-center gap-1 text-xs text-muted-foreground">
+                    <input
+                        type="checkbox"
+                        checked={!soloEsteCanal}
+                        onChange={(e) => onAlcance(!e.target.checked)}
+                        className="h-3 w-3"
+                    />
+                    En todos
+                </label>
+                {buscando ? (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                ) : null}
+                {resultados !== null ? (
+                    <button
+                        type="button"
+                        onClick={onCerrar}
+                        aria-label="Cerrar la búsqueda"
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                ) : null}
+            </form>
+
+            {resultados !== null ? (
+                <div className="max-h-64 overflow-y-auto border-t border-border/60 px-3 pb-2 sm:px-6">
+                    {resultados.length === 0 ? (
+                        // Decirlo, y no dejar la lista vacía: una lista que no
+                        // aparece se lee como que el buscador no hizo nada.
+                        <p className="py-3 text-center text-xs text-muted-foreground">
+                            No hay mensajes con eso
+                            {soloEsteCanal ? ` en ${nombreDelCanal}` : ""}.
+                        </p>
+                    ) : (
+                        <ul className="flex flex-col py-1">
+                            {resultados.map((r) => (
+                                <li key={r.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onAbrirResultado(r)}
+                                        className="w-full rounded px-2 py-1.5 text-left hover:bg-muted"
+                                    >
+                                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                            {/* El canal va en el resultado: sin
+                                                él no se puede decidir si es el
+                                                que se busca sin abrirlo. */}
+                                            <span className="font-medium text-foreground/80">
+                                                {r.canalNombre}
+                                            </span>
+                                            <span>{r.autorNombre?.trim() || "Alguien"}</span>
+                                            <span>
+                                                {new Date(r.creadoEn).toLocaleDateString([], {
+                                                    day: "2-digit",
+                                                    month: "short",
+                                                })}
+                                            </span>
+                                        </div>
+                                        <div className="line-clamp-2 text-xs">{r.texto}</div>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function RecuadroDeCita({
+    cita,
+    onSaltar,
+}: {
+    cita: NonNullable<MensajeDeEquipo["cita"]>;
+    onSaltar?: (id: string) => void;
+}) {
+    const sePuedeIr = cita.sigueAhi && Boolean(onSaltar);
+
+    return (
+        <div
+            role={sePuedeIr ? "button" : undefined}
+            tabIndex={sePuedeIr ? 0 : undefined}
+            onClick={sePuedeIr ? () => onSaltar?.(cita.id) : undefined}
+            onKeyDown={
+                sePuedeIr
+                    ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onSaltar?.(cita.id);
+                          }
+                      }
+                    : undefined
+            }
+            className={[
+                "mb-1.5 border-l-2 border-primary/50 bg-background/50 px-2 py-1 text-xs",
+                sePuedeIr ? "cursor-pointer hover:bg-background/80" : "",
+            ].join(" ")}
+        >
+            <div className="font-medium text-foreground/80">
+                {cita.autorNombre?.trim() || "Alguien"}
+            </div>
+            <div className="line-clamp-3 whitespace-pre-wrap text-muted-foreground">
+                {cita.extracto}
+            </div>
+            {/* Si el original se borró, la cita se queda —el texto está aquí—
+                pero hay que decir que ya no se puede ir a él. Sin esto, pulsar
+                no haría nada y se leería como un recuadro roto. */}
+            {!cita.sigueAhi ? (
+                <div className="mt-0.5 italic text-muted-foreground/70">
+                    Este mensaje ya no está
+                </div>
+            ) : null}
         </div>
     );
 }
