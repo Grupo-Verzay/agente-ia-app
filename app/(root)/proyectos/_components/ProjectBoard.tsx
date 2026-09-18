@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
-  PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
+  PointerSensor, closestCenter, useDroppable, useSensor, useSensors,
 } from "@dnd-kit/core";
 import { toast } from "sonner";
 import {
@@ -44,6 +44,12 @@ import {
   TOPE_DE_ADJUNTOS_POR_TAREA,
   type AdjuntoDeTarea, type TipoDeAdjunto,
 } from "@/lib/adjuntos-de-tarea-tipos";
+import {
+  ColumnaOrdenable,
+  TarjetaDelTablero,
+  useOrdenDeColumna,
+} from "@/components/shared/OrdenDeColumna";
+import { ordenarLaColumna, resolverElArrastre } from "@/lib/orden-del-tablero";
 import { HiloDeLaTarea } from "./HiloDeLaTarea";
 import { comentarLaTareaAction } from "@/actions/avisos-de-tarea-actions";
 import {
@@ -168,28 +174,17 @@ function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boole
 }
 
 function DraggableTask({ task, onOpen }: { task: TaskData; onOpen: (task: TaskData) => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: String(task.id),
-    data: { task },
-  });
-
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50, position: "relative" as const }
-    : undefined;
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
+    <TarjetaDelTablero
+      id={String(task.id)}
+      puedeArrastrar
+      className="cursor-grab active:cursor-grabbing"
       // El sensor exige mover 6px antes de arrastrar, asi que un clic limpio
       // llega aqui y abre la tarjeta; soltarla tras arrastrar, no.
-      onClick={() => { if (!isDragging) onOpen(task); }}
-      className="cursor-grab active:cursor-grabbing"
+      onClick={() => onOpen(task)}
     >
-      <TaskCard task={task} dragging={isDragging} />
-    </div>
+      {(dragging) => <TaskCard task={task} dragging={dragging} />}
+    </TarjetaDelTablero>
   );
 }
 
@@ -200,6 +195,7 @@ function BoardColumn({
   label,
   color,
   tasks,
+  ids,
   onAdd,
   onOpenTask,
   canDrag,
@@ -209,6 +205,8 @@ function BoardColumn({
   label: string;
   color: string;
   tasks: TaskData[];
+  /** Las mismas tareas, solo sus ids: es lo que `SortableContext` necesita. */
+  ids: string[];
   onAdd: () => void;
   onOpenTask: (task: TaskData) => void;
   canDrag: (task: TaskData) => boolean;
@@ -247,6 +245,7 @@ function BoardColumn({
           isOver && "bg-primary/5 ring-2 ring-inset ring-primary/30",
         )}
       >
+        <ColumnaOrdenable ids={ids}>
         {tasks.map((task) => (
           canDrag(task)
             ? <DraggableTask key={task.id} task={task} onOpen={onOpenTask} />
@@ -264,6 +263,7 @@ function BoardColumn({
               </button>
             )
         ))}
+        </ColumnaOrdenable>
         {tasks.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground/40">
             Sin tareas
@@ -321,13 +321,27 @@ export function ProjectBoard({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
 
+  // El orden del TABLERO, no de quien mira: en un proyecto compartido las dos
+  // cuentas abren el mismo tablero y lo ven colocado igual. Reordenar es la
+  // misma puerta que crear, editar y mover cualquier tarjeta —`canManage`—; un
+  // agente mueve lo suyo de columna pero no cambia el orden que puso otro. La
+  // de verdad está en la acción, como siempre.
+  const orden = useOrdenDeColumna("proyecto", String(project.id), canManage);
+  // Estable (no depende del estado), así que `load` puede depender de ella sin
+  // volver a montarse en cada arrastre.
+  const { olvidarLoDeEncima } = orden;
+
   const load = useCallback(async () => {
     setLoading(true);
     const res = await getProjectTasksAction(project.id);
-    if (res.success && res.data) setTasks(res.data);
-    else toast.error(res.message);
+    if (res.success && res.data) {
+      setTasks(res.data);
+      // Lo que se movió en pantalla sobra: las posiciones vienen dentro de cada
+      // tarea. Dejarlo encima taparía para siempre lo que reordenó otra persona.
+      olvidarLoDeEncima();
+    } else toast.error(res.message);
     setLoading(false);
-  }, [project.id]);
+  }, [project.id, olvidarLoDeEncima]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -357,8 +371,26 @@ export function ProjectBoard({
       const column = map[task.status] ? task.status : "pending";
       map[column].push(task);
     }
+    // Cada columna se coloca por separado: el número de una tarjeta solo se
+    // compara con el de las de su misma columna.
+    for (const col of BOARD_COLUMNS) {
+      const posiciones: Record<string, number> = {};
+      for (const t of map[col.status]) {
+        const p = orden.posicionDe(String(t.id), t.posicion);
+        if (p !== null) posiciones[String(t.id)] = p;
+      }
+      map[col.status] = ordenarLaColumna(map[col.status], posiciones, (t) => String(t.id));
+    }
     return map;
-  }, [tasks]);
+  }, [tasks, orden]);
+
+  const idsPorColumna = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const col of BOARD_COLUMNS) {
+      map[col.status] = (byColumn[col.status] ?? []).map((t) => String(t.id));
+    }
+    return map;
+  }, [byColumn]);
 
   // La tarea que se está cerrando desde el tablero, y su tiempo.
   const [cerrando, setCerrando] = useState<TaskData | null>(null);
@@ -370,8 +402,27 @@ export function ProjectBoard({
     if (!over || pendingRef.current) return;
 
     const task = (active.data.current as { task?: TaskData } | undefined)?.task;
-    const toStatus = String(over.id);
-    if (!task || task.status === toStatus) return;
+    if (!task) return;
+
+    // Qué significa haberla soltado lo decide una función pura, la misma que
+    // usa el tablero de Tickets: o nada, o cambio de columna, o reordenar
+    // dentro de la suya.
+    const que = resolverElArrastre({
+      arrastrada: String(task.id),
+      soltadaSobre: String(over.id),
+      columnaDeLaArrastrada: byColumn[task.status] ? task.status : "pending",
+      columnas: BOARD_COLUMNS.map((c) => c.status),
+      idsPorColumna,
+    });
+
+    if (que.que === "reordenar") {
+      void orden.reordenar(que.ids);
+      return;
+    }
+    if (que.que !== "otra-columna") return;
+
+    const toStatus = que.columna;
+    if (task.status === toStatus) return;
     if (!BOARD_COLUMNS.some((col) => col.status === toStatus)) return;
 
     // Soltarla en «Hecho» es cerrarla, igual que el botón de Tareas, y cerrar
@@ -384,6 +435,13 @@ export function ProjectBoard({
     }
 
     const previous = tasks;
+    // Entra al final de la columna nueva, igual que hace el servidor. Sin esto
+    // se quedaría con el número de su columna anterior y aparecería en mitad de
+    // la nueva hasta recargar.
+    orden.ponerAlFinal(
+      String(task.id),
+      (byColumn[toStatus] ?? []).map((t) => orden.posicionDe(String(t.id), t.posicion)),
+    );
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, status: toStatus as TaskData["status"] } : t)),
     );
@@ -402,7 +460,7 @@ export function ProjectBoard({
     }
     // El avance del proyecto se ve en la tarjeta de la lista.
     onProjectChanged();
-  }, [tasks, onProjectChanged]);
+  }, [tasks, onProjectChanged, byColumn, idsPorColumna, orden]);
 
   /** Confirmar el cierre: ahora sí se mueve, con el tiempo registrado. */
   const confirmarElCierre = useCallback(async () => {
@@ -410,6 +468,10 @@ export function ProjectBoard({
     const task = cerrando;
 
     const previous = tasks;
+    orden.ponerAlFinal(
+      String(task.id),
+      (byColumn.done ?? []).map((t) => orden.posicionDe(String(t.id), t.posicion)),
+    );
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: "done" } : t)));
     pendingRef.current = true;
     const res = await moveProjectTaskAction({
@@ -428,7 +490,7 @@ export function ProjectBoard({
       return;
     }
     onProjectChanged();
-  }, [cerrando, minutosDeTrabajo, tasks, onProjectChanged]);
+  }, [cerrando, minutosDeTrabajo, tasks, onProjectChanged, byColumn, orden]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
@@ -467,6 +529,10 @@ export function ProjectBoard({
       ) : (
         <DndContext
           sensors={sensors}
+          // Con tarjetas que también son destino, el rectángulo más cercano es
+          // lo que decide entre qué dos se soltó. Sin esto dnd-kit se queda con
+          // la columna y el reorden no llega a calcularse nunca.
+          collisionDetection={closestCenter}
           onDragStart={(e: DragStartEvent) =>
             setActiveTask((e.active.data.current as { task?: TaskData } | undefined)?.task ?? null)
           }
@@ -481,6 +547,7 @@ export function ProjectBoard({
                   label={col.label}
                   color={col.color}
                   tasks={byColumn[col.status] ?? []}
+                  ids={idsPorColumna[col.status] ?? []}
                   onAdd={() => setAddingTo(col.status)}
                   onOpenTask={setEditingTask}
                   canDrag={puedeTocar}

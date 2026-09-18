@@ -198,6 +198,15 @@ export type Ticket = {
   clienteNombre?: string | null;
   /** El responsable, ya resuelto a nombre o correo. */
   responsableNombre?: string | null;
+  /**
+   * Dónde va dentro de su columna del tablero, si alguien lo colocó a mano.
+   *
+   * Vive en `orden_en_tablero`, la misma tabla que usa el tablero de Proyectos:
+   * `tickets_de_soporte` sí es nuestra y admitiría la columna, pero con una en
+   * cada sitio serían dos mecanismos para lo mismo. **`null` es un dato**: ese
+   * ticket no se ha colocado nunca. Ver `lib/orden-del-tablero.ts`.
+   */
+  posicion?: number | null;
 };
 
 /** Tope de lo que se escribe, para que un pegado enorme no entre a la base. */

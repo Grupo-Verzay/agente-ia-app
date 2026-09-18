@@ -10,6 +10,11 @@ import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { filtroDeProyectosVisibles, mandaEnElProyecto } from "@/lib/project-roles";
 import { accesoAlProyecto } from "@/lib/acceso-al-proyecto";
+import {
+  alFinalDelTablero,
+  olvidarLaTarjeta,
+  posicionesDelTablero,
+} from "@/lib/orden-de-tablero-db";
 import { cuentasParaCompartir } from "@/lib/cuentas-cliente";
 import {
   comoPermiso,
@@ -393,12 +398,17 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
     // una por tarjeta.
     // Y el detalle —el texto largo que antes vivía dentro de `title`— por lo
     // mismo: una consulta para la lista, no una por tarjeta.
-    const [adjuntos, sinVer, clientes, detalles] = await Promise.all([
+    // Y las posiciones del tablero, por lo mismo: una consulta para el tablero
+    // entero. La llave es el PROYECTO y no la cuenta que mira, así que en uno
+    // compartido las dos cuentas ven las tarjetas en el mismo orden — es un
+    // tablero, no dos.
+    const [adjuntos, sinVer, clientes, detalles, posiciones] = await Promise.all([
       leerLosAdjuntos(tasks.map((t) => t.id)),
       tareasConAlgoSinVer(tasks.map((t) => t.id), user.id),
       // También por la cuenta dueña: `task_work` se escribe bajo ella.
       leerLosClientesDeLasTareas(acceso.ownerId, tasks.map((t) => t.id)),
       detallesDeLasTareas(tasks.map((t) => t.id)),
+      posicionesDelTablero("proyecto", String(projectId)),
     ]);
 
     return {
@@ -427,6 +437,9 @@ export async function getProjectTasksAction(projectId: number): Promise<Result<T
         tieneAlgoSinVer: sinVer.has(t.id),
         clienteId: clientes[t.id]?.clienteId ?? null,
         tipoDeTrabajo: clientes[t.id]?.tipoDeTrabajo ?? null,
+        // Sin fila significa «nunca se colocó», y eso es lo que la deja salir
+        // con las de antes en vez de inventarle un sitio.
+        posicion: posiciones[String(t.id)] ?? null,
       })),
     };
   } catch (error) {
@@ -659,6 +672,13 @@ export async function moveProjectTaskAction(
         actorId: user.id,
         actorNombre: user.name?.trim() || user.email || null,
       });
+    }
+
+    // Cambiar de columna la manda al FINAL de la nueva, nunca arriba: llegar
+    // colándose por delante pisaría el orden que puso alguien a mano. No lanza
+    // —la tarea ya está movida y eso manda— pero tampoco es mudo.
+    if (deQuienEs.projectId) {
+      await alFinalDelTablero("proyecto", String(deQuienEs.projectId), String(parsed.taskId));
     }
 
     revalidatePath("/proyectos");

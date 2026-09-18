@@ -81,4 +81,13 @@ export type TaskData = {
    * quien no la ha abierto y no para quien sí.
    */
   tieneAlgoSinVer?: boolean;
+  /**
+   * Dónde va dentro de su columna del tablero, si alguien la colocó a mano.
+   *
+   * Vive en `orden_en_tablero`, tabla de la App: `tasks` es del backend y no se
+   * le añaden columnas desde aquí (#360). Opcional por lo mismo que `adjuntos`,
+   * y **`null` es un dato**: esa tarjeta no se ha colocado nunca y sale con las
+   * de antes, delante de las colocadas. Ver `lib/orden-del-tablero.ts`.
+   */
+  posicion?: number | null;
 };
