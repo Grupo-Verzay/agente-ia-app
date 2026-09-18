@@ -346,9 +346,16 @@ export function comoEnvioDeJornada(valor: unknown): EnvioDeJornada | null {
 
 /* ─────────────────────────────── Lo que se pinta ────────────────────────── */
 
-export type JornadaDeUnaPersona = {
-    personaId: string;
-    personaNombre: string | null;
+/**
+ * Lo que se MIDE de una jornada, sin quién es.
+ *
+ * Va aparte de la persona a propósito: `laJornadaDe` lee `actividad_jornada` y
+ * `actividad_acciones`, que solo saben de `personaId` — **quién es esa persona y
+ * de qué cuenta es lo resuelve la acción**, contra `User`. Con un solo tipo, la
+ * consulta tenía que inventarse un `cuentaId` que no está en esas tablas, y el
+ * único candidato a mano sería su `cuentaId`, que es justo el dato equivocado.
+ */
+export type MedidasDeLaJornada = {
     /** Segundos por sección, ya sumados. */
     porSeccion: Record<Seccion, number>;
     /** El total, que es la suma de lo anterior. */
@@ -356,6 +363,94 @@ export type JornadaDeUnaPersona = {
     /** Qué hizo, por tipo. */
     acciones: Record<TipoDeAccion, number>;
 };
+
+export type JornadaDeUnaPersona = MedidasDeLaJornada & {
+    personaId: string;
+    personaNombre: string | null;
+    /**
+     * La cuenta a la que PERTENECE la persona (`owner_id ?? id` de su fila),
+     * **no** aquella contra la que se guardó su actividad.
+     *
+     * Y esa distinción es la que decide en qué bloque sale y qué dice su
+     * columna «Cuenta». Los dos valores coinciden casi siempre y se separan
+     * justo en el caso que importa: alguien de la casa que entra en la cuenta
+     * de un cliente con «Ingresar» escribe su jornada bajo la cuenta del
+     * cliente —`quienFirma` resuelve `ownerId ?? id` de la fila EFECTIVA—, así
+     * que repartiendo por ahí ese rato saldría en Clientes, con el nombre de
+     * una persona de la casa dentro, y el bloque de arriba se quedaría corto
+     * sin que nadie viera un error.
+     */
+    cuentaId: string;
+    /** Cómo se llama esa cuenta. Se copia para no volver a buscarla al pintar. */
+    cuentaNombre: string | null;
+};
+
+/* ───────────────────────────── Los dos bloques ──────────────────────────── */
+
+/** Las personas de una misma cuenta, ya juntas. */
+export type CuentaConSuGente = {
+    cuentaId: string;
+    cuentaNombre: string | null;
+    personas: JornadaDeUnaPersona[];
+};
+
+export type DosBloques = {
+    /** La casa: la cuenta de quien mira, sus vinculadas y su gente. */
+    familia: JornadaDeUnaPersona[];
+    /** Todo lo demás, agrupado y ordenado por cuenta. */
+    clientes: CuentaConSuGente[];
+};
+
+/**
+ * Partir la lista en los dos bloques de la pantalla.
+ *
+ * **Es puro y se decide por `cuentaId` de la PERSONA**, que es lo único que no
+ * cambia según dónde estuviera metida cuando registró el rato. Ver el comentario
+ * de ese campo: repartir por la cuenta contra la que se guardó la actividad es
+ * exactamente el fallo que esto evita.
+ *
+ * Los clientes salen **agrupados y ordenados por cuenta** —y dentro, por
+ * tiempo— porque es lo que se viene a mirar aquí: una tabla con cincuenta
+ * personas de doce cuentas revueltas no contesta ninguna pregunta.
+ */
+export function repartirEnDosBloques(
+    personas: JornadaDeUnaPersona[],
+    cuentasDeLaFamilia: string[],
+): DosBloques {
+    const familia = new Set(cuentasDeLaFamilia.filter(Boolean));
+
+    const deLaCasa: JornadaDeUnaPersona[] = [];
+    const porCuenta = new Map<string, CuentaConSuGente>();
+
+    for (const p of personas) {
+        if (familia.has(p.cuentaId)) {
+            deLaCasa.push(p);
+            continue;
+        }
+        let grupo = porCuenta.get(p.cuentaId);
+        if (!grupo) {
+            grupo = { cuentaId: p.cuentaId, cuentaNombre: p.cuentaNombre, personas: [] };
+            porCuenta.set(p.cuentaId, grupo);
+        }
+        // Entre dos filas de la misma cuenta gana la que trae nombre: si una
+        // persona quedó sin resolverlo, la cuenta no puede salir «Sin nombre»
+        // por ella.
+        if (!grupo.cuentaNombre && p.cuentaNombre) grupo.cuentaNombre = p.cuentaNombre;
+        grupo.personas.push(p);
+    }
+
+    const porTiempo = (a: JornadaDeUnaPersona, b: JornadaDeUnaPersona) =>
+        b.segundos - a.segundos;
+
+    deLaCasa.sort(porTiempo);
+    const clientes = Array.from(porCuenta.values());
+    for (const grupo of clientes) grupo.personas.sort(porTiempo);
+    clientes.sort((a, b) =>
+        (a.cuentaNombre ?? a.cuentaId).localeCompare(b.cuentaNombre ?? b.cuentaId, "es"),
+    );
+
+    return { familia: deLaCasa, clientes };
+}
 
 /** Segundos a «3 h 20 min». Lo que se lee, no lo que se guarda. */
 export function comoRato(segundos: number): string {
