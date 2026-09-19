@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaQueConfigura } from "@/lib/cuenta-que-configura";
 import { db } from "@/lib/db";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
@@ -756,8 +757,13 @@ export async function saveAutoAssignSettings(input: {
   `;
 
   if (input.enabled) {
+    // El alcance es la CUENTA (`owner.id`, que es lo que `requireOwner`
+    // contesta) y la firma es la PERSONA que pulsó Guardar. Con la cuenta en
+    // `assignedBy`, el historial decía que la asignación la había hecho una
+    // cuenta, que no es nadie.
+    const quienGuardo = await currentUser();
     const result = await autoAssignUnassignedSessionsForOwner(owner.id, {
-      assignedBy: owner.id,
+      assignedBy: quienGuardo ? laPersonaQueActua(quienGuardo).id : null,
       onlyIfEnabled: true,
     });
 

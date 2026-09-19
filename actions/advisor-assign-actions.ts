@@ -25,12 +25,25 @@ export type AssignmentLogEntry = {
   createdAt: Date;
 };
 
-async function requireOwnerOrAdmin(): Promise<{ userId: string; ownerId: string } | null> {
+/**
+ * Quién llama y por qué cuenta, con las DOS preguntas separadas.
+ *
+ * `personaId` **firma** —quién hizo la asignación— y `ownerId` **alcanza** —de
+ * qué cuenta son los chats y de dónde sale el tope de la cuenta—. Son dos
+ * respuestas distintas y confundirlas rompe por las dos puntas: con la persona
+ * en el alcance, un administrador que llega por `linked_accounts` se queda sin
+ * cuenta; con la fila efectiva en la firma, el registro queda a nombre del
+ * cliente en el que se está metido.
+ */
+async function requireOwnerOrAdmin(): Promise<{
+  personaId: string;
+  ownerId: string;
+} | null> {
   const user = await currentUser();
   if (!user?.id) return null;
   const { ownerId, advisorRole } = user;
   if (!ownerId || advisorRole === "administrador") {
-    return { userId: user.id, ownerId: ownerId ?? user.id };
+    return { personaId: laPersona(user).id, ownerId: ownerId ?? user.id };
   }
   return null;
 }
@@ -56,6 +69,22 @@ async function triggerAdvisorAutomations(sessionId: number, advisorId: string | 
   }
 }
 
+/**
+ * El registro de quién asignó qué a quién.
+ *
+ * **`assignedBy` es la PERSONA**, igual que `advisorId`. Las dos columnas de
+ * esta misma fila guardan gente, y hasta ahora escribían cosas distintas: en
+ * `takeSession` el mismo `INSERT` metía la persona en `advisorId` y la fila
+ * efectiva en `assignedBy`, así que dentro de otra cuenta el historial decía
+ * que la asignación la había hecho el cliente.
+ *
+ * Es la familia de `audit_logs.actor_id`, que ya firma con la persona: esto es
+ * un registro de quién actuó, no un alcance. Y **no hay lector que se rompa**
+ * —`getAssignmentHistory` la trae pero la pantalla solo pinta el asesor y la
+ * acción—, así que el cambio es solo hacia adelante y sin backfill: lo ya
+ * escrito se queda con la cuenta y de él no se puede deducir quién estaba
+ * sentado delante.
+ */
 async function logAssignment(
   sessionId: number,
   advisorId: string | null,
@@ -234,7 +263,7 @@ export async function devolverChatALaIaAction(sessionId: number): Promise<Result
 
     // Ya no espera a nadie: fuera el sello de la fila.
     await quitarSelloDeEscaladoPorSesion(sessionId);
-    await logAssignment(sessionId, rows[0].assignedAdvisorId, user.id, "returned_to_ai");
+    await logAssignment(sessionId, rows[0].assignedAdvisorId, laPersona(user).id, "returned_to_ai");
 
     revalidatePath("/chats");
     return { success: true };
@@ -280,7 +309,7 @@ export async function assignSessionToAdvisor(
     UPDATE "Session" SET assigned_advisor_id = ${advisorId} WHERE id = ${sessionId}
   `;
 
-  await logAssignment(sessionId, advisorId, auth.userId, advisorId ? "assigned" : "released");
+  await logAssignment(sessionId, advisorId, auth.personaId, advisorId ? "assigned" : "released");
   void triggerAdvisorAutomations(sessionId, advisorId);
 
   // Auto-sync a Google Sheets (opt-in): cambió el asesor del contacto.
@@ -317,9 +346,8 @@ export async function takeSession(sessionId: number): Promise<Result> {
     UPDATE "Session" SET assigned_advisor_id = ${yo} WHERE id = ${sessionId}
   `;
 
-  // `assignedBy` se queda con la fila efectiva: es el registro de quién lo
-  // hizo, o sea la familia de `audit_logs`, y ese bloque no se toca todavía.
-  await logAssignment(sessionId, yo, user.id, "taken");
+  // Las dos columnas, la misma identidad: quien lo tomó es quien lo hizo.
+  await logAssignment(sessionId, yo, yo, "taken");
   void triggerAdvisorAutomations(sessionId, yo);
 
   return { success: true };
@@ -328,19 +356,20 @@ export async function takeSession(sessionId: number): Promise<Result> {
 export async function releaseSession(sessionId: number): Promise<Result> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
+  const yo = laPersona(user).id;
 
   const rows = await db.$queryRaw<{ assigned_advisor_id: string | null }[]>`
     SELECT assigned_advisor_id FROM "Session" WHERE id = ${sessionId}
   `;
   if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
   // Con la MISMA identidad con la que se tomó, o nadie puede soltar lo suyo.
-  if (rows[0].assigned_advisor_id !== laPersona(user).id) {
+  if (rows[0].assigned_advisor_id !== yo) {
     return { success: false, message: "Solo puedes liberar tus propias conversaciones." };
   }
 
   await generateConversationIntelligence({
     sessionId,
-    actorId: user.id,
+    actorId: yo,
     reason: "transferred",
   }).catch((error) => console.error("[releaseSession intelligence]", error));
 
@@ -348,7 +377,7 @@ export async function releaseSession(sessionId: number): Promise<Result> {
     UPDATE "Session" SET assigned_advisor_id = NULL WHERE id = ${sessionId}
   `;
 
-  await logAssignment(sessionId, null, user.id, "released");
+  await logAssignment(sessionId, null, yo, "released");
 
   return { success: true };
 }
@@ -360,7 +389,8 @@ export async function bulkAutoAssign(): Promise<Result & { assigned?: number }> 
   if (!ownerId) return { success: false, message: "Solo el dueño puede hacer asignación masiva." };
 
   const autoAssignResult = await autoAssignUnassignedSessionsForOwner(ownerId, {
-    assignedBy: user.id,
+    // El alcance es la cuenta (`ownerId`); la firma, la persona que pulsó.
+    assignedBy: laPersona(user).id,
     onlyIfEnabled: false,
   });
 
@@ -373,18 +403,23 @@ export async function transferSession(
 ): Promise<Result> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
+  // La MISMA identidad con la que se tomó, igual que en `releaseSession`. Con
+  // la fila efectiva, quien tomó un chat dentro de otra cuenta no podía
+  // transferirlo: «Solo puedes transferir tus propias conversaciones» sobre
+  // una que sí era suya.
+  const yo = laPersona(user).id;
 
   const rows = await db.$queryRaw<{ assigned_advisor_id: string | null }[]>`
     SELECT assigned_advisor_id FROM "Session" WHERE id = ${sessionId}
   `;
   if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
-  if (rows[0].assigned_advisor_id !== user.id) {
+  if (rows[0].assigned_advisor_id !== yo) {
     return { success: false, message: "Solo puedes transferir tus propias conversaciones." };
   }
 
   await generateConversationIntelligence({
     sessionId,
-    actorId: user.id,
+    actorId: yo,
     reason: "transferred",
     targetAdvisorId,
   }).catch((error) => console.error("[transferSession intelligence]", error));
@@ -393,7 +428,7 @@ export async function transferSession(
     UPDATE "Session" SET assigned_advisor_id = ${targetAdvisorId} WHERE id = ${sessionId}
   `;
 
-  await logAssignment(sessionId, targetAdvisorId, user.id, "transferred");
+  await logAssignment(sessionId, targetAdvisorId, yo, "transferred");
   void triggerAdvisorAutomations(sessionId, targetAdvisorId);
 
   return { success: true };
@@ -418,9 +453,15 @@ async function puedeCerrarOReabrir(
   user: { id: string; ownerId?: string | null; advisorRole?: string | null; sessionUserId?: string },
   sesion: { userId: string; assignedAdvisorId: string | null },
 ): Promise<boolean> {
-  if (user.id === sesion.assignedAdvisorId) return true;
+  // El asesor asignado es la PERSONA: `assigned_advisor_id` lo escribe
+  // `takeSession` con `laPersonaQueActua` y lo llena el desplegable de
+  // asesores, que también son personas. Con la fila efectiva, quien tomó un
+  // chat dentro de otra cuenta no podía resolverlo.
+  if (laPersona(user).id === sesion.assignedAdvisorId) return true;
 
-  // Un agente manda en lo suyo, no en la cuenta.
+  // Un agente manda en lo suyo, no en la cuenta. Y el alcance —a qué cuentas
+  // llega— se sigue preguntando a la fila EFECTIVA, más abajo: esa es la otra
+  // mitad de la regla y es la que rompió el #783 al resolver la persona.
   const mandaEnLaCuenta = !user.ownerId || user.advisorRole === "administrador";
   if (!mandaEnLaCuenta) return false;
 
@@ -445,7 +486,7 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
 
   await generateConversationIntelligence({
     sessionId,
-    actorId: user.id,
+    actorId: laPersona(user).id,
     reason: "resolved",
   }).catch((error) => console.error("[resolveSession intelligence]", error));
 
@@ -455,7 +496,7 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   await db.$executeRaw`UPDATE "Session" SET status = false WHERE id = ${sessionId}`;
   await marcarSesionResuelta(sessionId);
   await quitarSelloDeEscaladoPorSesion(sessionId);
-  await logAssignment(sessionId, assignedAdvisorId, user.id, "resolved");
+  await logAssignment(sessionId, assignedAdvisorId, laPersona(user).id, "resolved");
 
   return { success: true, message: "Conversación resuelta." };
 }
@@ -484,7 +525,7 @@ export async function reopenSession(sessionId: number): Promise<{ success: boole
   }
 
   await reabrirSesion(sessionId);
-  await logAssignment(sessionId, assignedAdvisorId, user.id, "reopened");
+  await logAssignment(sessionId, assignedAdvisorId, laPersona(user).id, "reopened");
 
   return { success: true, message: "Conversación reabierta." };
 }

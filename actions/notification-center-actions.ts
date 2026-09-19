@@ -188,7 +188,10 @@ export async function getNotificationCenterData(): Promise<{
     let collabItems: NotificationCenterItem[] = [];
     try {
       const collabRows = await (db as any).collabNotification.findMany({
-        where: { recipientId: user.id, readAt: null },
+        // La PERSONA, como los avisos de tarea de más abajo: `recipientId` se
+        // escribe con ids del equipo —personas— y leerlo con la fila efectiva
+        // dejaba sin campanita a quien estuviera dentro de otra cuenta.
+        where: { recipientId: elDestinatarioDeLosAvisos(user) ?? user.id, readAt: null },
         orderBy: { createdAt: "desc" },
         take: ITEMS_PER_KIND_LIMIT,
       });

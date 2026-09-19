@@ -3,6 +3,29 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
+
+/**
+ * # Quién firma una nota interna, y quién la puede borrar
+ *
+ * `internal_notes.authorId` es una FIRMA —la pantalla pinta su nombre y su
+ * correo por la relación `author`— así que va con la **PERSONA**
+ * (`sessionUserId ?? id`) y no con la fila efectiva. Dentro de otra cuenta
+ * —«Ingresar» o el conmutador— la fila efectiva es la del cliente, y la nota
+ * salía firmada por él: el equipo leía su propio nombre diciendo cosas que no
+ * había dicho nadie de allí. Es el mismo fallo que ya se arregló en el chat de
+ * equipo (#761) y en `task_comments` (#785).
+ *
+ * Y **las dos puntas se mueven juntas**: `deleteInternalNoteAction` compara
+ * `authorId` con quien llama para decidir si puede borrarla. Eso es identidad,
+ * no alcance, así que se compara también con la persona; cambiando solo el
+ * lado de escribir, el autor no podría borrar su propia nota.
+ *
+ * Lo que **no** se toca es `getSessionIdsWithNotesAction`, que filtra por
+ * `session.userId`: eso es ALCANCE —de qué cuenta son esas conversaciones— y
+ * el alcance se pregunta a la fila efectiva. Resolver la persona ahí es
+ * exactamente lo que rompió la cartera de clientes en el #783.
+ */
 
 export type InternalNoteData = {
   id: number;
@@ -33,6 +56,7 @@ export async function createInternalNoteAction(
   try {
     const parsed = createSchema.parse(input);
     const user = await assertAuthorized();
+    const yo = laPersonaQueActua(user).id;
 
     const session = await db.session.findUnique({
       where: { id: parsed.sessionId },
@@ -40,15 +64,18 @@ export async function createInternalNoteAction(
     });
     if (!session) return { success: false, message: "Sesión no encontrada." };
 
-    // No mencionarse a sí mismo; sin duplicados.
+    // No mencionarse a sí mismo; sin duplicados. Se descuenta la PERSONA: los
+    // ids que llegan salen del desplegable de asesores, que son personas, así
+    // que descontando la fila efectiva uno podría mencionarse a sí mismo desde
+    // dentro de otra cuenta y saltarse su propio aviso.
     const mentioned = Array.from(new Set(parsed.mentionedUserIds)).filter(
-      (id) => id && id !== user.id,
+      (id) => id && id !== yo,
     );
 
     const note = await (db as any).internalNote.create({
       data: {
         sessionId: parsed.sessionId,
-        authorId: user.id,
+        authorId: yo,
         content: parsed.content,
         mentionedUserIds: mentioned,
       },
@@ -62,7 +89,7 @@ export async function createInternalNoteAction(
         await (db as any).collabNotification.createMany({
           data: mentioned.map((recipientId) => ({
             recipientId,
-            actorId: user.id,
+            actorId: yo,
             type: "mention",
             sessionId: parsed.sessionId,
             noteId: note.id,
@@ -147,7 +174,10 @@ export async function deleteInternalNoteAction(
     const user = await assertAuthorized();
     const note = await (db as any).internalNote.findUnique({ where: { id: noteId }, select: { authorId: true } });
     if (!note) return { success: false, message: "Nota no encontrada." };
-    if (note.authorId !== user.id) return { success: false, message: "Solo el autor puede eliminar la nota." };
+    // Con la PERSONA, la misma con la que se firmó al crearla.
+    if (note.authorId !== laPersonaQueActua(user).id) {
+      return { success: false, message: "Solo el autor puede eliminar la nota." };
+    }
 
     await (db as any).internalNote.delete({ where: { id: noteId } });
     return { success: true, message: "Nota eliminada." };

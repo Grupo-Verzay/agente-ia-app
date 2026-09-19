@@ -179,8 +179,26 @@ function linea(etiqueta: string, valores?: string[] | string | null): string | n
   return `${etiqueta}: ${recortado}`;
 }
 
+/**
+ * El resumen que deja una conversación al cerrarse o al cambiar de asesor.
+ *
+ * **`actorId` es la PERSONA** (`laPersonaQueActua`), no la fila efectiva. No es
+ * un alcance: se escribe en dos sitios y los dos son firmas.
+ *
+ * 1. `internal_notes.authorId`, cuyo nombre pinta el panel de Notas del chat.
+ *    Con la fila efectiva, un superadministrador que cerrara una conversación
+ *    dentro de la cuenta de un cliente dejaba el resumen firmado **por el
+ *    cliente**.
+ * 2. `collab_notifications.actorId`, que es de donde sale el «X te mencionó en
+ *    una nota» de la campanita del asesor que recibe el relevo.
+ *
+ * El **alcance** de esta función no se toca y sigue saliendo de la sesión
+ * (`session.userId`): de qué cuenta son los mensajes que se resumen y a quién
+ * se le cobra el análisis. Son dos preguntas distintas.
+ */
 export async function generateConversationIntelligence(args: {
   sessionId: number;
+  /** Quién lo hizo: la PERSONA, no la fila efectiva. */
   actorId: string;
   reason: "resolved" | "transferred";
   targetAdvisorId?: string | null;

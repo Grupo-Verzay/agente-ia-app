@@ -2,6 +2,33 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
+
+/**
+ * # `collab_notifications` es de la PERSONA por sus dos columnas
+ *
+ * Es la misma familia de `task_alerts`, y tenía el mismo fallo por las dos
+ * puntas:
+ *
+ * - **`recipientId` se ESCRIBE con personas** —los ids salen del desplegable
+ *   de asesores, del `targetAdvisorId` de una transferencia y de la lista de
+ *   mencionados— y **se LEÍA con la fila efectiva** (`user.id`). Coinciden
+ *   siempre salvo dentro de otra cuenta, y ahí las notificaciones de esa
+ *   persona **no le aparecían**: ni la campanita, ni marcarlas como leídas.
+ *   Exactamente lo que `elDestinatarioDeLosAvisos` ya arregló para los avisos
+ *   de tarea.
+ * - **`actorId` es una FIRMA**: lo único que se hace con él es resolver el
+ *   nombre de quien te mencionó o te agregó. Escrito con la fila efectiva,
+ *   dentro de otra cuenta la campanita decía «<el cliente> te mencionó».
+ *
+ * **Sin backfill.** Lo ya escrito en `recipientId` son personas —todos sus
+ * caminos de escritura lo eran—, así que mover la lectura no esconde ninguna
+ * fila: solo deja de enseñar las del cliente a quien entró en su cuenta.
+ *
+ * Y lo que NO se mueve: `getTeamMemberIds(ownerId)` con `ownerId ?? id`. Eso
+ * es ALCANCE —de qué equipo hablamos— y el alcance se pregunta a la fila
+ * efectiva. Resolver la persona ahí es lo que rompió el #783.
+ */
 
 export type ParticipantInfo = {
   userId: string;
@@ -86,7 +113,9 @@ export async function addSessionParticipantAction(
 ): Promise<{ success: boolean; message: string }> {
   try {
     const user = await requireUser();
+    // Alcance: la cuenta. Firma: la persona. Dos preguntas, dos respuestas.
     const ownerId = (user as any).ownerId ?? user.id;
+    const yo = laPersonaQueActua(user).id;
 
     const session = await db.session.findUnique({
       where: { id: sessionId },
@@ -106,16 +135,17 @@ export async function addSessionParticipantAction(
     if (existing) return { success: true, message: "Ya es participante." };
 
     await (db as any).sessionParticipant.create({
-      data: { sessionId, userId, addedById: user.id },
+      data: { sessionId, userId, addedById: yo },
     });
 
-    // Notificar al agregado (si no es uno mismo).
-    if (userId !== user.id) {
+    // Notificar al agregado (si no es uno mismo). La comparación va con la
+    // PERSONA: `userId` viene de la lista del equipo, que son personas.
+    if (userId !== yo) {
       try {
         await (db as any).collabNotification.create({
           data: {
             recipientId: userId,
-            actorId: user.id,
+            actorId: yo,
             type: "participant_added",
             sessionId,
             remoteJid: session.remoteJid,
@@ -157,7 +187,7 @@ export async function getCollabNotificationsAction(): Promise<{
   try {
     const user = await requireUser();
     const rows = await (db as any).collabNotification.findMany({
-      where: { recipientId: user.id },
+      where: { recipientId: laPersonaQueActua(user).id },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
@@ -203,7 +233,7 @@ export async function markCollabNotificationReadAction(
   try {
     const user = await requireUser();
     await (db as any).collabNotification.updateMany({
-      where: { id, recipientId: user.id, readAt: null },
+      where: { id, recipientId: laPersonaQueActua(user).id, readAt: null },
       data: { readAt: new Date() },
     });
     return { success: true };
@@ -217,7 +247,7 @@ export async function markAllCollabNotificationsReadAction(): Promise<{ success:
   try {
     const user = await requireUser();
     await (db as any).collabNotification.updateMany({
-      where: { recipientId: user.id, readAt: null },
+      where: { recipientId: laPersonaQueActua(user).id, readAt: null },
       data: { readAt: new Date() },
     });
     return { success: true };
