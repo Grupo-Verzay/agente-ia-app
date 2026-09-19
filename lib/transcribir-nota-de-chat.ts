@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { segundosDeLaNota } from "@/lib/transcripcion-de-voz";
 
 /**
  * La base y la descarga de una nota de voz de Chats. La decisión —si se
@@ -61,20 +62,21 @@ export async function laNotaDeVoz(input: {
 }): Promise<NotaDeVozDeChat | null> {
     if (!input.userIds.length || !input.candidatos.length || !input.messageId) return null;
 
+    // La duración NO se saca aquí con un `COALESCE` de SQL: se trae el `raw` y
+    // la lee `segundosDeLaNota`, **la misma función que usa la pantalla**. Con
+    // un lector a cada lado, el precio que se enseña y el que se descuenta
+    // salen de entradas distintas — y eso es exactamente lo que ponía «1
+    // crédito» debajo de una nota de 40 segundos que cuesta 4.
     const filas = await db.$queryRaw<
         Array<{
             id: bigint;
             messageId: string;
             mediaUrl: string | null;
-            segundos: number | null;
+            raw: unknown;
             transcripcion: string | null;
         }>
     >`
-        SELECT "id", "messageId", "mediaUrl",
-               COALESCE(
-                   ("raw" -> 'message' -> 'audioMessage' ->> 'seconds')::int,
-                   ("raw" -> 'audioMessage' ->> 'seconds')::int
-               ) AS "segundos",
+        SELECT "id", "messageId", "mediaUrl", "raw",
                NULLIF("raw" ->> 'transcripcion', '') AS "transcripcion"
         FROM "chat_messages"
         WHERE "userId" IN (${Prisma.join(input.userIds)})
@@ -93,7 +95,7 @@ export async function laNotaDeVoz(input: {
     return {
         fila: f.id,
         messageId: f.messageId,
-        segundos: Number(f.segundos ?? 0),
+        segundos: segundosDeLaNota(f.raw),
         mediaUrl: f.mediaUrl,
         transcripcion: f.transcripcion,
     };

@@ -321,9 +321,9 @@ interface ChatMessageListProps {
    * De qué conversación es esta lista.
    *
    * Lo necesita el botón de transcribir una nota de voz, que vive al fondo de
-   * `MessageBubble` → `MediaRenderer`: se le baja por contexto y no por props
-   * para no atravesar tres componentes con dos cadenas. Es el mismo patrón que
-   * ya usa el visor de medios de esta lista.
+   * `MessageBubble`: se le baja por contexto y no por props para no atravesar
+   * dos componentes con dos cadenas. Es el mismo patrón que ya usa el visor de
+   * medios de esta lista.
    */
   conversacion?: {
     instanceName?: string;

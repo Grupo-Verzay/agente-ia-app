@@ -87,6 +87,76 @@ export function laMarcaVieja(
     return { ofrecerElBoton: true };
 }
 
+/**
+ * **La duración de una nota de voz, leída en UN solo sitio.**
+ *
+ * Es la mitad que faltaba de la tarifa. `costoDeLaNota` ya la compartían la
+ * pantalla y el servidor, así que el precio se calculaba igual en los dos
+ * lados… **sobre entradas distintas**: el servidor leía la duración con un
+ * `COALESCE` de SQL sobre dos formas de `raw`, y el navegador miraba una sola,
+ * `message.audioMessage.seconds`. Dos lectores para el mismo dato es dos
+ * respuestas, y la del navegador salía **0** — que en `costoDeLaNota` no da
+ * cero, da el mínimo: **«1 crédito» para una nota de 40 segundos que cuesta 4**.
+ *
+ * Y el fallo no se ve como un fallo: el botón dice un número perfectamente
+ * plausible. La regla de *un número que no se puede calcular no se sustituye
+ * por otro* aquí se rompía de la peor manera, porque el sustituto era un precio
+ * creíble.
+ *
+ * Las formas que se miran, y por qué son varias:
+ *
+ * - `raw.message.audioMessage` — la foto de Evolution, con su sobre.
+ * - `raw.audioMessage` — lo que guardan los caminos que persisten el contenido
+ *   sin sobre alrededor.
+ * - el propio objeto, cuando ya se le entrega el contenido del mensaje.
+ *
+ * Y dentro, `seconds` **y** `duration`: la primera es la de WhatsApp y la
+ * segunda es como la nombran otros motores. Preguntar por una sola forma
+ * «devuelve correcto y vacío», que es la regla de siempre de Chats.
+ *
+ * Devuelve **0** cuando no hay de dónde sacarla, que es lo mismo que decide el
+ * cobro: así lo que se enseña no puede separarse de lo que se descuenta.
+ */
+export function segundosDeLaNota(fuente: unknown): number {
+    const audio = elAudioDe(fuente);
+    if (!audio) return 0;
+    return comoSegundos(audio.seconds) || comoSegundos(audio.duration);
+}
+
+function elAudioDe(fuente: unknown): { seconds?: unknown; duration?: unknown } | null {
+    if (!fuente || typeof fuente !== "object" || Array.isArray(fuente)) return null;
+    const obj = fuente as Record<string, unknown>;
+
+    const dentroDelSobre = comoObjeto(comoObjeto(obj.message)?.audioMessage);
+    if (dentroDelSobre) return dentroDelSobre;
+
+    const sinSobre = comoObjeto(obj.audioMessage);
+    if (sinSobre) return sinSobre;
+
+    // Ya es el propio `audioMessage`: solo se acepta si trae uno de los dos
+    // campos, para no confundir cualquier objeto con una nota.
+    if ("seconds" in obj || "duration" in obj) return obj;
+    return null;
+}
+
+function comoObjeto(valor: unknown): Record<string, unknown> | null {
+    if (!valor || typeof valor !== "object" || Array.isArray(valor)) return null;
+    return valor as Record<string, unknown>;
+}
+
+/**
+ * Se acepta el **número dentro de una cadena** porque así es como llega de
+ * Postgres cuando se lee un JSONB con `->>`, y así lo mandan algunos motores.
+ * Y se trunca: medio segundo no es medio crédito, y un decimal colado subiría
+ * el precio un escalón entero por el `ceil` de `costoDeLaNota`.
+ */
+function comoSegundos(valor: unknown): number {
+    if (typeof valor !== "number" && typeof valor !== "string") return 0;
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.floor(n);
+}
+
 export type CostoDeLaNota = { creditos: number; tokens: number };
 
 /**

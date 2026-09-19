@@ -9,6 +9,7 @@ import {
 } from '@/lib/whatsapp-jid';
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
+import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -530,6 +531,14 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
     rawObj?.transcripcionMotivo === 'muy_larga' || rawObj?.transcripcionMotivo === 'fallo'
       ? rawObj.transcripcionMotivo
       : null;
+  // Y la DURACIÓN, que es el precio del botón de transcribir.
+  //
+  // Baja de aquí a propósito, en vez de que la pantalla la deduzca del
+  // mensaje: quien cobra lee ESTA fila (`laNotaDeVoz`), así que bajándola
+  // desde el mismo `raw` lo que se enseña y lo que se descuenta salen del
+  // mismo número por construcción. Deducirla al pintar es lo que ponía «1
+  // crédito» debajo de una nota de 40 segundos.
+  const audioSegundos = segundosDeLaNota(row.raw);
 
   return {
     id: String(row.id),
@@ -557,6 +566,7 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
     ...(notaInterna ? { notaInterna: true } : {}),
     ...(transcripcion ? { transcripcion } : {}),
     ...(transcripcionMotivo ? { transcripcionMotivo } : {}),
+    ...(audioSegundos > 0 ? { audioSegundos } : {}),
     ...(row.deleted ? { clientDeleted: true } : {}),
     // Corregido desde la App. La marca ya estaba guardada —es lo que impide que
     // el sondeo devuelva el texto viejo— pero no llegaba a la pantalla, asi que

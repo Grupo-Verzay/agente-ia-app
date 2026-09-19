@@ -3779,11 +3779,81 @@ Cuatro cosas que hay que mantener:
    su propia IA.
 
 **El precio se ve ANTES de pulsar**, como en el chat del equipo: el botón dice
-«Transcribir (3 créditos)», porque la duración **es** el precio. Una nota por
+«Transcribir 3 créditos», con el número en tono más claro, porque la duración
+**es** el precio. Una nota por
 encima del tope no ofrece botón y dice por qué — un botón que al pulsarlo da
 error es peor que no tenerlo. Y **solo se ofrece en lo que entra**: lo que
 escribe el asesor o la IA ya está en texto, así que transcribirlo es pagar dos
 veces por algo que ya se tiene.
+
+### Compartir la TARIFA no basta: hay que compartir la DURACIÓN
+
+Una nota de 40 segundos decía **«1 crédito»** y a 6 créditos por minuto son 4.
+Lo que despista es que el cálculo **ya estaba compartido**: `costoDeLaNota` la
+importaban los dos lados, así que mirando la fórmula los dos «estaban bien».
+
+Lo que no se compartía era **de dónde sale el número que entra**:
+
+| | cómo leía la duración |
+| --- | --- |
+| servidor (`laNotaDeVoz`) | un `COALESCE` de SQL sobre **dos** formas de `raw` |
+| pantalla (`chat-message-utils`) | `message.audioMessage.seconds`, y **solo esa** |
+
+Cuando esa forma no estaba, el navegador sacaba **0**. Y `costoDeLaNota(0)` no
+da cero: da el **mínimo**, que es 1 crédito. O sea que el fallo no salía como un
+hueco ni como un error — salía como **un precio perfectamente creíble**. Es la
+regla de *un número que no se puede calcular no se sustituye por otro*, rota de
+la peor manera posible: el sustituto era un número que nadie iba a mirar dos
+veces.
+
+Dos cosas que hay que mantener:
+
+1. **La duración la lee UNA función**, `segundosDeLaNota`
+   (`lib/transcripcion-de-voz.ts`, pura). Entiende las formas conocidas —con
+   sobre, sin sobre, `seconds` y `duration`, número o cadena— y **el `COALESCE`
+   de SQL se fue**: la consulta trae `raw` y la lee esa misma función. Compartir
+   la tarifa y no el lector es tener una sola fórmula con dos entradas, que es
+   exactamente igual de roto y bastante más difícil de ver.
+2. **Y baja del SERVIDOR, de la misma fila que cobra.**
+   `persistedRowToEvolutionMessage` emite `audioSegundos` desde el mismo `raw`
+   que después lee `laNotaDeVoz`. Así lo que se enseña no puede separarse de lo
+   que se descuenta **por construcción**, y no porque dos sitios se acuerden de
+   hacer lo mismo. El respaldo del navegador —el mensaje tal cual lo devolvió el
+   proveedor— pasa por la misma función, así que tampoco puede contestar otra
+   cosa.
+
+Y cuando no hay duración en ninguna parte, **las dos puntas dicen 1**: se enseña
+el mínimo y se cobra el mínimo. Eso es lo correcto — lo que no puede pasar es
+que una diga 1 y la otra 4.
+
+El banco lo prueba **encadenando las dos**: siembra la fila, la lee por el
+camino del servidor y por el de la pantalla, y compara los dos precios. Probar
+cada lado por su cuenta es lo que dejó pasar esto.
+
+### Y la pastilla va en el renglón de la HORA
+
+En un renglón propio debajo del reproductor, el botón hacía crecer la burbuja de
+alto **por cada nota** —y una conversación de notas son todas— y, siendo un
+texto subrayado suelto, se leía como un aviso de error. El pie de la burbuja ya
+es la fila de los rótulos pequeños, donde viven «Asesor», «Agente IA»,
+«Editado» y «Eliminado»: la pastilla entra ahí a la izquierda y la hora se queda
+a la derecha con `ml-auto`.
+
+Medido en Chromium sobre el CSS del build, a 1440, 1024 y 390:
+
+| | alto de la burbuja |
+| --- | --- |
+| en su renglón | 86 px |
+| en el de la hora | **70 px** |
+
+La pastilla mide 127×14 y la hora sigue pegada al borde; no se solapan ni con
+«Editado» al lado, y la página no desborda en ninguna de las tres.
+
+**El texto y el motivo siguen debajo del audio**, que es donde se leen: son
+frases enteras y en el renglón de la hora partirían la fila. Por eso el botón y
+el texto salen de **un hook y no de dos componentes** (`useTranscribirNota`): se
+pulsa arriba y el texto tiene que aparecer abajo, así que comparten un estado y
+quien los llama coloca cada nodo donde le toca.
 
 ## Salud del envío: un envío automático que falla deja rastro, o no ha fallado
 
