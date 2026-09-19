@@ -6993,10 +6993,10 @@ ellas** y desde fuera parecía que no había nada que ver.
    en la sección de abajo.
 3. **Los latentes ya entraron**: `audit_logs.actor_id`,
    `tickets_de_soporte.creadoPorId`, `cobros.creadoPorId` y los dos
-   `confirmadaPorId` firman con la persona. Lo que **se queda con la fila
-   efectiva** es `AssignmentLog.assignedBy`, el `actorId` de
-   `generateConversationIntelligence` y el de `collab_notifications`: no se han
-   mirado todavía y no entran aquí por parecerse.
+   `confirmadaPorId` firman con la persona. Y los tres que quedaban marcados
+   como candidatos —`AssignmentLog.assignedBy`, el `actorId` de
+   `generateConversationIntelligence` y el de `collab_notifications`— están
+   cerrados en la sección de abajo: los tres eran firma.
 
 ### Y de lo ya escrito, qué se puede recuperar: NADA, y por qué
 
@@ -7146,6 +7146,58 @@ la sección de arriba.
 Y el mismo patrón otra vez: el camino de `owner_id` **pasaba ya con el código
 viejo**, porque ahí la fila efectiva y la persona son la misma. Probar solo ese
 camino habría dado un banco verde sobre un fallo intacto.
+
+### Y los tres candidatos que quedaban: los tres eran FIRMA
+
+Se miraron los tres antes de tocar ninguno, que es lo que esta sección pide:
+**¿alimenta esto una pantalla o un filtro por alcance?** Los tres contestan que
+no —ninguno acota nada— y los tres guardan quién hizo algo. Van con la persona.
+
+| | qué se hace con la columna | qué pasaba |
+| --- | --- | --- |
+| `AssignmentLog.assignedBy` | **nada la lee**: `getAssignmentHistory` la trae y la pantalla pinta el asesor y la acción | en el mismo `INSERT` de `takeSession` convivían las dos identidades: la persona en `advisorId` y la cuenta en `assignedBy` |
+| `actorId` de `generateConversationIntelligence` | se escribe en `internal_notes.authorId` —cuyo nombre pinta el panel de Notas— y en `collab_notifications.actorId` | cerrar una conversación dentro de la cuenta de un cliente dejaba el resumen **firmado por el cliente** |
+| `collab_notifications.actorId` | solo resolver el nombre del «X te mencionó» | igual: la campanita decía que te había mencionado la cuenta |
+
+**Y de la tercera salió la mitad que no se había reportado.** En esa misma tabla
+`recipientId` **se escribe con personas** —los ids salen del desplegable de
+asesores, del `targetAdvisorId` de una transferencia y de la lista de
+mencionados— y **se leía con la fila efectiva** en sus cuatro lectores. Es
+literalmente el fallo de `task_alerts.destinatarioId`, en otra tabla: dentro de
+otra cuenta esas notificaciones **no aparecían** y no se podían marcar como
+leídas. Arreglar solo el `actorId` habría dejado media tabla.
+
+Tres cosas que hay que mantener:
+
+1. **Las dos puntas se mueven juntas.** `deleteInternalNoteAction` compara
+   `authorId` con quien llama: eso es **identidad, no alcance**, así que se
+   compara con la persona. Cambiando solo el lado de escribir, el autor no
+   podría borrar su propia nota — que es el fallo del #783 por la otra cara. Lo
+   mismo con el «no mencionarse a sí mismo» y con el «no avisarse a sí mismo» de
+   los participantes: los ids que llegan son personas.
+2. **Lo que NO se movió, y es la mitad que protege el banco.**
+   `getSessionIdsWithNotesAction` filtra por `session.userId`,
+   `getTeamMemberIds` por `ownerId ?? id`, y `requireOwnerOrAdmin` devuelve
+   ahora **las dos cosas por separado** (`personaId` firma, `ownerId` alcanza).
+   El banco comprueba **en la misma fila** que la columna de alcance de al lado
+   no se movió.
+3. **Sin backfill**, por lo de siempre: del id de una cuenta no se deduce quién
+   estaba sentado delante. Y aquí no se esconde nada al mover la lectura de
+   `recipientId`, porque lo ya escrito **ya eran personas**.
+
+Y de paso salieron **dos sitios que el #785 se había dejado** en
+`assigned_advisor_id`, la columna que aquella vuelta declaró «persona en los dos
+lados»: `transferSession` y `puedeCerrarOReabrir` seguían comparando con la fila
+efectiva. O sea que un chat tomado dentro de otra cuenta se podía tomar y no se
+podía transferir ni resolver — «Solo puedes transferir tus propias
+conversaciones» sobre una que sí era suya. **Cuando se declara que una columna
+es de la persona, se cuentan TODOS sus comparadores**, no los dos que se
+tocaron ese día.
+
+El banco son 13 casos contra Postgres con las acciones reales, en **dos modos**.
+Con el código viejo fallan **7**; los seis que pasan en los dos son justo los
+que no podían cambiar: el camino de `owner_id` —donde la fila efectiva y la
+persona son la misma— y las tres guardas de alcance.
 
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 
