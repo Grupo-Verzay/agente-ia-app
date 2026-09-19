@@ -724,3 +724,47 @@ export async function barrerSenalesViejas(): Promise<void> {
 
 /** Para el banco: los topes con los que se decide. */
 export const TOPES = { sala: TOPE_DE_LA_SALA, puerta: TOPE_EN_LA_PUERTA };
+
+/**
+ * Cómo se llaman unas reuniones, y si siguen valiendo.
+ *
+ * Es lo que convierte una dirección cruda de ochenta caracteres pegada en un
+ * mensaje en una tarjeta que dice de qué reunión es. **Una sola consulta por
+ * página de mensajes**, como `lasCitasQueSiguenAhi` y `lasReaccionesDe`: una
+ * por burbuja serían decenas cada cinco segundos y por pestaña abierta.
+ *
+ * Y va acotada al CANAL que se está leyendo. No es un detalle de rendimiento:
+ * sin eso, pegar en un canal el enlace de una reunión de otro sitio pintaría
+ * una tarjeta con **el título de una reunión que quien lee no alcanza** — un
+ * nombre que se le escapa a quien no tiene por qué verlo. Lo que no encaje sale
+ * como una tarjeta genérica, que sigue siendo pulsable: la puerta de verdad
+ * está al entrar, no al pintar.
+ */
+export async function lasReunionesDeLosMensajes(
+    codigos: string[],
+    canalId: string,
+): Promise<Map<string, { titulo: string | null; abierta: boolean }>> {
+    const unicos = Array.from(new Set(codigos.filter(Boolean))).slice(0, 50);
+    if (!unicos.length || !canalId) return new Map();
+
+    const filas = await conLasTablas(() => db.$queryRawUnsafe<
+        Array<{ codigo: string; titulo: string | null; expiraEn: Date; revocadaEn: Date | null }>
+    >(
+        `SELECT "codigo", "titulo", "expiraEn", "revocadaEn"
+         FROM "salas_de_video"
+         WHERE "canalId" = $1 AND "codigo" = ANY($2::text[])`,
+        canalId,
+        unicos,
+    ));
+
+    const mapa = new Map<string, { titulo: string | null; abierta: boolean }>();
+    for (const f of filas) {
+        mapa.set(f.codigo, {
+            titulo: f.titulo,
+            // La misma regla que la puerta: revocada o caducada, no vale. Se
+            // dice en la tarjeta para no hacer pulsar un enlace muerto.
+            abierta: !f.revocadaEn && f.expiraEn.getTime() > Date.now(),
+        });
+    }
+    return mapa;
+}

@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
     Copy,
+    GripVertical,
     Loader2,
+    Maximize2,
     Mic,
     MicOff,
+    Minus,
     MonitorUp,
     PhoneOff,
     ScreenShare,
@@ -20,6 +23,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { laRejilla, lasIniciales, TOPE_DE_LA_SALA } from "@/lib/sala-de-video";
+// El mismo formato de duración que la llamada de voz. Con una copia, el día
+// que se afine el de una el otro se queda diciendo otra cosa.
+import { comoSeLeeLaDuracion } from "@/lib/llamada-de-voz";
 import { useMediosDeLlamada } from "@/hooks/useMediosDeLlamada";
 import { useMallaDeVideo, type RemotoEnLaSala } from "@/hooks/useMallaDeVideo";
 import {
@@ -43,6 +49,9 @@ export function SalaDeVideo({
     token,
     enlace,
     alSalir,
+    minimizada = false,
+    onMinimizar,
+    asa,
 }: {
     codigo: string;
     /** El token de quien entró por el enlace. Vacío para quien tiene cuenta. */
@@ -50,11 +59,53 @@ export function SalaDeVideo({
     /** La dirección para copiar y pasarle a alguien. */
     enlace?: string | null;
     alSalir?: () => void;
+    /**
+     * Si ahora mismo se ve como pastilla.
+     *
+     * Lo decide quien la monta —el panel flotante—, no ella: es quien sostiene
+     * la posición y el tamaño. Aquí solo cambia lo que se pinta, igual que en
+     * la tarjeta de llamada. **Quien entra por el enlace público no la recibe**
+     * y la reunión ocupa su pestaña entera, que es lo que tiene delante.
+     */
+    minimizada?: boolean;
+    onMinimizar?: (v: boolean) => void;
+    /** Los manejadores del arrastre, para el trozo que hace de asa. */
+    asa?: { className?: string } & Record<string, unknown>;
 }) {
     const medios = useMediosDeLlamada({ alFallar: (m) => toast.error(m) });
     const [arrancando, setArrancando] = useState(true);
     const [saliendo, setSaliendo] = useState(false);
     const malla = useMallaDeVideo({ codigo, token, medios, activo: !arrancando });
+
+    /**
+     * Cuánto se lleva dentro.
+     *
+     * Desde que se ENTRÓ, no desde que se abrió la pestaña: el rato en la sala
+     * de espera no es reunión, igual que el rato sonando no es llamada. Y es lo
+     * que enseña la pastilla, que es donde de verdad hace falta — plegada no se
+     * ve nada más.
+     */
+    const [segundos, setSegundos] = useState(0);
+    const dentro = malla.estado === "dentro";
+    useEffect(() => {
+        if (!dentro) return;
+        const id = window.setInterval(() => setSegundos((n) => n + 1), 1000);
+        return () => window.clearInterval(id);
+    }, [dentro]);
+
+    /**
+     * Plegada y ya no dentro: se despliega sola.
+     *
+     * Si te sacan de la reunión —revocaron el enlace, se cayó la sesión— con la
+     * pastilla puesta, lo que hay que ver es **qué pasó**. Dejarla plegada
+     * enseñaría una pastilla con el contador parado y sin forma de saber por
+     * qué, que es la definición de un fallo mudo.
+     */
+    useEffect(() => {
+        if (minimizada && (malla.estado === "fuera" || malla.estado === "esperando")) {
+            onMinimizar?.(false);
+        }
+    }, [minimizada, malla.estado, onMinimizar]);
 
     /**
      * Pedir los medios ANTES de empezar a conectar.
@@ -159,14 +210,89 @@ export function SalaDeVideo({
     }
 
     const cuantos = malla.remotos.length + 1;
+    const nombre = malla.sala?.titulo || "Reunión";
+
+    // PLEGADA: la pastilla. La rejilla se queda montada debajo, escondida.
+    //
+    // Escondida con `display:none` y **no desmontada**, que es la diferencia
+    // que importa: desmontarla se llevaría por delante los `<video>` y con
+    // ellos el audio de los demás. Plegar una reunión tiene que dejarte
+    // seguir oyéndola — si no, plegarla es salirse.
+    if (minimizada) {
+        return (
+            <>
+                <div className="flex items-center gap-1 py-1 pl-1 pr-1.5">
+                    {/* El asa se lleva el nombre y el rato: es la zona ancha y
+                        la que no hace nada al pulsarla, así que puede recibir
+                        el gesto sin competir con ningún botón. */}
+                    <div
+                        {...asa}
+                        className={cn(
+                            "flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5",
+                            asa?.className ?? "",
+                        )}
+                    >
+                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="font-mono text-sm tabular-nums">
+                            {comoSeLeeLaDuracion(segundos)}
+                        </span>
+                        <span className="max-w-[9rem] truncate text-sm text-muted-foreground">
+                            {nombre}
+                        </span>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => onMinimizar?.(false)}
+                        aria-label="Ampliar la reunión"
+                        title="Ampliar"
+                    >
+                        <Maximize2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-full"
+                        onClick={() => void salir()}
+                        disabled={saliendo}
+                        aria-label="Salir de la reunión"
+                        title="Salir"
+                    >
+                        <PhoneOff className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="hidden">
+                    <Rejilla
+                        cuantos={cuantos}
+                        medios={medios}
+                        malla={malla}
+                        nombrePropio={malla.yo?.nombre}
+                    />
+                </div>
+            </>
+        );
+    }
 
     return (
         <div className="flex h-full min-h-0 w-full flex-col bg-zinc-950 text-zinc-100">
             {/* La cabecera: qué reunión es, cuántos hay y el enlace. */}
             <div className="flex shrink-0 items-center gap-3 border-b border-zinc-800 px-3 py-2 sm:px-4">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {malla.sala?.titulo || "Reunión"}
-                </span>
+                {/* El asa se lleva SOLO el nombre, no la cabecera entera.
+                    Puesta en el contenedor, captura el puntero al agarrarla y
+                    los eventos de después se le redirigen: el `click` de
+                    «Copiar enlace» y el de plegar no llegarían a salir nunca.
+                    Es la misma regla que ya costó una vuelta en la tarjeta de
+                    llamada — ningún botón va dentro del asa. */}
+                <div
+                    {...asa}
+                    className={cn(
+                        "min-w-0 flex-1 truncate rounded px-1 py-0.5 text-sm font-medium",
+                        asa?.className ?? "",
+                    )}
+                >
+                    {nombre}
+                </div>
                 <span className="flex shrink-0 items-center gap-1.5 text-xs text-zinc-400">
                     <Users className="h-3.5 w-3.5" />
                     <span className="tabular-nums">
@@ -177,11 +303,33 @@ export function SalaDeVideo({
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="shrink-0 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                        className="shrink-0 px-2 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 sm:px-3"
                         onClick={() => void copiar(enlace)}
+                        // El rótulo hace falta en el `title` porque en estrecho
+                        // no se enseña: un icono sin nombre no dice qué copia.
+                        title="Copiar el enlace de la reunión"
+                        aria-label="Copiar el enlace de la reunión"
                     >
-                        <Copy className="mr-1.5 h-3.5 w-3.5" />
-                        Copiar enlace
+                        <Copy className="h-3.5 w-3.5 sm:mr-1.5" />
+                        {/* Solo el icono en estrecho. Medido en Chromium: con
+                            el rótulo puesto, en un móvil el asa de arrastrar se
+                            queda en 75 px — un trozo al que hay que apuntar. */}
+                        <span className="hidden sm:inline">Copiar enlace</span>
+                    </Button>
+                ) : null}
+                {/* Plegar solo lo ofrece quien monta el panel: en la pestaña
+                    pública no hay nada detrás que seguir mirando, así que una
+                    reunión plegada ahí sería una pestaña en blanco. */}
+                {onMinimizar ? (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                        onClick={() => onMinimizar(true)}
+                        aria-label="Plegar la reunión"
+                        title="Plegar"
+                    >
+                        <Minus className="h-4 w-4" />
                     </Button>
                 ) : null}
             </div>
@@ -210,28 +358,12 @@ export function SalaDeVideo({
             {/* La rejilla. El número de columnas sale de `laRejilla`, que es
                 puro: con cuatro y una sola columna, los dos últimos quedan
                 fuera de la pantalla y no hay forma de verlos. */}
-            {/* `overflow-hidden` y no `overflow-y-auto`: la rejilla tiene que
-                CABER, no desplazarse. Una videollamada en la que hay que
-                bajar para ver al cuarto es una videollamada de tres. */}
-            <div className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
-                <div className={cn("grid h-full gap-2", laRejilla(cuantos))}>
-                    <Recuadro
-                        stream={medios.local}
-                        nombre={`${malla.yo?.nombre ?? "Tú"} (tú)`}
-                        hayVideo={Boolean(medios.local)}
-                        micEncendido={medios.micEncendido}
-                        compartiendo={medios.compartiendo}
-                        // El recuadro propio va SIEMPRE en silencio: sin esto,
-                        // uno se oye a sí mismo con retardo y se acopla con el
-                        // micro. Es lo primero que se nota y lo peor que puede
-                        // hacer una videollamada.
-                        propio
-                    />
-                    {malla.remotos.map((r) => (
-                        <RecuadroRemoto key={r.id} remoto={r} />
-                    ))}
-                </div>
-            </div>
+            <Rejilla
+                cuantos={cuantos}
+                medios={medios}
+                malla={malla}
+                nombrePropio={malla.yo?.nombre}
+            />
 
             {/* Los mandos. Abajo y grandes: es lo que se busca con prisa
                 cuando hay que callarse o colgar. */}
@@ -275,6 +407,51 @@ export function SalaDeVideo({
                 >
                     <PhoneOff className="h-5 w-5" />
                 </Button>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * La rejilla de recuadros.
+ *
+ * En su propio componente porque la pintan **dos** sitios: la reunión normal y
+ * la plegada, que la esconde pero la mantiene montada para no cortar el audio.
+ * Con una copia en cada rama, el día que se afine el reparto se afina en una y
+ * plegar la reunión empezaría a sonar distinto.
+ */
+function Rejilla({
+    cuantos,
+    medios,
+    malla,
+    nombrePropio,
+}: {
+    cuantos: number;
+    medios: ReturnType<typeof useMediosDeLlamada>;
+    malla: ReturnType<typeof useMallaDeVideo>;
+    nombrePropio?: string;
+}) {
+    return (
+        // `overflow-hidden` y no `overflow-y-auto`: la rejilla tiene que CABER,
+        // no desplazarse. Una videollamada en la que hay que bajar para ver al
+        // cuarto es una videollamada de tres.
+        <div className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
+            <div className={cn("grid h-full gap-2", laRejilla(cuantos))}>
+                <Recuadro
+                    stream={medios.local}
+                    nombre={`${nombrePropio ?? "Tú"} (tú)`}
+                    hayVideo={Boolean(medios.local)}
+                    micEncendido={medios.micEncendido}
+                    compartiendo={medios.compartiendo}
+                    // El recuadro propio va SIEMPRE en silencio: sin esto, uno
+                    // se oye a sí mismo con retardo y se acopla con el micro.
+                    // Es lo primero que se nota y lo peor que puede hacer una
+                    // videollamada.
+                    propio
+                />
+                {malla.remotos.map((r) => (
+                    <RecuadroRemoto key={r.id} remoto={r} />
+                ))}
             </div>
         </div>
     );

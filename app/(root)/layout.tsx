@@ -31,6 +31,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { themeClass } from "@/types/generic";
 import { BotonesDelBorde } from "@/components/chat-equipo/BotonesDelBorde";
 import { OyenteDeLlamadas } from "@/components/chat-equipo/OyenteDeLlamadas";
+import { ReunionEnLaPlataforma } from "@/components/video/ReunionEnLaPlataforma";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
 import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
 import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
@@ -509,6 +510,11 @@ export default async function RootGroupLayout({
                       * que el oyente cuelga de aqui — como la ventana que
                       * interrumpe de los avisos de tarea. */}
                     <OyenteDeLlamadas />
+                    {/* Y una reunion abierta sigue abierta al cambiar de
+                      * pantalla, por el mismo motivo: montada dentro del chat
+                      * de equipo, navegar a otro sitio la desmontaria entera.
+                      * No pinta nada mientras no hay ninguna. */}
+                    <ReunionEnLaPlataforma />
                     <ChatOnboardingModal />
                     <TaskNotificationProvider />
                     <ChatUnreadProvider />
