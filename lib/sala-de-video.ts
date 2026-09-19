@@ -122,12 +122,32 @@ export const DURACIONES = [
     { valor: "8h", rotulo: "8 horas", horas: 8 },
     { valor: "24h", rotulo: "1 día", horas: 24 },
     { valor: "7d", rotulo: "7 días", horas: 24 * 7 },
+    { valor: "30d", rotulo: "30 días", horas: 24 * 30 },
 ] as const;
 
 export type Duracion = (typeof DURACIONES)[number]["valor"];
 
-/** La de por defecto: una jornada. Ni la reunión de ahora ni la de la semana. */
-export const DURACION_POR_DEFECTO: Duracion = "24h";
+/**
+ * La de por defecto: **una semana**, y antes era un día.
+ *
+ * Un día parecía lo prudente y en la práctica es la trampa: la reunión que se
+ * agenda se agenda **para mañana**, así que un enlace creado esta mañana con 24
+ * horas llega caducado a la reunión de mañana por la tarde. Desde fuera eso no
+ * se lee como «elegí mal la duración»: se lee como que los enlaces de reuniones
+ * no funcionan, y quien lo sufre es el invitado de fuera, que no tiene forma de
+ * arreglarlo.
+ *
+ * Una semana cubre agendar con antelación normal y sigue caducando. Y ahora
+ * además **se puede mover después** (`cuandoCaducaAlCambiar`), así que
+ * equivocarse por abajo ya no obliga a crear otra sala y repartir otro enlace.
+ *
+ * El techo sube a 30 días por lo mismo —una reunión semanal recurrente vive más
+ * de siete—, y no más: **«no caduca» sigue sin existir**. Equivocarse hacia un
+ * mes de más es un enlace que se revoca desde la pantalla de Reuniones, donde
+ * ahora se ven todos; equivocarse hacia el infinito es un enlace que nadie sabe
+ * que sigue abierto.
+ */
+export const DURACION_POR_DEFECTO: Duracion = "7d";
 
 /**
  * Cuándo caduca un enlace que se crea ahora.
@@ -142,6 +162,38 @@ export function cuandoCaduca(duracion: unknown, desde: number = Date.now()): Dat
         DURACIONES.find((d) => d.valor === duracion) ??
         DURACIONES.find((d) => d.valor === DURACION_POR_DEFECTO)!;
     return new Date(desde + elegida.horas * 60 * 60 * 1000);
+}
+
+/**
+ * Cuándo caduca un enlace al que se le CAMBIA la duración.
+ *
+ * Se mide **desde ahora**, no desde que se creó la sala, y es lo único que
+ * tiene enjundia aquí. Medido desde la creación, alargar a «7 días» una sala
+ * abierta hace seis no daría casi nada: quien lo pulsa vería el enlace caducar
+ * al día siguiente sin entender por qué, y volvería a crear otra sala — que es
+ * justo lo que poder moverla viene a evitar. Quien mueve la caducidad está
+ * diciendo «que valga N **a partir de ahora**», como cualquier calendario.
+ *
+ * Lo que no encaje en la lista cae en la de por defecto, **nunca en “no
+ * caduca”**: la misma regla que al crearla.
+ */
+export function cuandoCaducaAlCambiar(
+    duracion: unknown,
+    ahora: number = Date.now(),
+): Date {
+    return cuandoCaduca(duracion, ahora);
+}
+
+/**
+ * Si lo que llega del navegador es una duración de la lista.
+ *
+ * `cuandoCaduca` ya cae en la de por defecto ante cualquier cosa, así que esto
+ * no protege la fecha: protege el **aviso**. Sin él, teclear una duración que
+ * no existe guardaría siete días en silencio y quien lo hizo creería haber
+ * puesto otra cosa.
+ */
+export function esUnaDuracion(v: unknown): v is Duracion {
+    return DURACIONES.some((d) => d.valor === v);
 }
 
 /**

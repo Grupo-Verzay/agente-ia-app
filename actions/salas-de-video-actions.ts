@@ -19,11 +19,23 @@ import {
     comoSeGuardaElNombre,
     comoSeGuardaElSdp,
     cuandoCaduca,
+    cuandoCaducaAlCambiar,
     esTipoDeSenal,
+    esUnaDuracion,
     laDireccionDeLaSala,
     loQueSeLeDiceAlQueLlegaTarde,
     type TipoDeSenal,
 } from "@/lib/sala-de-video";
+import {
+    DIAS_DE_HISTORICO,
+    TOPE_DEL_HISTORICO,
+    comoSeLeeLaDuracion,
+    cuandoTermino,
+    cuantoDuro,
+    esDeMiCuenta,
+    puedeAbrirUnaReunion,
+    puedeAdministrarLaSala,
+} from "@/lib/reuniones-de-la-cuenta";
 import {
     barrerSenalesViejas,
     crearLaSala,
@@ -31,6 +43,9 @@ import {
     dejarPasar,
     elInvitadoDelToken,
     entrarConCuenta,
+    cambiarLaCaducidad,
+    elHistorialDeLaCuenta,
+    lasSalasVivasDeLaCuenta,
     lasSalasVivasDelCanal,
     laSalaPorCodigo,
     laSalaPorId,
@@ -133,6 +148,37 @@ async function elCanal(canalId: string, yo: NonNullable<Awaited<ReturnType<typeo
 }
 
 /**
+ * Si quien pregunta PERTENECE a esta sala, y por dónde.
+ *
+ * Es la única función que contesta esa pregunta, y ramifica por lo único que
+ * distingue las dos clases de sala:
+ *
+ * | la sala | pertenece | igual que |
+ * | --- | --- | --- |
+ * | **con canal** | quien pertenece al canal | exactamente como antes |
+ * | **sin canal** | quien es de la cuenta | la pantalla de Reuniones |
+ *
+ * Que sea **una** importa: lo preguntan tres sitios —abrir el enlace, cada
+ * vuelta del reloj de la sala y la puerta—, y con la condición copiada en los
+ * tres, el día que una de las dos ramas se afine los otros dos se quedan atrás.
+ * Eso aquí no se ve como un error: se ve como alguien que entra a una reunión
+ * a la que no debía, o como alguien que no entra a la suya.
+ *
+ * **La rama del canal no se toca.** Sigue siendo `elCanal`, con su
+ * «pertenecer, no poder leer»: un administrador lee los directos de su cuenta y
+ * eso no le mete en una reunión abierta dentro de la conversación de otros dos.
+ */
+async function perteneceALaSala(
+    sala: FilaDeSala,
+    yo: NonNullable<Awaited<ReturnType<typeof quien>>>,
+): Promise<boolean> {
+    if (sala.canalId) {
+        return Boolean(await elCanal(sala.canalId, yo));
+    }
+    return esDeMiCuenta(sala, yo.cuentaId);
+}
+
+/**
  * Dónde vive esta plataforma, para componer el enlace.
  *
  * Se lee de la **petición** y no de una variable de entorno: la App se abre por
@@ -161,19 +207,31 @@ export type SalaParaLaPantalla = {
     id: string;
     codigo: string;
     enlace: string;
-    canalId: string;
+    /** `null` en una reunión de la cuenta, sin canal detrás. */
+    canalId: string | null;
     anfitrionId: string;
     anfitrionNombre: string | null;
     titulo: string | null;
     creadoEn: string;
     expiraEn: string;
     soyElAnfitrion: boolean;
+    /**
+     * Si puedo revocarla o moverle la caducidad.
+     *
+     * Baja como dato y **no se vuelve a calcular en la pantalla**: con la
+     * condición escrita también allí, el día que se afine una las dos dejarían
+     * de coincidir y saldría un botón que al pulsarlo dice «no autorizado» —el
+     * «menú abierto, puerta cerrada» que este repositorio ya pagó cuatro veces—.
+     * Quien decide de verdad sigue siendo la acción.
+     */
+    puedoAdministrar: boolean;
 };
 
 function comoSeVeLaSala(
     fila: FilaDeSala,
     raiz: string,
     yo: string | null,
+    quienPregunta?: Awaited<ReturnType<typeof quien>>,
 ): SalaParaLaPantalla {
     return {
         id: fila.id,
@@ -186,6 +244,7 @@ function comoSeVeLaSala(
         creadoEn: fila.creadoEn.toISOString(),
         expiraEn: fila.expiraEn.toISOString(),
         soyElAnfitrion: Boolean(yo) && fila.anfitrionId === yo,
+        puedoAdministrar: puedeAdministrarLaSala(fila, quienPregunta),
     };
 }
 
@@ -249,7 +308,7 @@ export async function crearLaSalaAction(
             });
         }
 
-        return { success: true, sala: comoSeVeLaSala(fila, raiz, yo.personaId) };
+        return { success: true, sala: comoSeVeLaSala(fila, raiz, yo.personaId, yo) };
     } catch (error) {
         console.warn("[salas] no se pudo abrir la reunión", error);
         return { success: false, message: "No se pudo abrir la reunión." };
@@ -270,7 +329,7 @@ export async function lasSalasDelCanalAction(
         const filas = await lasSalasVivasDelCanal(canal.id);
         return {
             success: true,
-            salas: filas.map((f) => comoSeVeLaSala(f, raiz, yo.personaId)),
+            salas: filas.map((f) => comoSeVeLaSala(f, raiz, yo.personaId, yo)),
         };
     } catch (error) {
         console.warn("[salas] no se pudieron leer las reuniones del canal", error);
@@ -281,9 +340,15 @@ export async function lasSalasDelCanalAction(
 /**
  * Revocar el enlace.
  *
- * **Solo el anfitrión.** Es lo pedido, y además es lo correcto: revocar echa a
- * quien esté dentro, así que dejarlo en manos de cualquiera del canal sería
- * dejar que alguien corte la reunión de otros.
+ * **El anfitrión, y quien administra la cuenta.** Antes era solo el anfitrión,
+ * y esa mitad que se añade hace falta: sin ella, una sala abierta por alguien
+ * que ya no está en el equipo **no la cierra nadie nunca** y su enlace sigue
+ * dejando llamar a la puerta hasta que caduque solo. No se afloja más —el resto
+ * del equipo no toca la sala de otro—, que es lo que la regla original
+ * protegía: revocar echa a quien esté dentro.
+ *
+ * Y las dos guardas van **separadas**: el permiso aquí, el «no dos veces» en el
+ * `WHERE` de la consulta. Juntas, un `false` no decía cuál de las dos falló.
  */
 export async function revocarLaSalaAction(
     salaId: string,
@@ -291,17 +356,206 @@ export async function revocarLaSalaAction(
     try {
         const yo = await quien();
         if (!yo) return { success: false, message: "No autorizado." };
-        const hecho = await revocarLaSala(salaId, yo.personaId);
-        if (!hecho) {
+
+        const sala = await laSalaPorId(salaId);
+        if (!sala) return { success: false, message: "Esta reunión ya no existe." };
+        if (!puedeAdministrarLaSala(sala, yo)) {
             return {
                 success: false,
-                message: "Solo quien abrió la reunión puede revocar su enlace.",
+                message: "Solo quien abrió la reunión o quien administra la cuenta puede revocar su enlace.",
             };
         }
+
+        const hecho = await revocarLaSala(salaId);
+        // Ya estaba revocada: no es un fallo, es la segunda pulsación.
+        if (!hecho) return { success: true, listo: true };
         return { success: true, listo: true };
     } catch (error) {
         console.warn("[salas] no se pudo revocar", error);
         return { success: false, message: "No se pudo revocar el enlace." };
+    }
+}
+
+// ── Reuniones de la CUENTA, sin canal detrás ────────────────────────────────
+
+/**
+ * Abrir una reunión de la cuenta.
+ *
+ * Es una acción aparte y **no un parámetro opcional de `crearLaSalaAction`**, a
+ * propósito: aquella escribe además el enlace en el hilo del canal, y con un
+ * `canalId` que puede venir nulo esa parte quedaría detrás de un `if` que solo
+ * se ejerce por un camino. Dos acciones cortas dicen cuál es cuál; lo que de
+ * verdad no puede duplicarse —quién pertenece, cómo se ve una sala, cuándo
+ * caduca— ya está compartido.
+ *
+ * **Quién puede: cualquiera de la cuenta, `agente` incluido.** El porqué está
+ * en `lib/reuniones-de-la-cuenta.ts`, con sus tres motivos.
+ */
+export async function crearLaReunionDeLaCuentaAction(
+    duracion: string,
+    titulo?: string | null,
+): Promise<Respuesta<{ sala: SalaParaLaPantalla }>> {
+    try {
+        const yo = await quien();
+        if (!puedeAbrirUnaReunion(yo) || !yo) {
+            return { success: false, message: "No autorizado." };
+        }
+        if (!esUnaDuracion(duracion)) {
+            return { success: false, message: "Esa duración no existe." };
+        }
+
+        const limpio = (titulo ?? "").replace(/\s+/g, " ").trim().slice(0, 80) || null;
+        const fila = await crearLaSala({
+            cuentaId: yo.cuentaId,
+            // Sin canal: es una reunión de la cuenta. Lo que la hace visible en
+            // Reuniones y lo que la deja FUERA de los canales.
+            canalId: null,
+            anfitrionId: yo.personaId,
+            anfitrionNombre: yo.nombre ?? null,
+            titulo: limpio,
+            expiraEn: cuandoCaduca(duracion),
+        });
+
+        const raiz = await laRaizDeLaApp();
+        return { success: true, sala: comoSeVeLaSala(fila, raiz, yo.personaId, yo) };
+    } catch (error) {
+        console.warn("[salas] no se pudo abrir la reunión de la cuenta", error);
+        return { success: false, message: "No se pudo abrir la reunión." };
+    }
+}
+
+/** Las reuniones vivas de la cuenta. Solo las que no son de ningún canal. */
+export async function lasReunionesDeLaCuentaAction(): Promise<
+    Respuesta<{ salas: SalaParaLaPantalla[]; puedoAbrir: boolean }>
+> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+        const raiz = await laRaizDeLaApp();
+        const filas = await lasSalasVivasDeLaCuenta(yo.cuentaId);
+        return {
+            success: true,
+            salas: filas.map((f) => comoSeVeLaSala(f, raiz, yo.personaId, yo)),
+            puedoAbrir: puedeAbrirUnaReunion(yo),
+        };
+    } catch (error) {
+        console.warn("[salas] no se pudieron leer las reuniones de la cuenta", error);
+        return { success: false, message: "No se pudieron leer las reuniones." };
+    }
+}
+
+/**
+ * Mover la caducidad de un enlace que ya existe.
+ *
+ * Es lo que evita el caso que se reportó: la reunión se mueve al jueves y hoy
+ * había que **abrir otra sala y repartir otro enlace**, con el viejo todavía
+ * dando vueltas por los correos de la gente.
+ *
+ * Se mide desde ahora (`cuandoCaducaAlCambiar`), no desde que se creó.
+ */
+export async function cambiarLaCaducidadAction(
+    salaId: string,
+    duracion: string,
+): Promise<Respuesta<{ expiraEn: string }>> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+        if (!esUnaDuracion(duracion)) {
+            return { success: false, message: "Esa duración no existe." };
+        }
+
+        const sala = await laSalaPorId(salaId);
+        if (!sala) return { success: false, message: "Esta reunión ya no existe." };
+        if (!puedeAdministrarLaSala(sala, yo)) {
+            return {
+                success: false,
+                message: "Solo quien abrió la reunión o quien administra la cuenta puede cambiar su caducidad.",
+            };
+        }
+
+        const expiraEn = cuandoCaducaAlCambiar(duracion);
+        const hecho = await cambiarLaCaducidad(salaId, expiraEn);
+        if (!hecho) {
+            // Revocada: alargarle la fecha sería deshacer por la puerta de
+            // atrás una decisión que alguien tomó, con la gente ya echada.
+            return {
+                success: false,
+                message: "Este enlace está revocado. Abre una reunión nueva.",
+            };
+        }
+        return { success: true, expiraEn: expiraEn.toISOString() };
+    } catch (error) {
+        console.warn("[salas] no se pudo cambiar la caducidad", error);
+        return { success: false, message: "No se pudo cambiar la caducidad." };
+    }
+}
+
+// ── El histórico ────────────────────────────────────────────────────────────
+
+export type ReunionPasada = {
+    id: string;
+    titulo: string | null;
+    anfitrionNombre: string | null;
+    /** Cuándo entró el primero. `null` si no entró nadie. */
+    empezo: string | null;
+    /** Cuánto duró, ya legible. `—` cuando no hay reunión que medir. */
+    duracion: string;
+    /** En segundos, para quien quiera ordenar o sumar. `null` si no se usó. */
+    duracionSegundos: number | null;
+    /** Quiénes entraron, en el orden en que entraron. */
+    asistentes: Array<{ nombre: string; esInvitado: boolean }>;
+    /** Cómo acabó el enlace, para explicar una reunión de cero asistentes. */
+    final: "revocada" | "caducada";
+};
+
+/**
+ * Las reuniones pasadas de la cuenta.
+ *
+ * **No hay tabla nueva.** `sala_participantes` lleva desde el primer día
+ * guardando quién entró y cuándo, y `salas_de_video` guarda cada sala con su
+ * título; lo que faltaba era quien lo leyera. Esas son justo las filas que la
+ * orden describe como «acumulándose sin que nadie las lea»: a partir de ahora
+ * son el histórico.
+ *
+ * Y por eso **no se pone ninguna poda**, que es la pregunta que la orden deja
+ * abierta. Ver la nota del final de esta función.
+ */
+export async function elHistorialDeReunionesAction(
+    dias: number = DIAS_DE_HISTORICO,
+): Promise<Respuesta<{ reuniones: ReunionPasada[]; dias: number }>> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+
+        const cuantos = Number.isFinite(dias) ? Math.min(Math.max(1, Math.floor(dias)), 365) : DIAS_DE_HISTORICO;
+        const filas = await elHistorialDeLaCuenta(yo.cuentaId, cuantos, TOPE_DEL_HISTORICO);
+
+        const reuniones: ReunionPasada[] = filas.map(({ sala, participantes }) => {
+            const empezo = participantes.reduce<Date | null>((menor, p) => {
+                if (!p.entradoEn) return menor;
+                return !menor || p.entradoEn < menor ? p.entradoEn : menor;
+            }, null);
+            const termino = cuandoTermino(participantes);
+            const segundos = cuantoDuro(empezo, termino);
+            return {
+                id: sala.id,
+                titulo: sala.titulo,
+                anfitrionNombre: sala.anfitrionNombre,
+                empezo: empezo ? empezo.toISOString() : null,
+                duracion: comoSeLeeLaDuracion(segundos),
+                duracionSegundos: segundos,
+                asistentes: participantes.map((p) => ({
+                    nombre: p.nombre,
+                    esInvitado: p.esInvitado,
+                })),
+                final: sala.revocadaEn ? "revocada" : "caducada",
+            };
+        });
+
+        return { success: true, reuniones, dias: cuantos };
+    } catch (error) {
+        console.warn("[salas] no se pudo leer el histórico de reuniones", error);
+        return { success: false, message: "No se pudo leer el histórico." };
     }
 }
 
@@ -322,7 +576,8 @@ export type ComoEntro =
  * reunión existe y si hay que esperar en la puerta, y pedir el permiso del
  * navegador antes de eso es pedirlo para nada la mitad de las veces.
  *
- * Quien tiene cuenta **y pertenece al canal** entra directo; cualquier otro
+ * Quien tiene cuenta **y pertenece a la sala** entra directo —al canal si la
+ * sala nació en uno, a la cuenta si es una reunión suelta—; cualquier otro
  * —tenga cuenta o no— pasa por la puerta. Que alguien con sesión que no
  * pertenece caiga en la puerta no es un despiste: es lo mismo que le pasaría a
  * un desconocido, y dejarlo en un «no autorizado» sería un callejón sin salida
@@ -351,8 +606,7 @@ export async function comoEntroAction(codigo: string): Promise<Respuesta<{ como:
 
         const yo = await quien();
         if (yo) {
-            const canal = await elCanal(sala.canalId, yo);
-            if (canal) {
+            if (await perteneceALaSala(sala, yo)) {
                 const fila = await entrarConCuenta({
                     salaId: sala.id,
                     personaId: yo.personaId,
@@ -440,7 +694,7 @@ async function quienEsEnLaSala(input: {
     | {
           sala: FilaDeSala;
           participante: FilaDeParticipante;
-          /** Si además tiene cuenta y pertenece al canal de la sala. */
+          /** Si además tiene cuenta y PERTENECE a la sala (a su canal o a su cuenta). */
           delEquipo: boolean;
       }
     | { error: string }
@@ -466,10 +720,9 @@ async function quienEsEnLaSala(input: {
     const yo = await quien();
     if (!yo) return { error: "No autorizado." };
     // Se vuelve a comprobar la pertenencia en CADA vuelta, no solo al entrar:
-    // a alguien se le puede sacar de un canal mientras la reunión sigue
-    // abierta, y su pestaña seguiría pidiendo por el código sin esto.
-    const canal = await elCanal(sala.canalId, yo);
-    if (!canal) return { error: "No autorizado." };
+    // a alguien se le puede sacar de un canal —o de la cuenta— mientras la
+    // reunión sigue abierta, y su pestaña seguiría pidiendo por el código.
+    if (!(await perteneceALaSala(sala, yo))) return { error: "No autorizado." };
     const fila = await elParticipanteDeLaSesion(sala.id, yo.personaId);
     if (!fila) return { error: "Todavía no has entrado a esta reunión." };
     return { sala, participante: fila, delEquipo: true };
@@ -534,8 +787,8 @@ export type LoQuePasaEnLaSala = {
  * Quién puede dejar pasar a quien espera.
  *
  * El anfitrión, **y cualquiera del equipo que ya esté dentro**. La segunda
- * mitad no afloja nada —para estar dentro con cuenta hay que pertenecer al
- * canal, o sea ser de los mismos— y evita un callejón sin salida que se daría
+ * mitad no afloja nada —para estar dentro con cuenta hay que pertenecer a la
+ * sala, a su canal o a su cuenta, o sea ser de los mismos— y evita un callejón sin salida que se daría
  * todos los días: si el anfitrión cierra su pestaña, sus invitados se quedarían
  * en la sala de espera para siempre, mirando un mensaje que no cambia.
  *

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": [
+      "es2022",
+      "dom"
+    ],
+    "skipLibCheck": true,
+    "strict": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "outDir": ".compilado",
+    "rootDir": "../.."
+  },
+  "files": [
+    "../reuniones-de-la-cuenta.ts",
+    "../sala-de-video.ts"
+  ]
+}
