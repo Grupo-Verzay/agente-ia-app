@@ -6,7 +6,7 @@ import { isAdminOrReseller, isAdminLike } from '@/lib/rbac';
 import { BillingTemplateType, DELETE_DAYS_BILLING } from '@/types/billing';
 // El borrado a los 30 dias si borra la linea: la cuenta deja de existir. La
 // SUSPENSION por impago ya no (ver `lib/robot-por-facturacion.ts`).
-import { deleteInstanceEvolutionAware } from '@/actions/api-action';
+import { liberarLasLineasDeLaCuenta } from '@/lib/sesion-de-la-linea';
 import { apagarElRobotPorImpago, olvidarElRobotDe } from '@/lib/robot-por-facturacion';
 import {
   resolveWhatsAppDispatcherLineByInstanceName,
@@ -163,7 +163,11 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
           try {
             await sendReseller(dispatcher, cli as BillingUserRecord, 'ACCOUNT_DELETED', cfg.msgDeleted);
           } catch { /* avisar es best-effort */ }
-          await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
+          // TODAS sus lineas y en los DOS proveedores. Antes esto era
+          // `deleteInstanceEvolutionAware`, que resuelve una sola fila y hablaba
+          // siempre con Evolution: con una linea de Waha se llevaba la fila por
+          // la rama «sin ApiKey» y dejaba la sesion viva en su servidor.
+          await liberarLasLineasDeLaCuenta(cli.user.id);
           await olvidarElRobotDe(cli.user.id);
           await db.user.delete({ where: { id: cli.user.id } }).catch(() => null);
           result.deleted++;

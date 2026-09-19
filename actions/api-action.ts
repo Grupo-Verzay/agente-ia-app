@@ -12,6 +12,12 @@ import {
 import { anotarElEnvio } from "@/lib/salud-del-envio-db";
 import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { crearSesionDeWaha, sePuedeCrearEnWaha } from "@/lib/crear-linea-waha";
+import {
+  borrarLaSesionDeLaLinea,
+  cerrarLaSesionDeLaLinea,
+  proveedorDeLaFila,
+} from "@/lib/sesion-de-la-linea";
+import { getWahaQrPng, getWahaSession } from "@/lib/waha";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
@@ -124,6 +130,21 @@ export async function generateWhatsappPairingCode({
   const digits = (phone || '').replace(/\D/g, '');
   if (digits.length < 8) return { success: false, message: 'Número inválido (incluye el código de país).' };
 
+  // El codigo por numero es de Evolution. Esto no lo miraba, asi que con una
+  // linea de WhatsApp Mensajeria salia «El usuario no tiene una ApiKey de
+  // Evolution asignada» -que es cierto y no explica nada- o un error HTTP del
+  // servidor equivocado. Se dice lo que si funciona.
+  const fila = await db.instancia.findFirst({
+    where: { userId, instanceName },
+    select: { instanceType: true },
+  });
+  if (proveedorDeLaFila(fila?.instanceType) !== 'evolution') {
+    return {
+      success: false,
+      message: 'Esta línea se vincula escaneando el código QR, no con un código por número.',
+    };
+  }
+
   const user = await db.user.findUnique({ where: { id: userId }, include: { apiKey: true } });
   if (!user?.apiKey) return { success: false, message: 'El usuario no tiene una ApiKey de Evolution asignada.' };
   const { key: apiKey, url: serverUrl } = user.apiKey;
@@ -150,6 +171,52 @@ export async function generateWhatsappPairingCode({
   }
 }
 
+/**
+ * El QR de una linea de WhatsApp Mensajeria, con la MISMA forma de respuesta
+ * que el de Evolution: `qr.code` es una `data:` url que el `<img>` pinta tal
+ * cual. Waha entrega un PNG en crudo, asi que se codifica aqui.
+ *
+ * Waha SOLO da el QR en estado `SCAN_QR_CODE`, y de ahi salen los tres casos
+ * que hay que distinguir -y que un booleano perderia-: ya esta conectada, hay
+ * que reiniciar la sesion, o el servidor no contesta. Son tres arreglos
+ * distintos.
+ */
+async function generarQrDeWaha(instanceName: string): Promise<QRCodeResponse> {
+  const conectada = {
+    isConnected: true,
+    status: 'connected' as const,
+    justNotified: false,
+    cooldownMs: DISCONNECT_COOLDOWN_MS,
+  };
+
+  const sesion = await getWahaSession(instanceName);
+  if (sesion?.status === 'WORKING') {
+    return { success: true, connectionState: { instance: { state: 'open' } }, evo: conectada };
+  }
+
+  const qr = await getWahaQrPng(instanceName);
+
+  if (qr.estado === 'ok') {
+    const base64 = Buffer.from(qr.png).toString('base64');
+    return { success: true, qr: { code: `data:image/png;base64,${base64}` }, evo: conectada };
+  }
+
+  if (qr.estado === 'todavia-no') {
+    return { success: false, message: qr.motivo, evo: conectada };
+  }
+
+  return {
+    success: false,
+    message: qr.motivo,
+    evo: {
+      isConnected: false,
+      status: 'disconnected',
+      justNotified: false,
+      cooldownMs: DISCONNECT_COOLDOWN_MS,
+    },
+  };
+}
+
 export async function generateQRCode({ instanceName, userId }: GenerateQrInterface): Promise<QRCodeResponse> {
   try {
     await assertUserCanUseApp(userId);
@@ -166,9 +233,6 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
   if (!user) {
     return { success: false, message: "El userId no existe." };
   }
-  if (!user.apiKey) {
-    return { success: false, message: "El usuario no tiene una ApiKey asignada." };
-  }
 
   // Detectar tipo de instancia (si existe en BD)
   const inst = await db.instancia.findFirst({
@@ -176,9 +240,24 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
     select: { instanceType: true },
   });
   const instanceType = inst?.instanceType ?? null;
+  const proveedor = proveedorDeLaFila(instanceType);
 
-  if (!isWhatsappLike(instanceType)) {
-    return { success: false, message: 'No se pudo generar el código QR.' };
+  if (proveedor === 'otro') {
+    return { success: false, message: 'Este canal no se conecta con un código QR.' };
+  }
+
+  // Una linea de WhatsApp Mensajeria tambien se abre con un QR, solo que lo da
+  // otro servidor. Antes esto se rendia con «No se pudo generar el código QR.»
+  // -un mensaje que no dice nada- porque preguntaba `isWhatsappLike`, que da
+  // false para `waha`. Y la comprobacion de la ApiKey de Evolution iba ANTES,
+  // asi que una cuenta sin clave de Evolution -lo normal en una cuenta que solo
+  // tiene Waha- ni siquiera llegaba hasta aqui.
+  if (proveedor === 'waha') {
+    return generarQrDeWaha(instanceName);
+  }
+
+  if (!user.apiKey) {
+    return { success: false, message: "El usuario no tiene una ApiKey asignada." };
   }
 
   const { key: apiKey, url: serverUrl } = user.apiKey;
@@ -541,59 +620,30 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
 
     const instanceName = instanciaActiva.instanceName;
 
-    if (isWhatsappLike(instanceType)) {
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        include: { apiKey: true },
-      });
-
-      if (!user || !user.apiKey) {
-        return { success: false, message: "El usuario no tiene una ApiKey asignada." };
-      }
-
-      const { key: apiKey, url: serverUrl } = user.apiKey;
-
-      // 1. Logout de la instancia
-      const logoutOptions = {
-        method: 'DELETE',
-        headers: {
-          apikey: apiKey,
-          'Content-Type': 'application/json',
-        },
-      };
-
-      await fetch(
-        `https://${serverUrl}/instance/logout/${instanceName}`,
-        logoutOptions
-      ).catch(() => null);
-
-      // 2. Eliminar la instancia en la API
-      const deleteOptions = {
-        method: 'DELETE',
-        headers: {
-          apikey: apiKey,
-          'Content-Type': 'application/json',
-        },
-      };
-
-      await fetch(
-        `https://${serverUrl}/instance/delete/${instanceName}`,
-        deleteOptions
-      ).catch(() => null);
-      // Ignorar errores de la API — la instancia puede estar en estado roto;
-      // lo importante es limpiar el registro en BD para permitir recrearla.
-    }
-
-    // 3. Eliminar la instancia de la base de datos
-    const instancia = await db.instancia.findFirst({
-      where: { instanceName, instanceType },
+    // 1 y 2. Cerrar y borrar la sesion, **en el proveedor de la FILA**.
+    //
+    // Antes se decidia con el tipo PEDIDO (`Whatsapp` por defecto), asi que una
+    // linea de Waha se intentaba borrar en Evolution -que contesta «no existe»
+    // sin fallar de forma visible- y su sesion se quedaba viva. Un fallo aqui no
+    // impide limpiar el registro: la instancia puede estar rota y lo importante
+    // es poder recrearla.
+    const enElProveedor = await borrarLaSesionDeLaLinea({
+      instanceName,
+      instanceType: instanciaActiva.instanceType,
+      userId,
     });
-
-    if (!instancia) {
-      return { success: false, message: "No se encontró la instancia en la base de datos." };
+    if (!enElProveedor.ok) {
+      console.warn('[linea] el proveedor no confirmo el borrado; se limpia el registro igual', {
+        instanceName,
+        instanceType: instanciaActiva.instanceType,
+        motivo: enElProveedor.message,
+      });
     }
 
-    await db.instancia.delete({ where: { id: instancia.id } });
+    // 3. Eliminar la instancia de la base de datos, **por su id**. Buscarla otra
+    // vez por el tipo pedido no encontraba las filas de Waha y esto contestaba
+    // «No se encontró la instancia en la base de datos» con la fila delante.
+    await db.instancia.delete({ where: { id: instanciaActiva.id } });
 
     return { success: true, message: "Instancia eliminada exitosamente." };
   } catch (error: any) {
@@ -602,15 +652,20 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
 }
 
 /**
- * Cierra la sesion de WhatsApp de la linea de Evolution, sin borrar nada.
+ * Cierra la sesion de WhatsApp de una linea, sin borrar nada.
  *
  * La llamada ya existia, pero SOLO dentro de `deleteInstance`: cerrar sesion y
  * borrar la instancia iban juntos, asi que la unica forma de desvincular un
- * telefono era cargarse la linea. Waha si lo tenia suelto, en el pie de su
- * tarjeta. Ahora las dos lo ofrecen en el mismo sitio -el boton verde- y por
- * eso Evolution necesita su propia accion.
+ * telefono era cargarse la linea. Ahora las dos tarjetas lo ofrecen en el mismo
+ * sitio -el boton verde-.
  *
- * A diferencia del borrado, aqui un fallo NO se traga: si Evolution no acepta
+ * El proveedor sale de la FILA. Escrita contra Evolution a secas, esto contestaba
+ * «El usuario no tiene una ApiKey de Evolution asignada» a una cuenta cuya linea
+ * es de Waha -que normalmente no tiene clave de Evolution ninguna-, o mandaba el
+ * logout al servidor equivocado, que contesta «no existe» y deja el telefono
+ * vinculado.
+ *
+ * A diferencia del borrado, aqui un fallo NO se traga: si el proveedor no acepta
  * el logout, el telefono sigue vinculado y hay que decirlo. Tragarselo dejaria
  * una tarjeta que dice "sesion cerrada" con la sesion abierta.
  */
@@ -623,29 +678,13 @@ export async function cerrarSesionDeLaLinea(userId: string, instanceType: string
       return { success: false, message: "El usuario no tiene ninguna instancia activa." };
     }
 
-    const user = await db.user.findUnique({ where: { id: userId }, include: { apiKey: true } });
-    if (!user?.apiKey?.url) {
-      return { success: false, message: "El usuario no tiene una ApiKey de Evolution asignada." };
-    }
+    const res = await cerrarLaSesionDeLaLinea({
+      instanceName: instanciaActiva.instanceName,
+      instanceType: instanciaActiva.instanceType,
+      userId,
+    });
 
-    // La url se guarda unas veces con esquema y otras sin el.
-    const url = user.apiKey.url.trim().replace(/\/+$/, '');
-    const base = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-
-    const resp = await fetch(
-      `${base}/instance/logout/${encodeURIComponent(instanciaActiva.instanceName)}`,
-      { method: 'DELETE', headers: { apikey: user.apiKey.key, 'Content-Type': 'application/json' } },
-    ).catch(() => null);
-
-    if (!resp?.ok) {
-      console.warn('[cerrarSesionDeLaLinea] Evolution no acepto el logout', {
-        instanceName: instanciaActiva.instanceName,
-        estado: resp?.status ?? 'sin respuesta',
-      });
-      return { success: false, message: "Evolution no aceptó cerrar la sesión. Inténtalo de nuevo." };
-    }
-
-    return { success: true, message: "Sesión cerrada. Escanea el QR para volver a conectar." };
+    return { success: res.ok, message: res.message };
   } catch (error: any) {
     return { success: false, message: error?.message || "Error al cerrar la sesión." };
   }
@@ -661,59 +700,88 @@ export async function forceRecreateInstance(userId: string, instanceType: string
     }
 
     const instanceName = instanciaActiva.instanceName;
+    const proveedor = proveedorDeLaFila(instanciaActiva.instanceType);
 
-    if (isWhatsappLike(instanceType)) {
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        include: { apiKey: true },
-      });
-
-      if (!user || !user.apiKey) {
-        return { success: false, message: "El usuario no tiene una ApiKey asignada." };
-      }
-
-      const { key: apiKey, url: serverUrl } = user.apiKey;
-
-      // 1. Logout + eliminar en Evolution (ignorar errores — la instancia puede estar rota)
-      await fetch(`https://${serverUrl}/instance/logout/${instanceName}`, {
-        method: 'DELETE',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-      }).catch(() => null);
-
-      await fetch(`https://${serverUrl}/instance/delete/${instanceName}`, {
-        method: 'DELETE',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-      }).catch(() => null);
-
-      // 2. Eliminar de BD
-      await db.instancia.deleteMany({ where: { instanceName, instanceType } });
-
-      // 3. Crear nueva instancia en Evolution
-      const createResponse = await fetch(`https://${serverUrl}/instance/create`, {
-        method: 'POST',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceName, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
-      }).catch(() => null);
-
-      if (!createResponse?.ok) {
-        // BD limpia pero Evolution falló — el usuario verá el formulario de creación manual
-        revalidatePath('/profile');
-        return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
-      }
-
-      const apiResult = await createResponse.json().catch(() => ({}));
-      const instanceId = apiResult?.hash;
-
-      if (!instanceId) {
-        revalidatePath('/profile');
-        return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
-      }
-
-      // 4. Guardar nueva instancia en BD
-      await db.instancia.create({
-        data: { instanceName, displayName: cleanInstanceDisplayName(instanceName), instanceType, userId, instanceId } as any,
-      });
+    if (proveedor === 'otro') {
+      return { success: false, message: "Este canal no se recrea desde aquí." };
     }
+
+    // 1. Cerrar y borrar la sesion en SU proveedor. Ignorar el fallo: la
+    // instancia puede estar rota, que es justo para lo que existe este boton.
+    await borrarLaSesionDeLaLinea({
+      instanceName,
+      instanceType: instanciaActiva.instanceType,
+      userId,
+    });
+
+    // 2. Eliminar de BD, **por el id de la fila**.
+    //
+    // Antes era `deleteMany({ instanceName, instanceType })` con el tipo PEDIDO:
+    // con una linea de Waha no borraba nada y luego creaba una fila de Evolution
+    // con el mismo nombre. O sea DOS filas para un numero, que es exactamente lo
+    // que la regla «una linea es una instancia» existe para evitar.
+    await db.instancia.delete({ where: { id: instanciaActiva.id } });
+
+    // 3. Crear la sesion nueva, tambien en SU proveedor.
+    if (proveedor === 'waha') {
+      const enWaha = await crearSesionDeWaha(instanceName);
+      if (!enWaha.ok) {
+        revalidatePath('/profile');
+        return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
+      }
+      await db.instancia.create({
+        data: {
+          instanceName,
+          displayName: cleanInstanceDisplayName(instanceName),
+          userId,
+          ...enWaha.datos,
+        } as any,
+      });
+      revalidatePath('/profile');
+      return { success: true, message: "Instancia recreada exitosamente. Escanea el QR para reconectar WhatsApp." };
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      include: { apiKey: true },
+    });
+
+    if (!user || !user.apiKey) {
+      revalidatePath('/profile');
+      return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
+    }
+
+    const { key: apiKey, url: serverUrl } = user.apiKey;
+
+    const createResponse = await fetch(`https://${serverUrl}/instance/create`, {
+      method: 'POST',
+      headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceName, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+    }).catch(() => null);
+
+    if (!createResponse?.ok) {
+      // BD limpia pero Evolution falló — el usuario verá el formulario de creación manual
+      revalidatePath('/profile');
+      return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
+    }
+
+    const apiResult = await createResponse.json().catch(() => ({}));
+    const instanceId = apiResult?.hash;
+
+    if (!instanceId) {
+      revalidatePath('/profile');
+      return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
+    }
+
+    await db.instancia.create({
+      data: {
+        instanceName,
+        displayName: cleanInstanceDisplayName(instanceName),
+        instanceType: instanciaActiva.instanceType ?? 'Whatsapp',
+        userId,
+        instanceId,
+      } as any,
+    });
 
     revalidatePath('/profile');
     return { success: true, message: "Instancia recreada exitosamente. Escanea el QR para reconectar WhatsApp." };
@@ -732,8 +800,21 @@ export async function renameInstance(userId: string, instanceType: string, newNa
     }
 
     const oldName = instanciaActiva.instanceName;
+    const proveedor = proveedorDeLaFila(instanciaActiva.instanceType);
 
-    if (isWhatsappLike(instanceType)) {
+    // Waha NO sabe renombrar una sesion, y la sesion se llama igual que la
+    // instancia. Cambiando solo la fila, el nombre nuevo deja de casar con la
+    // sesion que existe: la linea se queda sin mensajes y sin un solo error.
+    // Se dice, y se ofrece lo que si se puede hacer (cambiar el nombre visible).
+    if (proveedor === 'waha') {
+      return {
+        success: false,
+        message:
+          "Una línea de WhatsApp Mensajería no se puede renombrar: la sesión se llama igual que la instancia. Cambia el nombre visible, o elimínala y créala con el nombre nuevo.",
+      };
+    }
+
+    if (proveedor === 'evolution') {
       const user = await db.user.findUnique({
         where: { id: userId },
         include: { apiKey: true },
@@ -761,7 +842,23 @@ export async function renameInstance(userId: string, instanceType: string, newNa
   }
 }
 
-// Versión interna sin assertUserCanUseApp — para uso exclusivo del sistema (billing cron, activación de servicio)
+/**
+ * Borra la linea y su sesion. Version interna sin `assertUserCanUseApp` — para
+ * uso exclusivo del sistema (el borrado de la cuenta a los 30 dias).
+ *
+ * **El proveedor sale de la FILA, no del parametro.** Antes no: esta funcion
+ * recibe `instanceType = 'Whatsapp'` por defecto, encontraba la fila con
+ * `checkActiveInstance` -que si busca en los dos tipos- y a partir de ahi
+ * decidia con el tipo pedido. Con una linea de Waha eso hacia dos cosas malas
+ * seguidas: mandaba el `logout` y el `delete` a Evolution, que contesta «no
+ * existe» sin fallar de forma visible, y luego buscaba la fila **otra vez** con
+ * `findFirst({ instanceName, instanceType })` — o sea por `Whatsapp` — no la
+ * encontraba, y salia con `success: false` dejando la fila puesta.
+ *
+ * O sea: al eliminar una cuenta morosa a los 30 dias, la sesion de Waha se
+ * quedaba viva y ocupada en su servidor **para siempre**, porque la cuenta ya
+ * no existe y no queda nadie que sepa que esa sesion es suya.
+ */
 export async function deleteInstanceInternal(
   userId: string,
   instanceType: string = 'Whatsapp'
@@ -774,36 +871,25 @@ export async function deleteInstanceInternal(
 
     const instanceName = instanciaActiva.instanceName;
 
-    if (isWhatsappLike(instanceType)) {
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        include: { apiKey: true },
+    const enElProveedor = await borrarLaSesionDeLaLinea({
+      instanceName,
+      instanceType: instanciaActiva.instanceType,
+      userId,
+    });
+
+    // Un fallo del proveedor no detiene la limpieza del registro —esto corre al
+    // borrar la cuenta y no hay una vuelta siguiente que reintente— pero **no es
+    // mudo**: una sesion que se queda viva sin fila es una sesion que nadie va a
+    // volver a encontrar.
+    if (!enElProveedor.ok) {
+      console.warn('[linea] la sesion NO se pudo liberar; el registro se borra igual', {
+        instanceName,
+        instanceType: instanciaActiva.instanceType,
+        motivo: enElProveedor.message,
       });
-
-      if (!user || !user.apiKey) {
-        return { success: false, message: "El usuario no tiene una ApiKey asignada.", instanceName: null };
-      }
-
-      const { key: apiKey, url: serverUrl } = user.apiKey;
-
-      await fetch(`https://${serverUrl}/instance/logout/${instanceName}`, {
-        method: 'DELETE',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-      }).catch(() => {});
-
-      await fetch(`https://${serverUrl}/instance/delete/${instanceName}`, {
-        method: 'DELETE',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-      }).catch(() => null);
-      // Ignorar errores de la API — continuar siempre para limpiar el registro en BD.
     }
 
-    const instancia = await db.instancia.findFirst({ where: { instanceName, instanceType } });
-    if (!instancia) {
-      return { success: false, message: "No se encontró la instancia en la base de datos.", instanceName: null };
-    }
-
-    await db.instancia.delete({ where: { id: instancia.id } });
+    await db.instancia.delete({ where: { id: instanciaActiva.id } });
     return { success: true, message: "Instancia eliminada exitosamente.", instanceName };
   } catch (error: any) {
     return { success: false, message: error?.message || "Error al eliminar la instancia.", instanceName: null };
@@ -811,15 +897,21 @@ export async function deleteInstanceInternal(
 }
 
 /**
- * Elimina la instancia de Evolution SOLO si Evolution confirma el borrado
- * (respuesta OK, 404 = ya no existe, u otro 4xx no transitorio). Si Evolution
- * está caído/inalcanzable (error de red o 5xx), CONSERVA el registro en BD para
- * poder reintentar después: el registro presente actúa como señal de
- * "borrado pendiente". Devuelve `retryable: true` cuando el fallo es transitorio.
+ * Borra la linea SOLO si su proveedor confirma el borrado (respuesta OK, 404 =
+ * ya no existe, u otro 4xx no transitorio). Si el proveedor está caído o
+ * inalcanzable (error de red o 5xx), CONSERVA el registro en BD para poder
+ * reintentar después: el registro presente actúa como señal de "borrado
+ * pendiente". Devuelve `retryable: true` cuando el fallo es transitorio.
  *
- * A diferencia de `deleteInstanceInternal`, que limpia el registro aunque
- * Evolution no responda (dejando la instancia huérfana sin posibilidad de
- * reintento), esta variante es la que usa el cron de billing.
+ * A diferencia de `deleteInstanceInternal`, que limpia el registro aunque el
+ * proveedor no responda, esta variante es la que usa la cascada del reseller.
+ *
+ * **Y el proveedor sale de la FILA.** Antes preguntaba por el tipo pedido, y de
+ * ahi salia el fallo que midio el banco del #791: una linea de Waha normalmente
+ * **no tiene clave de Evolution**, asi que entraba por la rama
+ * `if (!user || !user.apiKey)` —«sin ApiKey: registro eliminado»— y se llevaba
+ * la fila por delante **sin tocar la sesion**, que seguia viva en el servidor de
+ * Waha. La rama del `retryable` ni siquiera llegaba a ejercerse.
  */
 export async function deleteInstanceEvolutionAware(
   userId: string,
@@ -833,51 +925,30 @@ export async function deleteInstanceEvolutionAware(
 
     const instanceName = instanciaActiva.instanceName;
 
-    if (isWhatsappLike(instanceType)) {
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        include: { apiKey: true },
+    const enElProveedor = await borrarLaSesionDeLaLinea({
+      instanceName,
+      instanceType: instanciaActiva.instanceType,
+      userId,
+    });
+
+    // Transitorio → conservamos el registro como señal de borrado pendiente.
+    if (!enElProveedor.ok && enElProveedor.transitorio) {
+      return {
+        success: false,
+        retryable: true,
+        message: enElProveedor.message,
+        instanceName,
+      };
+    }
+
+    // Firme (confirmado, 404, o sin credenciales con las que contactar) → la
+    // fila se va: reintentarlo eternamente no la va a arreglar.
+    if (!enElProveedor.ok) {
+      console.warn('[linea] borrado firme sin confirmar en el proveedor', {
+        instanceName,
+        instanceType: instanciaActiva.instanceType,
+        motivo: enElProveedor.message,
       });
-
-      // Sin apiKey no se puede contactar a Evolution; limpiamos el registro para
-      // no reintentar de forma indefinida (no es un fallo transitorio).
-      if (!user || !user.apiKey) {
-        await db.instancia.delete({ where: { id: instanciaActiva.id } });
-        return { success: true, retryable: false, message: "Instancia sin ApiKey: registro eliminado.", instanceName };
-      }
-
-      const { key: apiKey, url: serverUrl } = user.apiKey;
-
-      // logout best-effort: no condiciona el resultado.
-      await fetch(`https://${serverUrl}/instance/logout/${instanceName}`, {
-        method: 'DELETE',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-      }).catch(() => {});
-
-      let reached = false;
-      let deleteStatus = 0;
-      try {
-        const res = await fetch(`https://${serverUrl}/instance/delete/${instanceName}`, {
-          method: 'DELETE',
-          headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-        });
-        reached = true;
-        deleteStatus = res.status;
-      } catch {
-        reached = false;
-      }
-
-      // Evolution inalcanzable o error de servidor → transitorio → reintentar luego.
-      // Conservamos el registro en BD como señal de borrado pendiente.
-      if (!reached || deleteStatus >= 500) {
-        return {
-          success: false,
-          retryable: true,
-          message: `Evolution no confirmó el borrado (${reached ? `status=${deleteStatus}` : 'sin respuesta'}). Se reintentará.`,
-          instanceName,
-        };
-      }
-      // OK / 404 (ya no existe) / 4xx no transitorio → resuelto en Evolution.
     }
 
     await db.instancia.delete({ where: { id: instanciaActiva.id } });
@@ -991,9 +1062,19 @@ export async function checkActiveInstance(userId: string, instanceType: string =
   // filas para el mismo numero, que es justo lo que la regla «una linea es una
   // instancia» existe para evitar.
   const tipos = isWhatsappLike(instanceType) ? [instanceType, 'waha'] : [instanceType];
-  const instanciaActiva = await db.instancia.findFirst({
-    where: { userId, instanceType: { in: Array.from(new Set(tipos)) } },
-  });
+  const where: any = { userId, instanceType: { in: Array.from(new Set(tipos)) } };
+
+  // Y las lineas ANTIGUAS, que se guardaron con el tipo en nulo. Un `IN` de SQL
+  // nunca casa con un nulo, asi que esas filas no las encontraba nadie: el boton
+  // de borrar decia «el usuario no tiene ninguna instancia activa» con la linea
+  // delante. Que `isWhatsappLike(null)` valga `true` desde siempre dice que la
+  // intencion era incluirlas; lo que faltaba era la consulta.
+  if (isWhatsappLike(instanceType)) {
+    where.OR = [{ instanceType: { in: Array.from(new Set(tipos)) } }, { instanceType: null }];
+    delete where.instanceType;
+  }
+
+  const instanciaActiva = await db.instancia.findFirst({ where });
   return instanciaActiva;
 }
 

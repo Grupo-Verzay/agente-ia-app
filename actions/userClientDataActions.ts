@@ -22,6 +22,7 @@ import {
 import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad';
 import { apuntarUnaVezAlDia } from '@/lib/apuntar-actividad';
 import { purgarCuentaEliminada } from '@/lib/purge-account.server';
+import { estadoDeLaSesionDeLaLinea, proveedorDeLaFila } from '@/lib/sesion-de-la-linea';
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
 import bcrypt from "bcryptjs";
@@ -290,14 +291,28 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         let reseller: User | null = null;
         let credits: IaCredit | null = null;
 
-        // Solo las líneas que se comprueban contra Evolution. Waha mantiene la
-        // sesión dentro del backend y Meta/Telegram no son QR: preguntarle a
-        // Evolution por ellas devuelve "no existe", que aquí se leería como línea
-        // caída. Lo que no se puede comprobar no se marca en rojo.
-        const lineasEvolution = user.instancias.filter((i) => {
-          const tipo = String(i.instanceType ?? 'Whatsapp').trim().toLowerCase();
-          return Boolean(i.instanceName) && (tipo === 'whatsapp' || tipo === 'evolution');
-        });
+        // Las líneas por QR, de LOS DOS proveedores. Meta y Telegram no son QR
+        // y se quedan fuera: preguntarle a un servidor de WhatsApp por ellas
+        // devuelve "no existe", que aquí se leería como línea caída. Lo que no
+        // se puede comprobar no se marca en rojo.
+        //
+        // Waha estaba fuera con el motivo escrito de que «mantiene la sesión
+        // dentro del backend» y no se podía comprobar. Sí se puede:
+        // `getWahaSession` contesta `WORKING` o no, que es exactamente la misma
+        // pregunta que `connectionState` en Evolution. Mientras estuvo fuera,
+        // un cliente con su línea en Waha **no salía ni en verde ni en rojo**,
+        // así que su línea se podía caer sin que apareciera nunca en la lista
+        // de a quién escribirle.
+        const lineasPorQr = user.instancias.filter(
+          (i) => Boolean(i.instanceName) && proveedorDeLaFila(i.instanceType) !== 'otro',
+        );
+        const lineasEvolution = lineasPorQr.filter(
+          (i) => proveedorDeLaFila(i.instanceType) === 'evolution',
+        );
+
+        const lineasWaha = lineasPorQr.filter(
+          (i) => proveedorDeLaFila(i.instanceType) === 'waha',
+        );
 
         // Un cliente que aún NO ha creado su línea no está conectado. Salía en
         // verde porque, al no haber nada que consultar, se saltaba la
@@ -305,11 +320,34 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         // sin tener siquiera instancia. Y es justo a quien hay que escribirle,
         // porque no ha terminado de configurarse.
         //
-        // Los que sí tienen línea pero de otro canal (Waha, Meta, Telegram) se
-        // quedan fuera de la cuenta: no son QR y no se pueden comprobar desde
-        // aquí, así que ni verde ni rojo — no inventamos un estado.
-        const tieneOtroCanal = user.instancias.length > lineasEvolution.length;
-        let qrStatus = lineasEvolution.length === 0 ? !tieneOtroCanal : true;
+        // Los que sí tienen línea pero de un canal que no es QR (Meta, Telegram)
+        // se quedan fuera de la cuenta: no se pueden comprobar desde aquí, así
+        // que ni verde ni rojo — no inventamos un estado.
+        const tieneOtroCanal = user.instancias.length > lineasPorQr.length;
+        let qrStatus = lineasPorQr.length === 0 ? !tieneOtroCanal : true;
+
+        // Qué líneas contestaron que están conectadas, de cualquiera de los dos
+        // proveedores. Se junta y se decide UNA vez al final: con dos bloques
+        // decidiendo por su cuenta, el segundo pisaría al primero y un cliente
+        // con una línea sana de cada proveedor saldría rojo según el orden.
+        const conectadas: boolean[] = [];
+
+        if (lineasWaha.length > 0) {
+          const estados = await Promise.all(
+            lineasWaha.map((linea) =>
+              estadoDeLaSesionDeLaLinea({
+                instanceName: linea.instanceName as string,
+                instanceType: linea.instanceType,
+                userId: user.id,
+              }).catch(() => 'desconocido' as const),
+            ),
+          );
+          // `desconocido` no cuenta como conectada NI se pinta en rojo por sí
+          // solo: solo deja de aportar un "sí".
+          estados.forEach((e) => {
+            if (e === 'conectada') conectadas.push(true);
+          });
+        }
 
         const baseEvolution = (() => {
           const url = (user.apiKey?.url ?? '').trim().replace(/\/+$/, '');
@@ -321,7 +359,6 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           // Hay algo que comprobar, y hasta comprobarlo se da por DESCONECTADO:
           // si la consulta falla, el cliente aparece en la lista de revisar en
           // vez de darse por bueno sin haber mirado.
-          qrStatus = true;
           try {
             // El estado se consulta SIEMPRE. Antes solo se miraba con el robot
             // apagado, así que con el robot encendido la columna salía verde sin
@@ -366,10 +403,9 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
               }),
             );
 
-            // Con varias líneas basta con que UNA esté bien: el cliente está
-            // operando. Marcarlo en rojo por una instancia vieja que quedó suelta
-            // lo metería en la lista de a quién escribirle sin motivo.
-            qrStatus = !resultados.some((r) => r.conectada);
+            resultados.forEach((r) => {
+              if (r.conectada) conectadas.push(true);
+            });
 
             // El robot ya no es el webhook: es la marca `bot_enabled` de la
             // linea (ver actions/robot-actions.ts), y esa ya se leyo arriba para
@@ -380,6 +416,13 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           } catch (error) {
             console.warn(`No se pudo comprobar el estado de las líneas del usuario ${user.id}`, error);
           }
+        }
+
+        // Con varias líneas basta con que UNA esté bien: el cliente está
+        // operando. Marcarlo en rojo por una instancia vieja que quedó suelta
+        // lo metería en la lista de a quién escribirle sin motivo.
+        if (lineasPorQr.length > 0) {
+          qrStatus = conectadas.length === 0;
         }
 
         // Buscar reseller asociado

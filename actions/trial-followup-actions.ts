@@ -3,6 +3,8 @@
 import { db } from '@/lib/db'
 import { currentUser } from '@/lib/auth'
 import { esAdminDeVerdad } from '@/lib/super-admin-de-verdad'
+import { proveedorDeLaFila } from '@/lib/sesion-de-la-linea'
+import { getWahaSession } from '@/lib/waha'
 import { isAdmin } from '@/lib/rbac'
 import {
   resolveSystemNotificationInstanceName,
@@ -242,6 +244,23 @@ export async function getAvailableInstances(): Promise<{
         }
       }),
     )
+
+    // Y las de WhatsApp Mensajeria, que no salen en `fetchInstances` de
+    // Evolution: son de otro servidor. Sin esta vuelta, TODAS las lineas de Waha
+    // salian con el punto gris y `unknown` — o sea, el aviso de mas abajo
+    // («lineas sin estado de conexion») se disparaba por diseño en cualquier
+    // plataforma con Waha, que es tanto como no tenerlo.
+    const lineasWaha = lineas.filter(
+      (l) => l.instanceName && proveedorDeLaFila(l.instanceType) === 'waha',
+    )
+    if (lineasWaha.length > 0) {
+      await Promise.allSettled(
+        lineasWaha.map(async (l) => {
+          const sesion = await getWahaSession(l.instanceName as string)
+          if (sesion) estados.set(l.instanceName as string, sesion.status === 'WORKING' ? 'open' : 'close')
+        }),
+      )
+    }
 
     const data: { name: string; status: string }[] = []
     const vistos = new Set<string>()

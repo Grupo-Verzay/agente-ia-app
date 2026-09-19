@@ -1,11 +1,13 @@
 import { sendQrDisconnectedNotification } from '@/actions/api-action'
 import { db } from '@/lib/db'
 import {
+  estadoDeLaSesionDeLaLinea,
+  proveedorDeLaFila,
+} from '@/lib/sesion-de-la-linea'
+import {
   DISCONNECT_COOLDOWN_MS,
-  EVO_FETCH_TIMEOUT_MS,
   getDayKeyBogota,
   getEvoCache,
-  isWhatsappLike,
 } from '@/types/evo-api'
 import { NextResponse } from 'next/server'
 
@@ -30,10 +32,6 @@ function normalizeBaseUrl(url: string | null | undefined): string {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
 }
 
-function isDisconnectedState(state: string | null): boolean {
-  return state !== 'open'
-}
-
 function getBogotaHour(date = new Date()): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
@@ -42,44 +40,6 @@ function getBogotaHour(date = new Date()): number {
   }).formatToParts(date)
   const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0)
   return hour === 24 ? 0 : hour
-}
-
-async function getEvolutionState(args: {
-  serverUrl: string
-  apiKey: string
-  instanceName: string
-}): Promise<{ ok: boolean; state: string | null; message?: string }> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), EVO_FETCH_TIMEOUT_MS)
-
-  try {
-    const response = await fetch(
-      `${args.serverUrl}/instance/connectionState/${encodeURIComponent(args.instanceName)}`,
-      {
-        method: 'GET',
-        headers: { apikey: args.apiKey },
-        cache: 'no-store',
-        signal: controller.signal,
-      },
-    )
-
-    if (!response.ok) {
-      return { ok: false, state: null, message: `HTTP ${response.status}` }
-    }
-
-    const data = await response.json().catch(() => null)
-    const state = data?.instance?.state ?? data?.state ?? data?.connectionState ?? null
-
-    return {
-      ok: true,
-      state: state == null ? null : String(state).trim().toLowerCase(),
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return { ok: false, state: null, message }
-  } finally {
-    clearTimeout(timeout)
-  }
 }
 
 async function runEvolutionDisconnectScan() {
@@ -102,18 +62,26 @@ async function runEvolutionDisconnectScan() {
     }
   }
 
+  // Las lineas por QR son de DOS proveedores y las dos se caen igual.
+  //
+  // Antes este aviso no existia para WhatsApp Mensajeria, y por partida doble:
+  // el filtro pedia `instanceType` nulo o `Whatsapp` -o sea, dejaba fuera las
+  // filas `waha`- y ademas exigia `apiKey: { isNot: null }`, la clave de
+  // Evolution, que una cuenta con su linea en Waha normalmente no tiene. Asi
+  // que a esos clientes la linea se les caia y **no se enteraba nadie**: ni un
+  // aviso, ni una fila en el resultado del cron, ni un fallo que mirar.
+  const LINEAS_POR_QR = {
+    OR: [
+      { instanceType: null },
+      { instanceType: { equals: 'Whatsapp', mode: 'insensitive' as const } },
+      { instanceType: { equals: 'waha', mode: 'insensitive' as const } },
+    ],
+  }
+
   const users = await db.user.findMany({
     where: {
       notificationNumber: { not: '0000000000' },
-      apiKey: { isNot: null },
-      instancias: {
-        some: {
-          OR: [
-            { instanceType: null },
-            { instanceType: { equals: 'Whatsapp', mode: 'insensitive' } },
-          ],
-        },
-      },
+      instancias: { some: LINEAS_POR_QR },
     },
     select: {
       id: true,
@@ -121,12 +89,7 @@ async function runEvolutionDisconnectScan() {
       notificationNumber: true,
       apiKey: { select: { url: true, key: true } },
       instancias: {
-        where: {
-          OR: [
-            { instanceType: null },
-            { instanceType: { equals: 'Whatsapp', mode: 'insensitive' } },
-          ],
-        },
+        where: LINEAS_POR_QR,
         select: {
           instanceName: true,
           instanceType: true,
@@ -150,31 +113,51 @@ async function runEvolutionDisconnectScan() {
     const apiKey = user.apiKey?.key?.trim()
     const remoteJid = user.notificationNumber?.trim()
 
-    if (!serverUrl || !apiKey || !remoteJid || remoteJid === '0000000000') {
+    // Sin numero al que avisar no hay nada que hacer. La clave de Evolution ya
+    // NO es requisito de la cuenta: solo la necesitan sus lineas de Evolution.
+    if (!remoteJid || remoteJid === '0000000000') {
       result.skipped += user.instancias.length
       continue
     }
 
+    // Las credenciales se resuelven UNA vez por cuenta, no una por linea.
+    const credEvolution = serverUrl && apiKey ? { base: serverUrl, key: apiKey } : null
+
     for (const instance of user.instancias) {
-      if (!instance.instanceName || !isWhatsappLike(instance.instanceType)) {
+      if (!instance.instanceName) {
+        result.skipped += 1
+        continue
+      }
+
+      const proveedor = proveedorDeLaFila(instance.instanceType)
+      if (proveedor === 'otro') {
+        result.skipped += 1
+        continue
+      }
+      if (proveedor === 'evolution' && !credEvolution) {
         result.skipped += 1
         continue
       }
 
       result.scanned += 1
 
-      const state = await getEvolutionState({
-        serverUrl,
-        apiKey,
-        instanceName: instance.instanceName,
-      })
+      const estado = await estadoDeLaSesionDeLaLinea(
+        {
+          instanceName: instance.instanceName,
+          instanceType: instance.instanceType,
+          userId: user.id,
+        },
+        credEvolution,
+      )
 
-      if (!state.ok) {
+      // `desconocido` NO es «caída»: es que no se pudo preguntar. Avisar por eso
+      // seria mandarle un WhatsApp al cliente cada vez que el servidor tarde.
+      if (estado === 'desconocido') {
         result.failed += 1
         result.failures.push({
           userId: user.id,
           instanceName: instance.instanceName,
-          message: state.message ?? 'No se pudo consultar Evolution.',
+          message: `No se pudo consultar el estado (${proveedor}).`,
         })
         continue
       }
@@ -196,7 +179,7 @@ async function runEvolutionDisconnectScan() {
         entry.notifiedSlotsToday = []
       }
 
-      if (!isDisconnectedState(state.state)) {
+      if (estado === 'conectada') {
         entry.lastIsConnected = true
         cache.set(cacheKey, entry)
         continue
