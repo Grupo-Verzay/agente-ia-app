@@ -2398,6 +2398,106 @@ Y **ninguna pantalla se queda vacía**: debajo de las siete queda su gráfica, s
 formulario o su lista. La única que habría quedado en blanco era Créditos, y no
 lo hace porque el formulario que edita esos mismos dos números sigue ahí.
 
+### Y la tercera vuelta: la cabecera de Finanzas
+
+Quedaban cuatro fuera del barrido y por el mismo motivo de siempre: no estaban
+encima de una lista, estaban en una **cabecera pegada arriba** —Ingresos,
+Gastos, Balance y Transacciones, en todas las pantallas de Finanzas—. Da igual:
+la pregunta no cambia. **No filtraban nada, y los sitios a los que llevaban ya
+estaban en la fila de accesos de abajo** (Ventas, Compras, Cuentas). Cuatro
+cifras sueltas que no se pueden usar, ocupando la fila que le falta a la tabla.
+
+Medido en Chromium sobre el CSS del build —las clases del «antes»
+(`md:grid-cols-4`, `h-12`, `gap-2`) **siguen existiendo** en la hoja nueva
+porque las usan otras pantallas, así que las dos medidas valen sobre la misma:
+
+| ventana | antes | después | recupera |
+| --- | --- | --- | --- |
+| 1440 / 1280 / 1024 | 105 px | 49 px | **56 px** |
+| 390 | 53 px | 49 px | 4 px |
+
+En el teléfono solo son 4 px porque la fila ya iba `hidden` ahí: lo que se
+recupera es el hueco del `space-y-1` que sobraba con un solo hijo. El `py-1` se
+queda — es la separación entre bloques que ya había, no hueco muerto.
+
+Y de paso **se cayó `/api/finance/overview`**, que existía solo para alimentar
+esas cuatro tarjetas y no lo llamaba nadie más. Es además una de las rutas que
+este documento nombra como «protegidas solo por el middleware» en la regla de
+Next: una menos.
+
+**`FinanceOverviewHeader` dejó de ser un componente de cliente**, porque lo era
+solo por ese `fetch`. El mes lo lee `FinanceModuleShortcuts` de la URL por su
+cuenta, como ya hacía cuando no se le pasaba la prop.
+
+## Finanzas de la familia: se elige qué se suma, y sumar monedas distintas NO
+
+Cada cuenta lleva su contabilidad aparte —`financeTransaction` escopa por
+`userId`, ver `lib/finance-user.ts`— y eso no cambia. Lo que faltaba es que
+quien administra la familia pudiera ver las de sus cuentas hijas sin ir
+entrando una por una.
+
+El selector deja **elegir una, o marcar varias y consolidarlas**. Y es una
+elección y no una suma automática a propósito: en la cuenta madre conviven las
+finanzas de la casa con las personales, y no siempre se quieren mezclar.
+
+**Lo que decide vive en `lib/finanzas-de-la-familia.ts`, puro**, y eso es lo que
+impide que la pantalla y el servidor discrepen: la misma función dice qué se
+ofrece y qué se consulta.
+
+### La regla que no se puede ablandar: con monedas distintas no hay total
+
+Cada cuenta tiene su `preferredCurrencyCode`. Sumar pesos con dólares da una
+cifra **perfectamente creíble** y que no significa nada — que es la peor clase
+de error, porque nadie la mira dos veces. Es la familia del «999999999 de -1
+créditos» que ya salió por WhatsApp a una clienta.
+
+> Con monedas distintas **el desglose sale igual** —cada fila en la suya, que es
+> cierta— y **el total no sale**, con el motivo al lado. Y **tampoco salen el
+> resumen anual ni la gráfica**, porque las dos SUMAN las cuentas elegidas: lo
+> que no se puede calcular no se sustituye por otro número, ni se dibuja.
+
+Es el caso raro —la familia de hoy es toda COP— y precisamente por eso hay que
+dejarlo cerrado: una rama que solo se equivoca con datos que todavía no
+existen es la que nadie prueba.
+
+### Cinco cosas más que hay que mantener
+
+1. **Sin selección se consulta la cuenta propia, no la familia entera.** Es lo
+   que hace que esto **no cambie nada** para quien no toca el selector, ni para
+   las cuentas hijas, que no lo ven. Y volver a «Solo mi cuenta» **quita el
+   parámetro** en vez de escribirlo: la URL limpia es la que ya funcionaba.
+2. **Lo que llega del navegador no decide a qué se llega.** Las cuentas viajan
+   en la URL (`?cuentas=a,b,c`), así que se filtran contra la familia **en el
+   servidor** (`resolverLasCuentasDeFinanzas`). Esconder el selector no cierra
+   la petición directa — es la misma regla de los canales que cruzan cuentas.
+3. **Las tres condiciones del selector**, y hacen falta las tres: manda en su
+   cuenta (`canManageWorkspace` — un `agente` participa, no administra), es la
+   cuenta **madre** de su familia, y la familia tiene **más de una** cuenta. Un
+   selector con una sola opción dentro no filtra nada.
+4. **Las cuentas elegidas viajan en los enlaces de la rejilla anual.** Sin eso,
+   pulsar un mes deshacía la consolidación sin decir nada.
+5. **Vaciar sigue siendo SOLO de la cuenta propia.** `wipeFinanceTransactions`
+   no recibe ninguna cuenta y escopa por `getFinanceUser()`. Que se puedan
+   *mirar* cinco cuentas a la vez no puede convertir ese botón en uno que borre
+   cinco contabilidades.
+
+### Dónde responde el selector, y dónde no
+
+**Solo en `/dashboard/finance`**, que es donde están el resumen anual y la
+gráfica. No se puso en la cabecera —donde se vería en todas las pantallas de
+Finanzas— justamente por eso: las listas de Ventas, Gastos, Clientes y
+Proveedores **no** lo respetan, así que un selector visible ahí sería un filtro
+que promete algo que la pantalla de al lado no hace. Es el «menú abierto,
+puerta cerrada» que este repositorio ya pagó en Clientes, en Equipo y en el
+panel. Si algún día esas listas tienen que consolidar, el selector sube a la
+cabecera **con ellas**, no antes.
+
+Medido en Chromium sobre el CSS del build: el selector se topa en 256 px
+(`max-w-[16rem]`) y recorta el nombre largo en las tres anchuras; la tabla del
+desglose va `table-fixed` con `min-w-[34rem]` y **solo se desplaza por debajo de
+768 px**, que es preferible a recortar los números que se vienen a leer. La
+página no desborda a 1440, 1280, 1024 ni 390.
+
 ## La barra de pestañas se corta: flechas, y la activa se trae sola
 
 La barra del panel del súper administrador —Informes, Actividad, Operaciones,

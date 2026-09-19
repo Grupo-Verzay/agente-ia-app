@@ -5,9 +5,13 @@ import { Badge } from '@/components/ui/badge';
 
 import { db } from '@/lib/db';
 import { getFinanceUser } from '@/lib/finance-user';
+import { resolverLasCuentasDeFinanzas } from '@/lib/cuentas-de-finanzas';
+import { consolidar } from '@/lib/finanzas-de-la-familia';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 import { WipeFinanceButton } from './_components/WipeFinanceButton';
+import { SelectorDeCuentas } from './_components/SelectorDeCuentas';
+import { DesgloseDeCuentas } from './_components/DesgloseDeCuentas';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -76,11 +80,17 @@ function monthInputValue(date: Date) {
 export default async function FinanceHomePage({
   searchParams,
 }: {
-  searchParams?: { month?: string | string[] };
+  searchParams?: { month?: string | string[]; cuentas?: string | string[] };
 }) {
   // Finanzas es por cuenta del titular logueado (ver lib/finance-user).
   const me = await getFinanceUser();
   if (!me?.id) return null;
+
+  // Quien administra la familia puede consolidar varias cuentas; cualquier otro
+  // recibe `[me.id]` y esta pantalla se comporta exactamente como antes.
+  const cuentas = await resolverLasCuentasDeFinanzas(me.id, searchParams?.cuentas);
+  const elegidas = cuentas.elegidas;
+  const consolidando = elegidas.length > 1;
 
   const selectedMonth = parseMonthParam(searchParams?.month);
   const from = startOfMonth(selectedMonth);
@@ -94,25 +104,23 @@ export default async function FinanceHomePage({
   });
 
   // Nombre de la cuenta activa: se muestra al vaciar para no hacerlo en la que
-  // no es (Finanzas escopa por la cuenta que se está viendo).
+  // no es (vaciar sigue siendo SOLO de la cuenta propia, nunca de lo elegido
+  // en el selector — ver el pie de la pantalla).
   const account = await db.user.findUnique({
     where: { id: me.id },
     select: { name: true, company: true, email: true },
   });
   const accountLabel = account?.company || account?.name || account?.email || null;
 
-  const preferredCode = me.preferredCurrencyCode || 'COP';
-  const preferredMeta = currencies.find((c) => c.code === preferredCode);
-  const formatPreferred = (n: number) => moneyFormat(preferredMeta, n);
-
   const yearTx = await db.financeTransaction.findMany({
     where: {
-      userId: me.id,
+      userId: { in: elegidas },
       status: { not: 'DELETED' as const },
       occurredAt: { gte: yearFrom, lt: yearTo },
       type: { in: ['SALE', 'EXPENSE'] as const },
     },
     select: {
+      userId: true,
       type: true,
       occurredAt: true,
       amount: true,
@@ -123,6 +131,29 @@ export default async function FinanceHomePage({
   });
 
   const monthTx = yearTx.filter((tx) => tx.occurredAt >= from && tx.occurredAt < to);
+
+  // Lo que aporta cada cuenta en el MES que se está mirando, que es la unidad de
+  // esta pantalla: la rejilla de arriba marca ese mes y la gráfica de abajo lo
+  // dibuja día a día.
+  const aportes = new Map<string, { ingresos: number; gastos: number }>();
+  for (const tx of monthTx) {
+    const suyo = aportes.get(tx.userId) ?? { ingresos: 0, gastos: 0 };
+    const total = calcTotal(tx);
+    if (tx.type === 'SALE') suyo.ingresos += total;
+    if (tx.type === 'EXPENSE') suyo.gastos += total;
+    aportes.set(tx.userId, suyo);
+  }
+
+  const cuentasElegidas = cuentas.disponibles.filter((c) => elegidas.includes(c.id));
+  const consolidado = consolidando ? consolidar(cuentasElegidas, aportes) : null;
+
+  // Con monedas distintas no hay una cifra común que enseñar: el desglose sale
+  // igual —cada fila en la suya, que es cierta— y lo que se suma no se pinta.
+  const sePuedeSumar = !consolidado || consolidado.total !== null;
+
+  const preferredCode = consolidado?.moneda || me.preferredCurrencyCode || 'COP';
+  const preferredMeta = currencies.find((c) => c.code === preferredCode);
+  const formatPreferred = (n: number) => moneyFormat(preferredMeta, n);
 
   const daysInMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
   const dayRows = Array.from({ length: daysInMonth }, (_, i) => {
@@ -144,7 +175,7 @@ export default async function FinanceHomePage({
   }
 
   const monthLabel = selectedMonth.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
-const annualRows = Array.from({ length: 12 }, (_, index) => {
+  const annualRows = Array.from({ length: 12 }, (_, index) => {
     const monthDate = new Date(selectedMonth.getFullYear(), index, 1);
     return {
       key: monthInputValue(monthDate),
@@ -167,60 +198,97 @@ const annualRows = Array.from({ length: 12 }, (_, index) => {
     row.balance = row.sales - row.expenses;
   }
 
+  // El mes viaja en los enlaces de la rejilla anual; las cuentas elegidas
+  // también, o pulsar un mes deshacía la consolidación sin decir nada.
+  const cuentasEnElEnlace = consolidando ? `&cuentas=${elegidas.join(',')}` : '';
+
   return (
     <div className="space-y-1">
-      <Card className="border-border">
-        <CardHeader className="px-2 pb-1 pt-2">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm">Resumen anual por mes {selectedMonth.getFullYear()}</CardTitle>
-            <Badge variant="outline" className="h-5 shrink-0 px-2 text-[10px]">
-              Ingresos - gastos = balance
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="px-2 pb-2 pt-0">
-          <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border sm:grid-cols-3 lg:grid-cols-6">
-            {annualRows.map((row) => (
-              <Link
-                key={row.key}
-                href={`/dashboard/finance?month=${row.key}`}
-                title={`Ingresos: ${formatPreferred(row.sales)} | Gastos: ${formatPreferred(row.expenses)}`}
-                className={`min-h-[62px] overflow-hidden border-border transition hover:bg-muted/40 lg:border-r [&:nth-child(-n+6)]:border-b lg:[&:nth-child(6n)]:border-r-0 ${
-                  row.active ? 'bg-sky-50 ring-1 ring-inset ring-sky-400' : 'bg-background'
-                }`}
-              >
-                <div className="flex h-7 items-center justify-center bg-slate-950 px-2 text-xs font-semibold uppercase text-white">
-                  {row.label}
-                </div>
-                <div className="flex h-9 items-center justify-center px-2 text-center">
-                  <span className={`text-sm font-semibold leading-none ${row.balance < 0 ? 'text-destructive' : ''}`}>
-                    {formatPreferred(row.balance)}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {cuentas.puedeElegir && (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <SelectorDeCuentas disponibles={cuentas.disponibles} elegidas={elegidas} />
+          {consolidando && (
+            <span className="text-xs text-muted-foreground">
+              Sumando {elegidas.length} cuentas. El resumen anual y la gráfica responden a esta selección.
+            </span>
+          )}
+        </div>
+      )}
 
-      {/* Chart */}
-      <Card className="border-border">
-        <CardHeader className="px-3 pb-1 pt-2">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm">Ventas vs Gastos por dia {monthLabel}</CardTitle>
-            <Badge variant="outline" className="h-5 px-2 text-[10px]">
-              {daysInMonth} días
-            </Badge>
-          </div>
-        </CardHeader>
+      {consolidado && (
+        <DesgloseDeCuentas
+          consolidado={consolidado}
+          monthLabel={monthLabel}
+          currencies={currencies}
+        />
+      )}
 
-        <CardContent className="px-2 pb-2 pt-0">
-          <FinanceMonthChart
-            currencyCode={preferredCode}
-            data={dayRows.map((r) => ({ day: r.day, sales: r.sales, expenses: r.expenses }))}
-          />
-        </CardContent>
-      </Card>
+      {sePuedeSumar ? (
+        <>
+          <Card className="border-border">
+            <CardHeader className="px-2 pb-1 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm">Resumen anual por mes {selectedMonth.getFullYear()}</CardTitle>
+                <Badge variant="outline" className="h-5 shrink-0 px-2 text-[10px]">
+                  Ingresos - gastos = balance
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="px-2 pb-2 pt-0">
+              <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border sm:grid-cols-3 lg:grid-cols-6">
+                {annualRows.map((row) => (
+                  <Link
+                    key={row.key}
+                    href={`/dashboard/finance?month=${row.key}${cuentasEnElEnlace}`}
+                    title={`Ingresos: ${formatPreferred(row.sales)} | Gastos: ${formatPreferred(row.expenses)}`}
+                    className={`min-h-[62px] overflow-hidden border-border transition hover:bg-muted/40 lg:border-r [&:nth-child(-n+6)]:border-b lg:[&:nth-child(6n)]:border-r-0 ${
+                      row.active ? 'bg-sky-50 ring-1 ring-inset ring-sky-400' : 'bg-background'
+                    }`}
+                  >
+                    <div className="flex h-7 items-center justify-center bg-slate-950 px-2 text-xs font-semibold uppercase text-white">
+                      {row.label}
+                    </div>
+                    <div className="flex h-9 items-center justify-center px-2 text-center">
+                      <span className={`text-sm font-semibold leading-none ${row.balance < 0 ? 'text-destructive' : ''}`}>
+                        {formatPreferred(row.balance)}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Chart */}
+          <Card className="border-border">
+            <CardHeader className="px-3 pb-1 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm">Ventas vs Gastos por dia {monthLabel}</CardTitle>
+                <Badge variant="outline" className="h-5 px-2 text-[10px]">
+                  {daysInMonth} días
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="px-2 pb-2 pt-0">
+              <FinanceMonthChart
+                currencyCode={preferredCode}
+                data={dayRows.map((r) => ({ day: r.day, sales: r.sales, expenses: r.expenses }))}
+              />
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        /* Ni la rejilla anual ni la gráfica pueden dibujarse: las dos SUMAN las
+           cuentas elegidas, y con monedas distintas esa suma no significa nada.
+           El desglose de arriba sí sale, porque cada fila va en su moneda. */
+        <Card className="border-amber-300 bg-amber-50/60">
+          <CardContent className="px-3 py-3 text-sm text-amber-900">
+            El resumen anual y la gráfica no se pueden dibujar con esta selección:{' '}
+            {consolidado?.sinTotalPorque} Arriba queda lo que aporta cada cuenta, cada una en la suya.
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex justify-end pt-1">
         <WipeFinanceButton accountLabel={accountLabel} />
