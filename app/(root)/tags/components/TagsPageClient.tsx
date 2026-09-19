@@ -75,9 +75,20 @@ export function TagsPageClient({
         <TooltipProvider delayDuration={120}>
             <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* Fila de toggle + score pills — igual que CRM */}
-                <ModuleToolbar>
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                        <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+                <ModuleToolbar
+                    acciones={
+                        view === 'kanban' ? (
+                            <CrmGlobalActionsMenu
+                                userId={userId}
+                                stats={stats}
+                                onDataChanged={loadStats}
+                                hideRegistros
+                            />
+                        ) : null
+                    }
+                >
+                    <>
+                        <div className="flex shrink-0 gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                             <button
                                 type="button"
                                 onClick={() => setView('kanban')}
@@ -162,16 +173,7 @@ export function TagsPageClient({
                                 </div>
                             </div>
                         )}
-                    </div>
-
-                    {view === 'kanban' && (
-                        <CrmGlobalActionsMenu
-                            userId={userId}
-                            stats={stats}
-                            onDataChanged={loadStats}
-                            hideRegistros
-                        />
-                    )}
+                    </>
                 </ModuleToolbar>
 
                 {/* Content */}

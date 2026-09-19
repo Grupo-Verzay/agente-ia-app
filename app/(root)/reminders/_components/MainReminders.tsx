@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { ReminderListClient, ReminderSkeleton, ReminderModal } from './';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Bell, CalendarDays, CheckCircle2, Clock3, Kanban, List, Repeat2, Search, Settings2 } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarDays, CheckCircle2, Clock3, Kanban, List, Repeat2, Search, Settings2, Trash2 } from 'lucide-react';
 import { MainReminderInterface } from '@/schema/reminder';
 import { Input } from '@/components/ui/input';
 import { closeDialog, openCreateDialog, useReminderDialogStore } from '@/stores';
@@ -24,6 +24,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ReminderGroupAutomationsPanel } from '@/app/(root)/crm/rules/components/ReminderGroupAutomationsPanel';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 
 const parseReminderTime = (time: string | null) => {
   if (!time) return null;
@@ -218,7 +220,31 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
               </div>
             )}
 
-            <ModuleToolbar>
+            <ModuleToolbar
+              right={<BotonDeCrear onClick={handleCreateReminder}>Nuevo recordatorio</BotonDeCrear>}
+              acciones={
+                /* «Eliminar todos» ya era una acción sobre VARIOS: su sitio es
+                   el `⋯` de la esquina, no un botón rojo suelto en la fila. */
+                !isScheduleView ? (
+                  <AccionesMasivas
+                    seleccionados={[]}
+                    queSon="recordatorios"
+                    extras={
+                      reminders.length > 0
+                        ? [{
+                            clave: "todos",
+                            etiqueta: "Eliminar todos",
+                            icono: <Trash2 className="h-4 w-4" />,
+                            destructiva: true,
+                            sinSeleccion: true,
+                            onSelect: () => setShowDeleteAll(true),
+                          }]
+                        : []
+                    }
+                  />
+                ) : null
+              }
+            >
               <div className="relative w-full min-w-0 sm:w-72">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -229,22 +255,6 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                 />
               </div>
 
-              {!isScheduleView ? (
-                <div className="flex items-center gap-2">
-                  {reminders.length > 0 && (
-                    <Button size="sm" variant="destructive" onClick={() => setShowDeleteAll(true)}>
-                      Eliminar todos
-                    </Button>
-                  )}
-                  <Button size="sm" onClick={handleCreateReminder} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    + Crear
-                  </Button>
-                </div>
-              ) : (
-                <Button size="sm" onClick={handleCreateReminder} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  + Crear
-                </Button>
-              )}
             </ModuleToolbar>
           </div>
         </div>

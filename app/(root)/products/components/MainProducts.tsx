@@ -41,7 +41,30 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
-            <ModuleToolbar className="shrink-0">
+            <ModuleToolbar
+              className="shrink-0"
+              right={
+                <div className="flex items-center gap-2">
+                    {limitInfo && limitInfo.limit !== null && (
+                        <span className={`flex shrink-0 items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
+                            <Package className="h-4 w-4" />
+                            {limitInfo.current}/{limitInfo.limit}
+                        </span>
+                    )}
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 shrink-0"
+                        title="Ver catálogo"
+                        aria-label="Ver catálogo"
+                        onClick={() => window.open(`/catalogo/${userId}`, '_blank')}
+                    >
+                        <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <ProductForm userId={userId} disabled={limitInfo?.reached} />
+                </div>
+              }
+            >
                 <div className="relative w-full sm:w-64">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -62,24 +85,6 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                         { clave: 'slots', icono: <Boxes />, etiqueta: 'Cupos disponibles', valor: stats.availableSlots ?? '∞', color: '#8B5CF6', ayuda: 'Productos que aún puedes agregar según tu plan' },
                     ]}
                 />
-                <div className="toolbar-collapse flex items-center gap-3">
-                    {limitInfo && limitInfo.limit !== null && (
-                        <span className={`flex items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
-                            <Package className="h-4 w-4" />
-                            {limitInfo.current}/{limitInfo.limit} productos
-                        </span>
-                    )}
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => window.open(`/catalogo/${userId}`, '_blank')}
-                    >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Ver catálogo
-                    </Button>
-                    <ProductForm userId={userId} disabled={limitInfo?.reached} />
-                </div>
             </ModuleToolbar>
 
             <ProductTable data={data} userId={userId} />
