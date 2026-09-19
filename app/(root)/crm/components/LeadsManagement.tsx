@@ -33,6 +33,7 @@ import { deleteRegistro } from "@/actions/registro-action";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { RegistroUpsertDialog } from './';
 import { LeadSeguimientosTab } from './LeadSeguimientosTab';
+import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
 
 /* ===== HELPERS ===== */
 
@@ -184,20 +185,51 @@ export const LeadsManagement = ({
         <div className="flex flex-col h-full">
             {/* Header fijo */}
             <div className="sticky top-0 z-1">
-                <div className="flex flex-1 items-center justify-between gap-2 p-2">
-                    <TagFilterBar
-                        allTags={allTags}
-                        selectedTagIds={selectedTagIds}
-                        onChangeSelected={setSelectedTagIds}
-                    />
-                    {/* Las cifras, en la misma fila que el filtro de etiquetas.
-                        Antes iban arriba en tarjetas, con su franja propia. */}
-                    <FilterLeadsByStats
-                        stats={stats}
-                        filter={filter}
-                        onChangeFilter={onChangeFilter}
-                    />
-                </div>
+                {/* Una sola barra. El buscador y el `⋯` vivían abajo, DENTRO
+                    de la columna de la izquierda, así que el menú de acciones
+                    masivas quedaba a media pantalla en vez de pegado al borde
+                    —y había dos filas de mandos para una sola lista—. */}
+                <BarraDeAcciones
+                    className="p-2"
+                    filtros={
+                        <>
+                            <div className="relative w-full min-w-0 shrink-0 sm:w-72">
+                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    className="h-10 pl-8"
+                                    placeholder="Buscar por nombre, número o JID..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                />
+                            </div>
+                            <TagFilterBar
+                                allTags={allTags}
+                                selectedTagIds={selectedTagIds}
+                                onChangeSelected={setSelectedTagIds}
+                            />
+                            {/* Las cifras, en la misma fila que el filtro de
+                                etiquetas. Antes iban arriba en tarjetas. */}
+                            <FilterLeadsByStats
+                                stats={stats}
+                                filter={filter}
+                                onChangeFilter={onChangeFilter}
+                            />
+                        </>
+                    }
+                    acciones={
+                        <BulkActionsDropdown
+                            userId={userId}
+                            onActivateAll={activateAllSessions}
+                            onDeactivateAll={deactivateAllSessions}
+                            onDeleteAll={deleteAllSessions}
+                            onClearHistory={clearAllHistory}
+                            onClearSeguimientos={deleteSeguimientosByInstanceName}
+                            onCleanupJunk={cleanupJunkSessions}
+                            onSyncSheets={syncAllContactsToGoogleSheets}
+                            onSuccess={() => { mutateSessions(); router.refresh(); }}
+                        />
+                    }
+                />
             </div>
 
             {/* Scroll interno para el content */}
@@ -207,32 +239,6 @@ export const LeadsManagement = ({
                     <div className="grid gap-4 h-auto lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)] lg:h-[calc(100vh-9rem)]">
                         {/* Columna izquierda: Sesiones / Leads */}
                         <div className="flex flex-col gap-3 min-h-0">
-                            {/* Buscador */}
-                            <div className="flex items-center gap-2">
-                                <div className="relative flex-1">
-                                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        className="pl-8 h-8"
-                                        placeholder="Buscar por nombre, número o JID..."
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                    />
-                                </div>
-                                <BulkActionsDropdown
-                                    userId={userId}
-                                    onActivateAll={activateAllSessions}
-                                    onDeactivateAll={deactivateAllSessions}
-                                    onDeleteAll={deleteAllSessions}
-                                    onClearHistory={clearAllHistory}
-                                    onClearSeguimientos={deleteSeguimientosByInstanceName}
-                                    onCleanupJunk={cleanupJunkSessions}
-                                    onSyncSheets={syncAllContactsToGoogleSheets}
-                                    onSuccess={() => { mutateSessions(); router.refresh(); }}
-                                />
-                            </div>
-
-                            <Separator />
-
                             {/* Lista de leads */}
                             <ScrollArea className="flex-1">
                                 <div className="flex flex-col gap-1 pr-2">
