@@ -34,6 +34,7 @@ import {
     tieneServicioActivo,
     type EstadoDelServicio,
 } from '@/lib/clientes-activos';
+import { useAterrizajeDeMencion } from '@/hooks/useAterrizajeDeMencion';
 
 
 export type DialogType = 'editar' | 'evo' | 'delete' | 'modules' | 'plan' | 'asignar'
@@ -275,6 +276,26 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const openCreateDialogUser = () => {
         setOpenCreateDialog(true);
     };
+
+    // `?cliente=…` — por donde aterriza una mención de Documentación. La ficha
+    // de un cliente es su diálogo de Editar, así que eso es lo que se abre.
+    //
+    // Y se pasa a «Todos» si hacía falta: esta pantalla nace filtrada en
+    // «Activos», así que con un cliente suspendido el diálogo salía encima de
+    // una lista donde su fila no estaba — y al cerrarlo parecía que el cliente
+    // no existe.
+    useAterrizajeDeMencion({
+        clave: 'cliente',
+        listo: true,
+        queEs: 'ese cliente',
+        aterrizar: (id) => {
+            const suyo = users.find((u) => u.id === id);
+            if (!suyo) return false;
+            if (!cumpleEstadoDelServicio(suyo, servicio)) setServicio('todos');
+            openDialogGetUserId(id, 'editar', true);
+            return true;
+        },
+    });
 
     const filteredUsers = users.filter((user) => {
         if (!cumpleEstadoDelServicio(user, servicio)) return false;

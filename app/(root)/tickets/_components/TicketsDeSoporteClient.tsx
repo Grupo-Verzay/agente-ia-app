@@ -22,6 +22,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAterrizajeDeMencion } from "@/hooks/useAterrizajeDeMencion";
 import { TarjetaDeTicket } from "@/components/tickets/TarjetaDeTicket";
 import { DetalleDelTicket } from "@/components/tickets/DetalleDelTicket";
 import { FormularioDeTicket } from "@/components/tickets/FormularioDeTicket";
@@ -153,6 +154,21 @@ export function TicketsDeSoporteClient({
     useEffect(() => {
         void cargar();
     }, [cargar]);
+
+    // `?ticket=…` — por donde aterriza una mención de Documentación. El detalle
+    // es un diálogo aparte de la lista, así que se abre aunque haya un filtro
+    // puesto que deje esa tarjeta fuera del tablero de detrás.
+    useAterrizajeDeMencion({
+        clave: "ticket",
+        listo: !cargando,
+        queEs: "ese ticket",
+        aterrizar: (id) => {
+            const suyo = tickets.find((t) => t.id === id);
+            if (!suyo) return false;
+            setAbierto(suyo);
+            return true;
+        },
+    });
 
     /** Que dos arrastres seguidos no se pisen mientras uno está en el aire. */
     const enVuelo = useRef(false);

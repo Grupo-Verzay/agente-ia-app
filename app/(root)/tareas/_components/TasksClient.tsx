@@ -33,6 +33,7 @@ import { TaskTypeAutomationsPanel } from "@/app/(root)/crm/rules/components/Task
 import { cn } from "@/lib/utils";
 import { fmtPhone } from "@/lib/whatsapp-jid";
 import { TASK_TYPES, isTaskOpen, type TaskData } from "@/lib/task-types";
+import { tituloDeLaTarjeta } from "@/lib/titulo-de-la-tarea";
 import { MetricCard } from "@/components/custom/MetricCard";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import {
@@ -43,6 +44,8 @@ import {
   getCustomTaskTypesAction,
 } from "@/actions/task-actions";
 import { TaskFormDialog } from "../../chats/_components/TaskFormDialog";
+import { FichaDeLaTarea } from "./FichaDeLaTarea";
+import { useAterrizajeDeMencion } from "@/hooks/useAterrizajeDeMencion";
 import TooltipWrapper from "@/components/TooltipWrapper";
 import { TiempoDeTarea } from "@/components/shared/TiempoDeTarea";
 
@@ -126,6 +129,8 @@ export function TasksClient({ userId, userName }: Props) {
   const [view, setView] = useState<"list" | "kanban">("list");
   const [customTypes, setCustomTypes] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  /** La tarea que se está mirando en su ficha. */
+  const [ficha, setFicha] = useState<TaskData | null>(null);
 
   const allTypes = useMemo(() => [...TASK_TYPES, ...customTypes], [customTypes]);
 
@@ -141,6 +146,23 @@ export function TasksClient({ userId, userName }: Props) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // `?tarea=…` — por donde aterriza una mención de Documentación.
+  //
+  // La lista trae las de la cuenta enteras (`getMyTasksAction`), que son las
+  // mismas que se pueden mencionar, así que lo único que no se encuentra aquí
+  // es una tarea cancelada o ya borrada — y eso se dice.
+  useAterrizajeDeMencion({
+    clave: "tarea",
+    listo: !loading,
+    queEs: "esa tarea",
+    aterrizar: (id) => {
+      const suya = tasks.find((t) => String(t.id) === id);
+      if (!suya) return false;
+      setFicha(suya);
+      return true;
+    },
+  });
 
   const beginComplete = (task: TaskData) => {
     setCompleteTarget(task);
@@ -356,6 +378,7 @@ export function TasksClient({ userId, userName }: Props) {
                   <TaskCard
                     key={task.id}
                     task={task}
+                    onOpen={() => setFicha(task)}
                     onComplete={() => beginComplete(task)}
                     onCancel={() => void handleCancel(task)}
                     onDelete={() => void handleDelete(task)}
@@ -438,6 +461,9 @@ export function TasksClient({ userId, userName }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* La ficha: el texto entero y los documentos que la nombran. */}
+      <FichaDeLaTarea tarea={ficha} alCerrar={() => setFicha(null)} />
 
       {/* Dialog nueva tarea */}
       <TaskFormDialog
@@ -670,11 +696,13 @@ function KanbanCard({ task, onComplete, onCancel, onDelete }: {
 
 function TaskCard({
   task,
+  onOpen,
   onComplete,
   onCancel,
   onDelete,
 }: {
   task: TaskData;
+  onOpen: () => void;
   onComplete: () => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -711,8 +739,22 @@ function TaskCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          {/* Fila 1: título */}
-          <p className={cn("app-item-title leading-snug uppercase", isDone && "line-through")}>{task.title}</p>
+          {/* Fila 1: título. Se pulsa para abrir la ficha — es lo único que
+              enseña el texto entero de una tarea vieja, cuyo ladrillo sigue
+              dentro de `title`, y los documentos que la nombran. El asa es el
+              título y no la tarjeta: esta va llena de botones y con el oyente
+              en la tarjeta cada clic competiría con ellos. */}
+          <button
+            type="button"
+            onClick={onOpen}
+            title={task.title}
+            className={cn(
+              "app-item-title block w-full text-left leading-snug uppercase hover:underline",
+              isDone && "line-through",
+            )}
+          >
+            {tituloDeLaTarjeta(task.title) || task.title}
+          </button>
 
           <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
             {/* Fila 2: contacto + teléfono */}
