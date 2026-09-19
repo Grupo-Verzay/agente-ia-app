@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
@@ -123,6 +124,43 @@ function asegurarLasTablas(): Promise<void> {
       ON "tickets_de_soporte" ("destinoId", "creadoEn" DESC)
     `;
 
+    // ── Lo que trae un ticket de la FICHA PÚBLICA ───────────────────────────
+    //
+    // Los cuatro entran con ALTER y no reescribiendo el CREATE de arriba, por
+    // lo mismo que `responsableId` y `venceEl`: la tabla YA existe en
+    // produccion y un `CREATE TABLE IF NOT EXISTS` no toca una que ya esta.
+    //
+    // `origen` NULO es «lo abrio alguien con cuenta», que es como nacieron
+    // todos los tickets de antes: sin backfill y sin dos clases de ticket. Lo
+    // unico que lo distingue es esa marca.
+    await db.$executeRaw`
+      ALTER TABLE "tickets_de_soporte" ADD COLUMN IF NOT EXISTS "origen" TEXT
+    `;
+    // Quien lo escribio, tal y como lo tecleo. Se COPIA aqui y no se resuelve
+    // al leer: el lead se puede renombrar o borrar, y el ticket tiene que
+    // seguir diciendo quien lo abrio.
+    await db.$executeRaw`
+      ALTER TABLE "tickets_de_soporte" ADD COLUMN IF NOT EXISTS "contactoNombre" TEXT
+    `;
+    // Y el lead al que quedo enganchado, si habia linea con la que engancharlo.
+    // NULO es un dato: «no se pudo», no «no se intento».
+    await db.$executeRaw`
+      ALTER TABLE "tickets_de_soporte" ADD COLUMN IF NOT EXISTS "sessionId" INTEGER
+    `;
+
+    // El enlace publico de cada cuenta: UNO y permanente, como el de una sala
+    // de video. La llave es la cuenta, asi que no puede haber dos.
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "tickets_enlace_publico" (
+        "cuentaId" TEXT PRIMARY KEY,
+        "codigo" TEXT NOT NULL UNIQUE,
+        -- Apagarlo sin perder el codigo: volver a encenderlo devuelve el MISMO
+        -- enlace, que es el que la cuenta ya repartio entre sus clientes.
+        "activo" BOOLEAN NOT NULL DEFAULT TRUE,
+        "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
     await db.$executeRaw`
       CREATE TABLE IF NOT EXISTS "ticket_attachments" (
         "id" TEXT PRIMARY KEY,
@@ -220,6 +258,87 @@ export async function guardarElDestino(destinoId: string | null): Promise<void> 
   });
 }
 
+// ── El enlace público de cada cuenta ─────────────────────────────────────────
+
+/**
+ * El código del enlace: 16 caracteres de `base64url` sobre 12 bytes de azar.
+ *
+ * `base64url` y no `base64` porque esto va **en una URL** que se manda por
+ * WhatsApp, y un `+` o un `/` dentro se escapan por el camino. Noventa y seis
+ * bits: no se adivina, y es corto de leer en un mensaje.
+ *
+ * Y es **permanente**, como el de una sala: la cuenta lo reparte una vez entre
+ * sus clientes y no puede cambiar debajo de ellos. Apagar el módulo lo deja
+ * inactivo; volver a encenderlo devuelve el mismo.
+ */
+function unCodigoDeEnlace(): string {
+  return randomBytes(12).toString("base64url");
+}
+
+export type EnlaceDeTickets = { cuentaId: string; codigo: string; activo: boolean };
+
+/** El enlace de una cuenta, **creándolo si todavía no tiene**. */
+export async function asegurarElEnlace(cuentaId: string): Promise<EnlaceDeTickets> {
+  return conLasTablas(async () => {
+    // `DO NOTHING` y no `DO UPDATE`: dos pestañas abriendo el tablero a la vez
+    // no pueden darle dos códigos a la misma cuenta, y el primero es el bueno
+    // porque puede estar ya repartido.
+    await db.$executeRaw`
+      INSERT INTO "tickets_enlace_publico" ("cuentaId", "codigo")
+      VALUES (${cuentaId}, ${unCodigoDeEnlace()})
+      ON CONFLICT ("cuentaId") DO NOTHING
+    `;
+    const filas = await db.$queryRaw<Array<{ codigo: string; activo: boolean }>>`
+      SELECT "codigo", "activo" FROM "tickets_enlace_publico" WHERE "cuentaId" = ${cuentaId}
+    `;
+    return {
+      cuentaId,
+      codigo: filas[0]?.codigo ?? "",
+      activo: filas[0]?.activo ?? false,
+    };
+  });
+}
+
+/** El enlace de una cuenta, sin crearlo. `null` = todavía no tiene. */
+export async function elEnlaceDeLaCuenta(cuentaId: string): Promise<EnlaceDeTickets | null> {
+  return conLasTablas(async () => {
+    const filas = await db.$queryRaw<Array<{ codigo: string; activo: boolean }>>`
+      SELECT "codigo", "activo" FROM "tickets_enlace_publico" WHERE "cuentaId" = ${cuentaId}
+    `;
+    return filas[0] ? { cuentaId, codigo: filas[0].codigo, activo: filas[0].activo } : null;
+  });
+}
+
+/**
+ * De qué cuenta es un código, **y solo si está activo**.
+ *
+ * Es la única puerta de la ficha pública: de aquí sale a qué bandeja cae el
+ * ticket y en qué carpeta del bucket se escriben sus archivos. Nunca se coge
+ * ninguna de las dos cosas de lo que mande el navegador.
+ */
+export async function laCuentaDelCodigo(codigo: string): Promise<string | null> {
+  const limpio = String(codigo ?? "").trim();
+  // Un código vacío no se consulta: `WHERE "codigo" = ''` no devolvería nada,
+  // pero es una consulta por cada visita a una URL mal pegada.
+  if (!limpio) return null;
+  return conLasTablas(async () => {
+    const filas = await db.$queryRaw<Array<{ cuentaId: string }>>`
+      SELECT "cuentaId" FROM "tickets_enlace_publico"
+      WHERE "codigo" = ${limpio} AND "activo" = TRUE
+    `;
+    return filas[0]?.cuentaId ?? null;
+  });
+}
+
+/** Encender o apagar el enlace sin perderlo. */
+export async function cambiarElEnlace(cuentaId: string, activo: boolean): Promise<void> {
+  await conLasTablas(async () => {
+    await db.$executeRaw`
+      UPDATE "tickets_enlace_publico" SET "activo" = ${activo} WHERE "cuentaId" = ${cuentaId}
+    `;
+  });
+}
+
 // ── Escribir ─────────────────────────────────────────────────────────────────
 
 export async function crearElTicket(input: {
@@ -234,6 +353,15 @@ export async function crearElTicket(input: {
   responsableId: string | null;
   /** Cuándo hay que tenerlo resuelto. Nulo = sin vencimiento. */
   venceEl: Date | null;
+  /**
+   * De dónde vino. **Nulo = lo abrió alguien con cuenta**, que es como nacieron
+   * todos los de antes; `'publico'` = entró por el enlace de la cuenta.
+   */
+  origen?: string | null;
+  /** Cómo se llama quien lo abrió por el enlace. Solo con `origen`. */
+  contactoNombre?: string | null;
+  /** El lead al que quedó enganchado. Nulo = no se pudo enganchar. */
+  sessionId?: number | null;
   adjuntos: Array<{
     id: string;
     url: string;
@@ -251,11 +379,13 @@ export async function crearElTicket(input: {
       await tx.$executeRaw`
         INSERT INTO "tickets_de_soporte"
           ("id", "clienteId", "creadoPorId", "destinoId", "titulo", "descripcion",
-           "whatsapp", "estado", "responsableId", "venceEl")
+           "whatsapp", "estado", "responsableId", "venceEl",
+           "origen", "contactoNombre", "sessionId")
         VALUES (
           ${input.id}, ${input.clienteId}, ${input.creadoPorId}, ${input.destinoId},
           ${input.titulo}, ${input.descripcion}, ${input.whatsapp}, 'recibido',
-          ${input.responsableId}, ${input.venceEl}
+          ${input.responsableId}, ${input.venceEl},
+          ${input.origen ?? null}, ${input.contactoNombre ?? null}, ${input.sessionId ?? null}
         )
       `;
       for (const a of input.adjuntos) {
@@ -371,6 +501,9 @@ type FilaDeTicket = {
   avisadoEn: Date | null;
   responsableId: string | null;
   venceEl: Date | null;
+  origen: string | null;
+  contactoNombre: string | null;
+  sessionId: number | null;
   clienteNombre?: string | null;
   responsableNombre?: string | null;
 };
@@ -390,7 +523,7 @@ const LAS_COLUMNAS = (t: string) => Prisma.raw(
   [
     "id", "clienteId", "destinoId", "titulo", "descripcion", "whatsapp",
     "estado", "motivoDescarte", "creadoEn", "actualizadoEn", "avisadoEn",
-    "responsableId", "venceEl",
+    "responsableId", "venceEl", "origen", "contactoNombre", "sessionId",
   ]
     .map((c) => `${t}"${c}"`)
     .join(", "),
@@ -414,7 +547,17 @@ function comoTicket(f: FilaDeTicket): Ticket {
     avisadoEn: f.avisadoEn ? f.avisadoEn.toISOString() : null,
     responsableId: f.responsableId ?? null,
     venceEl: f.venceEl ? f.venceEl.toISOString() : null,
-    clienteNombre: f.clienteNombre ?? null,
+    // Se vuelve a filtrar al LEER, igual que el estado: una fila con un origen
+    // que la pantalla no conoce saldría como pública sin serlo, y el tablero la
+    // pintaría con un nombre de contacto que no existe.
+    origen: f.origen === "publico" ? "publico" : null,
+    contactoNombre: f.contactoNombre?.trim() || null,
+    sessionId: f.sessionId ?? null,
+    // De quién es, para la lista del administrador. En uno que entró por el
+    // enlace **manda el nombre que tecleó el contacto**: el `JOIN` con `User`
+    // devolvería el nombre de la cuenta que lo recibe, o sea el suyo propio en
+    // todas las filas.
+    clienteNombre: f.contactoNombre?.trim() || f.clienteNombre || null,
     responsableNombre: f.responsableNombre ?? null,
   };
 }
@@ -422,7 +565,16 @@ function comoTicket(f: FilaDeTicket): Ticket {
 /** Cuántos caben en una pantalla. Sin tope, una cuenta vieja los trae todos. */
 export const TOPE_DE_TICKETS = 300;
 
-/** Los tickets de una cuenta cliente: lo que ve en «Mis tickets». */
+/**
+ * Los tickets de una cuenta cliente: lo que ve en «Mis tickets».
+ *
+ * **Los que entraron por su enlace público NO salen aquí**, y es la mitad que
+ * se olvida. Un ticket público se archiva bajo la cuenta dueña del enlace
+ * —`clienteId` y `destinoId` son la misma—, así que sin el filtro le aparecería
+ * a esa cuenta en las dos pantallas: en su tablero, que es donde toca, y en
+ * «Mis tickets», que es «lo que YO le pedí a mi proveedor». Dos sitios para lo
+ * mismo, y uno de los dos mintiendo.
+ */
 export async function losTicketsDelCliente(clienteId: string): Promise<Ticket[]> {
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<FilaDeTicket[]>`
@@ -431,6 +583,7 @@ export async function losTicketsDelCliente(clienteId: string): Promise<Ticket[]>
       FROM "tickets_de_soporte" t
       LEFT JOIN "User" u ON u."id" = t."responsableId"
       WHERE t."clienteId" = ${clienteId}
+        AND t."origen" IS DISTINCT FROM 'publico'
       ORDER BY t."creadoEn" DESC
       LIMIT ${TOPE_DE_TICKETS}
     `;

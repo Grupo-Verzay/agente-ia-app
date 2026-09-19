@@ -22,6 +22,10 @@ const apiPaymentPrefix = "/api/payment";
 // 307 que el healthcheck da por fallo, y Swarm mataría contenedores sanos en
 // bucle. No expone nada: contesta `{ ok: true }` y no toca la base.
 const apiHealthPrefix = "/api/health";
+// Ficha pública de tickets: los archivos que adjunta un cliente final que NO
+// tiene cuenta. Su puerta es el código del enlace, que la propia ruta resuelve
+// contra la base — nunca un `userID` que mande el navegador.
+const apiTicketsPublicoPrefix = "/api/tickets-publico";
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -50,6 +54,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiOwnerPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiPaymentPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiHealthPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiTicketsPublicoPrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
@@ -73,7 +78,17 @@ export default auth((req) => {
     // entrar. Quien pasa lo decide alguien que ya está dentro, y eso lo
     // comprueba el servidor en cada vuelta — la puerta está en la acción, como
     // en /cobros y /documentos.
-    currentPath.startsWith("/reunion/");
+    currentPath.startsWith("/reunion/") ||
+    // Ficha de soporte (/t/<codigo>): el enlace permanente que cada cuenta le
+    // reparte a SUS clientes por WhatsApp. Quien lo abre no tiene cuenta en la
+    // plataforma y no va a tenerla — mandarlo al login sería pedirle que se
+    // registre para poder pedir ayuda.
+    //
+    // Y ser pública NO la abre: lo único que hace el enlace es identificar a
+    // qué bandeja cae el ticket, y eso lo resuelve el servidor contra el
+    // código. Del otro lado no se lee nada: ni los tickets de la cuenta, ni sus
+    // contactos, ni el nombre de quien escribió antes desde ese mismo número.
+    currentPath.startsWith("/t/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {

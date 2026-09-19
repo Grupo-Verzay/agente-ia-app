@@ -14,20 +14,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
-    BloqueDeAdjuntos,
     borrarDelBucket,
     type AdjuntoEnElAire,
 } from "@/app/(root)/proyectos/_components/BloqueDeAdjuntos";
 import { abrirTicketAction } from "@/actions/tickets-actions";
+import { CamposDelTicket } from "@/components/tickets/CamposDelTicket";
 import { SelectorDeCuenta, type CuentaElegible } from "@/components/tickets/SelectorDeCuenta";
 import type { AdvisorInfo } from "@/actions/team-actions";
-import {
-    queLeFaltaAlTicket,
-    TOPE_DEL_TITULO,
-    TOPE_DE_LA_DESCRIPCION,
-} from "@/lib/tickets";
+import { queLeFaltaAlTicket } from "@/lib/tickets";
 
 /**
  * El formulario con el que un cliente abre un ticket.
@@ -181,40 +176,16 @@ export function FormularioDeTicket({
                         </div>
                     )}
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="ticket-titulo">Título</Label>
-                        <Input
-                            id="ticket-titulo"
-                            value={titulo}
-                            maxLength={TOPE_DEL_TITULO}
-                            onChange={(e) => setTitulo(e.target.value)}
-                            placeholder="Ej.: No me carga el código QR"
-                        />
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <Label htmlFor="ticket-descripcion">¿Qué está pasando?</Label>
-                        <Textarea
-                            id="ticket-descripcion"
-                            value={descripcion}
-                            maxLength={TOPE_DE_LA_DESCRIPCION}
-                            onChange={(e) => setDescripcion(e.target.value)}
-                            rows={5}
-                            placeholder="Cuéntanos con detalle: qué hiciste, qué esperabas y qué salió."
-                        />
-                    </div>
-
-                    <BloqueDeAdjuntos
-                        taskId={null}
+                    {/* Título, texto y archivos son **los mismos** que pide la
+                        ficha pública, y por eso salen de un solo componente. */}
+                    <CamposDelTicket
+                        titulo={titulo}
+                        onTitulo={setTitulo}
+                        descripcion={descripcion}
+                        onDescripcion={setDescripcion}
                         userId={userId}
-                        adjuntos={[]}
-                        onCambio={() => {
-                            /* Sin ticket todavía no hay nada guardado: todo cae en el aire. */
-                        }}
                         enElAire={enElAire}
-                        onCambioEnElAire={setEnElAire}
-                        carpeta="tickets"
-                        queEs="ticket"
+                        onEnElAire={setEnElAire}
                     />
 
                     {equipo.length > 0 && (
