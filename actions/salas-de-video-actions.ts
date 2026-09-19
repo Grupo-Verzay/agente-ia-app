@@ -21,8 +21,8 @@ import {
     cuandoCaduca,
     cuandoCaducaAlCambiar,
     esTipoDeSenal,
-    esUnaDuracion,
     laDireccionDeLaSala,
+    laDuracionQueSePuede,
     loQueSeLeDiceAlQueLlegaTarde,
     type TipoDeSenal,
 } from "@/lib/sala-de-video";
@@ -201,6 +201,21 @@ async function laRaizDeLaApp(): Promise<string> {
     return (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
 }
 
+/**
+ * Lo que se le contesta a una duración que no se puede guardar.
+ *
+ * Los dos «no» se arreglan de forma distinta y por eso se dicen distinto: una
+ * duración que no existe es una pantalla vieja o una petición escrita a mano;
+ * «No caduca» sin mandar en la cuenta es un permiso, y quien lo pide tiene que
+ * saber que la opción existe y que no es suya. Un «esa duración no existe» para
+ * el segundo caso manda a buscar un fallo donde hay una regla.
+ */
+function porQueNoEsaDuracion(motivo: "desconocida" | "no_puede"): string {
+    return motivo === "desconocida"
+        ? "Esa duración no existe."
+        : "Solo quien administra la cuenta puede dejar un enlace sin caducidad.";
+}
+
 // ── Crear, listar y revocar ─────────────────────────────────────────────────
 
 export type SalaParaLaPantalla = {
@@ -213,7 +228,8 @@ export type SalaParaLaPantalla = {
     anfitrionNombre: string | null;
     titulo: string | null;
     creadoEn: string;
-    expiraEn: string;
+    /** `null` es **no caduca**. La pantalla lo lee con `comoSeLeeLaCaducidad`. */
+    expiraEn: string | null;
     soyElAnfitrion: boolean;
     /**
      * Si puedo revocarla o moverle la caducidad.
@@ -242,7 +258,7 @@ function comoSeVeLaSala(
         anfitrionNombre: fila.anfitrionNombre,
         titulo: fila.titulo,
         creadoEn: fila.creadoEn.toISOString(),
-        expiraEn: fila.expiraEn.toISOString(),
+        expiraEn: fila.expiraEn ? fila.expiraEn.toISOString() : null,
         soyElAnfitrion: Boolean(yo) && fila.anfitrionId === yo,
         puedoAdministrar: puedeAdministrarLaSala(fila, quienPregunta),
     };
@@ -275,6 +291,15 @@ export async function crearLaSalaAction(
             return { success: false, message: "Aquí no se puede abrir una reunión." };
         }
 
+        // La duración se comprueba TAMBIÉN por este camino, y antes no se
+        // comprobaba en absoluto: `cuandoCaduca` cae en la de por defecto ante
+        // cualquier cosa, así que un valor raro se guardaba en silencio. Con
+        // «No caduca» en la lista eso deja de ser inofensivo — sería la forma
+        // de dejar un enlace permanente por la puerta del canal, sin mandar en
+        // la cuenta y sin que salga en ninguna lista desde la que revocarlo.
+        const cuanto = laDuracionQueSePuede(duracion, yo.manda);
+        if (!cuanto.ok) return { success: false, message: porQueNoEsaDuracion(cuanto.motivo) };
+
         const limpio = (titulo ?? "").replace(/\s+/g, " ").trim().slice(0, 80) || null;
         const fila = await crearLaSala({
             cuentaId: canal.cuentaId,
@@ -282,7 +307,7 @@ export async function crearLaSalaAction(
             anfitrionId: yo.personaId,
             anfitrionNombre: yo.nombre ?? null,
             titulo: limpio,
-            expiraEn: cuandoCaduca(duracion),
+            expiraEn: cuandoCaduca(cuanto.valor),
         });
 
         const raiz = await laRaizDeLaApp();
@@ -400,9 +425,12 @@ export async function crearLaReunionDeLaCuentaAction(
         if (!puedeAbrirUnaReunion(yo) || !yo) {
             return { success: false, message: "No autorizado." };
         }
-        if (!esUnaDuracion(duracion)) {
-            return { success: false, message: "Esa duración no existe." };
-        }
+        // **Aquí se decide «No caduca».** `yo.manda` es `canManageWorkspace`,
+        // la misma puerta de siempre: dueño, `administrador` del equipo y
+        // superadministrador de verdad; un `agente` participa y no manda. Que
+        // la pantalla no le pinte la opción no cierra la petición directa.
+        const cuanto = laDuracionQueSePuede(duracion, yo.manda);
+        if (!cuanto.ok) return { success: false, message: porQueNoEsaDuracion(cuanto.motivo) };
 
         const limpio = (titulo ?? "").replace(/\s+/g, " ").trim().slice(0, 80) || null;
         const fila = await crearLaSala({
@@ -413,7 +441,7 @@ export async function crearLaReunionDeLaCuentaAction(
             anfitrionId: yo.personaId,
             anfitrionNombre: yo.nombre ?? null,
             titulo: limpio,
-            expiraEn: cuandoCaduca(duracion),
+            expiraEn: cuandoCaduca(cuanto.valor),
         });
 
         const raiz = await laRaizDeLaApp();
@@ -424,9 +452,18 @@ export async function crearLaReunionDeLaCuentaAction(
     }
 }
 
-/** Las reuniones vivas de la cuenta. Solo las que no son de ningún canal. */
+/**
+ * Las reuniones vivas de la cuenta. Solo las que no son de ningún canal.
+ *
+ * Baja además **qué puede hacer quien mira**, y las dos cosas por separado:
+ * `puedoAbrir` es de cualquiera de la cuenta —un `agente` abre su reunión— y
+ * `puedoNoCaducar` es de quien la administra. Se resuelven aquí, en el
+ * servidor, y la pantalla solo las pinta: recalcularlas allí sería tener dos
+ * condiciones que el día que se afine una dejan un desplegable que ofrece algo
+ * que la acción luego rechaza.
+ */
 export async function lasReunionesDeLaCuentaAction(): Promise<
-    Respuesta<{ salas: SalaParaLaPantalla[]; puedoAbrir: boolean }>
+    Respuesta<{ salas: SalaParaLaPantalla[]; puedoAbrir: boolean; puedoNoCaducar: boolean }>
 > {
     try {
         const yo = await quien();
@@ -437,6 +474,7 @@ export async function lasReunionesDeLaCuentaAction(): Promise<
             success: true,
             salas: filas.map((f) => comoSeVeLaSala(f, raiz, yo.personaId, yo)),
             puedoAbrir: puedeAbrirUnaReunion(yo),
+            puedoNoCaducar: yo.manda,
         };
     } catch (error) {
         console.warn("[salas] no se pudieron leer las reuniones de la cuenta", error);
@@ -456,13 +494,12 @@ export async function lasReunionesDeLaCuentaAction(): Promise<
 export async function cambiarLaCaducidadAction(
     salaId: string,
     duracion: string,
-): Promise<Respuesta<{ expiraEn: string }>> {
+): Promise<Respuesta<{ expiraEn: string | null }>> {
     try {
         const yo = await quien();
         if (!yo) return { success: false, message: "No autorizado." };
-        if (!esUnaDuracion(duracion)) {
-            return { success: false, message: "Esa duración no existe." };
-        }
+        const cuanto = laDuracionQueSePuede(duracion, yo.manda);
+        if (!cuanto.ok) return { success: false, message: porQueNoEsaDuracion(cuanto.motivo) };
 
         const sala = await laSalaPorId(salaId);
         if (!sala) return { success: false, message: "Esta reunión ya no existe." };
@@ -473,7 +510,7 @@ export async function cambiarLaCaducidadAction(
             };
         }
 
-        const expiraEn = cuandoCaducaAlCambiar(duracion);
+        const expiraEn = cuandoCaducaAlCambiar(cuanto.valor);
         const hecho = await cambiarLaCaducidad(salaId, expiraEn);
         if (!hecho) {
             // Revocada: alargarle la fecha sería deshacer por la puerta de
@@ -483,10 +520,73 @@ export async function cambiarLaCaducidadAction(
                 message: "Este enlace está revocado. Abre una reunión nueva.",
             };
         }
-        return { success: true, expiraEn: expiraEn.toISOString() };
+        return { success: true, expiraEn: expiraEn ? expiraEn.toISOString() : null };
     } catch (error) {
         console.warn("[salas] no se pudo cambiar la caducidad", error);
         return { success: false, message: "No se pudo cambiar la caducidad." };
+    }
+}
+
+/**
+ * Regenerar el enlace: el mismo sitio, otro código.
+ *
+ * Es la otra mitad de que «No caduca» pueda existir. Un enlace permanente —el
+ * de atención, el que se pega en una firma— acaba en sitios que nadie controla,
+ * y el día que se filtra **no vale revocarlo**: revocar deja a la cuenta sin su
+ * enlace de atención hasta que alguien abra otro y lo reparta. Regenerar cierra
+ * el viejo y abre el nuevo **en el mismo gesto**, con su nombre y su caducidad.
+ *
+ * Tres cosas:
+ *
+ * 1. **Se copia la caducidad tal cual estaba**, no se vuelve a elegir. Una
+ *    permanente sigue permanente; una que caducaba el jueves sigue caducando el
+ *    jueves. Por eso esto **no vuelve a pedir `manda`**: no se está eligiendo
+ *    nada que no estuviera ya elegido, y lo que hace es *reducir* la exposición
+ *    —el enlace viejo deja de valer—.
+ * 2. **Solo sobre una sala viva.** Regenerar una caducada nacería muerta: se
+ *    contesta que abra una nueva, que es lo que de verdad quiere.
+ * 3. **Primero se revoca y después se crea.** Al revés, un fallo a mitad
+ *    dejaría los dos enlaces abiertos a la vez, que es exactamente lo que esto
+ *    viene a evitar. Si falla el segundo paso queda la cuenta sin enlace, que
+ *    se arregla con un clic y no filtra nada.
+ */
+export async function regenerarLaSalaAction(
+    salaId: string,
+): Promise<Respuesta<{ sala: SalaParaLaPantalla }>> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+
+        const sala = await laSalaPorId(salaId);
+        if (!sala) return { success: false, message: "Esta reunión ya no existe." };
+        if (!puedeAdministrarLaSala(sala, yo)) {
+            return {
+                success: false,
+                message: "Solo quien abrió la reunión o quien administra la cuenta puede regenerar su enlace.",
+            };
+        }
+        if (comoEstaLaSala(sala) !== "abierta") {
+            return {
+                success: false,
+                message: "Este enlace ya no está activo. Abre una reunión nueva.",
+            };
+        }
+
+        await revocarLaSala(salaId);
+        const fila = await crearLaSala({
+            cuentaId: sala.cuentaId,
+            canalId: sala.canalId,
+            anfitrionId: yo.personaId,
+            anfitrionNombre: yo.nombre ?? null,
+            titulo: sala.titulo,
+            expiraEn: sala.expiraEn,
+        });
+
+        const raiz = await laRaizDeLaApp();
+        return { success: true, sala: comoSeVeLaSala(fila, raiz, yo.personaId, yo) };
+    } catch (error) {
+        console.warn("[salas] no se pudo regenerar el enlace", error);
+        return { success: false, message: "No se pudo regenerar el enlace." };
     }
 }
 
@@ -763,7 +863,7 @@ export type LoQuePasaEnLaSala = {
         /** Si puedo dejar pasar a quien espera. Ver `puedeAbrirLaPuerta`. */
         abroLaPuerta: boolean;
     };
-    sala: { id: string; codigo: string; titulo: string | null; expiraEn: string };
+    sala: { id: string; codigo: string; titulo: string | null; expiraEn: string | null };
     /** Los que están dentro, yo incluido. */
     dentro: QuienEstaEnLaSala[];
     /** Los que esperan. Solo lo ve quien puede abrir la puerta. */
@@ -879,7 +979,7 @@ export async function latidoDeLaSalaAction(input: {
                     id: sala.id,
                     codigo: sala.codigo,
                     titulo: sala.titulo,
-                    expiraEn: sala.expiraEn.toISOString(),
+                    expiraEn: sala.expiraEn ? sala.expiraEn.toISOString() : null,
                 },
                 dentro: todos.filter((f) => f.estado === "dentro").map(comoSeVe),
                 // La lista de espera solo la ve quien puede hacer algo con

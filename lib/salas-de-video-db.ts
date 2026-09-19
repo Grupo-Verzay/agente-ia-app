@@ -7,6 +7,7 @@ import {
     MARGEN_EN_LA_SALA_MS,
     TOPE_DE_LA_SALA,
     TOPE_EN_LA_PUERTA,
+    comoEstaLaSala,
     type EstadoEnLaSala,
     type TipoDeSenal,
 } from "@/lib/sala-de-video";
@@ -85,6 +86,25 @@ function asegurarLasTablas(): Promise<void> {
         await db.$executeRaw`
             ALTER TABLE "salas_de_video"
             ALTER COLUMN "canalId" DROP NOT NULL
+        `;
+        // **Y un enlace puede no caducar.**
+        //
+        // Por el mismo camino y por el mismo motivo: la tabla ya está en
+        // producción, así que va con `ALTER COLUMN … DROP NOT NULL` y NO
+        // reescribiendo el `CREATE`, que no toca una tabla que ya existe.
+        //
+        // `NULL` aquí significa **«no caduca»**, no «no se sabe». Es lo que
+        // permite el enlace fijo de atención que se pidió, y lo que evita el
+        // apaño de guardar una fecha a cien años: un centinela acaba impreso,
+        // y «caduca en 36.500 días» es exactamente esa clase de número.
+        //
+        // Las filas que ya están **no se tocan**: siguen con su fecha y
+        // caducan igual. Y la consulta de las vivas pregunta `IS NULL OR >
+        // NOW()`, así que sin esa mitad un enlace permanente desaparecería de
+        // su propia lista — que es justo la pantalla desde la que se revoca.
+        await db.$executeRaw`
+            ALTER TABLE "salas_de_video"
+            ALTER COLUMN "expiraEn" DROP NOT NULL
         `;
         // Por donde entra la pantalla de Reuniones: las de una cuenta, las
         // vivas arriba y las pasadas debajo, las dos ordenadas por fecha.
@@ -256,7 +276,8 @@ export type FilaDeSala = {
     anfitrionNombre: string | null;
     titulo: string | null;
     creadoEn: Date;
-    expiraEn: Date;
+    /** `null` es **no caduca**, no «no se sabe». Ver la migración de arriba. */
+    expiraEn: Date | null;
     revocadaEn: Date | null;
 };
 
@@ -325,7 +346,8 @@ export async function crearLaSala(input: {
     anfitrionId: string;
     anfitrionNombre: string | null;
     titulo: string | null;
-    expiraEn: Date;
+    /** `null` para un enlace que no caduca. Lo decide `laDuracionQueSePuede`. */
+    expiraEn: Date | null;
 }): Promise<FilaDeSala> {
     const id = randomUUID();
     const codigo = unCodigoDeSala();
@@ -374,7 +396,8 @@ export async function laSalaPorId(id: string): Promise<FilaDeSala | null> {
 export async function lasSalasVivasDelCanal(canalId: string): Promise<FilaDeSala[]> {
     return conLasTablas(() => db.$queryRawUnsafe<FilaDeSala[]>(
         `SELECT ${COLUMNAS_SALA} FROM "salas_de_video"
-         WHERE "canalId" = $1 AND "revocadaEn" IS NULL AND "expiraEn" > NOW()
+         WHERE "canalId" = $1 AND "revocadaEn" IS NULL
+           AND ("expiraEn" IS NULL OR "expiraEn" > NOW())
          ORDER BY "creadoEn" DESC
          LIMIT 10`,
         canalId,
@@ -397,7 +420,8 @@ export async function lasSalasVivasDeLaCuenta(cuentaId: string): Promise<FilaDeS
     return conLasTablas(() => db.$queryRawUnsafe<FilaDeSala[]>(
         `SELECT ${COLUMNAS_SALA} FROM "salas_de_video"
          WHERE "cuentaId" = $1 AND "canalId" IS NULL
-           AND "revocadaEn" IS NULL AND "expiraEn" > NOW()
+           AND "revocadaEn" IS NULL
+           AND ("expiraEn" IS NULL OR "expiraEn" > NOW())
          ORDER BY "creadoEn" DESC
          LIMIT 50`,
         cuentaId,
@@ -418,7 +442,8 @@ export async function lasSalasVivasDeLaCuenta(cuentaId: string): Promise<FilaDeS
  */
 export async function cambiarLaCaducidad(
     salaId: string,
-    expiraEn: Date,
+    /** `null` la deja sin caducidad. Quién puede, lo decide la acción. */
+    expiraEn: Date | null,
 ): Promise<boolean> {
     return conLasTablas(async () => {
         const tocadas = await db.$executeRaw`
@@ -473,10 +498,21 @@ export async function elHistorialDeLaCuenta(
         // parámetro sin tipo y `make_interval` solo acepta `int`; sin el molde
         // la consulta cae con «no existe la función». Es la misma trampa que
         // ya costó dos vueltas en la tarjeta de actividad de instancias.
+        //
+        // Y una sala que NO caduca (`expiraEn` nulo) no entra aquí: en SQL
+        // `NULL <= NOW()` no es cierto, es desconocido, así que no pasa el
+        // filtro. La condición lleva el `IS NOT NULL` delante para que eso se
+        // lea, porque de ahí depende que un enlace permanente no aparezca a la
+        // vez en las vivas y en las pasadas.
+        //
+        // (La explicación va aquí y no dentro del SQL a propósito: en un
+        // template de consulta no puede haber acentos graves — cierran el
+        // literal y el fichero deja de parsear.)
         const salas = await db.$queryRawUnsafe<FilaDeSala[]>(
             `SELECT ${COLUMNAS_SALA} FROM "salas_de_video"
              WHERE "cuentaId" = $1 AND "canalId" IS NULL
-               AND ("revocadaEn" IS NOT NULL OR "expiraEn" <= NOW())
+               AND ("revocadaEn" IS NOT NULL
+                    OR ("expiraEn" IS NOT NULL AND "expiraEn" <= NOW()))
                AND "creadoEn" > NOW() - make_interval(days => $2::int)
              ORDER BY "creadoEn" DESC
              LIMIT $3`,
@@ -914,7 +950,7 @@ export async function lasReunionesDeLosMensajes(
         Array<{
             codigo: string;
             titulo: string | null;
-            expiraEn: Date;
+            expiraEn: Date | null;
             revocadaEn: Date | null;
             dentro: bigint;
         }>
@@ -950,9 +986,12 @@ export async function lasReunionesDeLosMensajes(
     for (const f of filas) {
         mapa.set(f.codigo, {
             titulo: f.titulo,
-            // La misma regla que la puerta: revocada o caducada, no vale. Se
-            // dice en la tarjeta para no hacer pulsar un enlace muerto.
-            abierta: !f.revocadaEn && f.expiraEn.getTime() > Date.now(),
+            // La misma regla que la puerta, y **la misma función**: revocada
+            // o caducada, no vale. Escrita a mano aquí —que es como estaba—
+            // se le olvidó el caso nuevo en cuanto `expiraEn` admitió nulos:
+            // un enlace que no caduca se leía como caducado, o reventaba al
+            // llamar a `getTime()` sobre un nulo.
+            abierta: comoEstaLaSala(f) === "abierta",
             dentro: Number(f.dentro ?? 0),
         });
     }

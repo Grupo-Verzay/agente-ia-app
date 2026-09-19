@@ -112,20 +112,40 @@ export function esTipoDeSenal(v: unknown): v is TipoDeSenal {
  *
  * Lista cerrada y no un número que llegue del navegador: es lo que decide
  * cuánto tiempo puede entrar alguien de fuera, así que un valor inventado desde
- * la pantalla sería un enlace que no caduca nunca. Las cuatro cubren lo que
- * pasa de verdad —una reunión ahora, una hoy, una mañana, una recurrente de la
- * semana— y la de siete días es el techo: más allá, el enlace se olvida por ahí
- * y sigue abriendo la puerta.
+ * la pantalla sería un enlace que no caduca nunca sin que nadie lo decidiera.
+ *
+ * Las cinco primeras cubren lo que pasa de verdad —una reunión ahora, una hoy,
+ * una mañana, una recurrente de la semana, una del mes—. La sexta es distinta y
+ * por eso lleva su propia marca:
+ *
+ * > **«No caduca» existe, y solo la elige quien ADMINISTRA la cuenta**
+ * > (`soloQuienManda`). Es para lo que se pidió: **un enlace fijo de atención**,
+ * > siempre el mismo, que se pega en una firma o en un mensaje automático y no
+ * > hay que renovar cada semana.
+ *
+ * Lo que la hace aceptable —y esto es lo que no se puede aflojar— es que **se
+ * ve y se puede cerrar**: sale en la lista de Reuniones de su cuenta, con su
+ * botón de revocar y el de regenerar al lado. Un enlace permanente que no
+ * apareciera en ninguna pantalla sería justo lo que la regla anterior evitaba:
+ * *un enlace que nadie sabe que sigue abierto*.
+ *
+ * Por eso **quien no administra la cuenta no la ve siquiera**
+ * (`duracionesQuePuedeElegir`), y por eso el servidor lo vuelve a comprobar
+ * (`laDuracionQueSePuede`): esconder la opción no cierra la petición directa.
  */
 export const DURACIONES = [
-    { valor: "1h", rotulo: "1 hora", horas: 1 },
-    { valor: "8h", rotulo: "8 horas", horas: 8 },
-    { valor: "24h", rotulo: "1 día", horas: 24 },
-    { valor: "7d", rotulo: "7 días", horas: 24 * 7 },
-    { valor: "30d", rotulo: "30 días", horas: 24 * 30 },
+    { valor: "1h", rotulo: "1 hora", horas: 1, soloQuienManda: false },
+    { valor: "8h", rotulo: "8 horas", horas: 8, soloQuienManda: false },
+    { valor: "24h", rotulo: "1 día", horas: 24, soloQuienManda: false },
+    { valor: "7d", rotulo: "7 días", horas: 24 * 7, soloQuienManda: false },
+    { valor: "30d", rotulo: "30 días", horas: 24 * 30, soloQuienManda: false },
+    { valor: "nunca", rotulo: "No caduca", horas: null, soloQuienManda: true },
 ] as const;
 
 export type Duracion = (typeof DURACIONES)[number]["valor"];
+
+/** La única que no pone fecha. Se nombra para no escribir `"nunca"` suelto. */
+export const SIN_CADUCIDAD: Duracion = "nunca";
 
 /**
  * La de por defecto: **una semana**, y antes era un día.
@@ -141,26 +161,75 @@ export type Duracion = (typeof DURACIONES)[number]["valor"];
  * además **se puede mover después** (`cuandoCaducaAlCambiar`), así que
  * equivocarse por abajo ya no obliga a crear otra sala y repartir otro enlace.
  *
- * El techo sube a 30 días por lo mismo —una reunión semanal recurrente vive más
- * de siete—, y no más: **«no caduca» sigue sin existir**. Equivocarse hacia un
- * mes de más es un enlace que se revoca desde la pantalla de Reuniones, donde
- * ahora se ven todos; equivocarse hacia el infinito es un enlace que nadie sabe
- * que sigue abierto.
+ * **La de por defecto nunca es «No caduca»**, aunque exista: lo que no encaje
+ * cae aquí, y caer en un enlace permanente por no reconocer un valor es
+ * exactamente el enlace que nadie sabe que sigue abierto. Sin caducidad se sale
+ * solo eligiéndolo a mano, y solo quien administra la cuenta.
  */
 export const DURACION_POR_DEFECTO: Duracion = "7d";
 
 /**
- * Cuándo caduca un enlace que se crea ahora.
+ * Qué duraciones se le pueden OFRECER a alguien.
+ *
+ * Una sola función para la pantalla de Reuniones y para el diálogo de un canal,
+ * y por eso recibe el `manda` en vez de leerlo: el diálogo del canal corre en el
+ * navegador y no tiene forma de resolverlo.
+ *
+ * **El diálogo de un canal pasa `false` a propósito**, aunque quien lo abra
+ * administre la cuenta: el enlace de una sala de canal vive en el hilo del
+ * canal y **no sale en ninguna lista** desde la que revocarlo de un vistazo.
+ * Lo que hace aceptable un enlace permanente es poder verlo y cerrarlo, y eso
+ * solo lo da la pantalla de Reuniones.
+ */
+export function duracionesQuePuedeElegir(
+    mandaEnLaCuenta: boolean,
+): ReadonlyArray<(typeof DURACIONES)[number]> {
+    return DURACIONES.filter((d) => !d.soloQuienManda || mandaEnLaCuenta);
+}
+
+/**
+ * La duración que de verdad se puede guardar, decidida en el SERVIDOR.
+ *
+ * Devuelve el motivo y no un booleano porque los dos «no» se arreglan de forma
+ * distinta y quien los recibe tiene que poder decirlo: una duración que no
+ * existe es una pantalla vieja o una petición a mano; «No caduca» sin mandar en
+ * la cuenta es un permiso, y esa persona tiene que saber que la opción existe y
+ * no es suya.
+ *
+ * La comprueban **los tres** caminos que reciben una duración —abrir una
+ * reunión de la cuenta, abrir una en un canal y mover la caducidad de una que
+ * ya existe—. Con la condición escrita en uno solo, el cuarto la olvida y
+ * entonces «solo quien administra» deja de ser cierto por esa puerta.
+ */
+export function laDuracionQueSePuede(
+    duracion: unknown,
+    mandaEnLaCuenta: boolean,
+): { ok: true; valor: Duracion } | { ok: false; motivo: "desconocida" | "no_puede" } {
+    const elegida = DURACIONES.find((d) => d.valor === duracion);
+    if (!elegida) return { ok: false, motivo: "desconocida" };
+    if (elegida.soloQuienManda && !mandaEnLaCuenta) return { ok: false, motivo: "no_puede" };
+    return { ok: true, valor: elegida.valor };
+}
+
+/**
+ * Cuándo caduca un enlace que se crea ahora, o `null` si no caduca.
+ *
+ * `null` **no es «no se sabe»**: es «no caduca», y por eso el tipo lo dice en
+ * vez de devolver una fecha absurdamente lejana. Una fecha inventada a cien
+ * años es un centinela, y un centinela acaba impreso — la regla de los
+ * «999999999 de -1 créditos», aplicada a una caducidad.
  *
  * Lo que no encaje en la lista cae en la de por defecto, **nunca en “no
  * caduca”**: equivocarse hacia un día de más es un enlace que hay que revocar a
  * mano; equivocarse hacia el infinito es un enlace que nadie sabe que sigue
- * abierto.
+ * abierto. Quién puede elegir la que no caduca lo decide `laDuracionQueSePuede`,
+ * antes de llegar aquí.
  */
-export function cuandoCaduca(duracion: unknown, desde: number = Date.now()): Date {
+export function cuandoCaduca(duracion: unknown, desde: number = Date.now()): Date | null {
     const elegida =
         DURACIONES.find((d) => d.valor === duracion) ??
         DURACIONES.find((d) => d.valor === DURACION_POR_DEFECTO)!;
+    if (elegida.horas === null) return null;
     return new Date(desde + elegida.horas * 60 * 60 * 1000);
 }
 
@@ -180,7 +249,7 @@ export function cuandoCaduca(duracion: unknown, desde: number = Date.now()): Dat
 export function cuandoCaducaAlCambiar(
     duracion: unknown,
     ahora: number = Date.now(),
-): Date {
+): Date | null {
     return cuandoCaduca(duracion, ahora);
 }
 
@@ -191,9 +260,37 @@ export function cuandoCaducaAlCambiar(
  * no protege la fecha: protege el **aviso**. Sin él, teclear una duración que
  * no existe guardaría siete días en silencio y quien lo hizo creería haber
  * puesto otra cosa.
+ *
+ * **No basta por sí solo**: dice que el valor existe, no que quien lo manda
+ * pueda elegirlo. Eso lo contesta `laDuracionQueSePuede`, que es la que usan
+ * las acciones.
  */
 export function esUnaDuracion(v: unknown): v is Duracion {
     return DURACIONES.some((d) => d.valor === v);
+}
+
+/**
+ * Lo que se lee debajo del nombre de una sala viva.
+ *
+ * Una sola función para las dos pantallas que lo enseñan —Reuniones y el
+ * diálogo de un canal—, y devuelve **la frase entera** y no el rato: con un
+ * «Caduca » escrito delante en cada sitio, un enlace sin caducidad saldría como
+ * «Caduca No caduca». Eso es lo que pasa cuando el prefijo vive en la pantalla
+ * y el caso nuevo llega después.
+ */
+export function comoSeLeeLaCaducidad(
+    expiraEn: string | Date | null | undefined,
+    ahora: number = Date.now(),
+): string {
+    const marca = aMarca(expiraEn ?? null);
+    if (marca === null) return "No caduca";
+    const falta = marca - ahora;
+    if (falta <= 0) return "Caduca ya";
+    const horas = Math.round(falta / (60 * 60 * 1000));
+    if (horas < 1) return "Caduca en menos de 1 h";
+    if (horas < 24) return `Caduca en ${horas} h`;
+    const dias = Math.round(horas / 24);
+    return dias === 1 ? "Caduca mañana" : `Caduca en ${dias} días`;
 }
 
 /**
