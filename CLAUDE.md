@@ -2253,6 +2253,84 @@ acababa de recuperar quitando las tarjetas de métricas.
 Y el alto es `min-h-10`, el de un `Button` por defecto: la barra mide lo mismo
 en una pantalla con botones y en una que solo tiene buscador.
 
+### Y desplazarse NO basta: lo de dentro tampoco puede ENCOGER
+
+Con `overflow-x-auto` a secas la barra seguía partiéndose, y esto se ve
+midiendo. En `/proyectos`, con el menú lateral abierto, pasaba de **40 px a
+62 px** en cinco de las ocho combinaciones de ancho:
+
+| ventana | menú | antes | ahora |
+| --- | --- | --- | --- |
+| 1440 | abierto | 40 | 40 |
+| 1280 | abierto | **62** | **40** |
+| 1024 | abierto | **62** | **40** |
+| 390 | abierto | **62** | **40** |
+| 1440 | cerrado | 40 | 40 |
+| 1280 | cerrado | 40 | 40 |
+| 1024 | cerrado | **62** | **40** |
+| 390 | cerrado | **62** | **40** |
+
+El motivo es que **un carril que se desplaza no impide que lo de dentro se
+comprima**: sus hijos siguen siendo hijos de un flex con el ancho del carril,
+así que primero encogen —y lo que lleve un `flex-wrap` dentro se parte en dos
+líneas— y solo después desbordan. Por eso hacen falta **las dos** cosas:
+
+1. **La fila de dentro no encoge**, con `min-w-max`. Y es `min-w-max` y **no
+   `w-max`**: con `w-max` la fila mediría siempre su contenido, y entonces un
+   `ml-auto` —el que usa Conexión para empujar sus pastillas a la derecha—
+   dejaría de tener hueco que repartir. Con `min-w-max` la fila se sigue
+   estirando hasta el carril cuando sobra sitio, y solo deja de encoger cuando
+   falta.
+2. **Y si no cabe, se desplaza con FLECHAS**, las mismas de la barra de
+   pestañas (`BarraDeslizable`, que ahora lo usan las dos). Antes el carril iba
+   con `scrollbar-hide`, así que lo que sobraba —32 px en `/proyectos` a 1024,
+   **566 px** en `/equipo` a 390— **no tenía ni barra ni flecha**: no había
+   forma de enterarse de que había más. Es literalmente el fallo que ya costó
+   una vuelta en las pestañas del panel, repetido una capa más abajo.
+
+Las flechas dicen **qué** hay dentro (`queHay`): «Ver más filtros» en esta
+barra y «Ver más pestañas» en la otra. Una etiqueta que habla de pestañas sobre
+un buscador es una etiqueta que miente.
+
+**Esto NO se aplica a la fila de pastillas de Chats**, que va aparte y con su
+propia regla —ahí lo que cede son los huecos de la pastilla— y no pasa por esta
+barra.
+
+#### Y entonces `w-full` y `flex-1` dejan de valer dentro de la barra
+
+Es la consecuencia que hay que conocer antes de tocar una de estas pantallas:
+en una fila que ya no encoge, **el ancho de la fila lo decide su contenido**,
+así que un hijo que pide el 100 % pide el 100 % de una fila que puede ser mucho
+más ancha que la pantalla. Medido en `/proyectos` a 390: el buscador
+`relative w-full sm:w-72` se quedaba con **647 px de los 1006** de la fila, el
+grupo de desplegables se comprimía a 159 y **se partía en dos líneas**, y la
+tira de carpetas —`min-w-0 flex-1`— se quedaba en **0 px**: las carpetas
+desaparecían enteras.
+
+Dos reglas, y las dos se comprueban midiendo un ancho de teléfono:
+
+1. **El buscador lleva un ancho fijo** (`w-56 sm:w-72`), no `w-full`. Son las
+   trece pantallas que lo tenían; las dos que escriben su fila a mano —Llamadas
+   del CRM y el catálogo público— se quedan como estaban, que no pasan por
+   aquí.
+2. **Nada `flex-1` dentro de la barra.** No hay hueco que repartir, así que
+   `flex-1` con `min-w-0` se queda en cero y lo que hubiera dentro desaparece
+   sin decir nada. Y ya no hace falta: lo que crece —las carpetas— lo recoge el
+   carril de la propia barra.
+
+### El botón azul dice «Nuevo», y nada más
+
+Llevaba el nombre de la entidad repetido —«+ Nuevo proyecto» estando ya en
+Proyectos, «+ Nueva plantilla» estando ya en Plantillas—. Son hasta diez
+caracteres que no informan de nada, **porque la pantalla ya dice de qué**, y se
+los quitan a la única fila que escasea, que es justo donde los filtros pelean
+por sitio.
+
+**«Nuevo» en las veintiocho pantallas, sin excepciones.** El `title` y el
+`aria-label` salen del mismo `children`, así que no se pueden separar del texto
+que se ve. Si algún día una pantalla necesitara un segundo botón que también
+crea algo, ese no es «el botón de crear» de esa pantalla y no va en este hueco.
+
 ### Qué va en cada hueco, que es donde se falla
 
 La pregunta no es «dónde queda bonito», es **qué hace el mando**:
@@ -2538,6 +2616,28 @@ Next: una menos.
 **`FinanceOverviewHeader` dejó de ser un componente de cliente**, porque lo era
 solo por ese `fetch`. El mes lo lee `FinanceModuleShortcuts` de la URL por su
 cuenta, como ya hacía cuando no se le pasaba la prop.
+
+### Y la cuarta: `/equipo`, que se escapó del barrido
+
+Abría con cuatro pastillas —conversaciones activas, nuevas esta semana,
+escaladas, tasa de conversión— **encima** de la barra, y ninguna de las cuatro
+filtraba nada. Lo decía su propio código: `// Sin filtro equivalente en esta
+pantalla: no son pulsables`. Se fueron por la misma regla con la que se fueron
+las otras siete; la cifra no se pierde, porque debajo sigue el rendimiento
+**por asesor**, con su exportación.
+
+Y con eso la regla se puede decir en una frase, que es como se queda:
+
+> **Ninguna tarjeta ni fila de métricas va en la parte de arriba de una
+> pantalla. Nunca.** Si una cifra filtra la lista de abajo, entra en la barra
+> como pastilla —que ahí ya no es una métrica: es el filtro, enseñando su
+> número—. Si no filtra nada, **se borra**. Y si algún día hace falta enseñar
+> una cifra que no filtra, va **debajo** del contenido, nunca en la cabecera.
+
+La parte que no se puede ablandar es la última. La cabecera es la franja que le
+falta a la tabla, y una cifra que solo se lee no compite por ella: se lee igual
+de bien al final de la pantalla, y ahí no le quita una fila a lo que la persona
+vino a mirar.
 
 ## Finanzas de la familia: se elige qué se suma, y sumar monedas distintas NO
 

@@ -589,7 +589,7 @@ export default function MainFinanceAccounts({
               openLedger(row);
             }}
             toolbarExtra={
-              <BotonDeCrear onClick={openCreate} disabled={isPending}>Nueva cuenta</BotonDeCrear>
+              <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
             }
           />
         </CardContent>

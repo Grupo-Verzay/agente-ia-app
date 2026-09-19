@@ -1,9 +1,8 @@
 "use client";
 
-import { Download, MessageSquare, Sparkles, UserCheck, TrendingUp } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import type { TeamMetrics } from "@/actions/team-actions";
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]) {
@@ -44,23 +43,18 @@ function getInitials(name: string | null, email: string) {
 
 type Props = { metrics: TeamMetrics };
 
-export function TeamKpiCards({ metrics }: Props) {
-  const { global } = metrics;
-  const totalClassified = Object.values(global.leadStatus).reduce((a, b) => a + b, 0);
-
-  return (
-    // Sin filtro equivalente en esta pantalla: no son pulsables.
-    <PastillasDeMetricas
-      metricas={[
-        { clave: 'activas', icono: <MessageSquare />, etiqueta: 'Conversaciones activas', valor: global.totalActive, color: '#3B82F6', ayuda: 'Total de conversaciones activas en el equipo' },
-        { clave: 'nuevas', icono: <Sparkles />, etiqueta: 'Nuevas esta semana', valor: global.newThisWeek, color: '#8B5CF6', ayuda: 'Conversaciones iniciadas en los últimos 7 días' },
-        { clave: 'escaladas', icono: <UserCheck />, etiqueta: 'Escaladas a asesor', valor: `${global.escalationRate}%`, color: '#F59E0B', ayuda: 'Porcentaje del total escaladas a un asesor' },
-        { clave: 'conversion', icono: <TrendingUp />, etiqueta: 'Tasa de conversión', valor: `${global.conversionRate}%`, color: '#10B981', ayuda: `De ${totalClassified} leads clasificados` },
-      ]}
-    />
-  );
-}
-
+/**
+ * Aquí vivía `TeamKpiCards`: una fila de cuatro pastillas —conversaciones
+ * activas, nuevas esta semana, escaladas y conversión— **encima** de la barra
+ * de acciones, y **ninguna de las cuatro filtraba nada**. Su propio comentario
+ * lo decía: «Sin filtro equivalente en esta pantalla: no son pulsables».
+ *
+ * Es la pantalla que se escapó del barrido de las métricas, y se va por la
+ * misma regla con la que se fueron las otras siete: **si no filtra la lista de
+ * abajo, se borra**. La cifra no se pierde de vista —el rendimiento por asesor
+ * sigue debajo, asesor por asesor y con su exportación—; lo que se recupera es
+ * la franja de alto que necesita la tabla.
+ */
 export function TeamMetrics({ metrics }: Props) {
   const { advisors } = metrics;
 

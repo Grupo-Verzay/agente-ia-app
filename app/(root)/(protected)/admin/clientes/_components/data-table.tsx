@@ -163,7 +163,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
           }
           crear={
             puedeAdministrar ? (
-              <BotonDeCrear onClick={openCreateDialogUser}>Nuevo cliente</BotonDeCrear>
+              <BotonDeCrear onClick={openCreateDialogUser}>Nuevo</BotonDeCrear>
             ) : null
           }
           acciones={

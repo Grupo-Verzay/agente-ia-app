@@ -216,7 +216,7 @@ export const LlavesDeVerzay = () => {
             <h2 className="text-lg font-semibold">API keys de Verzay</h2>
           </div>
         </>}
-        crear={<BotonDeCrear onClick={() => setBorrador({ ...BORRADOR_NUEVO })}>Nueva llave</BotonDeCrear>}
+        crear={<BotonDeCrear onClick={() => setBorrador({ ...BORRADOR_NUEVO })}>Nuevo</BotonDeCrear>}
         acciones={
           <AccionesMasivas
             seleccionados={seleccionadas}

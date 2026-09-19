@@ -54,7 +54,7 @@ export function MainCotizaciones({ userId, cotizaciones, products }: Props) {
     <div className="p-4 space-y-4">
       <BarraDeAcciones
         filtros={<h1 className="shrink-0 text-xl font-semibold">Cotizaciones</h1>}
-        crear={<BotonDeCrear onClick={openNew}>Nueva cotización</BotonDeCrear>}
+        crear={<BotonDeCrear onClick={openNew}>Nuevo</BotonDeCrear>}
         acciones={
           <AccionesMasivas
             seleccionados={seleccion.seleccionados}

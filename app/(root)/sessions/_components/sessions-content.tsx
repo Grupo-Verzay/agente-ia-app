@@ -207,7 +207,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               setCurrentPage(0);
             }}
           />
-          <div className="relative w-full sm:w-72">
+          <div className="relative w-56 sm:w-72">
             <Input
               placeholder="Buscar por nombre o número..."
               value={search}

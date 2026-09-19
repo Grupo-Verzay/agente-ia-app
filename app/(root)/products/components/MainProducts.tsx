@@ -65,7 +65,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                 </div>
               }
             >
-                <div className="relative w-full sm:w-64">
+                <div className="relative w-56 sm:w-64">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar producto..."

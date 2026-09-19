@@ -12,7 +12,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Un carril de pestañas que se sale de la pantalla, con flechas a los lados.
+ * Un carril que se sale de la pantalla, con flechas a los lados.
+ *
+ * Lo usan **las tres barras de pestañas** del panel y **la barra de acciones de
+ * una lista** (`BarraDeAcciones`), que es el mismo problema con otro contenido:
+ * una fila de mandos que no cabe y que no puede crecer hacia abajo. Por eso las
+ * flechas dicen qué hay dentro (`queHay`) en vez de hablar siempre de pestañas.
  *
  * # Qué pasaba
  *
@@ -63,11 +68,18 @@ export function BarraDeslizable({
     carrilClassName,
     /** El elemento que tiene que verse entero. Normalmente la pestaña activa. */
     activo,
+    /**
+     * Qué hay dentro, para lo que leen las flechas. Esto lo usan dos barras
+     * —las pestañas del panel y la de acciones de una lista— y «Ver más
+     * pestañas» sobre un buscador y unos filtros es una etiqueta que miente.
+     */
+    queHay = "pestañas",
 }: {
     children: ReactNode;
     className?: string;
     carrilClassName?: string;
     activo?: HTMLElement | null;
+    queHay?: string;
 }) {
     const carril = useRef<HTMLDivElement>(null);
     const [hayIzquierda, setHayIzquierda] = useState(false);
@@ -178,19 +190,27 @@ export function BarraDeslizable({
                 {children}
             </div>
 
-            {hayIzquierda && <Flecha lado="izquierda" onClick={() => desplazar(false)} />}
-            {hayDerecha && <Flecha lado="derecha" onClick={() => desplazar(true)} />}
+            {hayIzquierda && <Flecha lado="izquierda" queHay={queHay} onClick={() => desplazar(false)} />}
+            {hayDerecha && <Flecha lado="derecha" queHay={queHay} onClick={() => desplazar(true)} />}
         </div>
     );
 }
 
-function Flecha({ lado, onClick }: { lado: "izquierda" | "derecha"; onClick: () => void }) {
+function Flecha({
+    lado,
+    queHay,
+    onClick,
+}: {
+    lado: "izquierda" | "derecha";
+    queHay: string;
+    onClick: () => void;
+}) {
     const esIzquierda = lado === "izquierda";
     return (
         <button
             type="button"
             onClick={onClick}
-            aria-label={esIzquierda ? "Ver pestañas anteriores" : "Ver más pestañas"}
+            aria-label={esIzquierda ? `Ver ${queHay} anteriores` : `Ver más ${queHay}`}
             // Fuera del orden de tabulación a propósito: no llevan a ningún
             // sitio nuevo —las pestañas se alcanzan tabulando, y el carril las
             // trae solo al recibir el foco—, así que como paradas de teclado

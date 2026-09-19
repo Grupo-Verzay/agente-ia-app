@@ -101,7 +101,7 @@ export function ExternalClientDataTable({
       {/* La barra compartida: filtros a la izquierda, el azul de crear y el
           `⋯` pegado al borde. */}
       <BarraDeAcciones
-        crear={<BotonDeCrear onClick={onCreateNew}>Nuevo registro</BotonDeCrear>}
+        crear={<BotonDeCrear onClick={onCreateNew}>Nuevo</BotonDeCrear>}
         acciones={
           <AccionesMasivas
             seleccionados={seleccionados}

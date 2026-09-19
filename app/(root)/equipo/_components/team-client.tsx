@@ -51,7 +51,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { AdvisorRow, ModuleOption, TeamMetrics } from "@/actions/team-actions";
-import { TeamKpiCards } from "./TeamMetrics";
 import { TeamCharts } from "./TeamCharts";
 import { AdvisorKanbanBoard } from "@/app/(root)/asesores/components/AdvisorKanbanBoard";
 import {
@@ -322,11 +321,10 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   return (
     <div className="flex flex-col flex-1 min-h-0">
 
-      {/* Sección fija: KPI cards + barra de acciones */}
+      {/* Sección fija: la barra de acciones, y nada encima. La fila de
+          pastillas que abría esta pantalla se fue: no filtraba nada, y una
+          métrica que no filtra no va arriba — se borra. */}
       <div className="flex flex-col gap-3 shrink-0 pb-3">
-
-      {/* KPI cards — primera fila */}
-      {metrics && <TeamKpiCards metrics={metrics} />}
 
       {/* La misma `BarraDeAcciones` de toda la plataforma, con la tarjeta y su
           borde de color por `className`: lo que cambia es el reparto, no el
@@ -437,7 +435,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           </Button>
         </>
         }
-        crear={<BotonDeCrear onClick={() => setCreateOpen(true)}>Agregar asesor</BotonDeCrear>}
+        crear={<BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo</BotonDeCrear>}
         acciones={
           <AccionesMasivas
             seleccionados={[]}

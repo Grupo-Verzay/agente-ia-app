@@ -190,7 +190,7 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
             <ModuleToolbar
                 left={
                     <>
-                    <div className="relative w-full min-w-0 sm:w-72">
+                    <div className="relative w-56 sm:w-72">
                         <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Buscar integración..."
@@ -210,7 +210,7 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
                     </>
                 }
                 right={
-                    <BotonDeCrear onClick={() => setShowForm(true)}>Nueva integración</BotonDeCrear>
+                    <BotonDeCrear onClick={() => setShowForm(true)}>Nuevo</BotonDeCrear>
                 }
             />
 

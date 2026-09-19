@@ -348,9 +348,7 @@ export function CobrosClient({
                             setEnEdicion(null);
                             setFormAbierto(true);
                         }}
-                    >
-                        Nuevo cobro
-                    </BotonDeCrear>
+                    >Nuevo</BotonDeCrear>
                 }
                 acciones={
                     <div className="flex items-center gap-2">
