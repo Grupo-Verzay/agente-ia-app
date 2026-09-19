@@ -6111,6 +6111,114 @@ es el nombre **entero**: medido en Chromium a 390 px, el bloque salía de **565
 dentro de un diálogo de 390**. `min-w-0` en el hijo del flex **no basta**; va en
 la celda. Con él, 340 y sin desbordar.
 
+### Lo que sale del editor NO es JSON plano, y por eso no cruza
+
+`/documentos` **no guardaba nada**. En producción los dos documentos que había
+seguían en la versión 1 con el texto vacío, el servidor no escribía **ni una
+línea** en su registro, y lo que veía la persona era
+
+> No se pudo completar. Revisa la conexión.
+
+que es el mensaje de `pedir(...)` cuando la acción **revienta**, y manda a
+mirar la red. La red no tenía nada que ver. Reproducido sobre el build
+servido, con sesión de verdad:
+
+```
+[documentacion] la accion no llego al servidor
+Error: Only plain objects, and a few built-ins, can be passed to Server
+Actions. Classes or null prototypes are not supported.
+    at JSON.stringify ... at t.encodeReply
+```
+
+**`encodeReply` corre en el NAVEGADOR: la petición no llega a salir.** De ahí
+las dos cosas que despistaron a la vez —el servidor mudo *y* el documento en
+la versión 1—: no es que el guardado fallara, es que nunca se pidió.
+
+La causa es de `prosemirror-model`: `computeAttrs` construye los `attrs` con
+`Object.create(null)` y `Node.toJSON()` los asigna **por referencia**. Con
+`TextAlign` configurado —lo está— **cada párrafo y cada encabezado** llevan
+atributos, así que pasa siempre.
+
+> **Se convierte en el EDITOR** (`comoJsonPlano`, en `lib/json-plano.ts`,
+> llamado desde el `onUpdate` de `EditorDeTexto`), que es el único sitio que
+> produce el problema. **No en cada pantalla.**
+
+Y esa última frase es la lección, porque el arreglo **ya existía**: Notas
+llevaba un `JSON.parse(JSON.stringify(content))` suelto en su `handleSave`
+**sin un comentario que dijera por qué**. Documentación reutilizó el mismo
+editor y no lo copió — nadie sabía que hacía falta. *Un arreglo sin su motivo
+escrito al lado es un arreglo que la siguiente pantalla no copia.*
+
+Lo que cuesta, medido: 0,21 ms con 27 kB, **2,2 ms con 268 kB** y 17,6 ms con
+2,7 MB. Se paga en cada tecla y se acepta: `getJSON()` ya recorre el árbol
+entero en cada tecla, así que esto multiplica una constante y no el orden — y
+un documento de 2,7 MB pasa de largo el tope de indexado.
+
+### Un permiso de DOCUMENTO tiene que traer su espacio
+
+El diálogo de permisos se abre desde un espacio **y desde un documento
+abierto**, y en el segundo caso escribe una fila de `objetoTipo: 'documento'`.
+En producción **la única fila que había era esa**. Y `losEspaciosCandidatos`
+solo miraba las de `'espacio'`, así que:
+
+- `abrirDocumentoAction` contestaba `success: true` con `puedeEditar: true`…
+- …y el árbol de esa persona salía **vacío**.
+
+O sea **una puerta abierta sin ningún menú que llevara a ella**, que es el
+«menú abierto, puerta cerrada» de este repositorio del revés y se lee igual de
+mal: «me lo compartieron y no veo nada».
+
+**Y el espacio entra como CONTENEDOR, no como alcanzado.** Es la parte que no
+se puede ablandar: `losEspaciosQueAlcanza` lo devuelve en `contenedores`, con
+un acceso de solo mirar, y el mapa con el que `accesoAlDocumento` decide lleva
+**solo los espacios de verdad**. Metiéndolo ahí, el espacio decidiría por
+todos sus documentos y compartir una hoja regalaría la carpeta entera. El
+banco lo comprueba con un vecino dentro: sale el compartido y **no** el de al
+lado.
+
+De ahí salen dos mapas y no uno: **el de decidir** (espacios alcanzados) y
+**el de pintar el nombre** (los dos juntos). Sin el segundo, un resultado de
+búsqueda salía sin decir en qué espacio vive.
+
+### Y en un documento recibido, un `agente` tampoco escribe
+
+Lo destapó el banco al cerrar lo de arriba. `accesoAlEspacio` ya tenía en su
+rama de recibido `dado === "edicion" && canManageWorkspace(user)`; a
+`accesoAlDocumento` **se le había quedado fuera**, así que un documento
+compartido con una CUENTA dejaba escribir a su equipo entero, agentes
+incluidos. Participa, no manda — el mismo reparto de siempre.
+
+Lo que **no** cambia es una fila para la **persona**: eso se lo dieron a ella a
+propósito, sea agente o no. Son dos cosas distintas y por eso hay dos
+lectores (`loQueLeDan` y `loQueLeDanAElla`), igual que
+`team_channel_accounts` está aparte de `team_channel_members`. Y dentro de la
+cuenta propia manda lo de siempre, que es lo que permite abrir un espacio
+restringido a alguien del equipo.
+
+### El selector ofrece a la gente de la FAMILIA, y «Empresa Demo» no es un nombre
+
+Dos cosas que hacían inservible el diálogo de permisos:
+
+1. La gente salía de `ownerId = <mi cuenta>`, o sea **solo mi equipo**. A un
+   administrador de una cuenta asociada no se le podía dar acceso a nada a su
+   nombre. Ahora sale de `laFamiliaDeLaCuenta` —el componente entero de
+   `linked_accounts`, la misma función del chat de equipo— y **el detalle dice
+   de qué cuenta es**: «Yair Silvera» a secas no distingue al de tu equipo del
+   de la cuenta asociada, y elegir al que no era escribe un permiso que no abre
+   nada.
+2. Las cuentas se pintaban con `c.company`, que **nace con «Empresa Demo»**: el
+   selector ofrecía tres filas idénticas. Lo decide
+   `nombreDeLaCuenta` (`lib/nombre-de-la-cuenta.ts`, puro): la empresa si de
+   verdad se rellenó, luego el nombre, luego el correo. **Si se añade otro
+   sitio que enseñe el nombre de una cuenta, va por ahí** — esa condición está
+   escrita a mano en media docena de pantallas, y el diálogo compartido de
+   Proyectos y Diagramas tenía el mismo fallo.
+
+Las **demás** cuentas de la familia no entran como personas: ya están en la
+mitad de abajo, y ofrecerlas dos veces es pedirle a alguien que adivine la
+diferencia. La cuenta **propia** sí, porque es el inicio de sesión del dueño y
+sin ella al jefe no se le podría dar acceso a nada.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

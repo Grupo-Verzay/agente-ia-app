@@ -48,3 +48,6 @@ next-env.d.ts
 
 # Compilado temporal del banco de pruebas (ver lib/__tests__/*.test.mjs)
 lib/__tests__/.compilado/
+# Y el de los bancos que van contra Postgres: se emiten aqui dentro para que
+# `@prisma/client` resuelva desde el repo.
+.banco/

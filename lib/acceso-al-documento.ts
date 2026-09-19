@@ -39,19 +39,50 @@ export type EspacioConAcceso = { espacio: Espacio; acceso: Acceso };
  */
 export async function losEspaciosQueAlcanza(
     user: QuienMira,
-): Promise<{ espacios: EspacioConAcceso[]; permisos: FilaDePermiso[] }> {
+): Promise<{
+    espacios: EspacioConAcceso[];
+    contenedores: EspacioConAcceso[];
+    permisos: FilaDePermiso[];
+}> {
     const cuenta = laCuentaDeQuienMira(user);
     const persona = (user?.id || "").trim();
-    if (!cuenta || !persona) return { espacios: [], permisos: [] };
+    if (!cuenta || !persona) return { espacios: [], contenedores: [], permisos: [] };
 
-    const { espacios, permisos } = await losEspaciosCandidatos({ cuenta, persona });
+    const { espacios, permisos, porDocumento } = await losEspaciosCandidatos({ cuenta, persona });
+    const soloPorDentro = new Set(porDocumento);
 
     const alcanzados: EspacioConAcceso[] = [];
+    const contenedores: EspacioConAcceso[] = [];
     for (const espacio of espacios) {
         const acceso = accesoAlEspacio(user, espacio, permisos);
-        if (acceso) alcanzados.push({ espacio, acceso });
+        if (acceso) {
+            alcanzados.push({ espacio, acceso });
+            continue;
+        }
+        // **No alcanza el espacio, pero sí un documento de dentro.** Se
+        // devuelve aparte, con un acceso de solo mirar, y sirve para una cosa
+        // y una sola: que el documento compartido tenga dónde salir en el
+        // árbol y se sepa cómo se llama el sitio donde vive.
+        //
+        // **Esto NO es acceso al espacio**, y por eso no se mezcla con los de
+        // arriba: quien decide sobre cada documento es `accesoAlDocumento`, y
+        // si le llegara este espacio como alcanzado daría por buenos **todos**
+        // los documentos de dentro —el espacio decide, el documento solo
+        // añade—. Sería regalar el espacio entero por haber compartido una
+        // hoja.
+        if (soloPorDentro.has(espacio.id)) {
+            contenedores.push({
+                espacio,
+                acceso: {
+                    cuentaId: espacio.cuentaId,
+                    recibido: true,
+                    puedeEditar: false,
+                    puedeGestionar: false,
+                },
+            });
+        }
     }
-    return { espacios: alcanzados, permisos };
+    return { espacios: alcanzados, contenedores, permisos };
 }
 
 export type DocumentoConAcceso = { documento: Documento; acceso: Acceso };
