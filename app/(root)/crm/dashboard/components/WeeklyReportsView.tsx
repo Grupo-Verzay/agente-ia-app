@@ -220,9 +220,14 @@ function ActivityChip({ label, value, emoji, color }: { label: string; value: nu
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-export type ReportStats = { total: number; sent: number; avgLeads: number; avgConversions: number };
-
-export function WeeklyReportsView({ onStatsLoaded }: { onStatsLoaded?: (s: ReportStats) => void }) {
+/*
+ * Aquí había un `onStatsLoaded` con el que esta vista le pasaba al CRM cuatro
+ * cifras —reportes, enviados, leads y conversiones promedio— para que las
+ * pintara en tarjetas encima. Ninguna filtraba nada: la lista de abajo son los
+ * doce últimos reportes y se ven enteros. Se quitaron las tarjetas, y con
+ * ellas este canal, que no tenía otro consumidor.
+ */
+export function WeeklyReportsView() {
     const [reports, setReports] = useState<WeeklyReportItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
@@ -233,12 +238,6 @@ export function WeeklyReportsView({ onStatsLoaded }: { onStatsLoaded?: (s: Repor
         const res = await getWeeklyReports();
         if (res.success && res.data) {
             setReports(res.data);
-            onStatsLoaded?.({
-                total: res.data.length,
-                sent: res.data.filter((r) => r.sentAt).length,
-                avgLeads: res.data.length ? Math.round(res.data.reduce((s, r) => s + r.metrics.totalLeads, 0) / res.data.length) : 0,
-                avgConversions: res.data.length ? Math.round(res.data.reduce((s, r) => s + r.metrics.conversions, 0) / res.data.length) : 0,
-            });
         }
         setLoading(false);
     };

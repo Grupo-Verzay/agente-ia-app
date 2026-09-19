@@ -4,32 +4,20 @@ import dynamic from "next/dynamic";
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type RefObject } from "react";
-import useSWR from "swr";
 import {
-    Activity,
-    BarChart3,
-    CalendarClock,
-    CheckCheck,
-    Clock3,
     FileText,
     Settings2,
     LayoutList,
     TrendingUp,
-    Users,
-    Wallet,
     Kanban,
-    Phone,
     PhoneCall,
-    PhoneOutgoing,
-    PhoneMissed,
     X,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
-import { getAnalyticsDataByUserId, type AnalyticsPeriod } from "@/actions/analytics-action";
+import type { AnalyticsPeriod } from "@/actions/analytics-action";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { RegistroWithSession, TipoRegistro } from "@/types/session";
-import { MetricCard } from "./MetricCard";
 import { CrmGlobalActionsMenu } from "./CrmGlobalActionsMenu";
 import type { DashboardStats } from "./MainDashboard";
 import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
@@ -41,19 +29,9 @@ const AnalyticsView = dynamic(
     { ssr: false },
 );
 import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
-import { WeeklyReportsView, type ReportStats } from "./WeeklyReportsView";
+import { WeeklyReportsView } from "./WeeklyReportsView";
 import { LoQueLaIaNoSupoView } from "./LoQueLaIaNoSupoView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
-import type { CallsKpis } from "@/actions/calls-crm-actions";
-
-const fmtCallDuration = (secs: number) => {
-    if (!secs) return "—";
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-};
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -70,13 +48,6 @@ export const SCORE_RANGES = [
     { key: "listo",    label: "Listo",    range: "91–100", color: "#16A34A" },
 ] as const;
 export type ScoreRangeKey = typeof SCORE_RANGES[number]["key"];
-
-const CRM_METRIC_COLORS = {
-    totalRegistros: "#3B82F6",
-    leadsConMovimientos: "#8B5CF6",
-    crmFollowUpsActivos: "#0EA5E9",
-    crmFollowUpsEnviados: "#14B8A6",
-} as const;
 
 export const CrmDashboard = ({
     stats,
@@ -120,8 +91,6 @@ export const CrmDashboard = ({
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
-    const [reportStats, setReportStats] = useState<ReportStats>({ total: 0, sent: 0, avgLeads: 0, avgConversions: 0 });
-    const [callKpis, setCallKpis] = useState<CallsKpis | undefined>(undefined);
 
     const toggleScoreRange = (key: ScoreRangeKey) => {
         setSelectedScoreRanges(new Set([key]));
@@ -150,26 +119,7 @@ export const CrmDashboard = ({
         }
     };
 
-    const { data: analyticsData, isLoading: analyticsLoading } = useSWR(
-        viewMode !== "registros" && viewMode !== "reportes" && viewMode !== "llamadas"
-            ? ["crm-analytics", userId, viewMode === "kanban" ? "all" : period]
-            : null,
-        ([, uid, p]) => getAnalyticsDataByUserId(uid, p as AnalyticsPeriod)
-    );
-    const a = analyticsData?.success ? analyticsData.data : null;
-
     const totalRegistros = stats?.totalRegistros ?? registros.length;
-
-    const leadsConMovimientosFallback = useMemo(() => {
-        const sessionIds = new Set<number>();
-        for (const registro of registros) {
-            sessionIds.add(registro.sessionId);
-        }
-        return sessionIds.size;
-    }, [registros]);
-
-    const leadsConMovimientos =
-        stats?.leadsConMovimientos ?? leadsConMovimientosFallback;
 
     const countsByTipo = useMemo<Record<TipoRegistro, number>>(() => {
         if (stats?.countsByTipo) return stats.countsByTipo;
@@ -194,159 +144,32 @@ export const CrmDashboard = ({
     return (
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-h-0 min-w-0 w-full flex-col gap-2 overflow-hidden">
-                {/* Metric Cards — ocultas en móvil (ocupaban mucho espacio); visibles desde sm */}
-                <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-                    {viewMode === "llamadas" ? (
-                        <>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<Phone className="h-4 w-4" />} label="Total" value={callKpis?.total ?? 0} helper={`Duración total ${fmtCallDuration(callKpis?.totalDurationSecs ?? 0)}`} color="#3B82F6" />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<PhoneOutgoing className="h-4 w-4" />} label="Salientes" value={callKpis?.outgoing ?? 0} helper="Llamadas realizadas desde el panel" color="#22C55E" />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<PhoneMissed className="h-4 w-4" />} label="Entrantes" value={callKpis?.incoming ?? 0} helper="Llamadas recibidas / perdidas" color="#EF4444" />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<PhoneCall className="h-4 w-4" />} label="Contestadas" value={callKpis?.answered ?? 0} helper={`Duración promedio ${fmtCallDuration(callKpis?.avgDurationSecs ?? 0)}`} color="#8B5CF6" />
-                            </div>
-                        </>
-                    ) : viewMode === "reportes" ? (
-                        <>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<FileText className="h-4 w-4" />} label="Total reportes" value={reportStats.total} helper="Últimos 12 guardados" color="#3B82F6" />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<Activity className="h-4 w-4" />} label="Enviados por WhatsApp" value={reportStats.sent} helper={`De ${reportStats.total} generados`} color="#22C55E" />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<Users className="h-4 w-4" />} label="Leads promedio" value={reportStats.avgLeads} helper="Promedio de leads por semana" color="#8B5CF6" />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard icon={<CheckCheck className="h-4 w-4" />} label="Finalizados promedio" value={reportStats.avgConversions} helper="Conversiones promedio por semana" color="#F59E0B" />
-                            </div>
-                        </>
-                    ) : viewMode === "registros" ? (
-                        <>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<BarChart3 className="h-4 w-4" />}
-                                    label="Total registros"
-                                    value={totalRegistros}
-                                    helper="Todos los movimientos en CRM"
-                                    color={CRM_METRIC_COLORS.totalRegistros}
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Activity className="h-4 w-4" />}
-                                    label="Leads con movimientos"
-                                    value={leadsConMovimientos}
-                                    helper="Sesiones con al menos un registro"
-                                    color={CRM_METRIC_COLORS.leadsConMovimientos}
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Clock3 className="h-4 w-4" />}
-                                    label="Follow-ups activos"
-                                    value={stats?.crmFollowUps.active ?? 0}
-                                    helper="Pendientes o en procesamiento"
-                                    color={CRM_METRIC_COLORS.crmFollowUpsActivos}
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<CheckCheck className="h-4 w-4" />}
-                                    label="Follow-ups enviados"
-                                    value={stats?.crmFollowUps.sent ?? 0}
-                                    helper="Contactos trabajados por estado"
-                                    color={CRM_METRIC_COLORS.crmFollowUpsEnviados}
-                                />
-                            </div>
-                        </>
-                    ) : viewMode === "kanban" ? (
-                        <>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Users className="h-4 w-4" />}
-                                    label="Frío"
-                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.FRIO ?? 0)}
-                                    helper="Leads en etapa fría"
-                                    color="#3B82F6"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Activity className="h-4 w-4" />}
-                                    label="Tibio"
-                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.TIBIO ?? 0)}
-                                    helper="Leads en etapa tibia"
-                                    color="#F59E0B"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<TrendingUp className="h-4 w-4" />}
-                                    label="Caliente"
-                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.CALIENTE ?? 0)}
-                                    helper="Leads en etapa caliente"
-                                    color="#EF4444"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<CheckCheck className="h-4 w-4" />}
-                                    label="Finalizado"
-                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.FINALIZADO ?? 0)}
-                                    helper={`${a?.leadStatusCounts.DESCARTADO ?? 0} descartados`}
-                                    color="#22C55E"
-                                />
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Users className="h-4 w-4" />}
-                                    label="Total leads"
-                                    value={analyticsLoading ? "…" : (a ? Object.values(a.leadStatusCounts).reduce((s, v) => s + v, 0) : 0)}
-                                    helper={`${a?.leadStatusCounts.CALIENTE ?? 0} calientes`}
-                                    color="#3B82F6"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Activity className="h-4 w-4" />}
-                                    label="Sesiones"
-                                    value={analyticsLoading ? "…" : (a?.sessions.total ?? 0)}
-                                    helper={`${a?.sessions.new ?? 0} nuevas en período`}
-                                    color="#22C55E"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<CalendarClock className="h-4 w-4" />}
-                                    label="Citas próximas"
-                                    value={analyticsLoading ? "…" : (a?.appointments.upcoming ?? 0)}
-                                    helper="próximos 7 días"
-                                    color="#3B82F6"
-                                />
-                            </div>
-                            {/* Cuarta tarjeta: Conversiones (leads finalizados). Reemplaza a
-                                "Ingresos totales", que va en Finanzas. */}
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<CheckCheck className="h-4 w-4" />}
-                                    label="Conversiones"
-                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.FINALIZADO ?? 0)}
-                                    helper="leads finalizados"
-                                    color="#8B5CF6"
-                                />
-                            </div>
-                        </>
-                    )}
-                </div>
+                {/*
+                 * Aquí abría la pantalla una fila de cuatro `MetricCard`, una
+                 * tanda distinta por cada vista. Se fue entera, y conviene
+                 * saber por qué cada tanda, porque no es el mismo motivo:
+                 *
+                 * - **Llamadas**: eran las mismas cuatro cifras que la propia
+                 *   pantalla de Llamadas ya pinta como pastillas al lado de su
+                 *   filtro. Allí filtran; aquí, arriba del todo y lejos de la
+                 *   tabla, no hacían nada. Ahora esas pastillas salen también
+                 *   embebidas, así que no se ha perdido ninguna.
+                 * - **Registros**: «Total registros» es lo que ya dice la
+                 *   pestaña «Todos (N)», que además filtra. Y las dos de
+                 *   follow-ups contaban SEGUIMIENTOS por estado, no registros:
+                 *   pulsando el filtro equivalente la lista nunca habría dado
+                 *   ese número — un filtro que ofrece una cifra a la que no se
+                 *   puede llegar.
+                 * - **Kanban**: Frío, Tibio, Caliente y Finalizado son las
+                 *   columnas del propio tablero, contadas dos veces.
+                 * - **Analíticas** y **Reportes**: debajo no hay lista que
+                 *   filtrar, son gráficas y los doce últimos reportes.
+                 *
+                 * Y con ellas se fue la consulta que las alimentaba
+                 * (`getAnalyticsDataByUserId`), que corría en cada cambio de
+                 * vista y de periodo para pintar cuatro números: la pestaña de
+                 * Analíticas trae los suyos por su cuenta.
+                 */}
 
                 {/* View toggle + period selector + actions */}
                 <div className="flex flex-wrap items-center gap-2">
@@ -495,7 +318,7 @@ export const CrmDashboard = ({
                 {/* Content */}
                 {viewMode === "reportes" ? (
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                        <WeeklyReportsView onStatsLoaded={setReportStats} />
+                        <WeeklyReportsView />
                         {/* Lo que la IA no supo responder. Va en Informes y no en
                             Analiticas a proposito: no es una metrica que se mire de
                             reojo, es una lista de cosas concretas que hay que anadirle
@@ -538,7 +361,7 @@ export const CrmDashboard = ({
                     </div>
                 ) : viewMode === "llamadas" ? (
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                        <CallsCrmClient embedded onKpisChange={setCallKpis} />
+                        <CallsCrmClient embedded />
                     </div>
                 ) : (
                     <AnalyticsView userId={userId} stats={stats} period={period} />

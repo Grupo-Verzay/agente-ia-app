@@ -11,9 +11,6 @@ import {
     rechargeIaCredit,
 } from '@/actions/actions-ia-credits';
 import { onCreditsToTokens, onTokensToCredits } from '@/utils/onTokensToCredits';
-import { MetricCard } from '@/components/custom/MetricCard';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { Coins, TrendingDown, Wallet, Gauge } from 'lucide-react';
 
 interface Props {
     userId: string;
@@ -77,53 +74,15 @@ export const CreditMain = ({ userId }: Props) => {
         }
     };
 
-    const available = Math.max(0, total - used);
-    const usagePercent = total > 0 ? Math.round((used / total) * 100) : 0;
-
     return (
-        <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
-            {/* MetricCards */}
-            {!loading && (
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<Coins className="h-4 w-4" />}
-                            label="Total créditos"
-                            value={total.toLocaleString()}
-                            helper="Créditos asignados en total"
-                            color="#3B82F6"
-                        />
-                    </div>
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<TrendingDown className="h-4 w-4" />}
-                            label="Consumidos"
-                            value={used.toLocaleString()}
-                            helper={`${usagePercent}% del total utilizado`}
-                            color="#EF4444"
-                        />
-                    </div>
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<Wallet className="h-4 w-4" />}
-                            label="Disponibles"
-                            value={available.toLocaleString()}
-                            helper="Créditos restantes para usar"
-                            color="#22C55E"
-                        />
-                    </div>
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<Gauge className="h-4 w-4" />}
-                            label="% Uso"
-                            value={`${usagePercent}%`}
-                            helper="Porcentaje del total consumido"
-                            color="#F59E0B"
-                        />
-                    </div>
-                </div>
-            )}
+            {/*
+             * Aquí había cuatro tarjetas —Total, Consumidos, Disponibles y
+             * «% Uso»— encima del formulario, y se han quitado: debajo no hay
+             * ninguna lista que puedan filtrar. Son además los mismos dos
+             * números que el propio formulario deja editar —el total y lo
+             * consumido—, con los otros dos salidos de restarlos y dividirlos.
+             */}
 
             {/* Formulario */}
             <Card className="border-border shadow-sm max-w-md">
@@ -161,6 +120,5 @@ export const CreditMain = ({ userId }: Props) => {
                 </CardContent>
             </Card>
         </div>
-        </TooltipProvider>
     );
 };

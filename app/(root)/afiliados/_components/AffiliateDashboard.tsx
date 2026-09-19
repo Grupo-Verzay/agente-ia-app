@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Users, DollarSign, Clock, TrendingUp } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import { toast } from "sonner";
-import { MetricCard } from "@/components/custom/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TooltipProvider } from "@/components/ui/tooltip";
 
 const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending:  { label: "Pendiente",  variant: "secondary" },
@@ -51,7 +49,6 @@ export function AffiliateDashboard({
     new Intl.NumberFormat("es-CO", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
 
   return (
-    <TooltipProvider>
       <div className="flex flex-col gap-4 p-3 sm:p-5">
         {/* Header */}
         <div>
@@ -61,13 +58,19 @@ export function AffiliateDashboard({
           </p>
         </div>
 
-        {/* Métricas */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <MetricCard icon={<Users className="h-3.5 w-3.5" />} label="Referidos" value={profile.totalReferrals} color="#3B82F6" helper="Total de usuarios que se registraron con tu link" />
-          <MetricCard icon={<Clock className="h-3.5 w-3.5" />} label="Por cobrar" value={fmt(profile.pendingAmount, "USD")} color="#F59E0B" helper="Comisiones pendientes de aprobación o pago" />
-          <MetricCard icon={<DollarSign className="h-3.5 w-3.5" />} label="Total ganado" value={fmt(profile.totalEarned, "USD")} color="#10B981" helper="Comisiones ya pagadas" />
-          <MetricCard icon={<TrendingUp className="h-3.5 w-3.5" />} label="Tasa" value={`${(profile.commissionRate * 100).toFixed(0)}%`} color="#8B5CF6" helper="Tu porcentaje de comisión por cada pago" />
-        </div>
+        {/*
+          Aquí había cuatro tarjetas —Referidos, Por cobrar, Total ganado y
+          Tasa— y se han quitado: ninguna filtra las dos listas de abajo, que
+          se ven enteras. «Referidos» y «Tasa» además ya estaban escritos dos
+          veces en la pantalla: el primero en el título de su propia lista
+          —«Referidos (N)»— y la tasa en la línea de debajo del encabezado.
+
+          «Por cobrar» y «Total ganado» son los dos que de verdad desaparecen
+          de aquí: sus importes siguen, comisión a comisión, en la lista de
+          Comisiones con su estado al lado. El día que esa lista tenga un
+          filtro por estado, vuelven como pastillas y entonces sí llevarán a
+          alguna parte.
+        */}
 
         {/* Link de referido */}
         <Card>
@@ -148,6 +151,5 @@ export function AffiliateDashboard({
           </Card>
         </div>
       </div>
-    </TooltipProvider>
   );
 }

@@ -7,6 +7,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { BarraDeslizable } from "@/components/shared/BarraDeslizable";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,6 +49,24 @@ import { cn } from "@/lib/utils";
  *    escrita, cinco pastillas ocupan más que la fila de tarjetas que vienen a
  *    quitar. El icono es lo que se reconoce de un vistazo; el nombre exacto se
  *    consulta, y para eso basta posar el cursor.
+ *
+ * # Y una métrica que no filtra NADA no se pinta: se borra
+ *
+ * La primera vuelta admitía una pastilla sin `alPulsar` —un `<span>` sin
+ * aspecto de mando— para las cifras que ninguna pantalla podía filtrar. Eso
+ * sigue valiendo para un dato que acompaña a los que sí filtran, pero **un
+ * total suelto que no lleva a ninguna parte se quita del todo**: ocupa sitio
+ * en la única fila que escasea, no contesta ninguna pregunta que la lista de
+ * abajo no conteste ya, y enseña a no mirar las de al lado.
+ *
+ * # `deslizable`: la barra no crece, se desplaza
+ *
+ * Una fila de pastillas dentro de una barra que ya lleva buscador y botones se
+ * sale por el borde en cuanto la ventana se estrecha. Con `deslizable` el grupo
+ * va dentro de `BarraDeslizable`, el mismo carril con flechas de las pestañas
+ * del panel: lo que no cabe **se desplaza**, y la barra conserva su alto. Sin
+ * él, el grupo es `shrink-0` y empuja — que es lo que hacía la fila de
+ * tarjetas, una franja entera de más.
  */
 export type Metrica = {
     /** Identifica la métrica. Es la llave con la que se quitan las repetidas. */
@@ -80,9 +99,12 @@ export function sinLasQueYaEstan(metricas: Metrica[], claves: string[]): Metrica
 export function PastillasDeMetricas({
     metricas,
     className,
+    deslizable = false,
 }: {
     metricas: Metrica[];
     className?: string;
+    /** El grupo va en un carril con flechas en vez de empujar la barra. */
+    deslizable?: boolean;
 }) {
     if (metricas.length === 0) return null;
 
@@ -97,11 +119,21 @@ export function PastillasDeMetricas({
             {/* En el teléfono no caben: son las mismas cifras que las tarjetas,
                 que también se saltaban en móvil (`hidden sm:flex`). Ahí la barra
                 ya va justa con el buscador y el botón de crear. */}
-            <div className={cn("hidden shrink-0 items-center gap-1 sm:flex", className)}>
-                {metricas.map((m) => (
-                    <Pastilla key={m.clave} metrica={m} />
-                ))}
-            </div>
+            {deslizable ? (
+                <BarraDeslizable className={cn("hidden sm:block", className)}>
+                    <div className="flex w-max items-center gap-1">
+                        {metricas.map((m) => (
+                            <Pastilla key={m.clave} metrica={m} />
+                        ))}
+                    </div>
+                </BarraDeslizable>
+            ) : (
+                <div className={cn("hidden shrink-0 items-center gap-1 sm:flex", className)}>
+                    {metricas.map((m) => (
+                        <Pastilla key={m.clave} metrica={m} />
+                    ))}
+                </div>
+            )}
         </TooltipProvider>
     );
 }

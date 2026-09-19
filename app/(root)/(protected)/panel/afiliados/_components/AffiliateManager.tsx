@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Users, DollarSign, Clock, Plus, ChevronDown, ChevronRight, Check, X } from "lucide-react";
-import { MetricCard } from "@/components/custom/MetricCard";
+import { Plus, ChevronDown, ChevronRight, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   createAffiliateProfileAction,
   updateCommissionStatusAction,
@@ -54,10 +52,6 @@ export function AffiliateManager({
   const [createRate, setCreateRate] = useState("20");
   const [creating, setCreating] = useState(false);
 
-  const totalPending = affiliates.reduce((s, a) => s + a.pendingAmount, 0);
-  const totalEarned = affiliates.reduce((s, a) => s + a.totalEarned, 0);
-  const totalReferrals = affiliates.reduce((s, a) => s + a.totalReferrals, 0);
-
   const handleExpand = async (id: string) => {
     if (expandedId === id) { setExpandedId(null); setDetail(null); return; }
     setExpandedId(id);
@@ -94,7 +88,6 @@ export function AffiliateManager({
   );
 
   return (
-    <TooltipProvider>
       <div className="flex flex-col gap-4 p-3 sm:p-5">
         <div className="flex items-center justify-between">
           <div>
@@ -108,12 +101,13 @@ export function AffiliateManager({
           )}
         </div>
 
-        {/* Métricas globales */}
-        <div className="grid grid-cols-3 gap-2">
-          <MetricCard icon={<Users className="h-3.5 w-3.5" />} label="Total referidos" value={totalReferrals} color="#3B82F6" />
-          <MetricCard icon={<Clock className="h-3.5 w-3.5" />} label="Por pagar" value={fmt(totalPending)} color="#F59E0B" />
-          <MetricCard icon={<DollarSign className="h-3.5 w-3.5" />} label="Total pagado" value={fmt(totalEarned)} color="#10B981" />
-        </div>
+        {/*
+          Aquí había tres tarjetas —Total referidos, Por pagar y Total pagado—
+          que sumaban las columnas de la lista de abajo. Ninguna la filtra, y
+          la lista ya enseña por afiliado sus referidos y su pendiente, que es
+          con lo que se decide a quién pagarle. El número de afiliados lo dice
+          el encabezado.
+        */}
 
         {/* Formulario crear perfil */}
         {showCreate && (
@@ -236,6 +230,5 @@ export function AffiliateManager({
           ))}
         </div>
       </div>
-    </TooltipProvider>
   );
 }

@@ -2065,9 +2065,11 @@ sin él—.
 Las tres reglas de una pastilla:
 
 1. **Si la pantalla tiene un filtro equivalente, la pastilla filtra**, y se
-   pinta puesta cuando ese filtro está activo. Sin `alPulsar` es un `<span>`:
-   **nada que no haga nada se pinta como pulsable**, que es lo que enseña a no
-   pulsar el resto. En Leads eso además arregló un fallo de paso —las tarjetas
+   pinta puesta cuando ese filtro está activo. Sin `alPulsar` es un `<span>`
+   —y eso **solo** para una cifra que acompaña a las que sí filtran; una que no
+   filtra nada se borra, ver la vuelta siguiente—: **nada que no haga nada se
+   pinta como pulsable**, que es lo que enseña a no pulsar el resto. En Leads
+   eso además arregló un fallo de paso —las tarjetas
    ya filtraban, con un `onClick` sobre un `div`: sin rol, sin teclado y sin que
    se viera cuál estaba puesto—.
 2. **Lo que ya está en la barra no se repite.** En Clientes, cuatro de las cinco
@@ -2085,11 +2087,78 @@ Dos cosas más que hay que mantener:
   `Tooltip` no tiene provider encima, y de las veintidós pantallas solo unas
   pocas lo montaban. Olvidarlo sería una pantalla en blanco, no un tooltip que
   no sale. Anidarlo donde ya existe es inofensivo: manda el de dentro.
-- **Las pantallas de PANEL no entran, y no es un olvido.** CRM, Analíticas,
-  Créditos, Afiliados y las dos de estadísticas se quedan con sus tarjetas:
-  ahí las métricas **son** el contenido, no la cabecera de una lista. La marca
-  para distinguirlas es esa —¿hay una lista debajo de la que esto es la
-  cabecera?—, no el componente que usan.
+### Y la segunda vuelta: no queda NINGUNA tarjeta, y la que no filtra se borra
+
+La primera vuelta dejó fuera siete pantallas —CRM, Analíticas, los dos
+Créditos, los dos Afiliados y Mis estadísticas— con el argumento de que «ahí
+las métricas son el contenido». **Puestas una al lado de otra no se sostenía**:
+eran la misma fila de tarjetas encima de otra cosa, y la plataforma se leía
+como dos plataformas. La regla se cerró, y ahora es una sola frase:
+
+> **Si la métrica filtra la lista de abajo, es una pastilla en la barra. Si no
+> filtra nada, se BORRA.** No hay tercera opción: ni tarjeta, ni pastilla
+> apagada, ni un `<span>` con el número. `components/custom/MetricCard.tsx` ya
+> no existe.
+
+Lo que cambia respecto a la primera vuelta es el segundo tramo. Antes se
+admitía una pastilla sin `alPulsar` para acompañar a las que sí filtran, y eso
+se queda **solo para eso**: acompañar. Un total suelto —«Total usuarios»,
+«Total instancias», «Referidos»— se va entero, porque ocupa la única fila que
+escasea para contestar algo que la lista de abajo ya contesta.
+
+Y el criterio para decidirlo no es la pantalla, es la pregunta: **¿hay debajo
+un filtro que deje esa misma cifra?** De ahí salieron las dos mitades:
+
+| se convierte en pastilla | se borra |
+| --- | --- |
+| No pagaron, En prueba, Vence pronto (Instancias) | Total usuarios, Resellers, Ingresos 12m (Analíticas) |
+| Salientes, Entrantes (Llamadas del CRM) | Total créditos, Consumidos, Disponibles, % Uso (los dos Créditos) |
+| | Referidos, Por cobrar, Total ganado, Tasa (Afiliados) |
+| | Total/Activos/Suspendidos/Ingresos (Mis estadísticas) |
+
+Cuatro cosas que hay que mantener:
+
+1. **Una pastilla que filtra tiene que poder ENSEÑAR su número.** Es por lo que
+   las dos de follow-ups del CRM se fueron en vez de convertirse: contaban
+   seguimientos por estado, no registros, así que pulsando el filtro la lista
+   nunca habría dado esa cifra. Es la regla de *un filtro que ofrece un número
+   tiene que poder llegar a él*, aplicada antes de convertir.
+2. **Lo que se borra no se pierde si ya estaba dos veces.** «Total registros»
+   es la pestaña «Todos (N)»; «Referidos» es el título «Referidos (N)» de su
+   propia lista; la tasa de comisión está en la línea del encabezado. Eso se
+   comprueba **antes** de borrar, y se escribe al lado del hueco.
+3. **Y si de verdad desaparece un dato, se dice en el diff y en el informe.**
+   De esta vuelta desaparecieron tres: «Por cobrar» y «Total ganado» del panel
+   del afiliado —sus importes siguen comisión a comisión en la lista— y
+   «Contestadas» en Llamadas, cuya duración media se leen ahora en el tooltip
+   de «Total». Vuelven como pastillas el día que sus listas tengan filtro.
+4. **`deslizable` para que la barra no crezca.** Cuatro pastillas más el
+   buscador y dos botones parten la barra en dos filas por debajo de 1280. Con
+   `deslizable`, `PastillasDeMetricas` va dentro de `BarraDeslizable` —el mismo
+   carril con flechas de las pestañas del panel— y lo que no cabe se desplaza.
+   Medido: la barra mide lo mismo antes y después en las ocho pantallas.
+
+Medido en Chromium sobre el CSS de los DOS builds —el de antes y el de
+después—, que es la única forma de que el número signifique algo: las clases
+que se van con las tarjetas (`sm:grid`, `sm:py-3`) dejan de existir en el CSS
+nuevo, así que midiendo el «antes» con la hoja nueva la fila sale a cero y se
+estaría midiendo el propio cambio. El alto recuperado es **el mismo a 1440,
+1280 y 1024** —la fila de tarjetas es de alto fijo, 56 px, y lo que varía es el
+hueco del contenedor—:
+
+| pantalla | antes | después | recupera |
+| --- | --- | --- | --- |
+| Panel › Instancias | 112 px | 48 px | **64 px** |
+| CRM (las cinco vistas) | 122 px | 58 px | **64 px** |
+| Panel › Créditos | 64 px | 0 px | **64 px** |
+| Panel › Analíticas | 72 px | 4 px | **68 px** |
+| Panel › Mis estadísticas | 68 px | 0 px | **68 px** |
+| Admin › Créditos | 288 px | 216 px | **72 px** |
+| Afiliados y Panel › Afiliados | 152 px | 80 px | **72 px** |
+
+Y **ninguna pantalla se queda vacía**: debajo de las siete queda su gráfica, su
+formulario o su lista. La única que habría quedado en blanco era Créditos, y no
+lo hace porque el formulario que edita esos mismos dos números sigue ahí.
 
 ## La barra de pestañas se corta: flechas, y la activa se trae sola
 
