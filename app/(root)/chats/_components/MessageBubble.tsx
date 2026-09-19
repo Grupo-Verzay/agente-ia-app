@@ -12,6 +12,8 @@ import { CallDialog } from './CallDialog';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
 import { TextoConFormato } from '@/components/shared/TextoConFormato';
+import { useOrigenDeLaApp } from '@/components/shared/OrigenDeLaApp';
+import { recortarSinPartirEnlaces } from '@/lib/enlaces-del-texto';
 import { useTranscribirNota } from './TranscribirNota';
 
 /* ─── ExpandableText ─── */
@@ -23,25 +25,32 @@ interface ExpandableTextProps {
 const ExpandableText: React.FC<ExpandableTextProps> = ({ message, isUserMessage }) => {
   const MAX_LENGTH = 250;
   const [isExpanded, setIsExpanded] = useState(false);
+  const origen = useOrigenDeLaApp();
 
   if (!message) return null;
 
   if (message.length <= MAX_LENGTH) {
     return (
       <p className="text-base sm:text-[15px] whitespace-pre-wrap">
-        <TextoConFormato texto={message} />
+        <TextoConFormato texto={message} enlaces origen={origen} />
       </p>
     );
   }
 
-  const displayedText = isExpanded ? message : `${message.substring(0, MAX_LENGTH)}...`;
+  // Se recorta SIN partir un enlace por la mitad. Con las direcciones ya
+  // pulsables, una cortada sigue pareciendo un enlace y lleva a otro sitio —y
+  // la escribió un contacto de WhatsApp, que puede ser cualquiera—. Si el corte
+  // cae dentro de una, se corta antes de que empiece.
+  const displayedText = isExpanded
+    ? message
+    : `${recortarSinPartirEnlaces(message, MAX_LENGTH)}...`;
   const linkClass = isUserMessage
     ? 'text-gray-300 hover:text-white'
     : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300';
 
   return (
     <p className="text-base sm:text-[15px] whitespace-pre-wrap">
-      <TextoConFormato texto={displayedText} />
+      <TextoConFormato texto={displayedText} enlaces origen={origen} />
       <button
         onClick={() => setIsExpanded((v) => !v)}
         className={cn('ml-1 font-semibold text-xs inline-block', linkClass)}

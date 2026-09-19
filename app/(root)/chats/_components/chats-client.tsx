@@ -21,6 +21,7 @@ import { sendMetaTemplate, traerMasChatsDeLaLinea, type MetaTemplateOption } fro
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
 import { useChatsRealtime, type PresenciaContacto, type ConexionContacto, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
+import { OrigenDeLaAppProvider } from "@/components/shared/OrigenDeLaApp";
 import type { TrazaConfigPanel } from "@/lib/traza-panel-tipos";
 import {
   iniciarTrazaDelPanel,
@@ -718,6 +719,14 @@ function dedupeAndSortChats(chats: ChatData[], lidMap?: LidPhoneMap) {
 interface ChatsClientProps {
   userId: string;
   /**
+   * Por qué dominio se está sirviendo la App.
+   *
+   * Lo necesita la burbuja para saber qué enlace de un mensaje es de dentro.
+   * Viene del SERVIDOR: leerlo aquí de `window.location` daría una salida al
+   * pintar en el servidor y otra en el navegador, o sea una hidratación rota.
+   */
+  origen?: string;
+  /**
    * Quien esta mirando, que NO es lo mismo que la cuenta.
    *
    * `userId` es la cuenta que se administra: con el van los chats, las lineas
@@ -780,6 +789,7 @@ interface ChatsClientProps {
 
 export function ChatsClient({
   userId,
+  origen = "",
   viewerUserId,
   sessionUserIds,
   instancias = [],
@@ -5226,6 +5236,11 @@ export function ChatsClient({
   }, []);
 
   return (
+    // El origen baja por contexto y no por props: la burbuja está al fondo de
+    // tres componentes grandes y memoizados, y atravesarlos sería tocar la
+    // firma de cada fila. Es el mismo patrón con el que esta lista ya le baja
+    // la conversación al botón de transcribir una nota.
+    <OrigenDeLaAppProvider value={origen}>
     <>
     <div data-full-bleed data-chat-view className="flex h-full w-full overflow-hidden">
       {/* El ancho de ESTA columna es el de todos los paneles laterales de la
@@ -5420,5 +5435,6 @@ export function ChatsClient({
       />
     )}
     </>
+    </OrigenDeLaAppProvider>
   );
 }

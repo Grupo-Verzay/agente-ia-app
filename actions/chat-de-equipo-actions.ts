@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 
+import { elOrigenDeLaApp } from "@/lib/origen-de-la-app";
 import { currentUser } from "@/lib/auth";
 import { crearLosAvisos } from "@/lib/avisos-de-tarea";
 import { ponerElSonido, quiereSonido } from "@/lib/preferencias-de-persona-db";
@@ -495,29 +496,6 @@ export async function hiloDelEquipoAction(
     }
 }
 
-/**
- * Dónde vive esta plataforma, para saber qué enlace de un mensaje es suyo.
- *
- * Se lee de la **petición** y no de una variable de entorno: la App se abre por
- * más de un dominio —el de producción y el que cada quien tenga delante— y con
- * el dominio equivocado un enlace propio se trataría como de fuera y abriría
- * una pestaña. Es el mismo criterio con el que se compone el enlace de una
- * reunión.
- */
-async function elOrigenDeLaApp(): Promise<string> {
-    try {
-        const { headers } = await import("next/headers");
-        const h = await headers();
-        const host = h.get("x-forwarded-host") || h.get("host");
-        if (host) {
-            const proto = h.get("x-forwarded-proto") || "https";
-            return `${proto}://${host}`;
-        }
-    } catch {
-        // Fuera de una petición no hay cabeceras; se usa el respaldo.
-    }
-    return (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
-}
 
 /**
  * Las reuniones nombradas en esta página de mensajes.

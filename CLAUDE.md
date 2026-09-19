@@ -3953,10 +3953,59 @@ Cuatro cosas más:
    https://ia-app.com.» es de la frase. El paréntesis de cierre **solo si no hay
    uno de apertura dentro**, que es el caso de las direcciones de Wikipedia.
 
-**Y en Chats van APAGADOS**, con la misma función y una prop. No es pereza: allí
-el texto lo escribe un contacto de WhatsApp que puede ser cualquiera, y
-convertir en un clic el enlace de un desconocido es una decisión de producto,
-no un detalle de pintado — no se toma de refilón al arreglar otra pantalla.
+**Y en Chats van ENCENDIDOS desde el #804.** Estuvieron apagados a propósito
+—allí el texto lo escribe un contacto de WhatsApp que puede ser cualquiera, y
+eso es una decisión de producto, no un detalle de pintado—. Al tomarla salieron
+dos cosas que la prop apagada tapaba, y las dos hay que mantener:
+
+1. **`prefetch={false}` en el enlace de dentro.** No es una optimización. El
+   enrutador precarga los `Link` que entran en pantalla, así que con la precarga
+   de siempre **bastaba con que el mensaje se viera** para visitar la dirección
+   que escribió otra persona. Y `/api/logout` es un GET que cierra la sesión:
+   un contacto podía echar al asesor de la App sin que nadie pulsara nada.
+2. **`/api/…` no es una página**, así que `laRutaDeLaPlataforma` la rechaza y
+   sale como enlace de fuera — pestaña nueva, dirección a la vista y solo si
+   alguien la pulsa. La guarda mira el **segmento**, no el prefijo: `/apicultura`
+   sigue siendo una página.
+
+Lo que hace esto aceptable, y conviene saberlo antes de aflojarlo: **el texto
+que se ve ES la dirección**. No hay enlaces con texto propio —no se reconoce
+markdown—, así que un contacto no puede enseñar «google.com» y llevar a otro
+sitio. Si algún día se admite texto de anclaje, esta decisión hay que volver a
+tomarla.
+
+### Y el recorte de «Ver más» no puede partir un enlace
+
+La burbuja de Chats enseña 250 caracteres. Con las direcciones ya pulsables,
+**una cortada por la mitad sigue pareciendo un enlace y lleva a otro sitio** —no
+es el asterisco de una marca sin cerrar, que se ve y se entiende: es una
+dirección que miente, escrita por alguien que puede ser cualquiera—.
+
+`recortarSinPartirEnlaces` corta **antes de que empiece** el enlace que cruza el
+corte. Lo que NO se hace es dejar de enlazar el texto recortado: sería lo fácil
+y deja sin pulsar el caso más común, un mensaje largo con su enlace dentro, que
+es justo lo que se viene a pulsar. Y si el enlace empieza en el carácter cero se
+recorta como siempre, que una burbuja vacía con un «Ver más» debajo se lee como
+un mensaje perdido.
+
+### El origen sale del SERVIDOR, y baja por contexto
+
+Quién decide si un enlace es de dentro necesita saber por qué dominio se sirve
+la App, y eso solo lo tiene el servidor: leerlo de `window.location` daría una
+salida al pintar en el servidor y otra en el navegador, o sea una hidratación
+rota. La función es **una** (`lib/origen-de-la-app.ts`); estaba privada dentro
+de la acción del chat de equipo y se sacó al necesitarla la segunda pantalla.
+
+Y baja hasta la burbuja **por contexto, no por props**: está al fondo de tres
+componentes grandes y memoizados, y atravesarlos sería tocar la firma de cada
+fila —que es lo que este documento prohíbe en «la lista es grande, no rehacerla
+por gusto»—. No cuesta repintados: es una cadena que no cambia en toda la vida
+de la página. Es el mismo patrón con el que esa lista ya le baja la conversación
+al botón de transcribir una nota.
+
+**La cita de un mensaje se queda sin enlaces**, en las dos pantallas: va dentro
+de un `<button>` que salta al mensaje citado, y un enlace dentro de un botón es
+un clic que no se sabe qué hace.
 
 ### Una reunión en un mensaje se ve como TARJETA, no como dirección
 

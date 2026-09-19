@@ -168,17 +168,32 @@ export function pareceLlevarEnlaces(texto: string): boolean {
  *    dominio; equivocarse hacia «de fuera» solo abre una pestaña de más,
  *    equivocarse hacia «de dentro» manda a una ruta que no existe.
  */
+/**
+ * `/api/...` no es una página, así que no es navegación interna.
+ *
+ * Va aparte porque el motivo no es de enrutado: en Chats el texto lo escribe un
+ * contacto de WhatsApp, o sea cualquiera, y `/api/logout` es un GET que cierra
+ * la sesión. Tratado como enlace de dentro, bastaría con que el mensaje
+ * estuviera en pantalla —el enrutador precarga— para echar al asesor de la App.
+ * Sale como enlace de fuera: abre una pestaña, con la dirección a la vista, y
+ * solo si alguien la pulsa.
+ */
+function esUnaRutaDeApi(ruta: string): boolean {
+    return ruta === "/api" || ruta.startsWith("/api/") || ruta.startsWith("/api?");
+}
+
 export function laRutaDeLaPlataforma(href: string, origen: string): string | null {
     const limpio = (href ?? "").trim();
     if (!limpio) return null;
     if (limpio.startsWith("//")) return null;
-    if (limpio.startsWith("/")) return limpio;
+    if (limpio.startsWith("/")) return esUnaRutaDeApi(limpio) ? null : limpio;
     if (!origen) return null;
     try {
         const u = new URL(limpio);
         const base = new URL(origen);
         if (u.origin !== base.origin) return null;
-        return `${u.pathname}${u.search}${u.hash}`;
+        const ruta = `${u.pathname}${u.search}${u.hash}`;
+        return esUnaRutaDeApi(ruta) ? null : ruta;
     } catch {
         return null;
     }
@@ -239,4 +254,44 @@ export function apartarLasReuniones(
         .replace(/\n{3,}/g, "\n\n")
         .trim();
     return { texto: limpio, codigos };
+}
+
+/**
+ * Recorta un mensaje sin partir un enlace por la mitad.
+ *
+ * La burbuja de Chats enseña 250 caracteres y un «Ver más». Con los enlaces ya
+ * pulsables eso deja de ser inofensivo: **un enlace cortado sigue pareciendo un
+ * enlace y lleva a otro sitio**. No es el asterisco de una marca de formato sin
+ * cerrar, que se ve y se entiende; es una dirección que miente sobre a dónde
+ * va, y la escribió un contacto de WhatsApp que puede ser cualquiera.
+ *
+ * Así que si el corte cae dentro de una dirección, se corta **antes de que
+ * empiece**. Se pierde un trozo de texto que se recupera con «Ver más», y a
+ * cambio no hay ni un enlace a medias.
+ *
+ * Lo que NO se hace es dejar de enlazar el texto recortado. Sería lo fácil, y
+ * deja sin pulsar el caso más común: un mensaje largo con su enlace dentro, que
+ * es justo lo que se viene a pulsar.
+ */
+export function recortarSinPartirEnlaces(texto: string, tope: number): string {
+    if (texto.length <= tope) return texto;
+
+    ENLACE.lastIndex = 0;
+    let corte = tope;
+    for (const m of texto.matchAll(ENLACE)) {
+        const desde = m.index ?? 0;
+        const hasta = desde + m[0].length;
+        // Solo el que cruza el corte. Los de antes caben enteros y los de
+        // después ni se ven.
+        if (desde < tope && hasta > tope) {
+            corte = desde;
+            break;
+        }
+    }
+
+    // Si el enlace empieza en el carácter cero no hay nada que enseñar antes de
+    // él: se recorta como siempre. Es preferible un enlace a medias —que sigue
+    // sin ser pulsable, porque `partirPorEnlaces` lo vuelve a leer sobre el
+    // texto ya recortado— a una burbuja vacía con un «Ver más».
+    return texto.slice(0, corte > 0 ? corte : tope);
 }
