@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { Prisma, FinanceTxType, FinanceTxStatus } from '@prisma/client';
 
 type ExpenseRow = Prisma.FinanceTransactionGetPayload<{
@@ -31,7 +32,8 @@ interface ExpenseOperationResponse<T = unknown> {
  * - Cuenta por defecto "Empresa"
  * - Categorías base de gastos
  */
-export async function ensureFinanceDefaults(userId: string): Promise<ExpenseOperationResponse> {
+export async function ensureFinanceDefaults(userIdPedido: string): Promise<ExpenseOperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     // Monedas (catálogo global)
     await db.financeCurrency.upsert({
@@ -91,8 +93,9 @@ function serializeExpense(row: ExpenseRow) {
 }
 
 export async function getAllExpenses(
-  userId: string
+  userIdPedido: string
 ): Promise<ExpenseOperationResponse<any[]>> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     await ensureFinanceDefaults(userId);
 
@@ -127,13 +130,14 @@ export async function getAllExpenses(
 }
 
 
-export async function getExpensesMeta(userId: string): Promise<
+export async function getExpensesMeta(userIdPedido: string): Promise<
   ExpenseOperationResponse<{
     accounts: any[];
     categories: any[];
     currencies: any[];
   }>
 > {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     await ensureFinanceDefaults(userId);
 
@@ -180,9 +184,11 @@ export async function createExpense(data: {
   try {
     await ensureFinanceDefaults(data.userId);
 
+    const userId = await exigirLaCuentaDeLaAccion(data.userId);
+
     const created = await db.financeTransaction.create({
       data: {
-        userId: data.userId,
+        userId,
         type: 'EXPENSE',
         status: 'ACTIVE',
         occurredAt: data.occurredAt instanceof Date ? data.occurredAt : new Date(data.occurredAt),
@@ -207,7 +213,7 @@ export async function createExpense(data: {
 
 export async function updateExpense(
   id: string,
-  userId: string,
+  userIdPedido: string,
   data: Partial<{
     occurredAt: string | Date;
     amount: string | number;
@@ -220,6 +226,7 @@ export async function updateExpense(
     reference: string | null;
   }>
 ): Promise<ExpenseOperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const payload: any = { ...data };
 
@@ -248,7 +255,8 @@ export async function updateExpense(
   }
 }
 
-export async function deleteExpense(id: string, userId: string): Promise<ExpenseOperationResponse> {
+export async function deleteExpense(id: string, userIdPedido: string): Promise<ExpenseOperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const deleted = await db.financeTransaction.updateMany({
       where: { id, userId, type: 'EXPENSE' },
@@ -275,7 +283,8 @@ export async function addExpenseAttachments(params: {
   attachments: AttachmentInput[];
 }): Promise<ExpenseOperationResponse> {
   try {
-    const { userId, transactionId, attachments } = params;
+    const { userId: userIdPedido, transactionId, attachments } = params;
+    const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
 
     if (!attachments?.length) {
       return { success: true, message: 'Sin soportes para agregar.' };
@@ -321,7 +330,8 @@ export async function deleteExpenseAttachment(params: {
   attachmentId: string;
 }): Promise<ExpenseOperationResponse> {
   try {
-    const { userId, attachmentId } = params;
+    const { userId: userIdPedido, attachmentId } = params;
+    const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
 
     const deleted = await db.financeAttachment.deleteMany({
       where: { id: attachmentId, userId },

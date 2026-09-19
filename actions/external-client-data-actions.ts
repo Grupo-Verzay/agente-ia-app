@@ -1,6 +1,8 @@
 ﻿'use server';
 
 import { Prisma } from '@prisma/client';
+import { currentUser } from '@/lib/auth';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { db } from '@/lib/db';
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from '@/lib/whatsapp-jid';
 import { autoSyncContactIfEnabled } from '@/actions/google-sheets-actions';
@@ -25,11 +27,12 @@ import type {
  * @param exact      true = coincidencia exacta, false = contiene el texto (default: true)
  */
 export async function searchExternalClientDataByField(
-  userId: string,
+  userIdPedido: string,
   field: string,
   value: string,
   exact = true,
 ): Promise<ExternalClientData[]> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId || !field || !value) return [];
 
   const jsonFilter = exact
@@ -55,9 +58,10 @@ export async function searchExternalClientDataByField(
  * Genera variantes del JID para maximizar la probabilidad de match.
  */
 export async function getExternalClientDataByRemoteJid(
-  userId: string,
+  userIdPedido: string,
   remoteJid: string,
 ): Promise<ExternalClientData | null> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId || !remoteJid) return null;
 
   const candidates = buildWhatsAppJidCandidates(remoteJid);
@@ -79,11 +83,12 @@ export async function getExternalClientDataByRemoteJid(
  * El remoteJid se normaliza a formato canónico antes de persistir.
  */
 export async function upsertExternalClientData(
-  userId: string,
+  userIdPedido: string,
   remoteJid: string,
   data: ExternalClientDataRecord,
   source = 'manual',
 ): Promise<ExternalClientData> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const canonicalJid = normalizeWhatsAppConversationJid(remoteJid) || remoteJid;
 
   const record = await db.externalClientData.upsert({
@@ -106,11 +111,12 @@ export async function upsertExternalClientData(
  * Los remoteJid se normalizan automáticamente.
  */
 export async function importExternalClientDataBulk(
-  userId: string,
+  userIdPedido: string,
   rows: ExternalClientDataImportRow[],
   source = 'import',
   skipNormalization = false,
 ): Promise<ExternalClientDataImportResult> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   let created = 0;
   let updated = 0;
   let errors = 0;
@@ -153,10 +159,11 @@ export async function importExternalClientDataBulk(
 // ─── List ─────────────────────────────────────────────────────────────────────
 
 export async function listExternalClientData(
-  userId: string,
+  userIdPedido: string,
   page = 1,
   pageSize = 50,
 ): Promise<ExternalClientDataListResult> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const skip = (page - 1) * pageSize;
 
   const [items, total] = await Promise.all([
@@ -175,9 +182,10 @@ export async function listExternalClientData(
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 export async function deleteExternalClientData(
-  userId: string,
+  userIdPedido: string,
   remoteJid: string,
 ): Promise<boolean> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const canonicalJid = normalizeWhatsAppConversationJid(remoteJid) || remoteJid;
     await db.externalClientData.delete({
@@ -189,7 +197,8 @@ export async function deleteExternalClientData(
   }
 }
 
-export async function deleteAllExternalClientData(userId: string): Promise<number> {
+export async function deleteAllExternalClientData(userIdPedido: string): Promise<number> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const result = await db.externalClientData.deleteMany({ where: { userId } });
   return result.count;
 }
@@ -281,6 +290,14 @@ export async function previewGoogleSheet(
   sheetUrl: string,
   maxRows = 5,
 ): Promise<{ success: boolean; headers?: string[]; rows?: Record<string, string>[]; error?: string }> {
+  // No recibe ninguna cuenta —solo una URL—, así que no entra en el barrido de
+  // las que la reciben del navegador. Pero hace que **nuestro servidor**
+  // descargue algo, y eso no puede quedar abierto a quien no ha entrado. El
+  // destino no es libre: `buildGoogleSheetsCsvUrl` rearma la dirección contra
+  // `docs.google.com` y solo deja pasar el id de la hoja.
+  const persona = await currentUser();
+  if (!persona) return { success: false, error: 'No autorizado.' };
+
   const csvUrl = buildGoogleSheetsCsvUrl(sheetUrl);
   if (!csvUrl) return { success: false, error: 'URL de Google Sheets inválida' };
 
@@ -317,10 +334,11 @@ export async function previewGoogleSheet(
  * // { created: 45, updated: 3, errors: 0 }
  */
 export async function importFromGoogleSheetUrl(
-  userId: string,
+  userIdPedido: string,
   sheetUrl: string,
   options: GoogleSheetImportOptions = {},
 ): Promise<ExternalClientDataImportResult> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const { remoteJidColumn = 'WHATSAPP', source = 'google_sheets', catalogMode = false } = options;
 
   const csvUrl = buildGoogleSheetsCsvUrl(sheetUrl);

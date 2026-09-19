@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import type { Prisma } from '@prisma/client';
 import { isSystemColumnKey, CONTACT_LINK_KEY } from '@/lib/finance-contact-fields';
 
@@ -63,7 +64,8 @@ async function nextCode(userId: string, kind: Kind): Promise<string> {
   return `${prefix}-${count + 1}`;
 }
 
-export async function getFinanceContacts(userId: string, kind: Kind): Promise<Resp> {
+export async function getFinanceContacts(userIdPedido: string, kind: Kind): Promise<Resp> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     if (!userId) return { success: false, message: 'No existe el userId', data: [] };
     const data = await db.financeContact.findMany({
@@ -81,6 +83,10 @@ export async function getFinanceContacts(userId: string, kind: Kind): Promise<Re
 export async function createFinanceContact(kind: Kind, input: FinanceContactInput): Promise<Resp> {
   try {
     if (!input.userId) return { success: false, message: 'No existe el userId' };
+    // El `userId` viene DENTRO de un tipo con nombre, que es justo donde no se
+    // ve al leer la firma. Se comprueba igual que si llegara suelto.
+    const userIdDeLaCuenta = await exigirLaCuentaDeLaAccion(input.userId);
+    input = { ...input, userId: userIdDeLaCuenta };
     const { columns, custom } = splitValues(input.values);
     const name = (columns.name ?? '').toString().trim();
     if (!name) return { success: false, message: 'El nombre es obligatorio' };
@@ -118,6 +124,8 @@ export async function updateFinanceContact(
   kind: Kind,
   input: FinanceContactInput,
 ): Promise<Resp> {
+  const userIdDeLaCuenta = await exigirLaCuentaDeLaAccion(input.userId);
+  input = { ...input, userId: userIdDeLaCuenta };
   try {
     if (!input.userId) return { success: false, message: 'No existe el userId' };
     const { columns, custom } = splitValues(input.values);
@@ -151,7 +159,8 @@ export async function updateFinanceContact(
   }
 }
 
-export async function deleteFinanceContact(id: string, userId: string): Promise<Resp> {
+export async function deleteFinanceContact(id: string, userIdPedido: string): Promise<Resp> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     if (!userId) return { success: false, message: 'No existe el userId' };
     const res = await db.financeContact.updateMany({

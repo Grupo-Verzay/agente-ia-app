@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { revalidatePath } from 'next/cache';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -27,8 +28,9 @@ function calcTotal(items: CotizacionItemInput[]): number {
 }
 
 export async function listCotizaciones(userId: string) {
+  const cuenta = await exigirLaCuentaDeLaAccion(userId);
   const rows = await db.cotizacion.findMany({
-    where: { userId },
+    where: { userId: cuenta },
     orderBy: { createdAt: 'desc' },
     include: { items: true },
   });
@@ -44,8 +46,9 @@ export async function listCotizaciones(userId: string) {
 }
 
 export async function getCotizacion(id: string, userId: string) {
+  const cuenta = await exigirLaCuentaDeLaAccion(userId);
   const c = await db.cotizacion.findFirst({
-    where: { id, userId },
+    where: { id, userId: cuenta },
     include: { items: true },
   });
   if (!c) return null;
@@ -61,10 +64,11 @@ export async function getCotizacion(id: string, userId: string) {
 }
 
 export async function createCotizacion(input: CotizacionInput) {
+  const cuenta = await exigirLaCuentaDeLaAccion(input.userId);
   const total = calcTotal(input.items);
   const cotizacion = await db.cotizacion.create({
     data: {
-      userId: input.userId,
+      userId: cuenta,
       clientName: input.clientName.trim(),
       clientPhone: input.clientPhone?.trim() || null,
       status: input.status ?? 'borrador',
@@ -87,7 +91,8 @@ export async function createCotizacion(input: CotizacionInput) {
 }
 
 export async function updateCotizacion(id: string, userId: string, input: Partial<CotizacionInput>) {
-  const existing = await db.cotizacion.findFirst({ where: { id, userId } });
+  const cuenta = await exigirLaCuentaDeLaAccion(userId);
+  const existing = await db.cotizacion.findFirst({ where: { id, userId: cuenta } });
   if (!existing) throw new Error('Cotización no encontrada.');
   if (existing.status === 'confirmada') throw new Error('No se puede editar una cotización confirmada.');
 
@@ -121,14 +126,16 @@ export async function updateCotizacion(id: string, userId: string, input: Partia
 }
 
 export async function deleteCotizacion(id: string, userId: string) {
-  await db.cotizacion.deleteMany({ where: { id, userId } });
+  const cuenta = await exigirLaCuentaDeLaAccion(userId);
+  await db.cotizacion.deleteMany({ where: { id, userId: cuenta } });
   revalidatePath('/cotizaciones');
   return { ok: true };
 }
 
 export async function confirmarVenta(id: string, userId: string) {
+  const cuenta = await exigirLaCuentaDeLaAccion(userId);
   const cotizacion = await db.cotizacion.findFirst({
-    where: { id, userId },
+    where: { id, userId: cuenta },
     include: { items: true },
   });
   if (!cotizacion) throw new Error('Cotización no encontrada.');
@@ -138,7 +145,7 @@ export async function confirmarVenta(id: string, userId: string) {
   for (const item of cotizacion.items) {
     if (!item.productId) continue;
     await db.product.updateMany({
-      where: { id: item.productId, userId, stock: { gte: item.quantity } },
+      where: { id: item.productId, userId: cuenta, stock: { gte: item.quantity } },
       data: { stock: { decrement: item.quantity } },
     });
   }
