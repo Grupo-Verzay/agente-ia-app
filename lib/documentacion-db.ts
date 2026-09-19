@@ -339,11 +339,16 @@ const nuevoId = () => globalThis.crypto.randomUUID();
  * de su cuenta. Quien decide es `accesoAlEspacio`, con estas filas delante.
  *
  * Partirlo así es lo que permite que la decisión sea pura y esté probada.
+ *
+ * `porDocumento` son los espacios que entran **solo** porque dentro hay un
+ * documento compartido de uno en uno. Se devuelven aparte a propósito: ese
+ * espacio NO se alcanza —solo su documento—, y dárselo a `accesoAlDocumento`
+ * como si se alcanzara abriría de par en par los demás documentos de dentro.
  */
 export async function losEspaciosCandidatos(input: {
     cuenta: string;
     persona: string;
-}): Promise<{ espacios: Espacio[]; permisos: FilaDePermiso[] }> {
+}): Promise<{ espacios: Espacio[]; permisos: FilaDePermiso[]; porDocumento: string[] }> {
     return conLasTablas(async () => {
         const permisos = await db.$queryRaw<FilaDePermiso[]>`
             SELECT "objetoTipo", "objetoId", "sujetoTipo", "sujetoId", "permiso"
@@ -356,14 +361,35 @@ export async function losEspaciosCandidatos(input: {
             .filter((p) => p.objetoTipo === "espacio")
             .map((p) => p.objetoId);
 
+        // **Y los espacios de los documentos sueltos que le hayan compartido.**
+        // El diálogo de permisos se abre también desde un documento abierto, y
+        // entonces escribe una fila de `objetoTipo = 'documento'`. Sin esta
+        // consulta esa fila no traía el espacio a ninguna parte: la persona
+        // tenía permiso de edición sobre el documento y **su árbol salía
+        // vacío**, o sea una puerta abierta sin ningún menú que llevara a
+        // ella. Es el mismo «no se puede LISTAR lo que no se puede ABRIR» de
+        // `accesoAlDocumento`, del revés.
+        const deDocumentos = permisos
+            .filter((p) => p.objetoTipo === "documento")
+            .map((p) => p.objetoId);
+
+        const espaciosDeEsosDocumentos = deDocumentos.length
+            ? await db.$queryRaw<{ espacioId: string }[]>`
+                SELECT DISTINCT "espacioId" FROM "doc_documentos"
+                WHERE "id" = ANY(${deDocumentos}::text[])
+            `
+            : [];
+        const porDocumento = espaciosDeEsosDocumentos.map((f) => f.espacioId);
+
         const espacios = await db.$queryRaw<Espacio[]>`
             SELECT * FROM "doc_espacios"
             WHERE "cuentaId" = ${input.cuenta}
                OR "id" = ANY(${deFuera}::text[])
+               OR "id" = ANY(${porDocumento}::text[])
             ORDER BY "orden" ASC, "nombre" ASC
         `;
 
-        return { espacios, permisos };
+        return { espacios, permisos, porDocumento };
     });
 }
 

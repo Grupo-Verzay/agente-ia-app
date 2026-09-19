@@ -130,8 +130,12 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaving(true)
     saveTimer.current = setTimeout(async () => {
-      const plainContent = JSON.parse(JSON.stringify(content))
-      const res = await updateNote(selectedNote.id, userId, { content: plainContent, title })
+      // El aplanado que antes se hacia aqui a mano vive ahora en el editor
+      // (`comoJsonPlano`, en `EditorDeTexto`), que es quien produce los `attrs`
+      // sin prototipo que Next no sabe mandar. Estaba escrito aqui **sin decir
+      // por que**, asi que Documentacion —que reutiliza el mismo editor— no lo
+      // copio y sus documentos no se guardaban. Ver `lib/json-plano.ts`.
+      const res = await updateNote(selectedNote.id, userId, { content, title })
       setSaving(false)
       if (!res.success) return toast.error(res.error)
       setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, title, updatedAt: new Date() } : n))

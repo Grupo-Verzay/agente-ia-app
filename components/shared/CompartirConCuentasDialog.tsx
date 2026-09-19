@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { nombreDeLaCuenta } from '@/lib/nombre-de-la-cuenta';
 
 /** Sin tildes y en minúsculas, para buscar "Audífonos" escribiendo "audifonos". */
 function normalizar(texto: string) {
@@ -191,7 +192,11 @@ export function CompartirConCuentasDialog({
                 return (
                   <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{c.company || c.name || c.email}</p>
+                      {/* **No `c.company` a secas.** Nace con «Empresa Demo»
+                          por defecto, asi que las cuentas que no lo rellenaron
+                          salian todas con la misma etiqueta y no habia forma
+                          de elegir. Ver `lib/nombre-de-la-cuenta.ts`. */}
+                      <p className="truncate text-sm font-medium">{nombreDeLaCuenta(c)}</p>
                       <p className="truncate text-[11px] text-muted-foreground">{c.email}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

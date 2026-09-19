@@ -38,6 +38,7 @@ import {
     losEspaciosQueAlcanza,
     losQueAlcanzaDeEstos,
 } from "@/lib/acceso-al-documento";
+import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import {
     LoCambioOtro,
     borrarDocumento,
@@ -134,13 +135,18 @@ export async function leerElArbolAction(): Promise<ArbolDeDocumentacion | null> 
     const quien = await quienLlama();
     if (!quien) return null;
 
-    const { espacios, permisos } = await losEspaciosQueAlcanza(quien.user);
-    if (espacios.length === 0) {
+    const { espacios, contenedores, permisos } = await losEspaciosQueAlcanza(quien.user);
+    const conYSin = [...espacios, ...contenedores];
+    if (conYSin.length === 0) {
         return { espacios: [], plantillas: [], puedeCrearEspacio: true };
     }
 
+    // **El mapa de decidir lleva SOLO los espacios que se alcanzan de verdad.**
+    // Los `contenedores` entran en la lista de la izquierda para que el
+    // documento compartido tenga dónde salir, pero no pueden entrar aquí: con
+    // ellos dentro, `accesoAlDocumento` daría por bueno todo el espacio.
     const porId = new Map(espacios.map((e) => [e.espacio.id, e.espacio]));
-    const todos = await losDocumentosDe(espacios.map((e) => e.espacio.id));
+    const todos = await losDocumentosDe(conYSin.map((e) => e.espacio.id));
 
     // **El mismo filtro que abrir.** Un documento restringido desaparece
     // también de aquí: ver la regla en `documentacion-permisos.ts`.
@@ -150,7 +156,7 @@ export async function leerElArbolAction(): Promise<ArbolDeDocumentacion | null> 
     const normales = visibles.filter((d) => d.tipo !== "plantilla");
 
     return {
-        espacios: espacios.map(({ espacio, acceso }) => ({
+        espacios: conYSin.map(({ espacio, acceso }) => ({
             espacio,
             puedeEditar: acceso.puedeEditar,
             puedeGestionar: acceso.puedeGestionar,
@@ -588,40 +594,72 @@ export async function leerLosPermisosAction(input: {
 }
 
 /**
- * Con quién se puede compartir: las personas del equipo y las cuentas.
+ * Con quién se puede compartir: las personas y las cuentas.
  *
  * **La misma lista que ofrece el selector es la que valida `ponerPermisoAction`.**
  * Con dos criterios, el desplegable ofrece a alguien que al guardar se cae sin
  * decir por qué — es la regla que ya rige en `setFlowSharesAction`.
+ *
+ * ## La gente sale de la FAMILIA, no de una sola cuenta
+ *
+ * Antes se pedía `ownerId = <mi cuenta>`, o sea **solo mi equipo**. Con eso, a
+ * un administrador de una cuenta asociada —Yair en «Verzay | Atencion»— no se
+ * le podía dar acceso a nada a su nombre: no salía en la lista. La única
+ * opción que quedaba era compartir con su **cuenta**, que alcanza a su equipo
+ * entero, y no siempre es lo que se quiere.
+ *
+ * La familia es la misma de siempre, `laFamiliaDeLaCuenta`: el componente
+ * entero de `linked_accounts`, en los dos sentidos. Y **no es una malla
+ * cualquiera**: esa función ya recorre los ciclos sin colgarse, que es lo que
+ * costó una vuelta en el chat de equipo. Si se resuelve mal, se sigue con la
+ * cuenta sola —el lado seguro, se ofrece de menos y nunca de más— y se dice.
+ *
+ * La **cuenta propia** entra aparte (`id: cuenta`), y esa mitad hace falta: su
+ * fila no cuelga de nadie, así que sin ella al jefe no se le podría dar acceso
+ * a nada. Es el mismo criterio con el que `soloLasPersonas` reparte en el chat
+ * de equipo. Las **demás** cuentas de la familia no entran como personas: ya
+ * están en la mitad de abajo, y ofrecerlas dos veces —una como cuenta y otra
+ * como persona— es pedirle a alguien que adivine la diferencia.
  */
 async function losQueSePuedeCompartir(cuenta: string): Promise<Compartible[]> {
     const { db } = await import("@/lib/db");
     const { cuentasParaCompartir } = await import("@/lib/cuentas-cliente");
+    const { laFamiliaDeLaCuenta } = await import("@/lib/familia-de-cuentas");
+
+    const familia = await laFamiliaDeLaCuenta(cuenta);
+    const deLaFamilia = Array.from(new Set([cuenta, ...familia.cuentas].filter(Boolean)));
 
     const [gente, cuentas] = await Promise.all([
-        // El equipo (cuelga de la cuenta) **y la cuenta misma**, que es el
-        // inicio de sesión del dueño: su fila no cuelga de nadie, así que sin
-        // esa mitad al jefe no se le podría dar acceso a nada. Es el mismo
-        // criterio con el que `soloLasPersonas` reparte en el chat de equipo.
         db.user.findMany({
-            where: { OR: [{ ownerId: cuenta }, { id: cuenta }] },
-            select: { id: true, name: true, email: true },
+            where: { OR: [{ ownerId: { in: deLaFamilia } }, { id: cuenta }] },
+            select: { id: true, name: true, email: true, ownerId: true },
             orderBy: { name: "asc" },
         }),
         cuentasParaCompartir(cuenta),
     ]);
 
+    // De qué cuenta es cada persona, para decirlo al lado del correo: «Yair
+    // Silvera» a secas no distingue a la de tu equipo de la de la cuenta
+    // asociada, y elegir a la que no era escribe un permiso que no abre nada.
+    const comoSeLlamaLaCuenta = new Map(cuentas.map((c) => [c.id, nombreDeLaCuenta(c)]));
+
     return [
-        ...gente.map((g) => ({
-            sujetoTipo: "persona" as const,
-            sujetoId: g.id,
-            etiqueta: g.name ?? g.email,
-            detalle: g.email,
-        })),
+        ...gente.map((g) => {
+            const suCuenta = g.ownerId && g.ownerId !== cuenta ? comoSeLlamaLaCuenta.get(g.ownerId) : null;
+            return {
+                sujetoTipo: "persona" as const,
+                sujetoId: g.id,
+                etiqueta: g.name ?? g.email,
+                detalle: suCuenta ? `${g.email} · ${suCuenta}` : g.email,
+            };
+        }),
         ...cuentas.map((c) => ({
             sujetoTipo: "cuenta" as const,
             sujetoId: c.id,
-            etiqueta: c.company || c.name || c.email,
+            // **No `c.company` a secas.** Nace con «Empresa Demo» por defecto,
+            // así que el selector salía con tres filas idénticas y no había
+            // forma de elegir. Ver `lib/nombre-de-la-cuenta.ts`.
+            etiqueta: nombreDeLaCuenta(c),
             detalle: c.email,
         })),
     ];
@@ -846,10 +884,20 @@ export async function buscarAction(input: {
     const consulta = comoConsultaDeBusqueda(crudo);
     if (!consulta) return { success: true, data: [] };
 
-    const { espacios, permisos } = await losEspaciosQueAlcanza(quien.user);
-    if (espacios.length === 0) return { success: true, data: [] };
+    const { espacios, contenedores, permisos } = await losEspaciosQueAlcanza(quien.user);
+    const conYSin = [...espacios, ...contenedores];
+    if (conYSin.length === 0) return { success: true, data: [] };
 
+    // Decidir va con los espacios de verdad; **buscar**, también dentro de los
+    // que solo se alcanzan por un documento suelto: si no, un documento
+    // compartido de uno en uno sería inencontrable. El filtro fino de abajo es
+    // el que deja pasar solo ese y no sus vecinos.
     const porId = new Map(espacios.map((e) => [e.espacio.id, e.espacio]));
+    // Y uno aparte SOLO para pintar el nombre del sitio. Decidir y pintar son
+    // dos preguntas: con los contenedores en el de decidir se abriría el
+    // espacio entero, y sin ellos en el de pintar el resultado saldría sin
+    // decir dónde vive.
+    const nombres = new Map(conYSin.map((e) => [e.espacio.id, e.espacio.nombre]));
 
     try {
         const crudos = await buscarDocumentos({
@@ -857,7 +905,7 @@ export async function buscarAction(input: {
             // La PUERTA: no se busca donde no se puede leer. Y sale de la misma
             // función que arma el árbol, para que no haya dos condiciones de
             // permisos que mantener a la par.
-            espacioIds: espacios.map((e) => e.espacio.id),
+            espacioIds: conYSin.map((e) => e.espacio.id),
             tope: TOPE_DE_RESULTADOS,
         });
 
@@ -871,7 +919,7 @@ export async function buscarAction(input: {
                 id: d.id,
                 titulo: d.titulo,
                 espacioId: d.espacioId,
-                espacioNombre: porId.get(d.espacioId)?.nombre ?? "",
+                espacioNombre: nombres.get(d.espacioId) ?? "",
                 tipo: d.tipo,
                 extracto: extractoConLoBuscado(d.texto, crudo),
                 actualizadoEn: d.actualizadoEn,
@@ -918,8 +966,13 @@ export async function losDocumentosQueNombranAction(input: {
         const candidatos = await losQueNombran({ tipo, refId });
         if (candidatos.length === 0) return { success: true, data: [] };
 
-        const { espacios, permisos } = await losEspaciosQueAlcanza(quien.user);
+        const { espacios, contenedores, permisos } = await losEspaciosQueAlcanza(quien.user);
+        // Decidir con los de verdad; pintar el nombre, con todos. Ver la misma
+        // separación en `buscarAction`.
         const porId = new Map(espacios.map((e) => [e.espacio.id, e.espacio]));
+        const nombres = new Map(
+            [...espacios, ...contenedores].map((e) => [e.espacio.id, e.espacio.nombre]),
+        );
 
         const visibles = losQueAlcanzaDeEstos(
             quien.user,
@@ -941,7 +994,7 @@ export async function losDocumentosQueNombranAction(input: {
             data: visibles.map((d) => ({
                 id: d.id,
                 titulo: d.titulo,
-                espacioNombre: porId.get(d.espacioId)?.nombre ?? "",
+                espacioNombre: nombres.get(d.espacioId) ?? "",
                 actualizadoEn: d.actualizadoEn,
             })),
         };

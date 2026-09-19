@@ -170,6 +170,25 @@ function loQueLeDan(user: QuienMira, permisos: FilaDePermiso[]): Permiso | null 
     return mejor;
 }
 
+/**
+ * Solo lo que le dieron a ESTA persona, con nombre y apellidos.
+ *
+ * Hace falta porque **una fila para la CUENTA y otra para la PERSONA no dicen
+ * lo mismo**: la primera alcanza al equipo entero —agentes incluidos— y la
+ * segunda se la dieron a alguien a propósito. Es la misma diferencia que ya
+ * separa `team_channel_accounts` de `team_channel_members`.
+ */
+function loQueLeDanAElla(user: QuienMira, permisos: FilaDePermiso[]): Permiso | null {
+    const persona = (user?.id || "").trim();
+    let mejor: Permiso | null = null;
+    for (const fila of permisos) {
+        if (fila.sujetoTipo !== "persona" || fila.sujetoId !== persona) continue;
+        if (fila.permiso === "edicion") return "edicion";
+        mejor = "lectura";
+    }
+    return mejor;
+}
+
 /* ─────────────────────────────── El espacio ─────────────────────────────── */
 
 /**
@@ -261,8 +280,30 @@ export function accesoAlDocumento(
         (p) => p.objetoTipo === "documento" && p.objetoId === documento.id,
     );
     const dado = loQueLeDan(user, delDocumento);
+    const dadoAElla = loQueLeDanAElla(user, delDocumento);
     const persona = (user.id || "").trim();
     const suyo = documento.creadoPorId === persona;
+    const deOtraCuenta = documento.cuentaId !== laCuentaDeQuienMira(user);
+
+    /**
+     * Si la fila del documento deja ESCRIBIR, y el mismo reparto que el
+     * espacio.
+     *
+     * En un documento **recibido** de otra cuenta, una fila para la CUENTA
+     * alcanza a su equipo entero, así que un `agente` entraría a escribir en
+     * la documentación de un cliente: participa, no manda. Es exactamente la
+     * condición que `accesoAlEspacio` ya tiene en su rama de recibido
+     * (`dado === "edicion" && canManageWorkspace(user)`), y que al documento
+     * se le había quedado fuera.
+     *
+     * Lo que NO se toca es una fila para la **persona**: eso se lo dieron a
+     * ella a propósito, sea agente o no. Y dentro de la cuenta propia manda lo
+     * de siempre, que es lo que hace que un espacio restringido se pueda abrir
+     * a alguien del equipo.
+     */
+    const escribePorElDocumento = deOtraCuenta
+        ? dadoAElla === "edicion" || (dado === "edicion" && canManageWorkspace(user))
+        : dado === "edicion";
 
     const porElEspacio = espacio ? accesoAlEspacio(user, espacio, permisos) : null;
 
@@ -279,8 +320,8 @@ export function accesoAlDocumento(
 
         return {
             cuentaId: documento.cuentaId,
-            recibido: documento.cuentaId !== laCuentaDeQuienMira(user),
-            puedeEditar: suyo || manda || dado === "edicion",
+            recibido: deOtraCuenta,
+            puedeEditar: suyo || manda || escribePorElDocumento,
             puedeGestionar: suyo || manda,
         };
     }
@@ -288,11 +329,11 @@ export function accesoAlDocumento(
     // Sin restringir: lo que diga el espacio, y el documento solo puede AÑADIR.
     if (!porElEspacio && !dado && !suyo) return null;
 
-    const recibido = documento.cuentaId !== laCuentaDeQuienMira(user);
     return {
         cuentaId: documento.cuentaId,
-        recibido,
-        puedeEditar: Boolean(porElEspacio?.puedeEditar) || dado === "edicion" || (suyo && !recibido),
-        puedeGestionar: Boolean(porElEspacio?.puedeGestionar) || (suyo && !recibido),
+        recibido: deOtraCuenta,
+        puedeEditar:
+            Boolean(porElEspacio?.puedeEditar) || escribePorElDocumento || (suyo && !deOtraCuenta),
+        puedeGestionar: Boolean(porElEspacio?.puedeGestionar) || (suyo && !deOtraCuenta),
     };
 }

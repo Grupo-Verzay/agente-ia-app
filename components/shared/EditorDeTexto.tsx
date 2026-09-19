@@ -18,6 +18,7 @@ import {
   Quote, AlignLeft, AlignCenter, AlignRight, Undo, Redo, Minus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { comoJsonPlano } from '@/lib/json-plano'
 import { Separator } from '@/components/ui/separator'
 
 const lowlight = createLowlight(common)
@@ -77,7 +78,14 @@ export default function TiptapEditor({
     content: initialContent ?? '',
     editable,
     onUpdate: ({ editor }) => {
-      onChangeRef.current(editor.getJSON())
+      // **Lo que devuelve `getJSON()` no es JSON plano**: sus `attrs` los crea
+      // ProseMirror con `Object.create(null)`, y Next se niega a mandarle eso
+      // a una accion de servidor —el rechazo ocurre en el navegador, asi que
+      // la peticion ni sale—. Se convierte AQUI, que es el unico sitio que lo
+      // produce: arreglarlo en cada pantalla es firmar que la siguiente se lo
+      // olvide, y es literalmente lo que paso con Documentacion. El porque
+      // entero esta en `lib/json-plano.ts`.
+      onChangeRef.current(comoJsonPlano(editor.getJSON()))
     },
   })
 
