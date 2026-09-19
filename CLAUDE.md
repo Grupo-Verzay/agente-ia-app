@@ -4287,6 +4287,121 @@ de colgar fuera de la pantalla.
 > vuelve a pasar, el sitio donde mirar es `queHacerConLaVentana`: es puro, así
 > que el caso se reproduce en el banco sin navegador.
 
+## Un hilo se abre por el final, y no se mueve solo
+
+Los cinco listados de mensajes de la plataforma —Chats, el chat de equipo y los
+dos del agente— hacían cada uno su versión de lo mismo: al cambiar el número de
+mensajes, al final. Eso está mal por las dos puntas.
+
+1. **Va demasiado pronto.** El salto ocurre al pintar, y **después** cargan las
+   imágenes y los audios, que empujan el contenido hacia abajo. El hilo se queda
+   a media altura y hay que bajar a mano — que es el síntoma que se reportó. Una
+   foto sin alto declarado ocupa cero hasta que llega, así que el «final» al que
+   se saltó no era el final.
+2. **Y va aunque nadie lo haya pedido.** Leyendo algo de ayer, cada mensaje que
+   entraba tiraba de la pantalla al fondo. Eso no se lee como una función: se lee
+   como que la App no te deja leer.
+
+Lo decide `useHiloPegadoAbajo`, con la parte pura en
+`lib/desplazamiento-del-hilo.ts`. **La regla de la que cuelga todo:**
+
+> **Estar pegado abajo solo se pierde SCROLLEANDO.** Que el contenido crezca no
+> despega nunca. Si despegara, el primer fallo volvería solo: la foto que carga
+> aumenta la distancia al final, y quien mire esa distancia concluirá que la
+> persona se fue a leer arriba cuando no ha tocado nada.
+
+### La trampa: `ResizeObserver` NO ve crecer el contenido
+
+Esto costó una vuelta entera y **casi se despliega un arreglo que no hacía
+nada**. Lo obvio es observar el contenido con un `ResizeObserver` y volver a
+pegar cuando crezca. No funciona, y el motivo es de maquetación:
+
+> El hijo del contenedor es un elemento **flex de altura fija** —la del propio
+> contenedor— así que su caja **no cambia** al entrar una foto. Lo que crece es
+> **`scrollHeight`**, que no es el tamaño de ninguna caja y ningún
+> `ResizeObserver` observa.
+
+Medido en Chromium, con cuatro fotos entrando: el observador se disparó **una
+sola vez**, la del montaje, y el hilo se quedó a **880 px** del final —
+exactamente igual que sin nada. La medida del contenido decía `702` mientras
+`scrollHeight` decía `3116`.
+
+Lo que sí funciona, y está medido:
+
+| mecanismo | a cuánto del final acaba |
+| --- | --- |
+| saltar al pintar, y ya | **880 px** |
+| `ResizeObserver` sobre el contenido | **880 px** |
+| `load` en captura | **0** |
+| vigilia acotada de `scrollHeight` | **0** |
+
+Van **las dos**, porque cubren cosas distintas:
+
+1. **`load` en captura.** `load` **no burbujea, pero sí se captura**, así que un
+   solo oyente en el contenedor recoge cada `img`, `audio` y `video` que termine
+   de cargar — que es justo lo que se reportó. No cuesta nada cuando no carga
+   nada. Y `loadedmetadata` aparte: un audio ya tiene su alto ahí, antes del
+   `load` del fichero entero.
+2. **Una vigilia ACOTADA de `scrollHeight`**, que recoge todo lo demás: una
+   transcripción que aparece debajo de una nota, una tarjeta de reunión que
+   resuelve su nombre, una fuente que carga. **Acotada a propósito**: un
+   `requestAnimationFrame` permanente son sesenta lecturas de `scrollHeight` por
+   segundo, y cada una fuerza a recalcular la maquetación de un hilo de miles de
+   nodos — justo lo que la regla de *la lista es grande, no rehacerla por gusto*
+   evita. Se reabre al cambiar de conversación y al llegar algo, que son los dos
+   momentos en los que hay contenido por cargar.
+
+El `ResizeObserver` se queda, pero **sobre el contenedor y para lo que sí sabe
+ver**: que encoja el hueco donde vive el hilo —se abre un panel, se gira un
+móvil—.
+
+### La flecha: un solo umbral, y el historial no cuenta
+
+`FlechaAlFinal` aparece al alejarse del final y se va al volver. Es la única
+señal de que ha llegado algo, **porque la vista ya no se arrastra sola**.
+
+Tres cosas que hay que mantener:
+
+1. **Un solo umbral (150 px), no dos.** Con uno para pegarse y otro más lejano
+   para enseñar la flecha quedaría una franja en la que un mensaje nuevo cuenta
+   como sin leer y **no hay flecha donde enseñarlo**: el contador subiría sin
+   que nadie lo viera.
+2. **Cargar historial NO suma sin leer.** «Cargar mensajes anteriores» sube el
+   total sin que haya llegado nada: lo que delata una novedad es que cambie el
+   **último**, no el total. Sin esa distinción, pulsar ese botón mientras se lee
+   arriba pondría un «+30» de mensajes viejos.
+3. **Un hilo que no llena la pantalla está SIEMPRE abajo.** Sin eso, un chat de
+   dos mensajes enseñaría la flecha para siempre.
+
+Y va **fuera del contenedor que scrollea**, contra un padre `relative`: metida
+dentro se iría con el contenido y solo se vería al llegar al final, que es justo
+cuando ya no hace falta.
+
+### Los saltos SUELTAN el anclaje a propósito
+
+Ir al mensaje de una mención, a un resultado de búsqueda o a una cita llama a
+`soltar()` antes del `scrollIntoView`. Sin eso se depende de que el `scroll` del
+salto llegue antes que el siguiente crecimiento del contenido, y esa carrera se
+pierde de vez en cuando — o sea, un salto que se deshace solo.
+
+### Dónde NO se puso, y por qué
+
+**El hilo de comentarios de una tarea** (`HiloDeLaTarea`) no tiene contenedor
+con scroll propio: es un bloque dentro del diálogo de la tarea. Anclar ese
+diálogo al final escondería el formulario de arriba, y una flecha flotante ahí
+no tendría contra qué colocarse. Se queda como está a propósito.
+
+**Y `AnimatedChat`** es una animación decorativa de una landing, no una
+conversación.
+
+### `npm run build` NO comprueba los tipos en este repo
+
+Se descubrió aquí y conviene saberlo: `next.config.js` lleva
+`typescript: { ignoreBuildErrors: true }`. Un `soltar` usado en un array de
+dependencias **antes de declararse** —que es un TDZ de verdad, no solo de
+tipos— daba `npm run build` en verde y habría reventado en producción. Lo cazó
+`npx tsc --noEmit`, que es el que manda.
+
 ## La barra de escribir es UNA, y lo que la forma vive fuera de las dos pantallas
 
 Chats y el chat de equipo tenían dos barras distintas para lo mismo. La del

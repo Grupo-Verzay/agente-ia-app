@@ -110,6 +110,8 @@ import {
     comoSeLeeElCosto,
     comoSeLeeLaDuracion,
 } from "@/lib/nota-de-voz-del-equipo";
+import { FlechaAlFinal } from "@/components/shared/FlechaAlFinal";
+import { useHiloPegadoAbajo } from "@/hooks/useHiloPegadoAbajo";
 import { TOPE_DE_SEGUNDOS, costoDeLaNota } from "@/lib/transcripcion-de-voz";
 import {
     TOPE_DE_ARCHIVOS,
@@ -274,6 +276,8 @@ export function HiloDelEquipo({
     const cajaDeEmojis = useRef<HTMLDivElement | null>(null);
     const cajaDeVoz = useRef<HTMLDivElement | null>(null);
     const abajoDelTodo = useRef<HTMLDivElement | null>(null);
+    /** El contenedor que scrollea, para el anclaje al final. */
+    const elHilo = useRef<HTMLDivElement | null>(null);
     // El último mensaje que ya se dio por leído. Sirve para no avisar al
     // contador en cada vuelta del reloj: solo cuando de verdad se marcó algo
     // nuevo. Sin esto, el contador —que va a 15 s— pasaría a preguntar cada 5.
@@ -455,23 +459,36 @@ export function HiloDelEquipo({
 
     // Pegado abajo: un chat se lee por el final.
     //
+    // Lo decide `useHiloPegadoAbajo`, que comparten los cinco listados de la
+    // plataforma. Antes esto era un `scrollIntoView` al cambiar el número de
+    // mensajes, con los dos fallos de siempre: iba antes de que cargaran los
+    // adjuntos y los audios —que empujan el contenido, así que el hilo se
+    // quedaba a media altura— y arrastraba la vista de quien estuviera leyendo
+    // arriba.
+    const mensajes = datos?.mensajes;
+    const { pegado, sinLeer, irAlFinal, soltar } = useHiloPegadoAbajo({
+        ref: elHilo,
+        clave: canalId,
+        total: mensajes?.length ?? 0,
+        ultimoId: mensajes?.length ? String(mensajes[mensajes.length - 1].id) : null,
+    });
+
     // Salvo cuando se llega desde un aviso de mención: entonces manda el
     // mensaje, y solo la PRIMERA vez —`buscado`—. Si no, cada vuelta del reloj
     // devolvería la vista a la mención y no se podría seguir leyendo.
     const buscado = useRef(false);
     useEffect(() => {
-        if (aPorEste && !buscado.current && datos?.mensajes.length) {
-            const nodo = document.getElementById(`mensaje-${aPorEste}`);
-            if (nodo) {
-                buscado.current = true;
-                nodo.scrollIntoView({ block: "center" });
-                return;
-            }
-            // Si no está —quedó fuera de los últimos que se traen— se sigue
-            // como siempre: al final. Mejor el hilo que una pantalla quieta.
-        }
-        abajoDelTodo.current?.scrollIntoView({ block: "end" });
-    }, [datos?.mensajes.length, canalId, aPorEste]);
+        if (!aPorEste || buscado.current || !mensajes?.length) return;
+        const nodo = document.getElementById(`mensaje-${aPorEste}`);
+        if (!nodo) return;
+        // Si no está —quedó fuera de los últimos que se traen— se sigue como
+        // siempre: al final, que de eso ya se encarga el hook.
+        buscado.current = true;
+        // Se suelta el anclaje a propósito: sin esto, el primer adjunto que
+        // cargue después volvería a pegar el hilo abajo y desharía el salto.
+        soltar();
+        nodo.scrollIntoView({ block: "center" });
+    }, [mensajes?.length, aPorEste, soltar]);
 
     const canal = useMemo(
         () => datos?.canales.find((c) => c.id === canalId) ?? datos?.canales[0] ?? null,
@@ -1095,7 +1112,10 @@ export function HiloDelEquipo({
     }
 
     return (
-        <div className="flex h-full min-h-0 w-full flex-col">
+        // `relative` por la flecha de bajar al final, que se coloca contra ESTA
+        // caja. Contra la que scrollea no vale: un absoluto dentro de un
+        // contenedor con scroll se desplaza con el contenido.
+        <div className="relative flex h-full min-h-0 w-full flex-col">
             <BarraDeCanales
                 abierta={listaAbierta}
                 onAlternar={() => setListaAbierta((v) => !v)}
@@ -1121,7 +1141,10 @@ export function HiloDelEquipo({
                 onAbrirResultado={(r) => void irAlMensaje(r.id, r.canalId)}
             />
 
-            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-6">
+            <div
+                ref={elHilo}
+                className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-6"
+            >
                 {datos.mensajes.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
                         <MessagesSquare className="h-8 w-8 opacity-40" />
@@ -1178,6 +1201,15 @@ export function HiloDelEquipo({
                     </div>
                 )}
             </div>
+            {/* Fuera del contenedor que scrollea: dentro se iría con el
+                contenido y solo se vería al llegar al final, que es justo
+                cuando ya no hace falta. El padre es `relative`. */}
+            <FlechaAlFinal
+                visible={!pegado}
+                sinLeer={sinLeer}
+                onClick={irAlFinal}
+                className="bottom-20"
+            />
 
             <div className="shrink-0 border-t border-border bg-background px-3 py-3 sm:px-6">
                 {/* Editando: lo que se está tocando, encima de la caja y con

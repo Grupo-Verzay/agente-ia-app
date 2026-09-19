@@ -7,14 +7,25 @@ import { cn } from "@/lib/utils"
 
 const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> & {
+    /**
+     * El elemento que de verdad scrollea.
+     *
+     * La `ref` de arriba apunta a la RAÍZ, que no se desplaza: quien lo hace es
+     * el viewport de dentro. Hace falta para anclar un hilo de mensajes al
+     * final. La alternativa era buscarlo en el DOM por
+     * `[data-radix-scroll-area-viewport]`, que es un detalle interno de Radix y
+     * se rompe en silencio el día que cambie.
+     */
+    viewportRef?: React.Ref<HTMLDivElement>;
+  }
+>(({ className, children, viewportRef, ...props }, ref) => (
   <ScrollAreaPrimitive.Root
     ref={ref}
     className={cn("relative overflow-hidden", className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+    <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]">
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />

@@ -50,6 +50,7 @@ import type {
   UIBubble,
 } from './chat-message-types';
 import { getDisplayWhatsappFromSession } from '../../crm/dashboard/helpers/getDisplayWhatsappFromSession';
+import { useHiloPegadoAbajo } from '@/hooks/useHiloPegadoAbajo';
 import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
@@ -172,7 +173,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const skipNextAutoScrollRef = useRef(false);
 
   /* ─── Fix: evitar que Android Chrome haga scroll al abrir teclado ─── */
   useEffect(() => {
@@ -487,6 +487,28 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     return combined;
   }, [uiMessages, noteBubbles]);
 
+  /* ─── Pegado al final ───
+   *
+   * Antes esto era un `useLayoutEffect` que saltaba al final cada vez que
+   * cambiaba el número de mensajes. Eso fallaba por las dos puntas: iba
+   * DEMASIADO PRONTO —después cargan las fotos y los audios, que empujan el
+   * contenido, y el hilo se quedaba a media altura— y iba AUNQUE nadie lo
+   * pidiera, arrastrando la vista de quien estuviera leyendo algo de ayer.
+   *
+   * Lo decide `useHiloPegadoAbajo`, que lo comparten los cinco listados de la
+   * plataforma. Lo que arregla el primer fallo es que vigila el crecimiento del
+   * contenido con un `ResizeObserver`, no el número de mensajes.
+   */
+  const ultimoMensajeId = allMessages.length
+    ? String(allMessages[allMessages.length - 1]?.id ?? '')
+    : null;
+  const { pegado, sinLeer, irAlFinal, soltar } = useHiloPegadoAbajo({
+    ref: listRef,
+    clave: info?.remoteJid ?? null,
+    total: allMessages.length,
+    ultimoId: ultimoMensajeId,
+  });
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!info?.remoteJid) return;
@@ -543,8 +565,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   useEffect(() => {
     if (!activeSearchMessageId) return;
     const activeElement = listRef.current?.querySelector('[data-search-active="true"]');
+    if (activeElement) soltar();
     activeElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [activeSearchMessageId]);
+  }, [activeSearchMessageId, soltar]);
 
   /**
    * Pulsar una cita lleva al mensaje que cita, como en WhatsApp.
@@ -569,9 +592,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         toast.info('Ese mensaje todavía no está cargado. Usa «Cargar mensajes anteriores».');
         return;
       }
+      soltar();
       destino.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
-  }, []);
+  }, [soltar]);
 
   // El resaltado es un parpadeo, no un estado: se apaga solo y con el vuelve la
   // virtualizacion.
@@ -606,22 +630,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     );
   }, [searchMatches.length]);
 
-  /* ─── Auto scroll to bottom ─── */
-  const scrollToBottom = useCallback(() => {
-    const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, []);
-  useLayoutEffect(() => {
-    if (loadingOlderMessages) {
-      skipNextAutoScrollRef.current = true;
-      return;
-    }
-    if (skipNextAutoScrollRef.current) {
-      skipNextAutoScrollRef.current = false;
-      return;
-    }
-    scrollToBottom();
-  }, [allMessages.length, loadingOlderMessages, scrollToBottom, presencia]);
 
   /* ─── Textarea auto-resize ─── */
   useEffect(() => {
@@ -1294,6 +1302,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         uiMessages={allMessages}
         loading={loading}
         listRef={listRef}
+        flechaVisible={!pegado}
+        flechaSinLeer={sinLeer}
+        onIrAlFinal={irAlFinal}
         presencia={presencia}
         advisorName={assignedAdvisorName}
         onSetReplyTo={setReplyTo}

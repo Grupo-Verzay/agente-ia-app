@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { FlechaAlFinal } from "@/components/shared/FlechaAlFinal";
+import { useHiloPegadoAbajo } from "@/hooks/useHiloPegadoAbajo";
 import { MessageSquare, Send, RotateCcw, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,9 +32,16 @@ export function ChatSimulatorModal({ open, onOpenChange, promptId, businessName 
         if (!open) { setMessages([]); setInput(""); setError(null); }
     }, [open]);
 
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, isLoading]);
+    // Pegado al final con el hook compartido: antes arrastraba la vista en
+    // cada mensaje, también estando arriba leyendo una respuesta larga.
+    const elHilo = useRef<HTMLDivElement>(null);
+    const { pegado, sinLeer, irAlFinal } = useHiloPegadoAbajo({
+        ref: elHilo,
+        clave: open ? "abierto" : "cerrado",
+        total: messages.length + (isLoading ? 1 : 0),
+        ultimoId: messages.length ? String(messages.length) : null,
+        activo: open,
+    });
 
     const send = async () => {
         const text = input.trim();
@@ -96,7 +105,10 @@ export function ChatSimulatorModal({ open, onOpenChange, promptId, businessName 
                 </div>
 
                 {/* Área de mensajes */}
-                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5"
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                <div
+                    ref={elHilo}
+                    className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5"
                     style={{ backgroundImage: "radial-gradient(hsl(var(--muted)/0.4) 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
 
                     {/* Estado vacío */}
@@ -154,6 +166,9 @@ export function ChatSimulatorModal({ open, onOpenChange, promptId, businessName 
                     )}
 
                     <div ref={bottomRef} />
+                </div>
+                {/* Fuera del que scrollea: dentro se iría con el contenido. */}
+                <FlechaAlFinal visible={!pegado} sinLeer={sinLeer} onClick={irAlFinal} />
                 </div>
 
                 {/* Input */}
