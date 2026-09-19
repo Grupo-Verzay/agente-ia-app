@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bold, Code, Italic, Strikethrough, Type } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BOTON_DE_HERRAMIENTA } from '@/lib/barra-de-escribir';
 import { cn } from '@/lib/utils';
 
 /** Las cuatro marcas de WhatsApp, en el orden en que se usan. */
@@ -66,7 +67,7 @@ export function FormatoDeTexto({
                 disabled={disabled}
                 onClick={() => setAbierto((v) => !v)}
                 className={cn(
-                    'h-8 w-8 rounded-full shrink-0 transition-colors',
+                    BOTON_DE_HERRAMIENTA,
                     abierto
                         ? 'bg-muted text-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted',

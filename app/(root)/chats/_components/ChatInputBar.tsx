@@ -21,10 +21,22 @@ import {
   toggleSessionSignatureAction,
   updateAdvisorSignatureAction,
 } from '@/actions/chat-manual-actions';
-import { EmojiPickerPanel } from './EmojiPickerPanel';
-import { FormatoDeTexto } from './FormatoDeTexto';
+import { EmojiPickerPanel } from '@/components/shared/EmojiPickerPanel';
+import { FormatoDeTexto } from '@/components/shared/FormatoDeTexto';
 import { EditorDeImagen } from './EditorDeImagen';
 import { envolverSeleccion } from '@/lib/formato-whatsapp';
+// La forma de la barra —la columna flotante, los botones redondos— vive en un
+// solo sitio: la del chat de equipo es la misma, y escrita a mano en los dos,
+// el dia que se afine una la otra se queda atras.
+import {
+  BOTON_DE_ENVIAR,
+  BOTON_DE_HERRAMIENTA,
+  BOTON_REDONDO,
+  BOTON_REDONDO_EN_REPOSO,
+  BOTON_REDONDO_GRABANDO,
+  COLUMNA_DE_HERRAMIENTAS,
+  COLUMNA_DE_VOZ,
+} from '@/lib/barra-de-escribir';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
@@ -357,7 +369,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           variant="ghost"
           size="icon"
           className={cn(
-            'h-8 w-8 rounded-full shrink-0 transition-colors',
+            BOTON_DE_HERRAMIENTA,
             signatureEnabled
               ? 'bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -591,7 +603,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             size="icon"
             variant="ghost"
             className={cn(
-              'h-8 w-8 rounded-full shrink-0 transition-colors',
+              BOTON_DE_HERRAMIENTA,
               isCompactToolbar ? 'flex' : 'sm:hidden',
               inputMenuOpen
                 ? 'bg-muted text-foreground'
@@ -610,7 +622,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             className={cn(
               'items-center gap-1',
               inputMenuOpen
-                ? 'absolute bottom-full left-0 mb-2 z-50 flex flex-col rounded-xl border border-border bg-popover p-2 shadow-lg'
+                ? COLUMNA_DE_HERRAMIENTAS
                 : isCompactToolbar
                   ? 'hidden'
                   : 'hidden sm:flex',
@@ -636,7 +648,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                 variant="ghost"
                 onClick={() => { onToggleNoteMode(); setInputMenuOpen(false); }}
                 className={cn(
-                  'h-8 w-8 rounded-full shrink-0 transition-colors',
+                  BOTON_DE_HERRAMIENTA,
                   noteMode
                     ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-400'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -774,10 +786,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               size="icon"
               disabled={!isInputActive || isRecording}
               className={cn(
-                'h-7 w-7 rounded-full shrink-0',
+                BOTON_REDONDO,
                 dictation.listening
-                  ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                  : 'bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+                  ? `${BOTON_REDONDO_GRABANDO} animate-pulse`
+                  : BOTON_REDONDO_EN_REPOSO,
               )}
               aria-label={dictation.listening ? 'Detener dictado' : 'Dictar por voz'}
               title={dictation.listening ? 'Detener dictado' : 'Dictar por voz (escribe lo que hablas)'}
@@ -793,10 +805,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               onClick={() => { (isRecording ? onStopRecordingAndPreview() : onStartRecording()); setRightMenuOpen(false); }}
               size="icon"
               className={cn(
-                'h-7 w-7 rounded-full shrink-0',
+                BOTON_REDONDO,
                 isRecording
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+                  ? BOTON_REDONDO_GRABANDO
+                  : BOTON_REDONDO_EN_REPOSO,
               )}
               aria-label={isRecording ? 'Detener grabación y previsualizar' : 'Grabar nota de voz'}
               title={isRecording ? 'Detener y previsualizar' : 'Grabar nota de voz'}
@@ -816,8 +828,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               }}
               size="icon"
               className={cn(
-                'h-7 w-7 rounded-full shrink-0',
-                noteMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-[#4F7FE8] hover:bg-[#426FD4]',
+                BOTON_REDONDO,
+                noteMode ? 'bg-amber-500 hover:bg-amber-600' : BOTON_DE_ENVIAR,
               )}
               aria-label={noteMode ? 'Guardar nota' : 'Enviar'}
               title={noteMode ? 'Guardar nota interna' : 'Enviar'}
@@ -848,10 +860,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                   size="icon"
                   onClick={() => setRightMenuOpen((v) => !v)}
                   className={cn(
-                    'h-7 w-7 rounded-full shrink-0',
+                    BOTON_REDONDO,
                     rightMenuOpen
                       ? 'bg-zinc-300 dark:bg-zinc-600'
-                      : 'bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+                      : BOTON_REDONDO_EN_REPOSO,
                   )}
                   aria-label="Opciones de voz"
                   title="Voz (dictado / nota de voz)"
@@ -859,7 +871,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                   <Mic className="w-3.5 h-3.5 text-black dark:text-white" />
                 </Button>
                 {rightMenuOpen && (
-                  <div className="absolute bottom-full right-0 mb-2 z-50 flex flex-col items-center gap-1 rounded-xl border border-border bg-popover p-2 shadow-lg">
+                  <div className={COLUMNA_DE_VOZ}>
                     {dictadoBtn}
                     {voiceNoteBtn}
                   </div>

@@ -3241,6 +3241,109 @@ arriba y hacia la izquierda, fuera de la pantalla. El banco lo prueba con un
 móvil de 390×667.
 
 
+## La barra de escribir es UNA, y lo que la forma vive fuera de las dos pantallas
+
+Chats y el chat de equipo tenían dos barras distintas para lo mismo. La del
+equipo llevaba el dictado, el micrófono y un botón de «Enviar» con su palabra
+**sueltos en la fila**, así que en un lateral de 18 rem la caja de escribir se
+quedaba con poco más de la mitad del ancho — y no había ni formato ni emojis,
+que en Chats existen desde hace tiempo.
+
+Es el mismo patrón en las dos, y ahora es el mismo código:
+
+| | dónde vive |
+| --- | --- |
+| formato, emojis y el texto ya pintado | `components/shared/FormatoDeTexto.tsx`, `EmojiPickerPanel.tsx`, `TextoConFormato.tsx` |
+| la columna flotante y los botones redondos | `lib/barra-de-escribir.ts` |
+| dictado y grabación | `hooks/useSpeechDictation`, `hooks/useAudioRecording` (ya se mudó en el #787) |
+
+Los tres componentes **se movieron** de `app/(root)/chats/_components/` a
+`components/shared/`, y Chats los importa desde ahí: eran puros —solo `ui/`,
+`cn` y `lib/formato-whatsapp`—, así que la mudanza no cambió ni una línea de lo
+que hacen. Y las clases de la forma van en `lib/`, como las de los paneles
+laterales, **por el mismo motivo**: escritas a mano en las dos barras, el día
+que se afine un radio o un hueco se afina en una y la otra se queda atrás. Eso
+no se ve como un error: se ve como dos pantallas de la misma plataforma que no
+se parecen, y nadie sabe cuál es la buena.
+
+> Y por eso `tailwind.config.ts` tiene que seguir mirando `lib/`. Se comprueba
+> buscando la **declaración** en el CSS del build, no la clase en el código:
+> `grep -oF "426FD4" .next/static/css/*.css`. Ese color solo lo escribe
+> `lib/barra-de-escribir.ts`, así que si aparece, el glob funciona.
+
+### El botón de formato OBLIGA a pintar el formato
+
+Es la mitad que se olvida. El botón escribe `*negrilla*` en la caja, o sea
+marcas de WhatsApp dentro del texto; si la burbuja sigue sacando el texto tal
+cual, lo que se lee al otro lado es el asterisco. **Un botón que produce algo
+que se ve roto es peor que no tenerlo**, así que la burbuja del equipo —y el
+recuadro de la cita, y el borrador de la cita— pasan por `TextoConFormato`, el
+mismo componente que ya usa la burbuja de Chats.
+
+### Aquí va SIEMPRE plegado, y el «+» no se condiciona al ancho
+
+En Chats el «+» solo sale por debajo de 640 px (`isCompactToolbar`, medido con
+un `ResizeObserver`). En el chat de equipo no hay esa rama: este hilo se lee en
+un **panel lateral de 18 a 24 rem**, así que «ancho» no existe, y una condición
+que nunca es falsa es una rama que nadie prueba.
+
+Medido en Chromium sobre el CSS del build, con las clases pasadas por el mismo
+`tailwind-merge` que usa `cn` —sin eso se mide una caja que React no pinta—:
+
+| ventana | panel | la fila | la caja | emojis |
+| --- | --- | --- | --- | --- |
+| 1440 | 384 | 335 | **295** | 300 |
+| 1280 | 384 | 335 | **295** | 300 |
+| 1024 | 352 | 303 | **263** | 300 |
+| 700 (panel estrecho) | 288 | 239 | **199** | **239** |
+
+La página no desborda en ninguna y la columna flotante cae dentro del panel en
+las cuatro.
+
+**El panel de emojis mide 300 px y el lateral estrecho 288.** Por eso se abre
+sobre el **ancho de la fila** —y cerrando la columna, no dentro de ella— y por
+eso lleva `max-w-full`: colgado del botón se saldría por el borde DERECHO de la
+pantalla, que es justo donde vive el panel, y ahí se recorta sin que nadie pueda
+traerlo de vuelta. Con `max-w-full` se encoge a 239 y la rejilla reparte lo que
+haya.
+
+### Con la caja vacía NO hay botón de enviar
+
+Es lo que le deja el sitio al micrófono, que es lo que se usa cuando no hay nada
+escrito. En cuanto hay texto —o una nota ya grabada— sale el botón redondo azul
+con la flecha. Tres cosas del lado derecho:
+
+1. **Grabando manda la grabación**: lo único que se puede hacer es terminarla.
+2. **Dictando, el botón de parar NO desaparece porque haya texto.** En Chats sí
+   —en compacto, con algo que enviar, el de dictado se va— y entonces la única
+   forma de callar el dictado es mandar el mensaje. Aquí salen los dos, y la
+   caja reserva sitio para dos (`pr-[4.5rem]` en vez de `pr-11`): de más, la
+   última palabra se corta sola contra un hueco vacío; de menos, el texto pasa
+   por debajo del botón.
+3. El micrófono **no despliega nada cuando el navegador no tiene dictado**: es
+   el botón de grabar y ya. Un menú con una sola cosa dentro es un clic de más.
+
+### Y meter los botones DENTRO de la caja obliga a que la caja crezca sola
+
+La caja iba con `resize-y`, y el asa de eso vive exactamente en la esquina de
+abajo a la derecha — que es donde están ahora el micrófono y el de enviar. Sin
+hacer nada más quedaban las dos opciones malas: un asa que no se puede coger, o
+una caja de una sola línea para siempre. Así que crece con el texto hasta su
+tope (`max-h-40`), y ahí aparece la barra de desplazamiento.
+
+**Los bordes van aparte.** `box-sizing` es `border-box` —la altura los
+incluye— y `scrollHeight` no los cuenta: poniendo el `scrollHeight` pelado la
+caja se queda **dos píxeles corta** y sale una barra de desplazamiento con una
+sola línea dentro, para siempre. Medido: 40 px con una línea, 58 con dos, 78 con
+tres y 160 de tope, sin barra hasta el tope.
+
+### Y los atajos de formato van DELANTE del selector de menciones
+
+`Ctrl+B`, `Ctrl+I` y `Ctrl+Mayús+X` se miran antes que nada y **no se comen
+ninguna tecla del selector**: ese manda con las flechas, Enter, Tab y Escape, y
+ninguna de ellas es b, i ni x. Todo lo demás pasa de largo tal cual llegó, que
+es la misma regla con la que estos atajos entraron en Chats.
+
 ## Chats → equipo: la conversación se SEÑALA, no se cuenta
 
 Para que el equipo viera un caso de WhatsApp, el asesor copiaba el texto a mano

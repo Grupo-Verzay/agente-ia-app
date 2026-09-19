@@ -11,7 +11,7 @@ import { MessageContextMenu } from './MessageContextMenu';
 import { CallDialog } from './CallDialog';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
-import { TextoConFormato } from './TextoConFormato';
+import { TextoConFormato } from '@/components/shared/TextoConFormato';
 
 /* ─── ExpandableText ─── */
 interface ExpandableTextProps {
