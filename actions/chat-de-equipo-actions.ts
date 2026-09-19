@@ -146,7 +146,7 @@ export type HiloAbierto = {
      * reunión: la inmensa mayoría de las páginas no trae ninguno y entonces no
      * cuesta nada. Lo que no esté aquí se pinta como una tarjeta genérica.
      */
-    reuniones: Record<string, { titulo: string | null; abierta: boolean }>;
+    reuniones: Record<string, { titulo: string | null; abierta: boolean; dentro: number }>;
 };
 
 /**
@@ -513,7 +513,7 @@ async function lasReunionesDeEstaPagina(
     mensajes: MensajeDeEquipo[],
     canalId: string,
     origen: string,
-): Promise<Record<string, { titulo: string | null; abierta: boolean }>> {
+): Promise<Record<string, { titulo: string | null; abierta: boolean; dentro: number }>> {
     if (!origen) return {};
     const codigos: string[] = [];
     for (const m of mensajes) {

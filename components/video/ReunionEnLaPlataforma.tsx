@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { useVentanaArrastrable } from "@/hooks/useVentanaArrastrable";
-import { SalaDeVideo } from "@/components/video/SalaDeVideo";
+import { LaReunion } from "@/components/video/LaReunion";
 
 /**
  * Una reunión abierta **dentro** de la plataforma.
@@ -98,12 +98,18 @@ export function ReunionEnLaPlataforma() {
                       ),
             )}
         >
-            <SalaDeVideo
+            {/* `LaReunion` y NO `SalaDeVideo` a pelo, que es el fallo que
+                este panel tuvo desde que se escribió: la sala da por hecho que
+                ya se entró, y quien inscribe a alguien del equipo en
+                `sala_participantes` es la puerta. Sin ella el panel se abría,
+                la cámara se encendía y el latido contestaba —con razón— que
+                esa persona no estaba en la reunión. */}
+            <LaReunion
                 codigo={codigo}
                 minimizada={minimizada}
                 onMinimizar={setMinimizada}
                 asa={asa}
-                alSalir={cerrar}
+                alCerrar={cerrar}
             />
         </div>
     );

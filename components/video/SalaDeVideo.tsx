@@ -52,6 +52,7 @@ export function SalaDeVideo({
     minimizada = false,
     onMinimizar,
     asa,
+    alVolverAEntrar,
 }: {
     codigo: string;
     /** El token de quien entró por el enlace. Vacío para quien tiene cuenta. */
@@ -71,10 +72,22 @@ export function SalaDeVideo({
     onMinimizar?: (v: boolean) => void;
     /** Los manejadores del arrastre, para el trozo que hace de asa. */
     asa?: { className?: string } & Record<string, unknown>;
+    /**
+     * Volver a entrar, cuando el servidor ya te ha sacado.
+     *
+     * Lo pone `LaReunion`, que es quien sabe llamar a la puerta; aquí solo se
+     * ofrece el botón. Hace falta porque quedarse fuera **no siempre es una
+     * decisión**: el latido saca a quien deja de dar señales, así que una
+     * pestaña dormida unos minutos vuelve encontrándose el cartel. Sin esto,
+     * la única salida es cerrar y volver a pulsar Entrar, y dentro de un panel
+     * flotante eso no es evidente por ningún lado.
+     */
+    alVolverAEntrar?: () => Promise<void> | void;
 }) {
     const medios = useMediosDeLlamada({ alFallar: (m) => toast.error(m) });
     const [arrancando, setArrancando] = useState(true);
     const [saliendo, setSaliendo] = useState(false);
+    const [reentrando, setReentrando] = useState(false);
     const malla = useMallaDeVideo({ codigo, token, medios, activo: !arrancando });
 
     /**
@@ -151,6 +164,51 @@ export function SalaDeVideo({
     }, [alSalir, codigo, medios, saliendo, token]);
 
     /**
+     * Volver a entrar después de que te saquen.
+     *
+     * Los dispositivos se sueltan al quedarse fuera (ver abajo), así que aquí
+     * hay que **volver a pedirlos** antes de inscribirse: sin eso se entraría
+     * sin micro ni cámara y los demás verían un recuadro negro y mudo.
+     *
+     * Y no hace falta remontar nada: el reloj de la malla sigue corriendo con
+     * `fuera` puesto, así que en cuanto la fila existe otra vez su siguiente
+     * vuelta vuelve sola a `dentro`.
+     */
+    const volverAEntrar = useCallback(async () => {
+        if (reentrando) return;
+        setReentrando(true);
+        try {
+            await medios.arrancar(true);
+            await alVolverAEntrar?.();
+        } catch (error) {
+            console.warn("[sala] no se pudo volver a entrar", error);
+            toast.error("No se pudo volver a entrar. Inténtalo otra vez.");
+        } finally {
+            setReentrando(false);
+        }
+    }, [alVolverAEntrar, medios, reentrando]);
+
+    /**
+     * Quedarse fuera apaga la cámara y el micrófono.
+     *
+     * Esto no es cosmético. Sin ello, a quien el servidor saca —le revocaron
+     * el enlace, se durmió la pestaña, nunca llegó a inscribirse— le queda el
+     * **piloto de la cámara encendido** mirando un cartel que dice que ya no
+     * está en la reunión. Es exactamente lo que se veía con el fallo de la
+     * entrada: dos personas fuera de la sala, cada una con su propia cámara
+     * abierta y sin nadie al otro lado.
+     *
+     * Soltar es idempotente y `arrancar` los vuelve a pedir, así que volver a
+     * entrar no se queda sin ellos.
+     */
+    useEffect(() => {
+        if (malla.estado === "fuera") medios.soltarTodo();
+        // `medios` cambia de identidad en cada repintado; lo que manda es el
+        // estado, y soltar dos veces no hace nada.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [malla.estado]);
+
+    /**
      * Y al cerrar la pestaña, que es como se sale de verdad.
      *
      * `sendBeacon` no sirve aquí —esto es una acción de servidor, no un
@@ -187,9 +245,37 @@ export function SalaDeVideo({
         return (
             <Centrada>
                 <p className="text-base font-medium">{malla.motivo ?? "Ya no estás en la reunión."}</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                    Puedes cerrar esta pestaña.
-                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                    {alVolverAEntrar ? (
+                        <Button
+                            size="sm"
+                            onClick={() => void volverAEntrar()}
+                            disabled={reentrando}
+                        >
+                            {reentrando ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Entrando…
+                                </>
+                            ) : (
+                                "Volver a entrar"
+                            )}
+                        </Button>
+                    ) : null}
+                    {/* `onMinimizar` es la señal de que esto va dentro de un
+                        panel —lo mismo que ya decide si se ofrece plegar—, y
+                        ahí «cierra la pestaña» sería un consejo falso: lo que
+                        hay que cerrar es el panel, y sin botón no hay forma. */}
+                    {onMinimizar ? (
+                        <Button variant="outline" size="sm" onClick={() => alSalir?.()}>
+                            Cerrar
+                        </Button>
+                    ) : (
+                        <p className="max-w-sm text-sm text-muted-foreground">
+                            Puedes cerrar esta pestaña.
+                        </p>
+                    )}
+                </div>
             </Centrada>
         );
     }

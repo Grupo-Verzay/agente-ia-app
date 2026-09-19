@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { LaReunion } from "./_components/LaReunion";
+import { LaReunion } from "@/components/video/LaReunion";
 
 /**
  * La página de una reunión, abierta por su enlace.
