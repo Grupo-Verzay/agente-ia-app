@@ -100,6 +100,15 @@ export type HiloAbierto = {
     canalId: string;
     mensajes: MensajeDeEquipo[];
     yo: string;
+    /**
+     * La cuenta por la que se está mirando.
+     *
+     * Baja al navegador **solo para la llave del último canal abierto**: ese
+     * recuerdo se separa por cuenta y por persona, y `yo` de aquí al lado es
+     * la persona. No abre nada — a qué canal se llega lo sigue decidiendo
+     * `losCanalesQueVe`, aquí mismo.
+     */
+    cuentaId: string;
     /** Quién se puede mencionar AQUÍ: la gente de este canal, no la de la cuenta. */
     equipo: PersonaMencionable[];
     /**
@@ -379,6 +388,17 @@ export async function hiloDelEquipoAction(
      * mensaje.
      */
     mensajePedido?: string | null,
+    /**
+     * Si el canal pedido sale de un RECUERDO y no de algo que se pulsó.
+     *
+     * Lo único que cambia es el aviso de la caída al General, y por eso no es
+     * cosmético: esa caída **no puede ser muda** cuando alguien pulsó algo
+     * —así se veía el directo que no se abría—, pero un canal recordado que
+     * ya no existe es lo normal (lo borraron, o esa persona salió de él). Sin
+     * separarlos, el aviso saltaría a diario por comportamiento correcto y se
+     * aprendería a despachar sin leer.
+     */
+    deRecuerdo?: boolean,
 ): Promise<Respuesta<HiloAbierto>> {
     try {
         const quien = await quienYDonde();
@@ -411,12 +431,21 @@ export async function hiloDelEquipoAction(
             // La caída al general NO puede ser muda. Así es como se veía el
             // directo que no se abría: se pulsaba un nombre y la pantalla
             // volvía al General, sin un error en ninguna parte.
-            console.warn("[chat-equipo] se pidió un canal que no está en la lista", {
+            //
+            // Pero un canal RECORDADO que ya no está es lo esperado, no un
+            // fallo, así que va como `info`: con el mismo `warn` para los dos,
+            // el aviso saltaría cada vez que alguien sale de un canal y
+            // dejaría de señalar nada. El navegador se cura solo — se le
+            // devuelve el General y eso es lo que guarda.
+            const donde = "[chat-equipo] se pidió un canal que no está en la lista";
+            const detalle = {
                 pedido,
                 cuenta: quien.cuentaId,
                 persona: quien.persona.id,
                 canales: canales.length,
-            });
+            };
+            if (deRecuerdo) console.info(`${donde} (recordado, se abre el General)`, detalle);
+            else console.warn(donde, detalle);
         }
 
         const fila = filas.find((f) => f.id === canal.id) ?? null;
@@ -473,6 +502,7 @@ export async function hiloDelEquipoAction(
                 canalId: canal.id,
                 mensajes,
                 yo: quien.persona.id,
+                cuentaId: quien.cuentaId,
                 equipo: soloLasPersonas(equipo, quien.familia.raiz),
                 gente: soloLasPersonas(gente, quien.familia.raiz),
                 nombres: losNombres(gente),

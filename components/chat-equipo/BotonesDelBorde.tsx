@@ -37,7 +37,18 @@ import { useSinLeerDelEquipo } from "@/hooks/useSinLeerDelEquipo";
  * alto siguen quedando más de 250. El botón de arriba era ya de 36 px por el
  * mismo motivo —tapaba los tres puntos de las filas—, y esa medida se respeta.
  */
-export function BotonesDelBorde() {
+export function BotonesDelBorde({
+    cuentaId,
+    personaId,
+}: {
+    /**
+     * Quién entra. No lo usa esta pareja de botones: baja hasta el hilo, que
+     * lo necesita para volver al canal donde se estaba. Viene del layout
+     * porque hace falta antes de la primera consulta del panel.
+     */
+    cuentaId?: string;
+    personaId?: string;
+} = {}) {
     const copilotoAbierto = useChatStore((s) => s.isOpen);
     const abrirCopiloto = useChatStore((s) => s.setOpen);
     const [equipoAbierto, setEquipoAbierto] = useState(false);
@@ -117,6 +128,8 @@ export function BotonesDelBorde() {
                 abierto={equipoAbierto}
                 sonido={sonido}
                 onCerrar={() => setEquipoAbierto(false)}
+                cuentaId={cuentaId}
+                personaId={personaId}
             />
         </>
     );

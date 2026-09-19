@@ -29,6 +29,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 
 import { themeClass } from "@/types/generic";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { BotonesDelBorde } from "@/components/chat-equipo/BotonesDelBorde";
 import { OyenteDeLlamadas } from "@/components/chat-equipo/OyenteDeLlamadas";
 import { ReunionEnLaPlataforma } from "@/components/video/ReunionEnLaPlataforma";
@@ -505,7 +506,10 @@ export default async function RootGroupLayout({
                     </main>
                     {/* El copiloto y el chat del equipo: una pareja de botones
                         en el borde derecho, con su panel cada uno. */}
-                    <BotonesDelBorde />
+                    <BotonesDelBorde
+                        cuentaId={user.ownerId ?? user.id}
+                        personaId={laPersonaQueActua(user).id}
+                    />
                     {/* Una llamada tiene que sonar estes donde estes, asi
                       * que el oyente cuelga de aqui — como la ventana que
                       * interrumpe de los avisos de tarea. */}
