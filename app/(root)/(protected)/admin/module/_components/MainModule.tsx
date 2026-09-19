@@ -12,7 +12,9 @@ import { FormModuleValues, ModuleWithItems } from '@/schema/module'
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ModuleForm } from "./"
 import { Button } from '@/components/ui/button';
-import { createModule, updateModule } from '@/actions/module-actions';
+import { createModule, updateModule, eliminarModulosAction } from '@/actions/module-actions';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas, CasillaDeTodos, useSeleccionMultiple } from '@/components/shared/AccionesMasivas';
 import { SortableModuleList } from './SortableModuleList';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 
@@ -26,6 +28,15 @@ export const MainModule = () => {
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editModule, setEditModule] = useState<ModuleWithItems | undefined>();
+
+    const { seleccionados, alternar, alternarTodos, estanTodos, limpiar } =
+        useSeleccionMultiple(filteredModules.map((m) => m.id));
+
+    const borrarLosMarcados = async (ids: string[]) => {
+        const res = await eliminarModulosAction(ids);
+        if (!res.success && res.borrados === 0) throw new Error(res.message);
+        return { fallaron: res.fallaron };
+    };
 
     const normalizeModule = (moduleComponent: ModuleWithItems): FormModuleValues => ({
         id: moduleComponent.id,
@@ -92,20 +103,33 @@ export const MainModule = () => {
     return (
         <div className="flex flex-col h-full">
             <div className="sticky top-0 z-1 mb-6">
-                <div className="flex items-center gap-2">
-                    <div className="relative w-64 shrink-0">
-                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Buscar módulo..."
-                            className="pl-8"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                <BarraDeAcciones
+                    filtros={<>
+                        <CasillaDeTodos
+                            estanTodos={estanTodos}
+                            hayAlguno={seleccionados.length > 0}
+                            onCambiar={alternarTodos}
                         />
-                    </div>
-                    <Button onClick={() => handleOpenModal()} className="ml-auto">
-                        Nuevo
-                    </Button>
-                </div>
+                        <div className="relative w-64 shrink-0">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar módulo..."
+                                className="pl-8"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                        </div>
+                    </>}
+                    crear={<BotonDeCrear onClick={() => handleOpenModal()}>Nuevo módulo</BotonDeCrear>}
+                    acciones={
+                        <AccionesMasivas
+                            seleccionados={seleccionados}
+                            queSon="módulos"
+                            onEliminar={borrarLosMarcados}
+                            onTerminar={() => { limpiar(); router.refresh(); }}
+                        />
+                    }
+                />
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -116,6 +140,8 @@ export const MainModule = () => {
                         <SortableModuleList
                             modules={filteredModules}
                             setOpenModule={(_, module) => handleOpenModal(module)}
+                            seleccionados={seleccionados}
+                            alternarSeleccion={alternar}
                         />
                     )}
                 </div>

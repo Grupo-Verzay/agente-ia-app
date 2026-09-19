@@ -25,9 +25,12 @@ import { ModuleCardSkeleton } from './ModuleCardSkeleton'
 interface SortableListProps {
     modules: ModuleWithItems[]
     setOpenModule: (state: boolean, module: ModuleWithItems) => void
+    /** Los marcados con la casilla, para el `⋯` de la barra. */
+    seleccionados?: string[]
+    alternarSeleccion?: (id: string) => void
 }
 
-export function SortableModuleList({ modules, setOpenModule }: SortableListProps) {
+export function SortableModuleList({ modules, setOpenModule, seleccionados, alternarSeleccion }: SortableListProps) {
     const router = useRouter();
 
     const [items, setItems] = useState(modules)
@@ -82,6 +85,8 @@ export function SortableModuleList({ modules, setOpenModule }: SortableListProps
                         key={moduleComponent.id}
                         module={moduleComponent}
                         setOpenModule={setOpenModule}
+                        marcado={seleccionados?.includes(moduleComponent.id) ?? false}
+                        onMarcar={alternarSeleccion ? () => alternarSeleccion(moduleComponent.id) : undefined}
                     />
                 ))}
             </SortableContext>

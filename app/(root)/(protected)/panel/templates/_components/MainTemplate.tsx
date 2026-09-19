@@ -18,7 +18,9 @@ import { toast } from 'sonner'
 import { PromptTemplateForm, PromptTemplateFormValues } from './PromptTemplateForm'
 import { TemplateCardSkeleton, TemplateList } from './'
 import { PromptTemplate, Role } from '@prisma/client'
-import { createTemplate, deleteTemplate, getAllTemplates, updateTemplate } from '@/actions/template-actions'
+import { createTemplate, deleteTemplate, eliminarPlantillasAction, getAllTemplates, updateTemplate } from '@/actions/template-actions'
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones'
+import { AccionesMasivas, CasillaDeTodos, useSeleccionMultiple } from '@/components/shared/AccionesMasivas'
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog'
 import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -30,6 +32,19 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
     const [templateId, setTemplateId] = useState<string>()
     const [filteredTemplates, setFilteredTemplates] = useState<PromptTemplate[]>([])
     const [search, setSearch] = useState('')
+
+    // La misma puerta que ya decidía el botón de crear y el de borrar de cada
+    // tarjeta. El `⋯` no inventa un permiso: pregunta al que ya había.
+    const puedeGestionar = userRole === 'admin' || userRole === 'super_admin'
+
+    const { seleccionados, alternar, alternarTodos, estanTodos, limpiar } =
+        useSeleccionMultiple(filteredTemplates.map((t) => t.id))
+
+    const borrarLasMarcadas = async (ids: string[]) => {
+        const res = await eliminarPlantillasAction(ids)
+        if (!res.success && res.borrados === 0) throw new Error(res.message)
+        return { fallaron: res.fallaron }
+    }
     const [modalOpen, setModalOpen] = useState(false)
     const [editTemplate, setEditTemplate] = useState<PromptTemplate | undefined>()
     const [isPending, startTransition] = useTransition()
@@ -114,18 +129,17 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
     return (
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
-            {/* Actions, con las cifras que antes abrían la pantalla en
-                tarjetas. Sin filtro equivalente: no son pulsables. */}
-            <div className="flex items-center gap-2">
-                <PastillasDeMetricas
-                    className="order-last ml-auto"
-                    metricas={[
-                        { clave: 'total', icono: <FileText />, etiqueta: 'Total plantillas', valor: templates.length, color: '#3B82F6', ayuda: 'Plantillas configuradas en la plataforma' },
-                        { clave: 'activas', icono: <CheckCircle />, etiqueta: 'Activas', valor: activasCount, color: '#22C55E', ayuda: 'Plantillas disponibles para uso' },
-                        { clave: 'inactivas', icono: <XCircle />, etiqueta: 'Inactivas', valor: inactivasCount, color: '#EF4444', ayuda: 'Plantillas deshabilitadas' },
-                        { clave: 'categoria', icono: <Tag />, etiqueta: 'Con categoría', valor: conCategoriaCount, color: '#F59E0B', ayuda: 'Plantillas con categoría asignada' },
-                    ]}
-                />
+            {/* La barra de siempre: a la izquierda el buscador y las cifras,
+                a la derecha el azul de crear y el `⋯` pegado al borde. */}
+            <BarraDeAcciones
+                filtros={<>
+                {puedeGestionar && (
+                    <CasillaDeTodos
+                        estanTodos={estanTodos}
+                        hayAlguno={seleccionados.length > 0}
+                        onCambiar={alternarTodos}
+                    />
+                )}
                 <div className="relative w-64 shrink-0">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -135,10 +149,28 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                {(userRole === 'admin' || userRole === 'super_admin') && (
-                    <Button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white">+ Nuevo</Button>
-                )}
-            </div>
+                <PastillasDeMetricas
+                    metricas={[
+                        { clave: 'total', icono: <FileText />, etiqueta: 'Total plantillas', valor: templates.length, color: '#3B82F6', ayuda: 'Plantillas configuradas en la plataforma' },
+                        { clave: 'activas', icono: <CheckCircle />, etiqueta: 'Activas', valor: activasCount, color: '#22C55E', ayuda: 'Plantillas disponibles para uso' },
+                        { clave: 'inactivas', icono: <XCircle />, etiqueta: 'Inactivas', valor: inactivasCount, color: '#EF4444', ayuda: 'Plantillas deshabilitadas' },
+                        { clave: 'categoria', icono: <Tag />, etiqueta: 'Con categoría', valor: conCategoriaCount, color: '#F59E0B', ayuda: 'Plantillas con categoría asignada' },
+                    ]}
+                />
+                </>}
+                crear={puedeGestionar ? <BotonDeCrear onClick={() => handleOpenModal()}>Nueva plantilla</BotonDeCrear> : undefined}
+                acciones={
+                    <AccionesMasivas
+                        seleccionados={seleccionados}
+                        queSon="plantillas"
+                        // Quien no gestiona plantillas no ve la opción de
+                        // borrar: no se pinta en gris, no está.
+                        puedeEliminar={puedeGestionar}
+                        onEliminar={borrarLasMarcadas}
+                        onTerminar={() => { limpiar(); router.refresh(); }}
+                    />
+                }
+            />
 
 
             <div className="flex-1 min-h-0 overflow-y-auto py-2">
@@ -151,6 +183,8 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                                 onEdit={handleOpenModal}
                                 onDelete={handleOpenDeleteModal}
                                 userRole={userRole}
+                                seleccionados={puedeGestionar ? seleccionados : undefined}
+                                alternarSeleccion={puedeGestionar ? alternar : undefined}
                             />
                         )}
                     </div>

@@ -5,6 +5,7 @@ import { currentUser } from '@/lib/auth';
 import { db } from "@/lib/db";
 import { isAdminLike } from '@/lib/rbac';
 import { PromptTemplate } from '@prisma/client';
+import { comoListaDeIds, comoResumen, type ResumenDelBorrado } from '@/lib/borrado-en-bloque';
 
 export interface ModuleResponse {
     success: boolean
@@ -156,3 +157,31 @@ export async function getAllTemplates(): Promise<ModuleResponse> {
         }
     }
 };
+
+/**
+ * Elimina VARIAS plantillas de una vez, desde el `⋯` de la barra.
+ *
+ * La misma puerta que las de una en una (`assertCanManageTemplates`) y **una
+ * sola llamada**: Next serializa las acciones de servidor de una página, así
+ * que borrar veinte desde el navegador llamando veinte veces son veinte viajes
+ * en fila india.
+ */
+export async function eliminarPlantillasAction(ids: string[]): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIds(ids);
+    if (lista.length === 0) {
+        return { success: false, borrados: 0, fallaron: 0, message: 'No se recibió ninguna plantilla.' };
+    }
+
+    try {
+        const unauthorized = await assertCanManageTemplates();
+        if (unauthorized) {
+            return { success: false, borrados: 0, fallaron: lista.length, message: unauthorized.message };
+        }
+
+        const borrados = await db.promptTemplate.deleteMany({ where: { id: { in: lista } } });
+        return comoResumen(borrados.count, lista.length - borrados.count, 'plantillas');
+    } catch (error) {
+        console.error('eliminarPlantillasAction error:', error);
+        return { success: false, borrados: 0, fallaron: lista.length, message: 'Error al eliminar las plantillas.' };
+    }
+}

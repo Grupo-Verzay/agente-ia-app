@@ -18,7 +18,9 @@ import { toast } from 'sonner'
 import { PromptTemplateForm, PromptTemplateFormValues } from './PromptTemplateForm'
 import { TemplateCardSkeleton, TemplateList } from './'
 import { PromptTemplate, Role } from '@prisma/client'
-import { createTemplate, deleteTemplate, getAllTemplates, updateTemplate } from '@/actions/template-actions'
+import { createTemplate, deleteTemplate, eliminarPlantillasAction, getAllTemplates, updateTemplate } from '@/actions/template-actions'
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones'
+import { AccionesMasivas, CasillaDeTodos, useSeleccionMultiple } from '@/components/shared/AccionesMasivas'
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog'
 import Header from '@/components/shared/header'
 
@@ -28,6 +30,17 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
     const [templateId, setTemplateId] = useState<string>()
     const [filteredTemplates, setFilteredTemplates] = useState<PromptTemplate[]>([])
     const [search, setSearch] = useState('')
+
+    const puedeGestionar = userRole === 'admin' || userRole === 'super_admin'
+
+    const { seleccionados, alternar, alternarTodos, estanTodos, limpiar } =
+        useSeleccionMultiple(filteredTemplates.map((t) => t.id))
+
+    const borrarLasMarcadas = async (ids: string[]) => {
+        const res = await eliminarPlantillasAction(ids)
+        if (!res.success && res.borrados === 0) throw new Error(res.message)
+        return { fallaron: res.fallaron }
+    }
     const [modalOpen, setModalOpen] = useState(false)
     const [editTemplate, setEditTemplate] = useState<PromptTemplate | undefined>()
     const [isPending, startTransition] = useTransition()
@@ -110,9 +123,15 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
             <Header
                 title="Plantillas"
             />
-            {/* Header y Filtro */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between overflow-hidden">
-                <div className="flex flex-1 gap-2 items-center">
+            <BarraDeAcciones
+                filtros={<>
+                    {puedeGestionar && (
+                        <CasillaDeTodos
+                            estanTodos={estanTodos}
+                            hayAlguno={seleccionados.length > 0}
+                            onCambiar={alternarTodos}
+                        />
+                    )}
                     <div className="relative w-64 shrink-0">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -122,9 +141,18 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    {(userRole === 'admin' || userRole === 'super_admin') && <Button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white">+ Nuevo</Button>}
-                </div>
-            </div>
+                </>}
+                crear={puedeGestionar ? <BotonDeCrear onClick={() => handleOpenModal()}>Nueva plantilla</BotonDeCrear> : undefined}
+                acciones={
+                    <AccionesMasivas
+                        seleccionados={seleccionados}
+                        queSon="plantillas"
+                        puedeEliminar={puedeGestionar}
+                        onEliminar={borrarLasMarcadas}
+                        onTerminar={() => { limpiar(); router.refresh(); }}
+                    />
+                }
+            />
 
             <div className="flex-1">
                 <div className="max-h-[80vh] overflow-auto py-2">
@@ -137,6 +165,8 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                                 onEdit={handleOpenModal}
                                 onDelete={handleOpenDeleteModal}
                                 userRole={userRole}
+                                seleccionados={puedeGestionar ? seleccionados : undefined}
+                                alternarSeleccion={puedeGestionar ? alternar : undefined}
                             />
                         )}
                     </div>

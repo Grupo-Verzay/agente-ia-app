@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { iconMap, ModuleWithItems } from '@/schema/module'
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog'
+import { CasillaDeFila } from '@/components/shared/AccionesMasivas'
 import { deleteModule } from '@/actions/module-actions'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -33,10 +34,15 @@ import {
 
 export const ModuleCard = ({
     module: moduleComponent,
-    setOpenModule
+    setOpenModule,
+    marcado = false,
+    onMarcar,
 }: {
     module: ModuleWithItems
     setOpenModule: (state: boolean, module: ModuleWithItems) => void
+    /** Marcado para las acciones masivas del `⋯`. */
+    marcado?: boolean
+    onMarcar?: () => void
 }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const Icon = iconMap[moduleComponent.icon as keyof typeof iconMap]
@@ -60,6 +66,15 @@ export const ModuleCard = ({
             style={style}
             className="relative flex flex-col justify-between min-h-[280px] border border-border rounded-xl shadow-sm bg-background p-4"
         >
+            {/* La casilla va FUERA del asa: el asa captura el puntero al
+                agarrarla, así que un clic dentro no llega a salir. Es la misma
+                regla que ya costó una vuelta en la tarjeta de llamada. */}
+            {onMarcar && (
+                <div className="absolute right-3 top-3 z-20">
+                    <CasillaDeFila marcada={marcado} onCambiar={onMarcar} etiqueta={`Seleccionar ${moduleComponent.label}`} />
+                </div>
+            )}
+
             {/* Drag handle */}
             <div
                 className="absolute left-3 top-3 z-10 cursor-grab"
@@ -69,7 +84,7 @@ export const ModuleCard = ({
                 <GripVertical className="w-4 h-4 text-muted-foreground" />
             </div>
 
-            <CardHeader className="pl-8 pr-4 pt-2 pb-1">
+            <CardHeader className="pl-8 pr-9 pt-2 pb-1">
                 <CardTitle className="flex items-center gap-2 text-lg">
                     {Icon && <Icon className="h-5 w-5 text-primary" />}
                     {moduleComponent.label}
