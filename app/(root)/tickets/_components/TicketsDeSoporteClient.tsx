@@ -28,6 +28,14 @@ import { DetalleDelTicket } from "@/components/tickets/DetalleDelTicket";
 import { FormularioDeTicket } from "@/components/tickets/FormularioDeTicket";
 import type { CuentaElegible } from "@/components/tickets/SelectorDeCuenta";
 import type { AdvisorInfo } from "@/actions/team-actions";
+import { FiltroDeVencimiento as SelectorDeVencimiento } from "@/components/shared/FiltroDeVencimiento";
+import {
+    comoFiltroDeVencimiento,
+    elDiaDelInput,
+    pasaElFiltro,
+    type FiltroDeVencimiento,
+} from "@/lib/vencimiento";
+import { esEstadoFinal } from "@/lib/tickets";
 import { CabeceraDeTickets } from "./CabeceraDeTickets";
 import { TableroDeTickets } from "./TableroDeTickets";
 import { DocumentosQueLoNombran } from "@/components/shared/DocumentosQueLoNombran";
@@ -41,6 +49,7 @@ import {
 } from "@/lib/tickets";
 import {
     asignarResponsableAction,
+    ponerVencimientoDeTicketAction,
     moverTicketAction,
     ticketsDeSoporteAction,
     type TicketConAdjuntos,
@@ -101,6 +110,7 @@ export function TicketsDeSoporteClient({
      */
     const [cargadoEn, setCargadoEn] = useState(0);
     const [filtro, setFiltro] = useState<EstadoDeTicket | null>(null);
+    const [vencimiento, setVencimiento] = useState<FiltroDeVencimiento>("todas");
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [moviendo, setMoviendo] = useState<string | null>(null);
@@ -251,6 +261,38 @@ export function TicketsDeSoporteClient({
 
     const total = Object.values(porEstado).reduce((n, v) => n + v, 0);
 
+    /**
+     * Poner o quitar el vencimiento. Se pinta al momento y se deshace si el
+     * servidor dice que no, como asignar y como mover.
+     *
+     * El valor que llega es `YYYY-MM-DD` de un `<input type="date">`, y se
+     * manda TAL CUAL. Convertirlo aquí con `new Date("2026-09-20")` lo leería
+     * como UTC a medianoche, así que en Colombia se guardaría el día 19 a las
+     * 19:00 — el vencimiento se correría un día entero hacia atrás, y encima
+     * solo en unas zonas horarias, que es de lo que no se entera nadie hasta
+     * que un cliente lo reporta.
+     */
+    const ponerVencimiento = async (ticket: TicketConAdjuntos, dia: string) => {
+        const previos = tickets;
+        const valor = dia.trim() || null;
+        setTickets((prev) =>
+            prev.map((t) => (t.id === ticket.id ? { ...t, venceEl: valor } : t)),
+        );
+        try {
+            const res = await ponerVencimientoDeTicketAction(ticket.id, valor);
+            if (!res.success) {
+                setTickets(previos);
+                toast.error(res.message);
+                return;
+            }
+            toast.success(res.message);
+        } catch (e) {
+            console.warn("[tickets] no se pudo guardar el vencimiento", e);
+            setTickets(previos);
+            toast.error("No se pudo guardar el vencimiento.");
+        }
+    };
+
     /** Asignar a quién lo atiende. Se pinta al momento, como todo lo demás. */
     const asignar = async (ticket: TicketConAdjuntos, personaId: string | null) => {
         const previos = tickets;
@@ -286,12 +328,29 @@ export function TicketsDeSoporteClient({
     // El filtro por responsable es de la LISTA, y se aplica aquí: el servidor ya
     // trae los de esta cuenta y filtrar allí sería otra vuelta de red por un
     // desplegable que se cambia a cada rato.
-    const visibles =
+    const porResponsable =
         vista === "lista" && responsable !== null
             ? tickets.filter((t) =>
                   responsable === "" ? !t.responsableId : t.responsableId === responsable,
               )
             : tickets;
+
+    // El de vencimiento vale en las DOS vistas, a diferencia del de estado: en
+    // el tablero cada estado ya tiene su columna —filtrar por uno dejaría las
+    // otras cuatro vacías sin decir por qué—, pero «qué me vence» es
+    // exactamente la pregunta que se le hace a un tablero. Y se filtra aquí,
+    // sobre lo que el servidor ya trajo entero, como el de responsable.
+    const visibles =
+        vencimiento === "todas"
+            ? porResponsable
+            : porResponsable.filter((t) =>
+                  pasaElFiltro({
+                      filtro: vencimiento,
+                      vence: t.venceEl,
+                      ahora,
+                      terminada: esEstadoFinal(t.estado),
+                  }),
+              );
 
     const nombreDelFiltro =
         responsable === null
@@ -382,6 +441,10 @@ export function TicketsDeSoporteClient({
                 }
                 acciones={
                     <div className="flex shrink-0 items-center gap-2">
+                        <SelectorDeVencimiento
+                            valor={vencimiento}
+                            onCambio={(v) => setVencimiento(comoFiltroDeVencimiento(v))}
+                        />
                         <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
                             {cargando ? "Cargando…" : `${total} en total`}
                         </span>
@@ -421,8 +484,9 @@ export function TicketsDeSoporteClient({
                 </div>
             ) : vista === "tablero" ? (
                 <TableroDeTickets
-                    tickets={tickets}
+                    tickets={visibles}
                     porEstado={porEstado}
+                    filtrado={vencimiento !== "todas"}
                     destino={destino}
                     cargadoEn={cargadoEn}
                     moviendo={moviendo}
@@ -493,6 +557,23 @@ export function TicketsDeSoporteClient({
                                     </select>
                                 </div>
                             )}
+                            {/* El vencimiento, OPCIONAL: vacío es «sin fecha» y
+                                es lo normal. Lo pone quien lo recibe, no el
+                                cliente que lo abrió. */}
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-muted-foreground">Vence el</span>
+                                <input
+                                    type="date"
+                                    value={elDiaDelInput(abierto.venceEl)}
+                                    onChange={(e) => {
+                                        const suyo = abierto;
+                                        setAbierto({ ...suyo, venceEl: e.target.value || null });
+                                        void ponerVencimiento(suyo, e.target.value);
+                                    }}
+                                    className="h-8 max-w-[14rem] rounded-md border border-input bg-background px-2 text-xs"
+                                />
+                            </div>
+
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-muted-foreground">Cambiar el estado</span>
                             <MenuDeEstado

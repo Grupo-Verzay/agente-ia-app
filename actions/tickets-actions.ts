@@ -42,6 +42,7 @@ import {
   losAdjuntos,
   losTicketsDelCliente,
   losTicketsDelDestino,
+  ponerElVencimiento,
   sellarElAviso,
   TOPE_DE_ADJUNTOS_POR_TICKET,
   type AdjuntoDeTicket,
@@ -250,6 +251,10 @@ export async function abrirTicketAction(
       creadoPorId: laPersonaQueActua(user).id,
       destinoId: destino,
       responsableId,
+      // Un ticket nace SIN vencimiento, y a propósito: lo abre el cliente, y
+      // el cliente no es quien decide para cuándo se compromete el equipo que
+      // lo atiende. La fecha la pone después quien lo recibe, desde su tablero.
+      venceEl: null,
       titulo: parsed.titulo,
       descripcion: parsed.descripcion,
       whatsapp: soloDigitos(parsed.whatsapp),
@@ -596,6 +601,51 @@ export async function asignarResponsableAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : "No se pudo asignar el responsable.",
+    };
+  }
+}
+
+/**
+ * Poner o quitar el vencimiento de un ticket. La puerta es la misma que moverlo.
+ *
+ * **`null` es un valor, no un «no tocar»**: quitarle la fecha a un ticket es
+ * una acción legítima y tiene que poder hacerse; si no, una fecha puesta por
+ * error no habría forma de borrarla salvo rehaciendo el ticket.
+ *
+ * Y lo que llega del navegador no se da por bueno: una fecha inválida se
+ * rechaza en vez de guardarse como `Invalid Date`, que en la columna acabaría
+ * en un `null` silencioso y en una tarjeta sin distintivo que nadie sabe por
+ * qué no avisa.
+ */
+export async function ponerVencimientoDeTicketAction(
+  ticketId: string,
+  venceEl: string | null,
+): Promise<Result<null>> {
+  try {
+    const destino = await laCuentaQueLosRecibe();
+
+    const limpio = venceEl?.trim() || null;
+    let fecha: Date | null = null;
+    if (limpio) {
+      fecha = new Date(limpio);
+      if (Number.isNaN(fecha.getTime())) throw new Error("Esa fecha no se entiende.");
+    }
+
+    const cambio = await ponerElVencimiento({ id: ticketId, destinoId: destino, venceEl: fecha });
+    if (!cambio) throw new Error("Ese ticket no está aquí.");
+
+    revalidatePath("/tickets");
+    revalidatePath("/mis-tickets");
+    return {
+      success: true,
+      message: fecha ? "Vencimiento guardado." : "Sin vencimiento.",
+      data: null,
+    };
+  } catch (error) {
+    console.error("[ponerVencimientoDeTicketAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo guardar el vencimiento.",
     };
   }
 }

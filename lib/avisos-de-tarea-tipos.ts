@@ -18,8 +18,40 @@ import { quienFirma } from "@/lib/chat-de-equipo";
  * con otra forma de despacharse, se aprende a ignorar como se ignoraba la
  * campanita.
  */
-export const TIPOS_DE_AVISO = ["asignada", "hecha", "comentario", "mencion"] as const;
+export const TIPOS_DE_AVISO = [
+  "asignada",
+  "hecha",
+  "comentario",
+  "mencion",
+  "vence",
+] as const;
 export type TipoDeAviso = (typeof TIPOS_DE_AVISO)[number];
+
+/**
+ * Los que sacan la ventana que INTERRUMPE. `vence` no está, y a propósito.
+ *
+ * Los cuatro primeros son cosas que **acaba de hacer una persona** —te asignó
+ * algo, comentó, te mencionó—: interrumpir ahí es el encargo, y por eso esa
+ * ventana existe. Un vencimiento no lo hizo nadie: lo dispara el calendario, y
+ * el mismo día, a la misma hora, para todo el que tenga algo que vence. Una
+ * ventana que no se cierra sola saltándole a medio equipo cada mañana es
+ * exactamente lo que este documento lleva media docena de reglas evitando —«un
+ * aviso que sale siempre se aprende a despachar sin leer»—, y el precio no es
+ * ese aviso: es que con él se empiezan a despachar los otros cuatro.
+ *
+ * Así que el vencimiento va a la **campanita** y se queda ahí, que es lo que se
+ * pidió. El distintivo rojo de la tarjeta es la otra mitad del recordatorio.
+ */
+export const TIPOS_QUE_INTERRUMPEN: readonly TipoDeAviso[] = [
+  "asignada",
+  "hecha",
+  "comentario",
+  "mencion",
+];
+
+export function interrumpe(tipo: TipoDeAviso): boolean {
+  return TIPOS_QUE_INTERRUMPEN.includes(tipo);
+}
 
 /**
  * Cuánto se deja escribir en un comentario.
@@ -100,6 +132,10 @@ export function tituloDelAviso(
 ): string {
   const persona = quien?.trim() || "Alguien del equipo";
   if (tipo === "mencion") return `${persona} te mencionó en el chat del equipo`;
+  // El de vencimiento lo escribe `tituloDelVencimiento`, que sabe si es la
+  // víspera o el día: aquí no hay forma de distinguirlos. Este texto es el
+  // respaldo de una fila vieja o escrita a mano, no el camino normal.
+  if (tipo === "vence") return `Vence «${tituloDeLaTarea}»`;
   if (tipo === "asignada") return `${persona} te asignó «${tituloDeLaTarea}»`;
   if (tipo === "hecha") return `${persona} terminó «${tituloDeLaTarea}»`;
   return `${persona} comentó en «${tituloDeLaTarea}»`;

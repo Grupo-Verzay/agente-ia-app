@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/core";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Loader2, Plus, User, Calendar, RefreshCw, Users, Trash2,
+  ArrowLeft, Loader2, Plus, User, RefreshCw, Users, Trash2,
   Paperclip, Image as ImageIcon, Video, FileAudio, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,14 @@ import {
   ordenarLaColumna,
   resolverElArrastre,
 } from "@/lib/orden-del-tablero";
+import { DistintivoDeVencimiento } from "@/components/shared/DistintivoDeVencimiento";
+import { FiltroDeVencimiento as SelectorDeVencimiento } from "@/components/shared/FiltroDeVencimiento";
+import {
+  comoFiltroDeVencimiento,
+  elDiaDelInput,
+  pasaElFiltro,
+  type FiltroDeVencimiento,
+} from "@/lib/vencimiento";
 import { HiloDeLaTarea } from "./HiloDeLaTarea";
 import { DocumentosQueLoNombran } from "@/components/shared/DocumentosQueLoNombran";
 import { comentarLaTareaAction } from "@/actions/avisos-de-tarea-actions";
@@ -74,20 +82,18 @@ function personLabel(person: { name: string | null; email: string | null }) {
   return person.name?.trim() || person.email || "Sin nombre";
 }
 
-function fmtDue(iso: string) {
-  const date = new Date(iso);
-  const today = new Date();
-  const overdue = date < today;
-  return {
-    label: date.toLocaleDateString("es-CO", { day: "2-digit", month: "short" }),
-    overdue,
-  };
-}
-
 // ─── Tarjeta ─────────────────────────────────────────────────────────────────
 
-function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boolean }) {
-  const due = fmtDue(task.dueDate);
+function TaskCard({
+  task,
+  ahora,
+  dragging = false,
+}: {
+  task: TaskData;
+  /** El reloj, uno para todas las tarjetas del repintado. */
+  ahora: number;
+  dragging?: boolean;
+}) {
   const isDone = task.status === "done";
   // Algo que ESTA persona no ha abierto: se lo asignaron, alguien comentó,
   // alguien la dio por hecha. No se quita al pasar por encima ni con el tiempo:
@@ -168,17 +174,32 @@ function TaskCard({ task, dragging = false }: { task: TaskData; dragging?: boole
           <User className="h-2.5 w-2.5" />
           {task.assignedToName ?? "Sin asignar"}
         </span>
-        <span className={cn("flex items-center gap-1", !isDone && due.overdue && "text-red-600 dark:text-red-400")}>
-          <Calendar className="h-2.5 w-2.5" />
-          {due.label}
-        </span>
+        {/* El vencimiento, con su color.
+
+            Antes aquí se comparaba `new Date(dueDate) < new Date()`, o sea por
+            INSTANTE: una tarea que vencía hoy a las 18:00 salía en rojo a las
+            18:01, y a las 09:00 ya estaba roja si la hora guardada eran las
+            08:00. Un vencimiento es un DÍA. Lo decide `lib/vencimiento.ts`, el
+            mismo módulo que usan el filtro de aquí arriba, la tarjeta de
+            Tickets y el trabajo diario que manda los avisos: con la cuenta
+            escrita en cada sitio, una tarjeta podía salir en rojo sin que
+            hubiera salido ningún aviso. */}
+        <DistintivoDeVencimiento vence={task.dueDate} ahora={ahora} terminada={isDone} />
       </div>
 
     </div>
   );
 }
 
-function DraggableTask({ task, onOpen }: { task: TaskData; onOpen: (task: TaskData) => void }) {
+function DraggableTask({
+  task,
+  ahora,
+  onOpen,
+}: {
+  task: TaskData;
+  ahora: number;
+  onOpen: (task: TaskData) => void;
+}) {
   return (
     <TarjetaDelTablero
       id={String(task.id)}
@@ -188,7 +209,7 @@ function DraggableTask({ task, onOpen }: { task: TaskData; onOpen: (task: TaskDa
       // llega aqui y abre la tarjeta; soltarla tras arrastrar, no.
       onClick={() => onOpen(task)}
     >
-      {(dragging) => <TaskCard task={task} dragging={dragging} />}
+      {(dragging) => <TaskCard task={task} ahora={ahora} dragging={dragging} />}
     </TarjetaDelTablero>
   );
 }
@@ -201,6 +222,7 @@ function BoardColumn({
   color,
   tasks,
   ids,
+  ahora,
   onAdd,
   onOpenTask,
   canDrag,
@@ -212,6 +234,8 @@ function BoardColumn({
   tasks: TaskData[];
   /** Las mismas tareas, solo sus ids: es lo que `SortableContext` necesita. */
   ids: string[];
+  /** El reloj del tablero, uno para todas sus tarjetas. */
+  ahora: number;
   onAdd: () => void;
   onOpenTask: (task: TaskData) => void;
   canDrag: (task: TaskData) => boolean;
@@ -253,7 +277,7 @@ function BoardColumn({
         <ColumnaOrdenable ids={ids}>
         {tasks.map((task) => (
           canDrag(task)
-            ? <DraggableTask key={task.id} task={task} onOpen={onOpenTask} />
+            ? <DraggableTask key={task.id} task={task} ahora={ahora} onOpen={onOpenTask} />
             // Arrastrar no, pero abrir sí: aquí dentro está el hilo, y quien no
             // puede mover una tarjeta también tiene que poder leerla y
             // contestar. Si no, el punto de «sin ver» no se podría quitar.
@@ -264,7 +288,7 @@ function BoardColumn({
                 className="w-full text-left"
                 onClick={() => onOpenTask(task)}
               >
-                <TaskCard task={task} />
+                <TaskCard task={task} ahora={ahora} />
               </button>
             )
         ))}
@@ -320,7 +344,16 @@ export function ProjectBoard({
   const [activeTask, setActiveTask] = useState<TaskData | null>(null);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<TaskData | null>(null);
+  const [filtro, setFiltro] = useState<FiltroDeVencimiento>("todas");
   const pendingRef = useRef(false);
+
+  // El reloj del tablero: UNO para todas las tarjetas de un repintado.
+  //
+  // Con `Date.now()` dentro de cada tarjeta, dos de ellas podrían caer a lados
+  // distintos de la medianoche en el mismo pintado — y sobre todo no habría
+  // forma de probar ninguna sin esperar a que pase un día. Se refresca al
+  // recargar, que es cuando cambia algo.
+  const [ahora, setAhora] = useState(() => Date.now());
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -339,6 +372,7 @@ export function ProjectBoard({
   const load = useCallback(async () => {
     setLoading(true);
     const res = await getProjectTasksAction(project.id);
+    setAhora(Date.now());
     if (res.success && res.data) {
       setTasks(res.data);
       // Lo que se movió en pantalla sobra: las posiciones vienen dentro de cada
@@ -367,10 +401,27 @@ export function ProjectBoard({
     [canManage, userId],
   );
 
+  // El filtro se aplica EN EL NAVEGADOR, sobre la lista que ya llegó entera,
+  // como las carpetas de Proyectos: cambiar de filtro es instantáneo y no
+  // depende de una vuelta de red. Y va antes de agrupar por columna, para que
+  // el número de la cabecera de cada columna diga lo que de verdad se ve.
+  const alaVista = useMemo(
+    () =>
+      tasks.filter((t) =>
+        pasaElFiltro({
+          filtro,
+          vence: t.dueDate,
+          ahora,
+          terminada: t.status === "done",
+        }),
+      ),
+    [tasks, filtro, ahora],
+  );
+
   const byColumn = useMemo(() => {
     const map: Record<string, TaskData[]> = {};
     for (const col of BOARD_COLUMNS) map[col.status] = [];
-    for (const task of tasks) {
+    for (const task of alaVista) {
       // Un estado que no tenga columna (por datos viejos) no se pierde: cae en
       // «Por hacer» en vez de desaparecer del tablero sin dejar rastro.
       const column = map[task.status] ? task.status : "pending";
@@ -387,7 +438,7 @@ export function ProjectBoard({
       map[col.status] = ordenarLaColumna(map[col.status], posiciones, (t) => String(t.id));
     }
     return map;
-  }, [tasks, orden]);
+  }, [alaVista, orden]);
 
   const idsPorColumna = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -439,6 +490,20 @@ export function ProjectBoard({
     });
 
     if (que.que === "reordenar") {
+      // **Con un filtro puesto no se reordena.** Guardar el orden escribe la
+      // COLUMNA ENTERA, y con el filtro puesto esa lista son solo las tarjetas
+      // visibles: las escondidas perderían su sitio y saltarían al principio
+      // **al quitar el filtro**, que es cuando ya nadie relaciona las dos
+      // cosas. Es el mismo fallo que la rejilla de Proyectos resuelve
+      // calculando el movimiento sobre la lista completa; aquí no se puede,
+      // porque no hay forma de saber entre qué dos escondidas cae.
+      //
+      // Y no es mudo: un arrastre que se rinde en silencio se ve como «la
+      // tarjeta no se queda donde la dejo».
+      if (filtro !== "todas") {
+        toast.info("Quita el filtro de vencimiento para reordenar la columna.");
+        return;
+      }
       void orden.reordenar(que.ids);
       return;
     }
@@ -483,7 +548,7 @@ export function ProjectBoard({
     }
     // El avance del proyecto se ve en la tarjeta de la lista.
     onProjectChanged();
-  }, [tasks, onProjectChanged, byColumn, idsPorColumna, orden]);
+  }, [tasks, onProjectChanged, byColumn, idsPorColumna, orden, filtro]);
 
   /** Confirmar el cierre: ahora sí se mueve, con el tiempo registrado. */
   const confirmarElCierre = useCallback(async () => {
@@ -534,6 +599,7 @@ export function ProjectBoard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <SelectorDeVencimiento valor={filtro} onCambio={(v) => setFiltro(comoFiltroDeVencimiento(v))} />
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => void load()} title="Actualizar">
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
@@ -573,6 +639,7 @@ export function ProjectBoard({
                   color={col.color}
                   tasks={byColumn[col.status] ?? []}
                   ids={idsPorColumna[col.status] ?? []}
+                  ahora={ahora}
                   onAdd={() => setAddingTo(col.status)}
                   onOpenTask={setEditingTask}
                   canDrag={puedeTocar}
@@ -585,7 +652,7 @@ export function ProjectBoard({
           <DragOverlay>
             {activeTask && (
               <div className="w-[264px] rotate-2 shadow-2xl">
-                <TaskCard task={activeTask} dragging />
+                <TaskCard task={activeTask} ahora={ahora} dragging />
               </div>
             )}
           </DragOverlay>
@@ -729,7 +796,13 @@ function TaskDialog({
     setType(task?.type ?? TASK_TYPES[4]);
     setAssignedToId(task?.assignedToId ?? userId);
     // Por defecto, hoy: una tarea sin fecha no aparece en los avisos de Tareas.
-    setDueDate((task?.dueDate ?? new Date().toISOString()).slice(0, 10));
+    //
+    // Con `elDiaDelInput` y no con `.slice(0, 10)`: ese corta sobre la hora
+    // UTC, así que una tarea guardada el día 20 por la tarde en Colombia se
+    // abría con el 21 en el campo, y volver a guardarla sin tocar nada le
+    // corría la fecha un día. Aquí no se notaba porque el guardado sella las
+    // 12:00, pero basta con una fila escrita por otro camino.
+    setDueDate(elDiaDelInput(task?.dueDate ?? new Date().toISOString()));
     setClienteId(task?.clienteId ?? "");
     setTipoDeTrabajo(task?.tipoDeTrabajo ?? "");
     setMinutosDeTrabajo(null);
