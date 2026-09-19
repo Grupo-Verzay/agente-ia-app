@@ -3823,6 +3823,132 @@ Nunca están los dos paneles abiertos a la vez: abrir uno cierra el otro. Son do
 paneles en el mismo sitio, y abiertos a la vez uno taparía al otro sin decir
 cuál está delante.
 
+## El número en la PESTAÑA: solo lo que exige respuesta
+
+Con la pestaña de fondo entre otras diez, lo único que se ve de la App es su
+icono de 16 píxeles. El contador de la barra lateral y la campanita no existen
+ahí: hay que **volver a la pestaña** para saber si pasó algo, que es justo lo
+que no se hace cuando se está en otra cosa.
+
+Así que el número se pinta encima del favicon, en un lienzo, y el `<link>` se
+sustituye en caliente.
+
+**La regla, y es la misma de siempre contada en otro sitio:**
+
+> **Cuenta lo que exige RESPUESTA: chats de clientes sin leer, más lo que en
+> el chat del equipo va dirigido a esta persona —un directo o una mención—.
+> Las tareas y los avisos de la campanita NO entran.**
+
+No es una lista de lo que cabía: un icono que sube con todo se aprende a
+ignorar, y entonces deja de servir **también para lo que sí había que
+contestar**. Es la misma familia que *la campanita es solo para menciones* y que
+el sonido del equipo, que no suena con el general a secas. Por eso el número del
+equipo **no es `total`** —eso son todos los mensajes sin leer, el general
+incluido, que es el canal donde está todo el mundo—.
+
+### Sin un solo sondeo nuevo, y de dónde sale cada mitad
+
+| | de dónde | con qué ritmo |
+| --- | --- | --- |
+| chats sin leer | `useChatUnreadStore`, que llena la bandeja | en vivo, con el socket |
+| del equipo | el reloj del contador, que ya cuelga del layout | 15 s |
+
+El del equipo sale **gratis**: `avisos` ya venía en esa respuesta —es lo que
+decide si suena— y hasta ahora se leía y se tiraba. Un contador aparte habría
+sido un segundo reloj en **todas** las pantallas de todo el mundo para contar
+lo que ya estaba encima de la mesa.
+
+Y de ahí sale dónde vive el componente, que si no parece arbitrario:
+**`BotonesDelBorde`**, porque es el único sitio que ya tiene el contador del
+equipo. `useSinLeerDelEquipo` **no comparte estado entre llamadas**, así que
+llamarlo otra vez desde el layout montaría ese segundo `setInterval` de 15 s —o
+sea, exactamente el sondeo que esto no trae—. El número baja por prop desde
+quien ya lo tiene; el componente no pinta nada (`return null`).
+
+### Los dos números se cuentan en la misma unidad
+
+Son **conversaciones, no mensajes**, los dos: la consulta del equipo agrupa por
+canal y los chats se cuentan por chat. Con uno en mensajes y otro en chats la
+suma no significaría nada — sería un número que no se puede explicar señalando
+la pantalla.
+
+### Lo que hereda del contador de la barra lateral, y conviene saberlo
+
+`useChatUnreadStore` lo escribe **solo la bandeja** (`chat-sidebar`), así que en
+una carga en frío de otra pantalla esa mitad arranca en 0 hasta que se entra a
+Chats. **No es nuevo**: es exactamente lo que ya hacen la pastilla de «Chats»
+del menú y la campanita, que leen el mismo store. Se acepta a sabiendas porque
+la alternativa es una consulta al servidor en cada carga de cada pantalla, que
+es el sondeo que esto vino a no traer. La mitad del equipo sí llega sola, porque
+su reloj cuelga del layout.
+
+### Tres cosas del dibujo que no se ven mirando
+
+1. **Se dibuja a 64 y lo reduce el navegador.** A 16 el círculo sale con los
+   bordes escalonados y el dígito ilegible. Es lo que hace cualquier icono de
+   la barra.
+2. **`centro + radio + aro` tiene que caber en 1.** El primer intento daba
+   **1,04** y la insignia salía **cortada por la esquina** — de las cosas que se
+   miran de reojo y se dan por buenas. Lo cazó el banco, y lo comprueba como
+   **invariante**, no como un número escrito a mano: si alguien mueve el radio,
+   salta. Y `letra` va atada al radio (1,4 veces): moviendo uno hay que
+   recalcular el otro, no dejarlo donde estaba.
+3. **El icono base se prueba en DOS direcciones, y el orden importa.** Primero
+   el `<link rel="icon">`; y de respaldo el `apple-touch-icon`, que lo sirve
+   `/api/brand-icon` y es **del mismo origen siempre**. Hace falta porque el
+   favicon de un reseller vive en **otro dominio**: sin CORS, el navegador lo
+   cargaría y *contaminaría* el lienzo, y entonces `toDataURL` lanza y no hay
+   insignia. Con `crossOrigin="anonymous"` esa imagen **ni carga** —da `error`—,
+   que es lo que se quiere: se detecta antes de dibujar y se pasa al respaldo.
+
+### Y se pone un `<link>` NUESTRO, no se reescribe el de Next
+
+Va marcado con `data-insignia` y **al final de `<head>`**: entre dos iconos
+declarados manda el último, así que gana sin tocar el de Next, y **quitarlo
+devuelve el de siempre**. Reescribir el de Next con la dirección original
+obligaría a recordarla, y el día que esa etiqueta cambie —otro branding, otra
+navegación— se estaría restaurando una dirección vieja encima de la buena.
+
+Sin pendientes no se pinta un cero: se quita el nuestro. **Una insignia con un
+cero dentro sigue llamando la atención para decir que no pasa nada**, que es lo
+contrario de para lo que está.
+
+### Medido decodificando el PNG, no mirando la pantalla
+
+Un `data:` distinto no prueba nada —podría ser el icono de siempre
+recodificado—. Lo que prueba que la insignia está es que aparezca **rojo donde
+antes no había, y en su esquina**. El banco del navegador decodifica el PNG que
+acaba en el `<link>` y cuenta píxeles:
+
+| | ¿insignia? | rojos | abajo dcha. |
+| --- | --- | --- | --- |
+| el icono original | — | **0** | **0** |
+| sin pendientes | **no** | — | — |
+| 1 chat | sí | 674 | 506 |
+| 2 + 3 = 5 | sí | 644 | 476 |
+| 9 justos | sí | 630 | 462 |
+| 10 → `9+` | sí | 588 | 441 |
+| 500 + 500 | sí | **588** | **441** |
+
+Las dos últimas filas son **idénticas al byte**, y eso es lo que prueba que las
+dos pintan `9+` y no un número distinto. Y «sin pendientes» no es que la
+insignia salga vacía: es que **no hay `link[data-insignia]`** en el `<head>`.
+
+### Y la receta de `removeConsole` FALLA con acentos
+
+Comprobando que los dos avisos sobreviven al build salió esto, y vale para toda
+la regla de *el build borraba los avisos*: el minificador escapa los acentos,
+así que buscar el texto tal cual **no lo encuentra aunque esté**:
+
+```
+grep -rl "no se pudo dibujar el número sobre el icono" .next/static/chunks/   # 0 resultados
+grep -rl "no se pudo dibujar el n"                     .next/static/chunks/   # sí aparece
+```
+
+En el paquete pone `el n\xfamero` y `la pesta\xf1a`. **Se busca por un trozo
+sin acentos**, o un cero se lee como «el aviso no existe en producción» cuando
+lo que no existe es esa forma de escribirlo.
+
 ## Llamadas de voz: la señalización va por la BASE, no por un socket
 
 Llamar de navegador a navegador dentro de un directo, sin WhatsApp y sin

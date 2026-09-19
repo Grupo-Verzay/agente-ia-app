@@ -266,6 +266,29 @@ function guardarLaMarca(llave: string, hasta: number) {
 export function useSinLeerDelEquipo() {
     const [total, setTotal] = useState(0);
     const [sonido, setSonido] = useState(true);
+    /**
+     * En cuántas CONVERSACIONES del equipo hay algo dirigido a esta persona:
+     * un directo, o una mención en cualquier canal. Es lo que pinta la
+     * insignia del favicon.
+     *
+     * Sale **gratis** de la misma vuelta: `avisos` ya viene en la respuesta
+     * —es lo que decide si suena— y hasta ahora se leía y se tiraba. Un
+     * contador aparte habría sido un segundo reloj en todas las pantallas
+     * para contar lo que ya estaba encima de la mesa.
+     *
+     * Dos cosas de lo que este número ES, y ninguna es un detalle:
+     *
+     * - **No es `total`.** Ese son todos los mensajes sin leer, el general
+     *   incluido, y el general es el canal donde está todo el mundo. Un icono
+     *   que sube con cada cosa que se dice ahí se aprende a ignorar, y
+     *   entonces deja de servir para lo que sí había que contestar — la misma
+     *   razón por la que el general sin mención no suena.
+     * - **Son conversaciones, no mensajes**: la consulta agrupa por canal. Eso
+     *   lo hace sumable con los chats sin leer, que también se cuentan por
+     *   conversación. Con uno en mensajes y otro en chats, la suma no
+     *   significaría nada.
+     */
+    const [dirigidos, setDirigidos] = useState(0);
 
     const sonidoRef = useRef(true);
     sonidoRef.current = sonido;
@@ -284,6 +307,10 @@ export function useSinLeerDelEquipo() {
 
             const llave = llaveDeLaMarca(res.data.personaId);
             const avisos = res.data.avisos ?? [];
+            // En cuántas conversaciones hay algo dirigido a esta persona. El
+            // servidor ya lo decidió al marcar el `motivo` y ya agrupó por
+            // canal, así que aquí solo se cuenta.
+            setDirigidos(avisos.length);
             const marca = laMarcaGuardada(llave);
 
             const cual = loQueMereceSonar(avisos, {
@@ -346,5 +373,5 @@ export function useSinLeerDelEquipo() {
         };
     }, [preguntar]);
 
-    return { total, sonido };
+    return { total, sonido, dirigidos };
 }

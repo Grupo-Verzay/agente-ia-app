@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/ai-chat/useChatStore";
 import { ChatLauncher } from "@/app/(root)/ai-chat/components/ChatLauncher";
 import { ChatSheet } from "@/app/(root)/ai-chat/components/ChatSheet";
+import { InsigniaDelFavicon } from "@/components/shared/InsigniaDelFavicon";
 import { PanelDeEquipo } from "@/components/chat-equipo/PanelDeEquipo";
 import { useSinLeerDelEquipo } from "@/hooks/useSinLeerDelEquipo";
 
@@ -58,7 +59,7 @@ export function BotonesDelBorde({
     // Y este mismo reloj es el que suena: lo que trae la vuelta ya dice qué
     // merece sonar y si esta persona lo quiere. Un segundo reloj para el sonido
     // sería preguntar dos veces lo mismo en todas las pantallas de la App.
-    const { total: sinLeer, sonido } = useSinLeerDelEquipo();
+    const { total: sinLeer, sonido, dirigidos } = useSinLeerDelEquipo();
 
     // Nunca los dos a la vez: son dos paneles en el mismo sitio, y abiertos a
     // la vez uno taparía al otro sin decir cuál está delante.
@@ -122,6 +123,13 @@ export function BotonesDelBorde({
                     </span>
                 </button>
             </div>
+
+            {/* El número de la pestaña. Vive aquí y no en el layout porque
+                este es el ÚNICO sitio que ya tiene el contador del equipo:
+                llamar al hook otra vez montaría un segundo reloj de 15 s en
+                todas las pantallas, que es justo el sondeo que esto no trae.
+                No pinta nada en el árbol. */}
+            <InsigniaDelFavicon delEquipo={dirigidos} />
 
             <ChatSheet open={copilotoAbierto} onOpenChange={alternarCopiloto} />
             <PanelDeEquipo
