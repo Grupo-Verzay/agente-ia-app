@@ -40,6 +40,9 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
+import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 
 type DataTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[];
@@ -56,6 +59,8 @@ type DataTableProps<TData, TValue> = {
   entityLabel?: string; // singular, ej. "venta"
   /** Acción extra al final de la barra (ej. botón "+ Nueva venta"). */
   toolbarExtra?: React.ReactNode;
+  /** Cómo se llaman en plural, para el menú del `⋯`. */
+  queSon?: string;
 };
 
 export function DataTable<TData, TValue>({
@@ -71,6 +76,7 @@ export function DataTable<TData, TValue>({
   deleteBusy = false,
   entityLabel = 'registro',
   toolbarExtra,
+  queSon = 'filas',
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -148,39 +154,44 @@ export function DataTable<TData, TValue>({
   return (
     <div className="flex flex-col h-full gap-2">
       <div className="sticky top-0 z-1">
-        <div className="flex items-center justify-between gap-2">
+        {/* Los dos botones rojos sueltos —«Eliminar (N)» y «Eliminar todas»—
+            estaban en la fila, compitiendo con el de crear. Su sitio es el
+            `⋯`: son acciones sobre VARIAS filas. */}
+        <BarraDeAcciones
+          crear={toolbarExtra}
+          acciones={
+            enableSelection && (onDeleteSelected || onDeleteAll) ? (
+              <AccionesMasivas
+                seleccionados={selectedIds}
+                queSon={queSon}
+                puedeEliminar={!!onDeleteSelected}
+                onEliminar={onDeleteSelected ? async () => { setConfirm({ open: true, all: false }); } : undefined}
+                extras={
+                  data.length > 0 && onDeleteAll
+                    ? [{
+                        clave: 'todas',
+                        etiqueta: `Eliminar todas`,
+                        icono: <Trash2 className="h-4 w-4" />,
+                        destructiva: true,
+                        sinSeleccion: true,
+                        onSelect: () => setConfirm({ open: true, all: true }),
+                      }]
+                    : []
+                }
+              />
+            ) : null
+          }
+          filtros={
+          <>
           <Input
             value={(searchColumn?.getFilterValue() as string) ?? ''}
             onChange={(event) => searchColumn?.setFilterValue(event.target.value)}
             placeholder={searchPlaceholder}
-            className="h-8 w-72 text-sm"
+            className="h-10 w-72 shrink-0 text-sm"
           />
-          <div className="flex items-center gap-2">
-            {enableSelection && selectedIds.length > 0 && onDeleteSelected && (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-8"
-                disabled={deleteBusy}
-                onClick={() => setConfirm({ open: true, all: false })}
-              >
-                Eliminar ({selectedIds.length})
-              </Button>
-            )}
-            {enableSelection && data.length > 0 && onDeleteAll && (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-8"
-                disabled={deleteBusy}
-                onClick={() => setConfirm({ open: true, all: true })}
-              >
-                Eliminar todas
-              </Button>
-            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-8 px-2 text-sm">
+                <Button variant="outline" className="h-10 shrink-0 px-2 text-sm">
                   Columnas
                 </Button>
               </DropdownMenuTrigger>
@@ -200,9 +211,9 @@ export function DataTable<TData, TValue>({
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            {toolbarExtra}
-          </div>
-        </div>
+          </>
+          }
+        />
       </div>
 
       <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">

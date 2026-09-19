@@ -2189,6 +2189,28 @@ Tres cosas que dice esa tabla y no se ven mirando la pantalla:
 
 Ninguna de las seis medidas desborda a lo ancho.
 
+### El segundo lote, y las dos que sí se partían
+
+Al pasar el resto de las pantallas se buscó a propósito el fallo de Plantillas
+—la barra que dobla de alto a 1024— y apareció **en dos**, medidas igual, sobre
+el CSS del build:
+
+| | ventana | alto | el azul, a … del borde | desborda |
+| --- | --- | --- | --- | --- |
+| **antes** Macros | 1440 / 1280 | 40 | 0 px | no |
+| **antes** Macros | **1024** | **84 px** | — | no |
+| **antes** Ventas | 1440 / 1280 / 1024 | 40 | **−491 px** | **sí** |
+| **ahora** las dos | 1440 / 1280 / 1024 | **40** | **48 px** | no |
+
+Y la segunda es peor que la de Plantillas: en Ventas el `justify-between` con
+cuatro botones a la derecha —«Eliminar (N)», «Eliminar todas», «Columnas» y el
+azul— **empujaba el de crear 491 px FUERA de la caja**, en las tres anchuras. La
+página se desplazaba a lo ancho y el botón de crear no se alcanzaba. No se ve
+mirando la pantalla con pocas filas: los dos rojos solo salen con algo marcado.
+
+Los dos rojos sueltos eran además el caso de libro de lo que va en el `⋯`: son
+acciones sobre VARIAS filas, compitiendo por sitio con el único botón que crea.
+
 ### Lo que NO es una pantalla de lista, y por qué no entra
 
 Tres de las que se nombraron no tienen lista debajo, así que no se les puso

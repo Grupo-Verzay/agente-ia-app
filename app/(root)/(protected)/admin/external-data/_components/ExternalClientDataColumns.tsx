@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import type { ExternalClientData } from '@/types/external-client-data';
+import { CasillaDeFila } from '@/components/shared/AccionesMasivas';
 
 // ─── Interfaces (ISP) ─────────────────────────────────────────────────────────
 
@@ -26,6 +27,25 @@ export function buildExternalClientDataColumns(
   actions: ExternalClientDataRowActions,
 ): ColumnDef<ExternalClientData>[] {
   return [
+    // La casilla va PRIMERO, para que el `⋯` de la barra tenga qué borrar.
+    {
+      id: 'seleccion',
+      enableHiding: false,
+      header: ({ table }) => (
+        <CasillaDeFila
+          marcada={table.getIsAllPageRowsSelected()}
+          onCambiar={() => table.toggleAllPageRowsSelected(!table.getIsAllPageRowsSelected())}
+          etiqueta="Seleccionar todo lo que se ve"
+        />
+      ),
+      cell: ({ row }) => (
+        <CasillaDeFila
+          marcada={row.getIsSelected()}
+          onCambiar={() => row.toggleSelected(!row.getIsSelected())}
+          etiqueta="Seleccionar registro"
+        />
+      ),
+    },
     {
       accessorKey: 'remoteJid',
       header: ({ column }) => (

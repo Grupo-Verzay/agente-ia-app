@@ -83,23 +83,23 @@ export function MyDataManagement({ userId, onTotalChange }: Props) {
               <Database className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">Mis datos externos</CardTitle>
             </div>
-            <div className="toolbar-collapse flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadRecords}
-                disabled={isLoading}
-                className="gap-1.5"
-              >
-                {isLoading
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <RefreshCw className="h-3.5 w-3.5" />}
-                Actualizar
-              </Button>
-              <Button size="sm" onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700 text-white">
-                + Nuevo registro
-              </Button>
-            </div>
+            {/* «+ Nuevo registro» y «Actualizar» vivían aquí arriba, o sea
+                en una segunda fila encima de la barra de la tabla — que ya
+                tiene su hueco de crear. Se quedan en la barra, que es donde
+                manda la regla. */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={loadRecords}
+              disabled={isLoading}
+              title="Actualizar"
+              aria-label="Actualizar"
+            >
+              {isLoading
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <RefreshCw className="h-4 w-4" />}
+            </Button>
           </div>
           <CardDescription>
             Visualiza y edita los datos que el agente IA usará en tus conversaciones.
@@ -122,7 +122,14 @@ export function MyDataManagement({ userId, onTotalChange }: Props) {
               <p className="text-xs">Usa la pestaña <strong>Importar</strong> para cargar datos desde Google Sheets.</p>
             </div>
           ) : (
-            <ExternalClientDataTable columns={columns} data={records} total={total} onCreateNew={handleCreateNew} />
+            <ExternalClientDataTable
+              columns={columns}
+              data={records}
+              total={total}
+              onCreateNew={handleCreateNew}
+              userId={userId}
+              onBorrado={() => void loadRecords()}
+            />
           )}
         </CardContent>
       </Card>

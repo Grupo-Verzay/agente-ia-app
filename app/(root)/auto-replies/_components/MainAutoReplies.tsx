@@ -9,6 +9,7 @@ import { AlertCircle, GitBranch, Hash, InboxIcon, MessageSquareText, MessagesSqu
 import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import { Input } from "@/components/ui/input";
 import { getQuickReplyCategoryLabel, normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
+import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
 
 interface Props {
   user: CurrentUser;
@@ -42,13 +43,21 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
     );
   }
 
+  const crear = <CreateAutoReplies triggerText="Nueva respuesta" user={user} Workflows={Workflows} />;
+
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="flex shrink-0 flex-col gap-3 p-1 sm:flex-row sm:items-center sm:justify-between">
+      {/* Antes era `flex-col sm:flex-row` con `sm:order-*`: en el teléfono
+          partía la barra en dos filas y el orden lo decidía el CSS, no el
+          marcado. Ahora los tres huecos de siempre. */}
+      <BarraDeAcciones
+        className="p-1"
+        crear={<div className="shrink-0">{crear}</div>}
+        filtros={
+          <>
           {/* Las cifras que abrían la pantalla en tarjetas. Esta lista no tiene
               filtro por tipo de respuesta: no son pulsables. */}
           <PastillasDeMetricas
-            className="sm:order-2"
             metricas={[
               { clave: 'total', icono: <MessagesSquare />, etiqueta: 'Total', valor: autoReplies.length, color: '#3B82F6', ayuda: 'Respuestas rapidas disponibles' },
               { clave: 'texto', icono: <MessageSquareText />, etiqueta: 'Texto simple', valor: textReplies, color: '#10B981', ayuda: 'Respuestas que envian un mensaje de texto' },
@@ -56,7 +65,7 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
               { clave: 'categorias', icono: <Hash />, etiqueta: 'Categorias', valor: categoryCount, color: '#F59E0B', ayuda: 'Grupos usados en respuestas rapidas' },
             ]}
           />
-          <div className="relative w-64 shrink-0 sm:order-1">
+          <div className="relative w-64 shrink-0">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar respuesta..."
@@ -65,10 +74,9 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <div className="sm:order-3">
-            <CreateAutoReplies triggerText="+ Crear" user={user} Workflows={Workflows} />
-          </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto">
         <div className="grid grid-cols-1 gap-2">

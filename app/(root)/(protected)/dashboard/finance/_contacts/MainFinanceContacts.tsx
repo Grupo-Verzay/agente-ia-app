@@ -32,6 +32,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { ChevronsUpDown, Check, UserRound, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { eliminarContactosDeFinanzasAction } from '@/actions/borrado-en-bloque-actions';
 
 type ContactOption = { id: number; pushName?: string | null; customName?: string | null; remoteJid: string };
 
@@ -101,6 +104,12 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
     for (const f of config) if (f.key !== CONTACT_LINK_KEY) o[f.key] = '';
     return o;
   }, [config]);
+
+  const borrarLosMarcados = async (ids: string[]) => {
+    const resumen = await eliminarContactosDeFinanzasAction(ids, userId);
+    if (!resumen.success) toast.error(resumen.message);
+    return { fallaron: resumen.fallaron };
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -347,20 +356,25 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
                     variant="outline"
                     onClick={() => setBuilderOpen(true)}
                     disabled={isPending}
-                    className="h-8"
+                    className="h-10 shrink-0"
+                    title="Configurar campos"
                   >
-                    <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Configurar campos
+                    <SlidersHorizontal className="mr-1.5 h-4 w-4" />
+                    <span className="hidden sm:inline">Campos</span>
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={openCreate}
-                    disabled={isPending}
-                    className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    + Nuevo {labels.singular.toLowerCase()}
-                  </Button>
+                  <BotonDeCrear onClick={openCreate} disabled={isPending}>
+                    {`Nuevo ${labels.singular.toLowerCase()}`}
+                  </BotonDeCrear>
                 </>
               }
+              acciones={(seleccionados, limpiar) => (
+                <AccionesMasivas
+                  seleccionados={seleccionados}
+                  queSon={labels.plural.toLowerCase()}
+                  onEliminar={borrarLosMarcados}
+                  onTerminar={() => { limpiar(); router.refresh(); }}
+                />
+              )}
             />
           </div>
         </CardHeader>

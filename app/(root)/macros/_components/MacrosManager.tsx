@@ -53,6 +53,8 @@ import {
   type MacroActionType,
 } from '@/actions/macro-actions';
 import { listMetaTemplates, type MetaTemplateOption } from '@/actions/channel-chat-actions';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 
 type TagOpt = { id: number; name: string; color: string | null };
 type RROpt = { id: number; name: string | null; mensaje: string | null };
@@ -478,6 +480,19 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
     }
   };
 
+  // Borrar las marcadas desde el `⋯`. Va por `deleteMacrosAction`, que es la
+  // acción de servidor que YA existía y recibe el arreglo entero: veinte
+  // llamadas sueltas serían veinte viajes en fila india.
+  const borrarLasMarcadas = async (ids: string[]) => {
+    const res = await deleteMacrosAction(ids);
+    if (!res.success) {
+      toast.error(res.message);
+      return { fallaron: ids.length };
+    }
+    setMacros((prev) => prev.filter((m) => !ids.includes(m.id)));
+    return { fallaron: 0 };
+  };
+
   const doConfirmDelete = async () => {
     setDeleting(true);
     if (confirm.all) {
@@ -513,9 +528,14 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
 
   return (
     <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-72">
+      {/* La barra es `BarraDeAcciones`. Antes era un `flex-wrap` con `ml-auto`,
+          o sea la forma que en Plantillas partía la barra en dos filas a 1024
+          —y aquí había hasta tres botones sueltos a la derecha—. */}
+      <BarraDeAcciones
+        className="mb-3"
+        filtros={
+          <>
+        <div className="relative w-full shrink-0 sm:w-72">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar macro..."
@@ -534,30 +554,30 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             { clave: "ejecuciones", icono: <Play />, etiqueta: "Ejecuciones", valor: totalRuns, color: "#F59E0B", ayuda: "Veces que se han aplicado las macros" },
           ]}
         />
-        <div className="ml-auto flex items-center gap-2">
-          {selected.size > 0 && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setConfirm({ open: true, ids: Array.from(selected), all: false })}
-            >
-              Eliminar ({selected.size})
-            </Button>
-          )}
-          {macros.length > 0 && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setConfirm({ open: true, ids: [], all: true })}
-            >
-              Eliminar todas
-            </Button>
-          )}
-          <Button size="sm" onClick={openCreate} className="bg-blue-600 text-white hover:bg-blue-700">
-            + Crear
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+        crear={<BotonDeCrear onClick={openCreate}>Nueva macro</BotonDeCrear>}
+        acciones={
+          <AccionesMasivas
+            seleccionados={Array.from(selected)}
+            queSon="macros"
+            onEliminar={borrarLasMarcadas}
+            onTerminar={() => setSelected(new Set())}
+            extras={
+              macros.length > 0
+                ? [{
+                    clave: "todas",
+                    etiqueta: "Eliminar todas",
+                    icono: <Trash2 className="h-4 w-4" />,
+                    destructiva: true,
+                    sinSeleccion: true,
+                    onSelect: () => setConfirm({ open: true, ids: [], all: true }),
+                  }]
+                : []
+            }
+          />
+        }
+      />
 
       {/* Lista */}
       <div className="flex-1 overflow-y-auto">

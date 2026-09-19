@@ -70,6 +70,8 @@ import {
 import { resetAllLinkedAccounts } from "@/actions/linked-account-actions";
 import { bulkAutoAssign } from "@/actions/advisor-assign-actions";
 import { cn } from "@/lib/utils";
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 
 function StatCell({ value, max, colorClass }: { value: number; max: number; colorClass: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
@@ -326,11 +328,17 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       {/* KPI cards — primera fila */}
       {metrics && <TeamKpiCards metrics={metrics} />}
 
-      {/* Auto-assign + acciones en una sola barra */}
-      <div className={cn(
-        "rounded-xl border bg-card px-4 py-3 flex items-center gap-3 transition-colors",
-        autoAssignEnabled ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
-      )}>
+      {/* La misma `BarraDeAcciones` de toda la plataforma, con la tarjeta y su
+          borde de color por `className`: lo que cambia es el reparto, no el
+          aspecto. Antes la zona central llevaba un `ml-auto` propio, así que
+          el grupo del medio se pegaba a la derecha y competía con el de crear. */}
+      <BarraDeAcciones
+        className={cn(
+          "rounded-xl border bg-card px-4 py-3 gap-3 transition-colors",
+          autoAssignEnabled ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
+        )}
+        filtros={
+        <>
         {/* Lado izquierdo: icono + toggle + max chats */}
         <div className="flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-3 shrink-0">
@@ -379,10 +387,10 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             </div>
           )}
         </div>
-        {/* Zona central: SCROLLEA cuando no cabe (toggle + acciones de asignación) */}
-        <div className="toolbar-collapse flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
-          {/* Toggle de vista: Tabla / Pipeline (ml-auto: empuja el grupo a la derecha) */}
-          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0 ml-auto">
+          {/* Toggle de vista: Tabla / Pipeline. Sin `ml-auto`: el reparto lo
+              decide la barra, y dos `ml-auto` en la misma fila es justo lo que
+              dejaba el azul flotando en Módulos. */}
+          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0">
             <button
               type="button"
               onClick={() => setView("tabla")}
@@ -427,37 +435,33 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             <UserCheck className="w-3.5 h-3.5" />
             Vincular existente
           </Button>
-        </div>
-        {/* Lado derecho FIJO: Agregar asesor + menú de acciones */}
-        <div className="toolbar-collapse flex items-center gap-2 shrink-0">
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-3.5 h-3.5" />
-            Agregar asesor
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="h-9 w-9 p-0 shrink-0">
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={downloadCsv} disabled={advisors.length === 0}>
-                <Download className="w-4 h-4 mr-2" />
-                Exportar CSV
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => setResetLinksOpen(true)}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Reiniciar vínculos
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-      </div>
+        </>
+        }
+        crear={<BotonDeCrear onClick={() => setCreateOpen(true)}>Agregar asesor</BotonDeCrear>}
+        acciones={
+          <AccionesMasivas
+            seleccionados={[]}
+            queSon="asesores"
+            extras={[
+              {
+                clave: "csv",
+                etiqueta: "Exportar CSV",
+                icono: <Download className="h-4 w-4" />,
+                sinSeleccion: true,
+                onSelect: downloadCsv,
+              },
+              {
+                clave: "vinculos",
+                etiqueta: "Reiniciar vínculos",
+                icono: <Trash2 className="h-4 w-4" />,
+                destructiva: true,
+                sinSeleccion: true,
+                onSelect: () => setResetLinksOpen(true),
+              },
+            ]}
+          />
+        }
+      />
       </div>{/* /fixed-top */}
 
       {/* Contenido según vista: Tabla (lista + gráficas) o Pipeline (kanban de asesores) */}

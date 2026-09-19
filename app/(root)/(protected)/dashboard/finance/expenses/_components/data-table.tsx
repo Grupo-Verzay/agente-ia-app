@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
+import { CasillaDeFila } from '@/components/shared/AccionesMasivas';
 
 type DataTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[];
@@ -41,6 +43,8 @@ type DataTableProps<TData, TValue> = {
   onRowClick?: (row: TData) => void;
   /** Acción extra al final de la barra (ej. botón "+ Nuevo gasto"). */
   toolbarExtra?: React.ReactNode;
+  /** El `⋯` de la esquina. Se le pasan los ids marcados. */
+  acciones?: (seleccionados: string[], limpiar: () => void) => React.ReactNode;
 };
 
 export function DataTable<TData, TValue>({
@@ -50,16 +54,46 @@ export function DataTable<TData, TValue>({
   searchPlaceholder = 'Buscar...',
   onRowClick,
   toolbarExtra,
+  acciones,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 20 });
 
+  const [rowSelection, setRowSelection] = React.useState({});
+
+  // La casilla solo cuando hay `⋯` que la use: una columna de casillas en una
+  // tabla sin acciones masivas es marcar filas para nada.
+  const conCasilla = React.useMemo(() => {
+    if (!acciones) return columns;
+    const casilla = {
+      id: 'seleccion',
+      enableHiding: false,
+      header: ({ table }: any) => (
+        <CasillaDeFila
+          marcada={table.getIsAllPageRowsSelected()}
+          onCambiar={() => table.toggleAllPageRowsSelected(!table.getIsAllPageRowsSelected())}
+          etiqueta="Seleccionar todo lo que se ve"
+        />
+      ),
+      cell: ({ row }: any) => (
+        <CasillaDeFila
+          marcada={row.getIsSelected()}
+          onCambiar={() => row.toggleSelected(!row.getIsSelected())}
+          etiqueta="Seleccionar gasto"
+        />
+      ),
+    } as ColumnDef<TData, TValue>;
+    return [casilla, ...columns];
+  }, [acciones, columns]);
+
   const table = useReactTable({
     data,
-    columns,
-    state: { sorting, columnFilters, columnVisibility, pagination },
+    columns: conCasilla,
+    state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
+    onRowSelectionChange: setRowSelection,
+    getRowId: (fila: any) => String(fila?.id ?? ''),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -72,20 +106,28 @@ export function DataTable<TData, TValue>({
 
   const searchColumn = table.getColumn(searchKey);
 
+  const seleccionados = table
+    .getSelectedRowModel()
+    .rows.map((fila) => String((fila.original as { id?: unknown })?.id ?? ''))
+    .filter(Boolean);
+
   return (
     <div className="flex flex-col h-full gap-2">
       <div className="sticky top-0 z-1">
-        <div className="flex items-center justify-between gap-2">
+        <BarraDeAcciones
+          crear={toolbarExtra}
+          acciones={acciones?.(seleccionados, () => table.resetRowSelection())}
+          filtros={
+          <>
           <Input
             value={(searchColumn?.getFilterValue() as string) ?? ''}
             onChange={(event) => searchColumn?.setFilterValue(event.target.value)}
             placeholder={searchPlaceholder}
-            className="h-8 w-72 text-sm"
+            className="h-10 w-72 shrink-0 text-sm"
           />
-          <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-8 px-2 text-sm">
+                <Button variant="outline" className="h-10 shrink-0 px-2 text-sm">
                   Columnas
                 </Button>
               </DropdownMenuTrigger>
@@ -105,9 +147,9 @@ export function DataTable<TData, TValue>({
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            {toolbarExtra}
-          </div>
-        </div>
+          </>
+          }
+        />
       </div>
 
       <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">

@@ -9,6 +9,7 @@ import { Pencil, Trash2, CheckCircle, Printer } from 'lucide-react';
 import { deleteCotizacion, confirmarVenta } from '@/actions/cotizaciones-actions';
 import { toast } from 'sonner';
 import type { listCotizaciones } from '@/actions/cotizaciones-actions';
+import { CasillaDeFila } from '@/components/shared/AccionesMasivas';
 
 type Cotizacion = Awaited<ReturnType<typeof listCotizaciones>>[number];
 
@@ -29,9 +30,12 @@ const STATUS_VARIANT: Record<string, 'secondary' | 'default' | 'outline' | 'dest
 interface Props {
   cotizaciones: Cotizacion[];
   onEdit: (c: Cotizacion) => void;
+  /** Los marcados con la casilla, para el `⋯` de la barra. */
+  seleccionados?: string[];
+  alternarSeleccion?: (id: string) => void;
 }
 
-export function CotizacionList({ cotizaciones, onEdit }: Props) {
+export function CotizacionList({ cotizaciones, onEdit, seleccionados, alternarSeleccion }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -103,6 +107,7 @@ export function CotizacionList({ cotizaciones, onEdit }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
+                {alternarSeleccion && <th className="w-10 py-3 px-3" />}
                 <th className="text-left py-3 px-3 font-semibold">Cliente</th>
                 <th className="text-left py-3 px-3 font-semibold">Estado</th>
                 <th className="text-left py-3 px-3 font-semibold">Fecha</th>
@@ -113,6 +118,15 @@ export function CotizacionList({ cotizaciones, onEdit }: Props) {
             <tbody>
               {cotizaciones.map((c) => (
                 <tr key={c.id} className="border-t hover:bg-muted/40 transition-colors">
+                  {alternarSeleccion && (
+                    <td className="py-3 px-3">
+                      <CasillaDeFila
+                        marcada={seleccionados?.includes(c.id) ?? false}
+                        onCambiar={() => alternarSeleccion(c.id)}
+                        etiqueta={`Seleccionar ${c.clientName}`}
+                      />
+                    </td>
+                  )}
                   <td className="py-3 px-3">
                     <div className="font-medium">{c.clientName}</div>
                     {c.clientPhone && <div className="text-xs text-muted-foreground">{c.clientPhone}</div>}

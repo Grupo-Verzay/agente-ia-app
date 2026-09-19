@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 
 type FinAccount  = { id: string; name: string; isDefault: boolean };
 type FinCategory = { id: string; name: string };
@@ -672,6 +673,7 @@ export default function MainSales({
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
                   enableSelection
+                  queSon="ventas"
                   getRowId={(r) => r.id}
                   onDeleteSelected={onDeleteMany}
                   onDeleteAll={onDeleteAll}
@@ -704,9 +706,7 @@ export default function MainSales({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                        + Nueva venta
-                      </Button>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nueva venta</BotonDeCrear>
                     </>
                   }
                 />
@@ -720,6 +720,7 @@ export default function MainSales({
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
                   enableSelection
+                  queSon="ventas"
                   getRowId={(r) => r.id}
                   onDeleteSelected={onDeleteMany}
                   onDeleteAll={onDeleteAll}
@@ -752,9 +753,7 @@ export default function MainSales({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                        + Nueva venta
-                      </Button>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nueva venta</BotonDeCrear>
                     </>
                   }
                 />

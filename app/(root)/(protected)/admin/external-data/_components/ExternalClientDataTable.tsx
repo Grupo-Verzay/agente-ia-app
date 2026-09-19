@@ -32,6 +32,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { ExternalClientData } from '@/types/external-client-data';
+import { toast } from 'sonner';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { eliminarDatosExternosAction } from '@/actions/borrado-en-bloque-actions';
 
 // ─── Props (ISP — only what the table needs) ──────────────────────────────────
 
@@ -40,6 +44,10 @@ interface ExternalClientDataTableProps {
   data: ExternalClientData[];
   total: number;
   onCreateNew: () => void;
+  /** La cuenta dueña de estos datos. La acción la vuelve a comprobar. */
+  userId?: string;
+  /** Se llama al acabar un borrado, para recargar. */
+  onBorrado?: () => void;
 }
 
 // ─── Component (SRP — only renders the table) ─────────────────────────────────
@@ -49,16 +57,21 @@ export function ExternalClientDataTable({
   data,
   total,
   onCreateNew,
+  userId,
+  onBorrado,
 }: ExternalClientDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [rowSelection, setRowSelection] = useState({});
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters, columnVisibility, pagination },
+    state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
+    onRowSelectionChange: setRowSelection,
+    getRowId: (fila) => String(fila.id),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -69,13 +82,36 @@ export function ExternalClientDataTable({
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+  const seleccionados = table
+    .getSelectedRowModel()
+    .rows.map((fila) => String(fila.original.id))
+    .filter(Boolean);
+
+  const borrarLosMarcados = async (ids: string[]) => {
+    const resumen = await eliminarDatosExternosAction(ids, userId);
+    if (!resumen.success) toast.error(resumen.message);
+    return { fallaron: resumen.fallaron };
+  };
+
   const pageCount = table.getPageCount();
   const pageIndex = table.getState().pagination.pageIndex;
 
   return (
     <div className="space-y-3">
-      {/* ── Toolbar ── */}
-      <div className="flex items-center gap-2">
+      {/* La barra compartida: filtros a la izquierda, el azul de crear y el
+          `⋯` pegado al borde. */}
+      <BarraDeAcciones
+        crear={<BotonDeCrear onClick={onCreateNew}>Nuevo registro</BotonDeCrear>}
+        acciones={
+          <AccionesMasivas
+            seleccionados={seleccionados}
+            queSon="registros"
+            onEliminar={borrarLosMarcados}
+            onTerminar={() => { table.resetRowSelection(); onBorrado?.(); }}
+          />
+        }
+        filtros={
+          <>
         <div className="relative w-64 shrink-0">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -87,10 +123,6 @@ export function ExternalClientDataTable({
             className="pl-8 text-xs"
           />
         </div>
-
-        <Button onClick={onCreateNew} size="sm" className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
-          <span className="hidden sm:inline">+ Nuevo</span>
-        </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -115,7 +147,9 @@ export function ExternalClientDataTable({
               ))}
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+          </>
+        }
+      />
 
       {/* ── Table ── */}
       <Card>
