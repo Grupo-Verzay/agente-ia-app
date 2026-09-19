@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import {
   actualizarUnaLlaveAction,
+  borrarLlavesEnBloqueAction,
   borrarUnaLlaveAction,
   crearUnaLlaveAction,
   leerLasLlavesAction,
@@ -35,6 +36,13 @@ import {
   leCabeOtraCuenta,
   type LlaveDeVerzay,
 } from "@/lib/llaves-de-verzay-tipos";
+import { BarraDeAcciones, BotonDeCrear } from "@/components/shared/BarraDeAcciones";
+import {
+  AccionesMasivas,
+  CasillaDeFila,
+  CasillaDeTodos,
+  useSeleccionMultiple,
+} from "@/components/shared/AccionesMasivas";
 
 /**
  * El registro de llaves de OpenAI de Verzay.
@@ -112,6 +120,22 @@ export const LlavesDeVerzay = () => {
     void recargar();
   }, [recargar]);
 
+  // Solo se pueden marcar las que NO tienen cuentas colgando: las otras piden
+  // un destino, y eso no se puede preguntar una vez por veinte llaves.
+  const {
+    seleccionados: seleccionadas,
+    alternar: alternarSeleccion,
+    alternarTodos: alternarTodas,
+    estanTodos: estanTodas,
+    limpiar: limpiarSeleccion,
+  } = useSeleccionMultiple(llaves.filter((l) => l.cuentas === 0).map((l) => l.id));
+
+  const borrarLasMarcadas = async (ids: string[]) => {
+    const res = await borrarLlavesEnBloqueAction(ids);
+    if (!res.success && res.borrados === 0) throw new Error(res.message);
+    return { fallaron: res.fallaron };
+  };
+
   const hayPorDefectoConSitio = useMemo(
     () => llaves.some((l) => l.porDefecto && leCabeOtraCuenta(l)),
     [llaves],
@@ -180,20 +204,28 @@ export const LlavesDeVerzay = () => {
 
   return (
     <div className="flex h-full min-w-0 w-full flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2">
-          <KeyRound className="h-5 w-5 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">API keys de Verzay</h2>
-        </div>
-        <Button
-          size="sm"
-          className="ml-auto shrink-0"
-          onClick={() => setBorrador({ ...BORRADOR_NUEVO })}
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          Nueva llave
-        </Button>
-      </div>
+      <BarraDeAcciones
+        filtros={<>
+          <CasillaDeTodos
+            estanTodos={estanTodas}
+            hayAlguno={seleccionadas.length > 0}
+            onCambiar={alternarTodas}
+          />
+          <div className="flex shrink-0 items-center gap-2">
+            <KeyRound className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">API keys de Verzay</h2>
+          </div>
+        </>}
+        crear={<BotonDeCrear onClick={() => setBorrador({ ...BORRADOR_NUEVO })}>Nueva llave</BotonDeCrear>}
+        acciones={
+          <AccionesMasivas
+            seleccionados={seleccionadas}
+            queSon="llaves"
+            onEliminar={borrarLasMarcadas}
+            onTerminar={() => { limpiarSeleccion(); void recargar(); }}
+          />
+        }
+      />
 
       <p className="text-xs text-muted-foreground">
         Las cuentas nuevas se crean con la llave marcada <strong>por defecto</strong>. Cuando esa
@@ -233,6 +265,25 @@ export const LlavesDeVerzay = () => {
               <Card key={llave.id} className="border-border">
                 <CardHeader className="pb-2">
                   <div className="flex items-start gap-2">
+                    {/* Una llave CON cuentas no se marca: borrarla en bloque
+                        las dejaría apuntando a una clave que ya no está, que es
+                        justo lo que el diálogo de una en una impide preguntando
+                        a dónde pasan. Se dice al posar el cursor. */}
+                    <span
+                      title={
+                        llave.cuentas > 0
+                          ? `Tiene ${llave.cuentas} cuenta${llave.cuentas === 1 ? "" : "s"}: elimínala de una en una para elegir a qué llave pasan.`
+                          : `Seleccionar ${llave.nombre}`
+                      }
+                      className={llave.cuentas > 0 ? "cursor-not-allowed opacity-40" : undefined}
+                    >
+                      <CasillaDeFila
+                        marcada={seleccionadas.includes(llave.id)}
+                        onCambiar={() => llave.cuentas === 0 && alternarSeleccion(llave.id)}
+                        etiqueta={`Seleccionar ${llave.nombre}`}
+                        className={llave.cuentas > 0 ? "pointer-events-none" : "mt-1"}
+                      />
+                    </span>
                     <CardTitle
                       className="text-base min-w-0 flex-1 flex items-center gap-1.5"
                       title={llave.nombre}

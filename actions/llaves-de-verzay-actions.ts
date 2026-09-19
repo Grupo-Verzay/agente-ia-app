@@ -13,6 +13,7 @@ import {
   leerUnaLlave,
 } from "@/lib/llaves-de-verzay";
 import { leCabeOtraCuenta, type LlaveDeVerzay } from "@/lib/llaves-de-verzay-tipos";
+import { borrarUnaAUna, comoListaDeIds, comoResumen, type ResumenDelBorrado } from "@/lib/borrado-en-bloque";
 
 /**
  * El registro de llaves de OpenAI de Verzay, desde el panel.
@@ -214,4 +215,44 @@ function elMotivo(error: unknown, porDefecto: string): string {
     return "Esa clave ya está registrada en otra llave.";
   }
   return texto || porDefecto;
+}
+
+/**
+ * Elimina VARIAS llaves de una vez, desde el `⋯` de la barra.
+ *
+ * Y lo que esta acción **no** hace es lo que importa: no traspasa cuentas. Una
+ * llave con cuentas colgando solo se borra de una en una, con el diálogo que
+ * pregunta a cuál pasan — sin esa pregunta, esas cuentas quedarían apuntando a
+ * una clave que ya no está registrada, y **con créditos ilimitados sobre una key
+ * muerta**, que es la regla escrita de esta pantalla.
+ *
+ * Así que aquí se rechaza y se cuenta como fallo: la pantalla ya no deja
+ * marcarlas, y si alguna llega igual —una petición a mano, una cuenta que entró
+ * entre marcar y pulsar— la respuesta dice cuántas se quedaron.
+ */
+export async function borrarLlavesEnBloqueAction(ids: string[]): Promise<ResumenDelBorrado> {
+  const lista = comoListaDeIds(ids);
+  if (lista.length === 0) {
+    return { success: false, borrados: 0, fallaron: 0, message: "No se recibió ninguna llave." };
+  }
+
+  try {
+    await laPuerta();
+
+    const { borrados, fallaron } = await borrarUnaAUna(lista, async (id) => {
+      const llave = await leerUnaLlave(id);
+      if (!llave) return false;
+      // Con cuentas dentro no se borra sin destino, y el destino no se puede
+      // adivinar: se deja para el camino de una en una.
+      if (llave.cuentas > 0) return false;
+      await borrarUnaLlave(id, null);
+      return true;
+    });
+
+    revalidatePath("/panel/api-keys");
+    return comoResumen(borrados, fallaron, "llaves");
+  } catch (error) {
+    console.error("[borrarLlavesEnBloqueAction]", error);
+    return { success: false, borrados: 0, fallaron: lista.length, message: elMotivo(error, "No se pudieron eliminar las llaves.") };
+  }
 }
