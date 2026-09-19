@@ -71,6 +71,7 @@ import {
 } from "@/lib/cobros";
 import { FormularioDeCobro, type DatosDelFormulario } from "./FormularioDeCobro";
 import { ConfiguracionDeCobros } from "./ConfiguracionDeCobros";
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 
 /**
  * Los archivos cuyo último intento falló.
@@ -309,33 +310,18 @@ export function CobrosClient({
 
     return (
         <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
-            {/* La barra de Clientes: izquierda fija, zona central que se
-                desplaza cuando no cabe, derecha fija. Sin la zona central, con
-                el menú lateral desplegado los botones de la derecha se salían de
-                la pantalla y no había forma de llegar a ellos. */}
-            <div className="flex items-center gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:shrink-0">
+            {/* La barra es `BarraDeAcciones`, como el resto de la plataforma.
+                Antes estaba escrita a mano aquí: mismo reparto, pero con el
+                botón de crear pegado al buscador en vez de a la derecha. */}
+            <BarraDeAcciones
+                filtros={
+                    <>
                         <Input
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
                             placeholder="Buscar cliente…"
-                            className="h-9 w-full sm:w-64"
+                            className="h-10 w-full shrink-0 sm:w-64"
                         />
-                        <Button
-                            onClick={() => {
-                                setEnEdicion(null);
-                                setFormAbierto(true);
-                            }}
-                            title="Nuevo cobro"
-                            className="h-9 w-9 shrink-0 p-0 sm:w-auto sm:px-4"
-                        >
-                            <Plus className="h-4 w-4 sm:hidden" />
-                            <span className="hidden sm:inline">+ Nuevo</span>
-                        </Button>
-                    </div>
-
-                    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
                         {FILTROS.map((f) => (
                             <button
                                 key={f.clave}
@@ -354,31 +340,44 @@ export function CobrosClient({
                                 </span>
                             </button>
                         ))}
+                    </>
+                }
+                crear={
+                    <BotonDeCrear
+                        onClick={() => {
+                            setEnEdicion(null);
+                            setFormAbierto(true);
+                        }}
+                    >
+                        Nuevo cobro
+                    </BotonDeCrear>
+                }
+                acciones={
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-10 w-10 shrink-0"
+                            onClick={() => void refrescar()}
+                            title="Actualizar"
+                            aria-label="Actualizar"
+                            disabled={refrescando}
+                        >
+                            <RefreshCw className={cn("h-4 w-4", refrescando && "animate-spin")} />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-10 w-10 shrink-0"
+                            onClick={() => setAjustesAbiertos(true)}
+                            title="Configuración de cobros"
+                            aria-label="Configuración de cobros"
+                        >
+                            <Settings2 className="h-4 w-4" />
+                        </Button>
                     </div>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => void refrescar()}
-                        title="Actualizar"
-                        disabled={refrescando}
-                    >
-                        <RefreshCw className={cn("h-4 w-4", refrescando && "animate-spin")} />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="h-9"
-                        onClick={() => setAjustesAbiertos(true)}
-                        title="Configuración de cobros"
-                    >
-                        <Settings2 className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Configuración</span>
-                    </Button>
-                </div>
-            </div>
+                }
+            />
 
             {!linea && (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
