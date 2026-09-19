@@ -109,6 +109,8 @@ export function BloqueDeAdjuntos({
     onCambioEnElAire,
     carpeta = "tareas",
     queEs = "tarea",
+    subir,
+    borrar,
 }: {
     /** `null` mientras la tarea no existe. Ya no apaga nada. */
     taskId: number | null;
@@ -127,6 +129,19 @@ export function BloqueDeAdjuntos({
      */
     carpeta?: string;
     queEs?: string;
+    /**
+     * Cómo sube un archivo. Devuelve su dirección.
+     *
+     * Por defecto es `/api/upload`, que es lo de siempre y pide sesión. La
+     * **ficha pública de tickets** la llena alguien que no tiene cuenta, así
+     * que le pasa su propia subida —gateada por el código del enlace— en vez de
+     * copiar el componente entero. Con dos copias, el día que se afine el tope,
+     * el pegado o cómo se decide el tipo se afina en una y la otra se queda
+     * atrás, que no se ve como un error sino como «a veces funciona».
+     */
+    subir?: (archivo: File) => Promise<string>;
+    /** Y cómo se quita del bucket lo que se subió y no se usó. Su pareja. */
+    borrar?: (url: string) => Promise<void>;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const zonaRef = useRef<HTMLDivElement>(null);
@@ -184,17 +199,22 @@ export function BloqueDeAdjuntos({
                 const nombre = nombreParaLoPegado(archivo);
                 const tipo = tipoDe(archivo.type);
 
-                const formData = new FormData();
-                formData.append("file", archivo);
-                formData.append("userID", userId);
-                formData.append("workflowID", estado.current.carpeta);
+                let url: string;
+                if (subir) {
+                    url = await subir(archivo);
+                } else {
+                    const formData = new FormData();
+                    formData.append("file", archivo);
+                    formData.append("userID", userId);
+                    formData.append("workflowID", estado.current.carpeta);
 
-                const respuesta = await fetch("/api/upload", { method: "POST", body: formData });
-                const datos = await respuesta.json().catch(() => null);
-                if (!respuesta.ok || !datos?.url) {
-                    throw new Error(datos?.error || "No se pudo subir el archivo.");
+                    const respuesta = await fetch("/api/upload", { method: "POST", body: formData });
+                    const datos = await respuesta.json().catch(() => null);
+                    if (!respuesta.ok || !datos?.url) {
+                        throw new Error(datos?.error || "No se pudo subir el archivo.");
+                    }
+                    url = datos.url as string;
                 }
-                const url = datos.url as string;
 
                 // Con tarea, se engancha ya. Sin ella, queda en el aire.
                 if (estado.current.taskId) {
@@ -240,7 +260,7 @@ export function BloqueDeAdjuntos({
         } finally {
             setSubiendo(false);
         }
-    }, [userId, onCambio, onCambioEnElAire]);
+    }, [userId, onCambio, onCambioEnElAire, subir]);
 
     const alElegirArchivo = (evento: React.ChangeEvent<HTMLInputElement>) => {
         const archivos = Array.from(evento.target.files ?? []);
@@ -262,7 +282,12 @@ export function BloqueDeAdjuntos({
      * archivos**. Pegar texto en el título no puede acabar adjuntando nada.
      */
     useEffect(() => {
-        const dialogo = zonaRef.current?.closest("[role='dialog']");
+        // Dentro de la App esto vive siempre en un diálogo. En la ficha pública
+        // de tickets no hay diálogo ninguno —la página ENTERA es el
+        // formulario—, así que se escucha en el documento: si no, pegar una
+        // captura ahí no haría nada, que es justo la vía que más se usa.
+        const dialogo: Document | Element | null =
+            zonaRef.current?.closest("[role='dialog']") ?? zonaRef.current?.ownerDocument ?? null;
         if (!dialogo) return;
 
         const alPegar = (evento: Event) => {
@@ -292,7 +317,7 @@ export function BloqueDeAdjuntos({
     const quitarDelAire = async (adjunto: AdjuntoEnElAire) => {
         setQuitando(adjunto.id);
         onCambioEnElAire(enElAire.filter((a) => a.id !== adjunto.id));
-        await borrarDelBucket(adjunto.url);
+        await (borrar ?? borrarDelBucket)(adjunto.url);
         setQuitando(null);
     };
 
@@ -341,7 +366,15 @@ export function BloqueDeAdjuntos({
                 </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-2">
+            {/*
+              **Dos columnas en un móvil, cuatro a partir de `sm`.** Con
+              `grid-cols-4` fijo, medido en Chromium a 390 px, cada botón
+              quedaba en 74 px y los cuatro rótulos salían como «Im…», «Vi…»,
+              «Au…» y «Do…» — cuatro botones que no dicen qué hacen. Dentro de
+              un diálogo casi no se veía; en la ficha pública de soporte, que
+              se abre en el teléfono de un cliente, es lo primero que se mira.
+            */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {OPCIONES_DE_ARCHIVO.map((opcion) => {
                     const Icon = opcion.Icon;
                     return (

@@ -15,6 +15,7 @@ import {
   posicionesDelTablero,
 } from "@/lib/orden-de-tablero-db";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+import { elOrigenDeLaApp } from "@/lib/origen-de-la-app";
 import { apuntarComoAcabo, apuntarLoQueHizo } from "@/lib/apuntar-actividad";
 import { isAdminLike } from "@/lib/rbac";
 import {
@@ -23,6 +24,7 @@ import {
   avisoDeResuelto,
   comoEstadoDeTicket,
   exigeMotivo,
+  laDireccionDeLaFicha,
   queLeFaltaAlTicket,
   soloDigitos,
   TOPE_DEL_TITULO,
@@ -32,7 +34,9 @@ import {
   type Ticket,
 } from "@/lib/tickets";
 import {
+  asegurarElEnlace,
   asignarElResponsable,
+  cambiarElEnlace,
   cambiarElEstado,
   contarPorEstado,
   crearElTicket,
@@ -313,18 +317,98 @@ export async function misTicketsAction(): Promise<Result<TicketConAdjuntos[]>> {
  * pasa — es la misma condición de `laCuentaQueConfigura`.
  */
 async function laCuentaQueLosRecibe(): Promise<string> {
-  const destino = await elDestinoDeLosTickets();
-  if (!destino) throw new Error("Todavía no hay una cuenta que reciba los tickets.");
-
-  // El superadministrador los atiende SIN cambiar de cuenta. Es la regla de la
-  // plataforma: ve y administra todo esté donde esté. Antes tenía que entrar a
-  // la cuenta de destino para ver su propio tablero de soporte.
+  // El superadministrador atiende el tablero de la CASA sin cambiar de cuenta.
+  // Es la regla de la plataforma: ve y administra todo esté donde esté. (Y
+  // dentro de la cuenta de un cliente con «Ingresar» esto ya devuelve `false`
+  // por su cuenta, así que ahí ve lo que ve el cliente.)
   const user = await currentUser();
-  if (esSuperAdminDeVerdad(user)) return destino;
+  if (esSuperAdminDeVerdad(user)) {
+    const deLaCasa = await elDestinoDeLosTickets();
+    if (deLaCasa) return deLaCasa;
+  }
 
+  // Y **cada cuenta atiende el suyo**. Esto es lo que convierte Tickets en un
+  // módulo que se vende: la cuenta que lo tiene asignado ve los que le entran
+  // por su enlace público, y no ve ni uno de los de nadie más — el aislamiento
+  // no es una condición escrita aquí, es que la consulta acota por esta cuenta.
+  //
+  // Antes esto exigía ser la cuenta configurada como destino de la plataforma,
+  // así que cualquier otra recibía «No autorizado» aunque tuviera el módulo.
+  // Ese caso sigue funcionando igual: para la cuenta de la casa, esta cuenta ES
+  // el destino.
   const cuenta = await laCuentaQueConfigura();
-  if (!cuenta?.id || destino !== cuenta.id) throw new Error("No autorizado.");
-  return destino;
+  if (!cuenta?.id) throw new Error("No autorizado.");
+  return cuenta.id;
+}
+
+// ── El enlace público de la cuenta ───────────────────────────────────────────
+
+/**
+ * El enlace permanente que la cuenta le reparte a sus clientes.
+ *
+ * Se **crea al pedirlo por primera vez** y no al activar el módulo: así no hay
+ * ningún paso que alguien tenga que acordarse de dar, y la cuenta que abre su
+ * tablero ya lo tiene ahí para copiar. Es el mismo trato que el código de una
+ * sala de video.
+ */
+export async function elEnlaceDeTicketsAction(): Promise<
+  Result<{ codigo: string; activo: boolean; enlace: string }>
+> {
+  try {
+    const cuenta = await laCuentaQueLosRecibe();
+    const enlace = await asegurarElEnlace(cuenta);
+    // La dirección se arma **en el servidor**, con el origen de esta petición:
+    // la App se abre por más de un dominio y `window.location` daría una salida
+    // al pintar en el servidor y otra en el navegador. Es lo mismo que hace el
+    // enlace de una sala de vídeo.
+    const origen = await elOrigenDeLaApp();
+    return {
+      success: true,
+      message: "",
+      data: {
+        codigo: enlace.codigo,
+        activo: enlace.activo,
+        enlace: laDireccionDeLaFicha(enlace.codigo, origen),
+      },
+    };
+  } catch (error) {
+    console.error("[elEnlaceDeTicketsAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo leer el enlace.",
+    };
+  }
+}
+
+/**
+ * Apagar o encender el enlace **sin perderlo**.
+ *
+ * El código no se regenera al volver a encenderlo, y es a propósito: ya está
+ * repartido entre los clientes de esa cuenta, en conversaciones de WhatsApp que
+ * nadie va a volver a leer. Cambiarlo sería romper todos esos mensajes a la vez.
+ */
+export async function cambiarEnlaceDeTicketsAction(
+  activo: boolean,
+): Promise<Result<null>> {
+  try {
+    const cuenta = await laCuentaQueLosRecibe();
+    // Se asegura primero: apagar un enlace que todavía no existe no haría nada
+    // y el interruptor se quedaría quieto sin decir por qué.
+    await asegurarElEnlace(cuenta);
+    await cambiarElEnlace(cuenta, activo);
+    revalidatePath("/tickets");
+    return {
+      success: true,
+      message: activo ? "Enlace activo." : "Enlace desactivado.",
+      data: null,
+    };
+  } catch (error) {
+    console.error("[cambiarEnlaceDeTicketsAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo cambiar el enlace.",
+    };
+  }
 }
 
 export async function ticketsDeSoporteAction(

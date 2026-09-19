@@ -201,6 +201,16 @@ export type Ticket = {
    * avisan a alguien.
    */
   venceEl?: string | null;
+  /**
+   * De dónde vino. **`null` = lo abrió alguien con cuenta**, que es como
+   * nacieron todos los de antes; `"publico"` = entró por el enlace que la
+   * cuenta reparte entre sus clientes.
+   */
+  origen?: "publico" | null;
+  /** Cómo se llamó quien lo abrió por el enlace. Solo con `origen`. */
+  contactoNombre?: string | null;
+  /** El lead de la cuenta al que quedó enganchado. Nulo = no se pudo. */
+  sessionId?: number | null;
   /** Para la lista del administrador: de quién es. */
   clienteNombre?: string | null;
   /** El responsable, ya resuelto a nombre o correo. */
@@ -220,6 +230,51 @@ export type Ticket = {
 export const TOPE_DEL_TITULO = 160;
 export const TOPE_DE_LA_DESCRIPCION = 4000;
 export const TOPE_DEL_MOTIVO = 500;
+/** El nombre de quien abre un ticket por el enlace público. */
+export const TOPE_DEL_NOMBRE = 120;
+
+/**
+ * ¿Se puede enviar la ficha PÚBLICA?
+ *
+ * Lo mismo que un ticket normal, **más el nombre**, y con el número ya armado
+ * por `armarElNumero` en vez de tecleado a pelo: en la ficha pública el
+ * indicativo lo pone un selector, así que lo que llega aquí es el número final
+ * y no hay nada que adivinar.
+ *
+ * Vive al lado de `queLeFaltaAlTicket` y no dentro: son dos fichas con dos
+ * juegos de campos, y una sola función con un `if (esPublica)` sería una rama
+ * que solo se ejerce por un lado — la que nadie prueba.
+ */
+export function queLeFaltaALaFichaPublica(input: {
+  nombre?: string | null;
+  telefono?: string | null;
+  titulo?: string | null;
+  descripcion?: string | null;
+}): string | null {
+  if (!(input.nombre ?? "").trim()) return "Escribe tu nombre.";
+  // El número viene ya armado con su indicativo, así que aquí solo se mira que
+  // haya algo: si no cuadraba, `armarElNumero` lo dijo con su propio motivo —y
+  // ese es mucho más útil que un «falta el WhatsApp».
+  if (soloDigitos(input.telefono).length < 8) return "Falta tu WhatsApp.";
+  if (!(input.titulo ?? "").trim()) return "Ponle un título.";
+  if (!(input.descripcion ?? "").trim()) return "Cuéntanos qué pasa.";
+  return null;
+}
+
+/**
+ * La dirección de la ficha pública de una cuenta, para copiarla y repartirla.
+ *
+ * Una sola función para que la pantalla, el botón de copiar y lo que mande la
+ * IA por WhatsApp digan **la misma dirección**. Escrita a mano en tres sitios,
+ * el día que la ruta cambie una de las tres manda a una página que no existe —y
+ * esa es justo la que un cliente ya tiene pegada en una conversación que nadie
+ * va a volver a leer. Es la misma función que ya tiene la sala de vídeo
+ * (`laDireccionDeLaSala`), por el mismo motivo.
+ */
+export function laDireccionDeLaFicha(codigo: string, base?: string | null): string {
+  const raiz = (base || "").replace(/\/+$/, "");
+  return `${raiz}/t/${codigo}`;
+}
 
 /**
  * ¿Se puede guardar esto?

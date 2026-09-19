@@ -8001,6 +8001,118 @@ Y el cierre del formulario va por **un solo camino** (`cerrar()`), que borra del
 bucket lo que quedó en el aire. Con tres salidas basta con olvidarse de una para
 que esa deje basura cada vez.
 
+### El enlace PÚBLICO: un código por cuenta, y el código es la única puerta
+
+Los tickets se venden como módulo: la IA manda por WhatsApp un enlace fijo, el
+cliente final lo abre **sin cuenta en la plataforma**, llena la ficha y el
+ticket entra en la bandeja de esa cuenta. Es el patrón de las salas de vídeo
+(#796) aplicado a otra cosa: **tener el enlace deja llamar a la puerta**, y lo
+que hay detrás lo resuelve el servidor.
+
+> **Todo lo que decide a dónde va el ticket sale de `laCuentaDelCodigo`, nunca
+> de lo que mande el navegador**: la bandeja a la que cae, la carpeta del bucket
+> cuyos archivos se admiten y el lead al que se engancha. Un enlace público que
+> aceptara cualquiera de esas tres del cuerpo de la petición sería una forma de
+> meterle tickets —y un `<img>` apuntando a donde sea— en el tablero de otra
+> cuenta.
+
+El código vive en `tickets_enlace_publico` (`cuentaId` como clave primaria),
+tabla de la App con `CREATE TABLE IF NOT EXISTS` y sin clave foránea. Son
+18 caracteres de `base64url`, como el de una sala: en una URL un `+` o un `/`
+se escapan por el camino. Y `tickets_de_soporte` recibe `origen`,
+`contactoNombre` y `sessionId` con **`ALTER TABLE … ADD COLUMN IF NOT EXISTS`**,
+no reescribiendo el `CREATE`: la tabla ya está en producción y un
+`CREATE TABLE IF NOT EXISTS` no toca una que ya existe.
+
+Ocho cosas que hay que mantener:
+
+1. **Se crea al pedirlo, con `ON CONFLICT DO NOTHING`.** Sin eso, tres pestañas
+   abriendo el tablero a la vez verían las tres que no existe y escribirían tres
+   códigos, de los que dos quedarían repartidos y muertos. Comprobado contra
+   Postgres: tres llamadas en paralelo dejan **una** fila.
+2. **Apagarlo NO lo regenera.** Ese código ya está pegado en conversaciones de
+   WhatsApp que nadie va a volver a leer; cambiarlo sería romperlas todas a la
+   vez. Y un enlace apagado **se contesta igual que uno que nunca existió**:
+   decir «existe pero está cerrado» ya cuenta algo de una cuenta a quien solo
+   tiene una cadena de texto.
+3. **El número se vuelve a armar EN EL SERVIDOR**, con la misma función que lo
+   armó en la pantalla (`armarElNumero`, `lib/telefono-de-pais.ts`, puro). Lo
+   que llega es **lo tecleado**, no el resultado: dar por bueno el número final
+   sería dejar que quien manda la petición elija a qué teléfono se le avisa
+   después.
+4. **Y se recorta por LARGO y por ÁREA, no solo por indicativo.** República
+   Dominicana usa 809, 829 y 849 sobre el mismo `+1`, así que elegir «+1809» y
+   teclear `8291234567` guarda **`18291234567`**: manda lo escrito. Lo que no
+   cuadra con ningún largo conocido **no se recorta**: se rechaza con su motivo.
+   Media escalada es peor que ninguna — guardar «12345» como si fuera un
+   teléfono deja un ticket con un aviso imposible y nadie se entera.
+5. **El número final SE VE antes de enviar.** Una regla que se equivoca en
+   silencio es la familia del «999999999 de -1 créditos»; debajo del campo se
+   enseña lo que se va a guardar, que es lo único que de verdad protege.
+6. **El nombre y el teléfono los recuerda el NAVEGADOR, nunca el servidor.**
+   Prellenarlos buscando por número convertiría un enlace público en una forma
+   de preguntar «¿de quién es este número?» sobre los contactos de la cuenta. Y
+   todo va en `try/catch`: en una ventana privada leer `localStorage` puede
+   lanzar, y sin eso la ficha entera se cae justo en los navegadores donde más
+   se mira la privacidad.
+7. **El ticket entra normal y SIN responsable.** Dejar que el cliente final
+   elija quién lo atiende y con qué urgencia es darle mandos sobre el equipo de
+   otro. Y `origen: "publico"` es lo único que lo distingue: sin ese filtro en
+   `losTicketsDelCliente` la cuenta se vería **a sí misma** pidiéndose soporte,
+   porque `clienteId` es ella.
+8. **Se sube por una ruta propia** (`/api/tickets-publico/archivo`), porque
+   `/api/upload` empieza por `currentUser()`. Ahí la puerta es el código, la
+   carpeta es siempre `tickets-publico` y el borrado exige **además** que la
+   llave empiece por `<cuenta>/tickets-publico/` — una ruta que borra lo que le
+   digan es una ruta para vaciarle el bucket a otro.
+
+**El lead se engancha con todas las identidades**, que es la regla de siempre de
+Chats: `remoteJid` primero —por donde entra el índice— y `remoteJidAlt` en su
+**propia consulta**, nunca con un `OR` sobre las dos. Si no existe se crea, y
+si la cuenta no tiene ninguna línea conectada **el ticket entra igual, solo que
+sin lead**: eso no es un fallo del ticket, es una cuenta que todavía no ha
+conectado un WhatsApp. `elLeadDelContacto` nunca lanza, pero tampoco es mudo.
+
+**Y los campos son los MISMOS que la ficha privada**: título, texto y adjuntos
+salen de `components/tickets/CamposDelTicket.tsx`, que pintan las dos. Con dos
+copias, el día que se afine algo se afina en una y la otra se queda atrás — y
+eso no se ve como un error: se ve como que «la ficha pública tiene menos cosas».
+Lo que cada una pone alrededor sí es suyo.
+
+#### Medido en Chromium, sobre la página de verdad
+
+No sobre una maqueta: el build servido con `next start` contra una base de usar
+y tirar. La franja del teléfono **se apila por debajo de `sm`** —el selector de
+país pide unas 15 rem para el nombre y al número le quedarían cuatro dígitos— y
+pasa a una fila a partir de ahí:
+
+| ventana | tarjeta | selector de país | campo del número | ¿desborda? |
+| --- | --- | --- | --- | --- |
+| 320×568 | 288 px | 254 px @y=217 | 254 px @y=**265** | no |
+| 360×740 | 328 px | 294 px @y=217 | 294 px @y=**265** | no |
+| 390×844 | 358 px | 324 px @y=217 | 324 px @y=**265** | no |
+| 430×932 | 398 px | 364 px @y=217 | 364 px @y=**265** | no |
+| 768×1024 | 480 px | 240 px @y=237 | 190 px @y=**237** | no |
+| 1440×900 | 480 px | 240 px @y=237 | 190 px @y=**237** | no |
+
+A 390 la ficha llena mide 915 px de alto —una pantalla y poco, sin desbordar a
+lo ancho— y debajo del campo se lee «Te escribiremos al +57 3001234567».
+
+**Y la medida encontró un fallo que no era de esta pantalla.** Los cuatro
+botones de archivo de `BloqueDeAdjuntos` iban en `grid-cols-4` fijo:
+
+| ventana | antes | ahora |
+| --- | --- | --- |
+| 320 | **51 px** → «Im…», «Vi…», «Au…», «Do…» | 110 px, los cuatro enteros |
+| 360 | **61 px** → los cuatro cortados | 130 px |
+| 390 | **69 px** → tres cortados | 145 px |
+| 768 y 1440 | 97 px | **97 px**, igual |
+
+O sea cuatro botones que no dicen qué hacen. Van a **`grid-cols-2
+sm:grid-cols-4`**, y eso arregla también los diálogos de tarea y de ticket en un
+móvil, que es donde estaba escondido: dentro de un diálogo casi no se miraba, y
+en la ficha pública es lo primero que ve el cliente.
+
 ## «Súper administrador» es la PERSONA, y pasa por encima de todo
 
 `currentUser()` devuelve la fila de la cuenta **efectiva**. Con el conmutador de

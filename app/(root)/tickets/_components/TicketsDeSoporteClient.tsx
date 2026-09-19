@@ -37,6 +37,7 @@ import {
 } from "@/lib/vencimiento";
 import { esEstadoFinal } from "@/lib/tickets";
 import { CabeceraDeTickets } from "./CabeceraDeTickets";
+import { EnlacePublicoDeTickets } from "./EnlacePublicoDeTickets";
 import { TableroDeTickets } from "./TableroDeTickets";
 import { DocumentosQueLoNombran } from "@/components/shared/DocumentosQueLoNombran";
 import { MenuDeEstado } from "./MenuDeEstado";
@@ -458,6 +459,11 @@ export function TicketsDeSoporteClient({
                         >
                             <RefreshCw className={cn("h-4 w-4", cargando && "animate-spin")} />
                         </Button>
+                        {/* El enlace que se le reparte a los clientes de esta
+                            cuenta. Va aquí y no en una pantalla de ajustes:
+                            esto ES su bandeja, y lo que se copia todo el día
+                            tiene que estar donde se mira. */}
+                        <EnlacePublicoDeTickets />
                         {/* Registrar el ticket de alguien que escribió por
                             WhatsApp. Solo sale si hay cuentas a nombre de las que
                             se pueda abrir: un botón que al pulsarlo no tiene a
