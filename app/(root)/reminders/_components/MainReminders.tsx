@@ -12,7 +12,7 @@ import { deleteAllReminders, deleteReminder } from '@/actions/reminders-actions'
 import { toast } from 'sonner';
 import { themeClass } from '@/types/generic';
 import { convertToSeconds } from '../../workflow/[workflowId]/helpers';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ReminderList } from './ReminderList';
 import { Badge } from '@/components/ui/badge';
 import type { Reminders } from '@prisma/client';
@@ -183,27 +183,14 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       {/* Header fijo */}
       <div className={`sticky top-0 z-1 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
-          {!isScheduleView && (
-            <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-              <div className="min-w-0">
-                <MetricCard icon={<Bell className="h-4 w-4" />} label="Pendientes" value={reminderMetrics.pending} helper={isCampaignPage ? "Campañas pendientes por enviar" : "Recordatorios pendientes por enviar"} color="#F59E0B" />
-              </div>
-              <div className="min-w-0">
-                <MetricCard icon={<Clock3 className="h-4 w-4" />} label="Para hoy" value={reminderMetrics.today} helper={isCampaignPage ? "Campañas programadas para hoy" : "Recordatorios programados para hoy"} color="#3B82F6" />
-              </div>
-              <div className="min-w-0">
-                <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Enviados" value={reminderMetrics.sent} helper={isCampaignPage ? "Campañas ya enviadas" : "Recordatorios ya enviados"} color="#10B981" />
-              </div>
-              <div className="min-w-0">
-                <MetricCard icon={<AlertTriangle className="h-4 w-4" />} label="Vencidos" value={reminderMetrics.expired} helper={isCampaignPage ? "Campañas vencidas sin enviar" : "Recordatorios vencidos sin enviar"} color="#EF4444" />
-              </div>
-            </div>
-          )}
-
           {/* El selector de vista va en su propia fila para que el buscador y las
-              acciones ("+ Crear") queden SIEMPRE en la misma línea, alineados. */}
+              acciones ("+ Crear") queden SIEMPRE en la misma línea, alineados.
+              Las cifras que antes abrían la pantalla en tarjetas van en esa
+              misma fila: aquí no hay filtro por estado, así que no son
+              pulsables. */}
           <div className="flex shrink-0 flex-col gap-2">
             {!isScheduleView && (
+              <div className="flex items-center justify-between gap-2">
               <div className="flex w-fit gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
                 <button
                   type="button"
@@ -219,6 +206,15 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                 >
                   <Kanban className="h-3.5 w-3.5" /> Kanban
                 </button>
+              </div>
+              <PastillasDeMetricas
+                metricas={[
+                  { clave: 'pending', icono: <Bell />, etiqueta: 'Pendientes', valor: reminderMetrics.pending, color: '#F59E0B', ayuda: isCampaignPage ? 'Campañas pendientes por enviar' : 'Recordatorios pendientes por enviar' },
+                  { clave: 'today', icono: <Clock3 />, etiqueta: 'Para hoy', valor: reminderMetrics.today, color: '#3B82F6', ayuda: isCampaignPage ? 'Campañas programadas para hoy' : 'Recordatorios programados para hoy' },
+                  { clave: 'sent', icono: <CheckCircle2 />, etiqueta: 'Enviados', valor: reminderMetrics.sent, color: '#10B981', ayuda: isCampaignPage ? 'Campañas ya enviadas' : 'Recordatorios ya enviados' },
+                  { clave: 'expired', icono: <AlertTriangle />, etiqueta: 'Vencidos', valor: reminderMetrics.expired, color: '#EF4444', ayuda: isCampaignPage ? 'Campañas vencidas sin enviar' : 'Recordatorios vencidos sin enviar' },
+                ]}
+              />
               </div>
             )}
 

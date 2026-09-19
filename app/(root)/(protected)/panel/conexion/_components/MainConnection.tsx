@@ -9,7 +9,7 @@ import { ApiKey, User } from "@prisma/client";
 import { getColumns, DataGrid, CreateDialog, EditDialog, DeleteDialog } from "./";
 import { WahaServerCard } from "./WahaServerCard";
 import type { WahaServerData } from "@/actions/admin/waha-server-actions";
-import { MetricCard } from "@/components/custom/MetricCard";
+import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Link2, KeyRound, CalendarCheck, Clock } from "lucide-react";
 import { toast } from "sonner";
@@ -87,46 +87,6 @@ export const MainConnection = ({ searchParams, user, apiKeys, servidorWaha }: Pr
     return (
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-w-0 w-full flex-col gap-2">
-                {/* MetricCards */}
-                <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<Link2 className="h-4 w-4" />}
-                            label="Total conexiones"
-                            value={apiKeys.length}
-                            helper="Todas las API Keys registradas"
-                            color="#3B82F6"
-                        />
-                    </div>
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<KeyRound className="h-4 w-4" />}
-                            label="Servidores únicos"
-                            value={new Set(apiKeys.map(k => k.url)).size}
-                            helper="Servidores Evolution distintos"
-                            color="#8B5CF6"
-                        />
-                    </div>
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<CalendarCheck className="h-4 w-4" />}
-                            label="Recientes (30d)"
-                            value={recentCount}
-                            helper="Agregadas en los últimos 30 días"
-                            color="#22C55E"
-                        />
-                    </div>
-                    <div className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<Clock className="h-4 w-4" />}
-                            label="Antiguas"
-                            value={oldCount}
-                            helper="Con más de 30 días de antigüedad"
-                            color="#F59E0B"
-                        />
-                    </div>
-                </div>
-
                 {/* Servidor de Waha. Es otro proveedor con url + API key, igual que
                     Evolution, asi que se configura en la misma pantalla. */}
                 <WahaServerCard servidor={servidorWaha} />
@@ -137,6 +97,12 @@ export const MainConnection = ({ searchParams, user, apiKeys, servidorWaha }: Pr
                         columns={columns}
                         data={apiKeys}
                         onCreateClick={() => handleDialogAction('null', 'create')}
+                        metricas={[
+                            { clave: 'total', icono: <Link2 />, etiqueta: 'Total conexiones', valor: apiKeys.length, color: '#3B82F6', ayuda: 'Todas las API Keys registradas' },
+                            { clave: 'servidores', icono: <KeyRound />, etiqueta: 'Servidores únicos', valor: new Set(apiKeys.map(k => k.url)).size, color: '#8B5CF6', ayuda: 'Servidores Evolution distintos' },
+                            { clave: 'recientes', icono: <CalendarCheck />, etiqueta: 'Recientes (30d)', valor: recentCount, color: '#22C55E', ayuda: 'Agregadas en los últimos 30 días' },
+                            { clave: 'antiguas', icono: <Clock />, etiqueta: 'Antiguas', valor: oldCount, color: '#F59E0B', ayuda: 'Con más de 30 días de antigüedad' },
+                        ]}
                     />
                 </div>
 

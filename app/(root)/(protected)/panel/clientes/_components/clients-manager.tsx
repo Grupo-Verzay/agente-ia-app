@@ -22,16 +22,13 @@ import { UserFormValues } from '@/schema/user';
 import { Country } from '@/components/custom/CountryCodeSelect';
 import bcrypt from "bcryptjs";
 import { LENGTH_PASSWORD_HASH } from '@/types/generic';
-import { MetricCard } from '@/components/custom/MetricCard';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { BadgeCheck, Users, Wifi, WifiOff, Zap } from 'lucide-react';
 import { ModuleWithItems } from '@/schema/module';
 import { setUserModules } from '@/actions/user-module-actions';
 import { ModulesDialog } from '@/components/shared/ModulesDialog';
 import type { ResellerPoolOption } from '../helpers/getClientsPageData';
 import {
     cumpleEstadoDelServicio,
-    tieneServicioActivo,
     type EstadoDelServicio,
 } from '@/lib/clientes-activos';
 import { useAterrizajeDeMencion } from '@/hooks/useAterrizajeDeMencion';
@@ -309,61 +306,15 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
 
     const columns = getColumns(openDialogGetUserId, currentUserRol);
 
-    const qrConectados = users.filter(u => u.qrStatus === false).length;
-    const evoActivos = users.filter(u => u.isEvoEnabled === true).length;
-    const conServicioActivo = users.filter(tieneServicioActivo).length;
-
     return (
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2 overflow-hidden">
-            {/* MetricCards */}
-            <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<Users className="h-4 w-4" />}
-                        label="Total clientes"
-                        value={users.length}
-                        helper="Clientes registrados en la plataforma"
-                        color="#3B82F6"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<BadgeCheck className="h-4 w-4" />}
-                        label="Activos"
-                        value={conServicioActivo}
-                        helper="Cuenta habilitada y servicio al día. El resto están deshabilitados, suspendidos, en mora o sin facturación configurada."
-                        color="#0EA5E9"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<Wifi className="h-4 w-4" />}
-                        label="QR conectados"
-                        value={qrConectados}
-                        helper="Con instancia Evolution activa"
-                        color="#22C55E"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<WifiOff className="h-4 w-4" />}
-                        label="Sin conexión QR"
-                        value={users.length - qrConectados}
-                        helper="Sin instancia conectada"
-                        color="#EF4444"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<Zap className="h-4 w-4" />}
-                        label="Evolution activo"
-                        value={evoActivos}
-                        helper="Con Evolution API habilitado"
-                        color="#8B5CF6"
-                    />
-                </div>
-            </div>
+            {/* Las cinco tarjetas de métricas que abrían esta pantalla se
+                fueron a la barra, como pastillas (`ClientStatusPanel`). Cuatro
+                de ellas YA estaban ahí —Total, QR conectados, Sin conexión QR y
+                Evolution activo— y la quinta, «Activos», se sumó con su filtro.
+                Lo que se recupera es la franja entera que ocupaban encima de la
+                tabla, que es lo que se viene a mirar. */}
 
             {/* Gestión de clients */}
             <div className="flex-1 min-h-0">
@@ -372,6 +323,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     data={filteredUsers}
                     currentUserRol={currentUserRol}
                     openCreateDialogUser={openCreateDialogUser}
+                    statusFilter={statusFilter}
                     setStatusFilter={setStatusFilter}
                     servicio={servicio}
                     setServicio={setServicio}

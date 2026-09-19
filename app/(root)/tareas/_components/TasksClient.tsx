@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { fmtPhone } from "@/lib/whatsapp-jid";
 import { TASK_TYPES, isTaskOpen, type TaskData } from "@/lib/task-types";
 import { tituloDeLaTarjeta } from "@/lib/titulo-de-la-tarea";
-import { MetricCard } from "@/components/custom/MetricCard";
+import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import {
   getMyTasksAction,
@@ -265,24 +265,6 @@ export function TasksClient({ userId, userName }: Props) {
   return (
     <div className="flex h-full w-full flex-col gap-3">
 
-      {/* Tarjetas de resumen — MetricCard, exactamente igual al schedule.
-          Ocultas en móvil (hidden) y visibles solo en pantallas sm+; en PC se
-          muestran 4 (se retiró "Compromisos" para dejar 4). */}
-      <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<Calendar className="h-4 w-4" />} label="Pendiente" value={pending} color="#EAB308" helper="Tareas pendientes" />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<Calendar className="h-4 w-4" />} label="Vencidas" value={overdue} color="#EF4444" helper="Tareas vencidas" />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<Calendar className="h-4 w-4" />} label="Para hoy" value={dueToday} color="#3B82F6" helper="Tareas para hoy" />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<Calendar className="h-4 w-4" />} label="Completadas" value={done} color="#22C55E" helper="Tareas completadas" />
-        </div>
-      </div>
-
       {/* Header: el selector de vista va en su propia fila para que el buscador
           y las acciones ("+ Crear") queden SIEMPRE en la misma línea, alineados. */}
       <div className="flex shrink-0 flex-col gap-2">
@@ -322,6 +304,18 @@ export function TasksClient({ userId, userName }: Props) {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
+          {/* Las cifras que abrían la pantalla. «Completadas» NO entra: la
+              barra ya tiene su botón con el mismo número, y encima filtra —
+              cuando una métrica duplica una pastilla que ya está, se queda la
+              que ya existe. Las otras tres no tienen filtro equivalente en esta
+              lista, así que van sin aspecto de pulsables. */}
+          <PastillasDeMetricas
+            metricas={[
+              { clave: "pending", icono: <Calendar />, etiqueta: "Pendientes", valor: pending, color: "#EAB308", ayuda: "Tareas pendientes" },
+              { clave: "overdue", icono: <Calendar />, etiqueta: "Vencidas", valor: overdue, color: "#EF4444", ayuda: "Tareas vencidas" },
+              { clave: "dueToday", icono: <Calendar />, etiqueta: "Para hoy", valor: dueToday, color: "#3B82F6", ayuda: "Tareas para hoy" },
+            ]}
+          />
           <div className="toolbar-collapse flex items-center gap-2">
             <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => void load()} disabled={loading} title="Actualizar">
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />

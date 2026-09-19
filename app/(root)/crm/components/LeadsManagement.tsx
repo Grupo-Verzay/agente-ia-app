@@ -184,21 +184,18 @@ export const LeadsManagement = ({
         <div className="flex flex-col h-full">
             {/* Header fijo */}
             <div className="sticky top-0 z-1">
-                <div className="flex justify-between items-center">
-                    <div className="container-stats hidden flex-1 sm:flex sm:gap-4 sm:overflow-x-auto">
-                        <FilterLeadsByStats
-                            stats={stats}
-                            filter={filter}
-                            onChangeFilter={onChangeFilter}
-                        />
-                    </div>
-                </div>
-
-                <div className="flex flex-1 justify-between p-2">
+                <div className="flex flex-1 items-center justify-between gap-2 p-2">
                     <TagFilterBar
                         allTags={allTags}
                         selectedTagIds={selectedTagIds}
                         onChangeSelected={setSelectedTagIds}
+                    />
+                    {/* Las cifras, en la misma fila que el filtro de etiquetas.
+                        Antes iban arriba en tarjetas, con su franja propia. */}
+                    <FilterLeadsByStats
+                        stats={stats}
+                        filter={filter}
+                        onChangeFilter={onChangeFilter}
                     />
                 </div>
             </div>

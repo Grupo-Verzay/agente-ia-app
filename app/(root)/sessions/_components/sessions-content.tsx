@@ -180,19 +180,17 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
     <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
-        <div className="flex justify-between items-center">
-          <div className="container-stats mb-2 hidden flex-1 sm:flex sm:gap-4 sm:overflow-x-auto">
-            <FilterLeadsByStats
-              stats={stats}
-              filter={filter}
-              onChangeFilter={(key) => {
-                setFilter(key);
-                setCurrentPage(0);
-              }}
-            />
-          </div>
-        </div>
         <ModuleToolbar className="shrink-0">
+          {/* Las cifras, en la barra. Antes abrían la pantalla en una fila de
+              tarjetas a todo lo ancho, encima de la lista. */}
+          <FilterLeadsByStats
+            stats={stats}
+            filter={filter}
+            onChangeFilter={(key) => {
+              setFilter(key);
+              setCurrentPage(0);
+            }}
+          />
           <div className="relative w-full sm:w-72">
             <Input
               placeholder="Buscar por nombre o número..."

@@ -65,7 +65,7 @@ import {
 } from '@/actions/calls-crm-actions';
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { startBotCallAction } from '@/actions/voicebot-actions';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { CallDialog } from '../../../chats/_components/CallDialog';
 import { CallDetailDialog } from './CallDetailDialog';
 import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
@@ -480,54 +480,62 @@ export function CallsCrmClient({
         </CardContent>
       </Card>
 
-      {/* KPIs (4 tarjetas estándar) — en modo embebido van en el slot superior del dashboard */}
-      {!embedded && (
-      <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<Phone className="h-4 w-4" />}
-            label="Total"
-            value={kpis?.total ?? 0}
-            helper={`Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)}`}
-            color="#3B82F6"
-          />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<PhoneOutgoing className="h-4 w-4" />}
-            label="Salientes"
-            value={kpis?.outgoing ?? 0}
-            helper="Llamadas realizadas desde el panel"
-            color="#22C55E"
-          />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<PhoneMissed className="h-4 w-4" />}
-            label="Entrantes"
-            value={kpis?.incoming ?? 0}
-            helper="Llamadas recibidas / perdidas"
-            color="#EF4444"
-          />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<PhoneCall className="h-4 w-4" />}
-            label="Contestadas"
-            value={kpis?.answered ?? 0}
-            helper={`Duración promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)}`}
-            color="#8B5CF6"
-          />
-        </div>
-      </div>
-      )}
-
       {/* Gráficos eliminados aquí: ya están en la pestaña Analíticas. */}
 
       {/* Tabla */}
       <Card className="border-border flex-1">
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
           <CardTitle className="text-sm">Historial</CardTitle>
+          {/* Las cifras que abrían la pantalla en tarjetas, aquí — que es donde
+              está el filtro con el que se cruzan. Las tres primeras mueven ese
+              mismo filtro; «Contestadas» no tiene equivalente y va sin aspecto
+              de pulsable.
+              En modo embebido no salen: el panel de CRM ya las pinta arriba. */}
+          <div className="ml-auto flex items-center gap-2">
+          {!embedded && (
+            <PastillasDeMetricas
+              metricas={[
+                {
+                  clave: 'all',
+                  icono: <Phone />,
+                  etiqueta: 'Total',
+                  valor: kpis?.total ?? 0,
+                  color: '#3B82F6',
+                  ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)}`,
+                  alPulsar: () => setDirection('all'),
+                  activa: direction === 'all',
+                },
+                {
+                  clave: 'outgoing',
+                  icono: <PhoneOutgoing />,
+                  etiqueta: 'Salientes',
+                  valor: kpis?.outgoing ?? 0,
+                  color: '#22C55E',
+                  ayuda: 'Llamadas realizadas desde el panel',
+                  alPulsar: () => setDirection(direction === 'outgoing' ? 'all' : 'outgoing'),
+                  activa: direction === 'outgoing',
+                },
+                {
+                  clave: 'incoming',
+                  icono: <PhoneMissed />,
+                  etiqueta: 'Entrantes',
+                  valor: kpis?.incoming ?? 0,
+                  color: '#EF4444',
+                  ayuda: 'Llamadas recibidas / perdidas',
+                  alPulsar: () => setDirection(direction === 'incoming' ? 'all' : 'incoming'),
+                  activa: direction === 'incoming',
+                },
+                {
+                  clave: 'answered',
+                  icono: <PhoneCall />,
+                  etiqueta: 'Contestadas',
+                  valor: kpis?.answered ?? 0,
+                  color: '#8B5CF6',
+                  ayuda: `Duración promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)}`,
+                },
+              ]}
+            />
+          )}
           <div className="flex rounded-lg border border-border p-0.5">
             {DIRECTION_OPTIONS.map((o) => (
               <button
@@ -541,6 +549,7 @@ export function CallsCrmClient({
                 {o.label}
               </button>
             ))}
+          </div>
           </div>
         </CardHeader>
         <CardContent>

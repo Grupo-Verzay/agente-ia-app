@@ -1,5 +1,5 @@
 import { CheckCircle2, Database, XCircle, Bot } from "lucide-react";
-import { MetricCard } from "@/components/custom/MetricCard";
+import { PastillasDeMetricas, type Metrica } from "@/components/shared/PastillasDeMetricas";
 
 export interface SessionStatsInterface {
     total: number;
@@ -22,50 +22,62 @@ export interface FilterLeadsByStatsProps {
     onChangeFilter: (value: FilterSessionTypes) => void;
 }
 
+/**
+ * Las cifras de Leads, en la barra y no en tarjetas arriba.
+ *
+ * Este componente ya era el único sitio donde se pintaban —lo comparten
+ * `/sessions` y el CRM—, así que lo que cambia es la forma: cuatro `MetricCard`
+ * a todo lo ancho pasan a cuatro pastillas.
+ *
+ * Y las cuatro **filtran**, que es lo que ya hacían: el `div` de cada tarjeta
+ * llevaba un `onClick` suelto. Eso era un `div` pulsable sin rol ni teclado;
+ * ahora son `<button>` de verdad, con su estado puesto cuando el filtro está
+ * activo — que antes no se veía por ninguna parte.
+ */
 export const FilterLeadsByStats = ({
     stats,
     filter,
     onChangeFilter,
 }: FilterLeadsByStatsProps) => {
-    const total = stats?.total ?? 0;
-    const activeSession = stats?.activeSession ?? 0;
-    const inactiveSession = stats?.inactiveSession ?? 0;
-    const activeAgent = stats?.activeAgent ?? 0;
+    const metricas: Metrica[] = [
+        {
+            clave: "all",
+            icono: <Database />,
+            etiqueta: "Total",
+            valor: stats?.total ?? 0,
+            color: "#3B82F6",
+        },
+        {
+            clave: "activeSession",
+            icono: <CheckCircle2 />,
+            etiqueta: "Clientes activos",
+            valor: stats?.activeSession ?? 0,
+            color: "#22C55E",
+        },
+        {
+            clave: "inactiveSession",
+            icono: <XCircle />,
+            etiqueta: "Clientes inactivos",
+            valor: stats?.inactiveSession ?? 0,
+            color: "#EF4444",
+        },
+        {
+            clave: "activeAgent",
+            icono: <Bot />,
+            etiqueta: "Agente activo",
+            valor: stats?.activeAgent ?? 0,
+            color: "#22C55E",
+        },
+    ].map((m) => ({
+        ...m,
+        // Volver a pulsar el filtro puesto lo quita, y «Total» es quitarlo:
+        // un filtro que solo se pone obliga a buscar dónde se apaga.
+        alPulsar: () =>
+            onChangeFilter(
+                m.clave === "all" || filter === m.clave ? "all" : (m.clave as FilterSessionTypes),
+            ),
+        activa: m.clave === "all" ? filter === "all" : filter === m.clave,
+    }));
 
-    return (
-        <>
-            <div onClick={() => onChangeFilter("all")} className="min-w-0 cursor-pointer sm:flex-1">
-                <MetricCard
-                    icon={<Database className="h-4 w-4" />}
-                    label="Total"
-                    value={total}
-                    color="#3b82f6"
-                />
-            </div>
-            <div onClick={() => onChangeFilter("activeSession")} className="min-w-0 cursor-pointer sm:flex-1">
-                <MetricCard
-                    icon={<CheckCircle2 className="h-4 w-4" />}
-                    label="Clientes Activos"
-                    value={activeSession}
-                    color="#22c55e"
-                />
-            </div>
-            <div onClick={() => onChangeFilter("inactiveSession")} className="min-w-0 cursor-pointer sm:flex-1">
-                <MetricCard
-                    icon={<XCircle className="h-4 w-4" />}
-                    label="Clientes Inactivos"
-                    value={inactiveSession}
-                    color="#ef4444"
-                />
-            </div>
-            <div onClick={() => onChangeFilter("activeAgent")} className="min-w-0 cursor-pointer sm:flex-1">
-                <MetricCard
-                    icon={<Bot className="h-4 w-4" />}
-                    label="Agente Activo"
-                    value={activeAgent}
-                    color="#22c55e"
-                />
-            </div>
-        </>
-    );
+    return <PastillasDeMetricas metricas={metricas} />;
 };

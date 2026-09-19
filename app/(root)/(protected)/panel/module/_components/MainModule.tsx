@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { createModule, updateModule } from '@/actions/module-actions';
 import { SortableModuleList } from './SortableModuleList';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithItems[] }) => {
@@ -100,48 +100,18 @@ export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithIte
     return (
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
-            {/* MetricCards */}
-            <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<LayoutGrid className="h-4 w-4" />}
-                        label="Total módulos"
-                        value={modules.length}
-                        helper="Módulos configurados en la plataforma"
-                        color="#3B82F6"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<Eye className="h-4 w-4" />}
-                        label="Visibles en sidebar"
-                        value={visiblesCount}
-                        helper="Módulos que aparecen en el menú lateral"
-                        color="#22C55E"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<EyeOff className="h-4 w-4" />}
-                        label="Solo admin"
-                        value={adminOnlyCount}
-                        helper="Módulos restringidos a administradores"
-                        color="#8B5CF6"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<Layers className="h-4 w-4" />}
-                        label="Con sub-menú"
-                        value={conSubMenuCount}
-                        helper="Módulos con ítems de sub-navegación"
-                        color="#F59E0B"
-                    />
-                </div>
-            </div>
-
-            {/* Actions */}
+            {/* Actions, con las cifras que antes abrían la pantalla en
+                tarjetas. Sin filtro equivalente: no son pulsables. */}
             <div className="flex items-center gap-2">
+                <PastillasDeMetricas
+                    className="order-last ml-auto"
+                    metricas={[
+                        { clave: 'total', icono: <LayoutGrid />, etiqueta: 'Total módulos', valor: modules.length, color: '#3B82F6', ayuda: 'Módulos configurados en la plataforma' },
+                        { clave: 'visibles', icono: <Eye />, etiqueta: 'Visibles en sidebar', valor: visiblesCount, color: '#22C55E', ayuda: 'Módulos que aparecen en el menú lateral' },
+                        { clave: 'adminOnly', icono: <EyeOff />, etiqueta: 'Solo admin', valor: adminOnlyCount, color: '#8B5CF6', ayuda: 'Módulos restringidos a administradores' },
+                        { clave: 'subMenu', icono: <Layers />, etiqueta: 'Con sub-menú', valor: conSubMenuCount, color: '#F59E0B', ayuda: 'Módulos con ítems de sub-navegación' },
+                    ]}
+                />
                 <div className="relative w-64 shrink-0">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input

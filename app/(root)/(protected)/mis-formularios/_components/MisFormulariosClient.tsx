@@ -25,7 +25,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
 import { createForm, deleteForm, updateForm, getMyForms, type FormData } from '@/actions/forms-actions';
@@ -117,22 +117,6 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
       <div className={`sticky top-0 z-10 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
-          {/* MetricCards */}
-          <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-            <div className="min-w-0">
-              <MetricCard label="Total formularios" value={totalForms} icon={<FormInput className="h-4 w-4" />} color="#3B82F6" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Activos" value={activeForms} icon={<CheckCircle2 className="h-4 w-4" />} color="#22C55E" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Inactivos" value={inactiveForms} icon={<XCircle className="h-4 w-4" />} color="#6B7280" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Total registros" value={totalSubmissions} icon={<ClipboardList className="h-4 w-4" />} color="#8B5CF6" />
-            </div>
-          </div>
-
           {/* Toolbar: buscador + botón */}
           <ModuleToolbar className="shrink-0">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -145,6 +129,16 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                   className="w-full pl-8"
                 />
               </div>
+              {/* Las cifras que abrían la pantalla en tarjetas. Sin filtro
+                  equivalente en esta lista: no son pulsables. */}
+              <PastillasDeMetricas
+                metricas={[
+                  { clave: 'total', icono: <FormInput />, etiqueta: 'Total formularios', valor: totalForms, color: '#3B82F6' },
+                  { clave: 'activos', icono: <CheckCircle2 />, etiqueta: 'Activos', valor: activeForms, color: '#22C55E' },
+                  { clave: 'inactivos', icono: <XCircle />, etiqueta: 'Inactivos', valor: inactiveForms, color: '#6B7280' },
+                  { clave: 'registros', icono: <ClipboardList />, etiqueta: 'Total registros', valor: totalSubmissions, color: '#8B5CF6' },
+                ]}
+              />
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">

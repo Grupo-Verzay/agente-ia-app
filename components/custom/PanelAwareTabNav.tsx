@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { BarraDeslizable } from "@/components/shared/BarraDeslizable";
 import { cn } from "@/lib/utils";
 import { MouseEvent, Suspense, useEffect, useMemo, useState, useTransition } from "react";
 
@@ -33,6 +33,10 @@ function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Pro
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
     const [optimisticUrl, setOptimisticUrl] = useState<string | null>(null);
+    // La pestaña activa, para que el carril la traiga a la vista. Va en estado
+    // y no en un `useRef`: un ref no vuelve a disparar el efecto, así que al
+    // cambiar de pestaña el carril se quedaría mirando a la anterior.
+    const [pestanaActiva, setPestanaActiva] = useState<HTMLElement | null>(null);
     const currentSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
     const currentFullUrl = pathname + currentSearch;
     const visibleTabUrls = useMemo(
@@ -119,7 +123,7 @@ function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Pro
                     <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
                 </div>
             ) : null}
-            <ScrollArea className="w-full">
+            <BarraDeslizable activo={pestanaActiva}>
                 <nav className="flex gap-1">
                     {tabs.map((tab) => {
                         const { path: tabPath, search: tabSearch } = splitUrl(tab.url);
@@ -140,6 +144,7 @@ function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Pro
                         return (
                             <Link
                                 key={tab.url}
+                                ref={isActive ? setPestanaActiva : undefined}
                                 href={tab.url}
                                 // `prefetch` a secas es prefetch COMPLETO de la
                                 // ruta, y en cuanto el enlace entra en pantalla.
@@ -164,8 +169,7 @@ function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Pro
                         );
                     })}
                 </nav>
-                <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            </BarraDeslizable>
         </div>
     );
 }

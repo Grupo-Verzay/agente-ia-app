@@ -5,7 +5,7 @@ import {
     LayoutDashboard, Kanban, Users, Wrench, Bell, Settings2, Calendar, ClipboardList,
 } from 'lucide-react';
 import { AppointmentStatus } from '@prisma/client';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { BookingsDashboardCalendar } from './dashboard/BookingsDashboardCalendar';
 import { BookingsKanban } from './dashboard/BookingsKanban';
 import { MembersManager } from './members/MembersManager';
@@ -65,23 +65,9 @@ export const MainBookings = ({ user, team }: Props) => {
 
     return (
         <div className="flex h-full w-full flex-col gap-3" data-schedule-view>
-            {/* Metric cards */}
-            <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
-                {topMetrics.map((m) => (
-                    <div key={m.status} className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<Calendar className="h-4 w-4" />}
-                            label={m.label}
-                            value={m.count}
-                            helper={`Citas en estado "${m.label}"`}
-                            color={m.color}
-                        />
-                    </div>
-                ))}
-            </div>
-
-            {/* Tab nav */}
-            <div className="flex shrink-0">
+            {/* Tab nav, con las cifras que antes abrían la pantalla en
+                tarjetas. Sin filtro por estado de cita: no son pulsables. */}
+            <div className="flex shrink-0 items-center justify-between gap-2">
                 <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
                     {TABS.map(({ value, label, Icon }) => (
                         <button
@@ -100,6 +86,16 @@ export const MainBookings = ({ user, team }: Props) => {
                         </button>
                     ))}
                 </div>
+                <PastillasDeMetricas
+                    metricas={topMetrics.map((m) => ({
+                        clave: m.status,
+                        icono: <Calendar />,
+                        etiqueta: m.label,
+                        valor: m.count,
+                        ayuda: `Citas en estado "${m.label}"`,
+                        color: m.color,
+                    }))}
+                />
             </div>
 
             {/* Contenido */}

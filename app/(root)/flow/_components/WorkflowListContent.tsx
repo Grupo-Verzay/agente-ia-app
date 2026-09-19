@@ -5,6 +5,7 @@ import { IntentTrigger, Workflow } from '@prisma/client';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
+import { PastillasDeMetricas, type Metrica } from '@/components/shared/PastillasDeMetricas';
 import CreateWorflowDialog from './CreateWorflowDialog';
 import FollowUpWindowDialog from './FollowUpWindowDialog';
 import { SortableWorkflowList } from './SortableWorkflowList';
@@ -14,9 +15,11 @@ interface WorkflowListContentProps {
     userId: string;
     isPro: boolean;
     triggers?: IntentTrigger[];
+    /** Las cifras del resumen, que se pintan en la barra. */
+    metricas?: Metrica[];
 }
 
-export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [] }: WorkflowListContentProps) => {
+export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], metricas = [] }: WorkflowListContentProps) => {
     const [search, setSearch] = useState('');
     const filteredWorkflows = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -39,6 +42,8 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [] }:
                         onChange={(event) => setSearch(event.target.value)}
                     />
                 </div>
+                {/* Sin filtro por tipo de flujo en esta lista: no son pulsables. */}
+                <PastillasDeMetricas metricas={metricas} />
                 <div className="flex items-center gap-2">
                     <FollowUpWindowDialog />
                     <CreateWorflowDialog triggerText="+ Crear" isPro={isPro} />

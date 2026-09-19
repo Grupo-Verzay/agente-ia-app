@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar'
-import { MetricCard } from '@/components/custom/MetricCard'
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas'
 import { useModuleStore, UserIntegrationItem } from '@/stores/modules/useModuleStore'
 import {
     createUserIntegration,
@@ -184,41 +184,11 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
 
     return (
         <div className="flex h-full flex-col gap-3 p-4">
-            {/* Métricas */}
-            <div className="hidden shrink-0 sm:grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-                <MetricCard
-                    icon={<Globe className="h-4 w-4" />}
-                    label="Total"
-                    value={items.length}
-                    helper="Apps externas configuradas"
-                    color="#3B82F6"
-                />
-                <MetricCard
-                    icon={<Sidebar className="h-4 w-4" />}
-                    label="En sidebar"
-                    value={items.length}
-                    helper="Visibles en el menú lateral"
-                    color="#8B5CF6"
-                />
-                <MetricCard
-                    icon={<MessageSquare className="h-4 w-4" />}
-                    label="En chat"
-                    value={items.length}
-                    helper="Disponibles como tabs en chats"
-                    color="#10B981"
-                />
-                <MetricCard
-                    icon={<LayoutGrid className="h-4 w-4" />}
-                    label="Disponibles"
-                    value={Math.max(0, 10 - items.length)}
-                    helper="Slots restantes (máx. 10)"
-                    color="#F59E0B"
-                />
-            </div>
-
-            {/* Toolbar */}
+            {/* Toolbar, con las cifras que antes abrían la pantalla en
+                tarjetas. Sin filtro equivalente: no son pulsables. */}
             <ModuleToolbar
                 left={
+                    <>
                     <div className="relative w-full min-w-0 sm:w-72">
                         <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -228,6 +198,15 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
+                    <PastillasDeMetricas
+                        metricas={[
+                            { clave: 'total', icono: <Globe />, etiqueta: 'Total', valor: items.length, color: '#3B82F6', ayuda: 'Apps externas configuradas' },
+                            { clave: 'sidebar', icono: <Sidebar />, etiqueta: 'En sidebar', valor: items.length, color: '#8B5CF6', ayuda: 'Visibles en el menú lateral' },
+                            { clave: 'chat', icono: <MessageSquare />, etiqueta: 'En chat', valor: items.length, color: '#10B981', ayuda: 'Disponibles como tabs en chats' },
+                            { clave: 'disponibles', icono: <LayoutGrid />, etiqueta: 'Disponibles', valor: Math.max(0, 10 - items.length), color: '#F59E0B', ayuda: 'Slots restantes (máx. 10)' },
+                        ]}
+                    />
+                    </>
                 }
                 right={
                     <Button size="sm" onClick={() => setShowForm(true)} className="gap-1.5 shrink-0">

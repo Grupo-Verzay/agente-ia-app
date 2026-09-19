@@ -2044,6 +2044,95 @@ Tres cosas que hay que mantener:
    `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo que se
    comete solo al añadirle una columna a una tabla de la App ya desplegada.
 
+## Las métricas van en la BARRA, no en tarjetas encima de la lista
+
+Veintidós pantallas de lista abrían con una fila de `MetricCard` a todo lo
+ancho —«Total», «Activos», «Vencidas»…— y debajo su barra de filtros. Medido en
+Chromium sobre el CSS del build, en Clientes: la cabecera pasa de **120 px a
+56 px**, o sea **64 px** que recupera la tabla, y **la barra no crece** (56 px
+antes y después, sin desbordar a lo ancho). El mismo número a 1440, 1280 y
+1024, porque lo que se quita es una fila de alto fijo.
+
+Y no era una pantalla: era el mismo bloque copiado veintidós veces, cada una un
+poco distinta —unas con `grid`, otras con `flex-wrap`, unas con `mb-2` y otras
+sin él—.
+
+> **Cómo se ve una métrica lo decide `components/shared/PastillasDeMetricas.tsx`;
+> cuáles son, la pantalla.** Es la única razón por la que esto no son veintidós
+> implementaciones: el día que se afine el alto, el color o el tooltip se afina
+> ahí y salen todas.
+
+Las tres reglas de una pastilla:
+
+1. **Si la pantalla tiene un filtro equivalente, la pastilla filtra**, y se
+   pinta puesta cuando ese filtro está activo. Sin `alPulsar` es un `<span>`:
+   **nada que no haga nada se pinta como pulsable**, que es lo que enseña a no
+   pulsar el resto. En Leads eso además arregló un fallo de paso —las tarjetas
+   ya filtraban, con un `onClick` sobre un `div`: sin rol, sin teclado y sin que
+   se viera cuál estaba puesto—.
+2. **Lo que ya está en la barra no se repite.** En Clientes, cuatro de las cinco
+   tarjetas ya estaban como pastillas (`ClientStatusPanel`); solo se sumó
+   «Activos», con su filtro. En Tareas, «Completadas» no entró porque la barra
+   ya tiene su botón con el mismo número **y encima filtra**. Dos pastillas con
+   la misma cifra una al lado de otra no son redundancia: son dos números que
+   alguien va a comparar.
+3. **La etiqueta va en el tooltip, no al lado del número.** Con la etiqueta
+   escrita, cinco pastillas ocupan más que la fila que vienen a quitar.
+
+Dos cosas más que hay que mantener:
+
+- **El `TooltipProvider` va DENTRO del componente.** Radix revienta si un
+  `Tooltip` no tiene provider encima, y de las veintidós pantallas solo unas
+  pocas lo montaban. Olvidarlo sería una pantalla en blanco, no un tooltip que
+  no sale. Anidarlo donde ya existe es inofensivo: manda el de dentro.
+- **Las pantallas de PANEL no entran, y no es un olvido.** CRM, Analíticas,
+  Créditos, Afiliados y las dos de estadísticas se quedan con sus tarjetas:
+  ahí las métricas **son** el contenido, no la cabecera de una lista. La marca
+  para distinguirlas es esa —¿hay una lista debajo de la que esto es la
+  cabecera?—, no el componente que usan.
+
+## La barra de pestañas se corta: flechas, y la activa se trae sola
+
+La barra del panel del súper administrador —Informes, Actividad, Operaciones,
+Proyectos, Tickets, Diagramas, Clientes, Instancias, Analíticas, Finanzas y las
+que vengan— **se cortaba sin decirlo**. Iba dentro de un `ScrollArea` de Radix,
+cuya barra de desplazamiento solo sale al pasar el cursor, así que lo que se
+veía era la última pestaña partida por el borde y ninguna señal de que hubiera
+más: la única forma de enterarse era arrastrar por si acaso. En un táctil, ni
+eso.
+
+Vive en `components/shared/BarraDeslizable.tsx`, y lo usan **las tres** barras
+de pestañas que hay —`PanelAwareTabNav` y los dos `AdminTabNav`—. Los dos
+últimos no los importa nadie hoy; se alinean igual, por el mismo motivo por el
+que se arregló el `SheetFooter` que tampoco usaba nadie: el día que alguien
+monte una barra con ellos, saldría distinta de la que sí se ve.
+
+Cuatro cosas que hay que mantener:
+
+1. **Las flechas salen solo donde hay algo.** Una flecha que no lleva a ninguna
+   parte es ruido y enseña a no pulsarlas. Y se recalcula al desplazar, al
+   cambiar de tamaño **y al cambiar la lista**: las pestañas dependen de los
+   permisos de cada persona y del plan, así que hacen falta **dos**
+   `ResizeObserver` —el del carril y el de su contenido—. Con solo el del
+   carril, quitar una pestaña dejaba la flecha derecha puesta sobre un carril
+   que ya cabía entero.
+2. **La activa se trae ENTERA, descontando el ancho de la flecha.** Una pestaña
+   justo debajo de la flecha está «visible» y no se lee. Y el hueco solo se
+   descuenta del lado donde de verdad hay flecha, o la primera pestaña saldría
+   con un margen que nadie pidió.
+3. **Nada de `scrollIntoView`.** Es la forma corta y desplaza **todos** los
+   antepasados: con la barra pegada arriba (`sticky`), la página entera daba un
+   salto vertical al cambiar de pestaña. Se calcula el `scrollLeft` y se mueve
+   solo el carril.
+4. **Al montar, sin animación; después, suave.** Una barra que se desliza sola
+   nada más abrir la página se lee como un fallo de pintado. Y se trae también
+   **al recibir el foco**, que es lo que evita que tabulando con el teclado el
+   foco se vaya a un sitio invisible.
+
+Y la pestaña activa viaja en **estado**, no en un `useRef`: un ref no vuelve a
+disparar el efecto, así que al cambiar de pestaña el carril se quedaría mirando
+a la anterior.
+
 ## Los paneles laterales: UNA medida para toda la plataforma
 
 Convivían **tres anchos** para lo mismo, y uno al lado de otro se ve a la

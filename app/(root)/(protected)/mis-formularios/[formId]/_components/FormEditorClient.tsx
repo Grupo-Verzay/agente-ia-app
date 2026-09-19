@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Trash2, Save, ExternalLink,
   Settings, Pencil, GripVertical, FileText, MessageCircle,
-  ClipboardList, CheckCircle2, XCircle, Wifi, WifiOff, Link2, Check,
+  ClipboardList, Link2, Check,
 } from 'lucide-react';
 import {
   DndContext, closestCenter, useSensor, useSensors, PointerSensor,
@@ -29,7 +29,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import Link from 'next/link';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
 import {
@@ -225,34 +225,6 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
       <div className={`sticky top-0 z-10 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
-          {/* MetricCards — mejora 3: Activo/WhatsApp muestran Sí/No en vez de 1/0 */}
-          <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-            <div className="min-w-0">
-              <MetricCard label="Campos" value={form.fields.length} icon={<FileText className="h-4 w-4" />} color="#3B82F6" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Registros" value={form._count?.submissions ?? 0} icon={<ClipboardList className="h-4 w-4" />} color="#8B5CF6" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard
-                label="Estado"
-                value={form.isActive ? 'Sí' : 'No'}
-                helper={form.isActive ? 'Activo' : 'Inactivo'}
-                icon={form.isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                color={form.isActive ? '#22C55E' : '#6B7280'}
-              />
-            </div>
-            <div className="min-w-0">
-              <MetricCard
-                label="WhatsApp"
-                value={wpEnabled ? 'Sí' : 'No'}
-                helper={wpEnabled ? 'Habilitado' : 'Deshabilitado'}
-                icon={wpEnabled ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-                color={wpEnabled ? '#25D366' : '#6B7280'}
-              />
-            </div>
-          </div>
-
           {/* Toolbar — mejora 1: toggle Activo/Inactivo directo */}
           <ModuleToolbar className="shrink-0">
             <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -264,6 +236,16 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
               </Button>
               <p className="text-sm font-semibold truncate min-w-0">{form.title}</p>
             </div>
+            {/* Las cifras que abrían la pantalla en tarjetas. «Estado» y
+                «WhatsApp» ya tienen su mando en esta misma barra —el toggle de
+                activo y el de WhatsApp—, así que aquí quedan solo las dos que
+                son cifras: campos y registros. */}
+            <PastillasDeMetricas
+              metricas={[
+                { clave: 'campos', icono: <FileText />, etiqueta: 'Campos', valor: form.fields.length, color: '#3B82F6' },
+                { clave: 'registros', icono: <ClipboardList />, etiqueta: 'Registros', valor: form._count?.submissions ?? 0, color: '#8B5CF6' },
+              ]}
+            />
             <div className="toolbar-collapse flex items-center gap-3 shrink-0">
               {/* Toggle activo */}
               <div className="flex items-center gap-2">
