@@ -2474,6 +2474,15 @@ existen es la que nadie prueba.
    cuenta (`canManageWorkspace` — un `agente` participa, no administra), es la
    cuenta **madre** de su familia, y la familia tiene **más de una** cuenta. Un
    selector con una sola opción dentro no filtra nada.
+
+   **Las tres estaban bien y el selector no se pintaba nunca** (#811). La que
+   fallaba era la segunda, y no por su culpa: `laFamiliaDeLaCuenta` daba por
+   hecho que `linked_accounts` es un árbol, y en producción es una malla con
+   enlaces recíprocos, así que **la cuenta madre colgaba de su propia hija** y
+   `esLaCuentaMadre` salía `false` para las cinco. Está contado entero en *y
+   `linked_accounts` NO es un árbol: es una MALLA, con ciclos*. **Si el selector
+   vuelve a no salir, se mira ahí antes que aquí**: estas tres condiciones son
+   una línea que no tiene nada que decidir por su cuenta.
 4. **Las cuentas elegidas viajan en los enlaces de la rejilla anual.** Sin eso,
    pulsar un mes deshacía la consolidación sin decir nada.
 5. **Vaciar sigue siendo SOLO de la cuenta propia.** `wipeFinanceTransactions`
@@ -2715,16 +2724,96 @@ incluidos, y **una cuenta ajena a la familia ve 0**.
 
 Tres cosas que hay que mantener:
 
-1. **Un solo nivel.** `linked_accounts` modela «esta cuenta cuelga de esta
-   otra», no un árbol. Buscar nietas sería inventarse una jerarquía que nadie
-   configuró, y un ciclo metido a mano en esa tabla colgaría la consulta.
-2. **Si cuelga de varias, la raíz se elige ORDENADA.** La tabla no lo impide, y
-   sin un orden estable dos peticiones elegirían raíces distintas y volverían a
-   partir el hilo — el mismo fallo por otra puerta.
+1. **`owner_id` sube, pero NO baja.** Por esa columna cuelga **gente del
+   equipo**, no cuentas. Bajando por ahí, la familia de una empresa se llenaría
+   de asesores y el selector de Finanzas los ofrecería como si fueran cuentas.
+   Se sube de una persona a su cuenta y a partir de ahí solo se camina por
+   `linked_accounts`.
+2. **Todos los miembros tienen que calcular la MISMA raíz.** Es lo único que
+   hace que el hilo no se parta, y la primera versión no lo cumplía — ver la
+   sección de abajo.
 3. **Un fallo al resolver la familia no lanza, pero no es mudo.** Se sigue con
    la cuenta sola, que es el lado seguro —se ve de menos, nunca de más—; y se
    escribe, porque una familia recortada se nota como «mis mensajes no le llegan
    a nadie».
+
+### Y `linked_accounts` NO es un árbol: es una MALLA, con ciclos
+
+Esto se escribió al revés y lo desmintieron los datos de producción. La sección
+de arriba decía «un solo nivel, a propósito: `linked_accounts` modela *esta
+cuenta cuelga de esta otra*, no un árbol». **La tabla no modela eso.** Modela
+«esta cuenta le dio acceso a esta otra», y eso se usa en los dos sentidos.
+
+Medido contra la base, solo lectura:
+
+- De las **13 filas** que hay en toda la plataforma, **8 son parejas
+  recíprocas** (`A -> B` y `B -> A`). No es el accidente de una cuenta: es cómo
+  se usa la tabla.
+- En la familia de la casa, **diez filas** cruzan cinco cuentas: la madre
+  vinculó a las cuatro bajo la suya el 13-09, dos de ellas —Ventas y
+  Notificaciones— la habían vinculado a ella en agosto, y hay tres enlaces
+  sueltos entre hermanas.
+
+Con una malla, «¿de quién cuelgo?» **no tiene una respuesta**: casi todas
+cuelgan de alguien. Y la consulta se quedaba con la primera por `id ASC`, o sea
+**el orden alfabético de un uuid**. Los tres daños, y los tres mudos:
+
+| | qué salía |
+| --- | --- |
+| la raíz | **tres distintas** para una sola familia, según desde dónde se preguntara |
+| la madre | **ninguna**: la casa colgaba de su propia hija, así que `esLaCuentaMadre` era `false` para las cinco |
+| el tamaño | **3, 5 o 2** cuentas para la misma familia de cinco |
+
+Y de ahí salieron dos fallos que no se parecen entre sí:
+
+- **El selector de cuentas de Finanzas no se pintaba nunca** (#811), porque pide
+  ser la madre. Ese fue el síntoma reportado.
+- **El General volvió a partirse**, en silencio: medido en producción, Verzay |
+  Ventas veía **3 de los 8** mensajes del hilo. Es literalmente el fallo que la
+  sección de arriba dice haber arreglado, reaparecido por la otra puerta.
+- Y **nadie podía repartir un canal entre cuentas**, por lo mismo.
+
+**La familia es ahora el COMPONENTE entero**: todo lo que esté unido por
+`linked_accounts`, en los dos sentidos, con un `UNION` recursivo. El `UNION`
+deduplica contra lo acumulado, así que **termina aunque haya ciclos** — que era
+justo lo que la nota anterior temía de un bucle escrito a mano. Medido: el
+componente mayor de la plataforma son **5** cuentas, y solo dos cuentas cambian
+de tamaño de familia con esto.
+
+**Y quién manda sale de los enlaces, no del orden de los ids:**
+
+> **Manda quien más cuentas vinculó BAJO la suya**, y a igualdad, la de `id`
+> menor (`laRaizQueManda`, `lib/raiz-de-la-familia.ts`, puro).
+
+No se inventa ninguna jerarquía: se cuenta lo que cada cuenta **declaró** al
+vincular a otra. Y lo que la hace utilizable es que es una **función pura del
+conjunto** —los mismos miembros y los mismos enlaces—, así que las cinco
+calculan la misma raíz. En una familia normal —una madre que vinculó a sus
+hijas y nadie más— la madre tiene N y las hijas 0, así que **sale la misma raíz
+que antes**: esto solo cambia algo donde los enlaces van en los dos sentidos.
+
+Cuatro cosas que hay que mantener:
+
+1. **El desempate por `id` menor no es decoración.** Sin él, dos cuentas
+   empatadas podrían elegir raíces distintas según el orden en que llegaran las
+   filas, y el hilo se partiría otra vez.
+2. **Un enlace repetido no vota dos veces**, y uno hacia fuera de la familia no
+   vota. Si no, una fila duplicada le ganaría a quien de verdad vinculó a dos.
+3. **La PERSONA por la que se pregunta entra en `cuentas` pero no compite por
+   la raíz.** Sin esa separación, preguntar desde un asesor de una cuenta sin
+   vinculadas devolvería al asesor como raíz y su propia cuenta dejaría de ser
+   la madre.
+4. **El tope (`TOPE_DE_LA_FAMILIA`, 200) no recorta nada hoy** —el componente
+   mayor son 5— y si algún día se alcanza **se dice**. Una familia recortada se
+   nota como «mis mensajes no le llegan a nadie».
+
+El banco corre en **dos modos**, con la consulta vieja y con la nueva, contra
+Postgres y con la malla real sembrada dentro. La única comprobación que cambia
+entre ellos es el fallo —en el modo roto se afirma que la raíz sale `Ventas`,
+que la familia son 3 y que Ventas ve 3 de 8— y todo el bloque de «esto no se
+puede haber aflojado» pasa **igual en los dos**: la cuenta ajena no entra, la
+persona del equipo no es una cuenta, y preguntando desde una persona se sube a
+la suya.
 
 ### Un canal puede CRUZAR cuentas, y entonces la pertenencia es por CUENTA
 
