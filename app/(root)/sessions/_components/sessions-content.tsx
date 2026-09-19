@@ -180,7 +180,23 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
     <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
-        <ModuleToolbar className="shrink-0">
+        <ModuleToolbar
+          className="shrink-0"
+          right={<CreateContactDialog userId={userId} onSuccess={() => mutate()} />}
+          acciones={
+            <BulkActionsDropdown
+              userId={userId}
+              onActivateAll={activateAllSessions}
+              onDeactivateAll={deactivateAllSessions}
+              onDeleteAll={deleteAllSessions}
+              onClearHistory={clearAllHistory}
+              onClearSeguimientos={deleteSeguimientosByInstanceName}
+              onCleanupJunk={cleanupJunkSessions}
+              onSyncSheets={syncAllContactsToGoogleSheets}
+              onSuccess={() => { mutate(); router.refresh(); }}
+            />
+          }
+        >
           {/* Las cifras, en la barra. Antes abrían la pantalla en una fila de
               tarjetas a todo lo ancho, encima de la lista. */}
           <FilterLeadsByStats
@@ -276,18 +292,6 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               <Download className="w-4 h-4 mr-2" />
               {isExporting ? "Exportando..." : "Exportar CSV"}
             </Button>
-            <CreateContactDialog userId={userId} onSuccess={() => mutate()} />
-            <BulkActionsDropdown
-              userId={userId}
-              onActivateAll={activateAllSessions}
-              onDeactivateAll={deactivateAllSessions}
-              onDeleteAll={deleteAllSessions}
-              onClearHistory={clearAllHistory}
-              onClearSeguimientos={deleteSeguimientosByInstanceName}
-              onCleanupJunk={cleanupJunkSessions}
-              onSyncSheets={syncAllContactsToGoogleSheets}
-              onSuccess={() => { mutate(); router.refresh(); }}
-            />
           </div>
         </ModuleToolbar>
       </div>

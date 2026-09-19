@@ -23,6 +23,7 @@ import {
     deleteUserIntegration,
     reorderUserIntegrations,
 } from '@/actions/user-integration-actions'
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones'
 
 function IntegrationRow({
     item,
@@ -209,9 +210,7 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
                     </>
                 }
                 right={
-                    <Button size="sm" onClick={() => setShowForm(true)} className="gap-1.5 shrink-0">
-                        <Plus className="h-4 w-4" /> Nueva
-                    </Button>
+                    <BotonDeCrear onClick={() => setShowForm(true)}>Nueva integración</BotonDeCrear>
                 }
             />
 

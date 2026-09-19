@@ -27,6 +27,7 @@ import {
 import Link from 'next/link';
 import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { themeClass } from '@/types/generic';
 import { createForm, deleteForm, updateForm, getMyForms, type FormData } from '@/actions/forms-actions';
 
@@ -118,8 +119,13 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
           {/* Toolbar: buscador + botón */}
-          <ModuleToolbar className="shrink-0">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <ModuleToolbar
+            className="shrink-0"
+            right={
+              <BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo formulario</BotonDeCrear>
+            }
+          >
+            <>
               <div className="relative w-full sm:w-72">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -139,12 +145,7 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                   { clave: 'registros', icono: <ClipboardList />, etiqueta: 'Total registros', valor: totalSubmissions, color: '#8B5CF6' },
                 ]}
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                + Nuevo formulario
-              </Button>
-            </div>
+            </>
           </ModuleToolbar>
 
         </div>

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { SortableTagList } from "./SortableTagList";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 
 interface SessionTagsManagerProps {
     userId: string;
@@ -183,7 +184,19 @@ export const SessionTagsManager = ({
         return (
             <div className="flex flex-col gap-3">
                 {/* Toolbar */}
-                <ModuleToolbar>
+                <ModuleToolbar
+                    right={
+                        <BotonDeCrear
+                            onClick={() => {
+                                setIsCreating(true);
+                                setNewTagName("");
+                                setNewTagColor(null);
+                            }}
+                        >
+                            Nueva etiqueta
+                        </BotonDeCrear>
+                    }
+                >
                     <div className="relative w-full min-w-0 sm:w-72">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
@@ -193,19 +206,6 @@ export const SessionTagsManager = ({
                             className="h-9 pl-9 pr-3"
                         />
                     </div>
-                    <Button
-                        type="button"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => {
-                            setIsCreating(true);
-                            setNewTagName("");
-                            setNewTagColor(null);
-                        }}
-                    >
-                        <Plus className="h-4 w-4" />
-                        Crear etiqueta
-                    </Button>
                 </ModuleToolbar>
 
                 {/* Inline create form */}

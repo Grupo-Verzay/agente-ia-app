@@ -2,6 +2,10 @@
 
 import { FormModuleSchema, FormModuleValues, ModuleWithItems } from '@/schema/module';
 import { db } from '@/lib/db';
+import { currentUser } from '@/lib/auth';
+import { isAdminLike } from '@/lib/rbac';
+import { rolQueManda } from '@/lib/cuenta-que-manda';
+import { comoListaDeIds, comoResumen, type ResumenDelBorrado } from '@/lib/borrado-en-bloque';
 
 /**
  * Sella cada submodulo con un instante distinto, en el orden en que llegan.
@@ -188,5 +192,40 @@ export async function updateModuleOrder(id: string, order: number) {
     } catch (error) {
         console.error("updateModuleOrder error:", error)
         return { success: false, error }
+    }
+}
+/**
+ * Elimina VARIOS módulos de una vez, desde el `⋯` de la barra.
+ *
+ * Dos cosas que no son opcionales:
+ *
+ * 1. **Tiene su propia puerta.** `deleteModule` no la lleva —se apoya en que
+ *    solo se llega desde esta pantalla— y copiar ese descuido a una acción que
+ *    borra veinte filas de golpe no vale. Pregunta por `rolQueManda`, o sea por
+ *    la CUENTA: el administrador de una cuenta administradora actúa por ella.
+ * 2. **Es UNA llamada, no una por fila.** Next serializa todas las acciones de
+ *    servidor de una página —una en vuelo y la siguiente espera—, así que
+ *    llamar a `deleteModule` veinte veces desde el navegador son veinte viajes
+ *    en fila india. Aquí son dos consultas.
+ */
+export async function eliminarModulosAction(ids: string[]): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIds(ids);
+    if (lista.length === 0) {
+        return { success: false, borrados: 0, fallaron: 0, message: 'No se recibió ningún módulo.' };
+    }
+
+    try {
+        const quienLlama = await currentUser();
+        if (!quienLlama || !isAdminLike(await rolQueManda(quienLlama))) {
+            return { success: false, borrados: 0, fallaron: lista.length, message: 'No autorizado.' };
+        }
+
+        await prisma.moduleItem.deleteMany({ where: { moduleId: { in: lista } } });
+        const borrados = await prisma.module.deleteMany({ where: { id: { in: lista } } });
+
+        return comoResumen(borrados.count, lista.length - borrados.count, 'módulos');
+    } catch (error) {
+        console.error('eliminarModulosAction error:', error);
+        return { success: false, borrados: 0, fallaron: lista.length, message: 'Error al eliminar los módulos.' };
     }
 }

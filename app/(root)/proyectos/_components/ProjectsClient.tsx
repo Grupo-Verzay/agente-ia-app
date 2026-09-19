@@ -47,6 +47,7 @@ import {
 import { CompartirConCuentasDialog } from "@/components/shared/CompartirConCuentasDialog";
 import type { Carpeta as CarpetaDeProyecto } from "@/lib/carpetas";
 import { ProjectBoard } from "./ProjectBoard";
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
   activo: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
@@ -358,8 +359,15 @@ export function ProjectsClient({
     <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
 
       {/* Buscador, filtros y la acción, en una sola fila. */}
-      <ModuleToolbar className="shrink-0">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <ModuleToolbar
+        className="shrink-0"
+        right={
+          /* Crear lo puede cualquiera del equipo: el proyecto queda a su
+             cargo. Lo de los demás sigue necesitando ser administrador. */
+          <BotonDeCrear onClick={() => setCreating(true)}>Nuevo proyecto</BotonDeCrear>
+        }
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2">
         <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -490,13 +498,6 @@ export function ProjectsClient({
           </Button>
         )}
 
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {/* Crear lo puede cualquiera del equipo: el proyecto queda a su
-              cargo. Lo de los demás sigue necesitando ser administrador. */}
-          <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" /> Nuevo
-          </Button>
         </div>
       </ModuleToolbar>
 

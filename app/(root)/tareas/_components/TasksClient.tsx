@@ -48,6 +48,7 @@ import { FichaDeLaTarea } from "./FichaDeLaTarea";
 import { useAterrizajeDeMencion } from "@/hooks/useAterrizajeDeMencion";
 import TooltipWrapper from "@/components/TooltipWrapper";
 import { TiempoDeTarea } from "@/components/shared/TiempoDeTarea";
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   Seguimiento: <RefreshCw className="h-3.5 w-3.5" />,
@@ -294,7 +295,16 @@ export function TasksClient({ userId, userName }: Props) {
             <Kanban className="h-3.5 w-3.5" /> Kanban
           </button>
         </div>
-        <ModuleToolbar>
+        <ModuleToolbar
+          right={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => void load()} disabled={loading} title="Actualizar" aria-label="Actualizar">
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              </Button>
+              <BotonDeCrear onClick={() => setNewTaskOpen(true)}>Nueva tarea</BotonDeCrear>
+            </div>
+          }
+        >
           <div className="relative w-full min-w-0 sm:w-64">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -316,20 +326,14 @@ export function TasksClient({ userId, userName }: Props) {
               { clave: "dueToday", icono: <Calendar />, etiqueta: "Para hoy", valor: dueToday, color: "#3B82F6", ayuda: "Tareas para hoy" },
             ]}
           />
-          <div className="toolbar-collapse flex items-center gap-2">
-            <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => void load()} disabled={loading} title="Actualizar">
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          {/* Esto FILTRA la lista, así que se queda a la izquierda con los
+              demás filtros. A la derecha solo va lo que crea o actúa. */}
+          {view === "list" && done > 0 && (
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setShowDone((v) => !v)} title={showDone ? "Ocultar completadas" : "Mostrar completadas"}>
+              {showDone ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+              Completadas ({done})
             </Button>
-            {view === "list" && done > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setShowDone((v) => !v)} title={showDone ? "Ocultar completadas" : "Mostrar completadas"}>
-                {showDone ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
-                Completadas ({done})
-              </Button>
-            )}
-            <Button size="sm" onClick={() => setNewTaskOpen(true)}>
-              + Crear
-            </Button>
-          </div>
+          )}
         </ModuleToolbar>
       </div>
 

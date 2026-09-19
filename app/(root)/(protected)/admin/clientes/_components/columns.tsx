@@ -7,7 +7,9 @@ import { ClientInterface } from '@/lib/types'
 import { StatusCell } from '@/components/StatusCell'
 import { ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Row } from '@tanstack/react-table'
+import { Row, Table } from '@tanstack/react-table'
+import { CasillaDeFila } from '@/components/shared/AccionesMasivas'
+import { elRolAdministraClientes } from '@/lib/rol-que-gestiona-clientes'
 
 const resellerFilterFn = (row: Row<any>, columnId: string, filterValue: string) => {
   const resellerName = row.original.reseller?.company?.toLowerCase() ?? ''
@@ -15,6 +17,29 @@ const resellerFilterFn = (row: Row<any>, columnId: string, filterValue: string) 
 };
 
 export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogType, state: boolean) => void, currentUserRol: string): ColumnDef<ClientInterface>[] => [
+  // La casilla va PRIMERO, y solo para quien puede gestionar clientes: es la
+  // misma puerta que ya decide el botón de crear y el de eliminar de cada fila.
+  // A quien no puede, una columna de casillas le ofrece marcar filas para nada.
+  ...(elRolAdministraClientes(currentUserRol)
+    ? [{
+        id: 'seleccion',
+        enableHiding: false,
+        header: ({ table }: { table: Table<ClientInterface> }) => (
+          <CasillaDeFila
+            marcada={table.getIsAllPageRowsSelected()}
+            onCambiar={() => table.toggleAllPageRowsSelected(!table.getIsAllPageRowsSelected())}
+            etiqueta="Seleccionar todo lo que se ve"
+          />
+        ),
+        cell: ({ row }: { row: Row<ClientInterface> }) => (
+          <CasillaDeFila
+            marcada={row.getIsSelected()}
+            onCambiar={() => row.toggleSelected(!row.getIsSelected())}
+            etiqueta={`Seleccionar ${row.original.name ?? row.original.email ?? ''}`}
+          />
+        ),
+      } as ColumnDef<ClientInterface>]
+    : []),
   {
     accessorKey: 'status',
     header: ({ column }) => (

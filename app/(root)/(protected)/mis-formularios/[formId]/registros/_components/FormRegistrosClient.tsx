@@ -23,6 +23,7 @@ import {
   getFormSubmissions, deleteFormSubmission, retrySheetSync,
   type FormData, type FormSubmissionData,
 } from '@/actions/forms-actions';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 
 interface Props {
   form: FormData;
@@ -100,7 +101,27 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
           {/* Toolbar */}
-          <ModuleToolbar className="shrink-0">
+          <ModuleToolbar
+            className="shrink-0"
+            right={
+              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={refresh} disabled={loading} title="Actualizar" aria-label="Actualizar">
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            }
+            acciones={
+              <AccionesMasivas
+                seleccionados={[]}
+                queSon="registros"
+                extras={[{
+                  clave: 'csv',
+                  etiqueta: 'Exportar CSV',
+                  icono: <Download className="h-4 w-4" />,
+                  sinSeleccion: true,
+                  onSelect: handleExportCSV,
+                }]}
+              />
+            }
+          >
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Button asChild variant="outline" size="sm" className="shrink-0">
                 <Link href={`/mis-formularios/${form.id}`}>
@@ -125,14 +146,6 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
                   { clave: 'errors', icono: <AlertCircle />, etiqueta: 'Con error', valor: errors, color: '#EF4444' },
                 ]}
               />
-              <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
-                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-                Actualizar
-              </Button>
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleExportCSV}>
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                Exportar CSV
-              </Button>
             </div>
           </ModuleToolbar>
 

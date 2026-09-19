@@ -29,6 +29,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
@@ -36,6 +37,8 @@ import {
   updateForm, addFormField, updateFormField, deleteFormField, reorderFormFields,
   getFormById, updateFormPublicSlug, type FormData, type FormFieldData, type FormFieldOption, type FormFieldType,
 } from '@/actions/forms-actions';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 
 export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
   text: 'Texto corto',
@@ -72,6 +75,7 @@ interface Props {
 }
 
 export function FormEditorClient({ form: initialForm, userId }: Props) {
+  const router = useRouter();
   const [form, setForm] = useState<FormData>(initialForm);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addFieldOpen, setAddFieldOpen] = useState(false);
@@ -226,7 +230,24 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
           {/* Toolbar — mejora 1: toggle Activo/Inactivo directo */}
-          <ModuleToolbar className="shrink-0">
+          <ModuleToolbar
+            className="shrink-0"
+            right={<BotonDeCrear onClick={() => { resetFieldForm(); setAddFieldOpen(true); }}>Nuevo campo</BotonDeCrear>}
+            acciones={
+              /* Los tres enlaces sueltos se comían la barra y ninguno crea
+                 nada: van dentro del `⋯`, que es donde vive lo que no se usa
+                 a diario. */
+              <AccionesMasivas
+                seleccionados={[]}
+                queSon="campos"
+                extras={[
+                  { clave: 'registros', etiqueta: 'Ver registros', icono: <ClipboardList className="h-4 w-4" />, sinSeleccion: true, onSelect: () => router.push(`/mis-formularios/${form.id}/registros`) },
+                  { clave: 'ajustes', etiqueta: 'Configuración', icono: <Settings className="h-4 w-4" />, sinSeleccion: true, onSelect: () => setSettingsOpen(true) },
+                  { clave: 'ver', etiqueta: 'Ver formulario', icono: <ExternalLink className="h-4 w-4" />, sinSeleccion: true, onSelect: () => window.open(publicUrl, '_blank', 'noopener,noreferrer') },
+                ]}
+              />
+            }
+          >
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <Button asChild variant="outline" size="sm" className="shrink-0">
                 <Link href="/mis-formularios">
@@ -246,36 +267,19 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                 { clave: 'registros', icono: <ClipboardList />, etiqueta: 'Registros', valor: form._count?.submissions ?? 0, color: '#8B5CF6' },
               ]}
             />
-            <div className="toolbar-collapse flex items-center gap-3 shrink-0">
-              {/* Toggle activo */}
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="toolbar-active"
-                  checked={form.isActive}
-                  onCheckedChange={handleToggleActive}
-                  disabled={savingActive}
-                />
-                <Label htmlFor="toolbar-active" className="text-xs text-muted-foreground cursor-pointer select-none">
-                  {form.isActive ? 'Activo' : 'Inactivo'}
-                </Label>
-              </div>
-              <div className="h-4 w-px bg-border" />
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/mis-formularios/${form.id}/registros`}>
-                  <ClipboardList className="w-3.5 h-3.5 mr-1.5" />Registros
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-                <Settings className="w-3.5 h-3.5 mr-1.5" />Configuración
-              </Button>
-              <Button asChild variant="outline" size="sm">
-                <a href={publicUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" />Ver
-                </a>
-              </Button>
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { resetFieldForm(); setAddFieldOpen(true); }}>
-                + Campo
-              </Button>
+            {/* El interruptor de activo FILTRA lo que hace el formulario, y
+                es un mando de la pantalla: se queda a la izquierda con las
+                cifras. A la derecha solo lo que crea o actúa. */}
+            <div className="flex shrink-0 items-center gap-2">
+              <Switch
+                id="toolbar-active"
+                checked={form.isActive}
+                onCheckedChange={handleToggleActive}
+                disabled={savingActive}
+              />
+              <Label htmlFor="toolbar-active" className="text-xs text-muted-foreground cursor-pointer select-none">
+                {form.isActive ? 'Activo' : 'Inactivo'}
+              </Label>
             </div>
           </ModuleToolbar>
 

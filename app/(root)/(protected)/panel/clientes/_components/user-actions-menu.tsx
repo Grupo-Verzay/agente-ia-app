@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 import { impersonateUser } from '@/actions/auth-action'
 import { toast } from 'sonner'
+import { elRolGestionaClientes } from '@/lib/rol-que-gestiona-clientes'
 
 interface propsActionsMenu {
     currentUserRol: string
@@ -40,8 +41,7 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
      * "Ingresar" y nada más. Cada acción vuelve a comprobarlo en el servidor
      * (`lib/gestion-de-clientes.ts`), así que esto solo decide qué se enseña.
      */
-    const puedeGestionar =
-        currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller'
+    const puedeGestionar = elRolGestionaClientes(currentUserRol)
 
     const handleUserDashboard = () => {
         if (!user.email || !user.password) {

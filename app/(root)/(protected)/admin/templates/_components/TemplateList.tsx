@@ -4,15 +4,19 @@ import { PromptTemplate, Role } from '@prisma/client'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Eye, Pencil, Trash2 } from 'lucide-react'
+import { CasillaDeFila } from '@/components/shared/AccionesMasivas'
 
 interface TemplateListProps {
     templates: PromptTemplate[]
     onEdit: (template: PromptTemplate) => void
     onDelete: (idTemplate: string) => void
     userRole: Role
+    /** Los marcados con la casilla, para el `⋯` de la barra. */
+    seleccionados?: string[]
+    alternarSeleccion?: (id: string) => void
 }
 
-export const TemplateList = ({ templates, onEdit, userRole, onDelete }: TemplateListProps) => {
+export const TemplateList = ({ templates, onEdit, userRole, onDelete, seleccionados, alternarSeleccion }: TemplateListProps) => {
     if (!templates.length) {
         return (
             <p className="text-muted-foreground text-center mt-6">
@@ -26,8 +30,17 @@ export const TemplateList = ({ templates, onEdit, userRole, onDelete }: Template
             {templates.map((template) => (
                 <Card
                     key={template.id}
-                    className="flex flex-col border-border transition-all duration-300 hover:shadow-lg hover:scale-[1.015] hover:border-primary w-64">
-                    <CardHeader>
+                    className="relative flex flex-col border-border transition-all duration-300 hover:shadow-lg hover:scale-[1.015] hover:border-primary w-64">
+                    {alternarSeleccion && (
+                        <div className="absolute right-3 top-3 z-20">
+                            <CasillaDeFila
+                                marcada={seleccionados?.includes(template.id) ?? false}
+                                onCambiar={() => alternarSeleccion(template.id)}
+                                etiqueta={`Seleccionar ${template.name}`}
+                            />
+                        </div>
+                    )}
+                    <CardHeader className="pr-9">
                         <CardTitle>{template.name}</CardTitle>
                     </CardHeader>
 

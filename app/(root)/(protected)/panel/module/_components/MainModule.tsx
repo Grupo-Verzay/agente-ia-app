@@ -11,7 +11,9 @@ import { FormModuleValues, ModuleWithItems } from '@/schema/module'
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ModuleForm } from "./"
 import { Button } from '@/components/ui/button';
-import { createModule, updateModule } from '@/actions/module-actions';
+import { createModule, updateModule, eliminarModulosAction } from '@/actions/module-actions';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas, CasillaDeTodos, useSeleccionMultiple } from '@/components/shared/AccionesMasivas';
 import { SortableModuleList } from './SortableModuleList';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
@@ -29,6 +31,17 @@ export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithIte
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editModule, setEditModule] = useState<ModuleWithItems | undefined>();
+
+    // La selección se acota a lo que se VE: con un filtro puesto, «todo» no
+    // puede llevarse por delante lo que está escondido.
+    const { seleccionados, alternar, alternarTodos, estanTodos, limpiar } =
+        useSeleccionMultiple(filteredModules.map((m) => m.id));
+
+    const borrarLosMarcados = async (ids: string[]) => {
+        const res = await eliminarModulosAction(ids);
+        if (!res.success && res.borrados === 0) throw new Error(res.message);
+        return { fallaron: res.fallaron };
+    };
 
     const normalizeModule = (moduleComponent: ModuleWithItems): FormModuleValues => ({
         id: moduleComponent.id,
@@ -100,17 +113,16 @@ export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithIte
     return (
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
-            {/* Actions, con las cifras que antes abrían la pantalla en
-                tarjetas. Sin filtro equivalente: no son pulsables. */}
-            <div className="flex items-center gap-2">
-                <PastillasDeMetricas
-                    className="order-last ml-auto"
-                    metricas={[
-                        { clave: 'total', icono: <LayoutGrid />, etiqueta: 'Total módulos', valor: modules.length, color: '#3B82F6', ayuda: 'Módulos configurados en la plataforma' },
-                        { clave: 'visibles', icono: <Eye />, etiqueta: 'Visibles en sidebar', valor: visiblesCount, color: '#22C55E', ayuda: 'Módulos que aparecen en el menú lateral' },
-                        { clave: 'adminOnly', icono: <EyeOff />, etiqueta: 'Solo admin', valor: adminOnlyCount, color: '#8B5CF6', ayuda: 'Módulos restringidos a administradores' },
-                        { clave: 'subMenu', icono: <Layers />, etiqueta: 'Con sub-menú', valor: conSubMenuCount, color: '#F59E0B', ayuda: 'Módulos con ítems de sub-navegación' },
-                    ]}
+            {/* La barra de siempre: buscador y cifras a la izquierda, el azul
+                de crear y el `⋯` pegados al borde. Aquí había DOS `ml-auto`
+                —uno en las pastillas y otro en el botón— peleándose, y el azul
+                acababa flotando en mitad de la fila. */}
+            <BarraDeAcciones
+                filtros={<>
+                <CasillaDeTodos
+                    estanTodos={estanTodos}
+                    hayAlguno={seleccionados.length > 0}
+                    onCambiar={alternarTodos}
                 />
                 <div className="relative w-64 shrink-0">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -121,11 +133,25 @@ export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithIte
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <Button onClick={() => handleOpenModal()} className="ml-auto gap-1.5">
-                    <Plus className="h-4 w-4" />
-                    Nuevo
-                </Button>
-            </div>
+                <PastillasDeMetricas
+                    metricas={[
+                        { clave: 'total', icono: <LayoutGrid />, etiqueta: 'Total módulos', valor: modules.length, color: '#3B82F6', ayuda: 'Módulos configurados en la plataforma' },
+                        { clave: 'visibles', icono: <Eye />, etiqueta: 'Visibles en sidebar', valor: visiblesCount, color: '#22C55E', ayuda: 'Módulos que aparecen en el menú lateral' },
+                        { clave: 'adminOnly', icono: <EyeOff />, etiqueta: 'Solo admin', valor: adminOnlyCount, color: '#8B5CF6', ayuda: 'Módulos restringidos a administradores' },
+                        { clave: 'subMenu', icono: <Layers />, etiqueta: 'Con sub-menú', valor: conSubMenuCount, color: '#F59E0B', ayuda: 'Módulos con ítems de sub-navegación' },
+                    ]}
+                />
+                </>}
+                crear={<BotonDeCrear onClick={() => handleOpenModal()}>Nuevo módulo</BotonDeCrear>}
+                acciones={
+                    <AccionesMasivas
+                        seleccionados={seleccionados}
+                        queSon="módulos"
+                        onEliminar={borrarLosMarcados}
+                        onTerminar={() => { limpiar(); router.refresh(); }}
+                    />
+                }
+            />
 
             <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -135,6 +161,8 @@ export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithIte
                         <SortableModuleList
                             modules={filteredModules}
                             setOpenModule={(_, module) => handleOpenModal(module)}
+                            seleccionados={seleccionados}
+                            alternarSeleccion={alternar}
                         />
                     )}
                 </div>

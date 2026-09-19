@@ -37,9 +37,9 @@ export function CabeceraDeTickets({
     acciones?: React.ReactNode;
 }) {
     return (
-        <ModuleToolbar>
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+        <ModuleToolbar right={acciones}>
+            <>
+                <div className="flex shrink-0 gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                     <BotonDeVista
                         activo={vista === "tablero"}
                         onClick={() => onVista("tablero")}
@@ -57,9 +57,7 @@ export function CabeceraDeTickets({
                 </div>
 
                 {filtros}
-            </div>
-
-            {acciones}
+            </>
         </ModuleToolbar>
     );
 }

@@ -2044,6 +2044,162 @@ Tres cosas que hay que mantener:
    `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo que se
    comete solo al añadirle una columna a una tabla de la App ya desplegada.
 
+## La barra de una lista no se pinta a mano: `BarraDeAcciones`
+
+Cada pantalla colocaba sus mandos donde le tocó. En **Clientes** el botón azul
+de crear iba **pegado al buscador**; en **Módulos** había **dos `ml-auto`**
+peleándose —uno en las pastillas y otro en el botón— así que el azul quedaba
+flotando en mitad de la barra; en **Plantillas** iba al final de una fila con
+`flex-wrap`, que en cuanto no cabía se lo llevaba a una segunda línea. Ninguna
+estaba mal por su cuenta: puestas una al lado de otra, la plataforma parecía
+cinco plataformas.
+
+> **A la izquierda el buscador y los filtros. A la derecha, pegado al borde, el
+> `⋯` de acciones masivas; y justo antes, el botón azul de crear.**
+
+El orden no es gusto: **el azul con su texto destaca solo**, así que la esquina
+—el sitio más fácil de acertar con el ratón, porque el puntero se para contra
+el borde— se la queda el `⋯`, que es un icono pequeño y sin palabra.
+
+Vive en `components/shared/BarraDeAcciones.tsx`, con tres huecos y ninguno más:
+`filtros`, `crear` y `acciones`. **Ninguna pantalla vuelve a escribir esa
+fila.** Si hace falta un mando nuevo, entra por uno de los tres; si no encaja en
+ninguno, el hueco se añade **ahí** y sale en todas a la vez.
+
+Y `ModuleToolbar` —que lo importan quince pantallas— **ya no es una fila
+propia: por dentro es `BarraDeAcciones`**. Se conserva el nombre porque
+renombrarlo sería un diff de mil líneas que no cambia nada; lo que cambia es
+que la forma la decide un solo componente.
+
+### Y la zona de la izquierda SE DESPLAZA, no crece
+
+Es lo que impide que la barra se parta en dos filas cuando una pantalla tiene
+buscador, dos desplegables y cuatro pastillas: lo de la izquierda vive en una
+franja con `overflow-x-auto` y lo de la derecha es `shrink-0`. Con `flex-wrap`
+—que es lo que había en media plataforma— la barra crece **hacia abajo** y se
+come justo el alto que la tabla necesita, que es lo que la vuelta anterior
+acababa de recuperar quitando las tarjetas de métricas.
+
+Y el alto es `min-h-10`, el de un `Button` por defecto: la barra mide lo mismo
+en una pantalla con botones y en una que solo tiene buscador.
+
+### Qué va en cada hueco, que es donde se falla
+
+La pregunta no es «dónde queda bonito», es **qué hace el mando**:
+
+| va a | lo que | ejemplos que estaban en el sitio equivocado |
+| --- | --- | --- |
+| `filtros` | lo que **acota la lista** | «Completadas (N)» de Tareas y el interruptor de activo del editor de formularios, que estaban a la derecha |
+| `crear` | lo que **añade una fila** | uno por pantalla; si hay dos, el segundo no es crear |
+| `acciones` | lo que se le hace a **varias** filas, o lo que **no se usa a diario** | «Eliminar todos» de Recordatorios, «Exportar CSV» de Clientes y de las respuestas de una reserva, los tres enlaces sueltos del editor de formularios |
+
+**Un botón que gasta ancho y no se usa a diario va dentro del `⋯`.** El editor
+de formularios tenía cuatro botones con su palabra —Registros, Configuración,
+Ver, + Campo— y en 1024 px no cabía el buscador.
+
+### Borrar en bloque es UNA acción de servidor, no N llamadas
+
+Es la parte que no se puede ablandar, y no es una preferencia de estilo:
+**Next serializa las acciones de servidor de una misma página** —una en vuelo,
+la siguiente espera—, así que veinte borrados desde el navegador son veinte
+idas y vueltas **en fila india**. Con una lista seleccionada de verdad eso son
+minutos de un diálogo en «Eliminando…».
+
+Así que cada pantalla tiene su `eliminar…Action(ids)`, que recibe **el arreglo**
+y devuelve un `ResumenDelBorrado` (`lib/borrado-en-bloque.ts`). Cuatro cosas:
+
+1. **La lista que llega del navegador se sanea** (`comoListaDeIds`): se quitan
+   los repetidos —que no borran dos veces pero sí inflan el número que se le
+   devuelve a la persona—, lo que no sea una cadena, y se acota a
+   `TOPE_DE_IDS`. Sin tope, un `IN (…)` de cien mil ids es una consulta que
+   ningún índice ordena.
+2. **Cada acción lleva SU puerta**, la misma que ya tiene el borrado de una
+   fila en esa pantalla. `eliminarClientesAction` llama a `deleteUser` una a
+   una a propósito: reescribir su comprobación y su borrado en dos fases sería
+   un segundo borrado que el día que se afine el de al lado se queda atrás — y
+   esto borra cuentas de clientes.
+3. **Lo que no se pudo borrar se CUENTA y se dice.** Un «listo» sobre veinte
+   filas de las que se fueron dieciocho es peor que un error: nadie vuelve a
+   mirar. `AccionesMasivas` lo pinta con los números delante.
+4. **En serie, nunca en paralelo** (`borrarUnaAUna`). El pool de Prisma es de
+   diez por proceso y son los mismos turnos que atienden la bandeja de Chats.
+
+### El `⋯` sale SIEMPRE, y `puedeEliminar` quita la opción
+
+Dos cosas que se deshacen solas si no están escritas:
+
+1. **El botón no aparece y desaparece según lo que haya marcado.** Uno que se
+   va mueve de sitio al de al lado justo cuando se va a pulsar; y con la barra
+   vacía nadie descubre que la pantalla tiene acciones masivas. Sin nada
+   marcado, el menú lo dice en una línea — un menú que se abre vacío parece
+   roto.
+2. **`puedeEliminar` no pinta la opción en gris: la QUITA.** Una opción apagada
+   invita a preguntar por qué no se puede, y la respuesta —«tu rol no borra»—
+   no cabe en un menú.
+
+Y el permiso lo resuelve **la puerta que esa pantalla ya tiene**, no una
+condición nueva: en Plantillas es `assertCanManageTemplates`, en Clientes el
+mismo rol que decide su menú de fila. Escribir aquí una condición propia es lo
+que dejó fuera a media gente en Clientes, en Equipo y en Analíticas.
+
+De ahí sale una asimetría a propósito: **`/panel/clientes` y `/admin/clientes`
+no abren a la misma gente** —aquella deja al `reseller`, esta no—, así que sus
+casillas tampoco. Lo que no puede pasar es que **la casilla de una fila y el
+«Eliminar» de su menú salgan por separado**: una columna de casillas en una
+pantalla donde no se puede borrar es ofrecer marcar filas para nada. Por eso el
+gate es una función pura y compartida, `lib/rol-que-gestiona-clientes.ts`, y no
+la condición escrita en cada fichero.
+
+### Marcar «todo» marca lo que se VE, no lo que hay
+
+`useSeleccionMultiple` —para las listas que no son una tabla de TanStack, que
+son media plataforma— acota la selección a los ids visibles, y en las tablas
+`getSelectedRowModel()` ya devuelve las del modelo **filtrado**. Las dos mitades
+dicen lo mismo: marcar «todos» con un filtro puesto y que se borre lo que está
+escondido es la peor sorpresa posible, y no se deshace.
+
+Y lo que se marcó y ya no está —se borró, o lo escondió un filtro— **deja de
+contar**: el menú diría «eliminar 5» y se llevaría por delante una fila que
+quien mira no tiene enfrente.
+
+### Medido en Chromium, sobre el CSS del build
+
+Las tres formas que convivían, y la misma barra después. `crear →` es a cuántos
+píxeles del borde derecho queda el botón azul; el `⋯` va siempre pegado (0):
+
+| | ventana | alto | crear → | ¿hay `⋯`? |
+| --- | --- | --- | --- | --- |
+| **antes** Clientes | 1440 / 1280 / 1024 | 40 | **749 / 589 / 333** | sí |
+| **antes** Módulos | 1440 / 1280 / 1024 | 40 | 0 | **no** |
+| **antes** Plantillas | 1440 / 1280 | 40 | 396 / 236 | no |
+| **antes** Plantillas | **1024** | **84** | — | no |
+| **ahora** las tres | 1440 / 1280 / 1024 | **40** | **48** | sí |
+
+Tres cosas que dice esa tabla y no se ven mirando la pantalla:
+
+1. **En Clientes el azul estaba a 749 px del borde**, o sea pegado al buscador y
+   en mitad de la barra. Ahora está a 48 —el ancho del `⋯` más su hueco— en las
+   tres anchuras.
+2. **En Módulos el azul ocupaba la esquina** porque no había `⋯` que la
+   ocupara. La esquina es del icono pequeño, no del botón que ya destaca solo.
+3. **Y en Plantillas la barra DOBLABA de alto a 1024** —40 px a 84— porque el
+   `flex-wrap` se llevaba el botón a una segunda fila. Eso son 44 px que se le
+   quitan a la tabla justo en la ventana más estrecha, y es exactamente el alto
+   que la vuelta de las métricas acababa de recuperar.
+
+Ninguna de las seis medidas desborda a lo ancho.
+
+### Lo que NO es una pantalla de lista, y por qué no entra
+
+Tres de las que se nombraron no tienen lista debajo, así que no se les puso
+barra ni acciones masivas — forzarlas sería inventar una selección de nada:
+
+| | qué es de verdad |
+| --- | --- |
+| **Landing** | un editor de configuración con sus botones de Guardar y dos interruptores de sección |
+| **Monitoreo VPS** (`/panel/evo`) | tres ranuras de servidor fijas más una herramienta de instancias huérfanas; `/evo` es un iframe |
+| **Resellers** | dos columnas de asignación; su acción destructiva sería «quitar del reseller», que no es borrar un cliente |
+
 ## Las métricas van en la BARRA, no en tarjetas encima de la lista
 
 Veintidós pantallas de lista abrían con una fila de `MetricCard` a todo lo

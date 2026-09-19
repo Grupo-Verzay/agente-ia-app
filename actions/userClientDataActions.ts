@@ -26,6 +26,7 @@ import { estadoDeLaSesionDeLaLinea, proveedorDeLaFila } from '@/lib/sesion-de-la
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
 import bcrypt from "bcryptjs";
+import { borrarUnaAUna, comoListaDeIds, comoResumen, type ResumenDelBorrado } from "@/lib/borrado-en-bloque";
 
 interface ClientResponse<T = undefined> {
   success: boolean;
@@ -1148,4 +1149,35 @@ export async function getElevenLabsVoices(
     console.error('[GET_ELEVENLABS_VOICES]', error);
     return { success: false, message: 'No se pudo conectar con ElevenLabs. Verifica el API key.' };
   }
+}
+
+/**
+ * Elimina VARIOS clientes de una vez, desde el `⋯` de la barra.
+ *
+ * **No reimplementa nada**: llama a `deleteUser` una vez por cuenta, que es
+ * quien lleva la llave (`puedeGestionarAlCliente`, la misma que abren Editar y
+ * Módulos) y las dos fases —apagar la cuenta ya, purgar sus datos de fondo—.
+ * Una copia de esa lógica aquí sería un segundo borrado que el día que se
+ * afine el de al lado se queda atrás, y esto borra cuentas de clientes.
+ *
+ * Lo que sí cambia es el número de viajes: Next serializa las acciones de
+ * servidor de una página, así que veinte llamadas desde el navegador son
+ * veinte idas y vueltas en fila india. Aquí es una.
+ *
+ * En serie a propósito: cada borrado abre su transacción y lanza una purga de
+ * fondo; veinte a la vez se comen los diez turnos del pool de Prisma, que son
+ * los mismos que atienden la bandeja de Chats.
+ */
+export async function eliminarClientesAction(ids: string[]): Promise<ResumenDelBorrado> {
+  const lista = comoListaDeIds(ids);
+  if (lista.length === 0) {
+    return { success: false, borrados: 0, fallaron: 0, message: "No se recibió ningún cliente." };
+  }
+
+  const { borrados, fallaron } = await borrarUnaAUna(lista, async (id) => {
+    const res = await deleteUser(id);
+    return !!res?.success;
+  });
+
+  return comoResumen(borrados, fallaron, "clientes");
 }
