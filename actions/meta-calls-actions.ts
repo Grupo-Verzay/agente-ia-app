@@ -2,6 +2,7 @@
 
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { loQueDiceMeta, type LoQueDiceElProveedor } from '@/lib/fin-de-la-llamada';
 
 const GRAPH_VERSION =
   process.env.META_GRAPH_VERSION ||
@@ -158,10 +159,33 @@ export async function endMetaWhatsAppCall(params: {
   return { success: true };
 }
 
-export async function getMetaWhatsAppCallAnswer(params: {
+/**
+ * El parte de una llamada de Meta: la respuesta de audio y, si ya acabó, cómo.
+ *
+ * **Esto es lo único que de verdad «reporta el fin» en esta plataforma.** El
+ * webhook de llamadas de Meta no llega a la App —los webhooks los recibe el
+ * backend, que es otro repositorio— pero el backend lo guarda en la fila
+ * `meta_call_<id>` de `chat_messages`, así que aquí se lee. Es la misma fila de
+ * la que ya salía el SDP; lo que faltaba era mirar también el `terminate`.
+ *
+ * AstraCalls no tiene nada equivalente y no se inventa: su fin se detecta por
+ * el audio, que es donde de verdad se nota (ver `lib/fin-de-la-llamada.ts`).
+ *
+ * Las dos cosas van en **una sola consulta** a propósito: durante una llamada
+ * esto se pregunta cada pocos segundos, y partirlo en dos acciones sería
+ * duplicar el tráfico de la pantalla más cara de la App para leer la misma
+ * fila dos veces.
+ */
+export async function elEstadoDeLaLlamadaMeta(params: {
   instanceName?: string;
   callId: string;
-}): Promise<{ success: boolean; sdpAnswer?: string; message?: string }> {
+}): Promise<{
+  success: boolean;
+  sdpAnswer?: string;
+  /** El parte de fin, solo si el proveedor ya lo mandó. */
+  fin?: LoQueDiceElProveedor;
+  message?: string;
+}> {
   const me = await currentUser();
   if (!me?.id) return { success: false, message: 'No autenticado.' };
   if (!params.callId) return { success: false, message: 'Falta call_id.' };
@@ -179,25 +203,40 @@ export async function getMetaWhatsAppCallAnswer(params: {
   `;
 
   const metaCall = rows[0]?.raw?.metaCall;
+  const fin = loQueDiceMeta(metaCall) ?? undefined;
   const sdp = metaCall?.session?.sdp;
   const sdpType = metaCall?.session?.sdp_type;
-  const errorMessage = Array.isArray(metaCall?.errors)
-    ? metaCall.errors.map((error: any) => error?.message || error?.title).filter(Boolean).join(' ')
-    : '';
 
   if (typeof sdp === 'string' && sdp.trim()) {
-    return { success: true, sdpAnswer: sdp };
+    return { success: true, sdpAnswer: sdp, fin };
   }
 
-  if (metaCall?.event === 'terminate' && metaCall?.status === 'FAILED') {
+  if (fin?.fallo) {
     return {
       success: false,
-      message: errorMessage || 'Meta rechazó la conexión de audio.',
+      fin,
+      message: fin.motivo || 'Meta rechazó la conexión de audio.',
     };
   }
 
   return {
     success: false,
+    fin,
     message: sdpType ? 'Respuesta de llamada recibida sin SDP.' : 'Esperando respuesta de Meta.',
   };
+}
+
+/**
+ * Compatibilidad: la forma antigua, que solo traía el SDP.
+ *
+ * @deprecated Se queda porque es una acción de servidor y quitarla de golpe
+ * rompería cualquier pestaña abierta con el código anterior durante el
+ * despliegue. Lo nuevo llama a `elEstadoDeLaLlamadaMeta`.
+ */
+export async function getMetaWhatsAppCallAnswer(params: {
+  instanceName?: string;
+  callId: string;
+}): Promise<{ success: boolean; sdpAnswer?: string; message?: string }> {
+  const { success, sdpAnswer, message } = await elEstadoDeLaLlamadaMeta(params);
+  return { success, sdpAnswer, message };
 }
