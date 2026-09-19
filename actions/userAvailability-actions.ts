@@ -2,6 +2,23 @@
 
 import { db } from '@/lib/db'
 import { UserAvailability } from '@prisma/client'
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion'
+
+/**
+ * Sin guarda ninguna: el `userId` llegaba del navegador y entraba directo al
+ * `where`, al `create` y a un `deleteMany`. Es el H02 de siempre — con otro id
+ * se leía y se borraba el horario de atención de otra cuenta.
+ *
+ * Las dos que van por `id` —actualizar y eliminar— leen el dueño **de la fila**,
+ * que es lo único que hay a mano: un `where` sin dueño es el mismo hueco sin el
+ * id delante.
+ */
+
+async function laCuentaDelPeriodo(id: string) {
+    const suyo = await db.userAvailability.findUnique({ where: { id }, select: { userId: true } })
+    if (!suyo?.userId) return null
+    return laCuentaDeLaAccion(suyo.userId)
+}
 
 interface AvailabilityOperationResponse {
     success: boolean
@@ -15,8 +32,11 @@ const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string) =>
 // Obtener disponibilidad
 export async function getUserAvailability(userId: string): Promise<AvailabilityOperationResponse> {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: 'No autorizado.' }
+
         const list = await db.userAvailability.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' },]
         })
         return { success: true, data: list }
@@ -40,12 +60,15 @@ export async function createAvailability(data: {
         return { success: false, message: 'La hora de inicio debe ser menor a la hora de fin.' }
 
     try {
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: 'No autorizado.' }
+
         // valida solapes dentro del mismo día
-        const sameDay = await db.userAvailability.findMany({ where: { userId, dayOfWeek } })
+        const sameDay = await db.userAvailability.findMany({ where: { userId: cuenta, dayOfWeek } })
         const clash = sameDay.some(p => overlaps(startTime, endTime, p.startTime, p.endTime))
         if (clash) return { success: false, message: 'Periodo solapado con otro existente.' }
 
-        const created = await db.userAvailability.create({ data })
+        const created = await db.userAvailability.create({ data: { ...data, userId: cuenta } })
         return { success: true, data: created, message: 'Horario creado correctamente.' }
     } catch (e) {
         console.error(e)
@@ -65,6 +88,9 @@ export async function updateAvailability(
     try {
         const current = await db.userAvailability.findUnique({ where: { id } })
         if (!current) return { success: false, message: 'No encontrado.' }
+        if (!(await laCuentaDeLaAccion(current.userId))) {
+            return { success: false, message: 'No autorizado.' }
+        }
 
         const sameDay = await db.userAvailability.findMany({
             where: { userId: current.userId, dayOfWeek: current.dayOfWeek, NOT: { id } },
@@ -86,6 +112,10 @@ export async function updateAvailability(
 // Eliminar un periodo
 export async function deleteAvailability(id: string): Promise<AvailabilityOperationResponse> {
     try {
+        if (!(await laCuentaDelPeriodo(id))) {
+            return { success: false, message: 'No autorizado.' }
+        }
+
         await db.userAvailability.delete({ where: { id } })
         return { success: true, message: 'Horario eliminado correctamente.' }
     } catch (e) {
@@ -100,7 +130,10 @@ export async function clearDayAvailability(
     dayOfWeek: number
 ): Promise<AvailabilityOperationResponse> {
     try {
-        await db.userAvailability.deleteMany({ where: { userId, dayOfWeek } })
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: 'No autorizado.' }
+
+        await db.userAvailability.deleteMany({ where: { userId: cuenta, dayOfWeek } })
         return { success: true, message: 'Día marcado como no disponible.' }
     } catch (e) {
         console.error(e)

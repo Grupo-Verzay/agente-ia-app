@@ -6,6 +6,29 @@ import { z } from "zod"
 import { formValuesReminderSchema, ReminderDeliverySummary, reminderSchema } from "@/schema/reminder"
 import { Prisma, Reminders } from "@prisma/client"
 import { parse as parseDate, format, isValid, addSeconds } from "date-fns"
+import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion"
+
+/**
+ * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —que
+ * en `createReminder` y `updateReminder` sale de un `parse` de Zod, o sea que un
+ * barrido por la firma no lo ve— entraba directo al `where` y al `create`.
+ *
+ * El peor era `getReminderFormDeps`: devolvía **la clave de Evolution** de la
+ * cuenta que se le nombrara, con su servidor y sus leads. No es leer de más: es
+ * entregar unas credenciales.
+ *
+ * **`getRemindersByUserId` se queda fuera a propósito**: la abre
+ * `/schedule/[userId]`, una página pública —lo dice el middleware— donde no hay
+ * sesión que comprobar. Comprobar algo ahí la tumbaría entera, igual que pasa
+ * con `getPublicCatalog`.
+ */
+
+/** El dueño sale de la FILA, no del navegador. */
+async function laCuentaDelRecordatorio(id: string) {
+    const suyo = await db.reminders.findUnique({ where: { id }, select: { userId: true } })
+    if (!suyo?.userId) return null
+    return laCuentaDeLaAccion(suyo.userId)
+}
 
 // ─── Helpers de campaña ───────────────────────────────────────────────────────
 
@@ -85,9 +108,12 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         : "";
 
     try {
+        const cuenta = await laCuentaDeLaAccion(reminderData.userId)
+        if (!cuenta) return { success: false, message: "No autorizado." }
+
         // Crear 1 registro Reminders por campaña o recordatorio
         const reminder = await db.reminders.create({
-            data: { ...reminderData, isCampaign } as Prisma.RemindersCreateInput,
+            data: { ...reminderData, userId: cuenta, isCampaign } as Prisma.RemindersCreateInput,
         });
 
         if (!isCampaign) {
@@ -198,8 +224,11 @@ export async function getCampaignsByUserId(userId: string): Promise<ReminderResp
     }
 
     try {
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: "No autorizado." }
+
         const campaigns = await db.reminders.findMany({
-            where: { userId, isCampaign: true },
+            where: { userId: cuenta, isCampaign: true },
             orderBy: { createdAt: 'desc' },
         })
 
@@ -228,12 +257,26 @@ function normalizeDeliveryStatus(status: string | null | undefined) {
 export async function getReminderDeliverySummaries(
     reminderIds: string[],
 ): Promise<{ success: boolean; message: string; data?: Record<string, ReminderDeliverySummary> }> {
-    const ids = reminderIds.filter(Boolean);
-    if (ids.length === 0) {
+    const pedidos = reminderIds.filter(Boolean);
+    if (pedidos.length === 0) {
         return { success: true, message: "Sin recordatorios.", data: {} };
     }
 
     try {
+        // Una lista que llega de fuera no decide a qué se llega: se **filtra**,
+        // no se rechaza entera. Los dueños salen de las filas.
+        const filas = await db.reminders.findMany({
+            where: { id: { in: pedidos } },
+            select: { id: true, userId: true },
+        });
+        const ids: string[] = [];
+        for (const fila of filas) {
+            if (fila.userId && (await laCuentaDeLaAccion(fila.userId))) ids.push(fila.id);
+        }
+        if (ids.length === 0) {
+            return { success: true, message: "Sin recordatorios.", data: {} };
+        }
+
         const directIds = ids.map((id) => `reminder-${id}`);
         const campaignPrefixes = ids.map((id) => `camping-${id}-`);
 
@@ -320,6 +363,10 @@ export async function retryReminderFailedDeliveries(reminderId: string): Promise
     if (!reminderId) return { success: false, message: "ID obligatorio." };
 
     try {
+        if (!(await laCuentaDelRecordatorio(reminderId))) {
+            return { success: false, message: "No autorizado." };
+        }
+
         const result = await db.seguimiento.updateMany({
             where: {
                 ...reminderSeguimientoWhere(reminderId),
@@ -350,6 +397,10 @@ export async function cancelReminderPendingDeliveries(reminderId: string): Promi
     if (!reminderId) return { success: false, message: "ID obligatorio." };
 
     try {
+        if (!(await laCuentaDelRecordatorio(reminderId))) {
+            return { success: false, message: "No autorizado." };
+        }
+
         const result = await db.seguimiento.updateMany({
             where: {
                 ...reminderSeguimientoWhere(reminderId),
@@ -378,6 +429,10 @@ export async function resumeReminderCanceledDeliveries(reminderId: string): Prom
     if (!reminderId) return { success: false, message: "ID obligatorio." };
 
     try {
+        if (!(await laCuentaDelRecordatorio(reminderId))) {
+            return { success: false, message: "No autorizado." };
+        }
+
         const result = await db.seguimiento.updateMany({
             where: {
                 ...reminderSeguimientoWhere(reminderId),
@@ -412,7 +467,10 @@ export async function deleteAllReminders(userId: string, isCampaign: boolean): P
     }
 
     try {
-        await db.reminders.deleteMany({ where: { userId, isCampaign } })
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: "No autorizado." }
+
+        await db.reminders.deleteMany({ where: { userId: cuenta, isCampaign } })
         return { success: true, message: "Todos los registros eliminados correctamente." }
     } catch (error) {
         console.error("[DELETE_ALL_REMINDERS]", error)
@@ -432,6 +490,10 @@ export async function deleteReminder(id: string): Promise<ReminderResponse> {
     }
 
     try {
+        if (!(await laCuentaDelRecordatorio(id))) {
+            return { success: false, message: "No autorizado." }
+        }
+
         await db.reminders.delete({ where: { id } });
         // Eliminar también el Seguimiento programado asociado a este recordatorio
         await db.seguimiento.deleteMany({ where: { idNodo: `reminder-${id}` } });
@@ -465,8 +527,11 @@ export async function getRemindersByRemoteJid(
   remoteJid: string,
 ): Promise<{ success: boolean; message: string; data?: ReminderItem[] }> {
   try {
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return { success: false, message: 'No autorizado.' };
+
     const items = await db.reminders.findMany({
-      where: whereRecordatoriosDelLead(userId, remoteJid),
+      where: whereRecordatoriosDelLead(cuenta, remoteJid),
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -503,6 +568,10 @@ export async function updateReminderBasic(
 ): Promise<ReminderResponse> {
   if (!id) return { success: false, message: "ID obligatorio." };
   try {
+    if (!(await laCuentaDelRecordatorio(id))) {
+      return { success: false, message: "No autorizado." };
+    }
+
     await db.reminders.update({ where: { id }, data });
     return { success: true, message: "Recordatorio actualizado correctamente." };
   } catch (error) {
@@ -531,9 +600,13 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
         }
     }
 
-    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, ...data } = parse.data
+    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, userId: _userId, ...data } = parse.data
 
     try {
+        if (!(await laCuentaDelRecordatorio(id))) {
+            return { success: false, message: "No autorizado." }
+        }
+
         const updated = await db.reminders.update({
             where: { id },
             data: data as Prisma.RemindersUpdateInput,
@@ -558,6 +631,8 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
  */
 export async function updateReminderOrder(reminderId: string, order: number): Promise<{ success: boolean }> {
     try {
+        if (!(await laCuentaDelRecordatorio(reminderId))) return { success: false };
+
         await db.reminders.update({ where: { id: reminderId }, data: { order } });
         return { success: true };
     } catch {
@@ -577,8 +652,11 @@ export async function getReminderFormDeps(userId: string, instanceId: string): P
     }
 }> {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: 'No autorizado.' }
+
         const user = await db.user.findUnique({
-            where: { id: userId },
+            where: { id: cuenta },
             select: { apiKeyId: true },
         })
 
@@ -586,10 +664,10 @@ export async function getReminderFormDeps(userId: string, instanceId: string): P
             user?.apiKeyId
                 ? db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
                 : null,
-            db.instancia.findMany({ where: { userId }, select: { instanceName: true, instanceId: true } }),
-            db.workflow.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+            db.instancia.findMany({ where: { userId: cuenta }, select: { instanceName: true, instanceId: true } }),
+            db.workflow.findMany({ where: { userId: cuenta }, orderBy: { name: 'asc' } }),
             db.session.findMany({
-                where: { userId },
+                where: { userId: cuenta },
                 select: { id: true, userId: true, remoteJid: true, pushName: true, instanceId: true, status: true, leadStatus: true },
                 orderBy: { pushName: 'asc' },
                 take: 200,

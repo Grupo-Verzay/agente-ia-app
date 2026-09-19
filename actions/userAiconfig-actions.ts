@@ -10,6 +10,7 @@ import { isAdminOrReseller } from '@/lib/rbac';
 // el formulario del cliente para tener una sola fuente de verdad.
 import { validateProviderApiKey } from '@/lib/ai-key-validation';
 import { laLlaveParaUnaCuentaNueva } from '@/lib/llaves-de-verzay';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 /* ============================
    Tipos de respuesta y DTOs
@@ -48,8 +49,21 @@ export type UserAiSettingsDTO = {
 /* ============================
    Helpers
 ============================ */
+/**
+ * Aquí estaba el hueco, y era de los caros: `ensureUser` **solo comprobaba que
+ * la fila existiera**. O sea que el `userId` que llegara del navegador entraba
+ * al `where` y al `upsert` sin que nadie preguntase de quién es — y lo que hay
+ * en estas filas son **claves de API**: leerlas, cambiarlas y borrárselas a
+ * otra cuenta. Es el H02 de siempre con la puerta puesta y sin cerradura.
+ *
+ * Se arregla **aquí y no en las nueve acciones**: las nueve ya pasaban por esta
+ * función, así que con la comprobación escrita en cada una la décima se
+ * olvidaría. Lo que devuelve es la fila de la cuenta que la guarda resolvió,
+ * no la del id pedido.
+ */
 async function ensureUser(userId: string): Promise<User> {
-  const u = await db.user.findUnique({ where: { id: userId } });
+  const cuenta = await exigirLaCuentaDeLaAccion(userId);
+  const u = await db.user.findUnique({ where: { id: cuenta } });
   if (!u) throw new Error('user_not_found');
   return u;
 }
@@ -166,13 +180,21 @@ export async function listAiModels(providerId?: string): Promise<ActionResult<Ai
 /** Configs de usuario (apikeys por proveedor) */
 export async function getUserAiConfigs(userId: string): Promise<ActionResult<UserAiConfigDTO[]>> {
   noStore();
-  await ensureUser(userId);
-  const configs = await db.userAiConfig.findMany({
-    where: { userId },
-    include: { provider: { select: { id: true, name: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
-  return { success: true, message: 'ok', data: configs };
+  // El rechazo de la guarda LANZA, y quien llama solo mira `res.success`: sin
+  // este `try` la pantalla se queda vacía y sin decir por qué. Es la misma
+  // razón por la que `getUserAiSettings` ya lo tenía.
+  try {
+    await ensureUser(userId);
+    const configs = await db.userAiConfig.findMany({
+      where: { userId },
+      include: { provider: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { success: true, message: 'ok', data: configs };
+  } catch (error) {
+    console.warn('[userAiconfig] no se pudieron leer las configuraciones', error);
+    return { success: false, message: 'No autorizado.' };
+  }
 }
 
 /** Defaults del usuario, expandidos */
@@ -584,6 +606,9 @@ export async function toggleUserAiConfigActive(
 
 export async function deleteUserAiConfig(userId: string, providerId: string): Promise<ActionResult> {
   try {
+    // A esta se le había pasado la puerta que ya pasan sus nueve hermanas.
+    await ensureUser(userId);
+
     await db.$transaction(async (tx) => {
       // Si el defaultProviderId del usuario es este, limpiarlo (y el modelo por seguridad)
       const u = await tx.user.findUnique({ where: { id: userId } });

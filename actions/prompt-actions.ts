@@ -4,6 +4,24 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { PromptInstance } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
+
+/**
+ * Este fichero es **el caso que la regla avisa**: el `userId` no está en ninguna
+ * firma — llega dentro de un `FormData` y sale de un `parse` de Zod—, así que un
+ * barrido por la firma no lo encuentra. Y entraba directo al `create` y al
+ * `where`. Es el H02 de siempre, sobre el prompt del agente de otra cuenta.
+ *
+ * `deleteAgentPromptsByUserId` es el peor: un `deleteMany` que se lleva **todos**
+ * los prompts y revisiones de la cuenta que se le nombre.
+ */
+
+/** El dueño sale de la FILA, no del navegador. */
+async function laCuentaDelPrompt(id: number) {
+  const suyo = await db.promptInstance.findUnique({ where: { id }, select: { userId: true } });
+  if (!suyo?.userId) return null;
+  return laCuentaDeLaAccion(suyo.userId);
+}
 
 // Esquemas de validación con Zod
 const promptInstanciaSchema = z.object({
@@ -58,9 +76,13 @@ export async function createPromptInstancia(formData: FormData): Promise<ActionR
   }
 
   try {
+    const cuenta = await laCuentaDeLaAccion(validation.data.userId);
+    if (!cuenta) return { success: false, message: "No autorizado." };
+
     const newPrompt = await db.promptInstance.create({
       data: {
         ...validation.data,
+        userId: cuenta,
       },
     });
     revalidatePath('/dashboard/prompts');
@@ -94,8 +116,11 @@ export async function getPromptsByUserId(userId: string): Promise<ActionResponse
   }
 
   try {
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return { success: false, message: "No autorizado." };
+
     const prompts = await db.promptInstance.findMany({
-      where: { userId },
+      where: { userId: cuenta },
       orderBy: { id: "desc" },
     });
     return {
@@ -135,9 +160,18 @@ export async function updatePromptInstancia(id: number, formData: FormData): Pro
   }
 
   try {
+    if (!(await laCuentaDelPrompt(id))) {
+      return { success: false, message: "No autorizado." };
+    }
+
+    // La identidad de la fila no se copia de lo que llegue del formulario: sin
+    // esto, mandar otro `userId` dentro del `FormData` le muda el prompt a otra
+    // cuenta.
+    const { userId: _userId, ...cambios } = validation.data;
+
     const updatedPrompt = await db.promptInstance.update({
       where: { id },
-      data: validation.data,
+      data: cambios,
     });
     revalidatePath('/dashboard/prompts');
     return {
@@ -170,6 +204,10 @@ export async function deletePromptInstancia(id: number): Promise<ActionResponse<
   }
 
   try {
+    if (!(await laCuentaDelPrompt(id))) {
+      return { success: false, message: "No autorizado." };
+    }
+
     await db.promptInstance.delete({
       where: { id },
     });
@@ -200,15 +238,18 @@ export async function deleteAgentPromptsByUserId(
   }
 
   try {
+    const cuenta = await laCuentaDeLaAccion(validation.data.userId);
+    if (!cuenta) return { success: false, message: 'No autorizado.' };
+
     const result = await db.$transaction(async (tx) => {
       // 1) Revisions donde el usuario fue quien publicó (pueden ser de prompts de otros usuarios)
       const revisionsAsPublisher = await tx.agentPromptRevision.deleteMany({
-        where: { publishedBy: userId },
+        where: { publishedBy: cuenta },
       });
 
       // 2) AgentPrompts del usuario (sus revisiones se borran por CASCADE)
       const prompts = await tx.agentPrompt.deleteMany({
-        where: { userId },
+        where: { userId: cuenta },
       });
 
       return {

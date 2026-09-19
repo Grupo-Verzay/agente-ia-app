@@ -8,6 +8,7 @@ import { getRemindersByUserId } from "@/actions/reminders-actions";
 import { createReminder } from "@/actions/reminders-actions";
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
 import { currentUser } from '@/lib/auth';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 
 interface ServiceOperationResponse {
@@ -53,7 +54,10 @@ export async function createService(
     }
 
     try {
-        const data = await db.service.create({ data: validated.data });
+        const cuenta = await laCuentaDeLaAccion(validated.data.userId)
+        if (!cuenta) return { success: false, message: 'No autorizado.' }
+
+        const data = await db.service.create({ data: { ...validated.data, userId: cuenta } });
 
         if (data.userId) {
             const remindersRes = await getRemindersByUserId(data.userId);
@@ -123,11 +127,16 @@ export async function getServicesByUser(userId: string): Promise<ListServicesRes
     if (!userId) return { success: false, message: 'Falta el userId' }
 
     try {
+        // Sus hermanas de este fichero ya preguntaban por `currentUser()`; a
+        // esta se le había pasado y el id del navegador entraba al `where`.
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: 'No autorizado.' }
+
         const services = await db.service.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             orderBy: [{ order: 'asc' as const }, { createdAt: 'asc' as const }],
         }).catch(() => db.service.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             orderBy: { createdAt: 'asc' },
         }))
 
@@ -141,8 +150,17 @@ export async function getServicesByUser(userId: string): Promise<ListServicesRes
 /**
  * Actualiza el campo order de un servicio
  */
+/** El dueño sale de la FILA, no del navegador. */
+async function laCuentaDelServicio(serviceId: string) {
+    const suyo = await db.service.findUnique({ where: { id: serviceId }, select: { userId: true } })
+    if (!suyo?.userId) return null
+    return laCuentaDeLaAccion(suyo.userId)
+}
+
 export async function updateServiceOrder(serviceId: string, order: number): Promise<{ success: boolean }> {
     try {
+        if (!(await laCuentaDelServicio(serviceId))) return { success: false }
+
         await db.service.update({ where: { id: serviceId }, data: { order } });
         return { success: true };
     } catch {
@@ -157,6 +175,10 @@ export async function deleteService(serviceId: string): Promise<DeleteServiceRes
     if (!serviceId) return { success: false, message: 'Falta el ID del servicio' }
 
     try {
+        if (!(await laCuentaDelServicio(serviceId))) {
+            return { success: false, message: 'No autorizado.' }
+        }
+
         await db.service.delete({
             where: { id: serviceId },
         })
@@ -178,7 +200,11 @@ export async function updateService(values: z.infer<typeof updateSchema>): Promi
     }
 
     try {
-        const { id, ...data } = validated.data;
+        const { id, userId: _userId, ...data } = validated.data;
+        if (!(await laCuentaDelServicio(id))) {
+            return { success: false, message: 'No autorizado.' }
+        }
+
         const updated = await db.service.update({ where: { id }, data });
 
         return { success: true, message: "Servicio actualizado correctamente", data: updated };

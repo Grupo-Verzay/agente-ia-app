@@ -2,6 +2,21 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion"
+
+/**
+ * Sin guarda ninguna: el `userId` llegaba del navegador y entraba directo al
+ * `where` y al `data`. Es el H02 de siempre, y lo que se abre aquí es con qué
+ * palabras arranca un flujo en la cuenta de otro.
+ *
+ * Y las tres de abajo van con `where: { id }` pelado —**un `where` sin dueño es
+ * el mismo hueco sin el id delante**—, así que el dueño se lee de la fila.
+ */
+async function laCuentaDelDisparador(id: string) {
+    const suyo = await db.intentTrigger.findUnique({ where: { id }, select: { userId: true } })
+    if (!suyo) return null
+    return laCuentaDeLaAccion(suyo.userId)
+}
 
 export interface IntentTriggerPayload {
     name: string
@@ -13,8 +28,11 @@ export interface IntentTriggerPayload {
 
 export async function getIntentTriggersByUser(userId: string) {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: "No autorizado." }
+
         const triggers = await db.intentTrigger.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             orderBy: { createdAt: "asc" },
         })
         return { success: true, data: triggers }
@@ -26,9 +44,12 @@ export async function getIntentTriggersByUser(userId: string) {
 
 export async function createIntentTrigger(userId: string, payload: IntentTriggerPayload) {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId)
+        if (!cuenta) return { success: false, message: "No autorizado." }
+
         const trigger = await db.intentTrigger.create({
             data: {
-                userId,
+                userId: cuenta,
                 name: payload.name.trim(),
                 mode: payload.mode,
                 condition: payload.condition.trim(),
@@ -46,6 +67,10 @@ export async function createIntentTrigger(userId: string, payload: IntentTrigger
 
 export async function updateIntentTrigger(id: string, payload: Partial<IntentTriggerPayload>) {
     try {
+        if (!(await laCuentaDelDisparador(id))) {
+            return { success: false, message: "No autorizado." }
+        }
+
         const trigger = await db.intentTrigger.update({
             where: { id },
             data: {
@@ -66,6 +91,10 @@ export async function updateIntentTrigger(id: string, payload: Partial<IntentTri
 
 export async function deleteIntentTrigger(id: string) {
     try {
+        if (!(await laCuentaDelDisparador(id))) {
+            return { success: false, message: "No autorizado." }
+        }
+
         await db.intentTrigger.delete({ where: { id } })
         revalidatePath("/workflow")
         return { success: true }
@@ -77,6 +106,10 @@ export async function deleteIntentTrigger(id: string) {
 
 export async function toggleIntentTrigger(id: string, isActive: boolean) {
     try {
+        if (!(await laCuentaDelDisparador(id))) {
+            return { success: false, message: "No autorizado." }
+        }
+
         await db.intentTrigger.update({ where: { id }, data: { isActive } })
         revalidatePath("/workflow")
         return { success: true }

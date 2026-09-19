@@ -2,6 +2,7 @@
 
 import { google } from 'googleapis';
 import { db } from '@/lib/db';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 /* ── Service account auth ──────────────────────────────────────
  * Reutiliza la MISMA credencial de cuenta de servicio que Google Sheets
@@ -47,8 +48,15 @@ export interface GoogleCalendarConfig {
 }
 
 export async function getGoogleCalendarConfig(userId: string): Promise<GoogleCalendarConfig> {
+  // A esta se le había pasado la guarda que ya tienen sus hermanas: el id del
+  // navegador entraba directo al `where`.
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) {
+    return { calendarId: null, enabled: false, serviceAccountEmail: await getServiceAccountEmail() };
+  }
+
   const user = await db.user.findUnique({
-    where: { id: userId },
+    where: { id: cuenta },
     select: { googleCalendarId: true, googleCalendarSyncEnabled: true } as any,
   });
   return {
@@ -63,9 +71,12 @@ export async function saveGoogleCalendarConfig(
   data: { calendarId: string; enabled: boolean },
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return { success: false, error: 'No autorizado.' };
+
     const calendarId = normalizeCalendarId(data.calendarId);
     await db.user.update({
-      where: { id: userId },
+      where: { id: cuenta },
       data: {
         googleCalendarId: calendarId || null,
         // Solo se puede activar la sincronización si hay un calendario configurado.

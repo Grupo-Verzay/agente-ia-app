@@ -3,6 +3,7 @@
 import { resolveUserAiClient, ActionResult } from './userAiconfig-actions';
 import { createAiClient } from '@/app/(root)/ai-chat/helpers/createAiClient';
 import type { EvolutionMessage } from '@/actions/chat-actions';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 type SuggestedReplyRequest = {
   userId: string;
@@ -26,7 +27,13 @@ export async function generateSuggestedReplyAction(
   req: SuggestedReplyRequest,
 ): Promise<ActionResult<{ reply: string }>> {
   try {
-    const resolved = await resolveUserAiClient(req.userId);
+    // Sin guarda, el `userId` del navegador elegía **la llave de OpenAI de otra
+    // cuenta**: o sea gastar su consumo, y hacerlo sobre la conversación que se
+    // le mandara. Es el H02 de siempre, con el id dentro de un objeto.
+    const cuenta = await laCuentaDeLaAccion(req.userId);
+    if (!cuenta) return { success: false, message: 'No autorizado.' };
+
+    const resolved = await resolveUserAiClient(cuenta);
     if (!resolved.success || !resolved.data) {
       return { success: false, message: resolved.message };
     }

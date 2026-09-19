@@ -816,6 +816,103 @@ cuando los parámetros empiezan en la línea siguiente, ni cuando sale de un
 en este barrido y los tres estaban abiertos. Se busca **por el cuerpo**
 —`\.userId\b` entrando a un `where` o a un `data`— y no por la firma.
 
+### Y el segundo lote: veinticuatro ficheros más, y el CUBO que nadie nombró
+
+El barrido anterior cerró ocho ficheros. Quedaban **veinticuatro** con el mismo
+patrón: `evo-url`, `tools`, `tag`, `rr`, `prompt`, `reminders`, `appointments`,
+`bookings`, `intent-trigger`, `userAvailability`, `seguimientos`,
+`user-nav-preference`, `n8n-chat-historial`, `crm-follow-up-media`, `manual`,
+`service`, `catalog-config`, `contact-fields`, `google-calendar`,
+`booking-form`, `booking-questions`, `finance-contact-fields`,
+`ai-suggested-reply` y `userAiconfig`. **129 acciones** pasan ya por
+`lib/cuenta-de-la-accion.ts`.
+
+Los cuatro que más duelen, para que se vea qué clase de agujero era:
+
+| dónde | qué se abría con solo cambiar un id |
+| --- | --- |
+| `getReminderFormDeps` | devolvía **la clave de Evolution** de la cuenta nombrada, su servidor y sus leads. No es leer de más: es entregar unas credenciales. |
+| `userAiconfig-actions` | su `ensureUser` **solo comprobaba que la fila existiera**. Nueve acciones leyendo, cambiando y borrando **claves de API** de otra cuenta. |
+| `clearAllHistory` | un `deleteMany` sobre la **memoria entera del agente** de la cuenta que se nombrara. |
+| `deleteAgentPromptsByUserId` | lo mismo con **todos** sus prompts y revisiones. |
+
+#### El tercer cubo: lo que abre una página SIN sesión
+
+La consigna de este lote era «todo lo que no llame un cron, un webhook ni el
+despachador». Barriendo aparece **una clase más que esa frase no nombra**: las
+acciones que abre una página o una ruta pública. Ponerles la guarda no las
+protege — **las apaga**, porque ahí no hay nadie a quien preguntarle.
+
+> **Antes de guardar una acción se mira si la abre algo sin sesión.** Lo dice
+> `middleware.ts`: `/schedule/`, `/r/`, `/plan/`, `/p/`, `/reunion/`, `/t/` y
+> los prefijos de `/api` que pasan de largo. Es lo que este documento ya decía
+> de `getPublicCatalog`, y son **siete** más: `createAppointment`,
+> `getRemindersByUserId`, `getPublicTeamData`, `getAvailableBookingSlots`,
+> `createBookingAppointment`, `sendBookingNotifications` y las dos de preguntas
+> activas del formulario de reservas.
+
+`getRemindersByUserId` es el caso que no se puede ablandar: **lo llama la UI y
+lo llama la página pública** (`/schedule/[userId]`, de donde salen los
+recordatorios `isSchedule` del formulario). Guardarla cierra la pantalla que le
+da de comer a la función. Se queda fuera y **se dice**, que es lo contrario de
+que se quede fuera sin que nadie lo sepa.
+
+#### Y un barrido automático se equivoca por los DOS lados
+
+Esto costó una vuelta y conviene no repetirlo. El detector que busca «acciones
+sin guarda» falla en las dos direcciones, y las dos veces en silencio:
+
+- **De más.** Marcó abiertas a `registro-action` (usa `assertUserCanUseApp`,
+  que por dentro **es** `assertCanAccessTargetUser` más el candado de pago), a
+  Cobros (`laCuenta()`), a los follow-ups del CRM (`ensureAuthorizedUser`), a
+  `actions-ia-credits` (`puedeVerLosCreditos`), a Contactos de operador y a
+  Notificaciones (`assertCanManage`), y a `toggleWebhook`. **Siete ficheros que
+  llevaban años cerrados.**
+- **De menos.** No vio `updateTagAction` ni `getSessionTagsAction` —dos huecos
+  reales al lado de seis hermanas guardadas—, ni `getCatalogConfig`, ni
+  `deleteUserAiConfig`, ni las cuatro de `service-action`.
+
+**Así que se lee cuerpo por cuerpo.** El barrido sirve para ordenar la cola, no
+para decidir.
+
+#### El banco mira que la guarda ESTÉ, no lo que hace
+
+`lib/__tests__/guardas-de-las-acciones.test.mjs`. Lo que la guarda hace ya lo
+prueba el banco de `cuenta-de-la-accion`; el fallo de esta familia es otro:
+**a una hermana se le pasa**. Ha pasado así media docena de veces en este
+repositorio —`updateTagAction`, `getCatalogConfig`, `assignSessionToAdvisor`,
+los tres hermanos del estado del lead, «anclar» y «archivar»—.
+
+El banco recorre los veinticuatro ficheros y exige que cada acción exportada
+llame a una puerta conocida **o esté en la lista de exclusiones con su motivo
+escrito al lado** — y falla si el motivo está vacío, para que una exclusión no
+se pueda colar sin explicación. Encontró **treinta** acciones que este mismo
+lote se había dejado: las dos del orden de etiquetas, `deleteUserAiConfig`, las
+cuatro de servicios, tres de respuestas de formulario y cinco de seguimientos.
+
+Dos cosas que hay que mantener:
+
+1. **El trozo de cada acción va de su `export` al `export` siguiente**, y no
+   contando llaves. Contar llaves parece lo correcto y aquí falla: el `{` que
+   viene detrás de los parámetros suele ser el de la anotación de retorno
+   —`Promise<{ success: boolean; … }>`—, así que el «cuerpo» salía siendo el
+   tipo. El banco marcó treinta acciones que tenían la guarda dos líneas más
+   abajo: **un número que no puede ser señala el sitio.**
+2. **`assertUserCanUseApp` cuenta como puerta.** Dejarla fuera de la lista es
+   lo que produjo el primer falso positivo, y en un banco un falso positivo se
+   arregla ablandando la comprobación — que es como se pierde.
+
+#### Y un seguimiento no tiene `userId`: cuelga de su LÍNEA
+
+`seguimiento` no guarda cuenta, guarda `instancia`. Así que de quién es se
+resuelve con `resolveInstanceOwner` y se comprueba como cualquier otra.
+
+De ahí sale el fallo que estaba debajo: las tres acciones que van por
+`remoteJid` no acotaban por línea, y **el mismo número está en dos cuentas**
+—le escribe a Ventas y a Atención, que es lo normal—. Así que se leían y se
+**borraban** los seguimientos de la otra. No se rechaza la petición entera: se
+**filtra**, que es lo que le devuelve lo suyo a quien pregunta.
+
 ### Y la propia `assertCanAccessTargetUser` preguntaba por la PERSONA
 
 La regla existía y estaba puesta en 26 sitios, y aun así tenía dentro el fallo

@@ -4,6 +4,18 @@ import { db } from '@/lib/db';
 import { Tag } from '@prisma/client';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+
+/**
+ * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` llegaba
+ * del navegador y entraba directo al `where`. Es el H02 de siempre, y aquí con
+ * la vuelta de tuerca que avisa la regla — el id sale de un `parse`, así que
+ * buscarlo en la firma no lo encuentra.
+ *
+ * Todas las acciones que reciben una cuenta pasan por `laCuentaDeLaAccion`, y
+ * **se usa lo que ella devuelve**, no el id que llegó: comprobar y luego
+ * consultar con el original es dejar la mitad del arreglo sin hacer.
+ */
 
 export interface ActionResponse<T> {
     success: boolean;
@@ -60,9 +72,11 @@ export async function listTagsAction(
 ): Promise<ActionResponse<TagWithCount[]>> {
     try {
         const parsed = z.string().min(1).parse(userId);
+        const cuenta = await laCuentaDeLaAccion(parsed);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
 
         const tags = await db.tag.findMany({
-            where: { userId: parsed },
+            where: { userId: cuenta },
             orderBy: [{ order: "asc" }, { id: "asc" }],
             include: {
                 _count: {
@@ -93,11 +107,13 @@ export async function createTagAction(
 ): Promise<ActionResponse<Tag>> {
     try {
         const { userId, name, color } = baseTagSchema.parse(input);
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
         const slug = slugify(name);
 
         // Verificar si ya existe para ese usuario
         const existing = await db.tag.findFirst({
-            where: { userId, slug },
+            where: { userId: cuenta, slug },
         });
 
         if (existing) {
@@ -108,7 +124,7 @@ export async function createTagAction(
         }
 
         const lastTag = await db.tag.findFirst({
-            where: { userId },
+            where: { userId: cuenta },
             orderBy: { order: "desc" },
             select: { order: true },
         });
@@ -116,7 +132,7 @@ export async function createTagAction(
 
         const tag = await db.tag.create({
             data: {
-                userId,
+                userId: cuenta,
                 name,
                 slug,
                 color: color ?? null,
@@ -145,12 +161,14 @@ export async function updateTagAction(
     try {
         const parsedId = z.number().int().positive().parse(input.id);
         const { userId, name, color } = baseTagSchema.parse(input);
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
         const slug = slugify(name);
 
         // Aseguramos que el tag pertenece al user y que el nuevo slug no choque
         const existing = await db.tag.findFirst({
             where: {
-                userId,
+                userId: cuenta,
                 slug,
                 NOT: { id: parsedId },
             },
@@ -163,6 +181,14 @@ export async function updateTagAction(
             };
         }
 
+        // El `where: { id }` pelado es el mismo hueco sin el id delante: sin
+        // esta comprobación, la cuenta comprobada no decide nada y se edita la
+        // etiqueta de cualquiera con solo acertar el número.
+        const suyo = await db.tag.findUnique({ where: { id: parsedId }, select: { userId: true } });
+        if (!suyo || suyo.userId !== cuenta) {
+            return { success: false, message: 'Tag no encontrado o no pertenece a esta cuenta.' };
+        }
+
         const tag = await db.tag.update({
             where: { id: parsedId },
             data: {
@@ -171,9 +197,6 @@ export async function updateTagAction(
                 color: color ?? null,
             },
         });
-
-        // (Opcional) podrías verificar también que tag.userId === userId
-        // y lanzar error si no coincide para mayor seguridad multi-tenant.
 
         return {
             success: true,
@@ -190,11 +213,22 @@ export async function updateTagAction(
 }
 
 // Actualizar el orden de un tag (individual — mantenido por compatibilidad)
+/** El dueño sale de la FILA, no del navegador. */
+async function laCuentaDeLaEtiqueta(tagId: number) {
+    const suya = await db.tag.findUnique({ where: { id: tagId }, select: { userId: true } });
+    if (!suya?.userId) return null;
+    return laCuentaDeLaAccion(suya.userId);
+}
+
 export async function updateTagOrderAction(
     tagId: number,
     order: number,
 ): Promise<ActionResponse<null>> {
     try {
+        if (!(await laCuentaDeLaEtiqueta(tagId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.tag.update({
             where: { id: tagId },
             data: { order },
@@ -212,6 +246,21 @@ export async function batchUpdateTagOrderAction(
     updates: { id: number; order: number }[],
 ): Promise<ActionResponse<null>> {
     try {
+        // Una lista que llega de fuera no decide a qué filas se llega: se
+        // comprueban **todas**, y si alguna no es suya no se escribe ninguna —
+        // un orden a medias no es un orden.
+        const suyas = await db.tag.findMany({
+            where: { id: { in: updates.map((u) => u.id) } },
+            select: { id: true, userId: true },
+        });
+        const alcanzadas = new Set<number>();
+        for (const fila of suyas) {
+            if (fila.userId && (await laCuentaDeLaAccion(fila.userId))) alcanzadas.add(fila.id);
+        }
+        if (updates.some((u) => !alcanzadas.has(u.id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.$transaction(
             updates.map(({ id, order }) =>
                 db.tag.update({ where: { id }, data: { order } })
@@ -231,10 +280,12 @@ export async function deleteTagAction(
 ): Promise<ActionResponse<null>> {
     try {
         const { id, userId } = tagIdSchema.parse(input);
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
 
         // Verificar que el tag es del usuario
         const tag = await db.tag.findUnique({ where: { id } });
-        if (!tag || tag.userId !== userId) {
+        if (!tag || tag.userId !== cuenta) {
             return {
                 success: false,
                 message: 'Tag no encontrado o no pertenece a este usuario.',
@@ -280,6 +331,9 @@ export async function getSessionTagsAction(
     try {
         const parsedUserId = z.string().min(1).parse(userId);
         const parsedSessionId = z.number().int().positive().parse(sessionId);
+        const cuenta = await laCuentaDeLaAccion(parsedUserId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
+
 
         const session = await db.session.findUnique({
             where: { id: parsedSessionId },
@@ -291,7 +345,7 @@ export async function getSessionTagsAction(
             },
         });
 
-        if (!session || session.userId !== parsedUserId) {
+        if (!session || session.userId !== cuenta) {
             return {
                 success: false,
                 message: 'Sesión no encontrada o no pertenece a este usuario.',
@@ -345,12 +399,14 @@ export async function assignTagToSessionAction(
 ): Promise<ActionResponse<null>> {
     try {
         const { userId, sessionId, tagId } = sessionTagSchema.parse(input);
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
 
         // Validar sesión y usuario
         const session = await db.session.findUnique({
             where: { id: sessionId },
         });
-        if (!session || session.userId !== userId) {
+        if (!session || session.userId !== cuenta) {
             return {
                 success: false,
                 message: 'Sesión no encontrada o no pertenece a este usuario.',
@@ -361,7 +417,7 @@ export async function assignTagToSessionAction(
         const tag = await db.tag.findUnique({
             where: { id: tagId },
         });
-        if (!tag || tag.userId !== userId) {
+        if (!tag || tag.userId !== cuenta) {
             return {
                 success: false,
                 message: 'Tag no encontrado o no pertenece a este usuario.',
@@ -410,12 +466,14 @@ export async function removeTagFromSessionAction(
 ): Promise<ActionResponse<null>> {
     try {
         const { userId, sessionId, tagId } = sessionTagSchema.parse(input);
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
 
         // Validar sesión y usuario
         const session = await db.session.findUnique({
             where: { id: sessionId },
         });
-        if (!session || session.userId !== userId) {
+        if (!session || session.userId !== cuenta) {
             return {
                 success: false,
                 message: 'Sesión no encontrada o no pertenece a este usuario.',
@@ -426,7 +484,7 @@ export async function removeTagFromSessionAction(
         const tag = await db.tag.findUnique({
             where: { id: tagId },
         });
-        if (!tag || tag.userId !== userId) {
+        if (!tag || tag.userId !== cuenta) {
             return {
                 success: false,
                 message: 'Tag no encontrado o no pertenece a este usuario.',
@@ -460,11 +518,13 @@ export async function replaceSessionTagsAction(
 ): Promise<ActionResponse<null>> {
     try {
         const { userId, sessionId, tagIds } = replaceSessionTagsSchema.parse(input);
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
 
         const session = await db.session.findUnique({
             where: { id: sessionId },
         });
-        if (!session || session.userId !== userId) {
+        if (!session || session.userId !== cuenta) {
             return {
                 success: false,
                 message: 'Sesión no encontrada o no pertenece a este usuario.',
@@ -481,7 +541,7 @@ export async function replaceSessionTagsAction(
 
             const allBelongToUser =
                 tags.length === tagIds.length &&
-                tags.every((t) => t.userId === userId);
+                tags.every((t) => t.userId === cuenta);
 
             if (!allBelongToUser) {
                 return {

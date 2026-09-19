@@ -3,6 +3,14 @@
 import { buildChatHistorySessionIdCandidates } from "@/lib/chat-history/build-session-id";
 import { db } from "@/lib/db";
 import { N8nChatHistory } from "@prisma/client";
+import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
+
+/**
+ * Sin guarda ninguna, y lo que hay detrás es un `deleteMany`: con la sesión de
+ * cualquier cuenta y otro id se le borraba a otra **la memoria entera de su
+ * agente**. Es el H02 de siempre, en el sitio donde más duele — eso no se
+ * recupera.
+ */
 
 interface N8nOperationResponse {
   success: boolean;
@@ -24,9 +32,12 @@ export async function deleteConversationN8N(
       };
     }
 
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return { success: false, message: 'No autorizado.' };
+
     // 2. Obtener instancia del usuario
     const instance = await db.instancia.findFirst({
-      where: { userId },
+      where: { userId: cuenta },
       select: { instanceName: true }
     });
 
@@ -78,9 +89,12 @@ export async function clearAllHistory(userId: string): Promise<N8nOperationRespo
       };
     }
 
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return { success: false, message: 'No autorizado.' };
+
     // 2. Buscar la instancia asociada al usuario
     const instance = await db.instancia.findFirst({
-      where: { userId },
+      where: { userId: cuenta },
       select: { instanceName: true }
     });
 

@@ -10,6 +10,32 @@ import {
     updateAppointmentCalendarEvent,
     deleteCalendarEvent,
 } from './google-calendar-actions';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+
+/**
+ * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —y en
+ * dos casos el `sessionId`— llegaban del navegador y entraban directos al
+ * `where`. Es el H02 de siempre: con la sesión de cualquier cuenta y otro id se
+ * leía, se cambiaba y se **borraba** la agenda de otra.
+ *
+ * **`createAppointment` y `getAvailableSlots` se quedan fuera a propósito**: las
+ * abre la página pública de reservas (`/schedule/[userId]` y
+ * `/api/schedule/...`), que no tiene sesión — comprobar algo ahí las tumbaría
+ * enteras, igual que pasa con `getPublicCatalog`.
+ */
+
+/** El dueño sale de la FILA, no del navegador. */
+async function laCuentaDeLaCita(id: string) {
+    const suya = await db.appointment.findUnique({ where: { id }, select: { userId: true } });
+    if (!suya?.userId) return null;
+    return laCuentaDeLaAccion(suya.userId);
+}
+
+async function laCuentaDeLaConversacion(sessionId: number) {
+    const suya = await db.session.findUnique({ where: { id: sessionId }, select: { userId: true } });
+    if (!suya?.userId) return null;
+    return laCuentaDeLaAccion(suya.userId);
+}
 
 interface AppointmentOperationResponse {
     success: boolean;
@@ -33,8 +59,11 @@ interface CreateAppointmentInput {
 //Obtener citas por usuario (Asesor)
 export async function getAppointmentsByUser(userId: string): Promise<AppointmentOperationResponse> {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
+
         const list = await db.appointment.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             include: {
                 session: {
                     include: {
@@ -298,6 +327,7 @@ export async function sendAppointmentStatusNotification(
             },
         });
         if (!appt) return;
+        if (!(await laCuentaDeLaAccion(appt.userId))) return;
 
         const apiKeyUrl = appt.user?.apiKey?.url;
         const apiKeyValue = appt.user?.apiKey?.key;
@@ -351,6 +381,10 @@ export async function updateAppointmentStatus(
     status: AppointmentStatus
 ): Promise<AppointmentOperationResponse> {
     try {
+        if (!(await laCuentaDeLaCita(id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const updated = await db.appointment.update({
             where: { id },
             data: { status },
@@ -436,6 +470,10 @@ export async function updateAppointmentDetails(
     data: { startTime?: string; endTime?: string; serviceId?: string; timezone?: string }
 ): Promise<AppointmentOperationResponse> {
     try {
+        if (!(await laCuentaDeLaCita(id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const updateData: Record<string, unknown> = {};
         if (data.startTime) updateData.startTime = new Date(data.startTime);
         if (data.endTime) updateData.endTime = new Date(data.endTime);
@@ -475,6 +513,10 @@ export async function updateAppointmentDetails(
 //Eliminar una cita
 export async function deleteAppointment(id: string): Promise<AppointmentOperationResponse> {
     try {
+        if (!(await laCuentaDeLaCita(id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const deleted = await db.appointment.delete({ where: { id } });
 
         // Quitar el evento de Google Calendar asociado (si lo hay).
@@ -514,13 +556,16 @@ export async function getUserScheduleConfig(userId: string): Promise<{
     message?: string;
 }> {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
+
         const [user, services] = await Promise.all([
             db.user.findUnique({
-                where: { id: userId },
+                where: { id: cuenta },
                 select: { timezone: true, meetingDuration: true },
             }),
             db.service.findMany({
-                where: { userId },
+                where: { userId: cuenta },
                 select: { id: true, name: true },
                 orderBy: { order: 'asc' },
             }),
@@ -554,6 +599,10 @@ export async function getLatestAppointmentBySession(sessionId: number): Promise<
     message?: string;
 }> {
     try {
+        if (!(await laCuentaDeLaConversacion(sessionId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const appt = await db.appointment.findFirst({
             where: { sessionId },
             include: { service: { select: { name: true } } },
@@ -585,6 +634,10 @@ export async function getAppointmentsBySession(sessionId: number): Promise<{
     message?: string;
 }> {
     try {
+        if (!(await laCuentaDeLaConversacion(sessionId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const list = await db.appointment.findMany({
             where: { sessionId },
             include: { service: { select: { name: true } } },
@@ -614,9 +667,12 @@ export async function getAppointmentStatusCounts(userId: string): Promise<{
     message?: string;
 }> {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
+
         const counts = await db.appointment.groupBy({
             by: ['status'],
-            where: { userId },
+            where: { userId: cuenta },
             _count: { id: true },
         });
         return {
@@ -648,8 +704,11 @@ export async function getAppointmentsForKanban(userId: string): Promise<{
     message?: string;
 }> {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
+
         const list = await db.appointment.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             include: {
                 session: { select: { pushName: true, remoteJid: true, sessionTags: { include: { tag: { select: { id: true, name: true, color: true } } } } } },
                 service: { select: { name: true } },
