@@ -1538,9 +1538,58 @@ iguales, contando el de antes de la primera pastilla y el de después de la
 última. Medido con tres pastillas: **16-20 px** a 1440 y **20-24 px** en un
 móvil, contra los **4 px** del `gap-1` que estaba escrito al lado.
 
-Con `justify-start` la primera pastilla arranca en el borde —alineada con el
-buscador de arriba— y la separación es 4 px siempre. Ese hueco recuperado es
-justo el que se le devuelve a las pastillas cuando el ancho aprieta.
+Se cambió a `justify-start`, y eso arregló los bordes y dejó el otro medio
+fallo dentro. Está contado entero en la sección de abajo.
+
+### Y `justify-start` amontona TODO el sobrante en el último hueco
+
+El #815 dejó la fila con los dos bordes a 0 px —medido, y era cierto— y aun así
+se leía descuadrada: la flecha del final parecía no llegar al borde y los
+huecos entre pastillas no eran iguales. **Las dos cosas son el mismo fallo.**
+
+La fila eran **dos cajas**: un grupo `flex-1` con las pastillas dentro, y la
+flecha fuera. Ese grupo se lleva todo el ancho sobrante, y con `justify-start`
+sus pastillas se apilan a la izquierda: **el sobrante entero cae en un solo
+sitio**, el hueco que queda entre la última pastilla y la flecha. Medido sobre
+la página servida, con el menú lateral abierto y cerrado:
+
+| variante | ventana | huecos de la fila |
+| --- | --- | --- |
+| 4 pastillas, cuenta grande | 1440 | 4/4/4/**4** |
+| 4 pastillas, conteos normales | 390 | 4/4/4/**24** |
+| 3 pastillas (sin «Mías») | 1440 | 4/4/**76,7** |
+| 3 pastillas (sin «Mías») | 390 | 4/4/**91,7** |
+| 4 pastillas, sin insignias | 1440 | 4/4/4/**85** |
+| 4 pastillas, sin insignias | 390 | 4/4/4/**100** |
+
+De dieciséis combinaciones —cuatro juegos de contadores por cuatro anchuras—
+**catorce tenían los huecos desiguales**. Y solo se ve con la fila holgada: con
+la cuenta más grande no sobra nada, los cuatro huecos salen a 4 px y parece que
+está bien. **Probar con la cuenta llena es justo el caso que no lo reproduce.**
+
+> **La regla: la flecha es una MÁS de la fila, y el sobrante se reparte con
+> `justify-between`.** Una sola caja, la flecha como hermana de las pastillas.
+> Así el hueco que la separa de la última pastilla es el mismo que hay entre dos
+> pastillas, y el `gap-1` pasa a ser el **mínimo**: cuando no sobra nada son 4
+> px, y cuando sobra se reparte por igual.
+
+Y **no es volver a `justify-evenly`**, que es lo que el #815 quitó y lo que
+cuenta la sección de arriba: aquel pone hueco **antes de la primera y después
+de la última**, así que despega la fila de los bordes. `justify-between` no
+pone nada en los extremos. La diferencia entre los dos es exactamente esa, y es
+la única razón por la que uno vale aquí y el otro no.
+
+Medido después, las mismas dieciseis combinaciones: **los huecos son iguales en
+las dieciséis**, los dos bordes siguen a 0 px, ninguna pastilla se corta y
+**las dos filas de la cabecera** —la del buscador con sus iconos y la de las
+pastillas— empiezan y acaban en el mismo píxel a 1440, 1280, 1024 y 390.
+
+Lo que **no** se toca es la reserva del #815: con la cuenta grande a 1024 las
+pastillas siguen cediendo su relleno de forma desigual (`4+4 3+3 3+3 2+2`). Eso
+es a propósito y es lo que evita el corte —`flex-shrink` reparte el faltante en
+proporción al tamaño de cada una, así que la grande cede más—; solo entra en
+juego cuando la fila va de verdad llena, y la alternativa es una pastilla
+partida.
 
 ### El móvil NO es el caso estrecho, y conviene no buscar ahí
 

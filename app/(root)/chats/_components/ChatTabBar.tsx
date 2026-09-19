@@ -149,104 +149,121 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
   };
 
   return (
-    <div className="flex w-full items-center gap-1">
-      {/* `justify-start`, no `justify-evenly`. Aquel reparte hueco TAMBIÉN
-          antes de la primera pastilla y después de la última, así que la fila
-          nacía despegada de los dos bordes y la separación entre pastillas no
-          era la declarada: medido, con tres pastillas salían 16-20 px a 1440 y
-          20-24 px en un móvil, contra los 4 px del `gap-1`. Ahora la primera
-          pastilla arranca en el borde —alineada con el buscador de arriba— y
-          la separación es 4 px siempre, que es lo que se le devuelve a las
-          pastillas cuando el ancho aprieta.
+    /* UNA sola fila, con la flecha dentro y `justify-between`.
+       ==========================================================
+       Eran dos cajas: un grupo `flex-1` con las pastillas y la flecha fuera.
+       Con el grupo ocupando todo el ancho sobrante y las pastillas alineadas
+       a la izquierda, **todo el hueco que sobraba caía en un solo sitio**: el
+       que queda entre la última pastilla y la flecha. Medido sobre la página
+       servida, ese hueco era de 4 px con una cuenta grande y de **76 px con
+       tres pastillas, 85 con cuatro sin insignias y 100 en un móvil**, con los
+       tres de en medio clavados en 4. La flecha estaba pegada al borde —0 px,
+       medido— pero la fila se leía descuadrada, porque el ojo ve el hueco, no
+       el borde.
 
-          `overflow-hidden` se queda de red de seguridad y NO como la solución:
-          es preferible a una barra de deslizar, pero lo que de verdad evita
-          que una pastilla se corte es que los huecos de dentro cedan. */}
-      <div className="flex flex-1 items-center justify-start gap-1 overflow-hidden">
-        {visibleTabs.map(renderTab)}
+       `justify-between` reparte ese sobrante **por igual entre todos los
+       huecos**, y no pone nada en los extremos: la primera pastilla sigue
+       pegada a la izquierda y la flecha a la derecha, alineadas con el
+       buscador y con el último icono de la fila de arriba. Y el `gap-1` pasa a
+       ser el MÍNIMO —cuando no sobra nada, los huecos son esos 4 px—, así que
+       **son iguales entre sí a cualquier anchura**, que es lo que no pasaba.
 
-        {/* «Sin leer» —antes «No leídos»—. Dos palabras cortas en vez de dos
-            largas: en una fila que se pelea por el ancho, el rótulo es lo
-            único que se puede acortar sin quitar información. Se llama igual
-            en el atajo de la pantalla vacía: dos nombres para el mismo filtro
-            se leen como dos filtros. */}
-        {onToggleUnread && (
-          <button
-            type="button"
-            onClick={onToggleUnread}
-            className={cn(
-              PASTILLA,
-              unreadOnly
-                ? "border-orange-500 bg-orange-500 text-white"
-                : "border-orange-300 bg-orange-50 text-orange-500 hover:bg-orange-100 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-400 dark:hover:bg-orange-500/20"
-            )}
-          >
-            <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
-            <span className="shrink-0">Sin leer</span>
-            {(unreadCount ?? 0) > 0 && (
-              <>
-              <span aria-hidden="true" className={HUECO_ENTRE} />
-              <span
-                className={INSIGNIA}
-                style={{ background: unreadOnly ? "rgba(255,255,255,0.3)" : "#f97316" }}
-              >
-                {(unreadCount ?? 0) > 99 ? "99+" : unreadCount}
-              </span>
-              </>
-            )}
-            <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
-          </button>
-        )}
+       Y NO es `justify-evenly`, que es lo que había antes del #815 y lo que
+       aquel quitó: aquel reparte hueco también **antes de la primera** y
+       **después de la última**, así que la fila nacía despegada de los dos
+       bordes. La diferencia entre los dos es justo esa, y es la que se pide.
 
-        {/* En espera: pidieron una persona y ninguna les ha contestado aun.
-            Va detras de «Sin leer» porque es otro ESTADO del chat, y uno puede
-            estar leido y seguir esperando.
+       `overflow-hidden` se queda de red de seguridad y NO como la solución:
+       es preferible a una barra de deslizar, pero lo que de verdad evita que
+       una pastilla se corte es que los huecos de dentro cedan. */
+    <div className="flex w-full items-center justify-between gap-1 overflow-hidden">
+      {visibleTabs.map(renderTab)}
 
-            El CHIP esta siempre, desde el primer pintado y sin esperar dato:
-            quien no lo ve no sabe si es que no hay nadie esperando o que el
-            filtro no existe, y ademas la barra se queda quieta en vez de que
-            los chips salten de sitio cada vez que entra o sale uno. Lo que si
-            desaparece en cero es la INSIGNIA, como en «Sin leer».
+      {/* «Sin leer» —antes «No leídos»—. Dos palabras cortas en vez de dos
+          largas: en una fila que se pelea por el ancho, el rótulo es lo
+          único que se puede acortar sin quitar información. Se llama igual
+          en el atajo de la pantalla vacía: dos nombres para el mismo filtro
+          se leen como dos filtros. */}
+      {onToggleUnread && (
+        <button
+          type="button"
+          onClick={onToggleUnread}
+          className={cn(
+            PASTILLA,
+            unreadOnly
+              ? "border-orange-500 bg-orange-500 text-white"
+              : "border-orange-300 bg-orange-50 text-orange-500 hover:bg-orange-100 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-400 dark:hover:bg-orange-500/20"
+          )}
+        >
+          <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
+          <span className="shrink-0">Sin leer</span>
+          {(unreadCount ?? 0) > 0 && (
+            <>
+            <span aria-hidden="true" className={HUECO_ENTRE} />
+            <span
+              className={INSIGNIA}
+              style={{ background: unreadOnly ? "rgba(255,255,255,0.3)" : "#f97316" }}
+            >
+              {(unreadCount ?? 0) > 99 ? "99+" : unreadCount}
+            </span>
+            </>
+          )}
+          <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
+        </button>
+      )}
 
-            En rosa porque el naranja ya esta cogido dos veces -«Sin leer» y el
-            chip de minutos de la tarjeta-. */}
-        {onToggleEnEspera && (
-          <button
-            type="button"
-            onClick={onToggleEnEspera}
-            title="Pidieron una persona y ninguna les ha contestado aun"
-            aria-pressed={!!enEsperaOnly}
-            className={cn(
-              PASTILLA,
-              enEsperaOnly
-                ? "border-rose-600 bg-rose-600 text-white"
-                : "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
-            )}
-          >
-            <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
-            <span className="shrink-0">En espera</span>
-            {/* En cero NO se pinta insignia, igual que «Sin leer». Un «0» al
-                lado se lee como un dato y no lo es: lo que dice es que no hay
-                nada esperando, y eso ya lo dice la ausencia. El chip sigue ahi
-                -desde el primer pintado- para que se sepa que el filtro
-                existe. */}
-            {(enEsperaCount ?? 0) > 0 && (
-              <>
-              <span aria-hidden="true" className={HUECO_ENTRE} />
-              <span
-                className={cn(INSIGNIA, "tabular-nums")}
-                style={{ background: enEsperaOnly ? "rgba(255,255,255,0.3)" : "#e11d48" }}
-              >
-                {(enEsperaCount ?? 0) > 99 ? "99+" : enEsperaCount}
-              </span>
-              </>
-            )}
-            <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
-          </button>
-        )}
-      </div>
+      {/* En espera: pidieron una persona y ninguna les ha contestado aun.
+          Va detras de «Sin leer» porque es otro ESTADO del chat, y uno puede
+          estar leido y seguir esperando.
 
+          El CHIP esta siempre, desde el primer pintado y sin esperar dato:
+          quien no lo ve no sabe si es que no hay nadie esperando o que el
+          filtro no existe, y ademas la barra se queda quieta en vez de que
+          los chips salten de sitio cada vez que entra o sale uno. Lo que si
+          desaparece en cero es la INSIGNIA, como en «Sin leer».
 
+          En rosa porque el naranja ya esta cogido dos veces -«Sin leer» y el
+          chip de minutos de la tarjeta-. */}
+      {onToggleEnEspera && (
+        <button
+          type="button"
+          onClick={onToggleEnEspera}
+          title="Pidieron una persona y ninguna les ha contestado aun"
+          aria-pressed={!!enEsperaOnly}
+          className={cn(
+            PASTILLA,
+            enEsperaOnly
+              ? "border-rose-600 bg-rose-600 text-white"
+              : "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
+          )}
+        >
+          <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
+          <span className="shrink-0">En espera</span>
+          {/* En cero NO se pinta insignia, igual que «Sin leer». Un «0» al
+              lado se lee como un dato y no lo es: lo que dice es que no hay
+              nada esperando, y eso ya lo dice la ausencia. El chip sigue ahi
+              -desde el primer pintado- para que se sepa que el filtro
+              existe. */}
+          {(enEsperaCount ?? 0) > 0 && (
+            <>
+            <span aria-hidden="true" className={HUECO_ENTRE} />
+            <span
+              className={cn(INSIGNIA, "tabular-nums")}
+              style={{ background: enEsperaOnly ? "rgba(255,255,255,0.3)" : "#e11d48" }}
+            >
+              {(enEsperaCount ?? 0) > 99 ? "99+" : enEsperaCount}
+            </span>
+            </>
+          )}
+          <span aria-hidden="true" className={HUECO_QUE_ENCOGE} />
+        </button>
+      )}
+
+      {/* La flecha es UNA MÁS de la fila, no algo que va detrás de ella.
+          Como hermana de las pastillas entra en el reparto de
+          `justify-between`, así que el hueco que la separa de la última
+          pastilla es el mismo que hay entre dos pastillas. Fuera de la fila
+          —que es como estaba— ese hueco era todo el sobrante de golpe. */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
