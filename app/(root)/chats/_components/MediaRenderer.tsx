@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import type { MediaData } from './chat-message-types';
 import { MediaViewer, useMediaGallery } from './media-viewer';
 import { DocumentCard } from './DocumentCard';
-import { porQueNoHayTexto } from '@/lib/transcripcion-de-voz';
+import { TranscribirNota } from './TranscribirNota';
 
 /**
  * El ancho de un adjunto, que es tambien el del PIE que lo acompana.
@@ -55,8 +55,19 @@ interface MediaRendererProps {
    * vistazo, no un sustituto.
    */
   transcripcion?: string;
-  /** Por qué esta nota no tiene texto, cuando hay un motivo que contar. */
+  /** La marca que dejó el paso automático mientras existió. */
   transcripcionMotivo?: "muy_larga" | "fallo";
+  /** El id del mensaje: es lo que se le pide al servidor al pulsar. */
+  messageId?: string;
+  /** Lo que dura la nota. De aquí sale el precio que enseña el botón. */
+  audioSegundos?: number;
+  /**
+   * El botón de transcribir **solo se ofrece en lo que entra**.
+   *
+   * Lo que escribe el asesor —o la IA— ya está en texto en algún sitio, así que
+   * transcribirlo es pagar dos veces por algo que ya se tiene.
+   */
+  esEntrante?: boolean;
 }
 
 export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({
@@ -64,6 +75,9 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({
   reproducido,
   transcripcion,
   transcripcionMotivo,
+  messageId,
+  audioSegundos,
+  esEntrante,
 }) => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const gallery = useMediaGallery();
@@ -154,21 +168,25 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({
           </div>
         )}
 
-        {/* La transcripcion, debajo del audio y sin quitarlo.
+        {/* La transcripcion, debajo del audio y sin quitarlo — y su boton
+          * cuando todavia no la hay.
           *
-          * Y el MOTIVO cuando no hay texto: una nota sin transcripcion al lado
-          * de otras con transcripcion se lee como que la funcion esta rota, y
-          * eso acaba en una llamada a soporte. No sale para el caso de «sin
-          * creditos» —ahi el audio llega normal, como cualquier otro—, asi que
-          * lo unico que se explica es lo que es propio de ESTA nota. */}
-        {type === 'audio' && transcripcion && (
+          * Nada se transcribe al llegar: se pide, con el precio delante, y se
+          * guarda para no volver a cobrarlo. Si no sale, el MOTIVO se queda
+          * debajo de la nota: una nota sin texto al lado de otras con texto se
+          * lee como que la funcion esta rota, y eso acaba en una llamada a
+          * soporte. */}
+        {type === 'audio' && esEntrante && (
+          <TranscribirNota
+            messageId={messageId ?? ''}
+            segundos={audioSegundos}
+            transcripcion={transcripcion}
+            transcripcionMotivo={transcripcionMotivo}
+          />
+        )}
+        {type === 'audio' && !esEntrante && transcripcion && (
           <p className="mt-1 whitespace-pre-wrap break-words px-1 text-[13px] leading-snug text-gray-700 dark:text-gray-200">
             {transcripcion}
-          </p>
-        )}
-        {type === 'audio' && !transcripcion && transcripcionMotivo && (
-          <p className="mt-1 px-1 text-[11px] italic text-gray-500 dark:text-gray-400">
-            {porQueNoHayTexto(transcripcionMotivo)}
           </p>
         )}
 

@@ -324,6 +324,24 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     apiKeyData: info?.apiKeyData,
   });
 
+  /**
+   * De qué conversación son las notas de voz, para el botón de transcribirlas.
+   *
+   * Memorizado porque baja por CONTEXTO hasta el fondo de cada burbuja: un
+   * objeto nuevo en cada pintado invalidaría el contexto y con él todas las
+   * filas, que es justo lo que las reglas de esta pantalla prohíben —«la lista
+   * es grande, no rehacerla por gusto»—.
+   */
+  const conversacionDeLasNotas = useMemo(
+    () => ({
+      instanceName: info?.instanceName,
+      remoteJid: info?.remoteJid,
+      remoteJidAliases: info?.remoteJidAliases,
+      apiKeyData: info?.apiKeyData,
+    }),
+    [info?.instanceName, info?.remoteJid, info?.remoteJidAliases, info?.apiKeyData],
+  );
+
   /* ─── Derived display values ─── */
   // Sin nombre real, `header.name` cae en los dígitos crudos del JID: en ese
   // caso mostramos el número limpio (+57 300 123 4567) en vez del JID.
@@ -1293,6 +1311,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onJumpToMessage={irAlMensajeCitado}
         callPhone={(displayedWhatsapp || '').replace(/\D/g, '')}
         contactName={displayedContactName}
+        conversacion={conversacionDeLasNotas}
       />
 
       <SuggestedReplyBar

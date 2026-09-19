@@ -3439,9 +3439,17 @@ quien no alcanza esa cuenta tampoco tiene por qué saberlo.
 
 ## Notas de voz: se paga por MINUTO y el contador mide TOKENS
 
-Una nota de voz que entra se transcribe sola y el texto sale **debajo del
-audio, sin quitarlo**: el audio es lo que mandó el cliente —con su tono y sus
-pausas— y el texto es una ayuda para leerlo de un vistazo, no un sustituto.
+Una nota de voz se transcribe **cuando alguien pulsa su botón**, y el texto sale
+**debajo del audio, sin quitarlo**: el audio es lo que mandó el cliente —con su
+tono y sus pausas— y el texto es una ayuda para leerlo de un vistazo, no un
+sustituto.
+
+> **Nada se transcribe al llegar.** Durante un tiempo sí: el reloj de la
+> conversación abierta transcribía de fondo toda nota que entrara, **la leyera
+> alguien o no**. Con decenas de clientes por cuenta eso es plata que se va sola
+> —y la paga entera la cuenta dueña de la línea, aunque la nota sea un «ok,
+> gracias» de cuatro segundos—. Es el mismo trato que el chat del equipo, que
+> nació bajo demanda por este mismo motivo.
 
 Y **no hay cliente nuevo**: `actions/calls-recording-actions.ts` ya transcribía
 las grabaciones de llamadas con `gpt-4o-transcribe` y respaldo en `whisper-1`.
@@ -3509,55 +3517,93 @@ lo lee, actúa, y lo que importaba estaba en el minuto siete. Es *media escalada
 es peor que ninguna* — una transcripción a medias no se ve como incompleta, se
 ve como completa.
 
-### «Sin créditos» es ESPERAR; «muy larga» es SALTAR
+### El «No se pudo transcribir.» de la captura: el audio se pedía SOLO a Evolution
 
-La diferencia decide si se deja marca, y no es intercambiable:
+No era un fallo de OpenAI, y no era intermitente. El paso automático bajaba el
+audio con `getBase64FromMediaMessage` —una ruta **de Evolution**— y se rendía en
+su primera línea cuando no había clave:
 
-| | se marca | se reintenta |
+```ts
+if (!instanceName || !apiKeyData?.url || !apiKeyData?.key) return "";
+```
+
+Y una línea de **WhatsApp Mensajería (Waha) no tiene clave de Evolution**:
+`resolverContexto` se la quita **a propósito**, porque preguntarle a Evolution
+por una línea de Waha «devuelve correcto y vacío». Así que en esas líneas esa
+condición era falsa **siempre**: ni una sola nota se transcribía nunca, todas se
+marcaban `fallo`, y la marca era **definitiva** —quien llamaba excluía de la
+siguiente vuelta toda fila con `transcripcionMotivo`—. Es la misma familia que
+el #792: *el proveedor sale de la fila, no del parámetro.*
+
+**La respuesta estaba delante:** la burbuja ya reproduce ese audio, y lo hace
+desde `chat_messages.mediaUrl`, la copia que guarda el backend. **Si el
+`<audio>` puede sonar, nosotros podemos bajar los mismos bytes.** Así que el
+camino principal es `mediaUrl`, que funciona en los dos proveedores, y Evolution
+queda de respaldo para las filas viejas que se guardaron sin él.
+
+### Un fallo es de HOY: no deja marca, no cobra y se puede reintentar
+
+Es la distinción que estaba al revés, y la que convertía un tropiezo en un daño
+permanente:
+
+| | deja marca | se reintenta |
 | --- | --- | --- |
-| muy larga, o falló la llamada | sí | no — mañana seguirá siendo igual de larga |
+| muy larga | no hace falta: se decide por la duración, antes de bajar un byte | no — mañana seguirá siendo igual de larga |
 | sin créditos | **no** | sí, en cuanto haya |
+| no se pudo bajar el audio, u OpenAI no contestó | **no** | **sí, pulsando otra vez** |
 
-Marcando el segundo, esa nota no se transcribiría **jamás** aunque la cuenta
-recargue esta tarde. Quedarse sin créditos es de hoy, no de la nota.
+Aquí la nota la pidió una persona, así que un fallo de hoy —la red, un pico de
+OpenAI— se reintenta y **no se ha cobrado nada**, porque el cobro va después de
+tener el texto. Marcarlo dejaría esa nota sin transcribir para siempre y sin
+decir por qué, que es exactamente lo que se veía.
 
-Y del lado de la pantalla, la otra mitad de esa distinción: **el motivo se
-enseña; la falta de créditos no.** Una nota sin texto al lado de otras con texto
-se lee como que la función está rota —y eso es una llamada a soporte—, así que
-lo que es propio de ESA nota se explica en una línea discreta debajo. Sin
-créditos, en cambio, el audio llega **normal**, como cualquier otro: ni aviso ni
-error para el asesor. Solo la consola lo dice.
+Y **el motivo se dice, con el detalle que decide qué hacer**. «No se pudo
+transcribir.» a secas es lo peor posible: no se sabe si recargar créditos,
+avisar a soporte o sencillamente volver a pulsar. Son ocho valores en
+`NoSeTranscribio` con su frase cada uno —sin créditos sale **con los números
+delante**— y se quedan **debajo de la nota**, no en un aviso que se va: quien ve
+pasar un mensaje de un segundo no sabe después por qué no hay texto.
 
-### Dónde corre, y por qué no es un webhook
+**Las marcas viejas se ignoran al leer, sin backfill.** `laMarcaVieja` deja
+`muy_larga` como explicación —eso sí es firme— y trata `fallo` como «todavía no
+se ha pedido», así que las notas que hoy dicen «No se pudo transcribir.» vuelven
+a ofrecer su botón en cuanto esto despliegue, sin tocar una sola fila. Al
+guardar el texto la marca se borra.
+
+### Dónde corre, y cómo se guarda
 
 **La App no recibe los webhooks de WhatsApp**: los recibe el backend, que es
-otro repositorio. Así que «cuando llega la nota» aquí significa **cuando la App
-la ve**, o sea en el reloj de la conversación abierta.
+otro repositorio. Así que la nota se transcribe cuando alguien pulsa su botón en
+la conversación, en una acción de servidor y no en ningún reloj.
 
-Corre **de fondo, sin `await`**: la conversación no espera a OpenAI para
-pintarse, el resultado se guarda y la vuelta siguiente del reloj —cinco
-segundos— ya lo trae. Es *agotar la espera no es tirar la respuesta* aplicado
-aquí.
-
-Tres cosas más:
+Cuatro cosas que hay que mantener:
 
 1. **La transcripción va en `raw`, NO en una columna nueva.** Es la misma
    decisión que ya tomaron `sentByAi` y `notaInterna`, con su motivo escrito al
    lado: **`chat_messages` la escriben tres sitios distintos** —la App, el
    webhook del backend y el chat-store— y añadirle columnas desde aquí es lo que
-   reventó el #360. Se escribe con un **merge de JSONB**
-   (`raw || jsonb_build_object(...)`): escribir el objeto entero se llevaría por
-   delante la foto de Evolution, los acuses y las reacciones. Comprobado contra
-   Postgres con las tres cosas dentro.
-2. **Se atiende un puñado por vuelta.** Abrir una conversación vieja con
-   doscientas notas sin transcribir no puede disparar doscientas llamadas de
-   golpe.
-3. **Los créditos se leen UNA vez por vuelta**, no una por nota: con una
-   consulta por nota, diez notas pendientes son diez lecturas de la misma fila
-   — «muchas peticiones pequeñas son turno, no trabajo», por dentro.
+   reventó el #360. Se escribe con un **merge de JSONB**: escribir el objeto
+   entero se llevaría por delante la foto de Evolution, los acuses y las
+   reacciones.
+2. **Y los PARÉNTESIS de ese merge no son estilo.** En Postgres el `-` que quita
+   una clave liga **más fuerte** que el `||` que mezcla, así que
+   `raw || objeto - 'clave'` se lee como `raw || (objeto - 'clave')`: la clave se
+   le quita al objeto recién construido —donde no está— y la marca vieja **se
+   quedaba puesta** junto al texto bueno. Lo cazó el banco.
+3. **El `WHERE` del guardado es lo que impide pagar dos veces.** Va
+   `AND raw->>'transcripcion' = ''`, así que con dos asesores pulsando a la vez
+   solo una llamada escribe, y **solo esa descuenta**. Comprobado lanzando las
+   dos en paralelo: una fila escrita, un cobro.
+4. **Se cobra DESPUÉS de tener el texto**: cobrar antes y que la llamada falle
+   sería cobrar por algo que no se entregó. Y no se cobra cuando la cuenta paga
+   su propia IA.
 
-Y **se cobra DESPUÉS de tener el texto**: cobrar antes y que la llamada falle
-sería cobrar por algo que no se entregó.
+**El precio se ve ANTES de pulsar**, como en el chat del equipo: el botón dice
+«Transcribir (3 créditos)», porque la duración **es** el precio. Una nota por
+encima del tope no ofrece botón y dice por qué — un botón que al pulsarlo da
+error es peor que no tenerlo. Y **solo se ofrece en lo que entra**: lo que
+escribe el asesor o la IA ya está en texto, así que transcribirlo es pagar dos
+veces por algo que ya se tiene.
 
 ## Salud del envío: un envío automático que falla deja rastro, o no ha fallado
 

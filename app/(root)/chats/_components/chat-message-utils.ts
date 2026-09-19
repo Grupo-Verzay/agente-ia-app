@@ -1126,8 +1126,14 @@ export function toUIMessages(
 
   // La transcripción de una nota de voz, por el mismo camino que la reacción:
   // viaja colgada del mensaje —en `raw`, no en una columna— y se pega a su
-  // burbuja aquí. Ver `lib/transcribir-notas.ts`.
-  const textos = new Map<string, { texto?: string; motivo?: 'muy_larga' | 'fallo' }>();
+  // burbuja aquí. Ver `lib/transcribir-nota-de-chat.ts`.
+  //
+  // Y con ella la DURACIÓN, que es lo que el botón necesita para decir el
+  // precio antes de que nadie lo pulse.
+  const textos = new Map<
+    string,
+    { texto?: string; motivo?: 'muy_larga' | 'fallo'; segundos?: number }
+  >();
   for (const m of messages) {
     const id = m.key?.id ?? '';
     if (!id) continue;
@@ -1137,7 +1143,11 @@ export function toUIMessages(
       conTexto.transcripcionMotivo === 'muy_larga' || conTexto.transcripcionMotivo === 'fallo'
         ? conTexto.transcripcionMotivo
         : undefined;
-    if (texto || motivo) textos.set(id, { texto, motivo });
+    const crudos = (m.message as { audioMessage?: { seconds?: unknown } } | undefined)
+      ?.audioMessage?.seconds;
+    const segundos = Number(crudos);
+    const dura = Number.isFinite(segundos) && segundos > 0 ? segundos : undefined;
+    if (texto || motivo || dura !== undefined) textos.set(id, { texto, motivo, segundos: dura });
   }
   if (textos.size) {
     for (const b of result) {
@@ -1145,6 +1155,7 @@ export function toUIMessages(
       if (!dato) continue;
       if (dato.texto) b.transcripcion = dato.texto;
       if (dato.motivo) b.transcripcionMotivo = dato.motivo;
+      if (dato.segundos !== undefined) b.audioSegundos = dato.segundos;
     }
   }
   return result;
