@@ -6,7 +6,12 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isAdminLike } from "@/lib/rbac";
 import { BillingUpsertInput, ResponseFormat, UserBilling } from "@/types/billing";
-import { createInstanceInternal, deleteInstanceInternal } from "@/actions/api-action";
+// Suspender por impago **no toca la sesión de WhatsApp**: apaga el agente.
+// Antes esto borraba la instancia —`logout` y `delete` contra Evolution, y la
+// fila fuera—, así que al pagar había que reescanear el QR. El porqué, y por
+// qué la misma llamada vale para Evolution y para Waha, está escrito en
+// `lib/robot-por-facturacion.ts`; aquí solo se llama.
+import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-facturacion";
 
 import {
     loadBillingDispatcherConfig,
@@ -29,28 +34,6 @@ import {
 
 const isProvided = (value: unknown) =>
     value !== null && value !== undefined && String(value).trim() !== "";
-
-async function deleteInstanceOnSuspension(userId: string) {
-    const deleteResult = await deleteInstanceInternal(userId);
-    if (deleteResult.success && deleteResult.instanceName) {
-        await db.userBilling.update({
-            where: { userId },
-            data: { lastInstanceName: deleteResult.instanceName },
-        });
-    }
-    return deleteResult;
-}
-
-async function createInstanceOnReactivation(userId: string, instanceName: string) {
-    const createResult = await createInstanceInternal(userId, instanceName);
-    if (createResult.success) {
-        await db.userBilling.update({
-            where: { userId },
-            data: { lastInstanceName: null },
-        });
-    }
-    return createResult;
-}
 
 async function syncSessionClientStatus(userId: string, isActive: boolean): Promise<void> {
     await db.session.updateMany({
@@ -93,9 +76,14 @@ async function runManualStatusSideEffects(args: {
     }
 
     const dispatcher = await loadBillingDispatcherConfig();
+    // El webhook va SIEMPRE encendido, pase lo que pase con el cobro: es lo que
+    // trae los avisos en vivo y lo que guarda el historial. Apagarlo al
+    // suspender dejaba la línea sin las dos cosas, y eso desde fuera no se lee
+    // como una cuenta suspendida — se lee como una App rota. Lo que calla al
+    // agente es el Robot, unas líneas más abajo.
     const webhookResult = await setUserBillingWebhookEnabled({
         userId: updated.userId,
-        enable: updated.billingStatus !== "UNPAID" || updated.accessStatus !== "SUSPENDED",
+        enable: true,
     });
     const notificationResult = await sendBillingStateChangeMessage({
         billing: updated,
@@ -116,21 +104,15 @@ async function runManualStatusSideEffects(args: {
         updated.accessStatus === "SUSPENDED";
 
     if (wasJustSuspended) {
-        await deleteInstanceOnSuspension(updated.userId);
+        await apagarElRobotPorImpago(updated.userId);
     }
 
     const wasReactivated =
         args.previousAccessStatus === "SUSPENDED" &&
         updated.accessStatus === "ACTIVE";
 
-    if (wasReactivated && updated.lastInstanceName) {
-        const createResult = await createInstanceInternal(updated.userId, updated.lastInstanceName);
-        if (createResult.success) {
-            await db.userBilling.update({
-                where: { userId: updated.userId },
-                data: { lastInstanceName: null },
-            });
-        }
+    if (wasReactivated) {
+        await devolverElRobotAlPagar(updated.userId);
     }
 
     return {
@@ -305,9 +287,14 @@ export async function upsertUserBillingConfig(
 
         if (syncResult.stateChanged) {
             if (syncResult.billing?.accessStatus === "SUSPENDED") {
-                await deleteInstanceOnSuspension(scopedUserId);
-            } else if (billing.accessStatus === "SUSPENDED" && syncResult.billing?.accessStatus === "ACTIVE" && syncResult.billing.lastInstanceName) {
-                await createInstanceOnReactivation(scopedUserId, syncResult.billing.lastInstanceName);
+                await apagarElRobotPorImpago(scopedUserId);
+            } else if (billing.accessStatus === "SUSPENDED" && syncResult.billing?.accessStatus === "ACTIVE") {
+                // Sin `lastInstanceName` en la condicion: esa columna decia que
+                // habia una instancia BORRADA que recrear, y ya no se borra
+                // ninguna. Dejandola, una cuenta suspendida antes de este
+                // cambio -o cualquiera de ahora en adelante- se quedaba sin que
+                // se le devolviera el agente al pagar.
+                await devolverElRobotAlPagar(scopedUserId);
             }
         }
 
@@ -365,9 +352,14 @@ export async function setUserBillingDueDate(
 
         if (syncResult.stateChanged) {
             if (syncResult.billing?.accessStatus === "SUSPENDED") {
-                await deleteInstanceOnSuspension(scopedUserId);
-            } else if (billing.accessStatus === "SUSPENDED" && syncResult.billing?.accessStatus === "ACTIVE" && syncResult.billing.lastInstanceName) {
-                await createInstanceOnReactivation(scopedUserId, syncResult.billing.lastInstanceName);
+                await apagarElRobotPorImpago(scopedUserId);
+            } else if (billing.accessStatus === "SUSPENDED" && syncResult.billing?.accessStatus === "ACTIVE") {
+                // Sin `lastInstanceName` en la condicion: esa columna decia que
+                // habia una instancia BORRADA que recrear, y ya no se borra
+                // ninguna. Dejandola, una cuenta suspendida antes de este
+                // cambio -o cualquiera de ahora en adelante- se quedaba sin que
+                // se le devolviera el agente al pagar.
+                await devolverElRobotAlPagar(scopedUserId);
             }
         }
 

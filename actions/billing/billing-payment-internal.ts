@@ -19,7 +19,9 @@ import {
     setUserBillingWebhookEnabled,
 } from "./helpers/billing-notifications.server";
 import { toDate } from "./helpers/billing-helpers";
-import { createInstanceInternal, deleteInstanceInternal } from "@/actions/api-action";
+// Ver `lib/robot-por-facturacion.ts`: al vencer se apaga el agente y la sesion
+// de WhatsApp se queda viva, asi que al pagar no hay QR que reescanear.
+import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-facturacion";
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -45,26 +47,6 @@ export type ConfirmPaymentResult = {
 // Helpers privados
 // ---------------------------------------------------------------------------
 
-async function deleteInstanceOnSuspension(userId: string) {
-    const result = await deleteInstanceInternal(userId);
-    if (result.success && result.instanceName) {
-        await db.userBilling.update({
-            where: { userId },
-            data: { lastInstanceName: result.instanceName },
-        });
-    }
-}
-
-async function createInstanceOnReactivation(userId: string, instanceName: string) {
-    const result = await createInstanceInternal(userId, instanceName);
-    if (result.success) {
-        await db.userBilling.update({
-            where: { userId },
-            data: { lastInstanceName: null },
-        });
-    }
-}
-
 async function runStatusSideEffects(args: {
     userId: string;
     previousBillingStatus?: string | null;
@@ -81,9 +63,12 @@ async function runStatusSideEffects(args: {
 
     const dispatcher = await loadBillingDispatcherForUser(updated.userId);
 
+    // Encendido SIEMPRE: el webhook es lo que trae los avisos en vivo y lo que
+    // guarda el historial, y apagarlo al suspender dejaba la linea sin las dos
+    // cosas. Lo que calla al agente es el Robot, aqui debajo.
     await setUserBillingWebhookEnabled({
         userId: updated.userId,
-        enable: !(updated.billingStatus === "UNPAID" && updated.accessStatus === "SUSPENDED"),
+        enable: true,
     });
 
     await sendBillingStateChangeMessage({
@@ -95,13 +80,13 @@ async function runStatusSideEffects(args: {
     const wasJustSuspended =
         args.previousAccessStatus !== "SUSPENDED" && updated.accessStatus === "SUSPENDED";
     if (wasJustSuspended) {
-        await deleteInstanceOnSuspension(updated.userId);
+        await apagarElRobotPorImpago(updated.userId);
     }
 
     const wasReactivated =
         args.previousAccessStatus === "SUSPENDED" && updated.accessStatus === "ACTIVE";
-    if (wasReactivated && updated.lastInstanceName) {
-        await createInstanceOnReactivation(updated.userId, updated.lastInstanceName);
+    if (wasReactivated) {
+        await devolverElRobotAlPagar(updated.userId);
     }
 }
 
