@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { google } from 'googleapis';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 export type FormAnswer = { questionId: string; label: string; answer: string };
 
@@ -140,8 +141,17 @@ async function syncResponseToSheets(
   }
 }
 
+/** El dueño sale de la FILA, no del navegador. */
+async function alcanzoLaRespuesta(where: { id?: string; appointmentId?: string; bookingAppointmentId?: string }) {
+  const suya = await db.bookingFormResponse.findUnique({ where: where as any, select: { userId: true } });
+  if (!suya?.userId) return false;
+  return Boolean(await laCuentaDeLaAccion(suya.userId));
+}
+
 export async function getBookingFormResponse(appointmentId: string): Promise<FormAnswer[] | null> {
   try {
+    if (!(await alcanzoLaRespuesta({ appointmentId }))) return null;
+
     const r = await db.bookingFormResponse.findUnique({
       where: { appointmentId },
       select: { answers: true },
@@ -154,6 +164,8 @@ export async function getBookingFormResponse(appointmentId: string): Promise<For
 
 export async function getBookingFormResponseByBooking(bookingAppointmentId: string): Promise<FormAnswer[] | null> {
   try {
+    if (!(await alcanzoLaRespuesta({ bookingAppointmentId }))) return null;
+
     const r = await db.bookingFormResponse.findUnique({
       where: { bookingAppointmentId },
       select: { answers: true },
@@ -187,8 +199,11 @@ export type BookingResponseRow = {
 export async function getBookingFormResponses(userId: string): Promise<BookingResponseRow[]> {
   if (!userId) return [];
   try {
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return [];
+
     const rows = await db.bookingFormResponse.findMany({
-      where: { userId },
+      where: { userId: cuenta },
       orderBy: { createdAt: 'desc' },
       include: {
         appointment: {
@@ -239,6 +254,8 @@ export async function getBookingFormResponses(userId: string): Promise<BookingRe
 export async function deleteBookingFormResponse(id: string): Promise<{ success: boolean }> {
   if (!id) return { success: false };
   try {
+    if (!(await alcanzoLaRespuesta({ id }))) return { success: false };
+
     await db.bookingFormResponse.delete({ where: { id } });
     return { success: true };
   } catch {

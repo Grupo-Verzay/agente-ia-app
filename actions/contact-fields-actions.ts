@@ -8,6 +8,7 @@ import {
   DEFAULT_CONTACT_FIELDS,
   normalizeContactFieldsConfig,
 } from '@/lib/contact-fields';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 /**
  * Devuelve la config de campos de la ficha de contacto del usuario.
@@ -15,8 +16,14 @@ import {
  */
 export async function getContactFieldsConfig(userId: string): Promise<ContactFieldDef[]> {
   try {
+    // Su hermana `saveContactFieldsConfig` ya preguntaba; a esta se le había
+    // pasado. Sin campos no se puede pintar la ficha, así que un rechazo
+    // devuelve los de por defecto y no un hueco.
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return DEFAULT_CONTACT_FIELDS;
+
     const u = await db.user.findUnique({
-      where: { id: userId },
+      where: { id: cuenta },
       select: { contactFieldsConfig: true },
     });
     if (!u?.contactFieldsConfig) return DEFAULT_CONTACT_FIELDS;

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 export type CatalogConfigData = {
   whatsappNumber: string | null;
@@ -35,7 +36,17 @@ const EMPTY: CatalogConfigData = {
 };
 
 export async function getCatalogConfig(userId: string): Promise<CatalogConfigData> {
-  const config = await db.catalogConfig.findUnique({ where: { userId } });
+  // Sus hermanas de este fichero ya preguntaban por `currentUser()`; a esta se
+  // le había pasado, y el `userId` del navegador entraba directo al `where`.
+  // Al rechazar se devuelve la config vacía, no un hueco: quien la lee pinta un
+  // formulario.
+  //
+  // **No es `getPublicCatalog`**: aquella la abren dos páginas sin sesión y por
+  // eso se queda sin guarda a propósito; esta solo la abre el panel.
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return EMPTY;
+
+  const config = await db.catalogConfig.findUnique({ where: { userId: cuenta } });
   if (!config) return EMPTY;
   return {
     whatsappNumber: config.whatsappNumber,

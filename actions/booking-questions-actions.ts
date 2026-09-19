@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { BookingQuestionType } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 export type BookingQuestionItem = {
   id: string;
@@ -39,8 +40,13 @@ async function getOwnedQuestion(id: string, userId: string) {
 
 export async function getBookingQuestions(userId: string, teamServiceId?: string | null): Promise<BookingQuestionItem[]> {
   try {
+    // `getActiveBookingQuestions` se queda sin guarda a propósito —la abre la
+    // página pública de reservas—; esta solo la abre el editor, así que sí.
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return [];
+
     const rows = await db.bookingQuestion.findMany({
-      where: { userId, teamServiceId: teamServiceId ?? null },
+      where: { userId: cuenta, teamServiceId: teamServiceId ?? null },
       orderBy: { order: 'asc' },
       select: { id: true, teamServiceId: true, label: true, type: true, options: true, required: true, order: true, active: true },
     });

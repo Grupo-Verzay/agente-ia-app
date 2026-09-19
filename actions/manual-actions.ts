@@ -3,6 +3,28 @@
 import { db } from '@/lib/db'
 import { Manual } from '@prisma/client'
 import { z } from 'zod'
+import { currentUser } from '@/lib/auth'
+import { rolQueManda } from '@/lib/cuenta-que-manda'
+import { isAdminLike } from '@/lib/rbac'
+
+/**
+ * Este fichero no tenía **ni una** llamada a `currentUser()`, así que crear,
+ * editar y borrar un manual lo podía hacer cualquiera con sesión — y hasta sin
+ * ella. Se veía en la propia pantalla: llamaba a `createManual('userId', …)`
+ * con la cadena literal, porque ese parámetro no lo usaba nadie.
+ *
+ * Y aquí la guarda **no es `laCuentaDeLaAccion`**: `Manual` no tiene dueño, es
+ * contenido de la casa. La pregunta no es «¿alcanzas esta cuenta?» sino «¿puedes
+ * escribir en la documentación de la plataforma?», y eso se pregunta con el rol
+ * de la CUENTA por la que se actúa, como el resto del panel.
+ *
+ * **Leer sí lo puede todo el que tenga sesión**: es la guía, y está para leerla.
+ */
+async function puedeEscribirManuales() {
+    const persona = await currentUser()
+    if (!persona?.id) return false
+    return isAdminLike(await rolQueManda(persona))
+}
 
 // ===================
 // 📥 CREATE MANUAL
@@ -23,6 +45,10 @@ export async function createManual(
     userId: string,
     values: z.infer<typeof createManualSchema>
 ): Promise<ManualResponse> {
+    if (!(await puedeEscribirManuales())) {
+        return { success: false, message: 'No autorizado.' }
+    }
+
     const validated = createManualSchema.safeParse(values)
 
     if (!validated.success) {
@@ -60,6 +86,9 @@ export async function createManual(
 // ===================
 export async function getManuals(): Promise<ManualResponse> {
     try {
+        const persona = await currentUser()
+        if (!persona?.id) return { success: false, message: 'No autorizado.' }
+
         const list = await db.manual.findMany({
             orderBy: { name: 'asc' },
         })
@@ -89,6 +118,10 @@ const updateManualSchema = z.object({
 })
 
 export async function updateManual(values: z.infer<typeof updateManualSchema>): Promise<ManualResponse> {
+    if (!(await puedeEscribirManuales())) {
+        return { success: false, message: 'No autorizado.' }
+    }
+
     const validated = updateManualSchema.safeParse(values)
 
     if (!validated.success) {
@@ -125,6 +158,10 @@ export async function updateManual(values: z.infer<typeof updateManualSchema>): 
 // 🗑 DELETE MANUAL
 // ===================
 export async function deleteManual(id: string): Promise<ManualResponse> {
+    if (!(await puedeEscribirManuales())) {
+        return { success: false, message: 'No autorizado.' }
+    }
+
     try {
         await db.manual.delete({
             where: { id },

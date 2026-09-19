@@ -13,6 +13,57 @@ import { es } from 'date-fns/locale';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { DEFAULT_SERVICE_REMINDERS } from '@/types/reminder';
 import { serviceDefaultMsg } from '@/app/(root)/schedule/_components/services/defaultServiceValues';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+
+/**
+ * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId`, el
+ * `teamId`, el `memberId` y el `serviceId` llegaban del navegador y entraban
+ * directos al `where` y al `create`. Con la sesión de cualquier cuenta y otro
+ * id se leía, se cambiaba y se **borraba** la agenda de reservas de otra.
+ *
+ * Ninguno de esos ids trae dueño, así que **el dueño sale de la fila**: el
+ * equipo cuelga de su cuenta y lo demás cuelga del equipo. Es la misma regla de
+ * siempre —un `where` sin dueño es el mismo hueco sin el id delante—.
+ *
+ * **Las cuatro del flujo de reserva se quedan fuera a propósito**
+ * —`getPublicTeamData`, `getAvailableBookingSlots`, `createBookingAppointment`
+ * y `sendBookingNotifications`—: las abre la página de reservas, donde quien
+ * elige hora **no es de la cuenta**. Comprobar el alcance ahí sería cerrar la
+ * función entera, igual que pasa con `getPublicCatalog`.
+ */
+
+async function laCuentaDelEquipo(teamId: string) {
+    const suyo = await db.team.findUnique({ where: { id: teamId }, select: { userId: true } });
+    if (!suyo?.userId) return null;
+    return laCuentaDeLaAccion(suyo.userId);
+}
+
+async function laCuentaDelMiembro(memberId: string) {
+    const suyo = await db.teamMember.findUnique({
+        where: { id: memberId },
+        select: { team: { select: { userId: true } } },
+    });
+    if (!suyo?.team?.userId) return null;
+    return laCuentaDeLaAccion(suyo.team.userId);
+}
+
+async function laCuentaDelServicio(serviceId: string) {
+    const suyo = await db.teamService.findUnique({
+        where: { id: serviceId },
+        select: { team: { select: { userId: true } } },
+    });
+    if (!suyo?.team?.userId) return null;
+    return laCuentaDeLaAccion(suyo.team.userId);
+}
+
+async function laCuentaDeLaReserva(id: string) {
+    const suya = await db.bookingAppointment.findUnique({
+        where: { id },
+        select: { team: { select: { userId: true } } },
+    });
+    if (!suya?.team?.userId) return null;
+    return laCuentaDeLaAccion(suya.team.userId);
+}
 
 // ─── Tipos de respuesta ───────────────────────────────────────────────────────
 
@@ -24,8 +75,11 @@ type OpResult<T = undefined> = T extends undefined
 
 export async function getOrCreateTeam(userId: string) {
     try {
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, message: 'No autorizado.' };
+
         let team = await db.team.findUnique({
-            where: { userId },
+            where: { userId: cuenta },
             include: {
                 members: {
                     where: { isActive: true },
@@ -43,10 +97,10 @@ export async function getOrCreateTeam(userId: string) {
         });
 
         if (!team) {
-            const user = await db.user.findUnique({ where: { id: userId }, select: { name: true, timezone: true } });
+            const user = await db.user.findUnique({ where: { id: cuenta }, select: { name: true, timezone: true } });
             team = await db.team.create({
                 data: {
-                    userId,
+                    userId: cuenta,
                     name: `Equipo de ${user?.name ?? 'Mi Empresa'}`,
                     timezone: user?.timezone ?? 'America/Bogota',
                 },
@@ -79,6 +133,10 @@ export async function updateTeam(
     data: { name?: string; description?: string; timezone?: string; isActive?: boolean; minNoticeMinutes?: number },
 ): Promise<OpResult<{ id: string }>> {
     try {
+        if (!(await laCuentaDelEquipo(teamId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const updated = await db.team.update({ where: { id: teamId }, data, select: { id: true } });
         return { success: true, message: 'Equipo actualizado.', data: updated };
     } catch (error) {
@@ -93,6 +151,10 @@ export async function getBookingStatusCounts(teamId: string): Promise<{
     message?: string;
 }> {
     try {
+        if (!(await laCuentaDelEquipo(teamId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const counts = await db.bookingAppointment.groupBy({
             by: ['status'],
             where: { teamId },
@@ -112,6 +174,10 @@ export async function getBookingStatusCounts(teamId: string): Promise<{
 
 export async function getTeamMembers(teamId: string) {
     try {
+        if (!(await laCuentaDelEquipo(teamId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const members = await db.teamMember.findMany({
             where: { teamId },
             include: {
@@ -132,6 +198,10 @@ export async function createTeamMember(
     data: { name: string; bio?: string; photo?: string; color?: string },
 ) {
     try {
+        if (!(await laCuentaDelEquipo(teamId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const member = await db.teamMember.create({ data: { teamId, ...data } });
         return { success: true, message: 'Especialista creado.', data: member };
     } catch (error) {
@@ -145,6 +215,10 @@ export async function updateTeamMember(
     data: { name?: string; bio?: string; photo?: string; color?: string; isActive?: boolean; defaultDuration?: number; meetingLink?: string | null; minNoticeMinutes?: number },
 ) {
     try {
+        if (!(await laCuentaDelMiembro(memberId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const member = await db.teamMember.update({ where: { id: memberId }, data });
         return { success: true, message: 'Especialista actualizado.', data: member };
     } catch (error) {
@@ -155,6 +229,10 @@ export async function updateTeamMember(
 
 export async function deleteTeamMember(memberId: string): Promise<OpResult> {
     try {
+        if (!(await laCuentaDelMiembro(memberId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.teamMember.delete({ where: { id: memberId } });
         return { success: true, message: 'Especialista eliminado.' };
     } catch (error) {
@@ -176,6 +254,10 @@ export async function setMemberAvailability(
     slots: AvailabilitySlot[],
 ): Promise<OpResult> {
     try {
+        if (!(await laCuentaDelMiembro(memberId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.$transaction([
             db.teamMemberAvailability.deleteMany({ where: { teamMemberId: memberId } }),
             db.teamMemberAvailability.createMany({
@@ -194,6 +276,10 @@ export async function setMemberAvailability(
 
 export async function getTeamServices(teamId: string) {
     try {
+        if (!(await laCuentaDelEquipo(teamId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const services = await db.teamService.findMany({
             where: { teamId },
             include: { members: { select: { teamMemberId: true } } },
@@ -211,6 +297,10 @@ export async function createTeamService(
     data: { name: string; description?: string; duration: number; messageText?: string; remindersConfig?: any; color?: string; order?: number },
 ) {
     try {
+        if (!(await laCuentaDelEquipo(teamId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         // Sembrar valores por defecto al crear: mensaje de confirmación y los 5
         // recordatorios por servicio, salvo que ya vengan definidos.
         const hasReminders =
@@ -235,6 +325,10 @@ export async function updateTeamService(
     data: { name?: string; description?: string; duration?: number; messageText?: string; remindersConfig?: any; color?: string; order?: number; isActive?: boolean },
 ) {
     try {
+        if (!(await laCuentaDelServicio(serviceId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const service = await db.teamService.update({ where: { id: serviceId }, data });
         return { success: true, message: 'Servicio actualizado.', data: service };
     } catch (error) {
@@ -245,6 +339,10 @@ export async function updateTeamService(
 
 export async function deleteTeamService(serviceId: string): Promise<OpResult> {
     try {
+        if (!(await laCuentaDelServicio(serviceId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.teamService.delete({ where: { id: serviceId } });
         return { success: true, message: 'Servicio eliminado.' };
     } catch (error) {
@@ -257,6 +355,10 @@ export async function deleteTeamService(serviceId: string): Promise<OpResult> {
 
 export async function assignServiceToMember(memberId: string, serviceId: string): Promise<OpResult> {
     try {
+        if (!(await laCuentaDelMiembro(memberId)) || !(await laCuentaDelServicio(serviceId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.teamMemberService.upsert({
             where: { teamMemberId_teamServiceId: { teamMemberId: memberId, teamServiceId: serviceId } },
             create: { teamMemberId: memberId, teamServiceId: serviceId },
@@ -271,6 +373,10 @@ export async function assignServiceToMember(memberId: string, serviceId: string)
 
 export async function removeServiceFromMember(memberId: string, serviceId: string): Promise<OpResult> {
     try {
+        if (!(await laCuentaDelMiembro(memberId)) || !(await laCuentaDelServicio(serviceId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.teamMemberService.delete({
             where: { teamMemberId_teamServiceId: { teamMemberId: memberId, teamServiceId: serviceId } },
         });
@@ -285,6 +391,10 @@ export async function removeServiceFromMember(memberId: string, serviceId: strin
 
 export async function getBookingAppointments(teamId: string) {
     try {
+        if (!(await laCuentaDelEquipo(teamId))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         const list = await db.bookingAppointment.findMany({
             where: { teamId },
             include: {
@@ -395,6 +505,10 @@ export async function createBookingAppointment(input: CreateBookingInput) {
 
 export async function updateBookingAppointmentStatus(id: string, status: AppointmentStatus): Promise<OpResult> {
     try {
+        if (!(await laCuentaDeLaReserva(id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.bookingAppointment.update({ where: { id }, data: { status } });
         return { success: true, message: 'Estado actualizado.' };
     } catch (error) {
@@ -405,6 +519,10 @@ export async function updateBookingAppointmentStatus(id: string, status: Appoint
 
 export async function deleteBookingAppointment(id: string): Promise<OpResult> {
     try {
+        if (!(await laCuentaDeLaReserva(id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+
         await db.bookingAppointment.delete({ where: { id } });
         return { success: true, message: 'Cita eliminada.' };
     } catch (error) {
