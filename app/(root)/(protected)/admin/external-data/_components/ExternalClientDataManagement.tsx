@@ -230,6 +230,8 @@ export function ExternalClientDataManagement({
             data={records}
             total={total}
             onCreateNew={handleCreateNew}
+            userId={selectedUserId}
+            onBorrado={() => void loadRecords(selectedUserId)}
           />
         )
       ) : (
