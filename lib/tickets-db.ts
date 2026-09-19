@@ -92,6 +92,25 @@ function asegurarLasTablas(): Promise<void> {
     await db.$executeRaw`
       ALTER TABLE "tickets_de_soporte" ADD COLUMN IF NOT EXISTS "responsableId" TEXT
     `;
+    // Cuando hay que tenerlo resuelto. NULO = sin vencimiento, que es lo normal
+    // y por eso es opcional de verdad: la mayoria de los tickets no se
+    // comprometen a una fecha, y obligar a poner una llenaria el tablero de
+    // fechas inventadas que despues avisan.
+    //
+    // Va con ALTER y no reescribiendo el CREATE de arriba, por lo mismo que
+    // `responsableId`: la tabla YA existe en produccion y un
+    // `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya esta.
+    await db.$executeRaw`
+      ALTER TABLE "tickets_de_soporte" ADD COLUMN IF NOT EXISTS "venceEl" TIMESTAMP(3)
+    `;
+    // El trabajo diario busca por fecha en TODAS las cuentas, asi que no puede
+    // entrar por ninguno de los dos indices de arriba, que empiezan por cuenta.
+    // Parcial: las filas sin vencimiento son la mayoria y no se miran nunca.
+    await db.$executeRaw`
+      CREATE INDEX IF NOT EXISTS "tickets_de_soporte_vence_idx"
+      ON "tickets_de_soporte" ("venceEl")
+      WHERE "venceEl" IS NOT NULL
+    `;
     // Las dos pantallas: la del cliente entra por su cuenta, la del
     // administrador por el destino. Las dos ordenan por fecha, asi que va
     // dentro del indice y no como un ordenamiento aparte.
@@ -213,6 +232,8 @@ export async function crearElTicket(input: {
   whatsapp: string;
   /** Quién lo atiende. Nulo = sin asignar, que es lo normal al abrirlo. */
   responsableId: string | null;
+  /** Cuándo hay que tenerlo resuelto. Nulo = sin vencimiento. */
+  venceEl: Date | null;
   adjuntos: Array<{
     id: string;
     url: string;
@@ -230,11 +251,11 @@ export async function crearElTicket(input: {
       await tx.$executeRaw`
         INSERT INTO "tickets_de_soporte"
           ("id", "clienteId", "creadoPorId", "destinoId", "titulo", "descripcion",
-           "whatsapp", "estado", "responsableId")
+           "whatsapp", "estado", "responsableId", "venceEl")
         VALUES (
           ${input.id}, ${input.clienteId}, ${input.creadoPorId}, ${input.destinoId},
           ${input.titulo}, ${input.descripcion}, ${input.whatsapp}, 'recibido',
-          ${input.responsableId}
+          ${input.responsableId}, ${input.venceEl}
         )
       `;
       for (const a of input.adjuntos) {
@@ -302,6 +323,29 @@ export async function asignarElResponsable(input: {
   });
 }
 
+/**
+ * Cambia cuándo vence, o se lo quita.
+ *
+ * Acotado por `destinoId` como el resto: el id llega del navegador y no decide
+ * de quién es el ticket. Y `null` es un valor legítimo —quitarle la fecha—, no
+ * un «no tocar»: por eso el parámetro no es opcional.
+ */
+export async function ponerElVencimiento(input: {
+  id: string;
+  destinoId: string;
+  venceEl: Date | null;
+}): Promise<boolean> {
+  return conLasTablas(async () => {
+    const tocadas = await db.$executeRaw`
+      UPDATE "tickets_de_soporte"
+      SET "venceEl" = ${input.venceEl},
+          "actualizadoEn" = CURRENT_TIMESTAMP
+      WHERE "id" = ${input.id} AND "destinoId" = ${input.destinoId}
+    `;
+    return tocadas > 0;
+  });
+}
+
 /** Sella que el aviso salió. Nunca vuelve a salir por el mismo cierre. */
 export async function sellarElAviso(id: string): Promise<void> {
   await conLasTablas(async () => {
@@ -326,9 +370,31 @@ type FilaDeTicket = {
   actualizadoEn: Date;
   avisadoEn: Date | null;
   responsableId: string | null;
+  venceEl: Date | null;
   clienteNombre?: string | null;
   responsableNombre?: string | null;
 };
+
+/**
+ * Las columnas de un ticket, **escritas una sola vez**.
+ *
+ * Eran tres listas copiadas —«Mis tickets», la del administrador y el ticket
+ * suelto— y con `venceEl` habría que tocar las tres, que es exactamente la
+ * forma de que a la cuarta se le olvide. Ya pasó en el chat del equipo: al
+ * unificar sus cinco listas aparecieron dos consultas a las que les faltaban
+ * las columnas de la llamada, y nadie lo había visto.
+ *
+ * Con alias (`t.`) porque dos de los tres lectores hacen `JOIN` con `User`.
+ */
+const LAS_COLUMNAS = (t: string) => Prisma.raw(
+  [
+    "id", "clienteId", "destinoId", "titulo", "descripcion", "whatsapp",
+    "estado", "motivoDescarte", "creadoEn", "actualizadoEn", "avisadoEn",
+    "responsableId", "venceEl",
+  ]
+    .map((c) => `${t}"${c}"`)
+    .join(", "),
+);
 
 function comoTicket(f: FilaDeTicket): Ticket {
   return {
@@ -347,6 +413,7 @@ function comoTicket(f: FilaDeTicket): Ticket {
     actualizadoEn: f.actualizadoEn.toISOString(),
     avisadoEn: f.avisadoEn ? f.avisadoEn.toISOString() : null,
     responsableId: f.responsableId ?? null,
+    venceEl: f.venceEl ? f.venceEl.toISOString() : null,
     clienteNombre: f.clienteNombre ?? null,
     responsableNombre: f.responsableNombre ?? null,
   };
@@ -359,9 +426,7 @@ export const TOPE_DE_TICKETS = 300;
 export async function losTicketsDelCliente(clienteId: string): Promise<Ticket[]> {
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<FilaDeTicket[]>`
-      SELECT t."id", t."clienteId", t."destinoId", t."titulo", t."descripcion",
-             t."whatsapp", t."estado", t."motivoDescarte", t."creadoEn",
-             t."actualizadoEn", t."avisadoEn", t."responsableId",
+      SELECT ${LAS_COLUMNAS('t.')},
              COALESCE(NULLIF(TRIM(u."name"), ''), u."email") AS "responsableNombre"
       FROM "tickets_de_soporte" t
       LEFT JOIN "User" u ON u."id" = t."responsableId"
@@ -391,9 +456,7 @@ export async function losTicketsDelDestino(
       ? Prisma.sql`AND t."estado" = ${estado}`
       : Prisma.empty;
     const filas = await db.$queryRaw<FilaDeTicket[]>`
-      SELECT t."id", t."clienteId", t."destinoId", t."titulo", t."descripcion",
-             t."whatsapp", t."estado", t."motivoDescarte", t."creadoEn",
-             t."actualizadoEn", t."avisadoEn", t."responsableId",
+      SELECT ${LAS_COLUMNAS('t.')},
              COALESCE(NULLIF(TRIM(u."name"), ''), u."email") AS "clienteNombre",
              COALESCE(NULLIF(TRIM(r."name"), ''), r."email") AS "responsableNombre"
       FROM "tickets_de_soporte" t
@@ -429,9 +492,7 @@ export async function contarPorEstado(
 export async function elTicket(id: string): Promise<Ticket | null> {
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<FilaDeTicket[]>`
-      SELECT "id", "clienteId", "destinoId", "titulo", "descripcion", "whatsapp",
-             "estado", "motivoDescarte", "creadoEn", "actualizadoEn", "avisadoEn",
-             "responsableId"
+      SELECT ${LAS_COLUMNAS('')}
       FROM "tickets_de_soporte"
       WHERE "id" = ${id}
       LIMIT 1

@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AtSign, BellRing, CheckCircle2, MessageSquare, UserPlus } from "lucide-react";
+import {
+  AtSign,
+  BellRing,
+  CalendarClock,
+  CheckCircle2,
+  MessageSquare,
+  UserPlus,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -10,7 +18,11 @@ import {
 import {
   atenderLosAvisosAction, avisosPorSaltarAction,
 } from "@/actions/avisos-de-tarea-actions";
-import { aDondeLleva, type AvisoDeTarea } from "@/lib/avisos-de-tarea-tipos";
+import {
+  aDondeLleva,
+  type AvisoDeTarea,
+  type TipoDeAviso,
+} from "@/lib/avisos-de-tarea-tipos";
 
 /**
  * El aviso que INTERRUMPE.
@@ -66,19 +78,28 @@ import { aDondeLleva, type AvisoDeTarea } from "@/lib/avisos-de-tarea-tipos";
 /** Corto a propósito: esto es un aviso que interrumpe, no un informe. */
 const CADA_CUANTO_MS = 15_000;
 
-const ICONO = {
+// Los dos mapas llevan TODOS los tipos, y por eso van tipados contra
+// `TipoDeAviso`: sin el `Record`, añadir un tipo nuevo compila y en pantalla
+// sale un aviso sin icono y sin color, que no se parece a un error. Lo cazó
+// `tsc` al añadir `vence`.
+const ICONO: Record<TipoDeAviso, LucideIcon> = {
   asignada: UserPlus,
   hecha: CheckCircle2,
   comentario: MessageSquare,
   mencion: AtSign,
-} as const;
+  // Un vencimiento no lo hizo nadie: lo dispara el calendario. Aunque este
+  // aviso no saca la ventana —solo va a la campanita—, el mapa tiene que
+  // conocerlo: el historial de la campanita usa estos mismos dos.
+  vence: CalendarClock,
+};
 
-const COLOR = {
+const COLOR: Record<TipoDeAviso, string> = {
   asignada: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   hecha: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   comentario: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
   mencion: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-} as const;
+  vence: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+};
 
 function cuando(iso: string) {
   const fecha = new Date(iso);

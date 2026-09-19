@@ -194,6 +194,13 @@ export type Ticket = {
    * lo resuelve, y quien lo resuelve está en el equipo que atiende.
    */
   responsableId?: string | null;
+  /**
+   * Cuándo hay que tenerlo resuelto. **Nulo = sin vencimiento**, que es lo
+   * normal: la mayoría de los tickets no se comprometen a una fecha, y
+   * obligar a poner una llenaría el tablero de fechas inventadas que después
+   * avisan a alguien.
+   */
+  venceEl?: string | null;
   /** Para la lista del administrador: de quién es. */
   clienteNombre?: string | null;
   /** El responsable, ya resuelto a nombre o correo. */

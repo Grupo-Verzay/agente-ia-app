@@ -12,6 +12,7 @@ import {
     useSensor,
     useSensors,
 } from "@dnd-kit/core";
+import { toast } from "sonner";
 import { TarjetaDeTicket } from "@/components/tickets/TarjetaDeTicket";
 import { cn } from "@/lib/utils";
 import {
@@ -56,6 +57,7 @@ import type { TicketConAdjuntos } from "@/actions/tickets-actions";
 export function TableroDeTickets({
     tickets,
     porEstado,
+    filtrado = false,
     destino,
     cargadoEn,
     moviendo,
@@ -66,6 +68,11 @@ export function TableroDeTickets({
     tickets: TicketConAdjuntos[];
     /** Cuántos hay de verdad en cada estado, del `COUNT` del servidor. */
     porEstado: Record<string, number>;
+    /**
+     * Hay un filtro de vencimiento puesto, así que `tickets` NO es la columna
+     * entera. Lo único que cambia es que no se deja reordenar: ver abajo.
+     */
+    filtrado?: boolean;
     /** La cuenta que los recibe: ES el tablero cuyo orden se guarda. */
     destino: string;
     /** Sube con cada carga del servidor. Ver `useEffect` de abajo. */
@@ -168,6 +175,21 @@ export function TableroDeTickets({
                 });
 
                 if (que.que === "reordenar") {
+                    // **Con un filtro puesto no se reordena.** Guardar el orden
+                    // escribe la COLUMNA ENTERA, y filtrada esa lista son solo
+                    // las tarjetas visibles: las escondidas perderían su sitio y
+                    // saltarían al principio **al quitar el filtro**, que es
+                    // cuando ya nadie relaciona las dos cosas. Es el mismo fallo
+                    // que la rejilla de Proyectos evita calculando el movimiento
+                    // sobre la lista completa; aquí no se puede, porque no hay
+                    // forma de saber entre qué dos escondidas cae.
+                    //
+                    // Y no es mudo: un arrastre que se rinde en silencio se ve
+                    // como «la tarjeta no se queda donde la dejo».
+                    if (filtrado) {
+                        toast.info("Quita el filtro de vencimiento para reordenar la columna.");
+                        return;
+                    }
                     void orden.reordenar(que.ids);
                     return;
                 }

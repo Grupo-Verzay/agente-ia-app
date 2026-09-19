@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
+  TIPOS_QUE_INTERRUMPEN,
   TOPE_DE_AVISOS,
   esTipoDeAviso,
   type AvisoDeTarea,
@@ -115,6 +116,31 @@ function asegurarLasTablas(): Promise<void> {
     // motivo que el `DROP NOT NULL` de arriba.
     await db.$executeRaw`
       ALTER TABLE "task_alerts" ADD COLUMN IF NOT EXISTS "enlace" TEXT
+    `;
+    // La marca de «este aviso de vencimiento YA salió».
+    //
+    // Tabla aparte y no una consulta sobre `task_alerts`, por dos cosas: ahi el
+    // hito —vispera o el dia— no se distingue sin parsear el titulo, y un aviso
+    // se puede borrar con su tarea, con lo que volveria a salir.
+    //
+    // La CLAVE lleva la FECHA dentro, y eso es lo que hace que mover el
+    // vencimiento vuelva a avisar: es una fecha nueva, asi que es un aviso
+    // nuevo. Sin ella, cambiar la fecha de una tarjeta ya avisada la dejaria
+    // muda para siempre.
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "avisos_de_vencimiento" (
+        -- "tarea" | "ticket". Los dos tableros comparten tabla porque comparten
+        -- la regla: dos tablas serian dos runners que mantener a la par.
+        "que" TEXT NOT NULL,
+        "refId" TEXT NOT NULL,
+        -- "vispera" | "el_dia"
+        "hito" TEXT NOT NULL,
+        -- El DIA que vencia cuando se aviso, no la hora.
+        "vence" DATE NOT NULL,
+        "destinatarioId" TEXT NOT NULL,
+        "avisadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY ("que", "refId", "hito", "vence", "destinatarioId")
+      )
     `;
   })().catch((error) => {
     tablasListas = null;
@@ -323,13 +349,24 @@ function aAviso(f: {
  * atendidoEn)` y no mira nada más. Los más antiguos primero: si se acumularon
  * tres, se atienden en el orden en que pasaron.
  */
+/**
+ * Lo que saca la ventana que INTERRUMPE.
+ *
+ * Acotado por tipo: un vencimiento **no interrumpe**, va solo a la campanita.
+ * Sin esa condición, el trabajo diario le sacaría a medio equipo una ventana
+ * que no se cierra sola, el mismo día y a la misma hora — y con ella se
+ * empezarían a despachar sin leer los otros cuatro avisos, que sí los hizo una
+ * persona. Ver `TIPOS_QUE_INTERRUMPEN`.
+ */
 export async function avisosPorSaltar(destinatarioId: string): Promise<AvisoDeTarea[]> {
   return conLasTablas(async () => {
     const filas = await db.$queryRaw<Parameters<typeof aAviso>[0][]>`
       SELECT "id", "taskId", "projectId", "tipo", "titulo", "texto",
              "enlace", "actorNombre", "creadoEn", "atendidoEn", "vistoEn"
       FROM "task_alerts"
-      WHERE "destinatarioId" = ${destinatarioId} AND "atendidoEn" IS NULL
+      WHERE "destinatarioId" = ${destinatarioId}
+        AND "atendidoEn" IS NULL
+        AND "tipo" IN (${Prisma.join([...TIPOS_QUE_INTERRUMPEN])})
       ORDER BY "creadoEn" ASC
       LIMIT ${TOPE_DE_AVISOS}
     `;
@@ -447,6 +484,14 @@ export async function olvidarElHiloDe(taskId: number): Promise<void> {
     await conLasTablas(async () => {
       await db.$executeRaw`DELETE FROM "task_comments" WHERE "taskId" = ${taskId}`;
       await db.$executeRaw`DELETE FROM "task_alerts" WHERE "taskId" = ${taskId}`;
+      // Y sus marcas de vencimiento: sin esto, el id de una tarea borrada
+      // dejaría filas que no lee nadie. No hay riesgo de que «resuciten» un
+      // aviso —el id es autoincremental y no se reutiliza—, pero la tabla
+      // crecería sin que nada la vacíe nunca.
+      await db.$executeRaw`
+        DELETE FROM "avisos_de_vencimiento"
+        WHERE "que" = 'tarea' AND "refId" = ${String(taskId)}
+      `;
     });
   } catch (error) {
     console.warn("[tareas] no se pudo borrar el hilo de la tarea", {
@@ -454,4 +499,41 @@ export async function olvidarElHiloDe(taskId: number): Promise<void> {
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+// ─── Avisos de vencimiento ───────────────────────────────────────────────────
+
+/**
+ * Apunta que este aviso de vencimiento ya salió, y dice **si era nuevo**.
+ *
+ * **Quien decide es la base, por las filas que dice haber tocado**, no un
+ * `SELECT` previo nuestro: el trabajo diario puede solaparse consigo mismo —dos
+ * vueltas del cron, un reintento— y dos consultas a la vez verían las dos que
+ * no existe y mandarían las dos el mismo aviso. Es la misma regla que ya rige
+ * en `anotarUnaVezAlDia` del reparto del trabajo.
+ *
+ * La clave lleva **la fecha** dentro: mover el vencimiento es un aviso nuevo,
+ * porque es una fecha nueva. Sin ella, cambiarle la fecha a una tarjeta ya
+ * avisada la dejaría muda para siempre.
+ */
+export async function apuntarElAvisoDeVencimiento(input: {
+  que: "tarea" | "ticket";
+  refId: string;
+  hito: string;
+  /** El día que vence, sin hora: `YYYY-MM-DD`. */
+  vence: string;
+  destinatarioId: string;
+}): Promise<boolean> {
+  return conLasTablas(async () => {
+    const puestas = await db.$executeRaw`
+      INSERT INTO "avisos_de_vencimiento"
+        ("que", "refId", "hito", "vence", "destinatarioId")
+      VALUES (
+        ${input.que}, ${input.refId}, ${input.hito},
+        ${input.vence}::date, ${input.destinatarioId}
+      )
+      ON CONFLICT DO NOTHING
+    `;
+    return puestas > 0;
+  });
 }

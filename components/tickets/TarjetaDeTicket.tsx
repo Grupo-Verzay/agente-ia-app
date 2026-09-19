@@ -2,9 +2,11 @@
 
 import { Paperclip, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DistintivoDeVencimiento } from "@/components/shared/DistintivoDeVencimiento";
 import {
     COLORES_DE_ESTADO,
     ETIQUETAS_DE_ESTADO,
+    esEstadoFinal,
     laEspera,
     type EstadoDeTicket,
 } from "@/lib/tickets";
@@ -111,6 +113,16 @@ export function TarjetaDeTicket({
                     </span>
                 )}
                 {espera && <span>{espera}</span>}
+                {/* El vencimiento, el MISMO distintivo que la tarjeta de
+                    Proyectos. Resuelto o descartado lo apagan —`esEstadoFinal`,
+                    que es lo que aquí quiere decir «terminada»—: una columna
+                    «Resuelto» con un mes de historia saldría entera en rojo y
+                    el rojo dejaría de significar nada. */}
+                <DistintivoDeVencimiento
+                    vence={ticket.venceEl}
+                    ahora={ahora}
+                    terminada={esEstadoFinal(ticket.estado)}
+                />
                 {ticket.adjuntos.length > 0 && (
                     <span className="inline-flex items-center gap-0.5">
                         <Paperclip className="h-3 w-3" />

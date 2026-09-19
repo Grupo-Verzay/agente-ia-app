@@ -6511,6 +6511,152 @@ Son dos cosas y hacen falta las dos. Y la segunda es la que cambia producción d
 golpe, así que se decide a sabiendas: qué pasa con las cuentas que ya existen no
 es un detalle de la migración, es la decisión.
 
+## Vencimientos: un DÍA, no un instante, y quien lo juzga es uno solo
+
+Las tarjetas de Proyectos y de Tickets llevan fecha de vencimiento, con un
+distintivo de color, dos avisos en la campanita y un filtro en el tablero.
+
+**Lo primero que hay que saber, porque cambia cómo se lee todo lo demás:** en
+Proyectos la fecha **ya existía y es obligatoria** (`tasks.dueDate`, `NOT NULL`
+en una tabla del BACKEND), así que ahí el distintivo sale siempre. Opcional de
+verdad lo es en Tickets, donde la columna es nuestra. Hacerla opcional en
+`tasks` sería una migración del backend, que es lo que reventó el #360.
+
+### Se compara por DÍA, y eso era un fallo vivo
+
+Lo que había en la tarjeta de Proyectos era:
+
+```ts
+const overdue = new Date(iso) < new Date();
+```
+
+O sea por **instante**. Una tarea que vencía hoy a las 18:00 salía **en rojo a
+las 18:01**, y a las 09:00 ya estaba roja si la hora guardada eran las 08:00.
+Un vencimiento es un **día**: mientras quede día, no se ha pasado; y lo que
+venció ayer a las 23:59 está vencido a las 00:01 de hoy aunque falten segundos
+de reloj.
+
+Todo se reduce a **cuántos días naturales faltan** (`diasQueFaltan`, que aplasta
+las dos fechas a medianoche **antes** de restar — restar en crudo y dividir por
+86.400.000 da cero entre las 23:00 y las 01:00, que es el mismo fallo por otra
+puerta).
+
+> **Quien juzga un vencimiento es `lib/vencimiento.ts`, y es puro.** De ahí
+> tiran **cuatro** sitios que tienen que decir exactamente lo mismo: las dos
+> tarjetas, los dos filtros y el trabajo diario que manda los avisos. Con la
+> cuenta escrita en cada uno, una tarjeta puede salir en rojo sin que haya
+> salido ningún aviso — y eso no se lee como un error, se lee como que los
+> avisos no funcionan.
+
+Tres colores y un apagado: **neutro** cuando falta más de un día, **ámbar** hoy
+o mañana, **rojo** pasado, y **nada** cuando la tarjeta está terminada o no
+tiene fecha. Lo de terminada es el encargo entero de esa palabra: sin ello la
+columna «Hecho» de un tablero con un mes de historia sale **entera en rojo**, y
+el rojo deja de significar nada.
+
+### Los dos avisos van a la campanita, y NO sacan la ventana que interrumpe
+
+Es la decisión que más fácil se deshace sin querer. `avisosPorSaltar` traía
+**todo** lo que tuviera `atendidoEn IS NULL`, así que un tipo nuevo salta la
+ventana por defecto. Ahora acota por `TIPOS_QUE_INTERRUMPEN`, y `vence` no está
+dentro.
+
+Los otros cuatro tipos son cosas que **acaba de hacer una persona** —te asignó
+algo, comentó, te mencionó—: interrumpir ahí es para lo que esa ventana existe.
+Un vencimiento no lo hizo nadie, lo dispara el calendario, y le toca **a la vez,
+el mismo día y a la misma hora, a todo el que tenga algo que vence**. Una
+ventana que no se cierra sola saltándole a medio equipo cada mañana es
+exactamente lo que este documento lleva media docena de reglas evitando — y el
+precio no es ese aviso: es que con él se empiezan a despachar sin leer los otros
+cuatro.
+
+### Sin repetir: lo decide la BASE, y la clave lleva la FECHA dentro
+
+`avisos_de_vencimiento` es una tabla de la App con
+`CREATE TABLE IF NOT EXISTS`, sin clave foránea, y su clave primaria es
+**`(qué, cuál, hito, día, destinatario)`**. Se apunta con
+`ON CONFLICT DO NOTHING` y **quien decide si el aviso era nuevo es Postgres, por
+las filas que dice haber tocado** — no un `SELECT` previo nuestro: dos vueltas
+solapadas del cron verían las dos que no existe y mandarían las dos el mismo
+aviso. Es la misma regla que `anotarUnaVezAlDia` del reparto del trabajo.
+
+Y **la fecha va dentro de la clave** a propósito: mover el vencimiento es un
+aviso nuevo, porque es una fecha nueva. Sin ella, aplazar una tarjeta ya avisada
+la dejaría muda para siempre.
+
+Cuatro cosas más:
+
+1. **Se apunta ANTES de crear el aviso.** Al revés, dos vueltas solapadas
+   crearían los dos avisos y solo después se darían cuenta. Lo que se arriesga
+   con este orden es perder un aviso si la creación falla justo después; con el
+   otro, mandarlo dos veces — y de los dos, ese es el que se nota.
+2. **Dos hitos y ninguno más**: la víspera y el día. Lo ya vencido **no vuelve a
+   avisar** —el distintivo rojo ya lo está diciendo—; insistir cada día es lo
+   que ya costó una vuelta en los recordatorios de Cobros.
+3. **El destinatario es el responsable; si no hay, quien la creó.** La segunda
+   mitad es la que importa: sin ella una tarjeta sin asignar no avisaría a
+   nadie, que es justo la que más fácil se olvida. Y es la **PERSONA**, como
+   todos los avisos: los ids salen ya de columnas de persona
+   (`assignedToId`, `createdById`, `responsableId`, `creadoPorId`) y **no** de
+   las de alcance (`ownerId`, `clienteId`, `destinoId`). Con una de esas, el
+   aviso queda a nombre de una cuenta y no le aparece a nadie.
+4. **Cuelga del cron diario que ya existe** (`/api/cron/billing`), envuelto en
+   su `try` como los cobros: un fallo suyo no puede tumbar el cobro de la
+   plataforma, y su cuenta sale en la respuesta para que se vea si un día deja
+   de mandar nada. Un cron propio es un segundo sitio que puede dejar de
+   dispararse sin que nadie se entere.
+
+### Y con un filtro puesto NO se reordena la columna
+
+Los dos tableros guardan el orden escribiendo **la columna entera**. Con el
+filtro puesto esa lista son solo las tarjetas visibles, así que las escondidas
+perderían su sitio y saltarían al principio **al quitar el filtro** — que es
+cuando ya nadie relaciona las dos cosas. Es el mismo fallo que la rejilla de
+Proyectos evita calculando el movimiento sobre la lista completa; aquí no se
+puede, porque no hay forma de saber entre qué dos escondidas cae.
+
+Así que se rechaza, **y no en silencio**: sale «Quita el filtro de vencimiento
+para reordenar la columna». Un arrastre que se rinde callado se ve como «la
+tarjeta no se queda donde la dejo». Cambiar de columna sigue funcionando.
+
+Y **«esta semana» incluye lo vencido**: lo que se pasó de fecha no deja de ser
+de esta semana el lunes siguiente, y escondérselo a quien pregunta «qué me
+vence» es justo el dato que iba a buscar. Lo terminado no pasa ningún filtro de
+vencimiento: su distintivo está apagado, y una lista de urgencias con trabajo
+hecho dentro no sirve para lo que se abre.
+
+### Una fecha de un `<input type="date">` no se corta sobre UTC
+
+`toISOString().slice(0, 10)` es la forma corta y está mal: pasa a UTC antes de
+cortar, así que una fecha guardada el día 20 por la tarde en Colombia sale como
+el **21**. El campo enseñaría un día distinto del que pinta el distintivo de al
+lado, y reabrir y volver a guardar sin tocar nada le correría la fecha un día,
+**cada vez**. Va con `elDiaDelInput`, que usa la zona de quien mira.
+
+Lo mismo del lado del servidor: el runner sella el día con la zona del servidor,
+igual que `diaDelCierre` en el reparto del trabajo.
+
+### Medido en Chromium
+
+Sobre el CSS del build, a 1440, 1024 y 390, con las columnas fijas como en el
+tablero de verdad:
+
+| | sin distintivo | con distintivo |
+| --- | --- | --- |
+| tarjeta de Proyectos | 89 px | **89 px** |
+| tarjeta de Tickets | 89 px | **107 px** |
+
+La de Proyectos **no crece**: el distintivo entra en la fila de metadatos que ya
+estaba. La de Tickets sí, 18 px, porque esa fila ya lleva «Esperando hace…» y el
+responsable y el distintivo salta de línea — es el mismo `flex-wrap` que ya
+tenía con un nombre de cliente largo, así que no es un comportamiento nuevo,
+pero **una columna de tickets queda con alturas mixtas** (89 los que no tienen
+fecha, 107 los que sí). Si algún día molesta, lo que hay que mover es esa fila,
+no el distintivo.
+
+El distintivo mide 16 px de alto y de 48 a 102 px de ancho según lo que diga, y
+no se sale de la tarjeta en ninguna de las tres anchuras.
+
 ## Tickets: el WhatsApp sale al PASAR a resuelto, no al estar
 
 Proyectos es el trabajo interno del equipo; un ticket es de un CLIENTE. Van

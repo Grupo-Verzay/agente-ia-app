@@ -3,6 +3,7 @@ import { runResellerBillingForAll } from "@/actions/billing/reseller-billing-act
 import { purgarCuentasEliminadasPendientes } from "@/lib/purge-account.server";
 import { podarRevisionesDePromptsPendientes } from "@/lib/prompt-revisions-cleanup.server";
 import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
+import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -78,8 +79,21 @@ export async function POST(request: Request) {
     console.warn("[cobros] la vuelta diaria reventó", { error: cobros });
   }
 
+  // Los dos avisos de vencimiento de Proyectos y Tickets: uno la víspera y
+  // otro el mismo día. Cuelga de aquí por lo mismo que los cobros —este cron ya
+  // se llama una vez al día— y va envuelto por lo mismo: un fallo suyo no puede
+  // tumbar el cobro de la plataforma. Su cuenta sale en la respuesta, así que
+  // se ve si un día deja de mandar nada.
+  let vencimientos: unknown = null;
+  try {
+    vencimientos = await runAvisosDeVencimiento();
+  } catch (e) {
+    vencimientos = { error: e instanceof Error ? e.message : String(e) };
+    console.warn("[vencimientos] la vuelta diaria reventó", { error: vencimientos });
+  }
+
   return NextResponse.json(
-    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros },
+    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros, vencimientos },
     { status: result.success ? 200 : 500 },
   );
 }
