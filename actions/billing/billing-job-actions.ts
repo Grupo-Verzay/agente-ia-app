@@ -7,7 +7,11 @@ import { endOfDay, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
 import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING, PRE_DELETE_WARN_DAYS } from "@/types/billing";
-import { deleteInstanceInternal, deleteInstanceEvolutionAware } from "@/actions/api-action";
+// `deleteInstanceInternal` se queda SOLO para el borrado de la cuenta a los 30
+// dias: ahi la fila de `User` se va y la linea se borra de verdad. La
+// suspension por impago ya no borra nada (ver `lib/robot-por-facturacion.ts`).
+import { deleteInstanceInternal } from "@/actions/api-action";
+import { apagarElRobotPorImpago, olvidarElRobotDe } from "@/lib/robot-por-facturacion";
 import { assertAdminOrReseller } from "./helpers/billing-helpers.server";
 import { anotarLaCohorteDelMes } from "@/actions/renovacion-mensual-actions";
 import {
@@ -277,39 +281,23 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                 if (syncResult.stateChanged && billing.accessStatus === "SUSPENDED") {
                     suspendedApplied++;
 
-                    try {
-                        const deleteResult = await deleteInstanceEvolutionAware(billing.userId);
-                        if (deleteResult.success && deleteResult.instanceName) {
-                            await db.userBilling.update({
-                                where: { userId: billing.userId },
-                                data: { lastInstanceName: deleteResult.instanceName },
-                            });
-                            pushLog({
-                                at: new Date().toISOString(),
-                                level: "INFO",
-                                message: `Instancia de Evolution eliminada al suspender: ${deleteResult.instanceName}.`,
-                                userBillingId: billing.id,
-                                userId: billing.userId,
-                            });
-                        } else if (!deleteResult.success) {
-                            // Evolution caído: el registro queda en BD y se reintenta abajo (y en próximas corridas).
-                            pushLog({
-                                at: new Date().toISOString(),
-                                level: "WARN",
-                                message: `No se pudo eliminar la instancia de Evolution (se reintentará): ${deleteResult.message}`,
-                                userBillingId: billing.id,
-                                userId: billing.userId,
-                            });
-                        }
-                    } catch (evoErr: any) {
-                        pushLog({
-                            at: new Date().toISOString(),
-                            level: "WARN",
-                            message: `Error inesperado al eliminar instancia de Evolution: ${evoErr?.message}`,
-                            userBillingId: billing.id,
-                            userId: billing.userId,
-                        });
-                    }
+                    // La sesión de WhatsApp NO se toca: se apaga el agente.
+                    // Antes aquí se borraba la instancia, así que el cliente que
+                    // pagaba al día siguiente tenía que reescanear el QR. Y una
+                    // línea de Waha salía peor parada por este camino: como no
+                    // suele tener clave de Evolution, `deleteInstanceEvolutionAware`
+                    // se llevaba su fila en el acto y dejaba la sesión viva y
+                    // huérfana en el servidor de Waha.
+                    const robot = await apagarElRobotPorImpago(billing.userId);
+                    pushLog({
+                        at: new Date().toISOString(),
+                        level: robot.sinColumna ? "WARN" : "INFO",
+                        message: robot.sinColumna
+                            ? "La base no tiene todavía la marca del Robot: la cuenta queda suspendida pero su agente sigue respondiendo."
+                            : `Agente apagado al suspender (${robot.cambiadas} de ${robot.lineas.length} líneas). La sesión de WhatsApp sigue conectada.`,
+                        userBillingId: billing.id,
+                        userId: billing.userId,
+                    });
 
                     // Avisar al cliente que su servicio fue suspendido. Este mensaje
                     // REEMPLAZA al recordatorio de "vencido/paga" ese día (ver continue abajo).
@@ -543,47 +531,46 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
             }
         }
 
-        // ── Reintento de borrado de instancia para suspendidos cuya instancia ──
-        //    sigue viva en Evolution (p. ej. Evolution estaba caído el día de la
-        //    suspensión). El registro en BD persiste como señal de pendiente.
-        let retriedInstanceDeletions = 0;
-        const suspendedWithInstance = await db.userBilling.findMany({
+        // ── Repaso: que ninguna cuenta suspendida se quede con el agente ─────
+        //    respondiendo. Este bloque reintentaba el BORRADO de la instancia
+        //    cuando Evolution estaba caído; ya no se borra ninguna, y lo que hay
+        //    que repasar es la marca del Robot: si el día de la suspensión la
+        //    base no la tenía -o la escritura falló-, la cuenta quedó suspendida
+        //    con su agente contestando, que es la plataforma regalando servicio.
+        //
+        //    Se repasa por CUENTA y no por línea de Evolution: `apagarElRobotPorImpago`
+        //    mira las dos clases de línea, y preguntar aquí solo por
+        //    `instanceType: "Whatsapp"` dejaba fuera a las de Waha -que es el
+        //    fallo que este cambio viene a cerrar-.
+        let agentesRepasados = 0;
+        const suspendidasConLinea = await db.userBilling.findMany({
             where: {
                 accessStatus: "SUSPENDED",
-                user: { demoResellerId: null, instancias: { some: { instanceType: "Whatsapp" } } },
+                user: {
+                    demoResellerId: null,
+                    instancias: { some: { instanceType: { in: ["Whatsapp", "waha"] } } },
+                },
             },
             select: { id: true, userId: true },
         });
-        for (const sb of suspendedWithInstance) {
+        for (const sb of suspendidasConLinea) {
             try {
-                const retryResult = await deleteInstanceEvolutionAware(sb.userId);
-                if (retryResult.success && retryResult.instanceName) {
-                    await db.userBilling.update({
-                        where: { userId: sb.userId },
-                        data: { lastInstanceName: retryResult.instanceName },
-                    });
-                    retriedInstanceDeletions++;
-                    pushLog({
-                        at: new Date().toISOString(),
-                        level: "INFO",
-                        message: `Instancia de Evolution eliminada en reintento: ${retryResult.instanceName}.`,
-                        userBillingId: sb.id,
-                        userId: sb.userId,
-                    });
-                } else if (!retryResult.success) {
+                const repaso = await apagarElRobotPorImpago(sb.userId);
+                if (repaso.cambiadas > 0) agentesRepasados++;
+                if (repaso.sinColumna) {
                     pushLog({
                         at: new Date().toISOString(),
                         level: "WARN",
-                        message: `Reintento de borrado de instancia falló (Evolution sigue caído): ${retryResult.message}`,
+                        message: "Cuenta suspendida cuyo agente no se puede apagar: la base no tiene la marca del Robot.",
                         userBillingId: sb.id,
                         userId: sb.userId,
                     });
                 }
-            } catch (retryErr: any) {
+            } catch (repasoErr: any) {
                 pushLog({
                     at: new Date().toISOString(),
                     level: "WARN",
-                    message: `Error inesperado en reintento de borrado de instancia: ${retryErr?.message}`,
+                    message: `Error inesperado al repasar el agente de una cuenta suspendida: ${repasoErr?.message}`,
                     userBillingId: sb.id,
                     userId: sb.userId,
                 });
@@ -696,6 +683,12 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                 }
 
                 await deleteInstanceInternal(dc.userId).catch(() => null);
+                // La tabla del recuerdo no tiene clave foranea -`Instancias` es
+                // del backend-, asi que al borrar la cuenta nadie la limpia
+                // sola. Va antes del `delete` a proposito: despues, si el
+                // borrado revienta, la fila se queda con una cuenta que sigue
+                // existiendo.
+                await olvidarElRobotDe(dc.userId);
                 await db.user.delete({ where: { id: dc.userId } });
                 deletedApplied++;
                 pushLog({
@@ -799,7 +792,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         pushLog({
             at: new Date().toISOString(),
             level: "INFO",
-            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, instanciasReintentadas=${retriedInstanceDeletions}, avisosPreEliminacion=${preDeleteWarned}, deleted=${deletedApplied}, errors=${errors}.`,
+            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, agentesRepasados=${agentesRepasados}, avisosPreEliminacion=${preDeleteWarned}, deleted=${deletedApplied}, errors=${errors}.`,
         });
 
         return {

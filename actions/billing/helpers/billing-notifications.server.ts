@@ -14,6 +14,8 @@ import type { BillingStatus, BillingTemplateType, AccessStatus } from "@/types/b
 
 import { buildBillingMessage, buildBillingMessageForRecord, resolverMedioDePago } from "../billing-message-templates";
 import { enlaceDePagoDelPlan } from "@/lib/plan-payment-link";
+import { EVENTOS_DEL_WEBHOOK } from "@/lib/robot-de-la-linea";
+import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-facturacion";
 import { fmtDateDDMMYYYY, fmtPriceLine } from "./billing-helpers";
 import {
     evaluateBillingLifecycle,
@@ -463,7 +465,12 @@ export async function setUserBillingWebhookEnabled(args: {
                         enabled: args.enable,
                         url: webhookUrl,
                         base64: true,
-                        events: ["MESSAGES_UPSERT", "CALL"],
+                        // La lista COMPARTIDA, no una propia. Con la corta
+                        // que habia aqui, cada cambio de estado de facturacion
+                        // reescribia el webhook de esa linea sin
+                        // `MESSAGES_UPDATE` ni `PRESENCE_UPDATE`: adios acuses
+                        // y adios "escribiendo...", sin que nadie lo notara.
+                        events: EVENTOS_DEL_WEBHOOK,
                     },
                 }),
                 cache: "no-store",
@@ -527,6 +534,7 @@ async function cascadeResellerAccessToClients(resellerId: string, activate: bool
                 data: { accessStatus: "ACTIVE", suspendedAt: null, suspendedReason: null },
             });
             await setUserBillingWebhookEnabled({ userId: c.userId, enable: true });
+            await devolverElRobotAlPagar(c.userId);
         }
     } else {
         const clients = await db.user.findMany({
@@ -539,7 +547,9 @@ async function cascadeResellerAccessToClients(resellerId: string, activate: bool
                 where: { userId: c.id },
                 data: { accessStatus: "SUSPENDED", suspendedAt: now, suspendedReason: RESELLER_CASCADE_REASON },
             });
-            await setUserBillingWebhookEnabled({ userId: c.id, enable: false });
+            // El webhook se queda encendido: es lo que trae los avisos y
+            // guarda el historial. Lo que se apaga es el agente.
+            await apagarElRobotPorImpago(c.id);
         }
     }
 }
@@ -589,12 +599,21 @@ export async function syncUserBillingLifecycle(args: {
     });
 
     const resolvedDispatcher = args.dispatcher ?? (await loadBillingDispatcherConfig());
+    // El webhook va SIEMPRE encendido; lo que decide si el agente contesta es la
+    // marca del Robot. Este es el camino MAS caliente de los seis -lo llama el
+    // cron por cada candidato-, asi que es el que de verdad dejaba a las cuentas
+    // suspendidas sin avisos en vivo y sin historial.
     const webhookResult = args.syncWebhook === false
         ? null
-        : await setUserBillingWebhookEnabled({
-            userId: updated.userId,
-            enable: updated.billingStatus !== "UNPAID" || updated.accessStatus !== "SUSPENDED",
-        });
+        : await setUserBillingWebhookEnabled({ userId: updated.userId, enable: true });
+
+    if (updated.accessStatus === "SUSPENDED") {
+        await apagarElRobotPorImpago(updated.userId);
+    } else if (current.accessStatus === "SUSPENDED") {
+        // Solo al VOLVER de suspendida: sin esa condicion, cada sincronizacion
+        // de una cuenta al dia intentaria devolver un recuerdo que no existe.
+        await devolverElRobotAlPagar(updated.userId);
+    }
     const notificationResult = args.sendStateChangeMessage === false
         ? null
         : await sendBillingStateChangeMessage({

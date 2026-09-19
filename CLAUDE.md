@@ -4867,6 +4867,72 @@ una que se apagó con el botón viejo. Al abrir Conexión se toma como robot
 apagado, se guarda la marca y se enciende el webhook. Nadie tiene que hacer
 nada a mano.
 
+### Vencer una factura apaga el AGENTE, no la línea
+
+La misma regla, aplicada donde más duele. Al suspender por impago se llamaba a
+`deleteInstanceInternal`: `logout` y `delete` contra Evolution, y **la fila de
+`Instancias` borrada**. Al pagar se creaba una instancia nueva con el mismo
+nombre, así que el cliente que se retrasaba un día **tenía que reescanear el
+QR**. Y el webhook se apagaba además, o sea que la línea se quedaba sin avisos
+en vivo y sin historial — justo lo que la sección de arriba prohíbe.
+
+> **Lo que se apaga es la marca del Robot, y ya.** La sesión de WhatsApp se
+> queda conectada, el webhook encendido, la conversación sigue entrando y el
+> asesor puede seguir escribiendo a mano. Al confirmarse el pago el agente
+> vuelve solo, sin escanear nada. Vive en `lib/robot-por-facturacion.ts`.
+
+**Y es la palanca correcta porque vale para los dos proveedores con una sola
+escritura**: el backend lee la misma marca para Evolution y para Waha —los
+mensajes de Waha pasan por el mismo `processWebhook`—. Con `logout` habría dos
+caminos que mantener a la par, y el día que uno se afinara el otro se quedaría
+atrás.
+
+Los **seis** caminos que la tumbaban pasan ya por ahí: las tres acciones
+manuales de `billing-actions`, el pago confirmado de `billing-payment-internal`,
+el cron de `billing-job-actions`, la cascada del reseller y
+`syncUserBillingLifecycle`, que es el más caliente de todos. **El borrado de la
+cuenta a los 30 días se queda como estaba**: ahí la fila de `User` se va y la
+línea se borra de verdad.
+
+#### Con Waha eran DOS fallos distintos, y ninguno era el que parecía
+
+Esto se escribió primero de memoria y **el banco lo desmintió dos veces**. Las
+dos funciones de borrado no se comportan igual con una línea de Waha:
+
+| | qué hacía con una línea `waha` |
+| --- | --- |
+| `deleteInstanceInternal` (manual) | busca la fila **una segunda vez con el tipo PEDIDO** (`Whatsapp`) en vez de con el de la fila que encontró, no la encuentra y se rinde. La fila sobrevive… **y el agente seguía contestando**: lo único que lo callaba era borrar la instancia de Evolution. Una cuenta suspendida con la IA trabajando gratis. |
+| `deleteInstanceEvolutionAware` (cron) | sí borra por el id de la fila, sea del tipo que sea. Y una línea de Waha **no suele tener clave de Evolution**, así que entra por su rama «sin apiKey, limpiamos el registro» y **se lleva la fila en el acto**, dejando la sesión viva y huérfana en el servidor de Waha. |
+
+Los dos están en el banco **ejecutados, no descritos**, y esa es la parte que
+importa: las dos versiones que se escribieron antes de medir eran falsas, y
+cada una habría quedado en el código como una explicación convincente de algo
+que no pasaba.
+
+#### Tres cosas que hay que mantener
+
+1. **Se recuerda cómo estaba el Robot, no se enciende a ciegas.** Las líneas que
+   atiende una persona tienen el Robot apagado **a propósito**, y son las que
+   más se apagan; encenderlo al confirmar un pago le pondría la IA a contestar a
+   un cliente que decidió que no la quería. El recuerdo vive en
+   `robot_antes_de_suspender`, tabla de la App con `CREATE TABLE IF NOT EXISTS`
+   y sin clave foránea — `Instancias` es del backend y añadirle columnas desde
+   aquí es lo que reventó el #360.
+2. **`ON CONFLICT DO NOTHING`, nunca `DO UPDATE`.** El cron repasa las cuentas
+   suspendidas en cada vuelta y la suspensión manual puede caer encima: con
+   `DO UPDATE` la segunda vez guardaría el `false` que se acaba de escribir, y
+   entonces al pagar se le devolvería el agente **apagado para siempre**. El
+   primer recuerdo es el bueno, y se borra al usarlo.
+3. **Sin la columna `bot_enabled` no se toca nada, y se dice.** Es el lado
+   seguro a propósito: sin la marca no hay forma de callar al agente sin tocar
+   la sesión, y tocarla es justo lo que esto viene a quitar. Mejor un agente que
+   responde de más que un cliente reescaneando un QR.
+
+Y un cabo suelto conocido, que **no se tocó** porque es otro frente: el borrado
+de la cuenta a los 30 días sigue llamando solo a Evolution, así que la sesión de
+una línea de Waha se queda viva en su servidor cuando la cuenta desaparece. No
+cuesta dinero de IA —la cuenta ya no existe— pero ocupa una sesión.
+
 ## Chats: el filtro de canales tiene que sumar
 
 En el desplegable de canales, «Todos» decía **614** y las filas de abajo sumaban

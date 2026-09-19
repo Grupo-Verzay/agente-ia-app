@@ -136,7 +136,9 @@ export function evaluateBillingLifecycle(
 
     // Suspender EXACTAMENTE al cumplirse los días de gracia configurados (graceDays literal).
     // Vence en el día 0; tras `graceDays` días vencidos (daysRemaining = -graceDays) se
-    // suspende: desactiva el agente, elimina la instancia de Evolution y corta el acceso.
+    // suspende: apaga el agente y corta el acceso. **La sesión de WhatsApp se queda
+    // conectada** — antes se borraba la instancia y había que reescanear el QR al
+    // pagar; ver `lib/robot-por-facturacion.ts`.
     // graceDays=0 → corte INMEDIATO al vencer (incluye la prueba gratis, que se crea con 0).
     const overdueBeyondGrace =
         daysRemaining !== null && daysRemaining <= -graceDays;

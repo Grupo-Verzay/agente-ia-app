@@ -4,7 +4,10 @@ import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { isAdminOrReseller, isAdminLike } from '@/lib/rbac';
 import { BillingTemplateType, DELETE_DAYS_BILLING } from '@/types/billing';
+// El borrado a los 30 dias si borra la linea: la cuenta deja de existir. La
+// SUSPENSION por impago ya no (ver `lib/robot-por-facturacion.ts`).
 import { deleteInstanceEvolutionAware } from '@/actions/api-action';
+import { apagarElRobotPorImpago, olvidarElRobotDe } from '@/lib/robot-por-facturacion';
 import {
   resolveWhatsAppDispatcherLineByInstanceName,
   type WhatsAppDispatcherLine,
@@ -161,6 +164,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
             await sendReseller(dispatcher, cli as BillingUserRecord, 'ACCOUNT_DELETED', cfg.msgDeleted);
           } catch { /* avisar es best-effort */ }
           await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
+          await olvidarElRobotDe(cli.user.id);
           await db.user.delete({ where: { id: cli.user.id } }).catch(() => null);
           result.deleted++;
           continue;
@@ -173,8 +177,10 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
             where: { id: cli.id },
             data: { accessStatus: 'SUSPENDED', billingStatus: 'UNPAID', suspendedAt: now, suspendedReason: 'Vencido (cobro del reseller)' },
           });
-          await setUserBillingWebhookEnabled({ userId: cli.user.id, enable: false }).catch(() => null);
-          await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
+          // Ni el webhook ni la sesion: lo que se apaga es el agente. El
+          // webhook es lo que trae los avisos y guarda el historial, y borrar
+          // la instancia obligaba a reescanear el QR al pagar.
+          await apagarElRobotPorImpago(cli.user.id);
           try {
             await sendReseller(dispatcher, cli as BillingUserRecord, 'STATUS_SUSPENDED', cfg.msgSuspended);
             result.sent++;

@@ -1,8 +1,13 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { assertCanAccessTargetUser } from "./billing/helpers/app-access-guard";
+import {
+  EVENTOS_DEL_WEBHOOK,
+  WEBHOOK_POR_DEFECTO,
+  escribirMarcaDelRobot as escribirMarca,
+  leerMarcaDelRobot as leerMarca,
+} from "@/lib/robot-de-la-linea";
 
 /**
  * El "Robot" de una linea, separado del webhook de Evolution.
@@ -23,31 +28,26 @@ import { assertCanAccessTargetUser } from "./billing/helpers/app-access-guard";
  * antes -tocar el webhook- y se avisa.
  */
 
-const WEBHOOK_POR_DEFECTO = "https://backend.ia-app.com/webhook";
 /**
- * Los eventos que Evolution nos manda.
+ * La lista de eventos y la marca `bot_enabled` viven en
+ * `lib/robot-de-la-linea.ts`: facturacion tambien las necesita y este fichero
+ * es `'use server'`, que no puede exportar constantes. El porque de cada evento
+ * sigue escrito aqui, que es donde se registran.
  *
- * `MESSAGES_UPDATE` son los acuses: el ✓✓ de que el mensaje llegó al teléfono y
- * el azul de que lo leyeron. No se pedían, así que la palomita de la lista se
- * quedaba en UNA para siempre mientras la conversación enseñaba dos —esa se
- * pide en vivo a Evolution, que sí sabe el estado real, y la lista sale de
- * nuestra base, que nunca se enteraba—. El backend los atiende en
+ * `MESSAGES_UPDATE` son los acuses: el doble check de que el mensaje llego al
+ * telefono y el azul de que lo leyeron. No se pedian, asi que la palomita de la
+ * lista se quedaba en UNA para siempre. El backend los atiende en
  * `handleMessageUpdateEvent`.
  *
- * `PRESENCE_UPDATE` es "escribiendo…", "grabando audio…" y "en línea", lo mismo
- * que ya se veía en las líneas de WhatsApp Mensajería. El backend lo atiende en
- * `handlePresenceEvent` y lo emite por el socket; no se guarda nada. Evolution
- * solo lo manda de los contactos a los que la sesión está suscrita, y de eso se
- * encarga la App al abrir la conversación (`suscribirPresenciaEvolucionAction`).
+ * `PRESENCE_UPDATE` es "escribiendo...", "grabando audio..." y "en linea". El
+ * backend lo atiende en `handlePresenceEvent` y lo emite por el socket; no se
+ * guarda nada. Evolution solo lo manda de los contactos a los que la sesion
+ * esta suscrita, y de eso se encarga la App al abrir la conversacion
+ * (`suscribirPresenciaEvolucionAction`).
  *
- * Si se añade otro evento aquí, hay que atenderlo allí o llegará y se tirará.
+ * Si se anade otro evento a esa lista, hay que atenderlo alli o llegara y se
+ * tirara.
  */
-const EVENTOS_DEL_WEBHOOK = [
-  "MESSAGES_UPSERT",
-  "MESSAGES_UPDATE",
-  "CALL",
-  "PRESENCE_UPDATE",
-];
 
 type Resultado<T> = { success: true; data: T } | { success: false; message: string };
 
@@ -175,30 +175,7 @@ async function encenderWebhook(base: string, instanceName: string, credenciales:
   });
 }
 
-async function leerMarca(instanceName: string): Promise<boolean | null | "sin-columna"> {
-  try {
-    const filas = await db.$queryRaw<{ bot_enabled: boolean }[]>(
-      Prisma.sql`SELECT "bot_enabled" FROM "Instancias" WHERE "instanceName" = ${instanceName} LIMIT 1`,
-    );
-    return filas[0]?.bot_enabled ?? null;
-  } catch (error) {
-    // Columna sin crear todavia (el backend no ha desplegado su migracion).
-    console.warn("[robot] la base no tiene bot_enabled; se usa el webhook como antes.", (error as Error)?.message);
-    return "sin-columna";
-  }
-}
 
-async function escribirMarca(instanceName: string, encendido: boolean): Promise<boolean> {
-  try {
-    await db.$executeRaw(
-      Prisma.sql`UPDATE "Instancias" SET "bot_enabled" = ${encendido} WHERE "instanceName" = ${instanceName}`,
-    );
-    return true;
-  } catch (error) {
-    console.warn("[robot] no se pudo escribir bot_enabled:", (error as Error)?.message);
-    return false;
-  }
-}
 
 /**
  * Estado actual del robot de la linea de WhatsApp de la cuenta.
