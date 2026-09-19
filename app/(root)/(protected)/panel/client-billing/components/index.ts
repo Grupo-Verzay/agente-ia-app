@@ -1,3 +1,3 @@
 export * from './DaysLeftCell'
 export * from './BillingSkeletton'
-export * from './BillingCrmFiltersCards'
+export * from './BillingCrmFiltrosRapidos'

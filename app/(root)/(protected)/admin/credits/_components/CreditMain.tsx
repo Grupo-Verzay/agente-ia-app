@@ -14,9 +14,7 @@ import {
     type PlanConfigItem,
 } from '@/actions/actions-ia-credits';
 import { onCreditsToTokens, onTokensToCredits } from '@/utils/onTokensToCredits';
-import { MetricCard } from '@/components/custom/MetricCard';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { Coins, TrendingDown, Wallet, Gauge, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { PLAN_LABELS } from '@/types/plans';
 import { Plan } from '@prisma/client';
 
@@ -102,11 +100,7 @@ export const CreditMain = ({ userId }: Props) => {
         setSaving(false);
     };
 
-    const available = Math.max(0, total - used);
-    const usagePercent = total > 0 ? Math.round((used / total) * 100) : 0;
-
     return (
-        <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-4">
 
             {/* ── Tabla de planes ────────────────────────────────── */}
@@ -162,47 +156,13 @@ export const CreditMain = ({ userId }: Props) => {
             {/* ── Override por usuario ────────────────────────────── */}
             {userId && (
                 <>
-                    {!loading && (
-                        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Coins className="h-4 w-4" />}
-                                    label="Total créditos"
-                                    value={total.toLocaleString()}
-                                    helper="Créditos asignados en total"
-                                    color="#3B82F6"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<TrendingDown className="h-4 w-4" />}
-                                    label="Consumidos"
-                                    value={used.toLocaleString()}
-                                    helper={`${usagePercent}% del total utilizado`}
-                                    color="#EF4444"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Wallet className="h-4 w-4" />}
-                                    label="Disponibles"
-                                    value={available.toLocaleString()}
-                                    helper="Créditos restantes para usar"
-                                    color="#22C55E"
-                                />
-                            </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Gauge className="h-4 w-4" />}
-                                    label="% Uso"
-                                    value={`${usagePercent}%`}
-                                    helper="Porcentaje del total consumido"
-                                    color="#F59E0B"
-                                />
-                            </div>
-                        </div>
-                    )}
-
+                    {/*
+                     * Aquí había cuatro tarjetas —Total, Consumidos,
+                     * Disponibles y «% Uso»— entre la tabla de planes y el
+                     * override. No filtraban nada: son los mismos dos números
+                     * que el formulario de abajo deja editar, con los otros dos
+                     * salidos de restarlos y dividirlos.
+                     */}
                     <Card className="border-border shadow-sm max-w-md">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">Override de créditos (usuario)</CardTitle>
@@ -244,6 +204,5 @@ export const CreditMain = ({ userId }: Props) => {
                 </>
             )}
         </div>
-        </TooltipProvider>
     );
 };

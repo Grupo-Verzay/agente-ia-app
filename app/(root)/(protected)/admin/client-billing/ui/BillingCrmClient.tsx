@@ -80,7 +80,7 @@ import {
 
 import { fmtDateShort, money } from "@/actions/billing/helpers/billing-helpers";
 import { COLUMNS_LABELS, daysLeftService, exportExcelAllFiltered, getExportValue, StatusBadgeAccess, StatusBadgePaid } from "../helpers";
-import { BillingCrmFiltersCards, BillingSkeletton, DaysLeftCell } from "../components";
+import { BillingCrmFiltrosRapidos, BillingSkeletton, DaysLeftCell } from "../components";
 import { useBillingLifecyclePreview } from "../hooks/useBillingLifecyclePreview";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -782,7 +782,11 @@ export function BillingCrmClient({
                 <div className="flex justify-between items-center gap-2">
                     <div className="flex flex-row flex-1 gap-2">
                         <div className="flex flex-col gap-2 flex-1">
-                            <BillingCrmFiltersCards table={table} data={data} soonDays={SOON_DAYS_BILLING} />
+                            {/* La barra va como la de Clientes: buscador fijo a la
+                                izquierda, los filtros rápidos en el medio —que es
+                                la zona que se desplaza cuando no caben— y las
+                                acciones fijas a la derecha. Las cifras estaban
+                                encima, en una fila de tarjetas propia. */}
                             <div className="flex flex-row items-center gap-2">
                                 <div className="relative w-72 shrink-0">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -793,6 +797,13 @@ export function BillingCrmClient({
                                         className="h-9 pl-8"
                                     />
                                 </div>
+
+                                <BillingCrmFiltrosRapidos
+                                    table={table}
+                                    data={data}
+                                    soonDays={SOON_DAYS_BILLING}
+                                    className="min-w-0 flex-1"
+                                />
 
                                 <div className="flex items-center gap-1 ml-auto">
                                 {/* Filtros columnas */}

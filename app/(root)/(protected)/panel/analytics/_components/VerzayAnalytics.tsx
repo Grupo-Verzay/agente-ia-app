@@ -1,7 +1,6 @@
 "use client"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { MetricCard } from "@/components/custom/MetricCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -9,10 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip, ResponsiveContainer, Cell,
 } from "recharts"
-import {
-  Users, UserCheck, Building2, DollarSign,
-  Trophy, Clock, Zap,
-} from "lucide-react"
+import { Trophy, Clock, Zap } from "lucide-react"
 import type { VerzayAnalyticsData } from "@/actions/analytics-actions"
 import { CreditAlertsWidget } from "@/components/custom/CreditAlertsWidget"
 
@@ -64,10 +60,9 @@ export function VerzayAnalytics({
   vigilancia?: React.ReactNode
 }) {
   const {
-    totalUsers, activeUsers, suspendedUsers, activationRate,
-    totalResellers, planDistribution, mostSoldPlan,
+    planDistribution, mostSoldPlan,
     monthlyRevenue, newUsersByMonth, resellerPerformance,
-    totalRevenueUSD, platformCredits, usersExpiringSoon, lowCreditUsers,
+    platformCredits, usersExpiringSoon, lowCreditUsers,
   } = data
 
   const revenueChartData = monthlyRevenue.map((m) => ({ mes: fmtMonth(m.month), ingresos: m.revenue }))
@@ -90,27 +85,17 @@ export function VerzayAnalytics({
     <TooltipProvider delayDuration={120}>
       <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto p-1">
 
-        {/* ── 4 Metric Cards ──
-            En el teléfono se saltan: ocupaban la pantalla entera antes de llegar
-            a las alertas y las gráficas, que es a lo que se entra. */}
-        <div className="hidden sm:flex sm:gap-3">
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<Users className="h-4 w-4" />} label="Total Usuarios" value={totalUsers}
-              helper="Clientes registrados en la plataforma" color="#3B82F6" />
-          </div>
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Activos" value={activeUsers}
-              helper={`${activationRate}% de tasa de activación`} color="#22C55E" />
-          </div>
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<Building2 className="h-4 w-4" />} label="Resellers" value={totalResellers}
-              helper="Revendedores registrados en la plataforma" color="#8B5CF6" />
-          </div>
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<DollarSign className="h-4 w-4" />} label="Ingresos (12m)" value={formatUSD(totalRevenueUSD)}
-              helper="Ingresos de suscripciones aprobadas en los últimos 12 meses" color="#F59E0B" />
-          </div>
-        </div>
+        {/*
+          Aquí abría la pantalla una fila de cuatro tarjetas —Total usuarios,
+          Activos, Resellers e Ingresos (12m)— y se han quitado: debajo no hay
+          ninguna lista que puedan filtrar, así que eran cuatro números mirando
+          al techo por encima de las gráficas, que es a lo que se entra.
+
+          Los cuatro siguen contados en la pantalla, y por eso no se pierde
+          nada: los usuarios y su reparto, en «Nuevos usuarios» y «Usuarios por
+          plan»; los resellers, en su tabla; y los ingresos, en la gráfica de
+          ingresos mensuales, que además dice de qué mes es cada peso.
+        */}
 
         {/*
           Aquí iban dos avisos —«N usuarios con pago pendiente» y «N usuarios

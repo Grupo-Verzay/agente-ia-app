@@ -1,7 +1,6 @@
 "use client"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { MetricCard } from "@/components/custom/MetricCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -9,10 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip, ResponsiveContainer, Cell,
 } from "recharts"
-import {
-  Users, UserCheck, UserX, TrendingUp,
-  AlertTriangle, Clock, Zap,
-} from "lucide-react"
+import { AlertTriangle, Clock, Zap } from "lucide-react"
 import type { ResellerAnalyticsData } from "@/actions/analytics-actions"
 import { CreditAlertsWidget } from "@/components/custom/CreditAlertsWidget"
 
@@ -33,17 +29,6 @@ const PLAN_COLORS: Record<string, string> = {
   personalizado: "#f87171",
 }
 
-const formatCurrency = (amount: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency", currency,
-      minimumFractionDigits: 0, maximumFractionDigits: 0,
-    }).format(amount)
-  } catch {
-    return `${currency} ${amount.toLocaleString()}`
-  }
-}
-
 const fmtMonth = (key: string) => {
   const [y, m] = key.split("-").map(Number)
   return new Date(y, m - 1).toLocaleDateString("es-ES", { month: "short", year: "2-digit" })
@@ -51,9 +36,8 @@ const fmtMonth = (key: string) => {
 
 export function ResellerAnalytics({ data }: { data: ResellerAnalyticsData }) {
   const {
-    totalClients, activeClients, suspendedClients, unpaidClients, activationRate,
+    unpaidClients,
     planDistribution, totalCreditsAssigned, totalCreditsUsed,
-    estimatedMonthlyRevenue, currencyCode,
     newClientsByMonth, clientsExpiringSoon, lowCreditUsers,
   } = data
 
@@ -80,25 +64,12 @@ export function ResellerAnalytics({ data }: { data: ResellerAnalyticsData }) {
     <TooltipProvider delayDuration={120}>
       <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto">
 
-        {/* ── 4 Metric Cards ── */}
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<Users className="h-4 w-4" />} label="Total Clientes" value={totalClients}
-              helper="Clientes asignados a tu cuenta" color="#3B82F6" />
-          </div>
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Activos" value={activeClients}
-              helper={`${activationRate}% de tasa de activación`} color="#22C55E" />
-          </div>
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<UserX className="h-4 w-4" />} label="Suspendidos" value={suspendedClients}
-              helper="Clientes con servicio suspendido" color="#EF4444" />
-          </div>
-          <div className="min-w-0 sm:flex-1">
-            <MetricCard icon={<TrendingUp className="h-4 w-4" />} label="Ingresos Est./mes" value={formatCurrency(estimatedMonthlyRevenue, currencyCode)}
-              helper="Suma del precio de facturación de clientes activos" color="#8B5CF6" />
-          </div>
-        </div>
+        {/*
+          Aquí había cuatro tarjetas —Total clientes, Activos, Suspendidos e
+          Ingresos estimados— y se han quitado: debajo no hay lista que puedan
+          filtrar. Lo que sí queda es la fila de avisos de más abajo, que es la
+          que pide algo: cuántos deben y cuántos vencen esta semana.
+        */}
 
         {/* ── Alertas ── */}
         {(unpaidClients > 0 || clientsExpiringSoon.length > 0) && (

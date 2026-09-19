@@ -155,10 +155,15 @@ const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
   minute: '2-digit',
 });
 
+/*
+ * Aquí había un `onKpisChange` con el que esta pantalla le subía sus cifras al
+ * panel del CRM para que las pintara en cuatro tarjetas encima. Las tarjetas se
+ * fueron —no filtraban nada allí— y las pastillas de abajo, que sí filtran,
+ * salen ya también en modo embebido. Sin tarjetas arriba, el canal sobra.
+ */
 export function CallsCrmClient({
   embedded = false,
-  onKpisChange,
-}: { embedded?: boolean; onKpisChange?: (kpis: CallsKpis | undefined) => void } = {}) {
+}: { embedded?: boolean } = {}) {
   const [data, setData] = useState<CallsCrmData | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -268,9 +273,6 @@ export function CallsCrmClient({
   }, [load]);
 
   const kpis = data?.kpis;
-
-  // En modo embebido las 4 tarjetas se pintan en el slot superior del dashboard.
-  useEffect(() => { onKpisChange?.(kpis); }, [kpis, onKpisChange]);
 
   // Última llamada (entrante o saliente) para rellamada rápida. Las llamadas
   // llegan ordenadas por fecha descendente, así que la primera válida es la
@@ -487,13 +489,18 @@ export function CallsCrmClient({
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
           <CardTitle className="text-sm">Historial</CardTitle>
           {/* Las cifras que abrían la pantalla en tarjetas, aquí — que es donde
-              está el filtro con el que se cruzan. Las tres primeras mueven ese
-              mismo filtro; «Contestadas» no tiene equivalente y va sin aspecto
-              de pulsable.
-              En modo embebido no salen: el panel de CRM ya las pinta arriba. */}
+              está el filtro con el que se cruzan. Las tres mueven ese mismo
+              filtro, así que las tres son pastillas de verdad.
+              Salen también EN MODO EMBEBIDO: el panel del CRM las pintaba
+              arriba en cuatro tarjetas, con estos mismos números y sin filtrar
+              nada. Se quitaron de allí, que es donde sobraban, no de aquí.
+              «Contestadas» se fue entera: no hay filtro de contestadas en esta
+              tabla, y una cifra que no lleva a ninguna parte ocupa el sitio de
+              las que sí. Lo que decía —la duración media— se lee en el tooltip
+              de «Total», al lado de la duración acumulada. */}
           <div className="ml-auto flex items-center gap-2">
-          {!embedded && (
-            <PastillasDeMetricas
+          <PastillasDeMetricas
+              deslizable
               metricas={[
                 {
                   clave: 'all',
@@ -501,7 +508,7 @@ export function CallsCrmClient({
                   etiqueta: 'Total',
                   valor: kpis?.total ?? 0,
                   color: '#3B82F6',
-                  ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)}`,
+                  ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`,
                   alPulsar: () => setDirection('all'),
                   activa: direction === 'all',
                 },
@@ -525,18 +532,9 @@ export function CallsCrmClient({
                   alPulsar: () => setDirection(direction === 'incoming' ? 'all' : 'incoming'),
                   activa: direction === 'incoming',
                 },
-                {
-                  clave: 'answered',
-                  icono: <PhoneCall />,
-                  etiqueta: 'Contestadas',
-                  valor: kpis?.answered ?? 0,
-                  color: '#8B5CF6',
-                  ayuda: `Duración promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)}`,
-                },
               ]}
             />
-          )}
-          <div className="flex rounded-lg border border-border p-0.5">
+          <div className="flex shrink-0 rounded-lg border border-border p-0.5">
             {DIRECTION_OPTIONS.map((o) => (
               <button
                 key={o.value}
