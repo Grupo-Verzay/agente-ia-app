@@ -586,6 +586,15 @@ export type EvolutionMessage = {
    * otro, que es lo pedido.
    */
   transcripcionMotivo?: "muy_larga" | "fallo";
+  /**
+   * Lo que dura la nota, en segundos, **leído de la misma fila que cobra**.
+   *
+   * De aquí sale el precio del botón de transcribir, y por eso baja del
+   * servidor en vez de deducirse al pintar: quien descuenta lee `raw` de
+   * `chat_messages` con `segundosDeLaNota`, así que bajando ese mismo número
+   * lo que se enseña no puede separarse de lo que se descuenta.
+   */
+  audioSegundos?: number;
 };
 
 export type LastMessage = {

@@ -12,6 +12,7 @@ import { CallDialog } from './CallDialog';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
 import { TextoConFormato } from '@/components/shared/TextoConFormato';
+import { useTranscribirNota } from './TranscribirNota';
 
 /* ─── ExpandableText ─── */
 interface ExpandableTextProps {
@@ -164,6 +165,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
    * miniatura, se intenta con esa en vez de darla por rota para siempre.
    */
   const [miniaturaRota, setMiniaturaRota] = useState<string | null>(null);
+
+  // La nota de voz: su pastilla va al renglón de la hora y su texto debajo del
+  // reproductor. Las dos salen de un solo hook porque comparten estado —se
+  // pulsa arriba y el texto tiene que aparecer abajo— y se piden aquí, antes
+  // de cualquier rama, que es lo que exigen las reglas de los hooks.
+  const laNota = useTranscribirNota({
+    messageId,
+    segundos: audioSegundos,
+    transcripcion,
+    transcripcionMotivo,
+    esNotaEntrante: !isUserMessage && media?.type === 'audio',
+  });
+
   // Sin avatar por mensaje (como WhatsApp en chats 1-a-1): burbujas limpias y
   // más espacio. El avatar del contacto ya se ve en la cabecera del chat.
   const showAvatar = false;
@@ -495,11 +509,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <MediaRenderer
             media={media}
             reproducido={isUserMessage && status === 'played'}
-            transcripcion={transcripcion}
-            transcripcionMotivo={transcripcionMotivo}
-            messageId={messageId}
-            audioSegundos={audioSegundos}
-            esEntrante={!isUserMessage}
+            pieDeLaNota={laNota.debajoDelAudio}
           />
         )}
         {message && (
@@ -518,8 +528,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <ExpandableText message={message} isUserMessage={isUserMessage} />
           </div>
         )}
-        {/* Metadatos en flujo normal: la burbuja crece hasta cubrir ícono, nombre y hora */}
-        <div className="flex justify-end mt-0.5">{timeAndStatus}</div>
+        {/*
+          Metadatos en flujo normal: la burbuja crece hasta cubrir ícono, nombre
+          y hora. Y aquí entra la pastilla de transcribir, a la IZQUIERDA — es
+          el renglón donde ya viven «Asesor», «Agente IA», «Editado» y
+          «Eliminado», así que no cuesta alto; en un renglón propio la burbuja
+          crecía por cada nota, y en una conversación de notas son todas.
+
+          `justify-between` con `ml-auto` en la hora: sin pastilla la hora se
+          queda pegada a la derecha igual que siempre, así que esto no cambió
+          ninguna burbuja que no sea una nota de voz.
+        */}
+        <div className="mt-0.5 flex items-center gap-2">
+          {laNota.pastilla}
+          <div className="ml-auto">{timeAndStatus}</div>
+        </div>
         {reaction && (
           <span
             className={cn(

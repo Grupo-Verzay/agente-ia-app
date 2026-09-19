@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { miniaturaDelAnuncio } from '@/lib/miniatura-del-anuncio';
+import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
 import { epochToMs } from './chat-sidebar.utils';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
@@ -1130,6 +1131,19 @@ export function toUIMessages(
   //
   // Y con ella la DURACIÓN, que es lo que el botón necesita para decir el
   // precio antes de que nadie lo pulse.
+  //
+  // **De dónde sale, que es lo que estaba mal.** Manda `audioSegundos`, que
+  // baja del servidor leído de la MISMA fila de `chat_messages` que después
+  // descuenta (`persistedRowToEvolutionMessage` → `laNotaDeVoz`). El respaldo
+  // —el mensaje tal cual lo devolvió el proveedor, que es de donde sale ese
+  // `raw`— pasa por `segundosDeLaNota`, **la misma función**, así que las dos
+  // puntas no pueden contestar cosas distintas.
+  //
+  // Antes aquí había un lector propio que solo miraba
+  // `message.audioMessage.seconds`. Cuando esa forma no estaba devolvía 0, y
+  // `costoDeLaNota(0)` no da cero: da el mínimo. De ahí el «1 crédito» debajo
+  // de una nota de 40 segundos que cuesta 4 — un precio creíble, que es la
+  // peor clase de número inventado.
   const textos = new Map<
     string,
     { texto?: string; motivo?: 'muy_larga' | 'fallo'; segundos?: number }
@@ -1143,10 +1157,12 @@ export function toUIMessages(
       conTexto.transcripcionMotivo === 'muy_larga' || conTexto.transcripcionMotivo === 'fallo'
         ? conTexto.transcripcionMotivo
         : undefined;
-    const crudos = (m.message as { audioMessage?: { seconds?: unknown } } | undefined)
-      ?.audioMessage?.seconds;
-    const segundos = Number(crudos);
-    const dura = Number.isFinite(segundos) && segundos > 0 ? segundos : undefined;
+    const delServidor = (m as { audioSegundos?: unknown }).audioSegundos;
+    const segundos =
+      (typeof delServidor === 'number' && Number.isFinite(delServidor) && delServidor > 0
+        ? Math.floor(delServidor)
+        : 0) || segundosDeLaNota(m.message);
+    const dura = segundos > 0 ? segundos : undefined;
     if (texto || motivo || dura !== undefined) textos.set(id, { texto, motivo, segundos: dura });
   }
   if (textos.size) {
