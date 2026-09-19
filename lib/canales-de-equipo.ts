@@ -212,3 +212,121 @@ export function soloLasPersonas<T extends { id: string; esCuenta?: boolean }>(
 export function esTipoDeCanal(v: string): v is TipoDeCanal {
     return (TIPOS_DE_CANAL as readonly string[]).includes(v);
 }
+
+// ── Dónde se estaba: el último canal abierto ────────────────────────────────
+
+/**
+ * Al recargar o al volver de otra sección el hilo se abría **siempre en
+ * General**, aunque se estuviera en un área o en un directo. En un panel que
+ * se abre y se cierra decenas de veces al día, eso es perder la conversación
+ * en cada vuelta.
+ *
+ * Vive **aquí y no en un módulo suyo** porque `CANAL_GENERAL` es de este
+ * fichero: sacarlo aparte obligaba a importarlo, y un import de VALOR entre
+ * dos ficheros de `lib/` no se resuelve al compilar un banco suelto — la
+ * alternativa era copiar la constante, que es justo lo que este repositorio
+ * lleva media docena de reglas evitando.
+ *
+ * # Por qué en el navegador y no en la base
+ *
+ * Es una preferencia de **esta pestaña y este equipo**, no un dato de la
+ * cuenta: en la base sería una escritura por cada cambio de canal —lo más
+ * frecuente que se hace aquí— para devolver algo que no importa si se pierde.
+ * Si no está, se abre el General, que es como se comportaba antes.
+ *
+ * # Y la llave lleva la CUENTA y la PERSONA
+ *
+ * Las dos, y cada una tapa un caso distinto:
+ *
+ * - **La cuenta**, porque la lista de canales depende de ella: con «Ingresar»
+ *   o con el conmutador se entra a otro sitio, donde el canal recordado no
+ *   existe. Sin la cuenta en la llave, cada salto se caería al General y
+ *   además pisaría el recuerdo del otro lado.
+ * - **La persona**, por el mismo motivo por el que lo lleva `llaveDeLaMarca`:
+ *   dos personas en el mismo navegador no pueden pisarse. Y dentro de una
+ *   cuenta la pertenencia a un canal es **por persona**, así que el directo
+ *   de una no es un canal que la otra pueda abrir.
+ *
+ * Nada de esto es una puerta: a qué canal se llega lo decide el servidor, que
+ * se cae al General cuando el pedido no está en la lista de quien pregunta.
+ * Esto solo evita pedir de más.
+ */
+export function llaveDelUltimoCanal(cuentaId: string, personaId: string): string {
+    // El separador es `::` y no `_`, que fue el primer intento y lo desmintió
+    // el banco: un id con un guion bajo dentro hace que («a», «b_c») y
+    // («a_b», «c») den la MISMA llave, o sea el recuerdo de una persona
+    // abriéndose en la sesión de otra. Hoy los ids son UUID y no puede pasar,
+    // pero `::` es además el separador que ya usan `llaveDelDirecto` y las
+    // llaves `linea::numero` de Chats.
+    return `equipo_ultimo_canal_${cuentaId || "sin-cuenta"}::${personaId || "sin-persona"}`;
+}
+
+/**
+ * Con qué canal se abre el hilo, y si ese canal sale de un recuerdo.
+ *
+ * El orden **no es intercambiable**:
+ *
+ * 1. **Lo pedido manda** — el `?canal=` de un aviso de mención, o el salto de
+ *    un resultado de búsqueda. Quien llega por un enlace va a algo concreto;
+ *    que un recuerdo se lo pisara sería un enlace que no lleva donde dice.
+ * 2. **Después el recuerdo.**
+ * 3. **Y si no hay nada, el General**, que es como se abría siempre.
+ *
+ * `deRecuerdo` viaja hasta el servidor por un solo motivo, y es el reverso de
+ * *la caída al General no puede ser muda*: cuando alguien **pulsó** algo y
+ * acaba en el General hay un fallo que mirar —así se veía el directo que no se
+ * abría—, pero un canal recordado que ya no existe es lo NORMAL: lo borraron,
+ * o esa persona salió de él. Sin distinguirlos, ese aviso pasaría a saltar a
+ * diario por comportamiento correcto y se aprendería a despachar sin leer —
+ * con lo que el día que señale un fallo de verdad, ese también se ignora.
+ */
+export function elCanalDeEntrada(input: {
+    /** El canal del enlace, si se llega desde un aviso o una búsqueda. */
+    pedido?: string | null;
+    /** El que se recuerda de la última vez, si lo hay. */
+    recordado?: string | null;
+}): { canal: string; deRecuerdo: boolean } {
+    const pedido = (input.pedido ?? "").trim();
+    if (pedido) return { canal: pedido, deRecuerdo: false };
+
+    const recordado = (input.recordado ?? "").trim();
+    // Un General recordado no puede quedarse rancio: es el canal que existe
+    // siempre. Marcarlo como recuerdo solo apagaría el aviso de una caída al
+    // General que sí habría que mirar.
+    if (recordado && recordado !== CANAL_GENERAL) {
+        return { canal: recordado, deRecuerdo: true };
+    }
+    return { canal: CANAL_GENERAL, deRecuerdo: false };
+}
+
+/**
+ * Leer el recuerdo. **Nunca lanza**, y eso no es un detalle.
+ *
+ * En una ventana privada, con las cookies de sitio bloqueadas o dentro de una
+ * previsualización, tocar `localStorage` **tira una excepción**. Sin el `try`,
+ * esa excepción sale en la primera carga del hilo y el panel entero se queda
+ * sin abrir: una preferencia de comodidad tumbando el chat justo en los
+ * navegadores donde más se cuida la privacidad. Es la misma razón por la que
+ * el mando de la jornada envuelve cada acceso.
+ */
+export function elCanalRecordado(cuentaId: string, personaId: string): string | null {
+    try {
+        const guardado = localStorage.getItem(llaveDelUltimoCanal(cuentaId, personaId));
+        const limpio = (guardado ?? "").trim();
+        return limpio || null;
+    } catch {
+        return null;
+    }
+}
+
+/** Guardar el recuerdo, con el mismo `try` y por el mismo motivo. */
+export function recordarElCanal(cuentaId: string, personaId: string, canalId: string): void {
+    try {
+        const limpio = (canalId ?? "").trim();
+        if (!limpio) return;
+        localStorage.setItem(llaveDelUltimoCanal(cuentaId, personaId), limpio);
+    } catch {
+        // Sin `localStorage` no hay recuerdo y se abre el General, que es
+        // exactamente como se comportaba esto antes.
+    }
+}

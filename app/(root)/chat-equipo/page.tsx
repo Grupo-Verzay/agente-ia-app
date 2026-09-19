@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { currentUser } from "@/lib/auth";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { HiloDelEquipo } from "@/components/chat-equipo/HiloDelEquipo";
 
 export const dynamic = "force-dynamic";
@@ -38,10 +39,15 @@ export default async function ChatDeEquipoPage({
     const user = await currentUser();
     if (!user) redirect("/login");
 
+    // Quién entra, para volver al canal donde se estaba. Se resuelve aquí y
+    // no en la pantalla: hace falta antes de la primera consulta, y `window`
+    // no sabe de cuentas.
     return (
         <HiloDelEquipo
             canalInicial={searchParams?.canal}
             mensajeInicial={searchParams?.mensaje}
+            cuentaId={user.ownerId ?? user.id}
+            personaId={laPersonaQueActua(user).id}
         />
     );
 }

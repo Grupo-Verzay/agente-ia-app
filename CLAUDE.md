@@ -8527,6 +8527,75 @@ Y se cierra **el último tramo abierto** de ese `refId`, no todos: un ticket se
 puede reabrir y volver a cerrar, y cerrarlos todos de golpe le pondría a un
 tramo de horas la antigüedad del primero.
 
+## Chat de equipo: se vuelve al canal donde se estaba
+
+Al recargar o al volver de otra sección el hilo se abría **siempre en
+General**, aunque se estuviera en un área o en un directo. En un panel que se
+abre y se cierra decenas de veces al día, eso es perder la conversación en
+cada vuelta.
+
+El último canal abierto vive en `localStorage` —no en la base: es una
+preferencia de esta pestaña, y guardarla allí sería una escritura por cada
+cambio de canal, que es lo más frecuente que se hace aquí, para devolver algo
+que no importa si se pierde—. Lo deciden tres funciones de
+`lib/canales-de-equipo.ts`, al lado de `CANAL_GENERAL`: `llaveDelUltimoCanal`,
+`elCanalDeEntrada`, y los dos accesos con su `try`.
+
+**La llave lleva la CUENTA y la PERSONA**, y cada una tapa un caso distinto:
+la cuenta porque la lista de canales depende de ella —con «Ingresar» o con el
+conmutador el canal recordado no existe—, y la persona porque dentro de una
+cuenta la pertenencia a un canal es suya, así que el directo de una no es un
+canal que la otra pueda abrir. Es el mismo reparto de `llaveDeLaMarca`. Y el
+separador es `::` y no `_`: lo desmintió el banco, porque con `_` un id que lo
+lleve dentro hace que («a», «b_c») y («a_b», «c») den la **misma** llave.
+
+Tres cosas que hay que mantener:
+
+1. **Lo pedido manda sobre el recuerdo.** El `?canal=` de un aviso de mención
+   va a algo concreto; abrirle a alguien el canal de ayer sería un enlace que
+   no lleva donde dice.
+2. **Un canal que ya no existe cae en General sin error.** No hace falta
+   ninguna rama que lo borre: el servidor devuelve el General y es el General
+   lo que el navegador guarda, así que el recuerdo rancio se cura solo.
+3. **Pero esa caída deja de ser un `warn`** cuando viene de un recuerdo
+   (`deRecuerdo` en `hiloDelEquipoAction`). Un canal recordado que desapareció
+   es lo normal —lo borraron, o esa persona salió de él—; con el mismo aviso
+   para los dos casos, el que señala *el directo que no se abre* saltaría a
+   diario por comportamiento correcto y se aprendería a despachar sin leer.
+
+Y los ids bajan **como props desde el servidor** —layout → `BotonesDelBorde` →
+`Marco` → `HiloDelEquipo`, y la ruta por su lado— porque hacen falta **antes
+de la primera consulta**: la respuesta también los trae, pero para entonces ya
+se habría pedido el General y se vería el salto. Leerlos al pintar con un
+`useState` no vale: `localStorage` no existe en el servidor y las dos salidas
+no coincidirían, o sea una hidratación rota.
+
+### Pedir un canal concreto es RECLAMARLO ya
+
+Es lo que estaba debajo y lo que costó encontrarlo, porque no daba ningún
+error. `traer` tiene un guardián para que una vuelta del reloj que sale con el
+canal anterior no pinte encima del que se acaba de abrir:
+
+```ts
+if (pedido !== canalRef.current) return null;
+```
+
+Y `canalRef` solo se movía **después** de la respuesta. `cambiarDeCanal` lo
+sorteaba moviéndolo él antes de llamar; los otros dos que piden un canal
+distinto del que hay, no:
+
+- **la primera carga**, que ahora abre en el canal recordado;
+- **`irAlMensaje`**, cuando el resultado de la búsqueda está en otro canal
+  — un fallo que ya estaba y que nadie había reportado.
+
+En los dos, `canalRef` valía todavía `general` y el guardián **tiraba la
+respuesta buena**. La pantalla se quedaba en General, el reloj volvía a pedir
+el General, y desde fuera parecía que el recuerdo no se guardaba.
+
+**Reclamar el canal lo hace `traer`**, que es por donde pasan los tres, y por
+eso `cambiarDeCanal` ya no lo repite: dos sitios diciendo lo mismo es uno que
+se afina y otro que se queda.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

@@ -70,6 +70,9 @@ import {
 } from "@/lib/chat-de-equipo";
 import {
     CANAL_GENERAL,
+    elCanalDeEntrada,
+    elCanalRecordado,
+    recordarElCanal,
     TOPE_DEL_NOMBRE,
     type CanalDeEquipo,
 } from "@/lib/canales-de-equipo";
@@ -188,6 +191,8 @@ export function HiloDelEquipo({
     activo = true,
     canalInicial,
     mensajeInicial,
+    cuentaId,
+    personaId,
 }: {
     /**
      * Si el reloj tiene que correr y si hay que cargar.
@@ -207,6 +212,17 @@ export function HiloDelEquipo({
      * mención: hay que ponerla delante.
      */
     mensajeInicial?: string;
+    /**
+     * Quién entra, para volver al canal donde se estaba.
+     *
+     * Se resuelven en el SERVIDOR y bajan como props porque hacen falta
+     * **antes de la primera consulta**: la respuesta también los trae, pero
+     * para entonces ya se habría pedido el General y se vería el salto. Sin
+     * ellos no se recuerda nada y el hilo abre en General, que es como se
+     * comportaba antes.
+     */
+    cuentaId?: string;
+    personaId?: string;
 }) {
     const [datos, setDatos] = useState<HiloAbierto | null>(null);
     const [fallo, setFallo] = useState<string | null>(null);
@@ -286,6 +302,8 @@ export function HiloDelEquipo({
     // cambiar de canal remontaría el `setInterval` y perdería su cadencia.
     const canalRef = useRef(canalId);
     canalRef.current = canalId;
+    /** Lo último que se guardó como «aquí estaba», para no reescribirlo cada vuelta. */
+    const yaRecordado = useRef<string | null>(null);
 
     // Qué canal se tiene DELANTE, para que no suene con él.
     //
@@ -306,12 +324,33 @@ export function HiloDelEquipo({
     const aPorEsteRef = useRef<string | null>(mensajeInicial ?? null);
     aPorEsteRef.current = aPorEste;
 
-    const traer = useCallback(async (cual?: string, mensaje?: string | null) => {
+    const traer = useCallback(async (
+        cual?: string,
+        mensaje?: string | null,
+        deRecuerdo?: boolean,
+    ) => {
         const pedido = cual ?? canalRef.current;
+        // Pedir un canal CONCRETO es reclamarlo ya, no cuando conteste el
+        // servidor. Es lo que `cambiarDeCanal` hacía por su cuenta, y lo que
+        // le faltaba a los otros dos que piden uno distinto del que hay:
+        //
+        // - la primera carga, desde que se abre en el canal recordado;
+        // - `irAlMensaje`, cuando el resultado está en otro canal.
+        //
+        // Sin esto, el guardián de la vuelta rancia de tres líneas más abajo
+        // compara contra el canal ANTERIOR —que en la primera carga es el
+        // General— y **tira la respuesta buena**: la pantalla se queda en
+        // General, el reloj vuelve a pedir el General, y desde fuera parece
+        // que el recuerdo no se guardó. No hay error en ninguna parte, que es
+        // lo que costó encontrarlo.
+        if (cual) {
+            canalRef.current = cual;
+            setCanalId(cual);
+        }
         // El mensaje solo se pide cuando se viene A POR ÉL. En las vueltas del
         // reloj no: el hilo se traería centrado en un mensaje viejo para
         // siempre y no se vería entrar nada nuevo.
-        const res = await hiloDelEquipoAction(pedido, mensaje ?? undefined);
+        const res = await hiloDelEquipoAction(pedido, mensaje ?? undefined, deRecuerdo);
         if (!res.success) return res.message;
         // Una vuelta del reloj que salió con el canal anterior NO puede pintar
         // encima del que se acaba de abrir: llega tarde, con los mensajes de
@@ -334,6 +373,22 @@ export function HiloDelEquipo({
         // devuelve el general y la pantalla se pone donde de verdad está.
         setCanalId(res.data.canalId);
         canalRef.current = res.data.canalId;
+
+        // Y se recuerda para la próxima vez. Con los ids de la RESPUESTA, no
+        // con los de las props: así la llave con la que se guarda es siempre
+        // la de la cuenta que de verdad sirvió el hilo. Eso además cura solo
+        // un recuerdo rancio —el servidor devolvió el General y es el General
+        // lo que se guarda—, sin ninguna rama que lo borre.
+        //
+        // Aquí pasan las vueltas del reloj cada cinco segundos, así que solo
+        // se escribe cuando cambia: una escritura en `localStorage` por
+        // vuelta, en todas las pestañas del equipo, es pagar todo el día por
+        // un dato que no se ha movido.
+        const recuerdo = `${res.data.cuentaId}::${res.data.yo}::${res.data.canalId}`;
+        if (yaRecordado.current !== recuerdo) {
+            yaRecordado.current = recuerdo;
+            recordarElCanal(res.data.cuentaId, res.data.yo, res.data.canalId);
+        }
         return null;
     }, []);
 
@@ -343,7 +398,22 @@ export function HiloDelEquipo({
         let vivo = true;
         void (async () => {
             try {
-                const malo = await traer(canalInicial || CANAL_GENERAL, aPorEsteRef.current);
+                // Se vuelve al canal donde se estaba. Lo pedido manda sobre
+                // el recuerdo: quien llega por un aviso de mención va a algo
+                // concreto, y abrirle el de ayer sería un enlace que no lleva
+                // donde dice.
+                const entrada = elCanalDeEntrada({
+                    pedido: canalInicial,
+                    recordado:
+                        cuentaId && personaId
+                            ? elCanalRecordado(cuentaId, personaId)
+                            : null,
+                });
+                const malo = await traer(
+                    entrada.canal,
+                    aPorEsteRef.current,
+                    entrada.deRecuerdo,
+                );
                 if (vivo && malo) setFallo(malo);
             } catch (error) {
                 // Un panel que se abre vacío y no dice por qué se lee como que
@@ -355,7 +425,7 @@ export function HiloDelEquipo({
         return () => {
             vivo = false;
         };
-    }, [activo, datos, traer, canalInicial]);
+    }, [activo, datos, traer, canalInicial, cuentaId, personaId]);
 
     /**
      * Ir a un mensaje: el de un resultado de búsqueda o el de una cita.
@@ -498,11 +568,11 @@ export function HiloDelEquipo({
     const cambiarDeCanal = useCallback(
         async (cual: string) => {
             setListaAbierta(false);
-            setCanalId(cual);
-            // La referencia se mueve YA, no en el render siguiente: es contra
-            // ella contra la que el reloj comprueba si su vuelta sigue valiendo.
-            canalRef.current = cual;
             setTexto("");
+            // Reclamar el canal —mover `canalRef` YA, no en el render
+            // siguiente— lo hace `traer`, que es por donde pasan los TRES que
+            // piden un canal concreto. Escrito además aquí eran dos sitios
+            // diciendo lo mismo, y el día que uno se afine el otro se queda.
             try {
                 const malo = await traer(cual);
                 if (malo) toast.error(malo);

@@ -57,11 +57,16 @@ export function PanelDeEquipo({
     abierto,
     sonido,
     onCerrar,
+    cuentaId,
+    personaId,
 }: {
     abierto: boolean;
     /** Si esta persona quiere que suene. Lo trae el reloj del contador. */
     sonido: boolean;
     onCerrar: () => void;
+    /** Quién entra, para que el hilo vuelva al canal donde se estaba. */
+    cuentaId?: string;
+    personaId?: string;
 }) {
     // Chats acomoda la conversación mientras haya un panel abierto, igual que
     // ya hace con la ficha de Contacto. En el resto de la plataforma esto no
@@ -74,10 +79,23 @@ export function PanelDeEquipo({
     return (
         <>
             <div className={FRANJA_LATERAL}>
-                <Marco abierto={abierto} sonido={sonido} onCerrar={onCerrar} />
+                <Marco
+                    abierto={abierto}
+                    sonido={sonido}
+                    onCerrar={onCerrar}
+                    cuentaId={cuentaId}
+                    personaId={personaId}
+                />
             </div>
             <div className={FRANJA_LATERAL_MOVIL}>
-                <Marco movil abierto={abierto} sonido={sonido} onCerrar={onCerrar} />
+                <Marco
+                    movil
+                    abierto={abierto}
+                    sonido={sonido}
+                    onCerrar={onCerrar}
+                    cuentaId={cuentaId}
+                    personaId={personaId}
+                />
             </div>
         </>
     );
@@ -88,11 +106,15 @@ function Marco({
     sonido,
     onCerrar,
     movil = false,
+    cuentaId,
+    personaId,
 }: {
     abierto: boolean;
     sonido: boolean;
     onCerrar: () => void;
     movil?: boolean;
+    cuentaId?: string;
+    personaId?: string;
 }) {
     return (
         <section
@@ -129,7 +151,11 @@ function Marco({
                 {/* El reloj y la carga solo corren con el panel abierto: con él
                     cerrado no hay nadie mirando, y esto cuelga de TODAS las
                     pantallas. */}
-                <HiloDelEquipo activo={abierto} />
+                <HiloDelEquipo
+                    activo={abierto}
+                    cuentaId={cuentaId}
+                    personaId={personaId}
+                />
             </div>
         </section>
     );
