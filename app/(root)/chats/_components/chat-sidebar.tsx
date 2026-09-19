@@ -96,7 +96,7 @@ import type { ChatData } from "@/actions/chat-actions";
 // Los chats que ya se abrieron se recuerdan por LÍNEA y chat, no solo por chat.
 // El mismo contacto puede escribir a dos líneas —y un `@lid` se repite entre
 // ellas—: con una sola marca compartida, abrirlo en una borraba la de la otra y
-// las dos se quedaban peleando por siempre en "No leídos".
+// las dos se quedaban peleando por siempre en "Sin leer".
 function claveDeChatVisto(instanceName: string | undefined, remoteJid: string): string {
   return claveDeChat(instanceName, remoteJid);
 }
@@ -709,7 +709,7 @@ export function ChatSidebar({
     setUnreadCount(filterCounts.unread);
   }, [filterCounts.unread, setUnreadCount]);
 
-  // "No leídos" se enciende solo al entrar, pero únicamente cuando ya se sabe
+  // "Sin leer" se enciende solo al entrar, pero únicamente cuando ya se sabe
   // que hay alguno. Antes entraba encendido y, si a los dos segundos y medio la
   // cuenta seguía en cero, se rendía y volvía a "Todos". La lista pinta primero
   // desde la caché y los contadores llegan después: en el móvil tardan más de
@@ -1024,7 +1024,7 @@ export function ChatSidebar({
   /**
    * Los filtros de ESTADO de la barra, sueltos todos a la vez.
    *
-   * «Todos», «Mías», «No leídos» y «En espera» son UN grupo: al elegir uno, el
+   * «Todos», «Mías», «Sin leer» y «En espera» son UN grupo: al elegir uno, el
    * anterior se suelta. Nunca dos puestos.
    *
    * Estaba escrito a mano en `handleTabChange` y a «En espera» se le paso —se

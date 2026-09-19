@@ -46,7 +46,7 @@ export const BotonDeAsesores = React.forwardRef<HTMLButtonElement, PropsDeAsesor
                 {...resto}
             >
                 <Users className="h-4 w-4 shrink-0" />
-                {/* La insignia sí desaparece en cero —como en «No leídos»—, pero el
+                {/* La insignia sí desaparece en cero —como en «Sin leer»—, pero el
                     BOTÓN no: es estructura, y lo que no puede moverse al llegar los
                     datos. */}
                 {cantidad > 0 && (
