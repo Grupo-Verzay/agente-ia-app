@@ -90,7 +90,7 @@ function conFormato(texto: string): React.ReactNode {
  *
  * Dos caminos, y la diferencia importa:
  *
- * - **De dentro**: un `Link`, que navega **sin recargar**. Con un `<a>` normal
+ * - **De dentro**: un `Link` **sin precarga**, que navega sin recargar. Con un `<a>` normal
  *   la plataforma entera se vuelve a cargar —sesión, menú, módulos— para ir a
  *   una pantalla que ya estaba ahí, y se pierde lo que hubiera abierto: un
  *   panel, una reunión plegada.
@@ -113,7 +113,13 @@ function Enlace({
 
     if (ruta) {
         return (
-            <Link href={ruta} className={clases}>
+            // `prefetch={false}` NO es una optimización: es lo que impide que
+            // el mero hecho de que un mensaje esté en pantalla dispare una
+            // petición a la dirección que escribió otra persona. En Chats ese
+            // otro es un contacto de WhatsApp, o sea cualquiera. Con la
+            // precarga de siempre, un enlace a una ruta nuestra se visitaría
+            // solo, sin que nadie lo pulse.
+            <Link href={ruta} prefetch={false} className={clases}>
                 {texto}
             </Link>
         );

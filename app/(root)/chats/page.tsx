@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { MessagesSquare } from "lucide-react";
 import type { ApiKey, Instancia } from "@prisma/client";
+import { elOrigenDeLaApp } from "@/lib/origen-de-la-app";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { db } from "@/lib/db";
@@ -813,6 +814,8 @@ export default async function ChatsPage({
   // Aplicar el mapeo @lid->número aprendido a TODOS los chats (incluye los que
   // llegan EN VIVO de Evolution), para que los @lid ya unidos se fusionen de
   // forma estable con el contacto real y no reaparezcan como duplicados.
+  // No cuesta ninguna consulta: son las cabeceras de esta misma petición.
+  const origenDeLaApp = await elOrigenDeLaApp();
   const lidPhoneMap = await loadLidPhoneMap(effectiveOwnerId);
   if (chatsResult.success && Object.keys(lidPhoneMap).length > 0) {
     chatsResult = {
@@ -892,6 +895,10 @@ export default async function ChatsPage({
   return (
     <ChatsClient
       userId={effectiveOwnerId}
+      // Por qué dominio se sirve esto, para que la burbuja sepa qué enlace de
+      // un mensaje es de dentro. Sale de la petición y no de una variable: la
+      // App se abre por más de un dominio.
+      origen={origenDeLaApp}
       // Las notas son PERSONALES: quien mira ve las suyas y las que le hayan
       // compartido, no las de la cuenta. Por eso viaja aparte del id de la
       // cuenta, que es con el que van los chats, las lineas y las sesiones.
