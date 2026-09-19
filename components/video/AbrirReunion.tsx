@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, ExternalLink, Loader2, Trash2, Video } from "lucide-react";
+import { Copy, LogIn, Loader2, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { DURACIONES, DURACION_POR_DEFECTO, type Duracion } from "@/lib/sala-de-video";
+import { abrirLaReunionAqui } from "@/components/video/ReunionEnLaPlataforma";
 import {
     crearLaSalaAction,
     lasSalasDelCanalAction,
@@ -83,16 +84,19 @@ export function AbrirReunion({
             }
             setTitulo("");
             setSalas((antes) => [res.sala, ...(antes ?? [])]);
-            // Se abre en otra pestaña: entrar a una reunión no puede costar
-            // perder la conversación que se estaba teniendo.
-            window.open(res.sala.enlace, "_blank", "noopener");
+            // Se abre DENTRO de la plataforma, no en otra pestaña: quien está
+            // aquí tiene sesión y no hay por qué sacarle del chat desde el que
+            // acaba de abrir la reunión. La pestaña aparte se queda para quien
+            // entra por el enlace sin cuenta.
+            onAbierto(false);
+            abrirLaReunionAqui(res.sala.codigo);
         } catch (error) {
             console.warn("[reunion] no se pudo abrir", error);
             toast.error("No se pudo abrir la reunión.");
         } finally {
             setCreando(false);
         }
-    }, [canalId, creando, duracion, titulo]);
+    }, [canalId, creando, duracion, onAbierto, titulo]);
 
     return (
         <Dialog open={abierto} onOpenChange={onAbierto}>
@@ -100,7 +104,7 @@ export function AbrirReunion({
                 <DialogHeader>
                     <DialogTitle>Reunión de video</DialogTitle>
                     <DialogDescription>
-                        Hasta cuatro personas, dentro de la plataforma. El enlace sirve
+                        Hasta cuatro personas, en un panel aquí mismo. El enlace sirve
                         también para alguien de fuera: entrará por una sala de espera y le
                         dejas pasar tú.
                     </DialogDescription>
@@ -121,6 +125,7 @@ export function AbrirReunion({
                                 <FilaDeSala
                                     key={s.id}
                                     sala={s}
+                                    onEntrar={() => onAbierto(false)}
                                     onRevocada={() =>
                                         setSalas((a) => (a ?? []).filter((x) => x.id !== s.id))
                                     }
@@ -188,9 +193,12 @@ export function AbrirReunion({
 function FilaDeSala({
     sala,
     onRevocada,
+    onEntrar,
 }: {
     sala: SalaParaLaPantalla;
     onRevocada: () => void;
+    /** Cerrar el diálogo antes de abrir el panel: si no, se tapan. */
+    onEntrar?: () => void;
 }) {
     const [ocupado, setOcupado] = useState(false);
 
@@ -246,11 +254,14 @@ function FilaDeSala({
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7 shrink-0"
-                onClick={() => window.open(sala.enlace, "_blank", "noopener")}
+                onClick={() => {
+                    onEntrar?.();
+                    abrirLaReunionAqui(sala.codigo);
+                }}
                 aria-label="Entrar a la reunión"
                 title="Entrar"
             >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <LogIn className="h-3.5 w-3.5" />
             </Button>
             {/* Revocar solo lo ve quien la abrió: es quien decide, y además es
                 lo único que la acción va a aceptar. Un botón que al pulsarlo da

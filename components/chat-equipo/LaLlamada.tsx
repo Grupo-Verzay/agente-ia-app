@@ -24,12 +24,9 @@ import { cn } from "@/lib/utils";
 // pantalla y la otra se queda atrás — y eso no se ve como un error, se ve como
 // que «en las llamadas a veces la cámara no se apaga».
 import { useMediosDeLlamada } from "@/hooks/useMediosDeLlamada";
+import { useVentanaArrastrable } from "@/hooks/useVentanaArrastrable";
 import { esperarLosCandidatos } from "@/lib/webrtc-del-navegador";
-import {
-    comoSeLeeLaDuracion,
-    dentroDeLaPantalla,
-    type FinDeLlamada,
-} from "@/lib/llamada-de-voz";
+import { comoSeLeeLaDuracion, type FinDeLlamada } from "@/lib/llamada-de-voz";
 import {
     contestarAction,
     llamarAction,
@@ -123,25 +120,12 @@ export function LaLlamada({
     /** Si ahora mismo llega imagen. La pista se queda en `muted` al apagarla. */
     const [hayVideoRemoto, setHayVideoRemoto] = useState(false);
     const medios = useMediosDeLlamada({ alFallar: (m) => toast.error(m) });
-    /**
-     * Dónde está la ventana, en píxeles, **una vez se ha movido**.
-     *
-     * `null` significa «donde la pone el CSS», arriba y centrada. No es lo
-     * mismo que `{x,y}` calculado: mientras nadie la toque, la ventana se
-     * recentra sola al cambiar el ancho de la pantalla, que es lo que se quiere
-     * para algo que acaba de aparecer.
-     */
-    const [posicion, setPosicion] = useState<{ x: number; y: number } | null>(null);
-
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const mediosRef = useRef(medios);
     mediosRef.current = medios;
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const propioRef = useRef<HTMLVideoElement | null>(null);
-    const cajaRef = useRef<HTMLDivElement | null>(null);
-    /** Dónde se agarró la ventana, para que no salte bajo el cursor. */
-    const agarreRef = useRef<{ dx: number; dy: number } | null>(null);
     const idRef = useRef<string | null>(llamadaId ?? entrante?.id ?? null);
     const cerradoRef = useRef(false);
 
@@ -413,99 +397,6 @@ export function LaLlamada({
     // Soltar el micro pase lo que pase, también al desmontar.
     useEffect(() => () => soltarTodo(), [soltarTodo]);
 
-    // ── Arrastrar y minimizar ───────────────────────────────────────────────
-    //
-    // Solo con la llamada ya conectada. Mientras suena no hay nada que
-    // recolocar: son dos botones y una decisión de un segundo, y poder
-    // arrastrar una llamada entrante solo añade formas de no darle a Contestar.
-
-    const puedeMoverse = estado === "hablando";
-
-    /** Volver a meterla en pantalla midiéndola de verdad. */
-    const recolocar = useCallback(() => {
-        const caja = cajaRef.current;
-        if (!caja) return;
-        const r = caja.getBoundingClientRect();
-        setPosicion((p) =>
-            p
-                ? dentroDeLaPantalla(p.x, p.y, r.width, r.height, {
-                      ancho: window.innerWidth,
-                      alto: window.innerHeight,
-                  })
-                : p,
-        );
-    }, []);
-
-    // Al girar el móvil o estrechar la ventana, lo que estaba colocado puede
-    // quedar fuera — y fuera está el botón de colgar.
-    useEffect(() => {
-        window.addEventListener("resize", recolocar);
-        return () => window.removeEventListener("resize", recolocar);
-    }, [recolocar]);
-
-    // Y al plegarla o desplegarla cambia de tamaño: desplegar una barra pegada
-    // al borde de abajo la sacaría por ahí.
-    useEffect(() => {
-        recolocar();
-    }, [minimizada, recolocar]);
-
-    const agarrar = (e: React.PointerEvent<HTMLElement>) => {
-        // Solo el botón principal: con el derecho se abre el menú del
-        // navegador y el arrastre se quedaría pegado al cursor.
-        if (!puedeMoverse || e.button !== 0) return;
-        const caja = cajaRef.current;
-        if (!caja) return;
-        const r = caja.getBoundingClientRect();
-        // Fijar dónde está AHORA antes de tocar nada. Hasta este momento la
-        // ventana la centra el CSS (`inset-x-0` más `mx-auto`), así que
-        // aplicarle un desplazamiento sin fijarla antes la mandaría a la
-        // esquina en el primer píxel de movimiento.
-        setPosicion({ x: r.left, y: r.top });
-        agarreRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
-        // La captura va en el asa, que es quien lleva los manejadores: sin
-        // ella, sacar el cursor de la ventana suelta el arrastre a medias.
-        e.currentTarget.setPointerCapture(e.pointerId);
-    };
-
-    const mover = (e: React.PointerEvent<HTMLElement>) => {
-        const agarre = agarreRef.current;
-        const caja = cajaRef.current;
-        if (!agarre || !caja) return;
-        const r = caja.getBoundingClientRect();
-        setPosicion(
-            dentroDeLaPantalla(e.clientX - agarre.dx, e.clientY - agarre.dy, r.width, r.height, {
-                ancho: window.innerWidth,
-                alto: window.innerHeight,
-            }),
-        );
-    };
-
-    const soltar = (e: React.PointerEvent<HTMLElement>) => {
-        if (!agarreRef.current) return;
-        agarreRef.current = null;
-        try {
-            e.currentTarget.releasePointerCapture(e.pointerId);
-        } catch {
-            // El puntero ya se fue; no hay nada que soltar.
-        }
-    };
-
-    /**
-     * Lo que hace que un trozo sea asa.
-     *
-     * `touch-none` no es decoración: sin él, en un móvil el navegador se queda
-     * el gesto para desplazar la página y la ventana no se mueve nunca.
-     */
-    const asa = puedeMoverse
-        ? {
-              onPointerDown: agarrar,
-              onPointerMove: mover,
-              onPointerUp: soltar,
-              onPointerCancel: soltar,
-              className: "cursor-grab touch-none active:cursor-grabbing",
-          }
-        : { className: "" };
-
     // Los dos `<video>` se enganchan aquí y solo si cambió: reasignar el mismo
     // `srcObject` reinicia la reproducción y hace parpadear la imagen en cada
     // repintado.
@@ -521,6 +412,24 @@ export function LaLlamada({
 
     /** Si hay algo de imagen, de cualquiera de los dos lados. */
     const hayImagen = estado === "hablando" && (hayVideoRemoto || Boolean(medios.local));
+
+    // ── Arrastrar y minimizar ───────────────────────────────────────────────
+    //
+    // Solo con la llamada ya conectada. Mientras suena no hay nada que
+    // recolocar: son dos botones y una decisión de un segundo, y poder
+    // arrastrar una llamada entrante solo añade formas de no darle a Contestar.
+    //
+    // El cómo se arrastra vive en `useVentanaArrastrable`, que comparte con el
+    // panel de una reunión: la captura del puntero, el `touch-none` y el
+    // recolocar al cambiar de tamaño costaron una vuelta y no pueden estar
+    // escritos en dos sitios.
+    const puedeMoverse = estado === "hablando";
+    const { cajaRef, estilo, asa, posicion } = useVentanaArrastrable({
+        activa: puedeMoverse,
+        // Plegar y desplegar cambia el alto: una barra pegada al borde de
+        // abajo se saldría por ahí al desplegarse, y fuera está el de colgar.
+        tamano: minimizada,
+    });
 
     const rotulo =
         estado === "hablando"
@@ -539,7 +448,7 @@ export function LaLlamada({
         // muda. Por eso el `<audio>` vive aquí fuera y no se mueve nunca.
         <div
             ref={cajaRef}
-            style={posicion ? { left: posicion.x, top: posicion.y } : undefined}
+            style={estilo}
             className={cn(
                 "fixed z-[100] rounded-xl border border-border bg-background shadow-2xl",
                 posicion ? "" : "inset-x-0 top-4 mx-auto",

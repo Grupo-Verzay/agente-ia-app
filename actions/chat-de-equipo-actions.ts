@@ -45,6 +45,7 @@ import {
     soloLasPersonas,
     type CanalDeEquipo,
 } from "@/lib/canales-de-equipo";
+import { apartarLasReuniones } from "@/lib/enlaces-del-texto";
 import {
     abrirElDirecto,
     buscarEnElEquipo,
@@ -128,6 +129,23 @@ export type HiloAbierto = {
     cuentasDeLaFamilia: { id: string; nombre: string }[];
     /** Si quien mira actúa por la cuenta madre de su familia. */
     soyLaMadre: boolean;
+    /**
+     * El origen de la plataforma, para que la burbuja sepa qué enlace es suyo.
+     *
+     * Viene del SERVIDOR y no se lee de `window` al pintar: la burbuja también
+     * se pinta en el servidor, y leer ahí `window` daría una salida distinta
+     * en cada lado — o sea una hidratación rota. Y es el de la petición, no una
+     * variable fija: la App se abre por más de un dominio.
+     */
+    origen: string;
+    /**
+     * Las reuniones que se nombran en esta página, por su código.
+     *
+     * Resueltas en UNA consulta y solo si algún mensaje trae un enlace de
+     * reunión: la inmensa mayoría de las páginas no trae ninguno y entonces no
+     * cuesta nada. Lo que no esté aquí se pinta como una tarjeta genérica.
+     */
+    reuniones: Record<string, { titulo: string | null; abierta: boolean }>;
 };
 
 /**
@@ -424,6 +442,7 @@ export async function hiloDelEquipoAction(
         ]);
 
         const soyLaMadre = esLaCuentaMadre(quien.familia, quien.cuentaId);
+        const origen = await elOrigenDeLaApp();
 
         // Tener el canal delante ES haberlo leído, así que la marca se pone
         // aquí y con la hora del ÚLTIMO MENSAJE QUE SE ENSEÑA — nunca `now()`:
@@ -466,11 +485,74 @@ export async function hiloDelEquipoAction(
                         ? await lasCuentasVinculadas(quien.familia, quien.cuentaId)
                         : [],
                 soyLaMadre,
+                origen,
+                reuniones: await lasReunionesDeEstaPagina(mensajes, canal.id, origen),
             },
         };
     } catch (error) {
         console.error("[chat-equipo] no se pudo leer el hilo", error);
         return { success: false, message: "No se pudo cargar el chat del equipo." };
+    }
+}
+
+/**
+ * Dónde vive esta plataforma, para saber qué enlace de un mensaje es suyo.
+ *
+ * Se lee de la **petición** y no de una variable de entorno: la App se abre por
+ * más de un dominio —el de producción y el que cada quien tenga delante— y con
+ * el dominio equivocado un enlace propio se trataría como de fuera y abriría
+ * una pestaña. Es el mismo criterio con el que se compone el enlace de una
+ * reunión.
+ */
+async function elOrigenDeLaApp(): Promise<string> {
+    try {
+        const { headers } = await import("next/headers");
+        const h = await headers();
+        const host = h.get("x-forwarded-host") || h.get("host");
+        if (host) {
+            const proto = h.get("x-forwarded-proto") || "https";
+            return `${proto}://${host}`;
+        }
+    } catch {
+        // Fuera de una petición no hay cabeceras; se usa el respaldo.
+    }
+    return (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
+}
+
+/**
+ * Las reuniones nombradas en esta página de mensajes.
+ *
+ * **Solo se consulta si hay alguna.** La inmensa mayoría de las páginas no
+ * trae ningún enlace de reunión, y el hilo se relee cada cinco segundos: una
+ * consulta incondicional aquí sería una más en el camino más caliente de la
+ * pantalla, para no devolver nada.
+ *
+ * Y **nunca tumba el hilo**: si falla, los mensajes salen igual y la tarjeta
+ * se pinta genérica. Pero no es muda — una tarjeta sin nombre sin explicación
+ * se lee como que la reunión se perdió.
+ */
+async function lasReunionesDeEstaPagina(
+    mensajes: MensajeDeEquipo[],
+    canalId: string,
+    origen: string,
+): Promise<Record<string, { titulo: string | null; abierta: boolean }>> {
+    if (!origen) return {};
+    const codigos: string[] = [];
+    for (const m of mensajes) {
+        if (!m.texto) continue;
+        for (const c of apartarLasReuniones(m.texto, origen).codigos) {
+            if (!codigos.includes(c)) codigos.push(c);
+        }
+    }
+    if (!codigos.length) return {};
+
+    try {
+        const { lasReunionesDeLosMensajes } = await import("@/lib/salas-de-video-db");
+        const mapa = await lasReunionesDeLosMensajes(codigos, canalId);
+        return Object.fromEntries(mapa);
+    } catch (error) {
+        console.warn("[chat-equipo] no se pudieron leer las reuniones del hilo", error);
+        return {};
     }
 }
 

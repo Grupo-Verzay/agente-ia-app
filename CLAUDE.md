@@ -3694,6 +3694,136 @@ conectar con esta persona»— y se escribe en la consola con la pista delante.
 «Se cortó» mandaría a buscar el fallo donde no está: esto es una ruta que no
 existe entre dos redes.
 
+### La reunión se abre DENTRO, y la pestaña se queda para el invitado
+
+Antes se abría con `window.open`. Eso saca a alguien de la plataforma en mitad
+de una conversación: para volver hay que cambiar de pestaña, y el canal desde
+el que se abrió la reunión —que es donde se está hablando de lo que se reúne—
+queda al otro lado.
+
+> **Quien tiene sesión entra en un panel flotante** (`ReunionEnLaPlataforma`),
+> que cuelga del layout como el oyente de llamadas y se pliega a una pastilla
+> arrastrable con el nombre, el rato que lleva y el botón de salir. **La página
+> pública en su pestaña se queda para quien entra por el enlace sin cuenta**:
+> esa persona no tiene plataforma detrás, así que la reunión ES su pestaña.
+
+Cuatro cosas que hay que mantener:
+
+1. **Cuelga del LAYOUT, no del chat de equipo.** Montado dentro del chat,
+   navegar a Clientes desmontaría el panel y con él la reunión entera. Y no
+   pinta nada mientras no hay ninguna abierta, así que estar ahí no cuesta:
+   ni reloj, ni consultas, ni permisos pedidos.
+2. **Plegar ESCONDE la rejilla, no la desmonta.** Desmontarla se llevaría por
+   delante los `<video>` y con ellos **el audio de los demás**: plegar una
+   reunión tiene que dejarte seguir oyéndola, porque si no, plegar es salirse.
+   Va con `display:none`, que no para la reproducción. Es la misma razón por la
+   que el `<audio>` de la tarjeta de llamada vive fuera de la rama de plegado.
+3. **Abrir otra reunión CAMBIA de sala, no apila dos paneles.** Dos a la vez
+   son dos micrófonos abiertos y dos audios encima del otro, sin forma de saber
+   cuál se está oyendo. Y el panel lleva `key={codigo}`: al cambiar se quiere
+   una sala nueva de cero, porque sus conexiones son con otra gente.
+4. **Plegada y ya no dentro, se despliega sola.** Si te sacan —revocaron el
+   enlace, se cayó la sesión— con la pastilla puesta, lo que hay que ver es qué
+   pasó. Una pastilla con el contador parado y sin explicación es la definición
+   de un fallo mudo.
+
+Y el arrastre es **el mismo** que el de la tarjeta de llamada
+(`hooks/useVentanaArrastrable`): la captura del puntero, el `touch-none` y el
+recolocar al cambiar de tamaño ya costaron una vuelta y no pueden estar
+escritos en dos sitios.
+
+De ahí sale la regla que se olvida al reutilizarlo: **ningún botón va DENTRO
+del asa.** El asa captura el puntero al agarrarla y los eventos de después se
+le redirigen, así que el `click` de un botón que esté dentro no llega a salir
+nunca. En la cabecera de la sala el asa se lleva **solo el nombre**; «Copiar
+enlace» y el de plegar van fuera. Puesta en la cabecera entera —que fue el
+primer intento— esos dos botones dejan de funcionar, y eso no se ve leyendo el
+código.
+
+### Los enlaces de una burbuja: primero los enlaces, DESPUÉS el formato
+
+Las direcciones de un mensaje del equipo son pulsables. Y el orden en que se
+interpretan no es indiferente:
+
+> **Se parte por enlaces y el formato se aplica a lo que queda entre ellos.**
+> El lector de marcas de WhatsApp interpreta `_` y `*`, y hay direcciones que
+> los llevan dentro: pasando el formato primero salen con un trozo en cursiva y
+> **sin los guiones**, o sea llevando a otro sitio y pareciendo normales.
+
+Conviene ser exacto sobre cuáles, porque la primera versión de este comentario
+exageraba y **el banco la desmintió**: `mi_cuenta_x` está a salvo, porque el
+lector ya se niega a abrir una marca pegada a una letra o a un número —es la
+protección del `snake_case`, que está escrita en su fichero—. Lo que sí se
+rompe es la marca que empieza después de un signo:
+
+| dirección | con el formato a solas |
+| --- | --- |
+| `…/panel/mi_cuenta_x` | a salvo |
+| `…/a/_b_/c` | **se rompe** |
+| `…/docs/_index_` | **se rompe** |
+| `…/x?q=_a_&r=1` | **se rompe** |
+| `…/*destacado*` | **se rompe** |
+
+Son menos de las que parecía y son reales, así que el orden se queda. El
+precio, que se dice porque alguien lo notará: una marca que **cruza** un enlace
+—`*mira https://x.com/a ahora*`— ya no se interpreta, porque sus dos mitades
+caen en trozos distintos. Es lo mismo que hace WhatsApp y es preferible a
+romper la dirección.
+
+Cuatro cosas más:
+
+1. **De dentro navega sin recargar; de fuera abre pestaña.** Lo interno va con
+   `Link`: con un `<a>` normal la plataforma entera se vuelve a cargar —sesión,
+   menú, módulos— para ir a una pantalla que ya estaba, y se pierde lo que
+   hubiera abierto, **una reunión plegada incluida**. Lo externo va con
+   `rel="noopener noreferrer"`, y `noopener` no es cosmético: sin él la página
+   que se abre recibe un `window.opener` con el que puede **cambiar la
+   dirección de esta pestaña** por otra que se le parezca.
+2. **Qué es «de dentro» se decide comparando el ORIGEN entero**, no el
+   principio del dominio: `ia-app.com` y `ia-app.com.otrositio.net` comparten
+   el principio y no son lo mismo. Y `//otro.com` **no es una ruta** aunque
+   empiece por barra: tratarla como tal sería navegar fuera creyendo ir dentro.
+3. **El origen llega del SERVIDOR, no de `window`.** La burbuja también se
+   pinta en el servidor, y leer ahí `window` daría una salida en cada lado — o
+   sea una hidratación rota. Viene en el hilo, de la cabecera de la petición,
+   porque la App se abre por más de un dominio.
+4. **Reconocer de menos es mejor que de más.** Solo `http(s)://` y `www.`:
+   aceptar `algo.com` a secas convertiría en enlace roto cualquier frase con un
+   punto pegado a una palabra —«llego a las 3.30pm», «la versión 2.0.rc1»— y un
+   enlace que no lleva a ningún sitio es peor que un texto plano. Y la
+   puntuación de la frase se le devuelve al texto: el punto de «míralo en
+   https://ia-app.com.» es de la frase. El paréntesis de cierre **solo si no hay
+   uno de apertura dentro**, que es el caso de las direcciones de Wikipedia.
+
+**Y en Chats van APAGADOS**, con la misma función y una prop. No es pereza: allí
+el texto lo escribe un contacto de WhatsApp que puede ser cualquiera, y
+convertir en un clic el enlace de un desconocido es una decisión de producto,
+no un detalle de pintado — no se toma de refilón al arreglar otra pantalla.
+
+### Una reunión en un mensaje se ve como TARJETA, no como dirección
+
+Una dirección de reunión son ochenta caracteres de `base64url` que ocupan tres
+renglones y no dicen nada. Se aparta del texto (`apartarLasReuniones`) y en su
+sitio va una tarjeta con el nombre y el botón de entrar, que es lo que alguien
+va a pulsar de todas formas.
+
+Tres cosas:
+
+1. **El nombre se resuelve en UNA consulta por página**, como
+   `lasCitasQueSiguenAhi` y `lasReaccionesDe`, y **solo si algún mensaje trae un
+   enlace de reunión**. La inmensa mayoría de las páginas no trae ninguno y el
+   hilo se relee cada cinco segundos: una consulta incondicional ahí sería una
+   más en el camino más caliente de la pantalla para no devolver nada.
+2. **Va acotada al CANAL que se lee.** No es rendimiento: sin eso, pegar en un
+   canal el enlace de una reunión de otro sitio pintaría **el título de una
+   reunión que quien lee no alcanza**. Lo que no encaje sale como tarjeta
+   genérica y **sigue siendo pulsable** — la puerta de verdad está al entrar, no
+   al pintar.
+3. **«No se sabe» no es «cerrada».** `abierta` en `undefined` es una reunión de
+   otro canal; dar por cerrada una que sí está abierta deja fuera a quien se la
+   estaban pasando. Solo con `false` —revocada o caducada— se quita el botón,
+   porque ahí ya se sabe que daría error.
+
 ### Lo que esto NO tiene, y es a propósito
 
 Sin grabación, sin fondo desenfocado, sin chat dentro de la sala —el chat del

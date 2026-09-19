@@ -141,6 +141,8 @@ import { AbrirReunion } from "@/components/video/AbrirReunion";
 import { EmojiPickerPanel } from "@/components/shared/EmojiPickerPanel";
 import { FormatoDeTexto } from "@/components/shared/FormatoDeTexto";
 import { TextoConFormato } from "@/components/shared/TextoConFormato";
+import { TarjetaDeReunion } from "@/components/video/TarjetaDeReunion";
+import { apartarLasReuniones } from "@/lib/enlaces-del-texto";
 import { envolverSeleccion } from "@/lib/formato-whatsapp";
 import {
     BOTON_DE_ENVIAR,
@@ -1167,6 +1169,8 @@ export function HiloDelEquipo({
                                 puedoEscribir={canal.puedoEscribir}
                                 onEditar={empezarAEditar}
                                 onBorrar={setPorBorrar}
+                                origen={datos.origen}
+                                reuniones={datos.reuniones}
                             />
                             ),
                         )}
@@ -2368,6 +2372,8 @@ function Burbuja({
     puedoEscribir = false,
     onEditar,
     onBorrar,
+    origen = "",
+    reuniones,
 }: {
     mensaje: MensajeDeEquipo;
     mio: boolean;
@@ -2404,6 +2410,15 @@ function Burbuja({
     puedoEscribir?: boolean;
     onEditar?: (m: MensajeDeEquipo) => void;
     onBorrar?: (m: MensajeDeEquipo) => void;
+    /**
+     * El origen de la plataforma, para saber qué enlace es de dentro.
+     *
+     * Llega del servidor y no se lee de `window`: esto también se pinta en el
+     * servidor y leerlo ahí daría una salida distinta en cada lado.
+     */
+    origen?: string;
+    /** Cómo se llama cada reunión nombrada en el hilo, por su código. */
+    reuniones?: Record<string, { titulo: string | null; abierta: boolean }>;
 }) {
     const [reaccionando, setReaccionando] = useState(false);
     const [masEmojis, setMasEmojis] = useState(false);
@@ -2413,6 +2428,13 @@ function Burbuja({
     const editable = sePuedeEditar({ mensaje: sePuedeTocar, yo, puedoEscribir });
     const borrable = sePuedeBorrar({ mensaje: sePuedeTocar, yo, puedoEscribir });
     const reacciones = mensaje.reacciones ?? [];
+    // Las direcciones de reunión salen del texto y se pintan como tarjeta.
+    // Se calcula una vez por burbuja: la conversación se repinta con cada
+    // mensaje que entra, y esto recorre el texto entero.
+    const { texto: sinReuniones, codigosDeReunion } = useMemo(() => {
+        const { texto, codigos } = apartarLasReuniones(mensaje.texto, origen);
+        return { texto, codigosDeReunion: codigos };
+    }, [mensaje.texto, origen]);
     /** Quién reaccionó, con nombres. Es el detalle que pide el encargo. */
     const comoSeLeeQuienes = (r: ReaccionDeMensaje) =>
         r.quienes
@@ -2626,8 +2648,24 @@ function Burbuja({
                         escribe `*negrilla*` en la caja, así que sin esto se leería
                         el asterisco: un botón que produce algo que se ve roto es
                         peor que no tenerlo. Es el mismo componente que la burbuja
-                        de Chats. */}
-                    <TextoConFormato texto={mensaje.texto} />
+                        de Chats.
+
+                        Y con los enlaces pulsables, que en Chats van apagados a
+                        propósito: allí el texto lo escribe un contacto de
+                        WhatsApp que puede ser cualquiera, y convertir en un
+                        clic el enlace de un desconocido es una decisión de
+                        producto, no un detalle de pintado. */}
+                    <TextoConFormato texto={sinReuniones} enlaces origen={origen} />
+                    {/* La reunión, como tarjeta y no como ochenta caracteres
+                        de `base64url` ocupando tres renglones. */}
+                    {codigosDeReunion.map((codigo) => (
+                        <TarjetaDeReunion
+                            key={codigo}
+                            codigo={codigo}
+                            titulo={reuniones?.[codigo]?.titulo}
+                            abierta={reuniones?.[codigo]?.abierta}
+                        />
+                    ))}
                     </>
                 )}
             </div>
