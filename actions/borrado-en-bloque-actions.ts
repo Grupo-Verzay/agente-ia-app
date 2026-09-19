@@ -5,10 +5,12 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import {
+    borrarUnaAUna,
     comoListaDeIds,
     comoResumen,
     type ResumenDelBorrado,
 } from "@/lib/borrado-en-bloque";
+import { deleteFlowAction } from "@/actions/flow-actions";
 
 /**
  * El borrado en bloque de las pantallas cuyo dominio no tenía ninguno.
@@ -168,4 +170,26 @@ export async function eliminarCuentasDeFinanzasAction(
     });
     revalidatePath("/dashboard/finance/accounts");
     return comoResumen(count, lista.length - count, "cuentas");
+}
+
+/**
+ * Diagramas.
+ *
+ * Va de una en una a propósito, por `deleteFlowAction`: esa acción ya resuelve
+ * quién manda en el diagrama y además limpia lo que cuelga de él —los
+ * compartidos, su sitio en la carpeta—. Reescribir aquí esa comprobación sería
+ * un segundo borrado que el día que se afine el de al lado se queda atrás.
+ *
+ * En serie, nunca en paralelo: el pool de Prisma es de diez por proceso.
+ */
+export async function eliminarDiagramasAction(ids: string[]): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIds(ids);
+    if (lista.length === 0) return SIN_IDS;
+
+    const { borrados, fallaron } = await borrarUnaAUna(lista, async (id) => {
+        const res = await deleteFlowAction(id);
+        return !!res?.success;
+    });
+    revalidatePath("/diagramas");
+    return comoResumen(borrados, fallaron, "diagramas");
 }

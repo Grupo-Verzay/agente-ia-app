@@ -69,6 +69,9 @@ import {
   useOrdenDeTarjetas,
 } from '@/components/shared/OrdenDeTarjetas';
 import { CompartirConCuentasDialog } from '@/components/shared/CompartirConCuentasDialog';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas, CasillaDeFila, useSeleccionMultiple } from '@/components/shared/AccionesMasivas';
+import { eliminarDiagramasAction } from '@/actions/borrado-en-bloque-actions';
 
 /**
  * Con quien se comparte cada diagrama, dicho en la pantalla. El icono va en la
@@ -200,27 +203,46 @@ export function DiagramasListClient({ puedeOrdenar = false }: { puedeOrdenar?: b
     void load();
   };
 
+  const seleccion = useSeleccionMultiple(
+    (flows ?? []).filter((f) => !f.recibido).map((f) => f.id),
+  );
+
+  const borrarLosMarcados = async (ids: string[]) => {
+    const resumen = await eliminarDiagramasAction(ids);
+    if (!resumen.success) toast.error(resumen.message);
+    return { fallaron: resumen.fallaron };
+  };
+
   return (
     <div className="flex h-full flex-col gap-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight">Diagramas</h1>
-          <p className="text-sm text-muted-foreground">
-            Diseña procesos visuales para mostrarle a tus clientes.
-            {flows && flows.length > 0 && (
-              <span className="ml-1.5 text-muted-foreground/70">
-                {flows.length === 1 ? '1 diagrama' : `${flows.length} diagramas`}
-              </span>
-            )}
-          </p>
-        </div>
-        {/* Crear lo puede cualquiera del equipo: el diagrama nace suyo y él
-            decide con quién lo comparte. */}
-        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Nuevo
-        </Button>
-      </div>
+      <BarraDeAcciones
+        filtros={
+          <div className="min-w-0 shrink-0">
+            <h1 className="text-xl font-semibold tracking-tight">Diagramas</h1>
+            <p className="truncate text-sm text-muted-foreground">
+              Diseña procesos visuales para mostrarle a tus clientes.
+              {flows && flows.length > 0 && (
+                <span className="ml-1.5 text-muted-foreground/70">
+                  {flows.length === 1 ? '1 diagrama' : `${flows.length} diagramas`}
+                </span>
+              )}
+            </p>
+          </div>
+        }
+        crear={
+          /* Crear lo puede cualquiera del equipo: el diagrama nace suyo y él
+             decide con quién lo comparte. */
+          <BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo diagrama</BotonDeCrear>
+        }
+        acciones={
+          <AccionesMasivas
+            seleccionados={seleccion.seleccionados}
+            queSon="diagramas"
+            onEliminar={borrarLosMarcados}
+            onTerminar={() => { seleccion.limpiar(); router.refresh(); }}
+          />
+        }
+      />
 
       {/* Carpetas: con nueve diagramas ya cuesta encontrar el de ayer. */}
       {flows !== null && flows.length > 0 && (
@@ -275,9 +297,22 @@ export function DiagramasListClient({ puedeOrdenar = false }: { puedeOrdenar?: b
                 rejilla: sin él dejaría de estirarse hasta la altura de su fila y
                 volvería la rejilla escalonada que costó rediseñarla. */}
             <Card
-              className="group flex h-full cursor-pointer flex-col transition-colors hover:border-primary/60 hover:bg-accent/40"
+              className="group relative flex h-full cursor-pointer flex-col transition-colors hover:border-primary/60 hover:bg-accent/40"
               onClick={() => router.push(`/diagramas/${flow.id}`)}
             >
+              {/* La casilla va fuera del flujo, como en Módulos y Plantillas:
+                  dentro le comería ancho al nombre, que es lo que escasea. Y
+                  `CasillaDeFila` para el clic: la tarjeta entera abre el
+                  diagrama. Uno recibido no se marca — no se borra desde aquí. */}
+              {!flow.recibido && (
+                <div className="absolute right-3 top-3 z-20">
+                  <CasillaDeFila
+                    marcada={seleccion.seleccionados.includes(flow.id)}
+                    onCambiar={() => seleccion.alternar(flow.id)}
+                    etiqueta={`Seleccionar ${flow.name}`}
+                  />
+                </div>
+              )}
               {/* TRES FILAS, siempre las mismas: nombre, pasos y fecha, y el
                   permiso con los botones. Cada dato en su sitio en todas las
                   tarjetas, y todas con la misma altura: antes los datos iban en
