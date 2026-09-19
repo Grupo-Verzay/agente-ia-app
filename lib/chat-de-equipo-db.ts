@@ -6,6 +6,13 @@ import { db } from "@/lib/db";
 import { TOPE_DE_MENSAJES, type MensajeDeEquipo } from "@/lib/chat-de-equipo";
 import type { ChatCompartido } from "@/lib/chat-compartido";
 import { esFinDeLlamada, type FinDeLlamada } from "@/lib/llamada-de-voz";
+import type { AdjuntoDelEquipo } from "@/lib/adjuntos-del-equipo";
+import {
+    TOPE_POR_PERSONA,
+    agruparLasReacciones,
+    type FilaDeReaccion,
+    type ReaccionDeMensaje,
+} from "@/lib/reacciones-del-equipo";
 import {
     CANAL_GENERAL,
     canalDeLaFila,
@@ -301,6 +308,80 @@ function asegurarLaTabla(): Promise<void> {
                 PRIMARY KEY ("personaId", "canalId")
             )
         `;
+        // El ADJUNTO: una imagen, un video o un archivo. Cuatro columnas mas,
+        // por `ADD COLUMN IF NOT EXISTS` y no reescribiendo el `CREATE`, que
+        // es el fallo que se comete solo al anadirle una columna a una tabla
+        // de la App ya desplegada: un `CREATE TABLE IF NOT EXISTS` no toca una
+        // que ya esta.
+        //
+        // **Uno por mensaje**, como la nota de voz y por lo mismo: esta fila la
+        // trae el reloj con la pagina entera cada cinco segundos, asi que una
+        // tabla aparte seria una segunda consulta en ese camino. Varios
+        // archivos son varios mensajes — ver `lib/adjuntos-del-equipo.ts`.
+        //
+        // Y el archivo NO se guarda aqui: se sube al bucket por el mismo
+        // `/api/upload` de los adjuntos de una tarea y la fila guarda su
+        // direccion. Los mensajes de antes traen `null`, que significa
+        // exactamente «este no lleva archivo»: sin backfill.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "adjuntoUrl" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "adjuntoNombre" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "adjuntoMime" TEXT
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "adjuntoTamano" INTEGER
+        `;
+        // EDITADO y BORRADO. Dos marcas y no una, porque son dos cosas: un
+        // mensaje editado sigue teniendo texto y hay que decir que se cambio;
+        // uno borrado se queda **sin contenido** y con su senal.
+        //
+        // `NULL` en las dos es lo normal —ni editado ni borrado— asi que los
+        // mensajes que ya estaban quedan bien sin tocar ni una fila.
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "editadoEn" TIMESTAMP(3)
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "team_chat_messages"
+            ADD COLUMN IF NOT EXISTS "borradoEn" TIMESTAMP(3)
+        `;
+        // Las REACCIONES, en su propia tabla.
+        //
+        // Una reaccion es de **una persona sobre un mensaje**, asi que su
+        // llave natural es la terna y es la clave primaria. Metidas en una
+        // columna JSON del mensaje, quitar la de alguien seria leer la fila,
+        // cambiarla y reescribirla: dos personas reaccionando a la vez se
+        // pisarian y una de las dos desapareceria sin decir nada. Con una fila
+        // por reaccion eso lo resuelve Postgres, que es donde se resuelve.
+        //
+        // De la App, `CREATE TABLE IF NOT EXISTS` y **sin clave foranea**:
+        // borrar un mensaje limpia sus reacciones a mano (`olvidarLasReacciones`),
+        // que es explicito y no puede reventar el borrado.
+        await db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "team_chat_reactions" (
+                "mensajeId" TEXT NOT NULL,
+                "personaId" TEXT NOT NULL,
+                "emoji" TEXT NOT NULL,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("mensajeId", "personaId", "emoji")
+            )
+        `;
+        // El indice del lector: las reacciones de una pagina de mensajes, de
+        // una vez. La clave primaria ya empieza por `mensajeId`, asi que este
+        // `IN` entra por ella; el indice explicito esta por si algun dia la
+        // clave cambia de orden.
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "team_chat_reactions_mensaje_idx"
+            ON "team_chat_reactions" ("mensajeId")
+        `;
     })().catch((error) => {
         tablaLista = null;
         throw error;
@@ -346,6 +427,31 @@ async function conLaTabla<T>(hacer: () => Promise<T>): Promise<T> {
     }
 }
 
+/**
+ * Las columnas de un mensaje, escritas UNA vez.
+ *
+ * Estaban copiadas en cinco consultas y ya habían empezado a discrepar: el
+ * hilo traía `llamadaFin` y `llamadaSegundos`, y el salto a un mensaje y la
+ * búsqueda **no** — así que un registro de llamada al que se llegara desde la
+ * campanita o desde un resultado salía como una burbuja de texto vacía. Es la
+ * misma familia que *el filtro común se escribe una vez*: con la lista copiada,
+ * una rama devuelve campos que las otras no y el fallo se lee como «a veces se
+ * ve bien».
+ *
+ * Trae `canalId` aunque el lector del hilo no lo use: pedirlo de más no cuesta
+ * nada y tener **una** lista es justo lo que esto viene a arreglar.
+ */
+const LAS_COLUMNAS = Prisma.sql`
+    "id", "autorId", "autorNombre", "escritoDesde",
+    "texto", "mencionados", "creadoEn", "canalId",
+    "chatLinea", "chatJid", "chatIdentidades", "chatNombre", "chatNumero",
+    "llamadaFin", "llamadaSegundos",
+    "citaId", "citaAutorNombre", "citaExtracto",
+    "audioUrl", "audioSegundos", "audioMime", "transcripcion",
+    "adjuntoUrl", "adjuntoNombre", "adjuntoMime", "adjuntoTamano",
+    "editadoEn", "borradoEn"
+`;
+
 type Fila = {
     id: string;
     autorId: string;
@@ -368,6 +474,13 @@ type Fila = {
     audioSegundos: number | null;
     audioMime: string | null;
     transcripcion: string | null;
+    adjuntoUrl: string | null;
+    adjuntoNombre: string | null;
+    adjuntoMime: string | null;
+    adjuntoTamano: number | null;
+    editadoEn: Date | null;
+    borradoEn: Date | null;
+    canalId?: string | null;
 };
 
 /**
@@ -378,7 +491,11 @@ type Fila = {
  * clave primaria— y no una consulta por mensaje. Sin el conjunto, la cita se
  * da por viva: es lo que pasa en los caminos que no citan nada.
  */
-const aMensaje = (f: Fila, vivas?: Set<string>): MensajeDeEquipo => ({
+const aMensaje = (
+    f: Fila,
+    vivas?: Set<string>,
+    reacciones?: Map<string, ReaccionDeMensaje[]>,
+): MensajeDeEquipo => ({
     id: f.id,
     autorId: f.autorId,
     autorNombre: f.autorNombre,
@@ -431,6 +548,23 @@ const aMensaje = (f: Fila, vivas?: Set<string>): MensajeDeEquipo => ({
     // no «no se pudo»: un fallo no deja marca a proposito, para que se pueda
     // volver a intentar.
     transcripcion: f.transcripcion,
+    // El archivo. Hace falta la DIRECCION: sin ella no hay nada que pintar ni
+    // que descargar, y un nombre solo seria una tarjeta que no abre nada.
+    adjunto: f.adjuntoUrl
+        ? {
+              url: f.adjuntoUrl,
+              nombre: f.adjuntoNombre?.trim() || "archivo",
+              mime: f.adjuntoMime,
+              tamano: Number(f.adjuntoTamano ?? 0),
+          }
+        : null,
+    // Las reacciones llegan desde fuera, ya agrupadas, por lo mismo que
+    // `vivas`: se resuelven de una vez para toda la pagina. Sin el mapa se
+    // devuelve la lista vacia, que es lo correcto en los caminos que no las
+    // piden — nadie ha reaccionado *que sepamos*, y la pantalla no pinta nada.
+    reacciones: reacciones?.get(f.id) ?? [],
+    editadoEn: f.editadoEn ? f.editadoEn.toISOString() : null,
+    borradoEn: f.borradoEn ? f.borradoEn.toISOString() : null,
 });
 
 /** Cuales de estos mensajes citados siguen existiendo. */
@@ -442,9 +576,14 @@ async function lasCitasQueSiguenAhi(filas: Fila[]): Promise<Set<string>> {
     // Una sola consulta por pagina, por clave primaria. Guardarlo como marca
     // en la fila obligaria a que cada camino que borre un mensaje se acordara
     // de ponerla, y el dia que alguien borre por otro lado la marca miente.
+    // Un BORRADO no cuenta como vivo, y por eso el `borradoEn IS NULL`: la
+    // fila sigue ahi —el borrado deja su señal— pero su contenido ya no. Sin
+    // esta condicion, la cita seguiria diciendo «pulsa para ir» y el salto
+    // aterrizaria en un «Mensaje eliminado», que es peor que decir que ya no
+    // esta.
     const vivas = await db.$queryRaw<Array<{ id: string }>>`
         SELECT "id" FROM "team_chat_messages"
-        WHERE "id" IN (${Prisma.join(citados)})
+        WHERE "id" IN (${Prisma.join(citados)}) AND "borradoEn" IS NULL
     `;
     return new Set(vivas.map((v) => v.id));
 }
@@ -459,6 +598,8 @@ async function lasCitasQueSiguenAhi(filas: Fila[]): Promise<Set<string>> {
 export async function leerElHilo(
     cuentas: string[],
     canalId: string,
+    /** Quién mira, para saber cuáles de las reacciones son suyas. */
+    yo: string,
 ): Promise<MensajeDeEquipo[]> {
     const deLaFamilia = cuentas.filter(Boolean);
     if (!deLaFamilia.length) return [];
@@ -481,13 +622,7 @@ export async function leerElHilo(
                 // se escribio bajo cada cuenta se siga viendo: lo nuevo cae
                 // bajo la raiz, lo viejo se queda donde esta y se lee igual.
                 ? await db.$queryRaw<Fila[]>`
-                    SELECT "id", "autorId", "autorNombre", "escritoDesde",
-                           "texto", "mencionados", "creadoEn",
-                           "chatLinea", "chatJid", "chatIdentidades",
-                           "chatNombre", "chatNumero",
-                           "llamadaFin", "llamadaSegundos",
-                           "citaId", "citaAutorNombre", "citaExtracto",
-                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
+                    SELECT ${LAS_COLUMNAS}
                     FROM "team_chat_messages"
                     WHERE "cuentaId" IN (${Prisma.join(deLaFamilia)})
                       AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})
@@ -499,20 +634,21 @@ export async function leerElHilo(
                 // por la de quien lee partiria en trozos el hilo de un canal
                 // que cruza cuentas.
                 : await db.$queryRaw<Fila[]>`
-                    SELECT "id", "autorId", "autorNombre", "escritoDesde",
-                           "texto", "mencionados", "creadoEn",
-                           "chatLinea", "chatJid", "chatIdentidades",
-                           "chatNombre", "chatNumero",
-                           "llamadaFin", "llamadaSegundos",
-                           "citaId", "citaAutorNombre", "citaExtracto",
-                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
+                    SELECT ${LAS_COLUMNAS}
                     FROM "team_chat_messages"
                     WHERE "canalId" = ${canalId}
                     ORDER BY "creadoEn" DESC
                     LIMIT ${TOPE_DE_MENSAJES}
                 `;
-        const vivas = await lasCitasQueSiguenAhi(filas);
-        return filas.map((f) => aMensaje(f, vivas)).reverse();
+        // Las dos cosas que se resuelven **de una vez para toda la página** y
+        // nunca por mensaje: si el original de cada cita sigue ahí, y quién
+        // reaccionó a qué. Una consulta por burbuja serían doscientas en cada
+        // vuelta del reloj, que corre cada cinco segundos por pestaña abierta.
+        const [vivas, reacciones] = await Promise.all([
+            lasCitasQueSiguenAhi(filas),
+            lasReaccionesDe(filas.map((f) => f.id), yo),
+        ]);
+        return filas.map((f) => aMensaje(f, vivas, reacciones)).reverse();
     });
 }
 
@@ -573,12 +709,7 @@ export async function buscarEnElEquipo(input: {
     const alcance = Prisma.join(trozos, " OR ");
 
     return conLaTabla(() => db.$queryRaw<Array<Fila & { canalId: string | null }>>`
-        SELECT "id", "autorId", "autorNombre", "escritoDesde",
-               "texto", "mencionados", "creadoEn", "canalId",
-               "chatLinea", "chatJid", "chatIdentidades",
-               "chatNombre", "chatNumero",
-               "citaId", "citaAutorNombre", "citaExtracto",
-                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
+        SELECT ${LAS_COLUMNAS}
         FROM "team_chat_messages"
         WHERE (${alcance})
           AND to_tsvector('spanish', "texto") @@ to_tsquery('spanish', ${input.consulta})
@@ -605,6 +736,8 @@ export async function elHiloAlrededorDe(input: {
     canalId: string;
     cuentas: string[];
     mensajeId: string;
+    /** Quién mira, para saber cuáles de las reacciones son suyas. */
+    yo: string;
 }): Promise<MensajeDeEquipo[]> {
     const deLaFamilia = input.cuentas.filter(Boolean);
     const mitad = Math.floor(TOPE_DE_MENSAJES / 2);
@@ -627,24 +760,14 @@ export async function elHiloAlrededorDe(input: {
 
         const [antes, despues] = await Promise.all([
             db.$queryRaw<Fila[]>`
-                SELECT "id", "autorId", "autorNombre", "escritoDesde",
-                       "texto", "mencionados", "creadoEn",
-                       "chatLinea", "chatJid", "chatIdentidades",
-                       "chatNombre", "chatNumero",
-                       "citaId", "citaAutorNombre", "citaExtracto",
-                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
+                SELECT ${LAS_COLUMNAS}
                 FROM "team_chat_messages"
                 WHERE (${alcance}) AND "creadoEn" <= ${cuando}
                 ORDER BY "creadoEn" DESC
                 LIMIT ${mitad}
             `,
             db.$queryRaw<Fila[]>`
-                SELECT "id", "autorId", "autorNombre", "escritoDesde",
-                       "texto", "mencionados", "creadoEn",
-                       "chatLinea", "chatJid", "chatIdentidades",
-                       "chatNombre", "chatNumero",
-                       "citaId", "citaAutorNombre", "citaExtracto",
-                           "audioUrl", "audioSegundos", "audioMime", "transcripcion"
+                SELECT ${LAS_COLUMNAS}
                 FROM "team_chat_messages"
                 WHERE (${alcance}) AND "creadoEn" > ${cuando}
                 ORDER BY "creadoEn" ASC
@@ -653,8 +776,11 @@ export async function elHiloAlrededorDe(input: {
         ]);
 
         const filas = [...antes.reverse(), ...despues];
-        const vivas = await lasCitasQueSiguenAhi(filas);
-        return filas.map((f) => aMensaje(f, vivas));
+        const [vivas, reacciones] = await Promise.all([
+            lasCitasQueSiguenAhi(filas),
+            lasReaccionesDe(filas.map((f) => f.id), input.yo),
+        ]);
+        return filas.map((f) => aMensaje(f, vivas, reacciones));
     });
 }
 
@@ -669,6 +795,12 @@ export async function elMensaje(
     texto: string;
     /** Si es una nota de voz. Su `texto` esta vacio, y una cita en blanco no dice nada. */
     audioUrl: string | null;
+    /** Y si lleva un archivo, por lo mismo: su `texto` puede estar vacio. */
+    adjuntoUrl: string | null;
+    adjuntoNombre: string | null;
+    adjuntoMime: string | null;
+    /** Un mensaje BORRADO no se puede citar: su contenido ya no esta. */
+    borradoEn: Date | null;
 } | null> {
     return conLaTabla(async () => {
         const filas = await db.$queryRaw<
@@ -679,9 +811,14 @@ export async function elMensaje(
                 autorNombre: string | null;
                 texto: string;
                 audioUrl: string | null;
+                adjuntoUrl: string | null;
+                adjuntoNombre: string | null;
+                adjuntoMime: string | null;
+                borradoEn: Date | null;
             }>
         >`
-            SELECT "id", "canalId", "cuentaId", "autorNombre", "texto", "audioUrl"
+            SELECT "id", "canalId", "cuentaId", "autorNombre", "texto", "audioUrl",
+                   "adjuntoUrl", "adjuntoNombre", "adjuntoMime", "borradoEn"
             FROM "team_chat_messages" WHERE "id" = ${id}
         `;
         return filas[0] ?? null;
@@ -733,6 +870,15 @@ export async function guardarUnMensaje(input: {
      * tiene la sesion, esto solo escribe—.
      */
     audio?: { url: string; segundos: number; mime: string | null } | null;
+    /**
+     * El archivo, cuando el mensaje lleva uno.
+     *
+     * Llega **ya subido al bucket** y ya saneado por quien llama, igual que la
+     * nota de voz: aquí no se sube nada y aquí no se decide si esa dirección
+     * es nuestra. Esa pregunta necesita el entorno y la hace
+     * `comoSeGuardaElAdjunto`.
+     */
+    adjunto?: AdjuntoDelEquipo | null;
 }): Promise<void> {
     await conLaTabla(() => db.$executeRaw`
         INSERT INTO "team_chat_messages"
@@ -741,7 +887,8 @@ export async function guardarUnMensaje(input: {
              "chatLinea", "chatJid", "chatIdentidades", "chatNombre", "chatNumero",
              "llamadaFin", "llamadaSegundos",
              "citaId", "citaAutorNombre", "citaExtracto",
-             "audioUrl", "audioSegundos", "audioMime")
+             "audioUrl", "audioSegundos", "audioMime",
+             "adjuntoUrl", "adjuntoNombre", "adjuntoMime", "adjuntoTamano")
         VALUES (
             ${input.id}, ${input.cuentaId}, ${input.canalId}, ${input.autorId},
             ${input.autorNombre}, ${input.escritoDesde},
@@ -753,7 +900,9 @@ export async function guardarUnMensaje(input: {
             ${input.cita?.id ?? null}, ${input.cita?.autorNombre ?? null},
             ${input.cita?.extracto ?? null},
             ${input.audio?.url ?? null}, ${input.audio?.segundos ?? null},
-            ${input.audio?.mime ?? null}
+            ${input.audio?.mime ?? null},
+            ${input.adjunto?.url ?? null}, ${input.adjunto?.nombre ?? null},
+            ${input.adjunto?.mime ?? null}, ${input.adjunto?.tamano ?? null}
         )
     `);
 }
@@ -817,6 +966,236 @@ export async function guardarLaTranscripcion(id: string, texto: string): Promise
            SET "transcripcion" = ${texto}
          WHERE "id" = ${id} AND "transcripcion" IS NULL
     `);
+}
+
+// ── Las reacciones, editar y borrar ─────────────────────────────────────────
+
+/**
+ * Las reacciones de una página de mensajes, en UNA consulta.
+ *
+ * Nunca una por burbuja: el reloj del hilo corre cada cinco segundos por
+ * pestaña abierta y una página son doscientos mensajes. Es la misma regla que
+ * ya rige en `lasCitasQueSiguenAhi` — *muchas peticiones pequeñas son turno,
+ * no trabajo*, aplicada dentro del servidor.
+ */
+export async function lasReaccionesDe(
+    ids: string[],
+    yo: string,
+): Promise<Map<string, ReaccionDeMensaje[]>> {
+    const unicos = Array.from(new Set(ids.filter(Boolean)));
+    if (!unicos.length) return new Map();
+    const filas = await conLaTabla(() => db.$queryRaw<FilaDeReaccion[]>`
+        SELECT "mensajeId", "personaId", "emoji"
+        FROM "team_chat_reactions"
+        WHERE "mensajeId" IN (${Prisma.join(unicos)})
+        ORDER BY "creadoEn" ASC
+    `);
+    // El orden lo pone la consulta —por fecha— y el agrupador lo respeta: los
+    // chips se quedan donde estaban y lo nuevo entra al final. Ordenando por
+    // cantidad, un chip salta de sitio en cuanto alguien reacciona y se pulsa
+    // el que no era.
+    return agruparLasReacciones(filas, yo);
+}
+
+/**
+ * Poner o quitar una reacción. **Es un interruptor**, no dos operaciones.
+ *
+ * Que sea un interruptor es lo que hace que el mismo gesto —pulsar el emoji—
+ * sirva para las dos cosas, que es como se espera que funcione. Y que lo
+ * decida la BASE, por las filas que dice haber tocado, es lo que lo hace
+ * seguro con dos pestañas abiertas: con un `SELECT` previo nuestro, las dos
+ * verían que no está y las dos intentarían ponerla.
+ *
+ * El `ON CONFLICT DO NOTHING` contesta esa pregunta: si tocó una fila, se
+ * puso; si tocó cero, ya estaba y entonces se quita.
+ */
+export async function alternarLaReaccion(input: {
+    mensajeId: string;
+    personaId: string;
+    emoji: string;
+}): Promise<{ puesta: boolean } | { lleno: true }> {
+    return conLaTabla(async () => {
+        const metidas = await db.$executeRaw`
+            INSERT INTO "team_chat_reactions" ("mensajeId", "personaId", "emoji")
+            VALUES (${input.mensajeId}, ${input.personaId}, ${input.emoji})
+            ON CONFLICT ("mensajeId", "personaId", "emoji") DO NOTHING
+        `;
+        if (metidas > 0) {
+            // Ya está puesta; ahora se mira si esta persona se pasó del tope.
+            // Se comprueba DESPUÉS y se deshace, no antes: contar primero y
+            // decidir luego es la misma carrera que evita el `ON CONFLICT`, y
+            // dos pestañas podrían colar dos por encima del tope.
+            const cuantas = await db.$queryRaw<Array<{ n: bigint }>>`
+                SELECT COUNT(*)::bigint AS n FROM "team_chat_reactions"
+                WHERE "mensajeId" = ${input.mensajeId} AND "personaId" = ${input.personaId}
+            `;
+            if (Number(cuantas[0]?.n ?? 0) > TOPE_POR_PERSONA) {
+                await db.$executeRaw`
+                    DELETE FROM "team_chat_reactions"
+                    WHERE "mensajeId" = ${input.mensajeId}
+                      AND "personaId" = ${input.personaId}
+                      AND "emoji" = ${input.emoji}
+                `;
+                return { lleno: true as const };
+            }
+            return { puesta: true };
+        }
+        // Tocó cero filas: ya estaba puesta, así que el interruptor la quita.
+        // Quitar NO mira el tope a propósito: llegar al tope no puede dejar a
+        // nadie sin forma de deshacer lo que puso.
+        await db.$executeRaw`
+            DELETE FROM "team_chat_reactions"
+            WHERE "mensajeId" = ${input.mensajeId}
+              AND "personaId" = ${input.personaId}
+              AND "emoji" = ${input.emoji}
+        `;
+        return { puesta: false };
+    });
+}
+
+/**
+ * Editar el texto de un mensaje propio.
+ *
+ * **La condición de dueño va en el `WHERE`**, no solo en la acción de arriba.
+ * Son dos puertas para lo mismo a propósito: la de arriba es la que sabe
+ * explicar por qué no se puede, y esta es la que garantiza que una petición
+ * que se la salte no toque ninguna fila. Y el `borradoEn IS NULL` impide que
+ * editar resucite un mensaje borrado.
+ *
+ * Devuelve cuántas filas tocó: **cero es «no era tuyo o ya no está»**, y quien
+ * llama lo dice. Un `UPDATE` que no toca nada y se contesta con un «listo» es
+ * un botón que parece funcionar y no funciona.
+ */
+export async function editarElTexto(input: {
+    id: string;
+    autorId: string;
+    texto: string;
+    mencionados: string[];
+}): Promise<number> {
+    return conLaTabla(() => db.$executeRaw`
+        UPDATE "team_chat_messages"
+           SET "texto" = ${input.texto},
+               "mencionados" = ${input.mencionados},
+               "editadoEn" = NOW()
+         WHERE "id" = ${input.id}
+           AND "autorId" = ${input.autorId}
+           AND "borradoEn" IS NULL
+    `);
+}
+
+/**
+ * Borrar un mensaje propio: **la señal se queda, el contenido no**.
+ *
+ * Se vacían el texto, las menciones, el archivo, la nota de voz, su
+ * transcripción, la conversación señalada y la cita. Dejando el contenido
+ * dentro, el «borrado» sería cosmético: la fila la trae el reloj con la página
+ * entera, así que ese texto seguiría llegando al navegador de todo el canal.
+ *
+ * Y la fila **no se quita**. Quitándola, una conversación de tres se quedaría
+ * con huecos que nadie sabe explicar y una respuesta que citaba ese mensaje
+ * hablaría sola; con la señal puesta, lo que se lee es lo que pasó.
+ *
+ * Devuelve lo que colgaba del bucket, para que quien llama pueda quitarlo de
+ * ahí también. Va aparte porque **borrar del bucket es best-effort** y esto no
+ * puede depender de ello: la fila ya está limpia cuando eso se intenta.
+ */
+export async function borrarElMensaje(input: {
+    id: string;
+    autorId: string;
+}): Promise<{ tocadas: number; archivos: string[] }> {
+    return conLaTabla(async () => {
+        const antes = await db.$queryRaw<Array<{ adjuntoUrl: string | null; audioUrl: string | null }>>`
+            SELECT "adjuntoUrl", "audioUrl" FROM "team_chat_messages"
+            WHERE "id" = ${input.id} AND "autorId" = ${input.autorId}
+              AND "borradoEn" IS NULL
+        `;
+        const tocadas = await db.$executeRaw`
+            UPDATE "team_chat_messages"
+               SET "borradoEn" = NOW(),
+                   "texto" = '',
+                   "mencionados" = '{}',
+                   "adjuntoUrl" = NULL, "adjuntoNombre" = NULL,
+                   "adjuntoMime" = NULL, "adjuntoTamano" = NULL,
+                   "audioUrl" = NULL, "audioSegundos" = NULL, "audioMime" = NULL,
+                   "transcripcion" = NULL,
+                   "chatLinea" = NULL, "chatJid" = NULL, "chatIdentidades" = '{}',
+                   "chatNombre" = NULL, "chatNumero" = NULL,
+                   "citaId" = NULL, "citaAutorNombre" = NULL, "citaExtracto" = NULL,
+                   -- La llamada también. Una llamada SÍ se puede borrar
+                   -- —es quitar del hilo un registro que ya no interesa— y
+                   -- dejando estas dos puestas la pantalla la seguiría
+                   -- pintando como marca de llamada, que es la rama de antes
+                   -- del borrado: saldría «· saliente» con el texto vacío en
+                   -- vez de «Mensaje eliminado». Es la misma regla que el
+                   -- resto de la fila: la señal se queda, el contenido no.
+                   "llamadaFin" = NULL, "llamadaSegundos" = NULL
+             WHERE "id" = ${input.id}
+               AND "autorId" = ${input.autorId}
+               AND "borradoEn" IS NULL
+        `;
+        if (tocadas > 0) await olvidarLasReacciones(input.id);
+        return {
+            tocadas,
+            archivos: tocadas > 0
+                ? [antes[0]?.adjuntoUrl, antes[0]?.audioUrl].filter(
+                      (x): x is string => Boolean(x),
+                  )
+                : [],
+        };
+    });
+}
+
+/**
+ * Las reacciones de un mensaje borrado se van con él.
+ *
+ * Explícito y no una clave foránea: la tabla es de la App y `team_chat_messages`
+ * también, pero atarlas con una `FOREIGN KEY` haría que un fallo aquí reventara
+ * el borrado — y lo que la persona pidió es que el mensaje desaparezca. Si esto
+ * falla, lo que queda son unas filas huérfanas que nadie lee (la burbuja
+ * borrada no pinta reacciones), no un borrado a medias.
+ */
+export async function olvidarLasReacciones(mensajeId: string): Promise<void> {
+    await db.$executeRaw`
+        DELETE FROM "team_chat_reactions" WHERE "mensajeId" = ${mensajeId}
+    `;
+}
+
+/**
+ * Un mensaje con lo que hace falta para decidir si se puede tocar.
+ *
+ * Trae el `canalId` porque **la puerta se pregunta contra el canal del
+ * MENSAJE**, nunca contra el que diga el navegador: si no, mandar el id de un
+ * mensaje de un directo ajeno sería reaccionar dentro de él.
+ */
+export async function elMensajeQueSeToca(id: string): Promise<{
+    id: string;
+    canalId: string;
+    autorId: string;
+    borradoEn: string | null;
+    esLlamada: boolean;
+} | null> {
+    if (!id) return null;
+    const filas = await conLaTabla(() => db.$queryRaw<Array<{
+        id: string;
+        canalId: string | null;
+        autorId: string;
+        borradoEn: Date | null;
+        llamadaFin: string | null;
+    }>>`
+        SELECT "id", "canalId", "autorId", "borradoEn", "llamadaFin"
+        FROM "team_chat_messages" WHERE "id" = ${id} LIMIT 1
+    `);
+    const f = filas[0];
+    if (!f) return null;
+    return {
+        id: f.id,
+        // Un mensaje de cuando el hilo era uno solo trae `canalId` nulo: ese
+        // es el general. La misma traducción que hace el lector del hilo.
+        canalId: canalDeLaFila(f.canalId),
+        autorId: f.autorId,
+        borradoEn: f.borradoEn ? f.borradoEn.toISOString() : null,
+        esLlamada: esFinDeLlamada(f.llamadaFin),
+    };
 }
 
 // ── Los canales ─────────────────────────────────────────────────────────────
@@ -1111,6 +1490,10 @@ export type SinLeerDeUnCanal = { canalId: string; sinLeer: number };
  *    de su cuenta, y contárselos le pondría encima el tráfico de todo el mundo
  *    — que es tanto como no tener contador.
  *
+ * Y **un mensaje borrado no cuenta** (`borradoEn IS NULL`): su contenido ya no
+ * está, así que el número diría «tienes uno» y al abrirlo no habría nada que
+ * leer — y el aviso del sistema saldría con el cuerpo en blanco.
+ *
  * # Y el general va aparte, porque no es una fila
  *
  * Sus mensajes se reparten entre las cuentas de la familia y su `canalId` puede
@@ -1146,6 +1529,7 @@ export async function sinLeerPorCanal(input: {
                 WHERE m."cuentaId" IN (${Prisma.join(familia)})
                   AND (m."canalId" IS NULL OR m."canalId" = ${CANAL_GENERAL})
                   AND m."autorId" <> ${input.personaId}
+                  AND m."borradoEn" IS NULL
                   AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
             `;
             const n = Number(filas[0]?.sinLeer ?? 0);
@@ -1161,6 +1545,7 @@ export async function sinLeerPorCanal(input: {
                       AND r."canalId" = m."canalId"
                 WHERE m."canalId" IN (${Prisma.join(canales)})
                   AND m."autorId" <> ${input.personaId}
+                  AND m."borradoEn" IS NULL
                   AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
                 GROUP BY m."canalId"
             `;
@@ -1260,6 +1645,7 @@ export async function loQuePuedeSonar(input: {
                       AND r."canalId" = m."canalId"
                 WHERE m."canalId" IN (${Prisma.join(directos)})
                   AND m."autorId" <> ${input.personaId}
+                  AND m."borradoEn" IS NULL
                   AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
                 GROUP BY m."canalId"
             `;
@@ -1282,6 +1668,7 @@ export async function loQuePuedeSonar(input: {
                       AND r."canalId" = m."canalId"
                 WHERE m."canalId" IN (${Prisma.join(otros)})
                   AND m."autorId" <> ${input.personaId}
+                  AND m."borradoEn" IS NULL
                   AND ${input.personaId} = ANY(m."mencionados")
                   AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
                 GROUP BY m."canalId"
@@ -1309,6 +1696,7 @@ export async function loQuePuedeSonar(input: {
                 WHERE m."cuentaId" IN (${Prisma.join(familia)})
                   AND (m."canalId" IS NULL OR m."canalId" = ${CANAL_GENERAL})
                   AND m."autorId" <> ${input.personaId}
+                  AND m."borradoEn" IS NULL
                   AND ${input.personaId} = ANY(m."mencionados")
                   AND (r."leidoHasta" IS NULL OR m."creadoEn" > r."leidoHasta")
             `;

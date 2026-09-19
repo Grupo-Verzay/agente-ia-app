@@ -30,6 +30,8 @@
  */
 import type { ChatCompartido } from "@/lib/chat-compartido";
 import type { CitaDeMensaje } from "@/lib/busqueda-del-equipo";
+import type { AdjuntoDelEquipo } from "@/lib/adjuntos-del-equipo";
+import type { ReaccionDeMensaje } from "@/lib/reacciones-del-equipo";
 
 export const TOPE_DEL_MENSAJE = 2000;
 
@@ -120,6 +122,38 @@ export type MensajeDeEquipo = {
      * guarda, así que pedirla otra vez no vuelve a cobrar.
      */
     transcripcion?: string | null;
+    /**
+     * El archivo que lleva dentro, si lleva alguno.
+     *
+     * **Uno por mensaje**, como la nota de voz y por el mismo motivo: son
+     * columnas de esta fila, y la fila la trae el reloj con la página entera
+     * cada cinco segundos. Elegir tres archivos manda tres mensajes — ver
+     * `lib/adjuntos-del-equipo.ts`.
+     */
+    adjunto?: AdjuntoDelEquipo | null;
+    /**
+     * Quién reaccionó y con qué.
+     *
+     * Vienen de su propia tabla y se pegan a la página con **una sola
+     * consulta**, como `sigueAhi` de las citas: una por mensaje serían
+     * doscientas en cada vuelta del reloj.
+     */
+    reacciones?: ReaccionDeMensaje[];
+    /**
+     * Cuándo se editó, si se editó. La marca **no caduca**: es lo único que
+     * separa corregir una errata de reescribir lo que uno dijo.
+     */
+    editadoEn?: string | null;
+    /**
+     * Cuándo se borró, si se borró.
+     *
+     * El mensaje se queda con su señal y **sin su contenido**: el texto, el
+     * archivo, la nota de voz y la conversación señalada se vacían en la base,
+     * así que un borrado ya no viaja al navegador de nadie. Quitar la fila
+     * entera dejaría huecos en una conversación de tres y respuestas citando
+     * a nadie.
+     */
+    borradoEn?: string | null;
 };
 
 /** Una nota de voz del chat del equipo. */
