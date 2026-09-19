@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { FinanceAccount, FinanceAccountType, FinanceCategory, FinanceCurrency, FinanceTxStatus, FinanceTxType, Prisma } from '@prisma/client';
 
 type AttachmentInput = {
@@ -53,7 +54,8 @@ function toDecimalOrUndefined(v: string | number | null | undefined) {
   return new Prisma.Decimal(s);
 }
 
-export async function ensureFinanceSalesDefaults(userId: string): Promise<OperationResponse> {
+export async function ensureFinanceSalesDefaults(userIdPedido: string): Promise<OperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     // Monedas (catálogo global)
     await db.financeCurrency.upsert({
@@ -112,7 +114,8 @@ export type VentaSerializada = ReturnType<typeof serializeTx<Prisma.FinanceTrans
   };
 }>>>;
 
-export async function getAllSales(userId: string): Promise<OperationResponse<VentaSerializada[]>> {
+export async function getAllSales(userIdPedido: string): Promise<OperationResponse<VentaSerializada[]>> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     await ensureFinanceSalesDefaults(userId);
 
@@ -151,8 +154,9 @@ export async function getAllSales(userId: string): Promise<OperationResponse<Ven
 }
 
 export async function getSalesMeta(
-  userId: string
+  userIdPedido: string
 ): Promise<OperationResponse<{ accounts: FinanceAccount[]; categories: FinanceCategory[]; currencies: FinanceCurrency[] }>> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     await ensureFinanceSalesDefaults(userId);
 
@@ -195,11 +199,12 @@ export async function createSale(data: {
   productId?: unknown;
 }): Promise<OperationResponse<{ id: string }>> {
   try {
-    await ensureFinanceSalesDefaults(data.userId);
+    const userId = await exigirLaCuentaDeLaAccion(data.userId);
+    await ensureFinanceSalesDefaults(userId);
 
     const created = await db.financeTransaction.create({
       data: {
-        userId: data.userId,
+        userId,
         type: SALES_TYPE,
         status: FinanceTxStatus.ACTIVE,
         occurredAt: data.occurredAt instanceof Date ? data.occurredAt : new Date(data.occurredAt),
@@ -231,7 +236,7 @@ export async function createSale(data: {
 
 export async function updateSale(
   id: string,
-  userId: string,
+  userIdPedido: string,
   data: Partial<{
     occurredAt: string | Date;
     amount: string | number | null;
@@ -258,6 +263,7 @@ export async function updateSale(
     productId?: unknown;
   }>
 ): Promise<OperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const payload: Record<string, Date | string | number | null | Prisma.Decimal> = {};
 
@@ -303,7 +309,8 @@ export async function updateSale(
   }
 }
 
-export async function deleteSale(id: string, userId: string): Promise<OperationResponse> {
+export async function deleteSale(id: string, userIdPedido: string): Promise<OperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const deleted = await db.financeTransaction.updateMany({
       where: { id, userId, type: SALES_TYPE },
@@ -319,7 +326,8 @@ export async function deleteSale(id: string, userId: string): Promise<OperationR
 }
 
 /** Elimina (soft-delete) varias ventas por id. */
-export async function deleteManySales(ids: string[], userId: string): Promise<OperationResponse> {
+export async function deleteManySales(ids: string[], userIdPedido: string): Promise<OperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     if (!userId) return { success: false, message: 'No existe el userId.' };
     if (!ids?.length) return { success: false, message: 'No hay ventas seleccionadas.' };
@@ -335,7 +343,8 @@ export async function deleteManySales(ids: string[], userId: string): Promise<Op
 }
 
 /** Elimina (soft-delete) TODAS las ventas del usuario. */
-export async function deleteAllSales(userId: string): Promise<OperationResponse> {
+export async function deleteAllSales(userIdPedido: string): Promise<OperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     if (!userId) return { success: false, message: 'No existe el userId.' };
     const deleted = await db.financeTransaction.updateMany({
@@ -355,7 +364,8 @@ export async function addSaleAttachments(params: {
   attachments: AttachmentInput[];
 }): Promise<OperationResponse> {
   try {
-    const { userId, transactionId, attachments } = params;
+    const { userId: userIdPedido, transactionId, attachments } = params;
+    const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     if (!attachments?.length) return { success: true, message: 'Sin soportes.' };
 
     const tx = await db.financeTransaction.findFirst({
@@ -389,7 +399,8 @@ export async function deleteSaleAttachment(params: {
   attachmentId: string;
 }): Promise<OperationResponse> {
   try {
-    const { userId, attachmentId } = params;
+    const { userId: userIdPedido, attachmentId } = params;
+    const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
 
     const deleted = await db.financeAttachment.deleteMany({
       where: { id: attachmentId, userId },

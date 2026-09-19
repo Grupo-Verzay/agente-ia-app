@@ -1,8 +1,10 @@
 ﻿'use server';
 
 import { db } from '@/lib/db';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
-export async function getFinanceAccounts(userId: string) {
+export async function getFinanceAccounts(userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const data = await db.financeAccount.findMany({
       where: { userId },
@@ -24,7 +26,8 @@ export async function createFinanceAccount(payload: {
   isDefault?: boolean;
 }) {
   try {
-    const { userId, isDefault } = payload;
+    const { userId: userIdPedido, isDefault } = payload;
+    const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
 
     // si viene default -> desmarcar las otras
     if (isDefault) {
@@ -54,7 +57,7 @@ export async function createFinanceAccount(payload: {
 // ESTA ES LA QUE TE FALTA / NO ESTÁ EXPORTADA
 export async function updateFinanceAccount(
   accountId: string,
-  userId: string,
+  userIdPedido: string,
   payload: Partial<{
     name: string;
     type: 'PERSONAL' | 'COMPANY';
@@ -62,6 +65,7 @@ export async function updateFinanceAccount(
     isDefault: boolean;
   }>
 ) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     // si se marca default -> desmarcar las otras
     if (payload.isDefault) {
@@ -88,7 +92,8 @@ export async function updateFinanceAccount(
   }
 }
 
-export async function deleteFinanceAccount(accountId: string, userId: string) {
+export async function deleteFinanceAccount(accountId: string, userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     // opcional: impedir borrar default si quieres
     // const acc = await db.financeAccount.findUnique({ where: { id: accountId } });

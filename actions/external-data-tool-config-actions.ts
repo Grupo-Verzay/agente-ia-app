@@ -1,6 +1,9 @@
 ﻿'use server';
 
 import { db } from '@/lib/db';
+import { currentUser } from '@/lib/auth';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad';
 import { BUILTIN_TOOL_CATALOG } from '@/lib/external-data-tool-catalog';
 import { textoLimpio } from '@/lib/texto-doblemente-codificado';
 import type {
@@ -15,7 +18,8 @@ const VALID_DATA_QUERY_TOOL_TYPES = new Set(['auto_inject', 'search_by_field']);
 
 // ─── List ─────────────────────────────────────────────────────────────────────
 
-export async function listToolConfigs(userId: string): Promise<ExternalDataToolConfig[]> {
+export async function listToolConfigs(userIdPedido: string): Promise<ExternalDataToolConfig[]> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId) return [];
 
   const rows = await db.externalDataToolConfig.findMany({
@@ -34,10 +38,11 @@ export async function listToolConfigs(userId: string): Promise<ExternalDataToolC
  * Solo se personalizan displayName y toolDescription.
  */
 export async function addBuiltinTool(
-  userId: string,
+  userIdPedido: string,
   toolType: ExternalDataBuiltinToolType,
   overrides: { displayName?: string; toolDescription?: string },
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId) return { success: false, error: 'userId requerido' };
 
   if (!VALID_BUILTIN_TOOL_TYPES.has(toolType)) {
@@ -97,10 +102,11 @@ export async function addBuiltinTool(
  * toolKey, toolCategory y toolType son inmutables.
  */
 export async function updateBuiltinTool(
-  userId: string,
+  userIdPedido: string,
   toolKey: string,
   updates: { displayName: string; toolDescription: string; promptTemplate?: string | null },
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId || !toolKey) return { success: false, error: 'Parámetros inválidos' };
 
   const newDisplayName = updates.displayName.trim();
@@ -151,10 +157,11 @@ function slugifyToolKey(displayName: string): string {
  * En edición el toolKey no cambia (el identificador es inmutable).
  */
 export async function upsertDataQueryTool(
-  userId: string,
+  userIdPedido: string,
   input: ExternalDataToolConfigInput,
   editingKey?: string,
 ): Promise<{ success: boolean; error?: string; warning?: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId) return { success: false, error: 'userId requerido' };
 
   if (input.toolCategory !== 'data_query') {
@@ -249,8 +256,9 @@ export async function upsertDataQueryTool(
  * Solo crea las que no existen (por toolType). Nunca sobreescribe.
  */
 export async function applyDefaultToolConfigs(
-  userId: string,
+  userIdPedido: string,
 ): Promise<{ success: boolean; created: number; skipped: number; error?: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId) return { success: false, created: 0, skipped: 0, error: 'userId requerido' };
 
   try {
@@ -301,12 +309,31 @@ export async function applyDefaultToolConfigs(
 
 // ─── Seed masivo para todos los usuarios (solo super_admin) ──────────────────
 
+/**
+ * Reparte las herramientas por defecto a **TODAS** las cuentas de la
+ * plataforma.
+ *
+ * No recibe ningún id, así que no entraba en el barrido de las que lo reciben
+ * del navegador — y era el agujero más ancho de los dos: solo pedía tener
+ * sesión, así que cualquier cuenta con la suya podía escribirle la
+ * configuración de herramientas a las cincuenta.
+ *
+ * **Pide superadministrador de verdad**, el de la PERSONA, para que siga
+ * valiendo desde dentro de una cuenta vinculada. Es el mismo tratamiento que ya
+ * se le dio a `bulkSyncActiveClientSessions`: lo que toca a todos los clientes
+ * es de la casa.
+ */
 export async function applyDefaultToolConfigsAllUsers(): Promise<{
   success: boolean;
   totalUsers: number;
   totalCreated: number;
   error?: string;
 }> {
+  const persona = await currentUser();
+  if (!persona || !esSuperAdminDeVerdad(persona)) {
+    return { success: false, totalUsers: 0, totalCreated: 0, error: 'No autorizado.' };
+  }
+
   try {
     const users = await db.user.findMany({ select: { id: true } });
     let totalCreated = 0;
@@ -325,9 +352,10 @@ export async function applyDefaultToolConfigsAllUsers(): Promise<{
 // ─── Restore single builtin to catalog defaults ───────────────────────────────
 
 export async function restoreToolConfigDefault(
-  userId: string,
+  userIdPedido: string,
   toolKey: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId || !toolKey) return { success: false, error: 'Parámetros inválidos' };
 
   const record = await db.externalDataToolConfig.findFirst({
@@ -356,10 +384,11 @@ export async function restoreToolConfigDefault(
 // ─── Toggle enabled ───────────────────────────────────────────────────────────
 
 export async function toggleToolConfig(
-  userId: string,
+  userIdPedido: string,
   toolKey: string,
   isEnabled: boolean,
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId || !toolKey) return { success: false, error: 'Parámetros inválidos' };
 
   try {
@@ -376,9 +405,10 @@ export async function toggleToolConfig(
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 export async function deleteToolConfig(
-  userId: string,
+  userIdPedido: string,
   toolKey: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   if (!userId || !toolKey) return { success: false, error: 'Parámetros inválidos' };
 
   try {

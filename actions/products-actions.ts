@@ -2,6 +2,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { z } from "zod";
 import { listParams, productSchema } from "@/lib/validators/product";
 import { db } from "@/lib/db"; // tu prisma client
@@ -28,7 +29,8 @@ async function getProductLimit(userId: string): Promise<number | null> {
 }
 
 export async function listProducts(raw: z.input<typeof listParams>) {
-    const { userId, q, page, perPage, onlyActive } = listParams.parse(raw);
+    const { userId: userIdPedido, q, page, perPage, onlyActive } = listParams.parse(raw);
+    const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
 
     const where: Prisma.ProductWhereInput = {
         userId,
@@ -61,7 +63,8 @@ export async function listProducts(raw: z.input<typeof listParams>) {
     };
 }
 
-export async function reorderProducts(userId: string, orderedIds: string[]) {
+export async function reorderProducts(userIdPedido: string, orderedIds: string[]) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     if (!userId || !Array.isArray(orderedIds) || orderedIds.length === 0) {
         return { ok: true };
     }
@@ -88,7 +91,10 @@ export async function reorderProducts(userId: string, orderedIds: string[]) {
 }
 
 export async function createProduct(raw: unknown) {
-    const input = productSchema.omit({ id: true }).parse(raw);
+    const parseado = productSchema.omit({ id: true }).parse(raw);
+    // `raw` llega del navegador, así que su `userId` es un dato de fuera como
+    // cualquier otro: Zod comprueba la FORMA, no de quién es la cuenta.
+    const input = { ...parseado, userId: await exigirLaCuentaDeLaAccion(parseado.userId) };
 
     // 1️⃣ Verificar límite de productos
     const [limit, current] = await Promise.all([
@@ -157,11 +163,29 @@ export async function createProduct(raw: unknown) {
     }
 }
 
+/**
+ * Editar un producto.
+ *
+ * **El dueño NO llegaba de ninguna parte.** El `where` era `{ id }` a secas, y
+ * el `userId` del formulario se descartaba a propósito («no se debe tocar el
+ * FK») — cierto, pero al descartarlo se quedaba sin nadie a quien preguntarle
+ * de quién era la fila. O sea que con cualquier sesión y el id de un producto
+ * se le podía cambiar el precio, el stock o el título a otra cuenta.
+ *
+ * El dueño sale de **la propia fila**, no del formulario: se lee y se comprueba
+ * contra la sesión. Preguntárselo al navegador sería volver a fiarse de lo que
+ * manda, que es justo lo que este barrido viene a cerrar.
+ */
 export async function updateProduct(id: string, raw: unknown) {
     // 1️⃣ Validar con Zod
     const input = productSchema.partial({ id: true }).parse(raw);
 
-    // 2️⃣ Excluir userId del update (no se debe tocar el FK)
+    // 2️⃣ De quién es la fila, y si quien llama la alcanza.
+    const fila = await db.product.findUnique({ where: { id }, select: { userId: true } });
+    if (!fila) throw new Error("El producto no existe.");
+    await exigirLaCuentaDeLaAccion(fila.userId);
+
+    // 3️⃣ Excluir userId del update (no se debe tocar el FK)
     const { id: _omit, userId: _ignore, ...data } = input;
 
     // Aseguramos que los campos tags y category estén correctamente formateados
@@ -172,7 +196,7 @@ export async function updateProduct(id: string, raw: unknown) {
         category: data.category || "",
     };
 
-    // 3️⃣ Ejecutar el update limpio
+    // 4️⃣ Ejecutar el update limpio
     let product;
     try {
         product = await db.product.update({
@@ -196,13 +220,15 @@ export async function updateProduct(id: string, raw: unknown) {
     return product;
 }
 
-export async function deleteProduct(id: string, userId: string) {
+export async function deleteProduct(id: string, userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     await db.product.deleteMany({ where: { id, userId } });
     revalidatePath("/products");
     return { ok: true };
 }
 
-export async function getProductLimitInfo(userId: string) {
+export async function getProductLimitInfo(userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     const [limit, current] = await Promise.all([
         getProductLimit(userId),
         db.product.count({ where: { userId } }),
@@ -210,7 +236,8 @@ export async function getProductLimitInfo(userId: string) {
     return { current, limit, reached: limit !== null && current >= limit };
 }
 
-export async function getProductStats(userId: string) {
+export async function getProductStats(userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     const [limit, total, active, outOfStock] = await Promise.all([
         getProductLimit(userId),
         db.product.count({ where: { userId } }),
@@ -226,13 +253,30 @@ export async function getProductStats(userId: string) {
     };
 }
 
-export async function checkIfSkuExists(sku: string, userId: string) {
+export async function checkIfSkuExists(sku: string, userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     const existingProduct = await db.product.findFirst({
         where: { sku, userId },
     });
     return existingProduct !== null;
 }
 
+/**
+ * El catálogo PÚBLICO de una cuenta.
+ *
+ * **Esta sí recibe el id del navegador a propósito, y no lleva guarda.** Es lo
+ * que pintan `/catalogo/[userId]` y `/c/[slug]`, dos páginas públicas: quien
+ * las abre es un cliente final sin sesión, así que `currentUser()` devuelve
+ * `null` y cualquier comprobación las tumbaría enteras.
+ *
+ * Y no hay nada que cerrar: solo salen los productos **activos** y los cuatro
+ * campos de marca que el dueño publicó para que se vean. Lo que decide qué se
+ * enseña es `isActive`, no quién pregunta.
+ *
+ * Si algún día se le añade un campo que no sea para el público —un costo, un
+ * margen, un teléfono interno— entonces sí hay que volver aquí: el que la
+ * pantalla sea pública no convierte en público todo lo que se le meta dentro.
+ */
 export async function getPublicCatalog(userId: string) {
     const [user, products, config] = await Promise.all([
         db.user.findUnique({

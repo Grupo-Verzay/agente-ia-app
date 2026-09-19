@@ -756,6 +756,66 @@ Tres cosas:
    manda el id equivocado, no la regla.** El caso típico: pasar el id del asesor
    donde la regla espera el de su dueño.
 
+### Y nueve ficheros no tenían NI UNA llamada a `currentUser()`
+
+La regla de arriba estaba escrita y aplicada en 26 sitios. Lo que faltaba era
+barrer: **Cotizaciones, las cuatro de Finanzas, Datos externos, la base de
+conocimiento y Productos** recibían el `userId` del navegador y lo metían
+directo en el `where`.
+
+```ts
+export async function deleteFinanceContact(id: string, userId: string) {
+  await db.financeContact.updateMany({ where: { id, userId }, … });
+}
+```
+
+**Una acción de servidor ES un endpoint.** No hace falta estar dentro de la
+pantalla ni tener ningún permiso: con la sesión de cualquier cuenta y otro id,
+se borran, se crean y se editan los datos de otra. Son **66 acciones** con el
+hueco, y no solo de borrar — crear y editar estaban igual.
+
+> **El id que llega del navegador no decide nada: se comprueba.** Va por
+> `laCuentaDeLaAccion` / `exigirLaCuentaDeLaAccion` (`lib/cuenta-de-la-accion.ts`),
+> que resuelve `currentUser()` y pasa el id pedido por `assertCanAccessTargetUser`.
+> **Si se añade otra acción que reciba un `userId`, va por ahí.**
+
+Seis cosas que hay que mantener:
+
+1. **Es un ALCANCE, así que sin id pedido se cae a la fila EFECTIVA**
+   (`ownerId ?? id`), nunca a la persona. Resolver la persona aquí es
+   exactamente lo que rompió la cartera de clientes en el #783: un
+   administrador que llega a su cuenta por `linked_accounts` no tiene
+   `advisorRole` en su propia fila. Firmar es otra pregunta y va con la persona.
+2. **Dos formas, y hacen falta las dos.** Unas acciones devuelven
+   `{ success, message }` y otras el dato pelado. Con una sola, la otra mitad
+   tendría que envolver todo en un `try`, y un `catch` que se olvida es un «No
+   autorizado» que se ve como una pantalla vacía.
+3. **El rechazo NO es mudo.** El caso típico no es un ataque: es una pantalla
+   que manda el id equivocado. Sin el `console.warn` no hay forma de saber cuál.
+4. **Lo público lo es a propósito y lo dice.** `getPublicCatalog` es la única
+   que se queda sin guarda: la abren `/catalogo/[userId]` y `/c/[slug]`, dos
+   páginas sin sesión, así que comprobar algo las tumbaría enteras. Solo salen
+   productos `isActive`. **Se comprueba ANTES de guardar en bloque quién llama a
+   cada acción**: un cron, el despachador o una página pública se caen con una
+   guarda que espera cookies.
+5. **Y se mira también lo que NO recibe ningún id.**
+   `applyDefaultToolConfigsAllUsers` escribía en **todas** las cuentas de la
+   plataforma y solo pedía tener sesión; no entraba en el barrido justamente
+   por no recibir nada. Pide superadministrador de verdad, como
+   `bulkSyncActiveClientSessions`.
+6. **Un `where` sin dueño es el mismo hueco sin el id delante.**
+   `updateProduct` iba con `where: { id }` a secas y descartaba el `userId` del
+   formulario a propósito —correcto— pero entonces no quedaba nadie a quien
+   preguntarle de quién era la fila. **El dueño sale de la fila, no del
+   navegador**: se lee con un `findUnique` pequeño y se comprueba.
+
+Y cómo se barre, porque buscar `userId` en la firma **no basta**: no lo ve
+cuando llega dentro de un tipo con nombre (`input: FinanceContactInput`), ni
+cuando los parámetros empiezan en la línea siguiente, ni cuando sale de un
+`parse` (`const { userId } = listParams.parse(raw)`). Los tres casos aparecieron
+en este barrido y los tres estaban abiertos. Se busca **por el cuerpo**
+—`\.userId\b` entrando a un `where` o a un `data`— y no por la firma.
+
 ### Y la propia `assertCanAccessTargetUser` preguntaba por la PERSONA
 
 La regla existía y estaba puesta en 26 sitios, y aun así tenía dentro el fallo

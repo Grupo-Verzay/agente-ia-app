@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { revalidatePath } from 'next/cache';
 import OpenAI from 'openai';
 
@@ -51,14 +52,16 @@ export type KnowledgeBlockData = {
   sortOrder?: number;
 };
 
-export async function listKnowledgeBlocks(userId: string) {
+export async function listKnowledgeBlocks(userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   return db.knowledgeBlock.findMany({
     where: { userId },
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
   });
 }
 
-export async function createKnowledgeBlock(userId: string, data: KnowledgeBlockData) {
+export async function createKnowledgeBlock(userIdPedido: string, data: KnowledgeBlockData) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const embedding = await generateEmbedding(
     userId,
     embedSource(data.title, data.keywords, data.content),
@@ -72,9 +75,10 @@ export async function createKnowledgeBlock(userId: string, data: KnowledgeBlockD
 
 export async function updateKnowledgeBlock(
   id: string,
-  userId: string,
+  userIdPedido: string,
   data: Partial<KnowledgeBlockData>,
 ) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   // Si cambió el texto, regenera el embedding (con el contenido fusionado).
   let embedding: number[] | undefined;
   if (data.title !== undefined || data.content !== undefined || data.keywords !== undefined) {
@@ -101,12 +105,14 @@ export async function updateKnowledgeBlock(
   return block;
 }
 
-export async function deleteKnowledgeBlock(id: string, userId: string) {
+export async function deleteKnowledgeBlock(id: string, userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   await db.knowledgeBlock.delete({ where: { id, userId } });
   revalidatePath('/my-data');
 }
 
-export async function toggleKnowledgeBlock(id: string, userId: string, isActive: boolean) {
+export async function toggleKnowledgeBlock(id: string, userIdPedido: string, isActive: boolean) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const block = await db.knowledgeBlock.update({
     where: { id, userId },
     data: { isActive },
@@ -115,7 +121,8 @@ export async function toggleKnowledgeBlock(id: string, userId: string, isActive:
   return block;
 }
 
-export async function getKnowledgeBlockCounts(userId: string) {
+export async function getKnowledgeBlockCounts(userIdPedido: string) {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const [total, active] = await Promise.all([
     db.knowledgeBlock.count({ where: { userId } }),
     db.knowledgeBlock.count({ where: { userId, isActive: true } }),
@@ -123,7 +130,8 @@ export async function getKnowledgeBlockCounts(userId: string) {
   return { total, active, inactive: total - active };
 }
 
-export async function deleteAllKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+export async function deleteAllKnowledgeBlocks(userIdPedido: string): Promise<{ success: boolean; message: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const result = await db.knowledgeBlock.deleteMany({ where: { userId } });
     revalidatePath('/my-data');
@@ -133,7 +141,8 @@ export async function deleteAllKnowledgeBlocks(userId: string): Promise<{ succes
   }
 }
 
-export async function deleteInactiveKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+export async function deleteInactiveKnowledgeBlocks(userIdPedido: string): Promise<{ success: boolean; message: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const result = await db.knowledgeBlock.deleteMany({ where: { userId, isActive: false } });
     revalidatePath('/my-data');
@@ -143,7 +152,8 @@ export async function deleteInactiveKnowledgeBlocks(userId: string): Promise<{ s
   }
 }
 
-export async function activateAllKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+export async function activateAllKnowledgeBlocks(userIdPedido: string): Promise<{ success: boolean; message: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const result = await db.knowledgeBlock.updateMany({ where: { userId, isActive: false }, data: { isActive: true } });
     revalidatePath('/my-data');
@@ -153,7 +163,8 @@ export async function activateAllKnowledgeBlocks(userId: string): Promise<{ succ
   }
 }
 
-export async function deactivateAllKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+export async function deactivateAllKnowledgeBlocks(userIdPedido: string): Promise<{ success: boolean; message: string }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
     const result = await db.knowledgeBlock.updateMany({ where: { userId, isActive: true }, data: { isActive: false } });
     revalidatePath('/my-data');
@@ -164,10 +175,11 @@ export async function deactivateAllKnowledgeBlocks(userId: string): Promise<{ su
 }
 
 export async function autoSplitAndImport(
-  userId: string,
+  userIdPedido: string,
   rawText: string,
   separator?: string,
 ): Promise<{ created: number; blocks: { title: string; keywords: string[] }[] }> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const sections = splitIntoSections(rawText, separator);
 
   if (sections.length === 0) return { created: 0, blocks: [] };
