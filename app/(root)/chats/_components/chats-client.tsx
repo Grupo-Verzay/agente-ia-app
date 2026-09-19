@@ -5409,9 +5409,12 @@ export function ChatsClient({
                 onClick={() => goToChatTab("all", true)}
                 className="flex w-full items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-left transition-colors hover:bg-orange-100 dark:border-orange-800/50 dark:bg-orange-950/30 dark:hover:bg-orange-900/40"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">N</span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">S</span>
                 <div>
-                  <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">No leídos</p>
+                  {/* El MISMO filtro que la pastilla de la barra, así que el
+                      mismo nombre: con «No leídos» aquí y «Sin leer» allá se
+                      leen como dos filtros distintos. */}
+                  <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">Sin leer</p>
                   <p className="text-xs text-muted-foreground">Conversaciones pendientes por leer</p>
                 </div>
               </button>

@@ -1485,6 +1485,116 @@ Comprobado contra Postgres en ese orden y en el contrario. Si se añade un terce
 camino que escriba en esta tabla, va igual: nombra sus columnas y no arrastra
 las de al lado.
 
+## Chats: un PADDING no encoge; un hijo del flex sí
+
+La fila de pastillas —Mías, Todos, Sin leer, En espera— se cortaba. Medido en
+Chromium sobre el CSS del build, con cuatro pastillas y contadores de verdad,
+**se cortaba en las cuatro anchuras**: a 1440 y a 1280 se perdía media palabra
+de «En espera», a 1024 quedaba en «En», y en un móvil igual.
+
+Y no era que sobrara poco: la fila pedía **377 px** y el hueco más estrecho son
+**300**.
+
+### Lo que NO se puede hacer, y por qué
+
+Las pastillas iban `shrink-0` con `px-2`. Con eso una fila apretada solo tiene
+dos finales, y los dos son el fallo:
+
+- **desbordar** —y con el `overflow-hidden` del grupo eso no se ve como un
+  error, se ve como una pastilla partida por la mitad—;
+- o **partirse en dos líneas**, si alguien quita el `shrink-0` sin más.
+
+Bajar el padding a mano tampoco vale: con pocos filtros la fila tiene sitio de
+sobra y saldría apretada sin motivo.
+
+> **La regla: en un flex lo que cede es un HIJO, y un `padding` no lo es.** El
+> hueco de los lados de la pastilla pasa a ser un `<span aria-hidden>` con
+> `shrink`, y el texto va `shrink-0`. Así el hueco cede **solo cuando falta
+> ancho y solo lo que falte**; con sitio de sobra mide sus 8 px y la fila se ve
+> exactamente como se veía.
+
+Son **tres** huecos por pastilla —los dos de los lados (8 px) y el de entre el
+rótulo y su contador (4 px, que antes era un `ms-1` y un margen tampoco cede)—,
+o sea 20 px de margen de maniobra por pastilla. Con solo los dos de los lados el
+banco medía **1 px corto** en el peor caso.
+
+**Y nunca una barra de deslizar.** El `overflow-hidden` se queda de red de
+seguridad, no como la solución: lo que evita el corte es que los huecos cedan.
+
+### El pseudo-elemento NO sirve, y eso hay que saberlo antes
+
+Lo primero que se escribió fue `::before` / `::after` con `flex: 0 1 8px`, que
+ahorra dos nodos por pastilla. **No funciona en un `<button>`**: medido en
+Chromium, el hueco salía de **0 px incluso en un contenedor de 600 px**, o sea
+que la pastilla nacía ya sin huecos y el «se ve como hoy» se perdía. Un
+pseudo-elemento de un botón no llega a ser un hijo del flex. Con un `<span>` de
+verdad mide 8 px en reposo y 6 px a 110 px de ancho.
+
+### `justify-evenly` reparte hueco ANTES de la primera
+
+Es lo que despegaba la fila de los dos bordes, y además hacía que la separación
+**no fuera la declarada**: `justify-evenly` reparte el sobrante en N+1 huecos
+iguales, contando el de antes de la primera pastilla y el de después de la
+última. Medido con tres pastillas: **16-20 px** a 1440 y **20-24 px** en un
+móvil, contra los **4 px** del `gap-1` que estaba escrito al lado.
+
+Con `justify-start` la primera pastilla arranca en el borde —alineada con el
+buscador de arriba— y la separación es 4 px siempre. Ese hueco recuperado es
+justo el que se le devuelve a las pastillas cuando el ancho aprieta.
+
+### El móvil NO es el caso estrecho, y conviene no buscar ahí
+
+Parece que sí y es al revés. La columna sale de `--ancho-lateral` (18/20/22/24
+rem) y en un móvil ocupa **la pantalla entera**, así que el hueco de la fila es:
+
+| ventana | columna | hueco de la fila |
+| --- | --- | --- |
+| 1440 | 384 | 332 |
+| 1280 | 384 | 332 |
+| **1024** | **352** | **300** ← el más estrecho |
+| 390 | 390 | **346** ← el más ancho |
+
+A 1024 la columna es la más pequeña de las de escritorio y encima lleva el
+`sm:px-3`; en un móvil son 390 px menos el `px-2`. **Donde más se parten es a
+1024**, no en el teléfono.
+
+### Medido, antes y después
+
+Cuatro pastillas, contadores reales de una cuenta grande (`Mías 328`,
+`Todos 3.912`, dos `99+`). `pad` es lo que queda de los 8 px del hueco:
+
+| ventana | antes | ahora |
+| --- | --- | --- |
+| 1440 | **se corta** | cabe, pad 5,2 px |
+| 1280 | **se corta** | cabe, pad 5,2 px |
+| 1024 | **se corta** | cabe, pad 2,6 px |
+| 390 | **se corta** | cabe, pad 6,3 px |
+
+Con **tres** pastillas —una cuenta sin asesor, que no tiene «Mías»— el pad se
+queda en **8,0 px en las cuatro anchuras**: no se comprime nada, que es el
+encargo. Lo único que cambia ahí es que la fila deja de estar despegada del
+borde.
+
+El banco ejerce **24 combinaciones** —3 ó 4 pastillas × tres juegos de
+contadores × las cuatro anchuras— y comprueba en todas: una sola línea, sin
+cortes, `overflow-x: hidden` (nunca una barra de deslizar), la primera pastilla
+a 0 px del borde, la flecha a 0 px del derecho y 4 px de separación. Las clases
+del «ahora» **se leen del componente** y las del «antes` se sacan de `git show`:
+copiadas al banco se estaría midiendo una fila que React no pinta.
+
+### Y el contador de «Todos» no se recorta a `99+`
+
+Es lo que más ancho pide —hasta cinco cifras— y la tentación es caparlo como ya
+se capan «Sin leer» y «En espera». **No**: ese número es el total de la línea y
+tiene que poder leerse entero, que es una regla que ya costó una vuelta (ver
+*un filtro que ofrece un número tiene que poder llegar a él*). Lo que se acorta
+es el **rótulo** —«No leídos» pasó a «Sin leer», 10 px menos—, que es lo único
+que se puede acortar sin quitar información.
+
+Y el rótulo se cambió **en los dos sitios donde se nombra ese filtro**: la
+pastilla y el atajo de la pantalla vacía. Con dos nombres para el mismo filtro,
+se leen como dos filtros distintos.
+
 ## Chats: el menú de Acciones no puede crecer con el equipo
 
 En «Acciones» iban abiertas, una detrás de otra, las dos listas de asesores:
