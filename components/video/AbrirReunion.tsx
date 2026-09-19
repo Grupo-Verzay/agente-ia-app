@@ -14,7 +14,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { DURACIONES, DURACION_POR_DEFECTO, type Duracion } from "@/lib/sala-de-video";
+import {
+    DURACION_POR_DEFECTO,
+    comoSeLeeLaCaducidad,
+    duracionesQuePuedeElegir,
+    type Duracion,
+} from "@/lib/sala-de-video";
 import { abrirLaReunionAqui } from "@/components/video/ReunionEnLaPlataforma";
 import {
     crearLaSalaAction,
@@ -144,8 +149,15 @@ export function AbrirReunion({
                         <div className="flex flex-wrap gap-1.5">
                             {/* El enlace CADUCA siempre, y se elige de una lista
                                 cerrada. Un desplegable libre acabaría con un
-                                enlace de un año pegado en un correo. */}
-                            {DURACIONES.map((d) => (
+                                enlace de un año pegado en un correo.
+
+                                Y aquí se pasa `false` a propósito, aunque quien
+                                abra el diálogo administre la cuenta: «No
+                                caduca» solo se ofrece en Reuniones, que es la
+                                única pantalla donde un enlace permanente SE VE
+                                y se puede revocar. El de una sala de canal vive
+                                en el hilo y no sale en ninguna lista. */}
+                            {duracionesQuePuedeElegir(false).map((d) => (
                                 <button
                                     key={d.valor}
                                     type="button"
@@ -237,7 +249,7 @@ function FilaDeSala({
             <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm">{sala.titulo || "Reunión"}</span>
                 <span className="block text-[11px] text-muted-foreground">
-                    Caduca {cuandoSeLee(sala.expiraEn)}
+                    {comoSeLeeLaCaducidad(sala.expiraEn)}
                 </span>
             </span>
             <Button
@@ -281,15 +293,4 @@ function FilaDeSala({
             ) : null}
         </div>
     );
-}
-
-/** «en 3 h», «en 2 días». Una fecha exacta aquí no dice nada de un vistazo. */
-function cuandoSeLee(iso: string): string {
-    const falta = Date.parse(iso) - Date.now();
-    if (!Number.isFinite(falta) || falta <= 0) return "ya";
-    const horas = Math.round(falta / (60 * 60 * 1000));
-    if (horas < 1) return "en menos de 1 h";
-    if (horas < 24) return `en ${horas} h`;
-    const dias = Math.round(horas / 24);
-    return dias === 1 ? "mañana" : `en ${dias} días`;
 }

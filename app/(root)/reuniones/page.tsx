@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
  * Eso ataba Reuniones a tener chat de equipo montado y dejaba fuera el caso más
  * normal —«ábreme una sala para el cliente de las tres»—, que no es de ningún
  * canal. Ahora `canalId` es opcional y esta pantalla enseña las que no son de
- * ninguno: las vivas arriba, para volver a una o repartir su enlace, y las
- * pasadas debajo.
+ * ninguno: **una sola lista**, con dos pastillas de filtro —abiertas y
+ * pasadas— en la barra de acciones.
  *
  * **Esta ruta no está montada en ningún módulo**: entra en el desplegable de
  * «Editar módulo» y se asigna a mano, igual que `/cobros`, `/chat-equipo` y
@@ -50,6 +50,11 @@ export default async function ReunionesPage() {
         <ReunionesClient
             inicial={vivas.success ? vivas.salas : []}
             puedoAbrir={vivas.success ? vivas.puedoAbrir : false}
+            /* Quién puede dejar un enlace SIN caducidad lo decide el servidor
+               (`canManageWorkspace`) y baja como dato: la pantalla no vuelve a
+               preguntarlo, o el desplegable ofrecería una opción que la acción
+               rechaza. */
+            puedoNoCaducar={vivas.success ? vivas.puedoNoCaducar : false}
             historial={historial.success ? historial.reuniones : []}
             dias={historial.success ? historial.dias : 90}
             /* Un fallo de carga NO se calla: una pantalla vacía sin motivo se

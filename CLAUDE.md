@@ -4433,11 +4433,18 @@ anfitrión cierra su pestaña, sus invitados se quedarían esperando para siempr
 mirando un mensaje que no cambia. **Un invitado no abre la puerta nunca**: lo
 que le dejó entrar fue una decisión de alguien del equipo, y no se hereda.
 
-**El enlace caduca siempre.** La duración sale de una lista cerrada
-(`DURACIONES`), y lo que no encaje cae en la de por defecto —**nunca en «no
-caduca»**: equivocarse hacia un día de más es un enlace que hay que revocar a
-mano; equivocarse hacia el infinito es un enlace que nadie sabe que sigue
-abierto. Y **revocar echa a quien esté dentro**, en la misma transacción:
+**El enlace de una sala de CANAL caduca siempre.** La duración sale de una
+lista cerrada (`DURACIONES`), y lo que no encaje cae en la de por defecto
+—**nunca en «no caduca»**: equivocarse hacia un día de más es un enlace que hay
+que revocar a mano; equivocarse hacia el infinito es un enlace que nadie sabe
+que sigue abierto.
+
+> Lo de «siempre» dejó de ser literal, y conviene saber **dónde exactamente**:
+> una reunión de la CUENTA sí puede no caducar, y solo si la abre quien la
+> administra. El porqué —y por qué el diálogo de un canal sigue sin ofrecerlo—
+> está en *«No caduca» es para un enlace fijo, y solo lo pone quien administra*.
+
+Y **revocar echa a quien esté dentro**, en la misma transacción:
 cerrar el enlace dejando dentro a la gente que ya entró sería media
 revocación, porque quien preocupa es justo quien está dentro ahora mismo.
 
@@ -4814,10 +4821,10 @@ Desde fuera no se lee como «elegí mal la duración»: se lee como que los enla
 de reuniones no funcionan, y quien lo sufre es el invitado de fuera, que no
 tiene forma de arreglarlo.
 
-Pasa a **7 días**, y el techo sube a 30 —una reunión semanal recurrente vive más
-de siete—. **«No caduca» sigue sin existir**: equivocarse hacia un mes de más es
-un enlace que se revoca desde esta pantalla, donde ahora se ven todos;
-equivocarse hacia el infinito es un enlace que nadie sabe que sigue abierto.
+Pasa a **7 días**, y el techo de las que llevan fecha sube a 30 —una reunión
+semanal recurrente vive más de siete—. Y **la de por defecto nunca es «No
+caduca»**, aunque ahora exista: caer en un enlace permanente por no reconocer un
+valor es exactamente el enlace que nadie sabe que sigue abierto.
 
 Y ahora **se mueve sin abrir otra sala**, que es lo que de verdad arregla el
 caso: la reunión se pasa al jueves y antes había que crear otra y repartir otro
@@ -4832,10 +4839,128 @@ Tres cosas de mover la caducidad:
    REVOCADA no**: alargarla sería deshacer por la puerta de atrás una decisión
    que alguien tomó, con la gente que se echó fuera ya echada. Se dice con esas
    palabras y se ofrece abrir una nueva.
-3. **Lo que llega del navegador pasa por la lista** (`esUnaDuracion`).
+3. **Lo que llega del navegador pasa por la lista** (`laDuracionQueSePuede`).
    `cuandoCaduca` ya cae en la de por defecto ante cualquier cosa, así que esto
    no protege la fecha: protege el **aviso**. Sin él, una duración que no existe
    guardaría siete días en silencio y quien lo hizo creería haber puesto otra.
+
+### «No caduca» es para un enlace fijo, y solo lo pone quien administra
+
+La sección de arriba decía que «No caduca» no existía, y la lista de razones era
+buena: un enlace al que nadie le pone fecha es un enlace que nadie sabe que
+sigue abierto. Lo que faltaba en esa cuenta es el caso que lo pedía: **un enlace
+fijo de atención**, siempre el mismo, que se pega en una firma o en un mensaje
+automático y que con cualquier caducidad hay que renovar y repartir otra vez
+cada semana — con lo que el enlace que la gente tiene guardado deja de valer.
+
+Existe, y lo que lo hace aceptable es **lo que había cambiado desde entonces**:
+
+> Un enlace permanente se puede tener porque **se VE y se puede cerrar**. Sale
+> en la lista de Reuniones de su cuenta, con su «Revocar» y su «Regenerar» al
+> lado. El miedo de la regla vieja no era el infinito: era **no tener dónde
+> mirarlo**, y esa pantalla es justo lo que la etapa uno acababa de traer.
+
+Cinco cosas que hay que mantener:
+
+1. **Solo quien ADMINISTRA la cuenta** (`canManageWorkspace`: dueño,
+   `administrador` y superadministrador de verdad; un `agente` participa y no
+   manda). Es la puerta de siempre, no una condición nueva.
+2. **Y se comprueba en el SERVIDOR, en los tres caminos que reciben una
+   duración** —abrir una reunión de la cuenta, abrir una en un canal y mover la
+   caducidad de una que ya existe— con una sola función,
+   `laDuracionQueSePuede`. Escondiendo la opción en la pantalla no se cierra la
+   petición directa, y con la condición escrita en uno solo de los tres, el
+   cuarto la olvida: entonces «solo quien administra» deja de ser cierto por esa
+   puerta y nadie se entera.
+3. **El diálogo de un CANAL sigue sin ofrecerla**, y pasa `false` a propósito
+   aunque quien lo abra administre la cuenta. No es un olvido: el enlace de una
+   sala de canal vive en el hilo del canal y **no sale en ninguna lista** desde
+   la que revocarlo de un vistazo. Lo que hace aceptable un enlace permanente es
+   poder verlo, y eso solo lo da Reuniones.
+4. **`NULL` es «no caduca», no «no se sabe».** `expiraEn` se hizo opcional con
+   `ALTER COLUMN … DROP NOT NULL` —la tabla ya está en producción y un
+   `CREATE TABLE IF NOT EXISTS` no toca una que ya existe—, y **no** se guarda
+   una fecha a cien años. Una fecha inventada es un centinela, y un centinela
+   acaba impreso: es la familia del «999999999 de -1 créditos», aplicada a una
+   caducidad. Comprobado contra Postgres **sobre el esquema de hoy**, con
+   `expiraEn NOT NULL` y filas dentro: las que ya estaban conservan su fecha y
+   la migración se repite sin quejarse.
+5. **La consulta de las vivas pregunta `IS NULL OR > NOW()`**, y esa primera
+   mitad no es de adorno. Medido con las dos: sin ella el enlace permanente
+   **desaparece de su propia lista** —que es la pantalla desde la que se
+   revoca—, y con ella salen los dos. En el histórico es al revés y sale gratis:
+   en SQL `NULL <= NOW()` no es cierto, es desconocido, así que una sala
+   permanente no aparece a la vez en las vivas y en las pasadas. Revocarla sí la
+   mueve de una lista a la otra, así que nunca se queda sin sitio donde mirarla.
+
+Y **regenerar** es la otra mitad, no un adorno: el día que un enlace fijo se
+filtra, revocarlo deja a la cuenta sin su enlace de atención hasta que alguien
+abra otro y lo reparta. `regenerarLaSalaAction` cierra el viejo y abre el nuevo
+en el mismo gesto, **copiando el nombre y la caducidad tal cual estaban** — por
+eso no vuelve a pedir `manda`: no se elige nada que no estuviera ya elegido, y
+lo que hace es *reducir* la exposición. Primero revoca y después crea: al revés,
+un fallo a mitad dejaría los dos enlaces abiertos a la vez, que es justo lo que
+esto viene a evitar.
+
+### La pantalla no se presenta a sí misma, y la lista es UNA
+
+La primera versión abría con un `h1` que decía «Reuniones» y un párrafo
+explicando qué es una sala de video; debajo, un recuadro con el nombre, **una
+fila de fichas sueltas** con las duraciones y una nota al pie; y debajo de todo
+eso, dos bloques apilados —«Abiertas» y «Pasadas»— cada uno con su título.
+
+Medido en Chromium sobre el CSS del build, eso es lo que había **por encima de
+la primera fila**:
+
+| ventana | antes | ahora | recupera |
+| --- | --- | --- | --- |
+| 1440 | 228 px | **40 px** | 188 px |
+| 1280 | 248 px | **40 px** | 208 px |
+| 1024 | 248 px | **40 px** | 208 px |
+| 390 | **336 px** | **40 px** | **296 px** |
+
+En un teléfono la cabecera se llevaba **una pantalla entera** antes de la
+primera reunión. Cuatro reglas, y las cuatro ya estaban escritas en este
+documento para otras pantallas:
+
+1. **Ni título ni párrafo.** Quien abre la pantalla ya sabe dónde está —lo pone
+   la pestaña del módulo— y lo que hace una reunión se descubre abriendo una.
+   Lo mismo con el «Se puede cambiar después…»: era una nota al pie que
+   describía dos botones que están ahí al lado.
+2. **La barra es `BarraDeAcciones`**, con su reparto de siempre: a la izquierda
+   lo que acota la lista, a la derecha el botón azul. Y dice **«+ Nueva»**, como
+   el resto de pantallas de lista, no «Abrir reunión».
+3. **Las duraciones van en un desplegable pegado al botón de crear.** Eran una
+   fila entera de alto para un ajuste que casi nunca se toca, y encima siempre
+   visible. Dentro va también el nombre de la reunión, que es el otro ajuste de
+   lo mismo; el disparador enseña la duración elegida, así que no hay que
+   abrirlo para saber cuál está puesta.
+4. **«Abiertas» y «Pasadas» son dos pastillas de filtro sobre UNA lista**, como
+   en Cobros, en Tareas y en Clientes. Apiladas, lo que se viene a ver quedaba
+   arriba y el histórico empujaba; y con veinte pasadas, las dos abiertas se
+   perdían.
+
+Y dos cosas que solo se ven midiendo:
+
+- **Las pastillas NO son `PastillasDeMetricas`.** Aquellas van `hidden sm:flex`
+  a propósito —son cifras que la lista de abajo ya contesta—, y estas dos son
+  **la única forma de llegar al histórico**. Escondidas en un teléfono, las
+  reuniones pasadas no existirían. Se escriben como las de Cobros, visibles en
+  todas las anchuras.
+- **Y a 390 el desplegable se queda solo con su icono.** Con el rótulo puesto,
+  la pareja de pastillas pedía 213 px y solo tenía 184: «Pasadas» se cortaba y
+  quedaba detrás de un desplazamiento horizontal que no se ve. Sin él sobran
+  49 px y las dos caben enteras. Es la misma decisión que `BotonDeCrear` con su
+  «+», y por el mismo motivo: en un teléfono el ancho es lo único que escasea.
+
+Medido con el **sidebar abierto (16 rem) y plegado (3 rem)**, que es lo que de
+verdad decide el ancho: la barra mide 40 px en las siete combinaciones, el botón
+azul queda pegado al borde derecho (0 px) y **nada desborda a lo ancho**.
+
+Y el desplegable es un `Popover`, no un `DropdownMenu`, por una razón que no es
+de gusto: un `DropdownMenu` es modal, así que con él abierto la primera
+pulsación sobre «+ Nueva» **solo lo cerraría** y habría que pulsar dos veces. Es
+el mismo `onMouseDown`/`onClick` del selector de menciones, por otra puerta.
 
 ### El histórico no es una tabla nueva: son las filas que ya se llenaban solas
 

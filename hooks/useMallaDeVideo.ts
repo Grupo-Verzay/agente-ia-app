@@ -61,7 +61,7 @@ export type EstadoDeLaMalla = {
     /** Por qué estoy fuera, cuando lo estoy. */
     motivo: string | null;
     yo: { participanteId: string; nombre: string; abroLaPuerta: boolean } | null;
-    sala: { id: string; codigo: string; titulo: string | null; expiraEn: string } | null;
+    sala: { id: string; codigo: string; titulo: string | null; expiraEn: string | null } | null;
     remotos: RemotoEnLaSala[];
     esperando: QuienEstaEnLaSala[];
 };
