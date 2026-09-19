@@ -33,11 +33,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, Plus } from 'lucide-react'
+import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Ellipsis } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
 import { ETIQUETAS_DE_SERVICIO, type EstadoDelServicio } from '@/lib/clientes-activos'
 import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones'
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas'
+import { elRolGestionaClientes } from '@/lib/rol-que-gestiona-clientes'
+import { eliminarClientesAction } from '@/actions/userClientDataActions'
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -108,38 +113,36 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
     getFilteredRowModel: getFilteredRowModel(),
   })
 
+  const router = useRouter()
+  const puedeGestionar = elRolGestionaClientes(currentUserRol)
+
+  // De las filas marcadas solo interesa el id, y solo las que están DELANTE:
+  // `getSelectedRowModel` ya devuelve las del modelo filtrado, así que un filtro
+  // puesto no puede llevarse por delante lo que quien mira no tiene enfrente.
+  const seleccionados = table
+    .getSelectedRowModel()
+    .rows.map((fila) => (fila.original as { id?: string }).id)
+    .filter((id): id is string => typeof id === 'string')
+
+  const borrarLosMarcados = async (ids: string[]) => {
+    const resumen = await eliminarClientesAction(ids)
+    return { fallaron: resumen.fallaron }
+  }
+
   return (
     <div className="flex flex-col h-full gap-2">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
-        {/* La misma barra que Equipo: izquierda fija, zona central que SCROLLEA
-            cuando no cabe y derecha fija. Con el menú lateral desplegado los
-            botones de la derecha («Columnas», «Acciones») se salían de la
-            pantalla y no había forma de llegar a ellos. */}
-        <div className="flex items-center gap-2">
-          <div className="flex flex-1 min-w-0 items-center gap-2">
-
-            <div className="flex min-w-0 flex-1 flex-row items-center gap-2 sm:flex-none sm:shrink-0">
+        {/* La barra es `BarraDeAcciones` y no una fila escrita aquí: izquierda
+            que SCROLLEA cuando no cabe, y derecha fija con el azul de crear y el
+            `⋯` pegado al borde. Antes el de crear iba dentro del grupo del
+            buscador, así que esta pantalla —que es de donde sale el patrón— era
+            justo la que no lo cumplía. */}
+        <BarraDeAcciones
+          filtros={
+            <>
               <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
 
-              {/* button-create-client. En el teléfono ocupaba una fila entera
-                  para decir "+ Nuevo": queda solo el más, junto al buscador. */}
-              {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
-
-                <Button
-                  onClick={openCreateDialogUser}
-                  title="Nuevo cliente"
-                  aria-label="Nuevo cliente"
-                  className="h-9 w-9 shrink-0 p-0 bg-blue-600 hover:bg-blue-700 text-white sm:h-10 sm:w-auto sm:px-4"
-                >
-                  <Plus className="h-4 w-4 sm:hidden" />
-                  <span className="hidden sm:inline">+ Nuevo</span>
-                </Button>
-              }
-            </div>
-
-            {/* Zona central: SCROLLEA cuando no cabe (estado, contadores, columnas) */}
-            <div className="flex flex-1 min-w-0 items-center gap-1 overflow-x-auto">
               {/* Qué clientes se ven. Va aquí y no dentro de «Columnas»: eso
                   decide qué datos se enseñan de cada fila, no qué filas hay.
                   Cuando no está en «Todos» se pinta en azul, para que no se
@@ -149,7 +152,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                   <Button
                     variant="outline"
                     className={cn(
-                      'ml-auto shrink-0',
+                      'shrink-0',
                       servicio === 'todos' ? undefined : 'border-sky-500 text-sky-600',
                     )}
                     title="Filtrar por estado del servicio"
@@ -218,34 +221,43 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                     ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-
-            {/* Derecha FIJA: nunca se va de la pantalla ni se desplaza */}
-            <div className="flex shrink-0 items-center gap-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="shrink-0">
-                    <Ellipsis className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => {
+            </>
+          }
+          crear={
+            puedeGestionar ? (
+              <BotonDeCrear onClick={openCreateDialogUser}>Nuevo cliente</BotonDeCrear>
+            ) : null
+          }
+          acciones={
+            <AccionesMasivas
+              seleccionados={seleccionados}
+              queSon="clientes"
+              puedeEliminar={puedeGestionar}
+              onEliminar={borrarLosMarcados}
+              onTerminar={() => {
+                table.resetRowSelection()
+                router.refresh()
+              }}
+              extras={[
+                {
+                  clave: 'csv',
+                  etiqueta: 'Exportar CSV',
+                  icono: <Download className="h-4 w-4" />,
+                  // Exportar es de lo que se ve, no de lo marcado: sale siempre.
+                  sinSeleccion: true,
+                  onSelect: () => {
                     const rows = table.getFilteredRowModel().rows;
                     const csv = rows.map(r => Object.values(r.original as object).join(',')).join('\n');
                     const blob = new Blob([csv], { type: 'text/csv' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a'); a.href = url; a.download = 'clientes.csv'; a.click();
                     URL.revokeObjectURL(url);
-                  }}>
-                    Exportar CSV
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
+                  },
+                },
+              ]}
+            />
+          }
+        />
       </div>
 
 

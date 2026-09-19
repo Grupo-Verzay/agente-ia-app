@@ -33,6 +33,11 @@ import {
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
+import { useRouter } from 'next/navigation'
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones'
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas'
+import { elRolAdministraClientes } from '@/lib/rol-que-gestiona-clientes'
+import { eliminarClientesAction } from '@/actions/userClientDataActions'
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -91,26 +96,33 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
     getFilteredRowModel: getFilteredRowModel(),
   })
 
+  const router = useRouter()
+  const puedeAdministrar = elRolAdministraClientes(currentUserRol)
+
+  // `getSelectedRowModel` ya devuelve las del modelo FILTRADO, así que un
+  // filtro puesto no puede llevarse por delante lo que no está enfrente.
+  const seleccionados = table
+    .getSelectedRowModel()
+    .rows.map((fila) => (fila.original as { id?: string }).id)
+    .filter((id): id is string => typeof id === 'string')
+
+  const borrarLosMarcados = async (ids: string[]) => {
+    const resumen = await eliminarClientesAction(ids)
+    return { fallaron: resumen.fallaron }
+  }
+
   return (
     <div className="flex flex-col h-full gap-2">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
-        <div className="flex justify-between items-center gap-2">
-          <div className="flex flex-row flex-1 gap-2">
-
-            <div className="flex flex-col sm:flex-row items-centerem gap-2 flex-1">
+        {/* La misma `BarraDeAcciones` que el resto de la plataforma. Antes esto
+            era un `flex-col sm:flex-row` que en el teléfono partía la barra en
+            dos filas y dejaba el azul de crear debajo del buscador. */}
+        <BarraDeAcciones
+          filtros={
+            <>
               <ColumnFilterInput table={table} />
 
-              {/* button-create-client */}
-              {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
-
-                <Button onClick={openCreateDialogUser} className="m-0 bg-blue-600 hover:bg-blue-700 text-white">
-                  + Nuevo
-                </Button>
-              }
-            </div>
-
-            <div className="flex flex-1 items-center">
               <ClientStatusPanel
                 users={data as ClientInterface[]}
                 onFilterChange={setStatusFilter}
@@ -118,7 +130,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="ml-auto">
+                  <Button variant="outline" className="shrink-0">
                     {/* Icono para móviles */}
                     <Ellipsis className="h-4 w-4 md:hidden" />
 
@@ -147,9 +159,26 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                     })}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+          crear={
+            puedeAdministrar ? (
+              <BotonDeCrear onClick={openCreateDialogUser}>Nuevo cliente</BotonDeCrear>
+            ) : null
+          }
+          acciones={
+            <AccionesMasivas
+              seleccionados={seleccionados}
+              queSon="clientes"
+              puedeEliminar={puedeAdministrar}
+              onEliminar={borrarLosMarcados}
+              onTerminar={() => {
+                table.resetRowSelection()
+                router.refresh()
+              }}
+            />
+          }
+        />
       </div>
 
 
