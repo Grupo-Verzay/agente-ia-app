@@ -221,7 +221,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
             )}
 
             <ModuleToolbar
-              right={<BotonDeCrear onClick={handleCreateReminder}>Nuevo recordatorio</BotonDeCrear>}
+              right={<BotonDeCrear onClick={handleCreateReminder}>Nuevo</BotonDeCrear>}
               acciones={
                 /* «Eliminar todos» ya era una acción sobre VARIOS: su sitio es
                    el `⋯` de la esquina, no un botón rojo suelto en la fila. */
@@ -245,7 +245,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                 ) : null
               }
             >
-              <div className="relative w-full min-w-0 sm:w-72">
+              <div className="relative w-56 sm:w-72">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar por título, número o nombre..."

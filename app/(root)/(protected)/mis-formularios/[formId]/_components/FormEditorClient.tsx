@@ -232,7 +232,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
           {/* Toolbar — mejora 1: toggle Activo/Inactivo directo */}
           <ModuleToolbar
             className="shrink-0"
-            right={<BotonDeCrear onClick={() => { resetFieldForm(); setAddFieldOpen(true); }}>Nuevo campo</BotonDeCrear>}
+            right={<BotonDeCrear onClick={() => { resetFieldForm(); setAddFieldOpen(true); }}>Nuevo</BotonDeCrear>}
             acciones={
               /* Los tres enlaces sueltos se comían la barra y ninguno crea
                  nada: van dentro del `⋯`, que es donde vive lo que no se usa

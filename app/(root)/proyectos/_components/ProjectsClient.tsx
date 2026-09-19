@@ -364,11 +364,11 @@ export function ProjectsClient({
         right={
           /* Crear lo puede cualquiera del equipo: el proyecto queda a su
              cargo. Lo de los demás sigue necesitando ser administrador. */
-          <BotonDeCrear onClick={() => setCreating(true)}>Nuevo proyecto</BotonDeCrear>
+          <BotonDeCrear onClick={() => setCreating(true)}>Nuevo</BotonDeCrear>
         }
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="relative w-full sm:w-72">
+        <div className="relative w-56 sm:w-72">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
@@ -446,23 +446,15 @@ export function ProjectsClient({
           ]}
         />
 
-        {/* Las carpetas SCROLLEAN, no parten la fila.
-            Es lo que queda creciendo sin tope: con dos carpetas la izquierda
-            vuelve a pedir 1012px de los 907 que tiene, y con cuatro, 1178. Es
-            la misma solución que la barra de Clientes —el trozo del medio se
-            desplaza cuando no cabe— y va desde aquí con `className`, no
-            cambiando el componente, que lo comparte Diagramas.
-            Las tres clases hacen falta y `flex-1` es la que NO es obvia.
-            Probado sin ella: no arregla nada. El padre es `flex-wrap`, así que
-            ante un desbordamiento PARTE LA LÍNEA antes de encoger a un hijo —
-            encoger solo ocurre dentro de un contenedor que no parte—. Con
-            `flex-1` la tira ocupa el hueco que sobra y ya no desborda la
-            línea: lo que crece se queda dentro de ella y se desplaza.
-            El precio, a sabiendas: «Reparto del trabajo» queda pegado a la
-            derecha del grupo en vez de junto a «Nueva carpeta». Sigue en la
-            misma fila y antes del «+ Nuevo», que es lo que se pedía. */}
+        {/* Las carpetas van a su ancho, en una sola línea.
+            Llevaban `min-w-0 flex-1 overflow-x-auto` —un carril propio dentro
+            de la barra— porque la barra de entonces ENCOGÍA a sus hijos. Ya no:
+            la fila de filtros es `min-w-max` y lo que no cabe se desplaza con
+            las flechas de `BarraDeslizable`. Con `flex-1` dentro de una fila
+            sin hueco que repartir, esta tira se quedaba en **0 px de ancho** y
+            las carpetas desaparecían enteras en un móvil. Medido a 390. */}
         <BarraDeCarpetas
-          className="min-w-0 flex-1 flex-nowrap overflow-x-auto"
+          className="flex-nowrap"
           tipo="proyecto"
           carpetas={carpetas.carpetas}
           seleccionada={carpetas.seleccionada}

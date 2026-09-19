@@ -706,7 +706,7 @@ export default function MainSales({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nueva venta</BotonDeCrear>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
                     </>
                   }
                 />
@@ -753,7 +753,7 @@ export default function MainSales({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nueva venta</BotonDeCrear>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
                     </>
                   }
                 />

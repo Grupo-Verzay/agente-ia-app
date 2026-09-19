@@ -362,9 +362,7 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
                     <SlidersHorizontal className="mr-1.5 h-4 w-4" />
                     <span className="hidden sm:inline">Campos</span>
                   </Button>
-                  <BotonDeCrear onClick={openCreate} disabled={isPending}>
-                    {`Nuevo ${labels.singular.toLowerCase()}`}
-                  </BotonDeCrear>
+                  <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
                 </>
               }
               acciones={(seleccionados, limpiar) => (

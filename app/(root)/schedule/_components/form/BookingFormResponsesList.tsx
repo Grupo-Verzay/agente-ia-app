@@ -172,7 +172,7 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
               />
             }
           >
-            <div className="relative w-full sm:w-72">
+            <div className="relative w-56 sm:w-72">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por título, número o nombre..."

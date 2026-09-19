@@ -537,7 +537,7 @@ export default function MainExpenses({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo gasto</BotonDeCrear>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
                     </>
                   }
                 />
@@ -585,7 +585,7 @@ export default function MainExpenses({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo gasto</BotonDeCrear>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
                     </>
                   }
                 />

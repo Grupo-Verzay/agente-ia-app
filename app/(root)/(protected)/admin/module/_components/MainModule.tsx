@@ -120,7 +120,7 @@ export const MainModule = () => {
                             />
                         </div>
                     </>}
-                    crear={<BotonDeCrear onClick={() => handleOpenModal()}>Nuevo módulo</BotonDeCrear>}
+                    crear={<BotonDeCrear onClick={() => handleOpenModal()}>Nuevo</BotonDeCrear>}
                     acciones={
                         <AccionesMasivas
                             seleccionados={seleccionados}

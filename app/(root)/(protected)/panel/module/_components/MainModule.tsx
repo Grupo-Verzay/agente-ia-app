@@ -142,7 +142,7 @@ export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithIte
                     ]}
                 />
                 </>}
-                crear={<BotonDeCrear onClick={() => handleOpenModal()}>Nuevo módulo</BotonDeCrear>}
+                crear={<BotonDeCrear onClick={() => handleOpenModal()}>Nuevo</BotonDeCrear>}
                 acciones={
                     <AccionesMasivas
                         seleccionados={seleccionados}

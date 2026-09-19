@@ -232,7 +232,7 @@ export function DiagramasListClient({ puedeOrdenar = false }: { puedeOrdenar?: b
         crear={
           /* Crear lo puede cualquiera del equipo: el diagrama nace suyo y él
              decide con quién lo comparte. */
-          <BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo diagrama</BotonDeCrear>
+          <BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo</BotonDeCrear>
         }
         acciones={
           <AccionesMasivas

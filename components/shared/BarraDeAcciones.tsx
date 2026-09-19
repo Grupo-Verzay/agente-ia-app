@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BarraDeslizable } from "@/components/shared/BarraDeslizable";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,22 +29,44 @@ import { cn } from "@/lib/utils";
  * icono pequeño y sin palabra. Es como estaba Clientes, que es de donde sale
  * el patrón.
  *
- * # Y la zona de la izquierda SE DESPLAZA, no crece
+ * # Y la zona de la izquierda SE DESPLAZA, no crece ni encoge
  *
  * Es lo que impide que la barra se parta en dos filas cuando una pantalla tiene
- * buscador, dos desplegables y cuatro pastillas: lo de la izquierda vive en una
- * franja con `overflow-x-auto` y lo de la derecha es `shrink-0`. Con
- * `flex-wrap` —que es lo que había en media plataforma— la barra crece hacia
- * abajo y se come justo el alto que la tabla necesita. Es la misma decisión que
- * ya estaba escrita para Clientes y para Equipo; aquí deja de ser una nota y
- * pasa a ser el componente.
+ * buscador, dos desplegables y cuatro pastillas: lo de la izquierda vive en un
+ * carril que se desplaza y lo de la derecha es `shrink-0`. Con `flex-wrap` —que
+ * es lo que había en media plataforma— la barra crece hacia abajo y se come
+ * justo el alto que la tabla necesita.
+ *
+ * El `overflow-x-auto` a secas **no bastaba**, y se vio midiendo: en
+ * `/proyectos`, con el menú lateral abierto, la barra pasaba de **40 px a
+ * 62 px** en cinco de las ocho combinaciones de ancho. Un carril que se
+ * desplaza no impide que lo de dentro se ENCOJA: sus hijos siguen siendo
+ * hijos de un flex con el ancho del carril, así que primero se comprimen
+ * —y lo que lleve `flex-wrap` dentro se parte en dos líneas— y solo después
+ * desbordan. Por eso van **las dos** cosas:
+ *
+ * 1. **El contenido no encoge**, con `min-w-max` en la fila de dentro. Es
+ *    `min-w-max` y no `w-max` a propósito: con `w-max` la fila mediría siempre
+ *    su contenido, y entonces un `ml-auto` —el que usa Conexión para empujar
+ *    sus pastillas a la derecha— dejaría de tener hueco que repartir. Con
+ *    `min-w-max` la fila sigue estirándose hasta el carril cuando sobra sitio
+ *    y solo deja de encoger cuando falta.
+ * 2. **Y si no cabe, se desplaza con FLECHAS**, las mismas de la barra de
+ *    pestañas del panel (`BarraDeslizable`). Antes el carril llevaba
+ *    `scrollbar-hide`, así que lo que sobraba —32 px en `/proyectos` a 1024,
+ *    566 px en `/equipo` a 390— **no tenía ni barra ni flecha**: no había forma
+ *    de enterarse de que había más, que es el fallo que ya costó una vuelta en
+ *    las pestañas del panel.
+ *
+ * Lo que **no** entra aquí es la fila de pastillas de Chats: esa va aparte, con
+ * su propia regla —los huecos de la pastilla ceden— y no pasa por esta barra.
  *
  * # Cómo se usa
  *
  * ```tsx
  * <BarraDeAcciones
  *   filtros={<><Buscador /><FiltroDeEstado /><PastillasDeMetricas … /></>}
- *   crear={<BotonDeCrear onClick={abrirDialogo}>Nuevo cliente</BotonDeCrear>}
+ *   crear={<BotonDeCrear onClick={abrirDialogo}>Nuevo</BotonDeCrear>}
  *   acciones={<AccionesMasivas … />}
  * />
  * ```
@@ -71,9 +94,11 @@ export function BarraDeAcciones({
         // mismo en una pantalla con botones y en una que solo tiene buscador,
         // que es la mitad de que se vean iguales.
         <div className={cn("flex min-h-10 shrink-0 flex-row items-center gap-2", className)}>
-            <div className="scrollbar-hide flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
-                {filtros}
-            </div>
+            <BarraDeslizable className="flex-1" queHay="filtros">
+                {/* `min-w-max`: lo de dentro no encoge, y cuando no cabe lo
+                    recoge el carril con sus flechas. Ver arriba. */}
+                <div className="flex min-w-max items-center gap-2">{filtros}</div>
+            </BarraDeslizable>
             {crear ? <div className="flex shrink-0 items-center">{crear}</div> : null}
             {acciones ? <div className="flex shrink-0 items-center">{acciones}</div> : null}
         </div>
@@ -83,10 +108,21 @@ export function BarraDeAcciones({
 /**
  * El botón azul de crear, con su forma escrita una vez.
  *
- * En el teléfono se queda **solo con el más**: la palabra ocupaba una fila
- * entera para decir «+ Nuevo», y ahí el ancho es lo único que escasea. El texto
- * sigue llegando al lector de pantalla por el `aria-label`, que sale del mismo
- * `children` para que no se puedan separar.
+ * # Dice «Nuevo», y nada más
+ *
+ * Llevaba el nombre de la entidad repetido —«+ Nuevo proyecto» estando ya en
+ * Proyectos, «+ Nueva plantilla» estando ya en Plantillas— y eso son hasta diez
+ * caracteres que no dicen nada: **la pantalla ya dice de qué**. Y se los quita a
+ * la única fila que escasea, que es justo donde los filtros pelean por sitio.
+ *
+ * Así que el texto es «Nuevo» en las veintiocho pantallas, sin excepciones. Si
+ * alguna vez hiciera falta un segundo botón que también crea algo, entonces no
+ * es «el botón de crear» de esa pantalla y no va aquí.
+ *
+ * En el teléfono se queda **solo con el más**: hasta la palabra sobra cuando el
+ * ancho es lo único que escasea. El texto sigue llegando al lector de pantalla
+ * por el `aria-label`, que sale del mismo `children` para que no se puedan
+ * separar.
  */
 export function BotonDeCrear({
     children,

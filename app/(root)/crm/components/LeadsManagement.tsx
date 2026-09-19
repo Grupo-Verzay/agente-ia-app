@@ -193,7 +193,7 @@ export const LeadsManagement = ({
                     className="p-2"
                     filtros={
                         <>
-                            <div className="relative w-full min-w-0 shrink-0 sm:w-72">
+                            <div className="relative w-56 shrink-0 sm:w-72">
                                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     className="h-10 pl-8"

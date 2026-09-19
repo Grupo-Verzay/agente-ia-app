@@ -301,11 +301,11 @@ export function TasksClient({ userId, userName }: Props) {
               <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => void load()} disabled={loading} title="Actualizar" aria-label="Actualizar">
                 <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               </Button>
-              <BotonDeCrear onClick={() => setNewTaskOpen(true)}>Nueva tarea</BotonDeCrear>
+              <BotonDeCrear onClick={() => setNewTaskOpen(true)}>Nuevo</BotonDeCrear>
             </div>
           }
         >
-          <div className="relative w-full min-w-0 sm:w-64">
+          <div className="relative w-56 sm:w-64">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar tarea..."

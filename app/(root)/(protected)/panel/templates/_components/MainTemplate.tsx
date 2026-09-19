@@ -158,7 +158,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                     ]}
                 />
                 </>}
-                crear={puedeGestionar ? <BotonDeCrear onClick={() => handleOpenModal()}>Nueva plantilla</BotonDeCrear> : undefined}
+                crear={puedeGestionar ? <BotonDeCrear onClick={() => handleOpenModal()}>Nuevo</BotonDeCrear> : undefined}
                 acciones={
                     <AccionesMasivas
                         seleccionados={seleccionados}

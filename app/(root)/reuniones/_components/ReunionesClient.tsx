@@ -240,7 +240,7 @@ export function ReunionesClient({
                                 </PopoverContent>
                             </Popover>
                             <BotonDeCrear onClick={() => void crear()} disabled={creando}>
-                                Nueva
+                                Nuevo
                             </BotonDeCrear>
                         </div>
                     ) : null
