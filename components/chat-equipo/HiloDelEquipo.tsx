@@ -5,6 +5,7 @@ import {
     Building2,
     ExternalLink,
     Hash,
+    Image as ImageIcon,
     Loader2,
     Lock,
     MessagesSquare,
@@ -14,12 +15,17 @@ import {
     Phone,
     PhoneOff,
     Plus,
+    Download,
+    FileText,
+    MoreHorizontal,
+    Paperclip,
     Search,
     Send,
     SmilePlus,
     Square,
     Trash2,
     Type,
+    Video,
     X,
     Users,
 } from "lucide-react";
@@ -27,6 +33,29 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     CADA_CUANTO_MS,
     TOPE_DEL_MENSAJE,
@@ -59,6 +88,9 @@ import {
     enviarAlEquipoAction,
     hiloDelEquipoAction,
     ponerMiembrosAction,
+    borrarMensajeDelEquipoAction,
+    editarMensajeDelEquipoAction,
+    reaccionarEnElEquipoAction,
     renombrarCanalAction,
     transcribirNotaDelEquipoAction,
     type HiloAbierto,
@@ -78,6 +110,24 @@ import {
     comoSeLeeLaDuracion,
 } from "@/lib/nota-de-voz-del-equipo";
 import { TOPE_DE_SEGUNDOS, costoDeLaNota } from "@/lib/transcripcion-de-voz";
+import {
+    TOPE_DE_ARCHIVOS,
+    TOPE_DE_BYTES,
+    comoSeLeeElNombre,
+    comoSeLeeElTamano,
+    laClaseDelAdjunto,
+    type AdjuntoDelEquipo,
+} from "@/lib/adjuntos-del-equipo";
+import {
+    EMOJIS_RAPIDOS,
+    alternarEnLaLista,
+    type ReaccionDeMensaje,
+} from "@/lib/reacciones-del-equipo";
+import {
+    LO_QUE_QUEDA_AL_BORRAR,
+    sePuedeBorrar,
+    sePuedeEditar,
+} from "@/lib/editar-del-equipo";
 import { avisarDeQueSeLeyo, avisarDelCanalAbierto } from "@/hooks/useSinLeerDelEquipo";
 // La barra de escribir es la MISMA que la de Chats, y por eso nada de esto se
 // escribe aquí: los tres componentes se mudaron a `components/shared` —Chats
@@ -197,6 +247,23 @@ export function HiloDelEquipo({
     const [herramientas, setHerramientas] = useState(false);
     const [emojis, setEmojis] = useState(false);
     const [voz, setVoz] = useState(false);
+
+    // Los archivos elegidos y todavía sin mandar. Viven en el FORMULARIO, como
+    // la cita y como el borrador de un comentario de tarea: son parte de lo
+    // que se va a enviar, así que se mandan con él y se limpian al enviar.
+    const [archivos, setArchivos] = useState<File[]>([]);
+    const elegirArchivos = useRef<HTMLInputElement | null>(null);
+
+    // El mensaje que se está editando, si se está editando alguno. Se edita en
+    // la MISMA caja de escribir y no en la burbuja: ahí están el formato, los
+    // emojis y el selector de menciones, y una segunda caja dentro de la
+    // burbuja sería una copia de todo eso que el día que se afine se queda
+    // atrás.
+    const [editando, setEditando] = useState<MensajeDeEquipo | null>(null);
+    // El mensaje que se va a borrar, mientras se confirma. **Uno solo para todo
+    // el hilo**, y no un diálogo dentro de cada burbuja: con cien mensajes
+    // abiertos serían cien diálogos montados para usar ninguno.
+    const [porBorrar, setPorBorrar] = useState<MensajeDeEquipo | null>(null);
 
     const cajaDeEscribir = useRef<HTMLTextAreaElement | null>(null);
     const cajaDeHerramientas = useRef<HTMLDivElement | null>(null);
@@ -437,8 +504,52 @@ export function HiloDelEquipo({
      */
     const enviar = useCallback(async (grabada?: RecordedAudioData | null) => {
         const limpio = texto.trim();
-        // Una nota de voz ES el mensaje: con ella, el texto sobra.
-        if ((!limpio && !grabada) || enviando) return;
+
+        // EDITAR es otro camino: el mismo botón, la misma caja, otra acción.
+        // Se mira antes que nada porque editando no hay ni adjunto ni nota que
+        // mandar — solo texto que corregir.
+        if (editando) {
+            if (!limpio || enviando) return;
+            setEnviando(true);
+            try {
+                const res = await editarMensajeDelEquipoAction(editando.id, limpio);
+                if (!res.success) {
+                    toast.error(res.message);
+                    return;
+                }
+                setTexto("");
+                setArroba(null);
+                setEditando(null);
+                // Se pinta al momento, como el envío: el reloj lo confirma en
+                // su vuelta, pero corregir una errata no puede sentirse lento.
+                setDatos((antes) =>
+                    !antes
+                        ? antes
+                        : {
+                              ...antes,
+                              mensajes: antes.mensajes.map((m) =>
+                                  m.id === res.data.mensajeId
+                                      ? {
+                                            ...m,
+                                            texto: res.data.texto,
+                                            editadoEn: res.data.editadoEn,
+                                        }
+                                      : m,
+                              ),
+                          },
+                );
+            } catch (error) {
+                console.error("[chat-equipo] la edición reventó", error);
+                toast.error("No se pudo editar. Inténtalo de nuevo.");
+            } finally {
+                setEnviando(false);
+            }
+            return;
+        }
+
+        // Una nota de voz —o un archivo— ES el mensaje: con ellos el texto
+        // sobra.
+        if ((!limpio && !grabada && !archivos.length) || enviando) return;
         setEnviando(true);
         try {
             let audio: { url: string; segundos: number; mime: string } | undefined;
@@ -456,21 +567,74 @@ export function HiloDelEquipo({
                     mime: grabada.mimetype,
                 };
             }
-            const res = await enviarAlEquipoAction(
-                limpio,
-                canalId,
-                undefined,
-                citando?.id ?? null,
-                audio,
-            );
-            if (!res.success) {
-                // Un botón que no dice por qué no hizo nada es un botón que se
-                // pulsa cinco veces.
-                toast.error(res.message);
-                return;
+            // Los ARCHIVOS: uno por mensaje, **en serie y en orden**.
+            //
+            // En serie porque son mensajes de una conversación y llegan en el
+            // orden en que se eligieron; en paralelo saldrían desordenados y
+            // no habría forma de saber cuál es el pie de cuál.
+            //
+            // Y el texto va con el PRIMERO —es su pie— y no con todos: con el
+            // texto repetido, la misma frase saldría tres veces y la misma
+            // mención habría hecho saltar la ventana que interrumpe tres veces.
+            const subidos: Array<{
+                url: string;
+                nombre: string;
+                mime: string | null;
+                tamano: number;
+            }> = [];
+            for (const archivo of archivos) {
+                const url = await subirElArchivo(archivo, datos?.yo ?? null);
+                if (!url) {
+                    // Se para aquí y se dice: publicar el resto sin uno de los
+                    // archivos se leería como que se mandó todo, y el que
+                    // falta no vuelve solo.
+                    toast.error(`No se pudo subir «${archivo.name}».`);
+                    return;
+                }
+                subidos.push({
+                    url,
+                    nombre: archivo.name,
+                    mime: archivo.type || null,
+                    tamano: archivo.size,
+                });
             }
+
+            const nuevos: MensajeDeEquipo[] = [];
+            let elPrimero = true;
+            // Con archivos, el mensaje de texto/nota ya no va por su cuenta: el
+            // texto es el pie del primero. Sin archivos, `undefined` y el envío
+            // de siempre.
+            const tandas: Array<(typeof subidos)[number] | undefined> = subidos.length
+                ? subidos
+                : [undefined];
+            for (const adjunto of tandas) {
+                const res = await enviarAlEquipoAction(
+                    elPrimero ? limpio : "",
+                    canalId,
+                    undefined,
+                    // La cita es de la respuesta, no de cada archivo: va con el
+                    // primero y ya. Repetida, el mismo recuadro saldría tres
+                    // veces bajo tres fotos.
+                    elPrimero ? citando?.id ?? null : null,
+                    elPrimero ? audio : undefined,
+                    adjunto,
+                );
+                if (!res.success) {
+                    // Un botón que no dice por qué no hizo nada es un botón que
+                    // se pulsa cinco veces.
+                    toast.error(res.message);
+                    // Lo que ya salió, sale: se pinta y no se finge que no
+                    // pasó nada.
+                    break;
+                }
+                nuevos.push(res.data.mensaje);
+                elPrimero = false;
+            }
+            if (!nuevos.length) return;
+            const res = { data: { canalId, mensaje: nuevos[nuevos.length - 1] } };
             setTexto("");
             setArroba(null);
+            setArchivos([]);
             // La cita se limpia al enviar, como el texto: es parte de lo que se
             // acaba de mandar. Dejándola puesta, la respuesta siguiente saldría
             // citando lo mismo sin que nadie lo pidiera.
@@ -478,20 +642,183 @@ export function HiloDelEquipo({
             limpiarGrabacion();
             // Se pinta al momento y el reloj lo confirma en su vuelta: el
             // servidor manda, pero escribir no puede sentirse lento.
-            setDatos((antes) =>
-                !antes || res.data.canalId !== antes.canalId
-                    ? antes
-                    : antes.mensajes.some((m) => m.id === res.data.mensaje.id)
-                      ? antes
-                      : { ...antes, mensajes: [...antes.mensajes, res.data.mensaje] },
-            );
+            setDatos((antes) => {
+                if (!antes || res.data.canalId !== antes.canalId) return antes;
+                // El reloj puede haberlos traído ya: sin esta comprobación el
+                // mismo mensaje saldría dos veces durante unos segundos.
+                const faltan = nuevos.filter(
+                    (n) => !antes.mensajes.some((m) => m.id === n.id),
+                );
+                return faltan.length
+                    ? { ...antes, mensajes: [...antes.mensajes, ...faltan] }
+                    : antes;
+            });
         } catch (error) {
             console.error("[chat-equipo] el envío reventó", error);
             toast.error("No se pudo enviar. Inténtalo de nuevo.");
         } finally {
             setEnviando(false);
         }
-    }, [texto, enviando, canalId, citando, datos?.yo, limpiarGrabacion]);
+    }, [texto, enviando, canalId, citando, datos?.yo, limpiarGrabacion, archivos, editando]);
+
+    /**
+     * Lo que se elige con el botón de adjuntar.
+     *
+     * Se comprueba **aquí y no solo al subir**, porque aquí es donde se puede
+     * decir: un archivo de 300 MB que se rechaza después de tres minutos de
+     * barra se lee como que la App se colgó. El servidor lo vuelve a mirar —lo
+     * que llega del navegador no decide lo que se guarda— pero lo que evita el
+     * disgusto es esto.
+     */
+    const elegirLosArchivos = useCallback((lista: FileList | null) => {
+        const nuevos = Array.from(lista ?? []);
+        if (!nuevos.length) return;
+
+        const grandes = nuevos.filter((f) => f.size > TOPE_DE_BYTES);
+        const caben = nuevos.filter((f) => f.size <= TOPE_DE_BYTES);
+        if (grandes.length) {
+            // Y se dice CUÁL, no «alguno»: con cinco elegidos, «uno es
+            // demasiado grande» obliga a mirarlos de uno en uno.
+            toast.error(
+                grandes.length === 1
+                    ? `«${grandes[0].name}» pesa más de ${comoSeLeeElTamano(TOPE_DE_BYTES)}.`
+                    : `${grandes.length} archivos pesan más de ${comoSeLeeElTamano(TOPE_DE_BYTES)}.`,
+            );
+        }
+        if (!caben.length) return;
+
+        setArchivos((antes) => {
+            const juntos = [...antes, ...caben];
+            if (juntos.length > TOPE_DE_ARCHIVOS) {
+                toast.error(`Se mandan hasta ${TOPE_DE_ARCHIVOS} archivos de una vez.`);
+            }
+            return juntos.slice(0, TOPE_DE_ARCHIVOS);
+        });
+    }, []);
+
+    /**
+     * Poner o quitar una reacción. **Se pinta al momento y se confirma.**
+     *
+     * El reloj la traería en su vuelta, pero eso son hasta cinco segundos de
+     * un chip que se pulsó y no cambió nada — y una reacción es un gesto de un
+     * toque, así que ese retraso se lee como que no funciona. Si el servidor
+     * dice que no, se devuelve tal cual estaba: la misma regla que borrar un
+     * chat en la bandeja.
+     */
+    const reaccionar = useCallback(
+        async (mensajeId: string, emoji: string) => {
+            const yo = datos?.yo;
+            if (!yo) return;
+            const antesDeTodo = datos?.mensajes ?? [];
+            setDatos((antes) =>
+                !antes
+                    ? antes
+                    : {
+                          ...antes,
+                          mensajes: antes.mensajes.map((m) =>
+                              m.id === mensajeId
+                                  ? { ...m, reacciones: alternarEnLaLista(m.reacciones, emoji, yo) }
+                                  : m,
+                          ),
+                      },
+            );
+            try {
+                const res = await reaccionarEnElEquipoAction(mensajeId, emoji);
+                if (!res.success) {
+                    toast.error(res.message);
+                    // Se devuelve lo que había, no se recalcula: recalcular
+                    // sobre lo ya movido dejaría el chip en el estado
+                    // contrario si llegan dos toques seguidos.
+                    setDatos((antes) => (antes ? { ...antes, mensajes: antesDeTodo } : antes));
+                }
+            } catch (error) {
+                console.warn("[chat-equipo] no se pudo reaccionar", error);
+                toast.error("No se pudo reaccionar.");
+                setDatos((antes) => (antes ? { ...antes, mensajes: antesDeTodo } : antes));
+            }
+        },
+        [datos?.yo, datos?.mensajes],
+    );
+
+    /**
+     * Borrar un mensaje propio.
+     *
+     * **La burbuja NO se quita**: se queda con su señal, que es lo que se
+     * guarda en la base. Quitándola, una conversación de tres se llenaría de
+     * huecos que nadie sabe explicar y una respuesta que la citaba hablaría
+     * sola.
+     */
+    const borrarElMio = useCallback(async (mensajeId: string) => {
+        try {
+            const res = await borrarMensajeDelEquipoAction(mensajeId);
+            if (!res.success) {
+                toast.error(res.message);
+                return;
+            }
+            setDatos((antes) =>
+                !antes
+                    ? antes
+                    : {
+                          ...antes,
+                          mensajes: antes.mensajes.map((m) =>
+                              m.id === res.data.mensajeId
+                                  ? {
+                                        ...m,
+                                        borradoEn: res.data.borradoEn,
+                                        // La llamada también: dejándola, la
+                                        // lista seguiría pintando la marca de
+                                        // llamada en vez de la señal de
+                                        // borrado. Es lo mismo que acaba de
+                                        // hacer la base.
+                                        llamada: null,
+                                        // Lo mismo que hace la base: la señal
+                                        // se queda, el contenido no. Dejándolo
+                                        // aquí, el texto seguiría en pantalla
+                                        // hasta la vuelta siguiente del reloj.
+                                        texto: "",
+                                        adjunto: null,
+                                        audio: null,
+                                        transcripcion: null,
+                                        chat: null,
+                                        cita: null,
+                                        reacciones: [],
+                                    }
+                                  : m,
+                          ),
+                      },
+            );
+            // Si se estaba editando justo ese, la caja se suelta: seguir
+            // editando un mensaje que ya no está deja un botón que da error.
+            setEditando((actual) => (actual?.id === mensajeId ? null : actual));
+        } catch (error) {
+            console.error("[chat-equipo] el borrado reventó", error);
+            toast.error("No se pudo borrar. Inténtalo de nuevo.");
+        }
+    }, []);
+
+    /** Empezar a editar: el texto se lleva a la caja de siempre. */
+    const empezarAEditar = useCallback((mensaje: MensajeDeEquipo) => {
+        setEditando(mensaje);
+        setTexto(mensaje.texto);
+        // Y se suelta lo que no se puede cambiar editando: la cita es de un
+        // mensaje que ya salió y los archivos son de uno que todavía no. Con
+        // ellos puestos, el botón de enviar haría dos cosas a la vez.
+        setCitando(null);
+        setArchivos([]);
+        requestAnimationFrame(() => {
+            const caja = cajaDeEscribir.current;
+            if (!caja) return;
+            caja.focus();
+            caja.setSelectionRange(mensaje.texto.length, mensaje.texto.length);
+        });
+    }, []);
+
+    /** Soltar la edición sin guardar nada. */
+    const dejarDeEditar = useCallback(() => {
+        setEditando(null);
+        setTexto("");
+        setArroba(null);
+    }, []);
 
     /**
      * Pintar la transcripción recién pagada, sin esperar al reloj.
@@ -713,6 +1040,16 @@ export function HiloDelEquipo({
                 return;
             }
         }
+        // Escape suelta la edición, **con la lista de menciones ya cerrada**:
+        // con ella abierta manda la lista, que es la regla de siempre. Sin
+        // esto, la única salida sería el botón «Cancelar» de la banda, y una
+        // caja con el texto de otro mensaje dentro y sin escape evidente se
+        // lee como que la App se quedó pillada.
+        if (e.key === "Escape" && editando) {
+            e.preventDefault();
+            dejarDeEditar();
+            return;
+        }
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             // Con una nota grabada pendiente, Enter la manda TAMBIÉN. Sin
@@ -818,6 +1155,16 @@ export function HiloDelEquipo({
                                 // deja gastar créditos en ellos.
                                 puedoTranscribir={canal.pertenezco}
                                 onTranscrita={pintarLaTranscripcion}
+                                yo={datos.yo}
+                                // La MISMA puerta que transcribir: pertenecer,
+                                // no poder leer. Una reacción la ven los dos y
+                                // no la puede quitar ninguno, así que quien
+                                // supervisa un directo ajeno no la pone.
+                                puedoReaccionar={canal.pertenezco}
+                                onReaccionar={reaccionar}
+                                puedoEscribir={canal.puedoEscribir}
+                                onEditar={empezarAEditar}
+                                onBorrar={setPorBorrar}
                             />
                             ),
                         )}
@@ -827,6 +1174,76 @@ export function HiloDelEquipo({
             </div>
 
             <div className="shrink-0 border-t border-border bg-background px-3 py-3 sm:px-6">
+                {/* Editando: lo que se está tocando, encima de la caja y con
+                    su salida. Sin este aviso, el texto de otro mensaje aparece
+                    en la caja y se lee como que la App se ha equivocado. */}
+                {editando ? (
+                    <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-xs">
+                        <Pencil className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                            Editando tu mensaje
+                        </span>
+                        <button
+                            type="button"
+                            onClick={dejarDeEditar}
+                            className="shrink-0 rounded px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                ) : null}
+                {/* Los archivos elegidos, ENCIMA de la caja y con su papelera
+                    cada uno. Elegir de más por error y no poder quitarlo
+                    obliga a enviar y borrar después, que es peor. */}
+                {archivos.length ? (
+                    <div className="mx-auto mb-2 flex max-w-3xl flex-col gap-1">
+                        {archivos.map((a, i) => (
+                            <div
+                                key={`${a.name}-${i}`}
+                                className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5"
+                            >
+                                {laClaseDelAdjunto({ mime: a.type, nombre: a.name }) ===
+                                "imagen" ? (
+                                    <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                ) : laClaseDelAdjunto({ mime: a.type, nombre: a.name }) ===
+                                  "video" ? (
+                                    <Video className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                ) : (
+                                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                )}
+                                <span className="min-w-0 flex-1 truncate text-xs">
+                                    {comoSeLeeElNombre(a.name)}
+                                </span>
+                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                    {comoSeLeeElTamano(a.size)}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setArchivos((antes) =>
+                                            antes.filter((_, j) => j !== i),
+                                        )
+                                    }
+                                    disabled={enviando}
+                                    aria-label={`Quitar ${a.name}`}
+                                    title="Quitar"
+                                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        ))}
+                        {/* Varios archivos son varios mensajes, y el texto va
+                            con el primero. Decirlo evita que alguien escriba un
+                            pie para tres y aparezca en uno solo. */}
+                        {archivos.length > 1 ? (
+                            <p className="px-1 text-[11px] text-muted-foreground">
+                                Se envía un mensaje por archivo; el texto va con el
+                                primero.
+                            </p>
+                        ) : null}
+                    </div>
+                ) : null}
                 {/* Lo que se está citando, ENCIMA de la caja y no dentro: es
                     contexto de lo que se va a escribir, y dentro se confundiría
                     con el texto propio. Con su X, porque citar por error y no
@@ -962,8 +1379,50 @@ export function HiloDelEquipo({
                                 >
                                     <SmilePlus className="h-4 w-4" />
                                 </Button>
+                                {/* El clip va AQUÍ DENTRO y no suelto en la
+                                    fila: es lo que se pidió, y es lo mismo que
+                                    ya hizo el formato — cada botón suelto le
+                                    come ancho a la caja, que en este panel es
+                                    lo único que escasea. */}
+                                <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => {
+                                        elegirArchivos.current?.click();
+                                        setHerramientas(false);
+                                    }}
+                                    disabled={
+                                        enviando || !canal.puedoEscribir || Boolean(editando)
+                                    }
+                                    aria-label="Adjuntar archivos"
+                                    title="Imágenes, vídeos o archivos"
+                                    className={cn(
+                                        BOTON_DE_HERRAMIENTA,
+                                        "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                    )}
+                                >
+                                    <Paperclip className="h-4 w-4" />
+                                </Button>
                             </div>
                         ) : null}
+                        {/* Escondido, y fuera de la columna: la columna se
+                            desmonta al cerrarse, y con el input dentro el
+                            diálogo del sistema se llevaría por delante su
+                            propio `onChange`. */}
+                        <input
+                            ref={elegirArchivos}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => {
+                                elegirLosArchivos(e.target.files);
+                                // Sin esto, volver a elegir el MISMO fichero no
+                                // dispara `change` y parece que el clip no hace
+                                // nada.
+                                e.target.value = "";
+                            }}
+                        />
                     </div>
                     {/* Los emojis se abren sobre el ANCHO DE LA FILA, y cierran
                         la columna en vez de salir dentro de ella. El panel mide
@@ -1011,7 +1470,9 @@ export function HiloDelEquipo({
                             onBlur={() => setArroba(null)}
                             onKeyDown={alTeclear}
                             rows={1}
-                            placeholder="@ para mencionar"
+                            placeholder={
+                                editando ? "Edita tu mensaje" : "@ para mencionar"
+                            }
                             className={cn(
                                 "max-h-40 min-h-[40px] w-full resize-none overflow-y-auto",
                                 // Sitio para lo que de verdad haya a la derecha.
@@ -1034,7 +1495,12 @@ export function HiloDelEquipo({
                                         dictado.toggle(texto, setTexto);
                                         setVoz(false);
                                     }}
-                                    disabled={enviando || grabando || !canal.puedoEscribir}
+                                    disabled={
+                                        enviando ||
+                                        grabando ||
+                                        !canal.puedoEscribir ||
+                                        Boolean(editando)
+                                    }
                                     aria-pressed={dictado.listening}
                                     aria-label={dictado.listening ? "Dejar de dictar" : "Dictar"}
                                     title={
@@ -1071,7 +1537,10 @@ export function HiloDelEquipo({
                                         setVoz(false);
                                     }}
                                     disabled={
-                                        enviando || dictado.listening || !canal.puedoEscribir
+                                        enviando ||
+                                        dictado.listening ||
+                                        !canal.puedoEscribir ||
+                                        Boolean(editando)
                                     }
                                     aria-pressed={grabando}
                                     aria-label={
@@ -1130,7 +1599,11 @@ export function HiloDelEquipo({
                                         type="button"
                                         size="icon"
                                         onClick={() => setVoz((v) => !v)}
-                                        disabled={enviando || !canal.puedoEscribir}
+                                        disabled={
+                                            enviando ||
+                                            !canal.puedoEscribir ||
+                                            Boolean(editando)
+                                        }
                                         aria-expanded={voz}
                                         aria-label="Voz: dictado o nota de voz"
                                         title="Voz: dictado o nota de voz"
@@ -1158,7 +1631,9 @@ export function HiloDelEquipo({
                             // deja sitio al micrófono, que es lo que se usa
                             // cuando no hay nada escrito. Una nota ya grabada
                             // cuenta como algo que enviar.
-                            const hayAlgoQueEnviar = Boolean(texto.trim() || grabada);
+                            const hayAlgoQueEnviar = Boolean(
+                                texto.trim() || grabada || archivos.length,
+                            );
 
                             let derecha: React.ReactNode;
                             if (grabando) {
@@ -1188,6 +1663,40 @@ export function HiloDelEquipo({
                     </div>
                 </div>
             </div>
+
+            {/* Borrar pregunta, y es un `AlertDialog` y no un `div` con fondo
+                oscuro: se cierra con Escape, atrapa el foco dentro y un lector
+                de pantalla se entera de que se abrió algo. Un borrado no se
+                deshace, así que la pregunta dice lo que se pierde. */}
+            <AlertDialog
+                open={Boolean(porBorrar)}
+                onOpenChange={(v) => {
+                    if (!v) setPorBorrar(null);
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar el mensaje?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Se borra para todos y no se puede deshacer. En su sitio
+                            queda «{LO_QUE_QUEDA_AL_BORRAR}».
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                const cual = porBorrar;
+                                setPorBorrar(null);
+                                if (cual) void borrarElMio(cual.id);
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
@@ -1823,10 +2332,16 @@ function Burbuja({
     meMencionan,
     buscado = false,
     nombrePorId,
+    yo,
     onCitar,
     onSaltar,
     puedoTranscribir = false,
     onTranscrita,
+    puedoReaccionar = false,
+    onReaccionar,
+    puedoEscribir = false,
+    onEditar,
+    onBorrar,
 }: {
     mensaje: MensajeDeEquipo;
     mio: boolean;
@@ -1834,6 +2349,8 @@ function Burbuja({
     /** El mensaje al que traía el aviso: se señala para encontrarlo de un vistazo. */
     buscado?: boolean;
     nombrePorId: Map<string, string>;
+    /** Quién mira. Decide qué chip va marcado y qué se puede tocar. */
+    yo: string;
     /** Responder citando este mensaje. Sin permiso de escritura no se ofrece. */
     onCitar?: (m: MensajeDeEquipo) => void;
     /** Ir al mensaje citado, cuando la cita se pulsa. */
@@ -1848,8 +2365,33 @@ function Burbuja({
     puedoTranscribir?: boolean;
     /** Pintar la transcripción recién pagada sin esperar al reloj. */
     onTranscrita?: (id: string, texto: string) => void;
+    /**
+     * Si se puede reaccionar aquí. **Pertenecer, no poder leer**: es el mismo
+     * reparto con el que se transcribe, se cuenta lo sin leer y suena el aviso.
+     * Un administrador lee los directos de su cuenta y eso no le deja dejar
+     * huella dentro de la conversación de otros dos — una reacción la ven los
+     * dos y no la puede quitar ninguno.
+     */
+    puedoReaccionar?: boolean;
+    onReaccionar?: (mensajeId: string, emoji: string) => void;
+    /** Si esta persona puede escribir en el canal. Editar y borrar lo piden. */
+    puedoEscribir?: boolean;
+    onEditar?: (m: MensajeDeEquipo) => void;
+    onBorrar?: (m: MensajeDeEquipo) => void;
 }) {
+    const [reaccionando, setReaccionando] = useState(false);
+    const [masEmojis, setMasEmojis] = useState(false);
     const quien = mensaje.autorNombre?.trim() || nombrePorId.get(mensaje.autorId) || "Alguien";
+    const borrado = Boolean(mensaje.borradoEn);
+    const sePuedeTocar = { autorId: mensaje.autorId, borradoEn: mensaje.borradoEn, llamada: mensaje.llamada };
+    const editable = sePuedeEditar({ mensaje: sePuedeTocar, yo, puedoEscribir });
+    const borrable = sePuedeBorrar({ mensaje: sePuedeTocar, yo, puedoEscribir });
+    const reacciones = mensaje.reacciones ?? [];
+    /** Quién reaccionó, con nombres. Es el detalle que pide el encargo. */
+    const comoSeLeeQuienes = (r: ReaccionDeMensaje) =>
+        r.quienes
+            .map((id) => (id === yo ? "Tú" : nombrePorId.get(id) || "Alguien"))
+            .join(", ");
     const hora = new Date(mensaje.creadoEn).toLocaleString([], {
         day: "2-digit",
         month: "short",
@@ -1866,58 +2408,348 @@ function Burbuja({
             <div className="group flex items-center gap-2 px-1 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">{mio ? "Tú" : quien}</span>
                 <span>{hora}</span>
-                {onCitar ? (
-                    <button
-                        type="button"
-                        onClick={() => onCitar(mensaje)}
-                        // Sale al posar el cursor, como las acciones de una
-                        // tarjeta. Pero **fuera del flujo no hace falta**: es
-                        // una sola palabra corta y no le quita ancho a nada.
-                        className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 hover:text-foreground hover:underline"
-                    >
-                        Citar
-                    </button>
+                {/* Que se sepa que se tocó. Sin la marca, un mensaje que
+                    dice algo distinto de lo que se leyó ayer no tiene
+                    explicación, y eso vale para todos menos para quien lo
+                    editó. */}
+                {mensaje.editadoEn && !borrado ? (
+                    <span className="italic opacity-70">editado</span>
+                ) : null}
+                {/* Las acciones salen al posar el cursor, como las de una
+                    tarjeta, y **no hacen falta fuera del flujo**: son dos
+                    iconos pequeños en una fila que ya tiene sitio de sobra. En
+                    táctil no hay cursor que posar, así que van siempre
+                    puestas ahí (`max-md:opacity-100`) — esconderlas detrás de
+                    un gesto que no existe es no tenerlas. */}
+                {!borrado && (puedoReaccionar || onCitar || editable || borrable) ? (
+                    <span className="flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100">
+                        {puedoReaccionar ? (
+                            <Popover
+                                open={reaccionando}
+                                onOpenChange={(v) => {
+                                    setReaccionando(v);
+                                    if (!v) setMasEmojis(false);
+                                }}
+                            >
+                                <PopoverTrigger asChild>
+                                    <button
+                                        type="button"
+                                        aria-label="Reaccionar"
+                                        title="Reaccionar"
+                                        className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                                    >
+                                        <SmilePlus className="h-3.5 w-3.5" />
+                                    </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                    align={mio ? "end" : "start"}
+                                    className="w-auto p-1"
+                                >
+                                    {masEmojis ? (
+                                        <EmojiPickerPanel
+                                            onSelect={(e) => {
+                                                onReaccionar?.(mensaje.id, e);
+                                                setMasEmojis(false);
+                                                setReaccionando(false);
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="flex items-center gap-0.5">
+                                            {EMOJIS_RAPIDOS.map((e) => (
+                                                <button
+                                                    key={e}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        onReaccionar?.(mensaje.id, e);
+                                                        setReaccionando(false);
+                                                    }}
+                                                    aria-label={`Reaccionar con ${e}`}
+                                                    className="rounded p-1 text-lg leading-none hover:bg-muted"
+                                                >
+                                                    {e}
+                                                </button>
+                                            ))}
+                                            {/* Los seis de un toque, y el resto
+                                                detrás del «+»: una rejilla de
+                                                trescientos convierte un gesto
+                                                en una decisión. */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setMasEmojis(true)}
+                                                aria-label="Más emojis"
+                                                title="Más emojis"
+                                                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </PopoverContent>
+                            </Popover>
+                        ) : null}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label="Acciones del mensaje"
+                                    title="Acciones"
+                                    className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                                >
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align={mio ? "end" : "start"}>
+                                {onCitar ? (
+                                    <DropdownMenuItem onClick={() => onCitar(mensaje)}>
+                                        Responder
+                                    </DropdownMenuItem>
+                                ) : null}
+                                {editable ? (
+                                    <DropdownMenuItem onClick={() => onEditar?.(mensaje)}>
+                                        Editar
+                                    </DropdownMenuItem>
+                                ) : null}
+                                {borrable ? (
+                                    <DropdownMenuItem
+                                        onClick={() => onBorrar?.(mensaje)}
+                                        className="text-destructive focus:text-destructive"
+                                    >
+                                        Eliminar
+                                    </DropdownMenuItem>
+                                ) : null}
+                                {/* Quién reaccionó, con nombres. El `title` del
+                                    chip lo dice también, pero en táctil no hay
+                                    cursor que posar: sin esto, el detalle solo
+                                    existe con ratón. */}
+                                {reacciones.length ? (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                                            Quién reaccionó
+                                        </DropdownMenuLabel>
+                                        {reacciones.map((r) => (
+                                            <div
+                                                key={r.emoji}
+                                                className="flex max-w-[16rem] gap-2 px-2 py-1 text-xs"
+                                            >
+                                                <span className="shrink-0">{r.emoji}</span>
+                                                <span className="min-w-0 break-words text-muted-foreground">
+                                                    {comoSeLeeQuienes(r)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </>
+                                ) : null}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </span>
                 ) : null}
             </div>
             <div
                 className={[
                     "max-w-[85%] whitespace-pre-wrap break-words rounded-lg border px-3 py-2 text-sm",
-                    mio
-                        ? "border-primary/30 bg-primary/10"
-                        : "border-border bg-muted/40",
+                    borrado
+                        ? "border-dashed border-border bg-transparent italic text-muted-foreground"
+                        : mio
+                          ? "border-primary/30 bg-primary/10"
+                          : "border-border bg-muted/40",
                     // Una mención se ve sin leer el texto: es lo que hace que
                     // volver al hilo desde el aviso valga para algo.
-                    meMencionan ? "ring-2 ring-amber-400/60" : "",
+                    meMencionan && !borrado ? "ring-2 ring-amber-400/60" : "",
                     // Y el que traía el aviso, además, señalado: en un canal
                     // con tráfico la mención puede no ser la única resaltada.
                     buscado ? "ring-2 ring-primary ring-offset-2" : "",
                 ].join(" ")}
             >
-                {/* La cita va DENTRO de la burbuja y encima del texto: es
-                    contexto de esta respuesta, no un mensaje aparte. Fuera se
-                    leería como dos mensajes seguidos. */}
-                {mensaje.cita ? (
-                    <RecuadroDeCita cita={mensaje.cita} onSaltar={onSaltar} />
-                ) : null}
-                {/* La NOTA DE VOZ, con el texto debajo si alguien lo pidió.
-                    El audio no se quita: es lo que se dijo, con su tono y sus
-                    pausas; el texto es una ayuda para leerlo de un vistazo. Es
-                    la misma decisión que en Chats. */}
-                {mensaje.audio ? (
-                    <NotaDeVoz
-                        mensaje={mensaje}
-                        puedoPedirla={puedoTranscribir}
-                        onTranscrita={onTranscrita}
-                    />
-                ) : null}
-                {/* Con las marcas ya pintadas, no en crudo. El botón de formato
-                    escribe `*negrilla*` en la caja, así que sin esto se leería
-                    el asterisco: un botón que produce algo que se ve roto es
-                    peor que no tenerlo. Es el mismo componente que la burbuja
-                    de Chats. */}
-                <TextoConFormato texto={mensaje.texto} />
+                {/* Borrado: la fila se queda, el contenido no. La fila tiene que
+                    quedarse porque si desapareciera el hilo tendría un hueco sin
+                    explicación —y una cita que apunta aquí se quedaría hablando
+                    con nadie—; el contenido no puede quedarse porque entonces
+                    «borrar» sería esconderlo, y seguiría viajando al navegador
+                    de todos. Lo que llega ya viene vacío de la base: esto solo
+                    lo pinta. */}
+                {borrado ? (
+                    <span className="inline-flex items-center gap-1.5">
+                        <Trash2 className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                        {LO_QUE_QUEDA_AL_BORRAR}
+                    </span>
+                ) : (
+                    <>
+                    {/* La cita va DENTRO de la burbuja y encima del texto: es
+                        contexto de esta respuesta, no un mensaje aparte. Fuera se
+                        leería como dos mensajes seguidos. */}
+                    {mensaje.cita ? (
+                        <RecuadroDeCita cita={mensaje.cita} onSaltar={onSaltar} />
+                    ) : null}
+                    {/* El adjunto va ARRIBA y el texto debajo: el texto es el pie
+                        de lo que se manda, no al revés. Es lo que hace cualquier
+                        mensajería y lo que ya hace la nota de voz aquí al lado. */}
+                    {mensaje.adjunto ? <Adjunto adjunto={mensaje.adjunto} /> : null}
+                    {/* La NOTA DE VOZ, con el texto debajo si alguien lo pidió.
+                        El audio no se quita: es lo que se dijo, con su tono y sus
+                        pausas; el texto es una ayuda para leerlo de un vistazo. Es
+                        la misma decisión que en Chats. */}
+                    {mensaje.audio ? (
+                        <NotaDeVoz
+                            mensaje={mensaje}
+                            puedoPedirla={puedoTranscribir}
+                            onTranscrita={onTranscrita}
+                        />
+                    ) : null}
+                    {/* Con las marcas ya pintadas, no en crudo. El botón de formato
+                        escribe `*negrilla*` en la caja, así que sin esto se leería
+                        el asterisco: un botón que produce algo que se ve roto es
+                        peor que no tenerlo. Es el mismo componente que la burbuja
+                        de Chats. */}
+                    <TextoConFormato texto={mensaje.texto} />
+                    </>
+                )}
             </div>
-            {mensaje.chat ? <TarjetaDeChat chat={mensaje.chat} /> : null}
+            {/* Los chips van FUERA de la burbuja, colgando de su borde: dentro
+                se leerían como parte de lo que se escribió. Y son botones —
+                pulsar el de alguien es ponerse uno mismo, que es como se
+                reacciona en cualquier sitio y ahorra abrir el menú. */}
+            {!borrado && reacciones.length ? (
+                <div
+                    className={`-mt-1.5 flex max-w-[85%] flex-wrap gap-1 ${
+                        mio ? "justify-end" : ""
+                    }`}
+                >
+                    {reacciones.map((r) => (
+                        <button
+                            key={r.emoji}
+                            type="button"
+                            onClick={
+                                puedoReaccionar
+                                    ? () => onReaccionar?.(mensaje.id, r.emoji)
+                                    : undefined
+                            }
+                            disabled={!puedoReaccionar}
+                            title={comoSeLeeQuienes(r)}
+                            aria-label={`${r.emoji} — ${comoSeLeeQuienes(r)}`}
+                            className={[
+                                "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] leading-none",
+                                r.mia
+                                    ? "border-primary/50 bg-primary/15 text-foreground"
+                                    : "border-border bg-muted/60 text-muted-foreground",
+                                puedoReaccionar ? "hover:bg-muted" : "cursor-default",
+                            ].join(" ")}
+                        >
+                            <span className="text-sm leading-none">{r.emoji}</span>
+                            <span className="tabular-nums">{r.quienes.length}</span>
+                        </button>
+                    ))}
+                </div>
+            ) : null}
+            {mensaje.chat && !borrado ? <TarjetaDeChat chat={mensaje.chat} /> : null}
+        </div>
+    );
+}
+
+/**
+ * El adjunto de un mensaje: la vista previa, el vídeo en línea y la descarga.
+ *
+ * Lo que se pinta lo decide `laClaseDelAdjunto`, que es **pura y la misma que
+ * usa el servidor**. Con una segunda regla aquí —mirar la extensión a ojo,
+ * por ejemplo— habría dos formas de clasificar el mismo fichero y un día no
+ * dirían lo mismo: un vídeo pintado como fichero se ve como que la función no
+ * funciona, y nadie sabría por qué solo a veces.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **El vídeo va con `preload="metadata"`**, no `auto`. Un hilo con diez
+ *    vídeos y `auto` se descarga diez vídeos al abrir el canal, y esta pantalla
+ *    se refresca **cada cinco segundos**.
+ * 2. **Descargar es un enlace normal**, con `target="_blank"`. El bucket es
+ *    otro origen, así que el atributo `download` lo ignora el navegador: lo
+ *    honesto es abrirlo y que cada quien lo guarde, no prometer una descarga
+ *    que no ocurre.
+ * 3. **El nombre se recorta por el MEDIO** (`comoSeLeeElNombre`), conservando
+ *    la extensión: recortando por el final, tres ficheros del mismo cliente se
+ *    ven iguales y además se pierde de qué tipo son.
+ */
+function Adjunto({ adjunto }: { adjunto: AdjuntoDelEquipo }) {
+    const clase = laClaseDelAdjunto(adjunto);
+    const nombre = comoSeLeeElNombre(adjunto.nombre);
+
+    if (clase === "imagen") {
+        return (
+            <div className="mb-1">
+                <a href={adjunto.url} target="_blank" rel="noopener noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={adjunto.url}
+                        alt={adjunto.nombre}
+                        loading="lazy"
+                        className="max-h-72 w-auto max-w-full rounded-md border border-border object-contain"
+                    />
+                </a>
+                <PieDelAdjunto adjunto={adjunto} nombre={nombre} />
+            </div>
+        );
+    }
+
+    if (clase === "video") {
+        return (
+            <div className="mb-1">
+                <video
+                    src={adjunto.url}
+                    controls
+                    preload="metadata"
+                    className="max-h-72 w-full rounded-md border border-border bg-black"
+                />
+                <PieDelAdjunto adjunto={adjunto} nombre={nombre} />
+            </div>
+        );
+    }
+
+    return (
+        <a
+            href={adjunto.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-1 flex items-center gap-2 rounded-md border border-border bg-background/60 px-2 py-1.5 hover:bg-muted"
+        >
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium">{nombre}</span>
+                {adjunto.tamano > 0 ? (
+                    <span className="block text-[11px] text-muted-foreground">
+                        {comoSeLeeElTamano(adjunto.tamano)}
+                    </span>
+                ) : null}
+            </span>
+            <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </a>
+    );
+}
+
+/** El nombre, el peso y la descarga debajo de una imagen o de un vídeo. */
+function PieDelAdjunto({
+    adjunto,
+    nombre,
+}: {
+    adjunto: AdjuntoDelEquipo;
+    nombre: string;
+}) {
+    return (
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate">{nombre}</span>
+            {adjunto.tamano > 0 ? (
+                <span className="shrink-0 tabular-nums">
+                    {comoSeLeeElTamano(adjunto.tamano)}
+                </span>
+            ) : null}
+            <a
+                href={adjunto.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Descargar ${adjunto.nombre}`}
+                title="Descargar"
+                className="shrink-0 rounded p-0.5 hover:bg-muted hover:text-foreground"
+            >
+                <Download className="h-3.5 w-3.5" />
+            </a>
         </div>
     );
 }
@@ -2271,24 +3103,48 @@ async function subirLaNota(
     grabada: RecordedAudioData,
     quienGraba: string | null,
 ): Promise<string | null> {
-    if (!quienGraba) return null;
+    return subirAlBucket(comoArchivoDeAudio(grabada), quienGraba);
+}
+
+/**
+ * Subir un archivo adjunto, por la MISMA ruta y con la misma función.
+ *
+ * Una nota de voz es un archivo más: lo único que cambia es de dónde sale el
+ * `File`. Con dos funciones —una para la nota y otra para el adjunto—, el día
+ * que se afine la carpeta, el aviso o cómo se lee la respuesta se afina en una
+ * y la otra se queda atrás, que no se ve como un error sino como «a veces no
+ * sube».
+ */
+async function subirElArchivo(
+    archivo: File,
+    quienSube: string | null,
+): Promise<string | null> {
+    return subirAlBucket(archivo, quienSube);
+}
+
+async function subirAlBucket(
+    archivo: File,
+    quienSube: string | null,
+): Promise<string | null> {
+    if (!quienSube) return null;
     try {
         const cuerpo = new FormData();
-        cuerpo.append("file", comoArchivoDeAudio(grabada));
-        cuerpo.append("userID", quienGraba);
+        cuerpo.append("file", archivo);
+        cuerpo.append("userID", quienSube);
         cuerpo.append("workflowID", "chat-equipo");
 
         const res = await fetch("/api/upload", { method: "POST", body: cuerpo });
         if (!res.ok) {
-            console.warn("[chat-equipo] no se pudo subir la nota de voz", {
+            console.warn("[chat-equipo] no se pudo subir un archivo", {
                 estado: res.status,
+                nombre: archivo.name,
             });
             return null;
         }
         const datos = (await res.json()) as { url?: string };
         return datos.url?.trim() || null;
     } catch (error) {
-        console.warn("[chat-equipo] falló la subida de la nota de voz", error);
+        console.warn("[chat-equipo] falló la subida de un archivo", error);
         return null;
     }
 }

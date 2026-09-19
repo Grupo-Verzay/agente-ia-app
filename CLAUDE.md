@@ -2986,6 +2986,186 @@ rota:
    como lo hace el botón.
 
 
+### ADJUNTOS: un archivo por mensaje, y la dirección no se da por buena
+
+Enviar imágenes, vídeos y archivos, con la vista previa en la burbuja, el vídeo
+en línea y la descarga. **Entran por el «+» de la barra**, con el formato y los
+emojis, y no sueltos en la fila: cada botón suelto le come ancho a la caja, que
+en un panel de 18 rem es lo único que escasea.
+
+**La fila del mensaje guarda el adjunto en columnas** —`adjuntoUrl`,
+`adjuntoNombre`, `adjuntoMime`, `adjuntoTamano`, con
+`ADD COLUMN IF NOT EXISTS` porque la tabla ya está desplegada—, igual que ya
+guardaba la nota de voz. Ni tabla aparte ni una lista dentro de una columna: la
+consulta del reloj se trae la página entera **cada cinco segundos**, así que una
+segunda consulta ahí es de las que se pagan todo el día, y una lista dentro de
+una columna es un dato que no se puede buscar ni contar.
+
+De ahí sale la decisión que conviene no deshacer:
+
+> **Un adjunto por mensaje. Elegir tres fotos manda TRES mensajes**, que además
+> es lo que hace WhatsApp: cada foto su burbuja. El texto va con el **primero**
+> —es su pie— y los demás salen sin él. Con el texto repetido, la misma frase
+> saldría tres veces… y la misma mención habría hecho saltar **tres veces** la
+> ventana que interrumpe, que es justo el avisar de más del que viene esta
+> familia entera. Sin él en ninguno, se perdería lo que se acababa de escribir.
+
+Y por lo mismo la cita va solo con el primero: repetida, el mismo recuadro
+saldría bajo las tres fotos.
+
+Cinco cosas que hay que mantener:
+
+1. **La dirección que llega del navegador NO se da por buena.** Pasa por
+   `comoSeGuardaElAdjunto`, que la valida con `llaveDelArchivoSubido` — la
+   **misma** función que ya decide qué se puede borrar del bucket y qué nota de
+   voz se acepta. Una sola regla sobre qué direcciones son nuestras, no tres.
+   Sin eso, la burbuja pintaría un `<img>` —o peor, un `<video>`— apuntando a
+   donde le dijeran: una petición que sale del navegador de todo el equipo con
+   el destino elegido por quien manda el mensaje. Se sube por el mismo
+   `/api/upload` de los adjuntos de una tarea, que ya comprueba sesión y que la
+   carpeta sea de una cuenta sobre la que se manda.
+2. **De qué clase es lo decide UNA función** (`laClaseDelAdjunto`), pura y la
+   misma en el servidor y en la burbuja. El `mime` manda y la extensión es el
+   respaldo; **lo que no encaje sale como `archivo`**, que ofrece una descarga y
+   esa funciona siempre. Equivocarse hacia `imagen` pinta un hueco roto sin
+   forma de bajárselo.
+3. **El vídeo va con `preload="metadata"`, nunca `auto`.** Un canal con diez
+   vídeos y `auto` se descarga diez vídeos al abrirlo — y esta pantalla se
+   refresca cada cinco segundos.
+4. **Un mensaje de solo archivo tiene el texto VACÍO**, con los mismos tres
+   huecos que ya tuvo la nota de voz: el aviso, el empuje y el extracto de la
+   cita. Los tres los tapa `loQueSeLeeDeUnAdjunto` —«🖼️ Imagen», «🎬 Video»,
+   «📎 nombre»—. Un aviso en blanco no dice ni quién escribió ni de qué, y se
+   despacha sin mirar.
+5. **El nombre se recorta por el MEDIO**, conservando la extensión. Por el
+   final, tres ficheros del mismo cliente se ven iguales y encima se pierde de
+   qué tipo son.
+
+Y una que no se cerró y conviene saber: **`/api/upload` no tiene tope de tamaño
+en el servidor.** Los 25 MB se comprueban en el navegador —para poder decirlo
+antes de empezar a subir, no después de tres minutos de barra— y lo que se
+guarda en la fila se acota. Ponerle un tope global a esa ruta afectaría también
+a los adjuntos de tareas y de tickets, así que es un frente aparte.
+
+### REACCIONES: una tabla, y el interruptor lo decide Postgres
+
+Una reacción es de **una persona sobre un mensaje**, así que su llave natural es
+la terna `(mensaje, persona, emoji)` — y esa es la tabla, `team_chat_reactions`,
+de la App, con `CREATE TABLE IF NOT EXISTS` y esa terna como clave primaria.
+
+**No una columna con la lista dentro**, y este es el motivo: quitar la reacción
+de alguien sería leer la fila, cambiarla y volver a escribirla, así que dos
+personas reaccionando a la vez se pisarían y una de las dos desaparecería **sin
+decir nada**. Con una fila por reacción lo resuelve Postgres, que es donde tiene
+que resolverse: `INSERT … ON CONFLICT DO NOTHING`, y **las filas tocadas son el
+interruptor** —una, se puso; cero, ya estaba y se quita—.
+
+Cinco cosas que hay que mantener:
+
+1. **El emoji se valida en el SERVIDOR** (`esUnEmojiDeReaccion`): lleva un
+   pictograma, no lleva **ni letras ni espacios**, y es corto. La del medio es
+   la que importa: sin ella, reaccionar sería un segundo canal para escribir —un
+   chip con una frase dentro, debajo del mensaje de otro y sin forma de quitarlo
+   salvo por quien lo puso—. Esconder los demás botones en la pantalla no cierra
+   la petición directa.
+2. **La puerta es PERTENECER, no poder leer.** Es el mismo reparto con el que ya
+   se transcribe una nota, se cuenta lo sin leer y suena el aviso. Un
+   administrador lee los directos de su cuenta —decisión tomada a propósito— y
+   eso no le deja dejar huella dentro de la conversación de otros dos: una
+   reacción la ven los dos y no la puede quitar ninguno.
+3. **El orden es el de APARICIÓN**, no el de cantidad. Con el de cantidad, el
+   chip salta de sitio en cuanto alguien reacciona y se pulsa el que no era. Lo
+   pone la consulta (`ORDER BY "creadoEn"`) y lo respeta el agrupador.
+4. **El tope se comprueba DESPUÉS de meter, y se deshace.** Contar primero y
+   decidir luego es la misma carrera que el `ON CONFLICT` evita, y dos pestañas
+   colarían dos por encima. Y **quitar no mira el tope**: llegar al tope no puede
+   dejar a nadie sin forma de deshacer lo que puso.
+5. **Se lee en UNA consulta por página**, `lasReaccionesDe`, al lado de
+   `lasCitasQueSiguenAhi`. Una por mensaje serían treinta consultas cada cinco
+   segundos y por pestaña abierta — «muchas peticiones pequeñas son turno, no
+   trabajo», por dentro.
+
+**Y el chip se marca al tocarlo.** El reloj lo traería en su vuelta, pero eso son
+hasta cinco segundos de un gesto que no respondió, y un gesto que no responde se
+repite — o sea que se pone y se quita. Lo pinta `alternarEnLaLista`, que vive
+**al lado de `agruparLasReacciones`** a propósito: son dos formas de la misma
+regla —una decide lo que se guarda, la otra lo que se ve— y escritas en dos
+sitios, el día que se afine una la otra se queda atrás. Eso no se ve como un
+error: se ve como un chip que se marca y se desmarca solo unos segundos después.
+El banco lo prueba **encadenando las dos**: se alterna en la lista y se comprueba
+que agrupar las filas que habría escrito la base da exactamente lo mismo.
+
+**El detalle de quién reaccionó va en DOS sitios**, y hacen falta los dos: el
+`title` del chip, para el ratón, y una sección del menú «⋯», para el táctil —
+donde no hay cursor que posar, y sin ella el detalle solo existiría con ratón.
+
+### EDITAR y BORRAR: lo propio, y el borrado VACÍA la fila
+
+Se decide en `lib/editar-del-equipo.ts`, puro: **ser el autor y poder escribir en
+el canal**. Las dos mitades: quien administra lee los directos de su cuenta y no
+escribe en ellos, así que que un mensaje sea suyo no le devuelve la mano en una
+conversación de la que no forma parte. Y se comprueba **en la acción**, no solo
+al pintar el menú.
+
+**Sin ventana de tiempo, a propósito.** Los quince minutos de WhatsApp son para
+una conversación con alguien de fuera; aquí es un equipo hablando de su trabajo,
+y un dato que se corrige a los veinte minutos es un dato corregido, no un
+engaño. La marca de «editado» es lo que lo hace honesto, y por eso no se puede
+quitar.
+
+Dos cosas del borrado, y la segunda es la que importa:
+
+1. **La fila se queda.** Quitándola, el hilo tendría un hueco que nadie sabe
+   explicar y una respuesta que lo citaba se quedaría hablando sola. En su sitio
+   queda «Mensaje eliminado».
+2. **Pero el contenido NO se queda: se vacía en la fila.** Texto, menciones,
+   adjunto, audio, transcripción, la tarjeta de chat, la cita y **las dos
+   columnas de la llamada** se ponen en nulo, y las reacciones se olvidan.
+   Escondiéndolo al pintar, «borrar» sería un `display:none`: seguiría viajando
+   al navegador de todo el equipo cada cinco segundos. Lo de la llamada no es un
+   detalle: dejándolas puestas, la pantalla seguiría pintando la marca de
+   llamada —esa rama va antes— y saldría «· saliente» con el texto vacío en vez
+   de la señal de borrado.
+
+Y de ahí tres efectos que hay que mantener:
+
+1. **Una llamada NO se edita y SÍ se borra.** Nadie escribió «Llamada de voz ·
+   3:07»: lo dejó la llamada al terminar, y editarlo sería reescribir un hecho.
+   Borrarlo es otra cosa —quitar del hilo un registro que ya no interesa— y eso
+   sí se puede.
+2. **Un mensaje borrado no cuenta como sin leer, ni suena, ni se puede citar.**
+   Las cinco consultas de sin-leer llevan `AND m."borradoEn" IS NULL`, y
+   `lasCitasQueSiguenAhi` también: un borrado deja de estar «vivo», así que la
+   cita que lo apunta deja de ser pulsable y lo dice. Sin eso, borrar un mensaje
+   dejaría un contador encendido que no se puede apagar leyendo nada.
+3. **Editar NO vuelve a avisar.** Se recalculan los `mencionados` —para que el
+   anillo ámbar diga la verdad sobre el texto que hay— pero no se crea ningún
+   aviso ni se empuja nada. Si avisara, editar sería la forma de hacer saltar la
+   ventana que interrumpe tantas veces como uno quisiera.
+
+**Y el archivo del bucket se borra**, best-effort y de fondo: por la misma
+`llaveDelArchivoSubido` que valida la subida, nunca por una dirección que llegue
+de fuera. Que falle no puede tumbar el borrado —la fila ya está vacía y eso es lo
+que importa—, pero no es mudo.
+
+### Y las cinco listas de columnas eran una copia, con un fallo dentro
+
+Las cinco consultas que leen mensajes —el hilo, el anillo de una mención, la
+búsqueda, el mensaje suelto y el envío— llevaban **su propia lista de columnas
+copiada**. Al añadir seis columnas había que tocar las cinco, que es exactamente
+la forma de que la sexta se olvide.
+
+Se unificaron en `LAS_COLUMNAS`, y al hacerlo apareció un fallo que llevaba ahí
+sin reportar: **a `elHiloAlrededorDe` y a `buscarEnElEquipo` les faltaban
+`llamadaFin` y `llamadaSegundos`**. O sea que un registro de llamada al que se
+llegaba desde la búsqueda, o desde el salto de un aviso, perdía sus dos campos y
+se pintaba como una burbuja con el texto dentro en vez de como la marca gris del
+hilo. Nadie lo había visto porque hay que llegar a una llamada por uno de esos
+dos caminos.
+
+**Una lista de columnas copiada en cinco sitios no es repetición: son cinco
+consultas que un día devuelven cosas distintas.**
+
 ### La campanita: solo menciones, y al MENSAJE
 
 La campanita ya recibía las menciones —`getNotificationCenterData` incluye

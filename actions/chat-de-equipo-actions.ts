@@ -57,6 +57,10 @@ import {
     guardarLaTranscripcion,
     guardarUnMensaje,
     loQuePuedeSonar,
+    alternarLaReaccion,
+    borrarElMensaje,
+    editarElTexto,
+    elMensajeQueSeToca,
     laGenteDeLasCuentas,
     leerElHilo,
     marcarLeido,
@@ -79,6 +83,13 @@ import {
     type Familia,
 } from "@/lib/familia-de-cuentas";
 import { db } from "@/lib/db";
+import {
+    comoSeGuardaElAdjunto,
+    loQueSeLeeDeUnAdjunto,
+} from "@/lib/adjuntos-del-equipo";
+import { comoSeGuardaLaReaccion } from "@/lib/reacciones-del-equipo";
+import { sePuedeBorrar, sePuedeEditar } from "@/lib/editar-del-equipo";
+import { minioClient } from "@/lib/minio";
 
 type Respuesta<T> = { success: true; data: T } | { success: false; message: string };
 
@@ -401,13 +412,14 @@ export async function hiloDelEquipoAction(
                       canalId: canal.id,
                       cuentas: quien.familia.cuentas,
                       mensajeId: aPorUno,
+                      yo: quien.persona.id,
                   }).then((alrededor) =>
                       alrededor.length
                           ? alrededor
-                          : leerElHilo(quien.familia.cuentas, canal.id),
+                          : leerElHilo(quien.familia.cuentas, canal.id, quien.persona.id),
                   )
                 // El general se lee sobre la familia entera; un canal, por su id.
-                : leerElHilo(quien.familia.cuentas, canal.id),
+                : leerElHilo(quien.familia.cuentas, canal.id, quien.persona.id),
             losMencionablesDe(canal, fila, gente),
         ]);
 
@@ -592,6 +604,26 @@ export async function enviarAlEquipoAction(
      * escribe esa ruta: lo que llega del navegador no decide qué se guarda.
      */
     audioPedido?: { url?: string; segundos?: number; mime?: string | null } | null,
+    /**
+     * El archivo que lleva el mensaje, si lleva alguno.
+     *
+     * Llega **ya subido al bucket** por el mismo `/api/upload` que los
+     * adjuntos de una tarea y las notas de voz — esa ruta ya comprueba sesión
+     * y que la carpeta sea de una cuenta sobre la que se manda. Aquí se vuelve
+     * a comprobar que la dirección sea de NUESTRO bucket y con la forma que
+     * escribe esa ruta: sin eso, la burbuja pintaría un `<img>` —o un
+     * `<video>`— apuntando a donde dijera quien manda el mensaje, y esa
+     * petición saldría del navegador de todo el canal.
+     *
+     * **Uno por mensaje.** Varios archivos son varios mensajes, y los manda la
+     * pantalla en serie; ver `lib/adjuntos-del-equipo.ts`.
+     */
+    adjuntoPedido?: {
+        url?: string;
+        nombre?: string | null;
+        mime?: string | null;
+        tamano?: number;
+    } | null,
 ): Promise<Respuesta<{ mensaje: MensajeDeEquipo; canalId: string }>> {
     try {
         const quien = await quienYDonde();
@@ -613,12 +645,28 @@ export async function enviarAlEquipoAction(
             });
             return { success: false, message: "No se pudo adjuntar la nota de voz." };
         }
-        // Una nota de voz ES el mensaje: con ella, el texto sobra. Sin esta
-        // condición, grabar y enviar contestaba «Escribe algo antes de enviar»
-        // con la nota ya subida al bucket — o sea, el botón no hace nada y
-        // además deja basura.
-        if (!limpio && !audio) {
-            return { success: false, message: "Escribe algo o graba una nota antes de enviar." };
+        // El ARCHIVO, por la misma puerta y con la misma regla: si la
+        // dirección no es de nuestro bucket no hay adjunto, y entonces el
+        // mensaje vuelve a necesitar texto.
+        const adjunto = comoSeGuardaElAdjunto(adjuntoPedido, {
+            publicUrl: process.env.S3_PUBLIC_URL,
+            nombre: process.env.S3_BUCKET_NAME || "verzay-media",
+        });
+        if (adjuntoPedido?.url && !adjunto) {
+            console.warn("[chat-equipo] llegó un adjunto que no es de nuestro bucket", {
+                url: adjuntoPedido.url,
+            });
+            return { success: false, message: "No se pudo adjuntar ese archivo." };
+        }
+        // Una nota de voz —o un archivo— ES el mensaje: con ellos, el texto
+        // sobra. Sin esta condición, grabar y enviar contestaba «Escribe algo
+        // antes de enviar» con la nota ya subida al bucket — o sea, el botón
+        // no hace nada y además deja basura.
+        if (!limpio && !audio && !adjunto) {
+            return {
+                success: false,
+                message: "Escribe algo, adjunta un archivo o graba una nota antes de enviar.",
+            };
         }
 
         const chat = chatPedido ? comoSeGuardaElChat(chatPedido) : null;
@@ -676,7 +724,13 @@ export async function enviarAlEquipoAction(
         }
         if (idCitado) {
             const original = await elMensaje(idCitado);
-            const mismoCanal = original && canalDeLaFila(original.canalId) === canal.id;
+            // Un mensaje BORRADO no se cita: su contenido ya no está, así que
+            // el recuadro saldría vacío. Se trata como «no existe», que es lo
+            // que es a efectos de citarlo.
+            const mismoCanal =
+                original &&
+                !original.borradoEn &&
+                canalDeLaFila(original.canalId) === canal.id;
             if (!mismoCanal) {
                 // No es mudo: desde fuera, un mensaje que sale sin el recuadro
                 // se lee como que la cita no funciona.
@@ -698,7 +752,18 @@ export async function enviarAlEquipoAction(
                 // respondiendo, que es lo único para lo que sirve.
                 extracto:
                     comoExtractoDeCita(original.texto) ||
-                    (original.audioUrl ? "🎤 Nota de voz" : ""),
+                    (original.audioUrl ? "🎤 Nota de voz" : "") ||
+                    // Un mensaje que solo lleva un archivo tiene el texto
+                    // VACÍO, igual que una nota de voz: un recuadro de cita en
+                    // blanco no dice a qué se está respondiendo, que es lo
+                    // único para lo que sirve.
+                    (original.adjuntoUrl
+                        ? loQueSeLeeDeUnAdjunto({
+                              mime: original.adjuntoMime,
+                              nombre: original.adjuntoNombre,
+                              url: original.adjuntoUrl,
+                          })
+                        : ""),
             };
         }
 
@@ -733,6 +798,11 @@ export async function enviarAlEquipoAction(
             // Recién enviada, nadie la ha pedido todavía: se transcribe **bajo
             // demanda**, nunca sola.
             transcripcion: null,
+            adjunto,
+            // Recién escrito, nadie ha reaccionado ni lo ha tocado.
+            reacciones: [],
+            editadoEn: null,
+            borradoEn: null,
         };
 
         await guardarUnMensaje({
@@ -747,6 +817,7 @@ export async function enviarAlEquipoAction(
             chat,
             cita,
             audio,
+            adjunto,
         });
 
         // Lo que se lee en un aviso cuando el mensaje es solo una nota de voz.
@@ -754,7 +825,10 @@ export async function enviarAlEquipoAction(
         // con el cuerpo **vacío**: un aviso en blanco no dice ni quién escribió
         // ni de qué, y se despacha sin mirar — que es el fallo del que viene
         // toda esta familia.
-        const loQueSeLee = limpio || (audio ? "🎤 Nota de voz" : "");
+        const loQueSeLee =
+            limpio ||
+            (audio ? "🎤 Nota de voz" : "") ||
+            (adjunto ? loQueSeLeeDeUnAdjunto(adjunto) : "");
 
         if (mencionados.length) {
             // El MISMO aviso de los comentarios de tarea: la misma tabla, la
@@ -840,6 +914,273 @@ export async function enviarAlEquipoAction(
     } catch (error) {
         console.error("[chat-equipo] no se pudo enviar el mensaje", error);
         return { success: false, message: "No se pudo enviar. Inténtalo de nuevo." };
+    }
+}
+
+/**
+ * El canal de un mensaje, con la puerta ya resuelta.
+ *
+ * **Se pregunta contra el canal del MENSAJE, nunca contra el que diga el
+ * navegador.** Sin esto, mandar el id de un mensaje de un directo ajeno sería
+ * reaccionar —o intentar borrar— dentro de él. Es la misma forma en que la
+ * transcripción resuelve su puerta, y por eso las tres acciones de abajo
+ * entran por aquí y no repiten la cadena.
+ *
+ * Devuelve también `pertenezco` y `puedoEscribir`, que son **dos preguntas
+ * distintas** y cada cosa usa la suya: reaccionar pide pertenecer, editar y
+ * borrar piden poder escribir.
+ */
+async function elCanalDeUnMensaje(mensajeId: string): Promise<
+    | {
+          quien: NonNullable<Awaited<ReturnType<typeof quienYDonde>>>;
+          mensaje: NonNullable<Awaited<ReturnType<typeof elMensajeQueSeToca>>>;
+          canal: CanalDeEquipo;
+          fila: FilaDeCanal | null;
+      }
+    | { error: string }
+> {
+    const quien = await quienYDonde();
+    if (!quien) return { error: "No autorizado." };
+
+    const mensaje = await elMensajeQueSeToca(comoIdDeMensaje(mensajeId) ?? "");
+    // «No existe» y «no puedes» se contestan igual a propósito: decir «no
+    // puedes» sobre un id ya revela que ese mensaje existe. Misma regla que
+    // `getFlowAction` y que un proyecto no compartido.
+    if (!mensaje) return { error: "Ese mensaje ya no está." };
+
+    const filas = await canalesQueAlcanzan({
+        cuentaId: quien.cuentaId,
+        personaId: quien.persona.id,
+        manda: quien.manda,
+    });
+    const gente = await laGente(quien.familia);
+    const canales = losCanalesQueVe(
+        filas,
+        quien.persona.id,
+        quien.cuentaId,
+        quien.manda,
+        gente,
+    );
+    const canal = canales.find((c) => c.id === mensaje.canalId);
+    if (!canal) return { error: "Ese mensaje ya no está." };
+
+    return { quien, mensaje, canal, fila: filas.find((f) => f.id === canal.id) ?? null };
+}
+
+/**
+ * Poner o quitar una reacción sobre un mensaje.
+ *
+ * **Es un interruptor**: el mismo gesto pone y quita, que es como se espera
+ * que funcione. Quién gana cuando dos pestañas pulsan a la vez lo decide la
+ * base con su clave primaria, no un `SELECT` nuestro de antes.
+ *
+ * La puerta es **PERTENECER al canal**, no poder leerlo — el mismo reparto con
+ * el que se cuenta lo sin leer, con el que suena el aviso y con el que se paga
+ * una transcripción. Un administrador lee los directos de su cuenta, decisión
+ * tomada a propósito, y eso no le deja dejar su huella dentro de la
+ * conversación de otros dos: leer no es participar.
+ */
+export async function reaccionarEnElEquipoAction(
+    mensajeId: string,
+    emoji: string,
+): Promise<Respuesta<{ mensajeId: string; emoji: string; puesta: boolean }>> {
+    try {
+        const donde = await elCanalDeUnMensaje(mensajeId);
+        if ("error" in donde) return { success: false, message: donde.error };
+        const { quien, mensaje, canal } = donde;
+
+        if (!canal.pertenezco) {
+            return { success: false, message: "No participas en esta conversación." };
+        }
+        // Un mensaje borrado no tiene a qué reaccionar: su contenido ya no
+        // está y lo que queda es la señal.
+        if (mensaje.borradoEn) {
+            return { success: false, message: "Ese mensaje ya no está." };
+        }
+
+        // Lo que llega del navegador **no decide** qué se guarda: sin esto,
+        // «reaccionar» sería un segundo canal para escribir — un chip con una
+        // frase dentro, debajo del mensaje de otro y sin forma de quitarlo.
+        const limpio = comoSeGuardaLaReaccion(emoji);
+        if (!limpio) {
+            console.warn("[chat-equipo] se pidió reaccionar con algo que no es un emoji", {
+                largo: typeof emoji === "string" ? emoji.length : null,
+            });
+            return { success: false, message: "Eso no es un emoji." };
+        }
+
+        const hecho = await alternarLaReaccion({
+            mensajeId: mensaje.id,
+            personaId: quien.persona.id,
+            emoji: limpio,
+        });
+        if ("lleno" in hecho) {
+            return {
+                success: false,
+                message: "Ya has puesto demasiadas reacciones en ese mensaje.",
+            };
+        }
+        return {
+            success: true,
+            data: { mensajeId: mensaje.id, emoji: limpio, puesta: hecho.puesta },
+        };
+    } catch (error) {
+        console.error("[chat-equipo] no se pudo reaccionar", error);
+        return { success: false, message: "No se pudo reaccionar. Inténtalo de nuevo." };
+    }
+}
+
+/**
+ * Editar el texto de un mensaje PROPIO.
+ *
+ * Dos cosas que hay que mantener, y las dos son decisiones:
+ *
+ * 1. **Editar no vuelve a avisar.** Las menciones se recalculan —si no, el
+ *    resaltado ámbar de la burbuja diría una cosa y el texto otra— pero no se
+ *    crea ningún aviso ni sale ningún empuje. Con aviso, editar sería la forma
+ *    de hacerle saltar la ventana que interrumpe a alguien tantas veces como
+ *    uno quisiera sobre el mismo mensaje.
+ * 2. **El archivo y la nota de voz no se tocan.** Editar es corregir lo que se
+ *    escribió; cambiar el archivo por otro dejaría a quien ya lo vio hablando
+ *    de algo que ya no está ahí. Para eso se borra y se manda de nuevo.
+ */
+export async function editarMensajeDelEquipoAction(
+    mensajeId: string,
+    texto: string,
+): Promise<Respuesta<{ mensajeId: string; texto: string; editadoEn: string }>> {
+    try {
+        const donde = await elCanalDeUnMensaje(mensajeId);
+        if ("error" in donde) return { success: false, message: donde.error };
+        const { quien, mensaje, canal, fila } = donde;
+
+        // La MISMA regla que usa la pantalla para ofrecer el botón. Con la
+        // condición escrita dos veces, el día que se afine una la pantalla
+        // ofrecería algo que la acción rechaza — que es peor que no ofrecerlo.
+        if (
+            !sePuedeEditar({
+                mensaje: {
+                    autorId: mensaje.autorId,
+                    borradoEn: mensaje.borradoEn,
+                    llamada: mensaje.esLlamada ? { fin: "", segundos: 0 } : null,
+                },
+                yo: quien.persona.id,
+                puedoEscribir: canal.puedoEscribir,
+            })
+        ) {
+            return { success: false, message: "Solo puedes editar tus propios mensajes." };
+        }
+
+        const limpio = comoSeGuardaElTexto(texto);
+        // Vaciar el texto NO es editar, es borrar — y borrar tiene su propio
+        // botón, que además deja la señal. Sin esta condición, editar a vacío
+        // dejaría una burbuja en blanco que nadie sabe explicar.
+        if (!limpio) {
+            return {
+                success: false,
+                message: "Un mensaje no puede quedarse vacío. Bórralo si quieres quitarlo.",
+            };
+        }
+
+        const gente = await laGente(quien.familia);
+        const mencionados = extraerMenciones(
+            limpio,
+            await losMencionablesDe(canal, fila, gente),
+        );
+
+        const tocadas = await editarElTexto({
+            id: mensaje.id,
+            autorId: quien.persona.id,
+            texto: limpio,
+            mencionados,
+        });
+        // Cero filas es «no era tuyo o ya no está». Un `UPDATE` que no toca
+        // nada y se contesta con un «listo» es un botón que parece funcionar.
+        if (tocadas === 0) {
+            return { success: false, message: "Ese mensaje ya no se puede editar." };
+        }
+
+        return {
+            success: true,
+            data: { mensajeId: mensaje.id, texto: limpio, editadoEn: new Date().toISOString() },
+        };
+    } catch (error) {
+        console.error("[chat-equipo] no se pudo editar el mensaje", error);
+        return { success: false, message: "No se pudo editar. Inténtalo de nuevo." };
+    }
+}
+
+/**
+ * Borrar un mensaje PROPIO. La señal se queda, el contenido no.
+ *
+ * Y lo que colgaba del bucket se quita **best-effort**, detrás de la misma
+ * regla que ya decide qué se puede borrar de ahí (`llaveDelArchivoSubido`, la
+ * de `/api/upload/borrar`). Si eso falla, la fila ya está limpia: lo que queda
+ * es un archivo huérfano con una dirección que ya no enseña nadie, no un
+ * borrado a medias. Es el mismo criterio que los adjuntos de una tarea, que
+ * nunca han tocado el bucket.
+ */
+export async function borrarMensajeDelEquipoAction(
+    mensajeId: string,
+): Promise<Respuesta<{ mensajeId: string; borradoEn: string }>> {
+    try {
+        const donde = await elCanalDeUnMensaje(mensajeId);
+        if ("error" in donde) return { success: false, message: donde.error };
+        const { quien, mensaje, canal } = donde;
+
+        if (
+            !sePuedeBorrar({
+                mensaje: { autorId: mensaje.autorId, borradoEn: mensaje.borradoEn },
+                yo: quien.persona.id,
+                puedoEscribir: canal.puedoEscribir,
+            })
+        ) {
+            return { success: false, message: "Solo puedes borrar tus propios mensajes." };
+        }
+
+        const hecho = await borrarElMensaje({ id: mensaje.id, autorId: quien.persona.id });
+        if (hecho.tocadas === 0) {
+            return { success: false, message: "Ese mensaje ya no está." };
+        }
+
+        // De fondo y sin `await`: quien borró ya tiene su respuesta, y hablar
+        // con el bucket puede tardar. Nunca lanza.
+        if (hecho.archivos.length) void quitarDelBucket(hecho.archivos);
+
+        return {
+            success: true,
+            data: { mensajeId: mensaje.id, borradoEn: new Date().toISOString() },
+        };
+    } catch (error) {
+        console.error("[chat-equipo] no se pudo borrar el mensaje", error);
+        return { success: false, message: "No se pudo borrar. Inténtalo de nuevo." };
+    }
+}
+
+/**
+ * Quitar del bucket lo que colgaba de un mensaje borrado.
+ *
+ * **Best-effort y nunca lanza**: la fila ya está limpia cuando esto corre, así
+ * que un fallo aquí deja un archivo huérfano y no un borrado a medias. Pero no
+ * es mudo: un bucket que crece con lo que ya nadie enseña se nota meses
+ * después y sin forma de saber de dónde salió.
+ *
+ * Qué se deja borrar lo decide `llaveDelArchivoSubido`, la misma función que
+ * usa `/api/upload/borrar`: **una sola regla** sobre qué direcciones son
+ * nuestras. Aquí la dirección viene de nuestra propia fila y no del navegador,
+ * pero pasarla igual por la regla es lo que hace que no haya dos criterios.
+ */
+async function quitarDelBucket(urls: string[]): Promise<void> {
+    const bucket = process.env.S3_BUCKET_NAME || "verzay-media";
+    for (const url of urls) {
+        try {
+            const destino = llaveDelArchivoSubido(url, process.env.S3_PUBLIC_URL, bucket);
+            if (!destino) continue;
+            await minioClient.removeObject(bucket, destino.llave);
+        } catch (error) {
+            console.warn("[chat-equipo] no se pudo quitar del bucket un archivo borrado", {
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
     }
 }
 
