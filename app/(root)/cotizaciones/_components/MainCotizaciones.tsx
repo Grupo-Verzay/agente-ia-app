@@ -7,6 +7,11 @@ import { CotizacionList } from './CotizacionList';
 import { CotizacionForm } from './CotizacionForm';
 import type { listCotizaciones } from '@/actions/cotizaciones-actions';
 import type { listProducts } from '@/actions/products-actions';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas, useSeleccionMultiple } from '@/components/shared/AccionesMasivas';
+import { eliminarCotizacionesAction } from '@/actions/borrado-en-bloque-actions';
 
 type Cotizacion = Awaited<ReturnType<typeof listCotizaciones>>[number];
 type Product = Awaited<ReturnType<typeof listProducts>>['items'][number];
@@ -36,19 +41,35 @@ export function MainCotizaciones({ userId, cotizaciones, products }: Props) {
     setEditing(null);
   }
 
+  const router = useRouter();
+  const seleccion = useSeleccionMultiple(cotizaciones.map((c) => c.id));
+
+  const borrarLasMarcadas = async (ids: string[]) => {
+    const resumen = await eliminarCotizacionesAction(ids);
+    if (!resumen.success) toast.error(resumen.message);
+    return { fallaron: resumen.fallaron };
+  };
+
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Cotizaciones</h1>
-        <Button size="sm" onClick={openNew}>
-          <Plus className="h-4 w-4 mr-1" />
-          Nueva cotización
-        </Button>
-      </div>
+      <BarraDeAcciones
+        filtros={<h1 className="shrink-0 text-xl font-semibold">Cotizaciones</h1>}
+        crear={<BotonDeCrear onClick={openNew}>Nueva cotización</BotonDeCrear>}
+        acciones={
+          <AccionesMasivas
+            seleccionados={seleccion.seleccionados}
+            queSon="cotizaciones"
+            onEliminar={borrarLasMarcadas}
+            onTerminar={() => { seleccion.limpiar(); router.refresh(); }}
+          />
+        }
+      />
 
       <CotizacionList
         cotizaciones={cotizaciones}
         onEdit={openEdit}
+        seleccionados={seleccion.seleccionados}
+        alternarSeleccion={seleccion.alternar}
       />
 
       {showForm && (
