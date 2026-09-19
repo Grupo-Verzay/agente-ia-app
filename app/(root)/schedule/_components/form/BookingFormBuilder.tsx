@@ -41,6 +41,7 @@ import {
   type BookingQuestionItem,
 } from '@/actions/booking-questions-actions';
 import { BookingQuestionType } from '@prisma/client';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 
 const TYPE_LABELS: Record<BookingQuestionType, string> = {
   TEXT: 'Texto corto',
@@ -257,7 +258,7 @@ export function BookingFormBuilder({ userId, teamServiceId = null }: Props) {
   return (
     <div className="flex flex-col gap-3">
       {/* Toolbar */}
-      <ModuleToolbar>
+      <ModuleToolbar right={<BotonDeCrear onClick={openAdd}>Nueva pregunta</BotonDeCrear>}>
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -267,9 +268,6 @@ export function BookingFormBuilder({ userId, teamServiceId = null }: Props) {
             className="w-full pl-8"
           />
         </div>
-        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={openAdd}>
-          + Crear
-        </Button>
       </ModuleToolbar>
 
       {/* Formulario crear / editar */}
