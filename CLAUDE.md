@@ -3925,6 +3925,131 @@ Y **la puerta de quién puede llamar sigue siendo la de escribir**, no la de
 leer: meterse en la conversación de otros dos no es supervisar, y una reunión
 lo es mucho más que un mensaje.
 
+## La llamada de WhatsApp: el fin lo dice el AUDIO, y la tarjeta no bloquea
+
+Dos cosas de la tarjeta de llamada de Chats, y la primera es un fallo que desde
+fuera no se parece a un fallo.
+
+**El cliente colgaba y la tarjeta seguía con el contador corriendo.** El asesor
+creía que seguía hablando, le hablaba a nadie, y al rendirse el registro se
+escribía con la duración de ese rato de más. Ni error, ni aviso: solo un
+contador subiendo.
+
+La causa es de una línea y es la familia de siempre: **el sondeo que detectaba
+la respuesta se APAGABA al contestar.**
+
+```ts
+if (answered) {
+  if (answerPollRef.current) { clearInterval(answerPollRef.current); … }  // ← aquí
+```
+
+Estaba además **copiado dos veces**, una por proveedor, así que eran dos sitios
+que arreglar y ninguno de los dos miraba nada después de contestar.
+
+### Aquí NO hay Evolution ni Waha, y saberlo cambia la forma del arreglo
+
+Es lo primero que hay que mirar antes de ponerse a buscar «cómo se llama el
+evento de fin en cada proveedor», porque la respuesta es que no existe el
+camino:
+
+| | ¿llama? |
+| --- | --- |
+| **AstraCalls** | sí — es por donde sale casi todo |
+| **Meta Cloud API** | sí |
+| **Evolution** | no. `makeWhatsAppCall` (`/call/offer`) está ahí y **no lo importa nadie** |
+| **Waha** | no. `lib/waha.ts` no tiene API de llamadas |
+
+De ahí sale la decisión, y es la que además aguanta el día que se añada otro:
+
+> **El detector principal es el AUDIO, no el proveedor.** Con una pasarela
+> WebRTC, que el otro cuelgue **es** que el RTP se para: da igual cómo llame
+> cada uno a su evento. El parte del proveedor va **encima**, para ponerle
+> nombre a lo que ya se sabe — y en Meta llega de verdad, por
+> `chat_messages.raw.metaCall`, que es la misma fila de la que ya salía el SDP.
+
+Quién decide vive en `lib/fin-de-la-llamada.ts`, puro y probado. Cinco cosas:
+
+1. **Que falte información NUNCA cuelga.** Un `getStats` que falla, una consulta
+   que no contesta, un estado de conexión que no se reconoce: eso es «no sé», y
+   colgar por no saber corta una conversación en curso, que es peor que el fallo
+   original. Solo un dato positivo cierra la tarjeta.
+2. **La duración se cuenta hasta el ÚLTIMO audio, no hasta que nos enteramos.**
+   Si el cliente colgó en el segundo 83 y se detecta en el 89, el registro dice
+   83. Al revés, **todas** las llamadas de la plataforma salen unos segundos más
+   largas de lo que fueron y los informes cuentan un tiempo que nadie pasó al
+   teléfono. Por eso el rastro guarda el reloj del último byte **nuevo** y no el
+   de la última vuelta.
+3. **Seis segundos de gracia, y son seguros por el DTX.** Una llamada callada
+   **sigue mandando bytes**: Opus con DTX —lo que usa WhatsApp— manda ruido de
+   confort un par de veces por segundo. Así que seis segundos sin un solo byte
+   no son «no está hablando», son una docena larga de paquetes que no llegaron.
+   Bajarlos es arriesgarse a colgarle a alguien en mitad de una frase por un
+   bache de red.
+4. **`disconnected` tiene su propia gracia**, aparte: es el estado dudoso de
+   WebRTC y a veces se recupera solo al segundo. `failed` y `closed` son firmes.
+5. **Los segundos que no dice el proveedor NO son cero.** `undefined` es «no lo
+   dijo»; darlo por cero borraría una llamada de tres minutos del tiempo
+   hablado. Y un estado de fin que no conocemos se trata como fallo, que es el
+   lado que le **enseña el motivo** al asesor en vez de callárselo.
+
+Y **no se inventa la diferencia entre «rechazó» y «no contestó»**: si Meta la
+dice, se enseña con sus palabras; si no, lo único cierto es que la llamada acabó
+sin conversación, que es lo que la tarjeta ya sabía contar.
+
+### Cerrar la conexión a mano es la MISMA señal que una que se cae
+
+Dos sitios donde eso muerde, y los dos están resueltos a propósito:
+
+- **El manejador se calla antes de cerrar** (`onconnectionstatechange = null`).
+  Si no, colgar nosotros podría leerse como que colgó el otro.
+- **En «Volver a llamar», `hangup()` va ANTES de soltar el guardián.** Cierra la
+  conexión anterior; soltando el guardián primero, la llamada nueva se
+  terminaría antes de empezar.
+
+### Y el registro se escribe en cuanto acaba, no al cerrar la tarjeta
+
+Antes solo se escribía en `handleClose`, así que una llamada cuya pestaña se
+cerraba sin pulsar nada **no dejaba ni rastro**. Ahora los tres caminos —colgar,
+elegir resultado, y que la corte el otro— pasan por `registrarLaLlamada`, que
+escribe **una sola vez**. Y elegir el resultado **espera al registro en curso**:
+sin eso, elegirlo deprisa —que es lo normal, la tarjeta ya está delante— llegaba
+antes de que hubiera fila a la que ponérselo, y el botón no hacía nada.
+
+### La tarjeta ya no es un modal: es la MISMA ventana del chat de equipo
+
+Era un `Dialog` que tapaba la pantalla y no dejaba trabajar mientras se hablaba,
+que es justo lo que se hace durante una llamada: mirar la conversación, buscar
+el dato que te están pidiendo. Ahora flota, se arrastra y se pliega a una
+pastilla con el rato, el nombre y el botón de colgar.
+
+Y **es el mismo componente**, no una copia: la caja que sostiene la posición y
+la pastilla se fueron a `components/shared/VentanaDeLlamada.tsx`, que usan la
+llamada del directo y esta. El arrastre ya estaba compartido
+(`useVentanaArrastrable`) y la duración también (`comoSeLeeLaDuracion`). Con dos
+copias, el día que se afine el plegado se afina en una y la otra se queda atrás
+— y eso no se ve como un error: se ve como que «en Chats la llamada a veces no
+se deja mover».
+
+Tres cosas que hay que mantener, y las tres ya costaron su vuelta en la otra:
+
+1. **La caja de fuera sostiene la POSICIÓN y el `<audio>`; dentro cambia lo que
+   se pinta.** Partirla en dos ventanas desmontaría el `<audio>` al plegar, y
+   con él el `srcObject`: la llamada seguiría abierta y **muda**.
+2. **Ningún botón dentro del asa.** El asa captura el puntero y el `click` de un
+   botón de dentro no llegaría a salir. Plegar va fuera.
+3. **Plegar solo en llamada.** Mientras suena son dos botones y una decisión de
+   un segundo; esconderla ahí solo añade formas de perderla. Y al terminar se
+   despliega sola: hay que elegir resultado y una pastilla no tiene dónde.
+
+Medido en Chromium sobre el CSS del build, que es la regla de siempre para una
+columna nueva:
+
+| ventana | tarjeta | pastilla | colgar (plegada) | desborda |
+| --- | --- | --- | --- | --- |
+| 1440x900 | 352 px | 318 px | 32x32 @ 840 | no |
+| 1280x800 | 352 px | 318 px | 32x32 @ 760 | no |
+| 390x667 | 352 px | 318 px | 32x32 @ 315 | no |
+
 ## La barra de escribir es UNA, y lo que la forma vive fuera de las dos pantallas
 
 Chats y el chat de equipo tenían dos barras distintas para lo mismo. La del

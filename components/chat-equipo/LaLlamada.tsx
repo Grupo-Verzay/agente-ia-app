@@ -25,6 +25,10 @@ import { cn } from "@/lib/utils";
 // que «en las llamadas a veces la cámara no se apaga».
 import { useMediosDeLlamada } from "@/hooks/useMediosDeLlamada";
 import { useVentanaArrastrable } from "@/hooks/useVentanaArrastrable";
+import {
+    PastillaDeLlamada,
+    VentanaDeLlamada,
+} from "@/components/shared/VentanaDeLlamada";
 import { esperarLosCandidatos } from "@/lib/webrtc-del-navegador";
 import { comoSeLeeLaDuracion, type FinDeLlamada } from "@/lib/llamada-de-voz";
 import {
@@ -441,21 +445,17 @@ export function LaLlamada({
                 : "Llamando…";
 
     return (
-        // La caja de fuera es la que sostiene la POSICIÓN, y dentro cambia lo
-        // que se pinta. Partirla en dos ventanas —una plegada y otra
-        // desplegada— desmontaría el `<audio>` al plegar, y con él se iría el
-        // `srcObject` que trae la voz del otro: la llamada seguiría abierta y
-        // muda. Por eso el `<audio>` vive aquí fuera y no se mueve nunca.
-        <div
-            ref={cajaRef}
-            style={estilo}
-            className={cn(
-                "fixed z-[100] rounded-xl border border-border bg-background shadow-2xl",
-                posicion ? "" : "inset-x-0 top-4 mx-auto",
-                // `w-fit` y no `w-auto`: sin posición propia la caja va con
-                // `inset-x-0`, y un ancho automático entre `left:0` y
-                // `right:0` **se estira** — la barra pequeña salía de lado a
-                // lado de la pantalla.
+        // La caja de fuera, la pastilla al plegarla y el contrato del
+        // `<audio>` viven en `components/shared/VentanaDeLlamada.tsx`: los usan
+        // esta llamada y la de WhatsApp en Chats. Con una copia en cada sitio,
+        // el día que se afine el arrastre se afina en una y la otra se queda
+        // atrás — y eso no se ve como un error, se ve como que «en Chats la
+        // llamada a veces no se deja mover».
+        <VentanaDeLlamada
+            cajaRef={cajaRef}
+            estilo={estilo}
+            posicion={posicion}
+            ancho={
                 minimizada
                     ? "w-fit"
                     : hayImagen
@@ -463,8 +463,8 @@ export function LaLlamada({
                         // video de sello de correos. No es `w-full` porque esto
                         // flota encima del trabajo de alguien.
                         "w-[min(92vw,32rem)]"
-                      : "w-[min(92vw,22rem)]",
-            )}
+                      : "w-[min(92vw,22rem)]"
+            }
         >
             {/* El `<audio>` y el `<video>` viven AQUÍ FUERA y no se mueven
                 nunca. Metidos dentro de la rama de plegado, plegar la llamada
@@ -473,44 +473,13 @@ export function LaLlamada({
             <audio ref={audioRef} autoPlay className="hidden" />
 
             {minimizada ? (
-                <div className="flex items-center gap-1 py-1 pl-1 pr-1.5">
-                    {/* El asa se lleva el rato y el nombre: es la zona ancha y
-                        la que no hace nada al pulsarla, así que puede recibir
-                        el gesto sin competir con ningún botón. */}
-                    <div
-                        {...asa}
-                        className={cn(
-                            "flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5",
-                            asa.className,
-                        )}
-                    >
-                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="font-mono text-sm tabular-nums">
-                            {comoSeLeeLaDuracion(segundos)}
-                        </span>
-                        <span className="max-w-[9rem] truncate text-sm text-muted-foreground">
-                            {conQuien}
-                        </span>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        onClick={() => setMinimizada(false)}
-                        aria-label="Ampliar la llamada"
-                    >
-                        <Maximize2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="destructive"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 rounded-full"
-                        onClick={() => void terminar("contestada")}
-                        aria-label="Colgar"
-                    >
-                        <PhoneOff className="h-4 w-4" />
-                    </Button>
-                </div>
+                <PastillaDeLlamada
+                    asa={asa}
+                    segundos={segundos}
+                    conQuien={conQuien}
+                    onAmpliar={() => setMinimizada(false)}
+                    onColgar={() => void terminar("contestada")}
+                />
             ) : (
                 <div className="relative flex flex-col gap-4 p-4">
                     {/* La imagen, solo cuando la hay. Sin ella la tarjeta es la
@@ -656,7 +625,7 @@ export function LaLlamada({
                     </div>
                 </div>
             )}
-        </div>
+        </VentanaDeLlamada>
     );
 }
 
