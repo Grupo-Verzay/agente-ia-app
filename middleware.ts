@@ -64,7 +64,16 @@ export default auth((req) => {
     // Enlace corto de pago (/p/K7M2QX): le llega al cliente por WhatsApp y lo
     // abre sin sesión. Mandarlo al login sería pedirle que se registre para
     // poder pagar.
-    currentPath.startsWith("/p/");
+    currentPath.startsWith("/p/") ||
+    // Enlace de reunión (/reunion/<codigo>): se le pasa a alguien de fuera que
+    // no tiene cuenta. Mandarlo al login sería pedirle que se registre para
+    // poder entrar a una reunión de media hora.
+    //
+    // Y ser pública NO la abre: tener el enlace deja llamar a la puerta, no
+    // entrar. Quien pasa lo decide alguien que ya está dentro, y eso lo
+    // comprueba el servidor en cada vuelta — la puerta está en la acción, como
+    // en /cobros y /documentos.
+    currentPath.startsWith("/reunion/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {

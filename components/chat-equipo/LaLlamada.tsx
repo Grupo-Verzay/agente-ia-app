@@ -1,11 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GripVertical, Maximize2, Mic, MicOff, Minus, Phone, PhoneOff } from "lucide-react";
+import {
+    GripVertical,
+    Loader2,
+    Maximize2,
+    Mic,
+    MicOff,
+    Minus,
+    MonitorUp,
+    Phone,
+    PhoneOff,
+    ScreenShare,
+    Video,
+    VideoOff,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+// El micro, la cámara y la pantalla son los MISMOS que los de la sala de
+// video. Copiados, el día que se afine cómo se apaga la cámara se afina en una
+// pantalla y la otra se queda atrás — y eso no se ve como un error, se ve como
+// que «en las llamadas a veces la cámara no se apaga».
+import { useMediosDeLlamada } from "@/hooks/useMediosDeLlamada";
+import { esperarLosCandidatos } from "@/lib/webrtc-del-navegador";
 import {
     comoSeLeeLaDuracion,
     dentroDeLaPantalla,
@@ -19,7 +38,22 @@ import {
 } from "@/actions/llamadas-actions";
 
 /**
- * Una llamada de voz, de navegador a navegador.
+ * Una llamada entre dos, de navegador a navegador. Con voz **y con video**.
+ *
+ * # La cámara empieza apagada, y encenderla no renegocia nada
+ *
+ * Es la decisión que hace que esto siga siendo una llamada y no una reunión:
+ * se llama como siempre —suena, se contesta— y la cámara es un botón más,
+ * junto al del micro. Quien quiera una videollamada la enciende; quien esté
+ * andando por la calle, no.
+ *
+ * Y encenderla a mitad **no manda nada por el reloj**: los dos transceptores
+ * —audio y video— se negocian en `sendrecv` desde la primera oferta, con pista
+ * o sin ella, así que la cámara y la pantalla compartida entran por
+ * `replaceTrack` dentro de una conexión ya hecha. Sin eso habría que
+ * renegociar contra un reloj de tres segundos cada vez que alguien pulsa la
+ * cámara, y eso son varios segundos de llamada cortada. Lo hace
+ * `useMediosDeLlamada`, que es el mismo que usa la sala de video.
  *
  * # El WebRTC es el que esta App ya tenía
  *
@@ -42,31 +76,6 @@ import {
 
 /** Cuánto se espera a que el audio conecte antes de darla por imposible. */
 const ESPERA_DE_CONEXION_MS = 20_000;
-
-/**
- * Esperar a que ICE termine, con tope.
- *
- * El tope no es un lujo: con una red que no contesta al STUN, `complete` puede
- * no llegar nunca y la oferta no saldría jamás — la llamada se quedaría
- * «preparando» para siempre. Es el mismo patrón, y el mismo motivo, que en
- * `CallDialog`.
- */
-function esperarLosCandidatos(pc: RTCPeerConnection): Promise<void> {
-    return new Promise((resolve) => {
-        if (pc.iceGatheringState === "complete") return resolve();
-        const tope = setTimeout(resolve, 2_500);
-        pc.addEventListener(
-            "icegatheringstatechange",
-            () => {
-                if (pc.iceGatheringState === "complete") {
-                    clearTimeout(tope);
-                    resolve();
-                }
-            },
-            { once: true },
-        );
-    });
-}
 
 /**
  * Los cinco momentos de una llamada, y `conectando` no sobra.
@@ -108,8 +117,12 @@ export function LaLlamada({
 }) {
     const [estado, setEstado] = useState<Estado>(entrante ? "sonando" : "preparando");
     const [segundos, setSegundos] = useState(0);
-    const [callado, setCallado] = useState(false);
     const [minimizada, setMinimizada] = useState(false);
+    /** Lo que llega del otro lado. Se monta a mano: ver `ontrack`. */
+    const [remoto, setRemoto] = useState<MediaStream | null>(null);
+    /** Si ahora mismo llega imagen. La pista se queda en `muted` al apagarla. */
+    const [hayVideoRemoto, setHayVideoRemoto] = useState(false);
+    const medios = useMediosDeLlamada({ alFallar: (m) => toast.error(m) });
     /**
      * Dónde está la ventana, en píxeles, **una vez se ha movido**.
      *
@@ -121,8 +134,11 @@ export function LaLlamada({
     const [posicion, setPosicion] = useState<{ x: number; y: number } | null>(null);
 
     const pcRef = useRef<RTCPeerConnection | null>(null);
-    const micRef = useRef<MediaStream | null>(null);
+    const mediosRef = useRef(medios);
+    mediosRef.current = medios;
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const propioRef = useRef<HTMLVideoElement | null>(null);
     const cajaRef = useRef<HTMLDivElement | null>(null);
     /** Dónde se agarró la ventana, para que no salte bajo el cursor. */
     const agarreRef = useRef<{ dx: number; dy: number } | null>(null);
@@ -138,14 +154,18 @@ export function LaLlamada({
      * dejarse una función así.
      */
     const soltarTodo = useCallback(() => {
-        micRef.current?.getTracks().forEach((t) => t.stop());
-        micRef.current = null;
+        // El micro, la cámara y la pantalla los suelta el hook, que es quien
+        // los tiene. Con una copia de esa lógica aquí, el día que se añada otro
+        // dispositivo se soltaría en una pantalla y en la otra no.
+        mediosRef.current.soltarTodo();
         try {
             pcRef.current?.close();
         } catch {
             // Cerrar dos veces no es un error que nadie tenga que ver.
         }
         pcRef.current = null;
+        setRemoto(null);
+        setHayVideoRemoto(false);
     }, []);
 
     /** Terminar de verdad: soltar, avisar al servidor y cerrar la ventana. */
@@ -170,7 +190,14 @@ export function LaLlamada({
         [onCerrar, soltarTodo],
     );
 
-    /** Montar la conexión, con el micro dentro. */
+    /**
+     * Montar la conexión.
+     *
+     * La cámara se pide **apagada** (`arrancar(false)`): lo único que hace
+     * falta para que suene una llamada es el micro, y pedir la cámara a quien
+     * solo quería hablar es un permiso de más y un piloto encendido para nada.
+     * Encenderla luego no cuesta ninguna renegociación.
+     */
     const montar = useCallback(async (): Promise<RTCPeerConnection | null> => {
         const ice = await losServidoresDeLlamadaAction();
         if (!ice.success) {
@@ -178,23 +205,42 @@ export function LaLlamada({
             return null;
         }
 
-        let mic: MediaStream;
-        try {
-            mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (error) {
-            // Permiso denegado, o sin micro. Es lo más común de todo y tiene
-            // que decirse con palabras que se puedan usar.
-            console.warn("[llamadas] no se pudo abrir el micrófono", error);
-            toast.error("No se pudo usar el micrófono. Revisa el permiso del navegador.");
+        if (!(await mediosRef.current.arrancar(false))) {
+            // Sin micro no hay llamada. El hook ya dijo por qué —permiso
+            // denegado, sin dispositivo, ocupado por otra aplicación— con
+            // palabras que se puedan usar.
             return null;
         }
-        micRef.current = mic;
 
         const pc = new RTCPeerConnection({ iceServers: ice.ice });
         pcRef.current = pc;
-        mic.getAudioTracks().forEach((t) => pc.addTrack(t, mic));
         pc.ontrack = (ev) => {
-            if (audioRef.current && ev.streams[0]) audioRef.current.srcObject = ev.streams[0];
+            // El stream se construye A MANO y no se coge de `ev.streams[0]`.
+            //
+            // Al pasar a `addTransceiver` —que es lo que permite negociar el
+            // video desde el principio— ya no hay stream asociado, así que
+            // `ev.streams` llega **vacío**. Con el código de antes, el audio se
+            // quedaría mudo con la conexión perfectamente establecida: el peor
+            // fallo posible, porque todo lo demás dice que va bien.
+            const stream = (() => {
+                const actual = audioRef.current?.srcObject;
+                return actual instanceof MediaStream ? actual : new MediaStream();
+            })();
+            if (!stream.getTracks().includes(ev.track)) stream.addTrack(ev.track);
+            if (audioRef.current) audioRef.current.srcObject = stream;
+            setRemoto(stream);
+
+            if (ev.track.kind === "video") {
+                // Si el otro apaga la cámara, su pista se queda en `muted`: eso
+                // sí viaja por la conexión, al revés que el micro. Es lo que
+                // decide al instante si se pinta el video o no.
+                const mirar = () =>
+                    setHayVideoRemoto(!ev.track.muted && ev.track.readyState === "live");
+                ev.track.addEventListener("mute", mirar);
+                ev.track.addEventListener("unmute", mirar);
+                ev.track.addEventListener("ended", mirar);
+                mirar();
+            }
         };
         pc.onconnectionstatechange = () => {
             if (pc.connectionState === "connected") setEstado("hablando");
@@ -218,7 +264,12 @@ export function LaLlamada({
             const pc = await montar();
             if (!pc || !vivo) return;
 
-            const oferta = await pc.createOffer({ offerToReceiveAudio: true });
+            // Los dos transceptores, audio y video, en `sendrecv` y SIEMPRE.
+            // Es lo que permite encender la cámara a mitad de llamada sin
+            // renegociar nada. Sustituye al `offerToReceiveAudio`, que solo
+            // pedía audio y dejaba la llamada sin sitio para el video.
+            mediosRef.current.prepararLaConexion(pc);
+            const oferta = await pc.createOffer();
             await pc.setLocalDescription(oferta);
             await esperarLosCandidatos(pc);
 
@@ -261,6 +312,12 @@ export function LaLlamada({
 
         try {
             await pc.setRemoteDescription(JSON.parse(entrante.oferta));
+            // DESPUÉS de aplicar la oferta: los transceptores los creó ella, y
+            // lo único que falta es ponerlos en `sendrecv` y engancharles lo
+            // propio. Sin esta línea, quien contesta negocia el video en
+            // `recvonly` y **su** botón de cámara deja de funcionar para toda
+            // la llamada — que es justo la mitad de la gente.
+            mediosRef.current.engancharALaConexion(pc);
             const respuesta = await pc.createAnswer();
             await pc.setLocalDescription(respuesta);
             await esperarLosCandidatos(pc);
@@ -449,12 +506,21 @@ export function LaLlamada({
           }
         : { className: "" };
 
-    const silenciar = () => {
-        const pista = micRef.current?.getAudioTracks()[0];
-        if (!pista) return;
-        pista.enabled = !pista.enabled;
-        setCallado(!pista.enabled);
-    };
+    // Los dos `<video>` se enganchan aquí y solo si cambió: reasignar el mismo
+    // `srcObject` reinicia la reproducción y hace parpadear la imagen en cada
+    // repintado.
+    useEffect(() => {
+        const el = videoRef.current;
+        if (el && el.srcObject !== remoto) el.srcObject = remoto;
+    }, [remoto, hayVideoRemoto]);
+
+    useEffect(() => {
+        const el = propioRef.current;
+        if (el && el.srcObject !== medios.local) el.srcObject = medios.local;
+    }, [medios.local]);
+
+    /** Si hay algo de imagen, de cualquiera de los dos lados. */
+    const hayImagen = estado === "hablando" && (hayVideoRemoto || Boolean(medios.local));
 
     const rotulo =
         estado === "hablando"
@@ -481,9 +547,20 @@ export function LaLlamada({
                 // `inset-x-0`, y un ancho automático entre `left:0` y
                 // `right:0` **se estira** — la barra pequeña salía de lado a
                 // lado de la pantalla.
-                minimizada ? "w-fit" : "w-[min(92vw,22rem)]",
+                minimizada
+                    ? "w-fit"
+                    : hayImagen
+                      ? // Con imagen la tarjeta crece: 22rem es un recuadro de
+                        // video de sello de correos. No es `w-full` porque esto
+                        // flota encima del trabajo de alguien.
+                        "w-[min(92vw,32rem)]"
+                      : "w-[min(92vw,22rem)]",
             )}
         >
+            {/* El `<audio>` y el `<video>` viven AQUÍ FUERA y no se mueven
+                nunca. Metidos dentro de la rama de plegado, plegar la llamada
+                los desmontaría y con ellos se iría el `srcObject`: la llamada
+                seguiría abierta y muda, y con la imagen en negro. */}
             <audio ref={audioRef} autoPlay className="hidden" />
 
             {minimizada ? (
@@ -527,6 +604,43 @@ export function LaLlamada({
                 </div>
             ) : (
                 <div className="relative flex flex-col gap-4 p-4">
+                    {/* La imagen, solo cuando la hay. Sin ella la tarjeta es la
+                        de siempre: una llamada de voz no tiene por qué
+                        reservar sitio para un recuadro negro. */}
+                    {hayImagen ? (
+                        <div className="relative overflow-hidden rounded-lg bg-zinc-900">
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                className={cn(
+                                    "aspect-video w-full",
+                                    hayVideoRemoto ? "" : "invisible",
+                                )}
+                            />
+                            {!hayVideoRemoto ? (
+                                <span className="absolute inset-0 flex items-center justify-center text-xs text-zinc-400">
+                                    {conQuien} tiene la cámara apagada
+                                </span>
+                            ) : null}
+                            {/* El recuadro propio, pequeño y en una esquina.
+                                Va en espejo porque uno se ve como en un
+                                espejo; lo que se comparte NO, o el texto de la
+                                pantalla saldría al revés. */}
+                            {medios.local ? (
+                                <video
+                                    ref={propioRef}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    className={cn(
+                                        "absolute bottom-2 right-2 h-16 w-24 rounded border border-zinc-700 bg-zinc-950 object-cover",
+                                        medios.compartiendo ? "" : "-scale-x-100",
+                                    )}
+                                />
+                            ) : null}
+                        </div>
+                    ) : null}
                     {/* `gap` y no `space-y-*`: el botón de plegar va fuera del
                         flujo, y `space-y-*` le reparte margen igual — que es lo
                         que descuadra la tarjeta ocho píxeles.
@@ -590,21 +704,34 @@ export function LaLlamada({
                         ) : (
                             <>
                                 {estado === "hablando" && (
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-12 w-12 rounded-full"
-                                        onClick={silenciar}
-                                        aria-label={
-                                            callado ? "Activar micrófono" : "Silenciar"
-                                        }
-                                    >
-                                        {callado ? (
-                                            <MicOff className="h-5 w-5" />
-                                        ) : (
-                                            <Mic className="h-5 w-5" />
-                                        )}
-                                    </Button>
+                                    <>
+                                        <MandoDeLlamada
+                                            encendido={medios.micEncendido}
+                                            onClick={medios.alternarMic}
+                                            rotuloEncendido="Silenciar"
+                                            rotuloApagado="Activar el micrófono"
+                                            Icono={Mic}
+                                            IconoApagado={MicOff}
+                                        />
+                                        <MandoDeLlamada
+                                            encendido={medios.camaraEncendida}
+                                            onClick={() => void medios.alternarCamara()}
+                                            rotuloEncendido="Apagar la cámara"
+                                            rotuloApagado="Encender la cámara"
+                                            Icono={Video}
+                                            IconoApagado={VideoOff}
+                                            ocupado={medios.pidiendo}
+                                        />
+                                        <MandoDeLlamada
+                                            encendido={medios.compartiendo}
+                                            onClick={() => void medios.alternarPantalla()}
+                                            rotuloEncendido="Dejar de compartir"
+                                            rotuloApagado="Compartir la pantalla"
+                                            Icono={MonitorUp}
+                                            IconoApagado={ScreenShare}
+                                            alReves
+                                        />
+                                    </>
                                 )}
                                 <Button
                                     variant="destructive"
@@ -621,5 +748,63 @@ export function LaLlamada({
                 </div>
             )}
         </div>
+    );
+}
+
+/**
+ * Un mando de la llamada: encendido, apagado, y lo que dice cada uno.
+ *
+ * Los tres estados de color no son decoración: el micro y la cámara **apagados
+ * se pintan en rojo** porque apagados es el estado del que hay que acordarse —
+ * el clásico «llevo dos minutos hablando en silencio»—; compartir es al revés,
+ * porque lo que hay que notar es que se está compartiendo.
+ */
+function MandoDeLlamada({
+    encendido,
+    onClick,
+    rotuloEncendido,
+    rotuloApagado,
+    Icono,
+    IconoApagado,
+    ocupado = false,
+    alReves = false,
+}: {
+    encendido: boolean;
+    onClick: () => void;
+    rotuloEncendido: string;
+    rotuloApagado: string;
+    Icono: typeof Mic;
+    IconoApagado: typeof MicOff;
+    ocupado?: boolean;
+    alReves?: boolean;
+}) {
+    const rotulo = encendido ? rotuloEncendido : rotuloApagado;
+    const Pintar = encendido ? Icono : IconoApagado;
+    return (
+        <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+                "h-12 w-12 rounded-full",
+                alReves
+                    ? encendido
+                        ? "bg-sky-600 text-white hover:bg-sky-700"
+                        : "border border-border bg-background hover:bg-muted"
+                    : encendido
+                      ? "border border-border bg-background hover:bg-muted"
+                      : "bg-red-600 text-white hover:bg-red-700",
+            )}
+            onClick={onClick}
+            disabled={ocupado}
+            aria-pressed={encendido}
+            aria-label={rotulo}
+            title={rotulo}
+        >
+            {ocupado ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+                <Pintar className="h-5 w-5" />
+            )}
+        </Button>
     );
 }

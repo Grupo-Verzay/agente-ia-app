@@ -3421,6 +3421,291 @@ arriba y hacia la izquierda, fuera de la pantalla. El banco lo prueba con un
 móvil de 390×667.
 
 
+## Videollamada y SALAS: la misma llamada, más gente y más pistas
+
+La llamada de voz del directo pasa a llevar **video y pantalla compartida**, y
+al lado hay **salas de hasta cuatro** con enlace público. Son dos caminos a
+propósito, y conviene saber por qué:
+
+| | cómo empieza | cuánta gente | para qué |
+| --- | --- | --- | --- |
+| **la llamada** | suena en la otra punta | dos | «te llamo ahora» |
+| **la sala** | se entra por un enlace | hasta cuatro | una reunión, con gente de fuera si hace falta |
+
+Lo que **no** se duplica es lo que se rompería al duplicarse: el micrófono, la
+cámara y la pantalla son `hooks/useMediosDeLlamada` en las dos, y el esperar a
+ICE es `lib/webrtc-del-navegador.ts`. Lo que sí es distinto es la
+**señalización**, y eso no es repetición: una conexión contra seis son dos
+problemas distintos (ver abajo).
+
+### La idea de la que cuelga TODO: las pistas se negocian UNA vez
+
+Es la decisión que hace posible el resto, y deshacerla rompe las dos pantallas
+a la vez.
+
+> Cada conexión abre **un transceptor de audio y uno de video en `sendrecv`
+> desde el principio**, haya o no algo que poner encima. A partir de ahí,
+> encender la cámara, callarse y compartir la pantalla son `replaceTrack` y
+> `enabled`: cosas que pasan **dentro** de una conexión ya negociada y que no
+> le dicen nada a nadie.
+
+La señalización va por la base con un reloj —el socket de tiempo real es del
+backend y desde la App solo se escucha, la misma razón de siempre—, así que una
+renegociación cuesta una vuelta entera del reloj. Con la alternativa —añadir
+una pista al compartir pantalla— habría que renegociar **las seis conexiones**
+de una sala de cuatro cada vez que alguien pulsa «compartir»: varios segundos
+de corte, seis sitios donde fallar, y un botón que «a veces no va».
+
+Tres cosas que salen de ahí y hay que mantener:
+
+1. **El orden de los transceptores es audio y luego video, SIEMPRE.** Es el
+   orden de las líneas `m=` del SDP, y en una malla las conexiones se montan en
+   momentos distintos con dispositivos distintos: si una punta pusiera el video
+   primero, esa conexión negociaría el video de uno contra el audio del otro.
+2. **Quien contesta pone sus transceptores en `sendrecv` DESPUÉS de aplicar la
+   oferta** (`engancharALaConexion`). Sin esa línea, quien entra sin cámara
+   negocia el video en `recvonly` y **su botón de cámara deja de funcionar para
+   toda la llamada** — o sea, justo la mitad de la gente.
+3. **El stream de lo que llega se construye a mano en `ontrack`**, nunca desde
+   `ev.streams[0]`. `addTransceiver` no asocia ningún stream, así que
+   `ev.streams` llega **vacío**: con el código de antes el recuadro se quedaría
+   negro y el audio mudo **con la conexión perfectamente establecida**, que es
+   el peor fallo posible porque todo lo demás dice que va bien.
+
+Y el precio, que se dice porque se nota: **mientras se comparte pantalla no se
+manda la cámara.** Es la misma pista ocupada por otra cosa. Al dejar de
+compartir vuelve sola.
+
+### El micro se silencia; la cámara se SUELTA
+
+No es un descuido, y conviene no «arreglarlo» por consistencia:
+
+- **El micro** va con `enabled = false` y la pista se queda viva. Callarse es
+  momentáneo y se deshace a media frase; soltar el micro y volver a pedirlo
+  metería medio segundo justo cuando alguien quiere interrumpir.
+- **La cámara** se para de verdad. Apagarla es una decisión que dura, y lo que
+  la gente espera al pulsarlo es que **el piloto del portátil se apague**. Con
+  `enabled = false` el piloto sigue encendido y se manda una imagen negra:
+  desde fuera, la App parece estar mirando igual.
+
+De ahí sale otra asimetría que hay que conocer: **apagar la cámara SÍ se nota
+en la otra punta y callarse NO.** La pista de video se queda en `muted` y eso
+viaja por la conexión; el micro silenciado sigue mandando pista, con silencio
+dentro. Por eso el icono de «callado» viaja **por el reloj**, en tres booleanos
+que van dentro del latido, y el «cámara apagada» se lee de la pista al
+instante. Son dos fuentes para dos preguntas distintas, no una duplicada.
+
+### La MALLA: seis conexiones, y quién ofrece no puede decidirlo el reloj
+
+Sin servidor de video, cada persona habla con cada una de las demás. Con cuatro
+son **seis** conexiones y cada una sube **tres copias** de su cámara. De ahí
+sale el tope, que no es un número redondo elegido a ojo:
+
+| personas | conexiones | lo que SUBE cada una |
+| --- | --- | --- |
+| 2 | 1 | 1 copia |
+| 3 | 3 | 2 copias |
+| 4 | **6** | **3 copias** |
+| 5 | 10 | 4 copias |
+
+Subir es lo que se rompe primero —una conexión doméstica tiene mucha menos
+subida que bajada— y a la cuarta copia ya se piden del orden de 2 Mbps de
+subida. **Pasar de cuatro no es subir una constante: es poner una SFU**, que es
+justo lo que esto no tiene.
+
+Y la pregunta entera de una malla: **de cada pareja tiene que ofrecer
+exactamente uno**, sin que se pongan de acuerdo antes. Si ofrecen los dos, las
+ofertas chocan y no se conecta; si no ofrece ninguno, tampoco.
+
+> Lo decide `debeOfrecer`, comparando los ids: **ofrece el menor**. Puro, sin
+> reloj y sin orden de llegada — que es lo que aquí no se puede usar: dos
+> personas que entran en la misma vuelta se descubren cada una en su propio
+> ciclo, y con «ofrece el que llegó antes» las dos podrían creerse la segunda.
+
+El banco lo prueba simulando la sala entera y **contando**: cuatro personas,
+seis ofertas, ninguna repetida. Es de las pocas cosas que un banco caza y una
+prueba a mano no — si la malla se monta mal también hay imagen, solo que de
+tres de los cuatro.
+
+### El tope de cuatro lo sostiene un CANDADO, y el `WHERE` no bastaba
+
+Esto costó una vuelta y es el hallazgo que más lejos habría llegado sin banco.
+
+La primera versión metía el `COUNT` dentro del `WHERE` del propio `INSERT`,
+razonando que así lo serializaba Postgres. **No lo hace**: en `READ COMMITTED`
+cada sentencia toma su propia foto al empezar, así que ocho entradas
+simultáneas ven las ocho la misma sala medio vacía. Medido contra Postgres:
+**entraban seis de ocho**.
+
+Lo que funciona es un `SELECT … FOR UPDATE` sobre la fila de la sala
+(`candadoDeLaSala`) antes de contar. Las entradas de esa sala se ponen en fila
+india y las de las demás ni se rozan.
+
+Y no es un detalle: **colar a un quinto corta la reunión para TODOS**, no solo
+para el que sobra. El banco lo ejerce por los dos caminos —ocho entrando a la
+vez, y cuatro admisiones simultáneas con un solo sitio libre— y comprueba el
+número final, no el mensaje.
+
+De paso salió otro que el banco también cazó: `dejarPasar` contaba **antes** de
+mirar si esa persona ya había entrado, así que un doble clic sobre alguien ya
+admitido contestaba «la reunión está llena» y mandaba a buscar un problema que
+no existe. Cero filas tocadas son dos cosas distintas —«ya estaba» y «no
+cabe»— y hay que mirar cuál.
+
+### El buzón se vacía al LEERLO, y en una sola sentencia
+
+`sala_senales` es un buzón: se deja una oferta para alguien, esa persona la lee
+**y la fila desaparece** (`DELETE … RETURNING`). Dos motivos, y el segundo
+manda:
+
+1. Sin borrar, cada vuelta del reloj traería la misma oferta y se volvería a
+   aplicar sobre una conexión ya negociada.
+2. **Un SDP lleva dentro las direcciones IP de quien lo mandó.** Es la misma
+   razón por la que `llamadas_de_voz` vacía sus dos columnas al terminar: eso
+   es la red de casa de alguien.
+
+Y lo de la **sentencia única** no es estilo: con un `SELECT` y luego un
+`DELETE`, dos vueltas que se solapen —una pestaña lenta, un reintento— se
+llevan las dos la misma oferta. El banco lanza dos lecturas en paralelo sobre
+diez señales y comprueba que salen diez y **ninguna dos veces**.
+
+### El ENLACE deja llamar a la puerta, no entrar
+
+La ruta `/reunion/<codigo>` es pública —está en `publicRoutes`— porque se le
+pasa a alguien que no tiene cuenta. Ser pública **no la abre**:
+
+> **Tener el enlace deja llamar a la puerta. Quien pasa lo decide alguien que
+> ya está dentro.** Eso es lo que permite pegar el enlace en un correo sin que
+> el correo sea la llave.
+
+Quién es cada uno lo decide `quienEsEnLaSala`, el **único** sitio donde se
+resuelve una identidad aquí dentro:
+
+| quién | con qué se identifica | cómo entra |
+| --- | --- | --- |
+| del equipo | la sesión, y **pertenecer al canal** | directo |
+| de fuera | un **token** que le dio el servidor al llamar a la puerta | cuando le dejan |
+
+Cinco cosas que hay que mantener:
+
+1. **El token lo genera el SERVIDOR y nunca llega del navegador como
+   identidad.** Ninguna acción acepta un `participante` suelto en los
+   parámetros: el `deId` de una señal sale de la sesión o del token. Si llegara
+   de fuera, cualquiera dentro de una sala podría dejar una oferta firmada con
+   el id de otro.
+2. **La pertenencia se vuelve a comprobar en CADA vuelta**, no solo al entrar:
+   a alguien se le puede sacar de un canal mientras la reunión sigue abierta.
+3. **Quien tiene cuenta pero NO pertenece al canal cae en la puerta**, como un
+   desconocido. No es un despiste: dejarlo en un «no autorizado» sería un
+   callejón sin salida cuando la reunión es justamente para él.
+4. **El código son 18 bytes en `base64url`** (144 bits). `base64url` y no
+   `base64` porque esto va en una URL y un `+` o un `/` se escapan por el
+   camino.
+5. **La lista de espera solo la ve quien puede abrirla.** Enseñársela a todos
+   convierte una decisión en un espectáculo, y da los nombres de gente de fuera
+   a quien no tiene por qué verlos.
+
+Y **quién abre la puerta**: el anfitrión **y cualquiera del equipo que ya esté
+dentro**. La segunda mitad no afloja nada —para estar dentro con cuenta hay que
+pertenecer al canal— y evita un callejón que se daría todos los días: si el
+anfitrión cierra su pestaña, sus invitados se quedarían esperando para siempre
+mirando un mensaje que no cambia. **Un invitado no abre la puerta nunca**: lo
+que le dejó entrar fue una decisión de alguien del equipo, y no se hereda.
+
+**El enlace caduca siempre.** La duración sale de una lista cerrada
+(`DURACIONES`), y lo que no encaje cae en la de por defecto —**nunca en «no
+caduca»**: equivocarse hacia un día de más es un enlace que hay que revocar a
+mano; equivocarse hacia el infinito es un enlace que nadie sabe que sigue
+abierto. Y **revocar echa a quien esté dentro**, en la misma transacción:
+cerrar el enlace dejando dentro a la gente que ya entró sería media
+revocación, porque quien preocupa es justo quien está dentro ahora mismo.
+
+### La puerta de una sala es PERTENECER, no poder leer
+
+La misma de siempre, y por eso está escrita una sola vez (`elCanal`): un
+administrador lee los directos de su cuenta —decisión tomada a propósito— y eso
+no le deja abrir una reunión dentro de la conversación de otros dos ni, mucho
+menos, repartir un enlace público que lleve a ella.
+
+Y el botón de reunión sale en **cualquier canal**, no solo en un directo: es la
+diferencia con la llamada de al lado, que necesita «el otro». Una reunión es un
+sitio al que se entra, así que un canal de área es justo donde tiene sentido.
+
+### La rejilla declara FILAS, y eso lo cazó una medida
+
+Con tres o cuatro personas, los recuadros iban en `aspect-video` —altura atada
+al ancho— y la rejilla solo declaraba columnas. Medido en Chromium: con cuatro
+a 1440×900 cada recuadro salía de **704×396**, y dos filas son **792 px**, más
+de lo que hay entre la cabecera y los mandos. Los dos de abajo caían **por
+debajo de la barra de botones** y había que desplazarse dentro de la rejilla
+para verlos.
+
+No se ve probando con dos personas, que es como se prueba esto.
+
+`laRejilla` devuelve **columnas y filas**, la rejilla va con `h-full` y su caja
+con `overflow-hidden` —no `overflow-y-auto`: una videollamada en la que hay que
+bajar para ver al cuarto es una videollamada de tres—. Medido después a
+1440×900, 1280×800, 1024×768 y 390×844, con dos, tres y cuatro: **los cuatro
+recuadros caben siempre** por encima de los mandos, y la página no se desplaza
+ni a lo alto ni a lo ancho.
+
+### Los relojes, y por qué son tres números distintos
+
+| reloj | cada | dónde corre |
+| --- | --- | --- |
+| el oyente de llamadas | 3 s | **todas** las pantallas, cuelga del layout |
+| dentro de una sala | 2 s | solo con una reunión abierta |
+| esperando en la puerta | 4 s | solo mientras se espera |
+
+El de la sala es más corto que el de las llamadas porque lo que espera es
+**entrar**: una oferta que tarda dos vueltas en cruzar son seis segundos
+mirando un recuadro negro. Y se puede permitir porque **no cuelga del layout**:
+lo paga quien está en una reunión, no toda la plataforma.
+
+El de la puerta es más lento a propósito: lo único que espera es que alguien le
+abra, y puede no entrar nunca. Con el mismo ritmo que dentro, una pestaña
+olvidada en la sala de espera costaría lo mismo que una reunión.
+
+Y el latido es **el mismo viaje**: qué manda cada uno va dentro de la sentencia
+que ya escribía la marca de presencia. En una acción aparte serían el doble de
+peticiones en el camino más caliente de esta pantalla, por persona y por vuelta.
+
+### Sin TURN, un porcentaje de estas reuniones NO conecta
+
+Es lo mismo que ya decía la llamada de voz y aquí pesa más, porque son seis
+conexiones y basta con que **una** pareja no encuentre ruta para que uno de los
+cuatro se quede en negro para todos los demás.
+
+`losServidoresIce` es el de siempre y lee las **mismas tres variables**
+(`TURN_URL`, `TURN_USER`, `TURN_PASSWORD`). Nada de esto es código nuevo.
+
+Dos cosas del reparto de credenciales:
+
+1. **Las credenciales se resuelven en el SERVIDOR** y viajan dentro de la
+   vuelta del reloj, nunca en una `NEXT_PUBLIC_`. Con ellas en el paquete del
+   navegador, cualquiera usaría el relevo para su propio tráfico.
+2. **Solo salen hacia quien ya está ADMITIDO en una sala viva.** Van dentro del
+   latido y no en una acción propia justamente por eso: esa vuelta acaba de
+   comprobar que esa persona está dentro. En una acción suelta habría que
+   volver a comprobarlo, y ese es el sitio donde se olvida.
+
+Y cuando una pareja no conecta **se dice con sus palabras** —«No se pudo
+conectar con esta persona»— y se escribe en la consola con la pista delante.
+«Se cortó» mandaría a buscar el fallo donde no está: esto es una ruta que no
+existe entre dos redes.
+
+### Lo que esto NO tiene, y es a propósito
+
+Sin grabación, sin fondo desenfocado, sin chat dentro de la sala —el chat del
+equipo está al lado— y **sin más de cuatro**. El audio del sistema al compartir
+pantalla tampoco: sería una segunda pista de audio, o sea renegociar las seis
+conexiones; el micro sigue sonando, que es lo que hace falta para explicar lo
+que se está enseñando.
+
+Y **la puerta de quién puede llamar sigue siendo la de escribir**, no la de
+leer: meterse en la conversación de otros dos no es supervisar, y una reunión
+lo es mucho más que un mensaje.
+
 ## La barra de escribir es UNA, y lo que la forma vive fuera de las dos pantallas
 
 Chats y el chat de equipo tenían dos barras distintas para lo mismo. La del

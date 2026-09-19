@@ -28,6 +28,7 @@ import {
     Video,
     X,
     Users,
+    Video as VideoCamara,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -136,6 +137,7 @@ import { avisarDeQueSeLeyo, avisarDelCanalAbierto } from "@/hooks/useSinLeerDelE
 // día que se afine una de las dos barras la otra se queda atrás, y eso no se
 // ve como un error: se ve como dos pantallas de la misma plataforma que no se
 // parecen.
+import { AbrirReunion } from "@/components/video/AbrirReunion";
 import { EmojiPickerPanel } from "@/components/shared/EmojiPickerPanel";
 import { FormatoDeTexto } from "@/components/shared/FormatoDeTexto";
 import { TextoConFormato } from "@/components/shared/TextoConFormato";
@@ -1724,6 +1726,7 @@ function BarraDeCanales({
     onRefrescar: () => void;
 }) {
     const [creando, setCreando] = useState(false);
+    const [reunion, setReunion] = useState(false);
 
     const areas = datos.canales.filter((c) => c.tipo !== "directo");
     const directos = datos.canales.filter((c) => c.tipo === "directo");
@@ -1767,11 +1770,34 @@ function BarraDeCanales({
                         }
                         aria-label={`Llamar a ${canal.nombre}`}
                         title={`Llamar a ${canal.nombre}`}
-                        className="mr-2 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40"
+                        className="shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40"
                     >
                         <Phone className="h-4 w-4" />
                     </button>
                 )}
+                {/* La reunión, en CUALQUIER canal y no solo en un directo.
+                  *
+                  * Es la diferencia con la llamada de al lado: una llamada de
+                  * uno a uno necesita «el otro» —por eso solo sale en un
+                  * directo—, y una reunión es un sitio al que se entra, así que
+                  * un canal de área es justo donde tiene sentido. La puerta de
+                  * verdad está en la acción: comprueba que se PERTENECE al
+                  * canal, no que se pueda leer. */}
+                <button
+                    type="button"
+                    onClick={() => setReunion(true)}
+                    aria-label={`Abrir una reunión en ${canal.nombre}`}
+                    title="Reunión de video"
+                    className="mr-2 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-sky-950/40"
+                >
+                    <VideoCamara className="h-4 w-4" />
+                </button>
+                <AbrirReunion
+                    canalId={canal.id}
+                    nombreDelCanal={canal.nombre}
+                    abierto={reunion}
+                    onAbierto={setReunion}
+                />
             </div>
 
             {abierta && (
