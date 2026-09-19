@@ -38,6 +38,15 @@ interface EmojiPickerPanelProps {
     onSelect: (emoji: string) => void;
 }
 
+/**
+ * El selector de emojis, compartido por las dos barras de escribir.
+ *
+ * El `max-w-full` no es adorno: el panel mide 300 px y el chat del equipo vive
+ * en un lateral que en su ancho estrecho mide 288. Sin él se sale por el borde
+ * derecho de la pantalla —que es donde vive ese panel— y la última columna de
+ * emojis no se puede alcanzar. Con él se encoge y la rejilla reparte lo que
+ * haya.
+ */
 export function EmojiPickerPanel({ onSelect }: EmojiPickerPanelProps) {
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState(0);
@@ -51,7 +60,7 @@ export function EmojiPickerPanel({ onSelect }: EmojiPickerPanelProps) {
     const display = filtered ?? CATEGORIES[activeCategory].emojis;
 
     return (
-        <div className="flex flex-col w-[300px] h-[350px] bg-background border border-border rounded-xl shadow-xl overflow-hidden">
+        <div className="flex flex-col w-[300px] max-w-full h-[350px] bg-background border border-border rounded-xl shadow-xl overflow-hidden">
             {/* Search */}
             <div className="p-2 border-b border-border shrink-0">
                 <Input
