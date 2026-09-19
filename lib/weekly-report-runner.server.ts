@@ -1,0 +1,395 @@
+import "server-only";
+
+/**
+ * El informe semanal: recoger las metricas, redactarlo y mandarlo por WhatsApp.
+ *
+ * ## Por que vive aqui y no en `actions/weekly-report-actions.ts`
+ *
+ * Porque **una accion es un endpoint**. Aquel fichero tiene pantalla detras
+ * —`WeeklyReportsView` lista, genera y borra informes—, asi que sigue siendo
+ * `"use server"`; y mientras estas dos funciones estuvieran exportadas desde
+ * alli, cualquiera con una sesion las alcanzaba desde el navegador:
+ *
+ * - `generateWeeklyReportForUser(userId)` acepta el id que le manden, asi que
+ *   con el de otra cuenta le leia las metricas, **le gastaba sus creditos de
+ *   IA** redactando el resumen, le escribia una fila y le mandaba un WhatsApp.
+ * - `runWeeklyReportForAllUsers()` hace eso mismo para la plataforma entera,
+ *   con un clic y las veces que uno quisiera.
+ *
+ * Ponerles la guarda de siempre no valia: la segunda la llama un cron, y
+ * **desde un cron no hay sesion** — `currentUser()` devuelve vacio. Eso es lo
+ * que dejo los avisos de Waha callados durante dias sin un solo error en los
+ * registros. La salida es la de `lib/cobros-runner.ts`: **un despachador del
+ * servidor no pasa por una accion**. Aqui no hay endpoint que cerrar porque no
+ * hay endpoint.
+ *
+ * `generateWeeklyReportForUser` la siguen llamando dos sitios, y cada uno pone
+ * SU id: el cron, con el de cada cuenta activa, y `generateMyWeeklyReport`, que
+ * resuelve `currentUser()` y pasa el suyo. Ese es el reparto de siempre —quien
+ * decide de quien es el informe es la accion, no el parametro—.
+ */
+
+
+import { SIN_GRUPOS, sinGruposSql } from '@/lib/conversaciones-de-grupo';
+import { randomUUID } from "crypto";
+import { db } from "@/lib/db";
+import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
+import { normalizeChatHistoryRemoteJid } from "@/lib/chat-history/build-session-id";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type WeeklyMetrics = {
+    periodStart: string;
+    periodEnd: string;
+    totalLeads: number;
+    newLeads: number;
+    leadsByStatus: Record<string, number>;
+    leadsByScore: { sinScore: number; bajo: number; medio: number; moderado: number; alto: number; listo: number };
+    avgScore: number | null;
+    topLeads: { name: string; score: number; status: string | null; phone: string }[];
+    followUpsSent: number;
+    followUpsPending: number;
+    conversions: number;
+    registrosByTipo: Record<string, number>;
+};
+
+export type WeeklyReportItem = {
+    id: string;
+    periodStart: string;
+    periodEnd: string;
+    summary: string;
+    metrics: WeeklyMetrics;
+    sentAt: string | null;
+    createdAt: string;
+};
+
+// ─── Collect metrics ──────────────────────────────────────────────────────────
+
+async function collectMetrics(userId: string, from: Date, to: Date): Promise<WeeklyMetrics> {
+    const [sessions, scores, newSessions, followUps, registros] = await Promise.all([
+        db.session.findMany({
+            where: { userId, ...SIN_GRUPOS },
+            select: { id: true, pushName: true, remoteJid: true, leadStatus: true },
+        }),
+        db.$queryRaw<{ id: number; lead_score: number | null }[]>`
+            SELECT id, lead_score FROM "Session" s WHERE s."userId" = ${userId} ${sinGruposSql('s')}
+        `,
+        db.session.count({ where: { userId, ...SIN_GRUPOS, createdAt: { gte: from, lte: to } } }),
+        db.crmFollowUp.findMany({
+            where: { userId, createdAt: { gte: from, lte: to } },
+            select: { status: true },
+        }),
+        db.registro.findMany({
+            where: { session: { userId }, createdAt: { gte: from, lte: to }, tipo: { not: "REPORTE" } },
+            select: { tipo: true },
+        }),
+    ]);
+
+    const scoreMap = new Map(scores.map((s) => [s.id, s.lead_score]));
+
+    const leadsByStatus: Record<string, number> = {
+        FRIO: 0, TIBIO: 0, CALIENTE: 0, FINALIZADO: 0, DESCARTADO: 0, SIN_CLASIFICAR: 0,
+    };
+    const leadsByScore = { sinScore: 0, bajo: 0, medio: 0, moderado: 0, alto: 0, listo: 0 };
+    const scoredSessions: number[] = [];
+
+    for (const s of sessions) {
+        const st = s.leadStatus ?? "SIN_CLASIFICAR";
+        leadsByStatus[st] = (leadsByStatus[st] ?? 0) + 1;
+
+        const leadScore = scoreMap.get(s.id) ?? null;
+        if (leadScore === null) {
+            leadsByScore.sinScore++;
+        } else {
+            scoredSessions.push(leadScore);
+            if (leadScore <= 25)      leadsByScore.bajo++;
+            else if (leadScore <= 50) leadsByScore.medio++;
+            else if (leadScore <= 75) leadsByScore.moderado++;
+            else if (leadScore <= 90) leadsByScore.alto++;
+            else                      leadsByScore.listo++;
+        }
+    }
+
+    const avgScore = scoredSessions.length
+        ? Math.round(scoredSessions.reduce((a, b) => a + b, 0) / scoredSessions.length)
+        : null;
+
+    const topLeads = sessions
+        .filter((s) => scoreMap.get(s.id) !== null && scoreMap.get(s.id) !== undefined)
+        .sort((a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0))
+        .slice(0, 5)
+        .map((s) => ({
+            name: s.pushName,
+            score: scoreMap.get(s.id)!,
+            status: s.leadStatus,
+            phone: s.remoteJid.replace(/@.*/, ""),
+        }));
+
+    const followUpsSent = followUps.filter((f) => f.status === "SENT").length;
+    const followUpsPending = followUps.filter((f) => f.status === "PENDING").length;
+    const conversions = leadsByStatus["FINALIZADO"] ?? 0;
+
+    const registrosByTipo: Record<string, number> = {};
+    for (const r of registros) {
+        registrosByTipo[r.tipo] = (registrosByTipo[r.tipo] ?? 0) + 1;
+    }
+
+    return {
+        periodStart: from.toISOString(),
+        periodEnd: to.toISOString(),
+        totalLeads: sessions.length,
+        newLeads: newSessions,
+        leadsByStatus,
+        leadsByScore,
+        avgScore,
+        topLeads,
+        followUpsSent,
+        followUpsPending,
+        conversions,
+        registrosByTipo,
+    };
+}
+
+// ─── AI narrative ─────────────────────────────────────────────────────────────
+
+const REPORT_PROMPT = `Eres un asistente de ventas. Genera un resumen ejecutivo semanal en español, amigable y orientado a acción, basado en estas métricas de CRM. Máximo 3 párrafos cortos. Destaca lo más importante, tendencias y una recomendación concreta para la próxima semana. No uses listas, escribe en prosa fluida.`;
+
+async function generateNarrative(userId: string, metrics: WeeklyMetrics): Promise<string> {
+    const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { defaultProviderId: true, defaultAiModelId: true },
+    });
+    if (!user?.defaultProviderId) return formatFallbackSummary(metrics);
+
+    const [config, provider, model] = await Promise.all([
+        db.userAiConfig.findFirst({
+            where: { userId, providerId: user.defaultProviderId, isActive: true },
+            select: { apiKey: true },
+        }),
+        db.aiProvider.findUnique({ where: { id: user.defaultProviderId }, select: { name: true } }),
+        user.defaultAiModelId
+            ? db.aiModel.findUnique({ where: { id: user.defaultAiModelId }, select: { name: true } })
+            : null,
+    ]);
+
+    if (!config?.apiKey || !provider?.name) return formatFallbackSummary(metrics);
+
+    const modelName = model?.name ?? (provider.name === "google" ? "gemini-2.0-flash" : "gpt-4o-mini");
+    const content = `${REPORT_PROMPT}\n\nMétricas:\n${JSON.stringify(metrics, null, 2)}`;
+
+    try {
+        if (provider.name === "google") {
+            const { GoogleGenAI } = await import("@google/genai");
+            const ai = new GoogleGenAI({ apiKey: config.apiKey });
+            const res = await ai.models.generateContent({ model: modelName, contents: content });
+            return res.text?.trim() || formatFallbackSummary(metrics);
+        }
+        const OpenAI = (await import("openai")).default;
+        const client = new OpenAI({ apiKey: config.apiKey });
+        const res = await client.chat.completions.create({
+            model: modelName,
+            messages: [{ role: "user", content }],
+            max_completion_tokens: 500,
+        });
+        return res.choices[0]?.message?.content?.trim() || formatFallbackSummary(metrics);
+    } catch {
+        return formatFallbackSummary(metrics);
+    }
+}
+
+function formatFallbackSummary(m: WeeklyMetrics): string {
+    const lines = [
+        `Semana del ${new Date(m.periodStart).toLocaleDateString("es-ES")} al ${new Date(m.periodEnd).toLocaleDateString("es-ES")}.`,
+        `Total de leads: ${m.totalLeads} (${m.newLeads} nuevos esta semana).`,
+        m.avgScore !== null ? `Score promedio: ${m.avgScore}/100.` : "Sin leads puntuados aún.",
+        `Leads calientes: ${m.leadsByStatus["CALIENTE"] ?? 0}. Finalizados: ${m.conversions}.`,
+        `Follow-ups enviados: ${m.followUpsSent}.`,
+    ];
+    return lines.join(" ");
+}
+
+// ─── WhatsApp send ────────────────────────────────────────────────────────────
+
+function formatWhatsAppReport(metrics: WeeklyMetrics, summary: string): string {
+    const opts: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short" };
+    const from = new Date(metrics.periodStart).toLocaleDateString("es-ES", opts);
+    const to   = new Date(metrics.periodEnd).toLocaleDateString("es-ES", { ...opts, year: "numeric" });
+    const sep  = "--------•--------•--------•--------";
+
+    const scored = metrics.totalLeads - metrics.leadsByScore.sinScore;
+    const scoreSection = scored > 0
+        ? [
+            `🟢 Alto/Listo: ${metrics.leadsByScore.alto + metrics.leadsByScore.listo}`,
+            `🟡 Moderado:   ${metrics.leadsByScore.moderado}`,
+            `🔴 Bajo/Medio: ${metrics.leadsByScore.bajo + metrics.leadsByScore.medio}`,
+            `⚪ Sin puntuar: ${metrics.leadsByScore.sinScore}`,
+          ].join("\n")
+        : "⚪ Sin leads puntuados aún";
+
+    const lines = [
+        `📊 *REPORTE SEMANAL*`,
+        `📅 ${from} – ${to}`,
+        sep,
+    ];
+
+    lines.push(
+        `📈 *MÉTRICAS CLAVE*`,
+        `👥 Total leads: *${metrics.totalLeads}* (${metrics.newLeads} nuevos esta semana)`,
+        `❄️ Fríos: *${metrics.leadsByStatus["FRIO"] ?? 0}*`,
+        `🌡️ Tibios: *${metrics.leadsByStatus["TIBIO"] ?? 0}*`,
+        `🔥 Calientes: *${metrics.leadsByStatus["CALIENTE"] ?? 0}*`,
+        `✅ Finalizados: *${metrics.conversions}*`,
+        `📤 Follow-ups enviados: *${metrics.followUpsSent}*`,
+        sep,
+        `📊 *PUNTUACIÓN*`,
+        scoreSection,
+    );
+
+    const TIPO_CONFIG: Record<string, { emoji: string; label: string }> = {
+        PAGO:      { emoji: "💰", label: "Pagos" },
+        CITA:      { emoji: "📅", label: "Citas" },
+        RESERVA:   { emoji: "🏨", label: "Reservas" },
+        SOLICITUD: { emoji: "📝", label: "Solicitudes" },
+        RECLAMO:   { emoji: "😤", label: "Reclamos" },
+        PEDIDO:    { emoji: "📦", label: "Pedidos" },
+        PRODUCTO:  { emoji: "🛍️", label: "Productos" },
+    };
+
+    const actividadLines = Object.entries(metrics.registrosByTipo)
+        .filter(([tipo, count]) => count > 0 && TIPO_CONFIG[tipo])
+        .map(([tipo, count]) => `${TIPO_CONFIG[tipo].emoji} ${TIPO_CONFIG[tipo].label}: *${count}*`);
+
+    if (actividadLines.length > 0) {
+        lines.push(sep, `📋 *ACTIVIDAD*`, ...actividadLines);
+    }
+
+    lines.push(
+        sep,
+        `_🤖 Generado por tu Agente IA_`,
+    );
+
+    return lines.join("\n");
+}
+
+async function getUserDispatchConfig(userId: string) {
+    const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { notificationNumber: true },
+    });
+    if (!user?.notificationNumber) return null;
+
+    // El reporte de un negocio sale por SU PROPIA línea de WhatsApp y por ninguna
+    // otra: es la cuenta del dueño la que le reporta a su equipo.
+    //
+    // Antes, si su línea no estaba conectada en ese momento, el reporte salía por
+    // el enrutado de notificación del sistema y terminaba llegando desde la línea
+    // de Verzay. Al que lo recibe le aparece un número ajeno mandándole las cifras
+    // de su negocio: no sabe quién le escribe, y las cifras de una empresa salen
+    // por el número de otra.
+    //
+    // Sin línea propia disponible no se envía. Es un resumen semanal, no un aviso
+    // urgente: queda guardado en la App y se ve ahí.
+    const sender = await resolveWhatsAppDispatcherLine({
+        ownerUserId: userId,
+        includeAdminFallback: false,
+    });
+    console.log("[weeklyReport] dispatch config:", JSON.stringify({
+        notificationNumber: user.notificationNumber,
+        senderInstance: sender?.instanceName ?? null,
+    }));
+    if (!sender) return null;
+    return {
+        notificationNumber: user.notificationNumber,
+        dispatcher: sender,
+    };
+}
+
+// ─── Core generator ───────────────────────────────────────────────────────────
+
+export async function generateWeeklyReportForUser(userId: string): Promise<{
+    success: boolean;
+    reportId?: string;
+    sent?: boolean;
+    message?: string;
+}> {
+    const to   = new Date();
+    const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    console.log("[weeklyReport] collecting metrics for", userId);
+    const metrics  = await collectMetrics(userId, from, to);
+    console.log("[weeklyReport] metrics collected, generating narrative");
+    const summary  = await generateNarrative(userId, metrics);
+    console.log("[weeklyReport] narrative ready, saving to DB");
+
+    const reportId = randomUUID();
+    await db.$executeRaw`
+        INSERT INTO weekly_reports (id, "userId", period_start, period_end, summary, metrics, "createdAt")
+        VALUES (${reportId}, ${userId}, ${from}, ${to}, ${summary}, ${JSON.stringify(metrics)}::jsonb, NOW())
+    `;
+
+    // Send via WhatsApp
+    let sent = false;
+    let whatsappError: string | undefined;
+    const dispatch = await getUserDispatchConfig(userId);
+    if (!dispatch) {
+        whatsappError = "No se envió: falta el número de notificación, o su propia línea de WhatsApp no está conectada. El reporte queda guardado en la App.";
+    } else {
+        const text = formatWhatsAppReport(metrics, summary);
+        const jid  = normalizeChatHistoryRemoteJid(dispatch.notificationNumber);
+        const res  = await sendViaWhatsAppDispatcher({
+            dispatcher: dispatch.dispatcher,
+            remoteJid: jid,
+            text,
+            history: {
+                instanceName: dispatch.dispatcher.instanceName,
+                type: "notification",
+                additionalKwargs: {
+                    kind: "weekly-report",
+                    userId,
+                },
+            },
+            registro: { tipo: "informe_semanal", cuentaId: userId },
+        });
+        if (res.success) {
+            await db.$executeRaw`UPDATE weekly_reports SET sent_at = NOW() WHERE id = ${reportId}`;
+            sent = true;
+        } else {
+            whatsappError = `Error al enviar: ${res.message ?? "respuesta inesperada del servidor"}`;
+        }
+    }
+
+    return { success: true, reportId, sent, message: whatsappError };
+}
+
+// ─── Cron: all users ──────────────────────────────────────────────────────────
+
+export async function runWeeklyReportForAllUsers(): Promise<{
+    success: boolean;
+    processed: number;
+    sent: number;
+    errors: number;
+}> {
+    const users = await db.user.findMany({
+        where: {
+            status: true,
+            notificationNumber: { not: "" },
+            instancias: { some: {} },
+        },
+        select: { id: true },
+    });
+
+    let processed = 0, sent = 0, errors = 0;
+
+    for (const user of users) {
+        try {
+            const res = await generateWeeklyReportForUser(user.id);
+            processed++;
+            if (res.sent) sent++;
+        } catch (err) {
+            console.error(`[weeklyReport] userId=${user.id}`, err);
+            errors++;
+        }
+    }
+
+    return { success: true, processed, sent, errors };
+}

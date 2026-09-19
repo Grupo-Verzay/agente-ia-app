@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { Reminders } from "@prisma/client";
-import { getRemindersByUserId } from "@/actions/reminders-actions";
+import { getScheduleRemindersByUserId } from "@/actions/reminders-actions";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getActiveBookingQuestions } from "@/actions/booking-questions-actions";
@@ -56,7 +56,7 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
     // Manejo si no se encuentra el usuario
     if (!user) return notFound();
 
-    const resReminder = await getRemindersByUserId(user.id)
+    const resReminder = await getScheduleRemindersByUserId(user.id)
     if (!resReminder.success) {
         console.error("[REMINDERS_PAGE] Error al obtener recordatorios:", resReminder.message)
         return <strong>404</strong>

@@ -1,4 +1,19 @@
-"use server";
+import "server-only";
+
+/**
+ * Esto NO es un fichero de acciones, aunque viva en `actions/`.
+ *
+ * Llevaba `"use server"`, que convierte cada funcion exportada en un endpoint
+ * POST al que se llega desde el navegador. Aqui eso dejaba a cualquiera con
+ * una sesion **darse por pagado**: `markUserAsPaidInternal` y
+ * `setUserBillingDueDateInternal` mueven el vencimiento al mes siguiente, le
+ * devuelven el agente a la cuenta y le reponen los creditos. Es la puerta de
+ * atras de la caja.
+ *
+ * Sus dos llamadores son `/api/payment/confirm` —que pide `CRON_SECRET`— y
+ * `/api/payment/wompi`, que verifica la firma del evento de la pasarela.
+ * Ninguno es un navegador.
+ */
 
 /**
  * Helpers internos de billing SIN autenticación de sesión.

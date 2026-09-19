@@ -1,4 +1,22 @@
-'use server';
+import "server-only";
+
+/**
+ * Esto NO es un fichero de acciones, aunque viva en `actions/`.
+ *
+ * Llevaba `'use server'`, que en Next no es una etiqueta: **convierte cada
+ * función exportada en un endpoint POST** al que se llega desde el navegador
+ * con los parámetros que uno quiera. Aquí eso significaba que cualquiera con
+ * una sesión podía llamar a `sendViaWhatsAppDispatcher` y **mandar el texto que
+ * quisiera, al número que quisiera, por la línea de la cuenta que quisiera** —
+ * que es exactamente lo que hace que a un número lo miren con lupa.
+ *
+ * Y no hacía falta para nada: a este fichero no lo importa **ni un componente
+ * de cliente**; sus doce llamadores son rutas de `/api` y otras funciones de
+ * servidor, que lo invocan dentro del mismo proceso. `server-only` conserva lo
+ * único que la etiqueta aportaba de verdad —que esto no se empaquete nunca
+ * hacia el navegador, y que el build se caiga en el sitio si alguien lo
+ * importa desde un componente de cliente— y quita el endpoint.
+ */
 
 import {
   etiquetaDeMediaWaha,

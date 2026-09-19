@@ -688,6 +688,20 @@ function replaceVars(template: string, vars: Record<string, string>): string {
     return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
 }
 
+/**
+ * Se queda ABIERTA, y por el mismo motivo que `sendMessageWithHistoryAction`:
+ * la llama `BookingPageClient` desde el navegador de quien acaba de reservar,
+ * que **no tiene sesión** y no va a tenerla. Pedirle `currentUser()` no la
+ * protegería: dejaría sin confirmación a todas las reservas.
+ *
+ * Y comparte su misma pega, que queda escrita para que nadie la dé por
+ * revisada: el texto y el destinatario llegan de fuera, así que desde el
+ * navegador se le puede pedir que mande un WhatsApp por la línea de cualquier
+ * cuenta. Lo que lo cierra de verdad es lo mismo allí y aquí — que la
+ * confirmación se arme en el servidor a partir del id de la reserva, en vez de
+ * recibirla hecha—, y eso toca las dos pantallas públicas de reservas, así que
+ * va aparte y no de paso.
+ */
 export async function sendBookingNotifications(input: BookingNotificationInput): Promise<void> {
     try {
         const {

@@ -269,6 +269,32 @@ async function sendMetaInternalNotificationTemplate(args: {
   ]);
 }
 
+/**
+ * Se queda ABIERTA, y esta es la única de este lote que no se cierra porque no
+ * se puede sin romper algo. Queda escrito para que nadie la dé por revisada.
+ *
+ * **Qué abre.** Recibe `instanceName`, `remoteJid` y `message`, así que es
+ * «manda este texto, a este número, por esta línea». Cualquiera con una sesión
+ * la alcanza desde el navegador con la línea de otra cuenta.
+ *
+ * **Por qué no lleva guarda.** Uno de sus llamadores es
+ * `app/schedule/_components/SchedulePageClient.tsx`, la pantalla **pública** de
+ * reservas, que la llama desde el navegador **sin sesión** para mandar la
+ * confirmación de la cita que acaba de crear. Y los otros dos son
+ * `/api/schedule/appointment` y `/api/bookings/appointment`, que llama el
+ * backend con su llave. Preguntarle `currentUser()` no la protegería: dejaría
+ * a la persona que reserva sin su confirmación, y al backend sin poder mandar
+ * ninguna — el mismo fallo mudo de los avisos de Waha.
+ *
+ * **Qué falta, y no cabe en este lote.** Lo que aquí se mezclan son dos cosas
+ * distintas con la misma firma: *confirmar una reserva* —que es un texto que
+ * arma el servidor, hacia el número que acaba de dejar quien reservó— y
+ * *mandar un mensaje cualquiera*, que es lo que hace el asesor desde Chats y sí
+ * tiene sesión detrás. Separarlas es lo que de verdad cierra esto: una acción
+ * pública que solo sabe confirmar una cita por su id, y otra con la guarda de
+ * siempre para lo demás. Eso toca la pantalla de reservas y sus dos rutas, así
+ * que va aparte y no de paso.
+ */
 export async function sendMessageWithHistoryAction({
   instanceName,
   remoteJid,
