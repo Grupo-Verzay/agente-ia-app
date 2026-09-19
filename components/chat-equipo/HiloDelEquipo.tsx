@@ -2450,7 +2450,7 @@ function Burbuja({
      */
     origen?: string;
     /** Cómo se llama cada reunión nombrada en el hilo, por su código. */
-    reuniones?: Record<string, { titulo: string | null; abierta: boolean }>;
+    reuniones?: Record<string, { titulo: string | null; abierta: boolean; dentro: number }>;
 }) {
     const [reaccionando, setReaccionando] = useState(false);
     const [masEmojis, setMasEmojis] = useState(false);
@@ -2696,6 +2696,7 @@ function Burbuja({
                             codigo={codigo}
                             titulo={reuniones?.[codigo]?.titulo}
                             abierta={reuniones?.[codigo]?.abierta}
+                            dentro={reuniones?.[codigo]?.dentro}
                         />
                     ))}
                     </>

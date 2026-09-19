@@ -30,9 +30,25 @@ export function TarjetaDeReunion({
     codigo,
     titulo,
     abierta,
+    dentro,
 }: {
     codigo: string;
     titulo?: string | null;
+    /**
+     * Cuánta gente hay DENTRO ahora mismo.
+     *
+     * No es adorno: un canal puede tener dos reuniones vivas a la vez, y sin
+     * este dato las dos tarjetas se leen exactamente igual. Cada uno pulsa la
+     * que pilla, acaban en salas distintas, y **cada uno se ve solo a sí
+     * mismo sin un solo error en ninguna parte** — que es de los síntomas más
+     * caros de diagnosticar que hay. Con el número delante se pulsa la que
+     * tiene gente.
+     *
+     * `undefined` es «no se sabe» —una reunión de otro canal—, y entonces no
+     * se dice nada; **cero sí se dice**, porque «todavía no ha entrado nadie»
+     * es justo la mitad de la información.
+     */
+    dentro?: number;
     /**
      * Si el enlace sigue valiendo.
      *
@@ -60,7 +76,13 @@ export function TarjetaDeReunion({
                     {titulo?.trim() || "Reunión de video"}
                 </span>
                 <span className="block text-[11px] text-muted-foreground">
-                    {cerrada ? "El enlace ya no está activo" : "Hasta 4 personas"}
+                    {cerrada
+                        ? "El enlace ya no está activo"
+                        : typeof dentro === "number"
+                          ? dentro === 0
+                              ? "Nadie ha entrado todavía"
+                              : `${dentro} ${dentro === 1 ? "persona" : "personas"} dentro`
+                          : "Hasta 4 personas"}
                 </span>
             </span>
             {/* Una reunión cerrada no ofrece botón: uno que al pulsarlo da

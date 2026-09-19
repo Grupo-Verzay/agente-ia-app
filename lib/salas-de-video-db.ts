@@ -743,27 +743,54 @@ export const TOPES = { sala: TOPE_DE_LA_SALA, puerta: TOPE_EN_LA_PUERTA };
 export async function lasReunionesDeLosMensajes(
     codigos: string[],
     canalId: string,
-): Promise<Map<string, { titulo: string | null; abierta: boolean }>> {
+): Promise<Map<string, { titulo: string | null; abierta: boolean; dentro: number }>> {
     const unicos = Array.from(new Set(codigos.filter(Boolean))).slice(0, 50);
     if (!unicos.length || !canalId) return new Map();
 
     const filas = await conLasTablas(() => db.$queryRawUnsafe<
-        Array<{ codigo: string; titulo: string | null; expiraEn: Date; revocadaEn: Date | null }>
+        Array<{
+            codigo: string;
+            titulo: string | null;
+            expiraEn: Date;
+            revocadaEn: Date | null;
+            dentro: bigint;
+        }>
     >(
-        `SELECT "codigo", "titulo", "expiraEn", "revocadaEn"
-         FROM "salas_de_video"
-         WHERE "canalId" = $1 AND "codigo" = ANY($2::text[])`,
+        // `LEFT JOIN`, nunca `JOIN`: una reunión abierta en la que todavía no
+        // ha entrado nadie **no tiene ni una fila** de participante, y con un
+        // `JOIN` desaparecería del resultado — o sea que su tarjeta se
+        // quedaría sin nombre justo cuando es la recién abierta. Es la misma
+        // familia que el universo de «Actividad de instancias»: se parte de lo
+        // que existe y lo que se cuenta se pega al lado; el cero es el dato.
+        `SELECT s."codigo", s."titulo", s."expiraEn", s."revocadaEn",
+                COUNT(p."id") FILTER (
+                    WHERE p."estado" = 'dentro' AND p."vistoEn" > $3
+                )::bigint AS "dentro"
+           FROM "salas_de_video" s
+           LEFT JOIN "sala_participantes" p ON p."salaId" = s."id"
+          WHERE s."canalId" = $1 AND s."codigo" = ANY($2::text[])
+          GROUP BY s."codigo", s."titulo", s."expiraEn", s."revocadaEn"`,
         canalId,
         unicos,
+        // Se cuenta a quien está LATIENDO, no a quien tiene la fila puesta.
+        //
+        // `sacarALosQueNoDanSenales` limpia por sala, y solo la barre quien
+        // está dentro de ELLA: una reunión que se quedó vacía no tiene a nadie
+        // que la barra, así que su última fila se queda en `dentro` para
+        // siempre. Contando el estado a secas, esa tarjeta diría «1 persona
+        // dentro» eternamente — que es exactamente la confusión que este
+        // número viene a quitar. El mismo margen que usa el barrido.
+        new Date(Date.now() - MARGEN_EN_LA_SALA_MS),
     ));
 
-    const mapa = new Map<string, { titulo: string | null; abierta: boolean }>();
+    const mapa = new Map<string, { titulo: string | null; abierta: boolean; dentro: number }>();
     for (const f of filas) {
         mapa.set(f.codigo, {
             titulo: f.titulo,
             // La misma regla que la puerta: revocada o caducada, no vale. Se
             // dice en la tarjeta para no hacer pulsar un enlace muerto.
             abierta: !f.revocadaEn && f.expiraEn.getTime() > Date.now(),
+            dentro: Number(f.dentro ?? 0),
         });
     }
     return mapa;
