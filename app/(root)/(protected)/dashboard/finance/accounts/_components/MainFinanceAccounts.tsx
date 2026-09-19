@@ -31,6 +31,7 @@ import {
   ArrowDownRight,
   Layers,
 } from 'lucide-react';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 
 type FinCurrency = { code: string; symbol?: string | null; decimals?: number | null };
 type TxSaleRow    = { id: string; accountId: string; occurredAt: string | Date; currencyCode?: string | null; title?: string | null; amount?: string | number | null; extra?: string | number | null; discount?: string | number | null };
@@ -588,9 +589,7 @@ export default function MainFinanceAccounts({
               openLedger(row);
             }}
             toolbarExtra={
-              <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                + Nueva cuenta
-              </Button>
+              <BotonDeCrear onClick={openCreate} disabled={isPending}>Nueva cuenta</BotonDeCrear>
             }
           />
         </CardContent>

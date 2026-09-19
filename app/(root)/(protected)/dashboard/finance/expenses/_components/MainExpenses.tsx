@@ -40,6 +40,9 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
+import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { eliminarGastosAction } from '@/actions/borrado-en-bloque-actions';
 
 type FinAccount  = { id: string; name: string; isDefault: boolean };
 type FinCategory = { id: string; name: string };
@@ -184,6 +187,12 @@ export default function MainExpenses({
   autoOpenCreate = false,
 }: Props) {
   const router = useRouter();
+
+  const borrarLosMarcados = async (ids: string[]) => {
+    const resumen = await eliminarGastosAction(ids, userId);
+    if (!resumen.success) toast.error(resumen.message);
+    return { fallaron: resumen.fallaron };
+  };
   const [isPending, startTransition] = useTransition();
 
   const [rows, setRows] = useState<ExpenseRow[]>(expenses ?? []);
@@ -493,6 +502,14 @@ export default function MainExpenses({
                   searchKey="name"
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
+                  acciones={(seleccionados, limpiar) => (
+                    <AccionesMasivas
+                      seleccionados={seleccionados}
+                      queSon="gastos"
+                      onEliminar={borrarLosMarcados}
+                      onTerminar={() => { limpiar(); router.refresh(); }}
+                    />
+                  )}
                   toolbarExtra={
                     <>
                       <Popover>
@@ -520,9 +537,7 @@ export default function MainExpenses({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                        + Nuevo gasto
-                      </Button>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo gasto</BotonDeCrear>
                     </>
                   }
                 />
@@ -535,6 +550,14 @@ export default function MainExpenses({
                   searchKey="name"
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
+                  acciones={(seleccionados, limpiar) => (
+                    <AccionesMasivas
+                      seleccionados={seleccionados}
+                      queSon="gastos"
+                      onEliminar={borrarLosMarcados}
+                      onTerminar={() => { limpiar(); router.refresh(); }}
+                    />
+                  )}
                   toolbarExtra={
                     <>
                       <Popover>
@@ -562,9 +585,7 @@ export default function MainExpenses({
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                        + Nuevo gasto
-                      </Button>
+                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo gasto</BotonDeCrear>
                     </>
                   }
                 />

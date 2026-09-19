@@ -193,3 +193,30 @@ export async function eliminarDiagramasAction(ids: string[]): Promise<ResumenDel
     revalidatePath("/diagramas");
     return comoResumen(borrados, fallaron, "diagramas");
 }
+
+/**
+ * Gastos. Es un **borrado blando**, igual que `deleteExpense`: la fila se marca
+ * `DELETED` y se sella la fecha, no se quita. Contabilidad no se borra de
+ * verdad — un gasto que desaparece descuadra los informes de meses cerrados.
+ */
+export async function eliminarGastosAction(
+    ids: string[],
+    userId?: string,
+): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIds(ids);
+    if (lista.length === 0) return SIN_IDS;
+    const cuenta = await laCuenta(userId);
+    if (!cuenta) return NO_AUTORIZADO;
+
+    const { count } = await db.financeTransaction.updateMany({
+        where: {
+            id: { in: lista },
+            userId: cuenta,
+            type: "EXPENSE",
+            status: { not: "DELETED" },
+        },
+        data: { status: "DELETED", deletedAt: new Date() },
+    });
+    revalidatePath("/dashboard/finance/expenses");
+    return comoResumen(count, lista.length - count, "gastos");
+}
