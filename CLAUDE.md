@@ -4706,6 +4706,205 @@ Y **la puerta de quién puede llamar sigue siendo la de escribir**, no la de
 leer: meterse en la conversación de otros dos no es supervisar, y una reunión
 lo es mucho más que un mensaje.
 
+## Reuniones: un módulo de la CUENTA, y la sala se soltó del canal
+
+Una sala nacía **siempre dentro de un canal** del chat de equipo:
+`salas_de_video.canalId` era obligatorio y crear una exigía pertenecer a ese
+canal. Eso ata Reuniones a que la cuenta tenga el chat de equipo montado y deja
+fuera el caso más normal —«ábreme una sala para el cliente de las tres»—, que
+no es de ningún canal.
+
+Ahora `canalId` es **opcional** y hay dos clases de sala, con **dos
+pertenencias distintas**. Esa es la pieza que hace que esto no afloje nada de
+lo que ya había:
+
+| la sala | de quién es | quién entra directo |
+| --- | --- | --- |
+| **con canal** | del canal | quien pertenece al canal — *exactamente como antes* |
+| **sin canal** | de la cuenta | quien es de la cuenta |
+
+> **Y la lista por cuenta enseña SOLO las salas sin canal** (`canalId IS NULL`
+> en la consulta, no en el navegador). Si trajera también las que nacieron en un
+> canal, alguien de la cuenta que no está en ese canal las vería —y con ellas su
+> enlace— sin haber pertenecido nunca a él. Sería ensanchar la puerta del chat
+> de equipo desde una pantalla que no habla de canales, y en silencio. Vale
+> igual para el histórico.
+
+Lo pregunta **una sola función**, `perteneceALaSala`, que ramifica por
+`sala.canalId`. Lo preguntan tres sitios —abrir el enlace, cada vuelta del reloj
+de la sala y la puerta—, y con la condición copiada en los tres, el día que una
+de las dos ramas se afine los otros dos se quedan atrás. Aquí eso no se ve como
+un error: se ve como alguien que entra a una reunión a la que no debía.
+
+### La columna se hizo opcional con `DROP NOT NULL`
+
+`ALTER TABLE … ALTER COLUMN "canalId" DROP NOT NULL`, **no** reescribiendo el
+`CREATE`: la tabla ya está en producción y un `CREATE TABLE IF NOT EXISTS` no
+toca una que ya existe. Es el mismo camino por el que `task_alerts.taskId` se
+hizo opcional para las menciones del chat de equipo, y `DROP NOT NULL` no se
+queja si ya está quitado, así que se repite en cada arranque sin ruido.
+
+Comprobado contra Postgres **sobre el esquema de hoy** —`canalId` obligatorio y
+una sala de canal dentro—: la fila vieja sobrevive intacta y sigue saliendo en
+su canal. Sembrar el esquema nuevo habría probado el `CREATE`, no la migración.
+
+### Quién puede abrir una reunión: PARTICIPAR BASTA, también un `agente`
+
+Es la decisión de esta etapa y conviene que esté escrita con su motivo, porque
+lo cómodo era pedir `canManageWorkspace` y está mal por tres cosas:
+
+1. **Sería quitarles algo que ya tienen.** Hoy cualquiera que pertenezca a un
+   canal —agentes incluidos— abre reuniones ahí. Un módulo que «existe por sí
+   solo» no puede ser un recorte de lo que ya se podía hacer.
+2. **Abrir una sala no gasta ni destruye nada.** Lo peor que produce es un
+   enlace que deja **llamar a la puerta**; entrar lo decide alguien que ya está
+   dentro. No es la clase de acción que este documento reserva a quien manda
+   —repartir módulos, borrar cuentas, tocar la facturación—.
+3. **Es el mismo reparto de siempre**: *un `agente` participa, no manda*. Abrir
+   su propia reunión es participar.
+
+Lo que sí es de quien manda es **tocar la sala de otro**: revocar el enlace o
+moverle la caducidad lo pueden el **anfitrión y quien administra la cuenta**
+(`puedeAdministrarLaSala`). Esa segunda mitad es nueva y hace falta: sin ella,
+una sala abierta por alguien que ya no está en el equipo **no la cierra nadie
+nunca** y su enlace sigue dejando llamar a la puerta hasta que caduque solo. Es
+la misma decisión, tomada a propósito, que deja al administrador leer los
+directos de su cuenta: una herramienta de trabajo, no un cajón privado.
+
+**Y el alcance se pregunta a la fila EFECTIVA, nunca a la persona.** A una
+cuenta se llega por **dos caminos** y solo uno deja rastro en la fila:
+
+| cómo se llega | qué trae la fila efectiva |
+| --- | --- |
+| `owner_id` —alguien del equipo— | `ownerId` puesto: la cuenta es esa |
+| `linked_accounts` —una cuenta vinculada— | **sin `ownerId`**: la cuenta es ella misma |
+
+Resolver aquí la persona es exactamente lo que rompió la cartera de clientes en
+el #783: por el segundo camino la fila de quien entra no cuelga de nadie y no
+tiene `advisorRole`, así que preguntar por la persona devolvía su propio id con
+rol `user` y el alcance salía vacío. `canManageWorkspace` ya cubre los dos —sin
+`ownerId` es dueño de su cuenta; con él, mira su `advisorRole`—.
+
+### La cuenta, y NO la familia
+
+Aquí se lee por `cuentaId` pelado, a diferencia del General del chat de equipo,
+que se lee sobre toda la familia. No es un olvido: allí el hilo es **uno y
+compartido**, y aquí cada cuenta tiene sus reuniones. Una cuenta cliente
+vinculada ve las suyas y ninguna de su madre, que es lo pedido — y es lo que
+permite ofrecer esto como módulo a un cliente sin que vea nada de la casa.
+
+### Y la ruta no se monta: la puerta va en la acción
+
+`/reuniones` entra en `navigationRoutes` y **no se monta en ningún módulo**: se
+asigna a mano, como `/cobros`, `/chat-equipo` y `/documentos`. El guardián del
+layout solo cierra rutas que sí están en algún módulo y denegadas, así que una
+que no está en ninguno se alcanza escribiendo la URL. Por eso cada acción
+resuelve la cuenta y la página solo pinta lo que le devuelvan.
+
+El panel de la reunión **no se monta en esta pantalla**: `ReunionEnLaPlataforma`
+cuelga del layout, así que entrar desde Reuniones y luego irse a Clientes no
+corta la reunión. Desde aquí solo se le dice qué sala abrir.
+
+### La caducidad: una semana por defecto, y se puede mover después
+
+El valor por defecto era **un día**, y eso parecía lo prudente y era la trampa:
+la reunión que se agenda se agenda **para mañana**, así que un enlace creado
+esta mañana con 24 horas llega caducado a la reunión de mañana por la tarde.
+Desde fuera no se lee como «elegí mal la duración»: se lee como que los enlaces
+de reuniones no funcionan, y quien lo sufre es el invitado de fuera, que no
+tiene forma de arreglarlo.
+
+Pasa a **7 días**, y el techo sube a 30 —una reunión semanal recurrente vive más
+de siete—. **«No caduca» sigue sin existir**: equivocarse hacia un mes de más es
+un enlace que se revoca desde esta pantalla, donde ahora se ven todos;
+equivocarse hacia el infinito es un enlace que nadie sabe que sigue abierto.
+
+Y ahora **se mueve sin abrir otra sala**, que es lo que de verdad arregla el
+caso: la reunión se pasa al jueves y antes había que crear otra y repartir otro
+enlace, con el viejo dando vueltas por los correos de la gente.
+
+Tres cosas de mover la caducidad:
+
+1. **Se mide DESDE AHORA**, no desde que se creó la sala. Medido desde la
+   creación, alargar a «7 días» una sala abierta hace seis no daría casi nada y
+   quien lo pulsa vería el enlace caducar al día siguiente sin entender por qué.
+2. **Una sala CADUCADA sí se alarga** —es el caso de todos los días—, pero **una
+   REVOCADA no**: alargarla sería deshacer por la puerta de atrás una decisión
+   que alguien tomó, con la gente que se echó fuera ya echada. Se dice con esas
+   palabras y se ofrece abrir una nueva.
+3. **Lo que llega del navegador pasa por la lista** (`esUnaDuracion`).
+   `cuandoCaduca` ya cae en la de por defecto ante cualquier cosa, así que esto
+   no protege la fecha: protege el **aviso**. Sin él, una duración que no existe
+   guardaría siete días en silencio y quien lo hizo creería haber puesto otra.
+
+### El histórico no es una tabla nueva: son las filas que ya se llenaban solas
+
+`sala_participantes` lleva desde el primer día guardando `entradoEn`, `salidoEn`
+y `vistoEn` de cada persona, y `salas_de_video` guarda cada sala con su título y
+su anfitrión. **El histórico ya estaba escrito; lo que no había era quien lo
+leyera.** Por eso esto no añade ni una columna: son exactamente las filas que se
+acumulaban sin que nadie las mirara, puestas delante.
+
+> **Y el fin de una reunión NO es su `salidoEn`.** Esa columna la escriben dos
+> caminos: el botón de salir y el barrido de quien deja de latir. El segundo
+> **lo corre quien sigue dentro**, así que cuando la reunión acaba de la forma
+> más normal —todos cierran la pestaña a la vez— no queda nadie que lo escriba y
+> las últimas filas se quedan en `dentro` con su `salidoEn` en nulo **para
+> siempre**. Un histórico que midiera por ahí daría esas reuniones por abiertas
+> y sin duración.
+
+Lo que sí es de fiar es **el último latido** (`vistoEn`), que se escribe en cada
+vuelta del reloj pase lo que pase. Así que el fin es `max(salidoEn, vistoEn)` de
+todos los participantes: el `salidoEn` cuando lo hubo —es más exacto— y el
+latido cuando no.
+
+Cuatro cosas más:
+
+1. **Se cuenta desde que entró el PRIMERO**, no desde que se creó la sala. Entre
+   crear el enlace y que alguien entre pueden pasar días, y contarlo diría que
+   una reunión de diez minutos duró tres jornadas. Es lo mismo que ya hace la
+   llamada de voz, que cuenta desde que se contestó.
+2. **Una sala en la que no entró nadie no dura cero: no tiene duración.** `null`
+   y `0` son dos respuestas distintas —«no se usó» y «se usó un instante»— y
+   confundirlas es la familia de *un número que no se puede calcular no se
+   sustituye por otro*. En la pantalla sale «Nadie entró · enlace caducado», que
+   además explica de dónde salen las salas que se acumulan sin usar.
+3. **Solo entran los que ENTRARON.** Quien se quedó en la puerta y nunca pasó no
+   es un asistente: contarlo daría una reunión de cinco a la que entraron dos.
+4. **Las vivas no salen en el histórico**, y las pasadas no salen arriba. Dos
+   sitios para lo mismo es peor que uno.
+
+Y la cuenta se hace **en TypeScript, no en el `GROUP BY`**: cuándo terminó y
+cuánto duró son decisiones, no sumas, y viven en `lib/reuniones-de-la-cuenta.ts`,
+que es puro y está probado. Escritas dentro del SQL no las prueba nadie. Son dos
+consultas —las salas, y sus participantes con un `salaId = ANY(...)` una sola
+vez por página—, como `lasCitasQueSiguenAhi`; una por sala serían cien.
+
+El parámetro de días va **moldeado**: `make_interval(days => $2::int)`. Prisma
+lo manda sin tipo y `make_interval` solo acepta `int`; sin el molde la consulta
+cae con «no existe la función». Comprobado además cinco vueltas seguidas, que es
+donde Postgres puede caerse a plan genérico.
+
+### Y la poda: NO hace falta ninguna, con el número delante
+
+La pregunta queda contestada, que es lo que se pedía:
+
+- **`sala_senales` ya se poda sola** —dos minutos, una de cada veinte vueltas—
+  y no cambia. Ahí sí urge: un SDP lleva dentro las IP de las dos puntas.
+- **`salas_de_video` y `sala_participantes` dejan de ser basura**: son el
+  histórico. Podarlas sería borrar justo lo que esta etapa viene a enseñar.
+
+Lo que queda fuera de la ventana de 90 días **se conserva**, y el tope es de
+**lectura, no de borrado**. El orden de magnitud, para que la decisión se pueda
+revisar sin volver a medir: una reunión son **1 fila de sala y hasta 4 de
+participante**, unos 600 bytes en total. Una cuenta con diez reuniones al día
+deja ~3.650 salas y ~15.000 participantes al año, o sea del orden de **2 MB por
+cuenta y año** — contra los 1,6 GB que ya pesa la base.
+
+**Se poda el día que eso deje de ser cierto**, no antes. Y si se poda, dos
+reglas: se borran **sala y participantes juntos** —media reunión en el histórico
+es peor que ninguna— y **nunca dentro de la ventana que se está enseñando**.
+
 ## La llamada de WhatsApp: el fin lo dice el AUDIO, y la tarjeta no bloquea
 
 Dos cosas de la tarjeta de llamada de Chats, y la primera es un fallo que desde

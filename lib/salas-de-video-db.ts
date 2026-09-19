@@ -70,6 +70,28 @@ function asegurarLasTablas(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "salas_de_video_canal_idx"
             ON "salas_de_video" ("canalId", "creadoEn")
         `;
+        // **Una sala ya no tiene por qué ser de un canal.**
+        //
+        // Va con `ALTER COLUMN … DROP NOT NULL` y NO reescribiendo el `CREATE`:
+        // la tabla ya está en producción y un `CREATE TABLE IF NOT EXISTS` no
+        // toca una que ya existe. Es el fallo que se comete solo al cambiarle
+        // una columna a una tabla de la App ya desplegada — el mismo camino por
+        // el que `task_alerts.taskId` se hizo opcional para las menciones del
+        // chat de equipo.
+        //
+        // `DROP NOT NULL` no se queja si ya está quitado, así que se puede
+        // repetir en cada arranque. Y las filas que ya están **no se tocan**:
+        // siguen con su canal y se comportan exactamente igual.
+        await db.$executeRaw`
+            ALTER TABLE "salas_de_video"
+            ALTER COLUMN "canalId" DROP NOT NULL
+        `;
+        // Por donde entra la pantalla de Reuniones: las de una cuenta, las
+        // vivas arriba y las pasadas debajo, las dos ordenadas por fecha.
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "salas_de_video_cuenta_idx"
+            ON "salas_de_video" ("cuentaId", "creadoEn")
+        `;
 
         // Quién está y quién espera.
         //
@@ -228,7 +250,8 @@ export type FilaDeSala = {
     id: string;
     codigo: string;
     cuentaId: string;
-    canalId: string;
+    /** El canal del que nació, o `null` si es una reunión de la cuenta. */
+    canalId: string | null;
     anfitrionId: string;
     anfitrionNombre: string | null;
     titulo: string | null;
@@ -297,7 +320,8 @@ function unTokenDeInvitado(): string {
 
 export async function crearLaSala(input: {
     cuentaId: string;
-    canalId: string;
+    /** El canal del que nació, o `null` si es una reunión de la cuenta. */
+    canalId: string | null;
     anfitrionId: string;
     anfitrionNombre: string | null;
     titulo: string | null;
@@ -358,6 +382,142 @@ export async function lasSalasVivasDelCanal(canalId: string): Promise<FilaDeSala
 }
 
 /**
+ * Las reuniones VIVAS de una cuenta.
+ *
+ * **`canalId IS NULL` no es un detalle de la consulta: es la puerta.** Si esta
+ * lista trajera también las salas que nacieron en un canal, alguien de la
+ * cuenta que no está en ese canal las vería —y con ellas su enlace— sin haber
+ * pertenecido nunca a él. Sería ensanchar la puerta del chat de equipo desde
+ * una pantalla que no habla de canales, y en silencio.
+ *
+ * Las caducadas y las revocadas no salen por aquí: salen en el histórico, que
+ * es donde se leen.
+ */
+export async function lasSalasVivasDeLaCuenta(cuentaId: string): Promise<FilaDeSala[]> {
+    return conLasTablas(() => db.$queryRawUnsafe<FilaDeSala[]>(
+        `SELECT ${COLUMNAS_SALA} FROM "salas_de_video"
+         WHERE "cuentaId" = $1 AND "canalId" IS NULL
+           AND "revocadaEn" IS NULL AND "expiraEn" > NOW()
+         ORDER BY "creadoEn" DESC
+         LIMIT 50`,
+        cuentaId,
+    ));
+}
+
+/**
+ * Mover la caducidad de un enlace que ya existe.
+ *
+ * Condicionado a que **no esté revocada**: revocar es una decisión que alguien
+ * tomó, y devolverla a la vida alargándole la fecha sería deshacerla por la
+ * puerta de atrás — con la gente que se echó fuera ya echada. Para volver a
+ * reunirse se abre otra sala, que es una línea.
+ *
+ * Caducada sí se puede: es el caso de todos los días —la reunión se movió al
+ * jueves— y es justo lo que evita tener que repartir un enlace nuevo. Quien
+ * puede hacerlo lo decide `puedeAdministrarLaSala`, en la acción.
+ */
+export async function cambiarLaCaducidad(
+    salaId: string,
+    expiraEn: Date,
+): Promise<boolean> {
+    return conLasTablas(async () => {
+        const tocadas = await db.$executeRaw`
+            UPDATE "salas_de_video" SET "expiraEn" = ${expiraEn}
+            WHERE "id" = ${salaId} AND "revocadaEn" IS NULL
+        `;
+        return tocadas > 0;
+    });
+}
+
+/**
+ * Las reuniones PASADAS de una cuenta, y quién entró en cada una.
+ *
+ * # Esto no es una tabla nueva: es leer las que ya se llenaban solas
+ *
+ * `sala_participantes` lleva desde el primer día guardando `entradoEn`,
+ * `salidoEn` y `vistoEn` de cada persona, y `salas_de_video` guarda cada sala
+ * con su título y su anfitrión. **El histórico ya estaba escrito; lo que no
+ * había era quien lo leyera.** Por eso esto no añade ni una columna: son las
+ * mismas filas que hoy se acumulan, puestas delante.
+ *
+ * # Dos consultas, y la cuenta se hace en TypeScript a propósito
+ *
+ * Se podría agregar en SQL con un `GROUP BY` y un `GREATEST`, y sería una
+ * consulta menos. No se hace porque **cuándo terminó una reunión y cuánto duró
+ * son decisiones**, no sumas: el fin no es `salidoEn` —cuando todos cierran la
+ * pestaña a la vez nadie lo escribe— y una sala en la que no entró nadie no
+ * dura cero, no dura. Eso vive en `lib/reuniones-de-la-cuenta.ts`, que es puro
+ * y está probado; escrito dentro del SQL no lo prueba nadie.
+ *
+ * La segunda consulta va por `salaId = ANY(...)`, una sola vez por página,
+ * como `lasCitasQueSiguenAhi` del chat de equipo. Una por sala serían cien.
+ */
+export type FilaDeHistorico = {
+    sala: FilaDeSala;
+    participantes: Array<{
+        nombre: string;
+        esInvitado: boolean;
+        entradoEn: Date | null;
+        salidoEn: Date | null;
+        vistoEn: Date;
+    }>;
+};
+
+export async function elHistorialDeLaCuenta(
+    cuentaId: string,
+    dias: number,
+    tope: number,
+): Promise<FilaDeHistorico[]> {
+    return conLasTablas(async () => {
+        // `make_interval(days => $2::int)` con el molde puesto: Prisma manda el
+        // parámetro sin tipo y `make_interval` solo acepta `int`; sin el molde
+        // la consulta cae con «no existe la función». Es la misma trampa que
+        // ya costó dos vueltas en la tarjeta de actividad de instancias.
+        const salas = await db.$queryRawUnsafe<FilaDeSala[]>(
+            `SELECT ${COLUMNAS_SALA} FROM "salas_de_video"
+             WHERE "cuentaId" = $1 AND "canalId" IS NULL
+               AND ("revocadaEn" IS NOT NULL OR "expiraEn" <= NOW())
+               AND "creadoEn" > NOW() - make_interval(days => $2::int)
+             ORDER BY "creadoEn" DESC
+             LIMIT $3`,
+            cuentaId,
+            Math.max(1, Math.floor(dias)),
+            Math.max(1, Math.floor(tope)),
+        );
+        if (!salas.length) return [];
+
+        const ids = salas.map((s) => s.id);
+        // Solo los que ENTRARON: quien se quedó en la puerta y nunca pasó no es
+        // un asistente. Dejarlo dentro contaría como reunión de cinco una a la
+        // que entraron dos.
+        const gente = await db.$queryRawUnsafe<Array<{
+            salaId: string; nombre: string; esInvitado: boolean;
+            entradoEn: Date | null; salidoEn: Date | null; vistoEn: Date;
+        }>>(
+            `SELECT "salaId", "nombre", "esInvitado", "entradoEn", "salidoEn", "vistoEn"
+             FROM "sala_participantes"
+             WHERE "salaId" = ANY($1::text[]) AND "entradoEn" IS NOT NULL
+             ORDER BY "entradoEn" ASC`,
+            ids,
+        );
+
+        const porSala = new Map<string, FilaDeHistorico["participantes"]>();
+        for (const g of gente) {
+            const lista = porSala.get(g.salaId) ?? [];
+            lista.push({
+                nombre: g.nombre,
+                esInvitado: g.esInvitado,
+                entradoEn: g.entradoEn,
+                salidoEn: g.salidoEn,
+                vistoEn: g.vistoEn,
+            });
+            porSala.set(g.salaId, lista);
+        }
+        return salas.map((sala) => ({ sala, participantes: porSala.get(sala.id) ?? [] }));
+    });
+}
+
+/**
  * Revocar: cierra el enlace **y echa a quien esté dentro**.
  *
  * Las dos cosas, y en una transacción. Revocar dejando dentro a la gente que ya
@@ -366,16 +526,19 @@ export async function lasSalasVivasDelCanal(canalId: string): Promise<FilaDeSala
  *
  * Condicionado a que no estuviera ya revocada, para que dos pulsaciones
  * seguidas no cuenten como dos.
+ *
+ * **Quién puede revocar NO se decide aquí.** Lo decide `puedeAdministrarLaSala`
+ * en la acción, que es donde se sabe quién pregunta y si administra la cuenta.
+ * Antes iba en el `WHERE` como `anfitrionId = ...`, y eso mezclaba dos cosas:
+ * la guarda de permiso y la de «no dos veces». Con las dos juntas, un permiso
+ * más ancho obligaba a reescribir la consulta y un `false` no decía cuál de
+ * las dos había fallado.
  */
-export async function revocarLaSala(
-    salaId: string,
-    anfitrionId: string,
-): Promise<boolean> {
+export async function revocarLaSala(salaId: string): Promise<boolean> {
     return conLasTablas(async () => {
         const tocadas = await db.$executeRaw`
             UPDATE "salas_de_video" SET "revocadaEn" = NOW()
-            WHERE "id" = ${salaId} AND "anfitrionId" = ${anfitrionId}
-              AND "revocadaEn" IS NULL
+            WHERE "id" = ${salaId} AND "revocadaEn" IS NULL
         `;
         if (tocadas > 0) {
             await db.$executeRaw`

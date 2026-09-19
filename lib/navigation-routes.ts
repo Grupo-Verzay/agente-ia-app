@@ -103,6 +103,11 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     // la accion y no en la pagina. Pensada desde el principio para poder
     // ofrecersela tambien a una cuenta cliente.
     { route: "/documentos" },
+    // Las reuniones de video de una cuenta, por si solas y ya no colgadas de
+    // un canal del chat de equipo. Entra en el desplegable y **no** se monta en
+    // ningun modulo: se asigna a mano, como `/cobros` y `/documentos`, y por
+    // eso la puerta esta en la accion y no en la pagina.
+    { route: "/reuniones" },
     { route: "/actividad-equipo" },
     { route: "/cotizaciones" },
     { route: "/credits" },
