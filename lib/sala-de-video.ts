@@ -1,0 +1,338 @@
+/**
+ * Las salas de video: hasta cuatro personas, navegador contra navegador.
+ *
+ * Puro a propósito, como `lib/llamada-de-voz.ts` y por el mismo motivo: de aquí
+ * tiran la pantalla —que es cliente—, las acciones —que son servidor— y el
+ * banco. Lo que toca la base vive en `lib/salas-de-video-db.ts`.
+ *
+ * # Esto es una MALLA, no una llamada de dos con gente dentro
+ *
+ * Sin servidor de video, cada persona habla **directamente con cada una de las
+ * demás**: con cuatro son seis conexiones, y cada una manda y recibe su propio
+ * audio y su propio video. De ahí sale el tope, que no es un número redondo
+ * elegido a ojo:
+ *
+ * | personas | conexiones | lo que SUBE cada una |
+ * | --- | --- | --- |
+ * | 2 | 1 | 1 copia |
+ * | 3 | 3 | 2 copias |
+ * | 4 | **6** | **3 copias** |
+ * | 5 | 10 | 4 copias |
+ *
+ * Subir es lo que se rompe primero: una conexión doméstica típica tiene mucha
+ * menos subida que bajada, y a la cuarta copia ya se está pidiendo del orden de
+ * 2 Mbps **de subida** a cada participante. Con cinco son cuatro copias y
+ * empieza a cortarse para todos a la vez, no solo para quien va justo. Pasar de
+ * ahí no es subir una constante: es poner un servidor de video (una SFU), que
+ * es justamente lo que esto no tiene.
+ *
+ * # Y por eso NO se renegocia nunca
+ *
+ * La señalización va por la base con un reloj —igual que la llamada de voz, y
+ * por la misma razón: el socket de tiempo real es del backend y desde la App
+ * solo se escucha—. Eso obliga a que cada conexión se negocie **una sola vez**:
+ * una oferta, una respuesta, y ya.
+ *
+ * Lo que lo hace posible es que las dos pistas se negocian **siempre**, aunque
+ * no haya ni cámara ni micro que poner encima: se abre un transceptor de audio
+ * y uno de video en `sendrecv` desde el principio, y encender la cámara,
+ * callarse o compartir la pantalla son `replaceTrack` y `enabled` — cosas que
+ * pasan **dentro** de una conexión ya negociada y no necesitan decirle nada a
+ * nadie.
+ *
+ * Si en vez de eso se añadiera una pista al compartir pantalla, habría que
+ * renegociar **las seis conexiones** contra un reloj de segundos: varios
+ * segundos de corte cada vez que alguien pulsa «compartir», y seis sitios
+ * donde puede fallar. Con `replaceTrack` es instantáneo y no viaja nada.
+ *
+ * El precio, que se dice porque se nota: **mientras se comparte pantalla no se
+ * manda la cámara**. Es la misma pista de video ocupada por otra cosa. Al dejar
+ * de compartir vuelve la cámara sola.
+ */
+
+/**
+ * Cuántas personas caben a la vez. Ver la tabla de arriba: **no es un número
+ * que se pueda subir**, es donde la subida de una conexión normal se acaba.
+ */
+export const TOPE_DE_LA_SALA = 4;
+
+/**
+ * Cuántos pueden estar esperando a la vez en la puerta.
+ *
+ * No es una regla de producto: el enlace es público, así que sin tope
+ * cualquiera que lo tuviera podría llenar la tabla llamando a la puerta en
+ * bucle. Veinte es más de lo que ninguna reunión de cuatro va a tener en la
+ * sala de espera, y sigue cabiendo en una lista que se lee de un vistazo.
+ */
+export const TOPE_EN_LA_PUERTA = 20;
+
+/**
+ * Cada cuánto pregunta quien está dentro de una sala.
+ *
+ * Más corto que el reloj de las llamadas (3 s) porque aquí lo que espera es
+ * **entrar**: una oferta que tarda dos vueltas en cruzar son seis segundos
+ * mirando un recuadro negro. Y se paga solo mientras hay una reunión abierta —
+ * este reloj **no** cuelga del layout, a diferencia del oyente de llamadas.
+ */
+export const CADA_CUANTO_EN_LA_SALA_MS = 2_000;
+
+/**
+ * Cada cuánto pregunta quien está esperando en la puerta.
+ *
+ * Más lento a propósito: lo único que espera es que alguien le deje pasar, y
+ * quien espera puede no entrar nunca. Con el mismo ritmo que dentro, una
+ * pestaña olvidada en la sala de espera costaría lo mismo que una reunión.
+ */
+export const CADA_CUANTO_EN_LA_PUERTA_MS = 4_000;
+
+/**
+ * Cuánto se da por presente a alguien de la sala desde su último latido.
+ *
+ * Tres vueltas más un margen, como la presencia de las llamadas: con una sola
+ * vuelta, un navegador que tarde en contestar sacaría de la reunión a alguien
+ * que está delante — y en una malla eso además **cierra sus conexiones** con
+ * todos los demás, que es mucho más caro de deshacer que un punto gris.
+ */
+export const MARGEN_EN_LA_SALA_MS = 3 * CADA_CUANTO_EN_LA_SALA_MS + 15_000;
+
+/** En qué punto está alguien respecto de una sala. */
+export const ESTADOS_EN_LA_SALA = ["esperando", "dentro", "fuera", "rechazado"] as const;
+export type EstadoEnLaSala = (typeof ESTADOS_EN_LA_SALA)[number];
+
+/** Qué clase de mensaje de señalización es. Dos, porque no hay goteo. */
+export const TIPOS_DE_SENAL = ["oferta", "respuesta"] as const;
+export type TipoDeSenal = (typeof TIPOS_DE_SENAL)[number];
+
+export function esTipoDeSenal(v: unknown): v is TipoDeSenal {
+    return typeof v === "string" && (TIPOS_DE_SENAL as readonly string[]).includes(v);
+}
+
+/**
+ * Cuánto vale un enlace de reunión.
+ *
+ * Lista cerrada y no un número que llegue del navegador: es lo que decide
+ * cuánto tiempo puede entrar alguien de fuera, así que un valor inventado desde
+ * la pantalla sería un enlace que no caduca nunca. Las cuatro cubren lo que
+ * pasa de verdad —una reunión ahora, una hoy, una mañana, una recurrente de la
+ * semana— y la de siete días es el techo: más allá, el enlace se olvida por ahí
+ * y sigue abriendo la puerta.
+ */
+export const DURACIONES = [
+    { valor: "1h", rotulo: "1 hora", horas: 1 },
+    { valor: "8h", rotulo: "8 horas", horas: 8 },
+    { valor: "24h", rotulo: "1 día", horas: 24 },
+    { valor: "7d", rotulo: "7 días", horas: 24 * 7 },
+] as const;
+
+export type Duracion = (typeof DURACIONES)[number]["valor"];
+
+/** La de por defecto: una jornada. Ni la reunión de ahora ni la de la semana. */
+export const DURACION_POR_DEFECTO: Duracion = "24h";
+
+/**
+ * Cuándo caduca un enlace que se crea ahora.
+ *
+ * Lo que no encaje en la lista cae en la de por defecto, **nunca en “no
+ * caduca”**: equivocarse hacia un día de más es un enlace que hay que revocar a
+ * mano; equivocarse hacia el infinito es un enlace que nadie sabe que sigue
+ * abierto.
+ */
+export function cuandoCaduca(duracion: unknown, desde: number = Date.now()): Date {
+    const elegida =
+        DURACIONES.find((d) => d.valor === duracion) ??
+        DURACIONES.find((d) => d.valor === DURACION_POR_DEFECTO)!;
+    return new Date(desde + elegida.horas * 60 * 60 * 1000);
+}
+
+/**
+ * Si una sala sigue admitiendo gente.
+ *
+ * **Las dos puertas, y en este orden**: revocada manda sobre caducada, porque
+ * revocar es una decisión que alguien tomó y tiene que poder decirse con esas
+ * palabras. Un enlace revocado que dijera «caducado» mandaría a pedir otro
+ * cuando lo que hubo fue una retirada.
+ */
+export function comoEstaLaSala(
+    sala: { expiraEn: Date | string | null; revocadaEn: Date | string | null },
+    ahora: number = Date.now(),
+): "abierta" | "revocada" | "caducada" {
+    if (sala.revocadaEn) return "revocada";
+    const expira = aMarca(sala.expiraEn);
+    if (expira !== null && ahora > expira) return "caducada";
+    return "abierta";
+}
+
+/** Lo que se le dice a quien llega con un enlace que ya no vale. */
+export function loQueSeLeDiceAlQueLlegaTarde(estado: "revocada" | "caducada"): string {
+    return estado === "revocada"
+        ? "Este enlace de reunión ya no está activo. Pídele uno nuevo a quien te lo pasó."
+        : "Este enlace de reunión ha caducado. Pídele uno nuevo a quien te lo pasó.";
+}
+
+function aMarca(v: Date | string | null | undefined): number | null {
+    if (!v) return null;
+    const m = v instanceof Date ? v.getTime() : Date.parse(String(v));
+    return Number.isFinite(m) ? m : null;
+}
+
+/**
+ * Si a alguien de la sala se le sigue viendo.
+ *
+ * Mismo criterio que la presencia de las llamadas: sin latido reciente, fuera.
+ * Es lo que cierra la sala sola cuando alguien cierra la pestaña sin despedirse
+ * —que es lo normal— en vez de dejar un recuadro negro para siempre.
+ */
+export function sigueDentro(
+    vistoEn: Date | string | null | undefined,
+    ahora: number = Date.now(),
+): boolean {
+    const marca = aMarca(vistoEn);
+    if (marca === null) return false;
+    return ahora - marca <= MARGEN_EN_LA_SALA_MS;
+}
+
+/**
+ * Quién de los dos hace la oferta.
+ *
+ * **La pregunta entera de una malla**, y la respuesta tiene que ser la misma en
+ * las dos puntas sin que se pongan de acuerdo: si los dos ofrecen a la vez, las
+ * dos ofertas chocan (*glare*) y la conexión no se establece; si no ofrece
+ * ninguno, tampoco.
+ *
+ * Se decide comparando los ids: **ofrece el menor**. Es una regla pura, sin
+ * reloj y sin orden de llegada, así que las dos puntas llegan a la misma
+ * conclusión aunque se vean por primera vez en vueltas distintas del reloj —
+ * que es justo lo que pasa cuando alguien entra y los demás lo descubren cada
+ * uno en su vuelta.
+ *
+ * Con la hora de llegada sería frágil: dos personas que entran en el mismo
+ * segundo podrían verse en orden distinto, y ahí vuelve el choque.
+ */
+export function debeOfrecer(yo: string, elOtro: string): boolean {
+    if (!yo || !elOtro || yo === elOtro) return false;
+    return yo < elOtro;
+}
+
+/**
+ * Con quién hay que tener conexión, y con quién sobra.
+ *
+ * Devuelve las dos listas de una vez porque las dos salen del mismo dato y
+ * quien llama necesita las dos en la misma vuelta: abrir las que faltan y
+ * **cerrar las que sobran**. Sin la segunda, quien se va deja su conexión
+ * abierta y su recuadro negro en la pantalla de los demás para siempre.
+ */
+export function comoQuedaLaMalla(input: {
+    yo: string;
+    /** Los que están dentro ahora mismo, incluido uno mismo. */
+    dentro: string[];
+    /** Con los que ya hay conexión montada. */
+    montadas: string[];
+}): { abrir: string[]; cerrar: string[] } {
+    const otros = Array.from(new Set(input.dentro.filter((p) => p && p !== input.yo)));
+    const montadas = Array.from(new Set(input.montadas));
+    return {
+        abrir: otros.filter((p) => !montadas.includes(p)),
+        cerrar: montadas.filter((p) => !otros.includes(p)),
+    };
+}
+
+/**
+ * El nombre con el que entra alguien de fuera.
+ *
+ * Llega del navegador de alguien **sin cuenta**, así que es el único dato que
+ * esa persona aporta y lo van a ver todos los de dentro. Tres cosas:
+ *
+ * 1. **Sin saltos de línea ni espacios de sobra.** Un nombre con `\n` dentro
+ *    rompe la fila de la lista de espera, que es donde se decide si se le deja
+ *    pasar.
+ * 2. **Corto.** Cuarenta caracteres es un nombre largo; doscientos es alguien
+ *    escribiendo un mensaje en el sitio del nombre.
+ * 3. **Nunca vacío**: sin nombre, la sala de espera enseñaría una fila en
+ *    blanco y el anfitrión estaría decidiendo a ciegas. Se pide en la pantalla
+ *    y se vuelve a exigir aquí.
+ */
+export function comoSeGuardaElNombre(nombre: unknown): string | null {
+    if (typeof nombre !== "string") return null;
+    const limpio = nombre.replace(/\s+/g, " ").trim();
+    if (!limpio) return null;
+    return limpio.slice(0, 40);
+}
+
+/**
+ * Si eso que llega es una descripción de sesión con la forma que mandamos.
+ *
+ * No valida el SDP —eso lo hace el navegador al aplicarlo— sino que **sea el
+ * objeto que se espera y no un texto cualquiera**: sin esto, la tabla de
+ * señales es un sitio donde alguien con acceso a una sala puede dejarle a otro
+ * el texto que quiera, y ese texto se le entrega al navegador de la otra punta.
+ *
+ * El tope de tamaño es por lo mismo: un SDP de una llamada de dos pistas son
+ * unos pocos kilobytes; cien kilobytes es otra cosa.
+ */
+export const TOPE_DEL_SDP = 64 * 1024;
+
+export function comoSeGuardaElSdp(crudo: unknown, tipo: TipoDeSenal): string | null {
+    if (typeof crudo !== "string") return null;
+    const texto = crudo.trim();
+    if (!texto || texto.length > TOPE_DEL_SDP) return null;
+    let leido: unknown;
+    try {
+        leido = JSON.parse(texto);
+    } catch {
+        return null;
+    }
+    if (!leido || typeof leido !== "object") return null;
+    const d = leido as { type?: unknown; sdp?: unknown };
+    const esperado = tipo === "oferta" ? "offer" : "answer";
+    if (d.type !== esperado) return null;
+    if (typeof d.sdp !== "string" || !d.sdp.trim()) return null;
+    return texto;
+}
+
+/**
+ * Cómo se reparte la rejilla, según cuánta gente haya.
+ *
+ * Devuelve **columnas Y FILAS**, y lo segundo es lo que costó una medida.
+ *
+ * La primera versión solo daba columnas y dejaba cada recuadro en
+ * `aspect-video`, o sea con la altura atada al ancho. Medido en Chromium: con
+ * cuatro personas a 1440×900, cada recuadro salía de 704×396 y **dos filas son
+ * 792 px** — más de lo que queda entre la cabecera y los mandos. Los dos de
+ * abajo quedaban por debajo de la barra de botones y había que desplazarse
+ * dentro de la rejilla para verlos, que en una videollamada es como no tenerlos.
+ * Y no se ve mirando la pantalla con dos personas, que es como se prueba esto.
+ *
+ * Con las filas declaradas, la rejilla ocupa **el alto que hay** y cada
+ * recuadro se reparte lo que le toca. Caben siempre los cuatro sin desplazar
+ * nada.
+ *
+ * Con **dos** va a una columna en vertical y a dos en cuanto hay sitio: un
+ * móvil en vertical con dos recuadros lado a lado deja dos sellos de correos.
+ */
+export function laRejilla(cuantos: number): string {
+    if (cuantos <= 1) return "grid-cols-1 grid-rows-1";
+    if (cuantos === 2) return "grid-cols-1 grid-rows-2 sm:grid-cols-2 sm:grid-rows-1";
+    return "grid-cols-2 grid-rows-2";
+}
+
+/** Lo que se lee en el recuadro de alguien cuya cámara está apagada. */
+export function lasIniciales(nombre: string): string {
+    const trozos = (nombre || "").trim().split(/\s+/).filter(Boolean);
+    if (!trozos.length) return "?";
+    const primera = trozos[0][0] ?? "";
+    const segunda = trozos.length > 1 ? trozos[trozos.length - 1][0] ?? "" : "";
+    return (primera + segunda).toUpperCase();
+}
+
+/**
+ * La dirección de una sala, para copiarla y pasarla.
+ *
+ * Una sola función para que la pantalla, el mensaje que se publica en el canal
+ * y el botón de copiar digan **la misma dirección**. Escrita a mano en tres
+ * sitios, el día que la ruta cambie una de las tres manda a una página que no
+ * existe — y esa es la que alguien ya tiene pegada en un correo.
+ */
+export function laDireccionDeLaSala(codigo: string, base?: string | null): string {
+    const raiz = (base || "").replace(/\/+$/, "");
+    return `${raiz}/reunion/${codigo}`;
+}
