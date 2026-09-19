@@ -5,6 +5,8 @@ import { currentUser } from "@/lib/auth";
 import { BASE_TRAINING_AGENT_ID } from "@/lib/channel-training";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { getInstances } from "@/actions/api-action";
+import { leerMarcaDelRobot } from "@/lib/robot-de-la-linea";
+import { estadoDeLaSesionDeLaLinea, proveedorDeLaFila } from "@/lib/sesion-de-la-linea";
 
 /**
  * Estado de "puesta en marcha" del Agente IA para el checklist del Inicio.
@@ -72,30 +74,67 @@ export async function getActivationChecklist(): Promise<ActivationChecklist> {
     /* si falla, lo dejamos en false */
   }
 
-  // 2 y 3) Conexión de WhatsApp + bot encendido (Evolution).
+  // 2 y 3) Conexión de WhatsApp + Robot encendido, **en los dos proveedores**.
+  //
+  // Antes esto solo sabía de Evolution: cogía `instanceType === "Whatsapp"` y
+  // exigía `serverUrl`, que es la url de Evolution. Un cliente con su línea en
+  // WhatsApp Mensajería salía con las tres casillas en gris —ni aprovisionado,
+  // ni conectado, ni con el Robot— para siempre, aunque estuviera atendiendo
+  // clientes ese mismo minuto: el checklist le decía que no había terminado de
+  // configurarse a quien ya estaba en marcha.
   let provisioned = false;
   let whatsappConnected = false;
   let botEnabled = false;
   try {
     const instances = await getInstances(userId);
+    const porQr = (instances ?? []).filter(
+      (i) => i.instanceName && proveedorDeLaFila(i.instanceType) !== "otro",
+    );
+    // La de Evolution primero solo por conservar el orden de siempre; lo que
+    // decide es que exista una línea por QR, sea del proveedor que sea.
     const wa =
-      instances?.find((i) => i.instanceType === "Whatsapp") ?? instances?.[0] ?? null;
-    const serverUrl = wa?.serverUrl ?? null;
-    provisioned = !!(serverUrl && wa?.instanceName && wa?.instanceId);
+      porQr.find((i) => proveedorDeLaFila(i.instanceType) === "evolution") ?? porQr[0] ?? null;
 
-    if (provisioned && wa && serverUrl) {
-      const base = `https://${serverUrl}`;
-      const key = wa.instanceId as string;
-      const [state, webhook] = await Promise.all([
-        fetchJson(`${base}/instance/connectionState/${wa.instanceName}`, key),
-        fetchJson(`${base}/webhook/find/${wa.instanceName}`, key),
-      ]);
-      const s = state?.instance?.state ?? state?.state ?? "";
-      whatsappConnected = s === "open";
-      botEnabled = webhook?.enabled === true;
+    if (wa) {
+      const proveedor = proveedorDeLaFila(wa.instanceType);
+      const serverUrl = wa.serverUrl ?? null;
+
+      // Aprovisionada = tiene con qué conectarse. En Evolution eso es su
+      // ApiKey; en Waha el servidor es de la plataforma y la línea ya nació
+      // contra él, así que basta con que la fila exista.
+      provisioned =
+        proveedor === "waha" ? true : !!(serverUrl && wa.instanceName && wa.instanceId);
+
+      if (provisioned) {
+        whatsappConnected =
+          (await estadoDeLaSesionDeLaLinea({
+            instanceName: wa.instanceName as string,
+            instanceType: wa.instanceType,
+            userId,
+          })) === "conectada";
+
+        // El Robot ya NO es el webhook: es la marca `bot_enabled` de la línea,
+        // que el backend lee igual para los dos proveedores (ver CLAUDE.md, «El
+        // Robot no es el webhook»). Leyendo el webhook, esta casilla decía
+        // `true` siempre en Evolution —va siempre encendido— y `false` siempre
+        // en Waha, que no tiene webhook de Evolution ninguno. El webhook solo
+        // manda mientras la columna no exista.
+        const marca = await leerMarcaDelRobot(wa.instanceName as string);
+        if (marca === "sin-columna") {
+          if (serverUrl) {
+            const webhook = await fetchJson(
+              `https://${serverUrl}/webhook/find/${wa.instanceName}`,
+              wa.instanceId as string,
+            );
+            botEnabled = webhook?.enabled === true;
+          }
+        } else {
+          botEnabled = marca !== false;
+        }
+      }
     }
   } catch {
-    /* Evolution caído / sin API Key → se refleja como no conectado */
+    /* Servidor caído / sin credenciales → se refleja como no conectado */
   }
 
   return {

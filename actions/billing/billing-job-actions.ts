@@ -7,10 +7,10 @@ import { endOfDay, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
 import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING, PRE_DELETE_WARN_DAYS } from "@/types/billing";
-// `deleteInstanceInternal` se queda SOLO para el borrado de la cuenta a los 30
-// dias: ahi la fila de `User` se va y la linea se borra de verdad. La
-// suspension por impago ya no borra nada (ver `lib/robot-por-facturacion.ts`).
-import { deleteInstanceInternal } from "@/actions/api-action";
+// El borrado de la cuenta a los 30 dias es el UNICO sitio donde la linea se
+// borra de verdad: ahi la fila de `User` se va. La suspension por impago ya no
+// borra nada (ver `lib/robot-por-facturacion.ts`).
+import { liberarLasLineasDeLaCuenta } from "@/lib/sesion-de-la-linea";
 import { apagarElRobotPorImpago, olvidarElRobotDe } from "@/lib/robot-por-facturacion";
 import { assertAdminOrReseller } from "./helpers/billing-helpers.server";
 import { anotarLaCohorteDelMes } from "@/actions/renovacion-mensual-actions";
@@ -682,7 +682,14 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                     });
                 }
 
-                await deleteInstanceInternal(dc.userId).catch(() => null);
+                // TODAS sus lineas, no solo la primera: `deleteInstanceInternal`
+                // resuelve con `checkActiveInstance`, que es un `findFirst`, asi
+                // que una cuenta con dos lineas dejaba la segunda viva. Y la
+                // relacion es `onDelete: Cascade`, o sea que el `db.user.delete`
+                // de abajo se lleva sus filas igual: lo que no se libere aqui se
+                // queda ocupando una sesion **para siempre**, sin ninguna fila
+                // que diga de quien era.
+                await liberarLasLineasDeLaCuenta(dc.userId);
                 // La tabla del recuerdo no tiene clave foranea -`Instancias` es
                 // del backend-, asi que al borrar la cuenta nadie la limpia
                 // sola. Va antes del `delete` a proposito: despues, si el

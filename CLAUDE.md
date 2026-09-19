@@ -4928,10 +4928,88 @@ que no pasaba.
    la sesión, y tocarla es justo lo que esto viene a quitar. Mejor un agente que
    responde de más que un cliente reescaneando un QR.
 
-Y un cabo suelto conocido, que **no se tocó** porque es otro frente: el borrado
-de la cuenta a los 30 días sigue llamando solo a Evolution, así que la sesión de
-una línea de Waha se queda viva en su servidor cuando la cuenta desaparece. No
-cuesta dinero de IA —la cuenta ya no existe— pero ocupa una sesión.
+## El proveedor sale de la FILA, no del parámetro
+
+Este documento llevaba escrito un cabo suelto: «el borrado de la cuenta a los 30
+días sigue llamando solo a Evolution, así que la sesión de una línea de Waha se
+queda viva en su servidor cuando la cuenta desaparece». Al ir a cerrarlo resultó
+no ser un caso suelto sino **un patrón repetido en nueve sitios**, el mismo que
+ya mordió dos veces al escribir la sección de arriba.
+
+La forma es siempre esta:
+
+```ts
+const fila = await checkActiveInstance(userId, instanceType); // SÍ busca en los dos
+if (isWhatsappLike(instanceType)) { …Evolution… }             // pregunta por el PEDIDO
+const otra = await db.instancia.findFirst({ where: { instanceName, instanceType } });
+```
+
+`checkActiveInstance` busca a propósito en `['Whatsapp', 'waha']`, así que
+**encuentra** la fila de Waha. Lo que decide después es el parámetro, que por
+defecto vale `'Whatsapp'`. De ahí salen dos daños, y el segundo es el caro:
+
+- **Se habla con el servidor equivocado**, y eso **no falla de forma visible**:
+  un `logout` de Evolution contra el nombre de una sesión de Waha contesta «no
+  existe» y el código sigue como si hubiera cerrado.
+- **Y la fila se va sin la sesión.** `Instancias` es `onDelete: Cascade`, así que
+  al borrar la cuenta sus filas desaparecen con sesión liberada o sin ella. Lo
+  que queda al otro lado **no lo reclama nadie nunca**, porque ya no existe la
+  fila que decía de quién era.
+
+> **Cerrar, borrar y consultar una sesión viven en `lib/sesion-de-la-linea.ts`,
+> se les pasa la FILA y ellas eligen el proveedor.** `proveedorDeLaFila` dice
+> `evolution` (incluido el tipo nulo de las líneas antiguas), `waha` u `otro`
+> —Meta, Telegram, Facebook e Instagram, que no tienen sesión de WhatsApp que
+> cerrar—. Con la condición escrita en cada sitio, el séptimo se olvida, y eso
+> es literalmente lo que pasó.
+
+### Lo que hacía cada uno antes
+
+| dónde | qué hacía con una línea de Waha |
+| --- | --- |
+| `deleteInstanceInternal` (borrado de la cuenta a los 30 días) | `logout`+`delete` contra Evolution, y luego `findFirst({ instanceName, instanceType })` con el tipo **pedido**: no la encontraba y salía con `success:false` **dejando la fila**. La sesión quedaba viva para siempre. |
+| `deleteInstanceEvolutionAware` (cascada del reseller) | una línea de Waha normalmente no tiene clave de Evolution, así que caía en `if (!user.apiKey)` —«sin ApiKey: registro eliminado»— y **se llevaba la fila sin tocar la sesión**. La rama del `retryable` ni se ejercía. |
+| `deleteInstance` (la papelera de la tarjeta) | el mismo segundo `findFirst`: contestaba «No se encontró la instancia en la base de datos» con la fila delante. |
+| `forceRecreateInstance` | `deleteMany({ instanceName, instanceType })` no borraba nada y después creaba una fila **de Evolution** con el mismo nombre: **dos filas para un número**. |
+| `cerrarSesionDeLaLinea` (el botón verde) | Evolution a secas: «El usuario no tiene una ApiKey de Evolution asignada», que es cierto y no explica nada. |
+| `renameInstance` | renombraba la fila y no la sesión. La sesión de Waha **se llama igual que la instancia**, así que la línea se quedaba sin mensajes y sin un solo error. |
+| `generateQRCode` | `isWhatsappLike('waha')` es `false` → «No se pudo generar el código QR.» Y la comprobación de la ApiKey de Evolution iba **antes**, así que una cuenta de solo Waha ni llegaba. |
+| `generateWhatsappPairingCode` | no miraba el tipo: mandaba el código por número a Evolution pasara lo que pasara. |
+| `checkActiveInstance` | su `IN` nunca casa con un **nulo**, así que las líneas **antiguas sin tipo** no las encontraba nadie — y `isWhatsappLike(null)` vale `true` desde siempre, o sea que la intención era incluirlas. |
+
+Y tres que **consultaban** y solo miraban Evolution, que es la mitad muda del
+mismo patrón:
+
+| dónde | qué pasaba |
+| --- | --- |
+| el cron de «tu línea se cayó» | su filtro pedía tipo nulo o `Whatsapp` **y** `apiKey: { isNot: null }`. Una cuenta de solo Waha quedaba fuera por las dos: la línea se le caía y **no se enteraba nadie** — ni aviso, ni fila en el resultado del cron, ni fallo que mirar. |
+| la columna «desconectado» de Panel › Clientes | excluía Waha con el motivo escrito de que «no se puede comprobar». Sí se puede: `getWahaSession` contesta `WORKING` o no. Mientras estuvo fuera, ese cliente **no salía ni en verde ni en rojo**. |
+| el checklist de puesta en marcha | cogía `instanceType === "Whatsapp"` y exigía la url de Evolution: un cliente de Waha salía con las tres casillas en gris para siempre, aunque estuviera atendiendo. Y `botEnabled` leía el **webhook**, que va siempre encendido en Evolution y no existe en Waha: decía `true` siempre en una y `false` siempre en la otra. Ahora lee `bot_enabled`, que es lo que el backend mira para los dos. |
+
+### Cuatro cosas que hay que mantener
+
+1. **`desconocido` NO es «caída».** `estadoDeLaSesionDeLaLinea` devuelve tres
+   valores y no un booleano a propósito: una línea cuyo servidor no contesta no
+   se pinta en rojo ni dispara un WhatsApp. Inventar un estado es lo que llenaba
+   la lista de clientes a los que escribirle sin motivo.
+2. **`transitorio` decide si la fila se queda.** Un servidor caído o un `5xx` es
+   de hoy y la fila se conserva como señal de borrado pendiente; un `404` o un
+   `4xx` es firme y la fila se puede ir. Borrar la fila ante un fallo transitorio
+   es exactamente cómo se queda una sesión huérfana.
+3. **Al eliminar una cuenta se liberan TODAS sus líneas**
+   (`liberarLasLineasDeLaCuenta`), no la primera. Los dos caminos de los 30 días
+   pasaban por funciones que resuelven con `checkActiveInstance`, que es un
+   `findFirst`: una cuenta con dos líneas dejaba la segunda viva. Y como la
+   relación es en cascada, la fila se iba igual.
+4. **Una operación que un proveedor no sabe hacer se DICE, no se simula.** Waha
+   no sabe renombrar una sesión y no ofrece código por número; las dos contestan
+   qué sí se puede hacer en su lugar. Renombrar solo la fila «funcionaba» y
+   dejaba la línea muda.
+
+El banco son **39 casos contra Postgres**, con una línea de cada proveedor y con
+el `fetch` apuntado para poder afirmar **a qué servidor se habló**. Los diez
+«ANTES» ejecutan la rama vieja literal sobre la misma semilla: sin ellos no se
+sabe si se arregló la causa o algo parecido.
 
 ## Chats: el filtro de canales tiene que sumar
 
