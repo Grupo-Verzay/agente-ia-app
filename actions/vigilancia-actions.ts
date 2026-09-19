@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
@@ -42,6 +42,21 @@ import { DIAS_QUE_SE_MIRAN, type VistaDeLaVigilancia } from "@/lib/vigilancia-vi
  * Y el WhatsApp sigue saliendo solo hacia la cuenta de superadministrador: eso
  * se decide mas abajo, en `elSuperAdministrador`, y es otra pregunta —a quien
  * se le avisa— que no se toca.
+ *
+ * ## Y esto NO es un fichero de acciones
+ *
+ * Llevaba `'use server'`, que convierte cada funcion exportada en un endpoint
+ * POST al que se llega desde el navegador. Aqui eso dejaba a cualquiera con
+ * sesion disparar `avisarSiElDiaSeSalioDeLoNormal`, o sea mandarle un WhatsApp
+ * al superadministrador cuando quisiera y tantas veces como quisiera — y un
+ * aviso que llega todo el dia se aprende a despachar sin leer, que es
+ * justamente lo que esta vigilancia existe para evitar.
+ *
+ * No hacia falta: a este fichero no lo importa ni un componente de cliente. La
+ * lee `panel/analytics/page.tsx`, que es un componente de SERVIDOR y la llama
+ * dentro del mismo proceso, y la dispara el cron de madrugada. `server-only`
+ * conserva lo unico que la etiqueta aportaba —que esto no se empaquete nunca
+ * hacia el navegador— y quita el endpoint.
  */
 
 export async function leerLaVigilancia(): Promise<VistaDeLaVigilancia | null> {

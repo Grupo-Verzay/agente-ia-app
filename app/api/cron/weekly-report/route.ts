@@ -1,4 +1,4 @@
-import { runWeeklyReportForAllUsers } from "@/actions/weekly-report-actions";
+import { runWeeklyReportForAllUsers } from "@/lib/weekly-report-runner.server";
 import { NextResponse } from "next/server";
 
 function isAuthorized(request: Request): boolean {

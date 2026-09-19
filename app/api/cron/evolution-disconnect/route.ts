@@ -1,4 +1,4 @@
-import { sendQrDisconnectedNotification } from '@/actions/api-action'
+import { sendQrDisconnectedNotification } from '@/lib/aviso-de-desconexion.server'
 import { db } from '@/lib/db'
 import {
   estadoDeLaSesionDeLaLinea,

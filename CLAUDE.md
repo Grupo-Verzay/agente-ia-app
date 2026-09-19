@@ -994,6 +994,84 @@ Tres cosas que hay que mantener:
    que se recuerda es barato de equivocarse**; si algún día se cachea algo cuyo
    error sea caro, el plazo no es la respuesta.
 
+### Y un RUNNER de sistema no puede ser una acción: la guarda no lo cierra, lo APAGA
+
+El barrido de arriba dejó un lote fuera a propósito: las funciones que llama un
+**cron**, un **webhook** o el **despachador de avisos**. Ese lote no se cierra
+en bloque, y el motivo es que **ponerle la guarda de siempre las rompe**: desde
+un cron no hay sesión, `currentUser()` devuelve vacío, y lo que sale de ahí no
+es un «No autorizado» en pantalla — es que el aviso deja de salir y nadie se
+entera. Es exactamente lo que dejó los **avisos de Waha callados durante días**.
+
+Y aun así había que cerrarlas, porque la premisa no cambia:
+
+> **Una acción ES un endpoint.** Todo `export async function` de un fichero
+> `'use server'` es un POST al que se llega desde el navegador con los
+> parámetros que uno quiera, **lo llame quien lo llame por dentro**. Que una
+> función solo tenga sentido desde un cron no la hace alcanzable solo desde un
+> cron.
+
+Lo que estaba publicado con eso, y no es poco: `runResellerBillingForAll`
+—recorre la cartera de cada reseller, suspende cuentas y **borra** las que
+llevan 30 días vencidas—, `runBillingDailyJobSystem` —el cobro de la plataforma
+entera, con su `requireAuth: false` puesto a propósito—, `confirmPaymentInternal`
+y `setUserBillingDueDateInternal` —o sea **darse por pagado**—, las diez del
+despachador —«manda este texto, a este número, por la línea de esta cuenta»—,
+`generateWeeklyReportForUser(userId)` y `processCallRecordingForUser` —que
+gastan los **créditos de IA de otra cuenta**— y `sendQrDisconnectedNotification`,
+que manda un WhatsApp a cualquier número por la línea de la casa.
+
+**La salida no es una guarda, son dos formas de dejar de ser un endpoint**, y
+cuál toca lo decide una sola pregunta: *¿lo importa algún componente de cliente?*
+
+| | qué se hace |
+| --- | --- |
+| el fichero **no** lo importa ningún componente de cliente | el fichero entero deja de ser de acciones: `'use server'` → **`import "server-only"`** |
+| el fichero **sí** tiene pantalla detrás | el fichero se queda como está y **el runner se va a `lib/*.server.ts`** |
+
+`server-only` no es una etiqueta más floja: conserva lo único que `'use server'`
+aportaba de verdad —que eso no se empaquete nunca hacia el navegador, y que el
+build **se caiga en el sitio** si alguien lo importa desde un componente de
+cliente— y quita el endpoint. Y la segunda fila no inventa nada: es lo que ya
+hacían `lib/cobros-runner.ts` y `lib/avisos-de-vencimiento-runner.ts`, o sea la
+regla que este documento ya tenía escrita —**un despachador del servidor no pasa
+por una acción**— aplicada a los seis sitios donde faltaba.
+
+Cinco cosas que hay que mantener:
+
+1. **Se mira el FICHERO, no la función.** `'use server'` publica todo lo que el
+   fichero exporte, así que dejar una sola función de sistema dentro publica esa
+   función. Por eso `runResellerBillingForAll` se fue entera en vez de quedarse
+   con un `if`: el `requireAuth: false` de `billing-job-actions` **era** el
+   agujero, no el arreglo.
+2. **Lo que se mueve conserva sus dos llamadores.** El cron sigue llamándolo, y
+   el llamador interno que ya tenía sesión también: `generateQRCode` sigue
+   avisando de la desconexión, y `generateMyWeeklyReport` sigue generando el
+   informe de quien lo pide. Lo que cambia es que ese id ya no llega del
+   navegador — lo pone quien acaba de comprobar quién llama.
+3. **Lo que se queda abierto se dice EN EL FICHERO, no en una lista aparte.**
+   Son tres, y las tres lo son porque la página que las abre no tiene sesión:
+   `getAvailableSlots`, `sendMessageWithHistoryAction` y `sendBookingNotifications`.
+   Las dos últimas llevan escrito además **lo que sí abren** —mandar un WhatsApp
+   por la línea de cualquier cuenta— y **qué las cerraría de verdad**: que la
+   confirmación de la reserva se arme en el servidor a partir del id de la cita,
+   en vez de recibirla hecha. Eso toca las dos pantallas públicas de reservas,
+   así que va aparte; lo que no puede pasar es que se dé por revisado.
+4. **Un filtro que vive un paso después del servidor no es un filtro.**
+   `/schedule/[userId]` pedía `getRemindersByUserId` —la biblioteca entera de la
+   cuenta, con el texto de cada recordatorio— y filtraba `isSchedule` **al
+   pintar**, así que lo que viajaba era la lista completa. Ahora hay
+   `getScheduleRemindersByUserId`, que filtra en la consulta, y su hermana
+   lleva la guarda. Es una función aparte y no un parámetro **porque el filtro
+   es la puerta**.
+5. **Y lo comprueba un banco que mira por dónde entra el sistema**, no función
+   por función: `lib/__tests__/acciones-de-sistema.test.mjs` lee del propio
+   `middleware.ts` los prefijos que pasan sin sesión, recorre esas rutas y falla
+   si alguna importa un fichero `'use server'`. Corre en **dos modos**: con la
+   forma vieja de `billing-job-actions` puesta se pone en rojo por los dos
+   sitios, y con la nueva pasa. Sin el modo roto no se sabe si se arregló la
+   causa o algo parecido.
+
 ## Las notas son de la PERSONA, no de la cuenta
 
 Un administrador comparte unas notas con su equipo. Todo bien en `/notas`. Pero

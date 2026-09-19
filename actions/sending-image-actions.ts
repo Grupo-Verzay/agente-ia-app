@@ -1,4 +1,16 @@
-﻿'use server';
+﻿import "server-only";
+
+/**
+ * Esto NO es un fichero de acciones, aunque viva en `actions/`.
+ *
+ * Llevaba `'use server'`, que convierte cada funcion exportada en un endpoint
+ * POST al que se llega desde el navegador. `sendingImageMessage` recibe la url
+ * de Evolution, su apikey y el destinatario, asi que era una forma de mandar
+ * media a cualquier numero desde dentro de la red.
+ *
+ * Su unico llamador es `/api/send-media`, que pide `CRM_FOLLOW_UP_RUNNER_KEY`:
+ * lo llama el backend, no un navegador.
+ */
 
 import {
     buildChatHistorySessionId,

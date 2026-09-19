@@ -1,5 +1,5 @@
 import { runBillingDailyJobSystem } from "@/actions/billing/billing-job-actions";
-import { runResellerBillingForAll } from "@/actions/billing/reseller-billing-actions";
+import { runResellerBillingForAll } from "@/lib/reseller-billing-runner.server";
 import { purgarCuentasEliminadasPendientes } from "@/lib/purge-account.server";
 import { podarRevisionesDePromptsPendientes } from "@/lib/prompt-revisions-cleanup.server";
 import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";

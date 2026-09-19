@@ -185,9 +185,59 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
 }
 
 /**
- * Obtener todos los recordatorios de un usuario
+ * Los recordatorios de la AGENDA de una cuenta: los que se le programan a quien
+ * reserva una cita. Esta se queda abierta a propósito y es la que abre
+ * `/schedule/[userId]`, que el middleware deja sin sesión.
+ *
+ * Y es una función aparte, no un parámetro de la de abajo, porque el filtro
+ * **es** la puerta: `isSchedule: true` son los que esa pantalla va a programar
+ * y nada más. Su hermana devuelve la biblioteca entera de la cuenta —campañas
+ * fuera, pero todo lo demás dentro, con sus textos—, y eso no lo tiene que ver
+ * quien entra a pedir una cita.
+ *
+ * Era justo lo que pasaba: la página llamaba a `getRemindersByUserId` y
+ * filtraba `isSchedule` **al pintar**, así que lo que viajaba desde el servidor
+ * era la lista completa. El filtro vivía un paso después del sitio donde
+ * importa.
+ */
+export async function getScheduleRemindersByUserId(
+    userId: string,
+): Promise<ReminderResponse<Reminders[]>> {
+    if (!userId) {
+        return { success: false, message: "El ID del usuario es obligatorio." }
+    }
+
+    try {
+        const reminders = await db.reminders.findMany({
+            where: { userId, isCampaign: false, isSchedule: true },
+            orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+        })
+        return {
+            success: true,
+            message: "Recordatorios obtenidos correctamente.",
+            data: reminders,
+        }
+    } catch (error) {
+        console.error("[GET_SCHEDULE_REMINDERS]", error)
+        return { success: false, message: "Error al obtener los recordatorios." }
+    }
+}
+
+/**
+ * Obtener todos los recordatorios de un usuario.
+ *
+ * Con guarda: esto es la biblioteca entera de la cuenta, con el texto de cada
+ * recordatorio dentro. Sin ella, con una sesión cualquiera y otro id se leía
+ * la de al lado. Lo que necesita la pantalla pública de reservas es la de
+ * arriba.
  */
 export async function getRemindersByUserId(userId: string): Promise<ReminderResponse<Reminders[]>> {
+    const cuenta = await laCuentaDeLaAccion(userId)
+    if (!cuenta) {
+        return { success: false, message: "No autorizado." }
+    }
+    userId = cuenta
+
     if (!userId) {
         return {
             success: false,

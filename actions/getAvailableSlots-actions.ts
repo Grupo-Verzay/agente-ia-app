@@ -14,6 +14,23 @@ interface AvailableSlotsResponse {
     data?: Slot[];
 }
 
+/**
+ * `getAvailableSlots` se queda ABIERTA a propósito, y es el mismo cubo que
+ * `getPublicCatalog`: **las páginas que la abren no tienen sesión.**
+ *
+ * La recorre quien va a reservar —`/schedule/[userId]`, que el middleware deja
+ * pública, y `/api/schedule/slots`, que llama el backend con su llave—, y esa
+ * persona no es de la cuenta ni va a serlo. Pedirle `assertCanAccessTargetUser`
+ * no la protegería: dejaría la pantalla de reservas en blanco para todo el
+ * mundo, que es lo que este documento llama apagar en vez de cerrar.
+ *
+ * Y lo que devuelve es exactamente lo que la reserva necesita enseñar: **qué
+ * horas quedan libres ese día**. Ni quién ocupa las demás, ni con quién, ni
+ * ningún dato de la cuenta más allá de su zona horaria y su aviso mínimo, que
+ * son los dos números con los que se pintan esas horas. Saber que alguien tiene
+ * el martes a las 10 ocupado es justo lo que se le dice a quien va a reservar.
+ */
+
 // helper: avanza un día sobre un YYYY-MM-DD sin usar la TZ del sistema
 function nextLocalDateStr(ymd: string): string {
     const [y, m, d] = ymd.split('-').map(Number);

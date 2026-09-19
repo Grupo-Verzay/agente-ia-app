@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { processCallRecordingForUser } from '@/actions/calls-recording-actions';
+import { processCallRecordingForUser } from '@/lib/grabacion-de-llamada.server';
 
 // La llamada del bot no tiene sesión de navegador que avise cuándo cuelga, así
 // que es el backend quien detecta que la grabación ya está lista y pide aquí

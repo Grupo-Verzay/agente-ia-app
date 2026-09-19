@@ -1,4 +1,20 @@
-﻿"use server";
+﻿import "server-only";
+
+/**
+ * Esto NO es un fichero de acciones, aunque viva en `actions/`.
+ *
+ * Llevaba `"use server"`, que convierte cada funcion exportada en un endpoint
+ * POST al que se llega desde el navegador. Aqui eso era lo mas caro que hay en
+ * este repositorio: `runBillingDailyJobSystem` corre el cobro de la plataforma
+ * entera **sin comprobar nada** —el `requireAuth: false` esta ahi a proposito,
+ * porque desde un cron no hay sesion—, y por el camino suspende cuentas y
+ * **borra las que llevan 30 dias vencidas**. Exportarla desde un fichero
+ * `"use server"` era publicar ese boton.
+ *
+ * Y la mitad de arriba tampoco servia: `runBillingDailyJob`, la version con
+ * guarda, **no la llama nadie**. El unico llamador del fichero es
+ * `app/api/cron/billing/route.ts`, que pide `CRON_SECRET`.
+ */
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";

@@ -1,4 +1,15 @@
-"use server";
+import "server-only";
+
+/**
+ * Esto NO es un fichero de acciones, aunque viva en `actions/`.
+ *
+ * Lo que devuelve es publico a proposito —el logo y los colores con los que se
+ * pintan el catalogo, los formularios y el icono de la pestaña—, asi que aqui
+ * el `"use server"` no abria nada que no estuviera abierto. Se quita igual,
+ * por la misma razon que las demas: sus cinco llamadores son paginas y rutas
+ * de SERVIDOR que lo invocan dentro del mismo proceso, y un endpoint que nadie
+ * usa es superficie que hay que volver a revisar en cada auditoria.
+ */
 
 import { db } from "@/lib/db";
 import { getSiteConfig } from "@/actions/admin/site-config-actions";

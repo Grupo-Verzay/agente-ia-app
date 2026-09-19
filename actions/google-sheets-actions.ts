@@ -2,7 +2,7 @@
 
 import { google } from 'googleapis';
 import { db } from '@/lib/db';
-import { currentUser } from '@/lib/auth';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { normalizeContactFieldsConfig } from '@/lib/contact-fields';
 import {
   pickExplicitWhatsAppPhoneJid,
@@ -35,7 +35,24 @@ function extractSheetId(input: string): string | null {
 }
 
 /* ── DB helpers ────────────────────────────────────────────── */
-export async function getGoogleSheetsConfig(userId: string): Promise<string | null> {
+
+/**
+ * Estas tres —`laHojaDe`, `elAutoSyncDe` y `volcarElContacto`— son el camino
+ * del SISTEMA y por eso NO se exportan.
+ *
+ * La cuenta les llega **ya resuelta** por quien las llama: una accion que
+ * acaba de comprobar quien es, o `autoSyncContactIfEnabled`, que la recibe de
+ * `/api/owner/sync-contact` —una ruta con su propia llave y sin sesion—.
+ * Ponerles la guarda de siempre las romperia por ese segundo camino:
+ * `currentUser()` devuelve vacio desde una ruta maquina-a-maquina, asi que la
+ * sincronizacion automatica dejaria de volcar nada **sin un solo error** — que
+ * es exactamente lo que dejo los avisos de Waha callados durante dias.
+ *
+ * Y no se exportan porque **una accion es un endpoint**: exportadas desde un
+ * fichero `'use server'`, cualquiera con una sesion les pasaria el id de otra
+ * cuenta y le leeria su hoja, o le escribiria filas dentro.
+ */
+async function laHojaDe(userId: string): Promise<string | null> {
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { googleSheetsWebhookUrl: true },
@@ -43,11 +60,23 @@ export async function getGoogleSheetsConfig(userId: string): Promise<string | nu
   return (user as any)?.googleSheetsWebhookUrl ?? null;
 }
 
+export async function getGoogleSheetsConfig(userId: string): Promise<string | null> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return null;
+  return laHojaDe(cuenta);
+}
+
 export async function saveGoogleSheetId(userId: string, sheetInput: string): Promise<{ success: boolean; error?: string }> {
+  // Sin guarda, esto era la exfiltracion entera: con el id de otra cuenta se le
+  // apuntaba la sincronizacion a la hoja de uno, y **cada lead nuevo suyo** se
+  // escribia alli sin que nadie se enterara.
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return { success: false, error: 'No autorizado' };
+
   const sheetId = extractSheetId(sheetInput) ?? sheetInput.trim();
   try {
     await db.user.update({
-      where: { id: userId },
+      where: { id: cuenta },
       data: { googleSheetsWebhookUrl: sheetId || null } as any,
     });
     return { success: true };
@@ -61,9 +90,11 @@ export const saveGoogleSheetsWebhookUrl = saveGoogleSheetId;
 export const getGoogleSheetsWebhookUrl = getGoogleSheetsConfig;
 
 export async function saveUserSheetsUrl(userId: string, url: string): Promise<{ success: boolean; error?: string }> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return { success: false, error: 'No autorizado' };
   try {
     await db.user.update({
-      where: { id: userId },
+      where: { id: cuenta },
       data: { sheetsUrl: url.trim() || null } as any,
     });
     return { success: true };
@@ -73,8 +104,10 @@ export async function saveUserSheetsUrl(userId: string, url: string): Promise<{ 
 }
 
 export async function getBookingFormName(userId: string): Promise<string | null> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return null;
   try {
-    const user = await db.user.findUnique({ where: { id: userId }, select: { sheetsFormName: true } as any });
+    const user = await db.user.findUnique({ where: { id: cuenta }, select: { sheetsFormName: true } as any });
     return (user as any)?.sheetsFormName ?? null;
   } catch {
     return null;
@@ -82,9 +115,11 @@ export async function getBookingFormName(userId: string): Promise<string | null>
 }
 
 export async function saveBookingFormName(userId: string, name: string): Promise<{ success: boolean }> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return { success: false };
   try {
     await db.user.update({
-      where: { id: userId },
+      where: { id: cuenta },
       data: { sheetsFormName: name.trim() || null } as any,
     });
     return { success: true };
@@ -97,9 +132,11 @@ export async function saveUserSheetsFormNames(
   userId: string,
   names: { sheetsFormName: string | null; sheetsRegistroName: string | null }
 ): Promise<{ success: boolean; error?: string }> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return { success: false, error: 'No autorizado' };
   try {
     await db.user.update({
-      where: { id: userId },
+      where: { id: cuenta },
       data: {
         sheetsFormName: names.sheetsFormName?.trim() || null,
         sheetsRegistroName: names.sheetsRegistroName?.trim() || null,
@@ -112,8 +149,10 @@ export async function saveUserSheetsFormNames(
 }
 
 export async function getUserSheetsUrl(userId: string): Promise<string | null> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return null;
   try {
-    const user = await db.user.findUnique({ where: { id: userId }, select: { sheetsUrl: true } as any });
+    const user = await db.user.findUnique({ where: { id: cuenta }, select: { sheetsUrl: true } as any });
     return (user as any)?.sheetsUrl ?? null;
   } catch {
     return null;
@@ -134,6 +173,18 @@ function columnLetter(n: number): string {
 }
 
 export async function syncContactToGoogleSheets(
+  userId: string,
+  payload: { phone: string; name: string; advisor?: string } & Record<string, string | undefined>,
+): Promise<{ success: boolean; error?: string }> {
+  // Lo que se abria sin esto: escribirle filas a la hoja de otra cuenta, con el
+  // contenido que uno quisiera. El `payload` no se toca —es lo que la pantalla
+  // acaba de teclear—; lo que se comprueba es **de quien es la hoja**.
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return { success: false, error: 'No autorizado' };
+  return volcarElContacto(cuenta, payload);
+}
+
+async function volcarElContacto(
   userId: string,
   payload: { phone: string; name: string; advisor?: string } & Record<string, string | undefined>,
 ): Promise<{ success: boolean; error?: string }> {
@@ -238,10 +289,13 @@ async function resolveAdvisorNames(advisorIds: string[]): Promise<Map<string, st
 export async function syncAllContactsToGoogleSheets(
   userId: string,
 ): Promise<{ success: boolean; message?: string; count?: number }> {
-  const me = await currentUser();
-  if (!me || me.effectiveId !== userId) {
-    return { success: false, message: 'No autorizado.' };
-  }
+  // Llevaba su propia condición, `me.effectiveId !== userId`, y era la puerta
+  // de esta pantalla escrita a mano: dejaba fuera al administrador que llega a
+  // una cuenta por `linked_accounts`, que es el #783 otra vez. Va por la misma
+  // función que sus diez hermanas.
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return { success: false, message: 'No autorizado.' };
+  userId = cuenta;
 
   const userRec = await db.user.findUnique({
     where: { id: userId },
@@ -368,7 +422,7 @@ export async function syncAllContactsToGoogleSheets(
  * activo, autoSyncContactIfEnabled vuelca cada lead nuevo o modificado; el botón
  * masivo sigue disponible igual.
  */
-export async function getSheetsAutoSyncEnabled(userId: string): Promise<boolean> {
+async function elAutoSyncDe(userId: string): Promise<boolean> {
   if (!userId) return false;
   try {
     const user = await db.user.findUnique({
@@ -381,15 +435,23 @@ export async function getSheetsAutoSyncEnabled(userId: string): Promise<boolean>
   }
 }
 
+export async function getSheetsAutoSyncEnabled(userId: string): Promise<boolean> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return false;
+  return elAutoSyncDe(cuenta);
+}
+
 export async function setSheetsAutoSyncEnabled(
   userId: string,
   enabled: boolean,
 ): Promise<{ success: boolean; message?: string }> {
   if (!userId) return { success: false, message: 'Cuenta no válida.' };
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) return { success: false, message: 'No autorizado.' };
 
   // Activar sin una hoja conectada dejaría el interruptor encendido sin efecto.
   if (enabled) {
-    const cfg = await getGoogleSheetsConfig(userId);
+    const cfg = await laHojaDe(cuenta);
     if (!cfg) {
       return {
         success: false,
@@ -400,7 +462,7 @@ export async function setSheetsAutoSyncEnabled(
 
   try {
     await db.user.update({
-      where: { id: userId },
+      where: { id: cuenta },
       data: { sheetsAutoSyncEnabled: enabled },
     });
     return { success: true };
@@ -416,15 +478,35 @@ export async function setSheetsAutoSyncEnabled(
  * desde las acciones que crean/modifican un lead: renombrar, asignar asesor,
  * guardar datos, crear contacto. Nunca lanza: si algo falla, no rompe el flujo
  * principal — el dueño siempre puede reintentar con el botón masivo.
+ *
+ * ## Y esta se queda ABIERTA a propósito
+ *
+ * Es la única del fichero sin guarda, y tiene que serlo: uno de sus llamadores
+ * es `/api/owner/sync-contact`, la ruta que el BACKEND llama cuando entra un
+ * lead nuevo por WhatsApp. Ahí **no hay sesión** —`currentUser()` devuelve
+ * vacío—, así que la guarda de siempre no la protegería: la apagaría, y una
+ * sincronización que deja de volcar sin decir nada es exactamente el fallo de
+ * los avisos de Waha.
+ *
+ * Lo que la hace aceptable es **lo que no puede hacer**. No recibe ningún dato:
+ * solo una cuenta y un `remoteJid`. Lo que escribe lo lee ella misma de la
+ * conversación de ESA cuenta, y lo escribe en la hoja de ESA cuenta, y solo si
+ * esa cuenta activó el opt-in y conectó una hoja. O sea que lo peor que
+ * consigue quien la llame a mano es adelantar un volcado que el dueño ya pidió
+ * — nada sale de su cuenta, y nada entra que no fuera suyo.
+ *
+ * Los dos datos que sí llegarían de fuera —qué se escribe y en qué hoja— se
+ * cerraron aparte: el primero solo lo acepta `syncContactToGoogleSheets`, que
+ * sí lleva guarda, y el segundo lo decide `laHojaDe`, que no se exporta.
  */
 export async function autoSyncContactIfEnabled(userId: string, remoteJid: string): Promise<void> {
   try {
     if (!userId || !remoteJid) return;
-    const enabled = await getSheetsAutoSyncEnabled(userId);
+    const enabled = await elAutoSyncDe(userId);
     if (!enabled) return;
 
     // Necesita una hoja conectada; si no hay, no hace nada.
-    const cfg = await getGoogleSheetsConfig(userId);
+    const cfg = await laHojaDe(userId);
     if (!cfg) return;
 
     const session = await db.session.findFirst({
@@ -464,7 +546,7 @@ export async function autoSyncContactIfEnabled(userId: string, remoteJid: string
       }
     }
 
-    await syncContactToGoogleSheets(userId, {
+    await volcarElContacto(userId, {
       phone,
       name: session.customName || session.pushName || '',
       advisor,
