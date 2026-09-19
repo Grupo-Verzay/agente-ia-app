@@ -3961,6 +3961,125 @@ columna nueva:
 | 1280x800 | 352 px | 318 px | 32x32 @ 760 | no |
 | 390x667 | 352 px | 318 px | 32x32 @ 315 | no |
 
+## La ventana de llamada: arranca PLEGADA, y no se puede perder
+
+Tres cosas de la ventana que flota, y las tres valen para las dos llamadas —la
+del chat de equipo y la de WhatsApp— porque las dos son el mismo componente.
+
+### 1. Lo que se ve al empezar es la pastilla
+
+La tarjeta grande se abría encima de todo desde el primer segundo y había que
+plegarla a mano **cada vez**. Durante una llamada se trabaja: se mira la
+conversación, se busca el dato que te están pidiendo. Así que lo normal es la
+pastilla y lo excepcional es la tarjeta, no al revés.
+
+De ahí salen dos cosas que la pastilla no sabía hacer, porque antes solo
+existía con la llamada ya conectada:
+
+1. **Lleva un rótulo en vez del contador mientras no hay nada que contar.**
+   «Llamando…», «Conectando…», «Llamada entrante». Un **«00:00»** se lee como
+   una llamada conectada de la que no se oye nada, que es justo la confusión que
+   la tarjeta de WhatsApp acaba de costar por el otro lado.
+2. **Y lleva el botón de CONTESTAR cuando la llamada entra.** Sin él, una
+   llamada entrante plegada no es una llamada: es el aviso de una llamada
+   perdida. Va **fuera del asa**, como los otros dos — dentro, el asa captura el
+   puntero y su `click` no llegaría a salir, o sea una llamada que no se puede
+   coger.
+
+Y por lo mismo se puede **arrastrar desde el primer momento**, no solo
+conectada. La condición de antes decía que «arrastrar una llamada entrante
+añade formas de no darle a Contestar»; con la pastilla siendo lo que se ve desde
+el principio, no poder apartarla es peor, y Contestar está fuera del asa.
+**El botón de plegar sale en cualquier estado menos al acabar**: desplegada y
+sin forma de volver a plegarla, la tarjeta tapa la pantalla el resto de la
+llamada. Al acabar no, que ahí hay que elegir el resultado y una pastilla no
+tiene dónde.
+
+**La reunión NO cambia**: sigue arrancando desplegada. Tiene su propia caja y
+lo que se abre ahí es para mirarlo.
+
+### 2. Acotar AL MOVER no basta, y por eso hay tres salidas y no dos
+
+El manejador del arrastre ya acotaba —`dentroDeLaPantalla` estaba puesto en
+`mover` desde el principio— y la ventana acababa fuera igual. Conviene saber
+por qué, porque leyendo solo el arrastre no se encuentra: **una ventana se sale
+sin que nadie la arrastre.**
+
+| cómo se sale | qué lo tapaba |
+| --- | --- |
+| **crece donde está** — la tarjeta pasa de 22rem a 32rem al encender la cámara, y le aparece dentro un recuadro de video | `tamano` solo miraba `minimizada`, así que ese cambio de tamaño no avisaba a nadie |
+| **encoge la pantalla** — girar un móvil, abrir las herramientas del navegador | el `resize` sí llegaba, pero acotaba contra el borde en vez de descartar la posición |
+| **se mide cuando no hay nada que medir** — un recuadro de 0×0, sin maquetar o escondido | `dentroDeLaPantalla(x, y, 0, 0, …)` da la esquina de abajo a la derecha **como esquina superior** de una pastilla de 318×42: quedan 8 px asomando y el asa entera fuera |
+
+El tercero es el que deja la llamada inalcanzable, y es el que explica el
+síntoma: **acotar una posición calculada contra un tamaño que no era el suyo la
+deja igual de perdida.** Por eso `queHacerConLaVentana`
+(`lib/ventana-flotante.ts`, puro y probado) tiene **tres** salidas:
+
+- **`dejar`** — está entera dentro.
+- **`acotar`** — asoma por un borde y se mete, que es lo de siempre.
+- **`olvidar`** — no se puede arreglar acotándola: se tira y la ventana vuelve a
+  su esquina por defecto, que es donde se sabe encontrarla.
+
+Y se pregunta en los **cuatro** momentos en que puede dejar de valer, no solo al
+mover: al agarrarla, al redimensionar la ventana del navegador, al cambiar de
+tamaño la propia tarjeta (**`ResizeObserver`**, que es lo que de verdad cierra
+el agujero — se entera de los cambios que nadie declara) y al moverla.
+
+Tres cosas que hay que mantener:
+
+1. **Un par de píxeles asomando NO es estar en pantalla.** No hay dónde agarrar
+   y no se lee nada, así que a efectos de quien mira se perdió igual. El mínimo
+   son 32 px, un dedo.
+2. **Pero el mínimo no puede ser mayor que la propia caja ni que la pantalla.**
+   Con un número fijo, una pastilla más baja que 32 px —o una pantalla
+   diminuta— se olvidaría **siempre** y se quedaría clavada en su esquina por
+   mucho que alguien la moviera. Se compara contra el menor de los tres.
+3. **`agarrar` también acota.** Antes guardaba el rectángulo tal cual: si la
+   ventana ya estaba fuera, el arrastre arrancaba desde fuera y el primer
+   movimiento la traía de golpe bajo el cursor, saltando.
+4. **No hay bucle con el `ResizeObserver`.** Observa el **tamaño**, y lo único
+   que esto cambia es dónde está; mover no redimensiona. El caso de `olvidar` sí
+   cambia el ancho —la caja pasa de `left/top` a `inset-x-0 mx-auto`— pero
+   entonces `posicion` ya es `null` y la vuelta siguiente no hace nada.
+
+Y la geometría se mudó de `lib/llamada-de-voz.ts` a **`lib/ventana-flotante.ts`**,
+con sus casos: la usan tres cosas que no son la llamada de voz de un directo.
+**Sin re-export**: una función con dos casas es una que se prueba en una y se
+importa de la otra.
+
+### 3. Una caja más ancha que la pantalla se sale la acotes donde la acotes
+
+Esto lo cazó medir y no se ve leyendo. `w-fit` **no tiene techo**: la pastilla
+de una llamada entrante —rótulo, nombre y tres botones— pedía **437 px**, y en
+un móvil de 320 se salía **52 px por la derecha**, que es exactamente donde
+están Contestar y Colgar. Acotar la posición no arregla eso, porque el problema
+no es dónde está: es cuánto mide.
+
+Va un `max-w-[calc(100vw-1rem)]` en la caja, y dentro **cede el rótulo, nunca
+los botones**: el contador no se recorta —son cinco caracteres y es el dato— y
+los botones son `shrink-0`, así que lo que se acorta es «Llamada entrante».
+
+Medido en Chromium sobre el CSS del build:
+
+| ventana | entrante | saliente | hablando | ¿caben los botones? |
+| --- | --- | --- | --- | --- |
+| 1440×900 | 437 px | 359 px | 318 px | sí |
+| 1280×800 | 437 px | 359 px | 318 px | sí |
+| 390×667 | 374 px | 359 px | 318 px | sí |
+| 320×568 | **304 px** | **304 px** | **304 px** | sí |
+
+Sin el techo, la fila de 320 era «437 → 372 px empezando en x=0», o sea el botón
+de colgar fuera de la pantalla.
+
+> **Lo que NO se pudo reproducir**, y se dice para que nadie lo dé por cerrado:
+> el «se arrastra fuera y no vuelve» **por el camino del arrastre**. `mover`
+> acotaba ya, y leyendo no aparece forma de escaparse por ahí. Lo que sí se
+> encontró son las cuatro puertas de arriba —crecer, encoger, medir en vacío y
+> no tener techo de ancho—, que llevan al mismo sitio y ya están cerradas. Si
+> vuelve a pasar, el sitio donde mirar es `queHacerConLaVentana`: es puro, así
+> que el caso se reproduce en el banco sin navegador.
+
 ## La barra de escribir es UNA, y lo que la forma vive fuera de las dos pantallas
 
 Chats y el chat de equipo tenían dos barras distintas para lo mismo. La del

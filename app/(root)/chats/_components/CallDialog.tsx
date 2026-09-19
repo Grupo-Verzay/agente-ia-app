@@ -83,7 +83,13 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   // Mensaje "no contesté" al contacto: manual (lo decide el asesor con el botón).
   const [missedSent, setMissedSent] = useState(false);
   const [sendingMissed, setSendingMissed] = useState(false);
-  const [minimizada, setMinimizada] = useState(false);
+  /**
+   * Arranca PLEGADA. Durante una llamada se trabaja —se mira la conversación,
+   * se busca el dato que el cliente está pidiendo— así que la tarjeta grande
+   * encima de todo desde el primer segundo obligaba a plegarla a mano cada
+   * vez. Quien quiera la tarjeta entera la despliega.
+   */
+  const [minimizada, setMinimizada] = useState(true);
   /** Lo que se enseña al acabar, cuando hay algo concreto que decir. */
   const [finTexto, setFinTexto] = useState('');
 
@@ -794,8 +800,11 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   // arrastra vive en `useVentanaArrastrable`, que ya lo comparten la llamada
   // del directo y el panel de una reunión.
   const enLlamada = state === 'in-call';
+  // Se puede mover desde el primer momento: la pastilla es lo que se ve desde
+  // el primer momento, y no poder apartarla es peor que el arrastre accidental
+  // que la condición de antes (`solo en llamada`) evitaba.
   const { cajaRef, estilo, asa, posicion } = useVentanaArrastrable({
-    activa: enLlamada,
+    activa: true,
     // Plegar y desplegar cambia el alto: una barra pegada al borde de abajo se
     // saldría por ahí al desplegarse, y fuera está el botón de colgar.
     tamano: minimizada,
@@ -806,7 +815,9 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   // un `getStats` cada segundo por nada.
   if (!open) return null;
 
-  const plegada = minimizada && enLlamada;
+  // Plegada en cualquier estado, no solo en llamada — salvo cuando ya terminó:
+  // ahí hay que elegir el resultado y una pastilla no tiene dónde.
+  const plegada = minimizada && !finished;
 
   return (
     <VentanaDeLlamada
@@ -825,6 +836,15 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
           asa={asa}
           segundos={seconds}
           conQuien={contactName || `+${phone}`}
+          // Mientras no se hable no hay nada que contar: un «00:00» se lee como
+          // una llamada conectada de la que no se oye nada.
+          rotulo={
+            state === 'in-call'
+              ? undefined
+              : state === 'ringing'
+                ? 'Llamando…'
+                : 'Conectando…'
+          }
           onAmpliar={() => setMinimizada(false)}
           onColgar={handleClose}
         />
