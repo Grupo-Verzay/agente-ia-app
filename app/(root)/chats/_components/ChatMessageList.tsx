@@ -12,6 +12,7 @@ import { InternalNoteBubble } from './InternalNoteBubble';
 import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
 import { MediaGalleryProvider } from './media-viewer';
+import { ConversacionDeLaNotaProvider } from './TranscribirNota';
 import type { MediaData, UIBubble } from './chat-message-types';
 
 // Umbral ALTO a propósito: la virtualización usa alturas ESTIMADAS y, al
@@ -192,6 +193,8 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           reaction={message.reaction}
           transcripcion={message.transcripcion}
           transcripcionMotivo={message.transcripcionMotivo}
+          messageId={message.id}
+          audioSegundos={message.audioSegundos}
           callPhone={callPhone}
           contactName={contactName}
           quotedMessage={message.quotedMessage}
@@ -314,6 +317,20 @@ interface ChatMessageListProps {
   /** Teléfono del contacto (solo dígitos) para el botón "devolver llamada" en burbujas de llamada */
   callPhone?: string;
   contactName?: string;
+  /**
+   * De qué conversación es esta lista.
+   *
+   * Lo necesita el botón de transcribir una nota de voz, que vive al fondo de
+   * `MessageBubble` → `MediaRenderer`: se le baja por contexto y no por props
+   * para no atravesar tres componentes con dos cadenas. Es el mismo patrón que
+   * ya usa el visor de medios de esta lista.
+   */
+  conversacion?: {
+    instanceName?: string;
+    remoteJid?: string;
+    remoteJidAliases?: string[];
+    apiKeyData?: { url: string; key: string };
+  };
 }
 
 const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
@@ -337,6 +354,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   onJumpToMessage,
   callPhone,
   contactName,
+  conversacion,
 }) => {
   const autoLoadLockRef = useRef(false);
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
@@ -490,6 +508,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
 
   return (
     <MediaGalleryProvider items={galleryItems}>
+    <ConversacionDeLaNotaProvider value={conversacion ?? null}>
     <div
       className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto overflow-x-hidden custom-scrollbar w-full"
       ref={listRef}
@@ -566,6 +585,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
         {presencia && <PresenciaBurbuja tipo={presencia} />}
       </div>
     </div>
+    </ConversacionDeLaNotaProvider>
     </MediaGalleryProvider>
   );
 };

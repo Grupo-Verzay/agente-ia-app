@@ -40,7 +40,23 @@ import {
 import { mensajeDeWahaParaGuardar } from "@/lib/waha-historial";
 import { canonicalToWahaJid, wahaJidToCanonical } from "@/lib/waha-jid";
 import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
-import { transcribirLasNotasQueFalten } from "@/lib/transcribir-notas";
+import {
+  bajarElAudioDeLaNota,
+  guardarLaTranscripcion,
+  laNotaDeVoz,
+} from "@/lib/transcribir-nota-de-chat";
+import {
+  costoDeLaNota,
+  porQueNoSeTranscribio,
+  queHacerConLaNota,
+  type NoSeTranscribio,
+} from "@/lib/transcripcion-de-voz";
+import {
+  descontarLaTranscripcion,
+  laClaveDeOpenAi,
+  losCreditosQueQuedan,
+  pedirleElTextoAOpenAi,
+} from "@/lib/creditos-de-transcripcion";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
 import { apuntarLoQueHizo, apuntarUnaVezAlDia } from "@/lib/apuntar-actividad";
 import {
@@ -800,6 +816,142 @@ async function traerHistorialDeWaha(params: {
   return guardados;
 }
 
+/**
+ * Transcribir UNA nota de voz, porque alguien pulsó su botón.
+ *
+ * Antes esto no existía: un paso de fondo transcribía toda nota que entrara, en
+ * cada vuelta del reloj de la conversación abierta, **la leyera alguien o no**.
+ * Con decenas de clientes por cuenta eso es plata que se va sola, y encima la
+ * paga entera la cuenta dueña de la línea.
+ *
+ * Es el mismo trato que el chat del equipo, y comparte con él la tarifa
+ * (`costoDeLaNota`), la lectura de créditos y el descuento
+ * (`lib/creditos-de-transcripcion`). Con una copia en cada sitio, el día que
+ * cambie el precio uno de los dos cobraría otra cosa — y eso no se ve: se nota
+ * meses después en la factura.
+ *
+ * Cuatro cosas que hay que mantener:
+ *
+ * 1. **Se guarda, así que solo se paga una vez.** La lectura del texto ya
+ *    pagado va **antes** de resolver créditos y de bajar nada: en cuanto
+ *    alguien la pide una vez, ese es el camino común, y en una cuenta con
+ *    varios asesores la misma nota se pagaría una vez por cada uno.
+ * 2. **Se cobra DESPUÉS de tener el texto.** Cobrar antes y que la llamada
+ *    falle sería cobrar por algo que no se entregó.
+ * 3. **Un fallo no deja marca y no cobra.** Aquí la pidió una persona, así que
+ *    un tropiezo de hoy —la red, OpenAI— se reintenta pulsando otra vez. Era
+ *    justo lo contrario lo que dejaba una nota con «No se pudo transcribir.»
+ *    para siempre.
+ * 4. **Paga la cuenta DUEÑA DE LA LÍNEA**, que es la que recibe el mensaje. Un
+ *    asesor de una cuenta vinculada abriendo este chat no puede cargarle el
+ *    consumo a la suya.
+ */
+export async function transcribirNotaDeChatAction(
+  context: ChatActionContext,
+  remoteJid: string,
+  messageId: string,
+  options?: { remoteJidAliases?: string[] },
+): Promise<
+  | { success: true; transcripcion: string; yaEstaba: boolean }
+  | { success: false; motivo: NoSeTranscribio; message: string }
+> {
+  const no = (
+    motivo: NoSeTranscribio,
+    detalle?: { hacenFalta?: number; quedan?: number },
+  ) => ({ success: false as const, motivo, message: porQueNoSeTranscribio(motivo, detalle) });
+
+  try {
+    const user = await requireCurrentUser();
+    context = await resolverContexto(context);
+
+    const instanceName = context?.instanceName?.trim();
+    const id = String(messageId ?? "").trim();
+    if (!instanceName || !remoteJid?.trim()) return no("sin_linea");
+    if (!id) return no("no_es_nota");
+
+    // De quién es la línea. Es la MISMA puerta que el resto de Chats: quien no
+    // alcanza esa cuenta no lee sus mensajes, así que tampoco gasta sus
+    // créditos. `resolveChatStorageUserId` ya comprueba el acceso y se cae a la
+    // cuenta de quien mira cuando no lo hay.
+    const duenoDeLaLinea = await resolveChatStorageUserId(context, user.id);
+    if (!duenoDeLaLinea) return no("sin_linea");
+    const readUserIds = Array.from(new Set([duenoDeLaLinea, user.id].filter(Boolean) as string[]));
+
+    const nota = await laNotaDeVoz({
+      userIds: readUserIds,
+      instanceName,
+      messageId: id,
+      candidatos: buildWhatsAppJidCandidates(remoteJid, options?.remoteJidAliases ?? []),
+    });
+    if (!nota) return no("no_es_nota");
+
+    // Ya pagada. Ni créditos, ni descarga, ni OpenAI.
+    if (nota.transcripcion) {
+      return { success: true, transcripcion: nota.transcripcion, yaEstaba: true };
+    }
+
+    // La comprobación va en CRÉDITOS y nunca toca `used` y `total` en la misma
+    // expresión — es la regla explícita del CLAUDE.md, y el fallo que ya costó
+    // caro en el voicebot.
+    const quedan = await losCreditosQueQuedan(duenoDeLaLinea);
+    const que = queHacerConLaNota({
+      segundos: nota.segundos,
+      creditosDisponibles: quedan,
+    });
+    if (que.hacer === "saltar") return no("muy_larga");
+    if (que.hacer === "esperar") {
+      const costo = costoDeLaNota(nota.segundos);
+      return no("sin_creditos", { hacenFalta: costo.creditos, quedan: quedan ?? 0 });
+    }
+
+    const clave = await laClaveDeOpenAi(duenoDeLaLinea);
+    if (!clave) return no("sin_ia");
+
+    const audio = await bajarElAudioDeLaNota({
+      mediaUrl: nota.mediaUrl,
+      instanceName,
+      messageId: nota.messageId,
+      apiKeyData: hasReadyContext(context)
+        ? { url: context.apiKeyData.url, key: context.apiKeyData.key }
+        : null,
+    });
+    if (!audio) return no("no_bajo");
+
+    const texto = await pedirleElTextoAOpenAi({
+      audio: audio.bytes,
+      clave,
+      nombre: audio.nombre,
+    });
+    if (!texto) return no("no_transcribio");
+
+    // El `WHERE` del guardado es lo que impide pagarla dos veces: con dos
+    // asesores pulsando a la vez, solo una llamada escribe y solo esa descuenta.
+    const laEscribiEsta = await guardarLaTranscripcion(nota.fila, texto);
+
+    if (quedan !== null && laEscribiEsta) {
+      await descontarLaTranscripcion(duenoDeLaLinea, que.costo.tokens);
+    }
+
+    console.info("[chats] nota de voz transcrita", {
+      messageId: nota.messageId,
+      linea: instanceName,
+      paga: duenoDeLaLinea,
+      segundos: nota.segundos,
+      creditos: quedan === null ? "ilimitados" : laEscribiEsta ? que.costo.creditos : 0,
+    });
+
+    return { success: true, transcripcion: texto, yaEstaba: !laEscribiEsta };
+  } catch (error) {
+    // Una acción no solo devuelve `success: false`: puede reventar. Y un fallo
+    // mudo aquí se lee como un botón que no hace nada.
+    console.warn("[chats] no se pudo transcribir la nota de voz", {
+      messageId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return no("no_transcribio");
+  }
+}
+
 export async function warmChatMessagesAction(
   context: ChatActionContext,
   remoteJid: string,
@@ -853,25 +1005,12 @@ export async function warmChatMessagesAction(
       });
       tiempos.base = Date.now() - arrancoBase;
 
-      // Las notas de voz que falten por transcribir.
-      //
-      // De FONDO, sin `await`: la conversacion no espera a OpenAI para
-      // pintarse. Lo que salga se guarda, asi que la vuelta siguiente del
-      // reloj —cinco segundos— ya lo trae. Es la regla de siempre de Chats,
-      // «agotar la espera no es tirar la respuesta», aplicada aqui.
-      //
-      // La cuenta que PAGA es la dueña de la linea (`effectiveOwnerId`), que es
-      // la que recibe el mensaje — no la de quien mira: un asesor de una cuenta
-      // vinculada abriendo este chat no puede cargarle el consumo a la suya.
-      void transcribirLasNotasQueFalten({
-        duenoDeLaLinea: effectiveOwnerId,
-        userIds: readUserIds,
-        instanceName: hasReadyContext(context) ? context.instanceName : undefined,
-        candidatos: buildWhatsAppJidCandidates(remoteJid, options?.remoteJidAliases ?? []),
-        apiKeyData: hasReadyContext(context)
-          ? { url: context.apiKeyData.url, key: context.apiKeyData.key }
-          : null,
-      });
+      // Aqui corria el paso que transcribia SOLAS las notas de voz que
+      // entraran, de fondo y en cada vuelta del reloj. Se quito: transcribia
+      // todo lo que llegaba, **lo leyera alguien o no**, y con decenas de
+      // clientes por cuenta eso es una factura que nadie pidio. Ahora va bajo
+      // demanda, con su boton y su precio delante
+      // (`transcribirNotaDeChatAction`).
 
       // WhatsApp Mensajeria (waha): el historial que ya tiene WhatsApp.
       //

@@ -94,8 +94,12 @@ interface MessageBubbleProps {
   reaction?: string;
   /** El texto de una nota de voz, transcrito. Va debajo del audio, no en su lugar. */
   transcripcion?: string;
-  /** Por qué esa nota no tiene texto, cuando hay algo que contar. */
+  /** La marca que dejó el paso automático mientras existió. */
   transcripcionMotivo?: "muy_larga" | "fallo";
+  /** El id del mensaje: lo necesita el botón de transcribir su nota de voz. */
+  messageId?: string;
+  /** Lo que dura la nota de voz. De ahí sale el precio que enseña el botón. */
+  audioSegundos?: number;
   /** Teléfono del contacto (solo dígitos) para "devolver llamada" */
   callPhone?: string;
   /** Nombre del contacto: el de la cabecera. Lo usan la llamada y la cita. */
@@ -129,6 +133,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   reaction,
   transcripcion,
   transcripcionMotivo,
+  messageId,
+  audioSegundos,
   callPhone,
   contactName,
   quotedMessage,
@@ -491,6 +497,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             reproducido={isUserMessage && status === 'played'}
             transcripcion={transcripcion}
             transcripcionMotivo={transcripcionMotivo}
+            messageId={messageId}
+            audioSegundos={audioSegundos}
+            esEntrante={!isUserMessage}
           />
         )}
         {message && (

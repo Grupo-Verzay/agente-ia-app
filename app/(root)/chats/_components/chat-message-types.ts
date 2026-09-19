@@ -87,8 +87,19 @@ export type UIBubble = {
   reaction?: string;
   /** El texto de una nota de voz, transcrito. Va debajo del audio, no en su lugar. */
   transcripcion?: string;
-  /** Por qué esa nota no tiene texto, cuando hay algo que contar. */
+  /**
+   * La marca que dejó el paso automático mientras existió. Ya no se escribe
+   * ninguna; se lee para saber qué contar (ver `laMarcaVieja`).
+   */
   transcripcionMotivo?: 'muy_larga' | 'fallo';
+  /**
+   * Lo que dura la nota de voz.
+   *
+   * Hace falta en la pantalla porque **la duración ES el precio**: el botón
+   * dice «Transcribir (3 créditos)», y un botón que gasta sin decir cuánto es
+   * un cheque en blanco.
+   */
+  audioSegundos?: number;
   quotedMessage?: {
     id: string;
     content: string;
