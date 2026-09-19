@@ -118,7 +118,15 @@ export function LaLlamada({
 }) {
     const [estado, setEstado] = useState<Estado>(entrante ? "sonando" : "preparando");
     const [segundos, setSegundos] = useState(0);
-    const [minimizada, setMinimizada] = useState(false);
+    /**
+     * Arranca PLEGADA, y eso vale también para una llamada entrante.
+     *
+     * Una tarjeta grande encima de todo desde el primer segundo obliga a
+     * plegarla a mano cada vez, y durante una llamada se trabaja. La pastilla
+     * lleva el botón de contestar cuando la llamada entra, así que plegada no
+     * significa que no se pueda coger.
+     */
+    const [minimizada, setMinimizada] = useState(true);
     /** Lo que llega del otro lado. Se monta a mano: ver `ontrack`. */
     const [remoto, setRemoto] = useState<MediaStream | null>(null);
     /** Si ahora mismo llega imagen. La pista se queda en `muted` al apagarla. */
@@ -419,17 +427,26 @@ export function LaLlamada({
 
     // ── Arrastrar y minimizar ───────────────────────────────────────────────
     //
-    // Solo con la llamada ya conectada. Mientras suena no hay nada que
-    // recolocar: son dos botones y una decisión de un segundo, y poder
-    // arrastrar una llamada entrante solo añade formas de no darle a Contestar.
+    // Se puede mover **desde el primer momento**, y no solo conectada como
+    // antes. El motivo de aquella condición era que «arrastrar una llamada
+    // entrante añade formas de no darle a Contestar»; con la pastilla siendo lo
+    // que se ve desde el principio, no poder apartarla es peor — y Contestar
+    // está fuera del asa, así que el gesto no compite con el botón.
     //
-    // El cómo se arrastra vive en `useVentanaArrastrable`, que comparte con el
-    // panel de una reunión: la captura del puntero, el `touch-none` y el
-    // recolocar al cambiar de tamaño costaron una vuelta y no pueden estar
-    // escritos en dos sitios.
-    const puedeMoverse = estado === "hablando";
+    // El cómo se arrastra vive en `useVentanaArrastrable`, que comparte con la
+    // llamada de WhatsApp y con el panel de una reunión: la captura del
+    // puntero, el `touch-none` y el volver a meterla en pantalla costaron una
+    // vuelta cada uno y no pueden estar escritos en tres sitios.
+    /**
+     * Si se puede plegar a la pastilla.
+     *
+     * En cualquier estado menos cerrando: la pastilla ya es lo que se ve al
+     * empezar, así que desplegada y sin forma de volver a plegarla la tarjeta
+     * se queda tapando la pantalla el resto de la llamada.
+     */
+    const sePuedePlegar = estado !== "cerrando";
     const { cajaRef, estilo, asa, posicion } = useVentanaArrastrable({
-        activa: puedeMoverse,
+        activa: true,
         // Plegar y desplegar cambia el alto: una barra pegada al borde de
         // abajo se saldría por ahí al desplegarse, y fuera está el de colgar.
         tamano: minimizada,
@@ -477,6 +494,16 @@ export function LaLlamada({
                     asa={asa}
                     segundos={segundos}
                     conQuien={conQuien}
+                    // Mientras no se hable no hay nada que contar: el contador
+                    // a «00:00» se lee como una llamada conectada y muda.
+                    rotulo={estado === "hablando" ? undefined : rotulo}
+                    // Solo en una entrante que todavía suena. Sin esto, una
+                    // llamada que entra plegada no se podría coger.
+                    onContestar={
+                        entrante && estado === "sonando"
+                            ? () => void contestar()
+                            : undefined
+                    }
                     onAmpliar={() => setMinimizada(false)}
                     onColgar={() => void terminar("contestada")}
                 />
@@ -527,7 +554,7 @@ export function LaLlamada({
                         al agarrarla, así que los eventos de después se le
                         redirigen a ella y el `click` del botón no llegaría a
                         salir nunca. Un botón que no hace nada. */}
-                    {puedeMoverse && (
+                    {sePuedePlegar && (
                         <Button
                             variant="ghost"
                             size="icon"
