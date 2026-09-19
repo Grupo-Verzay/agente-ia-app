@@ -15,6 +15,7 @@ import {
     comoVista,
     documentoVacio,
     extractoConLoBuscado,
+    type Compartible,
     type FilaDeLista,
     type Mencion,
     type TipoDeDocumento,
@@ -586,6 +587,80 @@ export async function leerLosPermisosAction(input: {
     };
 }
 
+/**
+ * Con quién se puede compartir: las personas del equipo y las cuentas.
+ *
+ * **La misma lista que ofrece el selector es la que valida `ponerPermisoAction`.**
+ * Con dos criterios, el desplegable ofrece a alguien que al guardar se cae sin
+ * decir por qué — es la regla que ya rige en `setFlowSharesAction`.
+ */
+async function losQueSePuedeCompartir(cuenta: string): Promise<Compartible[]> {
+    const { db } = await import("@/lib/db");
+    const { cuentasParaCompartir } = await import("@/lib/cuentas-cliente");
+
+    const [gente, cuentas] = await Promise.all([
+        // El equipo (cuelga de la cuenta) **y la cuenta misma**, que es el
+        // inicio de sesión del dueño: su fila no cuelga de nadie, así que sin
+        // esa mitad al jefe no se le podría dar acceso a nada. Es el mismo
+        // criterio con el que `soloLasPersonas` reparte en el chat de equipo.
+        db.user.findMany({
+            where: { OR: [{ ownerId: cuenta }, { id: cuenta }] },
+            select: { id: true, name: true, email: true },
+            orderBy: { name: "asc" },
+        }),
+        cuentasParaCompartir(cuenta),
+    ]);
+
+    return [
+        ...gente.map((g) => ({
+            sujetoTipo: "persona" as const,
+            sujetoId: g.id,
+            etiqueta: g.name ?? g.email,
+            detalle: g.email,
+        })),
+        ...cuentas.map((c) => ({
+            sujetoTipo: "cuenta" as const,
+            sujetoId: c.id,
+            etiqueta: c.company || c.name || c.email,
+            detalle: c.email,
+        })),
+    ];
+}
+
+export async function loQueSePuedeCompartirAction(input: {
+    objetoTipo: unknown;
+    objetoId: unknown;
+}): Promise<Respuesta<Compartible[]>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoId = comoId(input.objetoId);
+    if (!objetoId) return NO("Falta el objeto.");
+
+    // La lista va detrás de la MISMA puerta que repartir. Ofrecer las cuentas
+    // de la plataforma a quien no puede compartir nada sería enseñar de balde
+    // quién hay dentro.
+    const acceso =
+        objetoTipo === "espacio"
+            ? await accesoAEsteEspacio(quien.user, objetoId)
+            : await accesoAEsteDocumento(quien.user, objetoId);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+
+    try {
+        return { success: true, data: await losQueSePuedeCompartir(quien.cuenta) };
+    } catch (error) {
+        // Sin candidatos no se puede compartir con nadie, así que el fallo no
+        // puede ser mudo: un selector siempre vacío se lee como que compartir
+        // no funciona.
+        console.warn("[documentacion] no se pudo leer con quién compartir", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo leer la lista.");
+    }
+}
+
 export async function ponerPermisoAction(input: {
     objetoTipo: unknown;
     objetoId: unknown;
@@ -610,12 +685,17 @@ export async function ponerPermisoAction(input: {
     if (!acceso) return NO("No autorizado.");
     if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
 
-    // El sujeto tiene que EXISTIR. Sin esto se pueden dejar filas apuntando a
-    // un id inventado: no abren nada, pero el diálogo las pinta como si
-    // alguien tuviera acceso, que es peor que no tener la fila.
-    const { db } = await import("@/lib/db");
-    const existe = await db.user.findUnique({ where: { id: sujetoId }, select: { id: true } });
-    if (!existe) return NO("Esa cuenta o persona no existe.");
+    // El sujeto tiene que estar en la lista que el selector OFRECE, no solo
+    // existir. Comprobando solo que exista, una petición a mano le daba acceso
+    // a una persona de otra cuenta —que no se ofrece por ningún lado— y esa
+    // persona empezaba a leer el espacio. Y es la misma lista, no una más
+    // estrecha: con dos criterios, el selector ofrece a alguien que al guardar
+    // se cae sin decir por qué.
+    const candidatos = await losQueSePuedeCompartir(quien.cuenta);
+    const ofrecido = candidatos.some(
+        (c) => c.sujetoTipo === sujetoTipo && c.sujetoId === sujetoId,
+    );
+    if (!ofrecido) return NO("Esa cuenta o persona no está en la lista.");
 
     try {
         await ponerPermiso({ objetoTipo, objetoId, sujetoTipo, sujetoId, permiso });

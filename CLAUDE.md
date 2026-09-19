@@ -3790,14 +3790,84 @@ Y las tarjetas del tablero miden **39 px las dos**, con una y con dos líneas: e
 lo que reserva `min-h-[2.75em]`, y el número depende del interlineado (2 × 1.375em
 con `leading-snug`).
 
-### Y lo que queda a medias, dicho
+### El aterrizaje es UNA función, y son tres reglas
 
-**El sentido que el encargo pedía está entero**: desde una tarea o un ticket se
-ven los documentos que los nombran. El de ida aterriza exacto **solo entre
-documentos**; en cliente, tarea y ticket el id viaja en la URL —el enlace queda
-listo— pero hoy lleva a su lista y no a la ficha, porque esas tres pantallas
-todavía no leen su `searchParam`. Si se añade ese aterrizaje, va ahí y no
-inventando un segundo camino.
+Los dos sentidos están enteros: desde una tarea o un ticket se ven los
+documentos que los nombran, y pulsar una pastilla abre **la ficha**, no la lista
+con la ficha dentro en algún sitio. Aterrizar en la lista y dejar buscar la fila
+no es llegar — en una cuenta con cientos de clientes es no llegar.
+
+Las cuatro pantallas leen su parámetro (`?documento=`, `?cliente=`, `?tarea=`,
+`?ticket=`) y las tres de fuera lo hacen con **`useAterrizajeDeMencion`**
+(`hooks/`). Cada una pone solo cómo se busca y cómo se abre; lo que **no** puede
+variar son estas tres, y con la regla copiada en cada pantalla la tercera se
+equivoca — y equivocarse aquí no se ve como un error, se ve como un enlace que
+no lleva a ningún sitio:
+
+1. **Solo la primera vez**, con un guardián por referencia. Sin él, cada
+   repintado volvería a abrir la misma ficha y no se podría navegar a ninguna
+   otra. Es la misma regla que el salto de la campanita al mensaje de un canal.
+2. **Se espera a que la lista esté cargada** (`listo`). Buscando antes, el id no
+   está todavía y el aterrizaje se daría por fallido con la ficha perfectamente
+   disponible un segundo después.
+3. **Y si no se encuentra, se DICE.** Una pantalla que se abre en su lista de
+   siempre después de pulsar un enlace no se lee como «ya no está»: se lee como
+   que el enlace no funciona.
+
+Dos cosas de cada pantalla que no son obvias:
+
+- **En Clientes la ficha es el diálogo de Editar, y se pasa a «Todos» si hace
+  falta.** Esa pantalla nace filtrada en «Activos», así que con un cliente
+  suspendido el diálogo salía encima de una lista donde su fila no estaba — y al
+  cerrarlo parecía que el cliente no existe.
+- **En Tareas NO HABÍA ficha**, y por eso se escribió (`FichaDeLaTarea`). Era
+  además el único sitio donde leer entero el texto de una tarea vieja —cuyo
+  ladrillo sigue dentro de `title`— y donde una tarea suelta puede enseñar sus
+  retroenlaces: hasta ahora eso solo existía en el tablero de Proyectos. **Se
+  llega pulsando el título**, no solo por la URL: una pantalla a la que
+  únicamente se entra con un enlace pegado a mano es media función.
+
+### El selector de permisos: manda la lista, no el texto
+
+El diálogo pedía **pegar el id a mano** y elegir el tipo en un desplegable, y
+eso pide dos cosas que nadie tiene delante: el id de la fila y saber si esa fila
+es una persona o una cuenta. Un id mal pegado se guardaba como un permiso que no
+abría nada, y equivocarse de tipo dejaba fuera al equipo de una cuenta sin
+decirlo.
+
+Ahora se teclea un nombre y **el tipo viaja dentro de lo elegido**. Filtra la
+MISMA función que el selector de menciones (`loQueOfreceElSelector`, sin acentos
+y sin mayúsculas: quien teclea «atencion» tiene que encontrar «Verzay |
+Atención»); con dos, esa cuenta se encontraría al mencionar y no al compartir, y
+eso se lee como que no se puede compartir con ella.
+
+Cuatro cosas que hay que mantener:
+
+1. **La lista que se OFRECE es la que el servidor acepta.**
+   `loQueSePuedeCompartirAction` y `ponerPermisoAction` salen las dos de
+   `losQueSePuedeCompartir`. Antes el servidor solo comprobaba que el id
+   existiera en `User`: con eso, una petición a mano le daba acceso a una
+   persona de **otra cuenta** —que no se ofrece por ningún lado— y esa persona
+   empezaba a leer el espacio. Y por el otro lado, una validación más estrecha
+   que la lista ofrecería a alguien que al guardar se cae sin decir por qué.
+2. **Las personas son el equipo Y LA CUENTA MISMA.** Su fila no cuelga de nadie,
+   así que sin esa mitad al dueño no se le podría dar acceso a nada — es el
+   mismo agujero que ya costó una vuelta en los directos del chat de equipo.
+3. **Lo ya concedido se marca, no se esconde, y la llave es TIPO + ID.** Una
+   cuenta y una persona son las dos filas de `User`: comparando solo por id,
+   elegir a la persona saldría como «ya tiene acceso» porque su cuenta lo tiene.
+   Y esconderlo dejaría sin forma de pasar a alguien de lectura a edición, que
+   la fila de arriba solo se puede quitar.
+4. **La lista va detrás de la misma puerta que repartir.** Ofrecer las cuentas
+   de la plataforma a quien no puede compartir nada es enseñar de balde quién
+   hay dentro.
+
+Y una de medida que solo se ve en un móvil: los hijos de `DialogContent` son
+celdas de un **`grid`**, y una celda se mide por su contenido mínimo. El nombre
+de una cuenta va con `truncate` —o sea sin cortes de línea—, así que su mínimo
+es el nombre **entero**: medido en Chromium a 390 px, el bloque salía de **565
+dentro de un diálogo de 390**. `min-w-0` en el hijo del flex **no basta**; va en
+la celda. Con él, 340 y sin desbordar.
 
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 

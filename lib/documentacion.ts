@@ -16,6 +16,11 @@
  * pestaña, no reescribir nada.
  */
 
+// Solo los tipos, y por eso con `import type`: se borran al compilar, así que
+// este módulo sigue sin depender de nada en tiempo de ejecución. Escribir las
+// uniones otra vez aquí sería tener dos listas que mantener a la par.
+import type { Permiso, SujetoDePermiso } from "@/lib/documentacion-permisos";
+
 /* ─────────────────────────── Qué es cada cosa ───────────────────────────── */
 
 /**
@@ -508,4 +513,50 @@ function sinAcentos(texto: string): string {
         .replace(/[̀-ͯ]/g, "")
         .toLowerCase()
         .trim();
+}
+
+/* ───────────────────── El selector de con quién se comparte ─────────────── */
+
+/** Alguien a quien se le puede dar acceso: una persona o una cuenta entera. */
+export type Compartible = {
+    sujetoTipo: SujetoDePermiso;
+    sujetoId: string;
+    /** El nombre, que es por lo que se busca. */
+    etiqueta: string;
+    /** El correo o la empresa, para distinguir dos nombres iguales. */
+    detalle: string | null;
+};
+
+export type CompartibleOfrecido = Compartible & {
+    /** Ya tiene acceso: elegirlo cambia su permiso en vez de añadirlo. */
+    yaTiene: Permiso | null;
+};
+
+/**
+ * Lo que el selector de permisos ofrece, ya marcado y filtrado.
+ *
+ * **La llave es la pareja tipo + id, nunca el id solo.** Una cuenta y una
+ * persona son las dos filas de `User`, así que un id puede estar concedido
+ * como cuenta y no como persona; comparando solo por id, elegir a una persona
+ * saldría como «ya tiene acceso» porque su cuenta lo tiene, y quien reparte
+ * creería que ya está hecho.
+ *
+ * Y **lo ya concedido NO se esconde**: se marca. La fila de la lista de arriba
+ * solo se puede quitar, así que esconderlo dejaría sin forma de pasar a alguien
+ * de lectura a edición si no es quitándolo y volviéndolo a poner.
+ */
+export function loQueSeOfreceParaCompartir(
+    candidatos: Compartible[],
+    yaConcedido: Array<{ sujetoTipo: SujetoDePermiso; sujetoId: string; permiso: Permiso }>,
+    consulta: string,
+    tope = 8,
+): CompartibleOfrecido[] {
+    const concedido = new Map(
+        yaConcedido.map((c) => [`${c.sujetoTipo}::${c.sujetoId}`, c.permiso] as const),
+    );
+    const marcados: CompartibleOfrecido[] = candidatos.map((c) => ({
+        ...c,
+        yaTiene: concedido.get(`${c.sujetoTipo}::${c.sujetoId}`) ?? null,
+    }));
+    return loQueOfreceElSelector(marcados, consulta, tope);
 }

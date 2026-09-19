@@ -342,13 +342,11 @@ export function DocumentacionClient({ inicial }: { inicial: ArbolDeDocumentacion
                 void abrir(refId);
                 return;
             }
-            // Las demás viven fuera de esta pantalla, así que se abre la suya.
-            //
-            // **Hoy aterriza exacto solo el documento.** El id viaja igual en
-            // las otras tres —el enlace queda listo para cuando esas pantallas
-            // lo lean— pero por ahora llevan a su lista, no a la ficha. El
-            // sentido que el encargo pedía, el de vuelta, sí es exacto: desde la
-            // tarea o el ticket se ven los documentos que los nombran.
+            // Las demás viven fuera de esta pantalla, así que se abre la suya
+            // **con la ficha ya delante**: las tres leen su parámetro y lo
+            // abren al llegar (`useAterrizajeDeMencion`), igual que aquí
+            // `?documento=`. Aterrizar en la lista y dejar buscar la fila no
+            // es llegar: en una cuenta con cientos de clientes es no llegar.
             const aDonde: Record<Exclude<TipoDeMencion, "documento">, string> = {
                 cliente: `/panel/clientes?cliente=${encodeURIComponent(refId)}`,
                 tarea: `/tareas?tarea=${encodeURIComponent(refId)}`,

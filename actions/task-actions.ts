@@ -8,7 +8,11 @@ import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { writeAuditLog } from "@/actions/audit-log-actions";
 import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
-import { guardarElDetalle, olvidarElDetalleDe } from "@/lib/detalle-de-tarea";
+import {
+  detallesDeLasTareas,
+  guardarElDetalle,
+  olvidarElDetalleDe,
+} from "@/lib/detalle-de-tarea";
 import { alFinalDelTablero, olvidarLaTarjeta } from "@/lib/orden-de-tablero-db";
 import { olvidarElHiloDe } from "@/lib/avisos-de-tarea";
 import { avisarDeLaTarea } from "@/lib/avisar-de-la-tarea";
@@ -270,7 +274,24 @@ export async function getMyTasksAction(): Promise<{
     const phoneMap = Object.fromEntries(advisors.map(a => [a.id, a.notificationNumber]));
     const nameMap = Object.fromEntries(advisors.map(a => [a.id, a.name ?? a.email]));
 
-    return { success: true, data: tasks.map((t: any) => toTaskData(t, phoneMap, nameMap)) };
+    // El «Qué hay que hacer», para la ficha. En UNA consulta para toda la
+    // lista: con una por tarea, cuarenta tareas son cuarenta consultas. Y si
+    // falla, las tareas salen igual sin su detalle: es texto de más dentro de
+    // una pantalla que ya funciona.
+    const detalles = await detallesDeLasTareas(tasks.map((t: any) => t.id)).catch(
+      (error: unknown) => {
+        console.warn("[getMyTasksAction] no se pudieron leer los detalles", error);
+        return {} as Record<number, string>;
+      },
+    );
+
+    return {
+      success: true,
+      data: tasks.map((t: any) => ({
+        ...toTaskData(t, phoneMap, nameMap),
+        detalle: detalles[t.id] ?? null,
+      })),
+    };
   } catch (error) {
     console.error("[getMyTasksAction]", error);
     return { success: false, message: "Error al cargar las tareas." };
