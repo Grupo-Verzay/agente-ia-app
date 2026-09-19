@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Kanban, Settings2, TrendingUp, X, Tag } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { TagKanbanBoard } from './TagKanbanBoard';
 import { SessionTagsManager } from './SessionTagsManager';
@@ -74,21 +74,6 @@ export function TagsPageClient({
     return (
         <TooltipProvider delayDuration={120}>
             <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
-                {/* Top 4 metric cards por conteo */}
-                <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-                    {topMetrics.map((m) => (
-                        <div key={m.id} className="min-w-0 sm:flex-1">
-                            <MetricCard
-                                icon={<Tag className="h-4 w-4" />}
-                                label={m.label}
-                                value={m.count}
-                                helper={m.id === 'none' ? 'Contactos sin ninguna etiqueta asignada' : `Contactos con etiqueta "${m.label}"`}
-                                color={m.color}
-                            />
-                        </div>
-                    ))}
-                </div>
-
                 {/* Fila de toggle + score pills — igual que CRM */}
                 <ModuleToolbar>
                     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -120,6 +105,25 @@ export function TagsPageClient({
                                 Gestionar
                             </button>
                         </div>
+
+                        {/* Las cuatro etiquetas con más contactos. Eran las
+                            tarjetas de arriba; aquí no hay filtro equivalente
+                            —el kanban ya enseña una columna por etiqueta— así
+                            que van sin aspecto de pulsables. Y no repiten nada:
+                            las pastillas de al lado son de SCORE, no de
+                            etiqueta. */}
+                        <PastillasDeMetricas
+                            metricas={topMetrics.map((m) => ({
+                                clave: m.id,
+                                icono: <Tag />,
+                                etiqueta: m.label,
+                                valor: m.count,
+                                color: m.color,
+                                ayuda: m.id === 'none'
+                                    ? 'Contactos sin ninguna etiqueta asignada'
+                                    : `Contactos con etiqueta "${m.label}"`,
+                            }))}
+                        />
 
                         {view === 'kanban' && (
                             <div className="flex items-center gap-2">

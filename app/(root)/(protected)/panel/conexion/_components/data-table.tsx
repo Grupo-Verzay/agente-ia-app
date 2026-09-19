@@ -15,6 +15,7 @@ import {
 } from "@tanstack/react-table"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis } from "lucide-react"
 
+import { PastillasDeMetricas, type Metrica } from "@/components/shared/PastillasDeMetricas"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -41,6 +42,8 @@ interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
     data: TData[];
     onCreateClick?: () => void;
+    /** Las cifras del resumen, que se pintan en la barra de esta tabla. */
+    metricas?: Metrica[];
 };
 
 const dictionaryFields = {
@@ -55,6 +58,7 @@ export const DataGrid = <TData, TValue>({
     columns,
     data,
     onCreateClick,
+    metricas = [],
 }: DataTableProps<TData, TValue>) => {
     const [sorting, setSorting] = useState<SortingState>([
         { id: "url", desc: false }
@@ -106,7 +110,10 @@ export const DataGrid = <TData, TValue>({
                             + Nuevo
                         </Button>
                     )}
-                    <div className="ml-auto flex items-center gap-1">
+                    {/* Las cifras que abrían la pantalla en tarjetas. Sin
+                        filtro equivalente: no son pulsables. */}
+                    <PastillasDeMetricas className="ml-auto" metricas={metricas} />
+                    <div className="flex items-center gap-1">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline">

@@ -3,7 +3,7 @@
 import { Download, MessageSquare, Sparkles, UserCheck, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MetricCard } from "@/components/custom/MetricCard";
+import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import type { TeamMetrics } from "@/actions/team-actions";
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]) {
@@ -49,20 +49,15 @@ export function TeamKpiCards({ metrics }: Props) {
   const totalClassified = Object.values(global.leadStatus).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-      <div className="min-w-0 sm:flex-1">
-        <MetricCard icon={<MessageSquare className="h-4 w-4" />} label="Conversaciones activas" value={global.totalActive} helper="Total de conversaciones activas en el equipo" color="#3B82F6" />
-      </div>
-      <div className="min-w-0 sm:flex-1">
-        <MetricCard icon={<Sparkles className="h-4 w-4" />} label="Nuevas esta semana" value={global.newThisWeek} helper="Conversaciones iniciadas en los últimos 7 días" color="#8B5CF6" />
-      </div>
-      <div className="min-w-0 sm:flex-1">
-        <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Escaladas a asesor" value={`${global.escalationRate}%`} helper="Porcentaje del total escaladas a un asesor" color="#F59E0B" />
-      </div>
-      <div className="min-w-0 sm:flex-1">
-        <MetricCard icon={<TrendingUp className="h-4 w-4" />} label="Tasa de conversión" value={`${global.conversionRate}%`} helper={`De ${totalClassified} leads clasificados`} color="#10B981" />
-      </div>
-    </div>
+    // Sin filtro equivalente en esta pantalla: no son pulsables.
+    <PastillasDeMetricas
+      metricas={[
+        { clave: 'activas', icono: <MessageSquare />, etiqueta: 'Conversaciones activas', valor: global.totalActive, color: '#3B82F6', ayuda: 'Total de conversaciones activas en el equipo' },
+        { clave: 'nuevas', icono: <Sparkles />, etiqueta: 'Nuevas esta semana', valor: global.newThisWeek, color: '#8B5CF6', ayuda: 'Conversaciones iniciadas en los últimos 7 días' },
+        { clave: 'escaladas', icono: <UserCheck />, etiqueta: 'Escaladas a asesor', valor: `${global.escalationRate}%`, color: '#F59E0B', ayuda: 'Porcentaje del total escaladas a un asesor' },
+        { clave: 'conversion', icono: <TrendingUp />, etiqueta: 'Tasa de conversión', valor: `${global.conversionRate}%`, color: '#10B981', ayuda: `De ${totalClassified} leads clasificados` },
+      ]}
+    />
   );
 }
 

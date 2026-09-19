@@ -20,7 +20,7 @@ import { TemplateCardSkeleton, TemplateList } from './'
 import { PromptTemplate, Role } from '@prisma/client'
 import { createTemplate, deleteTemplate, getAllTemplates, updateTemplate } from '@/actions/template-actions'
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog'
-import { MetricCard } from '@/components/custom/MetricCard'
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { FileText, CheckCircle, XCircle, Tag } from 'lucide-react'
 
@@ -114,48 +114,18 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
     return (
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
-            {/* MetricCards */}
-            <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<FileText className="h-4 w-4" />}
-                        label="Total plantillas"
-                        value={templates.length}
-                        helper="Plantillas configuradas en la plataforma"
-                        color="#3B82F6"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<CheckCircle className="h-4 w-4" />}
-                        label="Activas"
-                        value={activasCount}
-                        helper="Plantillas disponibles para uso"
-                        color="#22C55E"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<XCircle className="h-4 w-4" />}
-                        label="Inactivas"
-                        value={inactivasCount}
-                        helper="Plantillas deshabilitadas"
-                        color="#EF4444"
-                    />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard
-                        icon={<Tag className="h-4 w-4" />}
-                        label="Con categoría"
-                        value={conCategoriaCount}
-                        helper="Plantillas con categoría asignada"
-                        color="#F59E0B"
-                    />
-                </div>
-            </div>
-
-            {/* Actions */}
+            {/* Actions, con las cifras que antes abrían la pantalla en
+                tarjetas. Sin filtro equivalente: no son pulsables. */}
             <div className="flex items-center gap-2">
+                <PastillasDeMetricas
+                    className="order-last ml-auto"
+                    metricas={[
+                        { clave: 'total', icono: <FileText />, etiqueta: 'Total plantillas', valor: templates.length, color: '#3B82F6', ayuda: 'Plantillas configuradas en la plataforma' },
+                        { clave: 'activas', icono: <CheckCircle />, etiqueta: 'Activas', valor: activasCount, color: '#22C55E', ayuda: 'Plantillas disponibles para uso' },
+                        { clave: 'inactivas', icono: <XCircle />, etiqueta: 'Inactivas', valor: inactivasCount, color: '#EF4444', ayuda: 'Plantillas deshabilitadas' },
+                        { clave: 'categoria', icono: <Tag />, etiqueta: 'Con categoría', valor: conCategoriaCount, color: '#F59E0B', ayuda: 'Plantillas con categoría asignada' },
+                    ]}
+                />
                 <div className="relative w-64 shrink-0">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input

@@ -44,6 +44,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   currentUserRol: string
   openCreateDialogUser: () => void
+  statusFilter: StatusKey | null
   setStatusFilter: (status: StatusKey | null) => void
   /** Todos / solo los que tienen el servicio al día / solo el resto. */
   servicio: EstadoDelServicio
@@ -57,7 +58,7 @@ const VISIBILITY_STORAGE_KEY = 'admin-clientes-column-visibility'
 const COLUMNS_HIDDEN_FROM_TOGGLE = ['role', 'email', 'reseller']
 const DEFAULT_HIDDEN: VisibilityState = { role: false, email: false, reseller: false }
 
-export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, setStatusFilter, servicio, setServicio, initialSearch }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, statusFilter, setStatusFilter, servicio, setServicio, initialSearch }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -188,6 +189,9 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
               <ClientStatusPanel
                 users={data as ClientInterface[]}
                 onFilterChange={setStatusFilter}
+                filtro={statusFilter}
+                servicio={servicio}
+                onServicioChange={setServicio}
               />
 
               <DropdownMenu>

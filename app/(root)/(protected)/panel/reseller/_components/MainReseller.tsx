@@ -27,7 +27,7 @@ import { getAllSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/su
 // "Agencias" para el 6— el dueño creía estar viendo los suyos y asignaba el
 // nivel equivocado.
 import { PLAN_LEVEL_LABELS } from "@/types/plans"
-import { MetricCard } from "@/components/custom/MetricCard"
+import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas"
 
 interface Props {
   searchParams: { [key: string]: string | undefined }
@@ -159,44 +159,24 @@ export const MainReseller = ({ resellers, defaultResellerId }: Props) => {
     <TooltipProvider delayDuration={120}>
     <div className="flex flex-col h-full min-h-0 overflow-hidden gap-4">
 
-      {/* MetricCards */}
-      <div className="shrink-0 hidden sm:grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <MetricCard
-          icon={<UsersRound className="h-3.5 w-3.5" />}
-          label="Total afiliados"
-          value={resellers.length}
-          helper="Total de resellers registrados en la plataforma"
-          color="#3B82F6"
-        />
-        <MetricCard
-          icon={<UserCheck className="h-3.5 w-3.5" />}
-          label="Clientes asignados"
-          value={assignedClients.length}
-          helper="Clientes asignados al reseller seleccionado"
-          color="#22C55E"
-        />
-        <MetricCard
-          icon={<UserMinus className="h-3.5 w-3.5" />}
-          label="Sin asignar"
-          value={unassignedClients.length}
-          helper="Clientes sin reseller asignado"
-          color="#F59E0B"
-        />
-        <MetricCard
-          icon={<Users className="h-3.5 w-3.5" />}
-          label="Total clientes"
-          value={assignedClients.length + unassignedClients.length}
-          helper="Total de clientes en la plataforma"
-          color="#8B5CF6"
-        />
-      </div>
-
       {/* Fila: selector + licencias (resumen) */}
       <div className="shrink-0 grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Izquierda: selector */}
         <div className="flex flex-col gap-2">
-          <Label className="text-base font-semibold">Selecciona un revendedor</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-base font-semibold">Selecciona un revendedor</Label>
+            {/* Las cifras que abrían la pantalla en tarjetas. Sin filtro
+                equivalente: no son pulsables. */}
+            <PastillasDeMetricas
+              metricas={[
+                { clave: 'afiliados', icono: <UsersRound />, etiqueta: 'Total afiliados', valor: resellers.length, color: '#3B82F6', ayuda: 'Total de resellers registrados en la plataforma' },
+                { clave: 'asignados', icono: <UserCheck />, etiqueta: 'Clientes asignados', valor: assignedClients.length, color: '#22C55E', ayuda: 'Clientes asignados al reseller seleccionado' },
+                { clave: 'sinAsignar', icono: <UserMinus />, etiqueta: 'Sin asignar', valor: unassignedClients.length, color: '#F59E0B', ayuda: 'Clientes sin reseller asignado' },
+                { clave: 'totalClientes', icono: <Users />, etiqueta: 'Total clientes', valor: assignedClients.length + unassignedClients.length, color: '#8B5CF6', ayuda: 'Total de clientes en la plataforma' },
+              ]}
+            />
+          </div>
           <Select
             value={selectedReseller}
             onValueChange={(v) => { setSelectedReseller(v); getClients(v) }}

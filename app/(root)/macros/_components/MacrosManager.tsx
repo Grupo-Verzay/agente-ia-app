@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -513,14 +513,6 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
 
   return (
     <div className="flex h-full flex-col">
-      {/* Métricas */}
-      <div className="mb-3 hidden sm:grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <MetricCard icon={<Zap className="h-4 w-4" />} label="Total" value={macros.length} helper="Macros creadas" color="#6366F1" />
-        <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Activas" value={activeCount} helper="Macros habilitadas" color="#10B981" />
-        <MetricCard icon={<List className="h-4 w-4" />} label="Acciones" value={totalActions} helper="Acciones en total" color="#3B82F6" />
-        <MetricCard icon={<Play className="h-4 w-4" />} label="Ejecuciones" value={totalRuns} helper="Veces que se han aplicado las macros" color="#F59E0B" />
-      </div>
-
       {/* Toolbar */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-72">
@@ -532,6 +524,16 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             className="w-full pl-8"
           />
         </div>
+        {/* Las cifras que abrían la pantalla en tarjetas. Esta lista no tiene
+            filtro equivalente, así que no se pintan como pulsables. */}
+        <PastillasDeMetricas
+          metricas={[
+            { clave: "total", icono: <Zap />, etiqueta: "Total", valor: macros.length, color: "#6366F1", ayuda: "Macros creadas" },
+            { clave: "activas", icono: <CheckCircle2 />, etiqueta: "Activas", valor: activeCount, color: "#10B981", ayuda: "Macros habilitadas" },
+            { clave: "acciones", icono: <List />, etiqueta: "Acciones", valor: totalActions, color: "#3B82F6", ayuda: "Acciones en total" },
+            { clave: "ejecuciones", icono: <Play />, etiqueta: "Ejecuciones", valor: totalRuns, color: "#F59E0B", ayuda: "Veces que se han aplicado las macros" },
+          ]}
+        />
         <div className="ml-auto flex items-center gap-2">
           {selected.size > 0 && (
             <Button

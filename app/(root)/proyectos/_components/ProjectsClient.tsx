@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { MetricCard } from "@/components/custom/MetricCard";
+import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -357,49 +357,6 @@ export function ProjectsClient({
     // a los bordes del área de la pantalla.
     <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
 
-      {/* Resumen arriba del todo, igual que en Clientes. La miga de pan ya dice
-          que esto es Proyectos, así que no se repite como título.
-          La fila envolvente es la que hace que el flex-1 crezca a lo ancho; sin
-          ella, dentro de una columna, se comería toda la altura. */}
-      <div className="flex shrink-0 items-center justify-between">
-      <div className="container-stats mb-2 hidden flex-1 sm:flex sm:gap-4 sm:overflow-x-auto">
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<FolderKanban className="h-4 w-4" />}
-            label="Proyectos activos"
-            value={summary.activos}
-            color="#22C55E"
-          />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<AlertCircle className="h-4 w-4" />}
-            label="Tareas vencidas"
-            value={summary.vencidas}
-            helper="Tareas sin terminar cuya fecha ya pasó."
-            color="#EF4444"
-          />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<Eye className="h-4 w-4" />}
-            label="Esperando revisión"
-            value={summary.revision}
-            color="#A855F7"
-          />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard
-            icon={<ListTodo className="h-4 w-4" />}
-            label="Tareas abiertas"
-            value={summary.abiertas}
-            color="#3B82F6"
-          />
-        </div>
-      </div>
-
-      </div>
-
       {/* Buscador, filtros y la acción, en una sola fila. */}
       <ModuleToolbar className="shrink-0">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -440,6 +397,46 @@ export function ProjectsClient({
             onElegir={setResponsable}
           />
         </div>
+
+        {/* Las cifras que abrían la pantalla en tarjetas. «Proyectos activos»
+            tiene filtro equivalente —el desplegable de Estado— así que su
+            pastilla lo mueve; las tres de tareas no lo tienen en esta lista, y
+            van sin aspecto de pulsables. */}
+        <PastillasDeMetricas
+          metricas={[
+            {
+              clave: "activos",
+              icono: <FolderKanban />,
+              etiqueta: "Proyectos activos",
+              valor: summary.activos,
+              color: "#22C55E",
+              alPulsar: () => setEstado(estado === "activo" ? "todos" : "activo"),
+              activa: estado === "activo",
+            },
+            {
+              clave: "vencidas",
+              icono: <AlertCircle />,
+              etiqueta: "Tareas vencidas",
+              valor: summary.vencidas,
+              color: "#EF4444",
+              ayuda: "Tareas sin terminar cuya fecha ya pasó.",
+            },
+            {
+              clave: "revision",
+              icono: <Eye />,
+              etiqueta: "Esperando revisión",
+              valor: summary.revision,
+              color: "#A855F7",
+            },
+            {
+              clave: "abiertas",
+              icono: <ListTodo />,
+              etiqueta: "Tareas abiertas",
+              valor: summary.abiertas,
+              color: "#3B82F6",
+            },
+          ]}
+        />
 
         {/* Las carpetas SCROLLEAN, no parten la fila.
             Es lo que queda creciendo sin tope: con dos carpetas la izquierda

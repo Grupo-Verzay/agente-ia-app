@@ -16,7 +16,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
 import {
@@ -99,22 +99,6 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
       <div className={`sticky top-0 z-10 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
-          {/* MetricCards */}
-          <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-            <div className="min-w-0">
-              <MetricCard label="Total registros" value={total} icon={<ClipboardList className="h-4 w-4" />} color="#3B82F6" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Sincronizados" value={synced} icon={<CheckCircle2 className="h-4 w-4" />} color="#22C55E" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Pendientes" value={pending} icon={<Clock className="h-4 w-4" />} color="#EAB308" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Con error" value={errors} icon={<AlertCircle className="h-4 w-4" />} color="#EF4444" />
-            </div>
-          </div>
-
           {/* Toolbar */}
           <ModuleToolbar className="shrink-0">
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -130,6 +114,17 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
               </div>
             </div>
             <div className="toolbar-collapse flex items-center gap-2 shrink-0">
+              {/* Las cifras que abrían la pantalla en tarjetas. Esta lista no
+                  tiene filtro por estado de sincronización, así que no se
+                  pintan como pulsables. */}
+              <PastillasDeMetricas
+                metricas={[
+                  { clave: 'total', icono: <ClipboardList />, etiqueta: 'Total registros', valor: total, color: '#3B82F6' },
+                  { clave: 'synced', icono: <CheckCircle2 />, etiqueta: 'Sincronizados', valor: synced, color: '#22C55E' },
+                  { clave: 'pending', icono: <Clock />, etiqueta: 'Pendientes', valor: pending, color: '#EAB308' },
+                  { clave: 'errors', icono: <AlertCircle />, etiqueta: 'Con error', valor: errors, color: '#EF4444' },
+                ]}
+              />
               <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar

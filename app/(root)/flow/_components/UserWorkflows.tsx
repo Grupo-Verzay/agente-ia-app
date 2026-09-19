@@ -4,7 +4,6 @@ import { AlertCircle, Bot, Brain, GitBranch, HomeIcon, InboxIcon } from 'lucide-
 import { getWorkFlowByUser } from '@/actions/workflow-actions';
 import { IntentTrigger, Workflow } from '@prisma/client';
 import CreateWorflowDialog from './CreateWorflowDialog';
-import { MetricCard } from '@/components/custom/MetricCard';
 import { WorkflowListContent } from './WorkflowListContent';
 
 function hasWorkflow(result: { data?: Workflow[] }): result is { data: Workflow[] } {
@@ -52,39 +51,6 @@ export async function UserWorkflows({ userId, isPro, triggers = [], showSummary 
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-            {showSummary && (
-                <div className="hidden sm:grid grid-cols-4 gap-2 sm:gap-3">
-                    <MetricCard
-                        icon={<HomeIcon className="h-4 w-4" />}
-                        label="Inicio"
-                        value={flowTypeCounts.start}
-                        helper="Flujos que se activan en la primera conexion"
-                        color="#F97316"
-                    />
-                    <MetricCard
-                        icon={<Brain className="h-4 w-4" />}
-                        label="IA"
-                        value={flowTypeCounts.ai}
-                        helper="Flujos que detectan intenciones mediante IA"
-                        color="#3B82F6"
-                    />
-                    <MetricCard
-                        icon={<GitBranch className="h-4 w-4" />}
-                        label="Flujo"
-                        value={flowTypeCounts.flow}
-                        helper="Flujos manuales o encadenados"
-                        color="#8B5CF6"
-                    />
-                    <MetricCard
-                        icon={<Bot className="h-4 w-4" />}
-                        label="Chatbot"
-                        value={flowTypeCounts.chatbot}
-                        helper="Flujos activados por palabras clave"
-                        color="#10B981"
-                    />
-                </div>
-            )}
-
             {visibleWorkflows.length === 0 ? (
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                     <div className="flex h-full flex-col items-center justify-center gap-4">
@@ -99,7 +65,21 @@ export async function UserWorkflows({ userId, isPro, triggers = [], showSummary 
                     </div>
                 </div>
             ) : (
-                <WorkflowListContent workflows={visibleWorkflows} userId={userId} isPro={isPro} triggers={triggers} />
+                <WorkflowListContent
+                    workflows={visibleWorkflows}
+                    userId={userId}
+                    isPro={isPro}
+                    triggers={triggers}
+                    /* El resumen por tipo de flujo, que antes abría la pantalla
+                       en tarjetas. Baja a la barra porque es ahí donde vive
+                       ahora, y la barra la pinta el hijo. */
+                    metricas={showSummary ? [
+                        { clave: 'start', icono: <HomeIcon />, etiqueta: 'Inicio', valor: flowTypeCounts.start, color: '#F97316', ayuda: 'Flujos que se activan en la primera conexion' },
+                        { clave: 'ai', icono: <Brain />, etiqueta: 'IA', valor: flowTypeCounts.ai, color: '#3B82F6', ayuda: 'Flujos que detectan intenciones mediante IA' },
+                        { clave: 'flow', icono: <GitBranch />, etiqueta: 'Flujo', valor: flowTypeCounts.flow, color: '#8B5CF6', ayuda: 'Flujos manuales o encadenados' },
+                        { clave: 'chatbot', icono: <Bot />, etiqueta: 'Chatbot', valor: flowTypeCounts.chatbot, color: '#10B981', ayuda: 'Flujos activados por palabras clave' },
+                    ] : []}
+                />
             )}
         </div>
     );

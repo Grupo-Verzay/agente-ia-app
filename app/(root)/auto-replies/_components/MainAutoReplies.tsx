@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { CreateAutoReplies, SortableAutoRepliesList } from "./";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, GitBranch, Hash, InboxIcon, MessageSquareText, MessagesSquare, Search } from "lucide-react";
-import { MetricCard } from "@/components/custom/MetricCard";
+import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import { Input } from "@/components/ui/input";
 import { getQuickReplyCategoryLabel, normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 
@@ -44,23 +44,19 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<MessagesSquare className="h-4 w-4" />} label="Total" value={autoReplies.length} helper="Respuestas rapidas disponibles" color="#3B82F6" />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<MessageSquareText className="h-4 w-4" />} label="Texto simple" value={textReplies} helper="Respuestas que envian un mensaje de texto" color="#10B981" />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<GitBranch className="h-4 w-4" />} label="Ejecutan flujo" value={workflowReplies} helper="Respuestas que activan un flujo automatizado" color="#8B5CF6" />
-        </div>
-        <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<Hash className="h-4 w-4" />} label="Categorias" value={categoryCount} helper="Grupos usados en respuestas rapidas" color="#F59E0B" />
-        </div>
-      </div>
-
       <div className="flex shrink-0 flex-col gap-3 p-1 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-64 shrink-0">
+          {/* Las cifras que abrían la pantalla en tarjetas. Esta lista no tiene
+              filtro por tipo de respuesta: no son pulsables. */}
+          <PastillasDeMetricas
+            className="sm:order-2"
+            metricas={[
+              { clave: 'total', icono: <MessagesSquare />, etiqueta: 'Total', valor: autoReplies.length, color: '#3B82F6', ayuda: 'Respuestas rapidas disponibles' },
+              { clave: 'texto', icono: <MessageSquareText />, etiqueta: 'Texto simple', valor: textReplies, color: '#10B981', ayuda: 'Respuestas que envian un mensaje de texto' },
+              { clave: 'flujo', icono: <GitBranch />, etiqueta: 'Ejecutan flujo', valor: workflowReplies, color: '#8B5CF6', ayuda: 'Respuestas que activan un flujo automatizado' },
+              { clave: 'categorias', icono: <Hash />, etiqueta: 'Categorias', valor: categoryCount, color: '#F59E0B', ayuda: 'Grupos usados en respuestas rapidas' },
+            ]}
+          />
+          <div className="relative w-64 shrink-0 sm:order-1">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar respuesta..."
@@ -69,7 +65,9 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <CreateAutoReplies triggerText="+ Crear" user={user} Workflows={Workflows} />
+          <div className="sm:order-3">
+            <CreateAutoReplies triggerText="+ Crear" user={user} Workflows={Workflows} />
+          </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">

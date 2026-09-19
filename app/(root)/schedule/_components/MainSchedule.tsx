@@ -16,7 +16,7 @@ import {
     Inbox,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { MetricCard } from '@/components/custom/MetricCard';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { MainReminders } from '../../reminders/_components';
 import { MainReminderInterface } from '@/schema/reminder';
 import ServiceManager from './services/ServiceManager';
@@ -98,36 +98,11 @@ export const MainSchedule = ({
 
     return (
         <div className="flex h-full w-full flex-col gap-3" data-schedule-view>
-            {/* Metric cards — siempre visibles, altura fija. En "Registros" muestran
-                las métricas de los registros del formulario (4 cards). */}
-            <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
-                {tab === 'registros'
-                    ? bookingMetrics.map((m) => (
-                        <div key={m.key} className="min-w-0 sm:flex-1">
-                            <MetricCard
-                                icon={<m.Icon className="h-4 w-4" />}
-                                label={m.label}
-                                value={m.value}
-                                helper={m.helper}
-                                color={m.color}
-                            />
-                        </div>
-                    ))
-                    : topMetrics.map((m) => (
-                        <div key={m.status} className="min-w-0 sm:flex-1">
-                            <MetricCard
-                                icon={<Calendar className="h-4 w-4" />}
-                                label={m.label}
-                                value={m.count}
-                                helper={`Citas en estado "${m.label}"`}
-                                color={m.color}
-                            />
-                        </div>
-                    ))}
-            </div>
-
-            {/* Tab nav — CRM style, izquierda, altura fija */}
-            <div className="flex shrink-0">
+            {/* Tab nav — CRM style, izquierda, altura fija. Las cifras que
+                antes abrían la pantalla en tarjetas van en esta misma fila,
+                como pastillas: aquí no hay filtro por estado de cita, así que
+                no se pintan como pulsables. */}
+            <div className="flex shrink-0 items-center justify-between gap-2">
                 <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
                     {TABS.map(({ value, label, Icon }) => (
                         <button
@@ -146,6 +121,25 @@ export const MainSchedule = ({
                         </button>
                     ))}
                 </div>
+                <PastillasDeMetricas
+                    metricas={tab === 'registros'
+                        ? bookingMetrics.map((m) => ({
+                            clave: m.key,
+                            icono: <m.Icon />,
+                            etiqueta: m.label,
+                            valor: m.value,
+                            ayuda: m.helper,
+                            color: m.color,
+                        }))
+                        : topMetrics.map((m) => ({
+                            clave: m.status,
+                            icono: <Calendar />,
+                            etiqueta: m.label,
+                            valor: m.count,
+                            ayuda: `Citas en estado "${m.label}"`,
+                            color: m.color,
+                        }))}
+                />
             </div>
 
             {/* Contenido — ocupa el espacio restante */}

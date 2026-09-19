@@ -8,7 +8,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ProductForm } from './ProductForm'
 import { ProductTable } from './ProductTable'
 import { MainProductsProps } from '@/types/products'
-import { MetricCard } from '@/components/custom/MetricCard'
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas'
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar'
 
 export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stats }: MainProductsProps) => {
@@ -41,21 +41,6 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
-            <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard icon={<Package className="h-4 w-4" />} label="Total productos" value={stats.total} helper="Productos registrados en el catálogo" color="#3B82F6" />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Activos" value={stats.active} helper="Productos disponibles para usar" color="#22C55E" />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard icon={<PackageX className="h-4 w-4" />} label="Sin stock" value={stats.outOfStock} helper="Productos agotados" color="#EF4444" />
-                </div>
-                <div className="min-w-0 sm:flex-1">
-                    <MetricCard icon={<Boxes className="h-4 w-4" />} label="Cupos disponibles" value={stats.availableSlots ?? '∞'} helper="Productos que aún puedes agregar según tu plan" color="#8B5CF6" />
-                </div>
-            </div>
-
             <ModuleToolbar className="shrink-0">
                 <div className="relative w-full sm:w-64">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -66,6 +51,17 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                         onChange={(e) => setFilter(e.target.value)}
                     />
                 </div>
+                {/* Las cifras que abrían la pantalla en tarjetas. Ninguna
+                    tiene filtro equivalente en esta lista, así que van sin
+                    aspecto de pulsables. */}
+                <PastillasDeMetricas
+                    metricas={[
+                        { clave: 'total', icono: <Package />, etiqueta: 'Total productos', valor: stats.total, color: '#3B82F6', ayuda: 'Productos registrados en el catálogo' },
+                        { clave: 'active', icono: <CheckCircle2 />, etiqueta: 'Activos', valor: stats.active, color: '#22C55E', ayuda: 'Productos disponibles para usar' },
+                        { clave: 'outOfStock', icono: <PackageX />, etiqueta: 'Sin stock', valor: stats.outOfStock, color: '#EF4444', ayuda: 'Productos agotados' },
+                        { clave: 'slots', icono: <Boxes />, etiqueta: 'Cupos disponibles', valor: stats.availableSlots ?? '∞', color: '#8B5CF6', ayuda: 'Productos que aún puedes agregar según tu plan' },
+                    ]}
+                />
                 <div className="toolbar-collapse flex items-center gap-3">
                     {limitInfo && limitInfo.limit !== null && (
                         <span className={`flex items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
