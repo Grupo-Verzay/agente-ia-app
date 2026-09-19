@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FlechaAlFinal } from "@/components/shared/FlechaAlFinal";
+import { useHiloPegadoAbajo } from "@/hooks/useHiloPegadoAbajo";
 import {
   AlertCircle, ArrowLeft, Bot, CheckCircle2, ClipboardList,
   Copy, GitBranch, Layers, Lightbulb, Loader2, MessageSquare, PenLine, PlusCircle, RefreshCw,
@@ -325,13 +327,19 @@ export function AgentPromptChatDialog({
     setGenError(null);
   }, [open, welcome]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isSending]);
-
-  useEffect(() => {
-    simBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [simMessages, simIsLoading]);
+  // Pegado al final con el hook compartido. Los dos hilos —el del prompt y el
+  // del simulador— comparten el mismo `ScrollArea`, así que comparten anclaje:
+  // lo que cambia es la clave, para que cambiar de modo vuelva a bajar.
+  const elHilo = useRef<HTMLDivElement>(null);
+  const enSimulador = simulatorMode;
+  const cuantos = enSimulador ? simMessages.length : messages.length;
+  const { pegado, sinLeer, irAlFinal } = useHiloPegadoAbajo({
+    ref: elHilo,
+    clave: `${open ? "abierto" : "cerrado"}:${enSimulador ? "sim" : "chat"}`,
+    total: cuantos + ((enSimulador ? simIsLoading : isSending) ? 1 : 0),
+    ultimoId: cuantos ? String(cuantos) : null,
+    activo: open,
+  });
 
   const handleClear = () => setMessages([welcome]);
 
@@ -827,7 +835,8 @@ export function AgentPromptChatDialog({
                   </div>
                 ) : null}
 
-                <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-2">
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                <ScrollArea viewportRef={elHilo} className="min-h-0 flex-1 px-4 pt-3 pb-2">
                   <div className="space-y-3">
                     {simulatorMode ? (
                       <>
@@ -885,6 +894,9 @@ export function AgentPromptChatDialog({
                     )}
                   </div>
                 </ScrollArea>
+                {/* Fuera del viewport: dentro se iría con el contenido. */}
+                <FlechaAlFinal visible={!pegado} sinLeer={sinLeer} onClick={irAlFinal} />
+                </div>
 
                 {!simulatorMode ? (
                   <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">

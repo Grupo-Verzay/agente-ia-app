@@ -12,6 +12,7 @@ import { InternalNoteBubble } from './InternalNoteBubble';
 import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
 import { MediaGalleryProvider } from './media-viewer';
+import { FlechaAlFinal } from '@/components/shared/FlechaAlFinal';
 import { ConversacionDeLaNotaProvider } from './TranscribirNota';
 import type { MediaData, UIBubble } from './chat-message-types';
 
@@ -331,6 +332,10 @@ interface ChatMessageListProps {
     remoteJidAliases?: string[];
     apiKeyData?: { url: string; key: string };
   };
+  /** La flecha de bajar al final, que decide `useHiloPegadoAbajo` arriba. */
+  flechaVisible?: boolean;
+  flechaSinLeer?: number;
+  onIrAlFinal?: () => void;
 }
 
 const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
@@ -355,6 +360,9 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   callPhone,
   contactName,
   conversacion,
+  flechaVisible = false,
+  flechaSinLeer = 0,
+  onIrAlFinal,
 }) => {
   const autoLoadLockRef = useRef(false);
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
@@ -509,6 +517,11 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   return (
     <MediaGalleryProvider items={galleryItems}>
     <ConversacionDeLaNotaProvider value={conversacion ?? null}>
+    {/* El envoltorio es `relative` porque la flecha se coloca contra ÉL y no
+        contra el div que scrollea: metida dentro de ese, se iría con el
+        contenido y solo se vería al llegar al final, que es justo cuando ya no
+        hace falta. `min-h-0` para que el hijo pueda desbordar y scrollear. */}
+    <div className="relative flex min-h-0 flex-1 flex-col">
     <div
       className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto overflow-x-hidden custom-scrollbar w-full"
       ref={listRef}
@@ -584,6 +597,12 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
         )}
         {presencia && <PresenciaBurbuja tipo={presencia} />}
       </div>
+    </div>
+      <FlechaAlFinal
+        visible={flechaVisible}
+        sinLeer={flechaSinLeer}
+        onClick={() => onIrAlFinal?.()}
+      />
     </div>
     </ConversacionDeLaNotaProvider>
     </MediaGalleryProvider>
