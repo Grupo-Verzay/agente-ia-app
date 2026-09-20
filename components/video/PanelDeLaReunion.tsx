@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Hand, MicOff, Send, UserX, X } from "lucide-react";
+import { Hand, MicOff, PanelRightClose, Send, UserX } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,7 @@ export function PanelDeLaReunion({
     /** Si puedo silenciar y sacar. Lo dice el servidor, no se calcula aquí. */
     moderas: boolean;
     miId: string | null;
+    /** Plegarlo: el video recupera el ancho y se recuerda que quedó plegado. */
     alCerrar: () => void;
     pestana: "chat" | "gente";
     onPestana: (p: "chat" | "gente") => void;
@@ -83,15 +84,20 @@ export function PanelDeLaReunion({
                 <Pestana activa={pestana === "gente"} onClick={() => onPestana("gente")}>
                     Gente ({gente.length})
                 </Pestana>
+                {/* Una flecha y no una equis: lo que hace es **plegarlo**
+                    —devolverle el ancho al video— y no cerrar nada. Con la
+                    equis se lee como «descartar», y entonces nadie la pulsa por
+                    miedo a perder lo que se ha escrito en el chat. Lo que se
+                    escribió sigue ahí al volver a abrirlo. */}
                 <Button
                     variant="ghost"
                     size="icon"
                     className="ml-auto h-7 w-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
                     onClick={alCerrar}
-                    aria-label="Cerrar el panel"
-                    title="Cerrar"
+                    aria-label="Plegar el panel"
+                    title="Plegar"
                 >
-                    <X className="h-4 w-4" />
+                    <PanelRightClose className="h-4 w-4" />
                 </Button>
             </div>
 

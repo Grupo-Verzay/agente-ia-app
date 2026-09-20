@@ -38,11 +38,15 @@ import { cn } from "@/lib/utils";
 import {
     DISTRIBUCION_POR_DEFECTO,
     LLAVE_DE_LA_DISTRIBUCION,
+    LLAVE_DEL_PANEL,
     TOPE_DE_LA_SALA,
+    comoSeGuardaElPanel,
+    elPanelDeEntrada,
     esUnaDistribucion,
     hayQueObedecerElSilencio,
     laDistribucionQueSeVe,
     type Distribucion,
+    type PestanaDelPanel,
 } from "@/lib/sala-de-video";
 import {
     LLAVE_DEL_FONDO,
@@ -61,6 +65,7 @@ import {
 // que se afine el de una el otro se queda diciendo otra cosa.
 import { comoSeLeeLaDuracion } from "@/lib/llamada-de-voz";
 import { useMediosDeLlamada } from "@/hooks/useMediosDeLlamada";
+import { useMandosQueSeEsconden } from "@/hooks/useMandosQueSeEsconden";
 import { useGrabacionDeLaReunion } from "@/hooks/useGrabacionDeLaReunion";
 import { bytesPorHora, comoSeLeenLosBytes } from "@/lib/grabacion-de-reunion";
 import { useMallaDeVideo } from "@/hooks/useMallaDeVideo";
@@ -159,6 +164,19 @@ export function SalaDeVideo({
     const raizRef = useRef<HTMLDivElement | null>(null);
     const minimizada = ventana === "pastilla";
 
+    /**
+     * La cabecera y los mandos **flotan encima del video y se apartan solos**.
+     *
+     * El video ocupa toda la caja: ninguna de las dos barras tiene franja
+     * propia, así que esconderlas no deja hueco ni mueve nada —lo que hay
+     * debajo ya estaba pintado—. Vuelven con cualquier señal de la persona:
+     * mover el ratón, tocar la pantalla, una tecla.
+     *
+     * Plegada a una pastilla no hay mandos que esconder, así que ahí ni se
+     * engancha ningún oyente ni corre ningún temporizador.
+     */
+    const mandos = useMandosQueSeEsconden({ activo: !minimizada });
+
     // ── Lo que se recuerda entre reuniones ──────────────────────────────────
     //
     // En `localStorage` y no en la base, como el tamaño de la ventana: son
@@ -168,8 +186,8 @@ export function SalaDeVideo({
     // lanzar, y sin eso la sala entera se cae justo donde más se mira la
     // privacidad.
     const [distribucion, setDistribucion] = useState<Distribucion>(DISTRIBUCION_POR_DEFECTO);
-    const [panel, setPanel] = useState<"chat" | "gente" | null>(null);
-    const [pestanaDelPanel, setPestanaDelPanel] = useState<"chat" | "gente">("chat");
+    const [panel, setPanel] = useState<PestanaDelPanel | null>(null);
+    const [pestanaDelPanel, setPestanaDelPanel] = useState<PestanaDelPanel>("chat");
 
     useEffect(() => {
         try {
@@ -177,6 +195,35 @@ export function SalaDeVideo({
             if (esUnaDistribucion(d)) setDistribucion(d);
         } catch {
             // Sin `localStorage` se usa lo de por defecto, que es lo correcto.
+        }
+        try {
+            // Si quedó plegado, se abre plegado. Es lo que se pidió: el panel
+            // le quita al video un cuarto del ancho, así que quien lo plegó lo
+            // plegó por algo y no tiene por qué volver a hacerlo cada vez.
+            const p = elPanelDeEntrada(window.localStorage.getItem(LLAVE_DEL_PANEL));
+            if (p) {
+                setPanel(p);
+                setPestanaDelPanel(p);
+            }
+        } catch {
+            // Igual: sin recuerdo, plegado, que es lo de por defecto.
+        }
+    }, []);
+
+    /**
+     * Abrir, plegar y cambiar de pestaña, **por un solo sitio**.
+     *
+     * Con la escritura en cada manejador, al tercero se le olvida y entonces el
+     * panel se recuerda unas veces sí y otras no — que no se lee como un fallo,
+     * se lee como que la App decide sola.
+     */
+    const cambiarElPanel = useCallback((p: PestanaDelPanel | null) => {
+        setPanel(p);
+        if (p) setPestanaDelPanel(p);
+        try {
+            window.localStorage.setItem(LLAVE_DEL_PANEL, comoSeGuardaElPanel(p));
+        } catch {
+            // Que no se recuerde no puede impedir que se pliegue ahora.
         }
     }, []);
 
@@ -749,154 +796,29 @@ export function SalaDeVideo({
         <div
             ref={raizRef}
             data-sala-de-video
-            className="flex h-full min-h-0 w-full flex-col bg-zinc-950 text-zinc-100"
+            // El foco también devuelve los mandos. `keydown` ya lo cubre —Tab
+            // dispara su tecla antes de mover el foco— pero un foco que llega
+            // por otro camino (un `focus()` del navegador al volver a la
+            // pestaña) no dispararía ninguna tecla, y entonces el foco estaría
+            // en un botón que no se ve.
+            onFocusCapture={mandos.mostrar}
+            className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-zinc-950 text-zinc-100"
         >
-            {/* La cabecera: qué reunión es, cuántos hay y los mandos de vista. */}
-            <div className="flex shrink-0 items-center gap-1 border-b border-zinc-800 px-2 py-2 sm:gap-2 sm:px-3">
-                {/* El asa se lleva SOLO el nombre, no la cabecera entera.
-                    Puesta en el contenedor, captura el puntero al agarrarla y
-                    los eventos de después se le redirigen: el `click` de los
-                    botones no llegaría a salir nunca. Es la misma regla que ya
-                    costó una vuelta en la tarjeta de llamada. */}
-                <div
-                    {...asa}
-                    className={cn(
-                        "min-w-0 flex-1 truncate rounded px-1 py-0.5 text-sm font-medium",
-                        asa?.className ?? "",
-                    )}
-                >
-                    {nombre}
-                </div>
-                <span className="hidden shrink-0 items-center gap-1.5 text-xs text-zinc-400 sm:flex">
-                    <Users className="h-3.5 w-3.5" />
-                    <span className="tabular-nums">
-                        {cuantos} de {TOPE_DE_LA_SALA}
-                    </span>
-                </span>
+            {/* ── Los avisos ─────────────────────────────────────────────────
+                Estos NO flotan y NO se esconden, y es la mitad que importa de
+                esta pantalla. El de grabación ocupa una franja entera en rojo a
+                propósito —grabar la voz y la cara de los demás sin que se note
+                no es una función, es otra cosa— y uno que se aparta a los tres
+                segundos es uno que no se ve. Lo mismo con el de reconexión, que
+                es un estado que dura, y con la sala de espera, que lleva
+                botones que hay que poder pulsar.
 
-                <MandoDeCabecera
-                    activo={laDistribucionQueSeVe(distribucion, cuantos) === "cuadricula"}
-                    onClick={() =>
-                        cambiarDistribucion(distribucion === "orador" ? "cuadricula" : "orador")
-                    }
-                    rotulo={
-                        distribucion === "orador"
-                            ? "Ver a todos en cuadrícula"
-                            : "Ver en grande a quien habla"
-                    }
-                    Icono={LayoutGrid}
-                    // Con una sola persona no hay nada que repartir, así que el
-                    // botón no promete un cambio que no va a pasar.
-                    apagado={cuantos <= 1}
-                />
-                <MandoDeCabecera
-                    activo={panel === "chat" || panel === "gente"}
-                    onClick={() => setPanel((p) => (p ? null : pestanaDelPanel))}
-                    rotulo={panel ? "Cerrar el panel" : "Abrir el chat y la gente"}
-                    Icono={MessageSquare}
-                />
-                {enlace ? (
-                    <MandoDeCabecera
-                        activo={false}
-                        onClick={() => void copiar(enlace)}
-                        rotulo="Copiar el enlace de la reunión"
-                        Icono={Copy}
-                    />
-                ) : null}
-
-                {/* Grabar. **Solo sale si el servidor dice que sí**, que son
-                    dos cosas a la vez —administrar la sala y que la CUENTA
-                    tenga el módulo— y la segunda el navegador no la sabe.
-                    Enseñarlo y que la acción conteste que no es el «menú
-                    abierto, puerta cerrada» que este repositorio ya pagó. */}
-                {malla.puedoGrabar ? (
-                    grabacion.grabando ? (
-                        <MandoDeCabecera
-                            activo
-                            onClick={() => void grabacion.terminar()}
-                            rotulo={`Parar la grabación (${comoSeLeeLaDuracion(grabacion.segundos)})`}
-                            Icono={Square}
-                            apagado={grabacion.ocupado}
-                        />
-                    ) : (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    type="button"
-                                    disabled={grabacion.ocupado || Boolean(malla.grabando)}
-                                    title={
-                                        malla.grabando
-                                            ? "Ya se está grabando"
-                                            : "Grabar la reunión"
-                                    }
-                                    aria-label="Grabar la reunión"
-                                    className={cn(
-                                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-300 transition",
-                                        "hover:bg-zinc-800 hover:text-zinc-100",
-                                        "disabled:pointer-events-none disabled:opacity-40",
-                                    )}
-                                >
-                                    {grabacion.ocupado ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <Circle className="h-4 w-4" />
-                                    )}
-                                </button>
-                            </DropdownMenuTrigger>
-                            {/* Dos opciones y **el peso al lado de cada una**:
-                                una hora de video es casi un giga del cupo de la
-                                cuenta y una de audio son catorce megas. Elegir
-                                sin ese número es elegir a ciegas algo que se
-                                paga en espacio. */}
-                            <DropdownMenuContent align="end" className="w-64">
-                                <DropdownMenuItem onSelect={() => void grabacion.empezar("video")}>
-                                    <Video className="mr-2 h-4 w-4" />
-                                    <span className="flex-1">Grabar video y audio</span>
-                                    <span className="text-xs text-muted-foreground">
-                                        ~{comoSeLeenLosBytes(bytesPorHora("video"))}/h
-                                    </span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => void grabacion.empezar("audio")}>
-                                    <Mic className="mr-2 h-4 w-4" />
-                                    <span className="flex-1">Grabar solo el audio</span>
-                                    <span className="text-xs text-muted-foreground">
-                                        ~{comoSeLeenLosBytes(bytesPorHora("audio"))}/h
-                                    </span>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    )
-                ) : null}
-                {puedeReducir ? (
-                    <MandoDeCabecera
-                        activo={false}
-                        onClick={() => irA(masPequena)}
-                        rotulo={
-                            masPequena === "pastilla"
-                                ? "Plegar a una pastilla"
-                                : "Salir de pantalla completa"
-                        }
-                        Icono={Minimize2}
-                    />
-                ) : null}
-                {puedeAmpliar ? (
-                    <MandoDeCabecera
-                        activo={false}
-                        onClick={() => irA(masGrande)}
-                        rotulo={
-                            masGrande === "completa" ? "Pantalla completa" : "Ampliar"
-                        }
-                        Icono={Maximize2}
-                    />
-                ) : null}
-            </div>
+                Un aviso no es una barra de mandos: es raro, dura poco y lo que
+                cuesta es 30 px de video mientras pasa algo que hay que mirar. */}
 
             {/* **El aviso de que se está grabando, para TODOS.**
 
-                No es un adorno y no se puede esconder detrás de un icono
-                pequeño: grabar la voz y la cara de los demás sin que se note no
-                es una función, es otra cosa. Ocupa una franja entera, en rojo,
-                y lo pinta la pantalla de cada participante a partir de lo que
+                Lo pinta la pantalla de cada participante a partir de lo que
                 dice el servidor — no lo que diga la pestaña de quien graba. */}
             {malla.grabando ? (
                 <div className="flex shrink-0 items-center gap-2 border-b border-red-500/40 bg-red-500/15 px-3 py-2 text-xs text-red-200 sm:px-4">
@@ -949,13 +871,304 @@ export function SalaDeVideo({
                 </div>
             ) : null}
 
-            {/* Los recuadros y el panel, lado a lado. El panel se SUPERPONE por
-                debajo de `sm`: en un móvil, con la lista al lado no quedaría
-                nada para los recuadros. */}
-            <div className="relative flex min-h-0 flex-1">
+            {/* ── La caja del video: TODO lo que queda ───────────────────────
+                Los recuadros la llenan entera y las dos barras flotan encima,
+                así que esconderlas no deja hueco ni mueve la imagen: lo que hay
+                debajo ya estaba pintado. El panel es hermano de los recuadros y
+                les quita ancho **solo desde `sm`**; en un móvil se superpone,
+                porque con la lista al lado no quedaría nada para el video. */}
+            <div data-caja-del-video className="relative flex min-h-0 flex-1">
                 {laRejillaDeAhora}
+
+                {/* La cabecera: qué reunión es, cuántos hay y los mandos de
+                    vista. Flotando, con degradado para que el nombre se lea
+                    sobre cualquier imagen. */}
+                <div
+                    data-cabecera-de-la-sala
+                    className={cn(
+                        "pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-start gap-2 bg-gradient-to-b from-black/80 via-black/35 to-transparent px-2 pb-10 pt-2 transition-opacity duration-200 sm:px-3",
+                        // Con el panel abierto la cabecera se queda en el
+                        // ancho del video: encima del panel taparía sus
+                        // pestañas, que están justo ahí arriba.
+                        panel ? "hidden sm:flex sm:right-64 md:right-72" : "",
+                        mandos.seVen ? "opacity-100" : "opacity-0",
+                    )}
+                >
+                    {/* El asa se lleva SOLO el nombre, no la cabecera entera.
+                        Puesta en el contenedor, captura el puntero al agarrarla
+                        y los eventos de después se le redirigen: el `click` de
+                        los botones no llegaría a salir nunca. Es la misma regla
+                        que ya costó una vuelta en la tarjeta de llamada. */}
+                    <div
+                        {...asa}
+                        className={cn(
+                            "min-w-0 flex-1 truncate rounded px-1 py-1.5 text-sm font-medium drop-shadow-md",
+                            asa?.className ?? "",
+                        )}
+                    >
+                        {nombre}
+                    </div>
+
+                    {/* Los botones van en su propio bloque con fondo: sobre un
+                        video claro, un icono blanco a pelo no se ve. Y el
+                        `pointer-events` va AQUÍ y no en el degradado: el
+                        degradado ocupa 50 px de alto de punta a punta, y con él
+                        capturando el puntero no se podría pulsar nada de lo que
+                        hay debajo en esa franja. */}
+                    <div
+                        className={cn(
+                            "flex shrink-0 items-center gap-1 rounded-lg bg-zinc-900/70 p-0.5 backdrop-blur",
+                            mandos.seVen ? "pointer-events-auto" : "pointer-events-none",
+                        )}
+                        onMouseEnter={() => mandos.fijar("encima", true)}
+                        onMouseLeave={() => mandos.fijar("encima", false)}
+                    >
+                        <span className="hidden shrink-0 items-center gap-1.5 px-1.5 text-xs text-zinc-300 sm:flex">
+                            <Users className="h-3.5 w-3.5" />
+                            <span className="tabular-nums">
+                                {cuantos} de {TOPE_DE_LA_SALA}
+                            </span>
+                        </span>
+
+                        <MandoDeCabecera
+                            activo={
+                                laDistribucionQueSeVe(distribucion, cuantos) === "cuadricula"
+                            }
+                            onClick={() =>
+                                cambiarDistribucion(
+                                    distribucion === "orador" ? "cuadricula" : "orador",
+                                )
+                            }
+                            rotulo={
+                                distribucion === "orador"
+                                    ? "Ver a todos en cuadrícula"
+                                    : "Ver en grande a quien habla"
+                            }
+                            Icono={LayoutGrid}
+                            // Con una sola persona no hay nada que repartir, así
+                            // que el botón no promete un cambio que no va a
+                            // pasar.
+                            apagado={cuantos <= 1}
+                        />
+                        <MandoDeCabecera
+                            activo={Boolean(panel)}
+                            onClick={() => cambiarElPanel(panel ? null : pestanaDelPanel)}
+                            rotulo={panel ? "Plegar el panel" : "Abrir el chat y la gente"}
+                            Icono={MessageSquare}
+                        />
+                        {enlace ? (
+                            <MandoDeCabecera
+                                activo={false}
+                                onClick={() => void copiar(enlace)}
+                                rotulo="Copiar el enlace de la reunión"
+                                Icono={Copy}
+                            />
+                        ) : null}
+
+                        {/* Grabar. **Solo sale si el servidor dice que sí**, que
+                            son dos cosas a la vez —administrar la sala y que la
+                            CUENTA tenga el módulo— y la segunda el navegador no
+                            la sabe. Enseñarlo y que la acción conteste que no es
+                            el «menú abierto, puerta cerrada» que este
+                            repositorio ya pagó. */}
+                        {malla.puedoGrabar ? (
+                            grabacion.grabando ? (
+                                <MandoDeCabecera
+                                    activo
+                                    onClick={() => void grabacion.terminar()}
+                                    rotulo={`Parar la grabación (${comoSeLeeLaDuracion(grabacion.segundos)})`}
+                                    Icono={Square}
+                                    apagado={grabacion.ocupado}
+                                />
+                            ) : (
+                                // Un menú abierto FIJA los mandos. Sin esto la
+                                // barra se aparta a los tres segundos y el menú
+                                // se queda flotando solo sobre el video,
+                                // anclado a un botón que ya no se ve.
+                                <DropdownMenu
+                                    onOpenChange={(abierto) => mandos.fijar("menu", abierto)}
+                                >
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                grabacion.ocupado || Boolean(malla.grabando)
+                                            }
+                                            title={
+                                                malla.grabando
+                                                    ? "Ya se está grabando"
+                                                    : "Grabar la reunión"
+                                            }
+                                            aria-label="Grabar la reunión"
+                                            className={cn(
+                                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-300 transition",
+                                                "hover:bg-zinc-800 hover:text-zinc-100",
+                                                "disabled:pointer-events-none disabled:opacity-40",
+                                            )}
+                                        >
+                                            {grabacion.ocupado ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Circle className="h-4 w-4" />
+                                            )}
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    {/* Dos opciones y **el peso al lado de cada
+                                        una**: una hora de video es casi un giga
+                                        del cupo de la cuenta y una de audio son
+                                        catorce megas. Elegir sin ese número es
+                                        elegir a ciegas algo que se paga en
+                                        espacio. */}
+                                    <DropdownMenuContent align="end" className="w-64">
+                                        <DropdownMenuItem
+                                            onSelect={() => void grabacion.empezar("video")}
+                                        >
+                                            <Video className="mr-2 h-4 w-4" />
+                                            <span className="flex-1">Grabar video y audio</span>
+                                            <span className="text-xs text-muted-foreground">
+                                                ~{comoSeLeenLosBytes(bytesPorHora("video"))}/h
+                                            </span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onSelect={() => void grabacion.empezar("audio")}
+                                        >
+                                            <Mic className="mr-2 h-4 w-4" />
+                                            <span className="flex-1">Grabar solo el audio</span>
+                                            <span className="text-xs text-muted-foreground">
+                                                ~{comoSeLeenLosBytes(bytesPorHora("audio"))}/h
+                                            </span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )
+                        ) : null}
+                        {puedeReducir ? (
+                            <MandoDeCabecera
+                                activo={false}
+                                onClick={() => irA(masPequena)}
+                                rotulo={
+                                    masPequena === "pastilla"
+                                        ? "Plegar a una pastilla"
+                                        : "Salir de pantalla completa"
+                                }
+                                Icono={Minimize2}
+                            />
+                        ) : null}
+                        {puedeAmpliar ? (
+                            <MandoDeCabecera
+                                activo={false}
+                                onClick={() => irA(masGrande)}
+                                rotulo={
+                                    masGrande === "completa" ? "Pantalla completa" : "Ampliar"
+                                }
+                                Icono={Maximize2}
+                            />
+                        ) : null}
+                    </div>
+                </div>
+
+                {/* Los mandos: una pastilla centrada abajo, flotando sobre el
+                    video. Centrada y no de punta a punta a propósito: mide unos
+                    364 px medidos, así que con una persona —y con la vista de
+                    orador, donde el grande ocupa casi todo— el pie del recuadro
+                    se sigue leyendo entero. En cuadrícula de cuatro sí tapa el
+                    nombre de los de abajo, y eso es justo lo que arregla que se
+                    aparten solos: a los tres segundos y medio vuelve a leerse
+                    sin que nadie haga nada. */}
+                <div
+                    data-mandos-de-la-sala
+                    className={cn(
+                        "pointer-events-none absolute bottom-0 left-0 right-0 z-20 flex justify-center px-2 pb-3 pt-10 sm:pb-4",
+                        // En un móvil con el panel abierto el panel ocupa la
+                        // pantalla entera: unos mandos encima taparían la caja
+                        // de escribir del chat.
+                        panel ? "hidden sm:flex sm:right-64 md:right-72" : "",
+                    )}
+                >
+                    <div
+                        className={cn(
+                            "flex max-w-full items-center gap-1.5 rounded-full border border-zinc-800/80 bg-zinc-900/85 px-2 py-2 shadow-xl backdrop-blur transition-opacity duration-200 sm:gap-2.5 sm:px-3",
+                            // Escondidos **no se pueden pulsar**: unos mandos
+                            // invisibles que siguen respondiendo al clic son un
+                            // botón de colgar que se pulsa sin verlo.
+                            mandos.seVen
+                                ? "pointer-events-auto opacity-100"
+                                : "pointer-events-none opacity-0",
+                        )}
+                        onMouseEnter={() => mandos.fijar("encima", true)}
+                        onMouseLeave={() => mandos.fijar("encima", false)}
+                    >
+                        <Mando
+                            encendido={medios.micEncendido}
+                            onClick={medios.alternarMic}
+                            rotuloEncendido="Silenciar el micrófono"
+                            rotuloApagado="Activar el micrófono"
+                            Icono={Mic}
+                            IconoApagado={MicOff}
+                        />
+                        <Mando
+                            encendido={medios.camaraEncendida}
+                            onClick={() => void medios.alternarCamara()}
+                            rotuloEncendido="Apagar la cámara"
+                            rotuloApagado="Encender la cámara"
+                            Icono={Video}
+                            IconoApagado={VideoOff}
+                            ocupado={medios.pidiendo}
+                        />
+                        <Mando
+                            encendido={medios.compartiendo}
+                            onClick={() => void medios.alternarPantalla()}
+                            rotuloEncendido="Dejar de compartir"
+                            rotuloApagado="Compartir la pantalla"
+                            Icono={MonitorUp}
+                            IconoApagado={ScreenShare}
+                            // Al revés que los otros dos: compartiendo es el
+                            // estado «encendido» y se pinta en azul, no en gris
+                            // de apagado.
+                            alReves
+                        />
+                        <Mando
+                            encendido={Boolean(malla.yo?.manoLevantada)}
+                            onClick={() => void alternarLaMano()}
+                            rotuloEncendido="Bajar la mano"
+                            rotuloApagado="Levantar la mano"
+                            Icono={Hand}
+                            IconoApagado={Hand}
+                            alReves
+                            color="ambar"
+                        />
+                        <ElFondo
+                            modo={medios.fondo}
+                            preparando={medios.preparandoElFondo}
+                            // Sin cámara no hay fondo que poner, y un menú que
+                            // no puede hacer nada se lee como que la App está
+                            // rota. Se dice por qué en el `title`.
+                            sinCamara={!medios.camaraEncendida}
+                            onElegir={(f) => void cambiarFondo(f)}
+                            onMenu={(abierto) => mandos.fijar("menu", abierto)}
+                        />
+                        <Button
+                            size="icon"
+                            variant="destructive"
+                            className="h-10 w-10 shrink-0 rounded-full sm:h-12 sm:w-12"
+                            onClick={() => void salir()}
+                            disabled={saliendo}
+                            aria-label="Salir de la reunión"
+                            title="Salir de la reunión"
+                        >
+                            <PhoneOff className="h-5 w-5" />
+                        </Button>
+                    </div>
+                </div>
+
+                {/* El panel va el ÚLTIMO para que en un móvil, donde se
+                    superpone, quede por encima de las dos barras: su caja de
+                    escribir está justo donde flotan los mandos. */}
                 {panel ? (
-                    <div className="absolute inset-0 z-10 sm:static sm:z-auto sm:w-64 sm:shrink-0 md:w-72">
+                    <div
+                        data-panel-de-la-sala
+                        className="absolute inset-0 z-30 sm:static sm:z-auto sm:w-64 sm:shrink-0 md:w-72"
+                    >
                         <PanelDeLaReunion
                             codigo={codigo}
                             token={token}
@@ -963,78 +1176,12 @@ export function SalaDeVideo({
                             gente={enElPanel}
                             moderas={Boolean(malla.yo?.moderas)}
                             miId={miId}
-                            alCerrar={() => setPanel(null)}
+                            alCerrar={() => cambiarElPanel(null)}
                             pestana={pestanaDelPanel}
-                            onPestana={(p) => {
-                                setPestanaDelPanel(p);
-                                setPanel(p);
-                            }}
+                            onPestana={(p) => cambiarElPanel(p)}
                         />
                     </div>
                 ) : null}
-            </div>
-
-            {/* Los mandos. Abajo y grandes: es lo que se busca con prisa cuando
-                hay que callarse o colgar. */}
-            <div className="flex shrink-0 items-center justify-center gap-1.5 border-t border-zinc-800 px-2 py-2.5 sm:gap-3 sm:py-3">
-                <Mando
-                    encendido={medios.micEncendido}
-                    onClick={medios.alternarMic}
-                    rotuloEncendido="Silenciar el micrófono"
-                    rotuloApagado="Activar el micrófono"
-                    Icono={Mic}
-                    IconoApagado={MicOff}
-                />
-                <Mando
-                    encendido={medios.camaraEncendida}
-                    onClick={() => void medios.alternarCamara()}
-                    rotuloEncendido="Apagar la cámara"
-                    rotuloApagado="Encender la cámara"
-                    Icono={Video}
-                    IconoApagado={VideoOff}
-                    ocupado={medios.pidiendo}
-                />
-                <Mando
-                    encendido={medios.compartiendo}
-                    onClick={() => void medios.alternarPantalla()}
-                    rotuloEncendido="Dejar de compartir"
-                    rotuloApagado="Compartir la pantalla"
-                    Icono={MonitorUp}
-                    IconoApagado={ScreenShare}
-                    // Al revés que los otros dos: compartiendo es el estado
-                    // «encendido» y se pinta en azul, no en gris de apagado.
-                    alReves
-                />
-                <Mando
-                    encendido={Boolean(malla.yo?.manoLevantada)}
-                    onClick={() => void alternarLaMano()}
-                    rotuloEncendido="Bajar la mano"
-                    rotuloApagado="Levantar la mano"
-                    Icono={Hand}
-                    IconoApagado={Hand}
-                    alReves
-                    color="ambar"
-                />
-                <ElFondo
-                    modo={medios.fondo}
-                    preparando={medios.preparandoElFondo}
-                    // Sin cámara no hay fondo que poner, y un menú que no puede
-                    // hacer nada se lee como que la App está rota. Se dice por
-                    // qué en el `title`.
-                    sinCamara={!medios.camaraEncendida}
-                    onElegir={(f) => void cambiarFondo(f)}
-                />
-                <Button
-                    size="icon"
-                    variant="destructive"
-                    className="h-10 w-10 shrink-0 rounded-full sm:h-12 sm:w-12"
-                    onClick={() => void salir()}
-                    disabled={saliendo}
-                    aria-label="Salir de la reunión"
-                    title="Salir de la reunión"
-                >
-                    <PhoneOff className="h-5 w-5" />
-                </Button>
             </div>
         </div>
     );
@@ -1172,11 +1319,20 @@ function ElFondo({
     preparando,
     sinCamara,
     onElegir,
+    onMenu,
 }: {
     modo: ModoDeFondo;
     preparando: boolean;
     sinCamara: boolean;
     onElegir: (f: ModoDeFondo) => void;
+    /**
+     * Que hay un menú abierto.
+     *
+     * Los mandos se apartan solos a los pocos segundos; con el menú abierto,
+     * apartar la barra dejaría el menú flotando solo sobre el video, anclado a
+     * un botón que ya no se ve.
+     */
+    onMenu?: (abierto: boolean) => void;
 }) {
     const encendido = modo !== "ninguno";
     const rotulo = sinCamara
@@ -1185,7 +1341,7 @@ function ElFondo({
           ? "Quitar el fondo"
           : "Desenfocar o cambiar el fondo";
     return (
-        <DropdownMenu>
+        <DropdownMenu onOpenChange={onMenu}>
             <DropdownMenuTrigger asChild>
                 <Button
                     size="icon"

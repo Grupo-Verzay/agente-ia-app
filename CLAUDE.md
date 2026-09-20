@@ -6483,6 +6483,155 @@ volver a grabar.
 ya está instalado; lo que no se ha visto correr es la unión contra un bucket de
 verdad. Si algo falla en producción, **ese es el sitio donde mirar primero**.
 
+## Reuniones: el video llena la CAJA, y los mandos flotan y se apartan
+
+La sala tenía dos franjas propias —la cabecera arriba y la barra de mandos
+abajo— y el video se quedaba con lo que sobraba. Medido en Chromium sobre el
+CSS de **los dos builds**, que es la única forma de que el número signifique
+algo: las clases que se van con las franjas (`border-t border-zinc-800`,
+`py-2.5 sm:py-3`) siguen existiendo en la hoja nueva porque las usan otras
+pantallas, así que las dos medidas valen; lo que no vale es medir el «antes»
+con el DOM nuevo, que ya no tiene esas franjas.
+
+| ventana | el video, antes | ahora | gana |
+| --- | --- | --- | --- |
+| 1440×900 | 752 px | **900** | +148 |
+| 1280×800 | 652 px | **800** | +148 |
+| 1024×768 | 620 px | **768** | +148 |
+| 390×844 | 716 px | **844** | +128 |
+
+Ciento cuarenta y ocho píxeles de alto en **todas** las anchuras —49 de la
+cabecera, 73 de los mandos y 26 del relleno que separaba los recuadros del
+borde—, y en un móvil una octava parte de la pantalla. La referencia es
+`meet.jit.si`, que hace exactamente esto.
+
+> **La cabecera y los mandos no tienen franja: flotan encima del video y se
+> apartan solos a los 3,5 s sin actividad.** Vuelven con cualquier señal —mover
+> el ratón, tocar la pantalla, una tecla, recibir el foco—. Vale en los tres
+> tamaños de ventana; en la pastilla no hay mandos que esconder, así que ahí ni
+> se engancha ningún oyente ni corre ningún temporizador.
+
+### Lo que NO se esconde, que es la mitad que importa
+
+Los **avisos** siguen en el flujo, sin temporizador ninguno: el de «se está
+grabando» —que ocupa una franja entera en rojo a propósito, porque grabar la
+voz y la cara de los demás sin que se note no es una función, es otra cosa—, el
+de reconexión y la sala de espera, que además lleva botones que hay que poder
+pulsar.
+
+Un aviso no es una barra de mandos. Es raro, dura poco y lo que cuesta son
+30 px de video mientras pasa algo que hay que mirar. Uno que se aparta a los
+tres segundos es uno que no se ve, y entonces la regla de arriba deja de ser
+cierta.
+
+### Tres cosas de esconderlos, y las tres son fallos si faltan
+
+1. **Escondidos NO se pueden pulsar.** `pointer-events-none` en la pastilla, no
+   solo `opacity-0`. Unos mandos invisibles que siguen respondiendo al clic son
+   un botón de colgar que se pulsa sin verlo. Lo que sí se conserva es el foco
+   por teclado: `keydown` los devuelve antes de que nadie llegue a pulsar nada,
+   y por eso **no** se les pone `aria-hidden` —quien navega con lector de
+   pantalla no mueve ningún ratón—.
+2. **Esconderlos no mueve ni encoge el video.** Son capas sobre una caja que ya
+   ocupa el alto entero, así que lo que hay debajo ya estaba pintado. Medido en
+   las cuatro anchuras, con una persona y con dos: la caja y cada recuadro miden
+   **exactamente lo mismo** con los mandos puestos y quitados. Si alguna vez se
+   los devuelve al flujo, el video daría un salto de 148 px cada tres segundos,
+   que es peor que la franja que esto viene a quitar.
+3. **Un menú abierto los FIJA.** El de grabar y el del fondo avisan con
+   `onOpenChange`. Sin eso la barra se aparta a los 3,5 s y el menú se queda
+   flotando solo sobre el video, anclado a un botón que ya no se ve. Lo mismo
+   con el puntero encima de la barra: quien tiene el ratón ahí los está mirando
+   aunque no lo mueva.
+
+Los motivos para quedarse puestos son un **conjunto con nombre**, no un
+contador. Un contador se desequilibra en cuanto un `onMouseLeave` no llega —y no
+llega cuando el elemento se desmonta con el puntero encima, que aquí pasa cada
+vez que se abre un menú— y a partir de ahí los mandos se quedan puestos para
+siempre o no vuelven nunca.
+
+### El freno de las señales se apaga cuando están escondidos
+
+`mousemove` llega decenas de veces por segundo y cada una reprograma el
+temporizador, en la pantalla que además está pintando video. Así que se frena…
+**salvo con los mandos escondidos**, donde la señal es justo lo único que los
+devuelve y tragársela 250 ms se nota como un ratón que no responde.
+
+Y de ahí el invariante que junta las dos mitades, que es lo que el banco ejerce
+con un ratón moviéndose cada 16 ms durante diez segundos: **el freno nunca puede
+ser el motivo de que se aparten.** Si algún día se igualaran los dos números,
+los mandos se esconderían con alguien moviendo el ratón encima de ellos.
+
+### Una pastilla centrada, no una barra de punta a punta
+
+Los mandos van en una pastilla redondeada de unos **364 px** centrada abajo
+(288 en un móvil), no en una barra que cruza la pantalla. Con una persona —y con
+la vista de orador, donde el grande ocupa casi todo— eso deja el pie del
+recuadro, que lleva el nombre pegado a la izquierda, legible con los mandos
+puestos. En cuadrícula de cuatro sí tapa el nombre de los de abajo, y **eso es
+justo lo que arregla que se aparten solos**: a los 3,5 s vuelve a leerse sin que
+nadie haga nada.
+
+Y el degradado de detrás va `pointer-events-none`, con el `auto` en la pastilla:
+el degradado ocupa 120 px de alto de punta a punta, y con él capturando el
+puntero no se podría pulsar nada de lo que hay debajo en esa franja — o sea, la
+franja muerta otra vez, esta vez invisible.
+
+### El panel de Chat y Gente se PLIEGA, y se recuerda
+
+Con una flecha (`PanelRightClose`) y no una equis: lo que hace es plegarlo
+—devolverle el ancho al video— y no cerrar nada. Con la equis se lee como
+«descartar» y nadie la pulsa por miedo a perder lo escrito en el chat.
+
+Se recuerda en `localStorage`, con **tres valores y no un booleano aparte**:
+`chat`, `gente` o `plegado`. Con «abierto» por un lado y «qué pestaña» por otro,
+el día que uno de los dos no se escriba el panel vuelve abierto por la pestaña
+de otra reunión, y eso se lee como que la App eligió sola. Y lo escribe **una
+sola función** (`cambiarElPanel`): con la escritura en cada manejador, al tercero
+se le olvida y entonces se recuerda unas veces sí y otras no.
+
+Lo que no se entienda —un valor de otra versión, algo a medio escribir— cae en
+plegado: se ve de menos, nunca de más, que un panel abriéndose solo tapa el
+video de quien no pidió nada. Y sin nada guardado también es plegado: una
+reunión se abre para ver a la gente, no para leer un chat todavía vacío.
+
+Con el panel abierto **las dos barras se quedan en el ancho del video**
+(`sm:right-64 md:right-72`, medido: acaban en el píxel exacto donde empieza el
+panel). Encima taparían sus pestañas, que están justo ahí arriba, y su caja de
+escribir, que está justo abajo. Y en un **móvil**, donde el panel se superpone a
+pantalla completa, las dos se esconden del todo: unos mandos flotando sobre el
+chat taparían la caja de escribir, que es para lo que se abrió.
+
+### Y con una sola persona el recuadro va SIN marco
+
+Sin relleno exterior el recuadro **es** la caja, así que un marco redondeado a
+sangre deja cuatro muescas del fondo en las esquinas y se lee como que el video
+no llega al borde. El anillo ámbar de la mano levantada se pinta igual, con
+marco o sin él: es lo único que dice que alguien pidió la palabra, y con una
+sola persona en la sala esa persona es la que la pidió.
+
+### Medido, y lo que el banco no puede cazar
+
+El banco de `lib/mandos-de-la-reunion.ts` prueba la decisión —el plazo, los
+motivos, el freno y el invariante que los cruza— sin navegador. Lo que hizo
+falta medir en Chromium, con sesión de verdad y cámara falsa, a 1440, 1280, 1024
+y 390, con una persona y con dos, y en los tres tamaños de ventana:
+
+- el video llega a los **cuatro bordes** de la caja (los recuadros, no la caja
+  vacía: con dos personas se comprueba el mínimo y el máximo de la lista);
+- se apartan solos, **dos veces seguidas** —que no sea un «vuelven una vez y
+  ya»— y vuelven al mover el ratón y al **tocar** la pantalla en un móvil;
+- escondidos, la pastilla está en `pointer-events: none`;
+- la caja y cada recuadro miden lo mismo antes y después de esconderlos;
+- los `<video>` siguen montados en todos los pasos, la pastilla plegada incluida
+  —plegar esconde, no desmonta, o se va el audio con ellos—;
+- con un menú abierto no se apartan aunque el ratón esté lejos, y al cerrarlo
+  vuelven a hacerlo;
+- a pantalla completa el video ocupa 1440×900 exactos y las barras siguen
+  flotando y apartándose;
+- y la **pastilla** de la reunión plegada no se esconde nunca: ahí no hay mandos
+  que apartar, y dejarla escondida sería una reunión sin forma de colgar.
+
 ## Un hilo se abre por el final, y no se mueve solo
 
 Los cinco listados de mensajes de la plataforma —Chats, el chat de equipo y los
