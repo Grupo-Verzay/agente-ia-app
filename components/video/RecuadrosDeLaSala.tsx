@@ -60,12 +60,22 @@ export function RecuadrosDeLaSala({
     gente,
     distribucion,
     enGrande,
+    tiraPlegada = false,
     className,
 }: {
     gente: LoQueSePinta[];
     distribucion: "orador" | "cuadricula";
     /** A quién se pone en grande. Solo lo mira el reparto de orador. */
     enGrande: string | null;
+    /**
+     * Si la tira de miniaturas va escondida.
+     *
+     * Escondida y **no desmontada** (`display:none`): quitar los `<video>` de
+     * la tira se llevaría el audio de esa gente, igual que al plegar la reunión
+     * entera. Con la tira fuera del reparto, el recuadro grande —que es
+     * `flex-1`— crece y ocupa su ancho. Solo lo mira el reparto de orador.
+     */
+    tiraPlegada?: boolean;
     className?: string;
 }) {
     if (distribucion === "cuadricula" || gente.length <= 1) {
@@ -122,6 +132,10 @@ export function RecuadrosDeLaSala({
                     // orador.
                     "flex gap-1.5 overflow-auto",
                     tira,
+                    // Plegada: fuera del reparto —el orador (`flex-1`) crece y
+                    // ocupa este ancho— pero los `<video>` de dentro siguen
+                    // MONTADOS, así que el audio de esta gente no se corta.
+                    tiraPlegada ? "hidden" : "",
                 )}
             >
                 {resto.map((g) => (

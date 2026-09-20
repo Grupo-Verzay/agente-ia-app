@@ -13,6 +13,8 @@ import {
     MicOff,
     Minimize2,
     MonitorUp,
+    PanelRightClose,
+    PanelRightOpen,
     PhoneOff,
     Circle,
     Square,
@@ -38,13 +40,16 @@ import { cn } from "@/lib/utils";
 import {
     DISTRIBUCION_POR_DEFECTO,
     LLAVE_DE_LA_DISTRIBUCION,
+    LLAVE_DE_LA_TIRA,
     LLAVE_DEL_PANEL,
     TOPE_DE_LA_SALA,
     comoSeGuardaElPanel,
+    comoSeGuardaLaTira,
     elPanelDeEntrada,
     esUnaDistribucion,
     hayQueObedecerElSilencio,
     laDistribucionQueSeVe,
+    laTiraDeEntrada,
     type Distribucion,
     type PestanaDelPanel,
 } from "@/lib/sala-de-video";
@@ -188,6 +193,10 @@ export function SalaDeVideo({
     const [distribucion, setDistribucion] = useState<Distribucion>(DISTRIBUCION_POR_DEFECTO);
     const [panel, setPanel] = useState<PestanaDelPanel | null>(null);
     const [pestanaDelPanel, setPestanaDelPanel] = useState<PestanaDelPanel>("chat");
+    // La tira de miniaturas de la vista de orador, plegada o no. Por defecto
+    // NO —esconder las caras de la gente por defecto sería empezar la reunión
+    // ocultando a todos—, y se recuerda como el panel (#837).
+    const [tiraPlegada, setTiraPlegada] = useState(false);
 
     useEffect(() => {
         try {
@@ -195,6 +204,11 @@ export function SalaDeVideo({
             if (esUnaDistribucion(d)) setDistribucion(d);
         } catch {
             // Sin `localStorage` se usa lo de por defecto, que es lo correcto.
+        }
+        try {
+            setTiraPlegada(laTiraDeEntrada(window.localStorage.getItem(LLAVE_DE_LA_TIRA)));
+        } catch {
+            // Sin recuerdo, abierta: no se esconde a nadie por defecto.
         }
         try {
             // Si quedó plegado, se abre plegado. Es lo que se pidió: el panel
@@ -233,6 +247,16 @@ export function SalaDeVideo({
             window.localStorage.setItem(LLAVE_DE_LA_DISTRIBUCION, d);
         } catch {
             // Que no se recuerde no puede impedir que se cambie ahora.
+        }
+    }, []);
+
+    /** Plegar o desplegar la tira, por un solo sitio, como el panel. */
+    const cambiarLaTira = useCallback((plegada: boolean) => {
+        setTiraPlegada(plegada);
+        try {
+            window.localStorage.setItem(LLAVE_DE_LA_TIRA, comoSeGuardaLaTira(plegada));
+        } catch {
+            // Que no se recuerde no puede impedir que se pliegue ahora.
         }
     }, []);
 
@@ -626,11 +650,13 @@ export function SalaDeVideo({
     const compartiendo = gente.find((g) => g.compartiendo);
     const enGrande = compartiendo?.id ?? quienHabla;
 
+    const vistaDeAhora = laDistribucionQueSeVe(distribucion, cuantos);
     const laRejillaDeAhora = (
         <RecuadrosDeLaSala
             gente={gente}
-            distribucion={laDistribucionQueSeVe(distribucion, cuantos)}
+            distribucion={vistaDeAhora}
             enGrande={enGrande}
+            tiraPlegada={tiraPlegada}
         />
     );
 
@@ -950,6 +976,23 @@ export function SalaDeVideo({
                             // pasar.
                             apagado={cuantos <= 1}
                         />
+                        {/* Plegar la tira de miniaturas. Solo en la vista de
+                            orador, que es la única con tira; en cuadrícula no
+                            hay franja que esconder. Al plegarla el orador ocupa
+                            todo el ancho, y el estado se recuerda como el
+                            panel. */}
+                        {vistaDeAhora === "orador" ? (
+                            <MandoDeCabecera
+                                activo={tiraPlegada}
+                                onClick={() => cambiarLaTira(!tiraPlegada)}
+                                rotulo={
+                                    tiraPlegada
+                                        ? "Mostrar a los demás participantes"
+                                        : "Ocultar la franja de participantes"
+                                }
+                                Icono={tiraPlegada ? PanelRightOpen : PanelRightClose}
+                            />
+                        ) : null}
                         <MandoDeCabecera
                             activo={Boolean(panel)}
                             onClick={() => cambiarElPanel(panel ? null : pestanaDelPanel)}
