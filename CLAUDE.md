@@ -5705,13 +5705,49 @@ no tendría contra qué colocarse. Se queda como está a propósito.
 **Y `AnimatedChat`** es una animación decorativa de una landing, no una
 conversación.
 
-### `npm run build` NO comprueba los tipos en este repo
+### El build SÍ comprueba los tipos, pero no sirve para contarlos
 
-Se descubrió aquí y conviene saberlo: `next.config.js` lleva
-`typescript: { ignoreBuildErrors: true }`. Un `soltar` usado en un array de
-dependencias **antes de declararse** —que es un TDZ de verdad, no solo de
-tipos— daba `npm run build` en verde y habría reventado en producción. Lo cazó
-`npx tsc --noEmit`, que es el que manda.
+`next.config.js` llevaba `typescript: { ignoreBuildErrors: true }`. Un `soltar`
+usado en un array de dependencias **antes de declararse** —que es un TDZ de
+verdad, no solo de tipos— daba `npm run build` en verde y habría reventado en
+producción. Lo cazó `npx tsc --noEmit`, que era el único que miraba.
+
+**El interruptor ya no está**, y **no se vuelve a poner** — lo comprueba
+`lib/__tests__/tipos-en-el-build.test.mjs`, que corre en los dos modos. Existe
+por una razón concreta: volver a ponerlo es lo que se hace cuando un build se
+cae y hay prisa, y a partir de ahí no lo quita nadie.
+
+Tres cosas que hay que saber antes de tocar esto:
+
+1. **El comprobador de Next se PARA en el primer error.** Así que el build
+   sirve para que no entre ninguno y **nunca para contar cuántos hay**: enseña
+   uno, se arregla, y aparece el siguiente. Para el recuento sigue mandando
+   `npx tsc --noEmit`, y esa diferencia no es un detalle — «hay 1 error» y «hay
+   40» son dos tareas distintas.
+2. **`tsc` ya cubre las rutas generadas.** `tsconfig.json` incluye
+   `.next/types/**/*.ts`, que son 233 ficheros que escribe el propio Next. No
+   hace falta compilar para comprobarlos, pero sí haber compilado **alguna vez**
+   para que existan.
+3. **`eslint: { ignoreDuringBuilds: true }` se queda**, y es otra cosa: el lint
+   no cambia lo que corre.
+
+Los tres errores que estaban tapados eran el mismo, en
+`actions/chat-manual-actions.ts`: `context.apiKeyData` —que el tipo declara
+opcional— pasado a `sendTextMessage`, `sendMediaByUrl` y `resolveWhatsAppJid`,
+que piden la clave sin nulos. Ninguno era un fallo vivo —las tres puertas de
+arriba ya impedían llegar ahí sin clave— pero **la forma de arreglarlos importa**:
+
+- **No con un `as`.** Los dos helpers pasan a pedir `ReadyChatActionContext`,
+  que es el tipo que la casa ya tenía para decir «este contexto trae clave», y
+  el `context as Exclude<ChatActionContext, null>` del envío de flujos **se
+  fue**: `listo` es exactamente ese contexto y se puede pasar tal cual.
+- **Y donde no se puede estrechar el tipo, se comprueba de verdad.**
+  `sendOutgoingPayload` sí puede recibir una línea sin clave —una de Waha, que
+  no la necesita—, así que después de la rama de Waha lleva su
+  `if (!hasReadyContext(context))` con aviso y fallo suave. No es decoración:
+  `sendTextMessage` y `sendMediaByUrl` **desestructuran `apiKeyData` antes de su
+  propia comprobación**, así que un `undefined` de verdad no devuelve el fallo
+  que prometen — revienta con un `TypeError`.
 
 ## La barra de escribir es UNA, y lo que la forma vive fuera de las dos pantallas
 
