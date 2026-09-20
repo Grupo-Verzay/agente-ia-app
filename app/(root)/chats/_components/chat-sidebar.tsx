@@ -622,10 +622,24 @@ export function ChatSidebar({
     let ia = 0;
     let human = 0;
     let enEspera = 0;
+    /**
+     * Hasta que mensaje llego a juzgar la bandeja.
+     *
+     * Es lo que le permite seguir mandando sobre el conteo del servidor
+     * despues de salirse de Chats: ella conoce las marcas de leido de este
+     * navegador y el servidor no, asi que solo la desmiente algo MAS NUEVO de
+     * lo que ella vio. Ver `elNumeroDeChats` en `lib/insignia-del-favicon`.
+     *
+     * Se mira TODO lo que esta a la vista y no solo lo sin leer: un mensaje
+     * que manda el asesor no cambia el numero del servidor, y contarlo aqui
+     * solo hace mas dificil desmentir a la bandeja, que es el lado seguro.
+     */
+    let hasta = 0;
 
     for (const c of contacts) {
       // Un chat eliminado no esta en ninguna pestana: no se cuenta en ninguna.
       if (c.isDeleted) continue;
+      if (c.ts > hasta) hasta = c.ts;
 
       const resuelta = esResuelta(c);
       if (c.isArchived) archived++;
@@ -693,6 +707,7 @@ export function ChatSidebar({
         mine, dm, groups, archived, resolved,
       } satisfies TabCounts,
       filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human, enEspera },
+      hastaLaBandeja: hasta,
     };
   }, [contacts, currentAdvisorId, estaDestacado, channelCounts, selectedChannel]);
 
@@ -704,10 +719,15 @@ export function ChatSidebar({
     [advisors],
   );
 
+  // La bandeja es la unica que conoce las marcas de leido de este navegador,
+  // asi que lo que diga manda sobre el conteo del servidor. Y va con SU MARCA:
+  // sin ella no habria forma de saber si se quedo atras, y entonces o el
+  // numero no bajaria nunca al leer o el servidor lo resucitaria cada quince
+  // segundos. Ver `elNumeroDeChats` en `lib/insignia-del-favicon`.
   const setUnreadCount = useChatUnreadStore((s) => s.setUnreadCount);
   useEffect(() => {
-    setUnreadCount(filterCounts.unread);
-  }, [filterCounts.unread, setUnreadCount]);
+    setUnreadCount(filterCounts.unread, conteos.hastaLaBandeja);
+  }, [filterCounts.unread, conteos.hastaLaBandeja, setUnreadCount]);
 
   // "Sin leer" se enciende solo al entrar, pero únicamente cuando ya se sabe
   // que hay alguno. Antes entraba encendido y, si a los dos segundos y medio la

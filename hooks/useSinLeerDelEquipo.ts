@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { sinLeerDelEquipoAction } from "@/actions/chat-de-equipo-actions";
+import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import {
     SILENCIO_ENTRE_AVISOS_MS,
     TONO_DEL_EQUIPO,
@@ -290,6 +291,18 @@ export function useSinLeerDelEquipo() {
      */
     const [dirigidos, setDirigidos] = useState(0);
 
+    /**
+     * La otra mitad del número de la pestaña: los chats de clientes que
+     * esperan respuesta.
+     *
+     * No es estado de este hook, es del store — lo leen también la pastilla de
+     * «Chats» del menú y la campanita, y las tres tienen que decir lo mismo.
+     * Viaja en ESTA vuelta porque es el único reloj que ya corre en todas las
+     * pantallas; su propio `setInterval` sería el tercer reloj que este
+     * repositorio lleva escrito que no se monta.
+     */
+    const setDelServidor = useChatUnreadStore((s) => s.setDelServidor);
+
     const sonidoRef = useRef(true);
     sonidoRef.current = sonido;
     /** Lo último que sonó en ESTA pestaña, para no encadenar pitidos. */
@@ -304,6 +317,7 @@ export function useSinLeerDelEquipo() {
             }
             setTotal(res.data.total);
             setSonido(res.data.sonido);
+            setDelServidor(res.data.chats.total, res.data.chats.masNuevo);
 
             const llave = llaveDeLaMarca(res.data.personaId);
             const avisos = res.data.avisos ?? [];
@@ -343,7 +357,7 @@ export function useSinLeerDelEquipo() {
             // Mudo aquí se ve como «el contador nunca sube».
             console.warn("[chat-equipo] falló una vuelta del contador", error);
         }
-    }, []);
+    }, [setDelServidor]);
 
     useEffect(() => {
         let vivo = true;

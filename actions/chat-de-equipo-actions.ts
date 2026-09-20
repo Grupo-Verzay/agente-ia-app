@@ -32,6 +32,7 @@ import {
 } from "@/lib/chat-de-equipo";
 import { comoSeGuardaElChat } from "@/lib/chat-compartido";
 import { resolveInstanceOwner } from "@/lib/chat-persistence";
+import { losChatsQueEsperan } from "@/lib/chats-que-esperan.server";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import {
     CANAL_GENERAL,
@@ -1570,17 +1571,28 @@ export async function buscarEnElEquipoAction(
  * encima el tráfico de todo el mundo, que es tanto como no tener contador.
  */
 /**
- * Cuántos mensajes faltan por leer, **qué de eso merece sonar**, y si esta
- * persona quiere que suene.
+ * Cuántos mensajes faltan por leer, **qué de eso merece sonar**, si esta
+ * persona quiere que suene, y **cuántos chats de clientes esperan respuesta**.
  *
- * Las tres cosas en una vuelta a propósito. Es el reloj que corre en TODAS las
- * pantallas de todo el mundo con el panel cerrado: partirlo en tres acciones
- * sería triplicar sus peticiones para pintar un número y dar un pitido — «muchas
- * peticiones pequeñas son turno, no trabajo», aplicado al reloj más caro de
- * tener.
+ * Las cuatro cosas en una vuelta a propósito. Es el reloj que corre en TODAS
+ * las pantallas de todo el mundo con el panel cerrado: partirlo en cuatro
+ * acciones sería cuadruplicar sus peticiones para pintar un número y dar un
+ * pitido — «muchas peticiones pequeñas son turno, no trabajo», aplicado al
+ * reloj más caro de tener. Y no son dos viajes en paralelo: **Next serializa
+ * las acciones de servidor de una misma página**, así que la segunda esperaría
+ * a la primera y de paso ocuparía la cola que necesita Chats.
  *
  * Y la preferencia viaja aquí y no en su propia consulta por lo mismo: es una
  * lectura de una fila de dos columnas, pegada a una consulta que ya va.
+ *
+ * # Por qué los chats viajan en la vuelta del EQUIPO
+ *
+ * Porque el número de la pestaña son las dos mitades sumadas y este es el
+ * **único reloj que ya corre en todas las pantallas**. La otra mitad —los
+ * chats— no tenía ninguna: `useChatUnreadStore` lo escribe solo la bandeja,
+ * así que fuera de Chats valía cero y el icono no se pintaba nunca. Montarle
+ * su propio `setInterval` habría sido el tercer reloj que este repositorio
+ * lleva escrito que no se monta.
  */
 export async function sinLeerDelEquipoAction(): Promise<
     Respuesta<{
@@ -1598,6 +1610,13 @@ export async function sinLeerDelEquipoAction(): Promise<
          * la persona es otra.
          */
         personaId: string;
+        /**
+         * En cuántas conversaciones de clientes el último mensaje es del
+         * contacto, y de cuándo es la más nueva. La regla de quién manda entre
+         * esto y lo que sabe la bandeja está en `elNumeroDeChats`
+         * (`lib/insignia-del-favicon.ts`), que es puro.
+         */
+        chats: { total: number; masNuevo: number };
     }>
 > {
     try {
@@ -1623,10 +1642,14 @@ export async function sinLeerDelEquipoAction(): Promise<
         const mios = canales.filter((c) => c.pertenezco && c.tipo !== "general");
         const conGeneral = canales.some((c) => c.tipo === "general");
 
+        // Sale gratis: `quienYDonde` acaba de pedirlo y `currentUser` se
+        // recuerda unos segundos (`lib/cache-de-sesion`).
+        const usuario = await currentUser();
+
         // Los canales donde PERTENECE, no los que puede leer. Quien administra
         // lee todos los directos de su cuenta, y sonarle con el tráfico de todo
         // el mundo es tanto como no tener sonido.
-        const [cuentas, avisos, sonido] = await Promise.all([
+        const [cuentas, avisos, sonido, chats] = await Promise.all([
             sinLeerPorCanal({
                 personaId: quien.persona.id,
                 canales: mios.map((c) => c.id),
@@ -1642,6 +1665,17 @@ export async function sinLeerDelEquipoAction(): Promise<
                 conGeneral,
             }),
             quiereSonido(quien.persona.id),
+            // La otra mitad del número de la pestaña. Nunca tumba la vuelta:
+            // `losChatsQueEsperan` no lanza —lo que reviente por dentro se
+            // queda en cero y se escribe— porque quedarse sin el contador del
+            // equipo por un fallo contando chats sería cambiar un número que
+            // falta por otro.
+            usuario
+                ? losChatsQueEsperan(usuario).catch((error) => {
+                      console.warn("[chats] no se pudo contar lo que espera respuesta", error);
+                      return { total: 0, masNuevo: 0 };
+                  })
+                : Promise.resolve({ total: 0, masNuevo: 0 }),
         ]);
 
         const porCanal: Record<string, number> = {};
@@ -1653,7 +1687,7 @@ export async function sinLeerDelEquipoAction(): Promise<
 
         return {
             success: true,
-            data: { total, porCanal, avisos, sonido, personaId: quien.persona.id },
+            data: { total, porCanal, avisos, sonido, personaId: quien.persona.id, chats },
         };
     } catch (error) {
         // Mudo aquí se ve como «el contador nunca sube», que es justo el fallo

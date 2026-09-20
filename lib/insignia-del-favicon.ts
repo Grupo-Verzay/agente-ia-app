@@ -21,11 +21,12 @@
  *
  * | | de dónde | con qué ritmo |
  * | --- | --- | --- |
- * | chats sin leer | `useChatUnreadStore`, que llena la bandeja | en vivo, con el socket |
+ * | chats sin leer | la bandeja **o** el servidor, ver `elNumeroDeChats` | en vivo / 15 s |
  * | del equipo | el reloj del contador, que cuelga del layout | 15 s |
  *
  * Un tercer reloj para pintar un número sería una consulta más en todas las
- * pantallas de todo el mundo para no traer ningún dato nuevo.
+ * pantallas de todo el mundo para no traer ningún dato nuevo. Por eso las dos
+ * mitades viajan en **la misma vuelta**.
  */
 
 /**
@@ -47,6 +48,67 @@ function comoCuenta(n: unknown): number {
     // taparía los pendientes de verdad del otro contador.
     if (!Number.isFinite(v) || v <= 0) return 0;
     return Math.floor(v);
+}
+
+/**
+ * Cuántos chats esperan respuesta, entre lo que dice la bandeja y lo que dice
+ * el servidor.
+ *
+ * Hay **dos fuentes y ninguna sobra**, y saber por qué es lo único delicado de
+ * esta mitad del número:
+ *
+ * | | qué sabe | qué NO sabe |
+ * | --- | --- | --- |
+ * | la bandeja | las marcas de leído de ESTE navegador, y lo que trae el socket | nada, mientras no se haya entrado a Chats |
+ * | el servidor | qué conversaciones tienen de último un mensaje del contacto | qué se ha leído: esas marcas viven en `localStorage` |
+ *
+ * De ahí la regla, que es una frase:
+ *
+ * > **La bandeja manda en cuanto ha hablado — hasta que el servidor trae algo
+ * > MÁS NUEVO de lo que ella llegó a juzgar.**
+ *
+ * Los cuatro casos, que son todos:
+ *
+ * 1. **En frío**, sin haber entrado nunca a Chats: la bandeja no ha dicho nada,
+ *    así que manda el servidor. Es el fallo que esto viene a arreglar — antes
+ *    aquí había un cero fijo.
+ * 2. **Dentro de la bandeja**: manda ella, que va en vivo con el socket.
+ * 3. **Se leyó en la bandeja y se salió de Chats**: su número se queda. El del
+ *    servidor no lo resucita, porque leer no cambia de quién es el último
+ *    mensaje y ese número seguiría diciendo lo de antes. Esto es lo que hace
+ *    cierto que **el número baje al leer** y no vuelva a subir solo.
+ * 4. **Fuera de la bandeja entra un mensaje**: el socket no llega ahí, así que
+ *    la única fuente viva es el servidor — y se le reconoce porque su
+ *    `masNuevo` pasa de la marca de la bandeja. Vuelve a mandar él.
+ *
+ * Es la misma idea de `leidoHasta` del chat del equipo: **una marca, no un
+ * conjunto**. Con un conjunto de ids habría que bajarse la lista de chats en
+ * cada vuelta del reloj más caro de tener; con una hora basta un número.
+ */
+export function elNumeroDeChats(input: {
+    /** Lo último que dijo la bandeja, o `null` si no ha hablado en esta pestaña. */
+    deLaBandeja: number | null;
+    /** La hora del mensaje más nuevo que la bandeja llegó a juzgar. */
+    hastaLaBandeja: unknown;
+    /** Lo que cuenta el servidor: conversaciones que esperan respuesta. */
+    delServidor: unknown;
+    /** La hora del más nuevo de esas, para saber si la bandeja se quedó atrás. */
+    masNuevoDelServidor: unknown;
+}): number {
+    const delServidor = comoCuenta(input.delServidor);
+    if (input.deLaBandeja == null) return delServidor;
+
+    const deLaBandeja = comoCuenta(input.deLaBandeja);
+    const hasta = comoMarca(input.hastaLaBandeja);
+    const masNuevo = comoMarca(input.masNuevoDelServidor);
+    // Estrictamente más nuevo: lo que la bandeja ya juzgó no la desmiente.
+    return masNuevo > hasta ? delServidor : deLaBandeja;
+}
+
+/** Una hora que llega de un contador y puede no serlo. Sin hora, cero. */
+function comoMarca(n: unknown): number {
+    const v = typeof n === "number" ? n : Number(n);
+    return Number.isFinite(v) && v > 0 ? v : 0;
 }
 
 /**
