@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { LaReunion } from "@/components/video/LaReunion";
+import { ReunionPublica } from "./ReunionPublica";
 
 /**
  * La página de una reunión, abierta por su enlace.
@@ -31,7 +31,7 @@ export default async function PaginaDeLaReunion({
     const { codigo } = await params;
     return (
         <main className="h-[100dvh] w-full overflow-hidden bg-zinc-950">
-            <LaReunion codigo={codigo} />
+            <ReunionPublica codigo={codigo} />
         </main>
     );
 }

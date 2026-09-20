@@ -485,3 +485,156 @@ export function laDireccionDeLaSala(codigo: string, base?: string | null): strin
     const raiz = (base || "").replace(/\/+$/, "");
     return `${raiz}/reunion/${codigo}`;
 }
+
+// ── Lo que se añadió al hacerla usable ──────────────────────────────────────
+
+/**
+ * Cómo se reparten los recuadros.
+ *
+ * Dos, y **`orador` es la de por defecto**: con cuatro personas en cuadrícula
+ * todo el mundo sale del tamaño de un sello, y lo que se mira en una reunión es
+ * a quien habla. La cuadrícula se queda para cuando lo que importa es ver a
+ * todos a la vez —repasar caras, una reunión de dos— y se elige a mano.
+ */
+export const DISTRIBUCIONES = ["orador", "cuadricula"] as const;
+export type Distribucion = (typeof DISTRIBUCIONES)[number];
+export const DISTRIBUCION_POR_DEFECTO: Distribucion = "orador";
+
+export function esUnaDistribucion(v: unknown): v is Distribucion {
+    return typeof v === "string" && (DISTRIBUCIONES as readonly string[]).includes(v);
+}
+
+/** Dónde se recuerda, por el mismo motivo que el tamaño de la ventana. */
+export const LLAVE_DE_LA_DISTRIBUCION = "reunion:distribucion";
+
+/**
+ * Con una sola persona, la cuadrícula y el orador son lo mismo.
+ *
+ * Y entonces manda la cuadrícula: la vista de orador con cero miniaturas
+ * pintaría una tira vacía al lado del único recuadro, o sea un hueco gris
+ * pidiendo explicación. No es una preferencia, es que ahí no hay nada que
+ * repartir.
+ */
+export function laDistribucionQueSeVe(
+    elegida: Distribucion,
+    cuantos: number,
+): Distribucion {
+    return cuantos <= 1 ? "cuadricula" : elegida;
+}
+
+/**
+ * Lo que se guarda de un mensaje del chat de la reunión.
+ *
+ * Tres cosas, y ninguna es cosmética:
+ *
+ * 1. **Nunca vacío.** Un mensaje en blanco es una burbuja sin nada dentro que
+ *    nadie sabe explicar, y se manda solo con pulsar Enter sin querer.
+ * 2. **Con un tope.** Esto viaja en CADA vuelta del reloj de la sala, o sea
+ *    cada dos segundos y por persona: sin tope, alguien pegando un documento
+ *    entero lo mete en el camino más caliente de esta pantalla para siempre.
+ * 3. **Sin recortar los saltos de línea**, al revés que un nombre. Aquí sí se
+ *    escribe en varias líneas —se pega un error, una dirección— y aplastarlos
+ *    convertiría lo pegado en un churro. Lo que sí se quita es el exceso: más
+ *    de dos saltos seguidos es alguien dejando hueco, no estructura.
+ */
+export const TOPE_DEL_MENSAJE = 2_000;
+
+export function comoSeGuardaElMensaje(texto: unknown): string | null {
+    if (typeof texto !== "string") return null;
+    const limpio = texto.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (!limpio) return null;
+    return limpio.slice(0, TOPE_DEL_MENSAJE);
+}
+
+/**
+ * Cuántos mensajes del chat viajan en una vuelta del reloj.
+ *
+ * El reloj trae **solo los que faltan** —los posteriores al último que ya se
+ * tiene— así que en marcha normal esto es cero o uno. El tope es para el caso
+ * de volver a la pestaña después de un rato: sin él, una conversación larga
+ * llegaría entera de golpe en la misma respuesta que trae las ofertas de
+ * WebRTC, que es lo que no puede engordar.
+ */
+export const TOPE_DE_MENSAJES_POR_VUELTA = 50;
+
+/**
+ * Quién puede silenciar y sacar a alguien de una reunión en marcha.
+ *
+ * **No se decide aquí**, y conviene que esté escrito porque es donde se iba a
+ * escribir por segunda vez: la pregunta ya la contesta
+ * `puedeAdministrarLaSala` (`lib/reuniones-de-la-cuenta.ts`) — el anfitrión, o
+ * quien administra la cuenta dueña de la sala—, y es la misma que decide
+ * revocar el enlace o moverle la caducidad. Una segunda formulación aquí sería
+ * exactamente la trampa de siempre: el día que se afine una, la otra se queda
+ * atrás, y aquí eso significa o un botón que da error, o un botón que no está
+ * sobre una puerta que sí.
+ *
+ * Lo que SÍ es propio de la reunión en marcha, y por eso se dice aquí:
+ *
+ * > **Moderar no es abrir la puerta.** Abrir la puerta lo puede cualquiera del
+ * > equipo que ya esté dentro (`puedeAbrirLaPuerta`), y tiene que ser así: si
+ * > solo pudiera el anfitrión, sus invitados se quedarían en la sala de espera
+ * > para siempre en cuanto él cerrara la pestaña. Silenciar y expulsar se le
+ * > hace **a** alguien, no se le hace un favor, así que se queda en quien
+ * > responde de la reunión.
+ *
+ * Y **un invitado no modera nunca**, aunque por algún camino se le calculara lo
+ * demás: lo que le dejó entrar fue una decisión de alguien del equipo, y eso no
+ * se hereda. Esa mitad la cierra la acción, que a un invitado ni le resuelve
+ * una sesión con la que preguntar.
+ */
+
+/**
+ * Cuánto dura la petición de silencio antes de darse por atendida.
+ *
+ * Silenciar a alguien **no le apaga el micro desde el servidor** —no se puede,
+ * y menos mal: el servidor no tiene ninguna pista que tocar—. Lo que se hace es
+ * dejar una marca que el navegador de esa persona lee en su siguiente vuelta y
+ * **obedece apagando su propio micro**, que es como lo hacen todas.
+ *
+ * De ahí sale esta constante: la marca tiene que **caducar**. Si se quedara
+ * puesta, esa persona no podría volver a encender el micro nunca — cada vuelta
+ * del reloj le traería la orden otra vez y se volvería a callar sola. Quince
+ * segundos son de sobra para que su pestaña recoja la orden una vez, incluso
+ * con la pestaña de fondo, y no tantos como para pelearse con quien decide
+ * volver a hablar.
+ */
+export const VIGENCIA_DEL_SILENCIO_MS = 15_000;
+
+export function hayQueObedecerElSilencio(
+    silenciadoEn: Date | string | null | undefined,
+    yaObedecido: string | null,
+    ahora: number = Date.now(),
+): boolean {
+    if (!silenciadoEn) return false;
+    const marca = silenciadoEn instanceof Date ? silenciadoEn.getTime() : Date.parse(String(silenciadoEn));
+    if (!Number.isFinite(marca)) return false;
+    // Ya se obedeció esta misma orden: no se vuelve a callar a quien decidió
+    // volver a hablar después. La marca se compara por su valor exacto, que es
+    // lo que distingue una orden nueva de la de hace un momento.
+    if (yaObedecido === new Date(marca).toISOString()) return false;
+    return ahora - marca <= VIGENCIA_DEL_SILENCIO_MS;
+}
+
+/**
+ * Si a alguien se le ve la mano levantada.
+ *
+ * Con caducidad, como el silencio, y por un motivo distinto: una mano levantada
+ * que no caduca se queda puesta toda la reunión porque a nadie se le ocurre
+ * volver a pulsar el botón para bajarla. A los dos minutos ya no dice nada de
+ * ahora; si sigue haciendo falta, se vuelve a levantar.
+ */
+export const VIGENCIA_DE_LA_MANO_MS = 2 * 60_000;
+
+export function tieneLaManoLevantada(
+    manoLevantadaEn: Date | string | null | undefined,
+    ahora: number = Date.now(),
+): boolean {
+    if (!manoLevantadaEn) return false;
+    const marca =
+        manoLevantadaEn instanceof Date
+            ? manoLevantadaEn.getTime()
+            : Date.parse(String(manoLevantadaEn));
+    if (!Number.isFinite(marca)) return false;
+    return ahora - marca <= VIGENCIA_DE_LA_MANO_MS;
+}

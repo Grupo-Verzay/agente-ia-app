@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
+    "prebuild": "node scripts/vendorizar-segmentacion.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -22,6 +23,7 @@
     "@google/genai": "^1.44.0",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^3.9.0",
+    "@mediapipe/selfie_segmentation": "0.1.1675465747",
     "@prisma/client": "^5.16.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.4",

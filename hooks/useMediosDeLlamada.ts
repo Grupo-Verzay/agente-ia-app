@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ElFondoDeVideo, type ModoDeFondo } from "@/lib/fondo-de-video";
+
 /**
  * El micrófono, la cámara y la pantalla de una llamada — **una sola vez**.
  *
@@ -43,6 +45,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 
 export type EstadoDeLosMedios = {
+    /**
+     * Qué fondo lleva la cámara: nada, desenfocado, o sustituido.
+     *
+     * Vive aquí y no en la pantalla porque **decide qué pista viaja**: con el
+     * fondo encendido lo que sale por las seis conexiones de la malla no es la
+     * cámara, es el canvas. Dos sitios decidiendo eso no se ve como un error,
+     * se ve como que a veces se manda la cámara sin desenfocar.
+     */
+    fondo: ModoDeFondo;
+    /** Mientras se carga el modelo, que la primera vez son 6 MB. */
+    preparandoElFondo: boolean;
     /** Lo que se ve en el recuadro propio. Cambia al encender o compartir. */
     local: MediaStream | null;
     micEncendido: boolean;
@@ -64,6 +77,15 @@ export type MediosDeLlamada = EstadoDeLosMedios & {
     alternarMic: () => void;
     alternarCamara: () => Promise<void>;
     alternarPantalla: () => Promise<void>;
+    /**
+     * Cambiar el fondo de la cámara.
+     *
+     * **Nunca lanza.** Si el modelo no carga —red, un navegador sin SIMD— se
+     * queda en `ninguno` y se dice: es preferible mandar la cámara sin
+     * desenfocar que no mandar nada. Quien llama no tiene que envolverlo en un
+     * `try`, que es donde se olvida.
+     */
+    cambiarElFondo: (modo: ModoDeFondo) => Promise<void>;
     /** Montar los dos transceptores en una conexión nueva y engancharle lo de ahora. */
     prepararLaConexion: (pc: RTCPeerConnection) => void;
     /** Lo mismo, pero sobre una conexión que ya trae los transceptores del otro. */
@@ -99,6 +121,8 @@ export function useMediosDeLlamada(opciones?: {
         camaraEncendida: false,
         compartiendo: false,
         pidiendo: false,
+        fondo: "ninguno",
+        preparandoElFondo: false,
     });
 
     /** El micro. Vive toda la llamada; callarse es `enabled`, no soltarlo. */
@@ -111,14 +135,28 @@ export function useMediosDeLlamada(opciones?: {
     const conexionesRef = useRef<Set<RTCPeerConnection>>(new Set());
     /** Lo que se está enseñando de uno mismo, para el recuadro propio. */
     const localRef = useRef<MediaStream | null>(null);
+    /** El motor del fondo. Se crea perezosamente: quien no lo use no lo paga. */
+    const fondoRef = useRef<ElFondoDeVideo | null>(null);
+    /** La pista que sale del canvas, cuando el fondo está encendido. */
+    const pistaConFondoRef = useRef<MediaStreamTrack | null>(null);
 
-    /** La pista de video que toca mandar AHORA: la pantalla gana a la cámara. */
+    /**
+     * La pista de video que toca mandar AHORA.
+     *
+     * El orden es **pantalla > cámara con fondo > cámara**, y las dos primeras
+     * no compiten por casualidad: compartir pantalla ocupa la única pista de
+     * video que hay, así que mientras se comparte no se manda la cámara — ni
+     * con fondo ni sin él. Desenfocar una pantalla compartida además no tendría
+     * ningún sentido: el modelo busca una persona y ahí no hay ninguna.
+     */
     const laPistaDeVideo = useCallback((): MediaStreamTrack | null => {
-        return (
-            pantallaRef.current?.getVideoTracks()[0] ??
-            camaraRef.current?.getVideoTracks()[0] ??
-            null
-        );
+        const pantalla = pantallaRef.current?.getVideoTracks()[0];
+        if (pantalla) return pantalla;
+        const conFondo = pistaConFondoRef.current;
+        // Una pista procesada que ya terminó no se manda: dejaría a la otra
+        // punta mirando el último fotograma congelado. Se cae a la cámara.
+        if (conFondo && conFondo.readyState === "live") return conFondo;
+        return camaraRef.current?.getVideoTracks()[0] ?? null;
     }, []);
 
     const laPistaDeAudio = useCallback((): MediaStreamTrack | null => {
@@ -171,6 +209,80 @@ export function useMediosDeLlamada(opciones?: {
         }));
     }, [laPistaDeAudio, laPistaDeVideo]);
 
+    /**
+     * Apagar el fondo y soltar su pista.
+     *
+     * **Por todos los caminos**: el botón, apagar la cámara, soltarlo todo y el
+     * desmontaje. Con un camino que no suelte queda un bucle pintando
+     * veinticuatro veces por segundo sobre una reunión que ya terminó, y una
+     * pista de canvas viva que la otra punta sigue recibiendo congelada.
+     */
+    const apagarElFondo = useCallback(() => {
+        fondoRef.current?.apagar();
+        pistaConFondoRef.current = null;
+    }, []);
+
+    /**
+     * Cambiar el fondo de la cámara.
+     *
+     * Dos cosas que no son obvias y las dos son de las que se olvidan:
+     *
+     * 1. **Sin cámara no hay fondo que poner.** Se guarda la elección igual,
+     *    para que al encender la cámara se aplique sola — al revés, quien
+     *    elige el desenfoque con la cámara apagada vería que su botón no hace
+     *    nada y volvería a pulsarlo.
+     * 2. **Nunca lanza.** Si el modelo no carga se deja en `ninguno`, se manda
+     *    la cámara de siempre y se dice. Un botón que revienta la reunión por
+     *    no poder desenfocar es mucho peor que uno que no desenfoca.
+     */
+    const cambiarElFondo = useCallback(
+        async (modo: ModoDeFondo) => {
+            if (modo === "ninguno") {
+                apagarElFondo();
+                setEstado((e) => ({ ...e, fondo: "ninguno" }));
+                rehacerElLocal();
+                empujarLasPistas();
+                return;
+            }
+
+            const camara = camaraRef.current?.getVideoTracks()[0];
+            if (!camara) {
+                // La elección se recuerda y se aplicará al encender la cámara.
+                setEstado((e) => ({ ...e, fondo: modo }));
+                return;
+            }
+
+            setEstado((e) => ({ ...e, preparandoElFondo: true }));
+            try {
+                if (!fondoRef.current) fondoRef.current = new ElFondoDeVideo();
+                const procesada = await fondoRef.current.encender(camara, modo);
+                pistaConFondoRef.current = procesada;
+                setEstado((e) => ({ ...e, fondo: modo }));
+                rehacerElLocal();
+                empujarLasPistas();
+            } catch (error) {
+                console.warn("[medios] no se pudo poner el fondo", error);
+                apagarElFondo();
+                setEstado((e) => ({ ...e, fondo: "ninguno" }));
+                rehacerElLocal();
+                empujarLasPistas();
+                alFallar?.(
+                    "No se pudo preparar el fondo. Tu navegador o tu conexión no pudieron con el modelo.",
+                );
+            } finally {
+                setEstado((e) => ({ ...e, preparandoElFondo: false }));
+            }
+        },
+        [alFallar, apagarElFondo, empujarLasPistas, rehacerElLocal],
+    );
+
+    /** Para poder llamarlo desde `alternarCamara` sin ordenar las definiciones. */
+    const cambiarElFondoRef = useRef(cambiarElFondo);
+    cambiarElFondoRef.current = cambiarElFondo;
+    /** Lo elegido, por referencia: `alternarCamara` no puede depender de él. */
+    const fondoElegidoRef = useRef<ModoDeFondo>("ninguno");
+    fondoElegidoRef.current = estado.fondo;
+
     const arrancar = useCallback(
         async (conVideo: boolean): Promise<boolean> => {
             setEstado((e) => ({ ...e, pidiendo: true }));
@@ -217,6 +329,10 @@ export function useMediosDeLlamada(opciones?: {
 
     const alternarCamara = useCallback(async () => {
         if (camaraRef.current) {
+            // El fondo se apaga PRIMERO: come de la pista de la cámara, así
+            // que dejarlo corriendo sobre una pista parada son veinticuatro
+            // fotogramas por segundo pintando lo mismo congelado.
+            apagarElFondo();
             // Apagar: se PARA la pista, no se deshabilita. Es lo que apaga el
             // piloto del portátil, que es el único signo de que de verdad no se
             // está mirando.
@@ -233,13 +349,19 @@ export function useMediosDeLlamada(opciones?: {
             });
             rehacerElLocal();
             empujarLasPistas();
+            // Y si había un fondo elegido, se vuelve a poner. Sin esto, apagar
+            // y encender la cámara lo pierde en silencio: el botón sigue
+            // pintado como encendido y lo que se manda es la cámara pelada.
+            if (fondoElegidoRef.current !== "ninguno") {
+                void cambiarElFondoRef.current(fondoElegidoRef.current);
+            }
         } catch (error) {
             console.warn("[medios] no se pudo encender la cámara", error);
             alFallar?.(loQuePasoConElPermiso(error, "cámara"));
         } finally {
             setEstado((e) => ({ ...e, pidiendo: false }));
         }
-    }, [alFallar, empujarLasPistas, rehacerElLocal]);
+    }, [alFallar, apagarElFondo, empujarLasPistas, rehacerElLocal]);
 
     /** Dejar de compartir, por donde sea que se haya dejado. */
     const dejarDeCompartir = useCallback(() => {
@@ -334,6 +456,11 @@ export function useMediosDeLlamada(opciones?: {
      * micro abierto, que es lo peor que puede dejarse una función así.
      */
     const soltarTodo = useCallback(() => {
+        // El fondo primero: su bucle lee la pista de la cámara, y pararla por
+        // debajo deja el bucle girando sobre nada.
+        fondoRef.current?.apagar();
+        fondoRef.current = null;
+        pistaConFondoRef.current = null;
         for (const s of [micRef.current, camaraRef.current, pantallaRef.current]) {
             s?.getTracks().forEach((t) => t.stop());
         }
@@ -348,6 +475,11 @@ export function useMediosDeLlamada(opciones?: {
             camaraEncendida: false,
             compartiendo: false,
             pidiendo: false,
+            // El fondo elegido SÍ se olvida al soltarlo todo: soltarlo todo es
+            // el final de una reunión, y la próxima empieza de cero. Lo que se
+            // recuerda entre reuniones vive en `localStorage`, no aquí.
+            fondo: "ninguno",
+            preparandoElFondo: false,
         });
     }, []);
 
@@ -360,6 +492,7 @@ export function useMediosDeLlamada(opciones?: {
         alternarMic,
         alternarCamara,
         alternarPantalla,
+        cambiarElFondo,
         prepararLaConexion,
         engancharALaConexion,
         olvidarLaConexion,

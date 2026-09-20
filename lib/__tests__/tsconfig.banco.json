@@ -20,6 +20,8 @@
   },
   "files": [
     "../reuniones-de-la-cuenta.ts",
-    "../sala-de-video.ts"
+    "../sala-de-video.ts",
+    "../voz-activa.ts",
+    "../ventana-de-reunion.ts"
   ]
 }

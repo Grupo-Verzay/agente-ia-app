@@ -21,9 +21,13 @@ import {
     cuandoCaduca,
     cuandoCaducaAlCambiar,
     esTipoDeSenal,
+    comoSeGuardaElMensaje,
+    hayQueObedecerElSilencio,
     laDireccionDeLaSala,
     laDuracionQueSePuede,
     loQueSeLeDiceAlQueLlegaTarde,
+    tieneLaManoLevantada,
+    TOPE_DE_MENSAJES_POR_VUELTA,
     type TipoDeSenal,
 } from "@/lib/sala-de-video";
 import {
@@ -37,6 +41,7 @@ import {
     puedeAdministrarLaSala,
 } from "@/lib/reuniones-de-la-cuenta";
 import {
+    barrerLosChatsViejos,
     barrerSenalesViejas,
     crearLaSala,
     dejarLaSenal,
@@ -49,9 +54,13 @@ import {
     lasSalasVivasDelCanal,
     laSalaPorCodigo,
     laSalaPorId,
+    escribirEnLaSala,
     latirEnLaSala,
+    levantarLaMano,
     llamarALaPuerta,
     losDeLaSala,
+    losMensajesDeLaSala,
+    pedirElSilencio,
     revocarLaSala,
     sacarALosQueNoDanSenales,
     sacarDeLaSala,
@@ -210,6 +219,21 @@ async function laRaizDeLaApp(): Promise<string> {
  * saber que la opción existe y que no es suya. Un «esa duración no existe» para
  * el segundo caso manda a buscar un fallo donde hay una regla.
  */
+/**
+ * Una fecha que llega del navegador, o nada.
+ *
+ * Lo único que hace es no dejar que una cadena rara se cuele en un `WHERE`
+ * como `Invalid Date`: Postgres la rechazaría y la vuelta entera del reloj
+ * fallaría —o sea, la reunión se quedaría congelada— por un cursor de chat mal
+ * escrito. Sin fecha válida se devuelven los últimos, que es el caso de
+ * «acabo de abrir el chat» y nunca se equivoca hacia enseñar de más.
+ */
+function unaFecha(v: unknown): Date | null {
+    if (typeof v !== "string" || !v.trim()) return null;
+    const d = new Date(v);
+    return Number.isFinite(d.getTime()) ? d : null;
+}
+
 function porQueNoEsaDuracion(motivo: "desconocida" | "no_puede"): string {
     return motivo === "desconocida"
         ? "Esa duración no existe."
@@ -796,6 +820,16 @@ async function quienEsEnLaSala(input: {
           participante: FilaDeParticipante;
           /** Si además tiene cuenta y PERTENECE a la sala (a su canal o a su cuenta). */
           delEquipo: boolean;
+          /**
+           * Quién es fuera de esta sala, cuando tiene cuenta.
+           *
+           * Hace falta para lo único que no se puede contestar con la fila de
+           * participante: **si administra la cuenta dueña de la sala**, que es
+           * la mitad de quién puede moderar. Va `null` para un invitado, que es
+           * justamente lo que le deja fuera de moderar sin ninguna condición
+           * más.
+           */
+          yo: Awaited<ReturnType<typeof quien>> | null;
       }
     | { error: string }
 > {
@@ -807,7 +841,7 @@ async function quienEsEnLaSala(input: {
         if (!sala) return { error: "Esta reunión ya no existe." };
         const estado = comoEstaLaSala(sala);
         if (estado !== "abierta") return { error: loQueSeLeDiceAlQueLlegaTarde(estado) };
-        return { sala, participante: fila, delEquipo: false };
+        return { sala, participante: fila, delEquipo: false, yo: null };
     }
 
     const codigo = (input.codigo ?? "").trim();
@@ -825,7 +859,7 @@ async function quienEsEnLaSala(input: {
     if (!(await perteneceALaSala(sala, yo))) return { error: "No autorizado." };
     const fila = await elParticipanteDeLaSesion(sala.id, yo.personaId);
     if (!fila) return { error: "Todavía no has entrado a esta reunión." };
-    return { sala, participante: fila, delEquipo: true };
+    return { sala, participante: fila, delEquipo: true, yo };
 }
 
 async function elParticipanteDeLaSesion(salaId: string, personaId: string) {
@@ -852,6 +886,24 @@ export type QuienEstaEnLaSala = {
     micEncendido: boolean;
     camaraEncendida: boolean;
     compartiendo: boolean;
+    /**
+     * Si tiene la mano levantada.
+     *
+     * Se manda ya resuelto —un booleano, no la hora— porque quien la mira es la
+     * pantalla y la caducidad es cosa del servidor: mandando la marca cruda,
+     * cada recuadro tendría que decidir por su cuenta cuándo baja, y dos
+     * personas con el reloj ligeramente distinto verían manos distintas.
+     */
+    manoLevantada: boolean;
+};
+
+/** Un mensaje del chat de la reunión. No sale de aquí: ver `sala_mensajes`. */
+export type MensajeDeLaSala = {
+    id: string;
+    deId: string;
+    autorNombre: string;
+    texto: string;
+    creadoEn: string;
 };
 
 export type LoQuePasaEnLaSala = {
@@ -862,6 +914,23 @@ export type LoQuePasaEnLaSala = {
         estado: string;
         /** Si puedo dejar pasar a quien espera. Ver `puedeAbrirLaPuerta`. */
         abroLaPuerta: boolean;
+        /**
+         * Si puedo silenciar y sacar a alguien. **No es lo mismo que abrir la
+         * puerta**: ver la nota de `lib/sala-de-video.ts`.
+         */
+        moderas: boolean;
+        /** Si tengo la mano levantada, para que el botón se vea pulsado. */
+        manoLevantada: boolean;
+        /**
+         * Cuándo me pidieron que me silenciara, si me lo han pedido.
+         *
+         * Va la MARCA y no un booleano porque la pantalla tiene que poder
+         * distinguir **esta** orden de la de hace un momento: obedecida una
+         * vez, quien vuelve a encender el micro no puede volver a callarse solo
+         * en la vuelta siguiente. Lo decide `hayQueObedecerElSilencio`, con la
+         * marca exacta delante.
+         */
+        silenciadoEn: string | null;
     };
     sala: { id: string; codigo: string; titulo: string | null; expiraEn: string | null };
     /** Los que están dentro, yo incluido. */
@@ -870,6 +939,15 @@ export type LoQuePasaEnLaSala = {
     esperando: QuienEstaEnLaSala[];
     /** Las ofertas y respuestas que me habían dejado. Vienen ya consumidas. */
     senales: Array<{ deId: string; tipo: TipoDeSenal; sdp: string }>;
+    /**
+     * Los mensajes del chat que faltan, **no el hilo entero**.
+     *
+     * Viajan aquí y no en un reloj propio por lo de siempre: esta vuelta ya
+     * está pagada, y un segundo sondeo para el chat sería duplicar las
+     * peticiones de la pantalla más cara que tiene esto. Y el corte lo manda el
+     * navegador (`desdeMensaje`), así que en marcha normal esto viene vacío.
+     */
+    mensajes: MensajeDeLaSala[];
     /**
      * Los servidores ICE.
      *
@@ -920,6 +998,18 @@ export async function latidoDeLaSalaAction(input: {
     token?: string | null;
     /** Lo que estoy mandando ahora mismo, para que los demás lo pinten. */
     medios?: { mic?: boolean; camara?: boolean; compartiendo?: boolean } | null;
+    /**
+     * La hora del último mensaje del chat que ya tengo.
+     *
+     * Es el corte, y lo manda el navegador porque es quien sabe qué tiene
+     * pintado. Vacío significa «acabo de abrir el chat»: se devuelven los
+     * últimos, no todos — ver `losMensajesDeLaSala`.
+     *
+     * Y **no decide nada más que qué se devuelve**: no es una credencial ni
+     * acota a qué sala se mira, así que una hora inventada como mucho se trae
+     * mensajes de esta misma reunión que ya se tenían.
+     */
+    desdeMensaje?: string | null;
 }): Promise<Respuesta<{ datos: LoQuePasaEnLaSala }>> {
     try {
         const quienEs = await quienEsEnLaSala(input);
@@ -942,8 +1032,14 @@ export async function latidoDeLaSalaAction(input: {
         if (++vueltas % 20 === 0) {
             try {
                 await barrerSenalesViejas();
+                // Y los chats de reuniones que ya terminaron. Va en el MISMO
+                // `try` a propósito: los dos son barridos que no pueden
+                // retener la vuelta que trae la reunión, y con dos bloques
+                // separados el segundo se olvidaría el día que alguien toque
+                // el primero.
+                await barrerLosChatsViejos();
             } catch (error) {
-                console.warn("[salas] no se pudieron barrer las señales viejas", error);
+                console.warn("[salas] no se pudo barrer lo viejo de las salas", error);
             }
         }
 
@@ -958,6 +1054,7 @@ export async function latidoDeLaSalaAction(input: {
             micEncendido: f.micEncendido,
             camaraEncendida: f.camaraEncendida,
             compartiendo: f.compartiendo,
+            manoLevantada: tieneLaManoLevantada(f.manoLevantadaEn),
         });
 
         // El buzón se vacía SOLO si ya estoy dentro. Quien espera en la puerta
@@ -965,6 +1062,25 @@ export async function latidoDeLaSalaAction(input: {
         // delante una oferta que llegara justo al abrirle.
         const senales =
             participante.estado === "dentro" ? await vaciarElBuzon(participante.id) : [];
+
+        // El chat, por lo mismo: quien espera en la puerta todavía no está en
+        // la reunión, y darle la conversación de dentro sería dejarle leer una
+        // sala a la que no le han abierto.
+        const mensajes =
+            participante.estado === "dentro"
+                ? await losMensajesDeLaSala({
+                      salaId: sala.id,
+                      desde: unaFecha(input.desdeMensaje),
+                      tope: TOPE_DE_MENSAJES_POR_VUELTA,
+                  })
+                : [];
+
+        // Moderar: el anfitrión, o quien administra la cuenta dueña de la sala.
+        // Se pregunta con la MISMA función que decide revocar el enlace
+        // (`puedeAdministrarLaSala`), no con una condición escrita aquí — ver
+        // la nota de `lib/sala-de-video.ts`. Y `delEquipo` delante cierra la
+        // otra mitad: un invitado no tiene ni sesión con la que preguntar.
+        const moderas = delEquipo && puedeAdministrarLaSala(sala, quienEs.yo);
 
         return {
             success: true,
@@ -974,6 +1090,11 @@ export async function latidoDeLaSalaAction(input: {
                     nombre: participante.nombre,
                     estado: participante.estado,
                     abroLaPuerta,
+                    moderas,
+                    manoLevantada: tieneLaManoLevantada(participante.manoLevantadaEn),
+                    silenciadoEn: participante.silenciadoEn
+                        ? participante.silenciadoEn.toISOString()
+                        : null,
                 },
                 sala: {
                     id: sala.id,
@@ -990,6 +1111,13 @@ export async function latidoDeLaSalaAction(input: {
                     ? todos.filter((f) => f.estado === "esperando").map(comoSeVe)
                     : [],
                 senales: senales.map((s) => ({ deId: s.deId, tipo: s.tipo, sdp: s.sdp })),
+                mensajes: mensajes.map((m) => ({
+                    id: m.id,
+                    deId: m.deId,
+                    autorNombre: m.autorNombre,
+                    texto: m.texto,
+                    creadoEn: m.creadoEn.toISOString(),
+                })),
                 ice:
                     participante.estado === "dentro"
                         ? losServidoresIce({
@@ -1106,8 +1234,31 @@ export async function sacarDeLaSalaAction(input: {
     try {
         const quienEs = await quienEsEnLaSala({ codigo: input.codigo });
         if ("error" in quienEs) return { success: false, message: quienEs.error };
-        if (!puedeAbrirLaPuerta(quienEs)) {
-            return { success: false, message: "Aquí no puedes sacar a nadie." };
+
+        // **Dos puertas, según a quién se saque.** Rechazar a quien espera es
+        // la cortesía de siempre y la abre cualquiera del equipo que esté
+        // dentro; sacar a alguien que YA ESTÁ en la reunión es moderar, y eso
+        // se queda en el anfitrión y en quien administra la cuenta.
+        //
+        // Con una sola puerta, o un invitado se quedaría sin que le abrieran
+        // cuando el anfitrión cierra la pestaña —si se pidiera moderar para
+        // todo—, o cualquiera del equipo podría echar a cualquiera —si se
+        // pidiera solo la puerta—. Por eso se mira **a quién** se saca antes de
+        // decidir con qué llave.
+        const aQuien = (await losDeLaSala(quienEs.sala.id)).find(
+            (f) => f.id === input.participanteId,
+        );
+        const estabaDentro = aQuien?.estado === "dentro";
+        const puede = estabaDentro
+            ? quienEs.delEquipo && puedeAdministrarLaSala(quienEs.sala, quienEs.yo)
+            : puedeAbrirLaPuerta(quienEs);
+        if (!puede) {
+            return {
+                success: false,
+                message: estabaDentro
+                    ? "Solo quien organiza la reunión puede sacar a alguien."
+                    : "Aquí no puedes sacar a nadie.",
+            };
         }
         if (input.participanteId === quienEs.participante.id) {
             // Salirse tiene su propio camino; por aquí sería sacarse a uno
@@ -1153,4 +1304,126 @@ export async function salirDeLaSalaAction(input: {
         console.warn("[salas] no se pudo salir limpiamente", error);
     }
     return { success: true, listo: true };
+}
+
+// ── La mano, el silencio y el chat ──────────────────────────────────────────
+
+/**
+ * Levantar o bajar la propia mano.
+ *
+ * **Solo la propia**: el participante sale de la sesión o del token, nunca de
+ * los parámetros. Levantarle la mano a otro sería ponerle a pedir la palabra
+ * sin que la haya pedido, y con un id suelto en la firma eso sería una línea.
+ */
+export async function levantarLaManoAction(input: {
+    codigo?: string | null;
+    token?: string | null;
+    levantada: boolean;
+}): Promise<Respuesta<{ listo: true }>> {
+    try {
+        const quienEs = await quienEsEnLaSala(input);
+        if ("error" in quienEs) return { success: false, message: quienEs.error };
+        if (quienEs.participante.estado !== "dentro") {
+            return { success: false, message: "Todavía no estás en la reunión." };
+        }
+        await levantarLaMano(quienEs.participante.id, Boolean(input.levantada));
+        return { success: true, listo: true };
+    } catch (error) {
+        // Un botón que se queda puesto y no dice por qué se pulsa cinco veces.
+        console.warn("[salas] no se pudo levantar la mano", error);
+        return { success: false, message: "No se pudo. Inténtalo otra vez." };
+    }
+}
+
+/**
+ * Pedirle a alguien que se silencie.
+ *
+ * **No le apaga el micro: le deja una orden que su navegador obedece.** El
+ * servidor no tiene ninguna pista que tocar, así que lo único que puede hacer
+ * es marcar la fila; la pestaña de esa persona la recoge en su siguiente vuelta
+ * y se calla sola. Es como lo hacen todas, y está escrito aquí porque desde
+ * fuera parece un interruptor y no lo es — entre pulsar y que se calle pasa
+ * una vuelta del reloj.
+ *
+ * La puerta es **moderar**, no abrir: ver `sacarDeLaSalaAction`.
+ */
+export async function silenciarAAction(input: {
+    codigo?: string | null;
+    participanteId: string;
+}): Promise<Respuesta<{ listo: true }>> {
+    try {
+        const quienEs = await quienEsEnLaSala({ codigo: input.codigo });
+        if ("error" in quienEs) return { success: false, message: quienEs.error };
+        if (!(quienEs.delEquipo && puedeAdministrarLaSala(quienEs.sala, quienEs.yo))) {
+            return {
+                success: false,
+                message: "Solo quien organiza la reunión puede silenciar a alguien.",
+            };
+        }
+        if (input.participanteId === quienEs.participante.id) {
+            // Callarse uno mismo tiene su botón, y ese sí apaga la pista de
+            // verdad en vez de dejarse una orden a sí mismo.
+            return { success: false, message: "Para callarte, usa tu botón de micrófono." };
+        }
+        const hecho = await pedirElSilencio({
+            salaId: quienEs.sala.id,
+            participanteId: input.participanteId,
+        });
+        if (!hecho) {
+            return { success: false, message: "Esa persona ya no está en la reunión." };
+        }
+        return { success: true, listo: true };
+    } catch (error) {
+        console.warn("[salas] no se pudo silenciar", error);
+        return { success: false, message: "No se pudo silenciar a esa persona." };
+    }
+}
+
+/**
+ * Escribir en el chat de la reunión.
+ *
+ * Tres cosas, y las tres son las de siempre en este repositorio:
+ *
+ * 1. **Hay que estar DENTRO.** Quien espera en la puerta no escribe: sería
+ *    hablarle a una sala a la que no le han abierto.
+ * 2. **El autor lo pone el servidor**, desde la fila de quien escribe. Con el
+ *    nombre llegando del navegador, cualquiera firmaría con el de otro — y aquí
+ *    media reunión son invitados de fuera.
+ * 3. **El texto se sanea antes de guardarse** (`comoSeGuardaElMensaje`), no
+ *    solo al pintarlo: esto viaja en cada vuelta del reloj de todos los demás.
+ */
+export async function escribirEnLaReunionAction(input: {
+    codigo?: string | null;
+    token?: string | null;
+    texto: string;
+}): Promise<Respuesta<{ mensaje: MensajeDeLaSala }>> {
+    try {
+        const quienEs = await quienEsEnLaSala(input);
+        if ("error" in quienEs) return { success: false, message: quienEs.error };
+        if (quienEs.participante.estado !== "dentro") {
+            return { success: false, message: "Todavía no estás en la reunión." };
+        }
+        const texto = comoSeGuardaElMensaje(input.texto);
+        if (!texto) return { success: false, message: "Escribe algo." };
+
+        const fila = await escribirEnLaSala({
+            salaId: quienEs.sala.id,
+            deId: quienEs.participante.id,
+            autorNombre: quienEs.participante.nombre,
+            texto,
+        });
+        return {
+            success: true,
+            mensaje: {
+                id: fila.id,
+                deId: fila.deId,
+                autorNombre: fila.autorNombre,
+                texto: fila.texto,
+                creadoEn: fila.creadoEn.toISOString(),
+            },
+        };
+    } catch (error) {
+        console.warn("[salas] no se pudo escribir en la reunión", error);
+        return { success: false, message: "No se pudo enviar el mensaje." };
+    }
 }
