@@ -19,11 +19,10 @@ import {
  *
  * # De dónde salen los números: de lo que YA corre
  *
- * - **Los chats** de `useChatsQueEsperan`, que resuelve entre lo que dice la
- *   bandeja —en vivo, y con las marcas de leído de este navegador— y lo que
- *   cuenta el servidor en la misma vuelta de quince segundos. Antes esto leía
- *   `unreadCount` a pelo, que **solo escribe la bandeja**: en cualquier
- *   pantalla que no fuera Chats valía cero y el icono no se pintaba nunca.
+ * - **Los chats** de `useChatsQueEsperan`, que es lo que dijo la bandeja: el
+ *   mismo número de la pastilla «Sin leer», y cero mientras no haya hablado.
+ *   No hay segunda fuente a propósito — el servidor no sabe qué está leído, y
+ *   dejarle adivinarlo es lo que pintaba `9+` sobre una cuenta vacía.
  * - **El equipo** por prop, desde el reloj del contador que ya cuelga del
  *   layout. Llamar aquí a `useSinLeerDelEquipo` otra vez montaría un SEGUNDO
  *   `setInterval` de quince segundos en todas las pantallas de todo el mundo
@@ -68,6 +67,10 @@ export function InsigniaDelFavicon({ delEquipo }: { delEquipo: number }) {
             const icono = base.current ?? (await elIconoDeLaPestana());
             if (!vivo) return;
             if (!icono) {
+                // Se latchea a proposito: si el documento no declara ningun
+                // icono que se pueda leer, no lo va a declarar en la vuelta
+                // siguiente, y reintentarlo con cada mensaje que entra seria
+                // una imagen por mensaje.
                 imposible.current = true;
                 // No es un fallo que tumbe nada —se queda el icono normal—
                 // pero mudo se ve como que la insignia no funciona, y no hay

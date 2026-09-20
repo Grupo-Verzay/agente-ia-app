@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # El banco del numero de la pestaña: Postgres de usar y tirar + los dos modos.
 #
-# El modo viejo reproduce el fallo de partida —la mitad de chats salia del
-# store, que solo escribe la bandeja, asi que fuera de Chats valia cero— para
-# que lo verde del modo nuevo signifique que se arreglo la causa.
+# El modo viejo lleva dentro la consulta que el servidor usaba para adivinar
+# los chats sin leer —«el ultimo mensaje es del contacto»— y el arbitraje que
+# la dejaba ganar sobre la bandeja. Con ella afirma los dos fallos que se
+# vieron en produccion: 9+ sobre una cuenta borrada, y 9+ con la bandeja
+# diciendo tres. Sin ese modo no se sabe si lo verde del nuevo es que se
+# arreglo la causa o que el caso no llegaba a ejercerse.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -39,5 +42,5 @@ export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
 echo "=== MODO NUEVO ==="
 node --test lib/__tests__/pendientes-de-la-pestana-db.test.mjs 2>&1 | tail -14
 echo
-echo "=== MODO VIEJO (la mitad de chats valia cero) ==="
+echo "=== MODO VIEJO (el servidor adivinaba lo sin leer) ==="
 MODO=viejo node --test lib/__tests__/pendientes-de-la-pestana-db.test.mjs 2>&1 | tail -14
