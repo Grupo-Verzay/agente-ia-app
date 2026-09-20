@@ -108,7 +108,7 @@ export function ConfiguracionDeCobros({
 
     return (
         <Dialog open={abierto} onOpenChange={(v) => !v && onCerrar()}>
-            <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+            <DialogContent className="overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Configuración de cobros</DialogTitle>
                 </DialogHeader>

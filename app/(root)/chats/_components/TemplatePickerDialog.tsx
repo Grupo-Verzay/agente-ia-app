@@ -233,7 +233,7 @@ export const TemplatePickerDialog = ({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Plantillas de WhatsApp</DialogTitle>
           <DialogDescription>

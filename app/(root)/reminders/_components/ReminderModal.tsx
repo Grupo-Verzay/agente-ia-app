@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "framer-motion"
 import type { CurrentUser } from '@/lib/auth';
 import { useReminderDialogStore, closeDialog } from "@/stores"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ALTO_DEL_DIALOGO } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { Suspense } from "react"
@@ -53,7 +55,7 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                         transition={{ duration: 0.2 }}
                         className="w-full max-w-[33rem] p-2"
                     >
-                        <Card className="relative shadow-2xl border-border rounded-md bg-background max-h-[585px] max-h-[92vh] flex flex-col overflow-hidden">
+                        <Card className={cn("relative shadow-2xl border-border rounded-md bg-background flex flex-col overflow-hidden", ALTO_DEL_DIALOGO)}>
                             <CardHeader className="flex items-center justify-between flex-row px-6 pt-4 pb-2 shrink-0">
                                 <CardTitle className="text-lg font-semibold leading-none tracking-tight">
                                     {openDialog === 'edit' ? `Editar ${modalTitle}` : `Crear ${modalTitle}`}

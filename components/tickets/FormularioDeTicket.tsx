@@ -145,7 +145,7 @@ export function FormularioDeTicket({
 
     return (
         <Dialog open={abierto} onOpenChange={(v) => (v ? onAbierto(true) : cerrar())}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <LifeBuoy className="h-5 w-5 text-primary" />

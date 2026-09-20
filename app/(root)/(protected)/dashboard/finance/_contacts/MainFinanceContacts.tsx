@@ -380,7 +380,7 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
 
       {/* Modal Crear/Editar */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[585px] flex-col overflow-hidden rounded-2xl sm:max-w-[720px]">
+        <DialogContent className="flex flex-col overflow-hidden rounded-2xl sm:max-w-[720px]">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-base">
               {editing ? `Editar ${labels.singular.toLowerCase()}` : `Nuevo ${labels.singular.toLowerCase()}`}

@@ -327,7 +327,7 @@ export const MainReseller = ({ resellers, defaultResellerId }: Props) => {
 
     {/* Dialog: asignar licencias */}
     <Dialog open={licenseDialog} onOpenChange={setLicenseDialog}>
-      <DialogContent className="flex max-h-[585px] max-w-sm flex-col">
+      <DialogContent className="flex max-w-sm flex-col">
         <DialogHeader>
           <DialogTitle>Asignar licencias</DialogTitle>
           <p className="text-xs text-muted-foreground">

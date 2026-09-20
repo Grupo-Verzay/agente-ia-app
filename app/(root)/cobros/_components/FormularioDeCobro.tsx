@@ -146,7 +146,7 @@ export function FormularioDeCobro({
                 if (!v) cerrar();
             }}
         >
-            <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{cobro ? "Editar cobro" : "Nuevo cobro"}</DialogTitle>
                 </DialogHeader>

@@ -10371,6 +10371,179 @@ La última fila es la que importa: **plegar esconde la rejilla, no la desmonta**
 Desmontarla se llevaría por delante los `<video>` y con ellos el audio de los
 demás — plegar dejaría de ser plegar y pasaría a ser salirse.
 
+## Un diálogo tiene UNA altura, y el aire se resta en `rem`
+
+Los modales crecían hasta pegarse a los bordes de la ventana y ninguno se
+parecía al de al lado. Medido en Chromium sobre el CSS del build, con la misma
+ventana y contenido de sobra, el aire que quedaba arriba y abajo era:
+
+| ventana | Ticket: abrir | Ticket: detalle | Nueva tarea | Editar cliente |
+| --- | --- | --- | --- | --- |
+| 1440 | 45 px | 68 px | 158 px | 158 px |
+| 1280 | 40 px | 60 px | 108 px | 108 px |
+| 1024 | **38 px** | 58 px | 92 px | 92 px |
+| 390 | 42 px | 63 px | 130 px | 130 px |
+
+Cuatro diálogos, cuatro medidas distintas, y **el aire encogía con la ventana**:
+45 px a 1440 y 38 a 1024, justo donde la pantalla es más pequeña y más se nota.
+Los que salían a 158 px no eran los buenos: era el techo en píxeles atascándolos
+a media altura con sitio de sobra.
+
+### Y el tope NO se perdió en ningún cambio: nunca llegó a mandar
+
+Revisado el historial, que es lo primero que se pidió. En `main` el fichero
+empieza en la importación en bloque (`83056ad8`, 1.400 ficheros); el tope
+`max-h-[min(585px,calc(100dvh-2rem))]` **lo añadió** `2d003bfa` (2026-07-05,
+«Add client panel and product ordering») en la rama de antes de `main`, de una
+línea, y **seguía puesto**. No se borró nunca.
+
+Lo que pasa es que no decidía nada:
+
+> **`cn()` es `tailwind-merge`, así que un `max-h-*` escrito en la pantalla GANA
+> al del componente base.** Y lo llevaban ~70 diálogos —`90vh`, `85vh`, `95vh`,
+> `585px`, `28rem`…—, cada uno el suyo. El tope de la casa solo se aplicaba a
+> los que no traían ninguno.
+
+Esa es la trampa y conviene tenerla delante antes de buscar en el historial: un
+valor puesto en el componente base **no es** un valor que mande. Aquí la
+pregunta no era «quién lo quitó» sino «quién lo pisa», y se contesta contando
+los `max-h` de las pantallas, no leyendo los `git log` del fichero.
+
+Y tenía dos fallos más encima, los dos del mismo tipo:
+
+1. **`vh` es proporcional, así que no es un margen.** Un `90vh` deja 45 px de
+   aire en un portátil y 108 en un monitor grande: el diálogo se ve pegado al
+   borde exactamente donde menos sitio hay. El aire se resta en `rem`.
+2. **Y el techo en píxeles no es un margen tampoco.** `585px` no se mueve: en
+   una pantalla alta el diálogo se queda a media altura y en una baja el que
+   manda es el otro término.
+
+### La medida, y por qué `dvh`
+
+```
+max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-4rem)]
+```
+
+**2rem de aire por lado**, y 1rem en un móvil, que es donde el aire empieza a
+costar pantalla. Vive en `ALTO_DEL_DIALOGO` (`components/ui/dialog.tsx`), lo
+llevan `DialogContent` y `AlertDialogContent`, y **se exporta** para los modales
+escritos a mano.
+
+**`dvh` y no `vh`**: en un móvil `100vh` cuenta la barra del navegador como si
+no estuviera, así que el diálogo mide más que lo que se ve y el pie —los
+botones— queda por debajo del borde.
+
+### Las tres zonas van con `sticky`, no partiendo el árbol
+
+La forma de libro es meter el cuerpo en un `<div>` con scroll propio y dejar
+cabecera y pie fuera. **Aquí no se puede**, y el motivo es concreto: contados,
+**20 de los 127 pies no son hijos directos del diálogo** —13 dentro del
+`<form>`, 7 dentro de un `<div>` o de un `Tabs`—. Y el pie del `<form>` tiene
+que estar ahí: sacándolo, su botón `type="submit"` **deja de enviar nada**.
+
+`position: sticky` se pega al scrollport del ancestro que desplaza **esté donde
+esté cada uno en el árbol**, así que la cabecera y el pie se quedan clavados sin
+mover un solo nodo. El HTML de las 176 pantallas no se toca.
+
+Tres cosas que hay que mantener:
+
+1. **Quien desplaza sigue siendo el propio `DialogContent`.** Si algún día se
+   mete un contenedor con `overflow` entre el diálogo y un pie, ese contenedor
+   pasa a ser su scrollport y el `sticky` deja de servir — sin error, solo un pie
+   que se va de la pantalla.
+2. **La sombra tapa el relleno, y por eso NO es un margen negativo.** Lo que
+   desplaza es la caja de relleno, así que el contenido se sigue viendo en los
+   24 px de `p-6` antes de desaparecer: pasaría por encima del título. Tirar de
+   la cabecera con `-mt-6` lo taparía y **rompe los 24 diálogos que van con
+   `p-0`**, donde ese margen la saca fuera. Una sombra sin desenfoque del color
+   del fondo (`shadow-[0_-1.5rem_0_0_hsl(var(--background))]`) pinta esa banda
+   **sin ocupar un píxel de maquetación**: con `p-6` cubre justo el relleno y
+   con `p-0` el `overflow` la recorta. La misma clase vale para los dos.
+3. **Y la rejilla se queda.** `DialogContent` es `grid gap-4`: en una columna
+   flex con `flex-1 min-h-0` el cuerpo se va a cero cuando el contenedor mide por
+   su contenido, que es justo el caso de un diálogo corto.
+
+### Un margen negativo en una REJILLA no descuenta el hueco
+
+Esto costó una vuelta y no se ve leyendo. La X va en una caja de alto cero y
+pegajosa —sin eso se va hacia arriba con el contenido y desaparece al bajar— y
+esa caja se neutralizaba con un `-mb-4`, que es lo que se haría en un flujo
+normal.
+
+**En una rejilla no hace nada**: el hueco lo pone `gap` entre pistas, y el margen
+negativo de una pista de alto cero no lo descuenta. Medido con los hijos
+delante: el título bajaba de 25 px a 41 y el diálogo crecía de 576 a 592 —en
+TODA la plataforma—, y eso no se lee como un fallo: se lee como que el título
+está un poco más abajo que antes.
+
+> **El tirón se le da al hermano de ABAJO, que sí tiene alto y sí encoge su
+> pista**: `[&>[data-cerrar]+*]:-mt-4`, en la clase del diálogo. Y por
+> `data-cerrar`, no por `nth-child(2)`: solo tira cuando la X se pinta, que es
+> justo cuando sobra el hueco.
+
+Medido después: el título vuelve a 25 px, el diálogo corto vuelve a **576 px
+exactos** —los mismos de antes del cambio— y la X se queda a 17/17 de su esquina
+y **sigue dentro tras desplazar hasta el fondo**.
+
+### Los `max-h` de las pantallas se recogieron, y también los de fuera
+
+**60 topes en 53 ficheros**, quitados con un barrido que cambia **solo el token
+de alto**: el diff se comprobó línea a línea reconstruyendo cada `className`
+original menos su `max-h-*` y exigiendo que diera exactamente la línea nueva.
+Los anchos no se tocan, que era el encargo.
+
+Y con ellos, **diez cuerpos con scroll propio** —`overflow-auto max-h-[28rem]` en
+los cuatro de Clientes, `max-h-96` en los cuatro de Conexión, el `max-h-[70vh]`
+de `CampoEnModal` y el `max-h-[30rem]` de Servicios de reservas—. Ahí estaba la
+segunda barra de desplazamiento: medido antes, **Editar cliente tenía 2**; ahora
+tiene 1. Un cuerpo capado a 28 rem además deja el diálogo corto en una pantalla
+alta y lo desborda en una baja, que es lo contrario de unificar.
+
+**Lo que NO se tocó, y a propósito**: las listas acotadas que viven DENTRO de un
+diálogo con más cosas al lado —el historial de versiones, la tabla de permisos,
+los desplegables— siguen con su tope. Esas no son «el cuerpo»: son un recuadro
+con su propio scroll, y quitárselo haría que una lista de doscientas filas
+empujara el resto del diálogo fuera de la pantalla.
+
+Y **los tres modales escritos a mano** —el de Recordatorios y los dos de
+Módulos, que no pasan por `DialogContent`— importan `ALTO_DEL_DIALOGO` en vez de
+llevar su número. El de Recordatorios tenía `max-h-[585px] max-h-[92vh]`, las dos
+clases en la misma cadena; los de Módulos no tenían ninguno en la tarjeta y
+`70vh` en el cuerpo, o sea cabecera + 70vh + pie: **el caso que deja los botones
+fuera de la pantalla**.
+
+**La landing pública se queda fuera** (`PlanDetailModal`): es una hoja que sube
+desde abajo, con su `rounded-t-2xl`, y pegarse al borde inferior es lo que hace
+de hoja. No es un diálogo de la plataforma.
+
+### Medido, antes y después
+
+Las mismas cuatro anchuras y los mismos cinco diálogos, sobre el CSS de **los
+dos builds** —el `max-height:90vh` y el `min(585px,…)` ya no existen en la hoja
+nueva, así que medir el «antes» con ella daría cero y se estaría midiendo el
+propio cambio—:
+
+| | antes | ahora |
+| --- | --- | --- |
+| aire arriba/abajo, 1440/1280/1024 | 38–162 px, distinto en cada uno | **32 px en los cinco** |
+| aire arriba/abajo, 390 | 42–130 px | **16 px en los cinco** |
+| cabecera | se iba con el desplazamiento | **pegajosa** |
+| pie | se iba con el desplazamiento | **pegajoso**, y ningún mando fuera |
+| Editar cliente | **2 barras** | **1** |
+| diálogo corto | 576 px, sin barra | **576 px, sin barra** |
+
+Las dos últimas filas son las que hay que mirar: la barra doble se fue, y el
+diálogo corto **mide lo mismo que medía** —no se estira al tope—, que era la
+otra mitad del encargo.
+
+Y cómo se comprueba que la medida existe en producción, que es la familia de
+`removeConsole` y la de las clases de `lib/`: se busca la **declaración** en el
+CSS del build, no la clase en el código.
+
+```
+npm run build && grep -oF "max-height:calc(100dvh - 4rem)" .next/static/css/*.css
+```
+
 
 # Pendientes
 

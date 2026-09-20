@@ -213,7 +213,7 @@ export function NodeDocumentViewer({
 
             {/* ── Full-screen Dialog (PDF) ─────────────────────────────────── */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="flex max-h-[95vh] max-w-4xl flex-col gap-0 overflow-hidden bg-zinc-900 p-0">
+                <DialogContent className="flex max-w-4xl flex-col gap-0 overflow-hidden bg-zinc-900 p-0">
                     <DialogHeader className="flex-row items-center justify-between border-b border-white/10 px-4 py-3">
                         <DialogTitle className="truncate text-sm font-medium text-white/80">
                             {displayCaption}

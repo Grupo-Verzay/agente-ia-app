@@ -290,7 +290,7 @@ export function PagosMain() {
 
       {/* Dialog crear/editar */}
       <Dialog open={!!form} onOpenChange={(v) => !v && setForm(null)}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {form?.id ? "Editar método de pago" : "Nuevo método de pago"}

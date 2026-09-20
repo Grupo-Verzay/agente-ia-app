@@ -645,7 +645,7 @@ function HistorialDeCiclos({
 }) {
     return (
         <Dialog open onOpenChange={(v) => !v && onCerrar()}>
-            <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
+            <DialogContent className="overflow-y-auto sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-base">Ciclos pagados</DialogTitle>
                     <DialogDescription>{cobro.contactoNombre}</DialogDescription>

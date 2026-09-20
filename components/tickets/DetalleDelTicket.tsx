@@ -61,7 +61,7 @@ export function DetalleDelTicket({
                 if (!v) onCerrar();
             }}
         >
-            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="overflow-y-auto sm:max-w-lg">
                 {ticket && (
                     <>
                         <DialogHeader>

@@ -8,6 +8,8 @@ import { FormModuleValues } from '@/schema/module'
 import { SubmitHandler } from 'react-hook-form'
 import { X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ALTO_DEL_DIALOGO } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 export function ModuleCreator({ onSave, openModule = false, setOpenModule }: {
     onSave: SubmitHandler<FormModuleValues>;
@@ -30,8 +32,8 @@ export function ModuleCreator({ onSave, openModule = false, setOpenModule }: {
                             transition={{ duration: 0.2 }}
                             className="w-full max-w-md p-2"
                         >
-                            <Card className="relative shadow-2xl border-border rounded-md bg-background">
-                                <CardHeader className="flex items-center justify-between flex-row">
+                            <Card className={cn("relative flex flex-col overflow-hidden rounded-md border-border bg-background shadow-2xl", ALTO_DEL_DIALOGO)}>
+                                <CardHeader className="flex shrink-0 items-center justify-between flex-row">
                                     <CardTitle>
                                         {!openModule ? "Edición de módulo" : "Crear módulo"}
                                     </CardTitle>
@@ -46,12 +48,12 @@ export function ModuleCreator({ onSave, openModule = false, setOpenModule }: {
                                         <X className="w-5 h-5" />
                                     </Button>
                                 </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <ScrollArea className="max-h-[70vh] overflow-y-auto">
+                                <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+                                    <ScrollArea>
                                         <ModuleForm onSubmit={onSave} />
                                     </ScrollArea>
                                 </CardContent>
-                                <CardFooter>
+                                <CardFooter className="shrink-0">
                                     <Button variant="save" form="module-form" type="submit" className="w-full">Guardar módulo</Button>
                                 </CardFooter>
                             </Card>

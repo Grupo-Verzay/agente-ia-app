@@ -148,7 +148,7 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Crear recordatorio</DialogTitle>
           </DialogHeader>

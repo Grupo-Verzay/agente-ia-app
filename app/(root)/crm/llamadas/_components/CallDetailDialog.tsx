@@ -121,7 +121,7 @@ export function CallDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detalle de la llamada</DialogTitle>
         </DialogHeader>

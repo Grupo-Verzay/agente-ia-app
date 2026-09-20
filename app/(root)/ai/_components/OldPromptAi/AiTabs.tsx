@@ -112,7 +112,7 @@ export const PromptPreviewDialog = ({ activeTab, activeLabel, promptFormatted }:
             </Button>
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-3xl max-h-[80vh] p-0 flex flex-col">
+                <DialogContent className="max-w-3xl p-0 flex flex-col">
                     <DialogHeader className="px-6 pt-6 pb-3 border-b">
                         <DialogTitle className="flex items-center justify-between w-full">
                             Vista previa — {activeLabel}

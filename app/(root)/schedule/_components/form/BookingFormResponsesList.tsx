@@ -261,7 +261,7 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
 
       {/* Dialog: Ver registro */}
       <Dialog open={!!viewRow} onOpenChange={(o) => !o && setViewRow(null)}>
-        <DialogContent className="flex max-h-[585px] flex-col sm:max-w-[560px]">
+        <DialogContent className="flex flex-col sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>Detalle del registro</DialogTitle>
           </DialogHeader>
