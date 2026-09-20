@@ -33,14 +33,7 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], m
     return (
         <>
             <ModuleToolbar
-                className="shrink-0"
-                right={
-                    <div className="flex items-center gap-2">
-                        <FollowUpWindowDialog />
-                        <CreateWorflowDialog triggerText="Crear flujo" isPro={isPro} />
-                    </div>
-                }
-            >
+              buscador={
                 <div className="relative w-56 sm:w-72">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -50,6 +43,16 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], m
                         onChange={(event) => setSearch(event.target.value)}
                     />
                 </div>
+              }
+              className="shrink-0"
+              secundarias={
+                  /* La ventana de seguimiento no crea ningún flujo: es una
+                     acción secundaria, así que va pegada al azul y no dentro
+                     de él. */
+                  <FollowUpWindowDialog />
+              }
+              right={<CreateWorflowDialog triggerText="Crear flujo" isPro={isPro} />}
+            >
                 {/* Sin filtro por tipo de flujo en esta lista: no son pulsables. */}
                 <PastillasDeMetricas metricas={metricas} />
             </ModuleToolbar>

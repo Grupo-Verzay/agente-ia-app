@@ -110,21 +110,25 @@ export function ExternalClientDataTable({
             onTerminar={() => { table.resetRowSelection(); onBorrado?.(); }}
           />
         }
-        filtros={
-          <>
-        <div className="relative w-64 shrink-0">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Buscar por remoteJid..."
-            value={(table.getColumn('remoteJid')?.getFilterValue() as string) ?? ''}
-            onChange={(e) =>
-              table.getColumn('remoteJid')?.setFilterValue(e.target.value)
-            }
-            className="pl-8 text-xs"
-          />
-        </div>
-
-        <DropdownMenu>
+        buscador={
+          /* Estaba dentro del carril: la flecha que trae «Columnas» se lo
+             llevaba fuera de la pantalla. Su sitio es el primero, y fijo. */
+          <div className="relative w-56 shrink-0 sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Buscar por remoteJid..."
+              value={(table.getColumn('remoteJid')?.getFilterValue() as string) ?? ''}
+              onChange={(e) =>
+                table.getColumn('remoteJid')?.setFilterValue(e.target.value)
+              }
+              className="pl-8 text-xs"
+            />
+          </div>
+        }
+        secundarias={
+          /* «Columnas» no acota la lista: iba suelto en el carril. Va pegado
+             al azul, como en las demás tablas. */
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1 shrink-0">
               <span className="hidden sm:inline">Columnas</span>
@@ -146,8 +150,7 @@ export function ExternalClientDataTable({
                 </DropdownMenuCheckboxItem>
               ))}
           </DropdownMenuContent>
-        </DropdownMenu>
-          </>
+          </DropdownMenu>
         }
       />
 

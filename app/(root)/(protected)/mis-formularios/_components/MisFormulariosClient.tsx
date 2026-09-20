@@ -120,12 +120,7 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
 
           {/* Toolbar: buscador + botón */}
           <ModuleToolbar
-            className="shrink-0"
-            right={
-              <BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo</BotonDeCrear>
-            }
-          >
-            <>
+            buscador={
               <div className="relative w-56 sm:w-72">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -135,6 +130,13 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                   className="w-full pl-8"
                 />
               </div>
+            }
+            className="shrink-0"
+            right={
+              <BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo</BotonDeCrear>
+            }
+          >
+            <>
               {/* Las cifras que abrían la pantalla en tarjetas. Sin filtro
                   equivalente en esta lista: no son pulsables. */}
               <PastillasDeMetricas

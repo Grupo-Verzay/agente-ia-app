@@ -172,7 +172,6 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
     ];
   }, [filteredReminders]);
 
-
   const handleCreateReminder = () => {
     const countScheduleReminders = reminders.filter(r => r.isSchedule === true);
 
@@ -221,6 +220,17 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
             )}
 
             <ModuleToolbar
+              buscador={
+                <div className="relative w-56 sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por título, número o nombre..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-8"
+                  />
+                </div>
+              }
               right={<BotonDeCrear onClick={handleCreateReminder}>Nuevo</BotonDeCrear>}
               acciones={
                 /* «Eliminar todos» ya era una acción sobre VARIOS: su sitio es
@@ -244,18 +254,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                   />
                 ) : null
               }
-            >
-              <div className="relative w-56 sm:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por título, número o nombre..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-8"
-                />
-              </div>
-
-            </ModuleToolbar>
+            />
           </div>
         </div>
       </div>

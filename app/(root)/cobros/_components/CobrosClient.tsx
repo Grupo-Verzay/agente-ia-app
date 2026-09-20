@@ -314,14 +314,16 @@ export function CobrosClient({
                 Antes estaba escrita a mano aquí: mismo reparto, pero con el
                 botón de crear pegado al buscador en vez de a la derecha. */}
             <BarraDeAcciones
+              buscador={
+                <Input
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar cliente…"
+                    className="h-10 w-full shrink-0 sm:w-64"
+                />
+              }
                 filtros={
                     <>
-                        <Input
-                            value={busqueda}
-                            onChange={(e) => setBusqueda(e.target.value)}
-                            placeholder="Buscar cliente…"
-                            className="h-10 w-full shrink-0 sm:w-64"
-                        />
                         {FILTROS.map((f) => (
                             <button
                                 key={f.clave}

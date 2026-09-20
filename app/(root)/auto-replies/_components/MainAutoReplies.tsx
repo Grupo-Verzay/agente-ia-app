@@ -52,6 +52,20 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
           marcado. Ahora los tres huecos de siempre. */}
       <BarraDeAcciones
         className="p-1"
+        buscador={
+          /* Estaba DETRÁS de las pastillas, dentro del carril: salía en medio
+             de la fila y se iba de la pantalla al desplazarla. Su sitio es el
+             primero, fijo. */
+          <div className="relative w-56 shrink-0 sm:w-64">
+            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar respuesta..."
+              className="pl-8 text-sm"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        }
         crear={<div className="shrink-0">{crear}</div>}
         filtros={
           <>
@@ -65,15 +79,6 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
               { clave: 'categorias', icono: <Hash />, etiqueta: 'Categorias', valor: categoryCount, color: '#F59E0B', ayuda: 'Grupos usados en respuestas rapidas' },
             ]}
           />
-          <div className="relative w-64 shrink-0">
-            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar respuesta..."
-              className="pl-8 text-sm"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
           </>
         }
       />

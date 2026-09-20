@@ -124,15 +124,10 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                 title="Plantillas"
             />
             <BarraDeAcciones
-                filtros={<>
-                    {puedeGestionar && (
-                        <CasillaDeTodos
-                            estanTodos={estanTodos}
-                            hayAlguno={seleccionados.length > 0}
-                            onCambiar={alternarTodos}
-                        />
-                    )}
-                    <div className="relative w-64 shrink-0">
+                buscador={
+                    /* Estaba dentro del carril y detrás de la casilla de
+                       «todos»: su sitio es el primero, y fijo. */
+                    <div className="relative w-56 shrink-0 sm:w-64">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Buscar plantilla..."
@@ -141,6 +136,15 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
+                }
+                filtros={<>
+                    {puedeGestionar && (
+                        <CasillaDeTodos
+                            estanTodos={estanTodos}
+                            hayAlguno={seleccionados.length > 0}
+                            onCambiar={alternarTodos}
+                        />
+                    )}
                 </>}
                 crear={puedeGestionar ? <BotonDeCrear onClick={() => handleOpenModal()}>Nuevo</BotonDeCrear> : undefined}
                 acciones={

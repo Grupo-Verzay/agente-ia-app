@@ -188,17 +188,19 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
             {/* Toolbar, con las cifras que antes abrían la pantalla en
                 tarjetas. Sin filtro equivalente: no son pulsables. */}
             <ModuleToolbar
+              buscador={
+                <div className="relative w-56 sm:w-72">
+                    <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Buscar integración..."
+                        className="pl-8 text-sm"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+              }
                 left={
                     <>
-                    <div className="relative w-56 sm:w-72">
-                        <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Buscar integración..."
-                            className="pl-8 text-sm"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                    </div>
                     <PastillasDeMetricas
                         metricas={[
                             { clave: 'total', icono: <Globe />, etiqueta: 'Total', valor: items.length, color: '#3B82F6', ayuda: 'Apps externas configuradas' },

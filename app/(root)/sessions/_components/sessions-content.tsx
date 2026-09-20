@@ -182,6 +182,56 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
       <div className="sticky top-0 z-1">
         <ModuleToolbar
           className="shrink-0"
+          /* El buscador PRIMERO y en su hueco. Estaba dentro de `children`,
+             o sea en el carril del medio y detrás de las cuatro pastillas de
+             conteo: se leía como que la pantalla abre con cuatro ceros y el
+             buscador escondido entre ellos. Ver `BarraDeAcciones`. */
+          buscador={
+            <div className="relative w-56 min-w-0 sm:w-72">
+              <Input
+                placeholder="Buscar por nombre o número..."
+                value={search}
+                onChange={handleSearchChange}
+                className="w-full text-xs"
+              />
+            </div>
+          }
+          /* «Exportar CSV» no acota la lista: no es un filtro. Suelto en el
+             carril quedaba entre el buscador y el azul; su sitio es pegado al
+             botón de crear. */
+          secundarias={
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isExporting}
+              title="Exportar CSV"
+              aria-label="Exportar CSV"
+              onClick={async () => {
+                setIsExporting(true);
+                try {
+                  const res = await getSessionsForExport();
+                  if (!res.success) { toast.error(res.message); return; }
+                  const headers = ["ID", "Nombre", "Teléfono", "Lead Status", "Conversación", "Agente IA", "Asesor", "Etiquetas", "Fecha creación"];
+                  const rows = res.rows.map((r) => [
+                    String(r.id), formatContactDisplayName(r.nombre, "Lead"), r.telefono, r.leadStatus,
+                    r.estadoConversacion, r.agenteIA, r.asesor, r.etiquetas, r.fechaCreacion,
+                  ]);
+                  downloadCsv(`contactos_${new Date().toISOString().split("T")[0]}.csv`, headers, rows);
+                  toast.success(`${res.rows.length} contactos exportados.`);
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+            >
+              <Download className="h-4 w-4 sm:mr-2" />
+              {/* En el teléfono se queda solo con el icono, como el azul de
+                  crear: la palabra son 80 px y el ancho es lo único que
+                  escasea ahí. El texto sigue llegando por el `title`. */}
+              <span className="hidden sm:inline">
+                {isExporting ? "Exportando..." : "Exportar CSV"}
+              </span>
+            </Button>
+          }
           right={<CreateContactDialog userId={userId} onSuccess={() => mutate()} />}
           acciones={
             <BulkActionsDropdown
@@ -197,8 +247,9 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             />
           }
         >
-          {/* Las cifras, en la barra. Antes abrían la pantalla en una fila de
-              tarjetas a todo lo ancho, encima de la lista. */}
+          {/* Lo que queda en el carril son SOLO los filtros: las pastillas de
+              conteo y el desplegable de línea. El buscador y «Exportar CSV»
+              tienen su hueco arriba. */}
           <FilterLeadsByStats
             stats={stats}
             filter={filter}
@@ -207,14 +258,6 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               setCurrentPage(0);
             }}
           />
-          <div className="relative w-56 sm:w-72">
-            <Input
-              placeholder="Buscar por nombre o número..."
-              value={search}
-              onChange={handleSearchChange}
-              className="w-full text-xs"
-            />
-          </div>
           <div className="toolbar-collapse flex items-center gap-2">
             {/* De que linea son estos leads. Con varias lineas, el total de la
                 cuenta no se puede comparar con el de Chats, que siempre es de
@@ -268,30 +311,6 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isExporting}
-              onClick={async () => {
-                setIsExporting(true);
-                try {
-                  const res = await getSessionsForExport();
-                  if (!res.success) { toast.error(res.message); return; }
-                  const headers = ["ID", "Nombre", "Teléfono", "Lead Status", "Conversación", "Agente IA", "Asesor", "Etiquetas", "Fecha creación"];
-                  const rows = res.rows.map((r) => [
-                    String(r.id), formatContactDisplayName(r.nombre, "Lead"), r.telefono, r.leadStatus,
-                    r.estadoConversacion, r.agenteIA, r.asesor, r.etiquetas, r.fechaCreacion,
-                  ]);
-                  downloadCsv(`contactos_${new Date().toISOString().split("T")[0]}.csv`, headers, rows);
-                  toast.success(`${res.rows.length} contactos exportados.`);
-                } finally {
-                  setIsExporting(false);
-                }
-              }}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              {isExporting ? "Exportando..." : "Exportar CSV"}
-            </Button>
           </div>
         </ModuleToolbar>
       </div>

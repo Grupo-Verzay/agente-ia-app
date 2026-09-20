@@ -19,19 +19,27 @@ import { BarraDeAcciones } from "@/components/shared/BarraDeAcciones";
  * decide un solo componente**: el día que se afine el alto o el hueco, se afina
  * en `BarraDeAcciones` y salen las quince.
  *
- * # `children` es la forma VIEJA, y no coloca nada
+ * # `children` y `left` son la forma VIEJA, y NO colocan nada
  *
- * Con `children` todo cae en la franja de la izquierda, así que un botón de
- * crear escrito ahí se queda **pegado al buscador** en vez de ir a la derecha.
- * Es exactamente el desorden del que viene esta ley. Las pantallas se pasan a
- * `filtros` / `crear` / `acciones`; mientras alguna siga con `children`, al
- * menos comparte el alto y el desplazamiento con las demás.
+ * Los dos caen enteros en el **carril del medio**, así que dentro manda el
+ * orden en que esté escrito el JSX y no la regla de la barra. De ahí salieron
+ * los dos desórdenes de `/sessions`: las pastillas de conteo escritas antes que
+ * el buscador **salían antes**, y «Exportar CSV» —que no es un filtro— se
+ * quedaba suelto en medio de la fila.
+ *
+ * Por eso ahora esto pasa también `buscador` y `secundarias`. Una pantalla con
+ * buscador usa el hueco: metido en `children` se desplaza con los filtros y se
+ * va de la pantalla, que es justo lo que el buscador no puede hacer.
  */
 type ModuleToolbarProps = {
-  /** Forma vieja: todo junto. No coloca nada — ver arriba. */
+  /** Forma vieja: todo junto, en el carril. No coloca nada — ver arriba. */
   children?: ReactNode;
-  /** Buscador, desplegables y pastillas. */
+  /** Lo mismo que `children`, con otro nombre. Tampoco coloca. */
   left?: ReactNode;
+  /** El campo de buscar. Fijo y el primero de la fila. */
+  buscador?: ReactNode;
+  /** Exportar, refrescar: lo que no acota la lista. Pegado al botón de crear. */
+  secundarias?: ReactNode;
   /** El botón de crear. Va pegado a la derecha, justo antes del `⋯`. */
   right?: ReactNode;
   /** El `⋯` de acciones masivas, en la esquina. */
@@ -39,10 +47,20 @@ type ModuleToolbarProps = {
   className?: string;
 };
 
-export function ModuleToolbar({ children, left, right, acciones, className }: ModuleToolbarProps) {
+export function ModuleToolbar({
+  children,
+  left,
+  buscador,
+  secundarias,
+  right,
+  acciones,
+  className,
+}: ModuleToolbarProps) {
   return (
     <BarraDeAcciones
+      buscador={buscador}
       filtros={children ?? left}
+      secundarias={secundarias}
       crear={right}
       acciones={acciones}
       className={className}
