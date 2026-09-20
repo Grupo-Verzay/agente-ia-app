@@ -560,3 +560,29 @@ export function loQueSeOfreceParaCompartir(
     }));
     return loQueOfreceElSelector(marcados, consulta, tope);
 }
+
+/* ───────────────────────── Los fijados, arriba ──────────────────────────── */
+
+/**
+ * La lista con los fijados delante, **conservando el orden de dentro de cada
+ * grupo**.
+ *
+ * Va DESPUÉS de `ordenarLaColumna`, no en su lugar: fijar no es una posición,
+ * es una banda. Metiéndolo dentro del orden habría que reescribir las
+ * posiciones de todo el espacio cada vez que alguien fija algo, y entonces
+ * desfijar dejaría el documento donde lo puso el chincheta y no donde estaba.
+ *
+ * Y es estable a propósito: `sort` no promete serlo entre motores para claves
+ * iguales, así que se reparte en dos cubos y se juntan. Con un `sort` por
+ * `fijado`, dos documentos del mismo grupo podrían cambiar de sitio entre una
+ * carga y otra sin que nadie hubiera tocado nada.
+ */
+export function conLosFijadosArriba<T extends { fijado?: boolean | null }>(documentos: T[]): T[] {
+    const fijados: T[] = [];
+    const resto: T[] = [];
+    for (const documento of documentos) {
+        if (documento.fijado) fijados.push(documento);
+        else resto.push(documento);
+    }
+    return fijados.length === 0 ? documentos : [...fijados, ...resto];
+}

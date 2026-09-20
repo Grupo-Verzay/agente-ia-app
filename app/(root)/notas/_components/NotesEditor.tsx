@@ -22,6 +22,11 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+// El walker de tiptap a markdown vive en `lib/exportar-documento.ts`: lo usan
+// esta pantalla y Documentacion, que comparten el MISMO editor. Con una copia
+// en cada una, el dia que se afine como sale una lista de tareas se afina en
+// una y la otra se queda atras.
+import { comoMarkdown, comoTextoPlano, nombreDeArchivo } from '@/lib/exportar-documento'
 import type { UserNoteWithContent } from '@/actions/notes-actions'
 
 const TiptapEditor = dynamic(
@@ -124,39 +129,6 @@ function countWords(content: object): number {
   }
 }
 
-function extractMarkdown(content: object): string {
-  try {
-    const doc = content as any
-    if (!doc?.content) return ''
-    const lines: string[] = []
-    const processNode = (node: any): string => {
-      if (!node) return ''
-      if (node.type === 'text') {
-        let t = node.text ?? ''
-        if (node.marks?.some((m: any) => m.type === 'bold')) t = `**${t}**`
-        if (node.marks?.some((m: any) => m.type === 'italic')) t = `*${t}*`
-        if (node.marks?.some((m: any) => m.type === 'code')) t = `\`${t}\``
-        return t
-      }
-      const children = (node.content ?? []).map(processNode).join('')
-      if (node.type === 'heading') return `${'#'.repeat(node.attrs?.level ?? 1)} ${children}`
-      if (node.type === 'paragraph') return children
-      if (node.type === 'bulletList') return (node.content ?? []).map((li: any) => `- ${processNode(li)}`).join('\n')
-      if (node.type === 'orderedList') return (node.content ?? []).map((li: any, i: number) => `${i + 1}. ${processNode(li)}`).join('\n')
-      if (node.type === 'listItem') return children
-      if (node.type === 'taskList') return (node.content ?? []).map((li: any) => `- [${li.attrs?.checked ? 'x' : ' '}] ${processNode(li)}`).join('\n')
-      if (node.type === 'taskItem') return children
-      if (node.type === 'blockquote') return `> ${children}`
-      if (node.type === 'codeBlock') return `\`\`\`\n${children}\n\`\`\``
-      if (node.type === 'horizontalRule') return '---'
-      return children
-    }
-    doc.content.forEach((node: any) => lines.push(processNode(node)))
-    return lines.join('\n\n')
-  } catch {
-    return ''
-  }
-}
 
 export function NotesEditor({
   note, saving, sidebarOpen, currentUserId, canEdit, isOwner, ownerName,
@@ -186,27 +158,19 @@ export function NotesEditor({
     if (canEdit) onSave(content, title)
   }, [canEdit, title, onSave])
 
-  const handleExportMd = () => {
-    const md = `# ${title}\n\n${extractMarkdown(note.content as object)}`
-    const blob = new Blob([md], { type: 'text/markdown' })
+  const bajar = (texto: string, tipo: string, extension: 'md' | 'txt') => {
+    const blob = new Blob([texto], { type: tipo })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${title.replace(/[^a-z0-9]/gi, '-')}.md`
+    a.download = nombreDeArchivo(title, extension)
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const handleExportTxt = () => {
-    const txt = `${title}\n\n${extractMarkdown(note.content as object)}`
-    const blob = new Blob([txt], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${title.replace(/[^a-z0-9]/gi, '-')}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  const doc = { titulo: title, contenido: note.content }
+  const handleExportMd = () => bajar(comoMarkdown(doc), 'text/markdown', 'md')
+  const handleExportTxt = () => bajar(comoTextoPlano(doc), 'text/plain', 'txt')
 
   const initialContent = note.content && typeof note.content === 'object' && 'type' in (note.content as object)
     ? note.content as object

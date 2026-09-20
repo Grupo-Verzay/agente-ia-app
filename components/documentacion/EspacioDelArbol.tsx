@@ -12,15 +12,22 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+    Archive,
+    ArrowDown,
+    ArrowUp,
+    Building2,
     ChevronRight,
     Ellipsis,
     FileText,
+    GripVertical,
     Layers,
     ListChecks,
     Pencil,
+    Pin,
     Plus,
     Shield,
     Trash2,
+    Users,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +42,8 @@ import { cn } from "@/lib/utils";
 import { moverEnLaColumna, ordenarLaColumna } from "@/lib/orden-del-tablero";
 import { ColumnaOrdenable, useOrdenDeColumna } from "@/components/shared/OrdenDeColumna";
 import { BorrarEspacioDialog, EditarEspacioDialog, NuevoDocumentoDialog } from "./Dialogos";
+import { CompartirConCuentas } from "./CompartirConCuentas";
+import { PermisosDelObjeto } from "./PermisosDelObjeto";
 import type { ArbolDeDocumentacion } from "@/actions/documentacion-actions";
 import type { DocumentoEnLista } from "@/lib/documentacion-db";
 
@@ -72,13 +81,32 @@ import type { DocumentoEnLista } from "@/lib/documentacion-db";
  * espacio, varios escribiendo esa misma llave a la vez se pisarían y la
  * preferencia se perdería sin que nadie se entere. Quien lo guarda es el único
  * que ve el conjunto completo.
+ *
+ * # Y el ESPACIO también se coloca, con un `DndContext` que no es este
+ *
+ * El asa de la cabecera cuelga del `DndContext` del ÁRBOL, que monta la
+ * pantalla; el de aquí dentro solo mueve los documentos de este espacio. No se
+ * pisan porque **ningún nodo pertenece a los dos**: la cabecera está fuera del
+ * contexto de dentro, que solo envuelve la lista. Lo que sí se roban dos
+ * contextos es un nodo compartido, que es lo que dice la regla de los dos
+ * tableros.
+ *
+ * Y va **por un asa**, no arrastrando la fila entera: la cabecera es un botón
+ * que pliega, con el «+» y el «⋯» al lado, así que sin asa cada pulsación
+ * competiría con un arrastre. Es la misma decisión que en la rejilla de
+ * Proyectos.
  */
 export function EspacioDelArbol({
     entrada,
     plantillas,
     abiertoId,
     plegado,
+    puedeOrdenarElArbol,
+    esElPrimero,
+    esElUltimo,
     alAlternar,
+    alSubir,
+    alBajar,
     alAbrir,
     alRefrescar,
 }: {
@@ -86,15 +114,26 @@ export function EspacioDelArbol({
     plantillas: DocumentoEnLista[];
     abiertoId: string | null;
     plegado: boolean;
+    puedeOrdenarElArbol: boolean;
+    esElPrimero: boolean;
+    esElUltimo: boolean;
     alAlternar: () => void;
+    alSubir: () => void;
+    alBajar: () => void;
     alAbrir: (id: string) => void;
     alRefrescar: () => void | Promise<void>;
 }) {
-    const { espacio, documentos, puedeEditar, puedeMandar, recibido } = entrada;
+    const { espacio, documentos, puedeEditar, puedeGestionar, puedeMandar, recibido } = entrada;
     const [renombrando, setRenombrando] = useState(false);
     const [borrando, setBorrando] = useState(false);
+    const [compartiendoConElEquipo, setCompartiendoConElEquipo] = useState(false);
+    const [compartiendoConCuentas, setCompartiendoConCuentas] = useState(false);
 
     const orden = useOrdenDeColumna("espacio", espacio.id, puedeEditar);
+
+    // El asa del espacio. Se registra en el `DndContext` del árbol, que es el
+    // de la pantalla: este nodo está fuera del de aquí dentro.
+    const arrastre = useSortable({ id: espacio.id, disabled: !puedeOrdenarElArbol });
 
     const sensores = useSensors(
         // 6 px antes de arrastrar: sin eso, un clic para abrir un documento
@@ -188,8 +227,29 @@ export function EspacioDelArbol({
     );
 
     return (
-        <div className="mb-3">
+        <div
+            className="mb-3"
+            ref={arrastre.setNodeRef}
+            style={{
+                transform: CSS.Transform.toString(arrastre.transform),
+                transition: arrastre.transition,
+                ...(arrastre.isDragging
+                    ? { zIndex: 50, position: "relative" as const, opacity: 0.6 }
+                    : {}),
+            }}
+        >
             <div className="flex items-center gap-1 px-2 py-1">
+                {puedeOrdenarElArbol && (
+                    <span
+                        {...arrastre.listeners}
+                        {...arrastre.attributes}
+                        title="Mover el espacio"
+                        aria-label="Mover el espacio"
+                        className="shrink-0 cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+                    >
+                        <GripVertical className="size-3.5" />
+                    </span>
+                )}
                 {/* El «+» y el «⋯» son HERMANOS de esto, no hijos: por eso
                     pulsarlos no dispara el plegado y no hace falta cortar
                     ninguna propagación. Si algún día uno de los dos se metiera
@@ -241,8 +301,11 @@ export function EspacioDelArbol({
                 {/* El menú del espacio. **No se pinta en gris cuando no se
                     puede**: se quita entero, que es la regla de la casa —una
                     opción apagada invita a preguntar por qué no se puede, y la
-                    respuesta no cabe en un menú—. */}
-                {puedeMandar && (
+                    respuesta no cabe en un menú—. Por eso el menú entero sale
+                    en cuanto hay ALGO que ofrecer, y cada grupo mira lo suyo:
+                    compartir es `puedeGestionar`, renombrar y borrar son
+                    `puedeMandar`, y colocar es del árbol. */}
+                {(puedeMandar || puedeGestionar || puedeOrdenarElArbol) && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -256,17 +319,60 @@ export function EspacioDelArbol({
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => setRenombrando(true)}>
-                                <Pencil className="size-4" />
-                                Renombrar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onSelect={() => setBorrando(true)}
-                                className="text-destructive focus:text-destructive"
-                            >
-                                <Trash2 className="size-4" />
-                                Eliminar espacio
-                            </DropdownMenuItem>
+                            {puedeGestionar && (
+                                <>
+                                    <DropdownMenuItem
+                                        onSelect={() => setCompartiendoConElEquipo(true)}
+                                    >
+                                        <Users className="size-4" />
+                                        Compartir con el equipo
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onSelect={() => setCompartiendoConCuentas(true)}
+                                    >
+                                        <Building2 className="size-4" />
+                                        Compartir con otra cuenta
+                                    </DropdownMenuItem>
+                                </>
+                            )}
+                            {puedeOrdenarElArbol && (
+                                <>
+                                    {/* Subir y bajar no son un adorno del
+                                        arrastre: en un táctil arrastrar una fila
+                                        de un árbol que además se desplaza es
+                                        justo lo que no se puede hacer con el
+                                        dedo. El primero no sube y el último no
+                                        baja — y la opción se QUITA, no se pinta
+                                        en gris. */}
+                                    {!esElPrimero && (
+                                        <DropdownMenuItem onSelect={alSubir}>
+                                            <ArrowUp className="size-4" />
+                                            Subir
+                                        </DropdownMenuItem>
+                                    )}
+                                    {!esElUltimo && (
+                                        <DropdownMenuItem onSelect={alBajar}>
+                                            <ArrowDown className="size-4" />
+                                            Bajar
+                                        </DropdownMenuItem>
+                                    )}
+                                </>
+                            )}
+                            {puedeMandar && (
+                                <>
+                                    <DropdownMenuItem onSelect={() => setRenombrando(true)}>
+                                        <Pencil className="size-4" />
+                                        Renombrar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onSelect={() => setBorrando(true)}
+                                        className="text-destructive focus:text-destructive"
+                                    >
+                                        <Trash2 className="size-4" />
+                                        Eliminar espacio
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}
@@ -289,6 +395,28 @@ export function EspacioDelArbol({
                 abierto={borrando}
                 onAbiertoChange={setBorrando}
                 alBorrar={alRefrescar}
+            />
+            {compartiendoConElEquipo && (
+                <PermisosDelObjeto
+                    objetoTipo="espacio"
+                    objetoId={espacio.id}
+                    nombre={espacio.nombre}
+                    alCerrar={() => {
+                        setCompartiendoConElEquipo(false);
+                        // El árbol se refresca al cerrar: quitarse a uno mismo
+                        // el acceso a un espacio restringido tiene que
+                        // notarse, y si no, la fila se queda ahí hasta recargar.
+                        void alRefrescar();
+                    }}
+                />
+            )}
+            <CompartirConCuentas
+                abierto={compartiendoConCuentas}
+                setAbierto={setCompartiendoConCuentas}
+                objetoTipo="espacio"
+                objetoId={espacio.id}
+                nombre={espacio.nombre}
+                alGuardar={alRefrescar}
             />
 
             {/* Plegado se DESMONTA, no se esconde. Aquí no hay nada vivo que
@@ -370,9 +498,26 @@ function DocumentoDelArbol({
                 ) : (
                     <FileText className="size-3.5 shrink-0 text-muted-foreground" />
                 )}
-                <span className="min-w-0 flex-1 truncate" title={doc.titulo}>
+                <span
+                    className={cn(
+                        "min-w-0 flex-1 truncate",
+                        // Un archivado que se vea igual que los demás convierte
+                        // el interruptor en un mando sin efecto visible.
+                        doc.archivadoEn && "text-muted-foreground line-through",
+                    )}
+                    title={doc.titulo}
+                >
                     {doc.titulo}
                 </span>
+                {doc.fijado && (
+                    <Pin className="size-3 shrink-0 text-amber-500" aria-label="Fijado" />
+                )}
+                {doc.archivadoEn && (
+                    <Archive
+                        className="size-3 shrink-0 text-muted-foreground"
+                        aria-label="Archivado"
+                    />
+                )}
                 {doc.restringido && <Shield className="size-3 shrink-0 text-amber-600" />}
             </button>
         </li>

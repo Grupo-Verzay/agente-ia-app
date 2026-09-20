@@ -1,16 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Eye, Pencil, UserX, Users, Loader2 } from 'lucide-react'
+import { Users, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
 import {
   getTeamAccounts, getNoteShares, setNoteShare,
   type TeamAccount, type NoteSharePermission,
 } from '@/actions/notes-actions'
+// Los tres niveles los pinta un solo control, compartido con Documentacion.
+// Ver `components/shared/NivelesDeAcceso.tsx`.
+import { NivelesDeAcceso } from '@/components/shared/NivelesDeAcceso'
+import type { NivelDeAcceso } from '@/lib/niveles-de-acceso'
 
 interface Props {
   open: boolean
@@ -20,11 +23,23 @@ interface Props {
   ownerId: string
 }
 
-const OPTIONS: { value: NoteSharePermission; label: string; icon: typeof Eye }[] = [
-  { value: 'none', label: 'Sin acceso', icon: UserX },
-  { value: 'read', label: 'Solo lectura', icon: Eye },
-  { value: 'edit', label: 'Puede editar', icon: Pencil },
-]
+/**
+ * Los nombres de aqui y los del control compartido no son los mismos: `note_shares`
+ * guarda `none`/`read`/`edit` desde el primer dia y renombrar esa columna seria
+ * una migracion de una tabla viva para no cambiar nada. Se traduce en el borde,
+ * que es donde tiene que estar la traduccion: una sola pareja de funciones, y
+ * nada de dos vocabularios sueltos por el fichero.
+ */
+const DESDE_EL_NIVEL: Record<NivelDeAcceso, NoteSharePermission> = {
+  ninguno: 'none',
+  lectura: 'read',
+  edicion: 'edit',
+}
+const HASTA_EL_NIVEL: Record<NoteSharePermission, NivelDeAcceso> = {
+  none: 'ninguno',
+  read: 'lectura',
+  edit: 'edicion',
+}
 
 export function ShareNoteDialog({ open, onClose, noteId, ownerId }: Props) {
   const [accounts, setAccounts] = useState<TeamAccount[]>([])
@@ -98,28 +113,11 @@ export function ShareNoteDialog({ open, onClose, noteId, ownerId }: Props) {
                   {savingId === acc.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-auto shrink-0" />}
                 </div>
 
-                <div className="grid grid-cols-3 gap-1">
-                  {OPTIONS.map(opt => {
-                    const Icon = opt.icon
-                    const active = current === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => handleSet(acc.id, opt.value)}
-                        disabled={savingId === acc.id}
-                        className={cn(
-                          'flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-xs transition-colors disabled:opacity-50',
-                          active
-                            ? 'border-primary bg-primary/10 text-primary font-medium'
-                            : 'border-border text-muted-foreground hover:bg-muted',
-                        )}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">{opt.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+                <NivelesDeAcceso
+                  valor={HASTA_EL_NIVEL[current]}
+                  deshabilitado={savingId === acc.id}
+                  alElegir={nivel => handleSet(acc.id, DESDE_EL_NIVEL[nivel])}
+                />
               </div>
             )
           })}

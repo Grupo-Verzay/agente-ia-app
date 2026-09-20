@@ -126,6 +126,22 @@ function asegurarLasTablas(): Promise<void> {
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         `;
+        // Fijar y archivar. Entran con `ADD COLUMN IF NOT EXISTS` y **no**
+        // reescribiendo el `CREATE`: la tabla ya esta en produccion y un
+        // `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo
+        // que se comete solo al anadirle una columna a una tabla de la App ya
+        // desplegada.
+        //
+        // `archivadoEn` es una FECHA y no un booleano, como `borradoEn` del
+        // espacio: un booleano dice que esta archivado y no dice desde cuando,
+        // y esa es justo la pregunta que se hace al mirar una lista de
+        // archivados. `fijado` si es un booleano: no hay nada que fechar.
+        await db.$executeRaw`
+            ALTER TABLE "doc_documentos" ADD COLUMN IF NOT EXISTS "fijado" BOOLEAN NOT NULL DEFAULT false
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "doc_documentos" ADD COLUMN IF NOT EXISTS "archivadoEn" TIMESTAMP(3)
+        `;
         await db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_documentos_espacio_idx"
             ON "doc_documentos" ("espacioId", "actualizadoEn" DESC)
@@ -338,6 +354,10 @@ export type Documento = {
     estados: string[];
     vista: Vista | null;
     restringido: boolean;
+    /** Arriba del todo en su espacio. Es del documento, no de quien mira. */
+    fijado: boolean;
+    /** Fuera del árbol, sin borrarse. `null` = no archivado. */
+    archivadoEn: Date | null;
     version: number;
     creadoPorId: string;
     creadoPorNombre: string | null;
@@ -597,20 +617,33 @@ function comoDocumento(fila: Record<string, unknown>): Documento {
  * Encima de esto manda el orden **puesto a mano** (`orden_en_tablero`, tipo
  * `espacio`), que aplica quien llama con `ordenarLaColumna`: lo que nadie ha
  * arrastrado nunca sale exactamente así.
+ *
+ * # Los archivados NO salen, salvo que se pidan
+ *
+ * Y se filtran **en la consulta**, no al pintar: un filtro que vive un paso
+ * después del servidor no es un filtro —lo que viaja es la lista entera—, que
+ * es la regla que ya costó una vuelta en `/schedule/[userId]`. Con el
+ * interruptor puesto vienen los dos y los archivados se marcan en pantalla.
  */
-export async function losDocumentosDe(espacioIds: string[]): Promise<DocumentoEnLista[]> {
+export async function losDocumentosDe(
+    espacioIds: string[],
+    opciones?: { incluirArchivados?: boolean },
+): Promise<DocumentoEnLista[]> {
     if (espacioIds.length === 0) return [];
+    const incluirArchivados = opciones?.incluirArchivados === true;
     return conLasTablas(async () => {
         // **Sin `contenido` ni `texto`**: el árbol de un espacio pinta títulos,
         // y traerse el cuerpo de cada documento para no enseñarlo es descargar
         // la cuenta entera en cada carga de la pantalla.
         const filas = await db.$queryRaw<Array<Record<string, unknown>>>`
             SELECT "id", "cuentaId", "espacioId", "tipo", "titulo", "estados", "vista",
-                   "restringido", "version", "creadoPorId", "creadoPorNombre",
+                   "restringido", "fijado", "archivadoEn", "version",
+                   "creadoPorId", "creadoPorNombre",
                    "actualizadoPorId", "actualizadoPorNombre", "creadoEn", "actualizadoEn"
             FROM "doc_documentos" d
             WHERE "espacioId" = ANY(${espacioIds}::text[])
               AND ${sinEspacioBorrado("d")}
+              AND (${incluirArchivados} OR "archivadoEn" IS NULL)
             ORDER BY "creadoEn" ASC
         `;
         return filas.map((f) => ({
@@ -676,6 +709,85 @@ export async function quitarPermiso(input: {
               AND "sujetoTipo" = ${input.sujetoTipo}
               AND "sujetoId" = ${input.sujetoId}
         `;
+    });
+}
+
+/**
+ * Fijar y archivar: **dos escrituras pequeñas y aparte del guardado**.
+ *
+ * No entran por `guardarDocumento` a propósito. Aquel lleva su candado de
+ * versión —`SELECT … FOR UPDATE` y `AND "version" = la que se vio`— porque lo
+ * que se pisa allí es el párrafo de otro; aquí lo que se cambia es dónde vive el
+ * documento, no su cuerpo. Metiéndolo en el guardado, fijar desde el árbol
+ * fallaría con «alguien lo cambió mientras tanto» cada vez que hubiera una
+ * pestaña con ese documento abierto.
+ *
+ * Y **no escriben una versión** por lo mismo: el historial es de lo que dice el
+ * documento. Una entrada «v12 — se archivó» entre los cambios de texto ensucia
+ * justo lo que se mira para volver atrás.
+ */
+export async function fijarDocumento(id: string, fijado: boolean): Promise<void> {
+    await conLasTablas(async () => {
+        await db.$executeRaw`
+            UPDATE "doc_documentos" SET "fijado" = ${fijado} WHERE "id" = ${id}
+        `;
+    });
+}
+
+/** `archivado: false` lo devuelve al árbol: la fecha se pone a nulo. */
+export async function archivarDocumento(id: string, archivado: boolean): Promise<void> {
+    await conLasTablas(async () => {
+        await db.$executeRaw`
+            UPDATE "doc_documentos"
+            SET "archivadoEn" = ${archivado ? new Date() : null}
+            WHERE "id" = ${id}
+        `;
+    });
+}
+
+/**
+ * Reemplaza **de una vez** con qué CUENTAS se comparte, sin tocar las personas.
+ *
+ * Es lo que necesita `CompartirConCuentasDialog`, que manda la lista entera
+ * —«estas y solo estas»— en vez de un alta por fila: así el diálogo de Proyectos
+ * y Diagramas funciona aquí sin cambiarle una línea.
+ *
+ * Las dos mitades importan, y la segunda es la que no se puede ablandar:
+ *
+ * 1. **Va en una transacción.** Con el `DELETE` y el `INSERT` sueltos, un fallo
+ *    entre los dos deja el objeto sin compartir con nadie, que es una pérdida de
+ *    acceso silenciosa.
+ * 2. **Solo toca `sujetoTipo = 'cuenta'`.** Las filas de persona las reparte el
+ *    otro diálogo; si este las barriera, guardar «con qué cuentas» le quitaría
+ *    el acceso a la gente a la que se lo dieron por su nombre — y nadie
+ *    relacionaría las dos cosas.
+ */
+export async function reemplazarLasCuentas(input: {
+    objetoTipo: "espacio" | "documento";
+    objetoId: string;
+    destinos: Array<{ cuentaId: string; permiso: Permiso }>;
+}): Promise<void> {
+    await conLasTablas(async () => {
+        const ids = input.destinos.map((d) => d.cuentaId);
+        await db.$transaction(async (tx) => {
+            await tx.$executeRaw`
+                DELETE FROM "doc_permisos"
+                WHERE "objetoTipo" = ${input.objetoTipo}
+                  AND "objetoId" = ${input.objetoId}
+                  AND "sujetoTipo" = 'cuenta'
+                  AND NOT ("sujetoId" = ANY(${ids}::text[]))
+            `;
+            for (const destino of input.destinos) {
+                await tx.$executeRaw`
+                    INSERT INTO "doc_permisos"
+                        ("objetoTipo", "objetoId", "sujetoTipo", "sujetoId", "permiso")
+                    VALUES (${input.objetoTipo}, ${input.objetoId}, 'cuenta',
+                            ${destino.cuentaId}, ${destino.permiso})
+                    ON CONFLICT ("objetoTipo", "objetoId", "sujetoTipo", "sujetoId")
+                    DO UPDATE SET "permiso" = EXCLUDED."permiso"
+                `;
+            }
+        });
     });
 }
 
@@ -1022,6 +1134,11 @@ export async function buscarDocumentos(input: {
             WHERE "espacioId" = ANY(${input.espacioIds}::text[])
               AND "tipo" <> 'plantilla'
               AND ${sinEspacioBorrado("d")}
+              -- Archivar es sacarlo de en medio. Si la búsqueda lo siguiera
+              -- devolviendo, archivar no serviría para nada — y quien lo buscó
+              -- no tendría forma de saber por qué ese documento no está en el
+              -- árbol. Se llega a él con el interruptor de archivados.
+              AND "archivadoEn" IS NULL
               AND to_tsvector('spanish', "titulo" || ' ' || "texto")
                   @@ to_tsquery('spanish', ${input.consulta})
             ORDER BY "actualizadoEn" DESC
