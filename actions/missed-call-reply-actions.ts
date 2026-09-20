@@ -5,6 +5,8 @@ import { currentUser } from '@/lib/auth';
 import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
 import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 import { persistChatMessage } from '@/lib/chat-persistence';
+import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
+import { sendWahaText } from '@/lib/waha';
 
 /**
  * Resuelve la cuenta a la que pertenecen las llamadas del usuario actual.
@@ -122,18 +124,44 @@ export async function sendMissedOutgoingCallReply(
       return { sent: false, message: 'Ya se envió un mensaje de llamada perdida a este contacto en las últimas 3 h.' };
     }
 
-    // Instancia de la cuenta (cualquier canal de WhatsApp).
-    const inst =
-      (await db.instancia.findFirst({
-        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution', 'meta'] } },
-        select: { instanceName: true, instanceType: true },
-      })) ??
-      (await db.instancia.findFirst({ where: { userId }, select: { instanceName: true, instanceType: true } }));
+    // La línea por la que sale el mensaje: primero la de WhatsApp por QR —con
+    // el proveedor que sea— y, si la cuenta no tiene ninguna, el canal que
+    // tenga (un Meta, típicamente).
+    //
+    // La lista escrita a mano de antes nombraba `Whatsapp`, `whatsapp`,
+    // `evolution` y `meta`, y dejaba fuera `waha`, que es como nacen hoy las
+    // líneas: en esas cuentas prefería el canal de Meta si lo había, y si no,
+    // caía en el respaldo «cualquier instancia» y acababa en la rama de
+    // Evolution pidiendo unas credenciales que una línea de Waha no tiene.
+    // Desde fuera: la respuesta de llamada perdida no salía y decía «Sin
+    // credenciales de WhatsApp».
+    const { linea, todas } = await laLineaDeWhatsappDeLaCuenta(userId);
+    const inst = linea ?? todas[0] ?? null;
     const instanceName = inst?.instanceName;
-    if (!instanceName) return { sent: false, message: 'Sin instancia de WhatsApp.' };
+    if (!instanceName) return { sent: false, message: porQueNoHayLineaQr([]) };
 
     const remoteJid = `${digits}@s.whatsapp.net`;
     const channel = (inst?.instanceType ?? '').toLowerCase();
+
+    // WhatsApp Mensajería (Waha): su propia primitiva, no la de Evolution.
+    if (channel === 'waha') {
+      const r = await sendWahaText({ session: instanceName, chatId: `${digits}@c.us`, text });
+      if (!r.ok) return { sent: false, message: r.message };
+      if (r.messageId) {
+        await persistChatMessage({
+          userId,
+          instanceName,
+          instanceType: 'waha',
+          remoteJid,
+          messageId: r.messageId,
+          fromMe: true,
+          messageType: 'conversation',
+          content: text,
+          messageTimestamp: new Date(),
+        }).catch(() => { /* best-effort: el mensaje ya se envió */ });
+      }
+      return { sent: true };
+    }
 
     // Canales oficiales/unificados (Meta Cloud API): se envía por el backend,
     // que respeta la ventana de 24h de Meta y persiste en el panel.

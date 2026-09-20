@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { isCallDisposition } from '@/lib/call-dispositions';
+import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
 
 export type CallDirection = 'incoming' | 'outgoing';
 
@@ -508,12 +509,15 @@ export async function setCallContactNameAction(input: {
     // Sin nombre que guardar no hace falta inventar un lead.
     if (!nombre) return { success: true, name: null };
 
-    const user = await db.user.findUnique({
-      where: { id: ownerId },
-      select: { instancias: { where: { instanceType: 'Whatsapp' }, select: { instanceId: true }, take: 1 } },
-    });
-    const instanceId = user?.instancias?.[0]?.instanceId;
-    if (!instanceId) return { success: false, message: 'No hay instancia de WhatsApp para guardar el nombre.' };
+    // La línea por QR, sea cual sea su proveedor. Pidiendo `instanceType:
+    // 'Whatsapp'` a secas, una cuenta con su línea en WhatsApp Mensajería
+    // —que es como nacen hoy— recibía «No hay instancia de WhatsApp» con la
+    // línea conectada delante. Es la misma hermana del aviso del voicebot.
+    const { linea, todas } = await laLineaDeWhatsappDeLaCuenta(ownerId);
+    const instanceId = linea?.instanceId;
+    if (!instanceId) {
+      return { success: false, message: porQueNoHayLineaQr(todas.map((i) => i.instanceType)) };
+    }
 
     await db.session.create({
       data: {
@@ -569,12 +573,12 @@ export async function setCallLeadStatusAction(input: {
     }
 
     // No existe lead: crear uno mínimo para no perder el contacto de la llamada.
-    const user = await db.user.findUnique({
-      where: { id: ownerId },
-      select: { instancias: { where: { instanceType: 'Whatsapp' }, select: { instanceId: true }, take: 1 } },
-    });
-    const instanceId = user?.instancias?.[0]?.instanceId;
-    if (!instanceId) return { success: false, message: 'No hay instancia de WhatsApp para crear el lead.' };
+    // Misma línea, mismo motivo que arriba: la de QR, con el proveedor que sea.
+    const { linea, todas } = await laLineaDeWhatsappDeLaCuenta(ownerId);
+    const instanceId = linea?.instanceId;
+    if (!instanceId) {
+      return { success: false, message: porQueNoHayLineaQr(todas.map((i) => i.instanceType)) };
+    }
 
     await db.session.create({
       data: {

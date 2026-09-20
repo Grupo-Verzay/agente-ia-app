@@ -8,6 +8,7 @@
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
+import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
 import { logOutgoingCallAction } from '@/actions/astracalls-actions';
 
 const ASTRA_BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
@@ -20,20 +21,26 @@ export interface VoicebotConfig {
   prompt: string | null;
 }
 
-async function getWhatsappInstance(userId: string) {
-  return db.instancia.findFirst({
-    where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp'] } },
-    orderBy: { id: 'asc' },
-    select: { id: true, voicebotEnabled: true, voicebotVoice: true, voicebotTransferTo: true, voicebotPrompt: true },
-  });
+/**
+ * La cuenta cuyo voicebot se configura.
+ *
+ * Es `effectiveId`, **el mismo valor con el que la tarjeta de llamadas de esa
+ * misma pantalla resuelve su sesión** (`getCallAccountUserId`). Antes aquí se
+ * escribía `ownerId ?? id`, que hoy da lo mismo en las tres ramas de
+ * `currentUser()` — pero son dos formas de preguntar la misma cosa, y dos
+ * formas es una que se afina y otra que se queda atrás. El alcance se pregunta
+ * a la fila EFECTIVA.
+ */
+function laCuentaDelVoicebot(me: Awaited<ReturnType<typeof currentUser>>) {
+  return me?.effectiveId ?? me?.ownerId ?? me?.id ?? null;
 }
 
 export async function getVoicebotConfig(): Promise<{ success: boolean; data?: VoicebotConfig; message?: string }> {
   const me = await currentUser();
-  const userId = me?.ownerId ?? me?.id;
+  const userId = laCuentaDelVoicebot(me);
   if (!userId) return { success: false, message: 'No autorizado.' };
   try {
-    const inst = await getWhatsappInstance(userId);
+    const { linea: inst } = await laLineaDeWhatsappDeLaCuenta(userId);
     if (!inst) return { success: true, data: { enabled: false, voice: null, transferTo: null, prompt: null } };
     return {
       success: true,
@@ -57,7 +64,7 @@ export async function setVoicebotConfig(input: {
   prompt?: string | null;
 }): Promise<{ success: boolean; message?: string }> {
   const me = await currentUser();
-  const userId = me?.ownerId ?? me?.id;
+  const userId = laCuentaDelVoicebot(me);
   if (!userId) return { success: false, message: 'No autorizado.' };
 
   // Normaliza el número de transferencia a solo dígitos (o null).
@@ -74,8 +81,18 @@ export async function setVoicebotConfig(input: {
   }
 
   try {
-    const inst = await getWhatsappInstance(userId);
-    if (!inst) return { success: false, message: 'No tienes una cuenta de WhatsApp vinculada.' };
+    const { linea: inst, todas } = await laLineaDeWhatsappDeLaCuenta(userId);
+    if (!inst) {
+      // El aviso NOMBRA lo que falta. El genérico de antes —«No tienes una
+      // cuenta de WhatsApp vinculada»— salía con la línea de esa misma cuenta
+      // en pantalla diciendo Conectado, así que mandaba a desvincular y volver
+      // a vincular; eso toca la sesión de llamadas, que no es lo que esto mira.
+      console.warn('[voicebot] la cuenta no tiene linea de WhatsApp por QR', {
+        userId,
+        tiposQueTiene: todas.map((i) => i.instanceType ?? '(sin tipo)'),
+      });
+      return { success: false, message: porQueNoHayLineaQr(todas.map((i) => i.instanceType)) };
+    }
     await db.instancia.update({
       where: { id: inst.id },
       data: {
@@ -107,7 +124,13 @@ export async function startBotCallAction(
   const digits = (phone || '').replace(/\D/g, '');
   if (digits.length < 6) return { success: false, message: 'Número inválido.' };
 
-  const user = await db.user.findUnique({ where: { id: me.id }, select: { astraCallsSid: true } });
+  // El número de llamadas es de la CUENTA, no de la persona: es donde lo
+  // guarda `linkMyCallSession` y donde lo lee la tarjeta de Conexión. Con
+  // `me.id`, un asesor —cuya fila no tiene `astraCallsSid` y nunca lo va a
+  // tener— recibía «No tienes un número de llamadas vinculado» con el número
+  // de su cuenta perfectamente conectado.
+  const cuenta = laCuentaDelVoicebot(me) ?? me.id;
+  const user = await db.user.findUnique({ where: { id: cuenta }, select: { astraCallsSid: true } });
   const sid = user?.astraCallsSid;
   if (!sid) return { success: false, message: 'No tienes un número de llamadas vinculado (Conexión → Llamadas).' };
 
