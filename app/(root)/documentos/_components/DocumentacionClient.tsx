@@ -3,20 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import {
-    FileText,
-    FolderPlus,
-    History,
-    Layers,
-    ListChecks,
-    Loader2,
-    Plus,
-    Search,
-    Shield,
-    Trash2,
-} from "lucide-react";
+import { FolderPlus, History, Loader2, Search, Shield, Trash2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,7 +28,8 @@ import { VistasDeLista } from "@/components/documentacion/VistasDeLista";
 import { HistorialDeVersiones } from "@/components/documentacion/HistorialDeVersiones";
 import { PermisosDelObjeto } from "@/components/documentacion/PermisosDelObjeto";
 import { DialogoDeFila } from "@/components/documentacion/DialogoDeFila";
-import { NuevoEspacioDialog, NuevoDocumentoDialog } from "@/components/documentacion/Dialogos";
+import { NuevoEspacioDialog } from "@/components/documentacion/Dialogos";
+import { EspacioDelArbol } from "@/components/documentacion/EspacioDelArbol";
 import {
     abrirDocumentoAction,
     borrarDocumentoAction,
@@ -414,74 +403,15 @@ export function DocumentacionClient({ inicial }: { inicial: ArbolDeDocumentacion
                             aquí en vez de en archivos sueltos.
                         </p>
                     ) : (
-                        arbol.espacios.map(({ espacio, documentos, puedeEditar, recibido }) => (
-                            <div key={espacio.id} className="mb-3">
-                                <div className="flex items-center gap-1 px-2 py-1">
-                                    <Layers className="size-3.5 shrink-0 text-muted-foreground" />
-                                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                                        {espacio.icono ? `${espacio.icono} ` : ""}
-                                        {espacio.nombre}
-                                    </p>
-                                    {recibido && (
-                                        <Badge variant="outline" className="shrink-0 text-[10px]">
-                                            De otra cuenta
-                                        </Badge>
-                                    )}
-                                    {puedeEditar && (
-                                        <NuevoDocumentoDialog
-                                            espacioId={espacio.id}
-                                            plantillas={arbol.plantillas}
-                                            alCrear={async (id) => {
-                                                await refrescarArbol();
-                                                void abrir(id);
-                                            }}
-                                            disparador={
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="size-6 shrink-0"
-                                                    title="Nuevo documento"
-                                                >
-                                                    <Plus className="size-3.5" />
-                                                </Button>
-                                            }
-                                        />
-                                    )}
-                                </div>
-                                <ul>
-                                    {documentos.length === 0 && (
-                                        <li className="px-3 py-1 text-xs text-muted-foreground">
-                                            Vacío
-                                        </li>
-                                    )}
-                                    {documentos.map((doc) => (
-                                        <li key={doc.id}>
-                                            <button
-                                                type="button"
-                                                onClick={() => void abrir(doc.id)}
-                                                className={cn(
-                                                    "flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm",
-                                                    abierto?.id === doc.id
-                                                        ? "bg-muted"
-                                                        : "hover:bg-muted/60",
-                                                )}
-                                            >
-                                                {doc.tipo === "lista" ? (
-                                                    <ListChecks className="size-3.5 shrink-0 text-muted-foreground" />
-                                                ) : (
-                                                    <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                                                )}
-                                                <span className="min-w-0 flex-1 truncate">
-                                                    {doc.titulo}
-                                                </span>
-                                                {doc.restringido && (
-                                                    <Shield className="size-3 shrink-0 text-amber-600" />
-                                                )}
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
+                        arbol.espacios.map((entrada) => (
+                            <EspacioDelArbol
+                                key={entrada.espacio.id}
+                                entrada={entrada}
+                                plantillas={arbol.plantillas}
+                                abiertoId={abierto?.id ?? null}
+                                alAbrir={(id) => void abrir(id)}
+                                alRefrescar={refrescarArbol}
+                            />
                         ))
                     )}
                 </div>

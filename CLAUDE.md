@@ -6794,6 +6794,141 @@ mitad de abajo, y ofrecerlas dos veces es pedirle a alguien que adivine la
 diferencia. La cuenta **propia** sí, porque es el inicio de sesión del dueño y
 sin ella al jefe no se le podría dar acceso a nada.
 
+### Borrar un espacio es SUAVE, y el sello no basta: hay que cerrarle los CUATRO lectores
+
+Un espacio no se podía ni renombrar ni eliminar: una vez creado quedaba fijo
+para siempre. `editarEspacio` y `borrarEspacio` **ya existían en la base y sus
+dos acciones también**; lo que faltaba era el menú que las abriera. Conviene
+saberlo antes de ponerse a escribir una capa de datos que ya está.
+
+Y `borrarEspacio` era un `DELETE` en cascada —documentos, versiones, menciones,
+filas y permisos—. Eso no se deshace: un espacio con seis meses de
+procedimientos dentro se iba con un clic. Ahora se sella `borradoEn`
+(`ALTER TABLE … ADD COLUMN IF NOT EXISTS`, que es como entra una columna en una
+tabla de la App **ya desplegada**) y **no desaparece ni una fila**.
+
+> **Pero esconder el espacio no esconde sus documentos.** Y ahí estaba el hueco
+> real: `accesoAlDocumento` deja pasar a **quien escribió** un documento aunque
+> su espacio no se alcance, así que su autor lo habría abierto con una URL
+> guardada y lo habría visto salir como retroenlace desde una tarea. Se cierra
+> por los dos sitios: **el espacio** desaparece de `elEspacio` y de
+> `losEspaciosCandidatos` —las dos puertas que llevan a uno—, y **sus
+> documentos** de las cuatro consultas que los traen (el árbol, abrir, la
+> búsqueda y los retroenlaces), con `sinEspacioBorrado(alias)` escrito **una
+> vez** y no cuatro. Es el mismo patrón que `sinGruposSql(alias)`, y por el
+> mismo motivo: escribir la condición a mano en cuatro sitios es garantizar que
+> la quinta se olvide.
+
+**No hay pantalla para deshacerlo, y eso se dice en vez de disimularlo**: se
+recupera con `UPDATE "doc_espacios" SET "borradoEn" = NULL WHERE "id" = …`. Lo
+que esto compra es que el dato siga ahí para poder hacerlo.
+
+Y **el número de la confirmación es un `COUNT`, no el largo de la lista del
+árbol**: el árbol enseña lo que quien mira alcanza —sin los restringidos de
+otra gente— y el borrado se lleva el espacio entero. Un «se van a borrar 3» que
+se lleva 11 es peor que no decir ninguno. Mientras se cuenta **no se pinta un
+cero**: un cero mientras carga se lee como «este espacio está vacío», que es lo
+contrario de lo que la confirmación existe para avisar.
+
+### Y quién manda sobre el espacio es una pregunta APARTE de `puedeGestionar`
+
+La tentación es ensanchar `Acceso.puedeGestionar` para que incluya al creador.
+No: esa decide además **crear documentos dentro y repartir permisos**, así que
+metiendo ahí al creador se le estarían dando de paso dos cosas que nadie pidió.
+
+`puedeMandarEnElEspacio` (`lib/documentacion-permisos.ts`, puro) son tres
+condiciones y cada una tapa un caso:
+
+1. **Nunca en uno recibido.** En un espacio de otra cuenta no manda nadie de
+   esta, ni con edición. Mismo reparto que Proyectos compartidos y Diagramas.
+2. **Nunca un `agente`** — ni siquiera sobre uno que creó él. Participa, no
+   manda, y borrar un espacio se lleva por delante la documentación de sus
+   compañeros.
+3. Pasan **quien lo creó** y **quien administra la cuenta**. La primera mitad
+   no es de adorno: `canManageWorkspace` **no cubre** a un miembro del equipo
+   cuyo `advisorRole` no es ni `administrador` ni `agente`, y esa gente crea
+   espacios hoy —`puedeCrearEspacio` va en `true` sin condición—, así que sin
+   ella se quedaría con un espacio suyo que no puede ni renombrar.
+
+El creador se compara con la **PERSONA** (`user.id`), que es con la que se firmó
+`creadoPorId`. Con la cuenta efectiva, un espacio creado por el dueño se lo
+daría de golpe a todo su equipo.
+
+### El orden del árbol: por `creadoEn`, y encima el que se puso a mano
+
+`losDocumentosDe` iba `ORDER BY "actualizadoEn" DESC`, y eso es lo que hacía que
+el árbol se leyera **del revés**: cada documento nuevo entraba arriba del todo,
+y encima cualquier retoque en uno viejo lo subía. Va por `creadoEn` ascendente,
+que es como se lee una documentación, y **no hace falta ningún backfill**: la
+columna ya estaba en todas las filas.
+
+Encima de eso manda el orden puesto a mano, y **no estrena mecanismo**: entra en
+`orden_en_tablero` con un `tipo` nuevo, `espacio`, y `tableroId` = el id del
+espacio. Dos formas de guardar la misma posición son una que se afina y otra que
+se queda atrás. Y su llave **ya es el tablero**, que es literalmente lo pedido
+—«el mismo para todos los que ven ese espacio, no por persona»—; por eso no va
+por `lib/orden-de-las-tarjetas.ts`, que guarda por pareja cuenta + cosa.
+
+De ahí salen gratis las dos mitades del encargo, sin escribir ninguna rama:
+
+- **Un espacio que nadie ha arrastrado no tiene ni una fila**, así que sale
+  exactamente como lo devuelve la base. Esto no cambió ningún árbol hasta el
+  primer arrastre.
+- **Un documento nuevo SÍ trae posición** (`alFinalDelTablero`), así que cae en
+  el grupo de los colocados y queda **el último**. Que es lo pedido: nunca
+  arriba, para no pisar el orden que puso una persona.
+
+La puerta de ordenar es **la misma con la que se crea un documento dentro**
+—`accesoAEsteEspacio().puedeEditar`—, y no una condición propia. Y una lista que
+llega de fuera no decide qué se ordena: se cruza contra los documentos que de
+verdad están en ese espacio.
+
+### La fila del árbol sigue siendo un `<button>`, y por eso no usa `TarjetaDelTablero`
+
+`TarjetaDelTablero` —la pieza compartida— pinta un `div` con el `onClick`
+encima, que es lo correcto para una tarjeta de tablero. En el árbol la fila es
+**la navegación de la pantalla**: con un `div` se pierde el foco por teclado, o
+sea la única forma de recorrerlo sin ratón. Así que el `<button>` lleva su
+propio `useSortable` —diez líneas— y **todo lo demás es el de siempre**:
+`useOrdenDeColumna`, `ColumnaOrdenable`, `ordenarLaColumna` y el guardado. Lo
+que se copia es el nodo que se pinta, nunca la lógica del orden.
+
+Y el `DndContext` va **uno por espacio**. Son hermanos, no anidados —lo que
+roba los eventos es anidarlos—, y así un arrastre no puede cruzar de un espacio
+a otro, que no se pidió.
+
+Medido en Chromium sobre el CSS del build, con el nombre largo de una cuenta
+real. El `⋯` le quita 28 px al nombre y **la fila no cambia de alto**:
+
+| ventana | columna | nombre antes | nombre ahora | alto de la fila | desborda |
+| --- | --- | --- | --- | --- | --- |
+| 1440 | 320 | 241 | **213** | 32 px | no |
+| 1280 | 320 | 241 | **213** | 32 px | no |
+| 1024 | 288 | 209 | **181** | 32 px | no |
+| 390 | 288 | 209 | **181** | 32 px | no |
+
+El nombre recorta con «…» y va entero en el `title`. Y la combinación «menú +
+insignia de *De otra cuenta*» **no se mide porque no puede darse**:
+`puedeMandarEnElEspacio` es falso en un espacio recibido, así que los dos son
+excluyentes — medirla sería medir una pantalla que React no pinta.
+
+### Y el banco corre en dos modos, con las consultas VIEJAS al lado
+
+`lib/__tests__/documentacion-db.test.mjs`, contra Postgres de verdad. Lo que no
+se puede probar en memoria es justo lo que importa: que no desaparece ni una
+fila, y que el documento de un espacio borrado **ya no se cuela**. Ese segundo
+caso lleva dentro las consultas tal cual estaban antes del cambio y **afirma que
+con ellas la fuga se reproduce** —la búsqueda lo encuentra y el retroenlace lo
+enseña—. Sin ese modo no se sabría si lo verde de al lado es que se arregló la
+causa o que el caso no llegaba a ejercerla. Comprobado: con el arreglo quitado,
+el banco se pone rojo por los dos sitios.
+
+Y una del propio banco, que costó una vuelta: **la base se reutiliza entre
+ejecuciones**, así que un `refId` fijo hace que la segunda vuelta encuentre
+también los de la primera y el modo roto falle por acumulación en vez de por lo
+que viene a probar. Los ids que se comparan a lo ancho de la tabla llevan
+sufijo de la vuelta.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

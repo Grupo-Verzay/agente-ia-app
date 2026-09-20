@@ -258,6 +258,43 @@ export function accesoAlEspacio(
     };
 }
 
+/**
+ * Quién **manda sobre el espacio mismo**: renombrarlo y borrarlo.
+ *
+ * Es una pregunta aparte de `Acceso.puedeGestionar`, y no un ensanchamiento de
+ * aquella, a propósito. `puedeGestionar` decide además **crear documentos
+ * dentro y repartir permisos**; metiendo aquí al creador se le estarían dando
+ * de paso esas dos, que nadie pidió. Cambiar un espacio es lo que se pidió, y
+ * va en su propia función.
+ *
+ * Tres condiciones, y cada una tapa un caso:
+ *
+ * 1. **Nunca en uno recibido.** En un espacio de otra cuenta no manda nadie de
+ *    esta, ni con edición: repartirlo y deshacerlo siguen siendo de quien lo
+ *    hizo. Es lo mismo que ya rige en Proyectos compartidos y en Diagramas.
+ * 2. **Nunca un `agente`** — ni siquiera sobre uno que creó él. Participa, no
+ *    manda, que es el reparto de toda la plataforma; y borrar un espacio se
+ *    lleva por delante la documentación de sus compañeros.
+ * 3. Y pasan **quien lo creó** y **quien administra la cuenta**. La primera
+ *    mitad no es de adorno: un miembro del equipo cuyo `advisorRole` no es ni
+ *    `administrador` ni `agente` crea espacios hoy y `canManageWorkspace` no lo
+ *    cubre, así que sin ella se quedaría con un espacio suyo que no puede ni
+ *    renombrar.
+ *
+ * El creador se compara con la **PERSONA** (`user.id`), que es con la que se
+ * firmó `creadoPorId`. Compararlo con la cuenta efectiva le daría el espacio a
+ * todo el equipo de golpe.
+ */
+export function puedeMandarEnElEspacio(
+    user: QuienMira,
+    espacio: { creadoPorId: string },
+    acceso: Acceso,
+): boolean {
+    if (!user?.id || acceso.recibido) return false;
+    if (user.advisorRole === "agente") return false;
+    return acceso.puedeGestionar || espacio.creadoPorId === (user.id || "").trim();
+}
+
 /* ────────────────────────────── El documento ────────────────────────────── */
 
 /**

@@ -82,6 +82,15 @@ function asegurarLasTablas(): Promise<void> {
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         `;
+        // Borrar un espacio es SUAVE: se sella la fecha y no se borra nada.
+        // Entra con `ADD COLUMN IF NOT EXISTS` y **no** reescribiendo el
+        // `CREATE`: la tabla ya esta en produccion y un
+        // `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo
+        // que se comete solo al anadirle una columna a una tabla de la App ya
+        // desplegada.
+        await db.$executeRaw`
+            ALTER TABLE "doc_espacios" ADD COLUMN IF NOT EXISTS "borradoEn" TIMESTAMP(3)
+        `;
         await db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_espacios_cuenta_idx"
             ON "doc_espacios" ("cuentaId", "orden")
@@ -120,6 +129,13 @@ function asegurarLasTablas(): Promise<void> {
         await db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_documentos_espacio_idx"
             ON "doc_documentos" ("espacioId", "actualizadoEn" DESC)
+        `;
+        // El arbol lee por `("espacioId", "creadoEn")`: el orden de lectura de
+        // un espacio es el de CREACION, no el del ultimo retoque. Ver
+        // `losDocumentosDe`.
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "doc_documentos_espacio_creado_idx"
+            ON "doc_documentos" ("espacioId", "creadoEn")
         `;
         await db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_documentos_cuenta_idx"
@@ -233,6 +249,36 @@ function asegurarLasTablas(): Promise<void> {
         throw error;
     });
     return tablasListas;
+}
+
+/* ───────────────────────── Un espacio borrado no existe ─────────────────── */
+
+/**
+ * «Su espacio no está borrado», para el `WHERE` de cualquier consulta de
+ * documentos.
+ *
+ * Se escribe **una vez** y se importa, igual que `sinGruposSql(alias)` para los
+ * grupos del CRM. Y por el mismo motivo: la condición está en las cuatro
+ * consultas que traen documentos de la nada —el árbol, abrir, la búsqueda y los
+ * retroenlaces— y escribirla a mano en cuatro sitios es garantizar que la
+ * quinta se olvide. Un documento de un espacio borrado que se cuela en la
+ * búsqueda o en un retroenlace se lee como que borrar no funciona.
+ *
+ * Lo que ya entró por una de esas cuatro no la vuelve a llevar: el `SELECT …
+ * FOR UPDATE` de `guardarDocumento` corre **detrás** de `accesoAEsteDocumento`,
+ * que pasa por `elDocumento`.
+ *
+ * Va como `NOT EXISTS` y no como `JOIN`: así entra por la clave primaria de
+ * `doc_espacios` y no cambia el plan de la consulta que la lleva.
+ */
+export function sinEspacioBorrado(alias: string): Prisma.Sql {
+    // El alias lo pone esta casa, nunca el navegador: se interpola a mano
+    // porque un identificador no puede ir como parámetro.
+    const a = Prisma.raw(`"${alias.replace(/[^A-Za-z0-9_]/g, "")}"`);
+    return Prisma.sql`NOT EXISTS (
+        SELECT 1 FROM "doc_espacios" e
+        WHERE e."id" = ${a}."espacioId" AND e."borradoEn" IS NOT NULL
+    )`;
 }
 
 /** ¿Es el `42P01` de Postgres —«no existe la tabla»—? */
@@ -383,9 +429,10 @@ export async function losEspaciosCandidatos(input: {
 
         const espacios = await db.$queryRaw<Espacio[]>`
             SELECT * FROM "doc_espacios"
-            WHERE "cuentaId" = ${input.cuenta}
-               OR "id" = ANY(${deFuera}::text[])
-               OR "id" = ANY(${porDocumento}::text[])
+            WHERE "borradoEn" IS NULL
+              AND ("cuentaId" = ${input.cuenta}
+                OR "id" = ANY(${deFuera}::text[])
+                OR "id" = ANY(${porDocumento}::text[]))
             ORDER BY "orden" ASC, "nombre" ASC
         `;
 
@@ -393,10 +440,18 @@ export async function losEspaciosCandidatos(input: {
     });
 }
 
+/**
+ * Un espacio borrado se contesta como **uno que no existe**.
+ *
+ * Es lo que hace que el borrado suave no tenga puerta de atrás: por aquí pasan
+ * `accesoAEsteEspacio` —renombrar, borrar, repartir permisos, crear dentro— y
+ * `accesoAEsteDocumento`, así que ni el árbol ni una URL pegada a mano lo
+ * alcanzan. Ver `borrarEspacio`.
+ */
 export async function elEspacio(id: string): Promise<Espacio | null> {
     return conLasTablas(async () => {
         const filas = await db.$queryRaw<Espacio[]>`
-            SELECT * FROM "doc_espacios" WHERE "id" = ${id} LIMIT 1
+            SELECT * FROM "doc_espacios" WHERE "id" = ${id} AND "borradoEn" IS NULL LIMIT 1
         `;
         return filas[0] ?? null;
     });
@@ -462,40 +517,60 @@ export async function editarEspacio(input: {
 }
 
 /**
- * Borra un espacio y **todo lo que cuelga de él**.
+ * Cuántos documentos tiene un espacio, **todos**, los alcance quien pregunte o
+ * no.
  *
- * Sin clave foránea la limpieza es explícita, y va en una transacción: a medias
- * quedarían documentos sin espacio —invisibles en el árbol y contando en la
- * búsqueda—, que es peor que no haber borrado.
+ * Es el número que enseña la confirmación de borrar, y por eso es un `COUNT` y
+ * no el largo de la lista que el árbol pudo cargar: el árbol enseña lo que esa
+ * persona alcanza —sin los restringidos de otros— y el borrado se lleva el
+ * espacio entero. Un «se van a borrar 3» que se lleva 11 es peor que no decir
+ * ninguno. Es la misma regla que *un contador es un `COUNT`, no un `length`*.
+ */
+export async function cuantosDocumentosTiene(espacioId: string): Promise<number> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<{ cuantos: bigint }>>`
+            SELECT COUNT(*) AS "cuantos" FROM "doc_documentos" WHERE "espacioId" = ${espacioId}
+        `;
+        return Number(filas[0]?.cuantos ?? 0);
+    });
+}
+
+/**
+ * Borra un espacio: **suave, sellando la fecha, sin borrar una sola fila**.
+ *
+ * Era un `DELETE` en cascada —documentos, versiones, menciones, filas y
+ * permisos— y eso no se deshace: un espacio con seis meses de procedimientos
+ * dentro se iba con un clic y no había forma de traerlo. Ahora se sella
+ * `borradoEn` y **todo lo de dentro se queda intacto**, así que quitar el sello
+ * devuelve el espacio con sus documentos, su historial de versiones y sus
+ * permisos tal cual estaban.
+ *
+ * # Lo que hace que no tenga puerta de atrás
+ *
+ * No basta con esconder el espacio: sus documentos siguen existiendo. Se cierra
+ * por los dos sitios y en ninguno más:
+ *
+ * 1. **El espacio** desaparece de `elEspacio` y de `losEspaciosCandidatos`, que
+ *    son las dos puertas por las que se llega a uno.
+ * 2. **Sus documentos** desaparecen de las cuatro consultas que los leen, con
+ *    `sinEspacioBorrado(alias)` — escrito una vez, no cuatro.
+ *
+ * Sin la segunda mitad quedaba un hueco real y estrecho: `accesoAlDocumento`
+ * deja pasar a **quien escribió** un documento aunque su espacio no se alcance,
+ * así que su autor habría podido abrirlo con una URL guardada y lo habría visto
+ * salir como retroenlace desde una tarea.
+ *
+ * **No hay pantalla para deshacerlo**, y eso se dice en vez de disimularlo: se
+ * recupera desde la base (`UPDATE "doc_espacios" SET "borradoEn" = NULL WHERE
+ * "id" = …`). Lo que esto compra es que el dato siga ahí para poder hacerlo.
  */
 export async function borrarEspacio(id: string): Promise<void> {
     await conLasTablas(async () => {
-        await db.$transaction(async (tx) => {
-            const docs = await tx.$queryRaw<Array<{ id: string }>>`
-                SELECT "id" FROM "doc_documentos" WHERE "espacioId" = ${id}
-            `;
-            const ids = docs.map((d) => d.id);
-            if (ids.length > 0) {
-                await tx.$executeRaw`DELETE FROM "doc_filas" WHERE "documentoId" = ANY(${ids}::text[])`;
-                await tx.$executeRaw`DELETE FROM "doc_menciones" WHERE "documentoId" = ANY(${ids}::text[])`;
-                await tx.$executeRaw`DELETE FROM "doc_versiones" WHERE "documentoId" = ANY(${ids}::text[])`;
-                await tx.$executeRaw`
-                    DELETE FROM "doc_permisos"
-                    WHERE "objetoTipo" = 'documento' AND "objetoId" = ANY(${ids}::text[])
-                `;
-                // Y las menciones que APUNTABAN a esos documentos: si no, queda
-                // un retroenlace hacia algo que ya no existe.
-                await tx.$executeRaw`
-                    DELETE FROM "doc_menciones"
-                    WHERE "tipo" = 'documento' AND "refId" = ANY(${ids}::text[])
-                `;
-            }
-            await tx.$executeRaw`DELETE FROM "doc_documentos" WHERE "espacioId" = ${id}`;
-            await tx.$executeRaw`
-                DELETE FROM "doc_permisos" WHERE "objetoTipo" = 'espacio' AND "objetoId" = ${id}
-            `;
-            await tx.$executeRaw`DELETE FROM "doc_espacios" WHERE "id" = ${id}`;
-        });
+        await db.$executeRaw`
+            UPDATE "doc_espacios"
+            SET "borradoEn" = CURRENT_TIMESTAMP, "actualizadoEn" = CURRENT_TIMESTAMP
+            WHERE "id" = ${id} AND "borradoEn" IS NULL
+        `;
     });
 }
 
@@ -509,6 +584,20 @@ function comoDocumento(fila: Record<string, unknown>): Documento {
     };
 }
 
+/**
+ * Los documentos de unos espacios, **del más viejo al más nuevo**.
+ *
+ * Iba `ORDER BY "actualizadoEn" DESC`, y eso es lo que hacía que el árbol se
+ * leyera del revés: cada documento nuevo entraba arriba del todo, y encima
+ * cualquier retoque en uno viejo lo subía. Una documentación se lee en el orden
+ * en que se escribió, así que se ordena por `creadoEn` y el nuevo queda al
+ * final — que es lo que se pidió, y no hace falta ningún backfill: la columna
+ * ya estaba en todas las filas.
+ *
+ * Encima de esto manda el orden **puesto a mano** (`orden_en_tablero`, tipo
+ * `espacio`), que aplica quien llama con `ordenarLaColumna`: lo que nadie ha
+ * arrastrado nunca sale exactamente así.
+ */
 export async function losDocumentosDe(espacioIds: string[]): Promise<DocumentoEnLista[]> {
     if (espacioIds.length === 0) return [];
     return conLasTablas(async () => {
@@ -519,9 +608,10 @@ export async function losDocumentosDe(espacioIds: string[]): Promise<DocumentoEn
             SELECT "id", "cuentaId", "espacioId", "tipo", "titulo", "estados", "vista",
                    "restringido", "version", "creadoPorId", "creadoPorNombre",
                    "actualizadoPorId", "actualizadoPorNombre", "creadoEn", "actualizadoEn"
-            FROM "doc_documentos"
+            FROM "doc_documentos" d
             WHERE "espacioId" = ANY(${espacioIds}::text[])
-            ORDER BY "actualizadoEn" DESC
+              AND ${sinEspacioBorrado("d")}
+            ORDER BY "creadoEn" ASC
         `;
         return filas.map((f) => ({
             ...(f as unknown as DocumentoEnLista),
@@ -533,7 +623,9 @@ export async function losDocumentosDe(espacioIds: string[]): Promise<DocumentoEn
 export async function elDocumento(id: string): Promise<Documento | null> {
     return conLasTablas(async () => {
         const filas = await db.$queryRaw<Array<Record<string, unknown>>>`
-            SELECT * FROM "doc_documentos" WHERE "id" = ${id} LIMIT 1
+            SELECT d.* FROM "doc_documentos" d
+            WHERE d."id" = ${id} AND ${sinEspacioBorrado("d")}
+            LIMIT 1
         `;
         return filas[0] ? comoDocumento(filas[0]) : null;
     });
@@ -880,6 +972,7 @@ export async function losQueNombran(input: {
             FROM "doc_menciones" m
             JOIN "doc_documentos" d ON d."id" = m."documentoId"
             WHERE m."tipo" = ${input.tipo} AND m."refId" = ${input.refId}
+              AND ${sinEspacioBorrado("d")}
             ORDER BY d."actualizadoEn" DESC
             LIMIT ${input.tope ?? 50}
         `;
@@ -925,9 +1018,10 @@ export async function buscarDocumentos(input: {
         return db.$queryRaw<Resultado[]>`
             SELECT "id", "espacioId", "cuentaId", "titulo", "tipo", "texto",
                    "restringido", "creadoPorId", "actualizadoEn"
-            FROM "doc_documentos"
+            FROM "doc_documentos" d
             WHERE "espacioId" = ANY(${input.espacioIds}::text[])
               AND "tipo" <> 'plantilla'
+              AND ${sinEspacioBorrado("d")}
               AND to_tsvector('spanish', "titulo" || ' ' || "texto")
                   @@ to_tsquery('spanish', ${input.consulta})
             ORDER BY "actualizadoEn" DESC
