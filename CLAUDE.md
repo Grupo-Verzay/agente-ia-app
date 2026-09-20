@@ -9396,6 +9396,127 @@ el `fetch` apuntado para poder afirmar **a qué servidor se habló**. Los diez
 «ANTES» ejecutan la rama vieja literal sobre la misma semilla: sin ellos no se
 sabe si se arregló la causa o algo parecido.
 
+### Y la pregunta de ANTES: no «¿qué proveedor?», sino «¿la tiene?»
+
+El mismo patrón, una capa más arriba y con un síntoma peor. El diálogo
+**«Asistente de voz IA»** de Perfil → Conexión guardaba la voz y el número de
+transferencia y contestaba
+
+> No tienes una cuenta de WhatsApp vinculada.
+
+con la línea de esa misma cuenta **ahí arriba, en la misma pantalla, diciendo
+Conectado** — y con el proveedor de llamadas reportándola conectada también.
+Desvincular y volver a vincular no lo arreglaba, y **no podía**: ese botón toca
+la sesión de llamadas (`User.astra_calls_sid`), que no es lo que esa acción
+estaba mirando.
+
+Lo que miraba era esto:
+
+```ts
+db.instancia.findFirst({ where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp'] } } })
+```
+
+Y la línea por QR se guarda con **tres formas de la MISMA cosa**: `Whatsapp` si
+nació en Evolution, `waha` si nació en WhatsApp Mensajería —**que es como nacen
+hoy las nuevas**— o se pasó a ella, y `NULL` en las antiguas, de cuando la
+columna no se escribía. `checkActiveInstance` ya cubría las tres, a propósito y
+con su comentario al lado; a esta se le había pasado.
+
+Medido en producción, solo lectura:
+
+| | cuentas |
+| --- | --- |
+| con línea por QR | **31** |
+| que ese filtro veía | 21 |
+| **invisibles para el voicebot** | **10** |
+
+Y cruzado con quien además tiene número de llamadas vinculado —que es quien
+puede llegar a abrir ese diálogo— son **5 de 8**: Carlos \| Arcos,
+Verzay \| Notificaciones, Verzay \| Atencion, Horeca Soluciones y
+Verzay \| Ventas.
+
+**Y una de ellas ya tenía la configuración guardada sobre su fila de `waha`.**
+Verzay \| Ventas la escribió cuando esa línea era de Evolution; al cambiar de
+proveedor —que cambia el `instanceType` de la MISMA fila y conserva todo lo
+demás— dejó de encontrarse. Desde entonces leerla devuelve los valores por
+defecto y guardarla falla. Es exactamente el reporte: funcionaba, dejó de
+funcionar, y no hay forma de arreglarlo desde la pantalla.
+
+> **Cuál es la línea por QR de una cuenta lo contesta `lib/linea-de-whatsapp.ts`
+> y nadie más.**
+
+#### Se filtra en TypeScript, no con un `in` de casings
+
+El `in` de Prisma distingue mayúsculas, así que una lista de tipos es una lista
+de **cómo se escribieron**: basta con que un camino guarde `WhatsApp` para que
+se caiga sin decirlo. Se traen las instancias de la cuenta —una o dos, tres en
+la que más— y las filtra `esLineaDeWhatsappQr`, que es pura. Así **la consulta y
+la regla no pueden discrepar, porque son la misma**.
+
+Y de paso sale gratis lo otro que hacía falta: con la lista delante se puede
+decir **qué sí tiene** la cuenta.
+
+#### El aviso NOMBRA lo que falta
+
+Un «No tienes una cuenta de WhatsApp vinculada» a secas es el peor aviso posible
+aquí, porque **la cuenta sí tiene WhatsApp conectado** —lo dice la tarjeta de al
+lado— y manda a desvincular y volver a vincular, que es justo lo que el reporte
+cuenta que se probó. `porQueNoHayLineaQr` distingue los dos casos en que el
+aviso **sí** es correcto:
+
+| lo que tiene la cuenta | qué dice |
+| --- | --- |
+| nada conectado | «no tiene ninguna línea de WhatsApp conectada… conéctala en Conexión → Mensajería WhatsApp (QR)» |
+| solo canales que no son QR | «tiene **WhatsApp API oficial (Meta)**, pero el asistente de voz va sobre la línea por QR y esa no está conectada» |
+
+Ese segundo caso es real y es correcto: un canal de Meta Cloud API no es un
+número conectado por QR, y las llamadas van por ahí.
+
+#### Y a las hermanas se les había pasado lo mismo
+
+Es la familia de siempre —*a una hermana se le pasa*— y son cuatro sitios más,
+los cuatro de Llamadas:
+
+| dónde | qué se veía |
+| --- | --- |
+| `setCallContactNameAction` | **«No hay instancia de WhatsApp para guardar el nombre»** al nombrar un contacto en CRM → Llamadas |
+| `setCallLeadStatusAction` | lo mismo al marcarle un estado al lead |
+| `linkMyCallSession` (×2) | la sesión de llamadas nacía sin el nombre de la línea |
+| `logOutgoingCallAction` | su lista dejaba fuera `waha`, así que caía en el respaldo «cualquier instancia» y con un canal de Meta al lado podía asociar la llamada al canal equivocado |
+| `enviarRespuestaDeLlamadaPerdida` | su lista nombraba `meta` y **no** `waha`: en esas cuentas prefería el canal de Meta, y sin él acababa en la rama de Evolution pidiendo unas credenciales que una línea de Waha no tiene. Desde fuera, la respuesta no salía y decía «Sin credenciales de WhatsApp» |
+
+El último llevaba además media función sin escribir: ahora tiene su rama de
+Waha, con `sendWahaText` y su `persistChatMessage`, como el resto de la
+plataforma.
+
+#### Y el alcance se pregunta a la fila EFECTIVA, igual que la tarjeta de al lado
+
+El voicebot resolvía la cuenta con `ownerId ?? id` y la tarjeta de llamadas de
+esa misma pantalla con `effectiveId`. **Hoy dan lo mismo en las tres ramas de
+`currentUser()`** —se comprobó— pero son dos formas de preguntar la misma cosa,
+y dos formas es una que se afina y otra que se queda atrás. Va `effectiveId`,
+que es lo que `getCallAccountUserId` ya usaba.
+
+Y ahí al lado había uno que **no** daba lo mismo: `startBotCallAction` leía el
+`astraCallsSid` de **`me.id`**, la persona. Un asesor —cuya fila no tiene ese
+campo y nunca lo va a tener— recibía «No tienes un número de llamadas vinculado»
+con el número de su cuenta perfectamente conectado.
+
+#### El banco ejerce las ACCIONES, y el modo roto lleva la consulta vieja dentro
+
+`lib/__tests__/linea-de-whatsapp.test.mjs`, 15 casos contra Postgres
+(`scripts/banco-llamadas.sh`). Probar `laLineaDeWhatsappDeLaCuenta` a secas sería
+probar el lado que se acaba de escribir; lo que hay que demostrar es que las
+acciones pasan por ella, así que se finge **solo `currentUser()`**.
+
+Cubre los tres puntos de vista del encargo —cuenta con sesión conectada (en los
+tres tipos), cuenta sin línea, y cuenta **hija** de una familia más su
+administrador entrando con su propio id— y lleva dentro la consulta vieja
+literal. **Ejercido contra el código de antes se pone en rojo en 9 de los 15**;
+los 6 que pasan en los dos modos son justo los que no podían cambiar: la regla
+pura, la afirmación del propio modo roto y el caso de Evolution, que siempre
+funcionó. Sin ese modo no se sabe si se arregló la causa o algo parecido.
+
 ## Chats: el filtro de canales tiene que sumar
 
 En el desplegable de canales, «Todos» decía **614** y las filas de abajo sumaban

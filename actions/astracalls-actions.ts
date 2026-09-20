@@ -10,6 +10,7 @@ import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { persistChatMessage } from '@/lib/chat-persistence';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
+import { laLineaDeWhatsappDeLaCuenta } from '@/lib/linea-de-whatsapp';
 
 const BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -90,12 +91,15 @@ export async function linkMyCallSession(): Promise<{ success: boolean; sid?: str
 
   // Crear sesión nueva si no tiene
   if (!sid) {
-    // Nombre legible: instancia WhatsApp > empresa > nombre > email
+    // Nombre legible: línea de WhatsApp (la de QR, con el proveedor que sea) >
+    // empresa > nombre > email. Pidiendo `instanceType: 'Whatsapp'`, una cuenta
+    // con su línea en WhatsApp Mensajería se quedaba sin ese nombre y la sesión
+    // de llamadas nacía llamándose como la empresa o, peor, con un uuid.
     const [inst, u] = await Promise.all([
-      db.instancia.findFirst({ where: { userId: accountId, instanceType: 'Whatsapp' }, select: { instanceName: true } }),
+      laLineaDeWhatsappDeLaCuenta(accountId),
       db.user.findUnique({ where: { id: accountId }, select: { company: true, name: true } }),
     ]);
-    const sessionName = inst?.instanceName || u?.company || u?.name || me.email || accountId;
+    const sessionName = inst.linea?.instanceName || u?.company || u?.name || me.email || accountId;
     try {
       const r = await fetch(`${BASE}/api/sessions`, {
         method: 'POST',
@@ -143,10 +147,10 @@ export async function linkMyCallSessionByPhone(
   }
   if (!sid) {
     const [inst, u] = await Promise.all([
-      db.instancia.findFirst({ where: { userId: accountId, instanceType: 'Whatsapp' }, select: { instanceName: true } }),
+      laLineaDeWhatsappDeLaCuenta(accountId),
       db.user.findUnique({ where: { id: accountId }, select: { company: true, name: true } }),
     ]);
-    const sessionName = inst?.instanceName || u?.company || u?.name || me.email || accountId;
+    const sessionName = inst.linea?.instanceName || u?.company || u?.name || me.email || accountId;
     try {
       const r = await fetch(`${BASE}/api/sessions`, {
         method: 'POST',
@@ -390,16 +394,14 @@ export async function logOutgoingCallAction(
     if (!userId) return { id: null };
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { id: null };
-    // Instancia para asociar la llamada. NO exigir 'Whatsapp' exacto: muchas
-    // cuentas usan otros tipos (evolution/meta) o varios canales. Si no
-    // hay ninguna, se usa un nombre por defecto para NO perder el registro.
-    const inst =
-      (await db.instancia.findFirst({
-        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution'] } },
-        select: { instanceName: true },
-      })) ??
-      (await db.instancia.findFirst({ where: { userId }, select: { instanceName: true } }));
-    const instanceName = inst?.instanceName || 'llamadas';
+    // Instancia para asociar la llamada: la línea por QR de la cuenta, con el
+    // proveedor que sea. La lista escrita a mano dejaba fuera `waha` —que es
+    // como nacen hoy las líneas— así que en esas cuentas caía en el respaldo
+    // «cualquier instancia», y con un canal de Meta al lado podía asociar la
+    // llamada al canal equivocado. Si no hay ninguna se usa un nombre por
+    // defecto para NO perder el registro, que es lo que importa aquí.
+    const { linea, todas } = await laLineaDeWhatsappDeLaCuenta(userId);
+    const instanceName = linea?.instanceName || todas[0]?.instanceName || 'llamadas';
     const remoteJid = `${digits}@s.whatsapp.net`;
     const messageId = `callout_${Date.now()}_${digits}`;
     await persistChatMessage({
