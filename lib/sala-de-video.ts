@@ -523,6 +523,46 @@ export function laDistribucionQueSeVe(
 }
 
 /**
+ * Las dos pestañas del panel de al lado, y lo que se recuerda de él.
+ *
+ * Se guarda **lo que se está mirando**, o `plegado`. Tres valores y no un
+ * booleano aparte: con «abierto» por un lado y «qué pestaña» por otro, el día
+ * que uno de los dos no se escriba el panel vuelve abierto por la pestaña de
+ * otra reunión, y eso se lee como que la App eligió sola.
+ *
+ * Y el valor por defecto —no haber guardado nada— es **plegado**: una reunión
+ * se abre para ver a la gente, no para leer un chat que todavía está vacío.
+ */
+export const PESTANAS_DEL_PANEL = ["chat", "gente"] as const;
+export type PestanaDelPanel = (typeof PESTANAS_DEL_PANEL)[number];
+export type PanelGuardado = PestanaDelPanel | "plegado";
+
+export const LLAVE_DEL_PANEL = "reunion:panel";
+
+export function esPanelGuardado(v: unknown): v is PanelGuardado {
+    return (
+        v === "plegado" || (typeof v === "string" && (PESTANAS_DEL_PANEL as readonly string[]).includes(v))
+    );
+}
+
+/** Cómo se guarda lo que hay ahora: `null` es plegado. */
+export function comoSeGuardaElPanel(panel: PestanaDelPanel | null): PanelGuardado {
+    return panel ?? "plegado";
+}
+
+/**
+ * Con qué panel se abre una reunión, a partir de lo guardado.
+ *
+ * Lo que no se entienda —un valor de otra versión, algo a medio escribir— cae
+ * en plegado. Se ve de menos, nunca de más: un panel que se abre solo tapa el
+ * video de quien no pidió nada.
+ */
+export function elPanelDeEntrada(guardado: unknown): PestanaDelPanel | null {
+    if (!esPanelGuardado(guardado) || guardado === "plegado") return null;
+    return guardado;
+}
+
+/**
  * Lo que se guarda de un mensaje del chat de la reunión.
  *
  * Tres cosas, y ninguna es cosmética:

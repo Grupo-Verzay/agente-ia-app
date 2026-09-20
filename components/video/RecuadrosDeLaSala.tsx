@@ -73,10 +73,18 @@ export function RecuadrosDeLaSala({
             // `overflow-hidden` y no `overflow-y-auto`: la rejilla tiene que
             // CABER. Una videollamada en la que hay que bajar para ver al
             // cuarto es una videollamada de tres.
-            <div className={cn("min-h-0 flex-1 overflow-hidden p-2 sm:p-3", className)}>
-                <div className={cn("grid h-full gap-2", laRejilla(gente.length))}>
+            //
+            // Y **sin relleno exterior**: el video ocupa toda la caja, que es
+            // lo que la cabecera y los mandos dejaron libre al pasar a flotar
+            // encima. Lo único que separa un recuadro de otro es el `gap`.
+            <div data-rejilla-de-la-sala className={cn("min-h-0 flex-1 overflow-hidden", className)}>
+                <div className={cn("grid h-full gap-1.5", laRejilla(gente.length))}>
                     {gente.map((g) => (
-                        <Recuadro key={g.id} {...g} />
+                        // Con una sola persona el recuadro ES la caja, así que
+                        // ni borde ni esquinas: un marco redondeado a sangre
+                        // deja cuatro muescas del fondo en las esquinas y se
+                        // lee como que el video no llega al borde.
+                        <Recuadro key={g.id} {...g} sinMarco={gente.length <= 1} />
                     ))}
                 </div>
             </div>
@@ -92,8 +100,9 @@ export function RecuadrosDeLaSala({
 
     return (
         <div
+            data-rejilla-de-la-sala
             className={cn(
-                "flex min-h-0 flex-1 gap-2 overflow-hidden p-2 sm:p-3",
+                "flex min-h-0 flex-1 gap-1.5 overflow-hidden",
                 contenedor,
                 className,
             )}
@@ -111,7 +120,7 @@ export function RecuadrosDeLaSala({
                     // desplazamiento es la red de seguridad para una pantalla
                     // muy estrecha, donde lo que no puede perderse es el
                     // orador.
-                    "flex gap-2 overflow-auto",
+                    "flex gap-1.5 overflow-auto",
                     tira,
                 )}
             >
@@ -152,7 +161,8 @@ export function Recuadro({
     fallo = false,
     reconectando = false,
     grande = false,
-}: LoQueSePinta & { grande?: boolean }) {
+    sinMarco = false,
+}: LoQueSePinta & { grande?: boolean; sinMarco?: boolean }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
     useEffect(() => {
@@ -168,12 +178,21 @@ export function Recuadro({
         // coloca, que es el único que sabe cuánto sitio hay. Con la altura
         // atada al ancho, dos filas se salen por abajo.
         <div
+            data-recuadro
             className={cn(
-                "relative h-full min-h-0 overflow-hidden rounded-lg border bg-zinc-900",
+                "relative h-full min-h-0 overflow-hidden border bg-zinc-900",
+                sinMarco ? "rounded-none" : "rounded-lg",
                 // El anillo ámbar es la mano levantada, y va en el BORDE y no
                 // solo en el icono: en la tira de miniaturas el icono mide diez
-                // píxeles y no lo ve nadie.
-                manoLevantada ? "border-amber-400 ring-2 ring-amber-400/60" : "border-zinc-800",
+                // píxeles y no lo ve nadie. Se pinta **aunque el recuadro vaya
+                // sin marco**: es lo único que dice que alguien pidió la
+                // palabra, y con una sola persona en la sala esa persona es la
+                // que la pidió.
+                manoLevantada
+                    ? "border-amber-400 ring-2 ring-amber-400/60"
+                    : sinMarco
+                      ? "border-transparent"
+                      : "border-zinc-800",
             )}
         >
             <video
@@ -245,6 +264,10 @@ export function Recuadro({
                 </span>
             ) : null}
 
+            {/* El pie va a la IZQUIERDA y la barra de mandos flota centrada,
+                así que no se pisan aunque el recuadro llegue al borde de abajo.
+                Medido: la barra son ~290 px centrados y el nombre se queda en
+                su mitad. */}
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
                 <span className="min-w-0 flex-1 truncate text-xs text-zinc-100">{nombre}</span>
                 {compartiendo ? (
