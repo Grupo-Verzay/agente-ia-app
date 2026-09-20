@@ -16,6 +16,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
+    alternarElEspacio,
+    desplegarElEspacio,
+    guardarLosEspaciosPlegados,
+    losEspaciosPlegados,
+} from "@/lib/plegado-de-espacios";
+import {
     NOMBRE_DEL_TIPO_DE_MENCION,
     NOMBRE_DE_LA_VISTA,
     VISTAS,
@@ -71,7 +77,15 @@ async function pedir<T>(
 /** Cuánto se espera sin teclear antes de guardar solo. */
 const ESPERA_ANTES_DE_GUARDAR = 2500;
 
-export function DocumentacionClient({ inicial }: { inicial: ArbolDeDocumentacion | null }) {
+export function DocumentacionClient({
+    inicial,
+    cuentaId,
+    personaId,
+}: {
+    inicial: ArbolDeDocumentacion | null;
+    cuentaId: string;
+    personaId: string;
+}) {
     const router = useRouter();
     const parametros = useSearchParams();
     const [arbol, setArbol] = useState(inicial);
@@ -96,6 +110,62 @@ export function DocumentacionClient({ inicial }: { inicial: ArbolDeDocumentacion
 
     const contenidoRef = useRef<unknown>(null);
     contenidoRef.current = contenido;
+
+    /* ── Qué espacios están plegados ─────────────────────────────────────── */
+
+    /**
+     * Se arranca **sin nada plegado**, que es lo mismo que pinta el servidor, y
+     * lo guardado se aplica después de montar. Leerlo al pintar sería tocar
+     * `localStorage` durante el render —donde no existe en el servidor— y las
+     * dos salidas no coincidirían: una hidratación rota.
+     */
+    const [plegados, setPlegados] = useState<ReadonlySet<string>>(() => new Set<string>());
+
+    useEffect(() => {
+        setPlegados(losEspaciosPlegados(cuentaId, personaId));
+    }, [cuentaId, personaId]);
+
+    /**
+     * Alternar uno, y **guardar aquí dentro**.
+     *
+     * Lo guardado NO se escribe desde un efecto sobre `plegados`: ese efecto
+     * correría también en el montaje, con el conjunto vacío del arranque, y
+     * **borraría la preferencia guardada** antes de que la hidratación de
+     * arriba llegara a leerla. Se escribe solo donde de verdad cambia algo.
+     */
+    const alternarPlegado = useCallback(
+        (espacioId: string) => {
+            setPlegados((prev) => {
+                const nuevo = alternarElEspacio(prev, espacioId);
+                guardarLosEspaciosPlegados(cuentaId, personaId, nuevo);
+                return nuevo;
+            });
+        },
+        [cuentaId, personaId],
+    );
+
+    /**
+     * El espacio del documento abierto se despliega solo.
+     *
+     * Es un cambio de estado de verdad —se quita del conjunto—, **no una
+     * expansión forzada al pintar**: forzándola, mientras ese documento
+     * estuviera abierto el clic en la cabecera no haría nada visible y no
+     * habría forma de plegar ese espacio. Se sale de él plegándolo, como
+     * cualquier otro.
+     *
+     * Depende **solo** del espacio abierto: con `plegados` en la lista, plegarlo
+     * a mano lo volvería a desplegar en el acto.
+     */
+    const espacioAbiertoId = abierto?.espacioId ?? null;
+    useEffect(() => {
+        if (!espacioAbiertoId) return;
+        setPlegados((prev) => {
+            const nuevo = desplegarElEspacio(prev, espacioAbiertoId);
+            if (!nuevo) return prev;
+            guardarLosEspaciosPlegados(cuentaId, personaId, nuevo);
+            return nuevo;
+        });
+    }, [espacioAbiertoId, cuentaId, personaId]);
 
     /* ── Refrescar el árbol ──────────────────────────────────────────────── */
 
@@ -409,6 +479,8 @@ export function DocumentacionClient({ inicial }: { inicial: ArbolDeDocumentacion
                                 entrada={entrada}
                                 plantillas={arbol.plantillas}
                                 abiertoId={abierto?.id ?? null}
+                                plegado={plegados.has(entrada.espacio.id)}
+                                alAlternar={() => alternarPlegado(entrada.espacio.id)}
                                 alAbrir={(id) => void abrir(id)}
                                 alRefrescar={refrescarArbol}
                             />

@@ -6912,6 +6912,95 @@ insignia de *De otra cuenta*» **no se mide porque no puede darse**:
 `puedeMandarEnElEspacio` es falso en un espacio recibido, así que los dos son
 excluyentes — medirla sería medir una pantalla que React no pinta.
 
+### Plegar un espacio: se guarda lo PLEGADO, no lo desplegado
+
+El árbol enseñaba siempre todos los documentos de todos los espacios, así que
+con varios espacios llenos era una lista larguísima sin forma de contraerla.
+Cada espacio se pliega pulsando su nombre.
+
+Lo delicado no es el pliegue: es **qué se guarda**, y la respuesta es el
+conjunto de los **plegados**, en `lib/plegado-de-espacios.ts`. De ahí salen las
+dos mitades del encargo sin escribir ninguna rama:
+
+- **Un espacio que nunca se ha tocado nace desplegado**, porque no está en el
+  conjunto. No hay que sembrar nada la primera vez ni acordarse de añadir los
+  espacios nuevos, que es justo donde se olvidaría uno.
+- **Y lo guardado no crece con el árbol.** Guardando lo desplegado, una cuenta
+  con cuarenta espacios escribiría cuarenta ids para decir que no ha tocado
+  nada.
+
+Vive en `localStorage` y no en la base —es una preferencia de vista de esta
+persona y este equipo, no un dato compartido—, con la **misma forma que
+`llaveDelUltimoCanal`**: la llave lleva la cuenta y la persona, el separador es
+`::` y no `_` (un id con un guion bajo dentro hace que («a», «b\_c») y («a\_b»,
+«c») den la misma llave), y **cada acceso va en su `try`**, porque en una
+ventana privada tocar `localStorage` tira una excepción y sin él el árbol entero
+se queda sin pintar.
+
+Y los dos ids **bajan como props desde el servidor** (`quienFirma`, que es puro
+y ya reparte las dos preguntas de siempre). Leerlos al pintar no vale:
+`localStorage` no existe en el servidor y las dos salidas no coincidirían, o sea
+una hidratación rota.
+
+Cinco cosas que hay que mantener:
+
+1. **Lo guardado NO se escribe desde un efecto sobre el conjunto.** Ese efecto
+   correría también en el montaje, con el conjunto vacío del arranque, y
+   **borraría la preferencia** antes de que la hidratación llegara a leerla —el
+   guardado con un conjunto vacío borra la entrada, a propósito—. Se escribe
+   solo donde de verdad cambia algo: al alternar y al desplegar el del documento
+   abierto.
+2. **El espacio del documento abierto se despliega SOLO, y es un cambio de
+   estado de verdad**, no una expansión forzada al pintar. Forzándola, mientras
+   ese documento estuviera abierto el clic en la cabecera no haría nada visible
+   y no habría forma de plegar ese espacio: un callejón sin salida. Y el efecto
+   depende **solo** del espacio abierto — con el conjunto en sus dependencias,
+   plegarlo a mano lo volvería a desplegar en el acto.
+3. **`desplegarElEspacio` devuelve `null` cuando no había nada que desplegar.**
+   Se llama en cada cambio de documento abierto y casi siempre su espacio ya
+   está desplegado; devolviendo un conjunto nuevo igual al anterior se
+   escribiría en `localStorage` y se repintaría el árbol entero en cada clic del
+   árbol, para no cambiar nada.
+4. **El estado vive en `DocumentacionClient`, no en cada espacio.** El conjunto
+   entero se guarda bajo **una** llave, así que con el estado dentro de cada
+   espacio varios escribiendo esa misma llave a la vez se pisarían y la
+   preferencia se perdería sin que nadie se entere.
+5. **Lo que no se entienda cae en «nada plegado».** Un valor rancio, de otra
+   forma o de otra versión no puede esconder espacios: se ve de más, nunca de
+   menos. Un árbol que esconde un espacio por un dato viejo se lee como que ese
+   espacio desapareció.
+
+**Un espacio vacío no enseña flecha y no se pliega** —no hay nada que esconder,
+y una flecha ahí es un mando que no hace nada—, así que `desplegado` no es
+`!plegado` a secas: un espacio del que se borraron todos sus documentos podría
+tener su pliegue guardado de antes y se quedaría con una flecha muerta. Sí
+conserva **el hueco** de la flecha, o su icono saldría 18 px a la izquierda del
+de al lado y se leería como otro nivel del árbol (es el caso en que un espacio
+en blanco SÍ se quiere: la regla de *un `opacity-0` no libera sitio* al revés).
+
+Y **el «+» y el «⋯» son hermanos del nombre, no hijos**, así que pulsarlos no
+dispara el plegado y no hace falta cortar ninguna propagación. El día que uno de
+los dos se meta dentro del botón, volvería a hacer falta.
+
+Plegado **se desmonta, no se esconde**: aquí no hay nada vivo que preservar —ni
+un `<audio>` sonando, como en la reunión— y un árbol con veinte espacios
+cerrados no tiene por qué seguir pintando sus filas ni montando su `DndContext`.
+
+Medido en Chromium sobre el CSS del build, las 24 combinaciones —cuatro
+anchuras por seis variantes—. La flecha le quita **18 px** al nombre (sus 14 más
+el hueco de 4) y **la cabecera no cambia de alto**:
+
+| ventana | columna | nombre antes | nombre ahora | alto | ¿se corta? |
+| --- | --- | --- | --- | --- | --- |
+| 1440 | 320 | 213 | **195** | 32 px | no |
+| 1280 | 320 | 213 | **195** | 32 px | no |
+| 1024 | 288 | 181 | **163** | 32 px | sí, ya antes |
+| 390 | 288 | 181 | **163** | 32 px | sí, ya antes |
+
+Un espacio vacío mide **lo mismo** que uno con flecha —163 y 195—, que es para
+lo que está el hueco; la flecha sale a 90° desplegada y a 0° plegada; plegado no
+hay lista en el DOM; y nada desborda en ninguna de las 24.
+
 ### Y el banco corre en dos modos, con las consultas VIEJAS al lado
 
 `lib/__tests__/documentacion-db.test.mjs`, contra Postgres de verdad. Lo que no

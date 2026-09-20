@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
+import { quienFirma } from "@/lib/chat-de-equipo";
 import { leerElArbolAction } from "@/actions/documentacion-actions";
 import { DocumentacionClient } from "./_components/DocumentacionClient";
 
@@ -28,9 +29,21 @@ export default async function DocumentacionPage() {
 
     const arbol = await leerElArbolAction();
 
+    // Los dos ids con los que el árbol recuerda qué espacios están plegados.
+    // **Bajan como props desde el servidor y no se leen al pintar**:
+    // `localStorage` no existe aquí, así que calcularlos en el navegador daría
+    // una salida distinta en cada lado, o sea una hidratación rota. Y salen
+    // gratis de `quienFirma`, que es puro y ya reparte las dos preguntas de
+    // siempre —la PERSONA que mira y la CUENTA en la que está—.
+    const firma = quienFirma(user);
+
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <DocumentacionClient inicial={arbol} />
+            <DocumentacionClient
+                inicial={arbol}
+                cuentaId={firma?.cuentaId ?? ""}
+                personaId={firma?.personaId ?? ""}
+            />
         </div>
     );
 }
