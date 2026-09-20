@@ -286,9 +286,15 @@ async function unificarUnaFicha(pareja: ParejaDeFicha): Promise<void> {
       await tx.$executeRaw`UPDATE ${t} SET ${col} = ${buenaId} WHERE ${col} = ${malaId}`;
     }
 
-    // Las cuatro condiciones se vuelven a mirar aqui: entre el SELECT de arriba
-    // y este borrado alguien pudo asignarse la ficha o ponerle nombre, y
-    // entonces ya no es una copia sin estrenar.
+    // Las tres condiciones de "nadie la ha reclamado" se vuelven a mirar aqui:
+    // entre el SELECT de arriba y este borrado alguien pudo asignarse la ficha
+    // o ponerle nombre.
+    //
+    // La cuarta -`createdAt` = `updatedAt`- no se repite a proposito. A estas
+    // alturas lo suyo ya esta movido a la ficha buena, asi que dejarla viva por
+    // un simple re-guardado seria quedarse con una copia vacia que nadie va a
+    // volver a mirar. Lo que hay que respetar es que alguien la reclame, y eso
+    // lo dicen estas tres.
     await tx.$executeRaw`
       DELETE FROM "Session"
        WHERE "id" = ${malaId}
