@@ -21,6 +21,8 @@ import {
     WifiOff,
     ScreenShare,
     Sparkles,
+    TriangleAlert,
+    Upload,
     UserCheck,
     UserX,
     Users,
@@ -54,8 +56,14 @@ import {
     type PestanaDelPanel,
 } from "@/lib/sala-de-video";
 import {
+    FONDOS_POR_DEFECTO,
     LLAVE_DEL_FONDO,
+    LLAVE_DEL_FONDO_ID,
+    cargarImagenDeFondo,
     esUnModoDeFondo,
+    fondoPresetPorId,
+    swatchDeFondo,
+    type FondoElegido,
     type ModoDeFondo,
 } from "@/lib/fondo-de-video";
 import {
@@ -143,7 +151,29 @@ export function SalaDeVideo({
      */
     alVolverAEntrar?: () => Promise<void> | void;
 }) {
-    const medios = useMediosDeLlamada({ alFallar: (m) => toast.error(m) });
+    /**
+     * Un fallo de la reunión se enseña DENTRO del overlay, no solo en un toast.
+     *
+     * El `toast` de `sonner` se monta en el layout, a nivel de `body`. En
+     * pantalla completa el navegador solo pinta el nodo a pantalla completa y
+     * sus descendientes, así que ese toast **no se ve** — que es justo por lo
+     * que un fallo del fondo se leía como «el botón no hace nada, sin error».
+     * La franja de avisos sí es descendiente del nodo a pantalla completa, así
+     * que un aviso puesto ahí se ve siempre. Se mantiene el toast además, que
+     * fuera de pantalla completa está bien.
+     */
+    const [avisoDeError, setAvisoDeError] = useState<string | null>(null);
+    const relojDelAviso = useRef<number | null>(null);
+    const avisar = useCallback((m: string) => {
+        setAvisoDeError(m);
+        toast.error(m);
+        if (relojDelAviso.current !== null) window.clearTimeout(relojDelAviso.current);
+        // Un error es transitorio —al revés que el de grabación o el de
+        // reconexión, que duran—: se puede quitar solo pasados unos segundos, y
+        // también a mano.
+        relojDelAviso.current = window.setTimeout(() => setAvisoDeError(null), 8000);
+    }, []);
+    const medios = useMediosDeLlamada({ alFallar: avisar });
     const [arrancando, setArrancando] = useState(true);
     const [saliendo, setSaliendo] = useState(false);
     const [reentrando, setReentrando] = useState(false);
@@ -274,7 +304,17 @@ export function SalaDeVideo({
         fondoRestaurado.current = true;
         try {
             const f = window.localStorage.getItem(LLAVE_DEL_FONDO);
-            if (esUnModoDeFondo(f) && f !== "ninguno") void medios.cambiarElFondo(f);
+            if (!esUnModoDeFondo(f) || f === "ninguno") return;
+            if (f === "desenfoque") {
+                void medios.cambiarElFondo("desenfoque");
+                return;
+            }
+            // Un fondo de serie se restaura por su id. Una imagen subida no se
+            // guarda —no cabe en `localStorage`—, así que si lo último fue una
+            // imagen el id sale vacío y se cae al primer preset: la sesión es
+            // otra y su imagen ya no está.
+            const id = window.localStorage.getItem(LLAVE_DEL_FONDO_ID) || undefined;
+            void medios.cambiarElFondo("fondo", { tipo: "preset", id: fondoPresetPorId(id).id });
         } catch {
             // Igual que arriba.
         }
@@ -283,16 +323,57 @@ export function SalaDeVideo({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [medios.camaraEncendida]);
 
-    const cambiarFondo = useCallback(
-        async (f: ModoDeFondo) => {
-            await medios.cambiarElFondo(f);
+    /** Recordar entre reuniones qué fondo estaba puesto (los presets; ver arriba). */
+    const recordarFondo = useCallback((modo: ModoDeFondo, id?: string) => {
+        try {
+            window.localStorage.setItem(LLAVE_DEL_FONDO, modo);
+            if (modo === "fondo") window.localStorage.setItem(LLAVE_DEL_FONDO_ID, id ?? "");
+        } catch {
+            // Que no se recuerde no impide ponerlo ahora.
+        }
+    }, []);
+
+    /** Sin fondo o desenfoque. */
+    const elegirModoDeFondo = useCallback(
+        async (modo: ModoDeFondo) => {
+            await medios.cambiarElFondo(modo);
+            recordarFondo(modo);
+        },
+        [medios, recordarFondo],
+    );
+
+    /** Un fondo de serie. */
+    const elegirFondoPreset = useCallback(
+        async (id: string) => {
+            await medios.cambiarElFondo("fondo", { tipo: "preset", id });
+            recordarFondo("fondo", id);
+        },
+        [medios, recordarFondo],
+    );
+
+    /**
+     * Subir una imagen propia de fondo.
+     *
+     * Si el archivo no vale, `cargarImagenDeFondo` lanza con un motivo legible
+     * y se enseña en el aviso de dentro del overlay — un `<input file>` que no
+     * hace nada al elegir un PDF se lee como que la App está rota.
+     */
+    const subirFondo = useCallback(
+        async (file: File) => {
             try {
-                window.localStorage.setItem(LLAVE_DEL_FONDO, f);
-            } catch {
-                // Igual que arriba.
+                const imagen = await cargarImagenDeFondo(file);
+                await medios.cambiarElFondo("fondo", {
+                    tipo: "imagen",
+                    imagen,
+                    nombre: file.name,
+                });
+                // La imagen no se persiste; el modo sí, con el id vacío.
+                recordarFondo("fondo", "");
+            } catch (error) {
+                avisar(error instanceof Error ? error.message : "No se pudo usar la imagen.");
             }
         },
-        [medios],
+        [medios, recordarFondo, avisar],
     );
 
     // ── Pantalla completa ───────────────────────────────────────────────────
@@ -842,6 +923,22 @@ export function SalaDeVideo({
                 Un aviso no es una barra de mandos: es raro, dura poco y lo que
                 cuesta es 30 px de video mientras pasa algo que hay que mirar. */}
 
+            {/* Un fallo de la reunión —fondo, micro, cámara, pantalla—. Va aquí
+                y no solo en un toast porque el toast no se ve a pantalla
+                completa (vive fuera del nodo a pantalla completa). Se puede
+                cerrar a mano, y se va solo a los ocho segundos. */}
+            {avisoDeError ? (
+                <button
+                    type="button"
+                    onClick={() => setAvisoDeError(null)}
+                    className="flex w-full shrink-0 items-center gap-2 border-b border-red-500/40 bg-red-500/15 px-3 py-2 text-left text-xs text-red-100 sm:px-4"
+                >
+                    <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">{avisoDeError}</span>
+                    <span className="shrink-0 text-red-300/80">Cerrar</span>
+                </button>
+            ) : null}
+
             {/* **El aviso de que se está grabando, para TODOS.**
 
                 Lo pinta la pantalla de cada participante a partir de lo que
@@ -1182,12 +1279,15 @@ export function SalaDeVideo({
                         />
                         <ElFondo
                             modo={medios.fondo}
+                            fondoId={medios.fondoId}
                             preparando={medios.preparandoElFondo}
                             // Sin cámara no hay fondo que poner, y un menú que
                             // no puede hacer nada se lee como que la App está
                             // rota. Se dice por qué en el `title`.
                             sinCamara={!medios.camaraEncendida}
-                            onElegir={(f) => void cambiarFondo(f)}
+                            onModo={(m) => void elegirModoDeFondo(m)}
+                            onPreset={(id) => void elegirFondoPreset(id)}
+                            onSubir={(file) => void subirFondo(file)}
                             onMenu={(abierto) => mandos.fijar("menu", abierto)}
                         />
                         <Button
@@ -1351,23 +1451,32 @@ function MandoDeCabecera({
 }
 
 /**
- * El menú del fondo.
+ * El menú del fondo: sin fondo, desenfoque, los fondos de serie y subir uno.
  *
- * Un menú y no un interruptor porque son **tres** estados y no dos: sin fondo,
- * desenfocado y sustituido. Con dos botones sueltos ocuparían el sitio de dos
- * mandos en una fila que en un móvil ya va justa.
+ * Un menú y no un interruptor porque son varios estados, no dos. Los fondos de
+ * serie van como una rejilla de pastillas —cada una con su degradado, del mismo
+ * par de colores que se pinta en el lienzo— para elegir de un vistazo, y debajo
+ * «Subir imagen». Con dos botones sueltos ocuparían el sitio de dos mandos en
+ * una fila que en un móvil ya va justa.
  */
 function ElFondo({
     modo,
+    fondoId,
     preparando,
     sinCamara,
-    onElegir,
+    onModo,
+    onPreset,
+    onSubir,
     onMenu,
 }: {
     modo: ModoDeFondo;
+    /** El preset activo, `"subida"` o `null`, para marcar el elegido. */
+    fondoId: string | null;
     preparando: boolean;
     sinCamara: boolean;
-    onElegir: (f: ModoDeFondo) => void;
+    onModo: (f: ModoDeFondo) => void;
+    onPreset: (id: string) => void;
+    onSubir: (file: File) => void;
     /**
      * Que hay un menú abierto.
      *
@@ -1377,6 +1486,7 @@ function ElFondo({
      */
     onMenu?: (abierto: boolean) => void;
 }) {
+    const inputRef = useRef<HTMLInputElement | null>(null);
     const encendido = modo !== "ninguno";
     const rotulo = sinCamara
         ? "Enciende la cámara para cambiar el fondo"
@@ -1385,6 +1495,23 @@ function ElFondo({
           : "Desenfocar o cambiar el fondo";
     return (
         <DropdownMenu onOpenChange={onMenu}>
+            {/* El `<input file>` va FUERA del contenido del menú: Radix lo
+                desmonta al cerrarse, y si se fuera mientras el diálogo nativo
+                del sistema está abierto, su `change` no llegaría. Aquí sigue
+                montado pase lo que pase con el menú. */}
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    // Se limpia el valor para poder volver a elegir el MISMO
+                    // archivo otra vez si se quiere.
+                    e.target.value = "";
+                    if (file) onSubir(file);
+                }}
+            />
             <DropdownMenuTrigger asChild>
                 <Button
                     size="icon"
@@ -1407,28 +1534,70 @@ function ElFondo({
                     )}
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" side="top" className="w-56">
-                <DropdownMenuItem onClick={() => onElegir("ninguno")}>
+            <DropdownMenuContent align="center" side="top" className="w-64">
+                <DropdownMenuItem onClick={() => onModo("ninguno")}>
                     Sin fondo
                     {modo === "ninguno" ? <span className="ml-auto text-xs">✓</span> : null}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onElegir("desenfoque")} disabled={sinCamara}>
+                <DropdownMenuItem onClick={() => onModo("desenfoque")} disabled={sinCamara}>
                     Desenfocar el fondo
                     {modo === "desenfoque" ? <span className="ml-auto text-xs">✓</span> : null}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onElegir("fondo")} disabled={sinCamara}>
-                    Fondo liso
-                    {modo === "fondo" ? <span className="ml-auto text-xs">✓</span> : null}
-                </DropdownMenuItem>
+
                 {sinCamara ? (
                     <p className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
                         Enciende la cámara para poder cambiar el fondo.
                     </p>
                 ) : (
-                    <p className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
-                        La primera vez tarda unos segundos: se descarga el modelo que
-                        te separa del fondo.
-                    </p>
+                    <>
+                        <p className="px-2 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">
+                            Fondos
+                        </p>
+                        {/* Las pastillas NO son `DropdownMenuItem`: elegir un
+                            fondo no cierra el menú, para poder probar varios
+                            seguidos sin volver a abrirlo. */}
+                        <div className="grid grid-cols-3 gap-1.5 px-2 pb-1">
+                            {FONDOS_POR_DEFECTO.map((p) => {
+                                const activo = modo === "fondo" && fondoId === p.id;
+                                return (
+                                    <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => onPreset(p.id)}
+                                        title={p.nombre}
+                                        aria-label={`Fondo ${p.nombre}`}
+                                        aria-pressed={activo}
+                                        className={cn(
+                                            "h-10 rounded-md ring-offset-1 ring-offset-popover transition",
+                                            activo
+                                                ? "ring-2 ring-sky-500"
+                                                : "ring-1 ring-border hover:ring-sky-400",
+                                        )}
+                                        style={{ backgroundImage: swatchDeFondo(p) }}
+                                    />
+                                );
+                            })}
+                        </div>
+                        <DropdownMenuItem
+                            onSelect={(e) => {
+                                // Que el menú no se cierre por el clic: se abre
+                                // el selector de archivo, y cerrar el menú lo
+                                // cancelaría en algunos navegadores.
+                                e.preventDefault();
+                                inputRef.current?.click();
+                            }}
+                        >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Subir imagen…
+                            {modo === "fondo" && fondoId === "subida" ? (
+                                <span className="ml-auto text-xs">✓</span>
+                            ) : null}
+                        </DropdownMenuItem>
+                        <p className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                            La primera vez tarda unos segundos: se descarga el modelo que
+                            te separa del fondo.
+                        </p>
+                    </>
                 )}
             </DropdownMenuContent>
         </DropdownMenu>

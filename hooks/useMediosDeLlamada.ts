@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ElFondoDeVideo, type ModoDeFondo } from "@/lib/fondo-de-video";
+import { ElFondoDeVideo, type FondoElegido, type ModoDeFondo } from "@/lib/fondo-de-video";
 
 /**
  * El micrófono, la cámara y la pantalla de una llamada — **una sola vez**.
@@ -54,6 +54,12 @@ export type EstadoDeLosMedios = {
      * se ve como que a veces se manda la cámara sin desenfocar.
      */
     fondo: ModoDeFondo;
+    /**
+     * Cuál fondo de sustitución está puesto: el id de un preset, `"subida"` si
+     * es una imagen propia, o `null`. Solo para que el menú marque el activo;
+     * los demás no lo necesitan —el fondo va horneado en la pista del canvas—.
+     */
+    fondoId: string | null;
     /** Mientras se carga el modelo, que la primera vez son 6 MB. */
     preparandoElFondo: boolean;
     /** Lo que se ve en el recuadro propio. Cambia al encender o compartir. */
@@ -99,7 +105,7 @@ export type MediosDeLlamada = EstadoDeLosMedios & {
      * desenfocar que no mandar nada. Quien llama no tiene que envolverlo en un
      * `try`, que es donde se olvida.
      */
-    cambiarElFondo: (modo: ModoDeFondo) => Promise<void>;
+    cambiarElFondo: (modo: ModoDeFondo, fondo?: FondoElegido) => Promise<void>;
     /** Montar los dos transceptores en una conexión nueva y engancharle lo de ahora. */
     prepararLaConexion: (pc: RTCPeerConnection) => void;
     /** Lo mismo, pero sobre una conexión que ya trae los transceptores del otro. */
@@ -137,6 +143,7 @@ export function useMediosDeLlamada(opciones?: {
         compartiendo: false,
         pidiendo: false,
         fondo: "ninguno",
+        fondoId: null,
         preparandoElFondo: false,
     });
 
@@ -242,6 +249,17 @@ export function useMediosDeLlamada(opciones?: {
     }, []);
 
     /**
+     * La última elección de fondo, ENTERA (modo y qué fondo), por referencia.
+     *
+     * `alternarCamara` la lee para volver a poner el fondo al reencender la
+     * cámara, y no puede depender de ella en sus dependencias. Guardar solo el
+     * modo perdería qué preset o qué imagen estaba puesta.
+     */
+    const ultimaEleccionRef = useRef<{ modo: ModoDeFondo; fondo?: FondoElegido }>({
+        modo: "ninguno",
+    });
+
+    /**
      * Cambiar el fondo de la cámara.
      *
      * Dos cosas que no son obvias y las dos son de las que se olvidan:
@@ -254,35 +272,52 @@ export function useMediosDeLlamada(opciones?: {
      *    la cámara de siempre y se dice. Un botón que revienta la reunión por
      *    no poder desenfocar es mucho peor que uno que no desenfoca.
      */
+    /** El id que se enseña en el menú a partir de la elección. */
+    const idDelFondo = (modo: ModoDeFondo, fondo?: FondoElegido): string | null => {
+        if (modo !== "fondo") return null;
+        if (fondo?.tipo === "imagen") return "subida";
+        return fondo?.tipo === "preset" ? fondo.id : (ultimaEleccionRef.current.fondo?.tipo === "preset" ? ultimaEleccionRef.current.fondo.id : null);
+    };
+
     const cambiarElFondo = useCallback(
-        async (modo: ModoDeFondo) => {
+        async (modo: ModoDeFondo, fondo?: FondoElegido) => {
             if (modo === "ninguno") {
+                ultimaEleccionRef.current = { modo: "ninguno" };
                 apagarElFondo();
-                setEstado((e) => ({ ...e, fondo: "ninguno" }));
+                setEstado((e) => ({ ...e, fondo: "ninguno", fondoId: null }));
                 rehacerElLocal();
                 empujarLasPistas();
                 return;
             }
 
+            // Se recuerda la elección ENTERA —modo y qué fondo— para volver a
+            // ponerla si se apaga y enciende la cámara. Con solo el modo, subir
+            // una imagen y apagar la cámara la perdería en silencio.
+            ultimaEleccionRef.current = { modo, fondo: fondo ?? ultimaEleccionRef.current.fondo };
+
             const camara = camaraRef.current?.getVideoTracks()[0];
             if (!camara) {
                 // La elección se recuerda y se aplicará al encender la cámara.
-                setEstado((e) => ({ ...e, fondo: modo }));
+                setEstado((e) => ({ ...e, fondo: modo, fondoId: idDelFondo(modo, fondo) }));
                 return;
             }
 
             setEstado((e) => ({ ...e, preparandoElFondo: true }));
             try {
                 if (!fondoRef.current) fondoRef.current = new ElFondoDeVideo();
-                const procesada = await fondoRef.current.encender(camara, modo);
+                const procesada = await fondoRef.current.encender(
+                    camara,
+                    modo,
+                    ultimaEleccionRef.current.fondo,
+                );
                 pistaConFondoRef.current = procesada;
-                setEstado((e) => ({ ...e, fondo: modo }));
+                setEstado((e) => ({ ...e, fondo: modo, fondoId: idDelFondo(modo, fondo) }));
                 rehacerElLocal();
                 empujarLasPistas();
             } catch (error) {
                 console.warn("[medios] no se pudo poner el fondo", error);
                 apagarElFondo();
-                setEstado((e) => ({ ...e, fondo: "ninguno" }));
+                setEstado((e) => ({ ...e, fondo: "ninguno", fondoId: null }));
                 rehacerElLocal();
                 empujarLasPistas();
                 alFallar?.(
@@ -298,9 +333,6 @@ export function useMediosDeLlamada(opciones?: {
     /** Para poder llamarlo desde `alternarCamara` sin ordenar las definiciones. */
     const cambiarElFondoRef = useRef(cambiarElFondo);
     cambiarElFondoRef.current = cambiarElFondo;
-    /** Lo elegido, por referencia: `alternarCamara` no puede depender de él. */
-    const fondoElegidoRef = useRef<ModoDeFondo>("ninguno");
-    fondoElegidoRef.current = estado.fondo;
 
     const arrancar = useCallback(
         async (conVideo: boolean): Promise<boolean> => {
@@ -368,11 +400,13 @@ export function useMediosDeLlamada(opciones?: {
             });
             rehacerElLocal();
             empujarLasPistas();
-            // Y si había un fondo elegido, se vuelve a poner. Sin esto, apagar
-            // y encender la cámara lo pierde en silencio: el botón sigue
-            // pintado como encendido y lo que se manda es la cámara pelada.
-            if (fondoElegidoRef.current !== "ninguno") {
-                void cambiarElFondoRef.current(fondoElegidoRef.current);
+            // Y si había un fondo elegido, se vuelve a poner —con su preset o
+            // su imagen—. Sin esto, apagar y encender la cámara lo pierde en
+            // silencio: el botón sigue pintado como encendido y lo que se manda
+            // es la cámara pelada.
+            const ultima = ultimaEleccionRef.current;
+            if (ultima.modo !== "ninguno") {
+                void cambiarElFondoRef.current(ultima.modo, ultima.fondo);
             }
         } catch (error) {
             console.warn("[medios] no se pudo encender la cámara", error);
@@ -488,6 +522,7 @@ export function useMediosDeLlamada(opciones?: {
         pantallaRef.current = null;
         conexionesRef.current.clear();
         localRef.current = null;
+        ultimaEleccionRef.current = { modo: "ninguno" };
         setEstado({
             local: null,
             miAudio: null,
@@ -499,6 +534,7 @@ export function useMediosDeLlamada(opciones?: {
             // el final de una reunión, y la próxima empieza de cero. Lo que se
             // recuerda entre reuniones vive en `localStorage`, no aquí.
             fondo: "ninguno",
+            fondoId: null,
             preparandoElFondo: false,
         });
     }, []);
