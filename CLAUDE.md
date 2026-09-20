@@ -8476,6 +8476,184 @@ un árbol —lleva dentro lo que compartieron los casos de arriba—. Se compara
 orden **relativo** de lo que ese caso creó; lo contrario es afirmar sobre el
 orden en que corre el banco.
 
+## Documentación: las CARPETAS, y por qué la pertenencia no es una columna
+
+Los espacios eran la capa de más arriba y no se podían agrupar, así que la
+barra lateral se llenaba de espacios sueltos que en realidad son un mismo
+bloque. Encima de ellos hay ahora una capa de carpetas: una carpeta contiene
+espacios, y un espacio sigue conteniendo documentos como hasta ahora.
+
+**Una sola capa**, y no es una limitación temporal: dos niveles ya ordenan una
+barra de veinte espacios, y anidar carpetas trae consigo moverlas unas dentro
+de otras, los ciclos, el «¿hasta dónde pliego?» y un sangrado que a la tercera
+capa no cabe en 18 rem.
+
+### La pertenencia es de la pareja CUENTA + ESPACIO
+
+Lo obvio es una columna `carpetaId` en `doc_espacios`. **No vale**, y es la
+misma razón que ya obligó a sacar de ahí el orden del árbol:
+
+> **Una cosa compartida tiene UNA fila y DOS sitios.** Un espacio compartido
+> sale en el árbol de la cuenta dueña y en el de la invitada, y cada una lo
+> archiva donde le sirve. Con una columna en la fila solo cabe una carpeta, así
+> que moverlo en una cuenta se lo movería a la otra — **a una carpeta que en la
+> otra cuenta ni existe**, o sea un espacio desaparecido sin que nadie lo haya
+> borrado.
+
+Así que son **dos tablas de la App** con `CREATE TABLE IF NOT EXISTS` y sin
+clave foránea: `doc_carpetas` —que sí lleva su `cuentaId` dentro, porque una
+carpeta es de una cuenta y solo la ve ella— y `doc_espacio_en_carpeta`, cuya
+clave primaria es `(cuentaId, espacioId)`. Esa clave es además por donde se lee
+el mapa entero y por donde se borra una carpeta, así que no hace falta ningún
+índice más.
+
+Lo comprueba el banco con el caso real: la cuenta hija archiva un espacio que
+le compartieron y **la madre no ve nada cambiar**.
+
+### Y una carpeta que no está deja su espacio SUELTO, nunca escondido
+
+Es el invariante del que cuelga todo lo demás, y tiene su propio modo roto:
+
+> **Ningún espacio puede desaparecer del árbol por culpa de su carpeta.**
+
+Un `carpetaId` puede apuntar a algo que no está por dos caminos perfectamente
+normales: la carpeta se borró —y borrarla **no** borra sus espacios, que es el
+encargo— o es de otra cuenta. En los dos, el espacio sale **suelto y a la
+vista**. Lo decide `agruparElArbol` (`lib/carpetas-de-documentacion.ts`, puro).
+
+La forma ingenua —un `Map` por carpeta y meter dentro lo que le toca— se
+escribe sola y **pierde justo esos espacios, en silencio**. Está en el banco
+como `MODO=roto`, afirmando la desaparición: sin ese modo no se sabría si lo
+verde de al lado es que la regla se cumple o que el caso no llega a ejercerse.
+
+Y de ahí sale que `laColumnaDelEspacio` sea una función y no un
+`enCarpeta[id] ?? SUELTOS` escrito a mano: **tiene que decir lo mismo que
+`agruparElArbol`**. Si discreparan, el arrastre creería que un espacio vive en
+una columna que no se pinta en ninguna parte y se rendiría sin decir nada — o
+sea «el espacio no se queda donde lo dejo». El banco las encadena.
+
+### Borrar la carpeta no toca `doc_espacios`, y eso se comprueba en la base
+
+`borrarCarpeta` borra su fila y las de pertenencia, en una transacción, y **no
+escribe en `doc_espacios` por ningún lado**, ni siquiera su `borradoEn`. El
+banco lo afirma leyendo las filas después: los espacios siguen enteros y con
+`borradoEn` en nulo. Eso es lo que un banco de funciones puras no podría decir.
+
+El orden de dentro de la transacción no es indiferente, porque puede fallar a
+medias: **primero la pertenencia y después la carpeta**. Cayéndose en medio
+queda una carpeta vacía, que se ve y se vuelve a borrar; al revés quedarían
+filas apuntando a una carpeta que ya no está — inofensivas también, porque el
+reparto las trata como sueltas, pero invisibles.
+
+Y el diálogo **dice lo que hace**: «no se borra ningún espacio ni ningún
+documento», con el número de los que van a quedar sueltos delante. «¿Se van a
+borrar mis documentos?» es exactamente lo que se pregunta quien pulsa eso, y un
+diálogo que no lo contesta se cancela.
+
+### La puerta es la del ÁRBOL, no la del espacio
+
+`puedeMandarEnElArbol` —dueño, administrador y cualquiera del equipo que no sea
+un `agente`— y es **una sola función** con cuatro llamadores: crear, renombrar
+y borrar una carpeta, mover un espacio, y las dos guardas del orden
+(`arbol` y `carpetas`). Con la condición copiada en cada una, a la quinta se le
+pasa; es cómo se acabó teniendo un chat que se podía anclar y no se podía
+borrar.
+
+**Y no es `puedeMandarEnElEspacio`**, que es la de renombrar o borrar UN
+espacio. Aquella vale `false` en uno recibido a propósito —el reparto sigue
+siendo de quien lo hizo— y con ella no se podría archivar un espacio
+compartido, que es justo el caso que llena la barra lateral. Archivar es
+ordenar la vista de ESTA cuenta, no tocar el espacio de nadie.
+
+Lo que sí se comprueba al mover es que **la carpeta sea de esta cuenta** y que
+**el espacio se alcance de verdad**, con la misma función que pinta el árbol.
+Sin lo primero, una petición a mano metería el espacio en una carpeta que su
+dueña no pinta.
+
+### El orden: un tipo más en `orden_en_tablero`, no un mecanismo nuevo
+
+Las carpetas se colocan con `tipo: "carpetas"` y `tableroId` = la cuenta, al
+lado del `arbol` que ya colocaba los espacios. Dos formas de guardar la misma
+posición son una que se afina y otra que se queda atrás.
+
+Son **dos tipos y no uno** porque son dos listas distintas: las carpetas se
+ordenan entre ellas y los espacios entre los de su grupo. Mezclando los ids en
+una sola columna, mover una carpeta tendría que saber cuántos espacios hay
+debajo de cada una.
+
+Y de ahí sale que **no hiciera falta migrar nada**: el orden de los espacios
+sigue siendo el mismo número de siempre, solo que ahora se compara **dentro de
+su grupo**. Es la regla de los dos tableros —*el número es del tablero; la
+comparación, de la columna*— aplicada aquí, y es lo que hace que crear la
+primera carpeta no cambie el orden de nada.
+
+### El arrastre reutiliza `resolverElArrastre`: carpetas = columnas
+
+Los espacios se arrastran entre carpetas y fuera, y la decisión no se vuelve a
+escribir: aquí las carpetas son **columnas** y los espacios **tarjetas**, con
+un centinela `SUELTOS` para los que no están en ninguna. Es el mismo resolvedor
+de Proyectos y Tickets.
+
+Un solo `DndContext` con varios `SortableContext` dentro —uno por carpeta y
+otro para los sueltos—, que es como funciona cualquier tablero de esta casa.
+Los documentos de cada espacio siguen en el suyo y no se pisan: ningún nodo
+pertenece a los dos.
+
+Cuatro cosas que hay que mantener:
+
+1. **Una carpeta NO se arrastra: se sube y se baja.** En un solo contexto su id
+   sería a la vez una columna donde se suelta y una tarjeta que se mueve, y
+   soltar un espacio «sobre» una carpeta que a su vez se está arrastrando no
+   tiene respuesta correcta. Subir y Bajar no es el premio de consolación: es lo
+   que este árbol ya usa para los espacios y **lo único que funciona en un
+   táctil**.
+2. **Los sueltos son una columna con su propio sitio donde soltar**, con alto
+   mínimo cuando hay carpetas. Sin ella un espacio se podría meter en una
+   carpeta y **no sacar**, que es la mitad del encargo que se olvida.
+3. **Al cambiar de carpeta, el espacio va al final de la nueva**
+   (`ponerAlFinal`), como una tarjeta que cambia de columna. Sin eso se queda
+   con el número de la columna anterior y aparece en mitad de la nueva.
+4. **Subir y Bajar mueven dentro de SU grupo**, no del árbol entero: Subir en
+   el primero de una carpeta no tiene a dónde ir.
+
+### Plegar: un solo módulo para las dos capas, y la llave de los espacios NO cambió
+
+`lib/plegado-de-espacios.ts` pasó a ser `lib/plegado-del-arbol.ts`, con un
+discriminante (`espacios` | `carpetas`). No son dos módulos copiados a
+propósito: la parte delicada —el `try` de cada acceso, el borrado de la entrada
+al quedarse vacía, el `null` cuando no había nada que desplegar— es idéntica, y
+con dos copias el día que se afine una la otra se queda atrás.
+
+Lo que **no se pudo tocar** es la llave de los espacios: sigue siendo
+`documentacion_espacios_plegados_<cuenta>::<persona>`, carácter por carácter. Si
+hubiera cambiado, todo el mundo habría perdido de golpe lo que tenía plegado el
+día del despliegue —sin error y sin forma de relacionarlo con el cambio—. El
+banco compara la cadena entera.
+
+Son **dos conjuntos y dos llaves**: plegar la carpeta «Operaciones» no puede
+plegar el espacio que se llame igual. Y **la carpeta del documento abierto se
+despliega sola**, además del espacio: sin esa mitad, abrir un documento de un
+espacio que vive en una carpeta plegada desplegaría el espacio dentro de una
+carpeta que sigue cerrada, o sea nada visible.
+
+### Y un `CREATE … IF NOT EXISTS` no basta con DOS réplicas
+
+Esto lo destapó el banco al empezar a correr dos ficheros contra la misma base,
+y **es un fallo de producción, no del banco**: `IF NOT EXISTS` mira el catálogo
+al empezar, así que dos sesiones que lo ejecuten a la vez pasan las dos esa
+comprobación y la segunda revienta al escribir en `pg_class` o en `pg_type`
+—`23505`, «Key (relname, relnamespace)=(…) already exists»—.
+
+No es una condición de laboratorio: esta plataforma corre con **dos réplicas** y
+el despliegue es `start-first`, así que dos procesos pueden pedirle a
+Documentación su primera consulta en el mismo segundo. Lo que se vería es lo de
+siempre en esta familia: «No se pudo crear la carpeta» en la pantalla y un error
+de clave duplicada en la consola que no se parece en nada a lo que se hizo.
+
+Cada DDL va por `ddl(...)`, que **solo se traga «ya existe»** —23505, 42P07 y
+42710, que significan lo mismo— y deja subir cualquier otro error. Si se escribe
+otro módulo con sus propias tablas, va igual.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se

@@ -18,6 +18,7 @@ import {
     Download,
     FolderPlus,
     History,
+    Layers,
     Loader2,
     Pin,
     PinOff,
@@ -43,11 +44,17 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-    alternarElEspacio,
-    desplegarElEspacio,
-    guardarLosEspaciosPlegados,
-    losEspaciosPlegados,
-} from "@/lib/plegado-de-espacios";
+    alternarEnElArbol,
+    desplegarEnElArbol,
+    guardarLoPlegado,
+    loPlegado,
+    type QueSePliega,
+} from "@/lib/plegado-del-arbol";
+import {
+    SUELTOS,
+    agruparElArbol,
+    laColumnaDelEspacio,
+} from "@/lib/carpetas-de-documentacion";
 import {
     NOMBRE_DEL_TIPO_DE_MENCION,
     NOMBRE_DE_LA_VISTA,
@@ -57,15 +64,16 @@ import {
     type Vista,
 } from "@/lib/documentacion";
 import { comoMarkdown, comoTextoPlano, nombreDeArchivo } from "@/lib/exportar-documento";
-import { moverEnLaColumna, ordenarLaColumna } from "@/lib/orden-del-tablero";
+import { moverEnLaColumna, ordenarLaColumna, resolverElArrastre } from "@/lib/orden-del-tablero";
 import { ColumnaOrdenable, useOrdenDeColumna } from "@/components/shared/OrdenDeColumna";
+import { CarpetaDelArbol, EspaciosSueltos } from "@/components/documentacion/CarpetaDelArbol";
 import { CompartirConCuentas } from "@/components/documentacion/CompartirConCuentas";
 import { EditorDeDocumento } from "@/components/documentacion/EditorDeDocumento";
 import { VistasDeLista } from "@/components/documentacion/VistasDeLista";
 import { HistorialDeVersiones } from "@/components/documentacion/HistorialDeVersiones";
 import { PermisosDelObjeto } from "@/components/documentacion/PermisosDelObjeto";
 import { DialogoDeFila } from "@/components/documentacion/DialogoDeFila";
-import { NuevoEspacioDialog } from "@/components/documentacion/Dialogos";
+import { CarpetaDialog, NuevoEspacioDialog } from "@/components/documentacion/Dialogos";
 import { EspacioDelArbol } from "@/components/documentacion/EspacioDelArbol";
 import {
     abrirDocumentoAction,
@@ -79,6 +87,7 @@ import {
     guardarDocumentoAction,
     leerElArbolAction,
     losDocumentosQueNombranAction,
+    moverEspacioACarpetaAction,
     type ArbolDeDocumentacion,
     type DocumentoAbierto,
     type DocumentoQueNombra,
@@ -140,39 +149,53 @@ export function DocumentacionClient({
     const [verPermisos, setVerPermisos] = useState(false);
     const [verCuentas, setVerCuentas] = useState(false);
     const [verArchivados, setVerArchivados] = useState(false);
+    const [creandoCarpeta, setCreandoCarpeta] = useState(false);
     const [filaEnCurso, setFilaEnCurso] = useState<FilaDeLista | "nueva" | null>(null);
     const [estadoDeLaNueva, setEstadoDeLaNueva] = useState("");
 
     const contenidoRef = useRef<unknown>(null);
     contenidoRef.current = contenido;
 
-    /* ── Qué espacios están plegados ─────────────────────────────────────── */
+    /* ── Qué está plegado: espacios y carpetas ───────────────────────────── */
 
     /**
      * Se arranca **sin nada plegado**, que es lo mismo que pinta el servidor, y
      * lo guardado se aplica después de montar. Leerlo al pintar sería tocar
      * `localStorage` durante el render —donde no existe en el servidor— y las
      * dos salidas no coincidirían: una hidratación rota.
+     *
+     * Son **dos conjuntos y dos llaves**: plegar la carpeta «Operaciones» no
+     * puede plegar el espacio que se llame igual, y con un solo conjunto los
+     * ids de las dos capas se mezclarían.
      */
     const [plegados, setPlegados] = useState<ReadonlySet<string>>(() => new Set<string>());
+    const [carpetasPlegadas, setCarpetasPlegadas] = useState<ReadonlySet<string>>(
+        () => new Set<string>(),
+    );
 
     useEffect(() => {
-        setPlegados(losEspaciosPlegados(cuentaId, personaId));
+        setPlegados(loPlegado("espacios", cuentaId, personaId));
+        setCarpetasPlegadas(loPlegado("carpetas", cuentaId, personaId));
     }, [cuentaId, personaId]);
 
     /**
      * Alternar uno, y **guardar aquí dentro**.
      *
-     * Lo guardado NO se escribe desde un efecto sobre `plegados`: ese efecto
+     * Lo guardado NO se escribe desde un efecto sobre el conjunto: ese efecto
      * correría también en el montaje, con el conjunto vacío del arranque, y
      * **borraría la preferencia guardada** antes de que la hidratación de
      * arriba llegara a leerla. Se escribe solo donde de verdad cambia algo.
+     *
+     * Y las dos capas van por la MISMA función: con una copia para cada una, el
+     * día que se afine algo —el guardado, el saneado— se afina en una y la otra
+     * se queda atrás.
      */
     const alternarPlegado = useCallback(
-        (espacioId: string) => {
-            setPlegados((prev) => {
-                const nuevo = alternarElEspacio(prev, espacioId);
-                guardarLosEspaciosPlegados(cuentaId, personaId, nuevo);
+        (que: QueSePliega, id: string) => {
+            const poner = que === "espacios" ? setPlegados : setCarpetasPlegadas;
+            poner((prev) => {
+                const nuevo = alternarEnElArbol(prev, id);
+                guardarLoPlegado(que, cuentaId, personaId, nuevo);
                 return nuevo;
             });
         },
@@ -180,27 +203,42 @@ export function DocumentacionClient({
     );
 
     /**
-     * El espacio del documento abierto se despliega solo.
+     * El espacio del documento abierto se despliega solo. **Y su carpeta**: sin
+     * esa mitad, abrir un documento de un espacio que vive dentro de una
+     * carpeta plegada desplegaría el espacio… dentro de una carpeta que sigue
+     * cerrada, o sea nada visible.
      *
      * Es un cambio de estado de verdad —se quita del conjunto—, **no una
      * expansión forzada al pintar**: forzándola, mientras ese documento
      * estuviera abierto el clic en la cabecera no haría nada visible y no
-     * habría forma de plegar ese espacio. Se sale de él plegándolo, como
-     * cualquier otro.
+     * habría forma de plegar eso. Se sale plegándolo, como cualquier otro.
      *
-     * Depende **solo** del espacio abierto: con `plegados` en la lista, plegarlo
-     * a mano lo volvería a desplegar en el acto.
+     * Depende **solo** de lo abierto: con el conjunto en la lista, plegarlo a
+     * mano lo volvería a desplegar en el acto.
      */
     const espacioAbiertoId = abierto?.espacioId ?? null;
+    const carpetaDelAbiertoId = espacioAbiertoId
+        ? (arbol?.enCarpeta?.[espacioAbiertoId] ?? null)
+        : null;
     useEffect(() => {
         if (!espacioAbiertoId) return;
         setPlegados((prev) => {
-            const nuevo = desplegarElEspacio(prev, espacioAbiertoId);
+            const nuevo = desplegarEnElArbol(prev, espacioAbiertoId);
             if (!nuevo) return prev;
-            guardarLosEspaciosPlegados(cuentaId, personaId, nuevo);
+            guardarLoPlegado("espacios", cuentaId, personaId, nuevo);
             return nuevo;
         });
     }, [espacioAbiertoId, cuentaId, personaId]);
+
+    useEffect(() => {
+        if (!carpetaDelAbiertoId) return;
+        setCarpetasPlegadas((prev) => {
+            const nuevo = desplegarEnElArbol(prev, carpetaDelAbiertoId);
+            if (!nuevo) return prev;
+            guardarLoPlegado("carpetas", cuentaId, personaId, nuevo);
+            return nuevo;
+        });
+    }, [carpetaDelAbiertoId, cuentaId, personaId]);
 
     /* ── Refrescar el árbol ──────────────────────────────────────────────── */
 
@@ -543,11 +581,9 @@ export function DocumentacionClient({
      * compartido sale en el árbol de las dos cuentas y cada una lo pone donde
      * quiera. Ver la nota de `TIPOS_DE_TABLERO`.
      */
-    const ordenDelArbol = useOrdenDeColumna(
-        "arbol",
-        cuentaId,
-        Boolean(arbol?.puedeOrdenarElArbol),
-    );
+    const puedeMandarEnElArbol = Boolean(arbol?.puedeMandarEnElArbol);
+    const ordenDelArbol = useOrdenDeColumna("arbol", cuentaId, puedeMandarEnElArbol);
+    const ordenDeLasCarpetas = useOrdenDeColumna("carpetas", cuentaId, puedeMandarEnElArbol);
 
     const sensores = useSensors(
         // 6 px antes de arrastrar, igual que dentro de un espacio: sin eso un
@@ -555,8 +591,17 @@ export function DocumentacionClient({
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     );
 
-    /** Los espacios con lo que se acaba de mover encima, sin esperar al servidor. */
-    const espacios = useMemo(() => {
+    /**
+     * Los espacios con lo que se acaba de mover encima, sin esperar al
+     * servidor, **y sus posiciones efectivas**.
+     *
+     * Las posiciones salen de aquí y no se recalculan al mover de carpeta: hace
+     * falta saber cuál es la última de la columna de destino, y `posicionDe`
+     * devuelve `null` para todo lo que nadie haya arrastrado. Con esos `null`,
+     * el espacio movido caería arriba del todo de su carpeta nueva en vez de al
+     * final.
+     */
+    const { espacios, posiciones } = useMemo(() => {
         const lista = arbol?.espacios ?? [];
         const encima: Record<string, number> = {};
         let hayAlgo = false;
@@ -570,54 +615,188 @@ export function DocumentacionClient({
                 encima[e.espacio.id] = i;
             }
         });
-        return hayAlgo ? ordenarLaColumna(lista, encima, (e) => e.espacio.id) : lista;
+        return {
+            espacios: hayAlgo ? ordenarLaColumna(lista, encima, (e) => e.espacio.id) : lista,
+            posiciones: encima,
+        };
     }, [arbol, ordenDelArbol]);
 
-    const idsDeLosEspacios = useMemo(() => espacios.map((e) => e.espacio.id), [espacios]);
+    /** Las carpetas, con lo que se acaba de mover encima. */
+    const carpetas = useMemo(() => {
+        const lista = arbol?.carpetas ?? [];
+        const encima: Record<string, number> = {};
+        let hayAlgo = false;
+        lista.forEach((c, i) => {
+            const suya = ordenDeLasCarpetas.posicionDe(c.id, null);
+            if (typeof suya === "number") {
+                encima[c.id] = suya;
+                hayAlgo = true;
+            } else encima[c.id] = i;
+        });
+        return hayAlgo ? ordenarLaColumna(lista, encima, (c) => c.id) : lista;
+    }, [arbol, ordenDeLasCarpetas]);
 
+    /* ── En qué carpeta está cada espacio ────────────────────────────────── */
+
+    /**
+     * Lo que se acaba de mover, encima de lo que dice el servidor.
+     *
+     * `null` significa **suelto**, y por eso el valor admite `null` en vez de
+     * borrarse de la lista: sin él no habría forma de decir «sácalo de la
+     * carpeta» por encima de un `enCarpeta` del servidor que todavía dice que
+     * está dentro.
+     */
+    const [enCarpetaEncima, setEnCarpetaEncima] = useState<Record<string, string | null>>({});
+
+    const enCarpeta = useMemo(() => {
+        const mapa: Record<string, string> = { ...(arbol?.enCarpeta ?? {}) };
+        for (const [espacioId, carpetaId] of Object.entries(enCarpetaEncima)) {
+            if (carpetaId) mapa[espacioId] = carpetaId;
+            else delete mapa[espacioId];
+        }
+        return mapa;
+    }, [arbol, enCarpetaEncima]);
+
+    /** El árbol ya repartido: cada carpeta con lo suyo, y los sueltos al final. */
+    const agrupado = useMemo(
+        () =>
+            agruparElArbol({
+                carpetas,
+                espacios,
+                idDelEspacio: (e) => e.espacio.id,
+                enCarpeta,
+            }),
+        [carpetas, espacios, enCarpeta],
+    );
+
+    /** Los ids de cada columna: cada carpeta, y los sueltos. */
+    const idsPorColumna = useMemo(() => {
+        const mapa: Record<string, string[]> = {
+            [SUELTOS]: agrupado.sueltos.map((e) => e.espacio.id),
+        };
+        for (const c of agrupado.carpetas) {
+            mapa[c.carpeta.id] = c.espacios.map((e) => e.espacio.id);
+        }
+        return mapa;
+    }, [agrupado]);
+
+    const columnas = useMemo(
+        () => [...carpetas.map((c) => c.id), SUELTOS],
+        [carpetas],
+    );
+
+    /**
+     * Mover un espacio a otra carpeta —o sacarlo fuera con `null`—, en pantalla
+     * primero y avisando después.
+     *
+     * Si el servidor dice que no, se devuelve tal cual estaba: es la misma
+     * regla que mover a una carpeta en Proyectos y que borrar un chat.
+     */
+    const moverACarpeta = useCallback(
+        async (espacioId: string, carpetaId: string | null, idsDelDestino: string[]) => {
+            const antes = enCarpetaEncima;
+            setEnCarpetaEncima((prev) => ({ ...prev, [espacioId]: carpetaId }));
+            // Y al final de su columna nueva, también en pantalla: sin esto se
+            // quedaría con el número de la columna anterior y aparecería en
+            // mitad de la nueva. Es lo mismo que hace un tablero al cambiar de
+            // columna.
+            ordenDelArbol.ponerAlFinal(
+                espacioId,
+                idsDelDestino.map((id) => posiciones[id] ?? null),
+            );
+
+            const res = await pedir(() =>
+                moverEspacioACarpetaAction({ espacioId, carpetaId }),
+            );
+            if (!res.success) {
+                setEnCarpetaEncima(antes);
+                toast.error(res.message ?? "No se pudo mover el espacio.");
+            }
+        },
+        [enCarpetaEncima, ordenDelArbol, posiciones],
+    );
+
+    /**
+     * Soltar un espacio.
+     *
+     * Reutiliza `resolverElArrastre`, el de los dos tableros: aquí las carpetas
+     * son **columnas** y los espacios **tarjetas**, y los sueltos son una
+     * columna más con el centinela `SUELTOS`. Escribir aquí una decisión propia
+     * sería una tercera copia de la misma pregunta.
+     */
     const soltarEspacio = useCallback(
         (evento: DragEndEvent) => {
             const { active, over } = evento;
             if (!over) return;
-            const arrastrado = String(active.id);
-            const sobre = String(over.id);
-            if (!idsDeLosEspacios.includes(arrastrado) || !idsDeLosEspacios.includes(sobre)) {
+            const arrastrada = String(active.id);
+            const soltadaSobre = String(over.id);
+
+            const columnaDeLaArrastrada = laColumnaDelEspacio(arrastrada, enCarpeta, carpetas);
+            if (!(idsPorColumna[columnaDeLaArrastrada] ?? []).includes(arrastrada)) {
                 // Un manejador que se rinde en silencio se lee como «el espacio
                 // no se queda donde lo dejo».
                 console.warn("[documentacion] se solto un espacio que no esta en el arbol", {
-                    arrastrado,
-                    sobre,
+                    arrastrada,
+                    soltadaSobre,
                 });
                 return;
             }
-            const nuevos = moverEnLaColumna(idsDeLosEspacios, arrastrado, sobre);
-            if (nuevos === idsDeLosEspacios) return;
-            void ordenDelArbol.reordenar(nuevos);
+
+            const resultado = resolverElArrastre({
+                arrastrada,
+                soltadaSobre,
+                columnaDeLaArrastrada,
+                columnas,
+                idsPorColumna,
+            });
+            if (resultado.que === "nada") return;
+            if (resultado.que === "reordenar") {
+                void ordenDelArbol.reordenar(resultado.ids);
+                return;
+            }
+            void moverACarpeta(
+                arrastrada,
+                resultado.columna === SUELTOS ? null : resultado.columna,
+                idsPorColumna[resultado.columna] ?? [],
+            );
         },
-        [idsDeLosEspacios, ordenDelArbol],
+        [carpetas, columnas, enCarpeta, idsPorColumna, moverACarpeta, ordenDelArbol],
     );
 
     /**
-     * Subir y bajar un espacio.
+     * Subir y bajar un espacio, **dentro de su grupo**.
      *
      * Va por el MISMO camino que el arrastre —se calcula la lista entera y se
      * guarda entera— y no con un intercambio de dos posiciones: con la lista
      * completa cada escritura es una foto coherente, que es lo que hace que dos
      * personas reordenando a la vez acaben en un orden que vio alguien.
+     *
+     * Y la lista es la de SU columna, no la del árbol entero: el número es del
+     * tablero y la comparación es de la columna, que es la regla de los dos
+     * tableros aplicada aquí.
      */
     const moverEspacio = useCallback(
         (espacioId: string, hacia: -1 | 1) => {
-            const desde = idsDeLosEspacios.indexOf(espacioId);
+            const columna = laColumnaDelEspacio(espacioId, enCarpeta, carpetas);
+            const ids = idsPorColumna[columna] ?? [];
+            const desde = ids.indexOf(espacioId);
             const hasta = desde + hacia;
-            if (desde < 0 || hasta < 0 || hasta >= idsDeLosEspacios.length) return;
-            const nuevos = moverEnLaColumna(
-                idsDeLosEspacios,
-                espacioId,
-                idsDeLosEspacios[hasta],
-            );
-            void ordenDelArbol.reordenar(nuevos);
+            if (desde < 0 || hasta < 0 || hasta >= ids.length) return;
+            void ordenDelArbol.reordenar(moverEnLaColumna(ids, espacioId, ids[hasta]));
         },
-        [idsDeLosEspacios, ordenDelArbol],
+        [carpetas, enCarpeta, idsPorColumna, ordenDelArbol],
+    );
+
+    /** Subir y bajar una carpeta, por el mismo camino. */
+    const moverCarpeta = useCallback(
+        (carpetaId: string, hacia: -1 | 1) => {
+            const ids = carpetas.map((c) => c.id);
+            const desde = ids.indexOf(carpetaId);
+            const hasta = desde + hacia;
+            if (desde < 0 || hasta < 0 || hasta >= ids.length) return;
+            void ordenDeLasCarpetas.reordenar(moverEnLaColumna(ids, carpetaId, ids[hasta]));
+        },
+        [carpetas, ordenDeLasCarpetas],
     );
 
     const espacioDelAbierto = useMemo(
@@ -632,6 +811,40 @@ export function DocumentacionClient({
             </div>
         );
     }
+
+    /**
+     * Una fila de espacio, la pinten las carpetas o los sueltos.
+     *
+     * Está escrita una vez a propósito: son catorce props y la mitad —quién
+     * puede ordenar, qué está plegado, a dónde van Subir y Bajar— tienen que
+     * decir exactamente lo mismo en los dos sitios. Con dos copias, el día que
+     * se añada una el otro sitio se queda atrás y eso no se ve como un error:
+     * se ve como que «los espacios dentro de una carpeta no hacen lo mismo».
+     *
+     * `esElPrimero` y `esElUltimo` son **de su grupo**, no del árbol: Subir en
+     * el primero de una carpeta no tiene a dónde ir.
+     */
+    const pintarEspacio = (
+        entrada: ArbolDeDocumentacion["espacios"][number],
+        i: number,
+        cuantos: number,
+    ) => (
+        <EspacioDelArbol
+            key={entrada.espacio.id}
+            entrada={entrada}
+            plantillas={arbol.plantillas}
+            abiertoId={abierto?.id ?? null}
+            plegado={plegados.has(entrada.espacio.id)}
+            puedeOrdenarElArbol={arbol.puedeMandarEnElArbol}
+            esElPrimero={i === 0}
+            esElUltimo={i === cuantos - 1}
+            alAlternar={() => alternarPlegado("espacios", entrada.espacio.id)}
+            alSubir={() => moverEspacio(entrada.espacio.id, -1)}
+            alBajar={() => moverEspacio(entrada.espacio.id, 1)}
+            alAbrir={(id) => void abrir(id)}
+            alRefrescar={refrescarArbol}
+        />
+    );
 
     return (
         <div className="flex h-full min-h-0">
@@ -653,14 +866,42 @@ export function DocumentacionClient({
                             className="pl-8"
                         />
                     </div>
-                    <NuevoEspacioDialog
-                        alCrear={refrescarArbol}
-                        disparador={
-                            <Button size="sm" variant="outline" className="justify-start">
-                                <FolderPlus className="mr-2 size-4" />
-                                Nuevo espacio
+                    <div className="flex gap-2">
+                        <NuevoEspacioDialog
+                            alCrear={refrescarArbol}
+                            disparador={
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-w-0 flex-1 justify-start"
+                                >
+                                    <Layers className="mr-2 size-4 shrink-0" />
+                                    <span className="truncate">Nuevo espacio</span>
+                                </Button>
+                            }
+                        />
+                        {/* Crear una carpeta es de quien manda en el árbol: la
+                            agrupación la ve el equipo entero. El botón no se
+                            pinta en gris, se QUITA — una opción apagada invita
+                            a preguntar por qué no se puede. */}
+                        {arbol.puedeMandarEnElArbol && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0"
+                                title="Nueva carpeta"
+                                aria-label="Nueva carpeta"
+                                onClick={() => setCreandoCarpeta(true)}
+                            >
+                                <FolderPlus className="size-4" />
                             </Button>
-                        }
+                        )}
+                    </div>
+                    <CarpetaDialog
+                        carpetaId={null}
+                        abierto={creandoCarpeta}
+                        onAbiertoChange={setCreandoCarpeta}
+                        alGuardar={refrescarArbol}
                     />
                     {/* Archivar sin forma de volver a lo archivado sería
                         perderlo. El interruptor va aquí, en la cabecera del
@@ -684,39 +925,62 @@ export function DocumentacionClient({
                             buscando={buscando}
                             alAbrir={(id) => void abrir(id)}
                         />
-                    ) : espacios.length === 0 ? (
+                    ) : espacios.length === 0 && carpetas.length === 0 ? (
                         <p className="p-3 text-sm text-muted-foreground">
                             Todavía no hay espacios. Crea el primero y todo lo de la empresa vivirá
                             aquí en vez de en archivos sueltos.
                         </p>
                     ) : (
-                        /* El `DndContext` de los ESPACIOS. El de los documentos
-                           de dentro lo monta cada espacio, y no se pisan: un
-                           nodo pertenece a uno o al otro, nunca a los dos. */
+                        /* **UN solo `DndContext`** para las dos capas: dentro
+                           hay varios `SortableContext` —uno por carpeta y otro
+                           para los sueltos—, que es como funciona cualquier
+                           tablero. Lo que no puede haber es dos contextos
+                           anidados: se roban los eventos y el cambio de columna
+                           dejaría de funcionar.
+
+                           El de los documentos de cada espacio es harina de
+                           otro costal: lo monta el espacio y ningún nodo
+                           pertenece a los dos. */
                         <DndContext
                             sensors={sensores}
                             collisionDetection={closestCenter}
                             onDragEnd={soltarEspacio}
                         >
-                            <ColumnaOrdenable ids={idsDeLosEspacios}>
-                                {espacios.map((entrada, i) => (
-                                    <EspacioDelArbol
-                                        key={entrada.espacio.id}
-                                        entrada={entrada}
-                                        plantillas={arbol.plantillas}
-                                        abiertoId={abierto?.id ?? null}
-                                        plegado={plegados.has(entrada.espacio.id)}
-                                        puedeOrdenarElArbol={arbol.puedeOrdenarElArbol}
-                                        esElPrimero={i === 0}
-                                        esElUltimo={i === espacios.length - 1}
-                                        alAlternar={() => alternarPlegado(entrada.espacio.id)}
-                                        alSubir={() => moverEspacio(entrada.espacio.id, -1)}
-                                        alBajar={() => moverEspacio(entrada.espacio.id, 1)}
-                                        alAbrir={(id) => void abrir(id)}
-                                        alRefrescar={refrescarArbol}
-                                    />
-                                ))}
-                            </ColumnaOrdenable>
+                            {agrupado.carpetas.map(({ carpeta, espacios: dentro }, i) => (
+                                <CarpetaDelArbol
+                                    key={carpeta.id}
+                                    carpeta={carpeta}
+                                    cuantosEspacios={dentro.length}
+                                    plegado={carpetasPlegadas.has(carpeta.id)}
+                                    puedeMandar={arbol.puedeMandarEnElArbol}
+                                    esLaPrimera={i === 0}
+                                    esLaUltima={i === agrupado.carpetas.length - 1}
+                                    alAlternar={() => alternarPlegado("carpetas", carpeta.id)}
+                                    alSubir={() => moverCarpeta(carpeta.id, -1)}
+                                    alBajar={() => moverCarpeta(carpeta.id, 1)}
+                                    alRefrescar={refrescarArbol}
+                                >
+                                    <ColumnaOrdenable ids={dentro.map((e) => e.espacio.id)}>
+                                        {dentro.map((entrada, j) =>
+                                            pintarEspacio(entrada, j, dentro.length),
+                                        )}
+                                    </ColumnaOrdenable>
+                                </CarpetaDelArbol>
+                            ))}
+
+                            <EspaciosSueltos
+                                id={SUELTOS}
+                                hayCarpetas={agrupado.carpetas.length > 0}
+                                vacio={agrupado.sueltos.length === 0}
+                            >
+                                <ColumnaOrdenable
+                                    ids={agrupado.sueltos.map((e) => e.espacio.id)}
+                                >
+                                    {agrupado.sueltos.map((entrada, i) =>
+                                        pintarEspacio(entrada, i, agrupado.sueltos.length),
+                                    )}
+                                </ColumnaOrdenable>
+                            </EspaciosSueltos>
                         </DndContext>
                     )}
                 </div>

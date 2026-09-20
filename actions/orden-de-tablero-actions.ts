@@ -120,12 +120,38 @@ async function laColumnaQueSePuedeGuardar(
         return ids.filter((id) => validos.has(id));
     }
 
+    if (tipo === "carpetas") {
+        // Las CARPETAS del árbol de Documentación. Mismo `tableroId` que
+        // `arbol` —la cuenta de quien mira— y **la misma puerta**, que es una
+        // función y no una condición copiada: `puedeMandarEnElArbol` decide
+        // también crear, renombrar y borrar una carpeta, así que separarlas
+        // sería tener dos respuestas para «¿quién manda en este árbol?».
+        const { laCuentaDeQuienMira, puedeMandarEnElArbol } = await import(
+            "@/lib/documentacion-permisos"
+        );
+        const { lasCarpetasDe } = await import("@/lib/documentacion-db");
+
+        const cuenta = laCuentaDeQuienMira(user);
+        if (!cuenta || tableroId !== cuenta) throw new Error("Tablero no encontrado.");
+        if (!puedeMandarEnElArbol(user)) {
+            throw new Error("Un agente no puede reordenar las carpetas.");
+        }
+
+        // Y una lista que llega de fuera no decide qué se ordena: solo pasan
+        // las carpetas de esa cuenta.
+        const suyas = await lasCarpetasDe(cuenta);
+        const validos = new Set(suyas.map((c) => c.id));
+        return ids.filter((id) => validos.has(id));
+    }
+
     if (tipo === "arbol") {
         // El árbol de espacios de Documentación. Aquí el `tableroId` es **la
         // cuenta de quien mira**, no una cosa: cada cuenta coloca su propio
         // árbol, y por eso la primera comprobación es que sea la suya. Sin
         // ella, una petición a mano reordenaría el árbol de otra cuenta.
-        const { laCuentaDeQuienMira } = await import("@/lib/documentacion-permisos");
+        const { laCuentaDeQuienMira, puedeMandarEnElArbol } = await import(
+            "@/lib/documentacion-permisos"
+        );
         const { losEspaciosQueAlcanza } = await import("@/lib/acceso-al-documento");
 
         const cuenta = laCuentaDeQuienMira(user);
@@ -137,8 +163,9 @@ async function laColumnaQueSePuedeGuardar(
         // es más estrecho: un miembro del equipo cuyo `advisorRole` no es ni
         // `administrador` ni `agente` crea espacios hoy, y con aquella condición
         // se quedaría con un árbol que no puede colocar. Es la misma mitad que
-        // `puedeMandarEnElEspacio` ya tiene escrita.
-        if (user.advisorRole === "agente") {
+        // `puedeMandarEnElEspacio` ya tiene escrita, y vive en UNA función
+        // —`puedeMandarEnElArbol`— que comparte con las carpetas.
+        if (!puedeMandarEnElArbol(user)) {
             throw new Error("Un agente no puede reordenar los espacios.");
         }
 

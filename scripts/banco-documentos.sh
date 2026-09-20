@@ -44,10 +44,26 @@ npx esbuild lib/__tests__/fingido/entrada-de-documentos.ts --bundle \
   --log-level=error
 sed -i '/server-only/d' lib/__tests__/.compilado/documentos/entrada-de-documentos.js
 
-# Lo puro va aparte y sin fingir nada: son dos módulos sin dependencias.
+# Lo puro va aparte y sin fingir nada: son módulos sin dependencias.
 npx esbuild lib/exportar-documento.ts lib/documentacion.ts --bundle \
   --platform=node --format=esm --outdir=lib/__tests__/.compilado/documentos \
   --external:@prisma/client --external:server-only --log-level=error
 
+# Y los dos que prueban los bancos puros del árbol, que salen a `.compilado/`
+# porque sus ficheros de prueba los importan de ahí.
+npx esbuild lib/carpetas-de-documentacion.ts lib/plegado-del-arbol.ts --bundle \
+  --platform=node --format=esm --outdir=lib/__tests__/.compilado \
+  --external:@prisma/client --external:server-only --log-level=error
+
 node --test lib/__tests__/documentacion-compartir.test.mjs \
-              lib/__tests__/exportar-documento.test.mjs "$@"
+              lib/__tests__/documentacion-carpetas.test.mjs \
+              lib/__tests__/exportar-documento.test.mjs \
+              lib/__tests__/carpetas-de-documentacion.test.mjs \
+              lib/__tests__/plegado-del-arbol.test.mjs "$@"
+
+# Y el reparto del árbol, con la forma INGENUA puesta: tiene que afirmar que un
+# espacio cuya carpeta no está se esfuma. Sin este modo no se sabría si lo verde
+# de arriba es que se arregló algo o que el caso no se ejerce.
+echo
+echo "── el reparto, con la forma INGENUA (tiene que afirmar el fallo) ──"
+MODO=roto node --test lib/__tests__/carpetas-de-documentacion.test.mjs

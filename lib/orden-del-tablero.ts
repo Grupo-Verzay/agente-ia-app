@@ -64,12 +64,22 @@ export type PosicionesDelTablero = Record<string, number>;
  * la llave `(tipo, tableroId, tarjetaId)` que hace falta, y con ella
  * Documentación usa **un solo mecanismo** para sus dos órdenes.
  */
+/*
+ * Y `carpetas` es la capa de encima del mismo árbol: las CARPETAS de
+ * Documentación, con `tableroId` = la cuenta otra vez. Va aquí por lo mismo que
+ * `arbol` —un solo mecanismo para todos los órdenes de esa pantalla— y es un
+ * tipo aparte y no una columna dentro de `arbol` porque son **dos listas
+ * distintas**: las carpetas se ordenan entre ellas y los espacios entre los de
+ * su grupo. Mezclando los ids en una sola columna, mover una carpeta tendría
+ * que saber cuántos espacios hay debajo de cada una.
+ */
 export const TIPOS_DE_TABLERO = [
     "proyecto",
     "tickets",
     "documentacion",
     "espacio",
     "arbol",
+    "carpetas",
 ] as const;
 export type TipoDeTablero = (typeof TIPOS_DE_TABLERO)[number];
 
