@@ -48,7 +48,29 @@ export type PosicionesDelTablero = Record<string, number>;
  * Por eso no entra por `lib/orden-de-las-tarjetas.ts`, que es la rejilla y
  * guarda por pareja cuenta + cosa.
  */
-export const TIPOS_DE_TABLERO = ["proyecto", "tickets", "documentacion", "espacio"] as const;
+/*
+ * `arbol` es la lista de ESPACIOS de Documentación, y su `tableroId` es **la
+ * cuenta de quien mira**. Es el único de los cuatro cuya llave no es una cosa
+ * sino una cuenta, y tiene que serlo: un espacio compartido sale en el árbol de
+ * las dos cuentas —la dueña y la invitada— y cada una lo coloca donde quiera.
+ * Con el id del espacio en la llave solo cabría una posición, así que moverlo en
+ * una cuenta se lo movería a la otra, que es exactamente el motivo por el que
+ * la rejilla de Proyectos y Diagramas guarda por pareja cuenta + cosa
+ * (`lib/orden-de-las-tarjetas.ts`).
+ *
+ * Y entra aquí en vez de en aquella tabla porque `work_item_order` se
+ * discrimina con `TipoDeCarpeta` —proyecto, diagrama—, y ensancharlo metería un
+ * tipo de tarjeta en las Carpetas, que no tienen espacios. Esta tabla ya tiene
+ * la llave `(tipo, tableroId, tarjetaId)` que hace falta, y con ella
+ * Documentación usa **un solo mecanismo** para sus dos órdenes.
+ */
+export const TIPOS_DE_TABLERO = [
+    "proyecto",
+    "tickets",
+    "documentacion",
+    "espacio",
+    "arbol",
+] as const;
 export type TipoDeTablero = (typeof TIPOS_DE_TABLERO)[number];
 
 /**

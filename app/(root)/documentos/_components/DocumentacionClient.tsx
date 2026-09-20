@@ -3,9 +3,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { FolderPlus, History, Loader2, Search, Shield, Trash2 } from "lucide-react";
+import {
+    DndContext,
+    PointerSensor,
+    closestCenter,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    Archive,
+    ArchiveRestore,
+    Building2,
+    Download,
+    FolderPlus,
+    History,
+    Loader2,
+    Pin,
+    PinOff,
+    Search,
+    Shield,
+    Trash2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
     Select,
@@ -29,6 +56,10 @@ import {
     type TipoDeMencion,
     type Vista,
 } from "@/lib/documentacion";
+import { comoMarkdown, comoTextoPlano, nombreDeArchivo } from "@/lib/exportar-documento";
+import { moverEnLaColumna, ordenarLaColumna } from "@/lib/orden-del-tablero";
+import { ColumnaOrdenable, useOrdenDeColumna } from "@/components/shared/OrdenDeColumna";
+import { CompartirConCuentas } from "@/components/documentacion/CompartirConCuentas";
 import { EditorDeDocumento } from "@/components/documentacion/EditorDeDocumento";
 import { VistasDeLista } from "@/components/documentacion/VistasDeLista";
 import { HistorialDeVersiones } from "@/components/documentacion/HistorialDeVersiones";
@@ -38,11 +69,13 @@ import { NuevoEspacioDialog } from "@/components/documentacion/Dialogos";
 import { EspacioDelArbol } from "@/components/documentacion/EspacioDelArbol";
 import {
     abrirDocumentoAction,
+    archivarDocumentoAction,
     borrarDocumentoAction,
     borrarFilaAction,
     buscarAction,
     crearFilaAction,
     editarFilaAction,
+    fijarDocumentoAction,
     guardarDocumentoAction,
     leerElArbolAction,
     losDocumentosQueNombranAction,
@@ -105,6 +138,8 @@ export function DocumentacionClient({
     const [entrantes, setEntrantes] = useState<DocumentoQueNombra[]>([]);
     const [verHistorial, setVerHistorial] = useState(false);
     const [verPermisos, setVerPermisos] = useState(false);
+    const [verCuentas, setVerCuentas] = useState(false);
+    const [verArchivados, setVerArchivados] = useState(false);
     const [filaEnCurso, setFilaEnCurso] = useState<FilaDeLista | "nueva" | null>(null);
     const [estadoDeLaNueva, setEstadoDeLaNueva] = useState("");
 
@@ -171,14 +206,32 @@ export function DocumentacionClient({
 
     const refrescarArbol = useCallback(async () => {
         try {
-            const nuevo = await leerElArbolAction();
+            const nuevo = await leerElArbolAction({ verArchivados });
             if (nuevo) setArbol(nuevo);
         } catch (error) {
             // Un árbol que no se refresca en silencio se lee como que lo que
             // acabas de crear no se creó.
             console.warn("[documentacion] no se pudo refrescar el arbol", error);
         }
-    }, []);
+    }, [verArchivados]);
+
+    /**
+     * Los archivados se piden al SERVIDOR, no se filtran al pintar.
+     *
+     * Un filtro que vive un paso después del servidor no es un filtro: lo que
+     * viaja es la lista entera, que es la regla que ya costó una vuelta en
+     * `/schedule/[userId]`. Por eso encender el interruptor recarga el árbol.
+     */
+    const yaCargoUnaVez = useRef(false);
+    useEffect(() => {
+        if (!yaCargoUnaVez.current) {
+            // El servidor ya pintó el árbol sin archivados: pedirlo otra vez al
+            // montar sería una consulta cara por cada carga de la pantalla.
+            yaCargoUnaVez.current = true;
+            return;
+        }
+        void refrescarArbol();
+    }, [verArchivados, refrescarArbol]);
 
     /* ── Abrir ───────────────────────────────────────────────────────────── */
 
@@ -393,6 +446,72 @@ export function DocumentacionClient({
         void refrescarArbol();
     }, [abierto, refrescarArbol]);
 
+    /* ── Fijar, archivar y exportar ──────────────────────────────────────── */
+
+    const fijar = useCallback(async () => {
+        if (!abierto) return;
+        const valor = !abierto.fijado;
+        // Se pinta al momento y se devuelve si el servidor dice que no: la
+        // misma regla que mover una fila o borrar un chat.
+        setAbierto((prev) => (prev ? { ...prev, fijado: valor } : prev));
+        const res = await pedir(() => fijarDocumentoAction({ id: abierto.id, fijado: valor }));
+        if (!res.success) {
+            setAbierto((prev) => (prev ? { ...prev, fijado: !valor } : prev));
+            toast.error(res.message ?? "No se pudo fijar el documento.");
+            return;
+        }
+        void refrescarArbol();
+    }, [abierto, refrescarArbol]);
+
+    const archivar = useCallback(async () => {
+        if (!abierto) return;
+        const archivando = !abierto.archivadoEn;
+        const antes = abierto.archivadoEn;
+        setAbierto((prev) =>
+            prev ? { ...prev, archivadoEn: archivando ? new Date() : null } : prev,
+        );
+        const res = await pedir(() =>
+            archivarDocumentoAction({ id: abierto.id, archivado: archivando }),
+        );
+        if (!res.success) {
+            setAbierto((prev) => (prev ? { ...prev, archivadoEn: antes } : prev));
+            toast.error(res.message ?? "No se pudo archivar el documento.");
+            return;
+        }
+        toast.success(archivando ? "Archivado." : "Devuelto al árbol.");
+        void refrescarArbol();
+    }, [abierto, refrescarArbol]);
+
+    /**
+     * Exportar: **en el navegador y sin ninguna acción nueva**.
+     *
+     * El cuerpo y las filas ya están cargados —es lo que se está leyendo—, así
+     * que una acción de servidor para esto sería un viaje para devolver lo que
+     * el navegador ya tiene, y encima una puerta más que mantener. Es
+     * exactamente como exporta Notas, con el mismo `lib/exportar-documento.ts`.
+     */
+    const exportar = useCallback(
+        (formato: "md" | "txt") => {
+            if (!abierto) return;
+            const doc = {
+                titulo,
+                contenido: contenidoRef.current ?? abierto.contenido,
+                filas: abierto.tipo === "lista" ? abierto.filas : undefined,
+            };
+            const texto = formato === "md" ? comoMarkdown(doc) : comoTextoPlano(doc);
+            const blob = new Blob([texto], {
+                type: formato === "md" ? "text/markdown" : "text/plain",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = nombreDeArchivo(titulo, formato);
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        [abierto, titulo],
+    );
+
     /* ── Ir a una mención ────────────────────────────────────────────────── */
 
     const irAlaMencion = useCallback(
@@ -414,6 +533,91 @@ export function DocumentacionClient({
             router.push(aDonde[tipo as Exclude<TipoDeMencion, "documento">]);
         },
         [abrir, router],
+    );
+
+    /* ── El orden de los ESPACIOS ────────────────────────────────────────── */
+
+    /**
+     * El árbol se coloca con el mismo mecanismo que los documentos de dentro
+     * (`orden_en_tablero`), pero con `tableroId` = **la cuenta**: un espacio
+     * compartido sale en el árbol de las dos cuentas y cada una lo pone donde
+     * quiera. Ver la nota de `TIPOS_DE_TABLERO`.
+     */
+    const ordenDelArbol = useOrdenDeColumna(
+        "arbol",
+        cuentaId,
+        Boolean(arbol?.puedeOrdenarElArbol),
+    );
+
+    const sensores = useSensors(
+        // 6 px antes de arrastrar, igual que dentro de un espacio: sin eso un
+        // clic en el asa empezaría un arrastre de un píxel.
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    );
+
+    /** Los espacios con lo que se acaba de mover encima, sin esperar al servidor. */
+    const espacios = useMemo(() => {
+        const lista = arbol?.espacios ?? [];
+        const encima: Record<string, number> = {};
+        let hayAlgo = false;
+        lista.forEach((e, i) => {
+            const suya = ordenDelArbol.posicionDe(e.espacio.id, null);
+            if (typeof suya === "number") {
+                encima[e.espacio.id] = suya;
+                hayAlgo = true;
+            } else {
+                // Los que no se han tocado conservan el sitio que traían.
+                encima[e.espacio.id] = i;
+            }
+        });
+        return hayAlgo ? ordenarLaColumna(lista, encima, (e) => e.espacio.id) : lista;
+    }, [arbol, ordenDelArbol]);
+
+    const idsDeLosEspacios = useMemo(() => espacios.map((e) => e.espacio.id), [espacios]);
+
+    const soltarEspacio = useCallback(
+        (evento: DragEndEvent) => {
+            const { active, over } = evento;
+            if (!over) return;
+            const arrastrado = String(active.id);
+            const sobre = String(over.id);
+            if (!idsDeLosEspacios.includes(arrastrado) || !idsDeLosEspacios.includes(sobre)) {
+                // Un manejador que se rinde en silencio se lee como «el espacio
+                // no se queda donde lo dejo».
+                console.warn("[documentacion] se solto un espacio que no esta en el arbol", {
+                    arrastrado,
+                    sobre,
+                });
+                return;
+            }
+            const nuevos = moverEnLaColumna(idsDeLosEspacios, arrastrado, sobre);
+            if (nuevos === idsDeLosEspacios) return;
+            void ordenDelArbol.reordenar(nuevos);
+        },
+        [idsDeLosEspacios, ordenDelArbol],
+    );
+
+    /**
+     * Subir y bajar un espacio.
+     *
+     * Va por el MISMO camino que el arrastre —se calcula la lista entera y se
+     * guarda entera— y no con un intercambio de dos posiciones: con la lista
+     * completa cada escritura es una foto coherente, que es lo que hace que dos
+     * personas reordenando a la vez acaben en un orden que vio alguien.
+     */
+    const moverEspacio = useCallback(
+        (espacioId: string, hacia: -1 | 1) => {
+            const desde = idsDeLosEspacios.indexOf(espacioId);
+            const hasta = desde + hacia;
+            if (desde < 0 || hasta < 0 || hasta >= idsDeLosEspacios.length) return;
+            const nuevos = moverEnLaColumna(
+                idsDeLosEspacios,
+                espacioId,
+                idsDeLosEspacios[hasta],
+            );
+            void ordenDelArbol.reordenar(nuevos);
+        },
+        [idsDeLosEspacios, ordenDelArbol],
     );
 
     const espacioDelAbierto = useMemo(
@@ -458,6 +662,19 @@ export function DocumentacionClient({
                             </Button>
                         }
                     />
+                    {/* Archivar sin forma de volver a lo archivado sería
+                        perderlo. El interruptor va aquí, en la cabecera del
+                        árbol, y no dentro de cada espacio: lo que se busca al
+                        encenderlo es «dónde está aquello», y eso no se sabe de
+                        qué espacio era. */}
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        <input
+                            type="checkbox"
+                            checked={verArchivados}
+                            onChange={(e) => setVerArchivados(e.target.checked)}
+                        />
+                        Ver archivados
+                    </label>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -467,24 +684,40 @@ export function DocumentacionClient({
                             buscando={buscando}
                             alAbrir={(id) => void abrir(id)}
                         />
-                    ) : arbol.espacios.length === 0 ? (
+                    ) : espacios.length === 0 ? (
                         <p className="p-3 text-sm text-muted-foreground">
                             Todavía no hay espacios. Crea el primero y todo lo de la empresa vivirá
                             aquí en vez de en archivos sueltos.
                         </p>
                     ) : (
-                        arbol.espacios.map((entrada) => (
-                            <EspacioDelArbol
-                                key={entrada.espacio.id}
-                                entrada={entrada}
-                                plantillas={arbol.plantillas}
-                                abiertoId={abierto?.id ?? null}
-                                plegado={plegados.has(entrada.espacio.id)}
-                                alAlternar={() => alternarPlegado(entrada.espacio.id)}
-                                alAbrir={(id) => void abrir(id)}
-                                alRefrescar={refrescarArbol}
-                            />
-                        ))
+                        /* El `DndContext` de los ESPACIOS. El de los documentos
+                           de dentro lo monta cada espacio, y no se pisan: un
+                           nodo pertenece a uno o al otro, nunca a los dos. */
+                        <DndContext
+                            sensors={sensores}
+                            collisionDetection={closestCenter}
+                            onDragEnd={soltarEspacio}
+                        >
+                            <ColumnaOrdenable ids={idsDeLosEspacios}>
+                                {espacios.map((entrada, i) => (
+                                    <EspacioDelArbol
+                                        key={entrada.espacio.id}
+                                        entrada={entrada}
+                                        plantillas={arbol.plantillas}
+                                        abiertoId={abierto?.id ?? null}
+                                        plegado={plegados.has(entrada.espacio.id)}
+                                        puedeOrdenarElArbol={arbol.puedeOrdenarElArbol}
+                                        esElPrimero={i === 0}
+                                        esElUltimo={i === espacios.length - 1}
+                                        alAlternar={() => alternarPlegado(entrada.espacio.id)}
+                                        alSubir={() => moverEspacio(entrada.espacio.id, -1)}
+                                        alBajar={() => moverEspacio(entrada.espacio.id, 1)}
+                                        alAbrir={(id) => void abrir(id)}
+                                        alRefrescar={refrescarArbol}
+                                    />
+                                ))}
+                            </ColumnaOrdenable>
+                        </DndContext>
                     )}
                 </div>
             </aside>
@@ -541,6 +774,49 @@ export function DocumentacionClient({
                                       : `v${abierto.version}`}
                             </span>
 
+                            {/* Exportar sale SIEMPRE, también en uno recibido de
+                                solo lectura: bajarse una copia de lo que ya se
+                                está leyendo no cambia nada de nadie. Es lo
+                                mismo que hace Notas. */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="shrink-0"
+                                        title="Exportar"
+                                        aria-label="Exportar"
+                                    >
+                                        <Download className="size-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onSelect={() => exportar("md")}>
+                                        Markdown (.md)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => exportar("txt")}>
+                                        Texto (.txt)
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {abierto.puedeEditar && (
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="shrink-0"
+                                    title={abierto.fijado ? "Quitar de arriba" : "Fijar arriba"}
+                                    aria-label={abierto.fijado ? "Quitar de arriba" : "Fijar arriba"}
+                                    onClick={() => void fijar()}
+                                >
+                                    {abierto.fijado ? (
+                                        <PinOff className="size-4 text-amber-500" />
+                                    ) : (
+                                        <Pin className="size-4" />
+                                    )}
+                                </Button>
+                            )}
+
                             <Button
                                 size="sm"
                                 variant="outline"
@@ -566,6 +842,38 @@ export function DocumentacionClient({
                                         size="icon"
                                         variant="ghost"
                                         className="shrink-0"
+                                        title="Compartir con otra cuenta"
+                                        aria-label="Compartir con otra cuenta"
+                                        onClick={() => setVerCuentas(true)}
+                                    >
+                                        <Building2 className="size-4" />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="shrink-0"
+                                        title={
+                                            abierto.archivadoEn
+                                                ? "Devolver al árbol"
+                                                : "Archivar el documento"
+                                        }
+                                        aria-label={
+                                            abierto.archivadoEn
+                                                ? "Devolver al árbol"
+                                                : "Archivar el documento"
+                                        }
+                                        onClick={() => void archivar()}
+                                    >
+                                        {abierto.archivadoEn ? (
+                                            <ArchiveRestore className="size-4" />
+                                        ) : (
+                                            <Archive className="size-4" />
+                                        )}
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="shrink-0"
                                         title="Eliminar el documento"
                                         onClick={() => void borrarElAbierto()}
                                     >
@@ -574,6 +882,13 @@ export function DocumentacionClient({
                                 </>
                             )}
                         </div>
+
+                        {abierto.archivadoEn && (
+                            <p className="border-b bg-muted/50 p-2 text-sm text-muted-foreground">
+                                Este documento está archivado: no sale en el árbol ni en la
+                                búsqueda. Sigue entero y vuelve con «Devolver al árbol».
+                            </p>
+                        )}
 
                         {conflicto && (
                             <p className="border-b border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-400">
@@ -645,6 +960,17 @@ export function DocumentacionClient({
                     alCambiarRestringido={(valor) =>
                         setAbierto((prev) => (prev ? { ...prev, restringido: valor } : prev))
                     }
+                />
+            )}
+
+            {abierto && (
+                <CompartirConCuentas
+                    abierto={verCuentas}
+                    setAbierto={setVerCuentas}
+                    objetoTipo="documento"
+                    objetoId={abierto.id}
+                    nombre={abierto.titulo}
+                    alGuardar={refrescarArbol}
                 />
             )}
 

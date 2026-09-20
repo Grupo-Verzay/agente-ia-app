@@ -120,6 +120,37 @@ async function laColumnaQueSePuedeGuardar(
         return ids.filter((id) => validos.has(id));
     }
 
+    if (tipo === "arbol") {
+        // El árbol de espacios de Documentación. Aquí el `tableroId` es **la
+        // cuenta de quien mira**, no una cosa: cada cuenta coloca su propio
+        // árbol, y por eso la primera comprobación es que sea la suya. Sin
+        // ella, una petición a mano reordenaría el árbol de otra cuenta.
+        const { laCuentaDeQuienMira } = await import("@/lib/documentacion-permisos");
+        const { losEspaciosQueAlcanza } = await import("@/lib/acceso-al-documento");
+
+        const cuenta = laCuentaDeQuienMira(user);
+        if (!cuenta || tableroId !== cuenta) throw new Error("Tablero no encontrado.");
+
+        // **Un `agente` no ordena.** Este orden es de la CUENTA —lo que coloque
+        // alguien lo ve su equipo entero—, así que es el mismo reparto de
+        // siempre: participa, no manda. Y no se pide `canManageWorkspace`, que
+        // es más estrecho: un miembro del equipo cuyo `advisorRole` no es ni
+        // `administrador` ni `agente` crea espacios hoy, y con aquella condición
+        // se quedaría con un árbol que no puede colocar. Es la misma mitad que
+        // `puedeMandarEnElEspacio` ya tiene escrita.
+        if (user.advisorRole === "agente") {
+            throw new Error("Un agente no puede reordenar los espacios.");
+        }
+
+        // Y una lista que llega de fuera no decide qué se ordena: solo pasan
+        // los espacios que esa persona alcanza de verdad —los suyos y los que
+        // le hayan compartido—. Es la MISMA función con la que se pinta el
+        // árbol, no una condición nueva.
+        const { espacios, contenedores } = await losEspaciosQueAlcanza(user);
+        const validos = new Set([...espacios, ...contenedores].map((e) => e.espacio.id));
+        return ids.filter((id) => validos.has(id));
+    }
+
     // Tickets. La puerta es la misma de `ticketsDeSoporteAction`: la cuenta
     // configurada, o el superadministrador esté donde esté.
     const destino = await elDestinoDeLosTickets();

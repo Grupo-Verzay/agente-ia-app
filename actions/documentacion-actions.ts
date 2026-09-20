@@ -13,6 +13,7 @@ import {
     comoTipoDeMencion,
     comoTitulo,
     comoVista,
+    conLosFijadosArriba,
     documentoVacio,
     extractoConLoBuscado,
     type Compartible,
@@ -42,6 +43,7 @@ import {
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import {
     LoCambioOtro,
+    archivarDocumento,
     borrarDocumento,
     borrarEspacio,
     borrarFila,
@@ -52,6 +54,7 @@ import {
     cuantosDocumentosTiene,
     editarEspacio,
     editarFila,
+    fijarDocumento,
     guardarDocumento,
     laFila,
     lasFilasDe,
@@ -63,6 +66,7 @@ import {
     losQueNombran,
     ponerPermiso,
     quitarPermiso,
+    reemplazarLasCuentas,
     buscarDocumentos,
     type DocumentoEnLista,
     type Espacio,
@@ -138,16 +142,33 @@ export type ArbolDeDocumentacion = {
     /** Las plantillas que alcanza, aparte: se copian, no se leen. */
     plantillas: DocumentoEnLista[];
     puedeCrearEspacio: boolean;
+    /**
+     * Si quien mira puede colocar los espacios de SU árbol.
+     *
+     * Es la misma respuesta que da `guardarElOrdenDeLaColumnaAction` para el
+     * tipo `arbol`, y viaja aquí para que la pantalla no pinte un asa que al
+     * usarse contesta «no autorizado» — el «menú abierto, puerta cerrada» que
+     * este repositorio ya ha pagado cinco veces. La puerta sigue estando en la
+     * acción: esconder el asa evita el arrastre accidental, no la petición.
+     */
+    puedeOrdenarElArbol: boolean;
 };
 
-export async function leerElArbolAction(): Promise<ArbolDeDocumentacion | null> {
+export async function leerElArbolAction(input?: {
+    verArchivados?: unknown;
+}): Promise<ArbolDeDocumentacion | null> {
     const quien = await quienLlama();
     if (!quien) return null;
+
+    const verArchivados = input?.verArchivados === true;
+    // Un agente participa, no coloca: el orden del árbol es de la CUENTA y lo
+    // ve su equipo entero. Misma mitad que `puedeMandarEnElEspacio`.
+    const puedeOrdenarElArbol = quien.user.advisorRole !== "agente";
 
     const { espacios, contenedores, permisos } = await losEspaciosQueAlcanza(quien.user);
     const conYSin = [...espacios, ...contenedores];
     if (conYSin.length === 0) {
-        return { espacios: [], plantillas: [], puedeCrearEspacio: true };
+        return { espacios: [], plantillas: [], puedeCrearEspacio: true, puedeOrdenarElArbol };
     }
 
     // **El mapa de decidir lleva SOLO los espacios que se alcanzan de verdad.**
@@ -155,7 +176,10 @@ export async function leerElArbolAction(): Promise<ArbolDeDocumentacion | null> 
     // documento compartido tenga dónde salir, pero no pueden entrar aquí: con
     // ellos dentro, `accesoAlDocumento` daría por bueno todo el espacio.
     const porId = new Map(espacios.map((e) => [e.espacio.id, e.espacio]));
-    const todos = await losDocumentosDe(conYSin.map((e) => e.espacio.id));
+    const todos = await losDocumentosDe(
+        conYSin.map((e) => e.espacio.id),
+        { incluirArchivados: verArchivados },
+    );
 
     // **El mismo filtro que abrir.** Un documento restringido desaparece
     // también de aquí: ver la regla en `documentacion-permisos.ts`.
@@ -171,22 +195,37 @@ export async function leerElArbolAction(): Promise<ArbolDeDocumentacion | null> 
     const colocados = await Promise.all(
         conYSin.map(({ espacio }) => posicionesDelTablero("espacio", espacio.id)),
     );
+    // Por id y no por índice: debajo los espacios se reordenan, y buscar la
+    // posición por el sitio que ocupaba antes daría el orden de OTRO espacio.
+    const porEspacio = new Map(conYSin.map((e, i) => [e.espacio.id, colocados[i] ?? {}]));
+
+    // Y el orden de los ESPACIOS, que es del árbol de esta cuenta y no de cada
+    // espacio: una consulta, con `tableroId` = la cuenta. Sin ninguna fila
+    // —nadie ha arrastrado nunca— `ordenarLaColumna` devuelve la lista tal cual
+    // la trajo la base, o sea por `orden ASC, nombre ASC` como siempre.
+    const arbolColocado = await posicionesDelTablero("arbol", quien.cuenta);
+    const enOrden = ordenarLaColumna(conYSin, arbolColocado, (e) => e.espacio.id);
 
     return {
-        espacios: conYSin.map(({ espacio, acceso }, i) => ({
+        espacios: enOrden.map(({ espacio, acceso }) => ({
             espacio,
             puedeEditar: acceso.puedeEditar,
             puedeGestionar: acceso.puedeGestionar,
             puedeMandar: puedeMandarEnElEspacio(quien.user, espacio, acceso),
             recibido: acceso.recibido,
-            documentos: ordenarLaColumna(
-                normales.filter((d) => d.espacioId === espacio.id),
-                colocados[i] ?? {},
-                (d) => d.id,
+            // Los fijados por encima del orden puesto a mano: fijar no es una
+            // posición, es una banda. Ver `conLosFijadosArriba`.
+            documentos: conLosFijadosArriba(
+                ordenarLaColumna(
+                    normales.filter((d) => d.espacioId === espacio.id),
+                    porEspacio.get(espacio.id) ?? {},
+                    (d) => d.id,
+                ),
             ),
         })),
         plantillas,
         puedeCrearEspacio: true,
+        puedeOrdenarElArbol,
     };
 }
 
@@ -372,6 +411,8 @@ export type DocumentoAbierto = {
     estados: string[];
     vista: Vista | null;
     restringido: boolean;
+    fijado: boolean;
+    archivadoEn: Date | null;
     version: number;
     actualizadoPorNombre: string | null;
     actualizadoEn: Date;
@@ -425,6 +466,8 @@ export async function abrirDocumentoAction(input: {
             estados: documento.estados,
             vista: documento.vista,
             restringido: documento.restringido,
+            fijado: documento.fijado,
+            archivadoEn: documento.archivadoEn,
             version: documento.version,
             actualizadoPorNombre: documento.actualizadoPorNombre,
             actualizadoEn: documento.actualizadoEn,
@@ -588,6 +631,76 @@ export async function borrarDocumentoAction(input: { id: unknown }): Promise<Res
             error: error instanceof Error ? error.message : String(error),
         });
         return NO("No se pudo borrar el documento.");
+    }
+}
+
+/**
+ * Fijar un documento arriba de su espacio.
+ *
+ * La puerta es **`puedeEditar`**, no `puedeGestionar`: fijar es colocar, y
+ * colocar es lo mismo que ya deja hacer arrastrar un documento dentro del
+ * espacio. Pedir gestionar dejaría a quien tiene edición con el árbol a medias
+ * —puede mover pero no fijar—, que no se lee como un permiso sino como que el
+ * botón a veces no va.
+ */
+export async function fijarDocumentoAction(input: {
+    id: unknown;
+    fijado: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el documento.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeEditar) return NO("No puedes fijar este documento.");
+
+    try {
+        await fijarDocumento(id, Boolean(input.fijado));
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo fijar el documento", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo fijar el documento.");
+    }
+}
+
+/**
+ * Archivar: fuera del árbol y de la búsqueda, **sin borrar nada**.
+ *
+ * La puerta es **`puedeGestionar`**, la misma que borrar, y a propósito: esto
+ * lo esconde para TODO el equipo, no solo para quien lo pulsa. Con la puerta de
+ * editar, cualquiera con permiso de escritura haría desaparecer del árbol la
+ * documentación de sus compañeros, y desde fuera eso no se distingue de un
+ * borrado. Es reversible, y por eso no es tan estricto como borrar de verdad.
+ */
+export async function archivarDocumentoAction(input: {
+    id: unknown;
+    archivado: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el documento.");
+
+    const encontrado = await accesoAEsteDocumento(quien.user, id);
+    if (!encontrado) return NO("Ese documento no existe o no tienes acceso.");
+    if (!encontrado.acceso.puedeGestionar) return NO("No puedes archivar este documento.");
+
+    try {
+        await archivarDocumento(id, Boolean(input.archivado));
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo archivar el documento", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo archivar el documento.");
     }
 }
 
@@ -821,6 +934,147 @@ export async function ponerPermisoAction(input: {
             error: error instanceof Error ? error.message : String(error),
         });
         return NO("No se pudo guardar el permiso.");
+    }
+}
+
+/* ──────────────────── Compartir con OTRAS CUENTAS ───────────────────────── */
+
+/**
+ * Las dos acciones que alimentan `CompartirConCuentasDialog`, el diálogo que ya
+ * usan Proyectos y Diagramas.
+ *
+ * **El diálogo no se copia: se reutiliza tal cual.** Fue escrito con
+ * `cargar`/`guardar` como huecos justamente para esto («lo que cambia entre los
+ * dos son los datos»), así que aquí solo hay que traer la lista y guardarla. Lo
+ * que **sí** es distinto es dónde se escribe: Proyectos tiene `project_shares`
+ * y Diagramas `flow_shares`, y Documentación escribe en `doc_permisos`, que es
+ * su propia tabla y la que lee su propia puerta.
+ *
+ * Y esa es la regla que no se puede ablandar:
+ *
+ * > **Lo compartido no se salta `accesoAEsteEspacio` / `accesoAEsteDocumento`.**
+ * > Las 30 acciones de este módulo no van por `lib/cuenta-de-la-accion.ts`: su
+ * > puerta es más estrecha —además de «¿alcanzas esta cuenta?» pregunta «¿y
+ * > este espacio?»—. Una fila de compartir escrita por otro camino, en otra
+ * > tabla, sería un acceso que esa puerta no mira: el documento se abriría sin
+ * > que `accesoAlDocumento` hubiera dicho que sí.
+ *
+ * Por eso aquí no hay ninguna tabla nueva. Una cuenta con la que se comparte es
+ * una fila `sujetoTipo = 'cuenta'` de `doc_permisos`, exactamente igual que si
+ * se hubiera añadido desde el otro diálogo, y la lee la misma función pura.
+ */
+export type CuentaCompartida = {
+    id: string;
+    name: string | null;
+    email: string;
+    company: string;
+    compartido: boolean;
+    permiso: Permiso;
+};
+
+export async function lasCuentasParaCompartirAction(input: {
+    objetoTipo: unknown;
+    objetoId: unknown;
+}): Promise<Respuesta<CuentaCompartida[]>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoId = comoId(input.objetoId);
+    if (!objetoId) return NO("Falta el objeto.");
+
+    // La MISMA puerta que repartir. Enseñar la lista de cuentas de la
+    // plataforma a quien no puede compartir nada es decir de balde quién hay.
+    const acceso =
+        objetoTipo === "espacio"
+            ? await accesoAEsteEspacio(quien.user, objetoId)
+            : await accesoAEsteDocumento(quien.user, objetoId);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+
+    try {
+        const { cuentasParaCompartir } = await import("@/lib/cuentas-cliente");
+        const [cuentas, filas] = await Promise.all([
+            cuentasParaCompartir(quien.cuenta),
+            losPermisosDe({ objetoTipo, objetoId }),
+        ]);
+
+        const yaTiene = new Map(
+            filas.filter((f) => f.sujetoTipo === "cuenta").map((f) => [f.sujetoId, f.permiso]),
+        );
+
+        return {
+            success: true,
+            data: cuentas.map((c) => ({
+                ...c,
+                compartido: yaTiene.has(c.id),
+                // Sin fila todavía, el diálogo arranca en lo más flojo: encender
+                // el interruptor no puede dar edición sin que nadie la pida.
+                permiso: yaTiene.get(c.id) ?? "lectura",
+            })),
+        };
+    } catch (error) {
+        console.warn("[documentacion] no se pudieron leer las cuentas para compartir", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo leer la lista de cuentas.");
+    }
+}
+
+export async function compartirConCuentasAction(input: {
+    objetoTipo: unknown;
+    objetoId: unknown;
+    destinos: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoId = comoId(input.objetoId);
+    if (!objetoId) return NO("Falta el objeto.");
+
+    const acceso =
+        objetoTipo === "espacio"
+            ? await accesoAEsteEspacio(quien.user, objetoId)
+            : await accesoAEsteDocumento(quien.user, objetoId);
+    if (!acceso) return NO("No autorizado.");
+    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+
+    const crudos = Array.isArray(input.destinos) ? input.destinos : [];
+    const pedidos: Array<{ cuentaId: string; permiso: Permiso }> = [];
+    for (const crudo of crudos) {
+        const fila = crudo as { accountUserId?: unknown; permiso?: unknown };
+        const cuentaId = comoId(fila?.accountUserId);
+        const permiso = comoPermiso(fila?.permiso);
+        if (cuentaId && permiso) pedidos.push({ cuentaId, permiso });
+    }
+
+    try {
+        // **La lista que llega del navegador no decide a quién se le abre.** Se
+        // cruza contra las cuentas que de verdad se pueden nombrar, que es la
+        // misma consulta que alimenta el diálogo: con dos criterios, uno ofrece
+        // algo que el otro rechaza —o peor, acepta algo que nunca se ofreció—.
+        const { cuentasParaCompartir } = await import("@/lib/cuentas-cliente");
+        const permitidas = new Set((await cuentasParaCompartir(quien.cuenta)).map((c) => c.id));
+        const destinos = pedidos.filter((d) => permitidas.has(d.cuentaId));
+        if (destinos.length !== pedidos.length) {
+            // No se rechaza la petición entera: se filtra y se dice. Es lo que
+            // ya hace la App con los seguimientos de otra línea, y lo que evita
+            // que un id rancio del navegador tire el guardado bueno de al lado.
+            console.warn("[documentacion] se pidió compartir con una cuenta que no se ofrece", {
+                pedidas: pedidos.length,
+                permitidas: destinos.length,
+            });
+        }
+
+        await reemplazarLasCuentas({ objetoTipo, objetoId, destinos });
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo guardar con qué cuentas se comparte", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo guardar con quién se comparte.");
     }
 }
 

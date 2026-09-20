@@ -7813,6 +7813,271 @@ también los de la primera y el modo roto falle por acumulación en vez de por l
 que viene a probar. Los ids que se comparan a lo ancho de la tabla llevan
 sufijo de la vuelta.
 
+## Compartir: hay TRES implementaciones, y esto no añadió la cuarta
+
+Documentación tenía permisos por espacio y le faltaba todo lo demás. Al ir a
+añadirlo apareció lo que hay que decir antes que nada, porque es lo que decide
+cómo se hace todo lo de abajo:
+
+> **En este repositorio hay tres formas de compartir, con tres tablas, tres
+> listas de candidatos y tres diálogos.** No son una que se copió mal: cada una
+> contesta una pregunta distinta, y fundirlas sería un frente aparte.
+
+| | tabla | con quién | quién decide | diálogo |
+| --- | --- | --- | --- | --- |
+| **Notas** | `note_shares` (`noteId`, `userId`, `canEdit`, `isPinned`, `order`) | cuentas del EQUIPO (`getTeamIds`) | `elDuenoDeLasNotas` + `identidadesQueRecibenCompartidos` | `ShareNoteDialog`, tres niveles |
+| **Proyectos y Diagramas** | `project_shares` / `flow_shares` (`permiso`) | otras CUENTAS (`cuentasParaCompartir`) | `accesoAlProyecto` / `flow-visibility` | `CompartirConCuentasDialog` |
+| **Documentación** | `doc_permisos` (`objetoTipo`, `objetoId`, `sujetoTipo`, `sujetoId`, `permiso`) | personas **y** cuentas de la familia | `accesoAEsteEspacio` / `accesoAEsteDocumento` | los dos de arriba, ahora |
+
+Y la diferencia que importa no es la tabla: **es la puerta**. Las treinta
+acciones de Documentación **no pasan por `lib/cuenta-de-la-accion.ts`**, que es
+por donde van las 129 del resto de la App. La suya pregunta una cosa más —«¿y
+este espacio?», «¿y este documento?»— y además reparte tres respuestas
+(`puedeEditar`, `puedeGestionar`, `puedeMandar`) donde aquella da una.
+
+> **De ahí sale la regla de esta vuelta: lo que se comparta se escribe en
+> `doc_permisos` y en ninguna otra tabla.** Un compartir guardado en
+> `project_shares`, o en una tabla propia del diálogo, sería un acceso que
+> `accesoAlDocumento` **no mira**: el documento se abriría sin que la puerta
+> hubiera dicho que sí. Por eso lo que se reutiliza son los **componentes**, no
+> los almacenes.
+
+### Qué se reutilizó, y qué se sacó de donde estaba
+
+Nada de esto se copió. Lo que estaba dentro de una pantalla salió a un sitio
+común y la pantalla de origen lo importa —o sea que si se rompe, se rompe en
+las dos y se nota—:
+
+| qué | de dónde salió | quién lo usa ahora |
+| --- | --- | --- |
+| los tres niveles (Sin acceso / Solo lectura / Puede editar) | `ShareNoteDialog` | `components/shared/NivelesDeAcceso.tsx` + `lib/niveles-de-acceso.ts` |
+| el walker de tiptap a markdown | `NotesEditor.extractMarkdown` | `lib/exportar-documento.ts` |
+| el diálogo de compartir con cuentas | ya era compartido | `CompartirConCuentas` le pone `cargar`/`guardar` |
+| el orden por arrastre | `orden_en_tablero` | un `tipo` más, `arbol` |
+
+**Los rótulos de Notas NO se renombraron en la base.** `note_shares` guarda
+`none`/`read`/`edit` desde el primer día, y cambiar esa columna sería una
+migración de una tabla viva para no cambiar nada; se traduce **en el borde**,
+con dos mapas al entrar y al salir del componente.
+
+### Personas aquí, cuentas allá: dos diálogos, no una lista mezclada
+
+El de Documentación mezclaba personas y cuentas en la misma lista, y eso es
+pedirle a quien reparte que adivine la diferencia: **con una cuenta entra su
+equipo ENTERO** —lo que hace falta para dárselo a un cliente, porque quien
+comparte no administra ese equipo y no puede acordarse de añadir a cada uno que
+entre después— y **con una persona, solo ella**.
+
+Ahora son dos puertas con dos públicos, y las dos escriben en `doc_permisos`:
+
+- **«Compartir con el equipo»** — personas, con los tres niveles.
+- **«Compartir con otra cuenta»** — el diálogo de Proyectos y Diagramas.
+
+Y de ahí sale un cambio que **deshace media regla anterior, a propósito**: el
+buscador ya **no** ofrece a quien ya tiene acceso. La razón por la que antes sí
+lo ofrecía —marcado con «Ya tiene acceso»— está escrita en
+`loQueSeOfreceParaCompartir` y era que *la lista de arriba solo sabía quitar*,
+así que esconderlo dejaba sin forma de pasar de lectura a edición. Con los tres
+niveles en cada fila esa razón desapareció. **Si algún día la fila de arriba
+vuelve a ser solo una papelera, hay que volver a ofrecerlos.**
+
+Tres cosas más de este lado:
+
+1. **Guardar las CUENTAS no toca las filas de PERSONA.** `reemplazarLasCuentas`
+   manda la lista entera —«estas y solo estas», que es lo que ese diálogo
+   envía— y su `DELETE` lleva `sujetoTipo = 'cuenta'`. Sin esa condición,
+   guardar «con qué cuentas» le quitaría el acceso a la gente a la que se lo
+   dieron por su nombre, y nadie relacionaría las dos cosas.
+2. **Va en una transacción.** Con el `DELETE` y el `INSERT` sueltos, un fallo
+   entre los dos deja el objeto sin compartir con nadie: una pérdida de acceso
+   silenciosa.
+3. **Una cuenta que no se ofrece se filtra y se dice, no tira la petición.** Un
+   id rancio del navegador no puede llevarse por delante el guardado bueno de
+   al lado; es lo que ya se hace con los seguimientos de otra línea.
+
+### Fijar y archivar: dos columnas, y DOS puertas distintas
+
+`doc_documentos` recibe `fijado` y `archivadoEn` con
+`ALTER TABLE … ADD COLUMN IF NOT EXISTS` —la tabla ya está en producción y un
+`CREATE TABLE IF NOT EXISTS` no toca una que ya existe—. `archivadoEn` es una
+**fecha** y no un booleano, como `borradoEn` del espacio: un booleano dice que
+está archivado y no dice desde cuándo, que es justo lo que se pregunta al
+mirar una lista de archivados.
+
+Y las puertas no son la misma, que es lo que más fácil se iguala sin pensar:
+
+| | puerta | por qué |
+| --- | --- | --- |
+| **fijar** | `puedeEditar` | fijar es colocar, y colocar es lo que ya deja hacer arrastrar dentro del espacio. Con `puedeGestionar`, quien tiene edición podría mover y no fijar: no se lee como un permiso, se lee como un botón que a veces no va. |
+| **archivar** | `puedeGestionar` | lo esconde para **todo el equipo**, no solo para quien pulsa. Con la puerta de editar, cualquiera con escritura haría desaparecer del árbol la documentación de sus compañeros, y desde fuera eso no se distingue de un borrado. |
+
+Cuatro cosas más:
+
+1. **No entran por `guardarDocumento`.** Aquel lleva su candado de versión
+   porque lo que se pisa allí es el párrafo de otro; aquí se cambia dónde vive
+   el documento, no su cuerpo. Metiéndolo en el guardado, fijar desde el árbol
+   fallaría con «alguien lo cambió mientras tanto» cada vez que hubiera una
+   pestaña con ese documento abierta.
+2. **Y no escriben una versión.** El historial es de lo que *dice* el
+   documento; una entrada «v12 — se archivó» ensucia justo lo que se mira para
+   volver atrás.
+3. **Un archivado sale de la BÚSQUEDA, no solo del árbol.** Si la búsqueda lo
+   siguiera devolviendo, archivar no serviría para nada — y quien lo encontrara
+   no sabría por qué no está en el árbol. Se llega a él con el interruptor
+   «Ver archivados», que **pide el árbol otra vez al servidor**: un filtro que
+   vive un paso después del servidor no es un filtro, lo que viaja es la lista
+   entera.
+4. **Los fijados van por ENCIMA del orden puesto a mano**
+   (`conLosFijadosArriba`, después de `ordenarLaColumna`). Fijar no es una
+   posición, es una banda: metiéndolo dentro del orden habría que reescribir
+   las posiciones del espacio entero cada vez que alguien fija algo, y entonces
+   desfijar dejaría el documento donde lo puso la chincheta y no donde estaba.
+
+### El orden del árbol es de la CUENTA, y por eso no va en `doc_espacios.orden`
+
+La columna existe y sigue ahí —da el orden de partida, por creación—, pero **no
+puede ser la que manda**: un espacio compartido sale en el árbol de dos cuentas
+y una sola columna solo guarda una posición, así que moverlo en una se lo
+movería a la otra. Es exactamente lo que ya explica
+`lib/orden-de-las-tarjetas.ts` para la rejilla de Proyectos y Diagramas: **una
+cosa compartida tiene UNA fila y DOS sitios.**
+
+Va en `orden_en_tablero` con un `tipo` nuevo, **`arbol`**, y `tableroId` = la
+cuenta de quien mira. Es el único de los cinco tipos cuya llave es una cuenta y
+no una cosa, y está escrito al lado de la lista para que no se lea como un
+descuido. Y entra ahí y no en `work_item_order` —que es la tabla «por pareja
+cuenta + cosa»— porque aquella se discrimina con `TipoDeCarpeta`, y ensancharlo
+metería un tipo de tarjeta en las Carpetas, que no tienen espacios. Con esto,
+Documentación usa **un solo mecanismo** para sus dos órdenes.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se arrastra por un ASA, no por la fila.** La cabecera de un espacio es un
+   botón que pliega, con el «+» y el «⋯» al lado: sin asa, cada pulsación
+   competiría con un arrastre.
+2. **Y hay Subir y Bajar en el menú, que no son un adorno.** En un táctil,
+   arrastrar una fila de un árbol que además se desplaza es justo lo que no se
+   puede hacer con el dedo. El primero no sube y el último no baja, y la opción
+   **se quita**, no se pinta en gris.
+3. **Los dos guardan la lista ENTERA**, no un intercambio de dos posiciones:
+   cada escritura es una foto coherente, que es lo que hace que dos personas
+   reordenando a la vez acaben en un orden que vio alguien.
+4. **Un `agente` no ordena** —participa, no manda— y **no se pide
+   `canManageWorkspace`**, que es más estrecho: un miembro del equipo cuyo
+   `advisorRole` no es ni `administrador` ni `agente` crea espacios hoy, y con
+   aquella condición se quedaría con un árbol que no puede colocar. Es la misma
+   mitad que `puedeMandarEnElEspacio` ya tenía escrita.
+
+#### Medido en Chromium, sobre el CSS del build
+
+El asa y las dos marcas nuevas le quitan ancho al nombre, que es lo que hay que
+mirar en una columna que ya iba justa. Ninguna de las dos **cambia el alto**, y
+eso es lo que importa: una fila más alta en un árbol de cuarenta documentos son
+cuarenta filas menos a la vista.
+
+| | 1440 / 1280 (aside 320) | 1024 / 390 (aside 288) |
+| --- | --- | --- |
+| nombre del espacio, antes | 195 px | 163 px |
+| nombre del espacio, con el asa | **177 px** | **145 px** |
+| alto de la cabecera | 24 px, antes y después | 24 px |
+
+Y en la fila de un documento, cada marca cuesta **20 px** del título —12 del
+icono más su hueco—, con el alto clavado en **32 px** en los cuatro casos:
+
+| marcas | 1440 / 1280 | 1024 / 390 |
+| --- | --- | --- |
+| ninguna | 257 px | 225 px |
+| escudo (restringido) | 237 px | 205 px |
+| + chincheta | 217 px | 185 px |
+| + archivado | 197 px | 165 px |
+
+El nombre recorta con «…» y va entero en el `title`, y **nada desborda a lo
+ancho** en ninguna de las ocho combinaciones. Lo que no se mide aquí es un
+espacio con el asa *y* la insignia «De otra cuenta»: en uno recibido
+`puedeOrdenarElArbol` decide el asa y la insignia decide lo otro, así que la
+combinación existe — y cabe, porque el asa son los mismos 18 px que ya se
+descontaron arriba.
+
+#### Dos `DndContext` anidados, y por qué aquí SÍ se puede
+
+La regla de los tableros dice que dos contextos anidados se roban los eventos,
+y aquí hay dos: el del árbol, que monta la pantalla, y el de los documentos de
+cada espacio. No se pisan porque **ningún nodo pertenece a los dos**: la
+cabecera del espacio está fuera del contexto de dentro, que solo envuelve la
+lista de documentos. Lo que aquella regla prohíbe es un nodo compartido.
+
+### Exportar: en el NAVEGADOR, y sin ninguna acción nueva
+
+El cuerpo y las filas ya están cargados —es lo que se está leyendo—, así que
+una acción de servidor para esto sería un viaje para devolver lo que el
+navegador ya tiene, y encima una puerta más que mantener. Y **sale siempre**,
+también en uno recibido de solo lectura: bajarse una copia de lo que ya se está
+leyendo no cambia nada de nadie.
+
+Lo que el walker de Notas no sabía hacer, y son los dos casos que el banco
+protege:
+
+1. **La MENCIÓN.** Es un átomo, así que `node.content` está vacío: sin su rama
+   desaparecía del fichero, y un `.md` que dice menos que el documento del que
+   salió es peor que uno feo.
+2. **Las LISTAS.** Un documento de tipo `lista` no tiene cuerpo: tiene filas en
+   `doc_filas`. Exportar su `contenido` daba un fichero en blanco. Salen como
+   tabla de markdown, con las barras y los saltos escapados —una barra dentro
+   de una celda parte la tabla en columnas que nadie pidió—.
+
+**Y el recorrido es ITERATIVO, nunca recursivo.** Lo cazó el banco con 20.000
+niveles: la primera versión era recursiva y reventaba con «Maximum call stack
+size exceeded», o sea la pestaña de quien pulsa «Exportar» caída sin ninguna
+explicación. Es la misma decisión y el mismo motivo que `leerElContenido`, que
+lee este mismo árbol para indexarlo — el contenido llega del navegador y su
+hondura no es de fiar.
+
+Y una asimetría del texto plano que no es un descuido: se pierden las
+almohadillas de un encabezado y las comillas de una cita —eso es marcado, y el
+título se lee igual— pero **se conservan los guiones de una lista**, porque sin
+ellos cinco puntos seguidos se leen como un párrafo.
+
+### Lo que NO se hizo, y por qué
+
+- **«Compartir con contactos» no existe aquí, y no es un olvido.** En Notas un
+  «contacto» no es alguien con quien se comparta: es un **vínculo** a un lead de
+  WhatsApp (`contactJid`), y esa persona no tiene sesión en la plataforma, así
+  que no hay nada que abrirle. Documentación ya tiene ese vínculo, y mejor: las
+  **menciones** (`@cliente`, `@tarea`, `@ticket`) con su retroenlace desde la
+  ficha. Montar además un `contactJid` sería un segundo mecanismo para lo mismo.
+- **Las tres implementaciones de compartir no se fundieron.** Unificarlas es
+  mover `note_shares` y `project_shares` a un modelo con `sujetoTipo`, migrar
+  las filas de dos tablas vivas y volver a pasar por las puertas de tres
+  módulos. Es un frente aparte y se dice aquí para que no se dé por revisado.
+
+### El banco ejerce las ACCIONES, no las consultas
+
+`lib/__tests__/documentacion-compartir.test.mjs`, contra Postgres y con la
+malla de `linked_accounts` dentro. Probando `lib/documentacion-db.ts` a secas
+se estaría probando justo el lado que **no tiene puerta**; lo que hay que
+demostrar es que lo nuevo pasa por `accesoAEsteEspacio`. Lo único que se finge
+son `currentUser()`, `revalidatePath` y el `cache()` de React —los tres piden
+una petición de Next y ninguno decide nada—.
+
+Los tres puntos de vista que se piden, y lo que cada uno destapó:
+
+| quién | qué se comprueba |
+| --- | --- |
+| la **madre** | comparte, ordena su árbol y manda en lo suyo |
+| la **hija** —y su administrador con SU id— | lo ve recibido, escribe con edición, y **no reparte** |
+| **sin permiso** en el espacio | no lo ve, y fijar, archivar, compartir y leer las cuentas le contestan que no — y **no se escribió ninguna fila** |
+
+Y dos casos que valen por el resto: **con edición se fija pero no se archiva**
+—las dos puertas distintas, ejercidas— y **cada cuenta coloca su árbol sin
+mover el de la otra**, que es la decisión de la llave puesta a prueba.
+
+Una del propio banco, que ya costó una vuelta en el del sufijo de dispositivo y
+volvió a costarla aquí: **la base se reutiliza entre ejecuciones**, así que los
+ids llevan el sello de la vuelta y **no se afirma sobre la lista completa** de
+un árbol —lleva dentro lo que compartieron los casos de arriba—. Se compara el
+orden **relativo** de lo que ese caso creó; lo contrario es afirmar sobre el
+orden en que corre el banco.
+
 ## Carpetas: ordenan la pantalla, no viven dentro de la cosa
 
 Proyectos y Diagramas se llenan y acaban siendo una cuadrícula donde no se
