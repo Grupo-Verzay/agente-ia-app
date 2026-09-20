@@ -5,38 +5,30 @@ import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
     ESTADOS_DE_LA_VENTANA,
-    LLAVE_DE_LA_VENTANA,
     VENTANA_POR_DEFECTO,
-    elEstadoDeEntrada,
-    loQueSeRecuerda,
     sePuedeArrastrar,
     type EstadoDeLaVentana,
 } from "@/lib/ventana-de-reunion";
 import { useVentanaArrastrable } from "@/hooks/useVentanaArrastrable";
-import { useHuecoDelContenido } from "@/hooks/useHuecoDelContenido";
+import { useHuecoJuntoAlMenu } from "@/hooks/useHuecoJuntoAlMenu";
 import { LaReunion } from "@/components/video/LaReunion";
 
 /**
- * Una reunión abierta **dentro** de la plataforma, en cuatro tamaños.
+ * Una reunión abierta **dentro** de la plataforma, en tres tamaños.
  *
  * Quien tiene sesión no se va a ninguna parte: la reunión se abre encima de lo
  * que estuviera haciendo y se queda abierta al cambiar de pantalla. Lo que
- * cambia es **cuánto sitio ocupa**, y son cuatro escalones:
+ * cambia es **cuánto sitio ocupa**, y son tres escalones:
  *
  * | | qué ocupa |
  * | --- | --- |
  * | `pastilla` | una barra arrastrable con el rato y colgar |
- * | `panel` | una ventana flotante, arrastrable, encima del trabajo |
- * | `maximizada` | el hueco de contenido entero, **con el menú y la barra a la vista** |
- * | `completa` | la pantalla, sin navegador alrededor |
+ * | `maximizada` | de borde a borde y **desde arriba del todo**: tapa la barra superior y las migas, y deja a la vista solo la barra de iconos de la izquierda |
+ * | `completa` | la pantalla del equipo, esa barra incluida |
  *
- * **`maximizada` no es `completa`**, y esa es la diferencia que más se usa:
- * llena el sitio del contenido y deja fuera el menú lateral y la barra de
- * arriba, así que se puede mirar la campanita o cambiar de pantalla sin salir
- * de la reunión ni encogerla. Lo hace midiendo el `<main>` de verdad
- * (`useHuecoDelContenido`) y no restando variables: el menú tiene tres anchos
- * —abierto, plegado a iconos y fuera de pantalla en un móvil— y además se
- * anima al plegarse.
+ * El hueco de `maximizada` se **mide** (`useHuecoJuntoAlMenu`) y no se resta de
+ * variables: el menú tiene tres anchos —abierto, plegado a iconos y fuera de
+ * pantalla en un móvil— y además se anima al plegarse.
  *
  * # Cuelga del layout, como el oyente de llamadas
  *
@@ -48,36 +40,18 @@ import { LaReunion } from "@/components/video/LaReunion";
  */
 export function ReunionEnLaPlataforma() {
     const [codigo, setCodigo] = useState<string | null>(null);
-    const [ventana, setVentana] = useState<EstadoDeLaVentana>(VENTANA_POR_DEFECTO);
-
     /**
-     * El tamaño recordado se lee en un EFECTO, no al pintar.
+     * El tamaño **no se recuerda entre reuniones**, y por eso esto es un
+     * `useState` pelado sin efecto que lea `localStorage`.
      *
-     * `localStorage` no existe en el servidor, así que leerlo directamente
-     * daría una salida en cada lado y rompería la hidratación. Y va dentro de
-     * un `try` porque en una ventana privada leerlo puede lanzar — sin eso, el
-     * panel entero se cae justo en los navegadores donde más se mira la
-     * privacidad.
+     * De los tres estados solo uno se puede restaurar: `completa` la niega el
+     * navegador sin un gesto de la persona, y abrir en `pastilla` es abrir una
+     * reunión que no se ve empezar. O sea que el recuerdo solo podía devolver
+     * `maximizada`, que es el valor por defecto — una preferencia que no puede
+     * decir nada distinto de la constante de al lado es una escritura por gesto
+     * para nada.
      */
-    useEffect(() => {
-        try {
-            setVentana(elEstadoDeEntrada(window.localStorage.getItem(LLAVE_DE_LA_VENTANA)));
-        } catch {
-            // Se queda el de por defecto, que es lo correcto.
-        }
-    }, []);
-
-    const cambiarVentana = useCallback((v: EstadoDeLaVentana) => {
-        setVentana(v);
-        try {
-            // `completa` se guarda como `maximizada`: restaurarla al abrir
-            // significaría pedir pantalla completa sin que nadie la haya
-            // pulsado, y los navegadores lo niegan fuera de un gesto.
-            window.localStorage.setItem(LLAVE_DE_LA_VENTANA, loQueSeRecuerda(v));
-        } catch {
-            // Que no se recuerde no puede impedir que se cambie ahora.
-        }
-    }, []);
+    const [ventana, setVentana] = useState<EstadoDeLaVentana>(VENTANA_POR_DEFECTO);
 
     const flotante = sePuedeArrastrar(ventana);
     const { cajaRef, estilo, asa, posicion } = useVentanaArrastrable({
@@ -91,7 +65,7 @@ export function ReunionEnLaPlataforma() {
         tamano: ventana,
     });
 
-    const hueco = useHuecoDelContenido(ventana === "maximizada");
+    const hueco = useHuecoJuntoAlMenu(ventana === "maximizada");
 
     useEffect(() => {
         const alAbrir = (e: Event) => {
@@ -103,10 +77,10 @@ export function ReunionEnLaPlataforma() {
             // abiertos y dos audios encima del otro, y no hay forma de saber
             // cuál se está oyendo.
             setCodigo(cual);
-            // Y se abre en el tamaño recordado, salvo que fuera la pastilla:
-            // una reunión que empieza plegada es una reunión que no se ve
-            // empezar, y quien acaba de pulsar «entrar» espera verla.
-            setVentana((v) => (v === "pastilla" ? "panel" : v));
+            // Y se abre SIEMPRE grande, venga de donde venga: una reunión que
+            // empieza plegada es una reunión que no se ve empezar, y quien
+            // acaba de pulsar «entrar» espera verla.
+            setVentana(VENTANA_POR_DEFECTO);
         };
         window.addEventListener("reunion:abrir", alAbrir);
         return () => window.removeEventListener("reunion:abrir", alAbrir);
@@ -146,27 +120,29 @@ export function ReunionEnLaPlataforma() {
             // son con otra gente.
             key={codigo}
             className={cn(
-                "fixed z-[99] overflow-hidden border border-border bg-background shadow-2xl",
+                "fixed z-[99] overflow-hidden border-border bg-background shadow-2xl",
                 ventana === "completa"
                     ? // A pantalla completa la caja no decide nada: el
-                      // navegador la pone a pantalla completa y lo que manda es
-                      // el nodo de dentro. `inset-0` es solo para el instante
+                      // navegador pone a pantalla completa el nodo de dentro y
+                      // es ese el que manda. `inset-0` es solo para el instante
                       // entre pulsar y que el navegador conteste.
-                      "inset-0 rounded-none"
+                      "inset-0 rounded-none border-0"
                     : ventana === "maximizada"
-                      ? cn("rounded-lg", hueco ? "" : "inset-0")
-                      : ventana === "pastilla"
-                        ? // `w-fit` y no `w-auto`: sin posición propia la caja
-                          // va con `inset-x-0`, y un ancho automático entre
-                          // `left:0` y `right:0` **se estira** de lado a lado.
-                          cn("w-fit rounded-xl", posicion ? "" : "inset-x-0 bottom-4 mx-auto")
-                        : cn(
-                              // Grande, pero no a pantalla completa: esto flota
-                              // encima del trabajo de alguien y tiene que verse
-                              // que hay algo detrás.
-                              "h-[min(85vh,44rem)] w-[min(94vw,56rem)] rounded-xl",
-                              posicion ? "" : "inset-x-0 top-6 mx-auto",
-                          ),
+                      ? // Pegada al borde de arriba y a los dos lados: ni
+                        // esquinas redondeadas ni borde. **Ni siquiera el de la
+                        // izquierda**, que es lo único que quedaba al lado: la
+                        // barra de iconos ya dibuja el suyo, así que uno más
+                        // pinta dos rayas claras seguidas contra el fondo
+                        // oscuro de la reunión. Medido pixel a pixel: 210 y
+                        // 226 pegadas una a la otra.
+                        cn("rounded-none border-0", hueco ? "" : "inset-0")
+                      : // `w-fit` y no `w-auto`: sin posición propia la caja va
+                        // con `inset-x-0`, y un ancho automático entre `left:0`
+                        // y `right:0` **se estira** de lado a lado.
+                        cn(
+                            "w-fit rounded-xl border",
+                            posicion ? "" : "inset-x-0 bottom-4 mx-auto",
+                        ),
             )}
         >
             {/* `LaReunion` y NO `SalaDeVideo` a pelo, que es el fallo que
@@ -178,7 +154,7 @@ export function ReunionEnLaPlataforma() {
             <LaReunion
                 codigo={codigo}
                 ventana={ventana}
-                onVentana={cambiarVentana}
+                onVentana={setVentana}
                 estadosQueOfrece={ESTADOS_DE_LA_VENTANA}
                 asa={flotante ? asa : undefined}
                 alCerrar={cerrar}

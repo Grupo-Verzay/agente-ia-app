@@ -5819,6 +5819,155 @@ de colgar fuera de la pantalla.
 > vuelve a pasar, el sitio donde mirar es `queHacerConLaVentana`: es puro, así
 > que el caso se reproduce en el banco sin navegador.
 
+## Reuniones: TRES tamaños, y la pantalla completa se pide DENTRO del clic
+
+De los cuatro estados de la ventana de una reunión, **dos no llegaban a donde
+decían**: «maximizar» se quedaba en el panel mediano flotante, y «pantalla
+completa» dejaba a la vista la barra superior y la lateral. Son dos fallos
+distintos con la misma pinta —«el botón no llega más lejos»— y cada uno tenía
+su causa.
+
+### 1. El panel mediano no era un tamaño: era un escalón de más
+
+La escala iba `pastilla → panel → maximizada → completa`, y «ampliar» avanza
+**uno**. Así que desde la pastilla la primera pulsación caía en `panel` —una
+ventana flotando encima del trabajo— y desde fuera eso se lee como que el botón
+de maximizar no funciona.
+
+Y ese tamaño no servía para lo que prometía: durante una reunión o se mira la
+reunión o se mira otra cosa, y para lo segundo ya está la pastilla, que ocupa
+una barra en vez de media pantalla.
+
+> **Quedan tres, y cada pulsación cambia algo que se nota**: `pastilla` →
+> `maximizada` → `completa`.
+
+Y **con el panel se fue la memoria del último estado**, que es la consecuencia
+que no se ve hasta contarla: de los tres, `completa` la niega el navegador sin
+un gesto y `pastilla` abre una reunión que no se ve empezar, así que el
+recuerdo **solo podía devolver `maximizada`** — que ya es el valor por defecto.
+Una preferencia que no puede decir nada distinto de la constante de al lado no
+es una preferencia: es una escritura en `localStorage` por cada gesto para
+nada.
+
+### 2. Y `requestFullscreen` fallaba por el SITIO DESDE EL QUE SE LLAMABA
+
+Se descartaron primero las dos sospechas naturales, **midiendo**:
+
+| se sospechaba | qué salió |
+| --- | --- |
+| el elemento equivocado | las cuatro combinaciones —la caja de fuera y el nodo de dentro— entran bien |
+| el contenedor lo impide | un elemento en la capa superior **no lo recorta** un `overflow:hidden` ni un ancestro `fixed` |
+| la cabecera `Permissions-Policy` | nombra `microphone` y `screen-wake-lock`; `fullscreen` se queda con su lista por defecto |
+
+Lo que quedaba —y encaja con el síntoma exacto— es **desde dónde se pedía**:
+
+```ts
+// MAL: una tarea DESPUÉS del gesto
+useEffect(() => {
+    if (quiereLaPantallaCompleta(ventana)) void nodo.requestFullscreen?.()…
+}, [ventana]);
+```
+
+Un efecto **ya no es el manejador del clic**. El navegador solo concede
+pantalla completa desde un manejador de un evento de la persona, y esto
+dependía de que la *activación transitoria* sobreviviera al salto de tarea.
+Chromium la conserva unos segundos —medido: la petición salía **2 ms** después
+del clic con `navigator.userActivation.isActive === true`— y por eso allí
+«funcionaba»; donde no, la promesa se rechaza, el `catch` caía a
+`alSalirDePantallaCompleta()` y la reunión se quedaba **maximizada**, que es
+literalmente «no entra en pantalla completa: deja visibles la barra superior y
+la lateral».
+
+> **La regla: pantalla completa se pide DENTRO del manejador del clic, y el
+> estado se mueve solo si el navegador dijo que sí.** Primero el estado y
+> después la petición es lo que dejaba la ventana pintada como completa dentro
+> de una página que no lo está.
+
+Y **el `?.` era el segundo fallo, mudo del todo**: `nodo.requestFullscreen?.()`
+donde el método no existe —iOS Safari no lo tiene en un elemento cualquiera—
+devuelve `undefined` y no pasa absolutamente nada: ni error, ni aviso, ni
+cambio. Ahora el botón **no se ofrece** cuando no la hay (`fullscreenEnabled`,
+que contesta además el caso del iframe sin permiso), porque un botón que al
+pulsarlo da error es peor que no tenerlo.
+
+**Salir sí puede vivir en un efecto**, y hace falta que viva ahí: salir no pide
+ningún gesto, y a `completa` se deja de querer por caminos que no pasan por el
+botón —el panel se despliega solo cuando te sacan de la reunión—. Más el
+desmontaje: sin eso, cerrar el panel estando a pantalla completa deja el
+navegador en ese modo con la reunión ya cerrada, o sea una pantalla en negro
+sin nada que la explique.
+
+### 3. Y el `<main>` que hay que medir es el de FUERA — justo al revés que #824
+
+`maximizada` ocupa un hueco **medido** y no restado de variables, porque el
+menú tiene tres anchos y además se anima al plegarse. El #824 ya avisó de que
+hay **dos `<main>`** y que `querySelector` devuelve el primero del documento;
+lo que aquel arregló fue coger el de **dentro**, porque entonces maximizada
+tenía que dejar ver la barra de arriba. Ahora el encargo es el contrario —tapar
+la barra superior y las migas y dejar solo la barra de iconos— así que hay que
+coger el de **fuera**. Medido a 1440×900 con el menú plegado:
+
+| | top | left | alto |
+| --- | --- | --- | --- |
+| el de fuera (`SidebarInset`) | **0** | 48 | 900 |
+| el de dentro (el contenido) | 53 | 48 | 847 |
+
+> **La regla no es «el de dentro» ni «el de fuera»: es el que EMPIEZA donde
+> tiene que empezar la caja.** Escrita como «el de dentro» —que es como se leía
+> el #824— este cambio la habría cumplido y habría seguido tapando lo que no
+> toca. Por eso el hook se llama `useHuecoJuntoAlMenu` y no
+> `useHuecoDelContenido`: el nombre dice contra qué se mide.
+
+Y su respaldo, cuando no hay ningún `<main>`, es **la ventana entera**: ya no
+resta `--alto-de-la-barra`, porque maximizada viene precisamente a taparla.
+
+### 4. Ni franja muerta ni raya doble, y eso se lee en los PÍXELES
+
+La caja maximizada llevaba `border-l`. Recortando un píxel de alto de la
+captura y decodificando el PNG, la costura a 1440 salía así:
+
+| x | antes | ahora |
+| --- | --- | --- |
+| 46 | 236 · barra de iconos | 236 |
+| 47 | 210 · **su** borde | 210 |
+| 48 | **226 · nuestro `border-l`** | 9 · la reunión |
+| 49 | 9 · la reunión | 9 |
+
+O sea **dos rayas claras seguidas** contra el fondo oscuro de la sala: la barra
+ya dibuja la suya, así que la nuestra sobraba. No era una franja muerta —no
+había ningún hueco— pero se leía como una.
+
+**Esto se mira decodificando el PNG, no con `getBoundingClientRect`.** Las
+cajas decían `franja: 1 px` y esa cifra no distingue «un hueco de fondo» de «un
+borde de alguien»; los píxeles sí.
+
+### Medido, los tres estados y todas sus transiciones
+
+Chromium sobre el build servido, con sesión de verdad y cámara falsa, a 1440,
+1280, 1024 y 390 (este último como móvil, sin barra lateral):
+
+| | caja a 1440 | pantalla completa |
+| --- | --- | --- |
+| `maximizada` al entrar | `0, 48 · 1392×900` | no |
+| `completa` | `0, 0 · 1440×900` | **sí**, y el nodo es el de la sala |
+| tras soltar el modo (lo que hace Escape) | `0, 48 · 1392×900` | no |
+| `pastilla` | `842, 609 · 222×42` | no |
+| de vuelta | `0, 48 · 1392×900` | no |
+
+En las cuatro anchuras y en los siete pasos: **la página no se desplaza** ni a
+lo alto ni a lo ancho, **no hay ninguna segunda barra de desplazamiento**, la
+cabecera de la sala vuelve **entera** (49 px y sus cinco mandos) y la barra
+superior de la plataforma sigue igual antes y después (53 px, el mismo texto).
+Los `<video>` **siguen en el DOM con la pastilla puesta** —plegar esconde, no
+desmonta—, que es lo que deja seguir oyendo la reunión.
+
+Y una del banco: **Escape no se puede probar con `keyboard.press`**. Esa tecla
+la atiende el navegador, no la página, así que en Playwright no sale del modo y
+el resto de la prueba se ejecuta sobre un estado que no es el que se cree. Lo
+que sí prueba lo nuestro es `document.exitFullscreen()`, que dispara el mismo
+`fullscreenchange` que quien pulsa Escape — y ese oyente **es** el código bajo
+prueba.
+
 ## Un hilo se abre por el final, y no se mueve solo
 
 Los cinco listados de mensajes de la plataforma —Chats, el chat de equipo y los

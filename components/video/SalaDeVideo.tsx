@@ -47,6 +47,7 @@ import {
     type ModoDeFondo,
 } from "@/lib/fondo-de-video";
 import {
+    VENTANA_POR_DEFECTO,
     alAmpliar,
     alReducir,
     alSalirDePantallaCompleta,
@@ -203,35 +204,100 @@ export function SalaDeVideo({
 
     // ── Pantalla completa ───────────────────────────────────────────────────
     //
-    // Se pide y se suelta desde un solo sitio, y **se escucha el cambio**:
-    // Escape y F11 sacan del modo sin decírselo a nadie, y sin esto la reunión
-    // se quedaría pintada como completa dentro de una página que ya no lo está.
+    // **Se pide DENTRO del clic, nunca desde un efecto.** Esto estaba en un
+    // `useEffect` que miraba `ventana`, o sea una tarea después del gesto: el
+    // navegador solo concede pantalla completa desde un manejador de un evento
+    // de la persona, y un efecto ya no lo es —depende de que la activación
+    // transitoria sobreviva al salto—. Chromium la conserva unos segundos y
+    // por eso allí «funcionaba»; donde no, la promesa se rechaza, el `catch`
+    // caía a `alSalirDePantallaCompleta()` y la reunión se quedaba
+    // **maximizada** — que es exactamente el síntoma reportado: «no entra en
+    // pantalla completa, deja visibles la barra superior y la lateral».
+    //
+    // Y el estado se mueve **solo si el navegador dijo que sí**: pintarse como
+    // completa dentro de una página que no lo está es peor que no entrar, y es
+    // lo que hacía el orden anterior (primero el estado, después la petición).
+    const irA = useCallback(
+        (siguiente: EstadoDeLaVentana) => {
+            if (siguiente === ventana) return;
+            if (quiereLaPantallaCompleta(siguiente)) {
+                const nodo = raizRef.current;
+                if (!nodo?.requestFullscreen) {
+                    // No se finge: sin el método no pasa nada y nadie se
+                    // entera. `?.()` aquí devolvía `undefined` en silencio.
+                    toast.error("Este navegador no tiene pantalla completa.");
+                    return;
+                }
+                void nodo.requestFullscreen().then(
+                    () => onVentana(siguiente),
+                    (error: unknown) => {
+                        console.warn("[sala] no se pudo poner a pantalla completa", error);
+                        toast.error(
+                            "Tu navegador no dejó poner la reunión a pantalla completa.",
+                        );
+                    },
+                );
+                return;
+            }
+            if (typeof document !== "undefined" && document.fullscreenElement) {
+                void document.exitFullscreen?.().catch(() => {
+                    // Salir de un modo en el que ya no se está no es un error.
+                });
+            }
+            onVentana(siguiente);
+        },
+        [onVentana, ventana],
+    );
+
+    /**
+     * Si este navegador la tiene, para no ofrecer un botón que da error.
+     *
+     * `fullscreenEnabled` contesta las dos cosas que la apagan: que el
+     * navegador no la implemente —iOS Safari no tiene `requestFullscreen` en
+     * un elemento cualquiera— y que estemos dentro de un iframe sin permiso.
+     * Arranca en `true` y se corrige al montar: leer `document` al pintar
+     * daría una salida en el servidor y otra en el navegador, o sea una
+     * hidratación rota.
+     */
+    const [hayPantallaCompleta, setHayPantallaCompleta] = useState(true);
     useEffect(() => {
+        setHayPantallaCompleta(
+            typeof document !== "undefined" &&
+                document.fullscreenEnabled === true &&
+                typeof Element.prototype.requestFullscreen === "function",
+        );
+    }, []);
+
+    // La otra mitad, y solo la otra mitad: **salir**. Salir no pide ningún
+    // gesto, así que sí puede vivir en un efecto — y hace falta, porque a
+    // `completa` se deja de querer por caminos que no pasan por `irA` (el
+    // panel se despliega solo cuando te sacan de la reunión).
+    useEffect(() => {
+        if (typeof document === "undefined") return;
         const nodo = raizRef.current;
-        if (!nodo || typeof document === "undefined") return;
-        const quiere = quiereLaPantallaCompleta(ventana);
-        const estaEnCompleta = document.fullscreenElement === nodo;
-        if (quiere && !estaEnCompleta) {
-            void nodo.requestFullscreen?.().catch((error) => {
-                // El navegador la niega fuera de un gesto de la persona, y
-                // también en un iframe sin permiso. Se vuelve al escalón de al
-                // lado y se dice: una reunión que se queda a medio camino sin
-                // explicación se lee como que el botón está roto.
-                console.warn("[sala] no se pudo poner a pantalla completa", error);
-                toast.error("Tu navegador no dejó poner la reunión a pantalla completa.");
-                onVentana(alSalirDePantallaCompleta());
-            });
-        } else if (!quiere && estaEnCompleta) {
-            void document.exitFullscreen?.().catch(() => {
-                // Salir de un modo en el que ya no se está no es un error.
-            });
+        if (quiereLaPantallaCompleta(ventana)) return;
+        if (document.fullscreenElement && document.fullscreenElement === nodo) {
+            void document.exitFullscreen?.().catch(() => {});
         }
-    }, [onVentana, ventana]);
+    }, [ventana]);
+
+    // Y al desmontar. Sin esto, cerrar el panel estando a pantalla completa
+    // deja el navegador en ese modo con la reunión ya cerrada: una pantalla en
+    // negro sin nada que la explique.
+    useEffect(() => {
+        return () => {
+            if (typeof document === "undefined") return;
+            if (document.fullscreenElement) {
+                void document.exitFullscreen?.().catch(() => {});
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const alCambiar = () => {
-            const nodo = raizRef.current;
-            if (!document.fullscreenElement && nodo && quiereLaPantallaCompleta(ventana)) {
+            // Escape y F11 sacan del modo sin decírselo a nadie. Quien los
+            // pulsó quería salir de pantalla completa, no encoger la reunión.
+            if (!document.fullscreenElement && quiereLaPantallaCompleta(ventana)) {
                 onVentana(alSalirDePantallaCompleta());
             }
         };
@@ -263,7 +329,7 @@ export function SalaDeVideo({
      */
     useEffect(() => {
         if (minimizada && (malla.estado === "fuera" || malla.estado === "esperando")) {
-            onVentana("panel");
+            onVentana(VENTANA_POR_DEFECTO);
         }
     }, [minimizada, malla.estado, onVentana]);
 
@@ -574,7 +640,7 @@ export function SalaDeVideo({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 shrink-0"
-                        onClick={() => onVentana(alAmpliar(ventana))}
+                        onClick={() => irA(alAmpliar(ventana))}
                         aria-label="Ampliar la reunión"
                         title="Ampliar"
                     >
@@ -598,9 +664,19 @@ export function SalaDeVideo({
     }
 
     // Aquí `ventana` ya no puede ser `pastilla` —esa rama salió arriba— así
-    // que basta con preguntar si el escalón de abajo se ofrece en este sitio.
-    const puedeReducir = estadosQueOfrece.includes(alReducir(ventana));
-    const puedeAmpliar = estadosQueOfrece.includes(alAmpliar(ventana));
+    // que basta con preguntar si el escalón de al lado se ofrece en este sitio.
+    //
+    // Y los extremos se quedan quietos (`alAmpliar("completa")` devuelve
+    // `completa`), así que sin el `!==` el botón saldría en el último escalón
+    // sin hacer nada al pulsarlo.
+    const masPequena = alReducir(ventana);
+    const masGrande = alAmpliar(ventana);
+    const puedeReducir = masPequena !== ventana && estadosQueOfrece.includes(masPequena);
+    const puedeAmpliar =
+        masGrande !== ventana &&
+        estadosQueOfrece.includes(masGrande) &&
+        // Un botón que al pulsarlo da error es peor que no tenerlo.
+        (!quiereLaPantallaCompleta(masGrande) || hayPantallaCompleta);
 
     return (
         <div
@@ -663,17 +739,21 @@ export function SalaDeVideo({
                 {puedeReducir ? (
                     <MandoDeCabecera
                         activo={false}
-                        onClick={() => onVentana(alReducir(ventana))}
-                        rotulo={ventana === "panel" ? "Plegar a una pastilla" : "Reducir"}
+                        onClick={() => irA(masPequena)}
+                        rotulo={
+                            masPequena === "pastilla"
+                                ? "Plegar a una pastilla"
+                                : "Salir de pantalla completa"
+                        }
                         Icono={Minimize2}
                     />
                 ) : null}
                 {puedeAmpliar ? (
                     <MandoDeCabecera
                         activo={false}
-                        onClick={() => onVentana(alAmpliar(ventana))}
+                        onClick={() => irA(masGrande)}
                         rotulo={
-                            ventana === "maximizada" ? "Pantalla completa" : "Ampliar"
+                            masGrande === "completa" ? "Pantalla completa" : "Ampliar"
                         }
                         Icono={Maximize2}
                     />

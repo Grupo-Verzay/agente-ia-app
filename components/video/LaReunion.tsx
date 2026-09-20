@@ -71,10 +71,9 @@ export function LaReunion({
      * Cómo se ve la ventana, y qué tamaños se ofrecen aquí.
      *
      * Se pasan tal cual a la sala, que es quien pinta los mandos. **Quien entra
-     * por el enlace público recibe solo dos** —`maximizada` y `completa`—
-     * porque ahí la reunión ES la pestaña: plegarla a una pastilla dejaría una
-     * página en blanco con una pastilla encima, y un panel flotante no tendría
-     * nada debajo sobre lo que flotar.
+     * por el enlace público recibe solo dos** de los tres —`maximizada` y
+     * `completa`— porque ahí la reunión ES la pestaña: plegarla a una pastilla
+     * dejaría una página en blanco con una pastilla encima.
      */
     ventana: EstadoDeLaVentana;
     onVentana: (v: EstadoDeLaVentana) => void;
