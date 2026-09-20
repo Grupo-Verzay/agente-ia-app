@@ -5575,20 +5575,23 @@ lo que ya había:
 | la sala | de quién es | quién entra directo |
 | --- | --- | --- |
 | **con canal** | del canal | quien pertenece al canal — *exactamente como antes* |
-| **sin canal** | de la cuenta | quien es de la cuenta |
+| **sin canal** | de una cuenta | quien alcanza esa cuenta por su **familia** |
 
-> **Y la lista por cuenta enseña SOLO las salas sin canal** (`canalId IS NULL`
-> en la consulta, no en el navegador). Si trajera también las que nacieron en un
-> canal, alguien de la cuenta que no está en ese canal las vería —y con ellas su
-> enlace— sin haber pertenecido nunca a él. Sería ensanchar la puerta del chat
-> de equipo desde una pantalla que no habla de canales, y en silencio. Vale
-> igual para el histórico.
+> **Y la lista enseña SOLO las salas sin canal** (`canalId IS NULL` en la
+> consulta, no en el navegador). Si trajera también las que nacieron en un
+> canal, alguien que no está en ese canal las vería —y con ellas su enlace— sin
+> haber pertenecido nunca a él. Sería ensanchar la puerta del chat de equipo
+> desde una pantalla que no habla de canales, y en silencio. Vale igual para el
+> histórico.
 
 Lo pregunta **una sola función**, `perteneceALaSala`, que ramifica por
-`sala.canalId`. Lo preguntan tres sitios —abrir el enlace, cada vuelta del reloj
-de la sala y la puerta—, y con la condición copiada en los tres, el día que una
-de las dos ramas se afine los otros dos se quedan atrás. Aquí eso no se ve como
-un error: se ve como alguien que entra a una reunión a la que no debía.
+`sala.canalId`: una sala de canal va por `elCanal` (igual que antes), y una sala
+sin canal por `esDeMiCuenta` **o `esDeMiFamilia`**. Lo preguntan tres sitios
+—abrir el enlace, cada vuelta del reloj de la sala y la puerta—, y con la
+condición copiada en los tres, el día que una de las dos ramas se afine los
+otros dos se quedan atrás. Aquí eso no se ve como un error: se ve como alguien
+que entra a una reunión a la que no debía, o como alguien que no entra a la
+suya.
 
 ### La columna se hizo opcional con `DROP NOT NULL`
 
@@ -5639,13 +5642,53 @@ tiene `advisorRole`, así que preguntar por la persona devolvía su propio id co
 rol `user` y el alcance salía vacío. `canManageWorkspace` ya cubre los dos —sin
 `ownerId` es dueño de su cuenta; con él, mira su `advisorRole`—.
 
-### La cuenta, y NO la familia
+### La lista cruza la FAMILIA, y cada sala dice de quién es
 
-Aquí se lee por `cuentaId` pelado, a diferencia del General del chat de equipo,
-que se lee sobre toda la familia. No es un olvido: allí el hilo es **uno y
-compartido**, y aquí cada cuenta tiene sus reuniones. Una cuenta cliente
-vinculada ve las suyas y ninguna de su madre, que es lo pedido — y es lo que
-permite ofrecer esto como módulo a un cliente sin que vea nada de la casa.
+`/reuniones` empezó leyendo por `cuentaId` pelado —cada cuenta veía solo lo
+suyo—. El problema real es de todos los días: el superadministrador y los
+administradores trabajan sobre **varias cuentas vinculadas** (la madre Carlos
+Arcos, con Verzay Ventas y Verzay Atencion colgando), y para entrar a la sala de
+una hija había que **cambiarse de cuenta primero**. Incómodo y constante.
+
+> **Ahora lista las salas de TODA la familia alcanzable por la fila efectiva de
+> quien mira.** Se resuelve con `laFamiliaDeLaCuenta` —la malla del #812, en los
+> dos sentidos y con ciclos— y se acota con `= ANY(familia.cuentas)`. La madre
+> ve las de las tres cuentas; una hija, las que su familia alcanza; **alguien de
+> fuera de la familia, ninguna** —el `= ANY` no deja pasar más por más ids que
+> se manden—. Vale igual para el histórico.
+
+Esto **no contradice** que Reuniones sea un módulo de cliente: una cuenta
+cliente **sin vinculadas** tiene una familia de una sola cuenta, así que ve solo
+lo suyo, exactamente como antes. Lo que cambia es que una familia de verdad deja
+de estar partida en pantallas separadas.
+
+Cuatro cosas que hay que mantener:
+
+1. **Firmar sigue yendo con la PERSONA, alcanzar con la familia de la fila
+   efectiva.** Entrar a la sala de una hija te mete con TU nombre (Carlos Arcos,
+   Yair Silvera), no con el de la cuenta: `entrarConCuenta` firma con
+   `yo.personaId`. La familia solo decide el ALCANCE —quién ve y quién entra—,
+   que es la regla de siempre.
+2. **Cada sala baja a qué cuenta pertenece** (`cuentaNombre`, con
+   `nombreDeLaCuenta` y no `company` a secas, que nace «Empresa Demo»). La
+   pantalla pinta la insignia **solo cuando la familia tiene varias cuentas**
+   (`variasCuentas`): en una cuenta sola sería repetir su nombre en cada fila.
+3. **Moderar y grabar una sala de OTRA cuenta lo puede solo la MADRE.** Es la
+   parte que no se afloja: `puedeAdministrarLaSala` da la sala propia a quien
+   administra su cuenta, pero una sala de una hermana **solo** a la raíz de la
+   familia (`familia.raiz === yo.cuentaId`). Un administrador de una hija
+   participa en la reunión de otra, pero no la corta ni la graba: su rol es en su
+   cuenta, no en la de al lado. Es el mismo reparto que Finanzas de la familia
+   —*manda la cuenta MADRE*—. Y el módulo de grabación es de la cuenta **dueña**
+   de la sala, no de la de quien mira.
+4. **La familia se resuelve una vez por vuelta y se reparte.** El reloj de la
+   sala (`quienEsEnLaSala`) la resuelve **solo cuando la sala no es de mi propia
+   cuenta** —el camino común no paga nada— y la pasa a `perteneceALaSala` y a
+   `puedeAdministrarLaSala`, en vez de volver a pedirla en cada botón cada 2 s.
+
+**El enlace público para invitados sin sesión no cambia**: sigue cayendo en la
+puerta y entrando cuando alguien de dentro abre. La familia solo toca a quien
+tiene sesión.
 
 ### Y la ruta no se monta: la puerta va en la acción
 

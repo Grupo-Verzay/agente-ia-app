@@ -37,9 +37,12 @@ import {
     cuandoTermino,
     cuantoDuro,
     esDeMiCuenta,
+    esDeMiFamilia,
     puedeAbrirUnaReunion,
     puedeAdministrarLaSala,
+    type LaFamilia,
 } from "@/lib/reuniones-de-la-cuenta";
+import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import {
     barrerLosChatsViejos,
     barrerSenalesViejas,
@@ -49,8 +52,9 @@ import {
     elInvitadoDelToken,
     entrarConCuenta,
     cambiarLaCaducidad,
-    elHistorialDeLaCuenta,
-    lasSalasVivasDeLaCuenta,
+    elHistorialDeLaFamilia,
+    lasSalasVivasDeLaFamilia,
+    losDatosDeLasCuentas,
     lasSalasVivasDelCanal,
     laSalaPorCodigo,
     laSalaPorId,
@@ -210,15 +214,45 @@ async function elCanal(canalId: string, yo: NonNullable<Awaited<ReturnType<typeo
  * **La rama del canal no se toca.** Sigue siendo `elCanal`, con su
  * «pertenecer, no poder leer»: un administrador lee los directos de su cuenta y
  * eso no le mete en una reunión abierta dentro de la conversación de otros dos.
+ *
+ * **La rama sin canal es la que cambia**: ya no es «mi cuenta», es «mi
+ * FAMILIA». Una reunión de la cuenta la ve y entra cualquiera alcanzable por la
+ * fila efectiva de quien mira —la madre, sus vinculadas, en los dos sentidos—,
+ * usando la malla del #812. Quien está fuera de la familia no pasa. La familia
+ * puede venir ya resuelta (`familia`) para no volver a pedirla en cada vuelta
+ * del reloj; si no viene, se resuelve aquí. El camino de la propia cuenta no
+ * paga nada: `esDeMiCuenta` corta antes de tocar la familia.
  */
 async function perteneceALaSala(
     sala: FilaDeSala,
     yo: NonNullable<Awaited<ReturnType<typeof quien>>>,
+    familia?: LaFamilia | null,
 ): Promise<boolean> {
     if (sala.canalId) {
         return Boolean(await elCanal(sala.canalId, yo));
     }
-    return esDeMiCuenta(sala, yo.cuentaId);
+    if (esDeMiCuenta(sala, yo.cuentaId)) return true;
+    const flia = familia ?? (await laFamiliaDeLaCuenta(yo.cuentaId));
+    return esDeMiFamilia(sala, flia.cuentas);
+}
+
+/**
+ * Si puedo administrar (revocar, moderar, grabar) una sala, resolviendo la
+ * familia solo cuando hace falta.
+ *
+ * El camino barato —anfitrión o mi propia cuenta— no toca la familia. Solo
+ * cuando la sala es de OTRA cuenta y administro la mía se resuelve la familia,
+ * para comprobar la regla de la raíz: *solo la madre manda sobre las salas de
+ * sus hijas*. Ver `puedeAdministrarLaSala`.
+ */
+async function puedeAdministrarEstaSala(
+    sala: FilaDeSala,
+    yo: NonNullable<Awaited<ReturnType<typeof quien>>>,
+): Promise<boolean> {
+    if (puedeAdministrarLaSala(sala, yo)) return true;
+    if (!yo.manda) return false;
+    const familia = await laFamiliaDeLaCuenta(yo.cuentaId);
+    return puedeAdministrarLaSala(sala, yo, familia);
 }
 
 /**
@@ -282,6 +316,16 @@ export type SalaParaLaPantalla = {
     enlace: string;
     /** `null` en una reunión de la cuenta, sin canal detrás. */
     canalId: string | null;
+    /** La cuenta DUEÑA de la sala. Con la familia por medio puede no ser la mía. */
+    cuentaId: string;
+    /**
+     * Cómo se llama la cuenta dueña, para pintar a quién pertenece la sala.
+     *
+     * Baja siempre, y la pantalla decide cuándo enseñar la insignia (ver
+     * `variasCuentas`): en una familia de una sola cuenta sería ruido repetir su
+     * nombre en cada fila.
+     */
+    cuentaNombre: string | null;
     anfitrionId: string;
     anfitrionNombre: string | null;
     titulo: string | null;
@@ -306,19 +350,28 @@ function comoSeVeLaSala(
     raiz: string,
     yo: string | null,
     quienPregunta?: Awaited<ReturnType<typeof quien>>,
+    /** La familia ya resuelta, para el `puedoAdministrar` de una sala ajena. */
+    familia?: LaFamilia | null,
+    /** Cómo se llama cada cuenta de la familia. */
+    nombres?: Map<string, string>,
 ): SalaParaLaPantalla {
     return {
         id: fila.id,
         codigo: fila.codigo,
         enlace: laDireccionDeLaSala(fila.codigo, raiz),
         canalId: fila.canalId,
+        cuentaId: fila.cuentaId,
+        cuentaNombre: nombres?.get(fila.cuentaId) ?? null,
         anfitrionId: fila.anfitrionId,
         anfitrionNombre: fila.anfitrionNombre,
         titulo: fila.titulo,
         creadoEn: fila.creadoEn.toISOString(),
         expiraEn: fila.expiraEn ? fila.expiraEn.toISOString() : null,
         soyElAnfitrion: Boolean(yo) && fila.anfitrionId === yo,
-        puedoAdministrar: puedeAdministrarLaSala(fila, quienPregunta),
+        // La sala de otra cuenta la administra solo la madre: por eso baja la
+        // familia. Para las salas propias, `puedeAdministrarLaSala` ya contesta
+        // sin ella (anfitrión o mi cuenta).
+        puedoAdministrar: puedeAdministrarLaSala(fila, quienPregunta, familia),
     };
 }
 
@@ -442,7 +495,7 @@ export async function revocarLaSalaAction(
 
         const sala = await laSalaPorId(salaId);
         if (!sala) return { success: false, message: "Esta reunión ya no existe." };
-        if (!puedeAdministrarLaSala(sala, yo)) {
+        if (!(await puedeAdministrarEstaSala(sala, yo))) {
             return {
                 success: false,
                 message: "Solo quien abrió la reunión o quien administra la cuenta puede revocar su enlace.",
@@ -511,7 +564,15 @@ export async function crearLaReunionDeLaCuentaAction(
 }
 
 /**
- * Las reuniones vivas de la cuenta. Solo las que no son de ningún canal.
+ * Las reuniones vivas de la FAMILIA. Solo las que no son de ningún canal.
+ *
+ * Lista las salas de **todas las cuentas alcanzables** por la fila efectiva de
+ * quien mira (`laFamiliaDeLaCuenta`, la malla del #812): la madre ve las de sus
+ * vinculadas, una hija las de la familia entera, y quien está fuera no ve
+ * ninguna. Es lo que evita tener que cambiar de cuenta para entrar a la sala de
+ * una hija. Cada sala baja **a qué cuenta pertenece** (`cuentaNombre`), y
+ * `variasCuentas` le dice a la pantalla cuándo pintar la insignia —en una
+ * familia de una sola cuenta sería repetir su nombre en cada fila—.
  *
  * Baja además **qué puede hacer quien mira**, y las dos cosas por separado:
  * `puedoAbrir` es de cualquiera de la cuenta —un `agente` abre su reunión— y
@@ -521,23 +582,43 @@ export async function crearLaReunionDeLaCuentaAction(
  * que la acción luego rechaza.
  */
 export async function lasReunionesDeLaCuentaAction(): Promise<
-    Respuesta<{ salas: SalaParaLaPantalla[]; puedoAbrir: boolean; puedoNoCaducar: boolean }>
+    Respuesta<{
+        salas: SalaParaLaPantalla[];
+        puedoAbrir: boolean;
+        puedoNoCaducar: boolean;
+        variasCuentas: boolean;
+    }>
 > {
     try {
         const yo = await quien();
         if (!yo) return { success: false, message: "No autorizado." };
         const raiz = await laRaizDeLaApp();
-        const filas = await lasSalasVivasDeLaCuenta(yo.cuentaId);
+        const familia = await laFamiliaDeLaCuenta(yo.cuentaId);
+        const filas = await lasSalasVivasDeLaFamilia(familia.cuentas);
+        const nombres = await mapaDeNombres(familia.cuentas);
         return {
             success: true,
-            salas: filas.map((f) => comoSeVeLaSala(f, raiz, yo.personaId, yo)),
+            salas: filas.map((f) => comoSeVeLaSala(f, raiz, yo.personaId, yo, familia, nombres)),
             puedoAbrir: puedeAbrirUnaReunion(yo),
             puedoNoCaducar: yo.manda,
+            variasCuentas: familia.cuentas.length > 1,
         };
     } catch (error) {
         console.warn("[salas] no se pudieron leer las reuniones de la cuenta", error);
         return { success: false, message: "No se pudieron leer las reuniones." };
     }
+}
+
+/**
+ * El nombre de cada cuenta de la familia, para pintar a quién pertenece la sala.
+ *
+ * `nombreDeLaCuenta` y no `company` a secas: esa columna nace con «Empresa
+ * Demo» y saldrían todas iguales — el mismo fallo que ya costó una vuelta en el
+ * selector de permisos de Documentación.
+ */
+async function mapaDeNombres(cuentas: readonly string[]): Promise<Map<string, string>> {
+    const datos = await losDatosDeLasCuentas([...cuentas]);
+    return new Map(datos.map((c) => [c.id, nombreDeLaCuenta(c)]));
 }
 
 /**
@@ -561,7 +642,7 @@ export async function cambiarLaCaducidadAction(
 
         const sala = await laSalaPorId(salaId);
         if (!sala) return { success: false, message: "Esta reunión ya no existe." };
-        if (!puedeAdministrarLaSala(sala, yo)) {
+        if (!(await puedeAdministrarEstaSala(sala, yo))) {
             return {
                 success: false,
                 message: "Solo quien abrió la reunión o quien administra la cuenta puede cambiar su caducidad.",
@@ -617,7 +698,7 @@ export async function regenerarLaSalaAction(
 
         const sala = await laSalaPorId(salaId);
         if (!sala) return { success: false, message: "Esta reunión ya no existe." };
-        if (!puedeAdministrarLaSala(sala, yo)) {
+        if (!(await puedeAdministrarEstaSala(sala, yo))) {
             return {
                 success: false,
                 message: "Solo quien abrió la reunión o quien administra la cuenta puede regenerar su enlace.",
@@ -653,6 +734,8 @@ export async function regenerarLaSalaAction(
 export type ReunionPasada = {
     id: string;
     titulo: string | null;
+    /** A qué cuenta pertenece. La pantalla la enseña cuando la familia es varias. */
+    cuentaNombre: string | null;
     anfitrionNombre: string | null;
     /** Cuándo entró el primero. `null` si no entró nadie. */
     empezo: string | null;
@@ -680,13 +763,15 @@ export type ReunionPasada = {
  */
 export async function elHistorialDeReunionesAction(
     dias: number = DIAS_DE_HISTORICO,
-): Promise<Respuesta<{ reuniones: ReunionPasada[]; dias: number }>> {
+): Promise<Respuesta<{ reuniones: ReunionPasada[]; dias: number; variasCuentas: boolean }>> {
     try {
         const yo = await quien();
         if (!yo) return { success: false, message: "No autorizado." };
 
         const cuantos = Number.isFinite(dias) ? Math.min(Math.max(1, Math.floor(dias)), 365) : DIAS_DE_HISTORICO;
-        const filas = await elHistorialDeLaCuenta(yo.cuentaId, cuantos, TOPE_DEL_HISTORICO);
+        const familia = await laFamiliaDeLaCuenta(yo.cuentaId);
+        const filas = await elHistorialDeLaFamilia(familia.cuentas, cuantos, TOPE_DEL_HISTORICO);
+        const nombres = await mapaDeNombres(familia.cuentas);
 
         const reuniones: ReunionPasada[] = filas.map(({ sala, participantes }) => {
             const empezo = participantes.reduce<Date | null>((menor, p) => {
@@ -698,6 +783,7 @@ export async function elHistorialDeReunionesAction(
             return {
                 id: sala.id,
                 titulo: sala.titulo,
+                cuentaNombre: nombres.get(sala.cuentaId) ?? null,
                 anfitrionNombre: sala.anfitrionNombre,
                 empezo: empezo ? empezo.toISOString() : null,
                 duracion: comoSeLeeLaDuracion(segundos),
@@ -710,7 +796,7 @@ export async function elHistorialDeReunionesAction(
             };
         });
 
-        return { success: true, reuniones, dias: cuantos };
+        return { success: true, reuniones, dias: cuantos, variasCuentas: familia.cuentas.length > 1 };
     } catch (error) {
         console.warn("[salas] no se pudo leer el histórico de reuniones", error);
         return { success: false, message: "No se pudo leer el histórico." };
@@ -864,6 +950,16 @@ async function quienEsEnLaSala(input: {
            * más.
            */
           yo: Awaited<ReturnType<typeof quien>> | null;
+          /**
+           * La familia de quien mira, resuelta **una sola vez** por vuelta.
+           *
+           * Se resuelve aquí —donde ya se comprueba la pertenencia— y se reparte
+           * a quien decida si puede moderar una sala de OTRA cuenta de la
+           * familia (`puedeAdministrarLaSala`), en vez de volver a pedirla en
+           * cada botón cada 2 s. Va `null` para el invitado y para el camino
+           * barato de la propia cuenta, que no la necesita.
+           */
+          familia: LaFamilia | null;
       }
     | { error: string }
 > {
@@ -875,7 +971,7 @@ async function quienEsEnLaSala(input: {
         if (!sala) return { error: "Esta reunión ya no existe." };
         const estado = comoEstaLaSala(sala);
         if (estado !== "abierta") return { error: loQueSeLeDiceAlQueLlegaTarde(estado) };
-        return { sala, participante: fila, delEquipo: false, yo: null };
+        return { sala, participante: fila, delEquipo: false, yo: null, familia: null };
     }
 
     const codigo = (input.codigo ?? "").trim();
@@ -887,13 +983,20 @@ async function quienEsEnLaSala(input: {
 
     const yo = await quien();
     if (!yo) return { error: "No autorizado." };
+    // La familia se resuelve una vez y se reutiliza: la necesitan `pertenece` y
+    // `puedeAdministrar`. Solo cuando la sala no es de mi propia cuenta ni de un
+    // canal —el caso de OTRA cuenta de la familia—; el camino común no paga nada.
+    const familia =
+        !sala.canalId && !esDeMiCuenta(sala, yo.cuentaId)
+            ? await laFamiliaDeLaCuenta(yo.cuentaId)
+            : null;
     // Se vuelve a comprobar la pertenencia en CADA vuelta, no solo al entrar:
-    // a alguien se le puede sacar de un canal —o de la cuenta— mientras la
+    // a alguien se le puede sacar de un canal —o de la familia— mientras la
     // reunión sigue abierta, y su pestaña seguiría pidiendo por el código.
-    if (!(await perteneceALaSala(sala, yo))) return { error: "No autorizado." };
+    if (!(await perteneceALaSala(sala, yo, familia))) return { error: "No autorizado." };
     const fila = await elParticipanteDeLaSesion(sala.id, yo.personaId);
     if (!fila) return { error: "Todavía no has entrado a esta reunión." };
-    return { sala, participante: fila, delEquipo: true, yo };
+    return { sala, participante: fila, delEquipo: true, yo, familia };
 }
 
 async function elParticipanteDeLaSesion(salaId: string, personaId: string) {
@@ -1170,7 +1273,7 @@ export async function latidoDeLaSalaAction(input: {
         // (`puedeAdministrarLaSala`), no con una condición escrita aquí — ver
         // la nota de `lib/sala-de-video.ts`. Y `delEquipo` delante cierra la
         // otra mitad: un invitado no tiene ni sesión con la que preguntar.
-        const moderas = delEquipo && puedeAdministrarLaSala(sala, quienEs.yo);
+        const moderas = delEquipo && puedeAdministrarLaSala(sala, quienEs.yo, quienEs.familia);
 
         return {
             success: true,
@@ -1225,6 +1328,7 @@ export async function latidoDeLaSalaAction(input: {
                     sala,
                     delEquipo,
                     yo: quienEs.yo,
+                    familia: quienEs.familia,
                 }),
                 ice:
                     participante.estado === "dentro"
@@ -1358,7 +1462,7 @@ export async function sacarDeLaSalaAction(input: {
         );
         const estabaDentro = aQuien?.estado === "dentro";
         const puede = estabaDentro
-            ? quienEs.delEquipo && puedeAdministrarLaSala(quienEs.sala, quienEs.yo)
+            ? quienEs.delEquipo && puedeAdministrarLaSala(quienEs.sala, quienEs.yo, quienEs.familia)
             : puedeAbrirLaPuerta(quienEs);
         if (!puede) {
             return {
@@ -1467,7 +1571,7 @@ export async function silenciarAAction(input: {
     try {
         const quienEs = await quienEsEnLaSala({ codigo: input.codigo });
         if ("error" in quienEs) return { success: false, message: quienEs.error };
-        if (!(quienEs.delEquipo && puedeAdministrarLaSala(quienEs.sala, quienEs.yo))) {
+        if (!(quienEs.delEquipo && puedeAdministrarLaSala(quienEs.sala, quienEs.yo, quienEs.familia))) {
             return {
                 success: false,
                 message: "Solo quien organiza la reunión puede silenciar a alguien.",
@@ -1638,9 +1742,14 @@ async function puedoGrabarEnEstaSala(quienEs: {
     sala: FilaDeSala;
     delEquipo: boolean;
     yo: Awaited<ReturnType<typeof quien>> | null;
+    familia: LaFamilia | null;
 }): Promise<boolean> {
     if (!quienEs.delEquipo) return false;
-    if (!puedeAdministrarLaSala(quienEs.sala, quienEs.yo)) return false;
+    if (!puedeAdministrarLaSala(quienEs.sala, quienEs.yo, quienEs.familia)) return false;
+    // El módulo de grabación es de la cuenta DUEÑA de la sala, no de la de
+    // quien mira: una hija que graba en la reunión de su madre gasta el cupo y
+    // usa el módulo de la madre. Es la misma regla que firmar con la persona y
+    // alcanzar con la cuenta dueña.
     return laCuentaPuedeGrabar(quienEs.sala.cuentaId);
 }
 
