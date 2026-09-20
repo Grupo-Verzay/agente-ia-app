@@ -402,7 +402,7 @@ function AddBuiltinDialog({
         if (!v && !isSaving) resetAndClose();
       }}
     >
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg overflow-y-auto">
         {step === 'catalog' ? (
           <>
             <DialogHeader>
@@ -640,7 +640,7 @@ function EditBuiltinDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !isBusy) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-muted-foreground" />
@@ -847,7 +847,7 @@ function DataQueryDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !isSaving) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isEditing ? (

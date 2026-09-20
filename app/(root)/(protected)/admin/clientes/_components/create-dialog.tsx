@@ -134,7 +134,7 @@ export const CreateDialog = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit, onError)}>
-          <div className="overflow-auto max-h-[28rem] pr-2">
+          <div className="pr-2">
             <div className="grid gap-4 py-4">
 
               {/* Switches */}

@@ -274,7 +274,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 gap-0 sm:max-w-md">
+      <DialogContent className="flex flex-col overflow-hidden p-0 gap-0 sm:max-w-md">
         <DialogHeader className="px-5 pt-5 pb-3 border-b">
           <DialogTitle className="text-base font-semibold">Nuevo mensaje</DialogTitle>
         </DialogHeader>

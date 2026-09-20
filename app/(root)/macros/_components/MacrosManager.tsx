@@ -614,7 +614,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
 
       {/* Editor */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[88vh] w-[min(96vw,640px)] overflow-hidden p-0">
+        <DialogContent className="w-[min(96vw,640px)] overflow-hidden p-0">
           <DialogHeader className="border-b px-5 py-3">
             <DialogTitle>{draft.id ? 'Editar macro' : 'Nueva macro'}</DialogTitle>
           </DialogHeader>

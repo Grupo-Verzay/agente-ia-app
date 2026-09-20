@@ -463,7 +463,7 @@ export const EditDialog = ({
 
 
         <form action={(formData) => handleEdit(user.id, formData)}>
-          <div className="overflow-auto max-h-[28rem] pr-2">
+          <div className="pr-2">
             <div className="grid gap-4 py-4">
               {/* Canal WhatsApp */}
               <div className="flex flex-col gap-2 pb-3 mb-1 border-b">

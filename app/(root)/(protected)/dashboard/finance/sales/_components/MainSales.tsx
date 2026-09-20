@@ -1035,7 +1035,7 @@ export default function MainSales({
 
         {/* Modal Create/Edit */}
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="flex max-h-[585px] flex-col overflow-hidden rounded-2xl sm:max-w-[1000px]">
+          <DialogContent className="flex flex-col overflow-hidden rounded-2xl sm:max-w-[1000px]">
             <DialogHeader className="shrink-0 space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <DialogTitle className="text-base">{editing ? 'Editar venta' : 'Nueva venta'}</DialogTitle>

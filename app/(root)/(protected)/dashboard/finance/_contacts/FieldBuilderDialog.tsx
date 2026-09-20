@@ -203,7 +203,7 @@ export function FieldBuilderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[620px] flex-col overflow-hidden rounded-2xl sm:max-w-[760px]">
+      <DialogContent className="flex flex-col overflow-hidden rounded-2xl sm:max-w-[760px]">
         <DialogHeader className="shrink-0">
           <DialogTitle className="text-base">Configurar campos</DialogTitle>
           <p className="text-xs text-muted-foreground">

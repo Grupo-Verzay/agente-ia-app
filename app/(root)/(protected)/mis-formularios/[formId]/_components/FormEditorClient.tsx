@@ -475,7 +475,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
 
       {/* Dialog: Agregar / Editar campo — mejora 4: h-[585px] estándar */}
       <Dialog open={addFieldOpen || !!editingField} onOpenChange={(o) => { if (!o) { setAddFieldOpen(false); setEditingField(null); } }}>
-        <DialogContent className="flex max-h-[585px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]">
+        <DialogContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]">
           <DialogHeader className="flex flex-row items-center justify-between border-b bg-muted/30 px-5 py-4 space-y-0">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-primary" />

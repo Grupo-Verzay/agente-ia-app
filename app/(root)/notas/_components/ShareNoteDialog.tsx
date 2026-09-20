@@ -63,7 +63,7 @@ export function ShareNoteDialog({ open, onClose, noteId, ownerId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>
-      <DialogContent className="sm:max-w-md max-h-[585px] flex flex-col">
+      <DialogContent className="sm:max-w-md flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-4 w-4" /> Compartir con el equipo

@@ -31,7 +31,7 @@ export const CreateDialog = ({
             handleCreate(formData)
           }}
         >
-          <div className="overflow-auto max-h-96 pr-2">
+          <div className="pr-2">
             <div className="grid gap-4 py-4">
               {[
                 { id: "url", label: "URL", defaultValue: "" },

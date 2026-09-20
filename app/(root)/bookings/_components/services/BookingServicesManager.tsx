@@ -206,7 +206,7 @@ function ServiceFormDialog({
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)}>
-                        <div className="overflow-auto max-h-[30rem] pr-2 space-y-4 py-2">
+                        <div className="pr-2 space-y-4 py-2">
                             <FormField control={form.control} name="name" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Nombre del servicio</FormLabel>

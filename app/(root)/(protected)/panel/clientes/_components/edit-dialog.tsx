@@ -93,7 +93,7 @@ function CampoEnModal({
           <DialogTitle>{titulo}</DialogTitle>
           {descripcion ? <DialogDescription>{descripcion}</DialogDescription> : null}
         </DialogHeader>
-        <div className="max-h-[70vh] overflow-auto pr-1">{children}</div>
+        <div className="pr-1">{children}</div>
       </DialogContent>
     </Dialog>
   )
@@ -587,7 +587,7 @@ export const EditDialog = ({
 
 
         <form action={(formData) => handleEdit(user.id, formData)}>
-          <div className="overflow-auto max-h-[28rem] pr-2">
+          <div className="pr-2">
             <div className="grid gap-4 py-4">
               {/* Switches de canal (Estado + canales) en grid 2 columnas */}
               <div className="grid grid-cols-2 gap-2">

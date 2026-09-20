@@ -115,7 +115,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
         className={
           isDocumentCard
             ? 'max-w-[92vw] sm:max-w-sm p-0 flex flex-col overflow-hidden'
-            : 'max-w-[95vw] sm:max-w-[90vw] max-h-[95vh] p-0 border-none flex flex-col overflow-hidden'
+            : 'max-w-[95vw] sm:max-w-[90vw] p-0 border-none flex flex-col overflow-hidden'
         }
       >
         <DialogTitle className="sr-only">

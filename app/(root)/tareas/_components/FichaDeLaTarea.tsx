@@ -74,7 +74,7 @@ export function FichaDeLaTarea({
 
     return (
         <Dialog open onOpenChange={(v) => !v && alCerrar()}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="pr-6 text-left leading-snug">{corto}</DialogTitle>
                 </DialogHeader>

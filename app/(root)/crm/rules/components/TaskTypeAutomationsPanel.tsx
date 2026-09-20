@@ -266,7 +266,7 @@ function ActionDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{initial ? "Editar acción" : "Nueva acción"}</DialogTitle>
         </DialogHeader>
