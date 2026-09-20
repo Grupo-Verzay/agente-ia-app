@@ -65,6 +65,7 @@ export function AccionesMasivas({
     onEliminar,
     puedeEliminar = true,
     extras,
+    menu,
     onTerminar,
     className,
 }: {
@@ -81,6 +82,18 @@ export function AccionesMasivas({
     puedeEliminar?: boolean;
     /** Lo propio de cada pantalla: exportar, archivar, asignar… */
     extras?: AccionExtra[];
+    /**
+     * Mandos de la pantalla que no son una acción de una línea: «Buscar por»,
+     * «Estado», «Columnas»…
+     *
+     * Existe porque son cosas que **no se usan a diario** y que en la barra le
+     * comen el ancho al buscador y a las pastillas, que sí. La regla de la
+     * barra ya decía dónde van —«un botón que gasta ancho y no se usa a diario
+     * va dentro del `⋯`»—; lo que faltaba era el hueco donde meterlos. Cada
+     * mando trae aquí su propio submenú, para que este menú no crezca con
+     * listas que crecen solas (las columnas de una tabla, por ejemplo).
+     */
+    menu?: ReactNode;
     /** Se llama al acabar un borrado, para limpiar la selección y recargar. */
     onTerminar?: () => void;
     className?: string;
@@ -143,6 +156,13 @@ export function AccionesMasivas({
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
+                    {menu ? (
+                        <>
+                            {menu}
+                            <DropdownMenuSeparator />
+                        </>
+                    ) : null}
+
                     {items.map((accion) => (
                         <DropdownMenuItem
                             key={accion.clave}
@@ -164,9 +184,11 @@ export function AccionesMasivas({
                         </DropdownMenuItem>
                     )}
 
-                    {cuantas === 0 && !hayExtrasSinSeleccion && (
+                    {cuantas === 0 && !hayExtrasSinSeleccion && !menu && (
                         // Sin esto el menú se abre vacío y parece roto. Dice qué
                         // hay que hacer para que sirva, que es marcar filas.
+                        // Con `menu` puesto el menú ya tiene contenido, así que
+                        // esta línea sobraría y encima diría que no hay nada.
                         <DropdownMenuItem disabled>
                             Marca {queSon} para actuar sobre varios
                         </DropdownMenuItem>

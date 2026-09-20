@@ -61,6 +61,14 @@ type DataTableProps<TData, TValue> = {
   toolbarExtra?: React.ReactNode;
   /** Cómo se llaman en plural, para el menú del `⋯`. */
   queSon?: string;
+  /**
+   * Texto con el que nace el buscador, si se llegó buscando desde fuera.
+   *
+   * Lo usa el buscador del resumen de Finanzas (`?q=`), que no tiene una lista
+   * debajo y por eso trae aquí lo que se teclea. Sin esto aterrizaría en la
+   * lista entera y habría que volver a buscar, que es no haber buscado.
+   */
+  initialSearch?: string;
 };
 
 export function DataTable<TData, TValue>({
@@ -77,9 +85,12 @@ export function DataTable<TData, TValue>({
   entityLabel = 'registro',
   toolbarExtra,
   queSon = 'filas',
+  initialSearch,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    initialSearch ? [{ id: searchKey, value: initialSearch }] : [],
+  );
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 20 });
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});

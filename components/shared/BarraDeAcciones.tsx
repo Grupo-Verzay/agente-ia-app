@@ -65,23 +65,43 @@ import { cn } from "@/lib/utils";
  *
  * ```tsx
  * <BarraDeAcciones
- *   filtros={<><Buscador /><FiltroDeEstado /><PastillasDeMetricas … /></>}
+ *   buscador={<Input … />}
+ *   filtros={<><FiltroDeEstado /><PastillasDeMetricas … /></>}
  *   crear={<BotonDeCrear onClick={abrirDialogo}>Nuevo</BotonDeCrear>}
  *   acciones={<AccionesMasivas … />}
  * />
  * ```
  *
  * **Ninguna pantalla vuelve a escribir esta fila a mano.** Si hace falta un
- * mando nuevo, entra por uno de los tres huecos; si no encaja en ninguno, es
+ * mando nuevo, entra por uno de los cuatro huecos; si no encaja en ninguno, es
  * que el hueco hay que añadirlo aquí y sale en todas a la vez.
+ *
+ * # Y el buscador es un hueco APARTE, no un filtro más
+ *
+ * Estaba dentro de `filtros`, o sea dentro del carril que se desplaza, y eso
+ * hacía que la flecha corriera **la fila entera de punta a punta**: con las
+ * pastillas de una cuenta grande, desplazar para ver la última se llevaba el
+ * buscador fuera de la pantalla. Y el buscador no es un mando más de la fila:
+ * es el que se usa en cada visita, así que **no puede irse de sitio**.
+ *
+ * Ahora hay tres zonas y solo la del medio se mueve: **el buscador fijo a la
+ * izquierda, las pastillas en el carril, y el azul con el `⋯` fijos a la
+ * derecha**. Es lo mismo que ya hacían los dos extremos de la derecha, aplicado
+ * también al extremo de la izquierda.
  */
 export function BarraDeAcciones({
+    buscador,
     filtros,
     crear,
     acciones,
     className,
 }: {
-    /** Buscador, desplegables de filtro y pastillas. Van a la izquierda. */
+    /**
+     * El buscador. Va **fijo** a la izquierda, fuera del carril: es lo que se
+     * usa siempre, así que no se desplaza con los filtros.
+     */
+    buscador?: ReactNode;
+    /** Desplegables de filtro y pastillas. Van en el carril que se desplaza. */
     filtros?: ReactNode;
     /** El botón azul. `BotonDeCrear`, no un `Button` con clases a mano. */
     crear?: ReactNode;
@@ -94,6 +114,7 @@ export function BarraDeAcciones({
         // mismo en una pantalla con botones y en una que solo tiene buscador,
         // que es la mitad de que se vean iguales.
         <div className={cn("flex min-h-10 shrink-0 flex-row items-center gap-2", className)}>
+            {buscador ? <div className="flex shrink-0 items-center">{buscador}</div> : null}
             <BarraDeslizable className="flex-1" queHay="filtros">
                 {/* `min-w-max`: lo de dentro no encoge, y cuando no cabe lo
                     recoge el carril con sus flechas. Ver arriba. */}

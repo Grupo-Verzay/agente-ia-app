@@ -14,7 +14,13 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { ClientStatusPanel, ColumnFilterInput, StatusKey } from './'
+import {
+  BuscadorDeColumna,
+  CampoDeBusquedaMenu,
+  ClientStatusPanel,
+  StatusKey,
+  useFiltroDeColumna,
+} from './'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -25,19 +31,18 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
-import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Ellipsis } from 'lucide-react'
+import { BadgeCheck, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Columns3, Download } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
 import { ETIQUETAS_DE_SERVICIO, type EstadoDelServicio } from '@/lib/clientes-activos'
-import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones'
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas'
@@ -116,6 +121,10 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
   const router = useRouter()
   const puedeGestionar = elRolGestionaClientes(currentUserRol)
 
+  // El buscador: la caja va en la barra y el CAMPO en el `⋯`, así que el estado
+  // vive aquí, que es quien pinta los dos huecos.
+  const busqueda = useFiltroDeColumna(table, initialSearch, initialSearch ? 'email' : undefined)
+
   // De las filas marcadas solo interesa el id, y solo las que están DELANTE:
   // `getSelectedRowModel` ya devuelve las del modelo filtrado, así que un filtro
   // puesto no puede llevarse por delante lo que quien mira no tiene enfrente.
@@ -133,95 +142,32 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
     <div className="flex flex-col h-full gap-2">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
-        {/* La barra es `BarraDeAcciones` y no una fila escrita aquí: izquierda
-            que SCROLLEA cuando no cabe, y derecha fija con el azul de crear y el
-            `⋯` pegado al borde. Antes el de crear iba dentro del grupo del
-            buscador, así que esta pantalla —que es de donde sale el patrón— era
-            justo la que no lo cumplía. */}
+        {/* La barra, en CUATRO cosas y ninguna más: buscador, pastillas, el
+            azul y el `⋯`.
+            Lo que se fue al `⋯` —el campo del buscador, el estado del servicio
+            y «Columnas»— son tres mandos que casi nadie toca y que entre los
+            tres se llevaban unos 300 px de la única fila que escasea. Es la
+            regla que la barra ya tenía escrita: lo que gasta ancho y no se usa
+            a diario va dentro del `⋯`.
+            Y el buscador va en su propio hueco, fuera del carril: así la flecha
+            desplaza **solo las pastillas**, y la caja no se va de sitio al
+            mirar la última. */}
         <BarraDeAcciones
+          buscador={
+            <BuscadorDeColumna
+              campo={busqueda.campo}
+              valor={busqueda.valor}
+              onEscribir={busqueda.escribir}
+            />
+          }
           filtros={
-            <>
-              <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
-
-              {/* Qué clientes se ven. Va aquí y no dentro de «Columnas»: eso
-                  decide qué datos se enseñan de cada fila, no qué filas hay.
-                  Cuando no está en «Todos» se pinta en azul, para que no se
-                  quede puesto sin que se note. */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'shrink-0',
-                      servicio === 'todos' ? undefined : 'border-sky-500 text-sky-600',
-                    )}
-                    title="Filtrar por estado del servicio"
-                  >
-                    <BadgeCheck className="h-4 w-4" />
-                    {/* Con un filtro puesto, la palabra se lee SIEMPRE, también
-                        en móvil. «Estado» —que no filtra nada— sí puede
-                        esconderse cuando no cabe.
-                        Importa desde que la pantalla nace en «Activos»: quien
-                        entra no puso ese filtro, así que en una pantalla
-                        estrecha se encontraría una lista recortada y, para
-                        explicarlo, solo un icono azul. Es la misma regla de
-                        siempre —un filtro puesto que no se nota es lo que hace
-                        pensar que faltan clientes—, que ahora hay que cumplir
-                        también sin que nadie lo haya tocado. */}
-                    <span className={servicio === 'todos' ? 'hidden md:inline' : 'inline'}>
-                      {servicio === 'todos' ? 'Estado' : ETIQUETAS_DE_SERVICIO[servicio]}
-                    </span>
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Estado</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {(Object.keys(ETIQUETAS_DE_SERVICIO) as EstadoDelServicio[]).map((clave) => (
-                    <DropdownMenuCheckboxItem
-                      key={clave}
-                      checked={servicio === clave}
-                      onCheckedChange={() => setServicio(clave)}
-                    >
-                      {ETIQUETAS_DE_SERVICIO[clave]}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <ClientStatusPanel
-                users={data as ClientInterface[]}
-                onFilterChange={setStatusFilter}
-                filtro={statusFilter}
-                servicio={servicio}
-                onServicioChange={setServicio}
-              />
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="shrink-0">
-                    <Ellipsis className="h-4 w-4 md:hidden" />
-                    <span className="hidden md:inline">Columnas</span>
-                    <ChevronDown className="ml-2 h-4 w-4 hidden md:inline" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {table
-                    .getAllColumns()
-                    .filter((column) => column.getCanHide() && !COLUMNS_HIDDEN_FROM_TOGGLE.includes(column.id))
-                    .map((column) => (
-                      <DropdownMenuCheckboxItem
-                        key={column.id}
-                        className="capitalize"
-                        checked={column.getIsVisible()}
-                        onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                      >
-                        {column.id}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
+            <ClientStatusPanel
+              users={data as ClientInterface[]}
+              onFilterChange={setStatusFilter}
+              filtro={statusFilter}
+              servicio={servicio}
+              onServicioChange={setServicio}
+            />
           }
           crear={
             puedeGestionar ? (
@@ -238,6 +184,64 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                 table.resetRowSelection()
                 router.refresh()
               }}
+              menu={
+                <>
+                  <CampoDeBusquedaMenu campo={busqueda.campo} onCambiar={busqueda.elegirCampo} />
+
+                  {/* Qué clientes se ven. La pantalla nace en «Activos» y ese
+                      sigue siendo el estado por defecto; aquí solo está la
+                      forma de ver todos o los inactivos.
+                      Va aparte de «Columnas» a propósito: aquello decide qué
+                      datos se enseñan de cada fila, esto QUÉ FILAS hay. */}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <BadgeCheck className="h-4 w-4" />
+                      Estado
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuLabel>Estado del servicio</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={servicio}
+                        onValueChange={(valor) => setServicio(valor as EstadoDelServicio)}
+                      >
+                        {(Object.keys(ETIQUETAS_DE_SERVICIO) as EstadoDelServicio[]).map((clave) => (
+                          <DropdownMenuRadioItem key={clave} value={clave}>
+                            {ETIQUETAS_DE_SERVICIO[clave]}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+
+                  {/* En submenú y no suelto: esta lista crece con las columnas
+                      de la tabla, y una lista que crece dentro del menú de
+                      arriba empuja fuera de la pantalla lo que va al final. */}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Columns3 className="h-4 w-4" />
+                      Columnas
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
+                      {table
+                        .getAllColumns()
+                        .filter((column) => column.getCanHide() && !COLUMNS_HIDDEN_FROM_TOGGLE.includes(column.id))
+                        .map((column) => (
+                          <DropdownMenuCheckboxItem
+                            key={column.id}
+                            className="capitalize"
+                            checked={column.getIsVisible()}
+                            // Sin esto el menú se cierra al marcar una, y
+                            // enseñar tres columnas son tres viajes al `⋯`.
+                            onSelect={(evento) => evento.preventDefault()}
+                            onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                          >
+                            {column.id}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </>
+              }
               extras={[
                 {
                   clave: 'csv',
