@@ -1,111 +1,71 @@
 /**
- * Los cuatro tamaños de la ventana de una reunión, y cuál se recuerda.
+ * Los tres tamaños de la ventana de una reunión.
  *
  * Puro a propósito, como el resto de lo que decide sobre esta ventana
  * (`lib/ventana-flotante.ts`): de aquí tiran el panel que la sostiene, la sala
  * que pinta los botones y el banco.
  *
- * # Por qué cuatro y no dos
- *
- * Antes eran dos —plegada y panel— y eso deja fuera el caso de todos los días:
- * una reunión de media hora en la que hay que **mirar algo en la plataforma**
- * mientras se habla. Con el panel flotante encima, ese algo queda debajo; con
- * la pastilla, la reunión desaparece. Los cuatro cubren la escala entera:
- *
- * | | qué se ve | se arrastra |
+ * | | qué ocupa | se arrastra |
  * | --- | --- | --- |
- * | `pastilla` | el rato, el nombre y colgar | sí |
- * | `panel` | la reunión, flotando encima del trabajo | sí |
- * | `maximizada` | la reunión llenando el hueco de contenido, **con el menú lateral y la barra de arriba a la vista** | no |
- * | `completa` | la pantalla entera, sin navegador alrededor | no |
+ * | `pastilla` | una barra con el rato, el nombre y colgar | sí |
+ * | `maximizada` | **desde el borde de arriba de la ventana**, tapando la barra superior y las migas; a la vista queda solo la barra de iconos de la izquierda | no |
+ * | `completa` | la pantalla del equipo entera, esa barra incluida | no |
  *
- * **`maximizada` no es `completa`.** Es la diferencia que se pidió y la que
- * más se usa: llena el sitio donde va el contenido y deja fuera el menú y la
- * barra, así que se puede cambiar de pantalla —o mirar la campanita— sin salir
- * de la reunión ni encogerla. `completa` es la del navegador, para cuando
- * alguien comparte pantalla y lo que importa es el píxel.
+ * # Por qué se fue el panel mediano flotante
+ *
+ * Eran cuatro y el de en medio —una ventana flotando encima del trabajo— no
+ * servía para lo que prometía: durante una reunión o se mira la reunión o se
+ * mira otra cosa, y para lo segundo ya está la pastilla, que ocupa una barra en
+ * vez de media pantalla. Lo que hacía de verdad era **meter un escalón entre
+ * «ampliar» y estar grande**, así que la primera pulsación se quedaba a medias
+ * y parecía que el botón no llegaba más lejos.
+ *
+ * Con tres, cada pulsación cambia algo que se nota: pastilla → grande →
+ * pantalla completa.
+ *
+ * # Nada se recuerda entre reuniones, y es a propósito
+ *
+ * Había un `localStorage` con el último tamaño. Con el panel fuera quedaban
+ * tres, y de los tres **solo uno se puede restaurar**: `completa` la niega el
+ * navegador sin un gesto de la persona, y abrir en `pastilla` es abrir una
+ * reunión que no se ve empezar —quien acaba de pulsar «Entrar» espera verla—.
+ * O sea que el recuerdo solo podía devolver `maximizada`, que es justo el valor
+ * por defecto: una preferencia que no puede decir nada distinto de la constante
+ * de al lado no es una preferencia, es una escritura por gesto para nada.
  *
  * # Y `completa` no la manda esta constante: la manda el navegador
  *
  * A pantalla completa se entra **pidiéndoselo al navegador**, y se sale de ella
  * por sitios que este código no controla: la tecla Escape, F11, cambiar de
- * pestaña en algunos sistemas. Por eso el estado guardado y el del navegador
- * se sincronizan en los dos sentidos, y por eso existe
- * `alSalirDePantallaCompleta`: salirse con Escape tiene que dejar la reunión
- * **grande**, no devolverla al panelito — quien pulsó Escape quería salir del
- * modo pantalla completa, no encoger la reunión.
+ * pestaña en algunos sistemas. Por eso existe `alSalirDePantallaCompleta`:
+ * salirse con Escape tiene que dejar la reunión **grande**, no plegarla — quien
+ * pulsó Escape quería salir del modo pantalla completa, no encoger la reunión.
  */
 
-export const ESTADOS_DE_LA_VENTANA = ["pastilla", "panel", "maximizada", "completa"] as const;
+export const ESTADOS_DE_LA_VENTANA = ["pastilla", "maximizada", "completa"] as const;
 
 export type EstadoDeLaVentana = (typeof ESTADOS_DE_LA_VENTANA)[number];
 
 /**
- * El que se usa cuando no hay nada recordado.
+ * Con el que se abre una reunión, siempre.
  *
- * `panel` y no `maximizada`: la primera vez, una reunión que llena la pantalla
- * de golpe tapa lo que la persona estaba haciendo sin haberlo pedido. Flotando
- * se ve que hay algo detrás, que es la mitad de para lo que sirve este panel.
+ * `maximizada` y no `pastilla`: quien pulsa «Entrar» espera ver la reunión. Y
+ * no `completa`, que el navegador niega si no se le pide dentro de un gesto
+ * —abrir una reunión no lo es— y dejaría la ventana pintada como completa
+ * dentro de una página que no lo está.
  */
-export const VENTANA_POR_DEFECTO: EstadoDeLaVentana = "panel";
-
-/**
- * Dónde se recuerda el último tamaño.
- *
- * En `localStorage` y no en la base: es una preferencia **de este navegador**,
- * y guardarla en el servidor sería una escritura por cada vez que alguien
- * pliega o amplía —que es lo más frecuente que se hace aquí— para devolver algo
- * que no importa si se pierde. Es el mismo reparto que el último canal abierto
- * del chat de equipo.
- *
- * **Sin cuenta ni persona en la llave, a propósito**: esto no depende de quién
- * mira ni de en qué cuenta está —una reunión se ve igual de grande sea de quien
- * sea—, así que una llave por persona solo conseguiría que el tamaño se
- * olvidara al cambiar de cuenta.
- */
-export const LLAVE_DE_LA_VENTANA = "reunion:ventana";
+export const VENTANA_POR_DEFECTO: EstadoDeLaVentana = "maximizada";
 
 export function esEstadoDeVentana(v: unknown): v is EstadoDeLaVentana {
     return typeof v === "string" && (ESTADOS_DE_LA_VENTANA as readonly string[]).includes(v);
 }
 
 /**
- * El estado con el que se abre una reunión, a partir de lo recordado.
- *
- * Lo que no se reconozca cae en el de por defecto — un `localStorage` viejo, de
- * otra versión o tocado a mano, no puede dejar la ventana en un estado que no
- * existe y por tanto sin pintar nada.
- *
- * Y **`completa` NO se recuerda**: es la única que necesita un gesto del
- * navegador para existir. Restaurarla al abrir significaría pedir pantalla
- * completa sin que nadie la haya pulsado, y los navegadores lo rechazan fuera
- * de un gesto de la persona — así que se restauraría un estado que el navegador
- * niega y la ventana saldría dibujada como completa dentro de una página que no
- * lo está. Se cae a `maximizada`, que es lo que se ve igual de grande.
- */
-export function elEstadoDeEntrada(recordado: unknown): EstadoDeLaVentana {
-    if (!esEstadoDeVentana(recordado)) return VENTANA_POR_DEFECTO;
-    if (recordado === "completa") return "maximizada";
-    return recordado;
-}
-
-/**
- * Qué se guarda de un estado.
- *
- * `completa` se guarda como `maximizada` por lo mismo que arriba: guardarla tal
- * cual dejaría el recuerdo apuntando a algo que la vuelta siguiente no va a
- * poder restaurar.
- */
-export function loQueSeRecuerda(estado: EstadoDeLaVentana): EstadoDeLaVentana {
-    return estado === "completa" ? "maximizada" : estado;
-}
-
-/**
  * Dónde se cae al salir de pantalla completa sin pulsar nuestro botón.
  *
- * Escape y F11 sacan del modo pantalla completa sin avisarle a nadie. Quien lo
- * pulsó quería **salir de pantalla completa**, no encoger la reunión al
- * panelito: cae en `maximizada`, que es el escalón de al lado.
+ * Escape y F11 sacan del modo sin avisarle a nadie. Quien lo pulsó quería
+ * **salir de pantalla completa**, no encoger la reunión a una pastilla: cae en
+ * `maximizada`, que es el escalón de al lado.
  */
 export function alSalirDePantallaCompleta(): EstadoDeLaVentana {
     return "maximizada";
@@ -114,13 +74,13 @@ export function alSalirDePantallaCompleta(): EstadoDeLaVentana {
 /**
  * Si en ese estado la ventana se puede mover con el ratón.
  *
- * Solo las dos que flotan. `maximizada` y `completa` ocupan un hueco fijo, así
- * que arrastrarlas no tendría a dónde llevarlas — y el asa seguiría capturando
- * el puntero, que es peor que no tenerla: un trozo de la cabecera dejaría de
- * poder pulsarse sin que se viera por qué.
+ * Solo la pastilla. Las otras dos ocupan un hueco fijo, así que arrastrarlas no
+ * tendría a dónde llevarlas — y el asa seguiría capturando el puntero, que es
+ * peor que no tenerla: un trozo de la cabecera dejaría de poder pulsarse sin
+ * que se viera por qué.
  */
 export function sePuedeArrastrar(estado: EstadoDeLaVentana): boolean {
-    return estado === "pastilla" || estado === "panel";
+    return estado === "pastilla";
 }
 
 /**
@@ -138,10 +98,10 @@ export function quiereLaPantallaCompleta(estado: EstadoDeLaVentana): boolean {
 /**
  * El siguiente al pulsar «ampliar», y el anterior al pulsar «reducir».
  *
- * Una escala y no cuatro botones: la cabecera de una reunión ya tiene el
- * nombre, el contador, copiar el enlace y colgar, y cuatro mandos de tamaño más
- * la llenan entera justo en el ancho que escasea. Con dos flechas se llega a
- * los cuatro estados y **siempre se sabe cuál es el siguiente**.
+ * Una escala y no tres botones: la cabecera de una reunión ya tiene el nombre,
+ * el contador, copiar el enlace y colgar, y tres mandos de tamaño más la llenan
+ * entera justo en el ancho que escasea. Con dos flechas se llega a los tres y
+ * **siempre se sabe cuál es el siguiente**.
  *
  * Los extremos se quedan quietos en vez de dar la vuelta: una escala que salta
  * de `completa` a `pastilla` al pulsar otra vez «ampliar» hace desaparecer la

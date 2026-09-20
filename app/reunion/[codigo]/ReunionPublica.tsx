@@ -10,26 +10,22 @@ import type { EstadoDeLaVentana } from "@/lib/ventana-de-reunion";
  *
  * # Por qué aquí solo hay DOS tamaños
  *
- * Los cuatro estados son de la ventana **dentro de la plataforma**, donde la
- * reunión flota encima de otra cosa. Aquí no hay otra cosa: la reunión **es**
- * la pestaña. Así que:
+ * Los tres estados son de la ventana **dentro de la plataforma**, donde la
+ * reunión se abre encima de otra cosa. Aquí no hay otra cosa: la reunión **es**
+ * la pestaña, así que `pastilla` dejaría una página en blanco con una barra
+ * flotando encima — que se lee como que la página se rompió.
  *
- * - `pastilla` dejaría una página en blanco con una barra flotando encima,
- * - `panel` sería una ventana flotando sobre nada,
- *
- * y las dos se leen igual: como que la página se rompió. Quedan `maximizada`
- * —que aquí es simplemente «la pestaña»— y `completa`, que sí aporta: quita el
- * navegador de alrededor cuando alguien comparte pantalla y lo que importa es
- * el píxel.
+ * Quedan `maximizada` —que aquí es simplemente «la pestaña»— y `completa`, que
+ * sí aporta: quita el navegador de alrededor cuando alguien comparte pantalla
+ * y lo que importa es el píxel.
  *
  * Y por eso esto es un componente y no un `useState` suelto en la página: la
  * página es de servidor —tiene su `metadata` y su `robots`— y el estado de la
  * ventana es del navegador.
  *
- * **Nada se recuerda aquí**, al revés que en la plataforma: `localStorage` es
- * por dominio, así que guardar el tamaño desde una reunión abierta por un
- * invitado le pisaría el suyo a quien use la plataforma en ese mismo navegador.
- * Y no hace falta: esta pestaña se abre para una reunión y se cierra con ella.
+ * **Nada se recuerda**, ni aquí ni en la plataforma: de los tres estados solo
+ * `maximizada` se podría restaurar, que es ya el valor por defecto. Está
+ * contado en `lib/ventana-de-reunion.ts`.
  */
 export function ReunionPublica({ codigo }: { codigo: string }) {
     const [ventana, setVentana] = useState<EstadoDeLaVentana>("maximizada");
