@@ -7062,6 +7062,72 @@ caja se queda **dos píxeles corta** y sale una barra de desplazamiento con una
 sola línea dentro, para siempre. Medido: 40 px con una línea, 58 con dos, 78 con
 tres y 160 de tope, sin barra hasta el tope.
 
+### Y en Chats el tope estaba en PÍXELES, que no es un tope en líneas
+
+La caja de Chats crecía hasta **160 px** y ahí se paraba
+(`Math.min(el.scrollHeight, 160)`), y desde fuera eso se veía como una caja de
+cinco renglones comiéndose media conversación. Un tope en píxeles **no es un
+tope en renglones**: el mismo número da un número distinto en cada pantalla,
+porque el interlineado no es el mismo. Medido en Chromium sobre el CSS del
+build, con las clases del propio componente
+(`text-base sm:text-sm leading-relaxed`):
+
+| | interlineado | lo que cabía en 160 px |
+| --- | --- | --- |
+| escritorio (`text-sm`) | 20 px | **7,1 renglones** |
+| móvil (`text-base`) | 26 px | **5,5 renglones** |
+
+> **El tope se cuenta en LÍNEAS y se traduce a píxeles con el interlineado que
+> de verdad tiene esa caja**, más su relleno y sus bordes. Así son tres
+> renglones en un teléfono y tres en un monitor, digan lo que digan las clases
+> de tipografía. Lo decide `lib/alto-de-la-caja-de-escribir.ts`, que es puro:
+> el navegador solo aporta las cuatro medidas que únicamente él sabe.
+
+Y debajo estaba **el fallo de los bordes de la sección de arriba, vivo en
+Chats**: el `scrollHeight` iba pelado, así que la caja medía siempre dos
+píxeles menos de lo que hacía falta. En un teléfono eso es **una barra de
+deslizar con una sola línea dentro** —42 px medidos donde hacían falta 44—; en
+escritorio lo tapaba el `min-h-10` del CSS con una línea y salía a las tres, y
+por eso nadie lo reportó como tal.
+
+Medido en Chromium sobre el CSS del build, con las clases leídas del componente
+y pasadas por el mismo `tailwind-merge` que usa `cn` —copiadas a mano se estaría
+midiendo una caja que React no pinta—:
+
+| ventana | | 1 renglón | 3 renglones | 12 renglones |
+| --- | --- | --- | --- | --- |
+| 1440 / 1280 | antes | 40 px | 76 px, **con barra** | 160 px = **7,1 renglones** |
+| 1440 / 1280 | ahora | 40 px | **78 px, sin barra** | **78 px = 3** |
+| 390 | antes | 42 px, **con barra** | 94 px, con barra | 160 px = **5,5 renglones** |
+| 390 | ahora | **44 px, sin barra** | **96 px, sin barra** | **96 px = 3** |
+
+Vacía vuelve a su línea en las tres anchuras, igual que antes: la altura en
+línea **se quita** y manda el CSS (`min-h-10`). Escribir un número ahí dejaría
+la caja alta con el borrador de otro chat dentro.
+
+Tres cosas que hay que mantener:
+
+1. **Sin interlineado usable NO se queda sin tope.** `line-height: normal` da
+   `NaN` al parsear, y un tope `NaN` **deja pasar cualquier alto** en
+   `Math.min`: volvería el fallo entero y sin un solo error. El respaldo es el
+   de siempre para un texto, una vez y media la fuente. Equivocarse ahí cuesta
+   unos píxeles; no tener tope cuesta la conversación.
+2. **Se vuelve a medir cuando cambia el ANCHO**, con un `ResizeObserver` que
+   mira **solo el ancho** —lo que esto mismo cambia es el alto, así que no hay
+   bucle—. Al abrirse la ficha de contacto o al girar un móvil el texto se
+   reparte en otro número de renglones y la altura escrita antes se queda
+   mintiendo.
+3. **Chats y el chat de equipo siguen siendo dos efectos**, no uno. Lo que se
+   comparte es la **decisión**, que es lo que se puede afinar mal en un sitio y
+   no en el otro; el enganche es de cada pantalla porque cada una sabe cuándo
+   hay que volver a medir. Y **la sala de reuniones no entra aquí**: su chat
+   tiene su propia caja.
+
+Lo comprueba `scripts/banco-caja.sh`, en dos mitades: la decisión sin navegador
+—en dos modos, y el roto **afirma** los 7,1 y los 5,5 renglones— y la caja de
+verdad en Chromium, que falla si en alguna de las tres anchuras no se ven
+exactamente tres.
+
 ### Y los atajos de formato van DELANTE del selector de menciones
 
 `Ctrl+B`, `Ctrl+I` y `Ctrl+Mayús+X` se miran antes que nada y **no se comen

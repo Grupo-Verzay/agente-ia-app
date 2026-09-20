@@ -51,6 +51,7 @@ import type {
 } from './chat-message-types';
 import { getDisplayWhatsappFromSession } from '../../crm/dashboard/helpers/getDisplayWhatsappFromSession';
 import { useHiloPegadoAbajo } from '@/hooks/useHiloPegadoAbajo';
+import { altoDeLaCaja } from '@/lib/alto-de-la-caja-de-escribir';
 import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
@@ -631,7 +632,31 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   }, [searchMatches.length]);
 
 
-  /* ─── Textarea auto-resize ─── */
+  /* ─── La caja de escribir crece hasta tres líneas ─── */
+  /**
+   * Quién decide el alto es `lib/alto-de-la-caja-de-escribir.ts`, que es puro;
+   * aquí solo se toman las cuatro medidas que únicamente sabe el navegador.
+   * El tope va en LÍNEAS y no en píxeles: con los 160 px de antes cabían siete
+   * renglones en un monitor y cinco y medio en un teléfono, y esa caja se
+   * comía media conversación.
+   */
+  const ajustarElAlto = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    el.style.height = 'auto';
+    const { alto } = altoDeLaCaja({
+      contenido: el.scrollHeight,
+      interlineado: parseFloat(cs.lineHeight),
+      fuente: parseFloat(cs.fontSize),
+      relleno: parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom),
+      // Los bordes van aparte: `box-sizing` es `border-box` —la altura los
+      // incluye— y `scrollHeight` no los cuenta.
+      bordes: el.offsetHeight - el.clientHeight,
+    });
+    el.style.height = `${alto}px`;
+  }, [textareaRef]);
+
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -642,9 +667,34 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       el.style.height = '';
       return;
     }
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
-  }, [input, info?.remoteJid]);
+    ajustarElAlto();
+  }, [input, info?.remoteJid, ajustarElAlto]);
+
+  /**
+   * Y se vuelve a medir cuando cambia el ANCHO de la caja.
+   *
+   * Al abrirse la ficha de contacto, al plegarse el menú o al girar un móvil,
+   * el texto se reparte en otro número de renglones y la altura escrita antes
+   * se queda mintiendo: o sobra hueco o sale barra con sitio de sobra. Se mira
+   * **solo el ancho** —lo que esto mismo cambia es el alto—, así que no hay
+   * bucle.
+   */
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let ultimoAncho = el.clientWidth;
+    const vigia = new ResizeObserver(() => {
+      const ancho = el.clientWidth;
+      if (ancho === ultimoAncho) return;
+      ultimoAncho = ancho;
+      if (el.value.trim()) ajustarElAlto();
+    });
+    vigia.observe(el);
+    return () => vigia.disconnect();
+    // `remoteJid` está aquí para volver a engancharse si algún día la barra
+    // deja de pintarse siempre: un vigía montado sobre una caja que ya no
+    // existe no da error, deja de mirar y nadie se entera.
+  }, [textareaRef, ajustarElAlto, info?.remoteJid]);
 
   /* ─── AI suggested reply ─── */
   const generateSuggestion = useCallback(async () => {
