@@ -166,6 +166,33 @@ function asegurarLasTablas(): Promise<void> {
             ALTER TABLE "sala_participantes"
             ADD COLUMN IF NOT EXISTS "compartiendo" BOOLEAN NOT NULL DEFAULT false
         `;
+        // La mano levantada y la petición de silencio: dos MARCAS DE TIEMPO,
+        // no dos booleanos.
+        //
+        // Con un booleano las dos se quedarían puestas para siempre, y cada una
+        // por su motivo:
+        //
+        // - Una mano levantada no la baja nadie: a quien la levantó se le
+        //   olvida, así que a los diez minutos la reunión entera tiene la mano
+        //   arriba y el icono deja de significar nada. Con la hora dentro,
+        //   `tieneLaManoLevantada` la baja sola a los dos minutos.
+        // - Y una petición de silencio puesta es una persona que **no puede
+        //   volver a encender el micro nunca**: su pestaña leería la orden en
+        //   cada vuelta del reloj y se callaría sola una y otra vez. Con la hora
+        //   dentro, la orden vale unos segundos —lo que tarda en recogerla— y
+        //   caduca.
+        //
+        // Van por `ALTER TABLE … ADD COLUMN IF NOT EXISTS`, como las tres de
+        // arriba: la tabla ya está en producción y un `CREATE TABLE IF NOT
+        // EXISTS` no toca una que ya existe.
+        await db.$executeRaw`
+            ALTER TABLE "sala_participantes"
+            ADD COLUMN IF NOT EXISTS "manoLevantadaEn" TIMESTAMP(3)
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "sala_participantes"
+            ADD COLUMN IF NOT EXISTS "silenciadoEn" TIMESTAMP(3)
+        `;
         // El token es la credencial de quien no tiene cuenta, así que se busca
         // por él en cada vuelta de su reloj. Único, además: es lo que impide
         // que dos filas puedan responder al mismo token.
@@ -201,6 +228,36 @@ function asegurarLasTablas(): Promise<void> {
         await db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "sala_senales_para_idx"
             ON "sala_senales" ("paraId", "creadoEn")
+        `;
+
+        // El chat de la reunión. **No sale de la sala**, y eso es una columna:
+        // `salaId`. No es el chat de equipo con otro nombre — no hay canal, no
+        // hay menciones, no hay avisos y no aparece en ninguna otra pantalla.
+        // Lo que se escribe aquí lo leen los que están en esta reunión, y ahí
+        // se acaba.
+        //
+        // El nombre del autor se **copia dentro**, como en `team_chat_messages`
+        // y por el mismo motivo llevado al extremo: media reunión son invitados
+        // sin cuenta, cuya única identidad es una fila de `sala_participantes`
+        // que se borra con la sala. Sin el nombre copiado, al recargar la
+        // pantalla el hilo diría «Alguien» en la mitad de las burbujas.
+        await db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "sala_mensajes" (
+                "id" TEXT PRIMARY KEY,
+                "salaId" TEXT NOT NULL,
+                "deId" TEXT NOT NULL,
+                "autorNombre" TEXT NOT NULL,
+                "texto" TEXT NOT NULL,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+        // Por `(salaId, creadoEn)` porque así se lee siempre: los de ESTA sala
+        // posteriores al último que ya tengo. Sin el índice, cada vuelta del
+        // reloj —cada dos segundos y por persona— recorrería la tabla entera
+        // para no devolver nada, que es el caso normal.
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "sala_mensajes_sala_idx"
+            ON "sala_mensajes" ("salaId", "creadoEn")
         `;
     })().catch((e) => {
         listas = null;
@@ -296,6 +353,17 @@ export type FilaDeParticipante = {
     micEncendido: boolean;
     camaraEncendida: boolean;
     compartiendo: boolean;
+    manoLevantadaEn: Date | null;
+    silenciadoEn: Date | null;
+};
+
+export type FilaDeMensajeDeSala = {
+    id: string;
+    salaId: string;
+    deId: string;
+    autorNombre: string;
+    texto: string;
+    creadoEn: Date;
 };
 
 export type FilaDeSenal = {
@@ -314,7 +382,8 @@ const COLUMNAS_SALA = `"id", "codigo", "cuentaId", "canalId", "anfitrionId",
 const COLUMNAS_PARTICIPANTE = `"id", "salaId", "personaId", "invitadoToken", "nombre",
                                "esInvitado", "estado", "creadoEn", "entradoEn",
                                "vistoEn", "salidoEn", "micEncendido",
-                               "camaraEncendida", "compartiendo"`;
+                               "camaraEncendida", "compartiendo",
+                               "manoLevantadaEn", "silenciadoEn"`;
 
 /**
  * El código del enlace: 24 caracteres de `base64url` sobre 18 bytes de azar.
@@ -584,6 +653,13 @@ export async function revocarLaSala(salaId: string): Promise<boolean> {
             `;
             await db.$executeRaw`
                 DELETE FROM "sala_senales" WHERE "salaId" = ${salaId}
+            `;
+            // Y el chat se va con ella, en la misma vuelta que echa a la gente.
+            // Revocar un enlace dejando dentro la conversación sería media
+            // revocación: lo que se escribió ahí no tiene ya ningún sitio donde
+            // leerse, y sigue ocupando una tabla sin clave foránea que lo limpie.
+            await db.$executeRaw`
+                DELETE FROM "sala_mensajes" WHERE "salaId" = ${salaId}
             `;
         }
         return tocadas > 0;
@@ -918,6 +994,176 @@ export async function vaciarElBuzon(paraId: string): Promise<FilaDeSenal[]> {
 export async function barrerSenalesViejas(): Promise<void> {
     await conLasTablas(() => db.$executeRaw`
         DELETE FROM "sala_senales" WHERE "creadoEn" < NOW() - INTERVAL '2 minutes'
+    `);
+}
+
+// ── La mano, el silencio y el chat ───-----------------------------------------
+
+/**
+ * Levantar o bajar la mano.
+ *
+ * Se escribe la HORA, no un `true`. Lo que se lee después
+ * (`tieneLaManoLevantada`) la baja sola a los dos minutos, que es lo que evita
+ * una reunión entera con la mano arriba porque a nadie se le ocurrio volver a
+ * pulsar el boton.
+ *
+ * Y **es de uno mismo**: el `participanteId` lo pone quien llama desde su
+ * sesión o su token, nunca los parámetros. Levantarle la mano a otro sería
+ * ponerle a pedir la palabra sin que la haya pedido.
+ */
+export async function levantarLaMano(
+    participanteId: string,
+    levantada: boolean,
+): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        UPDATE "sala_participantes"
+        SET "manoLevantadaEn" = ${levantada ? new Date() : null}
+        WHERE "id" = ${participanteId} AND "estado" = 'dentro'
+    `);
+}
+
+/**
+ * Pedirle a alguien que se silencie.
+ *
+ * **El servidor no apaga ningún micro**, porque no tiene ninguna pista que
+ * tocar: lo único que puede hacer es dejar una marca que el navegador de esa
+ * persona recoge en su siguiente vuelta y obedece apagando el suyo. Es como lo
+ * hacen todas, y conviene que esté escrito: quien pulsa el botón tiene que
+ * saber que lo que manda es una orden que la otra punta cumple, no un
+ * interruptor sobre su micrófono.
+ *
+ * De ahí que la marca sea una hora y **caduque**
+ * (`VIGENCIA_DEL_SILENCIO_MS`): puesta para siempre, esa persona no podría
+ * volver a encender el micro nunca — cada vuelta del reloj le traería la orden
+ * otra vez y se callaría sola.
+ *
+ * Acota por sala además de por id: sin eso, un id de otra reunión silenciaría a
+ * alguien que no está en esta.
+ */
+export async function pedirElSilencio(input: {
+    salaId: string;
+    participanteId: string;
+}): Promise<boolean> {
+    return conLasTablas(async () => {
+        const tocadas = await db.$executeRaw`
+            UPDATE "sala_participantes"
+            SET "silenciadoEn" = NOW()
+            WHERE "id" = ${input.participanteId} AND "salaId" = ${input.salaId}
+              AND "estado" = 'dentro'
+        `;
+        return tocadas > 0;
+    });
+}
+
+/**
+ * Escribir en el chat de la reunión.
+ *
+ * El nombre del autor se copia dentro en el momento de escribir, desde la fila
+ * de quien escribe: ver la cabecera de la tabla. Media reunión son invitados
+ * cuya fila se va con la sala.
+ */
+export async function escribirEnLaSala(input: {
+    salaId: string;
+    deId: string;
+    autorNombre: string;
+    texto: string;
+}): Promise<FilaDeMensajeDeSala> {
+    return conLasTablas(async () => {
+        const id = randomUUID();
+        await db.$executeRaw`
+            INSERT INTO "sala_mensajes" ("id", "salaId", "deId", "autorNombre", "texto")
+            VALUES (${id}, ${input.salaId}, ${input.deId}, ${input.autorNombre}, ${input.texto})
+        `;
+        const filas = await db.$queryRawUnsafe<FilaDeMensajeDeSala[]>(
+            `SELECT "id", "salaId", "deId", "autorNombre", "texto", "creadoEn"
+             FROM "sala_mensajes" WHERE "id" = $1`,
+            id,
+        );
+        return filas[0];
+    });
+}
+
+/**
+ * Los mensajes que faltan, **no el hilo entero**.
+ *
+ * Esto viaja en cada vuelta del reloj de la sala, o sea cada dos segundos y por
+ * persona. Devolver el hilo completo cada vez sería meter una conversación
+ * entera en el camino más caliente de esta pantalla para no decir nada nuevo
+ * el 99 % de las veces.
+ *
+ * El corte es **la hora del último que ya se tiene**, que la manda el
+ * navegador. Con un `OFFSET` habría que contar los de antes —o sea recorrerlos—
+ * y además se saltarían filas en cuanto entrara uno nuevo entre dos vueltas.
+ *
+ * `desde` nulo es «acabo de entrar»: se devuelven los últimos, no todos, y se
+ * les da la vuelta al salir. Pidiéndolos `ASC` con un tope, una reunión larga
+ * devolvería el principio de la conversación en vez del final.
+ */
+export async function losMensajesDeLaSala(input: {
+    salaId: string;
+    desde?: Date | null;
+    tope: number;
+}): Promise<FilaDeMensajeDeSala[]> {
+    return conLasTablas(async () => {
+        if (input.desde) {
+            return db.$queryRawUnsafe<FilaDeMensajeDeSala[]>(
+                `SELECT "id", "salaId", "deId", "autorNombre", "texto", "creadoEn"
+                 FROM "sala_mensajes"
+                 WHERE "salaId" = $1 AND "creadoEn" > $2
+                 ORDER BY "creadoEn" ASC
+                 LIMIT $3`,
+                input.salaId,
+                input.desde,
+                input.tope,
+            );
+        }
+        const ultimos = await db.$queryRawUnsafe<FilaDeMensajeDeSala[]>(
+            `SELECT "id", "salaId", "deId", "autorNombre", "texto", "creadoEn"
+             FROM "sala_mensajes"
+             WHERE "salaId" = $1
+             ORDER BY "creadoEn" DESC
+             LIMIT $2`,
+            input.salaId,
+            input.tope,
+        );
+        return ultimos.reverse();
+    });
+}
+
+/**
+ * Olvidar el chat de una sala.
+ *
+ * Se llama al revocarla, junto con echar a la gente: revocar un enlace dejando
+ * dentro la conversación sería media revocación. Y **no hay clave foránea**,
+ * como en el resto de las tablas de la App, así que la limpieza es explícita o
+ * no pasa.
+ */
+export async function olvidarLosMensajesDe(salaId: string): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        DELETE FROM "sala_mensajes" WHERE "salaId" = ${salaId}
+    `);
+}
+
+/**
+ * Barrer los chats de reuniones que ya no están vivas.
+ *
+ * Va con el mismo barrido que las señales viejas —una de cada veinte vueltas y
+ * en su propio `try`— y por el mismo motivo: son mensajes de una conversación
+ * que ya terminó, sin ningún sitio donde leerse. Se borran los de salas
+ * revocadas o caducadas, y los sueltos de más de un día: **una sala sin
+ * caducidad nunca está «caducada»**, así que sin esa segunda mitad su chat
+ * crecería sin fin.
+ */
+export async function barrerLosChatsViejos(): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        DELETE FROM "sala_mensajes" m
+        WHERE m."creadoEn" < NOW() - INTERVAL '1 day'
+           OR EXISTS (
+               SELECT 1 FROM "salas_de_video" s
+               WHERE s."id" = m."salaId"
+                 AND (s."revocadaEn" IS NOT NULL
+                      OR (s."expiraEn" IS NOT NULL AND s."expiraEn" <= NOW()))
+           )
     `);
 }
 

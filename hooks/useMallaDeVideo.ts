@@ -12,6 +12,7 @@ import { esperarLosCandidatos } from "@/lib/webrtc-del-navegador";
 import {
     enviarSenalAction,
     latidoDeLaSalaAction,
+    type MensajeDeLaSala,
     type QuienEstaEnLaSala,
 } from "@/actions/salas-de-video-actions";
 import type { MediosDeLlamada } from "@/hooks/useMediosDeLlamada";
@@ -47,6 +48,25 @@ import type { MediosDeLlamada } from "@/hooks/useMediosDeLlamada";
  * ya hay.
  */
 
+/**
+ * Juntar lo que ya había con lo que acaba de llegar, sin repetir.
+ *
+ * El corte es una HORA, y dos mensajes pueden compartirla: dos personas
+ * escribiendo en el mismo milisegundo, o —lo normal— una vuelta que llega
+ * tarde y trae otra vez el último. Sin deduplicar por id, el hilo enseñaría el
+ * mismo mensaje dos veces y no habría forma de saber si fue la persona quien
+ * lo mandó dos veces.
+ */
+function juntarLosMensajes(
+    habia: MensajeDeLaSala[],
+    llegan: MensajeDeLaSala[],
+): MensajeDeLaSala[] {
+    if (!llegan.length) return habia;
+    const vistos = new Set(habia.map((m) => m.id));
+    const nuevos = llegan.filter((m) => !vistos.has(m.id));
+    return nuevos.length ? [...habia, ...nuevos] : habia;
+}
+
 export type RemotoEnLaSala = QuienEstaEnLaSala & {
     /** Lo que llega de esa persona. `null` mientras se conecta. */
     stream: MediaStream | null;
@@ -60,10 +80,27 @@ export type EstadoDeLaMalla = {
     estado: "cargando" | "esperando" | "dentro" | "fuera";
     /** Por qué estoy fuera, cuando lo estoy. */
     motivo: string | null;
-    yo: { participanteId: string; nombre: string; abroLaPuerta: boolean } | null;
+    yo: {
+        participanteId: string;
+        nombre: string;
+        abroLaPuerta: boolean;
+        /** Si puedo silenciar y sacar. No es lo mismo que abrir la puerta. */
+        moderas: boolean;
+        manoLevantada: boolean;
+        silenciadoEn: string | null;
+    } | null;
     sala: { id: string; codigo: string; titulo: string | null; expiraEn: string | null } | null;
     remotos: RemotoEnLaSala[];
     esperando: QuienEstaEnLaSala[];
+    /**
+     * El chat de la reunión, **acumulado aquí y no pedido entero cada vuelta**.
+     *
+     * El servidor solo manda los que faltan (ver `desdeMensaje`), así que el
+     * hilo se va construyendo en el navegador. Guardarlo en el estado de la
+     * pantalla en vez de aquí obligaría a subirlo cuando el panel del chat se
+     * cierra y se vuelve a abrir — o sea, a perderlo.
+     */
+    mensajes: MensajeDeLaSala[];
 };
 
 export function useMallaDeVideo(input: {
@@ -83,7 +120,18 @@ export function useMallaDeVideo(input: {
         sala: null,
         remotos: [],
         esperando: [],
+        mensajes: [],
     });
+
+    /**
+     * El corte del chat: la hora del último mensaje que ya tengo.
+     *
+     * En un ref y no en el estado porque lo lee **el reloj**, que se monta una
+     * sola vez y lee todo por referencia. Metido en el estado habría que
+     * volverlo a montar en cada mensaje que llegara, o sea justo en el momento
+     * en que menos conviene perder el ritmo.
+     */
+    const desdeMensajeRef = useRef<string | null>(null);
 
     /** Una conexión por persona, viva entre vueltas del reloj. */
     const conexionesRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -287,6 +335,7 @@ export function useMallaDeVideo(input: {
                     camara: m.camaraEncendida,
                     compartiendo: m.compartiendo,
                 },
+                desdeMensaje: desdeMensajeRef.current,
             });
 
             if (!res.success) {
@@ -301,6 +350,12 @@ export function useMallaDeVideo(input: {
 
             const { datos } = res;
             if (datos.ice.length) iceRef.current = datos.ice;
+            // El corte se mueve al ÚLTIMO que llegó, no a `now()`: con la hora
+            // de ahora, un mensaje escrito entre la consulta y esta línea
+            // quedaría del lado de los ya vistos y no llegaría nunca. Es la
+            // misma regla que la marca de leído del chat de equipo.
+            const ultimo = datos.mensajes[datos.mensajes.length - 1];
+            if (ultimo) desdeMensajeRef.current = ultimo.creadoEn;
 
             if (datos.yo.estado !== "dentro") {
                 setEstado({
@@ -310,10 +365,18 @@ export function useMallaDeVideo(input: {
                         participanteId: datos.yo.participanteId,
                         nombre: datos.yo.nombre,
                         abroLaPuerta: false,
+                        moderas: false,
+                        manoLevantada: false,
+                        silenciadoEn: null,
                     },
                     sala: datos.sala,
                     remotos: [],
                     esperando: [],
+                    // Quien espera en la puerta no lee el chat de dentro: ver
+                    // el latido. Aquí se vacía para que, si a alguien lo sacan
+                    // y vuelve a la puerta, no se quede mirando la conversación
+                    // de una sala en la que ya no está.
+                    mensajes: [],
                 });
                 return;
             }
@@ -341,13 +404,16 @@ export function useMallaDeVideo(input: {
 
             // 3. Y lo que se pinta.
             const mios = datos.dentro.filter((d) => d.id !== datos.yo.participanteId);
-            setEstado({
+            setEstado((e) => ({
                 estado: "dentro",
                 motivo: null,
                 yo: {
                     participanteId: datos.yo.participanteId,
                     nombre: datos.yo.nombre,
                     abroLaPuerta: datos.yo.abroLaPuerta,
+                    moderas: datos.yo.moderas,
+                    manoLevantada: datos.yo.manoLevantada,
+                    silenciadoEn: datos.yo.silenciadoEn,
                 },
                 sala: datos.sala,
                 remotos: mios.map((d) => {
@@ -362,7 +428,13 @@ export function useMallaDeVideo(input: {
                     };
                 }),
                 esperando: datos.esperando,
-            });
+                // Se AÑADEN los que faltaban, no se sustituye la lista. Y se
+                // deduplica por id: una vuelta que llegue tarde puede traer
+                // otra vez el mismo mensaje, y el hilo lo enseñaría dos veces.
+                mensajes: e.mensajes.length
+                    ? juntarLosMensajes(e.mensajes, datos.mensajes)
+                    : datos.mensajes,
+            }));
         } catch (error) {
             // Mudo aquí se ve como «la reunión se queda colgada», que no se
             // parece a un error.

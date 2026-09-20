@@ -9825,6 +9825,239 @@ el General, y desde fuera parecía que el recuerdo no se guardaba.
 eso `cambiarDeCanal` ya no lo repite: dos sitios diciendo lo mismo es uno que
 se afina y otro que se queda.
 
+## La sala usable: quien habla en grande, fondo, mano, chat y moderación
+
+La sala ya entraba y conectaba. Lo que faltaba era poder **trabajar** dentro:
+con cuatro personas en cuadrícula todos salen del tamaño de un sello, no había
+forma de pedir la palabra sin interrumpir, ni de pasar un dato sin sacarlo de la
+reunión, ni de callar a quien dejó la tele encendida.
+
+**Nada de esto renegocia una conexión**, y esa es la idea de la que cuelga todo
+—está contada entera en *la idea de la que cuelga TODO: las pistas se negocian
+UNA vez*—: el fondo y la pantalla compartida son `replaceTrack`, y la mano, el
+silencio y el chat viajan **dentro del latido que ya existía**. Ni un reloj
+nuevo, ni una segunda tubería.
+
+### El reparto de orador: tres frenos, y en silencio NO se mueve
+
+Quien habla va en grande y el resto en una tira de miniaturas; la cuadrícula
+sigue estando, a un clic. Lo decide `elQueHabla` (`lib/voz-activa.ts`, puro),
+que mide el volumen de cada pista con un `AnalyserNode` y aplica **tres frenos
+que hacen falta los tres**:
+
+1. **Un suelo** (`NIVEL_MINIMO`). Sin él, el ruido de fondo de un portátil basta
+   para ganar el recuadro grande.
+2. **Un mínimo en grande** (`MINIMO_EN_GRANDE_MS`, 1,5 s). Sin él, dos personas
+   hablando a la vez hacen que la pantalla parpadee entre las dos, que marea más
+   que la cuadrícula.
+3. **Y una ventaja clara para cambiar** (`VENTAJA_PARA_CAMBIAR`, 1,5×). Un «ajá»
+   de fondo no le quita el sitio a quien está explicando algo.
+
+Dos cosas que solo se ven con la sala en silencio:
+
+- **En silencio se QUEDA el último que habló.** Volver a nadie —o al primero de
+  la lista— convertiría cada pausa en un salto de cámara. Un recuadro grande
+  vacío entre frase y frase se lee como una conexión rota.
+- **Pero quien se va suelta el sitio al momento.** Si el que estaba en grande
+  ya no está, el reparto se cae al primero en vez de dejar el hueco grande en
+  negro.
+
+Y **quien comparte pantalla gana el recuadro grande por encima de quien habla**:
+si alguien está enseñando algo, eso es lo que hay que mirar aunque hable otro.
+
+**Con una sola persona manda la cuadrícula**, elija lo que elija
+(`laDistribucionQueSeVe`): no hay nada que repartir, y una tira de miniaturas
+vacía al lado de un recuadro grande se lee como que falta alguien. Por lo mismo
+el botón sale apagado.
+
+El `AudioContext` es **uno por sala y se cierra al salir**. Dejarlo abierto no
+se nota en la reunión que se cerró: se nota en la siguiente, porque los
+navegadores topan cuántos se pueden tener a la vez y al llegar al tope **deja de
+sonar todo**, la llamada de WhatsApp incluida.
+
+### El fondo: el modelo se vendoriza AL CONSTRUIR, ni en el repo ni en un CDN
+
+Desenfocar el fondo o ponerlo liso, encendido y apagado dentro de la reunión.
+Lo hace MediaPipe Selfie Segmentation, y lo delicado no es el filtro: es **de
+dónde salen sus 6 MB**.
+
+Las dos formas cómodas están mal, cada una por su lado:
+
+| | por qué no |
+| --- | --- |
+| **comprometerlos en `public/`** | 6 MB de `.wasm` y `.tflite` en el historial de git, para siempre, y cada clon se los baja |
+| **pedirlos a un CDN** | una dependencia externa en caliente: el día que ese dominio no conteste, el botón deja de funcionar sin que nadie haya tocado nada — y además se le cuenta a un tercero quién abre una reunión |
+
+> **Se copian del `node_modules` al construir** (`scripts/vendorizar-segmentacion.mjs`,
+> colgado de `prebuild`), y `public/segmentacion/` está en `.gitignore`. La
+> dependencia entra con `--save-exact`: una versión nueva del modelo cambiaría
+> lo que se sirve sin un solo commit.
+
+**Y el script se cae con estruendo** (`exit 1`) si no encuentra los seis
+ficheros. Un vendorizado silencioso que no copia nada da un build verde y un
+botón que no funciona en producción, que es la familia de fallo de la que va
+medio este documento.
+
+Tres cosas del filtro:
+
+1. **`setInterval`, nunca `requestAnimationFrame`.** Con rAF, una pestaña de
+   fondo **deja de pintar**, y como lo que se manda es el lienzo, a los demás se
+   les congela tu imagen. Con la pestaña escondida no se congela nada.
+2. **El orden del lienzo importa**: se pinta la máscara, luego la imagen con
+   `source-in` —que recorta a la persona— y luego el fondo con
+   `destination-over`, que lo mete por debajo. En otro orden sale la persona
+   borrosa sobre un fondo nítido, que es exactamente lo contrario.
+3. **Apagar la cámara apaga el fondo primero**, y encenderla lo vuelve a poner.
+   Sin eso queda un motor moliendo sobre una pista muerta, y al volver la cámara
+   el recuadro se queda negro con la conexión perfecta.
+
+La descarga la comparte **una promesa a nivel de módulo**: dos pulsaciones
+seguidas no se bajan 6 MB dos veces.
+
+### La mano y el silencio son HORAS, no interruptores
+
+Las dos columnas nuevas de `sala_participantes` —`manoLevantadaEn` y
+`silenciadoEn`— son marcas de tiempo a propósito, y con un booleano las dos se
+rompen:
+
+- **Una mano levantada se baja sola** (`VIGENCIA_DE_LA_MANO_MS`, 2 min). Con un
+  booleano, quien la levanta y se olvida se queda con el anillo ámbar puesto el
+  resto de la reunión, y entonces el anillo deja de significar nada.
+- **Y un silencio caduca** (`VIGENCIA_DEL_SILENCIO_MS`, 15 s). Con una marca
+  permanente, **la persona no podría volver a encender su micrófono nunca**:
+  cada vuelta del latido se lo volvería a apagar. Eso no se lee como una
+  moderación: se lee como un micrófono roto.
+
+**Y el silencio es una PETICIÓN, no un interruptor.** El servidor no tiene
+ninguna pista que tocar —el micro vive en el navegador de la otra persona—, así
+que lo que hace es escribir una marca que **ese navegador obedece** al recibirla.
+Se dice con esas palabras en el aviso que sale al pulsarlo: prometer que «lo
+silenciaste» sería prometer algo que el servidor no puede cumplir. Lo de
+obedecer se recuerda por referencia, para no volver a apagar el micro cuando esa
+persona lo encienda otra vez dentro de la misma vigencia.
+
+El anillo de la mano va en el **borde del recuadro** y no solo en un icono: en
+una miniatura el icono mide diez píxeles y no lo ve nadie.
+
+### Silenciar y sacar son de quien ADMINISTRA; abrir la puerta, no
+
+Son dos puertas distintas y por eso `sacarDeLaSalaAction` tiene **dos**:
+
+| qué | quién |
+| --- | --- |
+| dejar entrar o no a quien espera | el anfitrión **y cualquiera del equipo que ya esté dentro** (`puedeAbrirLaPuerta`) |
+| silenciar o sacar a quien ya está dentro | el anfitrión **y quien administra la cuenta** (`puedeAdministrarLaSala`) |
+
+Con una sola puerta se rompe una de las dos mitades: si se pide administrar para
+abrir, los invitados se quedan esperando para siempre en cuanto el anfitrión
+cierre su pestaña; y si basta con estar dentro para sacar, **cualquier invitado
+echa al anfitrión**.
+
+Y no se escribió ninguna condición nueva: `puedeAdministrarLaSala` ya contestaba
+exactamente esa pregunta para revocar el enlace. Dos formulaciones para «quién
+manda en esta sala» es una que se afina y otra que se queda atrás — y aquí
+quedarse atrás significa que alguien saca a quien no debía.
+
+**Un `agente` no modera**, que es el reparto de siempre: participa, no manda.
+Comprobado con dos navegadores: al agente no le sale ni el botón de silenciar ni
+el de sacar.
+
+### El chat de la reunión no sale de la sala
+
+`sala_mensajes`, tabla de la App con `CREATE TABLE IF NOT EXISTS` y sin clave
+foránea, y **se borra con la sala** (`revocarLaSala` y el barrido). Es lo que
+hace cierta la promesa: lo que se escribe ahí dentro no aparece en el chat del
+equipo ni en ningún otro sitio, y cuando la reunión deja de existir tampoco
+existe.
+
+Tres cosas:
+
+1. **Viaja en el latido que ya había**, con un corte (`desdeMensaje`) que es la
+   **hora del último que ya tengo**, no un `OFFSET`: contar cuántos hay antes
+   obliga a recorrerlos. En el caso normal —nadie escribió— la consulta no
+   devuelve nada y no cuesta.
+2. **El hilo se acumula en el navegador** y se deduplica por id. Pidiéndolo
+   entero cada dos segundos se pagaría la conversación completa en cada vuelta.
+3. **Y aquí el hilo SÍ se pega abajo solo**, al revés que el chat del equipo.
+   Es a propósito: nadie se pone a leer hacia arriba en una reunión de diez
+   minutos, y un mensaje que llega y no se ve es un mensaje que no llegó.
+
+### Los cuatro tamaños de la ventana, y el que se recuerda
+
+`lib/ventana-de-reunion.ts`, puro: `pastilla`, `panel`, `maximizada` y
+`completa`, en esa escala. `maximizada` **no es** `completa`, y esa es la que
+más se usa: llena el hueco de contenido **dejando ver el menú lateral y la barra
+de arriba**, así que se puede mirar la campanita o cambiar de pantalla sin salir
+de la reunión ni encogerla.
+
+> **`completa` se recuerda como `maximizada`.** Restaurarla al abrir
+> significaría pedir pantalla completa sin que nadie haya pulsado nada, y los
+> navegadores lo niegan fuera de un gesto: se guardaría un tamaño que no se
+> puede devolver, y la reunión abriría en un estado que no existe.
+
+Y la pestaña pública **no recuerda nada y solo ofrece dos**: `localStorage` es
+por dominio, así que guardar el tamaño desde la reunión de un invitado le
+pisaría el suyo a quien use la plataforma en ese mismo navegador. Y ahí una
+`pastilla` sería una barra flotando sobre una página en blanco.
+
+#### Hay DOS `<main>`, y `querySelector` devuelve el que NO sirve
+
+Esto lo cazó medir con dos navegadores de verdad y **leyendo el código no se
+ve**. `useHuecoDelContenido` mide el `<main>` a propósito —el menú tiene tres
+anchos y además se anima, así que restar variables falla justo en los casos que
+importan—. Lo que no se sabía es que hay más de uno:
+
+| | top | left | alto |
+| --- | --- | --- | --- |
+| el de fuera (`SidebarInset`) | **0** | 48 | 900 |
+| el de dentro (el contenido) | **53** | 48 | 847 |
+
+`document.querySelector("main")` devuelve el primero del documento, o sea el de
+fuera, **que lleva la barra de arriba dentro**: la reunión maximizada salía
+tapándola, que es justo lo contrario de para lo que existe ese tamaño. Y no se
+ve como un fallo de medida: se ve como que «maximizada es lo mismo que pantalla
+completa».
+
+Se coge **el de más adentro** —el último que no tiene otro `<main>` dentro—, que
+es el hueco de contenido por definición y no depende de cuántas capas de armazón
+se añadan encima.
+
+### Medido con dos navegadores de verdad y cámara falsa
+
+No con una maqueta: el build servido, dos sesiones reales —la anfitriona en el
+panel de la plataforma y un agente por el enlace público—, cámara y micrófono
+falsos de Chromium, y la malla conectando de verdad entre las dos.
+
+Lo que se comprobó, y en las cuatro anchuras:
+
+| | 1440 | 1280 | 1024 | 390 |
+| --- | --- | --- | --- | --- |
+| orador: el grande contra la miniatura | 711.776 / 16.896 | 512.736 / 16.896 | 328.416 / 16.896 | 235.620 / 8.960 |
+| cuadrícula: los dos recuadros | 560×754 | 480×654 | 352×622 | 374×355 |
+| ¿desborda a lo ancho? | no | no | no | no |
+
+Y de una vez: los dos se ven y **se oyen** (`audio:live` y `video:live` en el
+recuadro remoto de cada uno, que es lo único que prueba que el audio llega); la
+mano levantada aparece y desaparece en la otra punta; el mensaje del chat llega
+firmado; la anfitriona silencia y **el micrófono del otro se apaga de verdad**;
+el agente no ve ningún mando de moderación; el fondo descarga sus cinco ficheros
+de `/segmentacion` y **sustituye la pista** de la cámara (`fake_device_0` → una
+pista de lienzo) y la devuelve al quitarlo; compartir pantalla sustituye la
+pista otra vez (`screen:-3:0`) y al dejarlo vuelve la cámara; y los cuatro
+tamaños:
+
+| | caja | ¿siguen los `<video>`? |
+| --- | --- | --- |
+| panel | 896×704 @ (272, 24) | sí |
+| maximizada | 1392×847 @ (48, **53**) | sí |
+| completa | 1440×900 @ (0, 0), con `fullscreenElement` puesto | sí |
+| pastilla | 222×42 | **sí** |
+
+La última fila es la que importa: **plegar esconde la rejilla, no la desmonta**.
+Desmontarla se llevaría por delante los `<video>` y con ellos el audio de los
+demás — plegar dejaría de ser plegar y pasaría a ser salirse.
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

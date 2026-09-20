@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SalaDeVideo } from "@/components/video/SalaDeVideo";
 import { comoSeGuardaElNombre, laDireccionDeLaSala } from "@/lib/sala-de-video";
+import type { EstadoDeLaVentana } from "@/lib/ventana-de-reunion";
 import {
     comoEntroAction,
     llamarALaPuertaAction,
@@ -51,8 +52,9 @@ import {
 export function LaReunion({
     codigo,
     alCerrar,
-    minimizada = false,
-    onMinimizar,
+    ventana,
+    onVentana,
+    estadosQueOfrece,
     asa,
 }: {
     codigo: string;
@@ -66,13 +68,17 @@ export function LaReunion({
      */
     alCerrar?: () => void;
     /**
-     * Lo del panel flotante: si se ve plegada, cómo plegarla y de dónde se
-     * agarra. Se pasan tal cual a la sala, que es quien pinta la pastilla.
-     * **Quien entra por el enlace público no los recibe** y la reunión ocupa
-     * su pestaña entera, que es lo que tiene delante.
+     * Cómo se ve la ventana, y qué tamaños se ofrecen aquí.
+     *
+     * Se pasan tal cual a la sala, que es quien pinta los mandos. **Quien entra
+     * por el enlace público recibe solo dos** —`maximizada` y `completa`—
+     * porque ahí la reunión ES la pestaña: plegarla a una pastilla dejaría una
+     * página en blanco con una pastilla encima, y un panel flotante no tendría
+     * nada debajo sobre lo que flotar.
      */
-    minimizada?: boolean;
-    onMinimizar?: (v: boolean) => void;
+    ventana: EstadoDeLaVentana;
+    onVentana: (v: EstadoDeLaVentana) => void;
+    estadosQueOfrece: readonly EstadoDeLaVentana[];
     asa?: { className?: string } & Record<string, unknown>;
 }) {
     const [como, setComo] = useState<
@@ -253,8 +259,9 @@ export function LaReunion({
             codigo={codigo}
             token={como.paso === "esperando" ? como.token : null}
             enlace={enlace}
-            minimizada={minimizada}
-            onMinimizar={onMinimizar}
+            ventana={ventana}
+            onVentana={onVentana}
+            estadosQueOfrece={estadosQueOfrece}
             asa={asa}
             alSalir={
                 alCerrar ??
