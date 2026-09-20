@@ -5,8 +5,31 @@ const WHATSAPP_BROADCAST_JID_SUFFIX = "@broadcast";
 
 export const STATUS_BROADCAST_JID = "status@broadcast";
 
+/**
+ * Quita el sufijo de dispositivo de un JID: `573001:39@s.whatsapp.net` -> `573001@s.whatsapp.net`.
+ *
+ * WhatsApp numera el APARATO desde el que se escribe y ese `:39` no es parte del
+ * número. Dejarlo dentro produce dos cosas, y las dos se ven como contactos
+ * duplicados:
+ *
+ * 1. La ficha y la conversación se guardan bajo un identificador distinto del
+ *    del mismo contacto escribiendo desde otro aparato.
+ * 2. `extractWhatsAppDigits` no ve el `:` —solo cuenta dígitos— así que el
+ *    sufijo se le PEGA al número: `573233246305:39` sale como `57323324630539`,
+ *    y con eso se fabricaban candidatos (`57323324630539@s.whatsapp.net`,
+ *    `...@lid`) de un número que no existe. Es el mismo daño que el comentario
+ *    de `buildWhatsAppJidCandidates` describe para los `@lid`.
+ *
+ * Va dentro de `cleanValue`, que es por donde entra TODO valor de este módulo:
+ * así una sola regla decide, y no hay dos funciones que discrepen sobre qué es
+ * el número. El backend hace lo mismo (`sinSufijoDeDispositivo`).
+ */
+export function sinSufijoDeDispositivo(value?: string | null) {
+  return (value ?? "").replace(/:\d+@/, "@");
+}
+
 function cleanValue(value?: string | null) {
-  return value?.trim() ?? "";
+  return sinSufijoDeDispositivo(value?.trim() ?? "");
 }
 
 export function isStatusBroadcastJid(value?: string | null) {
@@ -200,7 +223,10 @@ export function fmtPhone(remoteJid: string | null | undefined): string {
   if (!remoteJid) return '';
   // @lid es un ID interno de WhatsApp, no un número de teléfono real
   if (remoteJid.toLowerCase().endsWith('@lid')) return '';
-  const digits = remoteJid.replace(/@.*/, '').replace(/\D/g, '');
+  // El sufijo de dispositivo se quita ANTES de quedarse con los digitos: si no,
+  // el ":39" se le pega al numero y sale "+57 323324630539" en la ficha del
+  // contacto. Esta funcion no pasa por `cleanValue`, asi que lo hace ella.
+  const digits = sinSufijoDeDispositivo(remoteJid).replace(/@.*/, '').replace(/\D/g, '');
   if (!digits) return '';
 
   const cc = KNOWN_PREFIXES.find(p => digits.startsWith(p));

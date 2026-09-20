@@ -332,6 +332,100 @@ Si la primera búsqueda no pausa nada, se completa con las identidades que guard
 `chat_messages` y se reintenta. Es la misma regla de siempre: cuando una forma se
 queda corta, nuestra base sabe completarla.
 
+## El sufijo de dispositivo: en SQL en crudo la columna es la de la BASE
+
+El mismo cliente salía dos veces en Chats: una ficha con el número limpio y
+otra con `573233246305:39@s.whatsapp.net`. Ese `:39` es el **aparato** desde el
+que se escribió —el teléfono o WhatsApp Web— y no es parte del número.
+
+Había una limpieza para eso desde el #549. **No quitó ni una ficha en su vida**,
+y el motivo es de una línea:
+
+```
+Raw query failed. Code: `42703`. Message: `column mala.assignedAdvisorId does not exist`
+```
+
+En SQL en crudo **Prisma no traduce los `@map`**: el campo es
+`assignedAdvisorId` y la columna es `assigned_advisor_id`. Igual `customName` /
+`custom_name`. Así que la consulta se caía entera en cada vuelta, el `catch`
+escribía un `console.warn` que nadie lee, y la bandeja seguía como si nada. Un
+fallo que solo se ve en la consola de un servidor **no se ve**.
+
+**Y la trampa está en el arreglo, no en el fallo:** de las tres columnas de la
+condición, `leadStatus` **no lleva `@map`** y estaba bien. Escribirlas «las tres
+a juego» rompe justo la que funcionaba — lo hice, y lo cazó el banco al
+segundo intento.
+
+> **Una columna en SQL en crudo no se deduce del campo de Prisma: se
+> comprueba.** El banco lo hace contra `information_schema.columns`, con la
+> lista de columnas que el módulo nombra. Esa comprobación encontró además
+> `crm_follow_ups.ruleKey` (es `rule_key`) y `chat_conversations.profilePicUrl`,
+> que existe en producción por un `ALTER TABLE` en caliente y **no** en el
+> esquema de Prisma.
+
+### La causa del duplicado: el sufijo se PEGABA al número
+
+Quitar la ficha era limpiar el síntoma. El duplicado nacía antes, y por dos
+sitios:
+
+1. `normalizeStoredRemoteJid` devolvía el jid tal cual —termina en
+   `@s.whatsapp.net`, así que lo daba por bueno—, y con él se escribían la
+   conversación, los mensajes y la ficha.
+2. Peor: `extractWhatsAppDigits` solo se queda con los dígitos, y el `:` no es
+   uno. `573233246305:39` salía como **`57323324630539`**, y con eso
+   `buildWhatsAppJidCandidates` fabricaba `57323324630539@s.whatsapp.net` y su
+   `@lid`: identidades de un número que no existe. Es el mismo daño que el
+   comentario de esa función describe para los `@lid`.
+
+**La regla va en `cleanValue`**, por donde entra todo valor de
+`lib/whatsapp-jid.ts`, así que una sola función decide qué es el número y no hay
+dos que discrepen. Lo comprueba el banco: los dos formatos dan **las mismas**
+identidades.
+
+Y `fmtPhone` **no pasa por ahí** —hace su propio `replace`—, así que llevaba su
+propia copia del fallo: la ficha del contacto enseñaba **`+57 323324630539`**.
+Lleva la misma función. Si se escribe otro sitio que saque el número de un jid,
+va por ella.
+
+### Unificar es MOVER, no borrar
+
+La versión vieja era un `DELETE`, protegido por cuatro condiciones: tiene
+sufijo, existe la ficha buena en la misma línea, nadie la ha tocado —sin asesor,
+sin nombre a mano, sin estado de lead— y no se ha vuelto a guardar. Esas cuatro
+dicen «recién creada y sin estrenar», y **no bastan**: media docena de las
+tablas que cuelgan de `Session` van en cascada, así que una nota interna, una
+cita o una etiqueta puestas sobre la copia se habrían ido con ella sin decir
+nada. Poner una etiqueta no toca `Session.updatedAt`.
+
+Así que `lib/sufijo-de-dispositivo-db.ts` **mueve antes de borrar**, en una
+transacción:
+
+- **Los mensajes** de la conversación con sufijo pasan a la limpia, y los que
+  chocan —mismo `messageId` y mismo `fromMe` ya guardados bajo el jid limpio—
+  son el MISMO mensaje y se quitan. Los mensajes de las dos quedan en la
+  conversación que sobrevive.
+- **Lo que cuelga de la ficha** —etiquetas, notas, tareas, citas, seguimientos,
+  participantes— pasa a la ficha buena. Donde hay llave única con la sesión
+  dentro (la misma etiqueta, el mismo disparador) la fila que chocaría es una
+  copia de algo que la buena ya tiene: se quita.
+- **Y solo entonces** se borra la ficha con sufijo, volviendo a mirar las cuatro
+  condiciones: entre el `SELECT` y el borrado alguien pudo asignársela.
+
+Cuatro cosas más:
+
+1. **Sin gemela limpia la conversación NO se borra**: se le quita el sufijo y se
+   queda. Borrarla sería tirar el historial del único sitio donde está.
+2. **Se parte de `chat_conversations`, no de `chat_messages`.** Buscar el patrón
+   sobre la tabla de mensajes es recorrerla entera, y esto corre al abrir la
+   bandeja; con la conversación delante, los mensajes se mueven por su llave
+   exacta, que sí entra por índice.
+3. **Va a trozos** (`TOPE_POR_VUELTA`). La primera vuelta de una cuenta con
+   meses de duplicados no puede quedarse reescribiendo miles de filas mientras
+   alguien espera a que le abra Chats.
+4. **El aviso dice el código de Postgres** (`meta.code`), que es lo que separa
+   «no se pudo» de «esa columna no existe». Con `String(error)` a secas, el
+   42703 llevaba un año escrito en la consola sin que nadie lo leyera.
+
 ## Chats: las sesiones no vuelven al reloj de la lista, y la agenda no se sube
 
 `refreshChatSessions` es, con diferencia, lo más caro de la pantalla, y estaba

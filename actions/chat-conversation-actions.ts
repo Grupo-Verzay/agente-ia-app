@@ -11,6 +11,7 @@ import { invalidatePersistedInboxCache } from "@/lib/chat-persistence";
 import { chatPreferenceKey } from "@/lib/chat-preference-key";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { laListaSaleDeNuestraBase } from "@/lib/lista-de-la-linea";
+import { unificarPorSufijoDeDispositivo } from "@/lib/sufijo-de-dispositivo-db";
 import type {
   ChatConversationPreference,
   ChatConversationPreferenceMap,
@@ -976,59 +977,6 @@ const ultimaRevisionDeFichas = new Map<string, number>();
  *
  * Nunca rompe la carga de la bandeja: si falla, se anota y se sigue.
  */
-/**
- * Quita las fichas duplicadas que nacieron con el sufijo de dispositivo.
- *
- * WhatsApp numera el aparato desde el que se escribe —`573001:39@s.whatsapp.net`—
- * y ese `:39` NO es parte del número. Una ficha guardada con él es un lead
- * duplicado del mismo contacto.
- *
- * Solo se borra la que cumple las CUATRO condiciones:
- *
- * 1. Su `remoteJid` lleva sufijo de dispositivo.
- * 2. Existe la ficha buena del mismo contacto, sin sufijo, en la misma línea.
- * 3. Nadie la ha tocado: sin asesor, sin nombre puesto a mano, sin estado de lead.
- * 4. No se ha vuelto a guardar desde que nació (`createdAt` = `updatedAt`).
- *
- * Con las cuatro no se puede llevar por delante un lead con trabajo encima: lo
- * que se borra es una copia recién creada y sin estrenar, y el original se queda.
- *
- * Nunca rompe la carga de la bandeja: si falla, se anota y se sigue.
- */
-async function quitarFichasConSufijoDeDispositivo(userIds: string[]): Promise<void> {
-  if (!userIds.length) return;
-  try {
-    const borradas = await db.$queryRaw<Array<{ remoteJid: string; instanceId: string }>>`
-      DELETE FROM "Session" mala
-      WHERE mala."userId" IN (${Prisma.join(userIds)})
-        AND mala."remoteJid" ~ ':[0-9]+@'
-        AND mala."assignedAdvisorId" IS NULL
-        AND mala."customName" IS NULL
-        AND mala."leadStatus" IS NULL
-        AND mala."createdAt" = mala."updatedAt"
-        AND EXISTS (
-          SELECT 1 FROM "Session" buena
-          WHERE buena."userId" = mala."userId"
-            AND buena."instanceId" = mala."instanceId"
-            AND buena."id" <> mala."id"
-            AND buena."remoteJid" !~ ':[0-9]+@'
-            AND buena."remoteJid" = regexp_replace(mala."remoteJid", ':[0-9]+@', '@')
-        )
-      RETURNING "remoteJid", "instanceId"
-    `;
-    if (borradas.length > 0) {
-      console.warn("[chats] fichas duplicadas por el sufijo de dispositivo, quitadas", {
-        cuantas: borradas.length,
-        ejemplo: borradas.slice(0, 3),
-      });
-    }
-  } catch (error) {
-    console.warn("[chats] no se pudieron quitar las fichas con sufijo de dispositivo", {
-      error: String(error),
-    });
-  }
-}
-
 async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
   if (!userIds.length) return;
   const llave = [...userIds].sort().join(",");
@@ -1038,19 +986,15 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
 
   const desde = new Date(ahora - DIAS_DE_FICHAS_A_REVISAR * 24 * 60 * 60 * 1000);
 
-  // Primero se quitan las fichas que nacieron con el sufijo de dispositivo.
+  // Primero se junta lo que el sufijo de dispositivo partió en dos.
   //
-  // La primera versión de esta función no lo quitaba y creó leads como
-  // "573233246305:39@s.whatsapp.net". Ese ":39" es el aparato desde el que se
-  // escribió, no parte del número, así que esa ficha es un duplicado del mismo
-  // contacto, que ya tiene la suya bajo el número limpio.
-  //
-  // Se quitan SOLO las que cumplen las cuatro cosas: tienen sufijo, existe la
-  // ficha buena del mismo contacto en la misma línea, nadie las ha tocado (sin
-  // asesor, sin nombre puesto a mano, sin estado de lead) y no se han vuelto a
-  // guardar desde que nacieron. Con eso no se puede llevar por delante un lead
-  // con trabajo encima.
-  await quitarFichasConSufijoDeDispositivo(userIds);
+  // "573233246305:39@s.whatsapp.net" y "573233246305@s.whatsapp.net" son el
+  // MISMO contacto escribiendo desde dos aparatos, así que hoy tiene dos
+  // conversaciones y dos fichas: el cliente duplicado que se ve en Chats. Se
+  // unifican -los mensajes de las dos quedan en la conversación que sobrevive-
+  // antes de crear las fichas que faltan, para no crear la de una conversación
+  // que está a punto de fundirse con otra.
+  await unificarPorSufijoDeDispositivo(userIds);
 
   try {
     const creadas = await db.$queryRaw<Array<{ remoteJid: string; instanceName: string }>>`
