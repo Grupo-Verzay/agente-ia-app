@@ -6089,6 +6089,306 @@ que sí prueba lo nuestro es `document.exitFullscreen()`, que dispara el mismo
 `fullscreenchange` que quien pulsa Escape — y ese oyente **es** el código bajo
 prueba.
 
+## Reuniones: volver después de un corte, y grabar lo que se dijo
+
+Dos frentes que no se parecen en nada salvo en dónde viven.
+
+### 1. La reunión no volvía, y eran DOS fallos con dos ventanas distintas
+
+«Se me cayó internet un momento y no volvió» tenía dos causas, y cada una
+manda en un tramo del reloj:
+
+| cuánto duró el corte | qué pasaba |
+| --- | --- |
+| **menos de 21 s** (`MARGEN_EN_LA_SALA_MS`) | el servidor no te saca y el reloj vuelve solo… y **las conexiones no**: una `RTCPeerConnection` en `failed` se quedaba en el mapa, y `comoQuedaLaMalla` la cuenta como **montada**, así que nadie la volvía a abrir nunca. La sala se recuperaba y los recuadros seguían en negro. |
+| **más de 21 s** | el barrido te pone en `fuera`, la vuelta siguiente contesta «Ya no estás en esta reunión», y la malla cerraba todo y se rendía. Había que pulsar «Volver a entrar» — **y un invitado no tiene ese botón**. |
+
+Así que hacen falta **las dos mitades**: sanar las conexiones muertas y
+reanudar la fila. Con una sola, el corte corto se arregla y el largo no, o al
+revés — y las dos se ven igual desde fuera.
+
+#### Volver NO es pasar otra vez por la puerta
+
+Es la parte que no se puede ablandar. La regla de esta suite sigue igual
+—«tener el enlace deja llamar a la puerta, y quien pasa lo decide alguien de
+dentro»—: al volver **no se crea ninguna fila**, se reanuda la que ya había.
+
+> **Y por eso `sala_participantes` tiene `motivoDeSalida`.** Los tres caminos
+> que sacan a alguien escribían `estado = 'fuera'` y nada más, así que eran
+> **indistinguibles** — y significan cosas opuestas a la hora de volver.
+> `sePuedeReanudar` deja pasar **solo `silencio`**, que es el barrido, o sea
+> exactamente el corte de red.
+
+Sin esa columna, la pestaña de alguien a quien acaban de echar **se reanudaría
+sola dos segundos después**, que es lo contrario de moderar. El banco lo
+ejerce: en modo roto se afirma que vuelve a entrar.
+
+Y lo que no se reconoce —una fila de antes de la columna, con `NULL`— tampoco
+se reanuda: se ve de menos, nunca de más, y el botón de volver a entrar a mano
+sigue donde estaba.
+
+#### Sanar una conexión muerta NO es renegociar
+
+Conviene decirlo porque suena a lo que este documento prohíbe. La regla de
+*las pistas se negocian UNA vez* es sobre **cambiar lo que viaja** por una
+conexión viva —encender la cámara, compartir pantalla— y eso sigue sin tocar
+nada. Aquí lo que se hace es **tirar una conexión que ya está muerta** y montar
+otra, que es lo mismo que ya pasa cuando alguien entra.
+
+Dos reglas de cuándo está muerta:
+
+1. **`failed` y `closed` son firmes**; de ahí no se vuelve.
+2. **`disconnected` tiene gracia** (`GRACIA_DE_DISCONNECTED_MS`, 6 s). Es el
+   estado dudoso de WebRTC y se recupera solo al segundo siguiente: tirarla ahí
+   sería rehacer media reunión cada vez que alguien pasa por debajo de un
+   puente. Es el mismo reparto de `fin-de-la-llamada` en Chats.
+
+#### Y la tercera pieza: `desde`, que es lo que hace SIMÉTRICA la reconexión
+
+En una malla solo ofrece uno de los dos (`debeOfrecer`). Así que cuando a
+alguien se le cae la red y vuelve, **el que NO ofrece podría quedarse con una
+conexión que a él todavía le parece viva**, esperando una oferta que el otro no
+cree tener que mandar.
+
+`QuienEstaEnLaSala` lleva ahora `desde` —cuándo entró **esta vez**— y la regla
+se escribe sola: **una conexión montada antes de que esa persona entrara es de
+una sesión suya anterior**, y se tira. Sin ella se converge igual, pero por el
+camino lento: WebRTC tarda de quince a treinta segundos en dar por muerta una
+conexión cuya otra punta simplemente dejó de contestar, y medio minuto de
+recuadro negro después de que la reunión ya volvió no se lee como «está
+volviendo».
+
+#### Se insiste un minuto, se dice mientras, y se para
+
+`TOPE_PARA_RECONECTAR_MS` es 60 s, y el número tiene motivo: el barrido saca a
+los 21, así que un minuto deja sitio a **dos** intentos completos de reanudar.
+Menos que eso y un corte de móvil al cambiar de antena se rendiría justo antes
+de poder volver.
+
+Cuatro cosas que hay que mantener:
+
+1. **Mientras se intenta no se cierra nada.** Ni las conexiones ni la cámara:
+   si el corte fue corto, lo que sigue vivo vale. Medido: con la red cortada
+   los `<video>` siguen montados.
+2. **Se ve en la tarjeta**, con los segundos que quedan, y también en la
+   pastilla —que plegada es lo único que se ve de la reunión—. Y en el recuadro
+   de cada persona: `reconectando` es una bandera **distinta** de `fallo`,
+   porque `fallo` es una ruta que no existe entre dos redes y no se va a
+   arreglar sola, y esto es un corte que se está resolviendo. Con una sola,
+   un bache de tres segundos diría «no se pudo conectar con esta persona» y
+   quien lo lea cuelga.
+3. **Un «no» firme se acata al momento**, sin agotar el minuto: a quien echaron
+   insistirle sesenta segundos es mentirle. Lo decide `esUnNoDefinitivo` por el
+   texto del mensaje —`Respuesta` es `{success, message}` y meterle un código
+   obligaría a tocar quince acciones—, y **la duda cae del lado de seguir
+   intentando**, que como mucho tarda un minuto de más en decir lo mismo.
+4. **Y hay un final.** Una pestaña que reintenta para siempre es un micrófono
+   abierto mandando a nadie. Al rendirse se suelta todo y **se dice**.
+
+#### Medido, con la red cortada de verdad
+
+Chromium, dos sesiones reales, cortando la red con el navegador y leyendo la
+fila en Postgres entre paso y paso:
+
+| | la fila | la pantalla |
+| --- | --- | --- |
+| dentro | `dentro` | la reunión |
+| red cortada, 8 s | `dentro` | «Reconectando… (55s)», los `<video>` siguen montados |
+| el barrido le saca | `fuera \| silencio` | sigue intentando |
+| vuelve la red | **`dentro`**, misma fila, sin motivo | la reunión, sin ningún cartel |
+| le sacan | `fuera \| sacado` | «Ya no estás», y **no vuelve a entrar** |
+
+Las dos últimas filas son el par que importa: la misma pantalla, el mismo
+código, y lo único que cambia es por qué se salió.
+
+### 2. Grabar: en el NAVEGADOR, porque no hay otro sitio
+
+El servidor **nunca ve un fotograma** —esto es una malla directa sin servidor
+de video y lo único que pasa por la base son ofertas SDP—, así que graba la
+pestaña de quien pulsa: mezcla el audio de todos y, si se pidió video, dibuja
+la rejilla en un lienzo.
+
+De ahí sale lo que hay que saber antes de tocar nada: **si esa pestaña se
+cierra, la grabación se acaba**. Lo subido se conserva; lo que estuviera en el
+buffer, no.
+
+#### El audio se graba SIEMPRE, aunque se pida video
+
+Es la decisión de la que cuelga que transcribir sea un botón y no un proyecto:
+
+- Whisper no admite **más de 25 MB** y una hora de video es del orden de **un
+  giga**. Mandarle el video es imposible.
+- Sacarle el audio en el servidor pediría `ffmpeg`, que este contenedor no
+  tiene.
+- Una hora de audio a `AUDIO_BPS` (32 kbps) son **13,7 MB**: cabe.
+
+Así que una grabación en video produce **dos** ficheros y el pequeño es el que
+se transcribe. Cuesta un 2 % más de bucket. Y el bitrate no es un gusto: a
+64 kbps una hora son 29 MB y **la transcripción de una reunión normal dejaría
+de caber**, que es tanto como no tenerla. El banco lo comprueba como
+invariante, no como número escrito a mano.
+
+#### Los dos fallos que solo se vieron MIDIENDO
+
+La primera versión grababa **cero bytes** y el botón decía que todo fue bien,
+que es el peor final posible. Eran dos cosas y ninguna se ve leyendo:
+
+1. **`medios.local` excluye el audio propio a propósito** —para que nadie se
+   oiga a sí mismo con retardo si algún día se le quita el `muted` al recuadro—,
+   así que **quien graba no entraba en su propia grabación**. Con una sola
+   persona en la sala, eso es un fichero vacío. Ahora el micrófono viaja en
+   `miAudio`, un stream aparte que nadie pinta.
+2. **Un `MediaStreamAudioDestinationNode` sin nada conectado no hace rodar el
+   grafo**, así que `MediaRecorder` no emite ni un `dataavailable`. Pasa de
+   verdad: los segundos antes de que entre el primero, o una reunión donde todo
+   el mundo está callado. Se conecta un `ConstantSourceNode` con `offset = 0`
+   —silencio exacto— que mantiene el grafo rodando.
+
+Medido antes: **nueve segundos grabando, cero trozos, blob final de 0 B**.
+Medido después: trozos de 4-8 KB cada dos segundos y una parte de 29 KB al
+cerrar.
+
+#### Y el tercero, que era de una línea: el id se borraba antes de vaciar
+
+`terminar` ponía `idRef.current = null` al entrar, y `mandarLaParte` se rinde
+sin id. O sea que **la última parte no subía nunca** — y en una grabación corta
+esa es la única, así que se perdía entera. Lo que impide entrar dos veces es
+ahora un cerrojo aparte, que además es lo que hace falta de verdad: a
+`terminar` se llega desde el botón, desde el tope de tiempo y desde una parte
+que falla, y las tres pueden coincidir.
+
+#### Las partes: 8 MiB, y el suelo no es negociable
+
+Se suben por trozos y se juntan en el servidor con `composeObject`, que por
+debajo es un multipart de S3 — y ahí **toda parte menos la última tiene que
+pasar de 5 MiB**. Una parte corta no falla al subirla: falla **al juntar**, con
+la reunión ya grabada y la persona esperando su fichero.
+
+Y **el número va rellenado a cinco cifras**, porque un listado de S3 ordena
+como texto: sin el relleno la parte 10 iría antes que la 2 y el webm saldría
+con los trozos cambiados de sitio, que no da error — solo se ve mal.
+
+Van por **nuestra ruta** (`/api/reuniones/parte`) y no con una URL prefirmada,
+que es lo que parecería más barato. Una prefirmada apunta a `S3_ENDPOINT`, que
+es como el **servidor** ve el bucket, y no hay garantía de que sea como lo ve el
+navegador de quien graba: si no coincidieran, la subida fallaría **solo en
+producción y solo al grabar**, o sea donde nadie está mirando. El camino de
+`/api/upload` es el que se sabe que funciona.
+
+#### El aviso de que se está grabando lo pinta el SERVIDOR
+
+No la pestaña que graba. Grabar la voz y la cara de los demás sin que se note
+no es una función, es otra cosa: ocupa una franja entera en rojo, con el nombre
+de quien graba, y sale de `salas_de_video.grabandoDesde` — que ya viene cargada
+en la vuelta del reloj, así que no cuesta ni una consulta más.
+
+Y son **dos marcas, no un booleano**: `grabandoVistoEn` lo refresca el reloj de
+quien graba, y es lo que hace que el aviso **se apague solo** cuando esa pestaña
+se cierra. Con un booleano, una reunión diría «grabando» para siempre después
+de que a quien grababa se le cerrara el portátil. Es la misma forma que la mano
+levantada.
+
+El nombre va **copiado** en la sala (`grabandoPor`), como `autorNombre` en un
+mensaje: sacarlo de la fila de la grabación sería una consulta más por persona
+y por vuelta para enseñar un nombre.
+
+#### Quién graba: la puerta de MODERAR, más el módulo
+
+Grabar deja un fichero con la voz de todos los que están dentro, así que no es
+participar: es mandar. Se pregunta con la **misma** función que silencia y saca
+a alguien (`puedeAdministrarLaSala`), no con una condición nueva.
+
+Encima va el módulo, que es de la **CUENTA**: la grabación se vende aparte.
+`laCuentaPuedeGrabar` mira `_UserModules` contra la ruta
+`/reuniones/grabaciones`, que es como esta plataforma activa cosas por cuenta
+—Panel › Módulos— y no un interruptor nuevo. **Reuniones no pasa por ahí**: su
+ruta se asigna a mano y no cuesta aparte; lo único que este módulo abre es
+grabar y transcribir.
+
+Esa ruta **no tiene pantalla**, y es a propósito: lo grabado vive en la ficha de
+su reunión. Es solo la llave.
+
+Comprobado en Chromium con dos sesiones: la administradora con el módulo ve el
+botón, el agente de la misma cuenta **no**, y sin el módulo asignado **tampoco
+lo ve ella** — la primera vuelta de la prueba falló justo por eso.
+
+#### Transcribir: bajo demanda, nunca sola, y la tarifa es la de siempre
+
+Es la diferencia con las notas de voz de Chats, que se transcriben al pedirlas
+porque el asesor tiene que saber qué le dijeron. Aquí son compañeros hablando
+una hora: transcribir cada reunión a seis créditos el minuto es una factura que
+nadie pidió.
+
+La tarifa **no se vuelve a escribir**: `costoDeLaNota`, los mismos seis créditos
+por minuto prorrateados que cobran las otras dos pantallas. Y quién paga lo
+decide `laCuentaQuePagaLaTranscripcion`: **la cuenta, nunca la persona**, y
+dentro de una familia **la madre** — `ownerId ?? id` no sube a la madre, así que
+sin eso el chat de la casa cobraría a tres bolsas distintas.
+
+Cinco cosas:
+
+1. **El tope va sobre BYTES, no sobre minutos.** Es un límite de OpenAI y los
+   bytes son el dato que va a viajar; los minutos son una estimación.
+2. **El precio se ve ANTES de pulsar**, como en el chat del equipo. Y lo que no
+   se puede no se ofrece: se dice por qué, porque un botón que al pulsarlo da
+   error es peor que no tenerlo.
+3. **Se guarda, así que se paga una vez.** El `UPDATE` lleva
+   `WHERE "transcripcion" IS NULL`: dos peticiones a la vez escriben una sola
+   vez —comprobado contra Postgres— y solo esa cobra.
+4. **Un fallo no cobra y no deja marca.** Lo pidió una persona, así que un
+   tropiezo de OpenAI es de hoy y el botón sigue.
+5. **El resumen no se cobra aparte y no puede tumbar el texto.** Es un precio y
+   dos entregas: el resumen de una hora son unos miles de tokens de un modelo
+   de texto, calderilla al lado de la transcripción. Si falla, **se guarda la
+   transcripción igual** y se dice — media entrega es mejor que ninguna cuando
+   la mitad que sale ya está pagada.
+
+Y el prompt pide **puntos tratados**, no un párrafo: de una reunión se vuelve a
+buscar «qué se dijo de X», y una lista se recorre con los ojos. Si hay que
+recortar, se recorta por el **principio**: lo que se pierde es el saludo y no
+los acuerdos.
+
+#### El cupo y los 180 días
+
+Veinte gibibytes por cuenta, que son unas veinte horas de video o mil
+cuatrocientas de audio. Se mira **antes de empezar** y **en cada parte**: el
+tope es de la cuenta y entre el principio y el final de una reunión de una hora
+puede entrar otra grabación por otro lado. Al llenarse, la pestaña **para y
+guarda lo que lleve** — que es lo contrario de tirar media hora de reunión por
+no caber la última parte.
+
+El aviso sale al 80 %, y **solo entonces**: una barra permanente diciendo «0,4
+GB de 20» es un dato que nadie va a usar ocupando la fila que le falta a la
+lista.
+
+A los 180 días se borra el fichero del bucket y los bytes vuelven al cupo,
+**pero la fila se queda** con su transcripción y su resumen: son texto, ocupan
+nada, y son justo lo que alguien va a buscar de una reunión de hace medio año.
+Tirarlos con el audio sería perder lo barato por culpa de lo caro. Y el fichero
+se borra **antes** que la fila: al revés, un fallo a mitad dejaría el giga en el
+bucket sin ninguna fila que dijera de quién era.
+
+El barrido cuelga del cron diario que ya existe, en su propio `try` como los
+demás, y hace **dos** cosas: las caducadas, y las que se quedaron en `grabando`
+porque la pestaña murió. Estas segundas **se juntan**, no se dan por perdidas:
+alguien grabó cuarenta minutos y se le cayó el navegador, y lo que ya subió es
+suyo. Sin ese barrido esa reunión no podría volver a grabarse **nunca**, porque
+empezar exige que no haya ninguna en curso.
+
+#### Lo que NO se pudo ejercer aquí, y se dice
+
+**La subida al bucket y la unión de las partes.** No hay MinIO alcanzable desde
+el banco, así que la ruta contesta `502` en el último paso. Lo que sí está
+probado es todo lo demás por el camino: la mezcla produce audio de verdad, el
+`MediaRecorder` emite, la parte sale con sus 29 KB y sus parámetros correctos,
+el cliente trata el `502` como toca —avisa y cierra— y **la base queda
+coherente**: la grabación en `fallida` y la sala liberada, o sea que se puede
+volver a grabar.
+
+`composeObject` y `presignedPutObject` existen en el cliente de MinIO 8.0.5 que
+ya está instalado; lo que no se ha visto correr es la unión contra un bucket de
+verdad. Si algo falla en producción, **ese es el sitio donde mirar primero**.
+
 ## Un hilo se abre por el final, y no se mueve solo
 
 Los cinco listados de mensajes de la plataforma —Chats, el chat de equipo y los

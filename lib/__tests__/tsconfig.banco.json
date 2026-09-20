@@ -22,6 +22,9 @@
     "../reuniones-de-la-cuenta.ts",
     "../sala-de-video.ts",
     "../voz-activa.ts",
-    "../ventana-de-reunion.ts"
+    "../ventana-de-reunion.ts",
+    "../reconexion-de-la-sala.ts",
+    "../grabacion-de-reunion.ts",
+    "../transcripcion-de-voz.ts"
   ]
 }

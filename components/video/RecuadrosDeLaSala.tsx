@@ -44,6 +44,16 @@ export type LoQueSePinta = {
     propio?: boolean;
     conectando?: boolean;
     fallo?: boolean;
+    /**
+     * Si la conexión con esta persona se cayó y se está rehaciendo.
+     *
+     * **No es lo mismo que `fallo`** y por eso es otra bandera: `fallo` es una
+     * ruta que no existe entre las dos redes —falta TURN, y no va a arreglarse
+     * solo—, y esto es un corte que se está resolviendo ahora mismo. Con una
+     * sola bandera, un bache de red diría «no se pudo conectar con esta
+     * persona» y quien lo lea colgaría en vez de esperar tres segundos.
+     */
+    reconectando?: boolean;
 };
 
 export function RecuadrosDeLaSala({
@@ -140,6 +150,7 @@ export function Recuadro({
     propio = false,
     conectando = false,
     fallo = false,
+    reconectando = false,
     grande = false,
 }: LoQueSePinta & { grande?: boolean }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -196,7 +207,16 @@ export function Recuadro({
                     >
                         {lasIniciales(nombre)}
                     </span>
-                    {conectando ? (
+                    {reconectando ? (
+                        // Antes que `fallo` a propósito: mientras se está
+                        // rehaciendo la conexión, lo cierto es que se está
+                        // rehaciendo — aunque por debajo esté en `failed`, que
+                        // es justo el estado desde el que se rehace.
+                        <span className="flex items-center gap-1.5 text-xs text-amber-300">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Reconectando…
+                        </span>
+                    ) : conectando ? (
                         <span className="flex items-center gap-1.5 text-xs text-zinc-400">
                             <Loader2 className="h-3 w-3 animate-spin" />
                             Conectando…

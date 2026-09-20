@@ -14,6 +14,9 @@ import {
     Minimize2,
     MonitorUp,
     PhoneOff,
+    Circle,
+    Square,
+    WifiOff,
     ScreenShare,
     Sparkles,
     UserCheck,
@@ -58,6 +61,8 @@ import {
 // que se afine el de una el otro se queda diciendo otra cosa.
 import { comoSeLeeLaDuracion } from "@/lib/llamada-de-voz";
 import { useMediosDeLlamada } from "@/hooks/useMediosDeLlamada";
+import { useGrabacionDeLaReunion } from "@/hooks/useGrabacionDeLaReunion";
+import { bytesPorHora, comoSeLeenLosBytes } from "@/lib/grabacion-de-reunion";
 import { useMallaDeVideo } from "@/hooks/useMallaDeVideo";
 import { useVozActiva } from "@/hooks/useVozActiva";
 import { RecuadrosDeLaSala, type LoQueSePinta } from "@/components/video/RecuadrosDeLaSala";
@@ -132,7 +137,24 @@ export function SalaDeVideo({
     const [arrancando, setArrancando] = useState(true);
     const [saliendo, setSaliendo] = useState(false);
     const [reentrando, setReentrando] = useState(false);
-    const malla = useMallaDeVideo({ codigo, token, medios, activo: !arrancando });
+    /**
+     * El id de la grabación en curso, para que el reloj lo lea al preguntar.
+     *
+     * Una referencia y no el estado, porque la malla se monta antes que la
+     * grabación —la grabación necesita los streams que la malla produce— y un
+     * valor llegaría siempre un render tarde.
+     */
+    const grabacionIdRef = useRef<string | null>(null);
+
+    const malla = useMallaDeVideo({
+        codigo,
+        token,
+        medios,
+        activo: !arrancando,
+        // El id viaja en el latido que ya existe: es lo que refresca la marca
+        // de «se está grabando» y, con ella, el aviso de todos los demás.
+        grabando: grabacionIdRef,
+    });
 
     const raizRef = useRef<HTMLDivElement | null>(null);
     const minimizada = ventana === "pastilla";
@@ -465,6 +487,23 @@ export function SalaDeVideo({
     );
     const quienHabla = useVozActiva({ fuentes, activo: dentro });
 
+    /**
+     * La grabación.
+     *
+     * Le llegan **las mismas fuentes** que al detector de voz activa, que es lo
+     * que garantiza que lo que se graba sea lo que se está oyendo: con dos
+     * listas, alguien podría salir en la sala y no en el fichero, y eso no se
+     * ve hasta que alguien escucha la grabación una semana después.
+     */
+    const grabacion = useGrabacionDeLaReunion({
+        codigo,
+        fuentes,
+        // Aparte de `fuentes` porque el recuadro propio va SIN audio: ver la
+        // nota de `miAudio` en `useMediosDeLlamada`.
+        miAudio: medios.miAudio,
+    });
+    grabacionIdRef.current = grabacion.grabacionId;
+
     const gente: LoQueSePinta[] = useMemo(
         () => [
             {
@@ -487,7 +526,14 @@ export function SalaDeVideo({
                 manoLevantada: r.manoLevantada,
                 conectando:
                     r.estado !== "connected" && r.estado !== "closed" && !r.stream,
-                fallo: r.estado === "failed",
+                // **Reconectando es haber estado conectado y haberlo perdido**,
+                // y por eso mira el stream: sin él nunca llegó nada y lo que
+                // toca decir es «conectando». Con él, esta persona ya se veía y
+                // ahora no — que es lo que hay que contar.
+                reconectando:
+                    Boolean(r.stream) &&
+                    (r.estado === "disconnected" || r.estado === "failed"),
+                fallo: r.estado === "failed" && !r.stream,
             })),
         ],
         [
@@ -635,6 +681,27 @@ export function SalaDeVideo({
                         <span className="max-w-[9rem] truncate text-sm text-muted-foreground">
                             {nombre}
                         </span>
+                        {/* Plegada, la pastilla es lo ÚNICO que se ve de la
+                            reunión: si se está grabando, o si se está
+                            reconectando, tiene que decirlo aquí también. Sin
+                            esto, alguien puede plegar la reunión y no enterarse
+                            de que le siguen grabando. */}
+                        {malla.grabando ? (
+                            <span
+                                className="relative flex h-2.5 w-2.5 shrink-0"
+                                title={`Se está grabando · lo hace ${malla.grabando.por}`}
+                                aria-label="Se está grabando esta reunión"
+                            >
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                            </span>
+                        ) : null}
+                        {malla.reconectando ? (
+                            <WifiOff
+                                className="h-3.5 w-3.5 shrink-0 text-amber-400"
+                                aria-label={malla.reconectando.mensaje}
+                            />
+                        ) : null}
                     </div>
                     <Button
                         variant="ghost"
@@ -736,6 +803,70 @@ export function SalaDeVideo({
                         Icono={Copy}
                     />
                 ) : null}
+
+                {/* Grabar. **Solo sale si el servidor dice que sí**, que son
+                    dos cosas a la vez —administrar la sala y que la CUENTA
+                    tenga el módulo— y la segunda el navegador no la sabe.
+                    Enseñarlo y que la acción conteste que no es el «menú
+                    abierto, puerta cerrada» que este repositorio ya pagó. */}
+                {malla.puedoGrabar ? (
+                    grabacion.grabando ? (
+                        <MandoDeCabecera
+                            activo
+                            onClick={() => void grabacion.terminar()}
+                            rotulo={`Parar la grabación (${comoSeLeeLaDuracion(grabacion.segundos)})`}
+                            Icono={Square}
+                            apagado={grabacion.ocupado}
+                        />
+                    ) : (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    disabled={grabacion.ocupado || Boolean(malla.grabando)}
+                                    title={
+                                        malla.grabando
+                                            ? "Ya se está grabando"
+                                            : "Grabar la reunión"
+                                    }
+                                    aria-label="Grabar la reunión"
+                                    className={cn(
+                                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-300 transition",
+                                        "hover:bg-zinc-800 hover:text-zinc-100",
+                                        "disabled:pointer-events-none disabled:opacity-40",
+                                    )}
+                                >
+                                    {grabacion.ocupado ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Circle className="h-4 w-4" />
+                                    )}
+                                </button>
+                            </DropdownMenuTrigger>
+                            {/* Dos opciones y **el peso al lado de cada una**:
+                                una hora de video es casi un giga del cupo de la
+                                cuenta y una de audio son catorce megas. Elegir
+                                sin ese número es elegir a ciegas algo que se
+                                paga en espacio. */}
+                            <DropdownMenuContent align="end" className="w-64">
+                                <DropdownMenuItem onSelect={() => void grabacion.empezar("video")}>
+                                    <Video className="mr-2 h-4 w-4" />
+                                    <span className="flex-1">Grabar video y audio</span>
+                                    <span className="text-xs text-muted-foreground">
+                                        ~{comoSeLeenLosBytes(bytesPorHora("video"))}/h
+                                    </span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void grabacion.empezar("audio")}>
+                                    <Mic className="mr-2 h-4 w-4" />
+                                    <span className="flex-1">Grabar solo el audio</span>
+                                    <span className="text-xs text-muted-foreground">
+                                        ~{comoSeLeenLosBytes(bytesPorHora("audio"))}/h
+                                    </span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )
+                ) : null}
                 {puedeReducir ? (
                     <MandoDeCabecera
                         activo={false}
@@ -759,6 +890,43 @@ export function SalaDeVideo({
                     />
                 ) : null}
             </div>
+
+            {/* **El aviso de que se está grabando, para TODOS.**
+
+                No es un adorno y no se puede esconder detrás de un icono
+                pequeño: grabar la voz y la cara de los demás sin que se note no
+                es una función, es otra cosa. Ocupa una franja entera, en rojo,
+                y lo pinta la pantalla de cada participante a partir de lo que
+                dice el servidor — no lo que diga la pestaña de quien graba. */}
+            {malla.grabando ? (
+                <div className="flex shrink-0 items-center gap-2 border-b border-red-500/40 bg-red-500/15 px-3 py-2 text-xs text-red-200 sm:px-4">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    </span>
+                    <span className="min-w-0 truncate font-medium">
+                        Se está grabando esta reunión
+                    </span>
+                    <span className="hidden min-w-0 truncate text-red-300/80 sm:inline">
+                        · lo hace {malla.grabando.por}
+                    </span>
+                </div>
+            ) : null}
+
+            {/* Y el de reconexión. Va aquí y no en un `toast` porque no es un
+                aviso que se despacha: es un estado que dura, y mientras dura
+                hay que poder mirarlo. */}
+            {malla.reconectando ? (
+                <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs text-amber-100 sm:px-4">
+                    <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 truncate font-medium">
+                        {malla.reconectando.mensaje}
+                    </span>
+                    <span className="hidden min-w-0 truncate text-amber-200/80 sm:inline">
+                        · no cuelgues, se está volviendo sola
+                    </span>
+                </div>
+            ) : null}
 
             {/* La sala de espera, solo para quien puede abrirla. */}
             {malla.yo?.abroLaPuerta && malla.esperando.length ? (
