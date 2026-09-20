@@ -12,6 +12,7 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+    ChevronRight,
     Ellipsis,
     FileText,
     Layers,
@@ -63,17 +64,29 @@ import type { DocumentoEnLista } from "@/lib/documentacion-db";
  * árbol sin ratón. Lo que **no** se copia es nada de la lógica del orden
  * —`useOrdenDeColumna`, `ColumnaOrdenable`, `ordenarLaColumna` y el guardado
  * son los de siempre—: lo que cambia es el nodo que se pinta.
+ *
+ * # Plegar: el estado vive ARRIBA, aquí solo se pinta
+ *
+ * `plegado` y `alAlternar` llegan como props porque el conjunto entero se
+ * guarda bajo **una** llave de `localStorage`. Con el estado dentro de cada
+ * espacio, varios escribiendo esa misma llave a la vez se pisarían y la
+ * preferencia se perdería sin que nadie se entere. Quien lo guarda es el único
+ * que ve el conjunto completo.
  */
 export function EspacioDelArbol({
     entrada,
     plantillas,
     abiertoId,
+    plegado,
+    alAlternar,
     alAbrir,
     alRefrescar,
 }: {
     entrada: ArbolDeDocumentacion["espacios"][number];
     plantillas: DocumentoEnLista[];
     abiertoId: string | null;
+    plegado: boolean;
+    alAlternar: () => void;
     alAbrir: (id: string) => void;
     alRefrescar: () => void | Promise<void>;
 }) {
@@ -140,14 +153,66 @@ export function EspacioDelArbol({
         void orden.reordenar(nuevos);
     };
 
+    // Un espacio **vacío no enseña flecha y no se pliega**: no hay nada que
+    // esconder, así que una flecha ahí sería un mando que no hace nada. Y por
+    // eso `desplegado` no es `!plegado` a secas — un espacio del que se
+    // borraron todos sus documentos podría tener su pliegue guardado de antes,
+    // y sin esta condición se quedaría enseñando una flecha muerta.
+    const vacio = colocados.length === 0;
+    const desplegado = vacio || !plegado;
+    const idDeLaLista = `espacio-${espacio.id}-documentos`;
+
+    /* Lo de dentro del nombre, una sola vez: lo pintan las dos formas de la
+       cabecera —el botón que alterna y el `<p>` de un espacio vacío—. */
+    const elNombre = (
+        <>
+            {vacio ? (
+                // El hueco de la flecha se conserva para que el icono de un
+                // espacio vacío no salga 18 px a la izquierda del de al lado,
+                // que se lee como otro nivel del árbol.
+                <span className="size-3.5 shrink-0" aria-hidden />
+            ) : (
+                <ChevronRight
+                    className={cn(
+                        "size-3.5 shrink-0 text-muted-foreground transition-transform",
+                        desplegado && "rotate-90",
+                    )}
+                />
+            )}
+            <Layers className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {espacio.icono ? `${espacio.icono} ` : ""}
+                {espacio.nombre}
+            </span>
+        </>
+    );
+
     return (
         <div className="mb-3">
             <div className="flex items-center gap-1 px-2 py-1">
-                <Layers className="size-3.5 shrink-0 text-muted-foreground" />
-                <p className="min-w-0 flex-1 truncate text-sm font-medium" title={espacio.nombre}>
-                    {espacio.icono ? `${espacio.icono} ` : ""}
-                    {espacio.nombre}
-                </p>
+                {/* El «+» y el «⋯» son HERMANOS de esto, no hijos: por eso
+                    pulsarlos no dispara el plegado y no hace falta cortar
+                    ninguna propagación. Si algún día uno de los dos se metiera
+                    dentro del botón, volvería a hacer falta. */}
+                {vacio ? (
+                    <p
+                        className="-mx-1 flex min-w-0 flex-1 items-center gap-1 px-1"
+                        title={espacio.nombre}
+                    >
+                        {elNombre}
+                    </p>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={alAlternar}
+                        aria-expanded={desplegado}
+                        aria-controls={idDeLaLista}
+                        title={espacio.nombre}
+                        className="-mx-1 flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted/60"
+                    >
+                        {elNombre}
+                    </button>
+                )}
                 {recibido && (
                     <Badge variant="outline" className="shrink-0 text-[10px]">
                         De otra cuenta
@@ -226,24 +291,34 @@ export function EspacioDelArbol({
                 alBorrar={alRefrescar}
             />
 
-            <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={alSoltar}>
-                <ul>
-                    {colocados.length === 0 && (
-                        <li className="px-3 py-1 text-xs text-muted-foreground">Vacío</li>
-                    )}
-                    <ColumnaOrdenable ids={colocados.map((d) => d.id)}>
-                        {colocados.map((doc) => (
-                            <DocumentoDelArbol
-                                key={doc.id}
-                                doc={doc}
-                                abierto={abiertoId === doc.id}
-                                puedeArrastrar={puedeEditar}
-                                alAbrir={() => alAbrir(doc.id)}
-                            />
-                        ))}
-                    </ColumnaOrdenable>
-                </ul>
-            </DndContext>
+            {/* Plegado se DESMONTA, no se esconde. Aquí no hay nada vivo que
+                preservar —ni un `<audio>` sonando, como en la reunión—, y un
+                árbol con veinte espacios cerrados no tiene por qué seguir
+                pintando sus filas ni montando su `DndContext`. */}
+            {desplegado && (
+                <DndContext
+                    sensors={sensores}
+                    collisionDetection={closestCenter}
+                    onDragEnd={alSoltar}
+                >
+                    <ul id={idDeLaLista}>
+                        {vacio && (
+                            <li className="px-3 py-1 text-xs text-muted-foreground">Vacío</li>
+                        )}
+                        <ColumnaOrdenable ids={colocados.map((d) => d.id)}>
+                            {colocados.map((doc) => (
+                                <DocumentoDelArbol
+                                    key={doc.id}
+                                    doc={doc}
+                                    abierto={abiertoId === doc.id}
+                                    puedeArrastrar={puedeEditar}
+                                    alAbrir={() => alAbrir(doc.id)}
+                                />
+                            ))}
+                        </ColumnaOrdenable>
+                    </ul>
+                </DndContext>
+            )}
         </div>
     );
 }
