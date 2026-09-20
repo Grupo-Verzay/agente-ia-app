@@ -6,27 +6,58 @@
  * existen ahí: hay que volver a la pestaña para saber si pasó algo, que es
  * justo lo que no se hace cuando se está en otra cosa.
  *
- * # Qué cuenta, y qué NO
+ * # Qué cuenta, y la corrección del #838
  *
- * **Solo lo que exige respuesta**: chats de clientes sin leer y lo que en el
- * chat del equipo va dirigido a alguien. Las tareas y los avisos de la
- * campanita **no entran**, y esa es la decisión entera: un número que sube por
- * todo se aprende a ignorar, y entonces deja de servir también para lo que sí
- * importaba. Es la misma familia que *la campanita es solo para menciones* y
- * que el sonido del equipo, que no suena con el general a secas.
+ * **Tres cosas y ninguna más**: las conversaciones SIN LEER de clientes —la
+ * pastilla «Sin leer» de Chats, ni una más—, las menciones del chat de equipo
+ * y los mensajes directos. Si las tres suman cero, no se pinta nada.
  *
- * # Y de dónde salen los dos números
+ * Lo que había antes contaba otra cosa y por eso mentía. La mitad de chats
+ * salía de `contarChatsSinLeer`, una consulta que contaba **las conversaciones
+ * cuyo último mensaje es del contacto**. Eso no es «sin leer»: en una cuenta de
+ * 577 chats atendidos son casi todos, así que el icono decía `9+` con la
+ * campanita vacía y nada pendiente. Y peor —lo que destapó el #838—: esa
+ * consulta mira `chat_conversations`, una tabla que **sobrevive a borrar los
+ * leads**, así que con `/chats` vacío y `/sessions` en cero seguía devolviendo
+ * un número de tres cifras. Contaba algo que ya no existe.
+ *
+ * # Por qué la BANDEJA es la única fuente, y qué cuesta
+ *
+ * Porque **lo no leído de un WhatsApp no vive en nuestra base**, y eso está
+ * comprobado, no supuesto:
+ *
+ * - `chat_conversations` no tiene ninguna columna de «sin leer».
+ * - `persistedRowToChat` pone `unreadCount` a 1 solo en Telegram y Meta; para
+ *   WhatsApp escribe **0 siempre**.
+ * - Lo que la bandeja llama «sin leer» es el `unreadCount` del proveedor
+ *   cruzado con las marcas de `seenMessages`, que son de **este navegador**
+ *   (`localStorage`, `hooks/chats/useSeenMessages`).
+ *
+ * Así que el servidor no puede contarlo, y **no se le deja adivinarlo**: un
+ * número que no se puede calcular no se sustituye por otro. Quien lo dice es
+ * la bandeja y nadie más.
+ *
+ * Lo que cuesta se dice entero: **hay que haber abierto Chats una vez en esta
+ * pestaña.** Mientras no se abra, el número es cero y el icono es el de
+ * siempre. Abierta una vez, el número **se queda** al cambiar de pantalla, así
+ * que el caso de todos los días —un asesor que trabaja en Chats y se va a
+ * Clientes un rato— está cubierto. Se prefiere eso a lo de antes, que era un
+ * número grande y falso en todas las pantallas: **un contador que miente es
+ * peor que uno que falta**, porque se mira de reojo y se da por bueno.
+ *
+ * Y NO se persiste en `localStorage`, a propósito. Sería «lo último que supo
+ * esta bandeja», que envejece sin avisar: leído el chat desde el móvil, esta
+ * pestaña seguiría enseñando el número de ayer. Es exactamente el fallo del
+ * que viene esta vuelta.
+ *
+ * # De dónde sale cada mitad
  *
  * De lo que **ya corre**, sin un solo sondeo nuevo:
  *
  * | | de dónde | con qué ritmo |
  * | --- | --- | --- |
- * | chats sin leer | la bandeja **o** el servidor, ver `elNumeroDeChats` | en vivo / 15 s |
+ * | chats sin leer | la bandeja (`useChatUnreadStore`) | en vivo |
  * | del equipo | el reloj del contador, que cuelga del layout | 15 s |
- *
- * Un tercer reloj para pintar un número sería una consulta más en todas las
- * pantallas de todo el mundo para no traer ningún dato nuevo. Por eso las dos
- * mitades viajan en **la misma vuelta**.
  */
 
 /**
@@ -51,64 +82,21 @@ function comoCuenta(n: unknown): number {
 }
 
 /**
- * Cuántos chats esperan respuesta, entre lo que dice la bandeja y lo que dice
- * el servidor.
+ * Cuántas conversaciones de clientes están SIN LEER.
  *
- * Hay **dos fuentes y ninguna sobra**, y saber por qué es lo único delicado de
- * esta mitad del número:
+ * Lo dice la bandeja y nadie más, y `null` es **«todavía no ha hablado»**: en
+ * una pantalla que no sea Chats, o antes de que la lista cargue. De ahí sale
+ * cero, que es lo honesto — no se sabe, así que no se pinta.
  *
- * | | qué sabe | qué NO sabe |
- * | --- | --- | --- |
- * | la bandeja | las marcas de leído de ESTE navegador, y lo que trae el socket | nada, mientras no se haya entrado a Chats |
- * | el servidor | qué conversaciones tienen de último un mensaje del contacto | qué se ha leído: esas marcas viven en `localStorage` |
- *
- * De ahí la regla, que es una frase:
- *
- * > **La bandeja manda en cuanto ha hablado — hasta que el servidor trae algo
- * > MÁS NUEVO de lo que ella llegó a juzgar.**
- *
- * Los cuatro casos, que son todos:
- *
- * 1. **En frío**, sin haber entrado nunca a Chats: la bandeja no ha dicho nada,
- *    así que manda el servidor. Es el fallo que esto viene a arreglar — antes
- *    aquí había un cero fijo.
- * 2. **Dentro de la bandeja**: manda ella, que va en vivo con el socket.
- * 3. **Se leyó en la bandeja y se salió de Chats**: su número se queda. El del
- *    servidor no lo resucita, porque leer no cambia de quién es el último
- *    mensaje y ese número seguiría diciendo lo de antes. Esto es lo que hace
- *    cierto que **el número baje al leer** y no vuelva a subir solo.
- * 4. **Fuera de la bandeja entra un mensaje**: el socket no llega ahí, así que
- *    la única fuente viva es el servidor — y se le reconoce porque su
- *    `masNuevo` pasa de la marca de la bandeja. Vuelve a mandar él.
- *
- * Es la misma idea de `leidoHasta` del chat del equipo: **una marca, no un
- * conjunto**. Con un conjunto de ids habría que bajarse la lista de chats en
- * cada vuelta del reloj más caro de tener; con una hora basta un número.
+ * Existe como función y no como un `?? 0` suelto por un motivo concreto:
+ * **los tres sitios que pintan este número tienen que decir lo mismo** —la
+ * pastilla de «Chats» del menú, la campanita y el icono de la pestaña— y con
+ * la regla escrita en cada uno, el día que se afine, dos se quedan atrás. Aquí
+ * además se prueba sin levantar nada.
  */
-export function elNumeroDeChats(input: {
-    /** Lo último que dijo la bandeja, o `null` si no ha hablado en esta pestaña. */
-    deLaBandeja: number | null;
-    /** La hora del mensaje más nuevo que la bandeja llegó a juzgar. */
-    hastaLaBandeja: unknown;
-    /** Lo que cuenta el servidor: conversaciones que esperan respuesta. */
-    delServidor: unknown;
-    /** La hora del más nuevo de esas, para saber si la bandeja se quedó atrás. */
-    masNuevoDelServidor: unknown;
-}): number {
-    const delServidor = comoCuenta(input.delServidor);
-    if (input.deLaBandeja == null) return delServidor;
-
-    const deLaBandeja = comoCuenta(input.deLaBandeja);
-    const hasta = comoMarca(input.hastaLaBandeja);
-    const masNuevo = comoMarca(input.masNuevoDelServidor);
-    // Estrictamente más nuevo: lo que la bandeja ya juzgó no la desmiente.
-    return masNuevo > hasta ? delServidor : deLaBandeja;
-}
-
-/** Una hora que llega de un contador y puede no serlo. Sin hora, cero. */
-function comoMarca(n: unknown): number {
-    const v = typeof n === "number" ? n : Number(n);
-    return Number.isFinite(v) && v > 0 ? v : 0;
+export function losChatsSinLeer(deLaBandeja: number | null | undefined): number {
+    if (deLaBandeja == null) return 0;
+    return comoCuenta(deLaBandeja);
 }
 
 /**
@@ -179,39 +167,112 @@ export const COLORES_DE_LA_INSIGNIA = {
 // ejercer exactamente este código. Escrito en el componente habría que
 // copiarlo al banco, y entonces lo que se prueba es la copia.
 
-/** La marca de nuestro `<link>`, para no tocar el que pone Next. */
-const MARCA = "data-insignia";
+/** La marca de nuestro `<link>`, para distinguirlo de los del documento. */
+export const MARCA = "data-insignia";
+
+/**
+ * Los iconos que declaró el documento, apartados mientras manda la insignia.
+ *
+ * **Añadir el nuestro al final no bastaba, y ese era el fallo 3 del #838.** El
+ * layout declara TRES (`/favicon-48.png`, `/icon-192.png`, `/icon-512.png`)
+ * más los que Next emite por convención de fichero, todos con su `sizes`. Con
+ * varios candidatos el navegador **elige**, y elige por tamaño y tipo, no por
+ * orden: en Edge y en Chrome seguía ganando el de 48, así que el PNG con el
+ * número se dibujaba, se metía en su `<link>`… y la pestaña no cambiaba.
+ *
+ * La única forma de que no lo pise nadie es que **no haya nadie**: se apartan
+ * y se devuelven tal cual al quitar la insignia. `apple-touch-icon` NO se
+ * aparta —es otro `rel`, lo usa iOS y además es nuestro respaldo para leer el
+ * icono de base—.
+ */
+let apartados: HTMLLinkElement[] = [];
+
+/**
+ * El vigilante del `<head>`.
+ *
+ * Next puede volver a meter sus `<link rel="icon">` al navegar entre rutas, y
+ * entonces volvería a ganar el suyo sin que nadie lo note — el icono se
+ * quedaría limpio a mitad de sesión y no habría forma de explicarlo. Se vuelven
+ * a apartar en cuanto aparecen.
+ *
+ * No hay bucle: lo único que hace es QUITAR nodos, y quitarlos no añade
+ * ninguno. Y se desconecta antes de devolverlos, que es lo único que sí
+ * añadiría.
+ */
+let vigilante: MutationObserver | null = null;
+
+/** Los `<link rel="icon">` del documento que no son el nuestro. */
+function losDelDocumento(): HTMLLinkElement[] {
+    // `rel~="icon"` es coincidencia por PALABRA, así que coge `shortcut icon`
+    // y deja fuera `apple-touch-icon` y `mask-icon`, que es justo lo que hace
+    // falta.
+    return Array.from(
+        document.head.querySelectorAll<HTMLLinkElement>(`link[rel~="icon"]:not([${MARCA}])`),
+    );
+}
+
+function apartarLosOtros() {
+    for (const link of losDelDocumento()) {
+        link.remove();
+        apartados.push(link);
+    }
+}
+
+function devolverLosOtros() {
+    for (const link of apartados) document.head.appendChild(link);
+    apartados = [];
+}
+
+function vigilarElHead() {
+    if (vigilante || typeof MutationObserver === "undefined") return;
+    vigilante = new MutationObserver(() => {
+        // Si ya no hay insignia no hay nada que defender: el que la quita
+        // desconecta, y esto es solo la red de seguridad de una carrera.
+        if (!document.head.querySelector(`link[${MARCA}]`)) return;
+        apartarLosOtros();
+    });
+    vigilante.observe(document.head, { childList: true });
+}
 
 export function ponerElIcono(url: string) {
-    let link = document.head.querySelector<HTMLLinkElement>(`link[${MARCA}]`);
-    if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        link.setAttribute(MARCA, "");
-        // Al final de `<head>`: entre dos iconos declarados manda el último,
-        // así que este gana sin quitar el de Next y quitarlo lo devuelve.
-        document.head.appendChild(link);
-    }
+    apartarLosOtros();
+    // El `<link>` se REHACE en cada número en vez de cambiarle el `href`.
+    // Cambiar el atributo a secas no siempre hace que el navegador vuelva a
+    // leer el icono; sustituir el nodo sí, y esto ocurre una vez por cada
+    // cambio de número, que es poquísimas veces.
+    document.head.querySelector(`link[${MARCA}]`)?.remove();
+    const link = document.createElement("link");
+    link.rel = "icon";
     link.type = "image/png";
+    link.setAttribute(MARCA, "");
     link.href = url;
+    document.head.appendChild(link);
+    vigilarElHead();
 }
 
 export function quitarElIcono() {
+    // Primero se calla el vigilante: lo siguiente es AÑADIR nodos, y es lo
+    // único que podría hacerle morderse la cola.
+    vigilante?.disconnect();
+    vigilante = null;
     document.head.querySelector(`link[${MARCA}]`)?.remove();
+    devolverLosOtros();
 }
 
 /**
  * El icono de la pestaña, cargado y dibujable.
  *
- * Se prueban **dos** direcciones y el orden importa:
+ * Se prueban **tres** sitios y el orden importa:
  *
- * 1. El `<link rel="icon">`, que es el icono de verdad — ajustado para verse
- *    a 16 píxeles.
- * 2. El `apple-touch-icon`, que sale de `/api/brand-icon`. Es el respaldo
- *    para el caso que rompe el primero: **el favicon de un reseller vive en
+ * 1. Los `<link rel="icon">` que siguen en el `<head>`.
+ * 2. Los que esta misma función APARTÓ (`apartados`). Sin esta mitad, el
+ *    segundo número de una sesión no encontraría ningún icono de base —los
+ *    acabamos de quitar nosotros— y la insignia dejaría de dibujarse sola.
+ * 3. El `apple-touch-icon`, que sale de `/api/brand-icon`. Es el respaldo para
+ *    el caso que rompe a los otros dos: **el favicon de un reseller vive en
  *    otro dominio**, y sin cabeceras de CORS el navegador lo carga pero
- *    *contamina* el lienzo, así que `toDataURL` lanza y no hay insignia.
- *    Aquél es del MISMO origen siempre, porque lo sirve la propia App.
+ *    *contamina* el lienzo, así que `toDataURL` lanza y no hay insignia. Aquél
+ *    es del MISMO origen siempre, porque lo sirve la propia App.
  *
  * Con `crossOrigin` puesto, una imagen de fuera sin CORS ni siquiera carga
  * —da `error`— en vez de cargar y contaminar. Eso es lo que se quiere: se
@@ -219,7 +280,8 @@ export function quitarElIcono() {
  */
 export async function elIconoDeLaPestana(): Promise<HTMLImageElement | null> {
     const candidatas = [
-        document.head.querySelector<HTMLLinkElement>(`link[rel~="icon"]:not([${MARCA}])`)?.href,
+        ...losDelDocumento().map((l) => l.href),
+        ...apartados.map((l) => l.href),
         document.head.querySelector<HTMLLinkElement>('link[rel~="apple-touch-icon"]')?.href,
     ].filter((h): h is string => Boolean(h));
 
@@ -296,7 +358,7 @@ export function dibujarLaInsignia(icono: HTMLImageElement, texto: string): strin
     } catch (error) {
         // `toDataURL` lanza con el lienzo contaminado por una imagen de otro
         // origen. Se queda el icono normal, que es lo de antes.
-        console.info("[insignia] no se pudo dibujar el número sobre el icono", error);
+        console.info("[insignia] no se pudo dibujar el numero sobre el icono", error);
         return null;
     }
 }

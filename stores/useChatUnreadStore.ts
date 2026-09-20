@@ -1,74 +1,52 @@
 import { create } from "zustand";
 
-import { elNumeroDeChats } from "@/lib/insignia-del-favicon";
+import { losChatsSinLeer } from "@/lib/insignia-del-favicon";
 
 /**
- * Cuántos chats de clientes esperan respuesta.
+ * Cuántas conversaciones de clientes están SIN LEER.
  *
- * Lo leen la pastilla de «Chats» del menú, la campanita y el número de la
- * pestaña, y tiene **dos fuentes que no sobran ninguna**:
+ * Lo escribe **la bandeja** (`chat-sidebar`) y nadie más, y es exactamente el
+ * número de la pastilla «Sin leer»: el mismo dato, no una aproximación.
  *
- * - **La bandeja** (`chat-sidebar`), que es la única que conoce las marcas de
- *   leído de este navegador (`seenMessages`, en `localStorage`) y que va en
- *   vivo con el socket. Pero solo escribe mientras está montada: fuera de
- *   Chats no dice nada, y en frío no ha dicho nada todavía.
- * - **El servidor**, que llega en la vuelta de quince segundos que ya corre en
- *   todas las pantallas (`sinLeerDelEquipoAction`). Cuenta las conversaciones
- *   cuyo último mensaje es del contacto, pero no sabe qué se ha leído.
+ * # Por qué no hay una segunda fuente
  *
- * Quién manda entre las dos lo decide `elNumeroDeChats`
- * (`lib/insignia-del-favicon.ts`), que es puro y está probado. Aquí solo se
- * guardan las dos, cada una con **su marca de hasta cuándo** — sin la hora no
- * hay forma de saber si la bandeja se quedó atrás, y entonces o el número no
- * baja nunca al leer o resucita cada quince segundos.
+ * Porque no puede haberla. Lo «no leído» de un WhatsApp sale de cruzar el
+ * `unreadCount` del proveedor con las marcas de `seenMessages`, que viven en
+ * el `localStorage` de **este navegador**; en nuestra base no hay ni una
+ * columna que lo diga. Hubo un tiempo en que el servidor mandaba aquí un
+ * conteo propio —las conversaciones cuyo último mensaje es del contacto— para
+ * que el icono se pintara también en frío. Ese número no era «sin leer» y se
+ * vio en producción: `9+` con la campanita vacía, y `9+` otra vez con la
+ * cuenta ENTERA borrada, porque contaba una tabla que sobrevive al borrado de
+ * los leads. Está contado en `lib/insignia-del-favicon`.
+ *
+ * Así que solo queda una fuente, y `null` significa **que no ha hablado**:
+ * fuera de Chats, o antes de que la lista cargue. De `null` sale cero y no se
+ * pinta nada, que es lo honesto — **un contador que miente es peor que uno que
+ * falta**.
  */
 interface ChatUnreadStore {
   /**
-   * Lo último que dijo la bandeja. `null` significa **que no ha hablado**, que
-   * no es lo mismo que cero: es el caso de quien abre la App en cualquier otra
-   * pantalla, y es justo donde antes salía un cero fijo.
+   * Lo último que dijo la bandeja. `null` = no ha hablado, que **no es lo
+   * mismo que cero**: cero es «los he leído todos» y `null` es «no lo sé».
    */
-  unreadCount: number | null;
-  /** La hora del mensaje más nuevo que la bandeja llegó a juzgar. */
-  hastaLaBandeja: number;
-  /** Lo que cuenta el servidor. */
-  delServidor: number;
-  /** La hora del más nuevo de esos, para saber si desmiente a la bandeja. */
-  masNuevoDelServidor: number;
-  setUnreadCount: (n: number, hastaMs?: number) => void;
-  setDelServidor: (n: number, masNuevoMs: number) => void;
+  sinLeer: number | null;
+  setSinLeer: (n: number) => void;
 }
 
 export const useChatUnreadStore = create<ChatUnreadStore>((set) => ({
-  unreadCount: null,
-  hastaLaBandeja: 0,
-  delServidor: 0,
-  masNuevoDelServidor: 0,
-  setUnreadCount: (n, hastaMs = 0) =>
-    // La marca solo AVANZA: una vuelta de la lista que llega tarde no puede
-    // devolver la bandeja a un instante anterior y hacer que el servidor la
-    // desmienta sin motivo. Es la misma regla que `leidoHasta` del equipo.
-    set((s) => ({
-      unreadCount: n,
-      hastaLaBandeja: Math.max(s.hastaLaBandeja, Number.isFinite(hastaMs) ? hastaMs : 0),
-    })),
-  setDelServidor: (n, masNuevoMs) =>
-    set({ delServidor: n, masNuevoDelServidor: masNuevoMs }),
+  sinLeer: null,
+  setSinLeer: (n) => set({ sinLeer: n }),
 }));
 
 /**
- * El número que se enseña, ya resuelto entre las dos fuentes.
+ * El número que se enseña.
  *
  * **Los tres sitios que lo pintan van por aquí** —la pastilla del menú, la
- * campanita y el número de la pestaña— y ninguno lee `unreadCount` a pelo: ese
- * campo puede ser `null` («la bandeja no ha hablado»), y quien lo leyera
- * directamente volvería a enseñar un cero en frío, que es el fallo del que
- * viene todo esto.
+ * campanita y el icono de la pestaña— y ninguno lee `sinLeer` a pelo: ese
+ * campo puede ser `null`, y un `null` pintado es un `0` que parece un dato.
  */
 export function useChatsQueEsperan(): number {
-  const deLaBandeja = useChatUnreadStore((s) => s.unreadCount);
-  const hastaLaBandeja = useChatUnreadStore((s) => s.hastaLaBandeja);
-  const delServidor = useChatUnreadStore((s) => s.delServidor);
-  const masNuevoDelServidor = useChatUnreadStore((s) => s.masNuevoDelServidor);
-  return elNumeroDeChats({ deLaBandeja, hastaLaBandeja, delServidor, masNuevoDelServidor });
+  const sinLeer = useChatUnreadStore((s) => s.sinLeer);
+  return losChatsSinLeer(sinLeer);
 }
