@@ -27,6 +27,7 @@ import {
     comoSujeto,
     comoVisibilidad,
     laCuentaDeQuienMira,
+    puedeMandarEnElEspacio,
     type Acceso,
     type Permiso,
     type SujetoDePermiso,
@@ -48,6 +49,7 @@ import {
     crearEspacio,
     crearFila,
     cuantasFilasTiene,
+    cuantosDocumentosTiene,
     editarEspacio,
     editarFila,
     guardarDocumento,
@@ -71,6 +73,7 @@ import {
     olvidarLaTarjeta,
     posicionesDelTablero,
 } from "@/lib/orden-de-tablero-db";
+import { ordenarLaColumna } from "@/lib/orden-del-tablero";
 
 /**
  * Las acciones de Documentación.
@@ -123,6 +126,12 @@ export type ArbolDeDocumentacion = {
         espacio: Espacio;
         puedeEditar: boolean;
         puedeGestionar: boolean;
+        /**
+         * Renombrar y borrar ESTE espacio. Es una pregunta aparte de
+         * `puedeGestionar` —ver `puedeMandarEnElEspacio`—: aquella decide
+         * además crear documentos dentro y repartir permisos.
+         */
+        puedeMandar: boolean;
         recibido: boolean;
         documentos: DocumentoEnLista[];
     }>;
@@ -155,17 +164,67 @@ export async function leerElArbolAction(): Promise<ArbolDeDocumentacion | null> 
     const plantillas = visibles.filter((d) => d.tipo === "plantilla");
     const normales = visibles.filter((d) => d.tipo !== "plantilla");
 
+    // **El orden puesto a mano, de una consulta por espacio y en paralelo.** Lo
+    // que nadie haya arrastrado nunca no tiene ni una fila aquí, así que sale
+    // exactamente como lo devolvió la base —por `creadoEn`, del más viejo al
+    // más nuevo— y esto no cambió ningún árbol hasta el primer arrastre.
+    const colocados = await Promise.all(
+        conYSin.map(({ espacio }) => posicionesDelTablero("espacio", espacio.id)),
+    );
+
     return {
-        espacios: conYSin.map(({ espacio, acceso }) => ({
+        espacios: conYSin.map(({ espacio, acceso }, i) => ({
             espacio,
             puedeEditar: acceso.puedeEditar,
             puedeGestionar: acceso.puedeGestionar,
+            puedeMandar: puedeMandarEnElEspacio(quien.user, espacio, acceso),
             recibido: acceso.recibido,
-            documentos: normales.filter((d) => d.espacioId === espacio.id),
+            documentos: ordenarLaColumna(
+                normales.filter((d) => d.espacioId === espacio.id),
+                colocados[i] ?? {},
+                (d) => d.id,
+            ),
         })),
         plantillas,
         puedeCrearEspacio: true,
     };
+}
+
+/**
+ * Cuántos documentos se va a llevar borrar un espacio.
+ *
+ * Es su propia acción —y no un número que ya viaje en el árbol— porque el árbol
+ * trae **lo que quien mira alcanza**, sin los restringidos de otra gente, y el
+ * borrado se lleva el espacio entero. Enseñar en la confirmación un número más
+ * pequeño que el que se va a borrar es peor que no enseñar ninguno.
+ *
+ * Misma puerta que borrar, y va por `accesoAEsteEspacio`: si no, contar los
+ * documentos de un espacio ajeno sería una forma de preguntar cuánto tiene
+ * dentro.
+ */
+export async function cuantosDocumentosTieneAction(input: {
+    id: unknown;
+}): Promise<Respuesta<{ cuantos: number }>> {
+    const quien = await quienLlama();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta el espacio.");
+
+    const acceso = await accesoAEsteEspacio(quien.user, id);
+    if (!acceso) return NO("No autorizado.");
+    if (!puedeMandarEnElEspacio(quien.user, acceso.espacio, acceso.acceso)) {
+        return NO("No autorizado.");
+    }
+
+    try {
+        return { success: true, data: { cuantos: await cuantosDocumentosTiene(id) } };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo contar los documentos del espacio", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo contar los documentos del espacio.");
+    }
 }
 
 export async function crearEspacioAction(input: {
@@ -220,8 +279,15 @@ export async function editarEspacioAction(input: {
 
     const acceso = await accesoAEsteEspacio(quien.user, id);
     if (!acceso) return NO("No autorizado.");
-    if (!acceso.acceso.puedeGestionar) {
-        return NO("Solo quien administra la cuenta puede cambiar un espacio.");
+    // La puerta de CAMBIAR el espacio, que no es la de escribir dentro: ver
+    // `puedeMandarEnElEspacio`. Pasan quien lo creó y quien administra la
+    // cuenta; un `agente` y una cuenta invitada, nunca.
+    if (!puedeMandarEnElEspacio(quien.user, acceso.espacio, acceso.acceso)) {
+        return NO(
+            acceso.acceso.recibido
+                ? "Este espacio es de otra cuenta: solo puede cambiarlo su dueña."
+                : "Solo quien creó el espacio o quien administra la cuenta puede cambiarlo.",
+        );
     }
 
     const nombre = input.nombre === undefined ? undefined : comoTitulo(input.nombre);
@@ -270,16 +336,19 @@ export async function borrarEspacioAction(input: { id: unknown }): Promise<Respu
     const acceso = await accesoAEsteEspacio(quien.user, id);
     if (!acceso) return NO("No autorizado.");
     // En uno RECIBIDO no manda nadie de esta cuenta: repartirlo sigue siendo de
-    // quien lo hizo. `puedeGestionar` ya es falso ahí, pero se dice aparte
-    // porque el motivo es otro y el aviso tiene que explicarlo.
+    // quien lo hizo. Va aparte del resto de la condición porque el motivo es
+    // otro y el aviso tiene que explicarlo.
     if (acceso.acceso.recibido) {
         return NO("Este espacio es de otra cuenta: solo puede borrarlo su dueña.");
     }
-    if (!acceso.acceso.puedeGestionar) {
-        return NO("Solo quien administra la cuenta puede borrar un espacio.");
+    if (!puedeMandarEnElEspacio(quien.user, acceso.espacio, acceso.acceso)) {
+        return NO("Solo quien creó el espacio o quien administra la cuenta puede borrarlo.");
     }
 
     try {
+        // **Suave**: sella `borradoEn` y no borra ni una fila. El espacio y sus
+        // documentos dejan de alcanzarse por todas partes, y quitar el sello en
+        // la base los devuelve enteros. Ver `borrarEspacio`.
         await borrarEspacio(id);
         revalidatePath("/documentos");
         return { success: true, data: true };
@@ -419,6 +488,11 @@ export async function crearDocumentoAction(input: {
             creadoPorId: quien.personaId,
             creadoPorNombre: quien.personaNombre,
         });
+        // **Al final del espacio, no al principio.** Era el encargo, y sale
+        // solo: el que trae posición cae detrás de los que no la tienen. Nunca
+        // lanza —un documento creado es un documento creado— pero tampoco es
+        // mudo.
+        await alFinalDelTablero("espacio", espacioId, documento.id);
         revalidatePath("/documentos");
         return { success: true, data: { id: documento.id } };
     } catch (error) {
@@ -504,6 +578,9 @@ export async function borrarDocumentoAction(input: { id: unknown }): Promise<Res
 
     try {
         await borrarDocumento(id);
+        // Sin clave foránea la limpieza es explícita. Nunca lanza: no puede
+        // reventar el borrado que la dispara.
+        await olvidarLaTarjeta("espacio", encontrado.documento.espacioId, id);
         revalidatePath("/documentos");
         return { success: true, data: true };
     } catch (error) {

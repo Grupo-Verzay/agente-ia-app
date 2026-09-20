@@ -39,8 +39,16 @@ export type PosicionesDelTablero = Record<string, number>;
  * id del documento. Entra aquí y **no** estrena mecanismo propio: dos formas de
  * guardar la misma posición son una que se afina y otra que se queda atrás, que
  * no se ve como un error sino como «en las listas a veces no funciona».
+ *
+ * `espacio` es el árbol lateral de Documentación: los documentos dentro de un
+ * espacio, con `tableroId` = el id del espacio. **Una sola columna**, que es el
+ * caso degenerado del resto y no uno nuevo. Y la llave sigue siendo el
+ * TABLERO: el encargo era que el orden fuera «el mismo para todos los que ven
+ * ese espacio, no por persona», que es literalmente lo que esta tabla ya hace.
+ * Por eso no entra por `lib/orden-de-las-tarjetas.ts`, que es la rejilla y
+ * guarda por pareja cuenta + cosa.
  */
-export const TIPOS_DE_TABLERO = ["proyecto", "tickets", "documentacion"] as const;
+export const TIPOS_DE_TABLERO = ["proyecto", "tickets", "documentacion", "espacio"] as const;
 export type TipoDeTablero = (typeof TIPOS_DE_TABLERO)[number];
 
 /**

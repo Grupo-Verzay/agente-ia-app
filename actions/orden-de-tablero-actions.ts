@@ -97,6 +97,29 @@ async function laColumnaQueSePuedeGuardar(
         return ids.filter((id) => validos.has(id));
     }
 
+    if (tipo === "espacio") {
+        // El árbol lateral de Documentación. La puerta es **la misma con la que
+        // se crea un documento dentro** —`accesoAEsteEspacio().puedeEditar`—, y
+        // no una condición propia: es lo pedido («ordenar, para quien pueda
+        // editar en ese espacio») y es la regla de esta casa, que ya costó un
+        // chat que se podía anclar y no se podía borrar.
+        const { accesoAEsteEspacio } = await import("@/lib/acceso-al-documento");
+        const acceso = await accesoAEsteEspacio(user, tableroId);
+        // Un espacio que no se alcanza —o que está borrado— se contesta como si
+        // no existiera.
+        if (!acceso) throw new Error("Tablero no encontrado.");
+        if (!acceso.acceso.puedeEditar) throw new Error("No puedes ordenar este espacio.");
+
+        // Y una lista que llega de fuera no decide qué se ordena: solo pasan
+        // los documentos que de verdad están EN ESE espacio.
+        const filas = await db.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "doc_documentos"
+      WHERE "espacioId" = ${tableroId} AND "id" = ANY(${ids}::text[])
+    `;
+        const validos = new Set(filas.map((f) => f.id));
+        return ids.filter((id) => validos.has(id));
+    }
+
     // Tickets. La puerta es la misma de `ticketsDeSoporteAction`: la cuenta
     // configurada, o el superadministrador esté donde esté.
     const destino = await elDestinoDeLosTickets();

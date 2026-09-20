@@ -1,9 +1,19 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     Dialog,
     DialogContent,
@@ -23,7 +33,13 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from "@/lib/documentacion";
-import { crearDocumentoAction, crearEspacioAction } from "@/actions/documentacion-actions";
+import {
+    borrarEspacioAction,
+    crearDocumentoAction,
+    crearEspacioAction,
+    cuantosDocumentosTieneAction,
+    editarEspacioAction,
+} from "@/actions/documentacion-actions";
 import type { DocumentoEnLista } from "@/lib/documentacion-db";
 
 /**
@@ -150,6 +166,221 @@ export function NuevoEspacioDialog({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/* ─────────────────────────── Renombrar espacio ──────────────────────────── */
+
+/**
+ * Renombrar un espacio, con su icono.
+ *
+ * **No toca la visibilidad**, que se reparte desde el diálogo de permisos: dos
+ * sitios para lo mismo es uno que se afina y otro que se queda atrás. Este es
+ * el nombre y nada más, que es lo que se pidió.
+ */
+export function EditarEspacioDialog({
+    espacioId,
+    nombreActual,
+    iconoActual,
+    abierto,
+    onAbiertoChange,
+    alGuardar,
+}: {
+    espacioId: string;
+    nombreActual: string;
+    iconoActual: string | null;
+    abierto: boolean;
+    onAbiertoChange: (abierto: boolean) => void;
+    alGuardar: () => void | Promise<void>;
+}) {
+    const [nombre, setNombre] = useState(nombreActual);
+    const [icono, setIcono] = useState(iconoActual ?? "");
+    const [guardando, setGuardando] = useState(false);
+
+    // Al abrirlo se parte de lo que hay guardado: si no, un cambio cancelado
+    // seguiría escrito en la caja la próxima vez y se guardaría sin querer.
+    useEffect(() => {
+        if (abierto) {
+            setNombre(nombreActual);
+            setIcono(iconoActual ?? "");
+        }
+    }, [abierto, nombreActual, iconoActual]);
+
+    const guardar = async () => {
+        setGuardando(true);
+        const res = await pedir(() =>
+            editarEspacioAction({ id: espacioId, nombre, icono: icono || null }),
+        );
+        setGuardando(false);
+
+        if (!res.success) {
+            toast.error(res.message ?? "No se pudo guardar el espacio.");
+            return;
+        }
+        onAbiertoChange(false);
+        await alGuardar();
+        toast.success("Espacio renombrado.");
+    };
+
+    return (
+        <Dialog open={abierto} onOpenChange={onAbiertoChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Renombrar espacio</DialogTitle>
+                    <DialogDescription>
+                        Lo de dentro no se toca: los documentos siguen donde están.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="editar-espacio-nombre">Nombre</Label>
+                        <Input
+                            id="editar-espacio-nombre"
+                            value={nombre}
+                            onChange={(e) => setNombre(e.target.value)}
+                            placeholder="Procedimientos"
+                        />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="editar-espacio-icono">Icono (opcional)</Label>
+                        <Input
+                            id="editar-espacio-icono"
+                            value={icono}
+                            onChange={(e) => setIcono(e.target.value)}
+                            placeholder="📘"
+                            maxLength={4}
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onAbiertoChange(false)}>
+                        Cancelar
+                    </Button>
+                    <Button onClick={() => void guardar()} disabled={guardando || !nombre.trim()}>
+                        {guardando ? "Guardando…" : "Guardar"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/* ──────────────────────────── Borrar espacio ────────────────────────────── */
+
+/**
+ * Borrar un espacio, diciendo **cuántos documentos se va a llevar**.
+ *
+ * El número se pide al servidor al abrir el diálogo y no sale del árbol: el
+ * árbol enseña lo que quien mira alcanza —sin los restringidos de otra gente— y
+ * el borrado se lleva el espacio entero. Un «se van a borrar 3» que se lleva 11
+ * es peor que no decir ninguno.
+ *
+ * Y mientras no se sabe, **no se inventa un cero**: se dice que se está
+ * contando y el botón espera. Un cero mientras carga se lee como «este espacio
+ * está vacío», que es justo lo contrario de lo que esta confirmación existe
+ * para avisar.
+ */
+export function BorrarEspacioDialog({
+    espacioId,
+    nombre,
+    abierto,
+    onAbiertoChange,
+    alBorrar,
+}: {
+    espacioId: string;
+    nombre: string;
+    abierto: boolean;
+    onAbiertoChange: (abierto: boolean) => void;
+    alBorrar: () => void | Promise<void>;
+}) {
+    const [cuantos, setCuantos] = useState<number | null>(null);
+    const [contando, setContando] = useState(false);
+    const [borrando, setBorrando] = useState(false);
+
+    useEffect(() => {
+        if (!abierto) return;
+        let vigente = true;
+        setCuantos(null);
+        setContando(true);
+        void (async () => {
+            const res = await pedir(() => cuantosDocumentosTieneAction({ id: espacioId }));
+            if (!vigente) return;
+            setContando(false);
+            if (res.success) setCuantos((res as { data: { cuantos: number } }).data.cuantos);
+            // Si no se pudo contar se dice, y el botón sigue: no poder enseñar
+            // el número no es motivo para no dejar borrar.
+            else toast.error(res.message ?? "No se pudo contar los documentos.");
+        })();
+        return () => {
+            vigente = false;
+        };
+    }, [abierto, espacioId]);
+
+    const borrar = async () => {
+        setBorrando(true);
+        const res = await pedir(() => borrarEspacioAction({ id: espacioId }));
+        setBorrando(false);
+
+        if (!res.success) {
+            toast.error(res.message ?? "No se pudo borrar el espacio.");
+            return;
+        }
+        onAbiertoChange(false);
+        await alBorrar();
+        toast.success("Espacio eliminado.");
+    };
+
+    return (
+        <AlertDialog open={abierto} onOpenChange={(v) => !borrando && onAbiertoChange(v)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar «{nombre}»?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                        <div className="space-y-2 text-sm">
+                            {contando ? (
+                                <p>Contando los documentos que hay dentro…</p>
+                            ) : cuantos === null ? (
+                                <p>
+                                    No se pudo contar cuántos documentos hay dentro. Se eliminarán
+                                    todos los del espacio.
+                                </p>
+                            ) : cuantos === 0 ? (
+                                <p>El espacio está vacío.</p>
+                            ) : (
+                                <p>
+                                    Se eliminarán también{" "}
+                                    <strong>
+                                        {cuantos} {cuantos === 1 ? "documento" : "documentos"}
+                                    </strong>{" "}
+                                    que hay dentro.
+                                </p>
+                            )}
+                            <p className="text-muted-foreground">
+                                El espacio deja de verse en todas partes, pero no se borra nada de
+                                la base: se puede recuperar entero.
+                            </p>
+                        </div>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={borrando}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={(evento) => {
+                            // Sin esto Radix cierra al pulsar y el «Eliminando…»
+                            // no se llega a ver.
+                            evento.preventDefault();
+                            void borrar();
+                        }}
+                        disabled={borrando || contando}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        {borrando ? "Eliminando…" : "Eliminar espacio"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 }
 
