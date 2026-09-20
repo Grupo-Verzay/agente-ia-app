@@ -563,6 +563,65 @@ export function elPanelDeEntrada(guardado: unknown): PestanaDelPanel | null {
 }
 
 /**
+ * Si la tira de miniaturas de la vista de orador va plegada, y lo que se
+ * recuerda de ella.
+ *
+ * Es la misma idea que el panel de al lado (#837): un booleano en
+ * `localStorage`, escrito por un solo sitio. Pero el valor por defecto es el
+ * **CONTRARIO** —abierta— y la diferencia no es un descuido: el panel se abre
+ * plegado porque un chat vacío no tiene nada que enseñar, pero la tira son las
+ * **caras de los demás**, y esconderlas por defecto sería empezar toda reunión
+ * ocultando a la gente. Lo que no se entienda cae también en «abierta»: se ve
+ * de más —todos—, nunca de menos.
+ *
+ * Plegarla es lo que hace que el orador crezca y ocupe el ancho de la tira: el
+ * recuadro grande es `flex-1`, así que en cuanto la tira sale del reparto
+ * (`display:none`, sin desmontar sus `<video>` — el audio no se corta) el
+ * grande se lleva todo el sitio.
+ */
+export const LLAVE_DE_LA_TIRA = "reunion:tira";
+
+/** Cómo se guarda lo que hay ahora. */
+export function comoSeGuardaLaTira(plegada: boolean): "plegada" | "abierta" {
+    return plegada ? "plegada" : "abierta";
+}
+
+/** Si al abrir la reunión la tira va plegada. Por defecto NO. */
+export function laTiraDeEntrada(guardado: unknown): boolean {
+    return guardado === "plegada";
+}
+
+/**
+ * Si de un remoto está llegando video ahora mismo, para pintar su recuadro o
+ * las iniciales.
+ *
+ * **La pista NO basta**, y es el fallo de privacidad que esto arregla: al
+ * apagar la cámara se hace `replaceTrack(null)` en el emisor, y eso la otra
+ * punta **no lo nota de forma fiable** —la pista receptora no siempre pasa a
+ * `muted` ni a `ended`, así que se queda el ÚLTIMO fotograma congelado—. Desde
+ * fuera parece que la persona sigue con la cámara puesta, cuando quien la apagó
+ * cree que ya no se le ve.
+ *
+ * Por eso manda lo **señalizado** —lo que esa persona dice que está mandando,
+ * que viaja en el latido igual que el estado del micro (`camaraEncendida`,
+ * `compartiendo`)— y la pista solo **confirma** que de verdad ha llegado algo.
+ * Las dos condiciones hacen falta:
+ *
+ * - Si dice que no manda cámara ni pantalla → iniciales, aunque la pista siga
+ *   trayendo un fotograma viejo. Es la mitad que arregla el congelado.
+ * - Si dice que sí pero la pista todavía no ha llegado (`pistaViva` falso) →
+ *   iniciales también: está conectando, y pintar un recuadro negro sería peor.
+ */
+export function hayVideoDelRemoto(input: {
+    camaraEncendida: boolean;
+    compartiendo: boolean;
+    /** Si hay una pista de video viva y sin `muted`. */
+    pistaViva: boolean;
+}): boolean {
+    return (input.camaraEncendida || input.compartiendo) && input.pistaViva;
+}
+
+/**
  * Lo que se guarda de un mensaje del chat de la reunión.
  *
  * Tres cosas, y ninguna es cosmética:

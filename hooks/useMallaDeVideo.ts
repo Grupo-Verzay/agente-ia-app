@@ -7,6 +7,7 @@ import {
     CADA_CUANTO_EN_LA_SALA_MS,
     comoQuedaLaMalla,
     debeOfrecer,
+    hayVideoDelRemoto,
 } from "@/lib/sala-de-video";
 import {
     CUANDO_NO_SE_PUDO_VOLVER,
@@ -283,10 +284,12 @@ export function useMallaDeVideo(input: {
                 if (!stream.getTracks().includes(ev.track)) stream.addTrack(ev.track);
                 streamsRef.current.set(id, stream);
 
-                // Si la otra punta apaga la cámara, su pista de video se queda
-                // en `muted` — eso sí viaja por la conexión, al revés que el
-                // micro. Es lo que decide al instante si se pinta el video o
-                // las iniciales, sin esperar a la vuelta del reloj.
+                // Cuando la pista SÍ pasa a `muted`/`ended` —a veces lo hace—
+                // se repinta al momento. Pero no se puede depender de ello:
+                // `replaceTrack(null)` al apagar la cámara a menudo deja la
+                // pista viva con el último fotograma, así que quien decide de
+                // verdad es lo señalizado por el latido (ver `hayVideoDelRemoto`
+                // en la vuelta del reloj). Esto es solo el camino rápido.
                 const alCambiarLaPista = () => avisarDelCambio();
                 ev.track.addEventListener("mute", alCambiarLaPista);
                 ev.track.addEventListener("unmute", alCambiarLaPista);
@@ -641,10 +644,24 @@ export function useMallaDeVideo(input: {
                 remotos: mios.map((d) => {
                     const stream = streamsRef.current.get(d.id) ?? null;
                     const video = stream?.getVideoTracks()[0];
+                    // La pista sola NO decide si hay video: al apagar la cámara,
+                    // `replaceTrack(null)` deja la pista de la otra punta con el
+                    // último fotograma congelado sin pasar a `muted`. Manda lo
+                    // SEÑALIZADO —`camaraEncendida`/`compartiendo`, que llegan por
+                    // el latido igual que el estado del micro— y la pista solo
+                    // confirma que de verdad ha llegado algo. Ver
+                    // `hayVideoDelRemoto`.
+                    const pistaViva = Boolean(
+                        video && !video.muted && video.readyState === "live",
+                    );
                     return {
                         ...d,
                         stream,
-                        hayVideo: Boolean(video && !video.muted && video.readyState === "live"),
+                        hayVideo: hayVideoDelRemoto({
+                            camaraEncendida: d.camaraEncendida,
+                            compartiendo: d.compartiendo,
+                            pistaViva,
+                        }),
                         estado:
                             conexionesRef.current.get(d.id)?.connectionState ?? "new",
                     };
