@@ -24,10 +24,15 @@ import {
     type Vista,
 } from "@/lib/documentacion";
 import {
+    comoNombreDeCarpeta,
+    type Carpeta,
+} from "@/lib/carpetas-de-documentacion";
+import {
     comoPermiso,
     comoSujeto,
     comoVisibilidad,
     laCuentaDeQuienMira,
+    puedeMandarEnElArbol,
     puedeMandarEnElEspacio,
     type Acceso,
     type Permiso,
@@ -44,9 +49,11 @@ import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import {
     LoCambioOtro,
     archivarDocumento,
+    borrarCarpeta,
     borrarDocumento,
     borrarEspacio,
     borrarFila,
+    crearCarpeta,
     crearDocumento,
     crearEspacio,
     crearFila,
@@ -56,8 +63,13 @@ import {
     editarFila,
     fijarDocumento,
     guardarDocumento,
+    laCarpeta,
+    laCarpetaDeCadaEspacio,
     laFila,
+    lasCarpetasDe,
     lasFilasDe,
+    ponerElEspacioEnLaCarpeta,
+    renombrarCarpeta,
     lasVersionesDe,
     laVersion,
     loQueNombra,
@@ -143,15 +155,29 @@ export type ArbolDeDocumentacion = {
     plantillas: DocumentoEnLista[];
     puedeCrearEspacio: boolean;
     /**
-     * Si quien mira puede colocar los espacios de SU árbol.
+     * Las CARPETAS de esta cuenta, ya en su orden.
      *
-     * Es la misma respuesta que da `guardarElOrdenDeLaColumnaAction` para el
-     * tipo `arbol`, y viaja aquí para que la pantalla no pinte un asa que al
-     * usarse contesta «no autorizado» — el «menú abierto, puerta cerrada» que
-     * este repositorio ya ha pagado cinco veces. La puerta sigue estando en la
-     * acción: esconder el asa evita el arrastre accidental, no la petición.
+     * Viajan aparte de los espacios y no anidadas dentro **a propósito**:
+     * `espacios` sigue siendo la lista PLANA de todo lo que se alcanza, que es
+     * lo que ya leen media docena de sitios de la pantalla —el documento
+     * abierto busca ahí su espacio—. Agrupar es una función pura del navegador
+     * (`agruparElArbol`), así que el contrato del servidor no cambia de forma y
+     * lo que decide la pantalla se prueba sin levantar nada.
      */
-    puedeOrdenarElArbol: boolean;
+    carpetas: Carpeta[];
+    /** espacioId → carpetaId. Lo que no esté aquí está suelto. */
+    enCarpeta: Record<string, string>;
+    /**
+     * Si quien mira puede **mandar en SU árbol**: colocarlo, y sus carpetas.
+     *
+     * Es la misma respuesta que da `guardarElOrdenDeLaColumnaAction` para los
+     * tipos `arbol` y `carpetas`, y viaja aquí para que la pantalla no pinte un
+     * asa ni un menú que al usarse contestan «no autorizado» — el «menú
+     * abierto, puerta cerrada» que este repositorio ya ha pagado cinco veces.
+     * La puerta sigue estando en la acción: esconder el mando evita el arrastre
+     * accidental, no la petición.
+     */
+    puedeMandarEnElArbol: boolean;
 };
 
 export async function leerElArbolAction(input?: {
@@ -161,14 +187,32 @@ export async function leerElArbolAction(input?: {
     if (!quien) return null;
 
     const verArchivados = input?.verArchivados === true;
-    // Un agente participa, no coloca: el orden del árbol es de la CUENTA y lo
-    // ve su equipo entero. Misma mitad que `puedeMandarEnElEspacio`.
-    const puedeOrdenarElArbol = quien.user.advisorRole !== "agente";
+    // Un agente participa, no coloca: el árbol es de la CUENTA y lo ve su
+    // equipo entero. Una sola función, la misma que la puerta del orden.
+    const puedeMandar = puedeMandarEnElArbol(quien.user);
 
     const { espacios, contenedores, permisos } = await losEspaciosQueAlcanza(quien.user);
     const conYSin = [...espacios, ...contenedores];
+
+    // Las carpetas se traen SIEMPRE, también con el árbol vacío: una cuenta
+    // puede haber creado su primera carpeta antes que su primer espacio, y sin
+    // esto la carpeta recién creada no se vería y parecería que no se creó.
+    const [carpetasSinColocar, enCarpeta, carpetasColocadas] = await Promise.all([
+        lasCarpetasDe(quien.cuenta),
+        laCarpetaDeCadaEspacio(quien.cuenta),
+        posicionesDelTablero("carpetas", quien.cuenta),
+    ]);
+    const carpetas = ordenarLaColumna(carpetasSinColocar, carpetasColocadas, (c) => c.id);
+
     if (conYSin.length === 0) {
-        return { espacios: [], plantillas: [], puedeCrearEspacio: true, puedeOrdenarElArbol };
+        return {
+            espacios: [],
+            plantillas: [],
+            puedeCrearEspacio: true,
+            carpetas,
+            enCarpeta,
+            puedeMandarEnElArbol: puedeMandar,
+        };
     }
 
     // **El mapa de decidir lleva SOLO los espacios que se alcanzan de verdad.**
@@ -225,8 +269,173 @@ export async function leerElArbolAction(input?: {
         })),
         plantillas,
         puedeCrearEspacio: true,
-        puedeOrdenarElArbol,
+        carpetas,
+        enCarpeta,
+        puedeMandarEnElArbol: puedeMandar,
     };
+}
+
+/* ────────────────────────────── Las carpetas ────────────────────────────── */
+
+/**
+ * Las cuatro acciones de carpeta pasan por **la misma puerta**,
+ * `puedeMandarEnElArbol`, que es la del orden del árbol y no una condición
+ * nueva. Y no es `puedeMandarEnElEspacio`: aquella es sobre UN espacio y vale
+ * `false` en uno recibido, así que con ella no se podría archivar un espacio
+ * compartido — que es justo el caso que llena la barra lateral.
+ */
+async function quienMandaEnElArbol() {
+    const quien = await quienLlama();
+    if (!quien) return null;
+    if (!puedeMandarEnElArbol(quien.user)) return null;
+    return quien;
+}
+
+export async function crearCarpetaAction(input: {
+    nombre: unknown;
+}): Promise<Respuesta<Carpeta>> {
+    const quien = await quienMandaEnElArbol();
+    if (!quien) return NO("No autorizado.");
+
+    const nombre = comoNombreDeCarpeta(input.nombre);
+    if (!nombre) return NO("La carpeta necesita un nombre.");
+
+    try {
+        const carpeta = await crearCarpeta({
+            // La CUENTA: la carpeta agrupa el árbol que ve su equipo.
+            cuentaId: quien.cuenta,
+            nombre,
+            // La PERSONA: quién la creó tiene que sobrevivir a cambiar de cuenta.
+            creadoPorId: quien.personaId,
+            creadoPorNombre: quien.personaNombre,
+        });
+        // Al final del árbol, como una tarjeta nueva: nunca arriba, para no
+        // pisar el orden que puso alguien a mano.
+        await alFinalDelTablero("carpetas", quien.cuenta, carpeta.id);
+        revalidatePath("/documentos");
+        return { success: true, data: carpeta };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo crear la carpeta", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo crear la carpeta.");
+    }
+}
+
+export async function renombrarCarpetaAction(input: {
+    id: unknown;
+    nombre: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienMandaEnElArbol();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta la carpeta.");
+    const nombre = comoNombreDeCarpeta(input.nombre);
+    if (!nombre) return NO("La carpeta necesita un nombre.");
+
+    // Una carpeta de otra cuenta se contesta como una que no existe: decir «no
+    // puedes» ya revela que existe. Misma regla que un espacio ajeno.
+    const carpeta = await laCarpeta(id);
+    if (!carpeta || carpeta.cuentaId !== quien.cuenta) return NO("Carpeta no encontrada.");
+
+    try {
+        await renombrarCarpeta({ id, nombre });
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo renombrar la carpeta", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo renombrar la carpeta.");
+    }
+}
+
+/**
+ * Borrar una carpeta. **Sus espacios NO se borran: quedan sueltos.**
+ *
+ * No hay ni un `borradoEn` por aquí: se va la carpeta y se van las filas que
+ * decían quién estaba dentro, y `doc_espacios` no se toca. Lo comprueba el
+ * banco contando los espacios antes y después.
+ */
+export async function borrarCarpetaAction(input: { id: unknown }): Promise<Respuesta<true>> {
+    const quien = await quienMandaEnElArbol();
+    if (!quien) return NO("No autorizado.");
+
+    const id = comoId(input.id);
+    if (!id) return NO("Falta la carpeta.");
+
+    const carpeta = await laCarpeta(id);
+    if (!carpeta || carpeta.cuentaId !== quien.cuenta) return NO("Carpeta no encontrada.");
+
+    try {
+        await borrarCarpeta({ id, cuentaId: quien.cuenta });
+        // Y su posición, que si no se queda una fila huérfana que reaparecería
+        // el día que otra carpeta naciera con ese id —no puede pasar, son
+        // UUID— y que mientras tanto es basura que nadie sabe de dónde salió.
+        await olvidarLaTarjeta("carpetas", quien.cuenta, id);
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo borrar la carpeta", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo borrar la carpeta.");
+    }
+}
+
+/**
+ * Mover un espacio a una carpeta, o **sacarlo fuera** con `carpetaId: null`.
+ *
+ * Dos comprobaciones, y hacen falta las dos:
+ *
+ * 1. **Que la carpeta sea de esta cuenta.** Sin eso, una petición a mano
+ *    metería el espacio en una carpeta de otra cuenta y ahí no lo vería nadie
+ *    —ni quien lo movió, porque su árbol solo pinta sus carpetas—: un espacio
+ *    desaparecido sin que nadie lo haya borrado.
+ * 2. **Que el espacio se alcance de verdad**, con la MISMA función que pinta
+ *    el árbol. Sin ella se podrían escribir filas para ids inventados: no abre
+ *    ninguna puerta —esto solo guarda en qué carpeta va— pero llena la tabla de
+ *    basura. Es lo mismo que ya hace el guardado del orden.
+ */
+export async function moverEspacioACarpetaAction(input: {
+    espacioId: unknown;
+    carpetaId: unknown;
+}): Promise<Respuesta<true>> {
+    const quien = await quienMandaEnElArbol();
+    if (!quien) return NO("No autorizado.");
+
+    const espacioId = comoId(input.espacioId);
+    if (!espacioId) return NO("Falta el espacio.");
+
+    const carpetaId = input.carpetaId === null ? null : comoId(input.carpetaId);
+    if (input.carpetaId !== null && !carpetaId) return NO("Falta la carpeta.");
+
+    if (carpetaId) {
+        const carpeta = await laCarpeta(carpetaId);
+        if (!carpeta || carpeta.cuentaId !== quien.cuenta) return NO("Carpeta no encontrada.");
+    }
+
+    // Alcanzar el espacio basta: archivarlo en una carpeta es ordenar la barra
+    // lateral de ESTA cuenta, no tocar el espacio. Por eso vale también con uno
+    // recibido, donde `puedeMandarEnElEspacio` es `false` a propósito.
+    const acceso = await accesoAEsteEspacio(quien.user, espacioId);
+    if (!acceso) return NO("Espacio no encontrado.");
+
+    try {
+        await ponerElEspacioEnLaCarpeta({
+            cuentaId: quien.cuenta,
+            espacioId,
+            carpetaId,
+        });
+        revalidatePath("/documentos");
+        return { success: true, data: true };
+    } catch (error) {
+        console.warn("[documentacion] no se pudo mover el espacio de carpeta", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NO("No se pudo mover el espacio.");
+    }
 }
 
 /**

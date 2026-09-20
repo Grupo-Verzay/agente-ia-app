@@ -16,7 +16,11 @@ export { ponerAQuienMira } from "./auth-de-documentos";
 
 export {
     archivarDocumentoAction,
+    borrarCarpetaAction,
     compartirConCuentasAction,
+    crearCarpetaAction,
+    moverEspacioACarpetaAction,
+    renombrarCarpetaAction,
     crearDocumentoAction,
     crearEspacioAction,
     fijarDocumentoAction,

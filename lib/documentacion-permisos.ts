@@ -295,6 +295,32 @@ export function puedeMandarEnElEspacio(
     return acceso.puedeGestionar || espacio.creadoPorId === (user.id || "").trim();
 }
 
+/**
+ * Quién manda en el ÁRBOL de una cuenta: colocarlo, y sus carpetas.
+ *
+ * Es una pregunta distinta de `puedeMandarEnElEspacio`, y hace falta que lo
+ * sea: aquella decide sobre UN espacio —y por eso es `false` en uno recibido,
+ * donde el reparto sigue siendo de quien lo hizo—, y esta decide sobre **la
+ * vista de esta cuenta**. Archivar en una carpeta un espacio que te compartieron
+ * es ordenar tu barra lateral, no tocar el espacio de nadie: la carpeta y su
+ * pertenencia son filas de TU cuenta, y la cuenta dueña no ve nada cambiar.
+ *
+ * **Un `agente` no manda** —participa, y este árbol lo ve su equipo entero— y
+ * **no se pide `canManageWorkspace`**, que es más estrecho: un miembro del
+ * equipo cuyo `advisorRole` no es ni `administrador` ni `agente` crea espacios
+ * hoy, y con aquella condición se quedaría con un árbol que no puede colocar ni
+ * agrupar. Es la misma mitad que `puedeMandarEnElEspacio` ya tiene escrita.
+ *
+ * Y es **una sola función** porque son tres puertas que tienen que decir lo
+ * mismo: el orden de los espacios, el de las carpetas y el CRUD de una carpeta.
+ * Con la condición copiada en cada una, a la cuarta se le pasa —que es cómo se
+ * acabó teniendo un chat que se podía anclar y no se podía borrar.
+ */
+export function puedeMandarEnElArbol(user: QuienMira): boolean {
+    if (!user?.id) return false;
+    return user.advisorRole !== "agente";
+}
+
 /* ────────────────────────────── El documento ────────────────────────────── */
 
 /**

@@ -33,12 +33,16 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from "@/lib/documentacion";
+import { LARGO_DEL_NOMBRE } from "@/lib/carpetas-de-documentacion";
 import {
+    borrarCarpetaAction,
     borrarEspacioAction,
+    crearCarpetaAction,
     crearDocumentoAction,
     crearEspacioAction,
     cuantosDocumentosTieneAction,
     editarEspacioAction,
+    renombrarCarpetaAction,
 } from "@/actions/documentacion-actions";
 import type { DocumentoEnLista } from "@/lib/documentacion-db";
 
@@ -377,6 +381,194 @@ export function BorrarEspacioDialog({
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                         {borrando ? "Eliminando…" : "Eliminar espacio"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
+/* ───────────────────────────── Las carpetas ─────────────────────────────── */
+
+/**
+ * Crear o renombrar una carpeta: **un solo diálogo**, porque son el mismo
+ * formulario con un campo.
+ *
+ * Con dos, el día que se afine el saneado del nombre o el aviso se afina en uno
+ * y el otro se queda atrás, que es la regla de esta casa. Lo que cambia entre
+ * los dos casos es el título y a qué acción se llama, y eso entra por props.
+ */
+export function CarpetaDialog({
+    carpetaId,
+    nombreActual,
+    abierto,
+    onAbiertoChange,
+    alGuardar,
+}: {
+    /** `null` = crear una nueva. */
+    carpetaId: string | null;
+    nombreActual?: string;
+    abierto: boolean;
+    onAbiertoChange: (abierto: boolean) => void;
+    alGuardar: () => void | Promise<void>;
+}) {
+    const [nombre, setNombre] = useState(nombreActual ?? "");
+    const [guardando, setGuardando] = useState(false);
+
+    // Al abrirlo se parte de lo que hay guardado: si no, un cambio cancelado
+    // seguiría escrito en la caja la próxima vez.
+    useEffect(() => {
+        if (abierto) setNombre(nombreActual ?? "");
+    }, [abierto, nombreActual]);
+
+    const guardar = async () => {
+        setGuardando(true);
+        // Las dos devuelven `{success, message}` y aquí no se mira el dato, así
+        // que se estrecha a lo común: sin esto el tipo de `pedir` se queda con
+        // el de la primera rama.
+        const res = await pedir<{ success: boolean; message?: string }>(() =>
+            carpetaId
+                ? renombrarCarpetaAction({ id: carpetaId, nombre })
+                : crearCarpetaAction({ nombre }),
+        );
+        setGuardando(false);
+
+        if (!res.success) {
+            toast.error(res.message ?? "No se pudo guardar la carpeta.");
+            return;
+        }
+        onAbiertoChange(false);
+        await alGuardar();
+        toast.success(carpetaId ? "Carpeta renombrada." : "Carpeta creada.");
+    };
+
+    return (
+        <Dialog open={abierto} onOpenChange={onAbiertoChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{carpetaId ? "Renombrar carpeta" : "Nueva carpeta"}</DialogTitle>
+                    <DialogDescription>
+                        Una carpeta agrupa espacios. Lo de dentro no se toca: los espacios y sus
+                        documentos siguen donde están.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="carpeta-nombre">Nombre</Label>
+                    <Input
+                        id="carpeta-nombre"
+                        value={nombre}
+                        onChange={(e) => setNombre(e.target.value)}
+                        placeholder="Operaciones"
+                        maxLength={LARGO_DEL_NOMBRE}
+                        // Enter guarda: un formulario de un solo campo donde hay
+                        // que ir al botón con el ratón se usa la mitad.
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && nombre.trim() && !guardando) {
+                                e.preventDefault();
+                                void guardar();
+                            }
+                        }}
+                    />
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onAbiertoChange(false)}>
+                        Cancelar
+                    </Button>
+                    <Button onClick={() => void guardar()} disabled={guardando || !nombre.trim()}>
+                        {guardando ? "Guardando…" : carpetaId ? "Guardar" : "Crear carpeta"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/**
+ * Borrar una carpeta.
+ *
+ * **Y lo que dice es lo que hace**: los espacios de dentro no se borran, quedan
+ * sueltos. Se dice con esas palabras y con el número delante, porque «¿se van a
+ * borrar mis documentos?» es exactamente lo que se pregunta quien pulsa esto —y
+ * un diálogo que no lo contesta se cancela.
+ *
+ * El número sale del árbol que se tiene delante, y no de una consulta: aquí es
+ * correcto, a diferencia de borrar un espacio. Lo que se enseña son los
+ * espacios que van a quedar sueltos **en esta pantalla**, que es justo lo que
+ * quien mira tiene delante; no hay ninguno escondido que contar, porque la
+ * carpeta es de su cuenta y lo que no alcanza no está en ella.
+ */
+export function BorrarCarpetaDialog({
+    carpetaId,
+    nombre,
+    cuantosEspacios,
+    abierto,
+    onAbiertoChange,
+    alBorrar,
+}: {
+    carpetaId: string;
+    nombre: string;
+    cuantosEspacios: number;
+    abierto: boolean;
+    onAbiertoChange: (abierto: boolean) => void;
+    alBorrar: () => void | Promise<void>;
+}) {
+    const [borrando, setBorrando] = useState(false);
+
+    const borrar = async () => {
+        setBorrando(true);
+        const res = await pedir(() => borrarCarpetaAction({ id: carpetaId }));
+        setBorrando(false);
+
+        if (!res.success) {
+            toast.error(res.message ?? "No se pudo borrar la carpeta.");
+            return;
+        }
+        onAbiertoChange(false);
+        await alBorrar();
+        toast.success("Carpeta eliminada.");
+    };
+
+    return (
+        <AlertDialog open={abierto} onOpenChange={(v) => !borrando && onAbiertoChange(v)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar la carpeta «{nombre}»?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                        <div className="space-y-2 text-sm">
+                            {cuantosEspacios === 0 ? (
+                                <p>La carpeta está vacía.</p>
+                            ) : (
+                                <p>
+                                    <strong>
+                                        No se borra ningún espacio ni ningún documento.
+                                    </strong>{" "}
+                                    Los{" "}
+                                    <strong>
+                                        {cuantosEspacios}{" "}
+                                        {cuantosEspacios === 1 ? "espacio" : "espacios"}
+                                    </strong>{" "}
+                                    que hay dentro quedan sueltos, fuera de cualquier carpeta.
+                                </p>
+                            )}
+                            <p className="text-muted-foreground">
+                                Lo único que se va es la carpeta.
+                            </p>
+                        </div>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={borrando}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={(evento) => {
+                            evento.preventDefault();
+                            void borrar();
+                        }}
+                        disabled={borrando}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        {borrando ? "Eliminando…" : "Eliminar carpeta"}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

@@ -20,6 +20,7 @@ import type {
     SujetoDePermiso,
     VisibilidadDeEspacio,
 } from "@/lib/documentacion-permisos";
+import type { Carpeta } from "@/lib/carpetas-de-documentacion";
 
 /**
  * Dónde vive la documentación interna: seis tablas, todas de la App.
@@ -33,11 +34,13 @@ import type {
  * ninguna clave foránea**—, así que al borrar algo la limpieza es explícita y
  * no puede reventar el borrado de al lado.
  *
- * ## Las seis, y por qué son seis
+ * ## Las ocho, y por qué son ocho
  *
  * | tabla | una fila por | crece con |
  * | --- | --- | --- |
- * | `doc_espacios` | carpeta | lo que organiza la cuenta |
+ * | `doc_carpetas` | carpeta | lo que agrupa la cuenta |
+ * | `doc_espacio_en_carpeta` | espacio **por cada cuenta que lo ve** | lo anterior |
+ * | `doc_espacios` | espacio | lo que organiza la cuenta |
  * | `doc_documentos` | documento, lista o plantilla | lo que se escribe |
  * | `doc_versiones` | cambio de un documento | las ediciones, topado |
  * | `doc_menciones` | cosa nombrada dentro de un documento | los enlaces |
@@ -60,9 +63,45 @@ import type {
 
 let tablasListas: Promise<void> | null = null;
 
+/**
+ * Un `CREATE … IF NOT EXISTS` que aguanta que **otro proceso lo esté creando a
+ * la vez**.
+ *
+ * Suena imposible y no lo es: `IF NOT EXISTS` mira el catálogo al empezar, así
+ * que dos sesiones que lo ejecuten a la vez pasan las dos esa comprobación y la
+ * segunda revienta al escribir en `pg_class` o en `pg_type` —`23505`, «Key
+ * (relname, relnamespace)=(…) already exists»—. No es una condición de
+ * laboratorio: esta plataforma corre con **dos réplicas** y el despliegue es
+ * `start-first`, así que dos procesos pueden pedirle a Documentación su primera
+ * consulta en el mismo segundo.
+ *
+ * Lo que pasaría sin esto es lo de siempre en esta familia: la pantalla
+ * contesta «No se pudo crear la carpeta» y en la consola hay un error de clave
+ * duplicada que no se parece en nada a lo que la persona hizo. Lo cazó el
+ * banco, que desde esta vuelta corre dos ficheros contra la misma base.
+ *
+ * **Solo se traga «ya existe»**, que es literalmente lo que se venía a pedir.
+ * Cualquier otro error sigue subiendo.
+ */
+async function ddl(ejecutar: () => Promise<unknown>): Promise<void> {
+    try {
+        await ejecutar();
+    } catch (error) {
+        const e = error as { code?: unknown; meta?: { code?: unknown }; message?: unknown };
+        const codigo = String(e?.meta?.code ?? e?.code ?? "");
+        const texto = String(e?.message ?? "");
+        // 23505 = clave duplicada en el catálogo; 42P07 = la relación ya
+        // existe; 42710 = el objeto ya existe. Los tres significan lo mismo.
+        const yaEstaba = ["23505", "42P07", "42710"].some(
+            (c) => codigo === c || texto.includes(c),
+        );
+        if (!yaEstaba) throw error;
+    }
+}
+
 function asegurarLasTablas(): Promise<void> {
     tablasListas ??= (async () => {
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "doc_espacios" (
                 "id" TEXT PRIMARY KEY,
                 -- La CUENTA duena. De ella cuelga todo lo de dentro, lo escriba
@@ -81,22 +120,22 @@ function asegurarLasTablas(): Promise<void> {
                 "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        `;
+        `);
         // Borrar un espacio es SUAVE: se sella la fecha y no se borra nada.
         // Entra con `ADD COLUMN IF NOT EXISTS` y **no** reescribiendo el
         // `CREATE`: la tabla ya esta en produccion y un
         // `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo
         // que se comete solo al anadirle una columna a una tabla de la App ya
         // desplegada.
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             ALTER TABLE "doc_espacios" ADD COLUMN IF NOT EXISTS "borradoEn" TIMESTAMP(3)
-        `;
-        await db.$executeRaw`
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_espacios_cuenta_idx"
             ON "doc_espacios" ("cuentaId", "orden")
-        `;
+        `);
 
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "doc_documentos" (
                 "id" TEXT PRIMARY KEY,
                 "cuentaId" TEXT NOT NULL,
@@ -125,7 +164,7 @@ function asegurarLasTablas(): Promise<void> {
                 "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        `;
+        `);
         // Fijar y archivar. Entran con `ADD COLUMN IF NOT EXISTS` y **no**
         // reescribiendo el `CREATE`: la tabla ya esta en produccion y un
         // `CREATE TABLE IF NOT EXISTS` no toca una que ya existe. Es el fallo
@@ -136,27 +175,27 @@ function asegurarLasTablas(): Promise<void> {
         // espacio: un booleano dice que esta archivado y no dice desde cuando,
         // y esa es justo la pregunta que se hace al mirar una lista de
         // archivados. `fijado` si es un booleano: no hay nada que fechar.
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             ALTER TABLE "doc_documentos" ADD COLUMN IF NOT EXISTS "fijado" BOOLEAN NOT NULL DEFAULT false
-        `;
-        await db.$executeRaw`
+        `);
+        await ddl(() => db.$executeRaw`
             ALTER TABLE "doc_documentos" ADD COLUMN IF NOT EXISTS "archivadoEn" TIMESTAMP(3)
-        `;
-        await db.$executeRaw`
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_documentos_espacio_idx"
             ON "doc_documentos" ("espacioId", "actualizadoEn" DESC)
-        `;
+        `);
         // El arbol lee por `("espacioId", "creadoEn")`: el orden de lectura de
         // un espacio es el de CREACION, no el del ultimo retoque. Ver
         // `losDocumentosDe`.
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_documentos_espacio_creado_idx"
             ON "doc_documentos" ("espacioId", "creadoEn")
-        `;
-        await db.$executeRaw`
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_documentos_cuenta_idx"
             ON "doc_documentos" ("cuentaId", "tipo")
-        `;
+        `);
         // El GIN es lo que evita recorrer la tabla al buscar, y la lista de
         // espacios que alguien alcanza es la PUERTA. Son dos cosas distintas y
         // hacen falta las dos: medido en el chat de equipo, con el mismo
@@ -166,13 +205,13 @@ function asegurarLasTablas(): Promise<void> {
         // `CREATE EXTENSION`**: `pg_trgm` haria falta para un `ILIKE '%x%'` con
         // indice, pero instalar una extension pide permisos que la App no tiene
         // por que tener, y el dia que no los tenga esto fallaria al arrancar.
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_documentos_texto_idx"
             ON "doc_documentos"
             USING GIN (to_tsvector('spanish', "titulo" || ' ' || "texto"))
-        `;
+        `);
 
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "doc_versiones" (
                 "id" TEXT PRIMARY KEY,
                 "documentoId" TEXT NOT NULL,
@@ -186,13 +225,13 @@ function asegurarLasTablas(): Promise<void> {
                 "autorNombre" TEXT,
                 "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        `;
-        await db.$executeRaw`
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_versiones_documento_idx"
             ON "doc_versiones" ("documentoId", "version" DESC)
-        `;
+        `);
 
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "doc_menciones" (
                 "documentoId" TEXT NOT NULL,
                 "tipo" TEXT NOT NULL,
@@ -204,16 +243,16 @@ function asegurarLasTablas(): Promise<void> {
                 "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY ("documentoId", "tipo", "refId")
             )
-        `;
+        `);
         // El indice del RETROENLACE: «que documentos nombran a esta tarea».
         // Empieza por (tipo, refId) porque esa es la pregunta; la clave
         // primaria empieza por el documento y sirve para la contraria.
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_menciones_ref_idx"
             ON "doc_menciones" ("tipo", "refId")
-        `;
+        `);
 
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "doc_permisos" (
                 "objetoTipo" TEXT NOT NULL,
                 "objetoId" TEXT NOT NULL,
@@ -227,13 +266,13 @@ function asegurarLasTablas(): Promise<void> {
                 "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY ("objetoTipo", "objetoId", "sujetoTipo", "sujetoId")
             )
-        `;
-        await db.$executeRaw`
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_permisos_sujeto_idx"
             ON "doc_permisos" ("sujetoTipo", "sujetoId")
-        `;
+        `);
 
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "doc_filas" (
                 "id" TEXT PRIMARY KEY,
                 "documentoId" TEXT NOT NULL,
@@ -250,16 +289,57 @@ function asegurarLasTablas(): Promise<void> {
                 "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        `;
-        await db.$executeRaw`
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_filas_documento_idx"
             ON "doc_filas" ("documentoId", "creadoEn")
-        `;
+        `);
         // El calendario pide un rango de fechas de UNA lista.
-        await db.$executeRaw`
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "doc_filas_fecha_idx"
             ON "doc_filas" ("documentoId", "fecha")
-        `;
+        `);
+
+        // Las CARPETAS: una capa por encima de los espacios. Una carpeta es de
+        // UNA cuenta y solo la ve ella, asi que aqui si vale una tabla con su
+        // `cuentaId` dentro.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "doc_carpetas" (
+                "id" TEXT PRIMARY KEY,
+                "cuentaId" TEXT NOT NULL,
+                "nombre" TEXT NOT NULL,
+                -- Quien la creo: la PERSONA, como en doc_espacios.
+                "creadoPorId" TEXT NOT NULL,
+                "creadoPorNombre" TEXT,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        await ddl(() => db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "doc_carpetas_cuenta_idx"
+            ON "doc_carpetas" ("cuentaId", "creadoEn")
+        `);
+
+        // **La pertenencia va aparte, y su llave es la pareja CUENTA +
+        // ESPACIO.** No es una columna `carpetaId` en `doc_espacios`, y el
+        // motivo es el mismo que ya obligo a sacar de alli el orden del arbol:
+        // una cosa compartida tiene UNA fila y DOS sitios. Un espacio
+        // compartido sale en el arbol de la cuenta duena y en el de la
+        // invitada, y cada una lo archiva donde le sirve; con una columna en la
+        // fila, moverlo en una se lo moveria a la otra —a una carpeta que alli
+        // ni existe—.
+        //
+        // La clave primaria empieza por `cuentaId`, que es como se lee entero y
+        // como se borra una carpeta: no hace falta ningun indice mas.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "doc_espacio_en_carpeta" (
+                "cuentaId" TEXT NOT NULL,
+                "espacioId" TEXT NOT NULL,
+                "carpetaId" TEXT NOT NULL,
+                "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("cuentaId", "espacioId")
+            )
+        `);
     })().catch((error) => {
         tablasListas = null;
         throw error;
@@ -590,6 +670,146 @@ export async function borrarEspacio(id: string): Promise<void> {
             UPDATE "doc_espacios"
             SET "borradoEn" = CURRENT_TIMESTAMP, "actualizadoEn" = CURRENT_TIMESTAMP
             WHERE "id" = ${id} AND "borradoEn" IS NULL
+        `;
+    });
+}
+
+/* ───────────────────────────── Las carpetas ─────────────────────────────── */
+
+/**
+ * Las carpetas de una cuenta, en el orden de la base.
+ *
+ * El orden que se ve encima lo pone `orden_en_tablero` (tipo `carpetas`, con
+ * `tableroId` = la cuenta), como el de los espacios: dos formas de guardar la
+ * misma posición son una que se afina y otra que se queda atrás.
+ */
+export async function lasCarpetasDe(cuentaId: string): Promise<Carpeta[]> {
+    if (!cuentaId.trim()) return [];
+    return conLasTablas(async () => {
+        return db.$queryRaw<Carpeta[]>`
+            SELECT * FROM "doc_carpetas"
+            WHERE "cuentaId" = ${cuentaId}
+            ORDER BY "creadoEn" ASC
+        `;
+    });
+}
+
+/** Una carpeta suelta, para comprobar de quién es antes de tocarla. */
+export async function laCarpeta(id: string): Promise<Carpeta | null> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Carpeta[]>`
+            SELECT * FROM "doc_carpetas" WHERE "id" = ${id} LIMIT 1
+        `;
+        return filas[0] ?? null;
+    });
+}
+
+export async function crearCarpeta(input: {
+    cuentaId: string;
+    nombre: string;
+    creadoPorId: string;
+    creadoPorNombre: string | null;
+}): Promise<Carpeta> {
+    return conLasTablas(async () => {
+        const id = nuevoId();
+        await db.$executeRaw`
+            INSERT INTO "doc_carpetas"
+                ("id", "cuentaId", "nombre", "creadoPorId", "creadoPorNombre")
+            VALUES (${id}, ${input.cuentaId}, ${input.nombre},
+                    ${input.creadoPorId}, ${input.creadoPorNombre})
+        `;
+        const creada = await laCarpeta(id);
+        if (!creada) throw new Error("No se pudo crear la carpeta.");
+        return creada;
+    });
+}
+
+export async function renombrarCarpeta(input: { id: string; nombre: string }): Promise<void> {
+    await conLasTablas(async () => {
+        await db.$executeRaw`
+            UPDATE "doc_carpetas"
+            SET "nombre" = ${input.nombre}, "actualizadoEn" = CURRENT_TIMESTAMP
+            WHERE "id" = ${input.id}
+        `;
+    });
+}
+
+/**
+ * Borrar una carpeta **NO borra sus espacios: los deja sueltos**.
+ *
+ * Es el encargo, y sale de que la carpeta y la pertenencia son dos filas
+ * distintas: aquí no se toca `doc_espacios` por ningún lado, ni siquiera su
+ * `borradoEn`. Lo que se va es la carpeta y las filas que decían quién estaba
+ * dentro; los espacios se quedan donde estaban y salen arriba, sueltos.
+ *
+ * Va en una transacción, y aun así el orden no es indiferente **porque puede
+ * fallar a medias**: primero la pertenencia y después la carpeta. Si se cayera
+ * entre las dos quedaría una carpeta vacía, que se ve y se vuelve a borrar. Al
+ * revés quedarían filas apuntando a una carpeta que ya no está — inofensivo
+ * también, porque `agruparElArbol` las trata como sueltas, pero invisible.
+ *
+ * La pertenencia se acota **por cuenta y por carpeta**: la cuenta es lo que
+ * hace que entre por la clave primaria, y sin ella un id repetido de otra
+ * cuenta se llevaría filas que no son suyas.
+ */
+export async function borrarCarpeta(input: { id: string; cuentaId: string }): Promise<void> {
+    await conLasTablas(async () => {
+        await db.$transaction([
+            db.$executeRaw`
+                DELETE FROM "doc_espacio_en_carpeta"
+                WHERE "cuentaId" = ${input.cuentaId} AND "carpetaId" = ${input.id}
+            `,
+            db.$executeRaw`
+                DELETE FROM "doc_carpetas"
+                WHERE "id" = ${input.id} AND "cuentaId" = ${input.cuentaId}
+            `,
+        ]);
+    });
+}
+
+/** espacioId → carpetaId, para la cuenta que mira. */
+export async function laCarpetaDeCadaEspacio(
+    cuentaId: string,
+): Promise<Record<string, string>> {
+    if (!cuentaId.trim()) return {};
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<{ espacioId: string; carpetaId: string }>>`
+            SELECT "espacioId", "carpetaId" FROM "doc_espacio_en_carpeta"
+            WHERE "cuentaId" = ${cuentaId}
+        `;
+        const mapa: Record<string, string> = {};
+        for (const f of filas) mapa[f.espacioId] = f.carpetaId;
+        return mapa;
+    });
+}
+
+/**
+ * Meter un espacio en una carpeta, o **sacarlo fuera** con `carpetaId: null`.
+ *
+ * Sacarlo BORRA la fila en vez de escribir un nulo: «suelto» es la ausencia de
+ * fila, que es lo mismo que le pasa a un espacio que nunca se archivó. Con un
+ * nulo habría dos formas de decir lo mismo y la consulta de arriba tendría que
+ * saber distinguirlas.
+ */
+export async function ponerElEspacioEnLaCarpeta(input: {
+    cuentaId: string;
+    espacioId: string;
+    carpetaId: string | null;
+}): Promise<void> {
+    await conLasTablas(async () => {
+        if (!input.carpetaId) {
+            await db.$executeRaw`
+                DELETE FROM "doc_espacio_en_carpeta"
+                WHERE "cuentaId" = ${input.cuentaId} AND "espacioId" = ${input.espacioId}
+            `;
+            return;
+        }
+        await db.$executeRaw`
+            INSERT INTO "doc_espacio_en_carpeta"
+                ("cuentaId", "espacioId", "carpetaId", "actualizadoEn")
+            VALUES (${input.cuentaId}, ${input.espacioId}, ${input.carpetaId}, NOW())
+            ON CONFLICT ("cuentaId", "espacioId")
+            DO UPDATE SET "carpetaId" = EXCLUDED."carpetaId", "actualizadoEn" = NOW()
         `;
     });
 }
