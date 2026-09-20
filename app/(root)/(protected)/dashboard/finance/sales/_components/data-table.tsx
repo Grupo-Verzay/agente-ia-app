@@ -69,6 +69,17 @@ type DataTableProps<TData, TValue> = {
    * lista entera y habría que volver a buscar, que es no haber buscado.
    */
   initialSearch?: string;
+  /**
+   * Mandos que acotan la lista y van en el carril de la barra, al lado del
+   * buscador: hoy, el selector de cuentas de la familia.
+   */
+  filtrosExtra?: React.ReactNode;
+  /**
+   * Qué filas se pueden tocar. Con la lista consolidada, las de otra cuenta se
+   * ven y no se marcan: las acciones de borrado acotan por la cuenta con la que
+   * se llaman, así que una fila ajena contestaría «no encontrada».
+   */
+  filaEditable?: (row: TData) => boolean;
 };
 
 export function DataTable<TData, TValue>({
@@ -86,6 +97,8 @@ export function DataTable<TData, TValue>({
   toolbarExtra,
   queSon = 'filas',
   initialSearch,
+  filtrosExtra,
+  filaEditable,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -113,16 +126,20 @@ export function DataTable<TData, TValue>({
           onChange={table.getToggleAllPageRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }) => (
-        <input
-          type="checkbox"
-          aria-label="Seleccionar fila"
-          className="h-4 w-4 cursor-pointer accent-primary"
-          checked={row.getIsSelected()}
-          onClick={(e) => e.stopPropagation()}
-          onChange={row.getToggleSelectedHandler()}
-        />
-      ),
+      cell: ({ row }) =>
+        // Una fila que no se puede tocar no enseña casilla apagada: no enseña
+        // ninguna. Una casilla en gris invita a preguntar por qué no se puede,
+        // y la respuesta —«es de otra cuenta»— ya la dice su insignia.
+        row.getCanSelect() ? (
+          <input
+            type="checkbox"
+            aria-label="Seleccionar fila"
+            className="h-4 w-4 cursor-pointer accent-primary"
+            checked={row.getIsSelected()}
+            onClick={(e) => e.stopPropagation()}
+            onChange={row.getToggleSelectedHandler()}
+          />
+        ) : null,
     }),
     [],
   );
@@ -136,7 +153,11 @@ export function DataTable<TData, TValue>({
     data,
     columns: allColumns,
     state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
-    enableRowSelection: enableSelection,
+    enableRowSelection: enableSelection
+      ? filaEditable
+        ? (row) => filaEditable(row.original)
+        : true
+      : false,
     getRowId,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -192,14 +213,17 @@ export function DataTable<TData, TValue>({
               />
             ) : null
           }
+          buscador={
+            <Input
+              value={(searchColumn?.getFilterValue() as string) ?? ''}
+              onChange={(event) => searchColumn?.setFilterValue(event.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-10 w-56 shrink-0 text-sm sm:w-72"
+            />
+          }
           filtros={
           <>
-          <Input
-            value={(searchColumn?.getFilterValue() as string) ?? ''}
-            onChange={(event) => searchColumn?.setFilterValue(event.target.value)}
-            placeholder={searchPlaceholder}
-            className="h-10 w-72 shrink-0 text-sm"
-          />
+            {filtrosExtra}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="h-10 shrink-0 px-2 text-sm">

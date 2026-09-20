@@ -6,6 +6,15 @@ import { toast } from 'sonner';
 
 import { DataTable } from './data-table';
 import { buildExpenseColumns, type ExpenseRow } from './columns';
+import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
+import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
+import {
+  esDeOtraCuenta,
+  estaConsolidando,
+  lasCuentasElegidas,
+  nombresPorCuenta,
+  type CuentaDeFinanzas,
+} from '@/lib/finanzas-de-la-familia';
 
 import {
   createExpense,
@@ -57,6 +66,10 @@ type Props = {
   primaryCurrencyCode: string;
   initialMonth?: string;
   autoOpenCreate?: boolean;
+  /** Las cuentas de la familia entre las que se puede elegir. Vacía: sin selector. */
+  cuentasDisponibles?: CuentaDeFinanzas[];
+  /** Las que están puestas ahora mismo, ya resueltas en el servidor. */
+  cuentasElegidas?: string[];
 };
 
 type FormState = {
@@ -185,6 +198,8 @@ export default function MainExpenses({
   primaryCurrencyCode,
   initialMonth,
   autoOpenCreate = false,
+  cuentasDisponibles = [],
+  cuentasElegidas = [],
 }: Props) {
   const router = useRouter();
 
@@ -426,15 +441,41 @@ export default function MainExpenses({
     });
   };
 
+  const consolidando = estaConsolidando(cuentasElegidas);
+
+  const nombresDeCuenta = useMemo(
+    () => nombresPorCuenta(lasCuentasElegidas(cuentasDisponibles, cuentasElegidas)),
+    [cuentasDisponibles, cuentasElegidas],
+  );
+
+  // Consolidar es para MIRAR, no para editar: las acciones de escritura de
+  // Finanzas acotan por la cuenta con la que se llaman, así que el lápiz sobre
+  // una fila ajena contestaría «no encontrada». Se ve, y para tocarla se entra
+  // a esa cuenta.
+  const filaAjena = useCallback(
+    (fila: ExpenseRow) => consolidando && esDeOtraCuenta(fila.userId, userId),
+    [consolidando, userId],
+  );
+
   const columns = useMemo(
-    () =>
-      buildExpenseColumns({
+    () => {
+      const propias = buildExpenseColumns({
         onEdit: openEdit,
         onDelete,
         busy: isPending,
-      }),
-    [isPending] // eslint-disable-line react-hooks/exhaustive-deps
+        esDeOtraCuenta: filaAjena,
+      });
+      return consolidando
+        ? [columnaDeCuenta<ExpenseRow>((f) => f.userId, nombresDeCuenta), ...propias]
+        : propias;
+    },
+    [isPending, consolidando, nombresDeCuenta, filaAjena] // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  const selectorDeCuentas =
+    cuentasDisponibles.length > 0 ? (
+      <SelectorDeCuentas disponibles={cuentasDisponibles} elegidas={cuentasElegidas} />
+    ) : null;
 
   const monthRows = useMemo(() => {
     return rows.filter((r) => isSameMonth(new Date(r.occurredAt), selectedMonthDate));
@@ -502,6 +543,8 @@ export default function MainExpenses({
                   searchKey="name"
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
+                  filtrosExtra={selectorDeCuentas}
+                  filaEditable={(fila) => !filaAjena(fila)}
                   acciones={(seleccionados, limpiar) => (
                     <AccionesMasivas
                       seleccionados={seleccionados}
@@ -550,6 +593,8 @@ export default function MainExpenses({
                   searchKey="name"
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
+                  filtrosExtra={selectorDeCuentas}
+                  filaEditable={(fila) => !filaAjena(fila)}
                   acciones={(seleccionados, limpiar) => (
                     <AccionesMasivas
                       seleccionados={seleccionados}
@@ -600,6 +645,7 @@ export default function MainExpenses({
             <DialogHeader className="space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <DialogTitle className="text-base">Detalle de gasto</DialogTitle>
+{(detailRow ? filaAjena(detailRow) : false) ? null : (
                 <div className="flex items-center gap-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -637,6 +683,7 @@ export default function MainExpenses({
                     <TooltipContent>Eliminar</TooltipContent>
                   </Tooltip>
                 </div>
+)}
               </div>
               <p className="text-xs text-muted-foreground">Visualiza el resumen y soportes.</p>
             </DialogHeader>

@@ -1,11 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { DataTable } from './data-table';
 import { buildContactsColumns, type FinanceContactRow } from './columns';
+import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
+import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
+import {
+  esDeOtraCuenta,
+  estaConsolidando,
+  lasCuentasElegidas,
+  nombresPorCuenta,
+  type CuentaDeFinanzas,
+} from '@/lib/finanzas-de-la-familia';
 import { FieldBuilderDialog } from './FieldBuilderDialog';
 
 import {
@@ -49,6 +58,10 @@ type Props = {
   contacts: FinanceContactRow[];
   fields: FinanceFieldDef[];
   autoOpenCreate?: boolean;
+  /** Las cuentas de la familia entre las que se puede elegir. Vacía: sin selector. */
+  cuentasDisponibles?: CuentaDeFinanzas[];
+  /** Las que están puestas ahora mismo, ya resueltas en el servidor. */
+  cuentasElegidas?: string[];
 };
 
 // Auto-nombres que WhatsApp asigna a mensajes propios/salientes (no son el
@@ -76,7 +89,15 @@ function FieldWrap({ label, children, hint }: { label: string; children: React.R
   );
 }
 
-export default function MainFinanceContacts({ userId, kind, contacts, fields, autoOpenCreate = false }: Props) {
+export default function MainFinanceContacts({
+  userId,
+  kind,
+  contacts,
+  fields,
+  autoOpenCreate = false,
+  cuentasDisponibles = [],
+  cuentasElegidas = [],
+}: Props) {
   const router = useRouter();
   const labels = LABELS[kind];
   const [isPending, startTransition] = useTransition();
@@ -208,10 +229,42 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
     });
   };
 
-  const columns = useMemo(
-    () => buildContactsColumns({ fields: config, onEdit: openEdit, onDelete, busy: isPending }),
-    [config, isPending], // eslint-disable-line react-hooks/exhaustive-deps
+  const consolidando = estaConsolidando(cuentasElegidas);
+
+  const nombresDeCuenta = useMemo(
+    () => nombresPorCuenta(lasCuentasElegidas(cuentasDisponibles, cuentasElegidas)),
+    [cuentasDisponibles, cuentasElegidas],
   );
+
+  // Consolidar es para MIRAR, no para editar: las acciones de escritura de
+  // Finanzas acotan por la cuenta con la que se llaman, así que el lápiz sobre
+  // una fila ajena contestaría «no encontrada». Se ve, y para tocarla se entra
+  // a esa cuenta.
+  const filaAjena = useCallback(
+    (fila: FinanceContactRow) => consolidando && esDeOtraCuenta(fila.userId, userId),
+    [consolidando, userId],
+  );
+
+  const columns = useMemo(
+    () => {
+      const propias = buildContactsColumns({
+        fields: config,
+        onEdit: openEdit,
+        onDelete,
+        busy: isPending,
+        esDeOtraCuenta: filaAjena,
+      });
+      return consolidando
+        ? [columnaDeCuenta<FinanceContactRow>((f) => f.userId, nombresDeCuenta), ...propias]
+        : propias;
+    },
+    [config, isPending, consolidando, nombresDeCuenta, filaAjena], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const selectorDeCuentas =
+    cuentasDisponibles.length > 0 ? (
+      <SelectorDeCuentas disponibles={cuentasDisponibles} elegidas={cuentasElegidas} />
+    ) : null;
 
   const visibleFields = useMemo(() => config.filter((f) => !f.hidden), [config]);
 
@@ -348,7 +401,9 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
               data={rows}
               searchKey="name"
               searchPlaceholder={`Buscar ${labels.plural.toLowerCase()}...`}
-              onRowClick={openEdit}
+              onRowClick={(fila) => { if (!filaAjena(fila)) openEdit(fila); }}
+              filtrosExtra={selectorDeCuentas}
+              filaEditable={(fila) => !filaAjena(fila)}
               toolbarRight={
                 <>
                   <Button

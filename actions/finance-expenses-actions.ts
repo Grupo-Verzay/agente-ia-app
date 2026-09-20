@@ -2,6 +2,8 @@
 
 import { db } from '@/lib/db';
 import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { lasCuentasQueSeConsultan } from '@/lib/cuentas-de-finanzas';
+import { topeDeLaLista } from '@/lib/finanzas-de-la-familia';
 import { Prisma, FinanceTxType, FinanceTxStatus } from '@prisma/client';
 
 type ExpenseRow = Prisma.FinanceTransactionGetPayload<{
@@ -92,16 +94,26 @@ function serializeExpense(row: ExpenseRow) {
   };
 }
 
+/**
+ * Los gastos de la cuenta, o de varias de su familia si se está consolidando.
+ *
+ * `cuentasPedidas` pasa por `lasCuentasQueSeConsultan`, la misma puerta que
+ * decide si se pinta el selector: una acción es un endpoint, así que la lista
+ * que llega del navegador no decide a qué se llega. Sin el parámetro se
+ * consulta solo la propia, igual que antes.
+ */
 export async function getAllExpenses(
-  userIdPedido: string
+  userIdPedido: string,
+  cuentasPedidas?: readonly string[] | null,
 ): Promise<ExpenseOperationResponse<any[]>> {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
+  const cuentas = await lasCuentasQueSeConsultan(userId, cuentasPedidas);
   try {
     await ensureFinanceDefaults(userId);
 
     const list = await db.financeTransaction.findMany({
       where: {
-        userId,
+        userId: { in: cuentas },
         type: 'EXPENSE',
         status: { not: 'DELETED' },
       },
@@ -112,7 +124,7 @@ export async function getAllExpenses(
         currency: true,
         attachments: true,
       },
-      take: 200,
+      take: topeDeLaLista(cuentas.length),
     });
 
     //  aquí quitamos Decimal

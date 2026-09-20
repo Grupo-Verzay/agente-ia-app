@@ -106,3 +106,33 @@ export async function resolverLasCuentasDeFinanzas(
         return soloLaSuya();
     }
 }
+
+/**
+ * Las cuentas que una consulta de lista va a mirar de verdad.
+ *
+ * **Una acción de servidor ES un endpoint**, así que `getAllSales(propia, ids)`
+ * se puede llamar desde el navegador con los ids que uno quiera. Por eso la
+ * lista que llega **no se usa: se re-resuelve** con la misma puerta que pinta
+ * el selector —manda en su cuenta, es la MADRE de su familia, y la familia
+ * tiene más de una cuenta—. Lo que no alcanza se cae aquí, no en la pantalla:
+ * esconder el selector no cierra la petición directa.
+ *
+ * Sin selección, sin permiso o sin familia devuelve **solo la cuenta propia**,
+ * que es exactamente lo que estas cuatro listas hacían antes de esto.
+ */
+export async function lasCuentasQueSeConsultan(
+    propia: string,
+    cuentasPedidas: string | readonly string[] | null | undefined,
+): Promise<string[]> {
+    // El camino de siempre no paga ni una consulta: sin parámetro no hay nada
+    // que resolver, y esa es la inmensa mayoría de las cargas —toda cuenta
+    // hija, todo agente y cualquiera que no toque el selector—.
+    if (!cuentasPedidas) return [propia];
+    if (Array.isArray(cuentasPedidas) && cuentasPedidas.length === 0) return [propia];
+
+    const { elegidas } = await resolverLasCuentasDeFinanzas(
+        propia,
+        Array.isArray(cuentasPedidas) ? [...cuentasPedidas] : (cuentasPedidas as string),
+    );
+    return elegidas;
+}

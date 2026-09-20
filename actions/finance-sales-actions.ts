@@ -2,6 +2,8 @@
 
 import { db } from '@/lib/db';
 import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { lasCuentasQueSeConsultan } from '@/lib/cuentas-de-finanzas';
+import { topeDeLaLista } from '@/lib/finanzas-de-la-familia';
 import { FinanceAccount, FinanceAccountType, FinanceCategory, FinanceCurrency, FinanceTxStatus, FinanceTxType, Prisma } from '@prisma/client';
 
 type AttachmentInput = {
@@ -114,14 +116,27 @@ export type VentaSerializada = ReturnType<typeof serializeTx<Prisma.FinanceTrans
   };
 }>>>;
 
-export async function getAllSales(userIdPedido: string): Promise<OperationResponse<VentaSerializada[]>> {
+/**
+ * Las ventas de la cuenta, o de varias de su familia si se está consolidando.
+ *
+ * `cuentasPedidas` **no se usa tal como llega**: pasa por
+ * `lasCuentasQueSeConsultan`, que es la misma puerta que decide si se pinta el
+ * selector. Una acción es un endpoint, así que sin eso bastaría con llamarla a
+ * mano con el id de otra cuenta. Sin el parámetro se consulta solo la propia,
+ * que es lo que hacía antes de que el selector existiera.
+ */
+export async function getAllSales(
+  userIdPedido: string,
+  cuentasPedidas?: readonly string[] | null,
+): Promise<OperationResponse<VentaSerializada[]>> {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
+  const cuentas = await lasCuentasQueSeConsultan(userId, cuentasPedidas);
   try {
     await ensureFinanceSalesDefaults(userId);
 
     const list = await db.financeTransaction.findMany({
       where: {
-        userId,
+        userId: { in: cuentas },
         type: SALES_TYPE,
         status: { not: FinanceTxStatus.DELETED },
       },
@@ -139,7 +154,7 @@ export async function getAllSales(userIdPedido: string): Promise<OperationRespon
           },
         },
       },
-      take: 200,
+      take: topeDeLaLista(cuentas.length),
     });
 
     return {

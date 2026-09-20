@@ -3,6 +3,7 @@ import { getFinanceUser } from "@/lib/finance-user";
 import { getFinanceContacts } from "@/actions/finance-contacts-actions";
 import { getContactFieldConfig } from "@/actions/finance-contact-fields-actions";
 import { serializePrisma } from "@/lib/serialize-prisma";
+import { resolverLasCuentasDeFinanzas } from "@/lib/cuentas-de-finanzas";
 import { defaultFields } from "@/lib/finance-contact-fields";
 import MainFinanceContacts from "../_contacts/MainFinanceContacts";
 import type { FinanceContactRow } from "../_contacts/columns";
@@ -13,13 +14,17 @@ export const revalidate = 0;
 export default async function ProvidersPage({
   searchParams,
 }: {
-  searchParams?: { create?: string | string[] };
+  searchParams?: { create?: string | string[]; cuentas?: string | string[] };
 }) {
   const user = await getFinanceUser();
   if (!user?.id) return <AccessDenied />;
 
+  // La configuración de campos sigue siendo la de la cuenta propia: consolidar
+  // enseña contactos de varias, pero las columnas las decide quien mira.
+  const cuentas = await resolverLasCuentasDeFinanzas(user.id, searchParams?.cuentas);
+
   const [listRes, fieldRes] = await Promise.all([
-    getFinanceContacts(user.id, "SUPPLIER"),
+    getFinanceContacts(user.id, "SUPPLIER", cuentas.elegidas),
     getContactFieldConfig(user.id, "SUPPLIER"),
   ]);
   if (!listRes.success) return <div className="p-6 text-sm text-red-500">{listRes.message}</div>;
@@ -36,6 +41,8 @@ export default async function ProvidersPage({
       contacts={contacts}
       fields={fields}
       autoOpenCreate={autoOpenCreate}
+      cuentasDisponibles={cuentas.disponibles}
+      cuentasElegidas={cuentas.elegidas}
     />
   );
 }

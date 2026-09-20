@@ -15,6 +15,8 @@ import { SafeImage } from '@/components/custom/SafeImage';
 
 export type ExpenseRow = {
     id: string;
+    /** De qué cuenta es la fila. Solo se mira al consolidar. */
+    userId?: string | null;
     occurredAt: string | Date;
     amount: string | number | null;
     currencyCode: string;
@@ -52,6 +54,13 @@ export function buildExpenseColumns(opts: {
     onEdit: (row: ExpenseRow) => void;
     onDelete: (id: string) => void;
     busy?: boolean;
+    /**
+     * Una fila de otra cuenta se ve y no se toca. Las acciones de escritura de
+     * Finanzas acotan por la cuenta con la que se llaman, así que el menú sobre
+     * una fila ajena contestaría «no encontrado»: menú abierto, puerta cerrada.
+     * Para editarla se entra a esa cuenta.
+     */
+    esDeOtraCuenta?: (row: ExpenseRow) => boolean;
 }): ColumnDef<ExpenseRow>[] {
     return [
         {
@@ -152,6 +161,9 @@ export function buildExpenseColumns(opts: {
             header: '',
             cell: ({ row }) => {
                 const original = row.original;
+                if (opts.esDeOtraCuenta?.(original)) {
+                    return <span className="block text-right text-xs text-muted-foreground">—</span>;
+                }
 
                 return (
                     <div className="flex justify-end">

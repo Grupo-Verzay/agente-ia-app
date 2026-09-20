@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { lasCuentasQueSeConsultan } from '@/lib/cuentas-de-finanzas';
 import type { Prisma } from '@prisma/client';
 import { isSystemColumnKey, CONTACT_LINK_KEY } from '@/lib/finance-contact-fields';
 
@@ -64,12 +65,28 @@ async function nextCode(userId: string, kind: Kind): Promise<string> {
   return `${prefix}-${count + 1}`;
 }
 
-export async function getFinanceContacts(userIdPedido: string, kind: Kind): Promise<Resp> {
+/**
+ * Los contactos de la cuenta, o de varias de su familia si se consolida.
+ *
+ * Un contacto **no lleva dinero** —`FinanceContact` no tiene importe ni
+ * moneda—, así que aquí la regla de las monedas distintas no muerde: no hay
+ * nada que sumar. Lo que sí hace falta es decir de qué cuenta es cada fila, y
+ * eso lo pinta la columna «Cuenta».
+ *
+ * `cuentasPedidas` pasa por `lasCuentasQueSeConsultan`: la lista que llega del
+ * navegador no decide a qué se llega.
+ */
+export async function getFinanceContacts(
+  userIdPedido: string,
+  kind: Kind,
+  cuentasPedidas?: readonly string[] | null,
+): Promise<Resp> {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
+  const cuentas = await lasCuentasQueSeConsultan(userId, cuentasPedidas);
   try {
     if (!userId) return { success: false, message: 'No existe el userId', data: [] };
     const data = await db.financeContact.findMany({
-      where: { userId, kind, status: 'ACTIVE' },
+      where: { userId: { in: cuentas }, kind, status: 'ACTIVE' },
       orderBy: { createdAt: 'desc' },
       include: { session: { select: { id: true, pushName: true, customName: true, remoteJid: true } } },
     });

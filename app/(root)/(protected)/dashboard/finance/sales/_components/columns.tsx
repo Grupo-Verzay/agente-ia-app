@@ -23,9 +23,16 @@ type BuildColsArgs = {
   onEdit: (row: SaleTxRow) => void;
   onDelete: (id: string) => void;
   busy?: boolean;
+  /**
+   * Una fila de otra cuenta se ve y no se toca. Las acciones de escritura de
+   * Finanzas acotan por la cuenta con la que se llaman, así que el lápiz y la
+   * papelera sobre una fila ajena contestarían «no encontrada»: menú abierto,
+   * puerta cerrada. Para editarla se entra a esa cuenta.
+   */
+  esDeOtraCuenta?: (row: SaleTxRow) => boolean;
 };
 
-export function buildSalesColumns({ onEdit, onDelete, busy }: BuildColsArgs): ColumnDef<SaleTxRow>[] {
+export function buildSalesColumns({ onEdit, onDelete, busy, esDeOtraCuenta }: BuildColsArgs): ColumnDef<SaleTxRow>[] {
   return [
     {
       accessorKey: 'title',
@@ -58,6 +65,9 @@ export function buildSalesColumns({ onEdit, onDelete, busy }: BuildColsArgs): Co
       header: '',
       cell: ({ row }) => {
         const original = row.original;
+        if (esDeOtraCuenta?.(original)) {
+          return <span className="block text-right text-xs text-muted-foreground">—</span>;
+        }
 
         return (
           <div className="flex justify-end gap-1">
