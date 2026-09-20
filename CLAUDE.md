@@ -3016,20 +3016,151 @@ existen es la que nadie prueba.
 
 ### Dónde responde el selector, y dónde no
 
-**Solo en `/dashboard/finance`**, que es donde están el resumen anual y la
-gráfica. No se puso en la cabecera —donde se vería en todas las pantallas de
-Finanzas— justamente por eso: las listas de Ventas, Gastos, Clientes y
-Proveedores **no** lo respetan, así que un selector visible ahí sería un filtro
-que promete algo que la pantalla de al lado no hace. Es el «menú abierto,
-puerta cerrada» que este repositorio ya pagó en Clientes, en Equipo y en el
-panel. Si algún día esas listas tienen que consolidar, el selector sube a la
-cabecera **con ellas**, no antes.
+> Esta sección decía «**solo en `/dashboard/finance`**», y esa era la mitad
+> honesta de un pendiente: se dejó fuera de las listas a propósito, con la
+> condición escrita de que el día que consolidaran, el selector iría **con
+> ellas**. Ya está: Ventas, Gastos, Clientes y Proveedores lo llevan, contado
+> en *las cuatro listas también consolidan*. Lo que sigue explica por qué no se
+> puso en la CABECERA, que es otra pregunta y sigue igual de vigente.
+
+**El selector va en la barra de CADA lista, no en la cabecera de Finanzas.**
+Puesto en la cabecera se vería en todas las pantallas del módulo, incluidas las
+que no lo respetan —Cuentas, Categorías, Monedas—, y eso es un filtro que
+promete algo que la pantalla de al lado no hace: el «menú abierto, puerta
+cerrada» que este repositorio ya pagó en Clientes, en Equipo y en el panel. Una
+pantalla que consolida lo enseña; una que no, no lo enseña.
 
 Medido en Chromium sobre el CSS del build: el selector se topa en 256 px
 (`max-w-[16rem]`) y recorta el nombre largo en las tres anchuras; la tabla del
 desglose va `table-fixed` con `min-w-[34rem]` y **solo se desplaza por debajo de
 768 px**, que es preferible a recortar los números que se vienen a leer. La
 página no desborda a 1440, 1280, 1024 ni 390.
+
+### Y las cuatro listas también consolidan
+
+Ventas, Gastos, Clientes y Proveedores llevan **el mismo selector**, movido a
+`components/shared/SelectorDeCuentas.tsx`. No es una copia: con cinco, el día
+que se afine dónde vive la selección o cómo se lee el rótulo se afina en una y
+las otras cuatro se quedan atrás — y eso no se ve como un error, se ve como que
+«en Gastos el selector a veces no hace lo mismo».
+
+Y va **dentro de `BarraDeAcciones`**, en el hueco `filtros`, no en una fila
+suelta encima. Una fila propia son 40 px que se le quitan a la tabla en cuatro
+pantallas, que es justo lo que la vuelta de las métricas acababa de recuperar.
+
+> **La puerta no cambia, y por eso esto no abre nada.** Las cuatro consultas
+> pasan por `lasCuentasQueSeConsultan`, que **re-resuelve** la lista que llega
+> del navegador con la misma regla que pinta el selector —manda en su cuenta,
+> es la MADRE de su familia, y la familia tiene más de una cuenta—. Una acción
+> de servidor ES un endpoint: `getAllSales(propia, ids)` se puede llamar a mano
+> con los ids que uno quiera, y lo que no alcanza se cae ahí.
+
+De ahí salen las dos mitades que se comprobaron contra Postgres, con la malla
+real dentro: **la hija ve lo suyo y nada más** —aunque escriba a mano el
+parámetro con su madre y su hermana dentro— y **la madre consolida**, solo lo
+de su familia. Un id de fuera se cae y no arrastra a los buenos.
+
+**Y el camino de siempre no paga ni una consulta.** Sin parámetro
+`lasCuentasQueSeConsultan` devuelve la cuenta propia sin preguntar nada, que es
+la inmensa mayoría de las cargas: toda cuenta hija, todo agente y cualquiera
+que no toque el selector. El banco lo prueba haciendo que preguntar quién mira
+**reviente**: si alguien lo pregunta, ese caso se pone en rojo.
+
+#### Consolidar es para MIRAR, no para editar
+
+Es la parte que había que resolver antes de enseñar una sola fila ajena. Las
+acciones de escritura de Finanzas acotan por la cuenta con la que se llaman
+—`where: { id, userId }`—, así que el lápiz o la papelera sobre una fila de una
+cuenta hermana contestarían **«no encontrada»**: menú abierto, puerta cerrada.
+
+Así que una fila de otra cuenta **se ve y no se toca**, y eso son cuatro sitios
+y no uno —con tres, el cuarto es por donde se cuela—:
+
+1. La columna de acciones enseña «—» en vez del lápiz y la papelera.
+2. **No se puede marcar**: `enableRowSelection` pasa a ser un predicado y la
+   casilla se pinta detrás de `row.getCanSelect()`. Sin esto, «eliminar 12» se
+   llevaría ocho y diría que doce.
+3. El **diálogo de detalle** de Ventas y Gastos lleva dentro sus propios
+   «Editar» y «Eliminar»: el grupo entero no se pinta.
+4. En Contactos, la fila **abre el editor al pulsarla**, así que ese clic se
+   gatea también. Un diálogo que se abre y falla al guardar es peor que uno que
+   no se abre.
+
+Y «Eliminar todas» **desaparece mientras se consolida**: esa acción acota por
+la cuenta propia, así que debajo de una lista de tres cuentas prometería lo que
+no hace.
+
+Quién decide es `esDeOtraCuenta(dueñoDeLaFila, propia)`, puro, y **sin dueño no
+es ajena**: se pintaría un «—» donde hay una fila perfectamente editable, y el
+lápiz desaparecería sin decir por qué.
+
+#### La columna «Cuenta» solo existe consolidando, y va la PRIMERA
+
+Sin ella una lista consolidada es un revoltijo: veinte ventas de tres empresas
+seguidas, ordenadas por fecha y sin decir de quién es cada una. Está escrita
+una vez (`components/shared/ColumnaDeCuenta.tsx`) y lleva **`accessorFn`** y no
+solo `cell`: sin él el buscador de la tabla no mira esa columna, y buscar por
+el nombre de una cuenta es justo lo que se hace en una lista consolidada.
+
+Va la primera porque es lo que agrupa la lectura; al final habría que recorrer
+la fila entera para saber de dónde sale.
+
+#### Las MONEDAS: la regla es la misma función, no una copia
+
+`laMonedaDeLaSeleccion` decide, y la usan **las dos**: `consolidar` —que es
+quien decide si el resumen pinta su total— y el selector. Con dos copias, una
+diría que sí se puede sumar y la otra que no.
+
+Aquí no hay ningún total que esconder: **una lista enseña cada fila en su
+moneda, que es cierta**, y Ventas y Gastos no pintan ninguna suma —lo que hubo
+se fue con las métricas—. Así que lo que se hace es **decirlo donde se elige**:
+con monedas mezcladas el selector se pone en ámbar, con su triángulo, y explica
+por qué esas cifras no se van a sumar en ninguna parte. Y el motivo **nombra
+las dos monedas**: «no se puede» a secas manda a buscar un fallo que no existe.
+
+Los contactos —Clientes y Proveedores— no llevan dinero encima, así que ahí la
+regla no muerde y se dice en la acción, para que nadie la busque.
+
+#### El tope de la lista CRECE con las cuentas
+
+`topeDeLaLista(n)` son 200 por cuenta con techo de 1000. Sin eso, consolidar
+tres cuentas enseñaría un tercio de cada una y parecería que faltan filas; y
+sin el techo, una familia grande se trae miles de filas que viajan **enteras**
+al navegador. Nunca cero: una lista con `take: 0` sale vacía y se lee como que
+no hay nada.
+
+#### Y el buscador salió del carril
+
+Las tres tablas de Finanzas metían su `<Input>` **dentro de `filtros`**, o sea
+dentro del carril que se desplaza. Con el selector al lado eso es exactamente
+el fallo que `BarraDeAcciones` ya arregló una vez: la flecha corre la fila de
+punta a punta y el buscador se va de la pantalla. Medido a 390 px con la barra
+de antes, el carril sobraba 140 px **con el buscador dentro**; ahora va en su
+hueco `buscador` y sobra 0.
+
+#### Un fallo latente que salió al escribir el banco
+
+`comoListaDeCuentas` cogía **solo `raw[0]`** de un arreglo. `searchParams.cuentas`
+llega como arreglo cuando el parámetro se repite (`?cuentas=a&cuentas=b`), así
+que por ese camino consolidar enseñaba **una** cuenta y parecía que el selector
+no hacía nada. Ahora se juntan todos.
+
+#### Medido en Chromium, sobre el CSS del build
+
+42 combinaciones: seis variantes de barra —Ventas antes, con una cuenta, con
+tres, con un nombre largo, y Proveedores con y sin selector— por cuatro
+anchuras, con el menú lateral abierto y plegado.
+
+| | alto | buscador | azul → | `⋯` → | ¿se va el buscador? | desborda |
+| --- | --- | --- | --- | --- | --- | --- |
+| **antes**, 390 | 40 px | dentro del carril | 48 | 0 | **SÍ** | no |
+| **ahora**, las 42 | **40 px** | x=0, fijo | 48 | 0 | **no** | no |
+
+La barra mide 40 px en las cuarenta y dos, el azul queda a 48 px del borde —el
+ancho del `⋯` más su hueco— y el `⋯` pegado a 0. Con el nombre de cuenta más
+largo a 1024 el carril sobra 218 px y **se desplaza con flechas**, que es lo
+que hace esta barra desde el #815; lo que no pasa en ninguna es que la barra
+crezca de alto ni que el buscador se pierda.
 
 ## La barra de pestañas se corta: flechas, y la activa se trae sola
 

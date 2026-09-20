@@ -88,7 +88,12 @@ export function laSeleccionQueVale(
 export const TOPE_DE_CUENTAS = 50;
 
 export function comoListaDeCuentas(raw: string | string[] | null | undefined): string[] {
-    const texto = Array.isArray(raw) ? raw[0] : raw;
+    // Un arreglo se JUNTA, no se recorta a su primer elemento. Llega por dos
+    // caminos y los dos lo necesitan entero: `?cuentas=a&cuentas=b`, que es como
+    // Next entrega un parámetro repetido, y la lista de ids que le pasa una
+    // acción. Quedándose con `raw[0]` se consultaba **una sola cuenta** y la
+    // pantalla salía con menos filas de las pedidas, sin un solo error.
+    const texto = Array.isArray(raw) ? raw.join(",") : raw;
     if (!texto) return [];
 
     return String(texto)
@@ -100,6 +105,122 @@ export function comoListaDeCuentas(raw: string | string[] | null | undefined): s
 
 export function comoParametroDeCuentas(ids: readonly string[]): string {
     return ids.join(",");
+}
+
+/* ───────────────────── Lo que se está mirando ahora ─────────────────────── */
+
+/**
+ * Las cuentas elegidas, en el orden en que se ofrecen.
+ *
+ * Se filtra contra `disponibles` y no al revés: lo que no esté ahí no se puede
+ * nombrar, así que un id que llegó por la URL y no alcanza **no aparece** en
+ * ninguna lista de la pantalla. Es la misma regla de `laSeleccionQueVale` un
+ * paso más adelante, aplicada a lo que se pinta.
+ */
+export function lasCuentasElegidas(
+    disponibles: readonly CuentaDeFinanzas[],
+    elegidas: readonly string[],
+): CuentaDeFinanzas[] {
+    const puestas = new Set(elegidas);
+    return disponibles.filter((c) => puestas.has(c.id));
+}
+
+/**
+ * ¿Se está consolidando? Es **más de una cuenta**, no «hay selector».
+ *
+ * De aquí cuelga todo lo que cambia en una lista: la columna «Cuenta», que las
+ * filas de otra cuenta no se editen, y el aviso de monedas. Con una sola cuenta
+ * elegida —el caso de siempre, y el único que ve una cuenta hija— la pantalla
+ * tiene que verse exactamente como antes de que esto existiera.
+ */
+export function estaConsolidando(elegidas: readonly string[]): boolean {
+    return elegidas.length > 1;
+}
+
+/** El nombre de cada cuenta elegida, para pintarlo en la fila. */
+export function nombresPorCuenta(cuentas: readonly CuentaDeFinanzas[]): Record<string, string> {
+    const nombres: Record<string, string> = {};
+    for (const c of cuentas) nombres[c.id] = c.nombre;
+    return nombres;
+}
+
+/**
+ * Consolidar es para MIRAR, no para editar.
+ *
+ * Las acciones de escritura de Finanzas acotan por la cuenta con la que se
+ * llaman —`deleteSale` hace `where: { id, userId }`—, así que una fila de otra
+ * cuenta **no casa con ninguna** y el botón contesta «Venta no encontrada». Eso
+ * es «menú abierto, puerta cerrada»: se ofrece algo que la acción de detrás
+ * rechaza.
+ *
+ * Así que la fila ajena se ve y no se toca: sin lápiz, sin papelera y sin
+ * casilla. Para editarla se entra a esa cuenta, que es donde manda su fila
+ * efectiva. Ensanchar la escritura a toda la familia sería lo contrario de lo
+ * que dice la regla de alcance.
+ */
+export function esDeOtraCuenta(duenoDeLaFila: string | null | undefined, propia: string): boolean {
+    const dueno = String(duenoDeLaFila ?? "").trim();
+    return Boolean(dueno) && dueno !== propia;
+}
+
+/**
+ * Cuántas filas trae una lista, que **crece con las cuentas elegidas**.
+ *
+ * Ventas y Gastos traen 200 filas por cuenta desde siempre. Dejando ese 200
+ * fijo al consolidar, las cinco cuentas se repartirían las mismas 200 —van
+ * ordenadas por fecha, así que se intercalan— y **cada una enseñaría menos de
+ * lo que enseña sola**: consolidar se vería como perder filas.
+ *
+ * Con techo, porque esta lista viaja entera al navegador y se filtra allí: sin
+ * él, una familia grande manda miles de filas con sus adjuntos dentro.
+ */
+export const TOPE_POR_CUENTA = 200;
+export const TECHO_DE_LA_LISTA = 1000;
+
+export function topeDeLaLista(cuantasCuentas: number): number {
+    const cuentas = Math.max(1, Math.floor(cuantasCuentas));
+    return Math.min(cuentas * TOPE_POR_CUENTA, TECHO_DE_LA_LISTA);
+}
+
+/* ──────────────────────────── La moneda ─────────────────────────────────── */
+
+export type MonedaDeLaSeleccion = {
+    /** La moneda común, o `null` si no la hay. */
+    moneda: string | null;
+    /** Por qué no se puede sumar. `null` cuando sí se puede. */
+    motivo: string | null;
+};
+
+/**
+ * ¿Comparten moneda las cuentas elegidas? **Esta es la única que lo decide.**
+ *
+ * Estaba escrita dentro de `consolidar`, o sea que solo la sabía el desglose
+ * del resumen. Al extender el selector a Ventas, Gastos, Clientes y
+ * Proveedores haría falta la misma pregunta en cinco sitios, y copiada en cada
+ * uno el día que se afine una las otras se quedan atrás — que aquí no se ve
+ * como un error: se ve como una pantalla que suma pesos con dólares y enseña
+ * un número perfectamente creíble.
+ *
+ * Sumar monedas distintas es la familia del «999999999 de -1 créditos»: *un
+ * número que no se puede calcular no se sustituye por otro*.
+ */
+export function laMonedaDeLaSeleccion(
+    cuentas: readonly { moneda: string }[],
+): MonedaDeLaSeleccion {
+    if (cuentas.length === 0) {
+        return { moneda: null, motivo: "No hay ninguna cuenta elegida." };
+    }
+
+    const monedas = new Set(cuentas.map((c) => c.moneda));
+    if (monedas.size > 1) {
+        const lista = Array.from(monedas).sort().join(", ");
+        return {
+            moneda: null,
+            motivo: `Las cuentas elegidas usan monedas distintas (${lista}), así que no se pueden sumar.`,
+        };
+    }
+
+    return { moneda: cuentas[0].moneda, motivo: null };
 }
 
 /**
@@ -135,20 +256,10 @@ export function consolidar(
         };
     });
 
-    if (filas.length === 0) {
-        return { filas, total: null, moneda: null, sinTotalPorque: "No hay ninguna cuenta elegida." };
-    }
-
-    const monedas = new Set(filas.map((f) => f.moneda));
-    if (monedas.size > 1) {
-        const lista = Array.from(monedas).sort().join(", ");
-        return {
-            filas,
-            total: null,
-            moneda: null,
-            sinTotalPorque: `Las cuentas elegidas usan monedas distintas (${lista}), así que no se pueden sumar.`,
-        };
-    }
+    // La decide `laMonedaDeLaSeleccion`, que es la MISMA que miran el selector y
+    // las cuatro listas. Escrita aquí dentro solo la sabía este desglose.
+    const { moneda, motivo } = laMonedaDeLaSeleccion(filas);
+    if (!moneda) return { filas, total: null, moneda: null, sinTotalPorque: motivo };
 
     const ingresos = filas.reduce((suma, f) => suma + f.ingresos, 0);
     const gastos = filas.reduce((suma, f) => suma + f.gastos, 0);
@@ -156,7 +267,7 @@ export function consolidar(
     return {
         filas,
         total: { ingresos, gastos, balance: ingresos - gastos },
-        moneda: filas[0].moneda,
+        moneda,
         sinTotalPorque: null,
     };
 }

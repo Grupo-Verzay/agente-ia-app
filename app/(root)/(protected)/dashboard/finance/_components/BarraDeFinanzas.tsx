@@ -16,9 +16,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import type { CuentaDeFinanzas } from '@/lib/finanzas-de-la-familia';
 
-import { SelectorDeCuentas } from './SelectorDeCuentas';
 import { VaciarContabilidad } from './VaciarContabilidad';
 
 /**

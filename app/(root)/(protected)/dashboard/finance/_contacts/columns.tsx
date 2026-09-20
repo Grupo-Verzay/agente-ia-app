@@ -19,6 +19,8 @@ export type ContactSession = {
 
 export type FinanceContactRow = {
   id: string;
+  /** De qué cuenta es la fila. Solo se mira al consolidar. */
+  userId?: string | null;
   code?: string | null;
   name: string;
   phone?: string | null;
@@ -40,11 +42,19 @@ export function buildContactsColumns({
   onEdit,
   onDelete,
   busy,
+  esDeOtraCuenta,
 }: {
   fields: FinanceFieldDef[];
   onEdit: (row: FinanceContactRow) => void;
   onDelete: (id: string) => void;
   busy?: boolean;
+  /**
+   * Una fila de otra cuenta se ve y no se toca. Las acciones de escritura de
+   * Finanzas acotan por la cuenta con la que se llaman, así que el lápiz y la
+   * papelera sobre una fila ajena contestarían «no encontrada»: menú abierto,
+   * puerta cerrada. Para editarla se entra a esa cuenta.
+   */
+  esDeOtraCuenta?: (row: FinanceContactRow) => boolean;
 }): ColumnDef<FinanceContactRow>[] {
   const cols: ColumnDef<FinanceContactRow>[] = [];
 
@@ -94,16 +104,19 @@ export function buildContactsColumns({
     header: '',
     enableHiding: false,
     enableSorting: false,
-    cell: ({ row }) => (
-      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => onEdit(row.original)} disabled={busy}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => onDelete(row.original.id)} disabled={busy}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    ),
+    cell: ({ row }) =>
+      esDeOtraCuenta?.(row.original) ? (
+        <span className="block text-right text-xs text-muted-foreground">—</span>
+      ) : (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => onEdit(row.original)} disabled={busy}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => onDelete(row.original.id)} disabled={busy}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
   });
 
   return cols;

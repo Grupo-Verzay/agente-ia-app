@@ -6,6 +6,15 @@ import { toast } from 'sonner';
 
 import { DataTable } from './data-table';
 import { buildSalesColumns, type SaleTxRow } from './columns';
+import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
+import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
+import {
+  esDeOtraCuenta,
+  estaConsolidando,
+  lasCuentasElegidas,
+  nombresPorCuenta,
+  type CuentaDeFinanzas,
+} from '@/lib/finanzas-de-la-familia';
 
 import {
   createSale,
@@ -75,6 +84,10 @@ type Props = {
   autoOpenCreate?: boolean;
   /** Lo que se tecleó en el buscador del resumen de Finanzas (`?q=`). */
   initialSearch?: string;
+  /** Las cuentas de la familia que se pueden elegir. Vacío = no hay selector. */
+  cuentasDisponibles?: CuentaDeFinanzas[];
+  /** Las que se están mirando. Con más de una, la lista va consolidada. */
+  cuentasElegidas?: string[];
 };
 
 type FormState = {
@@ -216,6 +229,8 @@ export default function MainSales({
   initialMonth,
   autoOpenCreate = false,
   initialSearch,
+  cuentasDisponibles = [],
+  cuentasElegidas = [],
 }: Props) {
   // Cuenta para el catálogo de productos y contactos (operativa); el dinero usa userId.
   const catUserId = catalogUserId ?? userId;
@@ -587,15 +602,45 @@ export default function MainSales({
     });
   };
 
+  /* ── Consolidar varias cuentas de la familia ─────────────────────────────
+     Todo esto **solo entra en juego con más de una cuenta elegida**. Con una
+     —el caso de siempre, y el único que ve una cuenta hija— `consolidando` es
+     falso, no hay columna, no hay fila bloqueada y la pantalla se ve
+     exactamente como antes de que el selector existiera. */
+  const consolidando = estaConsolidando(cuentasElegidas);
+
+  const nombresDeCuenta = useMemo(
+    () => nombresPorCuenta(lasCuentasElegidas(cuentasDisponibles, cuentasElegidas)),
+    [cuentasDisponibles, cuentasElegidas],
+  );
+
+  const filaAjena = useCallback(
+    (fila: SaleTxRow) => consolidando && esDeOtraCuenta(fila.userId, userId),
+    [consolidando, userId],
+  );
+
   const columns = useMemo(
-    () =>
-      buildSalesColumns({
+    () => {
+      const propias = buildSalesColumns({
         onEdit: openEdit,
         onDelete,
         busy: isPending,
-      }),
-    [isPending] // eslint-disable-line react-hooks/exhaustive-deps
+        esDeOtraCuenta: filaAjena,
+      });
+      // La de la cuenta va la PRIMERA: es lo que agrupa la lectura de una lista
+      // consolidada, y al final habría que recorrer la fila para saber de dónde
+      // sale cada venta.
+      return consolidando
+        ? [columnaDeCuenta<SaleTxRow>((f) => f.userId, nombresDeCuenta), ...propias]
+        : propias;
+    },
+    [isPending, consolidando, nombresDeCuenta, filaAjena] // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  const selectorDeCuentas =
+    cuentasDisponibles.length > 0 ? (
+      <SelectorDeCuentas disponibles={cuentasDisponibles} elegidas={cuentasElegidas} />
+    ) : null;
 
   const monthRows = useMemo(() => {
     return rows.filter((r) => isSameMonth(new Date(r.occurredAt), selectedMonthDate));
@@ -680,9 +725,11 @@ export default function MainSales({
                   queSon="ventas"
                   getRowId={(r) => r.id}
                   onDeleteSelected={onDeleteMany}
-                  onDeleteAll={onDeleteAll}
+                  onDeleteAll={consolidando ? undefined : onDeleteAll}
                   deleteBusy={isPending}
                   entityLabel="venta"
+                  filtrosExtra={selectorDeCuentas}
+                  filaEditable={(fila) => !filaAjena(fila)}
                   toolbarExtra={
                     <>
                       <Popover>
@@ -728,9 +775,11 @@ export default function MainSales({
                   queSon="ventas"
                   getRowId={(r) => r.id}
                   onDeleteSelected={onDeleteMany}
-                  onDeleteAll={onDeleteAll}
+                  onDeleteAll={consolidando ? undefined : onDeleteAll}
                   deleteBusy={isPending}
                   entityLabel="venta"
+                  filtrosExtra={selectorDeCuentas}
+                  filaEditable={(fila) => !filaAjena(fila)}
                   toolbarExtra={
                     <>
                       <Popover>
@@ -783,6 +832,7 @@ export default function MainSales({
           </p>
         </div>
 
+{(detailRow ? filaAjena(detailRow) : false) ? null : (
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -820,6 +870,7 @@ export default function MainSales({
             <TooltipContent>Eliminar</TooltipContent>
           </Tooltip>
         </div>
+)}
       </div>
     </div>
 

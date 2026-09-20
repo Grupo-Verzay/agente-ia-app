@@ -6,18 +6,27 @@ export const revalidate = 0;
 import { getAllExpenses, getExpensesMeta } from "@/actions/finance-expenses-actions";
 import MainExpenses from "./_components/MainExpenses";
 import { serializePrisma } from "@/lib/serialize-prisma";
+import { resolverLasCuentasDeFinanzas } from "@/lib/cuentas-de-finanzas";
 
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams?: { month?: string | string[]; create?: string | string[] };
+  searchParams?: {
+    month?: string | string[];
+    create?: string | string[];
+    cuentas?: string | string[];
+  };
 }) {
   const user = await getFinanceUser();
   if (!user?.id) return <AccessDenied />;
 
+  // Una cuenta hija recibe `puedeElegir: false` y solo la suya. Y `elegidas`
+  // vuelve a pasar por la misma puerta dentro de `getAllExpenses`.
+  const cuentas = await resolverLasCuentasDeFinanzas(user.id, searchParams?.cuentas);
+
   const [metaRes, listRes] = await Promise.all([
     getExpensesMeta(user.id),
-    getAllExpenses(user.id),
+    getAllExpenses(user.id, cuentas.elegidas),
   ]);
 
   if (!metaRes.success)
@@ -42,6 +51,8 @@ export default async function ExpensesPage({
       primaryCurrencyCode={preferredCurrencyCode}
       initialMonth={Array.isArray(searchParams?.month) ? searchParams?.month[0] : searchParams?.month}
       autoOpenCreate={(Array.isArray(searchParams?.create) ? searchParams?.create[0] : searchParams?.create) === "1"}
+      cuentasDisponibles={cuentas.disponibles}
+      cuentasElegidas={cuentas.elegidas}
     />
   );
 }
