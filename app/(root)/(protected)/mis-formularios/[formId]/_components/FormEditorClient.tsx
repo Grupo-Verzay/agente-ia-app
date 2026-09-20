@@ -248,7 +248,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
               />
             }
           >
-            <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex min-w-0 shrink-0 items-center gap-3">
               <Button asChild variant="outline" size="sm" className="shrink-0">
                 <Link href="/mis-formularios">
                   <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />

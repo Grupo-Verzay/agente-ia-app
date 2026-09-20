@@ -221,9 +221,10 @@ export function DataTable<TData, TValue>({
               className="h-10 w-56 shrink-0 text-sm sm:w-72"
             />
           }
-          filtros={
-          <>
-            {filtrosExtra}
+          filtros={filtrosExtra}
+          secundarias={
+            /* «Columnas» no acota la lista: iba suelto en medio del carril,
+               entre los filtros y el azul. Va pegado al azul. */
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="h-10 shrink-0 px-2 text-sm">
@@ -246,7 +247,6 @@ export function DataTable<TData, TValue>({
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
-          </>
           }
         />
       </div>

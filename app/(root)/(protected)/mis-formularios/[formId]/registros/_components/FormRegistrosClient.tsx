@@ -103,7 +103,9 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
           {/* Toolbar */}
           <ModuleToolbar
             className="shrink-0"
-            right={
+            secundarias={
+              /* Refrescar no acota la lista ni añade una fila: va en el hueco
+                 de las secundarias, no en el del botón de crear. */
               <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={refresh} disabled={loading} title="Actualizar" aria-label="Actualizar">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
@@ -122,7 +124,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
               />
             }
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex min-w-0 shrink-0 items-center gap-2">
               <Button asChild variant="outline" size="sm" className="shrink-0">
                 <Link href={`/mis-formularios/${form.id}`}>
                   <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />

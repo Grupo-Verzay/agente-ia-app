@@ -191,17 +191,21 @@ export const LeadsManagement = ({
                     —y había dos filas de mandos para una sola lista—. */}
                 <BarraDeAcciones
                     className="p-2"
+                    buscador={
+                        /* Estaba dentro del carril: la flecha que trae las
+                           etiquetas se lo llevaba fuera de la pantalla. */
+                        <div className="relative w-56 shrink-0 sm:w-72">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                className="h-10 pl-8"
+                                placeholder="Buscar por nombre, número o JID..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                        </div>
+                    }
                     filtros={
                         <>
-                            <div className="relative w-56 shrink-0 sm:w-72">
-                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    className="h-10 pl-8"
-                                    placeholder="Buscar por nombre, número o JID..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                            </div>
                             <TagFilterBar
                                 allTags={allTags}
                                 selectedTagIds={selectedTagIds}

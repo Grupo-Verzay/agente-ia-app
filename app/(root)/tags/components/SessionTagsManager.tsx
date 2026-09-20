@@ -185,16 +185,7 @@ export const SessionTagsManager = ({
             <div className="flex flex-col gap-3">
                 {/* Toolbar */}
                 <ModuleToolbar
-                    right={
-                        <BotonDeCrear
-                            onClick={() => {
-                                setIsCreating(true);
-                                setNewTagName("");
-                                setNewTagColor(null);
-                            }}
-                        >Nuevo</BotonDeCrear>
-                    }
-                >
+                  buscador={
                     <div className="relative w-56 sm:w-72">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
@@ -204,7 +195,17 @@ export const SessionTagsManager = ({
                             className="h-9 pl-9 pr-3"
                         />
                     </div>
-                </ModuleToolbar>
+                  }
+                  right={
+                      <BotonDeCrear
+                          onClick={() => {
+                              setIsCreating(true);
+                              setNewTagName("");
+                              setNewTagColor(null);
+                          }}
+                      >Nuevo</BotonDeCrear>
+                  }
+                />
 
                 {/* Inline create form */}
                 {isCreating && (

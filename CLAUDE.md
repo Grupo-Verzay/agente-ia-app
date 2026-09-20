@@ -2663,6 +2663,107 @@ pastillas y contadores de una cuenta grande. «Carril» es lo que se desplaza:
 El alto sigue siendo **40 px en las siete combinaciones**, antes y después: esto
 no le quita ni le añade una fila a la tabla, solo cambia qué se mueve.
 
+### Y son CINCO huecos: `children` no coloca nada, así que el orden lo decidía el JSX
+
+En `/sessions` la barra abría con **las cuatro pastillas de conteo delante del
+buscador** —cuatro ceros y el buscador escondido detrás de ellos— y con
+«Exportar CSV» **suelto en medio**, entre el buscador y el azul.
+
+La ley estaba escrita y el componente la cumplía. Lo que fallaba es de una
+línea: la pantalla lo metía todo por `children`, y **`children` y `left` caen
+ENTEROS en el carril del medio**. Ahí dentro manda el orden en que esté escrito
+el JSX, no la regla. Los dos síntomas salen de ahí:
+
+| lo que se veía | qué era |
+| --- | --- |
+| las pastillas antes del buscador | se escribieron antes en el JSX |
+| «Exportar CSV» en mitad de la fila | no es un filtro y no tenía hueco propio |
+
+> **La barra son CINCO huecos y el orden en que se pintan ES la regla:**
+>
+> ```
+> [buscador] [·· filtros ··················] [secundarias] [+ Nuevo] [⋯]
+>             ^ lo único que se desplaza
+> ```
+>
+> Y en qué hueco va cada cosa lo decide **lo que HACE el mando**, no dónde
+> quedaría bonito: `filtros` es lo que acota la lista, `secundarias` lo que se
+> hace sobre la lista entera sin acotarla —exportar, columnas, refrescar—,
+> `crear` el único botón que añade una fila.
+
+`secundarias` es el hueco que faltaba. Sin él, «Exportar CSV» solo tenía dos
+sitios malos: el carril —donde queda suelto en medio— o dentro de `crear`,
+metido en un `<div>` con el azul, que es lo que hacían otras cuatro pantallas.
+
+Y **`ModuleToolbar` reenvía los cinco**: mientras no lo hiciera, una pantalla
+que lo usara no podía sacar su buscador del carril por mucho que la ley lo
+dijera.
+
+#### Y el buscador es el único fijo que CEDE
+
+Esto lo cazó medir, no leer. Con los cuatro huecos fijos en `shrink-0`, a 390 px
+el buscador (224) más «Exportar CSV» (119), el azul (40) y el `⋯` (40) con sus
+huecos suman **447 px en una caja de 358**: la página pasaba a desplazarse a lo
+ancho. Antes no pasaba porque todo eso vivía en el carril.
+
+Dos cosas, y hacen falta las dos:
+
+1. **El hueco del buscador va `min-w-0` y no `shrink-0`.** Así se estrecha antes
+   que desbordar — y con sitio de sobra no cede nada, porque el carril se lleva
+   el hueco primero: medido, mantiene sus **288 px a 1440, 1280 y 1024**.
+2. **Y una acción secundaria con palabra se queda solo con su icono en el
+   teléfono**, como ya hace `BotonDeCrear` con su «+». Son 80 px, y el ancho es
+   lo único que escasea ahí.
+
+#### Medido en Chromium, sobre el CSS del build
+
+Los mandos de `/sessions` con los contadores de una cuenta grande, con el menú
+lateral abierto. `@` es a cuántos píxeles del borde izquierdo de la barra:
+
+| ventana | | alto | buscador @ | Exportar @ | + Nuevo @ | `⋯` @ | ¿el buscador se desplaza? | desborda |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1440 | antes | 40 | **475** | 969 | 1002 | 1112 | **sí** | no |
+| 1440 | ahora | 40 | **0** | 856 | 1002 | 1112 | no | no |
+| 1280 | antes | 40 | **475** | 969 | 842 | 952 | **sí** | no |
+| 1280 | ahora | 40 | **0** | 696 | 842 | 952 | no | no |
+| 1024 | antes | 40 | **475** | 969 | 586 | 696 | **sí** | no |
+| 1024 | ahora | 40 | **0** | 440 | 586 | 696 | no | no |
+| 390 | antes | 40 | **475** | 905 | 270 | 318 | **sí** | no |
+| 390 | ahora | 40 | **0** | 224 | 270 | 318 | no | no |
+
+El alto es **40 px en las ocho**, el `⋯` queda pegado al borde derecho y
+«Exportar» cae siempre justo antes del azul. Las dos columnas que contestan el
+encargo son la del buscador —de 475 px metido entre las pastillas a 0 px y
+fijo— y la última, que es la que estuvo a punto de romperse al arreglarlo.
+
+#### Y lo mismo pasaba en otras once pantallas
+
+No era `/sessions`: era el patrón. Barridas las treinta y seis que usan la
+barra, el buscador estaba **dentro del carril** en `/crm`, Respuestas rápidas,
+los dos Datos externos, los dos Plantillas, los dos Módulos y Clientes del
+admin —donde además iba **detrás de la casilla de «todos»**—; y había una
+acción secundaria suelta en el carril en las tres tablas de Finanzas, en los dos
+Datos externos y en Clientes del admin («Columnas», en todas).
+
+Cuatro pantallas más llevaban una secundaria **dentro de `crear`**, metida en un
+`<div>` con el azul: el refrescar de Tareas y el de las dos de formularios de
+reserva, la ventana de seguimiento de Flujos y el contador de plan más «Ver
+catálogo» de Productos. Se ven bien —el orden dentro de ese `<div>` era el
+correcto— pero entonces `crear` deja de ser «el único botón que añade una fila»
+y la regla se lee mal la próxima vez.
+
+> **Lo comprueba `lib/__tests__/barra-de-acciones.test.mjs`, y son dos mitades:**
+> que el componente pinte los cinco huecos en orden —leyendo los `data-zona` del
+> marcado, no el comentario de arriba— y un **barrido de las treinta y seis
+> pantallas** que falla si alguna mete en el carril un buscador, una acción
+> secundaria o un `flex-1`. La primera mitad sola no habría cazado nada de esto:
+> el componente estaba bien.
+
+El barrido **quita los comentarios antes de mirar**, que es el detalle que lo
+hacía fallar al escribirlo: casi todas esas pantallas llevan escrito al lado por
+qué el buscador ya no está ahí, y buscarlo sobre el texto crudo hace que la
+explicación del arreglo tumbe al banco que lo protege.
+
 ### Lo que casi nadie toca va al `⋯`, y el `⋯` acepta un `menu`
 
 `/panel/clientes` llevaba en la barra tres mandos que entre los tres se comían

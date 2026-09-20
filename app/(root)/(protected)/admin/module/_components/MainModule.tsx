@@ -104,13 +104,10 @@ export const MainModule = () => {
         <div className="flex flex-col h-full">
             <div className="sticky top-0 z-1 mb-6">
                 <BarraDeAcciones
-                    filtros={<>
-                        <CasillaDeTodos
-                            estanTodos={estanTodos}
-                            hayAlguno={seleccionados.length > 0}
-                            onCambiar={alternarTodos}
-                        />
-                        <div className="relative w-64 shrink-0">
+                    buscador={
+                        /* Estaba dentro del carril y detrás de la casilla de
+                           «todos»: su sitio es el primero, y fijo. */
+                        <div className="relative w-56 shrink-0 sm:w-64">
                             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
                                 placeholder="Buscar módulo..."
@@ -119,6 +116,13 @@ export const MainModule = () => {
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                         </div>
+                    }
+                    filtros={<>
+                        <CasillaDeTodos
+                            estanTodos={estanTodos}
+                            hayAlguno={seleccionados.length > 0}
+                            onCambiar={alternarTodos}
+                        />
                     </>}
                     crear={<BotonDeCrear onClick={() => handleOpenModal()}>Nuevo</BotonDeCrear>}
                     acciones={

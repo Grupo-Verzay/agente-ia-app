@@ -532,18 +532,20 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
           o sea la forma que en Plantillas partía la barra en dos filas a 1024
           —y aquí había hasta tres botones sueltos a la derecha—. */}
       <BarraDeAcciones
+        buscador={
+          <div className="relative w-56 shrink-0 sm:w-72">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar macro..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8"
+            />
+          </div>
+        }
         className="mb-3"
         filtros={
           <>
-        <div className="relative w-56 shrink-0 sm:w-72">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar macro..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8"
-          />
-        </div>
         {/* Las cifras que abrían la pantalla en tarjetas. Esta lista no tiene
             filtro equivalente, así que no se pintan como pulsables. */}
         <PastillasDeMetricas

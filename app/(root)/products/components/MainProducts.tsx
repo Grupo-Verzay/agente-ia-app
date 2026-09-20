@@ -42,9 +42,22 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
     return (
         <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
             <ModuleToolbar
+              buscador={
+                <div className="relative w-56 sm:w-64">
+                    <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Buscar producto..."
+                        className="w-full pl-8 text-sm"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                    />
+                </div>
+              }
               className="shrink-0"
-              right={
-                <div className="flex items-center gap-2">
+              secundarias={
+                /* El contador del plan y el enlace al catálogo no crean ninguna
+                   fila: van pegados al azul, no metidos dentro de él. */
+                <>
                     {limitInfo && limitInfo.limit !== null && (
                         <span className={`flex shrink-0 items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
                             <Package className="h-4 w-4" />
@@ -61,19 +74,10 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                     >
                         <ExternalLink className="h-4 w-4" />
                     </Button>
-                    <ProductForm userId={userId} disabled={limitInfo?.reached} />
-                </div>
+                </>
               }
+              right={<ProductForm userId={userId} disabled={limitInfo?.reached} />}
             >
-                <div className="relative w-56 sm:w-64">
-                    <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar producto..."
-                        className="w-full pl-8 text-sm"
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                    />
-                </div>
                 {/* Las cifras que abrían la pantalla en tarjetas. Ninguna
                     tiene filtro equivalente en esta lista, así que van sin
                     aspecto de pulsables. */}

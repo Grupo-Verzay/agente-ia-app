@@ -150,8 +150,22 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
 
           {/* Toolbar (las métricas viven en la fila superior de MainSchedule) */}
           <ModuleToolbar
+            buscador={
+              <div className="relative w-56 sm:w-72">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por título, número o nombre..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="w-full pl-8"
+                />
+              </div>
+            }
             className="shrink-0"
-            right={
+            secundarias={
+              /* Refrescar no acota la lista ni añade una fila: no es un filtro
+                 ni el botón de crear. Su sitio es el hueco de en medio de la
+                 derecha, pegado a donde iría el azul. */
               <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={load} disabled={loading} title="Actualizar" aria-label="Actualizar">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
@@ -171,17 +185,7 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
                 }]}
               />
             }
-          >
-            <div className="relative w-56 sm:w-72">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por título, número o nombre..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-8"
-              />
-            </div>
-          </ModuleToolbar>
+          />
 
         </div>
       </div>

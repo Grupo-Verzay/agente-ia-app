@@ -118,21 +118,25 @@ export const MainModule = ({ todosLosModulos }: { todosLosModulos: ModuleWithIte
                 —uno en las pastillas y otro en el botón— peleándose, y el azul
                 acababa flotando en mitad de la fila. */}
             <BarraDeAcciones
+                buscador={
+                    /* Estaba dentro del carril y detrás de la casilla de
+                       «todos»: su sitio es el primero, y fijo. */
+                    <div className="relative w-56 shrink-0 sm:w-64">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar módulo..."
+                            className="pl-8"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                }
                 filtros={<>
                 <CasillaDeTodos
                     estanTodos={estanTodos}
                     hayAlguno={seleccionados.length > 0}
                     onCambiar={alternarTodos}
                 />
-                <div className="relative w-64 shrink-0">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar módulo..."
-                        className="pl-8"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                </div>
                 <PastillasDeMetricas
                     metricas={[
                         { clave: 'total', icono: <LayoutGrid />, etiqueta: 'Total módulos', valor: modules.length, color: '#3B82F6', ayuda: 'Módulos configurados en la plataforma' },

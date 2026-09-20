@@ -258,17 +258,20 @@ export function BookingFormBuilder({ userId, teamServiceId = null }: Props) {
   return (
     <div className="flex flex-col gap-3">
       {/* Toolbar */}
-      <ModuleToolbar right={<BotonDeCrear onClick={openAdd}>Nuevo</BotonDeCrear>}>
-        <div className="relative w-56 sm:w-72">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar pregunta..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8"
-          />
-        </div>
-      </ModuleToolbar>
+      <ModuleToolbar
+        buscador={
+          <div className="relative w-56 sm:w-72">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar pregunta..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8"
+            />
+          </div>
+        }
+        right={<BotonDeCrear onClick={openAdd}>Nuevo</BotonDeCrear>}
+      />
 
       {/* Formulario crear / editar */}
       {showForm && (

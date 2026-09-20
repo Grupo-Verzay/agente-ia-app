@@ -360,6 +360,17 @@ export function ProjectsClient({
 
       {/* Buscador, filtros y la acción, en una sola fila. */}
       <ModuleToolbar
+        buscador={
+          <div className="relative w-56 sm:w-72">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar proyecto..."
+              className="h-9 pl-8"
+            />
+          </div>
+        }
         className="shrink-0"
         right={
           /* Crear lo puede cualquiera del equipo: el proyecto queda a su
@@ -367,16 +378,7 @@ export function ProjectsClient({
           <BotonDeCrear onClick={() => setCreating(true)}>Nuevo</BotonDeCrear>
         }
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="relative w-56 sm:w-72">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar proyecto..."
-            className="h-9 pl-8"
-          />
-        </div>
+        <div className="flex min-w-0 shrink-0 items-center gap-2">
 
         {/* Dos desplegables, no seis botones sueltos.
             Medido a 1280 con el menú lateral abierto: la izquierda solo tiene

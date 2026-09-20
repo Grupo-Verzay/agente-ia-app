@@ -119,16 +119,21 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
             era un `flex-col sm:flex-row` que en el teléfono partía la barra en
             dos filas y dejaba el azul de crear debajo del buscador. */}
         <BarraDeAcciones
+          buscador={
+            /* El buscador de columna es el buscador de esta pantalla: va
+               primero y fuera del carril, no detrás de las pastillas. */
+            <ColumnFilterInput table={table} />
+          }
           filtros={
-            <>
-              <ColumnFilterInput table={table} />
-
-              <ClientStatusPanel
-                users={data as ClientInterface[]}
-                onFilterChange={setStatusFilter}
-              />
-
-              <DropdownMenu>
+            <ClientStatusPanel
+              users={data as ClientInterface[]}
+              onFilterChange={setStatusFilter}
+            />
+          }
+          secundarias={
+            /* «Columnas» no acota la lista ni crea una fila: iba suelto en
+               medio del carril. Va pegado al azul. */
+            <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="shrink-0">
                     {/* Icono para móviles */}
@@ -158,8 +163,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                       )
                     })}
                 </DropdownMenuContent>
-              </DropdownMenu>
-            </>
+            </DropdownMenu>
           }
           crear={
             puedeAdministrar ? (

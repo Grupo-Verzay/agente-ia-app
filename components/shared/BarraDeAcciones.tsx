@@ -21,13 +21,34 @@ import { cn } from "@/lib/utils";
  *
  * # La regla, y no tiene excepciones
  *
- * > **A la izquierda el buscador y los filtros. A la derecha, pegado al borde,
- * > el `⋯` de acciones masivas; y justo antes, el botón azul de crear.**
+ * > **Izquierda: el buscador PRIMERO y después los filtros y las pastillas.
+ * > Derecha: las acciones secundarias pegadas al botón azul de crear, y el `⋯`
+ * > al borde.**
+ *
+ * Cinco huecos, y el orden en que se pintan es el de la regla:
+ *
+ * ```
+ * [buscador] [·· filtros ··················] [secundarias] [+ Nuevo] [⋯]
+ *             ^ lo único que se desplaza
+ * ```
  *
  * El orden no es gusto: el azul con su texto destaca solo, así que **la esquina
  * —el sitio más fácil de acertar con el ratón— se la queda el `⋯`**, que es un
  * icono pequeño y sin palabra. Es como estaba Clientes, que es de donde sale
  * el patrón.
+ *
+ * # Y el buscador va PRIMERO, no en medio de las pastillas
+ *
+ * En `/sessions` las cuatro pastillas de conteo salían **antes** del buscador y
+ * «Exportar CSV» quedaba suelto entre el buscador y el azul. Las dos cosas
+ * vienen del mismo sitio: la pantalla lo metía todo por `children`, que cae
+ * entero en el carril del medio, así que el orden acababa siendo **el orden en
+ * que estaba escrito el JSX** y no el de la regla.
+ *
+ * De ahí sale el hueco `secundarias`, que es lo que faltaba: «Exportar CSV» no
+ * es un filtro —no acota la lista— ni es el botón de crear, así que sin un
+ * sitio propio acababa en el carril. Con él, lo que se hace sobre la lista
+ * entera va **pegado al azul**, que es donde se busca.
  *
  * # Y la zona de la izquierda SE DESPLAZA, no crece ni encoge
  *
@@ -67,14 +88,26 @@ import { cn } from "@/lib/utils";
  * <BarraDeAcciones
  *   buscador={<Input … />}
  *   filtros={<><FiltroDeEstado /><PastillasDeMetricas … /></>}
+ *   secundarias={<Button variant="outline">Exportar CSV</Button>}
  *   crear={<BotonDeCrear onClick={abrirDialogo}>Nuevo</BotonDeCrear>}
  *   acciones={<AccionesMasivas … />}
  * />
  * ```
  *
  * **Ninguna pantalla vuelve a escribir esta fila a mano.** Si hace falta un
- * mando nuevo, entra por uno de los cuatro huecos; si no encaja en ninguno, es
+ * mando nuevo, entra por uno de los cinco huecos; si no encaja en ninguno, es
  * que el hueco hay que añadirlo aquí y sale en todas a la vez.
+ *
+ * Y **en qué hueco va cada cosa se decide por lo que HACE el mando**, no por
+ * dónde quedaría bonito:
+ *
+ * | va a | lo que |
+ * | --- | --- |
+ * | `buscador` | el campo de buscar, y solo ese |
+ * | `filtros` | lo que **acota la lista**: desplegables y pastillas de conteo |
+ * | `secundarias` | lo que se hace sobre la lista entera y no la acota: exportar, refrescar, un enlace a otra vista |
+ * | `crear` | el único botón que **añade una fila** |
+ * | `acciones` | lo que se le hace a **varias** filas, o lo que no se usa a diario |
  *
  * # Y el buscador es un hueco APARTE, no un filtro más
  *
@@ -92,17 +125,25 @@ import { cn } from "@/lib/utils";
 export function BarraDeAcciones({
     buscador,
     filtros,
+    secundarias,
     crear,
     acciones,
     className,
 }: {
     /**
-     * El buscador. Va **fijo** a la izquierda, fuera del carril: es lo que se
-     * usa siempre, así que no se desplaza con los filtros.
+     * El buscador. Va **fijo** a la izquierda y el PRIMERO de la fila, fuera
+     * del carril: es lo que se usa siempre, así que no se desplaza con los
+     * filtros ni se queda detrás de una pastilla de conteo.
      */
     buscador?: ReactNode;
     /** Desplegables de filtro y pastillas. Van en el carril que se desplaza. */
     filtros?: ReactNode;
+    /**
+     * Lo que se hace sobre la lista entera sin acotarla: «Exportar CSV»,
+     * refrescar, un enlace a otra vista. Va **pegado al azul**, no en el
+     * carril: no es un filtro, así que ahí queda suelto en medio.
+     */
+    secundarias?: ReactNode;
     /** El botón azul. `BotonDeCrear`, no un `Button` con clases a mano. */
     crear?: ReactNode;
     /** El `⋯`. Normalmente `AccionesMasivas`. */
@@ -113,15 +154,47 @@ export function BarraDeAcciones({
         // `min-h-10` es el alto de un `Button` por defecto: la barra mide lo
         // mismo en una pantalla con botones y en una que solo tiene buscador,
         // que es la mitad de que se vean iguales.
-        <div className={cn("flex min-h-10 shrink-0 flex-row items-center gap-2", className)}>
-            {buscador ? <div className="flex shrink-0 items-center">{buscador}</div> : null}
+        // El orden de estos cinco hijos ES la regla: cambiarlos de sitio aquí
+        // se lo cambia a las treinta y tantas pantallas a la vez. Lo afirma
+        // `lib/__tests__/barra-de-acciones.test.mjs`, midiendo dónde acaba cada
+        // uno en el marcado y no leyendo este comentario.
+        <div
+            data-barra-de-acciones
+            className={cn("flex min-h-10 shrink-0 flex-row items-center gap-2", className)}
+        >
+            {/* El buscador es el único de los cuatro fijos que PUEDE ceder, y
+                hace falta: con él en `shrink-0`, a 390 px sus 224 px más el
+                exportar, el azul y el `⋯` suman 447 en una caja de 358 y la
+                página se desplazaba a lo ancho. Medido. Cediendo, se estrecha
+                antes que desbordar, y con sitio de sobra no cede nada — el
+                carril se lleva el hueco primero. */}
+            {buscador ? (
+                <div data-zona="buscador" className="flex min-w-0 items-center">
+                    {buscador}
+                </div>
+            ) : null}
             <BarraDeslizable className="flex-1" queHay="filtros">
                 {/* `min-w-max`: lo de dentro no encoge, y cuando no cabe lo
                     recoge el carril con sus flechas. Ver arriba. */}
-                <div className="flex min-w-max items-center gap-2">{filtros}</div>
+                <div data-zona="filtros" className="flex min-w-max items-center gap-2">
+                    {filtros}
+                </div>
             </BarraDeslizable>
-            {crear ? <div className="flex shrink-0 items-center">{crear}</div> : null}
-            {acciones ? <div className="flex shrink-0 items-center">{acciones}</div> : null}
+            {secundarias ? (
+                <div data-zona="secundarias" className="flex shrink-0 items-center gap-2">
+                    {secundarias}
+                </div>
+            ) : null}
+            {crear ? (
+                <div data-zona="crear" className="flex shrink-0 items-center">
+                    {crear}
+                </div>
+            ) : null}
+            {acciones ? (
+                <div data-zona="acciones" className="flex shrink-0 items-center">
+                    {acciones}
+                </div>
+            ) : null}
         </div>
     );
 }

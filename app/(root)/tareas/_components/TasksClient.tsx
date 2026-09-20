@@ -296,24 +296,26 @@ export function TasksClient({ userId, userName }: Props) {
           </button>
         </div>
         <ModuleToolbar
-          right={
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => void load()} disabled={loading} title="Actualizar" aria-label="Actualizar">
-                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-              </Button>
-              <BotonDeCrear onClick={() => setNewTaskOpen(true)}>Nuevo</BotonDeCrear>
+          buscador={
+            <div className="relative w-56 sm:w-64">
+              <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar tarea..."
+                className="pl-8 text-sm"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
             </div>
           }
+          secundarias={
+            /* Refrescar no acota la lista ni añade una fila: va pegado al
+               azul, no dentro de él. */
+            <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => void load()} disabled={loading} title="Actualizar" aria-label="Actualizar">
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            </Button>
+          }
+          right={<BotonDeCrear onClick={() => setNewTaskOpen(true)}>Nuevo</BotonDeCrear>}
         >
-          <div className="relative w-56 sm:w-64">
-            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar tarea..."
-              className="pl-8 text-sm"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
           {/* Las cifras que abrían la pantalla. «Completadas» NO entra: la
               barra ya tiene su botón con el mismo número, y encima filtra —
               cuando una métrica duplica una pastilla que ya está, se queda la
