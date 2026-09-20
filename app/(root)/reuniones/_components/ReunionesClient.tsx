@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     CalendarClock,
     Copy,
@@ -31,11 +31,14 @@ import { abrirLaReunionAqui } from "@/components/video/ReunionEnLaPlataforma";
 import {
     cambiarLaCaducidadAction,
     crearLaReunionDeLaCuentaAction,
+    lasGrabacionesDeLasReunionesAction,
     regenerarLaSalaAction,
     revocarLaSalaAction,
+    type GrabacionEnLaFicha,
     type ReunionPasada,
     type SalaParaLaPantalla,
 } from "@/actions/salas-de-video-actions";
+import { GrabacionesDeLaReunion } from "@/components/reuniones/GrabacionesDeLaReunion";
 import {
     DURACION_POR_DEFECTO,
     comoSeLeeLaCaducidad,
@@ -91,6 +94,62 @@ import { cn } from "@/lib/utils";
  *    una saldría un botón que al pulsarlo dice «no autorizado»: el «menú
  *    abierto, puerta cerrada» de siempre.
  */
+/**
+ * Las grabaciones se piden APARTE de la lista, y en una sola vuelta.
+ *
+ * Aparte porque la mayoría de las cuentas no tienen el módulo: metidas en la
+ * carga de la página, todas pagarían dos consultas más para no enseñar nada. Y
+ * en una sola vuelta para todas las reuniones —no una por fila— porque esta
+ * lista llega a cien filas y eso es «muchas peticiones pequeñas son turno, no
+ * trabajo» por dentro.
+ */
+function useLasGrabaciones(ids: string[]) {
+    const [porSala, setPorSala] = useState<Record<string, GrabacionEnLaFicha[]>>({});
+    const [cupo, setCupo] = useState<{ parte: number; cerca: boolean; texto: string } | null>(null);
+    const [puedeGrabar, setPuedeGrabar] = useState(false);
+
+    // La llave es el TEXTO de los ids y no el arreglo: el padre crea uno nuevo
+    // en cada pintado, así que con el arreglo esto pediría las grabaciones en
+    // bucle.
+    const llave = ids.join(",");
+    useEffect(() => {
+        if (!llave) return;
+        let vivo = true;
+        void (async () => {
+            try {
+                const res = await lasGrabacionesDeLasReunionesAction(llave.split(","));
+                if (!vivo || !res.success) return;
+                setPorSala(res.porSala);
+                setCupo(res.cupo);
+                setPuedeGrabar(res.puedeGrabar);
+            } catch (error) {
+                // Mudo aquí se ve como «mis grabaciones desaparecieron».
+                console.warn("[reuniones] no se pudieron leer las grabaciones", error);
+            }
+        })();
+        return () => {
+            vivo = false;
+        };
+    }, [llave]);
+
+    const alTranscribir = useCallback(
+        (id: string, texto: string, resumen: string | null) => {
+            setPorSala((antes) => {
+                const nuevo: Record<string, GrabacionEnLaFicha[]> = {};
+                for (const [sala, lista] of Object.entries(antes)) {
+                    nuevo[sala] = lista.map((g) =>
+                        g.id === id ? { ...g, transcripcion: texto, resumen } : g,
+                    );
+                }
+                return nuevo;
+            });
+        },
+        [],
+    );
+
+    return { porSala, cupo, puedeGrabar, alTranscribir };
+}
+
 export function ReunionesClient({
     inicial,
     puedoAbrir,
@@ -112,6 +171,12 @@ export function ReunionesClient({
     const [duracion, setDuracion] = useState<Duracion>(DURACION_POR_DEFECTO);
     const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
     const [creando, setCreando] = useState(false);
+
+    const idsDeLasSalas = useMemo(
+        () => [...salas.map((s) => s.id), ...historial.map((r) => r.id)],
+        [historial, salas],
+    );
+    const grabaciones = useLasGrabaciones(idsDeLasSalas);
 
     // La lista que se OFRECE es la que el servidor acepta: las dos salen de la
     // misma función y de la misma respuesta (`puedoNoCaducar`). Con una
@@ -253,6 +318,17 @@ export function ReunionesClient({
                 </p>
             ) : null}
 
+            {/* El cupo solo se enseña cuando de verdad conviene mirarlo.
+                Una barra permanente diciendo «0,4 GB de 20» es un dato que
+                nadie va a usar ocupando la fila que le falta a la lista; a
+                partir del 80 % sí, porque entonces hay algo que hacer. */}
+            {grabaciones.cupo?.cerca ? (
+                <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    Espacio de grabación casi lleno: {grabaciones.cupo.texto}. Al llenarse no se
+                    podrá grabar hasta que se borre alguna.
+                </p>
+            ) : null}
+
             <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
                 {vista === "abiertas" ? (
                     salas.length === 0 ? (
@@ -272,13 +348,22 @@ export function ReunionesClient({
                                 onRegenerada={(nueva) =>
                                     setSalas((a) => a.map((x) => (x.id === s.id ? nueva : x)))
                                 }
+                                grabaciones={grabaciones.porSala[s.id] ?? []}
+                                alTranscribir={grabaciones.alTranscribir}
                             />
                         ))
                     )
                 ) : historial.length === 0 ? (
                     <Vacio texto="Todavía no hay reuniones terminadas." />
                 ) : (
-                    historial.map((r) => <FilaPasada key={r.id} reunion={r} />)
+                    historial.map((r) => (
+                        <FilaPasada
+                            key={r.id}
+                            reunion={r}
+                            grabaciones={grabaciones.porSala[r.id] ?? []}
+                            alTranscribir={grabaciones.alTranscribir}
+                        />
+                    ))
                 )}
             </div>
         </div>
@@ -333,12 +418,16 @@ function FilaViva({
     onFuera,
     onCaducidad,
     onRegenerada,
+    grabaciones,
+    alTranscribir,
 }: {
     sala: SalaParaLaPantalla;
     opciones: ReadonlyArray<{ valor: Duracion; rotulo: string }>;
     onFuera: () => void;
     onCaducidad: (expiraEn: string | null) => void;
     onRegenerada: (nueva: SalaParaLaPantalla) => void;
+    grabaciones: GrabacionEnLaFicha[];
+    alTranscribir: (id: string, texto: string, resumen: string | null) => void;
 }) {
     const [ocupado, setOcupado] = useState(false);
 
@@ -502,11 +591,20 @@ function FilaViva({
                     </DropdownMenuContent>
                 </DropdownMenu>
             ) : null}
+            <GrabacionesDeLaReunion grabaciones={grabaciones} alTranscribir={alTranscribir} />
         </div>
     );
 }
 
-function FilaPasada({ reunion }: { reunion: ReunionPasada }) {
+function FilaPasada({
+    reunion,
+    grabaciones,
+    alTranscribir,
+}: {
+    reunion: ReunionPasada;
+    grabaciones: GrabacionEnLaFicha[];
+    alTranscribir: (id: string, texto: string, resumen: string | null) => void;
+}) {
     return (
         <div className="rounded-md border border-border px-3 py-2">
             <div className="flex flex-wrap items-baseline gap-x-2">
@@ -528,6 +626,7 @@ function FilaPasada({ reunion }: { reunion: ReunionPasada }) {
                           .map((a) => (a.esInvitado ? `${a.nombre} (invitado)` : a.nombre))
                           .join(", ")}
             </p>
+            <GrabacionesDeLaReunion grabaciones={grabaciones} alTranscribir={alTranscribir} />
         </div>
     );
 }

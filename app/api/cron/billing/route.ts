@@ -4,6 +4,7 @@ import { purgarCuentasEliminadasPendientes } from "@/lib/purge-account.server";
 import { podarRevisionesDePromptsPendientes } from "@/lib/prompt-revisions-cleanup.server";
 import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
 import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
+import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -92,8 +93,19 @@ export async function POST(request: Request) {
     console.warn("[vencimientos] la vuelta diaria reventó", { error: vencimientos });
   }
 
+  // Las grabaciones de reuniones: recoger las que se quedaron colgadas y
+  // borrar las que pasaron de los 180 dias. En su propio `try`, como los
+  // demas: un barrido que se cuelgue no puede tumbar el cobro, que es lo que
+  // de verdad importa de esta vuelta.
+  let grabaciones: unknown = null;
+  try {
+    grabaciones = await runGrabacionesDeReuniones();
+  } catch (e) {
+    grabaciones = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   return NextResponse.json(
-    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros, vencimientos },
+    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros, vencimientos, grabaciones },
     { status: result.success ? 200 : 500 },
   );
 }

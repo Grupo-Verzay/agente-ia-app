@@ -58,6 +58,20 @@ export type EstadoDeLosMedios = {
     preparandoElFondo: boolean;
     /** Lo que se ve en el recuadro propio. Cambia al encender o compartir. */
     local: MediaStream | null;
+    /**
+     * El micrófono propio, suelto, para quien necesite MEZCLARLO.
+     *
+     * Aparte de `local` y no dentro, porque `local` es **lo que se pinta** y ahí
+     * el audio propio no puede estar: el recuadro va con `muted`, pero el día
+     * que alguien se lo quite se oiría a sí mismo con retardo, que es lo más
+     * desagradable que puede hacer una videollamada.
+     *
+     * Y hace falta de verdad: la grabación mezcla a todo el mundo, y sin esto
+     * **quien graba no sale en su propia grabación**. Con una sola persona en
+     * la sala eso es un fichero de cero bytes, que es el peor final posible
+     * porque el botón dice que funcionó.
+     */
+    miAudio: MediaStream | null;
     micEncendido: boolean;
     camaraEncendida: boolean;
     compartiendo: boolean;
@@ -117,6 +131,7 @@ export function useMediosDeLlamada(opciones?: {
 
     const [estado, setEstado] = useState<EstadoDeLosMedios>({
         local: null,
+        miAudio: null,
         micEncendido: false,
         camaraEncendida: false,
         compartiendo: false,
@@ -200,9 +215,13 @@ export function useMediosDeLlamada(opciones?: {
         // hacer una videollamada.
         if (video) nuevo.addTrack(video);
         localRef.current = nuevo;
+        // El micrófono va en su propio stream, que es el que se puede mezclar
+        // sin que nadie lo pinte.
+        const soloMic = audio ? new MediaStream([audio]) : null;
         setEstado((e) => ({
             ...e,
             local: video ? nuevo : null,
+            miAudio: soloMic,
             micEncendido: Boolean(audio?.enabled),
             camaraEncendida: Boolean(camaraRef.current?.getVideoTracks()[0]),
             compartiendo: Boolean(pantallaRef.current?.getVideoTracks()[0]),
@@ -471,6 +490,7 @@ export function useMediosDeLlamada(opciones?: {
         localRef.current = null;
         setEstado({
             local: null,
+            miAudio: null,
             micEncendido: false,
             camaraEncendida: false,
             compartiendo: false,

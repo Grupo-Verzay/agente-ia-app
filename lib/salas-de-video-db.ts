@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes, randomUUID } from "crypto";
 
 import { db } from "@/lib/db";
+import { sePuedeReanudar, type MotivoDeSalida } from "@/lib/reconexion-de-la-sala";
 import {
     MARGEN_EN_LA_SALA_MS,
     TOPE_DE_LA_SALA,
@@ -259,6 +260,110 @@ function asegurarLasTablas(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "sala_mensajes_sala_idx"
             ON "sala_mensajes" ("salaId", "creadoEn")
         `;
+
+        // Por qué alguien dejó de estar dentro.
+        //
+        // Los tres caminos escribían `estado = 'fuera'` y nada más, así que
+        // eran **indistinguibles** — y a la hora de volver significan cosas
+        // opuestas: a quien se le cayó la red se le devuelve a su sitio solo, y
+        // a quien acaban de echar no. Sin esta columna, la pestaña de alguien a
+        // quien sacaron volvería a entrar sola dos segundos después.
+        //
+        // `ADD COLUMN IF NOT EXISTS` y no reescribiendo el `CREATE`: la tabla
+        // ya está en producción. Las filas viejas traen `NULL`, que
+        // `sePuedeReanudar` trata como «no se reanuda»: se ve de menos, nunca
+        // de más.
+        await db.$executeRaw`
+            ALTER TABLE "sala_participantes"
+            ADD COLUMN IF NOT EXISTS "motivoDeSalida" TEXT
+        `;
+
+        // Que se está grabando, en la SALA y no en la grabación.
+        //
+        // Lo pregunta el reloj de todos los participantes en cada vuelta, y la
+        // fila de la sala ya viene cargada en esa vuelta: en la tabla de
+        // grabaciones serían dos consultas por persona y por vuelta en el
+        // camino más caliente que tiene esto.
+        //
+        // Y son DOS marcas, no un booleano. `grabandoDesde` es cuándo empezó,
+        // que es lo que se enseña; `grabandoVistoEn` lo refresca el reloj de
+        // quien graba, y es lo que hace que el aviso **se apague solo** cuando
+        // esa pestaña se cierra. Con un booleano, una reunión diría «grabando»
+        // para siempre después de que a quien grababa se le cerrara el
+        // portátil. Es la misma forma que la mano levantada.
+        await db.$executeRaw`
+            ALTER TABLE "salas_de_video"
+            ADD COLUMN IF NOT EXISTS "grabandoDesde" TIMESTAMP(3)
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "salas_de_video"
+            ADD COLUMN IF NOT EXISTS "grabandoVistoEn" TIMESTAMP(3)
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "salas_de_video"
+            ADD COLUMN IF NOT EXISTS "grabacionId" TEXT
+        `;
+        // El nombre de quien graba, COPIADO aquí.
+        //
+        // Lo lee el reloj de todos los participantes en cada vuelta para pintar
+        // el aviso, y la fila de la sala ya viene cargada; sacarlo de la fila de
+        // la grabación sería una consulta más por persona y por vuelta para
+        // enseñar un nombre. Es el mismo criterio con el que un mensaje del chat
+        // copia `autorNombre`: lo barato viaja con lo que ya se lee.
+        await db.$executeRaw`
+            ALTER TABLE "salas_de_video"
+            ADD COLUMN IF NOT EXISTS "grabandoPor" TEXT
+        `;
+
+        // Las grabaciones. Tabla de la App, `CREATE TABLE IF NOT EXISTS` y sin
+        // clave foránea, como las cuatro de arriba.
+        //
+        // Sin clave foránea a `salas_de_video` **a propósito**: una sala
+        // caduca y se puede revocar, y su grabación tiene que seguir en la
+        // ficha ciento ochenta días después. El título de la reunión se
+        // **copia dentro** por lo mismo, igual que `autorNombre` en los
+        // mensajes: la ficha sigue diciendo de qué reunión era aunque la sala
+        // ya no exista.
+        //
+        // Y el audio y el video van en DOS parejas de columnas y no en una
+        // tabla de ficheros: son como mucho dos por grabación, siempre los
+        // mismos dos, y con una tabla aparte cada ficha pediría una consulta
+        // más para enseñar un reproductor.
+        await db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "grabaciones_de_reunion" (
+                "id" TEXT PRIMARY KEY,
+                "salaId" TEXT NOT NULL,
+                "cuentaId" TEXT NOT NULL,
+                "salaTitulo" TEXT,
+                "pedidaPorId" TEXT NOT NULL,
+                "pedidaPorNombre" TEXT NOT NULL,
+                "modo" TEXT NOT NULL DEFAULT 'audio',
+                "estado" TEXT NOT NULL DEFAULT 'grabando',
+                "audioUrl" TEXT,
+                "audioBytes" BIGINT NOT NULL DEFAULT 0,
+                "videoUrl" TEXT,
+                "videoBytes" BIGINT NOT NULL DEFAULT 0,
+                "segundos" INTEGER NOT NULL DEFAULT 0,
+                "partesAudio" INTEGER NOT NULL DEFAULT 0,
+                "partesVideo" INTEGER NOT NULL DEFAULT 0,
+                "transcripcion" TEXT,
+                "resumen" TEXT,
+                "transcritaEn" TIMESTAMP(3),
+                "creadaEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "terminadaEn" TIMESTAMP(3)
+            )
+        `;
+        // Por `(cuentaId, creadaEn)`: así se lee la ficha y así se suma el
+        // cupo. Y por `salaId` para pegarle sus grabaciones a cada reunión de
+        // la lista en una sola consulta, no una por fila.
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "grabaciones_cuenta_idx"
+            ON "grabaciones_de_reunion" ("cuentaId", "creadaEn")
+        `;
+        await db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "grabaciones_sala_idx"
+            ON "grabaciones_de_reunion" ("salaId")
+        `;
     })().catch((e) => {
         listas = null;
         throw e;
@@ -336,6 +441,13 @@ export type FilaDeSala = {
     /** `null` es **no caduca**, no «no se sabe». Ver la migración de arriba. */
     expiraEn: Date | null;
     revocadaEn: Date | null;
+    /** Cuándo empezó la grabación en curso, si la hay. */
+    grabandoDesde: Date | null;
+    /** El último latido de quien graba. Es lo que apaga el aviso solo. */
+    grabandoVistoEn: Date | null;
+    grabacionId: string | null;
+    /** El nombre de quien graba, copiado para no tener que ir a buscarlo. */
+    grabandoPor: string | null;
 };
 
 export type FilaDeParticipante = {
@@ -355,6 +467,8 @@ export type FilaDeParticipante = {
     compartiendo: boolean;
     manoLevantadaEn: Date | null;
     silenciadoEn: Date | null;
+    /** Por qué dejó de estar dentro. `null` en las filas de antes de #832. */
+    motivoDeSalida: string | null;
 };
 
 export type FilaDeMensajeDeSala = {
@@ -377,13 +491,14 @@ export type FilaDeSenal = {
 };
 
 const COLUMNAS_SALA = `"id", "codigo", "cuentaId", "canalId", "anfitrionId",
-                       "anfitrionNombre", "titulo", "creadoEn", "expiraEn", "revocadaEn"`;
+                       "anfitrionNombre", "titulo", "creadoEn", "expiraEn", "revocadaEn",
+                       "grabandoDesde", "grabandoVistoEn", "grabacionId", "grabandoPor"`;
 
 const COLUMNAS_PARTICIPANTE = `"id", "salaId", "personaId", "invitadoToken", "nombre",
                                "esInvitado", "estado", "creadoEn", "entradoEn",
                                "vistoEn", "salidoEn", "micEncendido",
                                "camaraEncendida", "compartiendo",
-                               "manoLevantadaEn", "silenciadoEn"`;
+                               "manoLevantadaEn", "silenciadoEn", "motivoDeSalida"`;
 
 /**
  * El código del enlace: 24 caracteres de `base64url` sobre 18 bytes de azar.
@@ -646,9 +761,14 @@ export async function revocarLaSala(salaId: string): Promise<boolean> {
             WHERE "id" = ${salaId} AND "revocadaEn" IS NULL
         `;
         if (tocadas > 0) {
+            // El motivo importa: a quien echa una revocación **no** se le
+            // devuelve solo a la reunión. Sin escribirlo, esas filas quedan con
+            // `motivoDeSalida` nulo, que `sePuedeReanudar` ya trata como «no
+            // se reanuda» — pero dejarlo implícito es dejar que el día que ese
+            // nulo signifique otra cosa, media sala vuelva a entrar sola.
             await db.$executeRaw`
                 UPDATE "sala_participantes"
-                SET "estado" = 'fuera', "salidoEn" = NOW()
+                SET "estado" = 'fuera', "salidoEn" = NOW(), "motivoDeSalida" = 'sacado'
                 WHERE "salaId" = ${salaId} AND "estado" IN ('dentro', 'esperando')
             `;
             await db.$executeRaw`
@@ -691,9 +811,12 @@ export async function losDeLaSala(salaId: string): Promise<FilaDeParticipante[]>
 export async function sacarALosQueNoDanSenales(salaId: string): Promise<number> {
     const limite = new Date(Date.now() - MARGEN_EN_LA_SALA_MS);
     return conLasTablas(async () => {
+        // El motivo es lo que después deja volver solo: este barrido es
+        // **exactamente** el caso de «se me cayó internet», y es el único que
+        // se reanuda sin pedirle nada a nadie.
         const idos = await db.$queryRawUnsafe<Array<{ id: string }>>(
             `UPDATE "sala_participantes"
-             SET "estado" = 'fuera', "salidoEn" = NOW()
+             SET "estado" = 'fuera', "salidoEn" = NOW(), "motivoDeSalida" = 'silencio'
              WHERE "salaId" = $1 AND "estado" IN ('dentro', 'esperando') AND "vistoEn" < $2
              RETURNING "id"`,
             salaId,
@@ -770,7 +893,8 @@ export async function entrarConCuenta(input: {
              VALUES ($1, $2, $3, $4, false, 'dentro', NOW(), NOW())
              ON CONFLICT ("salaId", "personaId") WHERE "personaId" IS NOT NULL
              DO UPDATE SET "estado" = 'dentro', "entradoEn" = NOW(), "vistoEn" = NOW(),
-                           "salidoEn" = NULL, "nombre" = EXCLUDED."nombre"
+                           "salidoEn" = NULL, "motivoDeSalida" = NULL,
+                           "nombre" = EXCLUDED."nombre"
              RETURNING ${COLUMNAS_PARTICIPANTE}`,
             randomUUID(),
             input.salaId,
@@ -901,11 +1025,21 @@ export async function sacarDeLaSala(input: {
     salaId: string;
     participanteId: string;
     motivo: "rechazado" | "fuera";
+    /**
+     * Por qué se sale, que NO es lo mismo que el estado en el que se queda.
+     *
+     * Los dos caminos escriben `fuera` y significan cosas opuestas a la hora de
+     * volver: quien pulsó colgar no vuelve solo, y a quien echaron, menos. Sin
+     * esto, la reconexión automática devolvería a la reunión a quien acaban de
+     * sacar — que es lo contrario de moderar.
+     */
+    porQue: MotivoDeSalida;
 }): Promise<boolean> {
     return conLasTablas(async () => {
         const tocadas = await db.$executeRaw`
             UPDATE "sala_participantes"
-            SET "estado" = ${input.motivo}, "salidoEn" = NOW()
+            SET "estado" = ${input.motivo}, "salidoEn" = NOW(),
+                "motivoDeSalida" = ${input.porQue}
             WHERE "id" = ${input.participanteId} AND "salaId" = ${input.salaId}
               AND "estado" IN ('dentro', 'esperando')
         `;
@@ -1242,4 +1376,369 @@ export async function lasReunionesDeLosMensajes(
         });
     }
     return mapa;
+}
+
+// ── Volver a la reunión después de un corte ─────────────────────────────────
+
+/**
+ * Devolver a alguien a la MISMA fila después de un corte de red.
+ *
+ * **No crea ninguna fila y no pasa por la puerta**, que es lo que distingue
+ * esto de entrar: la fila ya existe y alguien de dentro la admitió en su
+ * momento. Lo único que se deshace es el barrido que la sacó por dejar de dar
+ * señales.
+ *
+ * Y por eso lleva dos condiciones que no se pueden ablandar:
+ *
+ * 1. **Solo si salió por silencio** (`sePuedeReanudar`). A quien echaron, o
+ *    quien se fue por su pie, no se le devuelve solo.
+ * 2. **Solo si cabe.** Mientras alguien estaba desconectado pueden haber
+ *    entrado otros: volver sin mirar el tope metería a un quinto, y un quinto
+ *    corta la reunión para **todos**, no solo para el que sobra. Quien ya
+ *    consta dentro no cuenta contra el tope — es el mismo razonamiento de
+ *    `entrarConCuenta` con quien recarga.
+ *
+ * Devuelve la fila si se pudo, `null` si no cabía, y `"no_procede"` cuando esa
+ * fila no es de las que se reanudan. Son tres respuestas distintas a propósito:
+ * quien llama tiene que poder decir «la reunión está llena» sin confundirlo con
+ * «te sacaron».
+ */
+export async function reanudarEnLaSala(input: {
+    salaId: string;
+    participanteId: string;
+}): Promise<FilaDeParticipante | null | "no_procede"> {
+    return conLasTablas(() => db.$transaction(async (tx) => {
+        await candadoDeLaSala(tx, input.salaId);
+
+        const antes = await tx.$queryRawUnsafe<FilaDeParticipante[]>(
+            `SELECT ${COLUMNAS_PARTICIPANTE} FROM "sala_participantes"
+             WHERE "id" = $1 AND "salaId" = $2`,
+            input.participanteId,
+            input.salaId,
+        );
+        const fila = antes[0];
+        if (!fila) return "no_procede" as const;
+        // Ya está dentro: el corte fue corto y el barrido no llegó a sacarle.
+        // No es un error — es el caso bueno, y se contesta que sí.
+        if (fila.estado === "dentro") return fila;
+        if (!sePuedeReanudar(fila.motivoDeSalida)) return "no_procede" as const;
+
+        const n = await tx.$queryRawUnsafe<Array<{ n: bigint }>>(
+            `SELECT COUNT(*)::bigint AS n FROM "sala_participantes"
+             WHERE "salaId" = $1 AND "estado" = 'dentro'`,
+            input.salaId,
+        );
+        if (Number(n[0]?.n ?? 0) >= TOPE_DE_LA_SALA) return null;
+
+        const vuelve = await tx.$queryRawUnsafe<FilaDeParticipante[]>(
+            `UPDATE "sala_participantes"
+             SET "estado" = 'dentro', "vistoEn" = NOW(), "salidoEn" = NULL,
+                 "motivoDeSalida" = NULL
+             WHERE "id" = $1 AND "salaId" = $2
+             RETURNING ${COLUMNAS_PARTICIPANTE}`,
+            input.participanteId,
+            input.salaId,
+        );
+        return vuelve[0] ?? ("no_procede" as const);
+    }));
+}
+
+// ── Las grabaciones ─────────────────────────────────────────────────────────
+
+export type FilaDeGrabacion = {
+    id: string;
+    salaId: string;
+    cuentaId: string;
+    salaTitulo: string | null;
+    pedidaPorId: string;
+    pedidaPorNombre: string;
+    modo: string;
+    estado: string;
+    audioUrl: string | null;
+    audioBytes: number;
+    videoUrl: string | null;
+    videoBytes: number;
+    segundos: number;
+    partesAudio: number;
+    partesVideo: number;
+    transcripcion: string | null;
+    resumen: string | null;
+    transcritaEn: Date | null;
+    creadaEn: Date;
+    terminadaEn: Date | null;
+};
+
+const COLUMNAS_GRABACION = `"id", "salaId", "cuentaId", "salaTitulo", "pedidaPorId",
+                            "pedidaPorNombre", "modo", "estado", "audioUrl",
+                            "audioBytes", "videoUrl", "videoBytes", "segundos",
+                            "partesAudio", "partesVideo", "transcripcion", "resumen",
+                            "transcritaEn", "creadaEn", "terminadaEn"`;
+
+/**
+ * Postgres devuelve un `BIGINT` como `BigInt`, que **no se puede serializar**.
+ *
+ * Una fila con un `BigInt` dentro cruzando la frontera de una acción de
+ * servidor revienta con «Do not know how to serialize a BigInt», y ese error
+ * sale al pintar la pantalla, lejísimos de la consulta que lo trajo. Se
+ * convierte aquí, una vez, y no en cada sitio que lea una fila.
+ */
+function comoLlegaLaGrabacion(f: FilaDeGrabacion): FilaDeGrabacion {
+    return {
+        ...f,
+        audioBytes: Number(f.audioBytes ?? 0),
+        videoBytes: Number(f.videoBytes ?? 0),
+        segundos: Number(f.segundos ?? 0),
+        partesAudio: Number(f.partesAudio ?? 0),
+        partesVideo: Number(f.partesVideo ?? 0),
+    };
+}
+
+/**
+ * Empezar a grabar: la fila, y la marca en la sala, **en una transacción**.
+ *
+ * Las dos a la vez porque a medias cada mitad miente: una fila sin la marca es
+ * una grabación que nadie ve que está corriendo, y una marca sin fila es un
+ * aviso rojo en la pantalla de todos sin nada detrás.
+ *
+ * Y el `WHERE "grabandoDesde" IS NULL` es lo que impide dos grabaciones a la
+ * vez sobre la misma reunión: dos personas pulsando al mismo tiempo subirían
+ * dos ficheros del mismo rato y la ficha enseñaría la reunión dos veces.
+ */
+export async function empezarLaGrabacion(input: {
+    salaId: string;
+    cuentaId: string;
+    salaTitulo: string | null;
+    pedidaPorId: string;
+    pedidaPorNombre: string;
+    modo: string;
+}): Promise<FilaDeGrabacion | null> {
+    const id = randomUUID();
+    return conLasTablas(() => db.$transaction(async (tx) => {
+        const tocadas = await tx.$executeRawUnsafe(
+            `UPDATE "salas_de_video"
+             SET "grabandoDesde" = NOW(), "grabandoVistoEn" = NOW(),
+                 "grabacionId" = $2, "grabandoPor" = $3
+             WHERE "id" = $1 AND "grabandoDesde" IS NULL`,
+            input.salaId,
+            id,
+            input.pedidaPorNombre,
+        );
+        if (tocadas === 0) return null;
+
+        const filas = await tx.$queryRawUnsafe<FilaDeGrabacion[]>(
+            `INSERT INTO "grabaciones_de_reunion"
+                 ("id", "salaId", "cuentaId", "salaTitulo", "pedidaPorId",
+                  "pedidaPorNombre", "modo", "estado")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'grabando')
+             RETURNING ${COLUMNAS_GRABACION}`,
+            id,
+            input.salaId,
+            input.cuentaId,
+            input.salaTitulo,
+            input.pedidaPorId,
+            input.pedidaPorNombre,
+            input.modo,
+        );
+        const fila = filas[0];
+        return fila ? comoLlegaLaGrabacion(fila) : null;
+    }));
+}
+
+/** Refrescar el latido de quien graba. Es lo que mantiene el aviso encendido. */
+export async function latirGrabando(salaId: string, grabacionId: string): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        UPDATE "salas_de_video" SET "grabandoVistoEn" = NOW()
+        WHERE "id" = ${salaId} AND "grabacionId" = ${grabacionId}
+    `);
+}
+
+/** Apuntar una parte subida. El contador es lo que después las junta en orden. */
+export async function apuntarLaParte(input: {
+    grabacionId: string;
+    cual: "audio" | "video";
+    bytes: number;
+}): Promise<number> {
+    const columna = input.cual === "audio" ? "partesAudio" : "partesVideo";
+    const bytesCol = input.cual === "audio" ? "audioBytes" : "videoBytes";
+    const filas = await conLasTablas(() => db.$queryRawUnsafe<Array<{ n: number }>>(
+        `UPDATE "grabaciones_de_reunion"
+         SET "${columna}" = "${columna}" + 1, "${bytesCol}" = "${bytesCol}" + $2
+         WHERE "id" = $1 AND "estado" = 'grabando'
+         RETURNING "${columna}" AS n`,
+        input.grabacionId,
+        Math.max(0, Math.floor(input.bytes)),
+    ));
+    return Number(filas[0]?.n ?? 0);
+}
+
+/**
+ * Cerrar la grabación: la fila, y soltar la sala, **en una transacción**.
+ *
+ * Soltar la sala es lo que deja volver a grabar. Sin ello, una grabación que
+ * terminó dejaría la reunión marcada como «grabando» hasta que caducara la
+ * marca, y el botón apagado todo ese rato.
+ */
+export async function cerrarLaGrabacion(input: {
+    grabacionId: string;
+    salaId: string;
+    estado: "lista" | "fallida";
+    segundos: number;
+    audioUrl?: string | null;
+    videoUrl?: string | null;
+}): Promise<FilaDeGrabacion | null> {
+    return conLasTablas(() => db.$transaction(async (tx) => {
+        const filas = await tx.$queryRawUnsafe<FilaDeGrabacion[]>(
+            `UPDATE "grabaciones_de_reunion"
+             SET "estado" = $2, "segundos" = $3, "terminadaEn" = NOW(),
+                 "audioUrl" = COALESCE($4, "audioUrl"),
+                 "videoUrl" = COALESCE($5, "videoUrl")
+             WHERE "id" = $1 AND "estado" = 'grabando'
+             RETURNING ${COLUMNAS_GRABACION}`,
+            input.grabacionId,
+            input.estado,
+            Math.max(0, Math.floor(input.segundos)),
+            input.audioUrl ?? null,
+            input.videoUrl ?? null,
+        );
+        await tx.$executeRawUnsafe(
+            `UPDATE "salas_de_video"
+             SET "grabandoDesde" = NULL, "grabandoVistoEn" = NULL,
+                 "grabacionId" = NULL, "grabandoPor" = NULL
+             WHERE "id" = $1 AND "grabacionId" = $2`,
+            input.salaId,
+            input.grabacionId,
+        );
+        const fila = filas[0];
+        return fila ? comoLlegaLaGrabacion(fila) : null;
+    }));
+}
+
+export async function laGrabacion(id: string): Promise<FilaDeGrabacion | null> {
+    const filas = await conLasTablas(() => db.$queryRawUnsafe<FilaDeGrabacion[]>(
+        `SELECT ${COLUMNAS_GRABACION} FROM "grabaciones_de_reunion" WHERE "id" = $1`,
+        id,
+    ));
+    const fila = filas[0];
+    return fila ? comoLlegaLaGrabacion(fila) : null;
+}
+
+/**
+ * Lo que ocupan las grabaciones de una cuenta.
+ *
+ * Un `SUM`, no la suma de una lista: el cupo tiene que contar TODO lo que hay
+ * en el bucket de esa cuenta, y una lista topada contaría lo que se pudo
+ * cargar. Es la misma regla que «un contador es un `COUNT`, no un `length`».
+ */
+export async function loQueOcupanLasGrabaciones(cuentaId: string): Promise<number> {
+    const filas = await conLasTablas(() => db.$queryRaw<Array<{ n: bigint | null }>>`
+        SELECT COALESCE(SUM("audioBytes" + "videoBytes"), 0)::bigint AS n
+        FROM "grabaciones_de_reunion"
+        WHERE "cuentaId" = ${cuentaId}
+    `);
+    return Number(filas[0]?.n ?? 0);
+}
+
+/** Las grabaciones de un puñado de salas, en UNA consulta y no una por fila. */
+export async function lasGrabacionesDeLasSalas(
+    salaIds: string[],
+): Promise<Map<string, FilaDeGrabacion[]>> {
+    const unicos = [...new Set(salaIds.filter(Boolean))];
+    const mapa = new Map<string, FilaDeGrabacion[]>();
+    if (!unicos.length) return mapa;
+    const filas = await conLasTablas(() => db.$queryRawUnsafe<FilaDeGrabacion[]>(
+        `SELECT ${COLUMNAS_GRABACION} FROM "grabaciones_de_reunion"
+         WHERE "salaId" = ANY($1::text[])
+         ORDER BY "creadaEn" ASC`,
+        unicos,
+    ));
+    for (const cruda of filas) {
+        const f = comoLlegaLaGrabacion(cruda);
+        const lista = mapa.get(f.salaId);
+        if (lista) lista.push(f);
+        else mapa.set(f.salaId, [f]);
+    }
+    return mapa;
+}
+
+/** Guardar el texto y el resumen. Una sola escritura, después de cobrar nada. */
+export async function guardarLaTranscripcionDeLaReunion(input: {
+    grabacionId: string;
+    texto: string;
+    resumen: string | null;
+}): Promise<boolean> {
+    const tocadas = await conLasTablas(() => db.$executeRaw`
+        UPDATE "grabaciones_de_reunion"
+        SET "transcripcion" = ${input.texto}, "resumen" = ${input.resumen},
+            "transcritaEn" = NOW()
+        WHERE "id" = ${input.grabacionId} AND "transcripcion" IS NULL
+    `);
+    return tocadas > 0;
+}
+
+/**
+ * Las que ya caducaron, para borrarlas del bucket y de la tabla.
+ *
+ * Devuelve la fila entera porque quien barre necesita **las direcciones** para
+ * borrar los ficheros: una fila que se va sin su fichero deja el giga en el
+ * bucket para siempre y nadie sabe de dónde salió.
+ */
+export async function lasGrabacionesCaducadas(dias: number, tope: number): Promise<FilaDeGrabacion[]> {
+    const filas = await conLasTablas(() => db.$queryRawUnsafe<FilaDeGrabacion[]>(
+        `SELECT ${COLUMNAS_GRABACION} FROM "grabaciones_de_reunion"
+         WHERE "creadaEn" < NOW() - make_interval(days => $1::int)
+           AND ("audioUrl" IS NOT NULL OR "videoUrl" IS NOT NULL)
+         ORDER BY "creadaEn" ASC
+         LIMIT $2`,
+        Math.max(1, Math.floor(dias)),
+        Math.max(1, Math.floor(tope)),
+    ));
+    return filas.map(comoLlegaLaGrabacion);
+}
+
+/**
+ * Olvidar los ficheros de una grabación caducada, **conservando el texto**.
+ *
+ * La fila NO se borra: la transcripción y el resumen son lo que alguien va a
+ * buscar de una reunión de hace seis meses, ocupan texto, y tirarlos con el
+ * audio sería perder lo barato por culpa de lo caro. Lo que se pone a cero son
+ * las direcciones y los bytes — que es además lo que devuelve el cupo.
+ */
+export async function olvidarLosFicheros(grabacionId: string): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        UPDATE "grabaciones_de_reunion"
+        SET "audioUrl" = NULL, "videoUrl" = NULL, "audioBytes" = 0, "videoBytes" = 0,
+            "estado" = 'caducada'
+        WHERE "id" = ${grabacionId}
+    `);
+}
+
+/**
+ * Las que se quedaron en `grabando` porque la pestaña que grababa se cerró.
+ *
+ * Se marcan como fallidas y sueltan su sala: sin esto, esa reunión no podría
+ * volver a grabarse nunca —`empezarLaGrabacion` exige `grabandoDesde IS NULL`—
+ * y su fila se quedaría contando bytes de un fichero que nunca se juntó.
+ */
+export async function cerrarLasGrabacionesColgadas(horas: number): Promise<number> {
+    return conLasTablas(async () => {
+        const idas = await db.$queryRawUnsafe<Array<{ id: string; salaId: string }>>(
+            `UPDATE "grabaciones_de_reunion"
+             SET "estado" = 'fallida', "terminadaEn" = NOW()
+             WHERE "estado" = 'grabando'
+               AND "creadaEn" < NOW() - make_interval(hours => $1::int)
+             RETURNING "id", "salaId"`,
+            Math.max(1, Math.floor(horas)),
+        );
+        for (const f of idas) {
+            await db.$executeRawUnsafe(
+                `UPDATE "salas_de_video"
+                 SET "grabandoDesde" = NULL, "grabandoVistoEn" = NULL,
+                     "grabacionId" = NULL, "grabandoPor" = NULL
+                 WHERE "id" = $1 AND "grabacionId" = $2`,
+                f.salaId,
+                f.id,
+            );
+        }
+        return idas.length;
+    });
 }

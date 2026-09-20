@@ -67,7 +67,41 @@ import {
     vaciarElBuzon,
     type FilaDeParticipante,
     type FilaDeSala,
+    reanudarEnLaSala,
+    empezarLaGrabacion,
+    latirGrabando,
+    cerrarLaGrabacion,
+    laGrabacion,
+    loQueOcupanLasGrabaciones,
+    lasGrabacionesDeLasSalas,
+    guardarLaTranscripcionDeLaReunion,
+    type FilaDeGrabacion,
 } from "@/lib/salas-de-video-db";
+import {
+    comoVaElCupo,
+    esModoDeGrabacion,
+    queHacerConLaGrabacion,
+    porQueNoSeTranscribe,
+    seSigueGrabando,
+    comoSeLeenLosBytes,
+    diasQueLeQuedan,
+    TOPE_DE_UNA_GRABACION_MS,
+    type ModoDeGrabacion,
+} from "@/lib/grabacion-de-reunion";
+import {
+    laCuentaPuedeGrabar,
+    cerrarYJuntarLaGrabacion,
+    bajarLaGrabacion,
+    elResumenDeLaReunion,
+} from "@/lib/grabacion-de-reunion.server";
+import { costoDeLaNota } from "@/lib/transcripcion-de-voz";
+import { laCuentaQuePagaLaTranscripcion } from "@/lib/nota-de-voz-del-equipo";
+import {
+    losCreditosQueQuedan,
+    descontarLaTranscripcion,
+    laClaveDeOpenAi,
+    pedirleElTextoAOpenAi,
+} from "@/lib/creditos-de-transcripcion";
 
 /**
  * Las salas de video: crear el enlace, dejar pasar, y el reloj de dentro.
@@ -895,6 +929,23 @@ export type QuienEstaEnLaSala = {
      * personas con el reloj ligeramente distinto verían manos distintas.
      */
     manoLevantada: boolean;
+    /**
+     * Cuándo entró **esta vez**, en ISO.
+     *
+     * Es lo que hace que una reconexión sea simétrica sin inventar ninguna
+     * señal nueva. En una malla solo ofrece uno de los dos (`debeOfrecer`), así
+     * que cuando a alguien se le cae la red y vuelve, el que NO ofrece podría
+     * quedarse con una conexión que a él todavía le parece viva, esperando una
+     * oferta que el otro no cree tener que mandar. Con esta marca la regla se
+     * escribe sola: **una conexión montada antes de que esa persona entrara es
+     * de una sesión suya anterior**, y se tira.
+     *
+     * Sin ella se converge igual, pero por el camino lento: WebRTC tarda entre
+     * quince y treinta segundos en dar una conexión por muerta cuando la otra
+     * punta simplemente dejó de contestar. Medio minuto de recuadro en negro
+     * después de que la reunión ya haya vuelto no se lee como «está volviendo».
+     */
+    desde: string | null;
 };
 
 /** Un mensaje del chat de la reunión. No sale de aquí: ver `sala_mensajes`. */
@@ -959,6 +1010,25 @@ export type LoQuePasaEnLaSala = {
      * comprobarlo, y ese es el sitio donde se olvida.
      */
     ice: RTCIceServer[];
+    /**
+     * Si se está grabando ahora mismo, y desde cuándo.
+     *
+     * **Lo ven todos, no solo quien graba**: grabar la voz y la cara de los
+     * demás sin que se note no es una función, es otra cosa. Viaja aquí y no
+     * en una consulta propia porque la fila de la sala ya viene cargada en
+     * esta vuelta; preguntarlo aparte sería una consulta por persona y por
+     * vuelta en el camino más caliente de esta pantalla.
+     */
+    grabando: { desde: string; por: string } | null;
+    /**
+     * Si a mí me sale el botón de grabar.
+     *
+     * Lo decide el servidor y no la pantalla: son dos cosas —administrar la
+     * sala y que la CUENTA tenga el módulo— y la segunda el navegador no la
+     * sabe. Enseñar el botón y que la acción conteste que no es el «menú
+     * abierto, puerta cerrada» que este repositorio ya pagó varias veces.
+     */
+    puedoGrabar: boolean;
 };
 
 /**
@@ -1010,6 +1080,18 @@ export async function latidoDeLaSalaAction(input: {
      * mensajes de esta misma reunión que ya se tenían.
      */
     desdeMensaje?: string | null;
+    /**
+     * La grabación que ESTA pestaña está llevando, si lleva alguna.
+     *
+     * Es lo que refresca `grabandoVistoEn` y, con él, el aviso de todos. Va
+     * dentro del latido y no en una acción propia por lo de siempre: esta
+     * vuelta ya está pagada, y un segundo reloj solo para decir «sigo
+     * grabando» sería duplicar las peticiones de quien graba.
+     *
+     * Y **no decide nada**: solo refresca la marca de la grabación que la fila
+     * de la sala ya nombra. Un id inventado no toca ninguna fila.
+     */
+    grabando?: string | null;
 }): Promise<Respuesta<{ datos: LoQuePasaEnLaSala }>> {
     try {
         const quienEs = await quienEsEnLaSala(input);
@@ -1025,6 +1107,13 @@ export async function latidoDeLaSalaAction(input: {
 
         await latirEnLaSala(participante.id, input.medios ?? null);
         await sacarALosQueNoDanSenales(sala.id);
+
+        // El latido de quien graba. Solo si la sala dice que esa es la
+        // grabación en curso, que es lo que impide refrescar una ajena.
+        const grabandoAqui = (input.grabando ?? "").trim();
+        if (grabandoAqui && grabandoAqui === sala.grabacionId) {
+            await latirGrabando(sala.id, grabandoAqui);
+        }
 
         // El barrido del buzón, una de cada veinte vueltas y en su propio
         // `try`: un barrido que se cuelgue no puede retener la vuelta que trae
@@ -1055,6 +1144,7 @@ export async function latidoDeLaSalaAction(input: {
             camaraEncendida: f.camaraEncendida,
             compartiendo: f.compartiendo,
             manoLevantada: tieneLaManoLevantada(f.manoLevantadaEn),
+            desde: f.entradoEn ? f.entradoEn.toISOString() : null,
         });
 
         // El buzón se vacía SOLO si ya estoy dentro. Quien espera en la puerta
@@ -1118,6 +1208,24 @@ export async function latidoDeLaSalaAction(input: {
                     texto: m.texto,
                     creadoEn: m.creadoEn.toISOString(),
                 })),
+                // La marca CADUCA: quien grababa puede haber cerrado la
+                // pestaña, y un aviso de grabación que no se apaga miente
+                // sobre algo que nadie se toma a broma. Se lee con el latido
+                // recién escrito arriba, no con el que traía la fila, o el
+                // aviso parpadearía en la pestaña de quien graba.
+                grabando:
+                    sala.grabandoDesde &&
+                    (grabandoAqui === sala.grabacionId || seSigueGrabando(sala.grabandoVistoEn))
+                        ? {
+                              desde: sala.grabandoDesde.toISOString(),
+                              por: sala.grabandoPor ?? "Alguien",
+                          }
+                        : null,
+                puedoGrabar: await puedoGrabarEnEstaSala({
+                    sala,
+                    delEquipo,
+                    yo: quienEs.yo,
+                }),
                 ice:
                     participante.estado === "dentro"
                         ? losServidoresIce({
@@ -1271,6 +1379,9 @@ export async function sacarDeLaSalaAction(input: {
             salaId: quienEs.sala.id,
             participanteId: input.participanteId,
             motivo: input.motivo === "rechazado" ? "rechazado" : "fuera",
+            // A quien sacan NO vuelve solo. Sin esto, su pestaña detectaría que
+            // ya no está dentro y se reanudaría en la vuelta siguiente.
+            porQue: "sacado",
         });
         return { success: true, listo: true };
     } catch (error) {
@@ -1299,6 +1410,8 @@ export async function salirDeLaSalaAction(input: {
             salaId: quienEs.sala.id,
             participanteId: quienEs.participante.id,
             motivo: "fuera",
+            // Salir significa salir: tampoco se reanuda.
+            porQue: "salio",
         });
     } catch (error) {
         console.warn("[salas] no se pudo salir limpiamente", error);
@@ -1425,5 +1538,481 @@ export async function escribirEnLaReunionAction(input: {
     } catch (error) {
         console.warn("[salas] no se pudo escribir en la reunión", error);
         return { success: false, message: "No se pudo enviar el mensaje." };
+    }
+}
+
+// ── Volver después de un corte ──────────────────────────────────────────────
+
+/**
+ * Devolver a alguien a su sitio cuando se le cayó la red.
+ *
+ * **No es entrar otra vez.** No crea fila, no pasa por la puerta y no le pide
+ * nada a nadie: reanuda la fila que ya existía, que alguien de dentro admitió
+ * en su momento. Es lo que hace que un corte de medio minuto se note como un
+ * parpadeo en vez de como una reunión que hay que volver a montar — y lo único
+ * que un invitado tiene, porque «Volver a entrar» le devolvería a la puerta y
+ * tendría que dar su nombre otra vez y que alguien volviera a abrirle.
+ *
+ * Quién es lo resuelve el servidor como siempre —la sesión o el token—, así que
+ * esto no acepta un participante suelto en los parámetros: con uno, cualquiera
+ * reanudaría la fila de otro.
+ *
+ * Y lo que decide si procede es `motivoDeSalida`, no el estado: los tres
+ * caminos que sacan a alguien escriben `fuera`, y solo uno de ellos —el barrido
+ * por silencio— es un corte de red. A quien echaron no se le devuelve.
+ */
+export async function volverAEntrarAction(input: {
+    codigo?: string | null;
+    token?: string | null;
+}): Promise<Respuesta<{ vuelto: true }>> {
+    try {
+        const token = (input.token ?? "").trim();
+        let salaId: string;
+        let participanteId: string;
+
+        if (token) {
+            const fila = await elInvitadoDelToken(token);
+            if (!fila) return { success: false, message: "Tu entrada a esta reunión ya no vale." };
+            const sala = await laSalaPorId(fila.salaId);
+            if (!sala) return { success: false, message: "Esta reunión ya no existe." };
+            const estado = comoEstaLaSala(sala);
+            if (estado !== "abierta") {
+                return { success: false, message: loQueSeLeDiceAlQueLlegaTarde(estado) };
+            }
+            salaId = sala.id;
+            participanteId = fila.id;
+        } else {
+            const codigo = (input.codigo ?? "").trim();
+            if (!codigo) return { success: false, message: "No autorizado." };
+            const sala = await laSalaPorCodigo(codigo);
+            if (!sala) return { success: false, message: "Este enlace de reunión no es válido." };
+            const estado = comoEstaLaSala(sala);
+            if (estado !== "abierta") {
+                return { success: false, message: loQueSeLeDiceAlQueLlegaTarde(estado) };
+            }
+            const yo = await quien();
+            if (!yo) return { success: false, message: "No autorizado." };
+            // La pertenencia se vuelve a comprobar, como en cada vuelta del
+            // reloj: a alguien se le puede sacar del canal mientras estaba
+            // desconectado, y volver no puede saltarse esa puerta.
+            if (!(await perteneceALaSala(sala, yo))) {
+                return { success: false, message: "No autorizado." };
+            }
+            const fila = await elParticipanteDeLaSesion(sala.id, yo.personaId);
+            if (!fila) return { success: false, message: "Todavía no has entrado a esta reunión." };
+            salaId = sala.id;
+            participanteId = fila.id;
+        }
+
+        const vuelto = await reanudarEnLaSala({ salaId, participanteId });
+        if (vuelto === "no_procede") {
+            return { success: false, message: "Ya no estás en esta reunión." };
+        }
+        if (!vuelto) {
+            // Se dice con esas palabras: mientras estabas fuera entró alguien
+            // más, y un quinto corta la reunión para todos.
+            return { success: false, message: "La reunión se llenó mientras no estabas." };
+        }
+        return { success: true, vuelto: true };
+    } catch (error) {
+        console.warn("[salas] no se pudo volver a la reunión", error);
+        return { success: false, message: "No se pudo volver a la reunión." };
+    }
+}
+
+// ── Grabar ──────────────────────────────────────────────────────────────────
+
+/**
+ * Quién puede poner a grabar, y es la puerta de moderar.
+ *
+ * Grabar deja un fichero con la voz —y la cara— de todos los que están dentro,
+ * así que no es participar: es mandar. Es el mismo reparto con el que se
+ * silencia y se saca a alguien (`puedeAdministrarLaSala`: el anfitrión y quien
+ * administra la cuenta), y por eso se pregunta con la MISMA función y no con
+ * una condición nueva escrita aquí — que es como se separan dos puertas que
+ * deberían decir lo mismo.
+ *
+ * Encima va el módulo, que es de la CUENTA: la grabación se vende aparte.
+ */
+async function puedoGrabarEnEstaSala(quienEs: {
+    sala: FilaDeSala;
+    delEquipo: boolean;
+    yo: Awaited<ReturnType<typeof quien>> | null;
+}): Promise<boolean> {
+    if (!quienEs.delEquipo) return false;
+    if (!puedeAdministrarLaSala(quienEs.sala, quienEs.yo)) return false;
+    return laCuentaPuedeGrabar(quienEs.sala.cuentaId);
+}
+
+export async function empezarAGrabarAction(input: {
+    codigo?: string | null;
+    modo: string;
+}): Promise<Respuesta<{ grabacionId: string; cuentaId: string }>> {
+    try {
+        const quienEs = await quienEsEnLaSala({ codigo: input.codigo });
+        if ("error" in quienEs) return { success: false, message: quienEs.error };
+        if (quienEs.participante.estado !== "dentro") {
+            return { success: false, message: "Tienes que estar dentro para grabar." };
+        }
+        if (!(await puedoGrabarEnEstaSala(quienEs))) {
+            return {
+                success: false,
+                message: "Esta cuenta no tiene la grabación de reuniones, o no la administras.",
+            };
+        }
+
+        const modo: ModoDeGrabacion = esModoDeGrabacion(input.modo) ? input.modo : "audio";
+
+        // El cupo se mira ANTES de empezar, no a mitad: parar una grabación por
+        // falta de sitio con media reunión dentro es perder lo que ya se grabó
+        // y encima no decirlo a tiempo.
+        const cupo = comoVaElCupo(await loQueOcupanLasGrabaciones(quienEs.sala.cuentaId));
+        if (cupo.lleno) {
+            return {
+                success: false,
+                message:
+                    "No queda espacio de grabación en esta cuenta. Borra alguna grabación antigua.",
+            };
+        }
+
+        const fila = await empezarLaGrabacion({
+            salaId: quienEs.sala.id,
+            cuentaId: quienEs.sala.cuentaId,
+            salaTitulo: quienEs.sala.titulo,
+            pedidaPorId: quienEs.participante.id,
+            pedidaPorNombre: quienEs.participante.nombre,
+            modo,
+        });
+        if (!fila) {
+            // El `WHERE grabandoDesde IS NULL` del `UPDATE` es lo que lo
+            // impide, así que llegar aquí significa que alguien se adelantó.
+            return { success: false, message: "Esta reunión ya se está grabando." };
+        }
+
+        console.info("[reuniones] empieza una grabacion", {
+            grabacion: fila.id,
+            sala: quienEs.sala.id,
+            modo,
+            cupo: cupo.parte,
+        });
+        return { success: true, grabacionId: fila.id, cuentaId: quienEs.sala.cuentaId };
+    } catch (error) {
+        console.warn("[reuniones] no se pudo empezar a grabar", error);
+        return { success: false, message: "No se pudo empezar a grabar." };
+    }
+}
+
+/**
+ * Cerrar la grabación: juntar las partes y dejarla en la ficha.
+ *
+ * `segundos` llega del navegador porque es quien tiene el cronómetro, y se
+ * acota: es lo que después decide el precio de la transcripción, así que un
+ * entero inventado sería una factura inventada. El techo es un absurdo —el tope
+ * de una grabación— y no el de lo transcribible, que es la trampa que ya costó
+ * una vuelta en las notas de voz: recortar al tope de lo transcribible haría
+ * que una reunión de tres horas se cobrara como una de diez minutos.
+ */
+export async function terminarDeGrabarAction(input: {
+    codigo?: string | null;
+    grabacionId: string;
+    segundos: number;
+}): Promise<Respuesta<{ listo: true }>> {
+    try {
+        const quienEs = await quienEsEnLaSala({ codigo: input.codigo });
+        if ("error" in quienEs) return { success: false, message: quienEs.error };
+
+        const fila = await laGrabacion(input.grabacionId);
+        if (!fila || fila.salaId !== quienEs.sala.id) {
+            return { success: false, message: "Esa grabación no es de esta reunión." };
+        }
+        // **La cierra quien la empezó, o quien administra.** Sin lo primero, una
+        // reunión con dos administradores dejaría que el otro cortara la
+        // grabación desde su pestaña, y las partes que esa pestaña tuviera sin
+        // subir se perderían sin que nadie lo notara.
+        const suya = fila.pedidaPorId === quienEs.participante.id;
+        if (!suya && !(await puedoGrabarEnEstaSala(quienEs))) {
+            return { success: false, message: "No puedes cerrar esta grabación." };
+        }
+        if (fila.estado !== "grabando") return { success: true, listo: true };
+
+        const segundos = Math.max(
+            0,
+            Math.min(Math.floor(Number(input.segundos) || 0), TOPE_DE_UNA_GRABACION_MS / 1000),
+        );
+
+        const cerrada = await cerrarYJuntarLaGrabacion({ grabacionId: fila.id, segundos });
+        if (!cerrada.ok) {
+            console.warn("[reuniones] la grabacion no dejo ningun fichero", {
+                grabacion: fila.id,
+                partesAudio: fila.partesAudio,
+                partesVideo: fila.partesVideo,
+            });
+            return { success: false, message: "La grabación no se pudo guardar." };
+        }
+
+        console.info("[reuniones] grabacion cerrada", {
+            grabacion: fila.id,
+            segundos,
+            audio: Boolean(cerrada.audioUrl),
+            video: Boolean(cerrada.videoUrl),
+        });
+        return { success: true, listo: true };
+    } catch (error) {
+        console.warn("[reuniones] no se pudo cerrar la grabacion", error);
+        return { success: false, message: "No se pudo cerrar la grabación." };
+    }
+}
+
+// ── Transcribir, bajo demanda y nunca sola ──────────────────────────────────
+
+/**
+ * El texto y el resumen de una reunión grabada.
+ *
+ * **Siempre a petición, nunca automática**, que es la diferencia con las notas
+ * de voz que entran en Chats: allí el asesor tiene que saber qué le dijeron sin
+ * ponerse los auriculares, y aquí son compañeros hablando una hora. Transcribir
+ * cada reunión que se grabe, a seis créditos el minuto, es una factura que
+ * nadie pidió.
+ *
+ * Y la tarifa **no se vuelve a escribir**: `costoDeLaNota`, los mismos seis
+ * créditos por minuto prorrateados que cobran las dos pantallas de al lado. Con
+ * una copia, el día que cambie el precio esta cobraría otra cosa — y eso no se
+ * ve, se nota meses después en la factura.
+ */
+export async function transcribirLaReunionAction(input: {
+    grabacionId: string;
+}): Promise<Respuesta<{ transcripcion: string; resumen: string | null; yaEstaba: boolean }>> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+
+        const fila = await laGrabacion(input.grabacionId);
+        if (!fila) return { success: false, message: "Esa grabación ya no existe." };
+
+        // La puerta: la grabación es de una CUENTA, y se comprueba contra la de
+        // quien pregunta. Sin esto, con un id a mano se leería —y se pagaría—
+        // la reunión de otra cuenta.
+        if (fila.cuentaId !== yo.cuentaId) {
+            return { success: false, message: "No autorizado." };
+        }
+        if (!(await laCuentaPuedeGrabar(fila.cuentaId))) {
+            return { success: false, message: "Esta cuenta no tiene la grabación de reuniones." };
+        }
+
+        // Lo que ya está hecho se contesta ANTES de resolver créditos y claves:
+        // es el camino común en cuanto alguien la pide una vez, y así se paga
+        // una sola vez por muchas que se pulse.
+        if (fila.transcripcion) {
+            return {
+                success: true,
+                transcripcion: fila.transcripcion,
+                resumen: fila.resumen,
+                yaEstaba: true,
+            };
+        }
+
+        // Quién paga: la cuenta, y dentro de una familia la MADRE. Nunca la
+        // persona — `ia_credits` tiene una fila por cuenta, así que cobrarle a
+        // alguien del equipo sería cobrarle a una fila que no existe y nadie
+        // podría transcribir nada.
+        const familia = await laFamiliaDeLaCuenta(yo.cuentaId);
+        const paga = laCuentaQuePagaLaTranscripcion({
+            cuentaId: yo.cuentaId,
+            raizDeLaFamilia: familia.raiz,
+        });
+
+        const quedan = await losCreditosQueQuedan(paga);
+        const que = queHacerConLaGrabacion({
+            yaTranscrita: false,
+            audioBytes: fila.audioBytes,
+            costo: costoDeLaNota(fila.segundos),
+            creditosDisponibles: quedan,
+        });
+        if (que.hacer !== "transcribir") {
+            const porQue = porQueNoSeTranscribe(que);
+            return { success: false, message: porQue ?? "No se puede transcribir." };
+        }
+
+        const clave = await laClaveDeOpenAi(paga);
+        if (!clave) return { success: false, message: "Esta cuenta no tiene configurada su IA." };
+
+        const audio = await bajarLaGrabacion(fila.audioUrl);
+        if (!audio) return { success: false, message: "No se pudo leer el audio de la reunión." };
+
+        const texto = await pedirleElTextoAOpenAi({
+            audio: audio.bytes,
+            clave,
+            nombre: audio.nombre,
+        });
+        if (!texto) {
+            // **No se cobra y no se deja marca.** Un fallo de OpenAI es de hoy:
+            // marcarlo dejaría esta reunión sin transcribir para siempre y sin
+            // decir por qué. El botón sigue.
+            return { success: false, message: "No se pudo transcribir. Inténtalo otra vez." };
+        }
+
+        // El resumen va DESPUÉS del texto y **no puede tumbarlo**: si falla, se
+        // guarda la transcripción igual. Media entrega es mejor que ninguna
+        // cuando la mitad que sale ya está pagada.
+        const resumen = await elResumenDeLaReunion({ texto, clave });
+
+        await guardarLaTranscripcionDeLaReunion({
+            grabacionId: fila.id,
+            texto,
+            resumen,
+        });
+
+        // Se cobra DESPUÉS de tener el texto, y no cuando la cuenta paga su
+        // propia IA (`quedan === null`).
+        if (quedan !== null) await descontarLaTranscripcion(paga, que.tokens);
+
+        console.info("[reuniones] reunion transcrita", {
+            grabacion: fila.id,
+            paga,
+            segundos: fila.segundos,
+            creditos: quedan === null ? "ilimitados" : que.creditos,
+            conResumen: Boolean(resumen),
+        });
+
+        return { success: true, transcripcion: texto, resumen, yaEstaba: false };
+    } catch (error) {
+        console.warn("[reuniones] no se pudo transcribir la reunion", error);
+        return { success: false, message: "No se pudo transcribir. Inténtalo otra vez." };
+    }
+}
+
+// ── Lo que la ficha de una reunión enseña de sus grabaciones ────────────────
+
+export type GrabacionEnLaFicha = {
+    id: string;
+    modo: string;
+    estado: string;
+    segundos: number;
+    duracion: string;
+    audioUrl: string | null;
+    videoUrl: string | null;
+    bytes: number;
+    pesa: string;
+    creadaEn: string;
+    pedidaPor: string;
+    /** Cuántos días le quedan antes de que se borre sola. */
+    diasQueLeQuedan: number;
+    transcripcion: string | null;
+    resumen: string | null;
+    /** Lo que costaría transcribirla, para decirlo ANTES de pulsar. */
+    creditos: number;
+    /** Por qué no se puede, cuando no se puede. `null` si se puede. */
+    porQueNo: string | null;
+};
+
+function comoSeVeLaGrabacion(f: FilaDeGrabacion): GrabacionEnLaFicha {
+    const bytes = f.audioBytes + f.videoBytes;
+    const costo = costoDeLaNota(f.segundos);
+    // El precio se enseña SIEMPRE, y el motivo por el que no se puede también:
+    // un botón que gasta créditos sin decir cuántos es un cheque en blanco, y
+    // uno que al pulsarlo da error es peor que no tenerlo.
+    const que = queHacerConLaGrabacion({
+        yaTranscrita: Boolean(f.transcripcion),
+        audioBytes: f.audioBytes,
+        costo,
+        // Los créditos no se miran aquí: esta función pinta una lista y
+        // preguntarlos por fila sería una consulta por grabación. Lo que sí se
+        // resuelve es lo que no depende de ellos —sin audio, demasiado grande—,
+        // y los créditos los comprueba la acción al pulsar.
+        creditosDisponibles: null,
+    });
+    return {
+        id: f.id,
+        modo: f.modo,
+        estado: f.estado,
+        segundos: f.segundos,
+        duracion: comoSeLeeLaDuracion(f.segundos || null),
+        audioUrl: f.audioUrl,
+        videoUrl: f.videoUrl,
+        bytes,
+        pesa: comoSeLeenLosBytes(bytes),
+        creadaEn: f.creadaEn.toISOString(),
+        pedidaPor: f.pedidaPorNombre,
+        diasQueLeQuedan: diasQueLeQuedan(f.creadaEn),
+        transcripcion: f.transcripcion,
+        resumen: f.resumen,
+        creditos: costo.creditos,
+        porQueNo: porQueNoSeTranscribe(que),
+    };
+}
+
+/**
+ * Las grabaciones de unas cuantas reuniones, y cómo va el cupo de la cuenta.
+ *
+ * **Una consulta para todas las salas**, no una por fila: la pantalla de
+ * Reuniones enseña hasta cien filas, y una consulta por cada una es
+ * exactamente «muchas peticiones pequeñas son turno, no trabajo» por dentro.
+ *
+ * Y el cupo viaja en la misma vuelta porque se enseña en la misma pantalla: en
+ * una acción aparte serían dos viajes para pintar una barra.
+ */
+export async function lasGrabacionesDeLasReunionesAction(
+    salaIds: string[],
+): Promise<
+    Respuesta<{
+        porSala: Record<string, GrabacionEnLaFicha[]>;
+        cupo: { usados: number; tope: number; parte: number; cerca: boolean; texto: string };
+        puedeGrabar: boolean;
+    }>
+> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+
+        const puedeGrabar = await laCuentaPuedeGrabar(yo.cuentaId);
+        if (!puedeGrabar) {
+            // Sin el módulo no hay nada que enseñar, y **se contesta bien**:
+            // un «No autorizado» aquí pintaría un error rojo en una pantalla
+            // que funciona perfectamente sin grabaciones.
+            const vacio = comoVaElCupo(0);
+            return {
+                success: true,
+                porSala: {},
+                cupo: {
+                    usados: 0,
+                    tope: vacio.tope,
+                    parte: 0,
+                    cerca: false,
+                    texto: comoSeLeenLosBytes(0),
+                },
+                puedeGrabar: false,
+            };
+        }
+
+        const [mapa, usados] = await Promise.all([
+            lasGrabacionesDeLasSalas(salaIds.slice(0, TOPE_DEL_HISTORICO)),
+            loQueOcupanLasGrabaciones(yo.cuentaId),
+        ]);
+
+        const porSala: Record<string, GrabacionEnLaFicha[]> = {};
+        for (const [salaId, filas] of mapa) {
+            // La cuenta se vuelve a comprobar fila a fila: los ids de sala
+            // llegan del navegador, y sin esto una lista a mano devolvería las
+            // grabaciones de la reunión de otra cuenta.
+            const mias = filas.filter((f) => f.cuentaId === yo.cuentaId);
+            if (mias.length) porSala[salaId] = mias.map(comoSeVeLaGrabacion);
+        }
+
+        const cupo = comoVaElCupo(usados);
+        return {
+            success: true,
+            porSala,
+            cupo: {
+                usados: cupo.usados,
+                tope: cupo.tope,
+                parte: cupo.parte,
+                cerca: cupo.cerca,
+                texto: `${comoSeLeenLosBytes(cupo.usados)} de ${comoSeLeenLosBytes(cupo.tope)}`,
+            },
+            puedeGrabar: true,
+        };
+    } catch (error) {
+        console.warn("[reuniones] no se pudieron leer las grabaciones", error);
+        return { success: false, message: "No se pudieron leer las grabaciones." };
     }
 }

@@ -8,10 +8,17 @@ import {
     comoQuedaLaMalla,
     debeOfrecer,
 } from "@/lib/sala-de-video";
+import {
+    CUANDO_NO_SE_PUDO_VOLVER,
+    comoSeLeeLaReconexion,
+    estaMuertaLaConexion,
+    hayQueRendirse,
+} from "@/lib/reconexion-de-la-sala";
 import { esperarLosCandidatos } from "@/lib/webrtc-del-navegador";
 import {
     enviarSenalAction,
     latidoDeLaSalaAction,
+    volverAEntrarAction,
     type MensajeDeLaSala,
     type QuienEstaEnLaSala,
 } from "@/actions/salas-de-video-actions";
@@ -101,7 +108,48 @@ export type EstadoDeLaMalla = {
      * cierra y se vuelve a abrir — o sea, a perderlo.
      */
     mensajes: MensajeDeLaSala[];
+    /**
+     * Si ahora mismo se está intentando volver, y qué decir mientras.
+     *
+     * `null` en marcha normal. Mientras no sea `null`, **la reunión no se da
+     * por perdida**: no se cierran las conexiones, no se suelta la cámara y el
+     * reloj sigue preguntando. Es lo único que separa «se cayó la red un
+     * momento» de «se acabó la reunión», que antes eran lo mismo.
+     */
+    reconectando: { desde: number; mensaje: string } | null;
+    /** Si se está grabando, para que lo vea todo el mundo y no solo quien graba. */
+    grabando: { desde: string; por: string } | null;
+    /** Si a mí me toca el botón de grabar. Lo decide el servidor. */
+    puedoGrabar: boolean;
 };
+
+/**
+ * Si el «no» del servidor es firme o vale la pena seguir intentándolo.
+ *
+ * Se decide por el mensaje porque es lo único que cruza: `Respuesta` es
+ * `{success, message}` y meterle un código de motivo obligaría a tocar las
+ * quince acciones que la usan. Lo que no se puede es tratarlos todos igual —
+ * insistir un minuto a quien acaban de sacar de la reunión es mentirle, y
+ * rendirse al primer intento con un servidor que tardó en contestar es no
+ * reconectar—.
+ *
+ * **La duda cae del lado de seguir intentando**: lo que no se reconozca aquí
+ * se reintenta hasta el plazo, que es el lado que como mucho tarda un minuto de
+ * más en decir lo mismo.
+ */
+function esUnNoDefinitivo(mensaje: string): boolean {
+    const m = (mensaje ?? "").toLowerCase();
+    return (
+        m.includes("ya no estás") ||
+        m.includes("no autorizado") ||
+        m.includes("se llenó") ||
+        m.includes("ya no vale") ||
+        m.includes("ya no existe") ||
+        m.includes("no es válido") ||
+        m.includes("caducado") ||
+        m.includes("revocado")
+    );
+}
 
 export function useMallaDeVideo(input: {
     codigo: string;
@@ -110,8 +158,23 @@ export function useMallaDeVideo(input: {
     medios: MediosDeLlamada;
     /** Mientras sea `false` no se pregunta nada: ni reloj ni conexiones. */
     activo: boolean;
+    /**
+     * La grabación que esta pestaña lleva, **como referencia y no como valor**.
+     *
+     * Viaja en el latido que ya existe para refrescar su marca: sin eso, el
+     * aviso de «se está grabando» se apagaría solo en la pantalla de todos a
+     * los veinte segundos de empezar.
+     *
+     * Y es una referencia porque el orden de los hooks no deja otra: la malla
+     * se monta **antes** que la grabación —la grabación necesita los streams
+     * que la malla produce—, así que al leerla como valor llegaría siempre un
+     * render tarde. Con la referencia, el reloj lee lo que hay en el momento de
+     * preguntar, que es lo único que importa.
+     */
+    grabando?: { readonly current: string | null };
 }): EstadoDeLaMalla {
     const { codigo, token, medios, activo } = input;
+    const grabandoRef = input.grabando;
 
     const [estado, setEstado] = useState<EstadoDeLaMalla>({
         estado: "cargando",
@@ -121,6 +184,9 @@ export function useMallaDeVideo(input: {
         remotos: [],
         esperando: [],
         mensajes: [],
+        reconectando: null,
+        grabando: null,
+        puedoGrabar: false,
     });
 
     /**
@@ -139,6 +205,20 @@ export function useMallaDeVideo(input: {
     const streamsRef = useRef<Map<string, MediaStream>>(new Map());
     /** Las que se están negociando, para no ofrecer dos veces seguidas. */
     const enMarchaRef = useRef<Set<string>>(new Set());
+    /**
+     * En qué estado está cada conexión y **desde cuándo**.
+     *
+     * Lo segundo es lo que hace falta: `disconnected` es el estado dudoso de
+     * WebRTC y se recupera solo al segundo siguiente, así que tirar la conexión
+     * ahí sería renegociar media reunión cada vez que alguien pasa por debajo
+     * de un puente. Con la hora delante se le puede dar una gracia y decidir
+     * con ella.
+     */
+    const saludRef = useRef<Map<string, { estado: string; desde: number }>>(new Map());
+    /** Cuándo se montó cada conexión, para saber si es de una sesión anterior. */
+    const montadaEnRef = useRef<Map<string, number>>(new Map());
+    /** Desde cuándo se intenta volver. `null` cuando todo va bien. */
+    const reconectandoDesdeRef = useRef<number | null>(null);
     const iceRef = useRef<RTCIceServer[]>([]);
     /**
      * Lo que se manda ahora mismo, **por referencia**.
@@ -176,6 +256,8 @@ export function useMallaDeVideo(input: {
             conexionesRef.current.delete(id);
             streamsRef.current.delete(id);
             enMarchaRef.current.delete(id);
+            saludRef.current.delete(id);
+            montadaEnRef.current.delete(id);
         },
         [medios],
     );
@@ -185,6 +267,8 @@ export function useMallaDeVideo(input: {
         (id: string): RTCPeerConnection => {
             const pc = new RTCPeerConnection({ iceServers: iceRef.current });
             conexionesRef.current.set(id, pc);
+            saludRef.current.set(id, { estado: pc.connectionState, desde: Date.now() });
+            montadaEnRef.current.set(id, Date.now());
 
             pc.ontrack = (ev) => {
                 // El stream se construye A MANO y no se coge de `ev.streams[0]`.
@@ -211,6 +295,13 @@ export function useMallaDeVideo(input: {
             };
 
             pc.onconnectionstatechange = () => {
+                // La hora del cambio, no la de ahora al mirarlo: es lo que
+                // después deja perdonar unos segundos de `disconnected` sin
+                // perdonarlos para siempre.
+                saludRef.current.set(id, {
+                    estado: pc.connectionState,
+                    desde: Date.now(),
+                });
                 avisarDelCambio();
                 if (pc.connectionState === "failed") {
                     // Aquí es donde acaba una conexión entre dos redes que no
@@ -318,6 +409,84 @@ export function useMallaDeVideo(input: {
         }
     }, []);
 
+    /**
+     * Intentar volver a la reunión, y rendirse cuando ya no tiene sentido.
+     *
+     * Se llama desde los **dos** sitios por los que se pierde una reunión, que
+     * son distintos y antes no se distinguían:
+     *
+     * | qué pasó | cómo llega aquí |
+     * | --- | --- |
+     * | no hay red: la petición ni sale | el `catch` de la vuelta, con `porQue` vacío |
+     * | hay red y el servidor dice que ya no estoy | `success: false`, con su mensaje |
+     *
+     * En los dos casos **no se cierra nada**: las conexiones que siguieran
+     * vivas valen, y la cámara sigue encendida. Lo que se hace es marcar que se
+     * está intentando —para que la tarjeta lo diga— y pedir la reanudación.
+     *
+     * Y hay un final. Una pestaña que reintenta para siempre es una pestaña con
+     * el micrófono abierto mandando a nadie, y quien la dejó así no se entera:
+     * pasado `TOPE_PARA_RECONECTAR_MS` se suelta todo y **se dice**.
+     */
+    const intentarVolver = useCallback(
+        async (porQue: string | null) => {
+            const ahora = Date.now();
+            reconectandoDesdeRef.current ??= ahora;
+            const desde = reconectandoDesdeRef.current;
+
+            if (hayQueRendirse(ahora - desde)) {
+                for (const id of Array.from(conexionesRef.current.keys())) {
+                    cerrarLaConexion(id);
+                }
+                reconectandoDesdeRef.current = null;
+                setEstado((e) => ({
+                    ...e,
+                    estado: "fuera",
+                    // El motivo del servidor manda cuando lo hay: «te sacaron»
+                    // explica mucho más que «se perdió la conexión».
+                    motivo: porQue ?? CUANDO_NO_SE_PUDO_VOLVER,
+                    reconectando: null,
+                }));
+                return;
+            }
+
+            setEstado((e) => ({
+                ...e,
+                reconectando: { desde, mensaje: comoSeLeeLaReconexion(ahora - desde) },
+            }));
+
+            // Sin red esto tampoco va a salir, y no pasa nada: el reloj vuelve
+            // a llamar en la vuelta siguiente. Lo que NO se hace es montar un
+            // temporizador propio de reintentos — el reloj ya es eso.
+            try {
+                const res = await volverAEntrarAction({ codigo, token });
+                if (res.success) {
+                    reconectandoDesdeRef.current = null;
+                    setEstado((e) => ({ ...e, reconectando: null }));
+                    return;
+                }
+                // Un «no» FIRME se acata al momento y no se reintenta hasta
+                // agotar el plazo: a quien sacaron de la reunión, o a quien se
+                // le cerró el enlace, insistirle un minuto es mentirle.
+                if (esUnNoDefinitivo(res.message)) {
+                    for (const id of Array.from(conexionesRef.current.keys())) {
+                        cerrarLaConexion(id);
+                    }
+                    reconectandoDesdeRef.current = null;
+                    setEstado((e) => ({
+                        ...e,
+                        estado: "fuera",
+                        motivo: res.message,
+                        reconectando: null,
+                    }));
+                }
+            } catch {
+                // Sigue sin haber red. La vuelta siguiente lo intenta otra vez.
+            }
+        },
+        [cerrarLaConexion, codigo, token],
+    );
+
     // ── El reloj ────────────────────────────────────────────────────────────
     //
     // Un `setInterval` montado UNA sola vez, que lee todo por referencia. No
@@ -336,17 +505,25 @@ export function useMallaDeVideo(input: {
                     compartiendo: m.compartiendo,
                 },
                 desdeMensaje: desdeMensajeRef.current,
+                grabando: grabandoRef?.current ?? null,
             });
 
             if (!res.success) {
-                // Quedarse fuera es un final: se sueltan las conexiones para no
-                // dejar la cámara mandando a nadie.
-                for (const id of Array.from(conexionesRef.current.keys())) {
-                    cerrarLaConexion(id);
-                }
-                setEstado((e) => ({ ...e, estado: "fuera", motivo: res.message }));
+                // **Ya no es un final.** Antes se cerraba todo y se ponía
+                // «fuera» en la primera vuelta que contestara que no, y eso es
+                // exactamente lo que pasa cuando se cae la red: el barrido del
+                // servidor te saca a los veinte segundos y la vuelta siguiente
+                // dice «ya no estás en esta reunión».
+                //
+                // Ahora se intenta volver, que no es entrar otra vez: se
+                // reanuda la misma fila. Y las conexiones **no se tocan**
+                // todavía — si el corte fue corto, siguen valiendo.
+                await intentarVolver(res.message);
                 return;
             }
+
+            // Se volvió, o nunca se llegó a perder.
+            reconectandoDesdeRef.current = null;
 
             const { datos } = res;
             if (datos.ice.length) iceRef.current = datos.ice;
@@ -377,6 +554,12 @@ export function useMallaDeVideo(input: {
                     // y vuelve a la puerta, no se quede mirando la conversación
                     // de una sala en la que ya no está.
                     mensajes: [],
+                    reconectando: null,
+                    // En la puerta no se graba ni se puede grabar: el aviso de
+                    // dentro no se le enseña a quien todavía no ha entrado,
+                    // porque no le está grabando nadie.
+                    grabando: null,
+                    puedoGrabar: false,
                 });
                 return;
             }
@@ -389,7 +572,46 @@ export function useMallaDeVideo(input: {
                 else void aplicarLaRespuesta(senal.deId, senal.sdp);
             }
 
-            // 2. Con quién falta conexión y con quién sobra.
+            // 2. Las conexiones muertas se tiran ANTES de mirar la malla.
+            //
+            //    Esto es la mitad que faltaba de «la reunión no vuelve»: una
+            //    `RTCPeerConnection` en `failed` se quedaba en el mapa para
+            //    siempre, y `comoQuedaLaMalla` la cuenta como montada — así
+            //    que nadie la volvía a abrir nunca. La sala se recuperaba y los
+            //    recuadros seguían en negro.
+            //
+            //    Y se tira también la que sea **más vieja que la entrada de esa
+            //    persona**: cuando a alguien se le cae la red y vuelve, el que
+            //    no ofrece podría quedarse con una conexión que a él le parece
+            //    viva esperando una oferta que el otro no cree deber. Ver
+            //    `desde` en `QuienEstaEnLaSala`.
+            const ahora = Date.now();
+            for (const quienEsta of datos.dentro) {
+                if (quienEsta.id === datos.yo.participanteId) continue;
+                if (!conexionesRef.current.has(quienEsta.id)) continue;
+
+                const salud = saludRef.current.get(quienEsta.id);
+                const muerta = salud
+                    ? estaMuertaLaConexion({
+                          estado: salud.estado,
+                          desdeMs: ahora - salud.desde,
+                      })
+                    : false;
+
+                const entroEn = quienEsta.desde ? Date.parse(quienEsta.desde) : NaN;
+                const montada = montadaEnRef.current.get(quienEsta.id) ?? 0;
+                const vieja = Number.isFinite(entroEn) && entroEn > montada;
+
+                if (muerta || vieja) {
+                    console.info("[sala] se rehace una conexión", {
+                        con: quienEsta.id,
+                        porQue: muerta ? salud?.estado : "entró después",
+                    });
+                    cerrarLaConexion(quienEsta.id);
+                }
+            }
+
+            // 3. Con quién falta conexión y con quién sobra.
             const { abrir, cerrar } = comoQuedaLaMalla({
                 yo: datos.yo.participanteId,
                 dentro: datos.dentro.map((d) => d.id),
@@ -402,7 +624,7 @@ export function useMallaDeVideo(input: {
                 if (debeOfrecer(datos.yo.participanteId, id)) void ofrecerA(id);
             }
 
-            // 3. Y lo que se pinta.
+            // 4. Y lo que se pinta.
             const mios = datos.dentro.filter((d) => d.id !== datos.yo.participanteId);
             setEstado((e) => ({
                 estado: "dentro",
@@ -434,13 +656,27 @@ export function useMallaDeVideo(input: {
                 mensajes: e.mensajes.length
                     ? juntarLosMensajes(e.mensajes, datos.mensajes)
                     : datos.mensajes,
+                reconectando: null,
+                grabando: datos.grabando,
+                puedoGrabar: datos.puedoGrabar,
             }));
         } catch (error) {
-            // Mudo aquí se ve como «la reunión se queda colgada», que no se
-            // parece a un error.
+            // Aquí cae el corte de red de verdad: la petición ni sale. Mudo se
+            // ve como «la reunión se queda colgada», que no se parece a un
+            // error — y quedarse callado y seguir tampoco vale, porque quien
+            // mira tiene que saber que se está intentando.
             console.warn("[sala] falló una vuelta del reloj", error);
+            await intentarVolver(null);
         }
-    }, [aplicarLaRespuesta, cerrarLaConexion, codigo, contestarA, ofrecerA, token]);
+    }, [
+        aplicarLaRespuesta,
+        cerrarLaConexion,
+        codigo,
+        contestarA,
+        intentarVolver,
+        ofrecerA,
+        token,
+    ]);
 
     const vueltaRef = useRef(vuelta);
     vueltaRef.current = vuelta;
