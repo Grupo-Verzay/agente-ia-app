@@ -49,6 +49,14 @@ export function esUnModoDeFondo(v: unknown): v is ModoDeFondo {
 
 /** Dónde se recuerda, como el tamaño de la ventana y la distribución. */
 export const LLAVE_DEL_FONDO = "reunion:fondo";
+/**
+ * Y qué fondo de serie estaba puesto, aparte del modo.
+ *
+ * Solo los presets se recuerdan entre reuniones: una imagen subida no cabe en
+ * `localStorage` sin convertirla en un data-URL enorme, así que esa dura lo que
+ * la pestaña. Es la misma línea que separa lo barato de recordar de lo que no.
+ */
+export const LLAVE_DEL_FONDO_ID = "reunion:fondo-id";
 
 /**
  * A cuántos fotogramas por segundo sale la pista procesada.
@@ -67,6 +75,92 @@ export const FOTOGRAMAS = 24;
  * mancha de color, que es lo que pasa pasando de veinte.
  */
 export const DESENFOQUE_PX = 12;
+
+/**
+ * Los fondos de sustitución que se ofrecen de serie.
+ *
+ * Son **degradados dibujados**, no fotos: una foto sería otro fichero que
+ * servir, otra cosa que cargar antes del primer fotograma y otra dirección que
+ * validar. Un degradado se pinta en dos líneas, no pesa nada y hace lo que se
+ * le pide —tapar la habitación—, y la MISMA lista de colores sirve para el
+ * lienzo (`dibujarFondoPreset`) y para la pastilla del menú (`swatchDeFondo`),
+ * así que el chip que se elige y lo que se ve no pueden discrepar.
+ *
+ * `gris` es el que había antes (`#1e293b`→`#0f172a`), así que quien ya lo usaba
+ * no ve ningún cambio.
+ */
+export type FondoPreset = {
+    id: string;
+    nombre: string;
+    /** De dónde a dónde va el degradado. */
+    colores: readonly [string, string];
+    /** Radial (un foco centrado) en vez de diagonal. */
+    radial?: boolean;
+};
+
+export const FONDOS_POR_DEFECTO: readonly FondoPreset[] = [
+    { id: "gris", nombre: "Gris", colores: ["#1e293b", "#0f172a"] },
+    { id: "azul", nombre: "Azul", colores: ["#0ea5e9", "#1e3a8a"] },
+    { id: "verde", nombre: "Verde", colores: ["#10b981", "#065f46"] },
+    { id: "calido", nombre: "Cálido", colores: ["#f59e0b", "#b45309"] },
+    { id: "violeta", nombre: "Violeta", colores: ["#8b5cf6", "#4c1d95"] },
+    { id: "foco", nombre: "Foco", colores: ["#334155", "#0b1120"], radial: true },
+];
+
+/** El preset de un id, o el primero si el id no se reconoce (nunca `undefined`). */
+export function fondoPresetPorId(id: string | undefined | null): FondoPreset {
+    return FONDOS_POR_DEFECTO.find((f) => f.id === id) ?? FONDOS_POR_DEFECTO[0];
+}
+
+/** El CSS del degradado para la pastilla del menú, del mismo par de colores. */
+export function swatchDeFondo(p: FondoPreset): string {
+    const [a, b] = p.colores;
+    return p.radial
+        ? `radial-gradient(circle at 50% 40%, ${a}, ${b})`
+        : `linear-gradient(135deg, ${a}, ${b})`;
+}
+
+/**
+ * Qué fondo de sustitución se está usando: uno de serie, o una imagen subida.
+ *
+ * La imagen viaja como `CanvasImageSource` (un `ImageBitmap`), no como una
+ * dirección: lo que se pinta en el lienzo es un mapa de bits, y guardarla como
+ * URL obligaría a volver a descargarla en cada fotograma.
+ */
+export type FondoElegido =
+    | { tipo: "preset"; id: string }
+    | { tipo: "imagen"; imagen: CanvasImageSource; nombre?: string };
+
+/**
+ * Tope de la imagen que se sube, en bytes.
+ *
+ * No es un límite técnico del lienzo —cabe una foto de móvil de sobra— sino de
+ * cordura: una imagen de 40 MB tarda en decodificarse y no se ve mejor una vez
+ * puesta de fondo detrás de una persona. Se comprueba ANTES de decodificar,
+ * para poder decirlo en vez de colgar el navegador.
+ */
+export const TOPE_DE_IMAGEN_DE_FONDO = 12 * 1024 * 1024;
+
+/**
+ * Cargar la imagen que sube la persona, para usarla de fondo.
+ *
+ * **Lanza con un motivo legible** en vez de devolver algo roto: no es una
+ * imagen, o pesa demasiado, o el navegador no la pudo decodificar. Quien llama
+ * lo enseña; nunca se pinta un fondo a medias.
+ */
+export async function cargarImagenDeFondo(file: File): Promise<ImageBitmap> {
+    if (!file.type.startsWith("image/")) {
+        throw new Error("Ese archivo no es una imagen.");
+    }
+    if (file.size > TOPE_DE_IMAGEN_DE_FONDO) {
+        throw new Error("La imagen es demasiado grande (máximo 12 MB).");
+    }
+    try {
+        return await createImageBitmap(file);
+    } catch {
+        throw new Error("No se pudo leer la imagen.");
+    }
+}
 
 type Segmentador = {
     setOptions(o: { modelSelection: number; selfieMode?: boolean }): void;
@@ -137,6 +231,8 @@ export class ElFondoDeVideo {
     private corriendo = false;
     private origen: MediaStreamTrack | null = null;
     private modo: ModoDeFondo = "ninguno";
+    /** Qué fondo de sustitución se pinta cuando `modo === "fondo"`. */
+    private fondoElegido: FondoElegido | null = null;
     /** Para no solapar dos `send()`: el modelo no admite dos a la vez. */
     private ocupado = false;
     private reloj: number | null = null;
@@ -153,14 +249,20 @@ export class ElFondoDeVideo {
      * y quien llama se queda con la pista de siempre: es preferible mandar la
      * cámara sin desenfocar que no mandar nada.
      */
-    async encender(pista: MediaStreamTrack, modo: ModoDeFondo): Promise<MediaStreamTrack> {
+    async encender(
+        pista: MediaStreamTrack,
+        modo: ModoDeFondo,
+        fondo?: FondoElegido,
+    ): Promise<MediaStreamTrack> {
         if (modo === "ninguno") throw new Error("«ninguno» se apaga, no se enciende");
 
-        // Cambiar de desenfoque a fondo con el bucle ya corriendo es cambiar
-        // una variable: ni se recarga el modelo ni se rehace la pista, así que
-        // la otra punta no ve ni un parpadeo.
+        // Cambiar de desenfoque a fondo —o de un fondo a otro— con el bucle ya
+        // corriendo es cambiar dos variables: ni se recarga el modelo ni se
+        // rehace la pista, así que la otra punta no ve ni un parpadeo. Por eso
+        // elegir otro fondo, o subir una imagen, es instantáneo.
         if (this.corriendo && this.origen === pista) {
             this.modo = modo;
+            if (modo === "fondo" && fondo) this.fondoElegido = fondo;
             const ya = this.salida?.getVideoTracks()[0];
             if (ya) return ya;
         }
@@ -204,6 +306,13 @@ export class ElFondoDeVideo {
         this.ctx = ctx;
         this.origen = pista;
         this.modo = modo;
+        // Si se enciende en modo fondo sin decir cuál, se cae al primero de
+        // serie: un fondo sin elegir no puede quedarse sin pintar nada.
+        this.fondoElegido =
+            modo === "fondo"
+                ? (fondo ??
+                  this.fondoElegido ?? { tipo: "preset", id: FONDOS_POR_DEFECTO[0].id })
+                : null;
         this.corriendo = true;
 
         this.salida = lienzo.captureStream(FOTOGRAMAS);
@@ -256,6 +365,7 @@ export class ElFondoDeVideo {
         this.ctx = null;
         this.origen = null;
         this.modo = "ninguno";
+        this.fondoElegido = null;
         this.ocupado = false;
     }
 
@@ -327,18 +437,59 @@ export class ElFondoDeVideo {
     }
 
     /**
-     * El fondo de sustitución: un degradado, **no una foto**.
+     * El fondo de sustitución: un degradado de serie, o la imagen que se subió.
      *
-     * Una foto sería otro fichero que servir, otra cosa que elegir y otra que
-     * cargar antes del primer fotograma. Un degradado se dibuja en dos líneas,
-     * no pesa nada y hace lo que se le pide: tapar la habitación. Si algún día
-     * se quieren imágenes de verdad, entran por aquí y el resto no se toca.
+     * La imagen se pinta **cubriendo** (`cover`): se escala al mayor de los dos
+     * lados y se centra, así que llena el recuadro sin deformarse y sin dejar
+     * franjas — lo mismo que hace `object-cover` en una foto de la web. Un
+     * `contain` dejaría bandas de color a los lados, que se leen como que el
+     * fondo está mal puesto.
      */
     private pintarElFondo(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-        const d = ctx.createLinearGradient(0, 0, w, h);
-        d.addColorStop(0, "#1e293b");
-        d.addColorStop(1, "#0f172a");
-        ctx.fillStyle = d;
-        ctx.fillRect(0, 0, w, h);
+        const elegido = this.fondoElegido;
+        if (elegido?.tipo === "imagen") {
+            this.dibujarImagenCubriendo(ctx, elegido.imagen, w, h);
+            return;
+        }
+        const preset = fondoPresetPorId(elegido?.tipo === "preset" ? elegido.id : undefined);
+        dibujarFondoPreset(ctx, w, h, preset);
     }
+
+    private dibujarImagenCubriendo(
+        ctx: CanvasRenderingContext2D,
+        imagen: CanvasImageSource,
+        w: number,
+        h: number,
+    ): void {
+        // `ImageBitmap` y `HTMLImageElement` traen `width`/`height` numéricos.
+        const iw = (imagen as { width?: number }).width ?? w;
+        const ih = (imagen as { height?: number }).height ?? h;
+        if (!iw || !ih) {
+            // Sin dimensiones no se puede cubrir sin deformar: se cae a un
+            // degradado en vez de dibujar algo estirado.
+            dibujarFondoPreset(ctx, w, h, FONDOS_POR_DEFECTO[0]);
+            return;
+        }
+        const escala = Math.max(w / iw, h / ih);
+        const dw = iw * escala;
+        const dh = ih * escala;
+        ctx.drawImage(imagen, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    }
+}
+
+/** Pinta un preset en el lienzo, del mismo par de colores que su pastilla. */
+function dibujarFondoPreset(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    preset: FondoPreset,
+): void {
+    const [a, b] = preset.colores;
+    const d = preset.radial
+        ? ctx.createRadialGradient(w / 2, h * 0.4, 0, w / 2, h * 0.4, Math.max(w, h))
+        : ctx.createLinearGradient(0, 0, w, h);
+    d.addColorStop(0, a);
+    d.addColorStop(1, b);
+    ctx.fillStyle = d;
+    ctx.fillRect(0, 0, w, h);
 }
