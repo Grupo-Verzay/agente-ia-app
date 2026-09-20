@@ -5,7 +5,7 @@ import type { CurrentUser } from '@/lib/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, ChevronRight, Lock } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
-import { useChatUnreadStore } from '@/stores/useChatUnreadStore';
+import { useChatsQueEsperan } from '@/stores/useChatUnreadStore';
 
 import { PremiumModule } from './shared/PremiumModule';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -39,7 +39,7 @@ export function NavMain({ user }: { user: CurrentUser }) {
     const router = useRouter();
     const { isMobile, openMobile, setOpenMobile, state: sidebarState } = useSidebar();
     const taskPendingCount = useTaskStore((s) => s.pendingCount);
-    const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
+    const chatUnreadCount = useChatsQueEsperan();
 
     const isAdvisor = !!user.ownerId;
     // Mismo criterio que el guardián de rutas del layout: sin esto el sidebar

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
+import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
 import {
     dibujarLaInsignia,
     elIconoDeLaPestana,
@@ -19,8 +19,11 @@ import {
  *
  * # De dónde salen los números: de lo que YA corre
  *
- * - **Los chats** de `useChatUnreadStore`, que llena la bandeja con lo que le
- *   trae el socket. En vivo y sin pedir nada.
+ * - **Los chats** de `useChatsQueEsperan`, que resuelve entre lo que dice la
+ *   bandeja —en vivo, y con las marcas de leído de este navegador— y lo que
+ *   cuenta el servidor en la misma vuelta de quince segundos. Antes esto leía
+ *   `unreadCount` a pelo, que **solo escribe la bandeja**: en cualquier
+ *   pantalla que no fuera Chats valía cero y el icono no se pintaba nunca.
  * - **El equipo** por prop, desde el reloj del contador que ya cuelga del
  *   layout. Llamar aquí a `useSinLeerDelEquipo` otra vez montaría un SEGUNDO
  *   `setInterval` de quince segundos en todas las pantallas de todo el mundo
@@ -34,7 +37,7 @@ import {
  * del equipo, no porque tenga nada que ver con lo que haya alrededor.
  */
 export function InsigniaDelFavicon({ delEquipo }: { delEquipo: number }) {
-    const chatsSinLeer = useChatUnreadStore((s) => s.unreadCount);
+    const chatsSinLeer = useChatsQueEsperan();
     const { texto } = loQueSePinta(chatsSinLeer, delEquipo);
 
     /**

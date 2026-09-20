@@ -35,7 +35,7 @@ import {
   getCollabNotificationsAction,
   markCollabNotificationReadAction,
 } from "@/actions/collab-actions";
-import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
+import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
 import { cn } from "@/lib/utils";
 
 // Lo que ya se abrió desde la campanita.
@@ -149,7 +149,7 @@ export function NotificationCenter() {
   const [open, setOpen] = useState(false);
   const [activeKind, setActiveKind] = useState<NotificationKind | "all">("all");
   const [isPending, startTransition] = useTransition();
-  const storeChatCount = useChatUnreadStore((s) => s.unreadCount);
+  const storeChatCount = useChatsQueEsperan();
 
   const load = useCallback(() => {
     startTransition(async () => {

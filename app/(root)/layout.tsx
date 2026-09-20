@@ -35,7 +35,6 @@ import { OyenteDeLlamadas } from "@/components/chat-equipo/OyenteDeLlamadas";
 import { ReunionEnLaPlataforma } from "@/components/video/ReunionEnLaPlataforma";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
 import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
-import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
 import type { UserNavPref } from "@/types/nav-preference";
 import { getUserIntegrations } from "@/actions/user-integration-actions";
 import { resolveModuleItemDest } from "@/lib/canva-embed";
@@ -521,7 +520,6 @@ export default async function RootGroupLayout({
                     <ReunionEnLaPlataforma />
                     <ChatOnboardingModal />
                     <TaskNotificationProvider />
-                    <ChatUnreadProvider />
                 </SidebarInset>
             </SidebarProvider>
         </>

@@ -4505,13 +4505,18 @@ incluido, que es el canal donde está todo el mundo—.
 
 | | de dónde | con qué ritmo |
 | --- | --- | --- |
-| chats sin leer | `useChatUnreadStore`, que llena la bandeja | en vivo, con el socket |
+| chats sin leer | la bandeja **o** el servidor, lo decide `elNumeroDeChats` | en vivo / 15 s |
 | del equipo | el reloj del contador, que ya cuelga del layout | 15 s |
 
 El del equipo sale **gratis**: `avisos` ya venía en esa respuesta —es lo que
 decide si suena— y hasta ahora se leía y se tiraba. Un contador aparte habría
 sido un segundo reloj en **todas** las pantallas de todo el mundo para contar
 lo que ya estaba encima de la mesa.
+
+Y el de los chats **viaja en esa misma vuelta**, que es la única que corre en
+todas partes. No son dos viajes en paralelo: **Next serializa las acciones de
+servidor de una misma página**, así que la segunda esperaría a la primera y de
+paso ocuparía la cola que necesita Chats.
 
 Y de ahí sale dónde vive el componente, que si no parece arbitrario:
 **`BotonesDelBorde`**, porque es el único sitio que ya tiene el contador del
@@ -4527,15 +4532,105 @@ canal y los chats se cuentan por chat. Con uno en mensajes y otro en chats la
 suma no significaría nada — sería un número que no se puede explicar señalando
 la pantalla.
 
-### Lo que hereda del contador de la barra lateral, y conviene saberlo
+### Y la mitad de los chats valía CERO: se aceptó a sabiendas y estaba mal
 
-`useChatUnreadStore` lo escribe **solo la bandeja** (`chat-sidebar`), así que en
-una carga en frío de otra pantalla esa mitad arranca en 0 hasta que se entra a
-Chats. **No es nuevo**: es exactamente lo que ya hacen la pastilla de «Chats»
-del menú y la campanita, que leen el mismo store. Se acepta a sabiendas porque
-la alternativa es una consulta al servidor en cada carga de cada pantalla, que
-es el sondeo que esto vino a no traer. La mitad del equipo sí llega sola, porque
-su reloj cuelga del layout.
+Esto se dejó escrito como un límite conocido —«`useChatUnreadStore` lo escribe
+solo la bandeja, así que en frío esa mitad arranca en 0»— con el argumento de
+que la alternativa era una consulta en cada carga de cada pantalla. **El
+argumento era falso y el límite se comía la función entera.**
+
+Falso porque no hacía falta ninguna consulta nueva: ya había un reloj corriendo
+en todas las pantallas, el del contador del equipo, y ahí cabía. Y se comía la
+función porque lo que quedaba era esto:
+
+| lo que se veía | lo que era |
+| --- | --- |
+| el icono no cambia nunca | los chats valían 0 **fuera de Chats**, que es donde se mira un icono |
+| tampoco con menciones ni directos | esos sí llegaban, pero solos son raros: sin la mitad grande el icono casi nunca tenía nada que pintar |
+
+O sea que las tres fuentes se veían igual de rotas por un solo motivo, y como
+sin pendientes el icono es el de siempre, **no había forma de distinguirlo de
+«no hay nada que contar»**.
+
+Ahora el servidor cuenta esa mitad (`contarChatsSinLeer`, en
+`lib/chat-persistence.ts`) y viaja en la vuelta que ya iba. **Los tres sitios
+que pintan ese número van por `useChatsQueEsperan`** —la pastilla de «Chats»
+del menú, la campanita y el icono—; ninguno lee `unreadCount` a pelo, porque
+ese campo puede ser `null` («la bandeja no ha hablado») y quien lo leyera
+directo volvería a enseñar un cero en frío.
+
+Y de paso se fue `ChatUnreadProvider`, que estaba montado en el layout con un
+hook **vacío** desde siempre. Un proveedor que se llama como el dato y no hace
+nada es exactamente lo que hace que este fallo cueste una tarde encontrarlo.
+
+#### Lo NO leído de un WhatsApp no vive en nuestra base
+
+Es lo primero que hay que saber antes de tocar este conteo, porque la
+definición obvia no se puede escribir:
+
+- `persistedRowToChat` pone `unreadCount` a 1 **solo** en Telegram y Meta; para
+  WhatsApp escribe **0 siempre**.
+- El «no leído» de la bandeja sale de juntar el `unreadCount` **de Evolution**
+  con las marcas de `seenMessages`, que son del **navegador**
+  (`localStorage`, `hooks/chats/useSeenMessages`). Ni una está guardada aquí.
+
+Y preguntarle a Evolution desde aquí queda descartado por la regla de siempre:
+esto lo pide el reloj que corre en todas las pantallas, `fetchChatsFromEvolution`
+es el camino caro, y además no existe para Waha ni para los canales de
+credenciales. Era justamente lo que hacía `getChatUnreadCountAction` — una
+acción que **no llamaba nadie** y que estaba rota por cuatro sitios a la vez:
+una sola línea, solo Evolution, sin descontar las marcas de borrado, y con un
+`catch { return 0 }` que hacía que un error y «no hay nada» se vieran igual. Se
+borró.
+
+> **Lo que sí es cierto, duradero y vale para los tres proveedores es la FORMA
+> del último mensaje: si lo escribió el contacto, esa conversación espera
+> respuesta.** Es el criterio con el que este mismo fichero ya calcula el
+> `unreadCount` de Telegram y Meta, y es el del propio icono —«solo lo que
+> exige respuesta»—.
+
+Tres cosas de la consulta, y las tres ya costaron una vuelta en su hermana
+`contarChatsPorLinea`:
+
+1. **Acotada a las líneas de la bandeja.** Sin eso cuenta las líneas borradas,
+   los restos `_V2` y los canales `_wh`, que no salen en ninguna lista — el
+   mismo fallo de `refetchChatsManualAction`.
+2. **La misma conversación por su `@lid` y por su número cuenta UNA.** La
+   bandeja las junta al pintar; contando filas el icono diría dos donde hay
+   una. La llave es `(línea, senderPn ?? remoteJid)`, y la línea dentro porque
+   el mismo contacto escribiendo a dos líneas **sí** son dos conversaciones.
+3. **Las marcas se cruzan con un `LEFT JOIN`, no con un `NOT EXISTS` con `OR`
+   dentro**, que es lo que no puede usar índice y se ejecuta una vez por fila.
+
+#### La bandeja manda cuando ha hablado, hasta que entra algo MÁS NUEVO
+
+Hay dos fuentes y ninguna sobra: la bandeja conoce las marcas de leído de este
+navegador y va en vivo con el socket, pero solo habla mientras está montada; el
+servidor habla siempre y no sabe qué se ha leído. Lo decide `elNumeroDeChats`
+(`lib/insignia-del-favicon.ts`), que es puro, y son los cuatro casos que hay:
+
+| | quién manda |
+| --- | --- |
+| en frío, sin haber entrado nunca a Chats | el servidor — **el caso que estaba roto** |
+| dentro de la bandeja | ella, que va en vivo |
+| se leyó y se salió de Chats | ella: su número se queda, y por eso **el número baja al leer** y no resucita |
+| fuera de Chats entra un mensaje | el servidor, porque trae algo posterior a la marca de la bandeja |
+
+Las dos piezas que lo sostienen:
+
+1. **`null` no es cero.** `unreadCount: null` significa «la bandeja no ha
+   hablado». Con un cero de arranque no habría forma de distinguir «todavía no
+   sé» de «no hay ninguno», y en frío se pintaría el cero — que es el fallo.
+2. **Una MARCA, no un conjunto.** La bandeja publica hasta qué mensaje llegó a
+   juzgar y el servidor devuelve la hora del más nuevo que cuenta; se comparan
+   dos números. Con un conjunto de ids habría que bajarse la lista de chats en
+   cada vuelta del reloj más caro de tener. Es la misma idea que `leidoHasta`
+   del chat del equipo. Y la comparación es **estricta**: el mismo instante no
+   desmiente a la bandeja, o el servidor la desmentiría en cada vuelta por el
+   último mensaje que ella misma acaba de leer.
+
+Y la marca de la bandeja **solo avanza** (`Math.max`): una vuelta de la lista
+que llega tarde no puede devolverla a un instante anterior.
 
 ### Tres cosas del dibujo que no se ven mirando
 
@@ -4588,6 +4683,32 @@ acaba en el `<link>` y cuenta píxeles:
 Las dos últimas filas son **idénticas al byte**, y eso es lo que prueba que las
 dos pintan `9+` y no un número distinto. Y «sin pendientes» no es que la
 insignia salga vacía: es que **no hay `link[data-insignia]`** en el `<head>`.
+
+#### Y las TRES fuentes, montando el componente de verdad
+
+La tabla de arriba mide el dibujo. Lo que se le había pasado es el **cableado**,
+que es donde estaba el fallo: se medía `loQueSePinta` y no de dónde salían sus
+dos números. Ahora el banco monta `InsigniaDelFavicon` contra el store de
+producción, en una página con el `<head>` que emite Next, y decodifica el PNG
+que acaba en el `<link>`:
+
+| caso | ¿insignia? | rojos | abajo dcha. |
+| --- | --- | --- | --- |
+| el icono original | — | **0** | **0** |
+| sin pendientes | **no** | — | — |
+| **1) solo chats, EN FRÍO** (servidor 4) | **sí** | 648 | 480 |
+| 2) solo un directo del equipo | sí | 674 | 506 |
+| 3) solo una mención del equipo | sí | 674 | 506 |
+| 4) las tres sumadas (4 + 1 + 1) | sí | 627 | 459 |
+| **5) la bandeja dice 0 tras leer** (servidor sigue en 4) | **no** | — | — |
+| 6) entra algo más nuevo: vuelve a mandar el servidor | sí | 648 | 480 |
+| 7) 500 + 500 → `9+` | sí | 588 | 441 |
+
+Las filas que contestan el encargo son la **1** —el icono se pinta sin haber
+entrado nunca a la bandeja, que es lo que no pasaba—, la **5** —el número baja
+al leer y no vuelve— y la **6** —se actualiza sin recargar—. Y la 7 sale
+**idéntica** a la tabla de arriba, que es lo que prueba que el dibujo no se
+tocó.
 
 ### Y la receta de `removeConsole` FALLA con acentos
 
