@@ -2,10 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
@@ -26,9 +24,27 @@ const CONFIRM_WORD = 'VACIAR';
  * desde cero. Exige escribir "VACIAR" porque afecta a toda la contabilidad de
  * la cuenta; el nombre de la cuenta se muestra para evitar hacerlo en la que no
  * es (Finanzas escopa por la cuenta activa).
+ *
+ * # Es solo el diálogo, y el botón lo pone el `⋯`
+ *
+ * Tenía su propio botón gris al final de la página, que es el último sitio
+ * donde alguien busca una acción destructiva. Ahora lo abre el menú de acciones
+ * de la barra, como el resto de los borrados en bloque de la plataforma, así
+ * que aquí queda lo único que era suyo: la confirmación.
+ *
+ * Y el diálogo vive FUERA del menú: Radix desmonta el contenido de un
+ * `DropdownMenu` al cerrarse, así que dentro se iría con él en cuanto se
+ * pulsara la opción —o sea, antes de que nadie pudiera escribir la palabra—.
  */
-export function WipeFinanceButton({ accountLabel }: { accountLabel?: string | null }) {
-  const [open, setOpen] = useState(false);
+export function VaciarContabilidad({
+  accountLabel,
+  abierto,
+  onAbiertoChange,
+}: {
+  accountLabel?: string | null;
+  abierto: boolean;
+  onAbiertoChange: (abierto: boolean) => void;
+}) {
   const [confirmText, setConfirmText] = useState('');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -36,7 +52,7 @@ export function WipeFinanceButton({ accountLabel }: { accountLabel?: string | nu
   const canConfirm = confirmText.trim().toUpperCase() === CONFIRM_WORD;
 
   function handleOpenChange(next: boolean) {
-    setOpen(next);
+    onAbiertoChange(next);
     if (!next) setConfirmText('');
   }
 
@@ -56,18 +72,7 @@ export function WipeFinanceButton({ accountLabel }: { accountLabel?: string | nu
   }
 
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-destructive"
-        onClick={() => setOpen(true)}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        Vaciar contabilidad
-      </Button>
-
-      <AlertDialog open={open} onOpenChange={handleOpenChange}>
+    <AlertDialog open={abierto} onOpenChange={handleOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Vaciar la contabilidad de esta cuenta</AlertDialogTitle>
@@ -114,8 +119,7 @@ export function WipeFinanceButton({ accountLabel }: { accountLabel?: string | nu
               {isPending ? 'Vaciando…' : 'Vaciar contabilidad'}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

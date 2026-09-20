@@ -2542,6 +2542,96 @@ Dos reglas, y las dos se comprueban midiendo un ancho de teléfono:
    sin decir nada. Y ya no hace falta: lo que crece —las carpetas— lo recoge el
    carril de la propia barra.
 
+### El buscador es un hueco APARTE: la flecha mueve las pastillas, no la fila
+
+El buscador vivía dentro de `filtros`, o sea **dentro del carril que se
+desplaza**. Así que la flecha corría la fila **de punta a punta**: en una cuenta
+grande, empujar para ver la última pastilla se llevaba el buscador fuera de la
+pantalla. Y el buscador no es un mando más de la fila — es el que se usa en cada
+visita, así que no puede irse de sitio.
+
+> **La barra son TRES zonas y solo la del medio se mueve**: el buscador fijo a
+> la izquierda (`buscador`), las pastillas en el carril (`filtros`), y el azul
+> con el `⋯` fijos a la derecha. Es lo que los dos extremos de la derecha ya
+> hacían, aplicado también al de la izquierda.
+
+Medido en Chromium sobre el CSS del build, en `/panel/clientes` con seis
+pastillas y contadores de una cuenta grande. «Carril» es lo que se desplaza:
+
+| ventana | menú | antes | ahora |
+| --- | --- | --- | --- |
+| 1440 | abierto | **106 px, con el buscador dentro** | 0 |
+| 1280 | abierto | **266 px, con el buscador dentro** | 0 |
+| 1024 | abierto | **522 px, con el buscador dentro** | **143 px, solo pastillas** |
+| 1024 | plegado | 314 px | 0 |
+| 390 | — | 147 px | 0 |
+
+El alto sigue siendo **40 px en las siete combinaciones**, antes y después: esto
+no le quita ni le añade una fila a la tabla, solo cambia qué se mueve.
+
+### Lo que casi nadie toca va al `⋯`, y el `⋯` acepta un `menu`
+
+`/panel/clientes` llevaba en la barra tres mandos que entre los tres se comían
+unos 300 px: el **campo del buscador** (empresa / nombre / correo / marca), el
+**estado del servicio** y **«Columnas»**. La regla de esta barra ya decía dónde
+van —*un botón que gasta ancho y no se usa a diario va dentro del `⋯`*—; lo que
+faltaba era el hueco donde meterlos, y por eso `AccionesMasivas` tiene ahora un
+`menu`.
+
+La barra se queda en **cuatro cosas y ninguna más**: buscador, pastillas, el
+azul y el `⋯`.
+
+Cuatro cosas que hay que mantener:
+
+1. **El campo elegido se lee en el `placeholder`.** Mover el campo a un menú
+   escondido sin eso sería un buscador que a veces no encuentra lo que tienes
+   delante y no dice por qué. Y por el mismo motivo el campo por defecto pasa a
+   ser **nombre**: era `company`, y encima su selector iba `hidden sm:flex`, así
+   que en un teléfono **no existía** y la pantalla buscaba por empresa sin
+   decirlo.
+2. **Cambiar de campo CONSERVA lo escrito.** Antes lo vaciaba, y cambiar de
+   campo casi siempre es «esto que ya tecleé, búscalo por lo otro».
+3. **Cada mando trae su propio submenú.** «Columnas» es una lista que crece con
+   la tabla: suelta dentro del menú de arriba empuja fuera de la pantalla lo que
+   va al final, que es justo el fallo que ya costó una vuelta en el menú de
+   Acciones de Chats.
+4. **Y las casillas de «Columnas» no cierran el menú** (`preventDefault` en su
+   `onSelect`): enseñar tres columnas serían tres viajes al `⋯`.
+
+El **estado del servicio** sigue naciendo en «Activos» —eso no cambia— y lo que
+se fue al `⋯` es la forma de ver todos o los inactivos. La pastilla «Activos»
+se queda en la barra, que es una pastilla de filtro y enseña su número.
+
+### Finanzas: el resumen también pasa por la barra
+
+`/dashboard/finance` se había escapado del barrido, y tenía sus tres mandos en
+tres sitios distintos: el **botón azul** metido en la esquina de la fila de
+pestañas, el **selector de cuentas** suelto en su propia línea, y **«Vaciar
+contabilidad»** como un enlace gris al final de la página. Ningún buscador.
+
+Ahora es la fila de siempre, medida en las siete combinaciones: **40 px**, el
+buscador a 0 px del borde izquierdo, el azul a 48 y el `⋯` pegado a 0.
+
+Dos cosas que hay que mantener:
+
+1. **Arriba van SOLO las pestañas.** El azul salió de `FinanceModuleShortcuts`,
+   que es la fila de accesos del módulo. Las pantallas de Ventas y Gastos no se
+   quedan sin él: cada una ya tenía el suyo en su propia barra.
+2. **Y el buscador NAVEGA, a propósito.** Esta pantalla no tiene una lista
+   debajo —tiene el resumen anual y la gráfica—, así que un buscador que
+   filtrara «lo de abajo» no tendría qué filtrar, y **un mando que no hace nada
+   es peor que no tenerlo**. Lo que sí se busca desde aquí es un movimiento, así
+   que lleva a Ventas con el texto ya puesto en su buscador (`?q=`): aterriza
+   **filtrado**, no en la lista entera. Y sobre **todas** las ventas, no sobre
+   el mes que se estaba mirando —Ventas abre en su pestaña «todas»—, porque
+   acotarlo al mes daría «sin resultados» sobre algo que sí existe.
+
+Y `WipeFinanceButton` pasó a ser `VaciarContabilidad`, **solo el diálogo**: el
+botón lo pone el `⋯`, como el resto de los borrados en bloque. El diálogo vive
+**fuera** del menú porque Radix desmonta el contenido de un `DropdownMenu` al
+cerrarse, así que dentro se iría con él antes de que nadie pudiera escribir
+«VACIAR».
+
 ### El botón azul dice «Nuevo», y nada más
 
 Llevaba el nombre de la entidad repetido —«+ Nuevo proyecto» estando ya en

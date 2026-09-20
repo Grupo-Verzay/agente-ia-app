@@ -73,6 +73,8 @@ type Props = {
   primaryCurrencyCode: string;
   initialMonth?: string;
   autoOpenCreate?: boolean;
+  /** Lo que se tecleó en el buscador del resumen de Finanzas (`?q=`). */
+  initialSearch?: string;
 };
 
 type FormState = {
@@ -213,6 +215,7 @@ export default function MainSales({
   primaryCurrencyCode,
   initialMonth,
   autoOpenCreate = false,
+  initialSearch,
 }: Props) {
   // Cuenta para el catálogo de productos y contactos (operativa); el dinero usa userId.
   const catUserId = catalogUserId ?? userId;
@@ -671,6 +674,7 @@ export default function MainSales({
                   data={monthRows}
                   searchKey="title"
                   searchPlaceholder="Buscar..."
+                  initialSearch={initialSearch}
                   onRowClick={openDetail}
                   enableSelection
                   queSon="ventas"
@@ -718,6 +722,7 @@ export default function MainSales({
                   data={rows}
                   searchKey="title"
                   searchPlaceholder="Buscar..."
+                  initialSearch={initialSearch}
                   onRowClick={openDetail}
                   enableSelection
                   queSon="ventas"

@@ -12,7 +12,7 @@ import { serializePrisma } from "@/lib/serialize-prisma";
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams?: { month?: string | string[]; create?: string | string[] };
+  searchParams?: { month?: string | string[]; create?: string | string[]; q?: string | string[] };
 }) {
   // Dinero (cuentas, ventas, categorías) y catálogo (productos, contactos) van a
   // la MISMA cuenta: la que se está viendo. getFinanceUser ya resuelve por
@@ -51,6 +51,7 @@ export default async function SalesPage({
       primaryCurrencyCode={preferredCurrencyCode}
       initialMonth={Array.isArray(searchParams?.month) ? searchParams?.month[0] : searchParams?.month}
       autoOpenCreate={(Array.isArray(searchParams?.create) ? searchParams?.create[0] : searchParams?.create) === "1"}
+      initialSearch={Array.isArray(searchParams?.q) ? searchParams?.q[0] : searchParams?.q}
       // sessions={sessions} // si luego lo necesitas
     />
   );

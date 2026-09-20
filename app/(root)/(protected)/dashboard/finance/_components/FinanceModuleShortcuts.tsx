@@ -19,8 +19,6 @@ import {
   FileText,
   GripVertical,
   Package,
-  Plus,
-  PlusCircle,
   ReceiptText,
   Settings,
   ShoppingCart,
@@ -30,15 +28,6 @@ import {
   Wallet,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 type ShortcutId =
@@ -228,41 +217,22 @@ export function FinanceModuleShortcuts({
 
   if (hideOnFinanceRoot && pathname === '/dashboard/finance') return null;
 
+  // Arriba van SOLO las pestañas. El botón azul de crear —que estaba aquí, en
+  // la esquina de esta misma fila— se fue a la barra de acciones de la pantalla,
+  // que es donde vive en las otras treinta y cuatro. Metido entre las pestañas
+  // quedaba lejos del contenido sobre el que actúa y encima le robaba a la fila
+  // los 36 px que necesita para no cortarse.
   return (
-    <div className="flex items-start justify-between gap-2 bg-background">
+    <div className="bg-background">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={order} strategy={rectSortingStrategy}>
-          <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto pb-1">
+          <div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto pb-1">
             {items.map((item) => (
               <SortableShortcut key={item.id} item={item} />
             ))}
           </div>
         </SortableContext>
       </DndContext>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="icon" className="h-9 w-9 shrink-0 rounded-md bg-blue-600 text-white shadow-sm hover:bg-blue-700">
-            <Plus className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href={`/dashboard/finance/sales?month=${monthValue}&create=1`} className="flex items-center gap-2">
-              <PlusCircle className="h-4 w-4" />
-              Agregar venta
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href={`/dashboard/finance/expenses?month=${monthValue}&create=1`} className="flex items-center gap-2">
-              <PlusCircle className="h-4 w-4" />
-              Agregar gasto
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 }

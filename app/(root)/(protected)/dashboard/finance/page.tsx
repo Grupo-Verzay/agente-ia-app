@@ -9,8 +9,7 @@ import { resolverLasCuentasDeFinanzas } from '@/lib/cuentas-de-finanzas';
 import { consolidar } from '@/lib/finanzas-de-la-familia';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
-import { WipeFinanceButton } from './_components/WipeFinanceButton';
-import { SelectorDeCuentas } from './_components/SelectorDeCuentas';
+import { BarraDeFinanzas } from './_components/BarraDeFinanzas';
 import { DesgloseDeCuentas } from './_components/DesgloseDeCuentas';
 
 export const dynamic = 'force-dynamic';
@@ -204,15 +203,22 @@ export default async function FinanceHomePage({
 
   return (
     <div className="space-y-1">
-      {cuentas.puedeElegir && (
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <SelectorDeCuentas disponibles={cuentas.disponibles} elegidas={elegidas} />
-          {consolidando && (
-            <span className="text-xs text-muted-foreground">
-              Sumando {elegidas.length} cuentas. El resumen anual y la gráfica responden a esta selección.
-            </span>
-          )}
-        </div>
+      {/* La barra de siempre: buscador fijo a la izquierda, el selector de
+          cuentas en el carril, y el azul con el `⋯` pegados al borde derecho.
+          Antes el azul estaba arriba entre las pestañas, el selector suelto en
+          su propia línea y «Vaciar contabilidad» al final de la página. */}
+      <BarraDeFinanzas
+        disponibles={cuentas.disponibles}
+        elegidas={elegidas}
+        puedeElegir={cuentas.puedeElegir}
+        monthValue={monthInputValue(selectedMonth)}
+        accountLabel={accountLabel}
+      />
+
+      {consolidando && (
+        <p className="text-xs text-muted-foreground">
+          Sumando {elegidas.length} cuentas. El resumen anual y la gráfica responden a esta selección.
+        </p>
       )}
 
       {consolidado && (
@@ -289,10 +295,6 @@ export default async function FinanceHomePage({
           </CardContent>
         </Card>
       )}
-
-      <div className="flex justify-end pt-1">
-        <WipeFinanceButton accountLabel={accountLabel} />
-      </div>
     </div>
   );
 }
