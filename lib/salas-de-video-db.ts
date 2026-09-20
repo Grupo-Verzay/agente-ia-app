@@ -589,7 +589,14 @@ export async function lasSalasVivasDelCanal(canalId: string): Promise<FilaDeSala
 }
 
 /**
- * Las reuniones VIVAS de una cuenta.
+ * Las reuniones VIVAS de una FAMILIA de cuentas.
+ *
+ * Recibe **todas** las cuentas alcanzables por la fila efectiva de quien mira
+ * (`laFamiliaDeLaCuenta`), no una sola: `/reuniones` lista las salas de la
+ * familia entera para que la madre no tenga que cambiar de cuenta antes de
+ * entrar a la de una hija. Quién compone esa lista lo decide el servidor; aquí
+ * solo se acota por `= ANY(...)`, así que una cuenta que no está en la familia
+ * de quien pregunta **no puede** colarse por más ids que se manden.
  *
  * **`canalId IS NULL` no es un detalle de la consulta: es la puerta.** Si esta
  * lista trajera también las salas que nacieron en un canal, alguien de la
@@ -600,16 +607,34 @@ export async function lasSalasVivasDelCanal(canalId: string): Promise<FilaDeSala
  * Las caducadas y las revocadas no salen por aquí: salen en el histórico, que
  * es donde se leen.
  */
-export async function lasSalasVivasDeLaCuenta(cuentaId: string): Promise<FilaDeSala[]> {
+export async function lasSalasVivasDeLaFamilia(cuentaIds: string[]): Promise<FilaDeSala[]> {
+    const ids = Array.from(new Set(cuentaIds.map((c) => String(c ?? "").trim()).filter(Boolean)));
+    if (!ids.length) return [];
     return conLasTablas(() => db.$queryRawUnsafe<FilaDeSala[]>(
         `SELECT ${COLUMNAS_SALA} FROM "salas_de_video"
-         WHERE "cuentaId" = $1 AND "canalId" IS NULL
+         WHERE "cuentaId" = ANY($1::text[]) AND "canalId" IS NULL
            AND "revocadaEn" IS NULL
            AND ("expiraEn" IS NULL OR "expiraEn" > NOW())
          ORDER BY "creadoEn" DESC
          LIMIT 50`,
-        cuentaId,
+        ids,
     ));
+}
+
+/**
+ * Cómo se llama cada cuenta de una lista, para pintar a quién pertenece cada
+ * sala. Trae los tres campos que `nombreDeLaCuenta` mira, y nada más: el nombre
+ * de una cuenta no es un dato que deba viajar entero a un componente de cliente.
+ */
+export async function losDatosDeLasCuentas(
+    ids: string[],
+): Promise<Array<{ id: string; company: string | null; name: string | null; email: string | null }>> {
+    const limpios = Array.from(new Set(ids.map((c) => String(c ?? "").trim()).filter(Boolean)));
+    if (!limpios.length) return [];
+    return db.user.findMany({
+        where: { id: { in: limpios } },
+        select: { id: true, company: true, name: true, email: true },
+    });
 }
 
 /**
@@ -639,7 +664,12 @@ export async function cambiarLaCaducidad(
 }
 
 /**
- * Las reuniones PASADAS de una cuenta, y quién entró en cada una.
+ * Las reuniones PASADAS de una FAMILIA de cuentas, y quién entró en cada una.
+ *
+ * Recibe todas las cuentas alcanzables por quien mira, igual que
+ * `lasSalasVivasDeLaFamilia`: el histórico de `/reuniones` cruza la familia, así
+ * que la madre ve también las reuniones ya terminadas de sus hijas sin cambiar
+ * de cuenta. Se acota por `= ANY(...)`, y la lista la compone el servidor.
  *
  * # Esto no es una tabla nueva: es leer las que ya se llenaban solas
  *
@@ -672,11 +702,13 @@ export type FilaDeHistorico = {
     }>;
 };
 
-export async function elHistorialDeLaCuenta(
-    cuentaId: string,
+export async function elHistorialDeLaFamilia(
+    cuentaIds: string[],
     dias: number,
     tope: number,
 ): Promise<FilaDeHistorico[]> {
+    const cuentas = Array.from(new Set(cuentaIds.map((c) => String(c ?? "").trim()).filter(Boolean)));
+    if (!cuentas.length) return [];
     return conLasTablas(async () => {
         // `make_interval(days => $2::int)` con el molde puesto: Prisma manda el
         // parámetro sin tipo y `make_interval` solo acepta `int`; sin el molde
@@ -694,13 +726,13 @@ export async function elHistorialDeLaCuenta(
         // literal y el fichero deja de parsear.)
         const salas = await db.$queryRawUnsafe<FilaDeSala[]>(
             `SELECT ${COLUMNAS_SALA} FROM "salas_de_video"
-             WHERE "cuentaId" = $1 AND "canalId" IS NULL
+             WHERE "cuentaId" = ANY($1::text[]) AND "canalId" IS NULL
                AND ("revocadaEn" IS NOT NULL
                     OR ("expiraEn" IS NOT NULL AND "expiraEn" <= NOW()))
                AND "creadoEn" > NOW() - make_interval(days => $2::int)
              ORDER BY "creadoEn" DESC
              LIMIT $3`,
-            cuentaId,
+            cuentas,
             Math.max(1, Math.floor(dias)),
             Math.max(1, Math.floor(tope)),
         );

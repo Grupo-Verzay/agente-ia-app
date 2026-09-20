@@ -49,6 +49,12 @@ export default async function ReunionesPage() {
     return (
         <ReunionesClient
             inicial={vivas.success ? vivas.salas : []}
+            /* La familia trae varias cuentas: se pinta a quién pertenece cada
+               sala. En una cuenta sola sería repetir su nombre en cada fila. */
+            variasCuentas={
+                (vivas.success && vivas.variasCuentas) ||
+                (historial.success && historial.variasCuentas)
+            }
             puedoAbrir={vivas.success ? vivas.puedoAbrir : false}
             /* Quién puede dejar un enlace SIN caducidad lo decide el servidor
                (`canManageWorkspace`) y baja como dato: la pantalla no vuelve a

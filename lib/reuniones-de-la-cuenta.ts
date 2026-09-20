@@ -92,11 +92,10 @@ export function puedeAbrirUnaReunion(yo: QuienPregunta | null | undefined): bool
 /**
  * Si una sala **sin canal** es de mi cuenta.
  *
- * Igualdad pelada contra la cuenta efectiva, y **no la familia**. Es la
- * diferencia a propósito con el General del chat de equipo, que sí se lee sobre
- * toda la familia: allí el hilo es uno y compartido, y aquí cada cuenta tiene
- * sus reuniones. Una cuenta cliente vinculada ve las suyas y ninguna de su
- * madre, que es lo pedido.
+ * Igualdad pelada contra la cuenta efectiva. Es el camino barato de
+ * `esDeMiFamilia` —el caso de todos los días, una cuenta sin vinculadas—, y por
+ * eso sigue existiendo aparte: quien solo tiene una cuenta no paga resolver
+ * ninguna familia para ver sus reuniones.
  */
 export function esDeMiCuenta(
     sala: Pick<SalaParaDecidir, "cuentaId">,
@@ -107,27 +106,85 @@ export function esDeMiCuenta(
 }
 
 /**
- * Quién puede REVOCAR el enlace o mover su caducidad.
+ * Si una sala **sin canal** es de alguna cuenta de mi FAMILIA.
  *
- * El anfitrión **y quien administra la cuenta**. La segunda mitad es nueva y
- * hace falta: sin ella, una sala abierta por alguien que ya no está en el
- * equipo **no la puede cerrar nadie nunca**, y su enlace sigue dejando llamar a
- * la puerta hasta que caduque solo. Es la misma decisión, tomada a propósito,
- * que deja al administrador leer los directos de su cuenta: una herramienta de
- * trabajo, no un cajón privado.
+ * Es lo que hace que `/reuniones` liste —y deje entrar a— las salas de todas
+ * las cuentas alcanzables por la fila efectiva de quien mira: la madre ve las
+ * de sus vinculadas, una hija las de la familia entera, y quien está fuera de
+ * ella no ve ninguna. La malla ya viene resuelta por `laFamiliaDeLaCuenta`
+ * (#812), así que aquí solo se compara contra el conjunto.
  *
- * Y no se afloja más que eso: **el resto del equipo no toca la sala de otro**.
- * Revocar echa a quien esté dentro, así que dejarlo en manos de cualquiera
- * sería dejar que alguien corte la reunión de otros — que es justo lo que la
- * regla original evitaba.
+ * **No contradice al chat de equipo.** Allí el hilo es uno y compartido; aquí
+ * cada sala sigue colgando de una cuenta concreta y firmándose con la persona.
+ * Lo único que la familia decide es el ALCANCE —quién la ve y quién puede
+ * entrar—, que es la regla de siempre: *un dato se firma con la persona, un
+ * alcance se pregunta a la fila efectiva*, y la familia es el alcance de esa
+ * fila.
+ */
+export function esDeMiFamilia(
+    sala: Pick<SalaParaDecidir, "cuentaId">,
+    cuentasDeLaFamilia: readonly string[],
+): boolean {
+    const suya = (sala.cuentaId ?? "").trim();
+    if (!suya) return false;
+    return cuentasDeLaFamilia.some((c) => (c ?? "").trim() === suya);
+}
+
+/**
+ * Cómo se resuelve la autoridad sobre una sala de OTRA cuenta de la familia.
+ *
+ * `cuentas` es la familia entera y `raiz` es quién manda en ella
+ * (`laFamiliaDeLaCuenta`). Va opcional a propósito: la inmensa mayoría de las
+ * salas son de la propia cuenta de quien mira, y ese caso se resuelve sin
+ * resolver ninguna familia. Solo cuando la sala es de otra cuenta hace falta
+ * saber si esa otra cuenta está en mi familia y si mando en ella.
+ */
+export type LaFamilia = { raiz: string; cuentas: readonly string[] };
+
+/**
+ * Quién puede REVOCAR el enlace, mover su caducidad, moderar o grabar.
+ *
+ * El anfitrión **y quien administra la cuenta DUEÑA de la sala**. Con la
+ * familia por medio, «la cuenta dueña» puede no ser la propia de quien mira, y
+ * ahí está la parte que no se puede aflojar:
+ *
+ * | la sala es de… | manda sobre ella |
+ * | --- | --- |
+ * | **mi propia cuenta** | yo, si administro mi cuenta (`yo.manda`) |
+ * | **otra cuenta de la familia** | solo la **madre** (la raíz), que es quien administra la familia |
+ *
+ * Esa segunda fila es el reparto de siempre —el mismo que en Finanzas de la
+ * familia: *manda quien es la cuenta MADRE de su familia*—. Un administrador de
+ * una cuenta HIJA participa en las reuniones de una hermana, pero no las
+ * modera: su rol es en su cuenta, no en la de al lado. Y por eso se pide
+ * `familia.raiz === yo.cuentaId` y no solo `esDeMiFamilia`: sin ello, cualquier
+ * administrador de la familia podría cortarle la reunión a cualquier otra
+ * cuenta, que es justo lo que la puerta protege.
+ *
+ * Sin `familia`, solo se contesta por la propia cuenta —el camino barato—, que
+ * es lo correcto cuando no se ha resuelto la familia: se ve de menos, nunca de
+ * más.
  */
 export function puedeAdministrarLaSala(
     sala: Pick<SalaParaDecidir, "anfitrionId" | "cuentaId">,
     yo: QuienPregunta | null | undefined,
+    familia?: LaFamilia | null,
 ): boolean {
     if (!yo?.personaId) return false;
     if (sala.anfitrionId === yo.personaId) return true;
-    return Boolean(yo.manda) && esDeMiCuenta(sala, yo.cuentaId);
+    if (!yo.manda) return false;
+    // Mi propia cuenta: mi rol ahí es `yo.manda`.
+    if (esDeMiCuenta(sala, yo.cuentaId)) return true;
+    // Otra cuenta de la familia: solo la madre (la raíz) manda sobre ella.
+    if (
+        familia &&
+        Boolean(familia.raiz) &&
+        familia.raiz === yo.cuentaId &&
+        esDeMiFamilia(sala, familia.cuentas)
+    ) {
+        return true;
+    }
+    return false;
 }
 
 /* ─────────────────────────── La caducidad ─────────────────────────── */

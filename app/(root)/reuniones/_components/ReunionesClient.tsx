@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    Building2,
     CalendarClock,
     Copy,
     Link2Off,
@@ -152,6 +153,7 @@ function useLasGrabaciones(ids: string[]) {
 
 export function ReunionesClient({
     inicial,
+    variasCuentas,
     puedoAbrir,
     puedoNoCaducar,
     historial,
@@ -159,6 +161,8 @@ export function ReunionesClient({
     fallo,
 }: {
     inicial: SalaParaLaPantalla[];
+    /** La familia tiene varias cuentas: se pinta a quién pertenece cada sala. */
+    variasCuentas: boolean;
     puedoAbrir: boolean;
     puedoNoCaducar: boolean;
     historial: ReunionPasada[];
@@ -338,6 +342,7 @@ export function ReunionesClient({
                             <FilaViva
                                 key={s.id}
                                 sala={s}
+                                variasCuentas={variasCuentas}
                                 opciones={opciones}
                                 onFuera={() => setSalas((a) => a.filter((x) => x.id !== s.id))}
                                 onCaducidad={(expiraEn) =>
@@ -360,6 +365,7 @@ export function ReunionesClient({
                         <FilaPasada
                             key={r.id}
                             reunion={r}
+                            variasCuentas={variasCuentas}
                             grabaciones={grabaciones.porSala[r.id] ?? []}
                             alTranscribir={grabaciones.alTranscribir}
                         />
@@ -412,8 +418,36 @@ function Vacio({ texto }: { texto: string }) {
     return <p className="px-1 py-6 text-center text-sm text-muted-foreground">{texto}</p>;
 }
 
+/**
+ * A qué cuenta pertenece la sala.
+ *
+ * Solo se pinta cuando la familia tiene varias cuentas y la sala trae nombre:
+ * en una cuenta sola sería repetir su propio nombre en cada fila, que es ruido.
+ * Es lo que hace visible que la madre está entrando a la sala de una hija sin
+ * haber cambiado de cuenta.
+ */
+function InsigniaDeCuenta({
+    nombre,
+    variasCuentas,
+}: {
+    nombre: string | null;
+    variasCuentas: boolean;
+}) {
+    if (!variasCuentas || !nombre) return null;
+    return (
+        <span
+            className="inline-flex max-w-[10rem] items-center gap-1 truncate rounded-full border border-border bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
+            title={nombre}
+        >
+            <Building2 className="h-3 w-3 shrink-0" />
+            <span className="truncate">{nombre}</span>
+        </span>
+    );
+}
+
 function FilaViva({
     sala,
+    variasCuentas,
     opciones,
     onFuera,
     onCaducidad,
@@ -422,6 +456,7 @@ function FilaViva({
     alTranscribir,
 }: {
     sala: SalaParaLaPantalla;
+    variasCuentas: boolean;
     opciones: ReadonlyArray<{ valor: Duracion; rotulo: string }>;
     onFuera: () => void;
     onCaducidad: (expiraEn: string | null) => void;
@@ -500,7 +535,10 @@ function FilaViva({
     return (
         <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
             <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{sala.titulo || "Reunión"}</p>
+                <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-sm font-medium">{sala.titulo || "Reunión"}</p>
+                    <InsigniaDeCuenta nombre={sala.cuentaNombre} variasCuentas={variasCuentas} />
+                </div>
                 <p className="truncate text-xs text-muted-foreground">
                     {sala.anfitrionNombre ? `${sala.anfitrionNombre} · ` : ""}
                     {comoSeLeeLaCaducidad(sala.expiraEn)}
@@ -598,10 +636,12 @@ function FilaViva({
 
 function FilaPasada({
     reunion,
+    variasCuentas,
     grabaciones,
     alTranscribir,
 }: {
     reunion: ReunionPasada;
+    variasCuentas: boolean;
     grabaciones: GrabacionEnLaFicha[];
     alTranscribir: (id: string, texto: string, resumen: string | null) => void;
 }) {
@@ -611,6 +651,7 @@ function FilaPasada({
                 <p className="min-w-0 flex-1 truncate text-sm">
                     {reunion.titulo || "Reunión"}
                 </p>
+                <InsigniaDeCuenta nombre={reunion.cuentaNombre} variasCuentas={variasCuentas} />
                 <span className="text-xs tabular-nums text-muted-foreground">
                     {reunion.empezo ? cuandoFue(reunion.empezo) : "no se usó"}
                 </span>
