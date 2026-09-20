@@ -66,7 +66,7 @@ import {
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { startBotCallAction } from '@/actions/voicebot-actions';
 import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
-import { CallDialog } from '../../../chats/_components/CallDialog';
+import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { CallDetailDialog } from './CallDetailDialog';
 import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
 
@@ -170,14 +170,13 @@ export function CallsCrmClient({
   const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
-  const [callTarget, setCallTarget] = useState<{ phone: string; name?: string } | null>(null);
   const [callbackTarget, setCallbackTarget] = useState<{ phone: string; name?: string } | null>(null);
   const [dialNumber, setDialNumber] = useState('');
 
   const [botDialing, setBotDialing] = useState(false);
   const dialDigits = dialNumber.replace(/\D/g, '');
   const startDial = () => {
-    if (dialDigits.length >= 6) setCallTarget({ phone: dialDigits });
+    if (dialDigits.length >= 6) abrirLlamadaAqui({ phone: dialDigits });
   };
   const startBotDial = async () => {
     if (dialDigits.length < 6 || botDialing) return;
@@ -469,7 +468,7 @@ export function CallsCrmClient({
                 <button
                   key={d.phone}
                   type="button"
-                  onClick={() => setCallTarget({ phone: d.phone, name: d.name })}
+                  onClick={() => abrirLlamadaAqui({ phone: d.phone, contactName: d.name })}
                   title={`Llamar a ${d.name || `+${d.phone}`}`}
                   className="inline-flex max-w-[10rem] items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-green-300 hover:bg-green-50 hover:text-green-700 dark:hover:border-green-900/50 dark:hover:bg-green-950/30 dark:hover:text-green-400"
                 >
@@ -601,7 +600,7 @@ export function CallsCrmClient({
                     <CallTableRow
                       key={c.id}
                       call={c}
-                      onCall={() => setCallTarget({ phone: c.phone, name: c.contactName ?? undefined })}
+                      onCall={() => abrirLlamadaAqui({ phone: c.phone, contactName: c.contactName ?? undefined })}
                       onDisposition={(value) => applyDisposition(c.id, value)}
                       onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
                       onOpenChat={() => openChat(c.phone)}
@@ -620,15 +619,6 @@ export function CallsCrmClient({
           )}
         </CardContent>
       </Card>
-
-      {callTarget && /\d{6,}/.test(callTarget.phone) && (
-        <CallDialog
-          open={!!callTarget}
-          onClose={() => setCallTarget(null)}
-          phone={callTarget.phone}
-          contactName={callTarget.name}
-        />
-      )}
 
       {callbackTarget && (
         <CallbackDialog

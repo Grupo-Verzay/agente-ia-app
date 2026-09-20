@@ -33,6 +33,7 @@ import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { BotonesDelBorde } from "@/components/chat-equipo/BotonesDelBorde";
 import { OyenteDeLlamadas } from "@/components/chat-equipo/OyenteDeLlamadas";
 import { ReunionEnLaPlataforma } from "@/components/video/ReunionEnLaPlataforma";
+import { AnfitrionDeLlamada } from "@/components/chats/AnfitrionDeLlamada";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
 import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
 import type { UserNavPref } from "@/types/nav-preference";
@@ -513,6 +514,12 @@ export default async function RootGroupLayout({
                       * que el oyente cuelga de aqui — como la ventana que
                       * interrumpe de los avisos de tarea. */}
                     <OyenteDeLlamadas />
+                    {/* Y una llamada de WhatsApp aguanta al cambiar de
+                      * conversacion y al navegar, por el mismo motivo: la
+                      * tarjeta sostiene el RTCPeerConnection y el microfono, y
+                      * montada dentro del chat se desmontaba al salir. No pinta
+                      * nada mientras no hay ninguna. */}
+                    <AnfitrionDeLlamada />
                     {/* Y una reunion abierta sigue abierta al cambiar de
                       * pantalla, por el mismo motivo: montada dentro del chat
                       * de equipo, navegar a otro sitio la desmontaria entera.
