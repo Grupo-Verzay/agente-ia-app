@@ -33,7 +33,7 @@ import { devolverChatALaIaAction } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
-import { CallDialog } from './CallDialog';
+import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
@@ -312,14 +312,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     await onSessionRefresh();
   };
 
-  const [callOpen, setCallOpen] = useState(false);
   const callDigits = (displayedWhatsapp || remoteJid || '').replace(/\D/g, '');
   const handleCall = () => {
     if (!callDigits) {
       toast.error('No hay número de WhatsApp para llamar.');
       return;
     }
-    setCallOpen(true);
+    // La tarjeta la sostiene el anfitrión del layout, no esta cabecera: así la
+    // llamada aguanta al cambiar de conversación o de pantalla.
+    abrirLlamadaAqui({
+      phone: callDigits,
+      contactName: displayedContactName,
+      instanceType,
+      instanceName,
+    });
   };
 
   const sessionStatusTone = session?.status
@@ -1053,16 +1059,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         currentUserId={userId}
       />
 
-      {callDigits && (
-        <CallDialog
-          open={callOpen}
-          onClose={() => setCallOpen(false)}
-          phone={callDigits}
-          contactName={displayedContactName}
-          instanceType={instanceType}
-          instanceName={instanceName}
-        />
-      )}
     </div>
   );
 };

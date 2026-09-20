@@ -6164,6 +6164,59 @@ de colgar fuera de la pantalla.
 > vuelve a pasar, el sitio donde mirar es `queHacerConLaVentana`: es puro, así
 > que el caso se reproduce en el banco sin navegador.
 
+## La conexión viva cuelga del LAYOUT, no de la ruta ni de la conversación
+
+Una llamada de WhatsApp se cortaba al **cambiar de conversación** o **navegar a
+otra pantalla**. No la colgaba nadie: la tarjeta `CallDialog` —que sostiene el
+`RTCPeerConnection`, el micrófono, el `<audio>` y los relojes que la vigilan— se
+montaba DENTRO del chat, en cuatro sitios: la cabecera (`ChatHeader`), una
+burbuja (`MessageBubble`) y dos del CRM (la fila de un registro y el marcador de
+Llamadas). Cambiar de conversación rehace la cabecera y navegar se lleva el árbol
+de la ruta entero; en los dos casos la tarjeta se desmontaba y su `cleanup` de
+desmontaje cerraba la conexión. Desde fuera: la llamada se cortaba a media frase.
+
+> **Lo que sostiene una conexión viva cuelga del layout, y se abre por un
+> evento.** `AnfitrionDeLlamada` (`components/chats/AnfitrionDeLlamada.tsx`)
+> monta `CallDialog` desde `app/(root)/layout.tsx`, y los cuatro sitios que antes
+> la montaban ahora **disparan `abrirLlamadaAqui(...)`**. Es exactamente lo que
+> ya hacían el timbre del equipo (`OyenteDeLlamadas`) y el panel de video
+> (`ReunionEnLaPlataforma`, #797), y por el mismo motivo: **un layout no se
+> remonta al navegar entre pantallas del mismo grupo**, así que lo que cuelga de
+> él sobrevive. La reunión de video ya estaba bien por esto mismo; la llamada se
+> le había quedado en la ruta.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se abre por un evento del navegador, no por un contexto.** Quien llama
+   —una cabecera, el menú de una fila, una burbuja, el marcador— puede estar en
+   cualquier pantalla; con un contexto habría que envolver media App para que un
+   botón de una tabla le hablara a un panel del layout. Es el mismo patrón que
+   `abrirLaReunionAqui`.
+2. **Una `key` que sube en cada apertura** (`nonce`). Llamar otra vez —al mismo
+   número o a otro— tiene que empezar de cero, y eso se consigue remontando la
+   tarjeta: la anterior se desmonta —su `cleanup` cierra esa conexión— y la nueva
+   arranca. Una llamada a la vez, como la reunión cambia de sala en vez de apilar
+   dos. Sin la `key`, una segunda llamada al mismo número no re-dispara `startCall`
+   (su efecto depende de `open`, que ya era `true`) y el botón no haría nada.
+3. **No pinta nada mientras no hay llamada.** Estar en el layout no cuesta: ni
+   `getStats`, ni micrófono pedido, ni `<audio>`. Igual que los otros dos hosts.
+4. **`CallbackDialog` NO es `CallDialog`.** El marcador de Llamadas tiene los
+   dos; solo la llamada de verdad se movió al layout. El de rellamada con IA se
+   queda como estaba.
+
+Y lo comprueba `lib/__tests__/llamada-sobrevive-navegacion.test.mjs`, en dos
+mitades. La primera es RUNTIME con `react-test-renderer` (sin navegador): monta
+una llamada y una reunión ACTIVAS, ejercita el cambio de ruta varias veces, y
+comprueba que la conexión es la misma y no se cerró; el **modo roto** —el host
+dentro de la ruta— reproduce el corte, que es lo que prueba que el banco cazaría
+la regresión. La segunda lee el código real: que los cuatro sitios dejaron de
+montar `<CallDialog>` y disparan `abrirLlamadaAqui`, que el layout monta los tres
+hosts, y que la reunión sigue colgando solo del layout.
+
+Esto **no** cubre recargar con F5: una recarga tira el árbol entero, layout
+incluido, y una llamada no sobrevive a eso —ni tiene por qué—. Lo que cubre es la
+navegación interna, que es donde se cortaba.
+
 ## Reuniones: TRES tamaños, y la pantalla completa se pide DENTRO del clic
 
 De los cuatro estados de la ventana de una reunión, **dos no llegaban a donde

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { MoreHorizontal, Pencil, Phone, Trash2 } from "lucide-react";
 import type { Registro } from "@prisma/client";
 
-import { CallDialog } from "@/app/(root)/chats/_components/CallDialog";
+import { abrirLlamadaAqui } from "@/components/chats/AnfitrionDeLlamada";
 
 import {
   deleteRegistro,
@@ -35,7 +35,6 @@ export function CrmRecordActionsCell({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteRecordOpen, setDeleteRecordOpen] = useState(false);
   const [deleteLeadMovementsOpen, setDeleteLeadMovementsOpen] = useState(false);
-  const [callOpen, setCallOpen] = useState(false);
 
   const displayName = getDisplayNombreFromRegistro(registro);
   const displayWhatsapp = getDisplayWhatsappFromSession(registro.session);
@@ -92,7 +91,9 @@ export function CrmRecordActionsCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {canCall && (
-            <DropdownMenuItem onSelect={() => setCallOpen(true)}>
+            <DropdownMenuItem
+              onSelect={() => abrirLlamadaAqui({ phone: callDigits, contactName: displayName })}
+            >
               <Phone className="h-4 w-4" />
               Llamar
             </DropdownMenuItem>
@@ -156,14 +157,6 @@ export function CrmRecordActionsCell({
         onConfirm={handleDeleteLeadMovements}
       />
 
-      {canCall && callOpen && (
-        <CallDialog
-          open={callOpen}
-          onClose={() => setCallOpen(false)}
-          phone={callDigits}
-          contactName={displayName}
-        />
-      )}
     </>
   );
 }

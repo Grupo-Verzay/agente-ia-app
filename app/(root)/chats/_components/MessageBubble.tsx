@@ -8,7 +8,7 @@ import { MediaRenderer, anchoDelAdjunto } from './MediaRenderer';
 import { SafeImage } from '@/components/custom/SafeImage';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
 import { MessageContextMenu } from './MessageContextMenu';
-import { CallDialog } from './CallDialog';
+import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
 import { TextoConFormato } from '@/components/shared/TextoConFormato';
@@ -156,7 +156,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onEdit,
   onDelete,
 }) => {
-  const [callOpen, setCallOpen] = useState(false);
   /**
    * ¿La miniatura del anuncio se quedó sin cargar?
    *
@@ -315,7 +314,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {callPhone && (
             <button
               type="button"
-              onClick={() => setCallOpen(true)}
+              onClick={() => abrirLlamadaAqui({ phone: callPhone, contactName })}
               className="ml-1 flex items-center gap-1 rounded-full bg-green-600 px-2 py-0.5 text-[0.65rem] font-semibold text-white transition-colors hover:bg-green-700"
               title="Devolver llamada"
             >
@@ -323,9 +322,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </button>
           )}
         </div>
-        {callPhone && (
-          <CallDialog open={callOpen} onClose={() => setCallOpen(false)} phone={callPhone} contactName={contactName} />
-        )}
       </div>
     );
   }
