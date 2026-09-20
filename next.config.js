@@ -2,7 +2,17 @@
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
-  typescript: { ignoreBuildErrors: true },
+  // NO volver a poner `typescript: { ignoreBuildErrors: true }`.
+  //
+  // Con eso puesto, `npm run build` salia en verde con errores de tipos vivos
+  // dentro, asi que el unico que los veia era `npx tsc --noEmit`, que no corre
+  // en ningun sitio. Un `soltar` usado en un array de dependencias ANTES de
+  // declararse -que es un TDZ de verdad, no solo de tipos- compilaba limpio y
+  // habria reventado en produccion.
+  //
+  // Y ojo con la otra mitad: el comprobador de Next se PARA en el primer error,
+  // asi que el build sirve para que no entre ninguno, pero nunca para contar
+  // cuantos hay. Para eso sigue mandando `npx tsc --noEmit`.
   eslint: { ignoreDuringBuilds: true },
   output: "standalone",
   compiler: {

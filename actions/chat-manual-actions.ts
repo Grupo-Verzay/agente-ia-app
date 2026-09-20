@@ -378,6 +378,21 @@ async function sendOutgoingPayload(params: {
     return { success: true, message: "Enviado.", data: sentData ?? undefined, remoteJid };
   }
 
+  // Evolution. Si la linea llego SIN clave y no es Waha, no se envia a ciegas:
+  // `sendTextMessage` y `sendMediaByUrl` desestructuran `apiKeyData` ANTES de su
+  // propia comprobacion, asi que un `undefined` de verdad no devuelve el fallo
+  // suave que prometen -revienta con un TypeError-. Hoy no se llega aqui (las
+  // tres puertas de arriba ya lo impiden), y precisamente por eso se contesta
+  // con el mismo mensaje que el resto de la pantalla en vez de callarse.
+  if (!hasReadyContext(context)) {
+    console.warn("[chats] envio sin clave de Evolution en una linea que no es Waha", {
+      instanceName: context.instanceName,
+      instanceType,
+      source,
+    });
+    return { success: false, message: "No hay instancia o API key configurada para enviar.", remoteJid };
+  }
+
   const result =
     payload.kind === "text"
       ? await sendTextMessage(context.apiKeyData, context.instanceName, remoteJid, payload.text, {
@@ -612,7 +627,7 @@ const VIGENCIA_DESTINATARIO_MS = 30 * 60_000;
  * del acierto, no un requisito para poder escribir.
  */
 async function destinatarioSegunWhatsApp(
-  context: Exclude<ChatActionContext, null>,
+  context: ReadyChatActionContext,
   remoteJid: string,
 ): Promise<string> {
   if (!/@s\.whatsapp\.net$/i.test(remoteJid)) return remoteJid;
@@ -652,7 +667,9 @@ async function resolveTransportRemoteJid(params: {
   userId?: string | null;
   instanceName: string;
   remoteJid: string;
-  context?: Exclude<ChatActionContext, null>;
+  // Con clave o nada: esto pregunta a Evolution, asi que una linea sin clave
+  // -Waha- no tiene nada que hacer aqui y se manda al numero tal cual.
+  context?: ReadyChatActionContext;
 }) {
   const esNumero = /@s\.whatsapp\.net$/i.test(params.remoteJid);
   if (esNumero) {
@@ -1830,14 +1847,15 @@ export async function sendManualWorkflowAction(
   // WhatsApp Mensajeria (waha) no tiene clave de Evolution, y no la necesita:
   // los nodos salen por Waha dentro de sendOutgoingPayload, con la misma logica
   // de nodos, automatizaciones y persistencia que Evolution.
-  const lineaWaha = !hasReadyContext(context) && (await esLineaWaha(context?.instanceName));
-  if (!hasReadyContext(context) && !lineaWaha) {
+  const listo = hasReadyContext(context) ? context : null;
+  const lineaWaha = !listo && (await esLineaWaha(context?.instanceName));
+  const ctx = listo ?? (lineaWaha ? context : null);
+  if (!ctx) {
     return {
       success: false,
       message: "No hay instancia o API key configurada para enviar workflows.",
     };
   }
-  const ctx = context as Exclude<ChatActionContext, null>;
   const tipoDeLinea = lineaWaha ? "waha" : "evolution";
 
   const user = await requireCurrentUser();
@@ -1849,8 +1867,10 @@ export async function sendManualWorkflowAction(
     instanceName: ctx.instanceName,
     remoteJid,
     // Confirmar el destinatario con WhatsApp es una consulta a Evolution; en
-    // Waha se manda al numero (o al @lid, que acepta) tal cual.
-    context: lineaWaha ? undefined : ctx,
+    // Waha se manda al numero (o al @lid, que acepta) tal cual. `listo` es
+    // justo "el contexto que trae clave", asi que no hace falta preguntarlo
+    // dos veces ni forzar el tipo a mano.
+    context: listo ?? undefined,
   });
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const workflow = await db.workflow.findFirst({
