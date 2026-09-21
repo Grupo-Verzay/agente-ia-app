@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2, ShieldCheck, Building2, ArrowRightLeft } from "lucide-react";
+import { Plus, Trash2, Pencil, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2, ShieldCheck, Building2, ArrowRightLeft } from "lucide-react";
 import { AdvisorPermissionsDialog } from "./AdvisorPermissionsDialog";
 import { MudarDeCuentaDialog } from "@/components/equipo/MudarDeCuentaDialog";
 import { AdvisorClientsDialog } from "./AdvisorClientsDialog";
@@ -56,7 +56,7 @@ import { TeamCharts } from "./TeamCharts";
 import { AdvisorKanbanBoard } from "@/app/(root)/asesores/components/AdvisorKanbanBoard";
 import {
   createAdvisor,
-  updateAdvisorPassword,
+  updateAdvisor,
   updateAdvisorRole,
   toggleAdvisorAvailability,
   deleteAdvisor,
@@ -115,7 +115,15 @@ type Props = {
 };
 
 type CreateForm = { name: string; email: string; password: string; role: "agente" | "administrador" };
-type PasswordForm = { advisorId: string; advisorName: string; newPassword: string };
+// «Editar asesor» reemplaza al viejo «Cambiar contraseña»: cuatro campos, con la
+// contraseña vacía = no tocar. `advisorId` identifica a quién se guarda.
+type EditForm = {
+  advisorId: string;
+  name: string;
+  email: string;
+  password: string;
+  role: "agente" | "administrador";
+};
 
 async function safeInvoke<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
   try {
@@ -206,7 +214,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkEmail, setLinkEmail] = useState("");
   const [linkRole, setLinkRole] = useState<"agente" | "administrador">("agente");
-  const [pwForm, setPwForm] = useState<PasswordForm | null>(null);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
   const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
   const [resetLinksOpen, setResetLinksOpen] = useState(false);
@@ -274,13 +282,30 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
     });
   }
 
-  function handleUpdatePassword() {
-    if (!pwForm) return;
+  function handleUpdateAdvisor() {
+    if (!editForm) return;
+    const id = editForm.advisorId;
     startTransition(async () => {
-      const res = await updateAdvisorPassword({ advisorId: pwForm.advisorId, newPassword: pwForm.newPassword });
+      const res = await updateAdvisor({
+        advisorId: id,
+        name: editForm.name,
+        email: editForm.email,
+        password: editForm.password,
+        role: editForm.role,
+      });
       if (!res.success) { toast.error(res.message); return; }
-      toast.success(res.message ?? "Contraseña actualizada.");
-      setPwForm(null);
+      toast.success(res.message ?? "Asesor actualizado.");
+      // La fila refleja los cambios sin recargar: nombre, correo y rol salen de
+      // la respuesta (el servidor los devuelve ya normalizados).
+      if (res.data) {
+        const d = res.data;
+        setAdvisors((prev) =>
+          prev.map((a) =>
+            a.id === id ? { ...a, name: d.name, email: d.email, advisorRole: d.advisorRole } : a,
+          ),
+        );
+      }
+      setEditForm(null);
     });
   }
 
@@ -627,9 +652,22 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                               <Building2 className="w-4 h-4 mr-2" />
                               Clientes asignados
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setPwForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, newPassword: "" })}>
-                              <KeyRound className="w-4 h-4 mr-2" />
-                              Cambiar contraseña
+                            {/* Nombre, correo y rol llegan con el valor actual;
+                                la contraseña llega vacía y solo se cambia si se
+                                escribe algo. */}
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setEditForm({
+                                  advisorId: advisor.id,
+                                  name: advisor.name ?? "",
+                                  email: advisor.email,
+                                  password: "",
+                                  role: advisor.advisorRole === "administrador" ? "administrador" : "agente",
+                                })
+                              }
+                            >
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Editar asesor
                             </DropdownMenuItem>
                             {/* Solo la gente del EQUIPO se muda. Una cuenta
                                 vinculada no cuelga de nadie, asi que la accion
@@ -844,23 +882,64 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
         </DialogContent>
       </Dialog>
 
-      {/* Change password dialog */}
-      <Dialog open={Boolean(pwForm)} onOpenChange={(open) => !open && setPwForm(null)}>
+      {/* Editar asesor: nombre, correo, contraseña y rol en una ventana. */}
+      <Dialog open={Boolean(editForm)} onOpenChange={(open) => !open && setEditForm(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Cambiar contraseña — {pwForm?.advisorName}</DialogTitle>
+            <DialogTitle>Editar asesor</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label htmlFor="new-pw">Nueva contraseña</Label>
-              <Input id="new-pw" type="password" placeholder="Mínimo 6 caracteres" value={pwForm?.newPassword ?? ""}
-                onChange={(e) => setPwForm((prev) => prev ? { ...prev, newPassword: e.target.value } : null)} />
+              <Label htmlFor="edit-name">Nombre</Label>
+              <Input
+                id="edit-name"
+                placeholder="Juan Pérez"
+                value={editForm?.name ?? ""}
+                onChange={(e) => setEditForm((prev) => (prev ? { ...prev, name: e.target.value } : null))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-email">Correo</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                placeholder="asesor@empresa.com"
+                value={editForm?.email ?? ""}
+                onChange={(e) => setEditForm((prev) => (prev ? { ...prev, email: e.target.value } : null))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-pw">Contraseña</Label>
+              <Input
+                id="edit-pw"
+                type="password"
+                placeholder="Déjala vacía para no cambiarla"
+                value={editForm?.password ?? ""}
+                onChange={(e) => setEditForm((prev) => (prev ? { ...prev, password: e.target.value } : null))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-role">Rol</Label>
+              <Select
+                value={editForm?.role ?? "agente"}
+                onValueChange={(val) =>
+                  setEditForm((prev) => (prev ? { ...prev, role: val as "agente" | "administrador" } : null))
+                }
+              >
+                <SelectTrigger id="edit-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agente">Agente</SelectItem>
+                  <SelectItem value="administrador">Administrador</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPwForm(null)}>Cancelar</Button>
-            <Button onClick={handleUpdatePassword} disabled={isPending}>
-              {isPending ? "Actualizando..." : "Guardar"}
+            <Button variant="outline" onClick={() => setEditForm(null)}>Cancelar</Button>
+            <Button onClick={handleUpdateAdvisor} disabled={isPending}>
+              {isPending ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>

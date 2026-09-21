@@ -13,6 +13,7 @@ import { parseItemIds, serializeItemIds } from "@/lib/permisos";
 import { ADMIN_PANEL_ROUTE, elPanelQueLeToca, rutasDePanelPara } from "@/lib/sidebar-modules";
 import { isAdminLike } from "@/lib/rbac";
 import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
+import { validarEdicionDeAsesor, esCorreoValido } from "@/lib/editar-asesor";
 import type { Role } from "@prisma/client";
 
 export type ModuleOption = { id: string; label: string };
@@ -492,6 +493,98 @@ export async function updateAdvisorPassword(input: {
   await db.user.update({ where: { id: input.advisorId }, data: { password: passwordHash } });
 
   return { success: true, message: "Contraseña actualizada." };
+}
+
+/**
+ * Editar a un asesor: nombre, correo, contraseña y rol en una sola ventana.
+ *
+ * Reemplaza al viejo «Cambiar contraseña», y por eso conserva su alcance exacto:
+ * la MISMA puerta (`requireOwner`, que es `laCuentaQueConfigura` — quien no puede
+ * cambiar el rol desde la tabla tampoco entra aquí) y los MISMOS asesores
+ * (`findAdvisorRaw`, gente del equipo y cuentas vinculadas).
+ *
+ * Qué se acepta lo decide `validarEdicionDeAsesor`, puro: aquí solo se averiguan
+ * los dos hechos que esa regla necesita —el correo de hoy y si otro usuario ya
+ * usa el correo pedido— y se aplican los `UPDATE`. El rol va por el mismo camino
+ * que `updateAdvisorRole`: si es cuenta vinculada, a `linked_accounts.role`; si
+ * es del equipo, a `User.advisor_role`.
+ *
+ * Devuelve los tres campos que la fila de la tabla pinta, para que la pantalla
+ * los refleje sin recargar.
+ */
+export async function updateAdvisor(input: {
+  advisorId: string;
+  name: string;
+  email: string;
+  /** Vacío = no tocar la contraseña. */
+  password: string;
+  role: string;
+}): Promise<ActionResult<{ name: string; email: string; advisorRole: string }>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const found = await findAdvisorRaw(input.advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  const actual = await db.user.findUnique({
+    where: { id: input.advisorId },
+    select: { email: true },
+  });
+  if (!actual) return { success: false, message: "Asesor no encontrado." };
+
+  const correoPedido = input.email?.trim().toLowerCase() ?? "";
+  // "Otro usuario distinto de este asesor ya usa este correo": el `id: { not }`
+  // es lo que deja re-guardar sin tocar el correo sin chocar consigo mismo.
+  const correoYaUsado = esCorreoValido(correoPedido)
+    ? Boolean(
+        await db.user.findFirst({
+          where: { email: correoPedido, id: { not: input.advisorId } },
+          select: { id: true },
+        }),
+      )
+    : false;
+
+  const decision = validarEdicionDeAsesor(
+    { nombre: input.name, correo: input.email, contrasena: input.password, rol: input.role },
+    { correoActual: actual.email, correoYaUsado },
+  );
+  if (!decision.ok) return { success: false, message: decision.motivo };
+
+  // El rol: donde vive depende de si es cuenta vinculada. Igual que
+  // `updateAdvisorRole`, para no tener dos caminos que un día discrepen.
+  const linkedMembership = await db.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM "linked_accounts"
+    WHERE "master_user_id" = ${owner.id}
+      AND "linked_user_id" = ${input.advisorId}
+    LIMIT 1
+  `;
+  if (linkedMembership.length > 0) {
+    await db.$executeRaw`
+      UPDATE "linked_accounts"
+      SET role = ${decision.rol}::"LinkedAccountRole"
+      WHERE id = ${linkedMembership[0].id}
+    `;
+  } else {
+    await db.$executeRaw`UPDATE "User" SET advisor_role = ${decision.rol} WHERE id = ${input.advisorId}`;
+  }
+
+  // La identidad (nombre y correo, y la contraseña solo si vino) va en la fila
+  // del usuario. La contraseña nunca se escribe vacía: `null` = no tocarla.
+  const data: { name: string; email: string; password?: string } = {
+    name: decision.nombre,
+    email: decision.correo,
+  };
+  if (decision.nuevaContrasena) {
+    data.password = await bcrypt.hash(decision.nuevaContrasena, LENGTH_PASSWORD_HASH);
+  }
+  await db.user.update({ where: { id: input.advisorId }, data });
+
+  return {
+    success: true,
+    message: "Asesor actualizado.",
+    data: { name: decision.nombre, email: decision.correo, advisorRole: decision.rol },
+  };
 }
 
 export async function deleteAdvisor(advisorId: string): Promise<ActionResult> {
