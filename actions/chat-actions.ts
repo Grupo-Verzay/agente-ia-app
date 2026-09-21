@@ -629,6 +629,14 @@ export type ChatData = {
   pushName: string | null;
   profilePicUrl: string | null;
   updatedAt?: string;
+  /**
+   * Cuándo se inició la conversación, en epoch SEGUNDOS (como
+   * `lastMessage.messageTimestamp`). Es la fecha por defecto del filtro por
+   * rango de la bandeja. Sale de `LEAST(chat_conversations.createdAt,
+   * Session.createdAt)` en el SQL de la bandeja; `undefined` si ninguna la
+   * trae.
+   */
+  startedAt?: number;
   windowStart?: string;
   windowExpires?: string;
   windowActive?: boolean;

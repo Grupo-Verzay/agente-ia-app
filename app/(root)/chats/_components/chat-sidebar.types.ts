@@ -21,6 +21,12 @@ export type SidebarContact = {
   pinnedAtMs: number;
   timestamp: string;
   ts: number;
+  /**
+   * Cuándo se inició la conversación, en ms. Para el filtro por rango de fechas
+   * (campo por defecto). Cae a la última actividad (`ts`) si la fila no trae
+   * `startedAt`.
+   */
+  inicio: number;
   instanceName?: string;
   instanceDisplayName?: string;
   hasNotes?: boolean;
