@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    AudioLines,
     Copy,
     GripVertical,
     Hand,
@@ -1106,6 +1107,22 @@ export function SalaDeVideo({
                             onClick={() => cambiarElPanel(panel ? null : pestanaDelPanel)}
                             rotulo={panel ? "Plegar el panel" : "Abrir el chat y la gente"}
                             Icono={MessageSquare}
+                        />
+                        {/* Supresión de ruido del micro. Va aquí y no en la barra
+                            de abajo porque esa ya lleva sus seis mandos, que es
+                            lo que cabe en 390 px. El estado se ve por el resaltado
+                            del botón, como los demás de la cabecera. */}
+                        <MandoDeCabecera
+                            activo={medios.supresionDeRuido}
+                            onClick={() =>
+                                void medios.cambiarSupresion(!medios.supresionDeRuido)
+                            }
+                            rotulo={
+                                medios.supresionDeRuido
+                                    ? "Quitar la supresión de ruido"
+                                    : "Suprimir el ruido de fondo del micrófono"
+                            }
+                            Icono={AudioLines}
                         />
                         {enlace ? (
                             <MandoDeCabecera
