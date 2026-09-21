@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2, ShieldCheck, Building2 } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2, ShieldCheck, Building2, ArrowRightLeft } from "lucide-react";
 import { AdvisorPermissionsDialog } from "./AdvisorPermissionsDialog";
+import { MudarDeCuentaDialog } from "@/components/equipo/MudarDeCuentaDialog";
 import { AdvisorClientsDialog } from "./AdvisorClientsDialog";
 
 import { Button } from "@/components/ui/button";
@@ -212,6 +213,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [releaseTarget, setReleaseTarget] = useState<AdvisorRow | null>(null);
   const [permisosTarget, setPermisosTarget] = useState<{ id: string; name: string } | null>(null);
   const [clientesTarget, setClientesTarget] = useState<{ id: string; name: string } | null>(null);
+  const [mudarTarget, setMudarTarget] = useState<{ id: string; name: string } | null>(null);
 
   async function refreshAdvisors() {
     const list = await safeInvoke("refreshAdvisors", () => getTeamAdvisors());
@@ -629,6 +631,23 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                               <KeyRound className="w-4 h-4 mr-2" />
                               Cambiar contraseña
                             </DropdownMenuItem>
+                            {/* Solo la gente del EQUIPO se muda. Una cuenta
+                                vinculada no cuelga de nadie, asi que la accion
+                                la rechaza: la opcion se QUITA, no se pinta en
+                                gris — una apagada invita a preguntar por que. */}
+                            {advisor.esDelEquipo && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setMudarTarget({
+                                    id: advisor.id,
+                                    name: advisor.name ?? advisor.email,
+                                  })
+                                }
+                              >
+                                <ArrowRightLeft className="w-4 h-4 mr-2" />
+                                Mover a otra cuenta
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               disabled={advisor.assignedCount === 0}
@@ -909,6 +928,14 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           advisorName={clientesTarget.name}
         />
       )}
+
+      {/* Mover a otra cuenta de la familia. El informe va primero, y lo
+          impone el propio dialogo: sin pedirlo no hay boton que pulsar. */}
+      <MudarDeCuentaDialog
+        persona={mudarTarget}
+        onClose={() => setMudarTarget(null)}
+        onHecho={() => { void refreshAdvisors(); }}
+      />
     </div>
   );
 }

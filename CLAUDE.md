@@ -11403,6 +11403,112 @@ Con el código viejo fallan **7**; los seis que pasan en los dos son justo los
 que no podían cambiar: el camino de `owner_id` —donde la fila efectiva y la
 persona son la misma— y las tres guardas de alcance.
 
+## Mudar a una persona de cuenta: su id NO cambia, y por eso se mueve poquísimo
+
+Alguien del equipo pasa de una cuenta a otra de la misma familia. La forma de
+hacerlo que se escribe sola —arrastrarle los datos— es la equivocada, y saber
+por qué es lo que hace que esto sea de cuatro escrituras y no de cuarenta:
+
+> **Lo que se firma se guarda con el id de la PERSONA, y su id no cambia.** Sus
+> notas, sus chats tomados, sus comentarios, su historial de actividad, sus
+> permisos de documentos, sus menciones, sus suscripciones de aviso y todo lo
+> que ella escribió **ya cuelgan de ella** y la siguen sin que nadie los toque.
+> Lo que cambia al mudarla es el **ALCANCE**, porque las pantallas acotan por
+> `ownerId ?? id`.
+
+Barridos los 130 modelos de Prisma y las 47 tablas de la App, **lo único que es
+suyo y está guardado bajo la cuenta son dos cosas**, y las dos se mueven:
+
+| qué | por qué no puede quedarse |
+| --- | --- |
+| `advisor_clients.owner_user_id` | `clientesDelAsesor` busca por `advisor_user_id`, así que su cartera seguiría funcionando… y Equipo asigna y quita con `where: { advisorUserId, ownerUserId: owner.id }`. Se quedaría con alcance sobre clientes que **desde ninguna pantalla se le puede revocar**. |
+| sus filas de `_UserModules` | El armazón, **cuando la persona tiene filas propias, NO las cruza con las de su cuenta**: `if (userModuleRecords.length > 0) modules = allModules.filter(...)`. Sin recortarlas le queda abierto un módulo que la cuenta nueva no tiene. |
+
+Y **lo que no se mueve es lo de la cuenta que deja**: leads, mensajes, tareas,
+proyectos, espacios de Documentación, cobros, tickets y canales de área. Mover
+una tarea la sacaría del tablero de su equipo y de su proyecto —*un proyecto, un
+juego de tareas*—; eso no es suyo, es de allí.
+
+### El informe no es una cortesía: es la forma de la herramienta
+
+`informeDeLaMudanzaAction` cuenta contra la base y **no tiene dentro ni una
+sentencia que escriba**; `mudarALaPersonaAction` es el único que escribe. Son
+dos funciones y no una con `simular: boolean`, porque un parámetro que decide si
+se escribe es un parámetro que alguien pasa mal una vez.
+
+Del lado de la pantalla, lo mismo: **mientras no se haya pedido el informe no
+hay botón que pulsar**, y cambiar la cuenta o el rol lo tira —decía lo que iba a
+pasar con otros datos—. Sin eso, «primero el informe» sería una costumbre, y una
+costumbre se salta el día que hay prisa.
+
+### El recorte de módulos: vaciar la lista le quita el TOPE, no los módulos
+
+Es la trampa de todo esto y la cazó el banco. Lo obvio es recortar al cruce, y
+cuando la cuenta nueva no tiene **ninguno** de los suyos el cruce es vacío… y
+cero filas en `_UserModules` es justo lo que el armazón lee como **«sin
+restricción»**. O sea que el recorte ingenuo no la deja sin módulos: la deja
+viendo todo lo que su plan permita, **más que antes de mudarse**.
+
+`losModulosQueLeQuedan` le da entonces **los de la cuenta nueva**: nunca más que
+su cuenta, y nunca el «sin tope» de la lista vacía. Quien no tenía ninguna no
+gana ninguna — ya estaba sin tope, igual que su cuenta.
+
+### Lo que deja de alcanzar depende del ROL, y hay que decirlo antes
+
+`laSuerteDeCadaArea` es pura y contesta área por área, con su motivo. Las dos
+que importan:
+
+- **Chats.** La bandeja suma las líneas de las cuentas vinculadas, un nivel y en
+  los dos sentidos… **salvo a un agente**: `esAgenteDeLaCuenta` corta la lista a
+  las líneas propias. Así que una agente pierde sus chats tomados en las líneas
+  de la cuenta que deja y una administradora no.
+- **Tareas y Proyectos.** No miran vinculadas **en absoluto**: van con
+  `where: { id, ownerId: user.ownerId ?? user.id }`. Se pierden con los dos
+  roles, y después del cambio no puede ni abrirlas. Por eso el informe las
+  cuenta: para reasignarlas antes, no para enterarse después.
+
+Y un canal de **área** se encuentra por la cuenta del canal, así que también se
+pierde; un **directo** no, porque se encuentra por pertenencia. El **General** es
+de la familia y no cambia.
+
+### Cuatro cosas más que hay que mantener
+
+1. **El destino tiene que ser una CUENTA** (`owner_id` nulo). Colgar a alguien
+   de otra persona deja una cadena de dos niveles que ninguna regla de esta casa
+   contempla: `cuentaQueManda` lee `persona.ownerId` y da por hecho que esa fila
+   ya es la cuenta.
+2. **Quien muda manda en las DOS cuentas**, y eso es la puerta de siempre
+   (`laCuentaQueConfigura`) más la regla de los canales que cruzan y de las
+   Finanzas de la familia: **solo la cuenta MADRE reparte entre las suyas**. El
+   superadministrador de verdad pasa esté donde esté.
+3. **El `UPDATE` va condicionado al origen que se vio.** Entre el informe y el
+   botón alguien pudo moverla ya; así esta llamada no toca nada en vez de
+   arrastrarla desde donde no estaba, y se dice con esas palabras.
+4. **`actividad_*.cuentaId` no se toca.** Dice contra qué cuenta se gastó aquel
+   rato: es historia, y nadie la lee para agrupar —`laJornadaDe` filtra solo por
+   `personaId`—. Reescribirla «por consistencia» sería falsear el pasado.
+
+### Y un contador que no puede contar devuelve `null`, no cero
+
+Las tablas de la App las crea su propio módulo la primera vez que alguien las
+usa, así que una cuenta que nunca abrió el chat del equipo no tiene
+`team_channel_members`. Eso **no es «cero canales»**, y aquí el cero es caro:
+esto es justo lo que alguien lee para decidir si le reasigna el trabajo a una
+persona antes de moverla. El informe dice «sin contar».
+
+### El banco, en dos modos
+
+`scripts/banco-mudanza.sh`. La decisión va sin base ninguna; lo que solo se ve
+contra Postgres es el invariante: **de lo que ella firmó no cambia ni una fila y
+no queda nada apuntando a la cuenta que deja**. Se siembran las dos clases de
+fila y se compara antes y después, una por una.
+
+El modo roto mueve **solo la fila de la persona** —la forma que se escribe
+sola— y afirma los dos restos: la cartera atascada bajo la cuenta de antes y el
+módulo de más. Y **los dos ficheros corren en ese modo**: el caso roto del de
+Postgres se salta solo en la vuelta normal, así que dejándolo fuera del modo
+roto saldría en verde sin haberse ejecutado nunca, que es peor que no tenerlo.
+
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 
 En Panel › Clientes el desplegable de rol listaba **los cinco** roles a
