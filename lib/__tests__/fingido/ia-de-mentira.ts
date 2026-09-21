@@ -16,7 +16,7 @@ export const laIa = {
     transcripcion: "Operador: buenas tardes.\nCliente: hola, sí, me interesa.",
     resumen: "- El cliente confirma interés.\nPróximo paso: Hacer seguimiento.",
     /** Para poder afirmar que de verdad se le pidió, y con qué. */
-    pedidos: [] as { que: "transcribir" | "resumir"; modelo: string }[],
+    pedidos: [] as { que: "transcribir" | "resumir"; modelo: string; pista?: string }[],
 };
 
 export function ponerLoQueDiceLaIa(input: { transcripcion?: string; resumen?: string }): void {
@@ -24,7 +24,7 @@ export function ponerLoQueDiceLaIa(input: { transcripcion?: string; resumen?: st
     if (input.resumen !== undefined) laIa.resumen = input.resumen;
 }
 
-export function loQueSeLePidioALaIa(): { que: string; modelo: string }[] {
+export function loQueSeLePidioALaIa(): { que: string; modelo: string; pista?: string }[] {
     return laIa.pedidos.slice();
 }
 
