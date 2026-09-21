@@ -42,6 +42,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import {
+  CAMPO_DE_FECHA_POR_DEFECTO,
+  dentroDelRango,
+  hayRangoDeFechas,
+  limitesDelRango,
+  type CampoDeFecha,
+} from "@/lib/rango-de-fechas-chats";
 import { ChatSearchBar } from "./ChatSearchBar";
 import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
 import { TagFilterPanel } from "./TagFilterPanel";
@@ -335,6 +342,21 @@ export function ChatSidebar({
   const [notesOnly, setNotesOnly] = useState(false);
   const [clientStatusFilter, setClientStatusFilter] = useState<ClientStatus | null>(null);
   const [serviceTypeFilter, setServiceTypeFilter] = useState<ServiceType | null>(null);
+  // Filtro por rango de fechas. Por defecto corta por el INICIO de la
+  // conversación; se puede cambiar a la última actividad. Recorta la lista y sus
+  // contadores en el navegador, como el resto de filtros de la bandeja.
+  const [rangoDesde, setRangoDesde] = useState("");
+  const [rangoHasta, setRangoHasta] = useState("");
+  const [campoDeFecha, setCampoDeFecha] = useState<CampoDeFecha>(CAMPO_DE_FECHA_POR_DEFECTO);
+  const rangoActivo = hayRangoDeFechas(rangoDesde, rangoHasta);
+  const limitesRango = useMemo(
+    () => limitesDelRango(rangoDesde, rangoHasta),
+    [rangoDesde, rangoHasta],
+  );
+  const limpiarRango = useCallback(() => {
+    setRangoDesde("");
+    setRangoHasta("");
+  }, []);
 
   // Virtualización: contenedor scrolleable + viewport observado.
   const listScrollRef = React.useRef<HTMLDivElement>(null);
@@ -473,6 +495,11 @@ export function ChatSidebar({
           estadoDelUltimo: lastMsgData.fromMe ? normalizeDeliveryState(chat.lastMessage?.status) : null,
           timestamp: formatTimeFromEpoch(chat.lastMessage?.messageTimestamp),
           ts,
+          // Inicio de la conversación para el filtro por rango. Si la fila no
+          // trae `startedAt` se cae a la última actividad, para poder ubicarla
+          // igual en el tiempo en vez de dejarla en 0 (que la sacaría de
+          // cualquier rango).
+          inicio: epochToMs(chat.startedAt) || ts,
           isGroup: isGroupJid(chat.remoteJid),
           // Lo pone la pasada de abajo, que si sabe cual esta abierto.
           isUnreadLocal: false,
@@ -622,12 +649,24 @@ export function ChatSidebar({
     let ia = 0;
     let human = 0;
     let enEspera = 0;
+    // Sin leer GLOBAL, para el icono de la pestaña del navegador: no lo recorta
+    // el filtro de fecha (ver el `setSinLeer` de abajo).
+    let sinLeerGlobal = 0;
 
     for (const c of contacts) {
       // Un chat eliminado no esta en ninguna pestana: no se cuenta en ninguna.
       if (c.isDeleted) continue;
 
       const resuelta = esResuelta(c);
+      // El sin-leer global se cuenta ANTES del recorte por fecha: es la señal de
+      // la pestaña del navegador, que refleja todo lo pendiente, no el recorte
+      // de una vista local.
+      if (!c.isArchived && !resuelta && c.isUnreadLocal) sinLeerGlobal++;
+
+      // De aqui para abajo TODO respeta el rango de fechas: la lista y sus
+      // contadores dicen el MISMO numero que las filas que se ven.
+      if (rangoActivo && !dentroDelRango(c, { ...limitesRango, campo: campoDeFecha })) continue;
+
       if (c.isArchived) archived++;
       if (resuelta) resolved++;
       if (c.isArchived || resuelta) continue;
@@ -689,12 +728,17 @@ export function ChatSidebar({
     return {
       advisorCounts: { countMap, unassigned },
       tabCounts: {
-        all: Math.max(all, totalDeLaLinea ?? 0),
+        // Con un rango de fechas puesto, «Todos» dice el numero de RESULTADOS
+        // —lo que se ve—, no el total de la linea: el total del servidor no
+        // sabe de fechas, asi que aqui no se sube a el. Sin rango, el de
+        // siempre (el total de la linea manda sobre lo cargado).
+        all: rangoActivo ? all : Math.max(all, totalDeLaLinea ?? 0),
         mine, dm, groups, archived, resolved,
       } satisfies TabCounts,
       filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human, enEspera },
+      sinLeerGlobal,
     };
-  }, [contacts, currentAdvisorId, estaDestacado, channelCounts, selectedChannel]);
+  }, [contacts, currentAdvisorId, estaDestacado, channelCounts, selectedChannel, rangoActivo, limitesRango, campoDeFecha]);
 
   const { advisorCounts, tabCounts, filterCounts } = conteos;
 
@@ -715,10 +759,14 @@ export function ChatSidebar({
   // ultimo mensaje es del contacto, que no es lo mismo, y con la bandeja vacia
   // ganaba SIEMPRE -su marca era cero, asi que cualquier hora del servidor la
   // superaba-. De ahi el «99+» sobre una cuenta sin una sola conversacion.
+  // El icono de la pestaña refleja TODO lo sin leer, no el recorte del filtro
+  // de fecha: es una señal de toda la cuenta, no de una vista local. Sin rango
+  // puesto, `sinLeerGlobal` es exactamente `filterCounts.unread`, asi que esto
+  // no cambia nada cuando no se filtra por fecha.
   const setSinLeer = useChatUnreadStore((s) => s.setSinLeer);
   useEffect(() => {
-    setSinLeer(filterCounts.unread);
-  }, [filterCounts.unread, setSinLeer]);
+    setSinLeer(conteos.sinLeerGlobal);
+  }, [conteos.sinLeerGlobal, setSinLeer]);
 
   // "Sin leer" se enciende solo al entrar, pero únicamente cuando ya se sabe
   // que hay alguno. Antes entraba encendido y, si a los dos segundos y medio la
@@ -752,6 +800,13 @@ export function ChatSidebar({
   const filtered = useMemo(() => {
 
     let list = contacts.filter((c) => !c.isDeleted);
+
+    // El rango de fechas recorta lo mismo que cuenta `conteos` —la misma
+    // funcion `dentroDelRango`—, asi que el numero de «Todos» coincide con las
+    // filas que salen aqui.
+    if (rangoActivo) {
+      list = list.filter((c) => dentroDelRango(c, { ...limitesRango, campo: campoDeFecha }));
+    }
 
     if (tab === "archived") {
       list = list.filter((c) => c.isArchived);
@@ -826,7 +881,7 @@ export function ChatSidebar({
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, enEsperaOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, estaDestacado, currentAdvisorId]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, enEsperaOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, estaDestacado, currentAdvisorId, rangoActivo, limitesRango, campoDeFecha]);
 
   // Ref con la lista filtrada actual, para usar dentro de efectos sin volver a
   // dispararlos en cada cambio de la lista (p. ej. polls).
@@ -1476,6 +1531,14 @@ export function ChatSidebar({
             onSetServiceType={clientValidationEnabled ? (v) => setServiceTypeFilter((prev) => prev === v ? null : v) : undefined}
             iaCount={filterCounts.ia}
             humanCount={filterCounts.human}
+            rangoDesde={rangoDesde}
+            rangoHasta={rangoHasta}
+            campoDeFecha={campoDeFecha}
+            rangoActivo={rangoActivo}
+            onRangoDesde={setRangoDesde}
+            onRangoHasta={setRangoHasta}
+            onCampoDeFecha={setCampoDeFecha}
+            onLimpiarRango={limpiarRango}
             onDeleteByDate={canDeleteChats && onBulkDelete ? () => setDateDeleteOpen(true) : undefined}
           />
 

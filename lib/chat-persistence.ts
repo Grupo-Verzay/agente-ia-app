@@ -52,6 +52,8 @@ type InboxRow = {
   raw: Prisma.JsonValue | null;
   messageTimestamp: Date | null;
   sessionUpdatedAt: Date;
+  /** Inicio de la conversación: la más temprana de conversación y sesión. */
+  createdAt: Date | null;
   lastMessageDeleted?: boolean | null;
 };
 
@@ -673,6 +675,10 @@ function inboxRowToChat(row: InboxRow): ChatData {
     profilePicUrl: row.profilePicUrl ?? null,
     unreadCount,
     updatedAt: timestamp.toISOString(),
+    // Inicio de la conversación, en epoch segundos. `undefined` si la fila no
+    // trae ninguna de las dos fechas —la bandeja cae entonces a la última
+    // actividad para ubicarla, ver `chat-sidebar`—.
+    startedAt: row.createdAt ? dateToEpochSeconds(row.createdAt) : undefined,
     lastMessage,
     instanceName: row.instanceName,
     instanceType: row.instanceType ?? undefined,
@@ -2125,7 +2131,7 @@ async function loadPersistedInboxChats(
         c."lastMessageType" AS c_msg_type, c."lastMessageContent" AS c_content,
         c."lastMessageMediaUrl" AS c_media,
         c."lastMessageTimestamp" AS c_ts, c."lastMessageDeleted" AS c_deleted,
-        c."updatedAt" AS c_updated
+        c."updatedAt" AS c_updated, c."createdAt" AS c_created
       FROM "chat_conversations" c
       WHERE c."userId" IN (${Prisma.join(userIds)})
         AND (
@@ -2139,7 +2145,7 @@ async function loadPersistedInboxChats(
       SELECT
         s."id" AS s_id, s."userId" AS s_user, s."instanceId" AS s_instance,
         s."remoteJid" AS s_jid, s."remoteJidAlt" AS s_alt, s."pushName" AS s_push,
-        s."updatedAt" AS s_updated
+        s."updatedAt" AS s_updated, s."createdAt" AS s_created
       FROM "Session" s
       WHERE s."userId" IN (${Prisma.join(userIds)})
         AND s."id" IN (SELECT "id" FROM pre_sess)
@@ -2184,8 +2190,8 @@ async function loadPersistedInboxChats(
       SELECT
         c.c_id, c.c_user, c.c_instance, c.c_instance_type, c.c_jid, c.c_alt, c.c_sender,
         c.c_push, c.c_pic, c.c_msg_id, c.c_from_me, c.c_msg_type, c.c_content, c.c_media,
-        c.c_ts, c.c_deleted, c.c_updated,
-        s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated
+        c.c_ts, c.c_deleted, c.c_updated, c.c_created,
+        s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated, s.s_created
       FROM conv c
       LEFT JOIN pairs p ON p.c_id = c.c_id
       LEFT JOIN sess s ON s.s_id = p.s_id
@@ -2201,8 +2207,8 @@ async function loadPersistedInboxChats(
         NULL::text AS c_msg_type, NULL::text AS c_content,
         NULL::text AS c_media,
         NULL::timestamp(3) AS c_ts, NULL::boolean AS c_deleted,
-        NULL::timestamp(3) AS c_updated,
-        s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated
+        NULL::timestamp(3) AS c_updated, NULL::timestamp(3) AS c_created,
+        s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated, s.s_created
       FROM sess s
       WHERE NOT EXISTS (SELECT 1 FROM pairs p WHERE p.s_id = s.s_id)
     ),
@@ -2230,7 +2236,12 @@ async function loadPersistedInboxChats(
         m.c_media AS "mediaUrl",
         m.c_ts AS "messageTimestamp",
         m.c_deleted AS "lastMessageDeleted",
-        COALESCE(m.s_updated, m.c_updated) AS "sessionUpdatedAt"
+        COALESCE(m.s_updated, m.c_updated) AS "sessionUpdatedAt",
+        -- Inicio de la conversación: la MÁS TEMPRANA de la conversación y la
+        -- sesión. LEAST ignora los NULL (solo es NULL si las dos lo son), así
+        -- que da la primera de las dos que exista, que es lo más cercano a
+        -- cuándo empezó esto. (Sin acentos graves aquí: cierran el template.)
+        LEAST(m.c_created, m.s_created) AS "createdAt"
       FROM merged m
       LEFT JOIN "Instancias" i
         ON i."userId" = COALESCE(m.s_user, m.c_user)
