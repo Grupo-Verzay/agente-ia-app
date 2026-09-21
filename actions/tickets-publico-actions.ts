@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { llaveDelArchivoSubido } from "@/lib/llave-del-bucket";
 import { elLeadDelContacto } from "@/lib/lead-del-ticket";
+import { avisarDelTicketNuevo } from "@/lib/avisar-del-ticket";
 import { alFinalDelTablero } from "@/lib/orden-de-tablero-db";
 import { TIPOS_DE_ADJUNTO } from "@/lib/adjuntos-de-tarea-tipos";
 import {
@@ -251,6 +252,26 @@ export async function enviarTicketPublicoAction(
     // Al final de «recibido», como cualquier otro: colarse por delante pisaría
     // el orden que puso alguien a mano en el tablero.
     await alFinalDelTablero("tickets", cuentaId, id);
+
+    // Y **salta la misma ventana que una mención del chat del equipo**. Sin
+    // esto el ticket entra y no se entera nadie hasta que alguien se asome al
+    // tablero por su cuenta, que es el fallo del que viene toda esta familia.
+    //
+    // `actorId: null` a propósito: quien escribió no tiene fila en `User`, así
+    // que no hay persona a la que descontar de la lista — y el aviso le llega
+    // a **todo el que alcance el módulo**, porque un ticket recién llegado no
+    // tiene responsable. No lanza y no puede tumbar el envío: el ticket ya está
+    // guardado.
+    await avisarDelTicketNuevo({
+      ticket: {
+        id,
+        destinoId: cuentaId,
+        titulo: parsed.titulo,
+        responsableId: null,
+        contactoNombre: parsed.nombre,
+      },
+      actorId: null,
+    });
 
     revalidatePath("/tickets");
     return { success: true, message: "Listo, ya lo recibimos.", data: { id } };

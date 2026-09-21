@@ -17,6 +17,12 @@ import { quienFirma } from "@/lib/chat-de-equipo";
  * que esto vino a arreglar es justo el contrario: un aviso más, en otro sitio,
  * con otra forma de despacharse, se aprende a ignorar como se ignoraba la
  * campanita.
+ *
+ * Y `ticket` es el mismo caso por tercera vez: un ticket que entra por el
+ * enlace público **no cuelga de ninguna tarea** y saca exactamente la misma
+ * ventana. Estrenarle una tubería propia habría sido un aviso más que aprender
+ * a despachar sin leer, y el precio no sería ese: sería que con él se empiezan
+ * a despachar los otros.
  */
 export const TIPOS_DE_AVISO = [
   "asignada",
@@ -24,20 +30,24 @@ export const TIPOS_DE_AVISO = [
   "comentario",
   "mencion",
   "vence",
+  "ticket",
 ] as const;
 export type TipoDeAviso = (typeof TIPOS_DE_AVISO)[number];
 
 /**
  * Los que sacan la ventana que INTERRUMPE. `vence` no está, y a propósito.
  *
- * Los cuatro primeros son cosas que **acaba de hacer una persona** —te asignó
- * algo, comentó, te mencionó—: interrumpir ahí es el encargo, y por eso esa
- * ventana existe. Un vencimiento no lo hizo nadie: lo dispara el calendario, y
+ * Los cinco son cosas que **acaba de hacer una persona** —te asignó algo,
+ * comentó, te mencionó, abrió un ticket—: interrumpir ahí es el encargo, y por
+ * eso esa ventana existe. Y un ticket lo es aunque lo escriba alguien de fuera
+ * por el enlace público: hay un cliente esperando al otro lado, que es el caso
+ * en que una ventana que no se cierra sola vale lo que cuesta.
+ * Un vencimiento no lo hizo nadie: lo dispara el calendario, y
  * el mismo día, a la misma hora, para todo el que tenga algo que vence. Una
  * ventana que no se cierra sola saltándole a medio equipo cada mañana es
  * exactamente lo que este documento lleva media docena de reglas evitando —«un
  * aviso que sale siempre se aprende a despachar sin leer»—, y el precio no es
- * ese aviso: es que con él se empiezan a despachar los otros cuatro.
+ * ese aviso: es que con él se empiezan a despachar los otros cinco.
  *
  * Así que el vencimiento va a la **campanita** y se queda ahí, que es lo que se
  * pidió. El distintivo rojo de la tarjeta es la otra mitad del recordatorio.
@@ -47,6 +57,7 @@ export const TIPOS_QUE_INTERRUMPEN: readonly TipoDeAviso[] = [
   "hecha",
   "comentario",
   "mencion",
+  "ticket",
 ];
 
 export function interrumpe(tipo: TipoDeAviso): boolean {
@@ -107,8 +118,14 @@ export type AvisoDeTarea = {
 };
 
 /**
- * A dónde lleva un aviso: al chat del equipo, al tablero de su proyecto, o a
- * Tareas si la tarea va suelta.
+ * A dónde lleva un aviso: a su ticket, al chat del equipo, al tablero de su
+ * proyecto, o a Tareas si la tarea va suelta.
+ *
+ * **El `enlace` manda sobre todo lo demás**, y esa es la razón de que exista:
+ * un aviso sin tarea puede ser una mención de un canal concreto o un ticket, y
+ * ninguno de los dos se deduce de las otras dos columnas. Sin él, un ticket
+ * aterrizaría en `/chat-equipo` —el respaldo del chat— y ahí no hay nada que
+ * leer; un enlace que no lleva donde dice es peor que no tenerlo.
  */
 export function aDondeLleva(aviso: {
   projectId: number | null;
@@ -132,6 +149,10 @@ export function tituloDelAviso(
 ): string {
   const persona = quien?.trim() || "Alguien del equipo";
   if (tipo === "mencion") return `${persona} te mencionó en el chat del equipo`;
+  // El de un ticket lo escribe `tituloDelAvisoDeTicket`, que sabe si lo abrió
+  // alguien con nombre o llegó suelto por el enlace público. Este texto es el
+  // respaldo de una fila vieja o escrita a mano, no el camino normal.
+  if (tipo === "ticket") return `Nuevo ticket de soporte: «${tituloDeLaTarea}»`;
   // El de vencimiento lo escribe `tituloDelVencimiento`, que sabe si es la
   // víspera o el día: aquí no hay forma de distinguirlos. Este texto es el
   // respaldo de una fila vieja o escrita a mano, no el camino normal.

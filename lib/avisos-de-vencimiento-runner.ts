@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { apuntarElAvisoDeVencimiento, crearLosAvisos } from "@/lib/avisos-de-tarea";
 import { elHitoDeHoy, tituloDelVencimiento, type HitoDeAviso } from "@/lib/vencimiento";
+import { elEnlaceDelTicket } from "@/lib/aviso-de-ticket";
 
 /**
  * Los dos avisos de vencimiento: uno la víspera y otro el mismo día.
@@ -195,7 +196,7 @@ async function losTicketsQueVencen(ahora: Date): Promise<PorAvisar[]> {
         // chat del equipo, y el clic aterriza por el `enlace`.
         taskId: null,
         projectId: null,
-        enlace: `/tickets?ticket=${encodeURIComponent(f.id)}`,
+        enlace: elEnlaceDelTicket(f.id),
       },
     ];
   });
