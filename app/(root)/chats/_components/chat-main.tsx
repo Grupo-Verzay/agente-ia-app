@@ -117,8 +117,12 @@ type ChatMainProps = {
   assignedAdvisorId?: string | null;
   /** Cuando se marco como resuelta (ms), o null si sigue abierta. */
   resolvedAt?: number | null;
+  /** Desde cuando espera a una persona (ms), o null si no esta en espera. */
+  escalatedAt?: number | null;
   /** Aviso de que se reabrio, para que la lista la saque de "Resueltos". */
   onSessionReopened?: () => void;
+  /** Se quito de «En espera»: para bajar el conteo en memoria al momento. */
+  onUnescalated?: (sessionId: number) => void;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
   onLoadOlderMessages?: () => Promise<void>;
@@ -159,7 +163,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   advisorRole,
   assignedAdvisorId,
   resolvedAt,
+  escalatedAt,
   onSessionReopened,
+  onUnescalated,
   onAssignAdvisor,
   onNewMessage,
   onLoadOlderMessages,
@@ -1168,7 +1174,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         advisorRole={advisorRole}
         assignedAdvisorId={assignedAdvisorId}
         resolvedAt={resolvedAt}
+        escalatedAt={escalatedAt}
         onSessionReopened={onSessionReopened}
+        onUnescalated={onUnescalated}
         onAssignAdvisor={onAssignAdvisor}
         onNewMessage={onNewMessage}
         onRunMacro={handleRunMacro}
