@@ -197,6 +197,17 @@ export function SalaDeVideo({
     });
 
     const raizRef = useRef<HTMLDivElement | null>(null);
+    // El mismo nodo, pero en estado, para PORTAR dentro de él los menús de la
+    // sala (fondo, grabar). Portados al `body` —lo de serie— caen por debajo de
+    // la capa `z-[99]` de la reunión, o fuera del `fullscreenElement` cuando se
+    // está en pantalla completa: el menú se abre y no se ve. Es estado y no el
+    // ref porque `container` tiene que estar puesto en el pintado, no ser `null`
+    // el primer render.
+    const [nodoRaiz, setNodoRaiz] = useState<HTMLDivElement | null>(null);
+    const ponerLaRaiz = useCallback((nodo: HTMLDivElement | null) => {
+        raizRef.current = nodo;
+        setNodoRaiz(nodo);
+    }, []);
     const minimizada = ventana === "pastilla";
 
     /**
@@ -901,7 +912,7 @@ export function SalaDeVideo({
 
     return (
         <div
-            ref={raizRef}
+            ref={ponerLaRaiz}
             data-sala-de-video
             // El foco también devuelve los mandos. `keydown` ya lo cubre —Tab
             // dispara su tecla antes de mover el foco— pero un foco que llega
@@ -1159,7 +1170,11 @@ export function SalaDeVideo({
                                         catorce megas. Elegir sin ese número es
                                         elegir a ciegas algo que se paga en
                                         espacio. */}
-                                    <DropdownMenuContent align="end" className="w-64">
+                                    <DropdownMenuContent
+                                        align="end"
+                                        className="w-64"
+                                        container={nodoRaiz}
+                                    >
                                         <DropdownMenuItem
                                             onSelect={() => void grabacion.empezar("video")}
                                         >
@@ -1289,6 +1304,7 @@ export function SalaDeVideo({
                             onPreset={(id) => void elegirFondoPreset(id)}
                             onSubir={(file) => void subirFondo(file)}
                             onMenu={(abierto) => mandos.fijar("menu", abierto)}
+                            container={nodoRaiz}
                         />
                         <Button
                             size="icon"
@@ -1468,6 +1484,7 @@ function ElFondo({
     onPreset,
     onSubir,
     onMenu,
+    container,
 }: {
     modo: ModoDeFondo;
     /** El preset activo, `"subida"` o `null`, para marcar el elegido. */
@@ -1477,6 +1494,12 @@ function ElFondo({
     onModo: (f: ModoDeFondo) => void;
     onPreset: (id: string) => void;
     onSubir: (file: File) => void;
+    /**
+     * Dónde se porta el menú. La reunión es una capa `z-[99]` y puede estar en
+     * pantalla completa; portado al `body`, este menú se abre DETRÁS del video.
+     * Ver el `container` de `DropdownMenuContent`.
+     */
+    container?: HTMLElement | null;
     /**
      * Que hay un menú abierto.
      *
@@ -1534,7 +1557,12 @@ function ElFondo({
                     )}
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" side="top" className="w-64">
+            <DropdownMenuContent
+                align="center"
+                side="top"
+                className="w-64"
+                container={container}
+            >
                 <DropdownMenuItem onClick={() => onModo("ninguno")}>
                     Sin fondo
                     {modo === "ninguno" ? <span className="ml-auto text-xs">✓</span> : null}
