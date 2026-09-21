@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { LifeBuoy } from "lucide-react";
 
 import { laFichaPublicaAction } from "@/actions/tickets-publico-actions";
+import { PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
 import { FichaPublicaDeTicket } from "./_components/FichaPublicaDeTicket";
 
 /**
@@ -40,7 +41,9 @@ export default async function PaginaDeFichaPublica({
 
     if (!ficha.success || !ficha.data) {
         return (
-            <main className="flex min-h-[100dvh] items-center justify-center bg-muted/30 px-4">
+            <main
+                className={`flex items-center justify-center bg-muted/30 px-4 ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}
+            >
                 <div className="w-full max-w-sm space-y-3 rounded-xl border bg-card p-6 text-center shadow-sm">
                     <LifeBuoy className="mx-auto h-10 w-10 text-muted-foreground" />
                     <p className="text-base font-semibold">Este enlace ya no está disponible</p>
@@ -56,7 +59,7 @@ export default async function PaginaDeFichaPublica({
     }
 
     return (
-        <main className="min-h-[100dvh] bg-muted/30">
+        <main className={`bg-muted/30 ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}>
             <FichaPublicaDeTicket codigo={codigo} ficha={ficha.data} />
         </main>
     );

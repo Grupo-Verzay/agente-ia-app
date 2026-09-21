@@ -12428,6 +12428,115 @@ npm run build && grep -oF "max-height:calc(100dvh - 4rem)" .next/static/css/*.cs
 ```
 
 
+## Una pantalla de fuera de `(root)` nace SIN poder desplazarse
+
+El formulario público de tickets —el que abre el enlace compartido— **no se
+podía desplazar**: los campos de abajo y el botón de enviar quedaban pintados y
+fuera de alcance, en computador y en móvil. Y no era de esa pantalla: era de
+una clase escrita en otro fichero.
+
+El `<body>` de la App va con **`overflow-hidden`** (`app/layout.tsx`). Está ahí
+para el armazón autenticado, que se fija a `100dvh` y se desplaza por dentro
+—ver el `SidebarInset` de `app/(root)/layout.tsx`—, así que para él no cambia
+nada. Pero **el `overflow` del `body` se propaga al viewport** cuando el
+`<html>` lo tiene en `visible`, que es el caso: el documento entero deja de
+poder desplazarse, y con él **cualquier página que no viva dentro de
+`(root)`** — que son justamente las públicas, las que abre un cliente final.
+
+> **Toda pantalla de fuera de `(root)` declara su propio contenedor que se
+> desplaza**, importando `PANTALLA_PUBLICA_QUE_SE_DESPLAZA` de
+> `lib/pantalla-publica.ts`. No es una preferencia de estilo: sin eso nace rota.
+
+`(public)` ya se lo había puesto a mano hace tiempo —era la única—; `/t/`,
+`bookings`, `schedule` y `(auth)` no. **Lo que no se hizo fue quitar el
+`overflow-hidden` del `<body>`**, que es la otra forma de arreglarlo: eso toca
+el armazón de un centenar de pantallas autenticadas, que aquí no se pueden
+medir, y este documento tiene media docena de reglas sobre lo que cuesta una
+regresión de maquetación en Chats.
+
+### Y por eso pasó desapercibido: `overflow: hidden` NO es `clip`
+
+Es la parte que hay que saber antes de medir nada. `hidden` **recorta, pero
+deja desplazar por código**: un `scrollTop`, un `scrollIntoView` o el traído
+automático del campo que recibe el foco siguen funcionando. Así que
+**tabulando con el teclado se llegaba al botón y con la rueda o el dedo no** —
+que es la forma más fácil de probar una pantalla y darla por buena.
+
+Y es el mismo error dentro del banco: la primera medida forzaba
+`el.scrollTop = 99999` y **daba «llega» en todas las configuraciones, también
+en la rota**, porque estaba midiendo justo lo único que seguía funcionando. Se
+mide con **`page.mouse.wheel(...)`**, que es entrada de verdad.
+
+### El alto es FIJO, y en `dvh`
+
+- **`h-[100dvh]`, nunca `min-h-*`.** Con `min-h` el elemento crece con su
+  contenido, así que su propio `overflow` no se dispara jamás y se vuelve
+  exactamente al mismo sitio.
+- **`dvh` y no `vh`**: en un móvil `100vh` es el viewport grande —el de cuando
+  la barra del navegador está recogida—, así que con la barra desplegada el
+  final del contenido queda debajo de ella.
+
+### El centrado del login: el peligro es el alto FIJO, no `screen` frente a `full`
+
+Esta frase se escribió primero al revés y **la medida la desmintió**, así que
+conviene no volver a escribirla mal. Lo que corta el principio de un formulario
+más alto que la ventana es **`flex h-full items-center`**: la caja no puede
+crecer, el centrado reparte el sobrante arriba y abajo, y lo de arriba no se
+alcanza porque el desplazamiento no llega a negativo. Medido con 1.400 px de
+contenido: **−312 px** a 1319×726 y **−253 px** a 390×844.
+
+`min-h-screen` **no** corta —ni con grid ni con flex—: con un mínimo la caja
+crece con su contenido. Así que `CENTRADO_QUE_NO_SE_CORTA` es
+`grid min-h-full place-items-center`, y `full` se prefiere a `screen` por otra
+razón: lo que hay que llenar es el contenedor que se desplaza, no la ventana.
+
+### Lo exento se dice, con su motivo
+
+Dos pantallas no llevan contenedor **a propósito**, y el banco exige que el
+motivo esté escrito: `/reunion/[codigo]` ocupa la pantalla entera por diseño
+—la rejilla de video se reparte el alto y no hay nada que desplazar— y `/abrir`
+es un `redirect` del servidor que no pinta ni un nodo.
+
+### El banco: un barrido y la página SERVIDA
+
+`scripts/banco-scroll-publico.sh`, dos mitades:
+
+1. **El barrido** (`lib/__tests__/pantallas-publicas-se-desplazan.test.mjs`)
+   recorre todo lo que vive fuera de `(root)` y falla si una pantalla no declara
+   su contenedor ni está exenta con su motivo. En `MODO=roto` finge que el
+   arreglo no está puesto y **exige que las cace**: sin ese modo, lo verde del
+   normal no probaría que el barrido mira. Y comprueba la premisa —que el
+   `<body>` sigue con `overflow-hidden`—: si algún día se quita, hay que volver
+   aquí y decidir, no dejar los contenedores puestos sin motivo.
+2. **La página servida**, en Chromium: levanta una base de usar y tirar, siembra
+   un enlace público y abre `/t/<codigo>` de verdad. **No vale una maqueta** —el
+   primer intento lo era y salió **más corta que la ficha real**, así que cabía
+   entera en las cinco ventanas y la medida no ejercía nada—. El «antes» se
+   obtiene quitándole al `<main>` las dos clases del contenedor sobre la página
+   ya cargada: mismo DOM, misma hoja, mismo contenido.
+
+Y el gate de cada ventana **no es que el contenido desborde**, es que **el botón
+quede fuera sin desplazar**: a 1280×800 sobran 24 px que son el relleno de
+abajo, el botón ya se veía, y ahí las dos columnas dicen «LLEGA» sin que eso
+signifique nada.
+
+| ventana | contenido | antes | ahora | |
+| --- | --- | --- | --- | --- |
+| 1319×726 · el del reporte | 824 px | **no llega** | **LLEGA** | el botón quedaba fuera |
+| 390×844 · el del reporte | 931 px | **no llega** | **LLEGA** | el botón quedaba fuera |
+| 1440×900 | 900 px | LLEGA | LLEGA | ya cabía |
+| 1280×800 | 824 px | LLEGA | LLEGA | ya cabía |
+| 1024×768 | 824 px | LLEGA | LLEGA | ya cabía |
+
+Ninguna de las cinco desborda a lo ancho.
+
+Y una del propio banco, que costó una vuelta: **una clase arbitraria que no use
+ninguna pantalla no existe en el CSS del build.** El contenido de encargo del
+centrado iba con `h-[1400px]`, que no genera ninguna regla, así que la caja
+medía 28 px y la medida no ejercía nada. Va con `style`, que es lo único que no
+depende de lo que Tailwind haya compilado.
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
