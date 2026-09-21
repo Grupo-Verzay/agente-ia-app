@@ -92,8 +92,8 @@ Apúntala. Es el dato que más ayuda a Carlos y el que siempre se olvida.
 
 ### 🛑 Cuándo parar y llamar a Carlos
 
-**Ya.** La app no es tuya para reiniciar: no hay ningún botón que te toque
-tocar aquí. Llama en cuanto:
+**Ya.** La app no es tuya para reiniciar: aquí no hay ningún botón tuyo que
+pulsar. Llama en cuanto:
 
 - La dirección de salud no contesta, **o**
 - Abre desde datos móviles y desde incógnito y sigue igual, **o**
@@ -231,25 +231,38 @@ esto ya es para Carlos.
 
 1. Entra al **Portainer del servidor `.233`** (el de WhatsApp — **no** el de la
    app).
-2. En el menú de la izquierda busca la lista de servicios. Según cómo se vea tu
-   pantalla, será una de estas dos:
-   - **Containers** → busca en la lista el que se llame *evolution* o *waha*
-     → márcalo → botón **Restart**.
-   - **Services** → búscalo igual → entra → **Update** dejando todo como está.
-3. Espera **tres minutos sin tocar nada**. Es normal que durante ese rato las
+2. En el menú de la izquierda, entra a **Containers**.
+3. Busca en la lista el que lleve en el nombre **`evolution`** o **`waha`**,
+   según cuál te dijo el paso anterior que está fallando.
+
+   > Nombre exacto del de Evolution: _______________________
+   > Nombre exacto del de WAHA: _______________________
+   >
+   > _(pídeselos a Carlos y anótalos aquí la primera vez. Con el nombre escrito
+   > no hay que adivinar nada con prisa.)_
+
+4. Márcalo con la casilla de la izquierda y pulsa **Restart**.
+
+   > **Solo el botón que diga `Restart`.** Si no encuentras un botón que diga
+   > exactamente eso, **no pulses ningún otro** — sobre todo ninguno que hable
+   > de *Update*, *Redeploy* o *Deploy*. Llama a Carlos y que lo haga él. Es
+   > preferible esperarlo cinco minutos a pulsar el botón equivocado.
+
+5. Espera **tres minutos sin tocar nada**. Es normal que durante ese rato las
    líneas se vean caídas: se están levantando.
-4. Vuelve a **Conexión** y mira las tarjetas. Lo normal es que las líneas
+6. Vuelve a **Conexión** y mira las tarjetas. Lo normal es que las líneas
    vuelvan **solas**, sin escanear ningún QR.
-5. Pide una prueba: que un cliente (o tú desde tu celular a una línea) mande un
+7. Pide una prueba: que un cliente (o tú desde tu celular a una línea) mande un
    mensaje y confirma que llega.
 
 ### 🚫 Lo que no se toca dentro de Portainer
 
-Solo tienes permiso para **reiniciar**. Nada más. En concreto:
+**Tu único botón es `Restart`.** Cualquier otro, no. En concreto:
 
-- **Nunca** `Remove`, `Delete`, `Kill` ni `Prune`.
-- **Nunca** `Update the stack`, `Pull and redeploy` ni nada que hable de
-  *deploy*. Eso es desplegar, y desplegar no es tuyo.
+- **Nunca** `Remove`, `Delete`, `Kill` ni `Prune`. Esos no apagan: **borran**.
+- **Nunca** nada que diga `Update` o `Redeploy`, en ninguna pantalla. Eso es
+  desplegar, aunque el botón esté al lado del de reiniciar y se parezcan.
+  `Restart` vuelve a encender lo mismo que ya había; `Update` pone otra cosa.
 - **Nunca** edites el texto de configuración (el YAML) ni las variables de
   entorno, aunque veas algo que te parezca mal escrito.
 - **Nunca** reinicies dos veces seguidas. Si un reinicio no arregló, el segundo
@@ -368,6 +381,11 @@ y mándale la pregunta a Carlos.
 Palabras que, si las ves en lo que te pide aprobar, significan **no** sin
 pensarlo dos veces: `merge`, `push`, `deploy`, `docker`, `restart`, `DELETE`,
 `UPDATE`, `DROP`.
+
+> Ojo con una que se presta a confusión: **`restart` aquí es un no**, aunque
+> reiniciar Evolution o WAHA sí sea cosa tuya. La diferencia es quién lo hace:
+> ese reinicio lo haces **tú, con tu mano, en Portainer**, viendo qué aprietas.
+> Dejar que lo haga Claude Code es otra cosa, y esa no.
 
 ---
 
