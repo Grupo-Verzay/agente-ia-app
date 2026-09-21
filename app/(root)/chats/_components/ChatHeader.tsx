@@ -4,7 +4,7 @@ import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChats
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { CompartirConElEquipo } from "@/components/chat-equipo/CompartirConElEquipo";
-import { ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, X } from 'lucide-react';
+import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ import { SessionTagsCombobox } from '../../tags/components/SessionTagsCombobox';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { reopenSession, resolveSession } from '@/actions/advisor-assign-actions';
 import { addSessionParticipantAction } from '@/actions/collab-actions';
-import { devolverChatALaIaAction } from '@/actions/advisor-assign-actions';
+import { devolverChatALaIaAction, quitarDeEsperaAction } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
@@ -127,8 +127,15 @@ interface ChatHeaderProps {
   assignedAdvisorId?: string | null;
   /** Cuando se marco como resuelta (ms), o null si sigue abierta. */
   resolvedAt?: number | null;
+  /** Desde cuando espera a una persona (ms), o null si no esta en espera. */
+  escalatedAt?: number | null;
   /** Aviso de que se reabrio, para que la lista la saque de "Resueltos". */
   onSessionReopened?: () => void;
+  /**
+   * Se quito de «En espera»: quitar el sello en memoria para que el conteo baje
+   * al momento. Trae el id de la sesion para tocar TODAS sus llaves.
+   */
+  onUnescalated?: (sessionId: number) => void;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
   onRunMacro?: (macroId: string) => Promise<void>;
@@ -165,7 +172,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   advisorRole,
   assignedAdvisorId,
   resolvedAt,
+  escalatedAt,
   onSessionReopened,
+  onUnescalated,
   onAssignAdvisor,
   onNewMessage,
   onRunMacro,
@@ -227,8 +236,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const iaPausada = Boolean(session?.agentDisabled);
   const canReturnToAi = !!session && iaPausada && (isOwnerLike || isMySession);
   const canTake = !assignedAdvisorId;
+  // «Quitar de espera» solo se ofrece cuando HAY sello que quitar, y lo hace
+  // quien puede tocar la conversacion —la misma puerta que resolver y reabrir—.
+  // Apaga solo esa marca: no toca asignado, ni estado, ni la IA, ni resuelve, y
+  // por eso la IA puede seguir atendiendo mientras tanto. Es la accion que
+  // faltaba para el caso en que la IA sigue bien y ya no hay nada que esperar.
+  const estaEnEspera = !!escalatedAt;
+  const canUnescalate = !!session && estaEnEspera && puedeCerrarOAbrir;
   const otherAdvisors = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
-  const showLifecycleButton = session && (canResolve || canReopen || canLiberate || canTake || canReturnToAi);
+  const showLifecycleButton = session && (canResolve || canReopen || canLiberate || canTake || canReturnToAi || canUnescalate);
 
   const handleResolve = async () => {
     if (!session?.id || resolving) return;
@@ -308,6 +324,26 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     setResolving(false);
     if (!res.success) { toast.error(res.message ?? 'No se pudo devolver a la IA.'); return; }
     toast.success('Conversación devuelta a la IA.');
+    onSessionMutate();
+    await onSessionRefresh();
+  };
+
+  /**
+   * Quitar la conversacion de «En espera», y nada mas.
+   *
+   * No cambia el asignado, ni el estado, ni la IA, ni resuelve: es para cuando
+   * la IA sigue atendiendo bien y ya no queda nada que esperar. El sello se quita
+   * en memoria al momento (`onUnescalated`) para que el conteo de «En espera»
+   * baje sin esperar al reloj de sesiones.
+   */
+  const handleUnescalate = async () => {
+    if (!session?.id || resolving) return;
+    setResolving(true);
+    const res = await quitarDeEsperaAction(session.id);
+    setResolving(false);
+    if (!res.success) { toast.error(res.message ?? 'No se pudo quitar de espera.'); return; }
+    toast.success('Se quitó de espera.');
+    onUnescalated?.(session.id);
     onSessionMutate();
     await onSessionRefresh();
   };
@@ -422,7 +458,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
          * diario se ve sin desplegar nada**. Las listas que crecen con el
          * equipo van dentro de un submenú, con su propio scroll.
          */}
-        {canTake && (canLiberate || canResolve || canReopen || puedeAgregarParticipante) && (
+        {canTake && (canLiberate || canResolve || canReopen || canUnescalate || puedeAgregarParticipante) && (
           <div className="my-1 border-t border-border/50" />
         )}
 
@@ -507,8 +543,25 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </DropdownMenuSub>
         )}
 
-        {(canLiberate || puedeAgregarParticipante) && (canLiberate || canResolve || canReopen || canReturnToAi) && (
+        {(canLiberate || puedeAgregarParticipante) && (canLiberate || canResolve || canReopen || canReturnToAi || canUnescalate) && (
           <div className="my-1 border-t border-border/50" />
+        )}
+
+        {/* Quitar de espera — solo cuando hay sello que quitar.
+          *
+          * Apaga UNICAMENTE la marca «En espera»: no toca el asignado, ni el
+          * estado, ni la IA, ni resuelve. Es para cuando la IA sigue atendiendo
+          * bien y ya no queda nada que esperar —ninguno de los otros mandos
+          * corresponde ahi—. Si el cliente vuelve a pedir un humano, la marca se
+          * vuelve a encender sola. */}
+        {canUnescalate && (
+          <DropdownMenuItem
+            onSelect={() => void handleUnescalate()}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <AlarmClockOff className="h-3.5 w-3.5 shrink-0" />
+            Quitar de espera
+          </DropdownMenuItem>
         )}
 
         {/* Liberar y Resolver en lista vertical */}

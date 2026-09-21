@@ -530,6 +530,55 @@ export async function reopenSession(sessionId: number): Promise<{ success: boole
   return { success: true, message: "Conversación reabierta." };
 }
 
+/**
+ * Quitar la conversación de «En espera», sin tocar nada más.
+ *
+ * La marca `escalated_at` dice «esto espera a una persona» —lo pone el backend
+ * cuando la IA escala o el cliente pide un humano—. Hoy solo se apaga al TOMAR,
+ * al RESOLVER o al DEVOLVER A LA IA, y los tres cambian algo más (el asignado,
+ * el estado, la IA). Cuando la IA sigue atendiendo bien y ya no hay nada que
+ * esperar, ninguno de los tres corresponde: no se quiere asignar a nadie ni
+ * cerrar la conversación, solo bajarla de la bandeja de espera.
+ *
+ * Esto apaga SOLO ese sello. `quitarSelloDeEscaladoPorSesion` hace
+ * `escalated_at = NULL` y nada más: no toca `assigned_advisor_id`, ni `status`,
+ * ni `agentDisabled`, ni `resolved_at`. Y por eso, si luego entra un motivo
+ * nuevo de espera —el cliente vuelve a pedir un humano—, la marca se vuelve a
+ * encender por su camino de siempre (el backend), porque aquí no queda nada
+ * puesto que lo impida.
+ *
+ * La puerta es la MISMA que resolver y reabrir (`puedeCerrarOReabrir`): el
+ * dueño, un administrador de la cuenta —con el alcance de su fila efectiva— o el
+ * asesor que la tiene asignada. No se escribe una condición nueva: con dos, el
+ * día que se afine una la otra se queda atrás.
+ */
+export async function quitarDeEsperaAction(sessionId: number): Promise<Result> {
+  try {
+    const user = await currentUser();
+    if (!user?.id) return { success: false, message: "No autorizado." };
+
+    const rows = await db.$queryRaw<{ userId: string; assignedAdvisorId: string | null }[]>`
+      SELECT "userId", assigned_advisor_id AS "assignedAdvisorId"
+      FROM "Session" WHERE id = ${sessionId} LIMIT 1
+    `;
+    if (!rows[0]) return { success: false, message: "Conversación no encontrada." };
+    if (!(await puedeCerrarOReabrir(user, rows[0]))) {
+      return { success: false, message: "No autorizado." };
+    }
+
+    await quitarSelloDeEscaladoPorSesion(sessionId);
+
+    revalidatePath("/chats");
+    return { success: true };
+  } catch (error) {
+    console.error("[quitarDeEsperaAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo quitar de espera.",
+    };
+  }
+}
+
 export async function getAssignmentHistory(sessionId: number): Promise<AssignmentLogEntry[]> {
   try {
     const rows = await db.$queryRaw<AssignmentLogEntry[]>`

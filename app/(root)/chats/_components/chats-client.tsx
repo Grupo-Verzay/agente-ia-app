@@ -2523,6 +2523,11 @@ export function ChatsClient({
         // borraba la marca de la memoria y la conversación se salía sola de
         // "Resueltos" hasta la siguiente recarga completa.
         mapped.resolvedAt = previous[remoteJid]?.resolvedAt ?? null;
+        // Igual que `resolvedAt`: `escalated_at` tampoco viaja en el registro de
+        // Prisma (no esta en schema.prisma; se lee con SQL en crudo en
+        // `getSesionesDeLaCuenta`). Sin conservarlo, abrir un chat escalado
+        // borraba la marca de la memoria y la fila se salia sola de «En espera».
+        mapped.escalatedAt = previous[remoteJid]?.escalatedAt ?? null;
         return { ...previous, [remoteJid]: mapped };
       });
     },
@@ -5423,7 +5428,11 @@ export function ChatsClient({
             advisorRole={advisorRole}
             assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
             resolvedAt={currentContactSession?.resolvedAt ?? null}
+            escalatedAt={currentContactSession?.escalatedAt ?? null}
             onSessionReopened={() => handleSessionReopened(selectedJid)}
+            onUnescalated={(sessionId) =>
+              aplicarEnLaSesion(sessionId, selectedJid, { escalatedAt: null }, "quitar de espera")
+            }
             onAssignAdvisor={
               assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
                 ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId, selectedInstanceName)
