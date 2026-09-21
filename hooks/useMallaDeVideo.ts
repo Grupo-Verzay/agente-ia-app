@@ -14,6 +14,7 @@ import {
     comoSeLeeLaReconexion,
     estaMuertaLaConexion,
     hayQueRendirse,
+    laConexionEsDeOtraSesion,
 } from "@/lib/reconexion-de-la-sala";
 import { esperarLosCandidatos } from "@/lib/webrtc-del-navegador";
 import {
@@ -216,8 +217,15 @@ export function useMallaDeVideo(input: {
      * con ella.
      */
     const saludRef = useRef<Map<string, { estado: string; desde: number }>>(new Map());
-    /** Cuándo se montó cada conexión, para saber si es de una sesión anterior. */
-    const montadaEnRef = useRef<Map<string, number>>(new Map());
+    /**
+     * El `desde` que tenía cada persona cuando adopté su conexión.
+     *
+     * Es el sello contra el que se compara si RE-entró: si su `desde` cambia,
+     * la conexión es de una sesión anterior y hay que rehacerla. Es un sello del
+     * SERVIDOR, no una hora del navegador, para no cruzar dos relojes — ver
+     * `laConexionEsDeOtraSesion`.
+     */
+    const desdeVistoRef = useRef<Map<string, string>>(new Map());
     /** Desde cuándo se intenta volver. `null` cuando todo va bien. */
     const reconectandoDesdeRef = useRef<number | null>(null);
     const iceRef = useRef<RTCIceServer[]>([]);
@@ -258,7 +266,7 @@ export function useMallaDeVideo(input: {
             streamsRef.current.delete(id);
             enMarchaRef.current.delete(id);
             saludRef.current.delete(id);
-            montadaEnRef.current.delete(id);
+            desdeVistoRef.current.delete(id);
         },
         [medios],
     );
@@ -269,7 +277,6 @@ export function useMallaDeVideo(input: {
             const pc = new RTCPeerConnection({ iceServers: iceRef.current });
             conexionesRef.current.set(id, pc);
             saludRef.current.set(id, { estado: pc.connectionState, desde: Date.now() });
-            montadaEnRef.current.set(id, Date.now());
 
             pc.ontrack = (ev) => {
                 // El stream se construye A MANO y no se coge de `ev.streams[0]`.
@@ -583,15 +590,23 @@ export function useMallaDeVideo(input: {
             //    que nadie la volvía a abrir nunca. La sala se recuperaba y los
             //    recuadros seguían en negro.
             //
-            //    Y se tira también la que sea **más vieja que la entrada de esa
-            //    persona**: cuando a alguien se le cae la red y vuelve, el que
+            //    Y se tira también la que sea de una **sesión anterior** de esa
+            //    persona: cuando a alguien se le cae la red y vuelve, el que
             //    no ofrece podría quedarse con una conexión que a él le parece
-            //    viva esperando una oferta que el otro no cree deber. Ver
-            //    `desde` en `QuienEstaEnLaSala`.
+            //    viva esperando una oferta que el otro no cree deber. Se sabe
+            //    porque su `desde` —el sello del servidor— cambió respecto al que
+            //    tenía cuando adopté la conexión. Sello contra sello, nunca
+            //    contra `Date.now()`: ver `laConexionEsDeOtraSesion`.
             const ahora = Date.now();
             for (const quienEsta of datos.dentro) {
                 if (quienEsta.id === datos.yo.participanteId) continue;
                 if (!conexionesRef.current.has(quienEsta.id)) continue;
+
+                // La primera vez que veo esta conexión desde el reloj apunto su
+                // `desde`: es el sello contra el que se compara si re-entra.
+                if (!desdeVistoRef.current.has(quienEsta.id) && quienEsta.desde) {
+                    desdeVistoRef.current.set(quienEsta.id, quienEsta.desde);
+                }
 
                 const salud = saludRef.current.get(quienEsta.id);
                 const muerta = salud
@@ -601,14 +616,15 @@ export function useMallaDeVideo(input: {
                       })
                     : false;
 
-                const entroEn = quienEsta.desde ? Date.parse(quienEsta.desde) : NaN;
-                const montada = montadaEnRef.current.get(quienEsta.id) ?? 0;
-                const vieja = Number.isFinite(entroEn) && entroEn > montada;
+                const vieja = laConexionEsDeOtraSesion({
+                    desdeAhora: quienEsta.desde,
+                    desdeAlAdoptar: desdeVistoRef.current.get(quienEsta.id),
+                });
 
                 if (muerta || vieja) {
                     console.info("[sala] se rehace una conexión", {
                         con: quienEsta.id,
-                        porQue: muerta ? salud?.estado : "entró después",
+                        porQue: muerta ? salud?.estado : "re-entró",
                     });
                     cerrarLaConexion(quienEsta.id);
                 }

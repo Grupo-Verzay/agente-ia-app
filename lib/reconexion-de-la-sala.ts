@@ -94,6 +94,40 @@ export function estaMuertaLaConexion(input: {
     return false;
 }
 
+/**
+ * Si una conexión hay que rehacerla porque la otra persona RE-ENTRÓ.
+ *
+ * Cuando a alguien se le cae la red y vuelve, el que no ofrece podría quedarse
+ * con una conexión que a él le parece viva esperando una oferta que el otro no
+ * cree deber; hay que tirarla y volver a montarla. La pregunta es «¿esta
+ * conexión es de una sesión ANTERIOR de esa persona?».
+ *
+ * # Se compara SELLO contra SELLO, nunca sello contra `Date.now()`
+ *
+ * Antes esto restaba la hora de entrada de la otra persona —un sello del
+ * SERVIDOR (`entradoEn`)— de la hora a la que YO monté la conexión —un
+ * `Date.now()` del NAVEGADOR—. Son **dos relojes distintos**: si el del servidor
+ * va por delante del mío —clientes con la hora mal puesta, que los hay a
+ * montones— la resta da que «entró después de que la monté» aunque sea mentira,
+ * y la conexión se rehace en CADA vuelta del reloj. Eso es *churn*: el recuadro
+ * se queda en «Conectando…» para siempre y el audio entra y sale, sin un solo
+ * error que mirar.
+ *
+ * La comparación correcta no cruza relojes: la conexión es de otra sesión
+ * **solo si el `desde` de ahora es distinto del que tenía cuando la adopté**.
+ * Los dos vienen del mismo reloj —el del servidor—, así que la resta no existe y
+ * no hay skew que valga. Un `desde` que falta no decide nada: se ve de menos
+ * —no se rehace de más—, que es el lado seguro.
+ */
+export function laConexionEsDeOtraSesion(input: {
+    desdeAhora: string | null | undefined;
+    desdeAlAdoptar: string | null | undefined;
+}): boolean {
+    const { desdeAhora, desdeAlAdoptar } = input;
+    if (!desdeAhora || !desdeAlAdoptar) return false;
+    return desdeAhora !== desdeAlAdoptar;
+}
+
 // ── Cuánto se insiste ───────────────────────────────────────────────────────
 
 /**
