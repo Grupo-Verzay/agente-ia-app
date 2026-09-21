@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
     DndContext,
+    MeasuringStrategy,
     PointerSensor,
     closestCenter,
     useSensor,
@@ -66,7 +67,8 @@ import {
 import { comoMarkdown, comoTextoPlano, nombreDeArchivo } from "@/lib/exportar-documento";
 import { moverEnLaColumna, ordenarLaColumna, resolverElArrastre } from "@/lib/orden-del-tablero";
 import { ColumnaOrdenable, useOrdenDeColumna } from "@/components/shared/OrdenDeColumna";
-import { CarpetaDelArbol, EspaciosSueltos } from "@/components/documentacion/CarpetaDelArbol";
+import { CarpetaDelArbol } from "@/components/documentacion/CarpetaDelArbol";
+import { EspaciosSueltos } from "@/components/documentacion/EspaciosSueltos";
 import { CompartirConCuentas } from "@/components/documentacion/CompartirConCuentas";
 import { EditorDeDocumento } from "@/components/documentacion/EditorDeDocumento";
 import { VistasDeLista } from "@/components/documentacion/VistasDeLista";
@@ -648,6 +650,13 @@ export function DocumentacionClient({
      */
     const [enCarpetaEncima, setEnCarpetaEncima] = useState<Record<string, string | null>>({});
 
+    /**
+     * Si se está arrastrando un espacio ahora mismo. Solo sirve para enseñar la
+     * zona de «sin carpeta» mientras dura el arrastre: el resto del tiempo esa
+     * franja no tiene nada que hacer ahí y confunde.
+     */
+    const [arrastrandoEspacio, setArrastrandoEspacio] = useState(false);
+
     const enCarpeta = useMemo(() => {
         const mapa: Record<string, string> = { ...(arbol?.enCarpeta ?? {}) };
         for (const [espacioId, carpetaId] of Object.entries(enCarpetaEncima)) {
@@ -944,7 +953,16 @@ export function DocumentacionClient({
                         <DndContext
                             sensors={sensores}
                             collisionDetection={closestCenter}
-                            onDragEnd={soltarEspacio}
+                            // La zona de «sin carpeta» crece al empezar a
+                            // arrastrar: `Always` la vuelve a medir durante el
+                            // arrastre para que sea un destino de su tamaño nuevo.
+                            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+                            onDragStart={() => setArrastrandoEspacio(true)}
+                            onDragCancel={() => setArrastrandoEspacio(false)}
+                            onDragEnd={(evento) => {
+                                setArrastrandoEspacio(false);
+                                soltarEspacio(evento);
+                            }}
                         >
                             {agrupado.carpetas.map(({ carpeta, espacios: dentro }, i) => (
                                 <CarpetaDelArbol
@@ -972,6 +990,7 @@ export function DocumentacionClient({
                                 id={SUELTOS}
                                 hayCarpetas={agrupado.carpetas.length > 0}
                                 vacio={agrupado.sueltos.length === 0}
+                                arrastrando={arrastrandoEspacio}
                             >
                                 <ColumnaOrdenable
                                     ids={agrupado.sueltos.map((e) => e.espacio.id)}
