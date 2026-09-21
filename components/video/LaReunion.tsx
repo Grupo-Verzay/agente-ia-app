@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmblemaDeLaReunion } from "@/components/video/EmblemaDeLaReunion";
 import { SalaDeVideo } from "@/components/video/SalaDeVideo";
 import { comoSeGuardaElNombre, laDireccionDeLaSala } from "@/lib/sala-de-video";
 import type { EstadoDeLaVentana } from "@/lib/ventana-de-reunion";
@@ -90,6 +91,15 @@ export function LaReunion({
     const [nombre, setNombre] = useState("");
     const [llamando, setLlamando] = useState(false);
     /**
+     * El logo del negocio dueño de la reunión, para pintarlo en la puerta.
+     *
+     * Lo trae `comoEntroAction` —la misma vuelta que ya decide el paso—, así que
+     * no hay una consulta aparte. `null` significa que la cuenta no tiene logo, y
+     * la puerta cae al icono de cámara; es el mismo respaldo que agendar, solo
+     * que allí el respaldo es otra imagen y aquí es el icono.
+     */
+    const [logo, setLogo] = useState<string | null>(null);
+    /**
      * La dirección de la reunión, para pasársela a alguien más.
      *
      * Se compone con `location.origin`, que es el dominio por el que se está
@@ -120,6 +130,7 @@ export function LaReunion({
                 setComo({ paso: "cerrada", motivo: res.message });
                 return;
             }
+            setLogo(res.logo);
             if (res.como.modo === "cerrada") {
                 setComo({ paso: "cerrada", motivo: res.como.motivo });
             } else if (res.como.modo === "dentro") {
@@ -202,9 +213,9 @@ export function LaReunion({
     if (como.paso === "puerta") {
         return (
             <Centrada>
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800">
-                    <Video className="h-6 w-6 text-zinc-300" />
-                </span>
+                {/* El logo del negocio, misma fuente que agendar; sin logo, el
+                    icono de cámara de siempre. Lo decide `EmblemaDeLaReunion`. */}
+                <EmblemaDeLaReunion logo={logo} />
                 <div className="space-y-1">
                     <p className="text-lg font-medium text-zinc-100">Entrar a la reunión</p>
                     <p className="text-sm text-zinc-400">

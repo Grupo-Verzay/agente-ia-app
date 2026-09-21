@@ -50,6 +50,7 @@ import {
     dejarLaSenal,
     dejarPasar,
     elInvitadoDelToken,
+    elLogoDeLaCuenta,
     entrarConCuenta,
     cambiarLaCaducidad,
     elHistorialDeLaFamilia,
@@ -827,7 +828,9 @@ export type ComoEntro =
  * un desconocido, y dejarlo en un «no autorizado» sería un callejón sin salida
  * cuando la reunión es justamente para él.
  */
-export async function comoEntroAction(codigo: string): Promise<Respuesta<{ como: ComoEntro }>> {
+export async function comoEntroAction(
+    codigo: string,
+): Promise<Respuesta<{ como: ComoEntro; logo: string | null }>> {
     try {
         const sala = await laSalaPorCodigo(codigo);
         if (!sala) {
@@ -836,14 +839,22 @@ export async function comoEntroAction(codigo: string): Promise<Respuesta<{ como:
             // con un enlace roto se queda mirando una pantalla en blanco.
             return {
                 success: true,
+                logo: null,
                 como: { modo: "cerrada", motivo: "Este enlace de reunión no es válido." },
             };
         }
+
+        // El logo de la cuenta dueña —misma fuente que agendar— se lee una vez
+        // y viaja en todas las ramas que tienen sala: así la puerta lo pinta
+        // sin una vuelta aparte, y esta acción es la única que ya se llama al
+        // montar en los dos sitios que abren una reunión.
+        const logo = await elLogoDeLaCuenta(sala.cuentaId);
 
         const estado = comoEstaLaSala(sala);
         if (estado !== "abierta") {
             return {
                 success: true,
+                logo,
                 como: { modo: "cerrada", motivo: loQueSeLeDiceAlQueLlegaTarde(estado) },
             };
         }
@@ -864,6 +875,7 @@ export async function comoEntroAction(codigo: string): Promise<Respuesta<{ como:
                 }
                 return {
                     success: true,
+                    logo,
                     como: {
                         modo: "dentro",
                         participanteId: fila.id,
@@ -874,7 +886,7 @@ export async function comoEntroAction(codigo: string): Promise<Respuesta<{ como:
             }
         }
 
-        return { success: true, como: { modo: "puerta", salaId: sala.id } };
+        return { success: true, logo, como: { modo: "puerta", salaId: sala.id } };
     } catch (error) {
         console.warn("[salas] no se pudo abrir el enlace", error);
         return { success: false, message: "No se pudo abrir la reunión." };
