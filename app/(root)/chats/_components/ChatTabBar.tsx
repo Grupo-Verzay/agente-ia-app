@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType } from "react";
-import { Inbox, UserCheck, UserX, Bot, Headphones, Archive, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock, CalendarDays, X } from "lucide-react";
+import { Inbox, UserCheck, UserX, Bot, Headphones, Archive, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { TabCounts, TabKey } from "./chat-sidebar.types";
 import type { ClientStatus, ServiceType } from "@/types/session";
-import type { CampoDeFecha } from "@/lib/rango-de-fechas-chats";
 
 type ChatTabBarProps = {
   onTabChange: (tab: TabKey) => void;
@@ -51,19 +50,6 @@ type ChatTabBarProps = {
   onSetServiceType?: (v: ServiceType) => void;
   iaCount?: number;
   humanCount?: number;
-  /**
-   * Filtro por rango de fechas. Recorta la lista y el contador de «Todos» —el
-   * numero de RESULTADOS sale ahi, con su mismo estilo— sin añadir tarjetas ni
-   * paneles: vive en este mismo menu, junto a los demas filtros.
-   */
-  rangoDesde?: string;
-  rangoHasta?: string;
-  campoDeFecha?: CampoDeFecha;
-  rangoActivo?: boolean;
-  onRangoDesde?: (v: string) => void;
-  onRangoHasta?: (v: string) => void;
-  onCampoDeFecha?: (v: CampoDeFecha) => void;
-  onLimpiarRango?: () => void;
   /** Abre el diálogo de borrado por fecha. Sin permiso para eliminar, no llega. */
   onDeleteByDate?: () => void;
 };
@@ -125,9 +111,9 @@ const PASTILLA = "inline-flex h-6 min-w-0 items-center justify-center rounded-fu
 const INSIGNIA = "flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white";
 
 
-export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, rangoDesde, rangoHasta, campoDeFecha, rangoActivo, onRangoDesde, onRangoHasta, onCampoDeFecha, onLimpiarRango, onCompose, onDeleteByDate }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter || !!rangoActivo;
+  const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
     const count = tabCounts[key];
     const isActive = tab === key && !hayFiltroDeEstado;
@@ -397,70 +383,7 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
               </DropdownMenuItem>
             </>
           )}
-          {onRangoDesde && onRangoHasta && (
-            <>
-              <div className="my-1 border-t border-border/50" />
-              <div className="flex items-center justify-between px-2 py-1">
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  <CalendarDays className="h-3 w-3 shrink-0" />
-                  Rango de fechas
-                </span>
-                {rangoActivo && (
-                  <button
-                    type="button"
-                    onClick={() => onLimpiarRango?.()}
-                    className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                    Limpiar
-                  </button>
-                )}
-              </div>
-              {/* Qué fecha cuenta: el inicio de la conversación (por defecto) o
-                  la última actividad. `preventDefault` deja el menú abierto al
-                  elegir, como las casillas de «Columnas». */}
-              <DropdownMenuItem
-                onSelect={(e) => { e.preventDefault(); onCampoDeFecha?.("inicio"); }}
-                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-              >
-                <span>Inicio de conversación</span>
-                {campoDeFecha === "inicio" && <Check className="h-3 w-3 text-primary" />}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={(e) => { e.preventDefault(); onCampoDeFecha?.("actividad"); }}
-                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-              >
-                <span>Última actividad</span>
-                {campoDeFecha === "actividad" && <Check className="h-3 w-3 text-primary" />}
-              </DropdownMenuItem>
-              {/* Los inputs NO son items del menú: no seleccionan nada.
-                  `stopPropagation` del teclado evita que el buscador por letras
-                  del menú se trague lo que se teclea en las fechas. */}
-              <div className="space-y-1 px-2 py-1" onKeyDown={(e) => e.stopPropagation()}>
-                <label className="flex items-center gap-2 text-xs">
-                  <span className="w-12 shrink-0 text-muted-foreground">Desde</span>
-                  <input
-                    type="date"
-                    value={rangoDesde ?? ""}
-                    max={rangoHasta || undefined}
-                    onChange={(e) => onRangoDesde?.(e.target.value)}
-                    className="min-w-0 flex-1 rounded border border-input bg-background px-1.5 py-0.5 text-xs"
-                  />
-                </label>
-                <label className="flex items-center gap-2 text-xs">
-                  <span className="w-12 shrink-0 text-muted-foreground">Hasta</span>
-                  <input
-                    type="date"
-                    value={rangoHasta ?? ""}
-                    min={rangoDesde || undefined}
-                    onChange={(e) => onRangoHasta?.(e.target.value)}
-                    className="min-w-0 flex-1 rounded border border-input bg-background px-1.5 py-0.5 text-xs"
-                  />
-                </label>
-              </div>
-            </>
-          )}
-          {(onToggleStarred || onToggleUnread || onToggleNotes || onSetClientStatus || onSetServiceType || onRangoDesde) && (
+          {(onToggleStarred || onToggleUnread || onToggleNotes || onSetClientStatus || onSetServiceType) && (
             <div className="my-1 border-t border-border/50" />
           )}
           <DropdownMenuItem

@@ -98,14 +98,23 @@ export function CachedSidebar() {
               channels={forma.canales ? [{ instanceName: "" }, { instanceName: " " }] : []}
               selectedChannel={null}
             />
-            {forma.etiquetas && (
-              <TagFilterPanel
-                tags={[]}
-                selectedTagIds={new Set<number>()}
-                onToggleTag={nada}
-                onClearFilter={nada}
-              />
-            )}
+            {/* El embudo sale SIEMPRE en la de verdad —hospeda el rango de
+                fechas, que aplica a cualquier cuenta—, así que el esqueleto lo
+                pinta igual para que no salte al cargar. */}
+            <TagFilterPanel
+              tags={[]}
+              selectedTagIds={new Set<number>()}
+              onToggleTag={nada}
+              onClearFilter={nada}
+              rangoDesde=""
+              rangoHasta=""
+              campoDeFecha="inicio"
+              rangoActivo={false}
+              onRangoDesde={nada}
+              onRangoHasta={nada}
+              onCampoDeFecha={nada}
+              onLimpiarRango={nada}
+            />
             {forma.asesores && <BotonDeAsesores />}
             <BotonDeGrupos />
           </div>
