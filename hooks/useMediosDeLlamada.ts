@@ -218,6 +218,33 @@ export function useMediosDeLlamada(opciones?: {
     }, []);
 
     /**
+     * Empujar a UNA conexión lo que se manda ahora mismo.
+     *
+     * De qué es cada transceptor se mira en el emisor **y** en el receptor, y
+     * vale el primero de los dos que diga algo. Los dos pueden venir vacíos en
+     * momentos distintos —el emisor mientras no lleva pista; el receptor, en un
+     * hueco antes de que el navegador le asocie la suya—, y con uno solo de los
+     * dos ese instante deja el transceptor SIN identificar: entonces la pista no
+     * se engancha y ese lado se queda **mudo hasta el siguiente empujón**. Es
+     * justo el fallo que desde fuera se ve como «no me oyen hasta que prendo la
+     * cámara o comparto pantalla», porque son esas acciones las que vuelven a
+     * empujar. Mirando los dos, el transceptor siempre se identifica.
+     */
+    const empujarAUnaConexion = useCallback(
+        (pc: RTCPeerConnection) => {
+            if (pc.connectionState === "closed") return;
+            const audio = laPistaDeAudio();
+            const video = laPistaDeVideo();
+            for (const t of pc.getTransceivers()) {
+                const clase = t.sender.track?.kind ?? t.receiver?.track?.kind;
+                if (clase === "audio") void t.sender.replaceTrack(audio).catch(nada);
+                else if (clase === "video") void t.sender.replaceTrack(video).catch(nada);
+            }
+        },
+        [laPistaDeAudio, laPistaDeVideo],
+    );
+
+    /**
      * Empujar a TODAS las conexiones lo que se manda ahora mismo.
      *
      * Se llama en cada cambio —encender la cámara, compartir, dejar de
@@ -226,22 +253,30 @@ export function useMediosDeLlamada(opciones?: {
      * otra con la pantalla, que es el fallo que solo se ve cuando hay cuatro.
      */
     const empujarLasPistas = useCallback(() => {
-        const audio = laPistaDeAudio();
-        const video = laPistaDeVideo();
-        for (const pc of conexionesRef.current) {
-            if (pc.connectionState === "closed") continue;
-            for (const t of pc.getTransceivers()) {
-                // De qué es cada transceptor lo dice su RECEPTOR, no su emisor:
-                // el emisor puede estar vacío —recién creado, o con la cámara
-                // apagada— y entonces `sender.track` es nulo y no dice nada. El
-                // receptor trae su pista desde que el transceptor existe, y con
-                // la clase correcta, así que es el único dato fiable de los dos.
-                const clase = t.receiver?.track?.kind;
-                if (clase === "audio") void t.sender.replaceTrack(audio).catch(nada);
-                else if (clase === "video") void t.sender.replaceTrack(video).catch(nada);
-            }
-        }
-    }, [laPistaDeAudio, laPistaDeVideo]);
+        for (const pc of conexionesRef.current) empujarAUnaConexion(pc);
+    }, [empujarAUnaConexion]);
+
+    /**
+     * La red de seguridad: cuando una conexión llega a `connected`, se le vuelven
+     * a poner las pistas de ahora.
+     *
+     * Por muchas vueltas que dé el enganche inicial —una carrera con el reloj de
+     * la malla, una reconexión que rehace la conexión, el micro que se re-pide al
+     * cambiar la supresión—, una conexión que llega a `connected` **siempre**
+     * acaba con las pistas puestas. `replaceTrack` con la misma pista no cuesta
+     * nada, así que en el caso bueno esto no hace nada; en el malo, engancha el
+     * audio que faltaba **sin que nadie tenga que tocar la cámara**. Es lo que
+     * convierte «me oyen solo cuando comparto pantalla» en algo que se arregla
+     * solo.
+     */
+    const sanarAlConectar = useCallback(
+        (pc: RTCPeerConnection) => {
+            pc.addEventListener("connectionstatechange", () => {
+                if (pc.connectionState === "connected") empujarAUnaConexion(pc);
+            });
+        },
+        [empujarAUnaConexion],
+    );
 
     /** El recuadro propio: lo que se está mandando, montado en un stream. */
     const rehacerElLocal = useCallback(() => {
@@ -423,18 +458,24 @@ export function useMediosDeLlamada(opciones?: {
      */
     const reabrirMicConSupresion = useCallback(
         async (activada: boolean) => {
-            const anterior = micRef.current?.getAudioTracks()[0];
-            const estabaSilenciado = anterior ? !anterior.enabled : false;
+            const anterior = micRef.current;
+            const anteriorPista = anterior?.getAudioTracks()[0];
+            const estabaSilenciado = anteriorPista ? !anteriorPista.enabled : false;
             try {
                 const nuevo = await navigator.mediaDevices.getUserMedia({
                     audio: laRestriccionDeAudio(activada),
                 });
                 const nuevaPista = nuevo.getAudioTracks()[0];
                 if (nuevaPista) nuevaPista.enabled = !estabaSilenciado;
-                micRef.current?.getTracks().forEach((t) => t.stop());
+                // Se ENGANCHA la nueva ANTES de parar la vieja. Al revés, entre
+                // parar la vieja y que el `replaceTrack` de la nueva llegue a
+                // cada emisor hay un hueco en el que los emisores mandan una
+                // pista PARADA —silencio—, y si algún `replaceTrack` no llega, se
+                // quedan con ella. Con este orden nunca se manda una pista muerta.
                 micRef.current = nuevo;
                 rehacerElLocal();
                 empujarLasPistas();
+                anterior?.getTracks().forEach((t) => t.stop());
             } catch (error) {
                 console.warn("[medios] no se pudo re-pedir el micrófono", error);
                 alFallar?.(loQuePasoConElPermiso(error, "micrófono"));
@@ -569,9 +610,10 @@ export function useMediosDeLlamada(opciones?: {
             conexionesRef.current.add(pc);
             pc.addTransceiver("audio", { direction: "sendrecv" });
             pc.addTransceiver("video", { direction: "sendrecv" });
+            sanarAlConectar(pc);
             empujarLasPistas();
         },
-        [empujarLasPistas],
+        [empujarLasPistas, sanarAlConectar],
     );
 
     /**
@@ -589,9 +631,10 @@ export function useMediosDeLlamada(opciones?: {
             for (const t of pc.getTransceivers()) {
                 if (t.direction !== "stopped") t.direction = "sendrecv";
             }
+            sanarAlConectar(pc);
             empujarLasPistas();
         },
-        [empujarLasPistas],
+        [empujarLasPistas, sanarAlConectar],
     );
 
     const olvidarLaConexion = useCallback((pc: RTCPeerConnection) => {
