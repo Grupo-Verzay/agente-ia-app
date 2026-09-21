@@ -11443,15 +11443,35 @@ costumbre se salta el día que hay prisa.
 
 ### El recorte de módulos: vaciar la lista le quita el TOPE, no los módulos
 
-Es la trampa de todo esto y la cazó el banco. Lo obvio es recortar al cruce, y
-cuando la cuenta nueva no tiene **ninguno** de los suyos el cruce es vacío… y
-cero filas en `_UserModules` es justo lo que el armazón lee como **«sin
-restricción»**. O sea que el recorte ingenuo no la deja sin módulos: la deja
-viendo todo lo que su plan permita, **más que antes de mudarse**.
+Es la trampa de todo esto. Lo obvio es recortar al cruce, y cuando la cuenta
+nueva no tiene **ninguno** de los suyos el cruce es vacío… y cero filas en
+`_UserModules` es justo lo que el armazón lee como **«sin restricción»**. O sea
+que el recorte ingenuo no la deja sin módulos: la deja viendo todo lo que su
+plan permita, **más que antes de mudarse**.
 
-`losModulosQueLeQuedan` le da entonces **los de la cuenta nueva**: nunca más que
-su cuenta, y nunca el «sin tope» de la lista vacía. Quien no tenía ninguna no
-gana ninguna — ya estaba sin tope, igual que su cuenta.
+Y el cruce se queda en nada por **dos caminos que no son el mismo**. El primero
+lo cazó el banco; el segundo hizo falta una mudanza de verdad para verlo, y por
+eso está escrito aquí:
+
+1. **La cuenta nueva TIENE lista y no comparte ninguno.** Se le dan los de
+   ella: es un tope, y nunca más que su cuenta.
+2. **La cuenta nueva NO tiene lista** —una cuenta de administrador, o de plan
+   personalizado, que es de lo más normal—. Darle «los de la cuenta» aquí es
+   vaciarla, y eso **la ensancha**. Pasó con María Alejandra: tres módulos
+   (Chats, Herramientas, Panel) y una cuenta destino sin lista, así que el
+   recorte la habría dejado viendo los **catorce** que permitía su plan. Se
+   **conservan los suyos**, que siguen sin ser más que su cuenta —su cuenta no
+   tiene tope— y no la mueven de donde estaba.
+
+> **El recorte solo puede QUITAR, nunca ensanchar.**
+
+Quien no tenía ninguna no gana ninguna — ya estaba sin tope, igual que su
+cuenta.
+
+Y de ahí una lección que vale para cualquier cosa parecida: **una regla que
+elige entre dos listas tiene un tercer caso, la lista vacía, y casi nunca
+significa lo mismo que las otras dos.** Aquí «vacía» no era «ninguno»: era «sin
+tope», o sea lo contrario.
 
 ### Lo que deja de alcanzar depende del ROL, y hay que decirlo antes
 
