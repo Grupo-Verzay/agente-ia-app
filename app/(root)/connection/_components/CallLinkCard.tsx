@@ -301,17 +301,22 @@ function VoicebotControl() {
     });
   }, []);
 
-  const save = async (patch: { enabled?: boolean; voice?: string; transferTo?: string }) => {
-    setSaving(true);
-    const res = await setVoicebotConfig(patch);
-    setSaving(false);
-    if (!res.success) toast.error(res.message ?? 'No se pudo guardar.');
-  };
-
+  // Un interruptor que se queda puesto cuando el guardado falló es un
+  // interruptor que MIENTE, y esa mentira cuesta la tarde de quien la cree: la
+  // tarjeta dice «asistente activo», la llamada contesta «actívalo primero», y
+  // no hay forma de saber cuál de las dos tiene razón. Se pinta al momento
+  // —que es lo que hace que el botón se sienta vivo— y **se devuelve tal cual
+  // estaba si el servidor dice que no**, igual que al eliminar un chat.
   const toggle = async (v: boolean) => {
+    const antes = enabled;
     setEnabled(v);
     setOpen(v); // al activar, abre el modal de opciones; al desactivar, lo cierra
-    await save({ enabled: v });
+    const res = await setVoicebotConfig({ enabled: v });
+    if (!res.success) {
+      setEnabled(antes);
+      setOpen(false);
+      toast.error(res.message ?? 'No se pudo guardar.');
+    }
   };
 
   // Guarda las opciones del modal (voz, transferencia) en un solo paso.
