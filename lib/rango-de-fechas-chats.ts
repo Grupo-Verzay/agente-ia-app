@@ -70,6 +70,79 @@ export function laFechaQueCuenta(c: { inicio: number; ts: number }, campo: Campo
 }
 
 /**
+ * Los ATAJOS que rellenan Desde y Hasta de una vez: Hoy, Ayer, Últimos 7 días y
+ * Últimos 30 días.
+ *
+ * El rótulo visible es corto —«7 días», «30 días»— para que los cuatro quepan en
+ * una sola fila del panel (w-72) sin cortarse ni partirse en dos renglones; el
+ * `titulo` lleva la forma larga para el tooltip. El id es el que compara
+ * `atajoDelRango` y no depende del texto.
+ */
+export type AtajoDeRango = "hoy" | "ayer" | "ultimos7" | "ultimos30";
+
+export const ATAJOS_DE_RANGO = [
+    { id: "hoy", etiqueta: "Hoy", titulo: "Hoy" },
+    { id: "ayer", etiqueta: "Ayer", titulo: "Ayer" },
+    { id: "ultimos7", etiqueta: "7 días", titulo: "Últimos 7 días" },
+    { id: "ultimos30", etiqueta: "30 días", titulo: "Últimos 30 días" },
+] as const satisfies readonly { id: AtajoDeRango; etiqueta: string; titulo: string }[];
+
+/**
+ * Una fecha a `YYYY-MM-DD` en la zona de QUIEN MIRA (la de la cuenta), nunca en
+ * UTC: se leen los componentes locales, igual que `elDiaDelInput` de
+ * `lib/vencimiento`. Cortar sobre `toISOString()` correría el día una jornada al
+ * oeste de UTC por la tarde —el fallo que este repo ya tiene documentado— y
+ * «Hoy» saldría con el de mañana. Es la MISMA zona en la que `limitesDelRango`
+ * interpreta después estos strings, así que el atajo y el filtro no discrepan.
+ */
+export function comoDiaLocal(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dia = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dia}`;
+}
+
+/**
+ * El rango `{ desde, hasta }` de un atajo, calculado desde `ahora`.
+ *
+ * Los «últimos N» INCLUYEN hoy: «Últimos 7 días» es hoy y los 6 anteriores. La
+ * resta de días se hace construyendo la fecha en local (`new Date(y, m, d - n)`),
+ * que normaliza el cruce de mes y de año sin tocar UTC.
+ */
+export function rangoDelAtajo(atajo: AtajoDeRango, ahora: Date): { desde: string; hasta: string } {
+    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    const menos = (n: number) => new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n);
+    switch (atajo) {
+        case "hoy":
+            return { desde: comoDiaLocal(hoy), hasta: comoDiaLocal(hoy) };
+        case "ayer": {
+            const ayer = menos(1);
+            return { desde: comoDiaLocal(ayer), hasta: comoDiaLocal(ayer) };
+        }
+        case "ultimos7":
+            return { desde: comoDiaLocal(menos(6)), hasta: comoDiaLocal(hoy) };
+        case "ultimos30":
+            return { desde: comoDiaLocal(menos(29)), hasta: comoDiaLocal(hoy) };
+    }
+}
+
+/**
+ * Cuál de los cuatro atajos corresponde al rango puesto, o `null` si ninguno.
+ *
+ * Los cuatro rangos son distintos entre sí, así que el orden no decide nada. Un
+ * rango escrito a mano que no case con ninguno devuelve `null` —ningún atajo
+ * marcado—, y lo mismo el rango vacío tras «Limpiar»: apagar el rango apaga el
+ * atajo sin ninguna rama aparte.
+ */
+export function atajoDelRango(desde: string, hasta: string, ahora: Date): AtajoDeRango | null {
+    for (const { id } of ATAJOS_DE_RANGO) {
+        const r = rangoDelAtajo(id, ahora);
+        if (r.desde === desde && r.hasta === hasta) return id;
+    }
+    return null;
+}
+
+/**
  * Si un chat cae dentro del rango.
  *
  * Sin fecha utilizable (0) queda FUERA cuando hay rango: lo que no se puede

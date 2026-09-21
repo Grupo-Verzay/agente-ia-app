@@ -30,6 +30,13 @@ cat > "$ENTRY" <<'TSX'
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { TagFilterPanel } from "@/app/(root)/chats/_components/TagFilterPanel";
+import { atajoDelRango, rangoDelAtajo } from "@/lib/rango-de-fechas-chats";
+
+// Se exponen las MISMAS funciones que usa el componente, para que el banco
+// calcule lo esperado con el reloj del navegador (evita cualquier desfase con
+// node) y con la misma lógica que corre en producción.
+(window as any).rangoDelAtajo = rangoDelAtajo;
+(window as any).atajoDelRango = atajoDelRango;
 
 type Props = {
     tags?: { id: number; name: string; color?: string | null; order: number }[];
