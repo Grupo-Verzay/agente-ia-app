@@ -891,6 +891,11 @@ cuenta, estado, canal y días. Se guardan 30 días.
 
 # PARTE 3 — Pantallas públicas (sin cuenta)
 
+Las pantallas que se abren sin tener cuenta en la plataforma. Son los enlaces
+que se reparten por WhatsApp, se pegan en una firma o se anuncian: quien los
+abre no se registra, entra directo. Cada una sale con el logo, el nombre y los
+colores del negocio que la reparte.
+
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
 | **Landing de venta** | `/inicio` | La página comercial: qué hace el agente, para qué negocios sirve, testimonios, precios y botón de crear agente. |
@@ -901,10 +906,10 @@ cuenta, estado, canal y días. Se guardan 30 días.
 | **Enlace corto de pago** | `/p/<código>` | El que llega en el aviso de cobro. Calcula el precio al abrirse, así que si cambia el precio el aviso viejo sigue cobrando lo correcto. |
 | **Alta de cuenta** | `/completar-registro` | Crear la cuenta con los datos mínimos. |
 | **Documentación de conexión** | `/documentacion` | Guía paso a paso para conectar WhatsApp API oficial, Facebook e Instagram. |
-| **Catálogo público** | `/catalogo/<cuenta>` y `/c/<marca>` | El catálogo de productos del negocio. |
-| **Formulario público** | `/f/<formulario>` | El formulario que arma el cliente, con subida de archivos. |
+| **Catálogo público** | `/catalogo/<cuenta>`, o `/c/<marca>` con dirección propia | El catálogo de productos del negocio, con su logo, sus colores y buscador por categoría. |
+| **Formulario público** | `/f/<cuenta>/<formulario>`, o `/f/<nombre>` si se le puso dirección propia | El formulario que arma el cliente, con la marca del negocio arriba y subida de archivos. |
 | **Reserva de cita** | `/schedule/<cuenta>` | Elegir servicio, día, hora y dejar los datos. |
-| **Reserva con especialista** | `/bookings/<cuenta>` | Lo mismo, eligiendo además con quién. |
+| **Reserva con especialista** | `/bookings/<cuenta>` | Lo mismo, eligiendo además con quién: servicio, especialista, día, hora y datos. |
 | **Ficha de soporte** | `/t/<código>` | Donde el cliente final de una cuenta abre un ticket sin tener cuenta. |
 | **Reunión por enlace** | `/reunion/<código>` | Entrar a una reunión de video. Quien no tiene cuenta espera a que le abran. |
 | **Inicio de sesión** | `/login` | Entrar. |
@@ -957,8 +962,7 @@ Lo que está construido y hoy no se puede usar, o no hace lo que su nombre dice.
 | **Funciones del creador visual** | `/panel/workflow-features` | Igual: funciona, pero no se puede crear como módulo. Solo se llega por la dirección. |
 | **Guía de Meta** | `/documentation/meta` | Igual: existe y no es asignable. |
 | **Asistente de chat interno** | (carpeta sin pantalla) | Hay un asistente de chat construido —componentes, servicios y estado— del que solo se usa hoy una pieza suelta. No tiene pantalla propia. |
-| **Enlaces públicos que piden sesión** | `/catalogo/…`, `/c/…`, `/f/…`, `/bookings/…`, `/planes/…`, `/resellers` | Son enlaces pensados para repartir a gente sin cuenta, y hoy quien los abre sin haber iniciado sesión acaba en la pantalla de acceso. Los que sí entran sin cuenta son la agenda (`/schedule/…`), la landing del revendedor (`/r/…`), el pago (`/p/…`), la reunión (`/reunion/…`) y la ficha de soporte (`/t/…`). |
-| **Alta por Meta en un clic** | (botones ocultos en Conexión) | El camino de conexión automática con Meta está construido, y sus dos botones están ocultos: requiere ser proveedor tecnológico de Meta. |
+| **Alta por Meta en un clic** | (sin pantalla) | El camino de conexión automática con Meta está construido y completo —ventana emergente, intercambio de credenciales y elección del número—, y **ninguna pantalla lo usa hoy**: no se llega a él desde ningún sitio. |
 
 ---
 
