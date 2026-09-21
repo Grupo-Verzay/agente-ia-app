@@ -23,6 +23,13 @@ npx tsc lib/alto-de-la-caja-de-escribir.ts --outDir lib/__tests__/.compilado \
   --module es2022 --target es2022 --lib es2022,dom \
   --moduleResolution bundler --skipLibCheck
 
+# El hueco de la derecha de la caja sale de la lista de botones, que es
+# compartida con la barra del chat de equipo: la medida la importa en vez de
+# copiarla, así que hay que compilarla también.
+npx tsc lib/barra-de-escribir.ts --outDir lib/__tests__/.compilado/barra \
+  --module es2022 --target es2022 --lib es2022,dom \
+  --moduleResolution bundler --skipLibCheck
+
 echo "── la decisión, con la fórmula NUEVA ──"
 node --test lib/__tests__/alto-de-la-caja-de-escribir.test.mjs
 

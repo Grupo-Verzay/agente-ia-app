@@ -6996,6 +6996,128 @@ se parecen, y nadie sabe cuál es la buena.
 > `grep -oF "426FD4" .next/static/css/*.css`. Ese color solo lo escribe
 > `lib/barra-de-escribir.ts`, así que si aparece, el glob funciona.
 
+### El #790 sacó las CLASES, no la barra, y la copia se quedó atrás
+
+Conviene tenerlo delante antes de creerse que algo «ya está compartido». Lo que
+aquel cambio movió a `components/shared/` fueron **tres componentes de pintar**
+—`FormatoDeTexto`, `EmojiPickerPanel`, `TextoConFormato`— y a `lib/` un puñado
+de **clases de CSS**. La barra en sí siguió siendo **dos**: `ChatInputBar.tsx`
+y un compositor escrito dentro de `HiloDelEquipo.tsx`. Se comprueba en una
+línea —quién importa esas constantes son exactamente esos dos ficheros—, y por
+eso la sección de arriba podía decir «es el mismo código» sin que lo fuera.
+
+Y dos implementaciones no divergen en lo grande: las dos mandan mensajes. Se
+separan en lo pequeño, que es lo que se reporta como «no deja pegar capturas» y
+«el icono del dictado sale como una T». Esto es lo que había, con su causa:
+
+| | Chats | chat de equipo | por qué |
+| --- | --- | --- | --- |
+| la barra | `ChatInputBar.tsx` | escrita dentro de `HiloDelEquipo.tsx` | el #790 sacó las clases, no la barra |
+| **pegar una captura** | `onPaste`, imagen, 8 MB, máx 4 | **no existía**: ningún `onPaste` | nunca se escribió aquí |
+| **adjuntar** | `AttachmentMenu`, en fila con sitio | un `<input type=file>` detrás del «+» **siempre plegado** | dos widgets distintos |
+| **icono del dictado** | `AudioLines` | **`Type`** — una T | copiado a ojo |
+| el «+» | solo por debajo de 640 px | **siempre** | la condición, escrita a mano |
+| **acciones del mensaje** | el `group` es la burbuja | el `group` era la línea del nombre y la hora, de ~12 px | el hover no se alcanzaba |
+| alto de la caja | `altoDeLaCaja`, tope en LÍNEAS | `max-h-40`, tope en PÍXELES | el fallo que este documento da por arreglado, vivo en la copia |
+
+Las dos últimas filas son las que enseñan lo que cuesta una copia. **Editar y
+borrar SÍ estaban escritos** en el chat de equipo —con su puerta, su acción y
+su menú— y no se podían usar: el `group` del que colgaba el `⋯` era la fila del
+nombre y la hora, así que había que acertar con el cursor dentro de doce
+píxeles. Desde fuera eso no se lee como «el hover está mal puesto», se lee como
+**«no deja editar mensajes»**, que es como se reportó. Igual adjuntar: el
+`<input>` existía y vivía detrás de un «+» que no se abría nunca en la ruta.
+
+> **La lección, que es la de siempre y aquí se pagó entera: sacar las clases no
+> es compartir el componente.** Lo que hay que mirar para saber si dos
+> pantallas están unificadas no es si importan el mismo CSS — es si la
+> **decisión** sale del mismo sitio. Por eso lo que se movió ahora son las dos
+> cosas que deciden (`losBotonesDeLaDerecha` y `rellenoDeLaCaja`, puras en
+> `lib/`) y el armazón que las pinta (`components/shared/BarraDeEscribir.tsx`),
+> no otro puñado de clases.
+
+Y **lo que depende de WhatsApp se queda en Chats**, que por eso el armazón
+tiene huecos y no una lista fija: la firma del asesor, el interruptor de estado,
+las plantillas de Meta, las respuestas rápidas, los flujos, la nota interna y la
+sugerencia de la IA entran por `fijo` y por `children`. El chat del equipo mete
+por los mismos huecos lo suyo —formato, emojis y el clip— y ninguno de los dos
+sabe nada del otro.
+
+#### Lo que se comprobó, en Chromium y sobre la página servida
+
+`scripts/probar-barra.mjs`: el build con `next start` contra una base de usar y
+tirar, sesión de verdad, y las dos pantallas abiertas a 1440, 1280, 1024 y 390.
+No una maqueta — una maqueta habría dado por buenas las dos barras, porque el
+fallo no estaba en cómo se pintan sino en qué ofrecen.
+
+| ventana | pantalla | ancho de la barra | relleno | botones de la derecha | «+» |
+| --- | --- | --- | --- | --- | --- |
+| 1440 | chat de equipo | 1382 | 112 px | dictado · nota · enviar | no |
+| 1440 | Chats | 996 | 112 px | dictado · nota · enviar | no |
+| 1280 | chat de equipo | 1222 | 112 px | dictado · nota · enviar | no |
+| 1280 | Chats | 836 | 112 px | dictado · nota · enviar | no |
+| 1024 | chat de equipo | 966 | 112 px | dictado · nota · enviar | no |
+| 1024 | **Chats** | **612** | 48 px | voz | **sí** |
+| 390 | chat de equipo | 390 | 48 px | voz | sí |
+| 390 | Chats | 390 | 48 px | voz | sí |
+
+**Pegar una captura adjunta en las dos, en las ocho filas** — y en el chat de
+equipo eso es nuevo, porque antes no hacía nada. La fila de 1024 es la que hay
+que leer con cuidado: las dos barras dicen cosas distintas y **las dos
+aciertan**, porque sus anchos son distintos. El banco lo comprueba así, barra
+por barra contra su propio ancho medido, y **lee `ANCHO_COMPACTO` del módulo**
+en vez de escribir 640 a mano: copiado, probaría que las dos coinciden con el
+banco y no con la regla que corre en producción.
+
+Y se comprueba además lo que se reportó como «no deja editar mensajes»: se
+manda un mensaje, **se posa el cursor sobre su TEXTO** —no sobre la línea del
+nombre y la hora— y se mira la opacidad de la fila de acciones, que pasa de
+**0 a 1**, y que el `⋯` ofrece **Responder · Editar · Eliminar**. La opacidad
+se lee en la FILA y no en el botón: el botón vale 1 siempre, así que midiéndolo
+el banco salía verde sin haber ejercido nada — costó una vuelta.
+
+#### Lo que solo apareció midiendo: un `useEffect` sobre un `ref` se rinde una vez
+
+Es el hallazgo que ningún banco puro iba a dar, y el que enseña por qué esto se
+mide en un navegador. `useBarraCompacta` empezó siendo un `useEffect` con
+`[ref]` de dependencia. A 390 px la barra de Chats se plegaba y **la del chat
+de equipo no**: seguía con sus tres botones y su `pr-28` encima de una caja de
+390 px de ancho.
+
+La causa no está en la regla —que es la misma— sino en **cuándo se lee el
+nodo**: el hilo del equipo pinta antes su estado de carga, así que en el
+montaje `ref.current` es `null`, el efecto se rinde y con `[ref]` de
+dependencia **no vuelve a correr nunca**. En Chats la barra sí está en el
+primer render, o sea que aquello funcionaba **por suerte, no por diseño**.
+
+> **Lo que tiene que enterarse de que un nodo APARECE es un ref de callback,
+> no un efecto sobre un `useRef`.** React lo llama cuando el nodo se monta, que
+> es exactamente el caso que fallaba. Un efecto solo vuelve a mirar si alguna
+> de sus dependencias cambia, y un objeto de `useRef` no cambia nunca.
+
+#### Y el banco son dos scripts, con lo que cada uno puede probar
+
+- `scripts/banco-barra.sh` — **la decisión**, sin navegador y en dos modos. El
+  roto es la barra del chat de equipo tal como estaba —plegada siempre, y
+  `archivosDelPortapapeles` devolviendo vacío— y **afirma el fallo**.
+- `scripts/banco-barra-navegador.sh` — **las dos barras de verdad**: levanta su
+  Postgres, siembra con `scripts/sembrar-barra.mjs`, arranca el build y corre
+  `scripts/probar-barra.mjs`.
+
+**El segundo no tiene modo roto, y se dice en vez de disimularlo**: reproducir
+el «antes» ahí serían dos builds, uno por cada versión del código. Lo que sí
+hace es fallar cuando una de las dos barras **no llega a pintarse** —antes
+devolvía guiones y decía que todo iba bien habiendo medido una sola—, y su
+semilla añade a mano `chat_conversations.profilePicUrl`, que existe en
+producción por un `ALTER TABLE` en caliente y **no** en el esquema de Prisma:
+sin esa columna la bandeja se cae con un `42703`, `/chats` abre en
+mantenimiento y la mitad de la comparación no se ejerce.
+
+Y para poder medirlo, las dos barras llevan `data-barra="escribir"`. Es la
+única marca que el banco necesita del DOM; sin ella tendría que adivinar qué
+elemento es «la barra» y acabaría midiendo la ventana, que es justo el error
+que esta sección cuenta.
+
 ### El botón de formato OBLIGA a pintar el formato
 
 Es la mitad que se olvida. El botón escribe `*negrilla*` en la caja, o sea
@@ -7005,12 +7127,29 @@ que se ve roto es peor que no tenerlo**, así que la burbuja del equipo —y el
 recuadro de la cita, y el borrador de la cita— pasan por `TextoConFormato`, el
 mismo componente que ya usa la burbuja de Chats.
 
-### Aquí va SIEMPRE plegado, y el «+» no se condiciona al ancho
+### El «+» sale por el ancho de la BARRA, no por el de la pantalla
 
-En Chats el «+» solo sale por debajo de 640 px (`isCompactToolbar`, medido con
-un `ResizeObserver`). En el chat de equipo no hay esa rama: este hilo se lee en
-un **panel lateral de 18 a 24 rem**, así que «ancho» no existe, y una condición
-que nunca es falsa es una rama que nadie prueba.
+Esto estaba escrito al revés —«aquí va SIEMPRE plegado, y el «+» no se
+condiciona al ancho»— con el argumento de que este hilo se lee en un panel
+lateral de 18 a 24 rem, así que «ancho» no existe. **Se olvidaba la mitad**:
+`/chat-equipo` es también una RUTA, a todo lo ancho, con tanto sitio como
+Chats. Ahí el «+» plegado no protege de nada — esconde el formato, los emojis
+y el clip detrás de un clic que sobra, y es literalmente lo que se reportó
+como «el desplegable abre distinto que en Chats».
+
+> **El corte es uno, `ANCHO_COMPACTO` (640 px), y lo mide `useBarraCompacta`
+> sobre la barra —no sobre la ventana—.** Es una MEDIDA, no una pantalla: las
+> dos barras aplican la misma regla y se pliegan en momentos distintos porque
+> viven en huecos distintos. Medido sobre la página servida a 1024: la del
+> equipo mide **976 px** y va en fila; la de Chats **588**, porque comparte la
+> ventana con la lista de la bandeja, y va plegada. **Comparar las dos por el
+> ancho de la VENTANA es comparar dos barras que no miden lo mismo** — el
+> primer banco lo hacía y cantó tres fallos que no existían.
+
+Y el hueco que la caja le deja a los botones sale de **la misma lista** que los
+pinta (`rellenoDeLaCaja` sobre `losBotonesDeLaDerecha`): tres botones son
+`pr-28` y uno `pr-12`. Con dos cuentas separadas, de más la última palabra se
+corta contra un hueco vacío y de menos el texto pasa por debajo del botón.
 
 Medido en Chromium sobre el CSS del build, con las clases pasadas por el mismo
 `tailwind-merge` que usa `cn` —sin eso se mide una caja que React no pinta—:
@@ -7117,11 +7256,17 @@ Tres cosas que hay que mantener:
    bucle—. Al abrirse la ficha de contacto o al girar un móvil el texto se
    reparte en otro número de renglones y la altura escrita antes se queda
    mintiendo.
-3. **Chats y el chat de equipo siguen siendo dos efectos**, no uno. Lo que se
-   comparte es la **decisión**, que es lo que se puede afinar mal en un sitio y
-   no en el otro; el enganche es de cada pantalla porque cada una sabe cuándo
-   hay que volver a medir. Y **la sala de reuniones no entra aquí**: su chat
-   tiene su propia caja.
+3. **Y el enganche también es UNO**, `useAltoDeLaCaja`
+   (`components/shared/BarraDeEscribir.tsx`). Esto decía antes «Chats y el chat
+   de equipo siguen siendo dos efectos, no uno», con el argumento de que cada
+   pantalla sabe cuándo volver a medir. **Era falso**: lo único propio de cada
+   una es *con qué* se reinicia —el chat abierto en Chats, el canal en el
+   equipo— y eso cabe en un parámetro (`reiniciarCon`). El precio de tenerlo
+   escrito dos veces se vio entero: el equipo se quedó con un `max-h-40`, o sea
+   **el tope en PÍXELES que esta misma sección da por arreglado**, y los
+   `scrollHeight` sin bordes volvieron con él. Un arreglo que se hace en una
+   copia no es un arreglo: es una diferencia. Y **la sala de reuniones no entra
+   aquí**: su chat tiene su propia caja.
 
 Lo comprueba `scripts/banco-caja.sh`, en dos mitades: la decisión sin navegador
 —en dos modos, y el roto **afirma** los 7,1 y los 5,5 renglones— y la caja de
