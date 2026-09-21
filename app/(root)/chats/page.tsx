@@ -525,7 +525,6 @@ export default async function ChatsPage({
     initialAdvisorsResult,
     conteosPorLinea,
     initialTagsResult,
-    initialClientValidation,
     initialTrazaConfig,
   ] = await Promise.all([
     (async () => {
@@ -562,24 +561,21 @@ export default async function ChatsPage({
       userIds: allSessionUserIds,
       instanceNames: instancias.map((inst) => inst.instanceName),
     }),
-    // Las etiquetas y la config de validacion, desde el SERVIDOR.
+    // Las etiquetas, desde el SERVIDOR.
     //
-    // Las dos llegaban con la carga inicial, o sea segundos despues de que la
-    // pantalla ya estuviera pintada, y se notaba: el filtro de etiquetas (el
-    // embudo) aparecia de la nada, y en las cuentas con validacion de cliente
-    // el menu de «⌄» cambiaba de contenido solo. Una barra que se completa a
-    // trozos se lee como una pantalla a medio cargar.
+    // Llegaban con la carga inicial, o sea segundos despues de que la pantalla
+    // ya estuviera pintada, y se notaba: el filtro de etiquetas (el embudo)
+    // aparecia de la nada. Una barra que se completa a trozos se lee como una
+    // pantalla a medio cargar.
     //
-    // Van dentro del `Promise.all` que ya estaba: en paralelo con las otras
-    // cuatro, asi que cuestan lo que la mas lenta y no la suma. Las dos son
-    // pequenas y por indice.
+    // Va dentro del `Promise.all` que ya estaba: en paralelo con las otras, asi
+    // que cuesta lo que la mas lenta y no la suma. Es pequena y por indice.
+    //
+    // Aqui iba tambien la config de `client_validation`, que solo servia para
+    // decidir si la fila de la lista pintaba el estado del cliente y el tipo de
+    // asistencia. Esos dos selectores se fueron (#864), asi que esa consulta ya
+    // no la pedia nadie y se cayo con ellos: una menos en cada carga de Chats.
     settle(listTagsAction(effectiveOwnerId)),
-    db.externalDataToolConfig
-      .findFirst({
-        where: { userId: effectiveOwnerId, toolType: "client_validation", isEnabled: true },
-        select: { id: true },
-      })
-      .catch(() => null),
     // El interruptor de la traza, tambien desde el SERVIDOR.
     //
     // Esto era una accion de servidor, y ademas la PRIMERA de la cola: montada
@@ -932,7 +928,6 @@ export default async function ChatsPage({
       takeSessionAction={takeSessionAction}
       releaseSessionAction={releaseSessionAction}
       transferSessionAction={transferSessionAction}
-      clientValidationEnabled={Boolean(initialClientValidation)}
       trazaConfig={initialTrazaConfig}
     />
   );

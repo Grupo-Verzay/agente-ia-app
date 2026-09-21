@@ -781,7 +781,6 @@ interface ChatsClientProps {
   takeSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   releaseSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   transferSessionAction?: (sessionId: number, targetAdvisorId: string) => Promise<{ success: boolean; message?: string }>;
-  clientValidationEnabled?: boolean;
   /**
    * El interruptor de la traza, ya leido en el servidor.
    *
@@ -817,7 +816,6 @@ export function ChatsClient({
   takeSessionAction,
   releaseSessionAction,
   transferSessionAction,
-  clientValidationEnabled: initialClientValidationEnabled = false,
   trazaConfig,
   instanceName,
   apiKeyData,
@@ -954,9 +952,6 @@ export function ChatsClient({
   const [quickReplies, setQuickReplies] =
     useState<ChatQuickReplyOption[]>(initialQuickReplies);
   const [advisors, setAdvisors] = useState<AdvisorInfo[]>(initialAdvisors);
-  const [clientValidationEnabled, setClientValidationEnabled] = useState(
-    initialClientValidationEnabled,
-  );
   const [messages, setMessages] = useState<EvolutionMessage[]>(initialMessages || []);
   const [info, setInfo] = useState<ChatMessageInfo | undefined>(
     initialSelectedJid
@@ -2137,7 +2132,6 @@ export function ChatsClient({
         setWorkflows(data.workflows);
         setQuickReplies(data.quickReplies);
         setAdvisors(data.advisors);
-        setClientValidationEnabled(data.clientValidationEnabled);
         setChatPreferences(data.chatPreferences);
         // Las sesiones ya no vienen por aqui: tienen su propia consulta, que
         // sale antes y lleva su reintento. Esta respuesta las traia tambien
@@ -2612,28 +2606,6 @@ export function ChatsClient({
       sessionId?: number,
     ) => {
       aplicarEnLaSesion(sessionId, remoteJid, { leadStatus: status }, "el estado del lead");
-    },
-    [aplicarEnLaSesion],
-  );
-
-  const handleServiceTypeChange = useCallback(
-    (
-      remoteJid: string,
-      value: import("@/types/session").ServiceType | null,
-      sessionId?: number,
-    ) => {
-      aplicarEnLaSesion(sessionId, remoteJid, { serviceType: value }, "el tipo de servicio");
-    },
-    [aplicarEnLaSesion],
-  );
-
-  const handleClientStatusChange = useCallback(
-    (
-      remoteJid: string,
-      value: import("@/types/session").ClientStatus | null,
-      sessionId?: number,
-    ) => {
-      aplicarEnLaSesion(sessionId, remoteJid, { clientStatus: value }, "el estado del cliente");
     },
     [aplicarEnLaSesion],
   );
@@ -5356,9 +5328,6 @@ export function ChatsClient({
           onArchiveChat={handleArchiveChat}
           onDeleteChat={handleDeleteChat}
           onLeadStatusChange={handleLeadStatusChange}
-          onServiceTypeChange={handleServiceTypeChange}
-          onClientStatusChange={handleClientStatusChange}
-          clientValidationEnabled={clientValidationEnabled}
           onSelectRemoteJid={handleSelectFromSidebar}
           onPrefetchRemoteJid={prefetchChat}
           onTogglePin={handleToggleChatPin}

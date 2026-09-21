@@ -1960,6 +1960,95 @@ lista es el motivo del menú, scroll; si es una opción más entre otras,
 submenú** —y el submenú también con su `max-h`, como los de «Asignar agente» y
 «Asignar etiqueta» del menú de la fila—.
 
+## Chats: quitar un mando de la fila NO quita su dato
+
+Cada fila de la lista llevaba dos selectores con icono y flechita —el **estado
+del cliente** (Cliente Activo / Cliente Inactivo / Sin clasificar) y el **tipo
+de asistencia** (Asistencia IA / Asistencia Humana / Sin asignar)— y el menú
+«⌄» de la barra ofrecía sus cuatro filtros. Se fueron los seis.
+
+**Y eso fue solo de pantalla.** `Session.client_status` y `Session.service_type`
+siguen en el esquema, con sus valores intactos, y `getSesionesDeLaCuenta` los
+sigue devolviendo: el CRM los lee, `billing-actions` los sigue escribiendo solo
+—marca `ACTIVO` al confirmar un pago e `INACTIVO` al suspender— y el día que
+vuelvan a hacer falta el dato está.
+
+> **Un mando que se quita de una pantalla no se lleva por delante su columna.**
+> Ni migración, ni backfill, ni `DROP COLUMN`. Lo que deja de existir es la
+> forma de cambiarlo **desde esa pantalla**, y eso es todo.
+
+### Lo que se cae detrás, y por eso el diff es grande
+
+Quitar los seis mandos deja muerto todo lo que colgaba de ellos, y dejarlo
+puesto es lo que convierte una pantalla en un museo:
+
+| qué se fue | por qué |
+| --- | --- |
+| `ClientStatusSelect` y `ServiceTypeSelect` | los pintaba **solo** la fila de Chats |
+| `updateSessionServiceType` y `updateSessionClientStatus` | las llamaban **solo** esos dos selectores. Una acción de servidor ES un endpoint: dejarlas publicadas sin nadie que las abra es una puerta que ya no vigila ninguna pantalla |
+| `clientValidationEnabled` | ese booleano existía **solo** para decidir si se pintaban |
+| **dos consultas a `externalDataToolConfig`** | las hacía ese booleano: una en el `Promise.all` de `chats/page.tsx` y otra en el bootstrap. Son **una consulta menos por carga de Chats** y otra menos por arranque |
+| cuatro contadores dentro de `conteos` | se calculaban en la pasada caliente que recorre miles de chats por cada mensaje que entra |
+
+La segunda fila es la que se olvida: **si se quita el único sitio que llama a
+una acción, la acción se va con él.** Lo que no puede pasar es lo contrario —
+borrar la acción y dejar el botón—, que es un botón que al pulsarlo da error.
+
+### Ni franja en blanco ni fila descuadrada, y eso es de construcción
+
+Los badges de la fila viven en un array (`badgeItems`) que se pinta en un
+contenedor `mt-1 flex flex-wrap items-center gap-1` detrás de un
+`visibleBadges.length > 0`. Las dos cosas importan:
+
+1. **`gap`, no márgenes.** Lo que se quita no deja su hueco detrás.
+2. **El contenedor va detrás de la condición**, así que con cero pastillas no
+   se pinta — no queda un `<div>` vacío de 24 px, que es exactamente la franja
+   en blanco que se venía a comprobar.
+
+Y el `MAX_BADGES = 6` **no se toca**. Cabían justos con los dos selectores
+dentro; sin ellos sobra sitio, y bajarlo ahora sería esconder una pastilla que
+hoy se ve.
+
+### El banco: dos mitades, porque el cambio vive en dos capas
+
+`scripts/banco-fila-de-chats.sh`, y cada mitad contesta una pregunta que la
+otra no puede:
+
+- **Contra Postgres** (`estado-y-servicio-db.test.mjs`), con el esquema real:
+  los tres casos —`ACTIVO`/`IA`, `INACTIVO`/`HUMANO` y los dos en nulo— se
+  guardan y se leen tal cual, la consulta de la bandeja los sigue trayendo, y
+  **abrir Chats no los toca** (se comparan las filas antes y después de dos
+  vueltas de `getSesionesDeLaCuenta`). Y las dos columnas se comprueban contra
+  `information_schema` con **su nombre de la base** —`client_status` y
+  `service_type`—, que es la regla de siempre: un `@map` no se deduce.
+- **En Chromium** (`fila-de-chats.test.mjs`), sobre el CSS del build y con los
+  componentes **reales**: la fila no pinta los dos mandos, mide **lo mismo** con
+  los valores guardados y sin ellos, no deja ninguna caja vacía con alto, no
+  desborda a 1440/1280/1024/390, y el menú no ofrece los cuatro filtros ni queda
+  con una raya suelta.
+
+**El «antes» sale de `origin/main` con `git show`, no de una copia escrita en el
+banco.** Los cuatro ficheros viejos se dejan en un directorio HERMANO de
+`_components` —así sus `../../sessions/...` y sus `@/...` resuelven igual— y lo
+único que se reescribe son los `./` de los vecinos que sobreviven. Copiado a
+mano, el modo roto mediría lo que alguien recuerda del componente viejo.
+
+### Y el selector NO se busca por su texto: es un icono
+
+Costó una vuelta y es lo que habría dejado el modo roto en verde sin ejercer
+nada. El disparador de los dos selectores era **solo el icono con su flechita**;
+su rótulo —«Cliente Activo», «Asistencia IA»— vive en un **tooltip**, o sea en
+un portal que solo existe con el cursor encima. Buscarlos por texto daba vacío
+**también en `origin/main`**.
+
+Se buscan por su `aria-label` (`Cambiar estado del cliente`, `Cambiar tipo de
+servicio`), que es lo único que está en el DOM sin interactuar. Y por eso
+«Sin clasificar» y «Sin asignar» quedan **fuera** de la lista de rótulos: son
+también los del estado del lead y los del asesor, que siguen en la fila.
+
+En el menú sí son texto, y ahí la comprobación es directa: cuatro opciones que
+el modo roto encuentra y el bueno no.
+
 ## Proyectos: un aviso que espera es un aviso que no llega
 
 Se asignaba una tarea y la persona no se enteraba. No es que no hubiera aviso:
