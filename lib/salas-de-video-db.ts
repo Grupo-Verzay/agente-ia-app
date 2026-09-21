@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes, randomUUID } from "crypto";
 
 import { db } from "@/lib/db";
+import { elLogoQueSeMuestra } from "@/lib/logo-de-la-reunion";
 import { sePuedeReanudar, type MotivoDeSalida } from "@/lib/reconexion-de-la-sala";
 import {
     MARGEN_EN_LA_SALA_MS,
@@ -635,6 +636,23 @@ export async function losDatosDeLasCuentas(
         where: { id: { in: limpios } },
         select: { id: true, company: true, name: true, email: true },
     });
+}
+
+/**
+ * El logo de la cuenta dueña de una reunión, para pintarlo en su puerta.
+ *
+ * La MISMA fuente que la pantalla de agendar —`User.image`— pasada por
+ * `elLogoQueSeMuestra`, así que un `image` vacío sale `null` y la puerta cae al
+ * icono. Solo lee el logo: es branding público, lo mismo que ya enseña la
+ * página de agendar a cualquiera con el enlace, así que devolverlo a quien
+ * abre un enlace de reunión no descubre nada que no estuviera pensado para
+ * verse.
+ */
+export async function elLogoDeLaCuenta(cuentaId: string): Promise<string | null> {
+    const id = String(cuentaId ?? "").trim();
+    if (!id) return null;
+    const fila = await db.user.findUnique({ where: { id }, select: { image: true } });
+    return elLogoQueSeMuestra(fila?.image);
 }
 
 /**
