@@ -10156,6 +10156,129 @@ los 6 que pasan en los dos modos son justo los que no podían cambiar: la regla
 pura, la afirmación del propio modo roto y el caso de Evolution, que siempre
 funcionó. Sin ese modo no se sabe si se arregló la causa o algo parecido.
 
+#### Y el BACKEND se quedó con la mitad vieja: «Llamar con IA»
+
+El #841 arregló el lado de la App —`lib/linea-de-whatsapp.ts`, el diálogo del
+asistente de voz y sus cuatro hermanas de Llamadas— y **el backend siguió
+preguntando por los dos casings**. Un arreglo aplicado en una mitad de un dato
+compartido no es un arreglo: es un **desacuerdo**, y este tardó semanas en
+reportarse porque el síntoma nombraba la condición contraria.
+
+Desde fuera: en CRM → Llamadas, «Llamar con IA» contestaba
+
+> Activa "Asistente de voz IA" en Conexión → Llamadas primero.
+
+con el interruptor **encendido en la pantalla**, su voz y su número de
+transferencia guardados y la línea diciendo Conectado. Y no era el botón: las
+llamadas automáticas del flujo (`AI_CALL` al cambiar de etiqueta) tampoco
+salían. Los dos caminos terminan en `POST /api/sessions/{sid}/calls/bot` →
+wacalls → `VoicebotService.resolve`, así que la comprobación que fallaba era
+**una sola y común a los dos** — que es justo lo que el reporte ya intuía.
+
+Lo que había en `resolve`:
+
+```sql
+WHERE "userId" = $1 AND ("instanceType" = 'Whatsapp' OR "instanceType" = 'whatsapp')
+```
+
+Y la línea por QR se guarda con **tres formas de la misma cosa**: `Whatsapp` /
+`evolution` (nació en Evolution), **`waha`** —que es como nacen hoy las nuevas,
+y a lo que se pasa al cambiar de proveedor— y `NULL` en las antiguas. De ahí el
+«funcionaba y dejó de funcionar»: **cambiar de proveedor no crea una línea
+nueva, cambia el `instanceType` de la MISMA fila**, así que la configuración se
+quedó donde estaba y este filtro dejó de verla el día del cambio, sin un solo
+error en ninguna parte. Es literalmente lo que la sección de arriba mide en
+producción: **10 de 31 cuentas con línea por QR** eran invisibles para ese
+filtro, y de las que además tienen número de llamadas, **5 de 8**.
+
+Y un segundo desacuerdo, más callado: con dos casings el backend podía
+encontrar **otra** fila. Una cuenta con su línea en `waha` (id 5, donde la App
+escribió) y un resto de Evolution (id 9) daba id 5 en la App y id 9 aquí:
+configuración a un lado, lectura al otro, y el asistente «apagado» sin que
+nadie lo hubiera apagado.
+
+> **La regla es la MISMA que la de la App, y es una función pura**
+> (`src/modules/voicebot/linea-del-asistente.ts` en el backend, copia exacta de
+> `esLineaDeWhatsappQr`): no «¿qué proveedor tiene?», sino «¿la tiene?». Se
+> traen las filas de la cuenta y manda la **primera por QR ordenada por `id`**,
+> que es exactamente la que elige `laLineaDeWhatsappDeLaCuenta` del otro lado.
+> Y se filtra **en TypeScript, no con una lista de casings en SQL**: una lista
+> de tipos en el `WHERE` es una lista de cómo se escribieron.
+
+El orden por `id` **no se toca**: es el que ya usaban las dos mitades, así que
+las cuentas a las que hoy les funciona siguen leyendo la misma fila. Cambiarlo
+movería su configuración a otra línea sin decirlo.
+
+##### La FAMILIA se mira, y solo cuando no hay línea propia
+
+Era la hipótesis del reporte y **no era la causa de este caso** —la cuenta que
+lo sufría tiene su propia línea— pero es un hueco real de la misma familia: a
+una cuenta se llega por dos caminos y solo uno deja rastro en la fila, así que
+la cuenta dueña de la sesión de llamadas puede no ser la que tiene la línea. Se
+cierra con la misma malla de `linked_accounts` del #812 (recursiva, en los dos
+sentidos, con su tope), y el respaldo es **estrictamente aditivo**:
+
+1. **Si la cuenta tiene alguna línea por QR, manda la suya**, encendida o
+   apagada. Un «apagado» explícito **nunca** lo pisa una cuenta hermana: eso
+   sería el fallo contrario y peor —el asistente llamando a clientes desde una
+   cuenta donde alguien lo apagó a mano—.
+2. Solo cuando **no tiene ninguna** se busca en la familia una encendida.
+
+Así esto no puede cambiar el comportamiento de ninguna cuenta a la que hoy le
+funcione: únicamente convierte en llamada lo que hoy es un aviso. Y **la
+familia solo se consulta en ese caso**: el camino común no paga ni una consulta
+de más.
+
+##### El aviso era un cajón de sastre, y por eso se buscó en la pantalla equivocada
+
+`disabled` lo decían **seis** condiciones distintas: la línea no se encontraba,
+el asistente estaba apagado, el secreto no coincidía, la URL venía sin `sid`,
+el backend no contestaba y la respuesta llegaba sin clave de OpenAI. Las seis
+mandaban a encender un interruptor que ya estaba encendido.
+
+- El backend distingue `no_line` de `disabled`, y contesta `bad_secret` y
+  `no_sid` donde antes devolvía `{ enabled: false }` a secas —y sin `reason`
+  wacalls cae en su valor por defecto, que era `disabled`—.
+- wacalls **ya no inventa `disabled`**: sus dos respaldos son `sin_respuesta`
+  (no se pudo preguntar) y `no_openai_key`, y escribe el motivo en su registro.
+- Y la App les da a los siete sus palabras. **Un aviso que nombra una condición
+  que se cumple es peor que no decir nada**: manda a tocar lo que ya estaba
+  bien, que es exactamente lo que costó este.
+
+De paso, el interruptor de la tarjeta **deja de mentir**: se pintaba al momento
+y no se devolvía si el guardado fallaba, así que la tarjeta decía «activo» y la
+llamada decía «actívalo». Ahora vuelve a su sitio con su aviso, igual que al
+eliminar un chat.
+
+##### El banco: `scripts/banco-voicebot.sh`, y son dos mitades
+
+- **La decisión**, pura y sin base (`linea-del-asistente.spec.ts`, en
+  `npm test`): las tres formas del tipo, la fila que gana con un resto de
+  Evolution al lado, y las dos mitades del respaldo de familia.
+- **Los dos caminos de verdad**, contra Postgres
+  (`__banco__/llamar-con-ia.banco.ts`): `VoicebotService.resolve` y
+  `StageAutomationService.doAiCall` **reales**, con `Instancias`, `User` y
+  `linked_accounts` sembradas. Cubre los cuatro casos del encargo —desde la
+  madre con el asistente en la hija, desde la propia hija, el disparo
+  automático por cambio de etiqueta, y el aviso legítimo cuando de verdad está
+  apagado o no hay línea por QR—. Del automático se afirma **a qué sesión de
+  llamadas se habló**: el mismo `sid` y el mismo endpoint que el botón, que es
+  lo que prueba que la puerta es una.
+
+Los dos corren en **dos modos**, y el roto lleva **la consulta vieja escrita
+dentro**: sobre esas mismas filas no encuentra nada, que es el aviso que se
+reportó. Sin ese modo no se sabría si el verde del otro es que se arregló la
+causa o que el caso no se llega a ejercer.
+
+Y el banco de base **apaga las comprobaciones de tipos de ts-jest**, a
+propósito y dicho en su cabecera: `npm test` tiene hoy seis suites en rojo por
+errores de tipo **preexistentes** en `ai-agent.service.ts`, y `VoicebotService`
+lo arrastra por la cadena de dependencias. Sin apagarlas, este banco se pondría
+rojo por algo que no tiene nada que ver con lo que prueba. (`uuid` 14 es ESM
+puro y jest corre en CJS: por eso el banco lo mapea a un CJS de una página —es
+lo mismo que tumba esas seis suites, y aquí solo hace falta que el módulo
+cargue.)
+
 ## Chats: el filtro de canales tiene que sumar
 
 En el desplegable de canales, «Todos» decía **614** y las filas de abajo sumaban

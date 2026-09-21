@@ -143,11 +143,27 @@ export async function startBotCallAction(
     if (!r.ok) {
       const t = await r.json().catch(() => ({} as { error?: string; reason?: string }));
       if (r.status === 403) {
+        // Cada motivo con sus palabras, y NINGUNO se cae en «activa el
+        // asistente».
+        //
+        // Ese aviso era el cajón de sastre de seis condiciones distintas —la
+        // línea no se encontraba, el secreto no coincidía, el backend no
+        // contestaba, la respuesta venía rota— y todas mandaban a encender un
+        // interruptor que ya estaba encendido. Eso es lo que hizo que este
+        // fallo se buscara en la pantalla equivocada: el aviso nombraba una
+        // condición que se cumplía.
         const byReason: Record<string, string> = {
           no_credits: 'Sin créditos disponibles para llamadas con IA. Recarga créditos.',
           disabled: 'Activa "Asistente de voz IA" en Conexión → Llamadas primero.',
+          no_line:
+            'Esta cuenta no tiene una línea de WhatsApp por QR: el asistente de voz se configura sobre ella. Conéctala en Conexión → Mensajería WhatsApp (QR).',
           no_openai_key: 'Configura tu clave de OpenAI en Ajustes (el voicebot la necesita).',
           no_account: 'No tienes un número de llamadas vinculado.',
+          bad_secret:
+            'El servidor de llamadas y la plataforma no se reconocen (VOICEBOT_SECRET). Avisa a soporte: no es algo que se arregle desde aquí.',
+          no_sid: 'No tienes un número de llamadas vinculado (Conexión → Llamadas).',
+          sin_respuesta:
+            'No se pudo comprobar el asistente de voz con el servidor. Vuelve a intentarlo en un momento.',
         };
         return { success: false, message: byReason[t?.reason ?? ''] ?? 'Voicebot no habilitado para esta cuenta.' };
       }
