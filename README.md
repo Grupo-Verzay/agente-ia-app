@@ -2,6 +2,7 @@ This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next
 
 ## Internal Docs
 
+- [Manual de emergencia](docs/manual-emergencia.md) — qué hacer cuando algo se cae
 - [Follow-up IA](docs/follow-up-ia.md)
 
 ## Getting Started
