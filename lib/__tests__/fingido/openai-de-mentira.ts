@@ -12,8 +12,12 @@ import { laIa } from "./ia-de-mentira";
 class OpenAiDeMentira {
     audio = {
         transcriptions: {
-            create: async ({ model }: { file: unknown; model: string }) => {
-                laIa.pedidos.push({ que: "transcribir" as const, modelo: model });
+            create: async ({ model, prompt }: { file: unknown; model: string; prompt?: string }) => {
+                // El `prompt` se apunta porque es la MITAD de arriba del
+                // arreglo del nombre de la marca: sin el vocabulario, Whisper
+                // escribe «Versailles» y la red de abajo tiene que trabajar
+                // siempre.
+                laIa.pedidos.push({ que: "transcribir" as const, modelo: model, pista: prompt ?? "" });
                 return { text: laIa.transcripcion };
             },
         },

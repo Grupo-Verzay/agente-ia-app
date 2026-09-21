@@ -37,6 +37,7 @@ import { laFamiliaDeLaCuenta } from '@/lib/familia-de-cuentas';
 import { laCuentaQuePagaLaTranscripcion } from '@/lib/nota-de-voz-del-equipo';
 import { descontarLaTranscripcion, losCreditosQueQuedan } from '@/lib/creditos-de-transcripcion';
 import { porQueNoSeTranscribio, queHacerConLaGrabacion } from '@/lib/transcripcion-de-la-llamada';
+import { PISTA_DE_VOCABULARIO, conElNombreDeLaMarca } from '@/lib/nombres-de-la-marca';
 
 const BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -177,7 +178,11 @@ async function transcribe(
         {
           role: 'user',
           parts: [
-            { text: 'Transcribe esta llamada palabra por palabra. Marca cada turno con "Operador:" o "Cliente:" según quién habla.' },
+            {
+              text:
+                'Transcribe esta llamada palabra por palabra. Marca cada turno con "Operador:" o "Cliente:" según quién habla. ' +
+                `Nombres propios que aparecen y se escriben así: ${PISTA_DE_VOCABULARIO}`,
+            },
             { inlineData: { mimeType, data: audioBase64 } },
           ],
         },
@@ -196,7 +201,15 @@ async function transcribe(
     try {
       const stream = Readable.from(buffer);
       (stream as any).path = filename;
-      const tr = await openai.audio.transcriptions.create({ file: stream as any, model });
+      // El vocabulario de la marca, para que acierte de entrada: «Verzay» y
+      // «Verzy» no están en el vocabulario de Whisper y «Versailles» y «Bersi»
+      // sí, así que sin esta pista el nombre propio de la casa sale mal.
+      // Arreglarlo aquí es la mitad barata; la de abajo, al guardar, es la red.
+      const tr = await openai.audio.transcriptions.create({
+        file: stream as any,
+        model,
+        prompt: PISTA_DE_VOCABULARIO,
+      });
       const text = (tr.text ?? '').trim();
       if (text) return text;
     } catch {
@@ -363,7 +376,9 @@ export async function processCallRecordingForUser(input: {
     return { success: false, message: 'Sin configuración de IA activa.' };
   }
 
-  const transcript = await transcribe(wavBase64, cfg);
+  // El nombre de la marca se corrige al GUARDAR, no en la voz: ver
+  // `lib/nombres-de-la-marca.ts`.
+  const transcript = conElNombreDeLaMarca(await transcribe(wavBase64, cfg));
   if (!transcript) {
     console.warn('[llamadas] la transcripcion volvio vacia', {
       chatMessageId: input.chatMessageId,
@@ -372,7 +387,9 @@ export async function processCallRecordingForUser(input: {
       segundos: duracion,
     });
   }
-  const summary = transcript ? await summarize(transcript, cfg) : '';
+  // Y también en el resumen: sale de la transcripción ya corregida, pero el
+  // modelo puede volver a escribirlo a su manera.
+  const summary = transcript ? conElNombreDeLaMarca(await summarize(transcript, cfg)) : '';
 
   const nextRaw = {
     ...rawObj,
@@ -587,11 +604,13 @@ export async function processMetaCallRecordingForUser(input: {
   let transcript = '';
   let summary = '';
   if (cfg) {
-    transcript = await transcribe(input.audioBase64, cfg, {
-      filename: `call.${ext}`,
-      mimeType,
-    });
-    summary = transcript ? await summarize(transcript, cfg) : '';
+    transcript = conElNombreDeLaMarca(
+      await transcribe(input.audioBase64, cfg, {
+        filename: `call.${ext}`,
+        mimeType,
+      }),
+    );
+    summary = transcript ? conElNombreDeLaMarca(await summarize(transcript, cfg)) : '';
   }
 
   const nextRaw = {

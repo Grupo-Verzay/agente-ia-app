@@ -13314,6 +13314,197 @@ astracalls fingido que devuelve un WAV de verdad y que **no entrega la
 grabación hasta la vuelta 15**, que es el caso que el sondeo viejo no aguantaba.
 
 
+## El asistente de voz: el prompt es de la CUENTA, el contexto es de la CONVERSACIÓN
+
+Tres fallos reportados juntos después de que «Llamar con IA» volviera a salir,
+y ninguno de los tres era una regresión del arreglo anterior: los tres llevaban
+ahí desde siempre y solo se pudieron ver cuando las llamadas empezaron a salir.
+
+| lo que se veía | lo que era |
+| --- | --- |
+| a **todos** los clientes les decía el mismo `productos_servicios` —«productos naturales»— | `resolve` **nunca leía la conversación**: las instrucciones de todas las llamadas de una cuenta eran idénticas byte a byte |
+| «no puedo enviarte el enlace por WhatsApp» | `sendWhatsapp` seguía con `instanceType: 'Whatsapp'`, o sea **el filtro que el arreglo anterior quitó de `resolve` y no de la mitad de al lado** |
+| la transcripción decía «Bersi de Versailles» | Whisper escribe lo que oye con palabras que existen, y nadie lo corregía al guardar |
+
+### 1. El prompt no tenía con qué rellenar las variables, así que se las inventó
+
+Lo que despista es que el síntoma nombra una variable —`productos_servicios`— y
+eso manda a buscar un sitio donde se sustituyan variables. **No hay ninguno.**
+El prompt de la cuenta está escrito en términos de lo que el chat captura
+(`nombre`, `productos_servicios`, `dolor_especifico`), y al voicebot se le
+entregaba **tal cual, sin nada delante**. Un modelo con un hueco delante lo
+rellena, y lo rellena igual todas las veces porque la entrada es la misma.
+
+Así que no es un caché ni un contexto de otra conversación reutilizado: es que
+**no había ningún dato de la conversación en ninguna parte**. Se comprueba de
+la forma más barata que hay: dos llamadas de la misma cuenta a dos contactos
+distintos producían el mismo `instructions`, carácter por carácter.
+
+> **Lo que cambia de una llamada a otra dentro de la misma cuenta es el bloque
+> de contexto, y sale del chat de WhatsApp de ESE contacto**
+> (`loQueYaSabeDelCliente` → `elContextoDeLaConversacion`, puro). Se añade
+> detrás del prompt de la cuenta; el prompt no se toca.
+
+Y la mitad que de verdad arregla el reporte es la otra:
+
+> **Cuando NO hay conversación, el bloque lo dice con esas palabras** y le
+> prohíbe inventárselo: «no sabes su nombre, ni a qué se dedica, ni qué
+> productos o servicios le interesan… **NO te los inventes: pregúntaselos**».
+> Sin esa frase, un bloque vacío es exactamente el hueco de antes y el modelo
+> vuelve a rellenarlo con lo de siempre.
+
+Cinco cosas que hay que mantener:
+
+1. **Se buscan las TRES columnas, en tres consultas con `UNION ALL`.** Un
+   contacto está guardado bajo la identidad que devolvió el proveedor esa
+   vuelta —`remoteJid`, `remoteJidAlt` o `senderPn`— y preguntar por una sola
+   «devuelve correcto y vacío», que es la regla de siempre de Chats. Pero
+   juntarlas con un `OR` en el mismo `WHERE` deja la consulta **sin índice** y
+   recorre `chat_messages` entera, que es la tabla más grande de la plataforma:
+   es literalmente el fallo que ya costó caro en
+   `levantarMarcasSiElContactoEscribio`. Cada rama lleva además **su propio
+   `LIMIT` dentro**, que es *una consulta que devuelve una página tiene que
+   poder pararse*.
+2. **No se fabrica ningún `@lid`.** Sus dígitos son un id de privacidad; la
+   conversación abierta por su `@lid` se encuentra igual, porque esa fila
+   guarda el teléfono real en una de las otras dos columnas.
+3. **Los registros de llamada y los mensajes vacíos NO son conversación.** Una
+   llamada anterior es una fila de `chat_messages` con `messageType = 'call'`:
+   colada en el bloque, el modelo se pondría a hablar de ella como si el
+   cliente la hubiera escrito.
+4. **El bloque va topado por mensajes Y por caracteres**, y se recorta
+   **quitando mensajes enteros por delante**, nunca cortando por la mitad: un
+   mensaje partido se lee como un mensaje distinto del que se escribió. Lo
+   último —lo más reciente— es lo que se conserva.
+5. **Que no se pueda leer NUNCA tumba la llamada.** Se devuelve el bloque de
+   «no hay conversación», que es más estricto que la verdad y es el lado
+   seguro: le manda preguntar, que es lo que hay que hacer cuando no se sabe.
+   Y **se escribe en el registro**, porque desde fuera esto se ve como un bot
+   que no se acuerda de nada.
+
+El nombre del contacto sale de `Session`, con **el puesto a mano por encima del
+de WhatsApp** (`customName || pushName`): es el mismo criterio de la bandeja.
+
+### 2. `enviar_whatsapp`: el proveedor sale de la FILA, también aquí
+
+Es la misma regla que este documento ya tiene escrita —*el proveedor sale de la
+FILA, no del parámetro*— reaparecida en la mitad que nadie miró. El arreglo
+anterior quitó el filtro de casings de `resolve`; `sendWhatsapp` y
+`resolveInstanceCreds` **se quedaron con él**, así que en una cuenta cuya línea
+vive en `waha` —que es como nacen hoy las nuevas— no encontraban ninguna fila.
+
+Y el daño era doble, porque son dos funciones distintas:
+
+| | qué se veía |
+| --- | --- |
+| `sendWhatsapp` | el bot le decía al cliente **«no pude enviarlo por WhatsApp en este momento»** — la frase exacta del reporte |
+| `resolveInstanceCreds` (en `ai-agent.service.ts`) | devolvía `null` sin Evolution, así que `buildVoicebotToolset` salía **VACÍO**: esa cuenta perdía además sus herramientas de agenda, productos y cotizaciones. La herramienta no «dejó de ejecutarse»: **no se le llegaba a declarar ninguna** |
+
+> **Una capa no habla por la de abajo.** Arreglar la puerta (`resolve`) sin
+> arreglar el envío dejó el asistente entrando y sin poder hacer nada. Cuando
+> se declara que una regla es «la línea por QR, sea del proveedor que sea», se
+> cuentan **todos** sus sitios, no el que produjo el reporte.
+
+Cuatro cosas que hay que mantener:
+
+1. **La regla es la MISMA función pura** (`linea-del-asistente.ts`).
+   `laLineaPorLaQueSeEnvia` es su hermana y se diferencia en una cosa sola: para
+   **atender** hace falta que el asistente esté encendido ahí; para **enviar**
+   no, porque el auto-mensaje de «no contestó» tiene que salir aunque alguien lo
+   apague entre la llamada y su final.
+2. **No se escribe un envío por proveedor**: va por `WhatsAppSenderFactory`,
+   que es donde vive lo que cada uno necesita —Waha lee su servidor de
+   `site_config`, no de las credenciales de Evolution de la cuenta, así que
+   exigirle una url de Evolution es pedirle algo que no tiene—.
+3. **El saliente deja su burbuja.** Con Evolution llegaba sola por el eco del
+   webhook; con Waha **no**, porque su eco se descarta a propósito (solo pasa
+   lo que sale del móvil, que es lo que impide que la IA se pause a sí misma).
+   Sin esto el enlace le llegaba al cliente y en el panel no había ni rastro.
+4. **Y un fallo de envío no es mudo.** La frase que el bot le dice al cliente
+   salía sin una sola línea en el registro, y eso es lo que hizo que se leyera
+   como «el asistente perdió la herramienta».
+
+`resolveInstanceCreds` además **tolera que no haya url de Evolution**
+(`server_url: ''`) en vez de rendirse: las herramientas dinámicas de una cuenta
+de Waha no necesitan ese servidor, y devolver `null` por él era regalar el
+juego entero de herramientas por un dato que no hacía falta.
+
+### 3. El nombre de la marca se corrige al GUARDAR, con una lista cerrada
+
+El asistente se presenta bien —se oye «Verzy, de Verzay»— y en la transcripción
+salía **«Bersi de Versailles»**. No es la voz: es Whisper, que escribe lo que
+oye con palabras que existen, y «Versailles» y «Bersi» existen.
+
+> **Se corrige al guardar** (`lib/nombres-de-la-marca.ts`, puro), **con una
+> lista CERRADA**. No se toca la voz, y no se «mejora» el texto con el modelo:
+> eso sería reescribir lo que dijo el cliente. Lo único que cambia son las
+> formas conocidas de los dos nombres propios de la casa.
+
+Y tiene **dos mitades, arriba y abajo**: a la transcripción se le pasa el
+vocabulario de la marca (`PISTA_DE_VOCABULARIO`, el `prompt` de Whisper y la
+instrucción de Google) para que acierte de entrada, y la lista es la red de
+abajo para lo que se le escape. Con solo la de arriba no hay garantía; con solo
+la de abajo se trabaja siempre.
+
+Cuatro cosas:
+
+1. **Se aplica a la transcripción Y al resumen**, y en los **dos** caminos
+   (`processCallRecordingForUser` y `processMetaCallRecordingForUser`). Con uno
+   fuera, es la familia de siempre: «a una hermana se le pasa».
+2. **Palabra entera, con `\p{L}` y no `\b`.** Con `\b`, la «s» final de
+   «Versalles» ya es límite de palabra y «Versallesco» se cambiaría igual.
+3. **Con la vocal acentuada también.** Whisper escribe «Bersí» y «Versáilles»
+   tanto como sin tilde; la clave se guarda sin acentos pero la expresión tiene
+   que poder encontrarlas.
+4. **La lista se alarga solo con formas que se hayan VISTO.** Esto cambia un
+   registro de lo que pasó: lo que no esté escrito ahí no se sustituye.
+
+### Y un fallo de la herramienta no puede salir como «Listo.»
+
+Salió al leer el camino de la herramienta en wacalls y no estaba reportado:
+`executeVoicebotTool` devolvía **`"Listo."`** ante un 404, un 401 o un 500 de
+la plataforma. O sea el bot diciéndole al cliente que ya le había enviado el
+enlace **sin haber enviado nada** — que es peor que el fallo que se venía a
+arreglar, porque el cliente se queda esperando y nadie se entera.
+
+Ahora se mira el código de estado, un resultado vacío no se convierte en un
+«listo», y **cada rama deja su línea**. Y la URL no se deriva a ciegas: si el
+endpoint configurado no lleva `/resolve` dentro, se dice y no se inventa una.
+
+### Los bancos, y qué prueba cada uno
+
+| | qué ejerce |
+| --- | --- |
+| `src/modules/voicebot/__banco__/contexto-y-envio.banco.ts` | **dos conversaciones distintas** —un taller de repuestos y una clínica dental, la segunda guardada bajo `remoteJidAlt` con un `@lid` por delante— reciben **cada una sus propias variables y no las de la otra**; y `enviar_whatsapp` sale por la línea de Waha, con su jid y su burbuja |
+| `src/modules/voicebot/linea-del-asistente.spec.ts` | la regla pura: las tres formas del tipo, la fila que gana, y las dos líneas —la que atiende y la que envía— |
+| `cmd/server/voicebot_tool_test.go` (wacalls) | que un fallo **no** sale como «Listo.» y que `enviar_whatsapp` sigue declarada |
+| `lib/__tests__/grabacion-de-llamada.test.mjs`, sección E | lo que se GUARDA dice «Verzy, de Verzay» **aunque la IA diga otra cosa** |
+
+Cuatro cosas de los bancos que conviene no deshacer:
+
+1. **El modo roto lleva la consulta vieja escrita dentro, literal**
+   (`laLineaDeAntesParaEnviar`, con su `instanceType: 'Whatsapp'`), y **afirma
+   el fallo**: sobre esas mismas filas no encuentra nada. Sin ese modo, lo verde
+   del otro no diría si se arregló la causa o si el caso no se llega a ejercer.
+2. **El banco del contexto crea `chat_messages` con la DDL de la App.** Esa
+   tabla no está en el esquema de Prisma del backend —la crea la App— así que
+   sembrarla a ojo sería probar contra una tabla que no es la de producción.
+3. **La prueba del contexto encadena las dos mitades**: se afirma que el bloque
+   de una conversación **no** contiene lo de la otra, no solo que contiene lo
+   suyo. Con la primera mitad sola, un bloque que las pegara todas saldría
+   verde.
+4. **`lib/__tests__/grabacion-de-llamada.test.mjs` corre su sección E en los
+   dos modos a propósito**: el interruptor de ese banco toca el registro y la
+   ventana de espera, no el guardado. Su «antes» lo prueba de otra forma, que
+   es la que vale aquí: **se afirma que el doble de la IA SÍ devolvió las formas
+   rotas**, así que lo limpio de la fila solo puede venir del guardado.
+
+Y lo que **no** se pudo ejercer, que se dice en vez de disimularlo: el servidor
+de llamadas de verdad y los proveedores de WhatsApp de verdad. El `fetch` y los
+adaptadores están apuntados, así que lo probado es a qué línea se habla, con qué
+jid y qué se persiste — no que Waha entregue el mensaje.
+
+
 ## Llamar y llamar con IA: una barra, y un MENÚ en vez de un segundo botón
 
 Dos pantallas de la misma área, y el mismo encargo: que llamar de las dos

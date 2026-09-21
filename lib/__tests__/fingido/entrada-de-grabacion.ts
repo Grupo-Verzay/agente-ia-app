@@ -35,6 +35,7 @@ export {
 } from "@/lib/transcripcion-de-la-llamada";
 
 export { costoDeLaNota, TOKENS_POR_CREDITO } from "@/lib/transcripcion-de-voz";
+export { conElNombreDeLaMarca, PISTA_DE_VOCABULARIO } from "@/lib/nombres-de-la-marca";
 export { descontarLaTranscripcion, losCreditosQueQuedan } from "@/lib/creditos-de-transcripcion";
 
 export { db } from "@/lib/db";
