@@ -5,7 +5,13 @@ import { CalendarDays, Check, Filter, Search, Tag, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { SimpleTag } from "@/types/session";
-import type { CampoDeFecha } from "@/lib/rango-de-fechas-chats";
+import {
+  ATAJOS_DE_RANGO,
+  atajoDelRango,
+  rangoDelAtajo,
+  type AtajoDeRango,
+  type CampoDeFecha,
+} from "@/lib/rango-de-fechas-chats";
 
 /**
  * El panel del embudo: DOS filtros en un solo sitio.
@@ -61,6 +67,19 @@ export function TagFilterPanel({
   // El embudo se marca activo con CUALQUIERA de los dos filtros, igual que ya se
   // marcaba con las etiquetas.
   const activo = filterCount > 0 || rangoActivo;
+
+  // Los atajos (Hoy, Ayer, Últimos 7/30 días) rellenan Desde y Hasta de una
+  // vez. Un solo `ahora` por render: el marcado y el clic deciden con la misma
+  // fecha, calculada en la zona de la cuenta (nunca en UTC). El atajo marcado
+  // sale del rango puesto, así que escribir fechas a mano que no casen deja los
+  // cuatro sin marcar, y «Limpiar» los apaga sin ninguna rama aparte.
+  const ahora = new Date();
+  const atajoActivo = atajoDelRango(rangoDesde, rangoHasta, ahora);
+  const aplicarAtajo = (id: AtajoDeRango) => {
+    const r = rangoDelAtajo(id, ahora);
+    onRangoDesde(r.desde);
+    onRangoHasta(r.hasta);
+  };
 
   const sorted = tags
     .slice()
@@ -138,6 +157,34 @@ export function TagFilterPanel({
           </span>
           {campoDeFecha === "actividad" && <Check className="h-4 w-4 shrink-0 text-primary" />}
         </button>
+
+        {/* Atajos, ENCIMA de Desde y Hasta. `flex-1` sin `min-w-0`: cada chip
+            crece por igual y nunca encoge por debajo de su texto, así que los
+            cuatro caben en una sola fila del panel sin cortarse. El marcado usa
+            el mismo realce que el resto del panel. */}
+        <div className="mt-1 flex items-center gap-1 px-1" data-atajos>
+          {ATAJOS_DE_RANGO.map(({ id, etiqueta, titulo }) => {
+            const marcado = atajoActivo === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => aplicarAtajo(id)}
+                data-atajo={id}
+                data-marcado={marcado ? "si" : "no"}
+                title={titulo}
+                className={cn(
+                  "flex-1 whitespace-nowrap rounded-md border px-1 py-1 text-[11px] font-medium transition-colors",
+                  marcado
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                )}
+              >
+                {etiqueta}
+              </button>
+            );
+          })}
+        </div>
 
         <div className="mt-1 space-y-1 px-1">
           <label className="flex items-center gap-2 text-sm">
