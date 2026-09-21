@@ -425,7 +425,7 @@ export async function logOutgoingCallAction(
   meta?: { astraSid?: string; astraCallId?: string; metaCallId?: string; provider?: string; isBot?: boolean },
   /** La linea por la que entro la conversacion desde la que se llamo. */
   lineaDeLaConversacion?: string | null,
-): Promise<{ id: string | null }> {
+): Promise<{ id: string | null; userId?: string }> {
   try {
     const enLaLinea = await dondeSeAnotaLaLlamada(lineaDeLaConversacion);
     const me = await currentUser();
@@ -477,7 +477,14 @@ export async function logOutgoingCallAction(
       where: { userId, instanceName, messageId, fromMe: true },
       select: { id: true },
     });
-    return { id: row ? String(row.id) : null };
+    // **Y bajo QUE cuenta quedo escrita.** No es un extra: quien luego pida la
+    // transcripcion busca la fila con `(id, userId)`, y aqui el `userId` puede
+    // no ser el de quien llamo — es el DUEÑO de la linea de la conversacion,
+    // que en una familia de cuentas vinculadas es otra cuenta distinta. Con el
+    // id de quien llamo, esa busqueda no encuentra nada y la llamada se queda
+    // sin Resumen IA sin un solo error: «se guarda en la llamada correcta y en
+    // la cuenta correcta» empieza por devolver cual fue.
+    return { id: row ? String(row.id) : null, userId };
   } catch {
     /* best-effort, nunca rompe la llamada */
     return { id: null };

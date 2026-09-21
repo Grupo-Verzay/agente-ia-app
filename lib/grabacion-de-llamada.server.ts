@@ -33,9 +33,27 @@ import { Readable } from 'stream';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
 import { minioClient } from '@/lib/minio';
+import { laFamiliaDeLaCuenta } from '@/lib/familia-de-cuentas';
+import { laCuentaQuePagaLaTranscripcion } from '@/lib/nota-de-voz-del-equipo';
+import { descontarLaTranscripcion, losCreditosQueQuedan } from '@/lib/creditos-de-transcripcion';
+import { porQueNoSeTranscribio, queHacerConLaGrabacion } from '@/lib/transcripcion-de-la-llamada';
 
 const BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ASTRACALLS_API_KEY || '';
+
+/**
+ * Cuanto se espera a que una grabacion este lista, y cuantas veces.
+ *
+ * Treinta segundos por vuelta y sesenta vueltas: **media hora** contada desde
+ * que la llamada se lanza. No es generosidad — la grabacion no existe hasta
+ * que alguien cuelga, asi que la ventana tiene que cubrir la conversacion
+ * entera. Con los 200 s de antes, una llamada de cinco minutos se quedaba sin
+ * texto por haber durado lo normal.
+ */
+// Exportadas para que el banco las LEA en vez de escribirlas a mano: copiado,
+// probaria que su numero coincide con el del banco y no con el que corre.
+export const ESPERA_ENTRE_INTENTOS_MS = 30_000;
+export const INTENTOS_DE_GRABACION = 60;
 
 interface AiCfg {
   apiKey: string;
@@ -43,29 +61,86 @@ interface AiCfg {
   modelName: string;
 }
 
+/**
+ * La clave con la que se transcribe y se resume.
+ *
+ * **Se elige igual que la elige `laClaveDeOpenAi`** —su proveedor por defecto
+ * activo, luego cualquiera activo, luego la primera—, que es el mismo criterio
+ * con el que `pagaElClienteSuIa` decide quién paga. Antes esto se rendía en su
+ * primera línea cuando la cuenta no tenía `defaultProviderId` puesto, y eso no
+ * se veía como un fallo: la llamada se quedaba sin Resumen IA y el único
+ * rastro era un `success: false` que nadie leía.
+ *
+ * Decidir el cobro sobre una clave y transcribir con otra sería cobrarle a
+ * quien no gasta, así que las dos preguntas miran la misma lista.
+ */
 async function getUserAiConfig(userId: string): Promise<AiCfg | null> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { defaultProviderId: true, defaultAiModelId: true },
+    select: {
+      defaultProviderId: true,
+      defaultAiModelId: true,
+      aiConfigs: { select: { providerId: true, apiKey: true, isActive: true } },
+    },
   });
-  if (!user?.defaultProviderId) return null;
+  if (!user) return null;
 
-  const [config, provider, model] = await Promise.all([
-    db.userAiConfig.findFirst({
-      where: { userId, providerId: user.defaultProviderId, isActive: true },
-      select: { apiKey: true },
-    }),
-    db.aiProvider.findUnique({ where: { id: user.defaultProviderId }, select: { name: true } }),
+  const elegida =
+    (user.defaultProviderId
+      ? user.aiConfigs.find((c) => c.providerId === user.defaultProviderId && c.isActive) ??
+        user.aiConfigs.find((c) => c.providerId === user.defaultProviderId)
+      : undefined) ??
+    user.aiConfigs.find((c) => c.isActive) ??
+    user.aiConfigs[0];
+
+  const apiKey = elegida?.apiKey?.trim();
+  if (!apiKey || !elegida) return null;
+
+  const [provider, model] = await Promise.all([
+    db.aiProvider.findUnique({ where: { id: elegida.providerId }, select: { name: true } }),
     user.defaultAiModelId
       ? db.aiModel.findUnique({ where: { id: user.defaultAiModelId }, select: { name: true } })
       : null,
   ]);
-  if (!config?.apiKey || !provider?.name) return null;
+  if (!provider?.name) return null;
+
+  // El modelo por defecto de la cuenta solo vale si es del MISMO proveedor que
+  // la clave elegida: con la clave de OpenAI y un modelo de Gemini escrito al
+  // lado, la transcripcion se pediria con un nombre de modelo que esa API no
+  // conoce y volveria vacia sin decir por que.
+  const modeloDeLaCuenta =
+    elegida.providerId === user.defaultProviderId ? model?.name ?? null : null;
+
   return {
-    apiKey: config.apiKey,
+    apiKey,
     providerName: provider.name,
-    modelName: model?.name ?? (provider.name === 'google' ? 'gemini-2.0-flash' : 'gpt-4o-mini'),
+    modelName: modeloDeLaCuenta ?? (provider.name === 'google' ? 'gemini-2.0-flash' : 'gpt-4o-mini'),
   };
+}
+
+/**
+ * Quien PAGA la transcripcion de una llamada.
+ *
+ * **La cuenta, nunca la persona**, y dentro de una familia la **madre** — que
+ * es exactamente la misma regla, y la misma funcion, con la que se cobran las
+ * notas de voz de Chats y las del chat del equipo. `ia_credits` tiene una fila
+ * por cuenta: cobrarle a una persona seria cobrarle a una fila que no existe,
+ * y entonces `losCreditosQueQuedan` devolveria 0 y no se transcribiria nada.
+ *
+ * Un fallo al resolver la familia **no deja la llamada sin texto**: se sigue
+ * con la cuenta suelta, que es el lado seguro, y se dice.
+ */
+async function laCuentaQuePagaLaLlamada(cuentaId: string): Promise<string> {
+  try {
+    const familia = await laFamiliaDeLaCuenta(cuentaId);
+    return laCuentaQuePagaLaTranscripcion({ cuentaId, raizDeLaFamilia: familia.raiz });
+  } catch (error) {
+    console.warn('[llamadas] no se pudo resolver la familia para cobrar la transcripcion', {
+      cuentaId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return cuentaId;
+  }
 }
 
 async function fetchRecordingBase64(sid: string, callId: string): Promise<string | null> {
@@ -157,7 +232,16 @@ async function summarize(transcript: string, cfg: AiCfg): Promise<string> {
       messages: [{ role: 'user', content: transcript }],
     });
     return res.content;
-  } catch {
+  } catch (error) {
+    // Nunca mudo: sin esto, una llamada queda con su Transcripcion y sin
+    // Resumen IA y no hay forma de saber si fallo el modelo, la clave o la
+    // red. La transcripcion se guarda igual — media entrega es mejor que
+    // ninguna cuando la mitad que sale ya esta pagada.
+    console.warn('[llamadas] el resumen no salio', {
+      proveedor: cfg.providerName,
+      modelo: cfg.modelName,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return '';
   }
 }
@@ -238,18 +322,57 @@ export async function processCallRecordingForUser(input: {
   if (callObj.transcript) return { success: true }; // ya procesada
 
   const wavBase64 = await fetchRecordingBase64(input.astraSid, input.astraCallId);
-  if (!wavBase64) return { success: false, message: 'Grabación no disponible aún.' };
+  if (!wavBase64) {
+    console.info('[llamadas] la grabacion todavia no esta lista', {
+      chatMessageId: input.chatMessageId,
+      astraCallId: input.astraCallId,
+    });
+    return { success: false, message: 'Grabación no disponible aún.' };
+  }
 
-  const cfg = await getUserAiConfig(input.userId);
-  if (!cfg) return { success: false, message: 'Sin configuración de IA activa.' };
-
-  const transcript = await transcribe(wavBase64, cfg);
-  const summary = transcript ? await summarize(transcript, cfg) : '';
+  const audio = Buffer.from(wavBase64, 'base64');
 
   // La duración solo se recalcula si aún no hay una (p.ej. la llamada del
   // asesor ya la trae medida en vivo desde el navegador; la del bot llega en 0
   // porque nadie la midió, así que aquí se completa con la del audio).
-  const duracion = Number(callObj.durationSecs ?? 0) || duracionDelWav(Buffer.from(wavBase64, 'base64'));
+  const duracion = Number(callObj.durationSecs ?? 0) || duracionDelWav(audio);
+
+  // Quien paga: la CUENTA de la llamada, y la madre dentro de una familia.
+  const paga = await laCuentaQuePagaLaLlamada(input.userId);
+  const que = queHacerConLaGrabacion({
+    segundos: duracion,
+    bytes: audio.length,
+    creditosDisponibles: await losCreditosQueQuedan(paga),
+  });
+  if (que.hacer !== 'transcribir') {
+    const motivo = porQueNoSeTranscribio(que) ?? 'No se pudo transcribir.';
+    console.warn('[llamadas] no se transcribe la grabacion', {
+      chatMessageId: input.chatMessageId,
+      cuentaQuePaga: paga,
+      motivo,
+    });
+    return { success: false, message: motivo };
+  }
+
+  const cfg = await getUserAiConfig(input.userId);
+  if (!cfg) {
+    console.warn('[llamadas] la cuenta no tiene ninguna clave de IA activa', {
+      chatMessageId: input.chatMessageId,
+      userId: input.userId,
+    });
+    return { success: false, message: 'Sin configuración de IA activa.' };
+  }
+
+  const transcript = await transcribe(wavBase64, cfg);
+  if (!transcript) {
+    console.warn('[llamadas] la transcripcion volvio vacia', {
+      chatMessageId: input.chatMessageId,
+      proveedor: cfg.providerName,
+      bytes: audio.length,
+      segundos: duracion,
+    });
+  }
+  const summary = transcript ? await summarize(transcript, cfg) : '';
 
   const nextRaw = {
     ...rawObj,
@@ -264,8 +387,112 @@ export async function processCallRecordingForUser(input: {
     },
   };
 
-  await db.chatMessage.update({ where: { id }, data: { raw: nextRaw as Prisma.InputJsonValue } });
+  await guardarYCobrar({
+    id,
+    nextRaw,
+    cuentaQuePaga: paga,
+    tokens: transcript ? que.costo.tokens : 0,
+  });
   return { success: true };
+}
+
+/**
+ * Escribe el resultado y **cobra solo si de verdad lo escribió esta vuelta**.
+ *
+ * El `UPDATE` va condicionado a que la fila siga sin transcripción, igual que
+ * el de las notas de voz: dos vueltas a la vez —el reintento del navegador y
+ * el sondeo del servidor pueden coincidir— escriben una sola vez, y **solo esa
+ * descuenta**. Con un `update` por id a secas las dos escribirían y las dos
+ * cobrarían, y eso no se ve: se nota en la factura.
+ *
+ * Y se cobra **después** de tener el texto, nunca antes: cobrar y que la
+ * llamada a OpenAI falle sería cobrar por algo que no se entregó. Por eso una
+ * transcripción vacía llega aquí con `tokens: 0`.
+ */
+async function guardarYCobrar(input: {
+  id: bigint;
+  nextRaw: Record<string, unknown>;
+  cuentaQuePaga: string;
+  tokens: number;
+}): Promise<void> {
+  const filas = await db.$executeRaw`
+    UPDATE "chat_messages"
+       SET "raw" = ${input.nextRaw as Prisma.InputJsonValue}
+     WHERE "id" = ${input.id}
+       AND ("raw" -> 'call' ->> 'transcript') IS NULL
+  `;
+  if (filas < 1) {
+    console.info('[llamadas] otra vuelta ya habia guardado la transcripcion; no se cobra', {
+      chatMessageId: String(input.id),
+    });
+    return;
+  }
+  if (input.tokens > 0) await descontarLaTranscripcion(input.cuentaQuePaga, input.tokens);
+}
+
+/**
+ * Espera a que la grabación esté lista y la procesa. **Uno solo, para los dos
+ * caminos del bot**: el botón «Llamar con IA» del CRM y la automatización del
+ * flujo (`AI_CALL`), que llega por `/api/calls/process-bot-recording`.
+ *
+ * Antes cada uno tenía lo suyo, y eso se pagó entero: el manual **no esperaba
+ * nada** —ni siquiera guardaba el `astraCallId`, así que la grabación no se
+ * podía ni pedir— y el del flujo esperaba 10 vueltas de 20 s, o sea **200
+ * segundos contados desde que la llamada se LANZA**. Una llamada de cinco
+ * minutos agotaba las diez vueltas estando todavía en curso, y la grabación
+ * quedaba lista justo después de que nadie la mirara.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **La ventana se cuenta desde que se lanza la llamada, así que tiene que
+ *    cubrir la llamada ENTERA más lo que Astra tarde en cerrar el WAV.** La
+ *    grabación no existe hasta que se cuelga: rendirse antes es rendirse
+ *    mientras la gente sigue hablando.
+ * 2. **`ya procesada` es un final, no un reintento.** El proceso es idempotente
+ *    y contesta `success` sin escribir; seguir sondeando después sería tener el
+ *    bucle vivo media hora para no hacer nada.
+ * 3. **Rendirse NO es mudo.** Un `void` que se apaga en silencio es justo lo
+ *    que hizo que esto se leyera como «la llamada no deja resumen» durante
+ *    semanas, sin un solo error donde mirar.
+ */
+export async function esperarYProcesarLaGrabacion(input: {
+  userId: string;
+  chatMessageId: string;
+  astraSid: string;
+  astraCallId: string;
+}): Promise<void> {
+  if (!BASE || !KEY) return;
+
+  for (let intento = 1; intento <= INTENTOS_DE_GRABACION; intento++) {
+    await new Promise((resolve) => setTimeout(resolve, ESPERA_ENTRE_INTENTOS_MS));
+    try {
+      const res = await processCallRecordingForUser(input);
+      if (res.success) {
+        console.info('[llamadas] grabacion procesada', {
+          chatMessageId: input.chatMessageId,
+          intento,
+        });
+        return;
+      }
+      // Lo que no es «todavía no está» es firme —sin créditos, demasiado
+      // grande, sin clave de IA— y no mejora sondeando: se para aquí, que ya
+      // lo dijo `processCallRecordingForUser`.
+      if (res.message !== 'Grabación no disponible aún.') return;
+    } catch (error) {
+      console.warn('[llamadas] fallo una vuelta esperando la grabacion', {
+        chatMessageId: input.chatMessageId,
+        intento,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  console.warn('[llamadas] la grabacion nunca quedo lista', {
+    chatMessageId: input.chatMessageId,
+    astraCallId: input.astraCallId,
+    intentos: INTENTOS_DE_GRABACION,
+    ventanaMin: Math.round((INTENTOS_DE_GRABACION * ESPERA_ENTRE_INTENTOS_MS) / 60000),
+  });
 }
 
 function extFromMime(mime: string): string {
@@ -337,8 +564,26 @@ export async function processMetaCallRecordingForUser(input: {
   // 1) Subir la grabación para poder reproducirla en el detalle.
   const recordingUrl = await uploadRecording(userId, buffer, mimeType);
 
-  // 2) Transcribir + resumir con la IA del usuario (mismo pipeline que Astra).
-  const cfg = await getUserAiConfig(userId);
+  // 2) Transcribir + resumir con la IA del usuario (mismo pipeline que Astra),
+  //    y **cobrarlo igual**. Es el mismo Whisper sobre el mismo audio: dejar
+  //    gratis una de las dos mitades es la familia de «a una hermana se le
+  //    pasa», y no se ve — se nota en la factura de quien paga la clave.
+  const paga = await laCuentaQuePagaLaLlamada(userId);
+  const que = queHacerConLaGrabacion({
+    segundos: Number(callObj.durationSecs ?? 0),
+    bytes: buffer.length,
+    creditosDisponibles: await losCreditosQueQuedan(paga),
+  });
+
+  const cfg = que.hacer === 'transcribir' ? await getUserAiConfig(userId) : null;
+  if (que.hacer !== 'transcribir') {
+    console.warn('[llamadas] no se transcribe la grabacion de Meta', {
+      chatMessageId: input.chatMessageId,
+      cuentaQuePaga: paga,
+      motivo: porQueNoSeTranscribio(que),
+    });
+  }
+
   let transcript = '';
   let summary = '';
   if (cfg) {
@@ -360,6 +605,11 @@ export async function processMetaCallRecordingForUser(input: {
     },
   };
 
-  await db.chatMessage.update({ where: { id }, data: { raw: nextRaw as Prisma.InputJsonValue } });
+  await guardarYCobrar({
+    id,
+    nextRaw,
+    cuentaQuePaga: paga,
+    tokens: transcript && que.hacer === 'transcribir' ? que.costo.tokens : 0,
+  });
   return { success: true };
 }

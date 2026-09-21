@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
 import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
 import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
 import { logOutgoingCallAction } from '@/actions/astracalls-actions';
+import { esperarYProcesarLaGrabacion } from '@/lib/grabacion-de-llamada.server';
 
 const ASTRA_BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const ASTRA_KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -114,8 +115,28 @@ export async function setVoicebotConfig(input: {
  * que llame al número y, al contestar, conecte la IA de voz. Requiere el toggle
  * "Asistente de voz IA" activo (lo valida el resolve del backend).
  */
+/**
+ * El id que devuelve el servidor de llamadas al lanzar la del bot.
+ *
+ * Hoy contesta `{"call":{"callId":"…"}}`, y se leen tambien las otras formas
+ * por el mismo motivo por el que las lee el backend: **una forma de dato se
+ * comprueba en todas sus fuentes**, y aqui equivocarse no da ningun error —
+ * deja la llamada sin `astraCallId`, o sea sin forma de pedir su grabacion
+ * nunca mas.
+ */
+function elIdDeLaLlamada(cuerpo: unknown): string | null {
+  if (!cuerpo || typeof cuerpo !== 'object') return null;
+  const raiz = cuerpo as Record<string, unknown>;
+  const dentro = (raiz.call && typeof raiz.call === 'object' ? raiz.call : {}) as Record<string, unknown>;
+  const candidato = raiz.callId ?? raiz.id ?? dentro.callId ?? dentro.id;
+  const texto = typeof candidato === 'string' || typeof candidato === 'number' ? String(candidato).trim() : '';
+  return texto || null;
+}
+
 export async function startBotCallAction(
   phone: string,
+  /** La linea por la que entro la conversacion desde la que se llama. */
+  lineaDeLaConversacion?: string | null,
 ): Promise<{ success: boolean; message?: string }> {
   const me = await currentUser();
   if (!me?.id) return { success: false, message: 'No autorizado.' };
@@ -171,7 +192,43 @@ export async function startBotCallAction(
     }
     // Registra la llamada del bot como SALIENTE (IA) para que no la tomen como
     // perdida (el evento de Evolution se deduplica en el backend).
-    await logOutgoingCallAction(digits, 0, false, undefined, { isBot: true });
+    //
+    // **Y con su `astraSid` y su `astraCallId` dentro.** Esta es la causa de
+    // que una llamada con IA lanzada a mano nunca dejara Resumen IA ni
+    // Transcripcion: la respuesta del servidor de llamadas —que trae el id de
+    // la llamada— se tiraba, la fila se escribia sin el, y sin ese par no hay
+    // forma de pedir la grabacion. No fallaba nada: simplemente no habia a
+    // quien preguntarle por el audio.
+    const callId = elIdDeLaLlamada(await r.json().catch(() => null));
+    const { id: filaDeLaLlamada, userId: cuentaDeLaFila } = await logOutgoingCallAction(
+      digits,
+      0,
+      false,
+      undefined,
+      { isBot: true, provider: 'astra', astraSid: sid, ...(callId ? { astraCallId: callId } : {}) },
+      lineaDeLaConversacion,
+    );
+
+    if (!callId) {
+      // Sin id no hay grabacion que pedir. La llamada sale igual —eso es lo
+      // que importa— pero se dice, que es lo contrario de quedarse sin resumen
+      // sin saber por que.
+      console.warn('[llamadas] el servidor de llamadas no devolvio el id de la llamada del bot', {
+        sid,
+      });
+    } else if (filaDeLaLlamada) {
+      // De fondo: la grabacion no existe hasta que alguien cuelga. Es la
+      // MISMA espera que usa el flujo por `/api/calls/process-bot-recording`.
+      void esperarYProcesarLaGrabacion({
+        // La cuenta bajo la que quedo la FILA, no la de quien llamo: cuando la
+        // conversacion es de una linea de otra cuenta de la familia, son dos
+        // ids distintos y buscar con el equivocado no encuentra nada.
+        userId: cuentaDeLaFila ?? cuenta,
+        chatMessageId: filaDeLaLlamada,
+        astraSid: sid,
+        astraCallId: callId,
+      });
+    }
     return { success: true };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Error iniciando la llamada del bot.' };

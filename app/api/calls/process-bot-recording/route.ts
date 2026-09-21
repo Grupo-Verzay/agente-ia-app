@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { processCallRecordingForUser } from '@/lib/grabacion-de-llamada.server';
+import {
+  esperarYProcesarLaGrabacion,
+  processCallRecordingForUser,
+} from '@/lib/grabacion-de-llamada.server';
 
 // La llamada del bot no tiene sesión de navegador que avise cuándo cuelga, así
 // que es el backend quien detecta que la grabación ya está lista y pide aquí
@@ -29,6 +32,13 @@ export async function POST(request: Request) {
   const messageId = typeof body?.messageId === 'string' ? body.messageId.trim() : '';
   const astraSid = typeof body?.astraSid === 'string' ? body.astraSid.trim() : '';
   const astraCallId = typeof body?.astraCallId === 'string' ? body.astraCallId.trim() : '';
+  // El backend ya no sondea la grabacion por su cuenta: avisa en cuanto lanza
+  // la llamada y la espera vive aqui, en el MISMO sitio que la del boton
+  // «Llamar con IA». Dos esperas —una en cada repositorio, con dos ventanas
+  // distintas— es una que se afina y otra que se queda atras: la del backend
+  // se rendia a los 200 s contados desde que la llamada empieza, o sea a mitad
+  // de cualquier conversacion normal.
+  const esperar = body?.esperar === true;
 
   if (!userId || !instanceName || !messageId || !astraSid || !astraCallId) {
     return NextResponse.json(
@@ -43,13 +53,32 @@ export async function POST(request: Request) {
     where: { userId, instanceName, messageId, fromMe: true },
     select: { id: true },
   });
-  if (!row) return NextResponse.json({ success: false, message: 'Llamada no encontrada.' });
+  if (!row) {
+    // Mudo, esto se leia como «la llamada no deja resumen». Pasa cuando la
+    // fila se escribio bajo OTRA cuenta o bajo otra linea: el proceso busca
+    // por (userId, instanceName, messageId) y no la encuentra.
+    console.warn('[llamadas] no se encontro la llamada que hay que transcribir', {
+      userId,
+      instanceName,
+      messageId,
+    });
+    return NextResponse.json({ success: false, message: 'Llamada no encontrada.' });
+  }
 
-  const result = await processCallRecordingForUser({
+  const trabajo = {
     userId,
     chatMessageId: String(row.id),
     astraSid,
     astraCallId,
-  });
+  };
+
+  if (esperar) {
+    // De fondo, sin `await`: quien avisa acaba de lanzar la llamada y no puede
+    // quedarse media hora esperando a que alguien cuelgue.
+    void esperarYProcesarLaGrabacion(trabajo);
+    return NextResponse.json({ success: true, esperando: true }, { status: 202 });
+  }
+
+  const result = await processCallRecordingForUser(trabajo);
   return NextResponse.json(result);
 }
