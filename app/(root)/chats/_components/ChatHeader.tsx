@@ -4,7 +4,7 @@ import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChats
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { CompartirConElEquipo } from "@/components/chat-equipo/CompartirConElEquipo";
-import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, X } from 'lucide-react';
+import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ import { devolverChatALaIaAction, quitarDeEsperaAction } from '@/actions/advisor
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
-import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
+import { MenuDeLlamada } from '@/components/chats/MenuDeLlamada';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
@@ -349,19 +349,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   const callDigits = (displayedWhatsapp || remoteJid || '').replace(/\D/g, '');
-  const handleCall = () => {
-    if (!callDigits) {
-      toast.error('No hay número de WhatsApp para llamar.');
-      return;
-    }
-    // La tarjeta la sostiene el anfitrión del layout, no esta cabecera: así la
-    // llamada aguanta al cambiar de conversación o de pantalla.
-    abrirLlamadaAqui({
-      phone: callDigits,
-      contactName: displayedContactName,
-      instanceType,
-      instanceName,
-    });
+  // Lo que las dos formas de llamar necesitan, resuelto una vez. La LÍNEA es la
+  // de la conversación abierta y viaja en las dos: `abrirLlamadaAqui` la usa
+  // para el número de salida y `startBotCallAction` para la cuenta que llama y
+  // para dónde se anota la burbuja (ver *la salida es la línea de la
+  // CONVERSACIÓN*). Abrir la tarjeta sigue siendo cosa del anfitrión del
+  // layout, no de esta cabecera, así que la llamada aguanta al cambiar de
+  // conversación o de pantalla.
+  const datosParaLlamar = {
+    phone: callDigits,
+    contactName: displayedContactName,
+    instanceType,
+    instanceName,
   };
 
   const sessionStatusTone = session?.status
@@ -686,16 +685,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           <div className="-mx-2 border-t border-border/30 bg-muted/30">
             <div className="flex items-center justify-between gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-none">
               {/* 1. Acción directa */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
-                onClick={handleCall}
-                title="Llamar por WhatsApp"
-              >
-                <Phone className="h-3.5 w-3.5" />
-              </Button>
+              <MenuDeLlamada datos={datosParaLlamar} className="h-7 w-7" iconoClassName="h-3.5 w-3.5" />
               {advisorBadge}
               {/* 2. CRM / agenda */}
               <ChatReminderDialog session={session!} userId={userId} />
@@ -885,16 +875,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {session && (
             <>
               {/* 1. Acción directa */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
-                onClick={handleCall}
-                title="Llamar por WhatsApp"
-              >
-                <Phone className="h-4 w-4" />
-              </Button>
+              <MenuDeLlamada datos={datosParaLlamar} className="h-7 w-7" iconoClassName="h-4 w-4" />
               {advisorBadge}
               {/* 2. CRM / agenda */}
               <ChatReminderDialog session={session!} userId={userId} />

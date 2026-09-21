@@ -59,6 +59,20 @@ import { cn } from "@/lib/utils";
  * en la única fila que escasea, no contesta ninguna pregunta que la lista de
  * abajo no conteste ya, y enseña a no mirar las de al lado.
  *
+ * # `enElTelefono`: la excepción, y por qué es opt-in
+ *
+ * Las pastillas van `hidden sm:flex` **a propósito**: son cifras que la lista
+ * de abajo ya contesta, y en un teléfono la barra ya va justa con el buscador y
+ * el botón de crear. Esa sigue siendo la regla.
+ *
+ * Lo que `enElTelefono` abre es el caso contrario, el mismo por el que las dos
+ * pastillas de Reuniones se escribieron a mano: **cuando la pastilla es la
+ * única forma de llegar a algo**, esconderla en el teléfono es quitar la
+ * función, no ahorrar sitio. En el marcador de Llamadas las tres pastillas son
+ * el filtro de dirección del historial, y su renglón ya se desplaza, así que no
+ * le quitan ancho a nada. Va **opt-in y con su motivo escrito en quien la
+ * pasa**: en las veintidós pantallas que no la pasan no cambia nada.
+ *
  * # `deslizable`: la barra no crece, se desplaza
  *
  * Una fila de pastillas dentro de una barra que ya lleva buscador y botones se
@@ -100,13 +114,25 @@ export function PastillasDeMetricas({
     metricas,
     className,
     deslizable = false,
+    enElTelefono = false,
 }: {
     metricas: Metrica[];
     className?: string;
     /** El grupo va en un carril con flechas en vez de empujar la barra. */
     deslizable?: boolean;
+    /**
+     * También en el teléfono. Solo donde la pastilla es la única forma de
+     * llegar a lo que filtra; ver la explicación de arriba.
+     */
+    enElTelefono?: boolean;
 }) {
     if (metricas.length === 0) return null;
+
+    // Sin `enElTelefono` manda la regla de siempre: escondido, y `sm:` lo
+    // enseña. Con él se pinta desde el primer píxel — y hay que escribir el
+    // `display` bueno, no solo quitar el `hidden`: `sm:flex` a secas deja la
+    // fila en `block` por debajo de 640 y las pastillas salen apiladas.
+    const enReposo = (mostrado: string) => (enElTelefono ? mostrado : "hidden");
 
     return (
         // El `TooltipProvider` va AQUÍ y no se da por supuesto en la pantalla:
@@ -118,9 +144,10 @@ export function PastillasDeMetricas({
         <TooltipProvider delayDuration={120}>
             {/* En el teléfono no caben: son las mismas cifras que las tarjetas,
                 que también se saltaban en móvil (`hidden sm:flex`). Ahí la barra
-                ya va justa con el buscador y el botón de crear. */}
+                ya va justa con el buscador y el botón de crear. La excepción
+                —`enElTelefono`— está explicada arriba. */}
             {deslizable ? (
-                <BarraDeslizable className={cn("hidden sm:block", className)}>
+                <BarraDeslizable className={cn(enReposo("block"), "sm:block", className)}>
                     <div className="flex w-max items-center gap-1">
                         {metricas.map((m) => (
                             <Pastilla key={m.clave} metrica={m} />
@@ -128,7 +155,7 @@ export function PastillasDeMetricas({
                     </div>
                 </BarraDeslizable>
             ) : (
-                <div className={cn("hidden shrink-0 items-center gap-1 sm:flex", className)}>
+                <div className={cn(enReposo("flex"), "shrink-0 items-center gap-1 sm:flex", className)}>
                     {metricas.map((m) => (
                         <Pastilla key={m.clave} metrica={m} />
                     ))}

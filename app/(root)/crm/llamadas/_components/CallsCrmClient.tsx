@@ -14,13 +14,12 @@ import {
   CalendarClock,
   Tag,
   FileText,
-  Bot,
   MoreVertical,
   Trash2,
   MessageSquare,
   ArrowUpDown,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -65,7 +64,7 @@ import {
 } from '@/actions/calls-crm-actions';
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { startBotCallAction } from '@/actions/voicebot-actions';
-import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
+import { BarraDelMarcador } from './BarraDelMarcador';
 import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { CallDetailDialog } from './CallDetailDialog';
 import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
@@ -273,17 +272,6 @@ export function CallsCrmClient({
 
   const kpis = data?.kpis;
 
-  // Última llamada (entrante o saliente) para rellamada rápida. Las llamadas
-  // llegan ordenadas por fecha descendente, así que la primera válida es la
-  // más reciente.
-  const recentDials = useMemo<{ phone: string; name?: string }[]>(() => {
-    for (const c of data?.calls ?? []) {
-      if (!/\d{6,}/.test(c.phone)) continue;
-      return [{ phone: c.phone, name: c.contactName ?? undefined }];
-    }
-    return [];
-  }, [data]);
-
   const visibleCalls = useMemo(() => {
     const raw = query.trim().toLowerCase();
     const digits = raw.replace(/\D/g, '');
@@ -425,131 +413,58 @@ export function CallsCrmClient({
         </div>
       </div>
 
-      {/* Marcador */}
-      <Card className="border-border">
-        <CardContent className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
-          <span className="flex items-center gap-2 text-sm font-medium">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-              <PhoneOutgoing className="h-4 w-4" />
-            </span>
-            Marcador
-          </span>
-          <Input
-            value={dialNumber}
-            onChange={(e) => setDialNumber(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') startDial(); }}
-            placeholder="Número con código de país, ej. 573001234567"
-            inputMode="tel"
-            className="h-9 w-full sm:w-80"
-          />
-          <Button
-            className="h-9 gap-2 bg-green-600 text-white hover:bg-green-700"
-            onClick={startDial}
-            disabled={dialDigits.length < 6}
-          >
-            <Phone className="h-4 w-4" /> Llamar
-          </Button>
-          <Button
-            variant="outline"
-            className="h-9 gap-2 border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-900/50 dark:text-violet-400 dark:hover:bg-violet-950/30"
-            onClick={() => void startBotDial()}
-            disabled={dialDigits.length < 6 || botDialing}
-            title="El asistente de voz IA llama y conversa por ti"
-          >
-            {botDialing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-            Llamar con IA
-          </Button>
-
-          {/* Rellamada rápida: la última llamada */}
-          {recentDials.length > 0 && (
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:justify-end">
-              <span className="text-xs font-medium text-muted-foreground">Rellamar:</span>
-              {recentDials.map((d) => (
-                <button
-                  key={d.phone}
-                  type="button"
-                  onClick={() => abrirLlamadaAqui({ phone: d.phone, contactName: d.name })}
-                  title={`Llamar a ${d.name || `+${d.phone}`}`}
-                  className="inline-flex max-w-[10rem] items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-green-300 hover:bg-green-50 hover:text-green-700 dark:hover:border-green-900/50 dark:hover:bg-green-950/30 dark:hover:text-green-400"
-                >
-                  <Phone className="h-3 w-3 shrink-0 text-green-600" />
-                  <span className="truncate">{d.name || `+${d.phone}`}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* La barra de arriba: marcar a la izquierda, acotar a la derecha. Los
+          conteos y el filtro de dirección estaban pegados al historial, dos
+          bloques de alto más abajo; están aquí porque es la misma fila de
+          mandos, y lo que gana es la tabla. Ver `BarraDelMarcador`. */}
+      <BarraDelMarcador
+        numero={dialNumber}
+        alEscribir={setDialNumber}
+        alLlamar={startDial}
+        alLlamarConIa={() => void startBotDial()}
+        llamandoConIa={botDialing}
+        direcciones={DIRECTION_OPTIONS}
+        direccion={direction}
+        alCambiarDireccion={(v) => setDirection(v as 'all' | 'outgoing' | 'incoming')}
+        metricas={[
+          {
+            clave: 'all',
+            icono: <Phone />,
+            etiqueta: 'Total',
+            valor: kpis?.total ?? 0,
+            color: '#3B82F6',
+            ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`,
+            alPulsar: () => setDirection('all'),
+            activa: direction === 'all',
+          },
+          {
+            clave: 'outgoing',
+            icono: <PhoneOutgoing />,
+            etiqueta: 'Salientes',
+            valor: kpis?.outgoing ?? 0,
+            color: '#22C55E',
+            ayuda: 'Llamadas realizadas desde el panel',
+            alPulsar: () => setDirection(direction === 'outgoing' ? 'all' : 'outgoing'),
+            activa: direction === 'outgoing',
+          },
+          {
+            clave: 'incoming',
+            icono: <PhoneMissed />,
+            etiqueta: 'Entrantes',
+            valor: kpis?.incoming ?? 0,
+            color: '#EF4444',
+            ayuda: 'Llamadas recibidas / perdidas',
+            alPulsar: () => setDirection(direction === 'incoming' ? 'all' : 'incoming'),
+            activa: direction === 'incoming',
+          },
+        ]}
+      />
 
       {/* Gráficos eliminados aquí: ya están en la pestaña Analíticas. */}
 
       {/* Tabla */}
       <Card className="border-border flex-1">
-        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-          <CardTitle className="text-sm">Historial</CardTitle>
-          {/* Las cifras que abrían la pantalla en tarjetas, aquí — que es donde
-              está el filtro con el que se cruzan. Las tres mueven ese mismo
-              filtro, así que las tres son pastillas de verdad.
-              Salen también EN MODO EMBEBIDO: el panel del CRM las pintaba
-              arriba en cuatro tarjetas, con estos mismos números y sin filtrar
-              nada. Se quitaron de allí, que es donde sobraban, no de aquí.
-              «Contestadas» se fue entera: no hay filtro de contestadas en esta
-              tabla, y una cifra que no lleva a ninguna parte ocupa el sitio de
-              las que sí. Lo que decía —la duración media— se lee en el tooltip
-              de «Total», al lado de la duración acumulada. */}
-          <div className="ml-auto flex items-center gap-2">
-          <PastillasDeMetricas
-              deslizable
-              metricas={[
-                {
-                  clave: 'all',
-                  icono: <Phone />,
-                  etiqueta: 'Total',
-                  valor: kpis?.total ?? 0,
-                  color: '#3B82F6',
-                  ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`,
-                  alPulsar: () => setDirection('all'),
-                  activa: direction === 'all',
-                },
-                {
-                  clave: 'outgoing',
-                  icono: <PhoneOutgoing />,
-                  etiqueta: 'Salientes',
-                  valor: kpis?.outgoing ?? 0,
-                  color: '#22C55E',
-                  ayuda: 'Llamadas realizadas desde el panel',
-                  alPulsar: () => setDirection(direction === 'outgoing' ? 'all' : 'outgoing'),
-                  activa: direction === 'outgoing',
-                },
-                {
-                  clave: 'incoming',
-                  icono: <PhoneMissed />,
-                  etiqueta: 'Entrantes',
-                  valor: kpis?.incoming ?? 0,
-                  color: '#EF4444',
-                  ayuda: 'Llamadas recibidas / perdidas',
-                  alPulsar: () => setDirection(direction === 'incoming' ? 'all' : 'incoming'),
-                  activa: direction === 'incoming',
-                },
-              ]}
-            />
-          <div className="flex shrink-0 rounded-lg border border-border p-0.5">
-            {DIRECTION_OPTIONS.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => setDirection(o.value)}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                  direction === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : visibleCalls.length === 0 ? (
