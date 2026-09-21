@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { minioClient } from "@/lib/minio";
+import { laFamiliaDeLaCuenta } from "@/lib/familia-de-cuentas";
 import {
     COMO_SE_PIDE_EL_RESUMEN,
     TOPE_DE_OPENAI,
@@ -25,7 +26,7 @@ import {
 export const RUTA_DE_GRABACIONES = "/reuniones/grabaciones";
 
 /**
- * Si la CUENTA tiene el módulo de grabación.
+ * Si ALGUNA de estas cuentas tiene el módulo de grabación.
  *
  * Se pregunta por la cuenta y **no por la persona**: es un módulo que se vende
  * y se activa en Panel › Módulos, igual que los demás, así que lo que decide es
@@ -33,30 +34,63 @@ export const RUTA_DE_GRABACIONES = "/reuniones/grabaciones";
  * sentado delante. Un agente de una cuenta con grabación graba; el dueño de una
  * cuenta sin ella, no.
  *
- * Y **Reuniones no pasa por aquí**: la ruta `/reuniones` se asigna a mano y no
- * cuesta aparte. Lo único que este módulo abre es grabar y transcribir.
- *
  * Mira también los apartados (`ModuleItem`), porque un módulo puede llevar la
  * ruta dentro en vez de en su cabecera — que es como se monta la mitad de los
  * módulos de esta plataforma. Sin esa mitad, una cuenta con el apartado
  * asignado vería el botón apagado y nadie sabría por qué.
  */
-export async function laCuentaPuedeGrabar(cuentaId: string): Promise<boolean> {
-    try {
-        const filas = await db.userModule.findMany({
-            where: {
-                B: cuentaId,
-                Module: {
-                    OR: [
-                        { route: RUTA_DE_GRABACIONES },
-                        { moduleItems: { some: { url: RUTA_DE_GRABACIONES } } },
-                    ],
-                },
+async function algunaCuentaTieneElModulo(cuentaIds: string[]): Promise<boolean> {
+    const ids = cuentaIds.filter((c) => c && c.trim());
+    if (!ids.length) return false;
+    const filas = await db.userModule.findMany({
+        where: {
+            B: { in: ids },
+            Module: {
+                OR: [
+                    { route: RUTA_DE_GRABACIONES },
+                    { moduleItems: { some: { url: RUTA_DE_GRABACIONES } } },
+                ],
             },
-            select: { A: true },
-            take: 1,
-        });
-        return filas.length > 0;
+        },
+        select: { A: true },
+        take: 1,
+    });
+    return filas.length > 0;
+}
+
+/**
+ * Si una cuenta puede grabar: la tiene ella, **o la tiene la MADRE de su
+ * familia**.
+ *
+ * Esta es la mitad que faltaba y el fallo reportado: el módulo se asignaba a la
+ * cuenta madre —la que contrata y paga por la familia, igual que en Finanzas de
+ * la familia— pero el botón se pedía por la cuenta DUEÑA de cada sala, que en
+ * una familia suele ser una hija. Así que la madre tenía el módulo y ninguna
+ * reunión de la familia mostraba el botón. La grabación es una capacidad de la
+ * familia: la habilita tenerla la cuenta de la sala **o** la raíz.
+ *
+ * El camino común no paga la familia: si la propia cuenta ya tiene el módulo se
+ * contesta con una sola consulta. Solo cuando no lo tiene se resuelve la raíz
+ * —con la pista `raizHint` si quien llama ya la tenía resuelta (la vuelta del
+ * reloj la trae), para no pedir la familia cada dos segundos—.
+ */
+export async function laCuentaPuedeGrabar(
+    cuentaId: string,
+    raizHint?: string | null,
+): Promise<boolean> {
+    try {
+        // Camino barato: la cuenta de la sala tiene su propio módulo. Cubre la
+        // reunión de la propia cuenta sin tocar la familia.
+        if (await algunaCuentaTieneElModulo([cuentaId])) return true;
+
+        // Si no, ¿la tiene la madre? La raíz llega ya resuelta desde la vuelta
+        // del reloj cuando la sala es de otra cuenta de la familia; si no, se
+        // resuelve aquí (una vez, en el camino que no es el caliente).
+        const raiz = (raizHint ?? "").trim() || (await laFamiliaDeLaCuenta(cuentaId)).raiz;
+        if (raiz && raiz !== cuentaId) {
+            return algunaCuentaTieneElModulo([raiz]);
+        }
+        return false;
     } catch (error) {
         // El lado seguro es **no** dejar grabar: equivocarse hacia el sí es
         // darle gratis a una cuenta un módulo que se vende. Y no es mudo,
