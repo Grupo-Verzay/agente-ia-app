@@ -56,6 +56,12 @@ import {
 
 type ConversacionDeLaNota = {
     instanceName?: string;
+    /**
+     * Por donde conecta esa linea. No lo usa la transcripcion: lo usa el boton
+     * de «devolver llamada» de una burbuja, que tiene que llamar por la linea
+     * de la conversacion y no por la de la cuenta de quien mira.
+     */
+    instanceType?: string;
     remoteJid?: string;
     remoteJidAliases?: string[];
     apiKeyData?: { url: string; key: string };

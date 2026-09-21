@@ -74,6 +74,10 @@ import {
   elegirPreferenciaDelChat,
 } from "@/lib/chat-preference-key";
 import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
+import {
+  porDondeSaleLaRespuesta,
+  porQueNoSeEnvia,
+} from "@/lib/linea-de-la-conversacion";
 import { avatarSrcFor } from "@/lib/avatar";
 import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
@@ -871,7 +875,17 @@ export function ChatsClient({
   }, [trazaConfig]);
 
   const [selectedJid, setSelectedJid] = useState(initialSelectedJid || "");
-  const [selectedInstanceName, setSelectedInstanceName] = useState<string | null>(null);
+  /**
+   * Nace con la linea del chat que se abrio por enlace, no en `null`.
+   *
+   * Entrando por `?jid=` el estado se siembra aqui y `handleSelectFromSidebar`
+   * -que es quien escribia la linea- no llega a correr: el efecto que lo
+   * llamaria sale por `if (selectedJid)`. Asi que la conversacion quedaba
+   * abierta y la pantalla sin saber por que linea habia entrado.
+   */
+  const [selectedInstanceName, setSelectedInstanceName] = useState<string | null>(
+    initialSelectedChat?.instanceName ?? null,
+  );
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -947,7 +961,10 @@ export function ChatsClient({
   const [info, setInfo] = useState<ChatMessageInfo | undefined>(
     initialSelectedJid
       ? {
-          instanceName,
+          // La del CHAT, no la de la pagina: `instanceName` es la primera linea
+          // de la cuenta de quien mira, y por ahi se colaba la linea equivocada
+          // al boton de llamar de la cabecera y al cache de mensajes.
+          instanceName: initialSelectedChat?.instanceName ?? instanceName,
           remoteJid: initialSelectedJid,
           remoteJidAliases: identidadesParaPedirMensajes(initialSelectedChat, initialSelectedJid),
           apiKeyData,
@@ -993,7 +1010,12 @@ export function ChatsClient({
     Date.now() - ultimoAvisoEnVivoRef.current < CONFIANZA_EN_TIEMPO_REAL_MS;
 
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
-  const activeActionSetRef = useRef<InstanceActionSet | null>(null);
+  // Nace resuelto por la misma razon que `selectedInstanceName`: con un enlace
+  // `?jid=` nadie lo escribe, y todo lo que lo lee -leer historial, la
+  // presencia- se iba a la linea por defecto de la cuenta.
+  const activeActionSetRef = useRef<InstanceActionSet | null>(
+    instanceActionSets?.find((s) => s.instanceName === initialSelectedChat?.instanceName) ?? null,
+  );
   const selectedJidRef = useRef(selectedJid);
   selectedJidRef.current = selectedJid;
   const selectionRequestRef = useRef(0);
@@ -2933,6 +2955,44 @@ export function ChatsClient({
   currentContactRef.current = currentContact;
   loadingRef.current = loading;
 
+  /**
+   * La LINEA de la conversacion abierta, para leerla al enviar.
+   *
+   * Van por referencia a proposito: quien pregunta son los manejadores de
+   * envio, y meterlos en sus dependencias los haria cambiar de identidad en
+   * cada vuelta del reloj -`info` se reescribe con cada pagina de mensajes-,
+   * que es justo lo que la regla de «la lista es grande» evita.
+   */
+  const selectedInstanceNameRef = useRef<string | null>(selectedInstanceName);
+  selectedInstanceNameRef.current = selectedInstanceName;
+  const infoRef = useRef<ChatMessageInfo | undefined>(info);
+  infoRef.current = info;
+
+  /**
+   * Por donde sale lo que se escribe aqui, resuelto AL ENVIAR.
+   *
+   * Antes lo decidia `activeActionSetRef`, un `useRef` que se escribe **solo**
+   * dentro de `handleSelectFromSidebar`. Abriendo la conversacion por cualquier
+   * otro camino -un enlace `?jid=`, un contacto que no entro en la pagina
+   * cargada de la bandeja, el propio reloj reabriendo el chat- se quedaba en
+   * `null`, y los tres envios caian en `sendAnyAction`, que esta atado a
+   * `pickWhatsappOrNull(instancias)`: **la primera linea de la cuenta de quien
+   * mira**. O sea que la respuesta salia por otro numero del que escribio el
+   * cliente, sin un solo error.
+   *
+   * Ahora se resuelve con lo que la pantalla ya sabe de la conversacion, en el
+   * momento del envio. Ver `lib/linea-de-la-conversacion.ts`.
+   */
+  const salidaDeLaConversacion = useCallback(
+    () =>
+      porDondeSaleLaRespuesta(instanceActionSets, {
+        contacto: currentContactRef.current,
+        seleccionada: selectedInstanceNameRef.current,
+        info: infoRef.current,
+      }),
+    [instanceActionSets],
+  );
+
   // Precalienta el historial de una conversación (página 1, solo local) y lo
   // deja en el cache en memoria SIN cambiar la selección ni la UI. Se dispara al
   // pasar el mouse/tocar un chat en la lista, de modo que al hacer click los
@@ -3462,8 +3522,23 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar el mensaje.");
       }
 
+      // La linea de salida es la de la CONVERSACION, y se resuelve AQUI.
+      //
+      // Si se sabe por donde entro y no hay con que enviar por ahi, NO se
+      // envia: mandarlo por otra linea es escribirle al cliente desde un numero
+      // que el no conoce, y eso no da ningun error -ni aqui ni en el servidor,
+      // que respeta el contexto que le llegue-.
+      const salida = salidaDeLaConversacion();
+      const noSeEnvia = porQueNoSeEnvia(salida);
+      if (noSeEnvia) throw new Error(noSeEnvia);
+      if (!salida.juego) {
+        console.warn("[chats] no se sabe por que linea entro esta conversacion; sale por la de la cuenta", {
+          remoteJid: selectedJid,
+        });
+      }
+
       const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
-      const cacheInstanceName = activeActionSetRef.current?.instanceName ?? currentContact?.instanceName ?? instanceName;
+      const cacheInstanceName = salida.linea ?? instanceName;
       const writeMessagesCache = (msgs: EvolutionMessage[]) => {
         if (!cacheInstanceName) return;
         commitCache(getMessageCacheKey(cacheInstanceName, selectedJid), {
@@ -3473,7 +3548,7 @@ export function ChatsClient({
             instanceName: cacheInstanceName,
             remoteJid: selectedJid,
             remoteJidAliases: currentContact?.aliases,
-            apiKeyData: hablaConEvolution(activeActionSetRef.current?.instanceType) ? apiKeyData : undefined,
+            apiKeyData: hablaConEvolution(salida.juego?.instanceType) ? apiKeyData : undefined,
           },
         });
       };
@@ -3506,7 +3581,7 @@ export function ChatsClient({
 
       let result: SendMessageResult;
       try {
-        result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(sendJid, payload);
+        result = await (salida.juego?.sendText ?? sendAnyAction)(sendJid, payload);
       } catch (error) {
         // Falló la subida/envío → quitar la burbuja optimista para no dejar fantasma.
         setMessages((previous) => {
@@ -3593,6 +3668,7 @@ export function ChatsClient({
       refreshSidebarData,
       selectedJid,
       sendAnyAction,
+      salidaDeLaConversacion,
       commitCache,
       cuentaDeLaLinea,
       identidadesDeLaFila,
@@ -3715,8 +3791,12 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar el workflow.");
       }
 
+      const salida = salidaDeLaConversacion();
+      const noSeEnvia = porQueNoSeEnvia(salida);
+      if (noSeEnvia) throw new Error(noSeEnvia);
+
       const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
-      const result = await (activeActionSetRef.current?.sendWorkflow ?? sendWorkflowAction)(sendJid, workflowId);
+      const result = await (salida.juego?.sendWorkflow ?? sendWorkflowAction)(sendJid, workflowId);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar el workflow.");
       }
@@ -3734,6 +3814,7 @@ export function ChatsClient({
       refreshSidebarData,
       selectedJid,
       sendWorkflowAction,
+      salidaDeLaConversacion,
     ],
   );
 
@@ -3743,8 +3824,12 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar la respuesta rapida.");
       }
 
+      const salida = salidaDeLaConversacion();
+      const noSeEnvia = porQueNoSeEnvia(salida);
+      if (noSeEnvia) throw new Error(noSeEnvia);
+
       const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
-      const result = await (activeActionSetRef.current?.sendQuickReply ?? sendQuickReplyAction)(sendJid, quickReplyId);
+      const result = await (salida.juego?.sendQuickReply ?? sendQuickReplyAction)(sendJid, quickReplyId);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar la respuesta rapida.");
       }
@@ -3762,6 +3847,7 @@ export function ChatsClient({
       refreshSidebarData,
       selectedJid,
       sendQuickReplyAction,
+      salidaDeLaConversacion,
     ],
   );
 
@@ -3770,7 +3856,7 @@ export function ChatsClient({
       if (!selectedJid) {
         throw new Error("No hay un chat seleccionado para enviar la plantilla.");
       }
-      const instName = activeActionSetRef.current?.instanceName ?? currentContact?.instanceName;
+      const instName = salidaDeLaConversacion().linea;
       if (!instName) {
         throw new Error("No se encontró la instancia del chat.");
       }
@@ -3789,6 +3875,7 @@ export function ChatsClient({
       pollAndCompareMessages,
       refreshSidebarData,
       selectedJid,
+      salidaDeLaConversacion,
     ],
   );
 
@@ -4709,7 +4796,12 @@ export function ChatsClient({
       // Sin nada dibujado todavia, lo que hace falta es la carga completa del
       // chat, no una comparacion contra una lista vacia.
       if (messagesRef.current.length === 0 && !loadingRef.current) {
-        void selectFromSidebarRef.current?.(jid)?.catch(() => {});
+        // Con su LINEA. Sin ella, `handleSelectFromSidebar` busca el contacto
+        // solo por numero y se queda con la primera fila que aparezca, que con
+        // el mismo contacto en dos lineas puede ser la otra conversacion.
+        void selectFromSidebarRef.current
+          ?.(jid, selectedInstanceNameRef.current ?? undefined)
+          ?.catch(() => {});
         return;
       }
 

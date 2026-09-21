@@ -336,11 +336,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const conversacionDeLasNotas = useMemo(
     () => ({
       instanceName: info?.instanceName,
+      instanceType,
       remoteJid: info?.remoteJid,
       remoteJidAliases: info?.remoteJidAliases,
       apiKeyData: info?.apiKeyData,
     }),
-    [info?.instanceName, info?.remoteJid, info?.remoteJidAliases, info?.apiKeyData],
+    [info?.instanceName, instanceType, info?.remoteJid, info?.remoteJidAliases, info?.apiKeyData],
   );
 
   /* ─── Derived display values ─── */

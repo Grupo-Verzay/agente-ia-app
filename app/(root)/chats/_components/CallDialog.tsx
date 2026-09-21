@@ -273,6 +273,10 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       false,
       resultado ?? (contestada ? undefined : 'no_contesta'),
       meta,
+      // La burbuja se anota en la conversacion desde la que se llamo. Sin esto
+      // el registro caia bajo la linea por defecto de quien mira: el mensaje se
+      // escribia bien y en la conversacion que se tenia delante no aparecia.
+      metaInstanceRef.current,
     ).then(async (res) => {
       loggedIdRef.current = res.id;
       processRecording(res.id); // Astra
@@ -682,7 +686,13 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
 
     // La llamada sale por la linea de la conversacion, asi que el numero
     // con el que se llama es el de la cuenta dueña de esa linea.
-    const started = await startAstraCall(`+${phone}`, instanceName);
+    //
+    // Va `effName` y NO la prop en crudo: unas lineas mas arriba se resuelve la
+    // linea -de la prop, o de la cuenta que se esta gestionando cuando quien
+    // llama no la paso- y despues se tiraba. Asi que desde una burbuja o desde
+    // el CRM se llamaba siempre con el numero de la cuenta propia aunque la
+    // conversacion fuera de otra linea.
+    const started = await startAstraCall(`+${phone}`, effName);
     if (cancelledRef.current) return;
     if (!started.success || !started.sid || !started.callId) {
       setErrorMsg(started.message || 'No se pudo iniciar la llamada.');
