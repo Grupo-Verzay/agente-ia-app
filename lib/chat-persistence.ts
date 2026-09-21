@@ -2150,6 +2150,26 @@ async function loadPersistedInboxChats(
       WHERE s."userId" IN (${Prisma.join(userIds)})
         AND s."id" IN (SELECT "id" FROM pre_sess)
     ),
+    -- Las marcas de BORRADO de la cuenta. La lista tambien las limpia, no solo
+    -- el contador.
+    --
+    -- (Sin acentos graves en este comentario: cierran el template del queryRaw.)
+    --
+    -- Este era el agujero de fondo de "borro un chat y vuelve al recargar": la
+    -- lista salia del servidor SIN mirar estas marcas -solo el contador de cada
+    -- linea las descontaba- y el unico filtro era el del navegador, que empareja
+    -- la marca con la identidad bajo la que la fila reaparece. Cuando esa
+    -- identidad no casaba -otra de las cuatro formas, el puente lid<->numero
+    -- perdido al caducar los mensajes, la fila "antigua" sin linea- el chat
+    -- volvia. Aqui se cruza por CUALQUIER identidad de la fila (las de la
+    -- conversacion Y las de su ficha, que traen el numero cuando la conversacion
+    -- solo trae el lid), asi que da igual por cual reaparezca.
+    marcas AS (
+      SELECT "userId", "remoteJid", "deletedAt"
+      FROM "ChatConversationPreference"
+      WHERE "userId" IN (${Prisma.join(userIds)})
+        AND "deletedAt" IS NOT NULL
+    ),
     -- Mapa (userId, instanceId, instanceName) como lista literal. La fila centinela
     -- (NULL,NULL,NULL) fija los tipos a text y nunca casa (NULL <> nada).
     inst_map(user_id, instance_id, instance_name) AS (
@@ -2251,6 +2271,27 @@ async function loadPersistedInboxChats(
         )
       WHERE COALESCE(m.c_msg_type, '') <> 'reactionMessage'
         ${params.instanceNames?.length ? Prisma.sql`AND COALESCE(m.c_instance, i."instanceName", m.s_instance) IN (${Prisma.join(params.instanceNames)})` : Prisma.empty}
+        -- Fuera lo BORRADO, salvo que el contacto haya vuelto a escribir.
+        --
+        -- (Sin acentos graves en este comentario: cierran el template del queryRaw.)
+        --
+        -- La condicion de "sigue borrado" es la MISMA que isChatDeletedByPreference
+        -- en el navegador: la marca manda, pero el chat vuelve si el ULTIMO mensaje
+        -- es del contacto (lastMessageFromMe = false) y posterior al borrado. Se
+        -- deja como red viva -no como sustituto- del filtro del navegador, que sigue
+        -- decidiendo sobre lo que llega EN VIVO de Evolution; aqui solo se limpia lo
+        -- persistido, que es de donde salia el chat que no se iba. Se cruza por
+        -- cualquier identidad de la conversacion y de su ficha.
+        AND NOT EXISTS (
+          SELECT 1 FROM marcas mk
+          WHERE mk."userId" = COALESCE(m.c_user, m.s_user)
+            AND mk."remoteJid" IN (m.c_jid, m.c_alt, m.c_sender, m.s_jid, m.s_alt)
+            AND (
+              m.c_from_me IS DISTINCT FROM FALSE
+              OR m.c_ts IS NULL
+              OR m.c_ts <= mk."deletedAt"
+            )
+        )
       ORDER BY
         COALESCE(m.c_user, m.s_user),
         COALESCE(m.c_instance, i."instanceName", m.s_instance),

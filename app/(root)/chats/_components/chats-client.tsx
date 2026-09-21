@@ -4149,6 +4149,14 @@ export function ChatsClient({
             userId: owner,
             instanceName: linea,
             remoteJids: jids,
+            // Las identidades que la pantalla conoce de cada chat, igual que el
+            // borrado de uno en uno. Sin esto la marca del borrado masivo -«Eliminar
+            // por fecha» y la seleccion multiple- solo cubria la forma pedida, y el
+            // contacto volvia por su otra identidad (su `@lid` si se pidio por
+            // numero, o al reves). Ver `identidadesDeLaFila`.
+            identidadesPorJid: Object.fromEntries(
+              jids.map((jid) => [jid, identidadesDeLaFila(jid)]),
+            ),
           }),
         })),
       );
@@ -4247,7 +4255,7 @@ export function ChatsClient({
         toast.success(ok[0].result.message);
       }
     },
-    [agruparSeleccionPorCuentaYLinea, selectedJid, selectedInstanceName],
+    [agruparSeleccionPorCuentaYLinea, identidadesDeLaFila, selectedJid, selectedInstanceName],
   );
 
   const handleBulkPin = useCallback(
