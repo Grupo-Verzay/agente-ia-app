@@ -40,12 +40,11 @@ type ChatBootstrapData = {
    *
    * El navegador las sigue recibiendo por su propia consulta, que sale al
    * montar la pantalla y va por indice. **No devolverlas por aqui**: llegarian
-   * al ritmo de la MAS LENTA de las siete de abajo, y no al suyo.
+   * al ritmo de la MAS LENTA de las seis de abajo, y no al suyo.
    */
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
   advisors: AdvisorInfo[];
-  clientValidationEnabled: boolean;
 };
 
 // `export type` y no una constante: en un fichero `'use server'` todo lo que no
@@ -59,7 +58,7 @@ export type ChatBootstrapResponse = {
   /**
    * Cuanto tardo cada una de las consultas, en milisegundos.
    *
-   * Esto es un `Promise.all` de siete: devuelve cuando acaba la ULTIMA, asi que
+   * Esto es un `Promise.all` de seis: devuelve cuando acaba la ULTIMA, asi que
    * saber el total no dice nada —lo unico que importa es cual es la lenta—. Y
    * los registros del contenedor no estan a mano cuando alguien manda una
    * captura, asi que el desglose viaja en la respuesta y sale por la consola
@@ -98,7 +97,7 @@ function uniqueStrings(values: Array<string | null | undefined>) {
  *
  * No se devuelven las sesiones por aqui a proposito: que viajen con el
  * bootstrap es justo lo que se quito en el #662 —las insignias de cada fila
- * llegaban al ritmo de la MAS LENTA de las siete consultas, no al suyo—.
+ * llegaban al ritmo de la MAS LENTA de las seis consultas, no al suyo—.
  */
 async function idsDeAsesoresConChatsAsignados(userIds: string[]): Promise<string[]> {
   if (!userIds.length) return [];
@@ -180,7 +179,6 @@ export async function loadChatBootstrapData(
     workflowsRes,
     quickRepliesRes,
     advisorsRes,
-    clientValidationConfig,
   ] = await Promise.all([
     medir("etiquetas", () => settle(listTagsAction(effectiveOwnerId))),
     medir("asesoresAsignados", () => idsDeAsesoresConChatsAsignados(sessionUserIds)),
@@ -188,20 +186,8 @@ export async function loadChatBootstrapData(
     medir("flujos", () => settle(getWorkFlowByUserIds(sessionUserIds))),
     medir("respuestasRapidas", () => settle(getAllRRsByUserIds(sessionUserIds))),
     medir("asesores", () => settle(getTeamAdvisorInfos())),
-    medir("configValidacion", () =>
-      db.externalDataToolConfig
-        .findFirst({
-          where: {
-            userId: effectiveOwnerId,
-            toolType: "client_validation",
-            isEnabled: true,
-          },
-          select: { id: true },
-        })
-        .catch(() => null),
-    ),
   ]);
-  tiempos.lasSieteALaVez = Date.now() - arrancoTodo;
+  tiempos.lasSeisALaVez = Date.now() - arrancoTodo;
 
   const allTags =
     tagsRes?.data?.map((tag) => ({
@@ -261,7 +247,6 @@ export async function loadChatBootstrapData(
       workflows: workflowOptions,
       quickReplies: quickReplyOptions,
       advisors,
-      clientValidationEnabled: Boolean(clientValidationConfig),
     },
     tiempos,
   };

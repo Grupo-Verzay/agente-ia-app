@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType } from "react";
-import { Inbox, UserCheck, UserX, Bot, Headphones, Archive, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
+import { Inbox, UserCheck, Archive, ChevronDown, Lock, MessageCircle, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { TabCounts, TabKey } from "./chat-sidebar.types";
-import type { ClientStatus, ServiceType } from "@/types/session";
 
 type ChatTabBarProps = {
   onTabChange: (tab: TabKey) => void;
@@ -39,17 +38,9 @@ type ChatTabBarProps = {
   notesOnly?: boolean;
   onToggleNotes?: () => void;
   notesCount?: number;
-  clientStatusFilter?: ClientStatus | null;
-  onSetClientStatus?: (v: ClientStatus) => void;
-  clientActiveCount?: number;
-  clientInactiveCount?: number;
-  serviceTypeFilter?: ServiceType | null;
   /** Abrir el diálogo de conversación nueva. Vive aquí y no en la fila de
    *  arriba porque casi no se usa y allá le quitaba ancho al buscador. */
   onCompose?: () => void;
-  onSetServiceType?: (v: ServiceType) => void;
-  iaCount?: number;
-  humanCount?: number;
   /** Abre el diálogo de borrado por fecha. Sin permiso para eliminar, no llega. */
   onDeleteByDate?: () => void;
 };
@@ -111,9 +102,9 @@ const PASTILLA = "inline-flex h-6 min-w-0 items-center justify-center rounded-fu
 const INSIGNIA = "flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white";
 
 
-export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
+  const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
     const count = tabCounts[key];
     const isActive = tab === key && !hayFiltroDeEstado;
@@ -321,69 +312,7 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
               </span>
             </DropdownMenuItem>
           )}
-          {onSetClientStatus && (
-            <>
-              <div className="my-1 border-t border-border/50" />
-              <DropdownMenuItem
-                onSelect={() => onSetClientStatus('ACTIVO')}
-                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-              >
-                <span className="flex items-center gap-1.5 text-xs">
-                  <UserCheck className={cn("h-3 w-3 shrink-0", clientStatusFilter === 'ACTIVO' ? "text-emerald-500" : "text-muted-foreground")} />
-                  Cliente activo
-                </span>
-                <span className="flex items-center gap-1">
-                  {(clientActiveCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{clientActiveCount}</span>}
-                  {clientStatusFilter === 'ACTIVO' && <Check className="h-3 w-3 text-primary" />}
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => onSetClientStatus('INACTIVO')}
-                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-              >
-                <span className="flex items-center gap-1.5 text-xs">
-                  <UserX className={cn("h-3 w-3 shrink-0", clientStatusFilter === 'INACTIVO' ? "text-rose-500" : "text-muted-foreground")} />
-                  Cliente inactivo
-                </span>
-                <span className="flex items-center gap-1">
-                  {(clientInactiveCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{clientInactiveCount}</span>}
-                  {clientStatusFilter === 'INACTIVO' && <Check className="h-3 w-3 text-primary" />}
-                </span>
-              </DropdownMenuItem>
-            </>
-          )}
-          {onSetServiceType && (
-            <>
-              <div className="my-1 border-t border-border/50" />
-              <DropdownMenuItem
-                onSelect={() => onSetServiceType('IA')}
-                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-              >
-                <span className="flex items-center gap-1.5 text-xs">
-                  <Bot className={cn("h-3 w-3 shrink-0", serviceTypeFilter === 'IA' ? "text-violet-500" : "text-muted-foreground")} />
-                  Asistencia IA
-                </span>
-                <span className="flex items-center gap-1">
-                  {(iaCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{iaCount}</span>}
-                  {serviceTypeFilter === 'IA' && <Check className="h-3 w-3 text-primary" />}
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => onSetServiceType('HUMANO')}
-                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-              >
-                <span className="flex items-center gap-1.5 text-xs">
-                  <Headphones className={cn("h-3 w-3 shrink-0", serviceTypeFilter === 'HUMANO' ? "text-blue-500" : "text-muted-foreground")} />
-                  Asistencia humana
-                </span>
-                <span className="flex items-center gap-1">
-                  {(humanCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{humanCount}</span>}
-                  {serviceTypeFilter === 'HUMANO' && <Check className="h-3 w-3 text-primary" />}
-                </span>
-              </DropdownMenuItem>
-            </>
-          )}
-          {(onToggleStarred || onToggleUnread || onToggleNotes || onSetClientStatus || onSetServiceType) && (
+          {(onToggleStarred || onToggleUnread || onToggleNotes) && (
             <div className="my-1 border-t border-border/50" />
           )}
           <DropdownMenuItem

@@ -32,7 +32,7 @@ import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useChatsVistos, type MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import { elegirPreferenciaDelChat } from "@/lib/chat-preference-key";
-import type { ChatContactSessionMap, SimpleTag, ClientStatus, ServiceType } from "@/types/session";
+import type { ChatContactSessionMap, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import {
   DropdownMenu,
@@ -205,9 +205,6 @@ type ChatSidebarProps = {
   // El `sessionId` va aparte del jid a proposito: la fila conoce la sesion de
   // SU linea, y buscarla luego por el numero pelado fallaba en silencio.
   onLeadStatusChange?: (remoteJid: string, status: import("@/types/session").LeadStatus | null, sessionId?: number) => void;
-  onServiceTypeChange?: (remoteJid: string, value: import("@/types/session").ServiceType | null, sessionId?: number) => void;
-  onClientStatusChange?: (remoteJid: string, value: import("@/types/session").ClientStatus | null, sessionId?: number) => void;
-  clientValidationEnabled?: boolean;
   onSelectRemoteJid?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
   onPrefetchRemoteJid?: (remoteJid: string, instanceName?: string) => void;
   onTogglePin?: (remoteJid: string, isPinned: boolean, instanceName?: string) => void | Promise<void>;
@@ -263,9 +260,6 @@ export function ChatSidebar({
   onArchiveChat,
   onDeleteChat,
   onLeadStatusChange,
-  onServiceTypeChange,
-  onClientStatusChange,
-  clientValidationEnabled = false,
   onSelectRemoteJid,
   onPrefetchRemoteJid,
   onTogglePin,
@@ -340,8 +334,6 @@ export function ChatSidebar({
   const [notedSessionIds, setNotedSessionIds] = useState<Set<number>>(new Set());
   const canDeleteChats = advisorRole !== "agente";
   const [notesOnly, setNotesOnly] = useState(false);
-  const [clientStatusFilter, setClientStatusFilter] = useState<ClientStatus | null>(null);
-  const [serviceTypeFilter, setServiceTypeFilter] = useState<ServiceType | null>(null);
   // Filtro por rango de fechas. Por defecto corta por el INICIO de la
   // conversación; se puede cambiar a la última actividad. Recorta la lista y sus
   // contadores en el navegador, como el resto de filtros de la bandeja.
@@ -644,10 +636,6 @@ export function ChatSidebar({
     let unread = 0;
     let starred = 0;
     let notes = 0;
-    let clientActive = 0;
-    let clientInactive = 0;
-    let ia = 0;
-    let human = 0;
     let enEspera = 0;
     // Sin leer GLOBAL, para el icono de la pestaña del navegador: no lo recorta
     // el filtro de fecha (ver el `setSinLeer` de abajo).
@@ -699,14 +687,6 @@ export function ChatSidebar({
       if (c.chatSession?.escalatedAt) enEspera++;
       if (estaDestacado(c)) starred++;
       if (c.hasNotes) notes++;
-
-      const estadoCliente = c.chatSession?.clientStatus;
-      if (estadoCliente === 'ACTIVO') clientActive++;
-      else if (estadoCliente === 'INACTIVO') clientInactive++;
-
-      const servicio = c.chatSession?.serviceType;
-      if (servicio === 'IA') ia++;
-      else if (servicio === 'HUMANO') human++;
     }
 
     // «Todos» dice el MISMO numero que el desplegable de canales.
@@ -735,7 +715,7 @@ export function ChatSidebar({
         all: rangoActivo ? all : Math.max(all, totalDeLaLinea ?? 0),
         mine, dm, groups, archived, resolved,
       } satisfies TabCounts,
-      filterCounts: { unread, starred, notes, clientActive, clientInactive, ia, human, enEspera },
+      filterCounts: { unread, starred, notes, enEspera },
       sinLeerGlobal,
     };
   }, [contacts, currentAdvisorId, estaDestacado, channelCounts, selectedChannel, rangoActivo, limitesRango, campoDeFecha]);
@@ -858,14 +838,6 @@ export function ChatSidebar({
       list = list.filter((c) => c.hasNotes);
     }
 
-    if (clientStatusFilter) {
-      list = list.filter((c) => c.chatSession?.clientStatus === clientStatusFilter);
-    }
-
-    if (serviceTypeFilter) {
-      list = list.filter((c) => c.chatSession?.serviceType === serviceTypeFilter);
-    }
-
     // Con «En espera» puesto manda el TIEMPO ESPERANDO, y nada mas: el que
     // lleva mas, primero. Ni anclados arriba ni lo mas reciente delante, que es
     // justo lo que hunde a los que esperan. Fuera de este filtro, el orden de
@@ -881,7 +853,7 @@ export function ChatSidebar({
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, enEsperaOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, estaDestacado, currentAdvisorId, rangoActivo, limitesRango, campoDeFecha]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, enEsperaOnly, starredOnly, notesOnly, estaDestacado, currentAdvisorId, rangoActivo, limitesRango, campoDeFecha]);
 
   // Ref con la lista filtrada actual, para usar dentro de efectos sin volver a
   // dispararlos en cada cambio de la lista (p. ej. polls).
@@ -1108,8 +1080,6 @@ export function ChatSidebar({
     setEnEsperaOnly(false);
     setStarredOnly(false);
     setNotesOnly(false);
-    setClientStatusFilter(null);
-    setServiceTypeFilter(null);
     setSelectedTagIds(new Set());
   }, [setUnreadOnly]);
 
@@ -1529,14 +1499,6 @@ export function ChatSidebar({
             notesOnly={notesOnly}
             onToggleNotes={() => setNotesOnly((v) => !v)}
             notesCount={filterCounts.notes}
-            clientStatusFilter={clientValidationEnabled ? clientStatusFilter : undefined}
-            onSetClientStatus={clientValidationEnabled ? (v) => setClientStatusFilter((prev) => prev === v ? null : v) : undefined}
-            clientActiveCount={filterCounts.clientActive}
-            clientInactiveCount={filterCounts.clientInactive}
-            serviceTypeFilter={clientValidationEnabled ? serviceTypeFilter : undefined}
-            onSetServiceType={clientValidationEnabled ? (v) => setServiceTypeFilter((prev) => prev === v ? null : v) : undefined}
-            iaCount={filterCounts.ia}
-            humanCount={filterCounts.human}
             onDeleteByDate={canDeleteChats && onBulkDelete ? () => setDateDeleteOpen(true) : undefined}
           />
 
@@ -1583,9 +1545,6 @@ export function ChatSidebar({
                 canDelete={canDeleteChats}
                 onDeleteRequest={setDeleteTarget}
                 onLeadStatusChange={onLeadStatusChange}
-                onServiceTypeChange={onServiceTypeChange}
-                onClientStatusChange={onClientStatusChange}
-                clientValidationEnabled={clientValidationEnabled}
                 advisors={advisors}
                 advisorRole={advisorRole}
                 currentAdvisorId={currentAdvisorId}

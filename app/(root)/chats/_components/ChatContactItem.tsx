@@ -29,12 +29,10 @@ const FlowListOrder = dynamic(
 );
 import { SeguimientoBadge } from "../../sessions/_components/SeguimientoBadge";
 import { LeadStatusSelect } from "./LeadStatusSelect";
-import { ServiceTypeSelect } from "./ServiceTypeSelect";
-import { ClientStatusSelect } from "./ClientStatusSelect";
 import { cn } from "@/lib/utils";
 import { FECHA_COMPLETA, getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
-import type { LeadStatus, ServiceType, ClientStatus, SimpleTag } from "@/types/session";
+import type { LeadStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 
@@ -103,9 +101,6 @@ type ChatContactItemProps = {
   onPrefetch?: (id: string, instanceName?: string) => void;
   onTogglePin: (id: string, isPinned: boolean, instanceName?: string) => void;
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null, sessionId?: number) => void;
-  onServiceTypeChange?: (remoteJid: string, value: ServiceType | null, sessionId?: number) => void;
-  onClientStatusChange?: (remoteJid: string, value: ClientStatus | null, sessionId?: number) => void;
-  clientValidationEnabled?: boolean;
   selected: boolean;
   advisors?: AdvisorInfo[];
   advisorRole?: string | null;
@@ -135,9 +130,6 @@ function ChatContactItemBase({
   onPrefetch,
   onTogglePin,
   onLeadStatusChange,
-  onServiceTypeChange,
-  onClientStatusChange,
-  clientValidationEnabled = false,
   selected,
   advisors,
   advisorRole,
@@ -232,8 +224,9 @@ function ChatContactItemBase({
       );
     }
     // 3. Recordatorios programados. Va justo detrás del asesor: la fila muestra
-    //    6 badges y más abajo se caía de pantalla en las cuentas que usan
-    //    validación de cliente.
+    //    6 badges y más abajo se caía de pantalla. Cabían justos cuando la fila
+    //    llevaba además el estado del cliente y el tipo de asistencia; esos dos
+    //    ya no están (#864) y el orden se queda igual, que es el que se lee.
     const recordatorios = contact.chatSession.reminderCount ?? 0;
     if (recordatorios > 0) {
       badgeItems.push(
@@ -255,26 +248,6 @@ function ChatContactItemBase({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-      );
-    }
-    if (clientValidationEnabled) {
-      // 4. Estado del cliente (Activo / Inactivo)
-      badgeItems.push(
-        <ClientStatusSelect
-          key="clientStatus"
-          sessionId={contact.chatSession.id}
-          currentValue={contact.chatSession.clientStatus ?? null}
-          onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue, contact.chatSession?.id)}
-        />
-      );
-      // 5. Tipo de asistencia (IA / Humana)
-      badgeItems.push(
-        <ServiceTypeSelect
-          key="serviceType"
-          sessionId={contact.chatSession.id}
-          currentValue={contact.chatSession.serviceType ?? null}
-          onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue, contact.chatSession?.id)}
-        />
       );
     }
   }
