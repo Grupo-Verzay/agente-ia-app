@@ -1746,11 +1746,12 @@ async function puedoGrabarEnEstaSala(quienEs: {
 }): Promise<boolean> {
     if (!quienEs.delEquipo) return false;
     if (!puedeAdministrarLaSala(quienEs.sala, quienEs.yo, quienEs.familia)) return false;
-    // El módulo de grabación es de la cuenta DUEÑA de la sala, no de la de
-    // quien mira: una hija que graba en la reunión de su madre gasta el cupo y
-    // usa el módulo de la madre. Es la misma regla que firmar con la persona y
-    // alcanzar con la cuenta dueña.
-    return laCuentaPuedeGrabar(quienEs.sala.cuentaId);
+    // El módulo de grabación se mira sobre la cuenta DUEÑA de la sala **o la
+    // MADRE de la familia**: la madre contrata y paga la grabación para toda la
+    // familia, y sus reuniones suelen ser de las cuentas hijas. La raíz ya
+    // viene resuelta en esta vuelta cuando la sala es de otra cuenta de la
+    // familia, así que se pasa como pista y no se pide la familia otra vez.
+    return laCuentaPuedeGrabar(quienEs.sala.cuentaId, quienEs.familia?.raiz ?? null);
 }
 
 export async function empezarAGrabarAction(input: {

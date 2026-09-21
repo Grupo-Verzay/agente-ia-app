@@ -108,16 +108,21 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     // ningun modulo: se asigna a mano, como `/cobros` y `/documentos`, y por
     // eso la puerta esta en la accion y no en la pagina.
     { route: "/reuniones" },
-    // La GRABACION de reuniones, que se vende aparte.
+    // La GRABACION de reuniones, que se vende aparte. Reuniones y su grabacion
+    // son DOS modulos alternativos, como Agenda y Multiagenda: el admin asigna
+    // uno u otro (no se acumulan) y les pone el nombre que quiera.
     //
     // Es una ruta y no una casilla en ningun sitio porque asi es como esta
     // plataforma activa cosas por cuenta: se mete en un modulo desde Panel ›
     // Modulos y se le asigna a quien la haya contratado. `laCuentaPuedeGrabar`
-    // pregunta exactamente eso, por la CUENTA y no por la persona.
+    // pregunta exactamente eso, por la CUENTA (o la MADRE de la familia) y no
+    // por la persona.
     //
-    // No tiene pagina propia a proposito: lo grabado vive en la ficha de su
-    // reunion, dentro de `/reuniones`. Lo unico que esta ruta hace es ser la
-    // llave, y por eso no entra en ningun modulo por defecto.
+    // Renderiza la MISMA pantalla que `/reuniones` (ver
+    // `app/(root)/reuniones/grabaciones/page.tsx`), no un 404: antes la pestaña
+    // llevaba a «pagina no encontrada». La diferencia —el boton de grabar— no
+    // la decide la ruta sino tener el modulo, asi que quien llega aqui es porque
+    // lo tiene.
     { route: "/reuniones/grabaciones" },
     { route: "/actividad-equipo" },
     { route: "/cotizaciones" },
