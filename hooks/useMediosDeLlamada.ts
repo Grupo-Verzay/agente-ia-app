@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ElFondoDeVideo, type FondoElegido, type ModoDeFondo } from "@/lib/fondo-de-video";
+import {
+    guardarLaSupresion,
+    laRestriccionDeAudio,
+    leerLaSupresion,
+    seAplico,
+} from "@/lib/supresion-de-ruido";
 
 /**
  * El micrófono, la cámara y la pantalla de una llamada — **una sola vez**.
@@ -81,6 +87,12 @@ export type EstadoDeLosMedios = {
     micEncendido: boolean;
     camaraEncendida: boolean;
     compartiendo: boolean;
+    /**
+     * Si el micrófono va con supresión de ruido, procesada por el navegador
+     * sobre su propia pista. Vive aquí y no en la pantalla porque es lo que
+     * decide con qué restricción se pide el micro y sobre qué pista se aplica.
+     */
+    supresionDeRuido: boolean;
     /** Mientras se pide un permiso al navegador, para que el botón lo diga. */
     pidiendo: boolean;
 };
@@ -106,6 +118,16 @@ export type MediosDeLlamada = EstadoDeLosMedios & {
      * `try`, que es donde se olvida.
      */
     cambiarElFondo: (modo: ModoDeFondo, fondo?: FondoElegido) => Promise<void>;
+    /**
+     * Encender o quitar la supresión de ruido del micrófono.
+     *
+     * **Nunca lanza.** Se intenta en caliente sobre la misma pista
+     * (`applyConstraints`, que no toca la malla); si el navegador no la deja
+     * cambiar así, se re-pide el micro con la restricción y se empuja con
+     * `replaceTrack`. La elección se recuerda en el navegador. Quien llama no
+     * tiene que envolverlo en un `try`.
+     */
+    cambiarSupresion: (activada: boolean) => Promise<void>;
     /** Montar los dos transceptores en una conexión nueva y engancharle lo de ahora. */
     prepararLaConexion: (pc: RTCPeerConnection) => void;
     /** Lo mismo, pero sobre una conexión que ya trae los transceptores del otro. */
@@ -135,20 +157,30 @@ export function useMediosDeLlamada(opciones?: {
 }): MediosDeLlamada {
     const alFallar = opciones?.alFallar;
 
-    const [estado, setEstado] = useState<EstadoDeLosMedios>({
+    // Inicializador perezoso: lee la preferencia del navegador UNA vez, no en
+    // cada render. En el servidor `window` no existe y `leerLaSupresion` cae al
+    // valor por defecto sin romper el render.
+    const [estado, setEstado] = useState<EstadoDeLosMedios>(() => ({
         local: null,
         miAudio: null,
         micEncendido: false,
         camaraEncendida: false,
         compartiendo: false,
+        supresionDeRuido: leerLaSupresion(),
         pidiendo: false,
         fondo: "ninguno",
         fondoId: null,
         preparandoElFondo: false,
-    });
+    }));
 
     /** El micro. Vive toda la llamada; callarse es `enabled`, no soltarlo. */
     const micRef = useRef<MediaStream | null>(null);
+    /**
+     * La supresión de ruido de AHORA, por referencia, para leerla dentro de
+     * callbacks (`arrancar`, `reabrirMic`) sin volver a crearlos ni depender del
+     * estado. Se arranca con lo que se recuerda del navegador.
+     */
+    const supresionRef = useRef<boolean>(leerLaSupresion());
     /** La cámara, cuando está encendida. Apagarla la para de verdad. */
     const camaraRef = useRef<MediaStream | null>(null);
     /** La pantalla compartida, mientras se comparte. */
@@ -340,8 +372,10 @@ export function useMediosDeLlamada(opciones?: {
             try {
                 if (!micRef.current) {
                     try {
+                        // El micro se pide con la supresión que se recuerda, así
+                        // que la elección se respeta desde el primer segundo.
                         micRef.current = await navigator.mediaDevices.getUserMedia({
-                            audio: true,
+                            audio: laRestriccionDeAudio(supresionRef.current),
                         });
                     } catch (error) {
                         console.warn("[medios] no se pudo abrir el micrófono", error);
@@ -377,6 +411,69 @@ export function useMediosDeLlamada(opciones?: {
         pista.enabled = !pista.enabled;
         setEstado((e) => ({ ...e, micEncendido: pista.enabled }));
     }, [laPistaDeAudio]);
+
+    /**
+     * El respaldo cuando el navegador no deja cambiar la supresión en caliente:
+     * se vuelve a pedir el micro con la restricción y se empuja la pista nueva.
+     *
+     * Conserva si estaba silenciado —re-pedir el micro trae una pista nueva
+     * `enabled = true`, así que sin esto quitar la supresión desmutearía a
+     * quien estaba callado—. Y va con `replaceTrack` (dentro de
+     * `empujarLasPistas`): la malla no se renegocia.
+     */
+    const reabrirMicConSupresion = useCallback(
+        async (activada: boolean) => {
+            const anterior = micRef.current?.getAudioTracks()[0];
+            const estabaSilenciado = anterior ? !anterior.enabled : false;
+            try {
+                const nuevo = await navigator.mediaDevices.getUserMedia({
+                    audio: laRestriccionDeAudio(activada),
+                });
+                const nuevaPista = nuevo.getAudioTracks()[0];
+                if (nuevaPista) nuevaPista.enabled = !estabaSilenciado;
+                micRef.current?.getTracks().forEach((t) => t.stop());
+                micRef.current = nuevo;
+                rehacerElLocal();
+                empujarLasPistas();
+            } catch (error) {
+                console.warn("[medios] no se pudo re-pedir el micrófono", error);
+                alFallar?.(loQuePasoConElPermiso(error, "micrófono"));
+            }
+        },
+        [alFallar, empujarLasPistas, rehacerElLocal],
+    );
+
+    /**
+     * Encender o quitar la supresión de ruido.
+     *
+     * La preferencia se guarda SIEMPRE, haya micro o no: sin micro todavía, la
+     * elección se aplicará al arrancar —igual que el fondo—. Con micro, se
+     * intenta en caliente sobre la misma pista (no toca la malla) y solo se
+     * re-pide el micro si el navegador dice, en claro, que no la cambió.
+     */
+    const cambiarSupresion = useCallback(
+        async (activada: boolean) => {
+            supresionRef.current = activada;
+            guardarLaSupresion(activada);
+            setEstado((e) => ({ ...e, supresionDeRuido: activada }));
+
+            const pista = laPistaDeAudio();
+            if (!pista) return; // se aplicará al arrancar el micro
+
+            try {
+                await pista.applyConstraints(laRestriccionDeAudio(activada));
+                const obtenido = pista.getSettings().noiseSuppression;
+                if (seAplico(obtenido, activada)) return;
+            } catch (error) {
+                console.warn(
+                    "[medios] applyConstraints de supresión falló; re-pido el micro",
+                    error,
+                );
+            }
+            await reabrirMicConSupresion(activada);
+        },
+        [laPistaDeAudio, reabrirMicConSupresion],
+    );
 
     const alternarCamara = useCallback(async () => {
         if (camaraRef.current) {
@@ -523,12 +620,16 @@ export function useMediosDeLlamada(opciones?: {
         conexionesRef.current.clear();
         localRef.current = null;
         ultimaEleccionRef.current = { modo: "ninguno" };
+        // La supresión SÍ se recuerda entre reuniones: es una preferencia del
+        // micrófono, no del momento. Se relee del navegador, que es donde vive.
+        supresionRef.current = leerLaSupresion();
         setEstado({
             local: null,
             miAudio: null,
             micEncendido: false,
             camaraEncendida: false,
             compartiendo: false,
+            supresionDeRuido: supresionRef.current,
             pidiendo: false,
             // El fondo elegido SÍ se olvida al soltarlo todo: soltarlo todo es
             // el final de una reunión, y la próxima empieza de cero. Lo que se
@@ -549,6 +650,7 @@ export function useMediosDeLlamada(opciones?: {
         alternarCamara,
         alternarPantalla,
         cambiarElFondo,
+        cambiarSupresion,
         prepararLaConexion,
         engancharALaConexion,
         olvidarLaConexion,
