@@ -58,9 +58,18 @@ DropdownMenuSubContent.displayName =
 
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <DropdownMenuPrimitive.Portal>
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+    // A dónde se PORTA el contenido. Por defecto `document.body`, que es lo
+    // correcto en casi todo. La excepción es un menú abierto DENTRO de una capa
+    // `fixed` con z-index alto —la sala de reunión es `z-[99]`— o dentro de un
+    // elemento en pantalla completa (`requestFullscreen`): un portal al `body`
+    // cae por DEBAJO de esa capa (su `z-50` pierde contra el `z-[99]`) o FUERA
+    // del `fullscreenElement`, y en los dos casos el menú se abre y no se ve.
+    // Pasando el nodo de esa capa como `container`, el menú vive dentro de ella.
+    container?: HTMLElement | null
+  }
+>(({ className, sideOffset = 4, container, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal container={container ?? undefined}>
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
