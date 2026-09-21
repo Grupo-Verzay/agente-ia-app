@@ -22,14 +22,34 @@ import { laTiraDeMiniaturas } from "@/lib/voz-activa";
  * y lo que se mira en una reunión es **a quien habla**. La cuadrícula se queda
  * para cuando lo que importa es ver a todos a la vez, y se elige a mano.
  *
- * # El `<video>` no se desmonta NUNCA
+ * # El AUDIO no viaja en el `<video>`: va en un pool aparte que NO se remonta
  *
- * Ni al pasar de orador a cuadrícula, ni al plegar, ni cuando alguien apaga la
- * cámara. Desmontarlo pierde el `srcObject`, y con él **el audio de esa
- * persona**: se quedaría la reunión con la imagen bien y sin oír a nadie, que
- * es de los fallos más difíciles de mirar porque todo lo demás dice que va
- * bien. Lo que cambia entre repartos es dónde se coloca cada recuadro, no si
- * existe.
+ * Esta es la regla de la que cuelga que la reunión se oiga, y costó una vuelta
+ * entera de «se apaga la cámara y ya no se escucha a nadie». El motivo:
+ *
+ * En la vista de orador, el recuadro grande y las miniaturas son **nodos
+ * distintos del árbol** —uno es hijo directo del hueco `flex-1`, las otras van
+ * en envoltorios con `key`—. Y quién va en grande lo decide `elQueHabla`, que
+ * **cambia constantemente** según quién habla: cada vez que el orador cambia,
+ * la persona que se mueve de grande a la tira (o al revés) **se remonta**. Si
+ * su audio viajara en ese `<video>`, el remonte le quita el `srcObject` y con
+ * él el sonido —y en un elemento recién montado a mitad de reunión el navegador
+ * a menudo ni deja que el audio vuelva a arrancar solo—. Apagar la cámara
+ * dispara justo ese baile: cambia quién habla, y de paso remonta al otro.
+ *
+ * Así que el sonido de cada persona vive en un **`<audio>` propio, oculto y
+ * estable** (`PoolDeAudioDeLaSala`), montado UNA vez y con `key` por id, que
+ * **nunca** entra en el reparto que se reordena. El `<video>` puede remontarse
+ * todo lo que quiera —es solo imagen, y va `muted`— sin cortar a nadie. El
+ * permiso de reproducción se da una vez, al entrar, y no se vuelve a pedir
+ * porque el elemento no se vuelve a crear.
+ *
+ * # El `<video>` sigue sin desmontarse a propósito donde se puede
+ *
+ * El pool arregla el audio; el `<video>` estable evita el parpadeo de la
+ * imagen. Lo que cambia entre repartos es dónde se coloca cada recuadro, no si
+ * existe — pero si algún día un refactor lo remonta, **el audio ya no depende
+ * de eso**.
  */
 
 export type LoQueSePinta = {
@@ -78,29 +98,48 @@ export function RecuadrosDeLaSala({
     tiraPlegada?: boolean;
     className?: string;
 }) {
-    if (distribucion === "cuadricula" || gente.length <= 1) {
-        return (
-            // `overflow-hidden` y no `overflow-y-auto`: la rejilla tiene que
-            // CABER. Una videollamada en la que hay que bajar para ver al
-            // cuarto es una videollamada de tres.
-            //
-            // Y **sin relleno exterior**: el video ocupa toda la caja, que es
-            // lo que la cabecera y los mandos dejaron libre al pasar a flotar
-            // encima. Lo único que separa un recuadro de otro es el `gap`.
-            <div data-rejilla-de-la-sala className={cn("min-h-0 flex-1 overflow-hidden", className)}>
-                <div className={cn("grid h-full gap-1.5", laRejilla(gente.length))}>
-                    {gente.map((g) => (
-                        // Con una sola persona el recuadro ES la caja, así que
-                        // ni borde ni esquinas: un marco redondeado a sangre
-                        // deja cuatro muescas del fondo en las esquinas y se
-                        // lee como que el video no llega al borde.
-                        <Recuadro key={g.id} {...g} sinMarco={gente.length <= 1} />
-                    ))}
-                </div>
-            </div>
-        );
-    }
+    // El sonido va SIEMPRE por el pool, monte donde monte el reparto de abajo su
+    // `<video>`. Es lo primero que se pinta y con `key` estable, así que ningún
+    // cambio de vista, de orador o de cámara lo remonta. Ver la cabecera.
+    return (
+        <>
+            <PoolDeAudioDeLaSala gente={gente} />
+            {distribucion === "cuadricula" || gente.length <= 1
+                ? repartoEnCuadricula(gente, className)
+                : repartoDeOrador(gente, enGrande, tiraPlegada, className)}
+        </>
+    );
+}
 
+function repartoEnCuadricula(gente: LoQueSePinta[], className?: string) {
+    return (
+        // `overflow-hidden` y no `overflow-y-auto`: la rejilla tiene que
+        // CABER. Una videollamada en la que hay que bajar para ver al
+        // cuarto es una videollamada de tres.
+        //
+        // Y **sin relleno exterior**: el video ocupa toda la caja, que es
+        // lo que la cabecera y los mandos dejaron libre al pasar a flotar
+        // encima. Lo único que separa un recuadro de otro es el `gap`.
+        <div data-rejilla-de-la-sala className={cn("min-h-0 flex-1 overflow-hidden", className)}>
+            <div className={cn("grid h-full gap-1.5", laRejilla(gente.length))}>
+                {gente.map((g) => (
+                    // Con una sola persona el recuadro ES la caja, así que
+                    // ni borde ni esquinas: un marco redondeado a sangre
+                    // deja cuatro muescas del fondo en las esquinas y se
+                    // lee como que el video no llega al borde.
+                    <Recuadro key={g.id} {...g} sinMarco={gente.length <= 1} />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function repartoDeOrador(
+    gente: LoQueSePinta[],
+    enGrande: string | null,
+    tiraPlegada: boolean,
+    className?: string,
+) {
     // Quien va en grande, y los demás en la tira. Si el elegido ya no está
     // —se fue entre dos vueltas— se cae al primero en vez de dejar el hueco
     // grande vacío: un recuadro grande en negro se lee como una conexión rota.
@@ -134,7 +173,8 @@ export function RecuadrosDeLaSala({
                     tira,
                     // Plegada: fuera del reparto —el orador (`flex-1`) crece y
                     // ocupa este ancho— pero los `<video>` de dentro siguen
-                    // MONTADOS, así que el audio de esta gente no se corta.
+                    // MONTADOS. El audio de esta gente va por el pool igual, así
+                    // que ni plegar ni el remonte del orador lo cortan.
                     tiraPlegada ? "hidden" : "",
                 )}
             >
@@ -153,6 +193,59 @@ export function RecuadrosDeLaSala({
             </div>
         </div>
     );
+}
+
+/**
+ * El sonido de la sala, en `<audio>` ocultos y estables, uno por persona.
+ *
+ * Es lo que hace que apagar la cámara —o que cambie quién habla, que pasa cada
+ * pocos segundos— no corte a nadie: estos elementos **nunca** entran en el
+ * reparto que se reordena, así que no se remontan, así que el `srcObject` no se
+ * suelta y el navegador no tiene que volver a dar permiso de reproducción.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **Solo los demás.** El propio NO suena: uno se oiría a sí mismo con
+ *    retardo, que es lo más desagradable que puede hacer una videollamada. Por
+ *    eso los `<video>` van TODOS `muted` y el sonido sale solo de aquí, y aquí
+ *    se filtra `propio`.
+ * 2. **`key` por id.** Reordenar la lista mueve el nodo sin remontarlo; quitar
+ *    la `key` lo remontaría al reordenar, que es justo lo que se evita.
+ * 3. **Oculto pero MONTADO.** `display:none` no para el audio —un `<audio>` no
+ *    tiene nada que pintar—, así que esconderlo no lo calla. Desmontarlo sí.
+ */
+function PoolDeAudioDeLaSala({ gente }: { gente: LoQueSePinta[] }) {
+    return (
+        <div className="hidden" aria-hidden data-pool-de-audio>
+            {gente
+                .filter((g) => !g.propio)
+                .map((g) => (
+                    <AudioDeParticipante key={g.id} id={g.id} stream={g.stream} />
+                ))}
+        </div>
+    );
+}
+
+/** Un `<audio>` que sigue a una persona toda la reunión. Ver el pool. */
+function AudioDeParticipante({ id, stream }: { id: string; stream: MediaStream | null }) {
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    useEffect(() => {
+        const el = audioRef.current;
+        if (!el) return;
+        // Solo si cambió: reasignar el mismo `srcObject` reinicia la
+        // reproducción y puede meter un salto en el audio.
+        if (el.srcObject !== stream) el.srcObject = stream;
+        // Y se pide reproducir: el elemento se crea UNA vez, dentro del gesto de
+        // entrar, así que el permiso está dado. `play()` puede rechazar si el
+        // stream aún no trae audio; la vuelta siguiente, con pista, lo consigue.
+        el.play().catch(() => {
+            // Sin permiso o sin pista todavía. No es un error que nadie tenga
+            // que ver, y reintentarlo en bucle no ayudaría.
+        });
+    }, [stream]);
+
+    return <audio ref={audioRef} data-audio-remoto={id} autoPlay playsInline />;
 }
 
 /**
@@ -214,9 +307,13 @@ export function Recuadro({
                 ref={videoRef}
                 autoPlay
                 playsInline
-                // El recuadro propio, SIEMPRE en silencio: sin esto uno se oye
-                // a sí mismo con retardo y el micro se acopla.
-                muted={propio}
+                // SIEMPRE en silencio, también los de los demás: el sonido sale
+                // del pool de `<audio>` estable (ver la cabecera), no de aquí.
+                // Así este `<video>` puede remontarse al cambiar de vista o de
+                // orador sin cortarle el audio a nadie. Sin este `muted` en los
+                // remotos, además, se oiría a cada uno DOS veces —el pool y el
+                // `<video>`—.
+                muted
                 className={cn(
                     "h-full w-full",
                     // La pantalla compartida se enseña ENTERA (`contain`): con
