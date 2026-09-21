@@ -13116,6 +13116,204 @@ medía 28 px y la medida no ejercía nada. Va con `style`, que es lo único que 
 depende de lo que Tailwind haya compilado.
 
 
+## La llamada con IA: lanzarla y GRABARLA son dos mitades, y una no existía
+
+«Las llamadas salen y se completan, y al terminar no queda ni Resumen IA ni
+Transcripción.» Lo que hay debajo no es una regresión del arreglo anterior: es
+que **ese camino nunca tuvo la segunda mitad escrita**.
+
+`startBotCallAction` —el botón «Llamar con IA»— hacía esto:
+
+```ts
+const r = await fetch(`${ASTRA_BASE}/api/sessions/${sid}/calls/bot`, …);
+if (!r.ok) { … }
+await logOutgoingCallAction(digits, 0, false, undefined, { isBot: true, provider: 'astra' });
+```
+
+**La respuesta se tiraba.** Y dentro venía lo único con lo que después se
+puede pedir la grabación: `{"call":{"callId":"…"}}`. Así que la fila de la
+llamada se escribía **sin `astraSid` y sin `astraCallId`**, y sin ese par no
+hay a quién preguntarle por el audio — ni entonces ni nunca. Nadie sondeaba,
+nadie llamaba a `processCallRecordingForUser`, y **no fallaba nada por el
+camino**: la llamada salía, se hablaba, se colgaba, y la fila se quedaba como
+nació.
+
+Comprobado con `git log -S` sobre esa línea: está así desde que se escribió el
+botón. **Lo que cambió no fue el código, fue que las llamadas empezaron a
+salir**, y solo entonces se pudo ver que no dejaban nada.
+
+Y el «antes sí quedaban» del reporte es cierto y es **otra** cosa: las llamadas
+en vivo del asesor (`CallDialog.processRecording`) sí lo hacían y siguen
+haciéndolo. Dos caminos que acaban en la misma tarjeta, y solo uno lo tenía.
+
+### Lo que NO era, y se descartó mirándolo
+
+Conviene que esté escrito, porque son las dos sospechas naturales y las dos
+cuestan una tarde:
+
+| se sospechaba | por qué no |
+| --- | --- |
+| el cambio de cuenta madre/hija (#842) | esa familia solo decide **de qué línea se lee la configuración del asistente**. La clave de OpenAI y los créditos de `VoicebotService.resolve` salen de la cuenta dueña de `astra_calls_sid`, que es **la misma** bajo la que se escribe la fila de la llamada. Ni toca la grabación. |
+| el `VOICEBOT_SECRET` | guarda `resolve`, o sea si la llamada **sale**. El reporte dice que sale. Después de eso no vuelve a intervenir. |
+
+### El camino del flujo sí estaba cableado, con una ventana imposible
+
+`StageAutomationService.doAiCall` —el `AI_CALL` de un cambio de etiqueta— sí
+avisaba a la App… después de sondear él mismo la grabación **diez veces cada
+20 segundos**, contadas **desde que la llamada se lanza**. O sea 200 segundos.
+Una conversación de más de tres minutos agota las diez **estando todavía en
+curso**: la grabación queda lista justo después de que nadie la mire, y no
+avisa a nadie.
+
+> **La espera vive en UN sitio, y es el de la App** (`esperarYProcesarLaGrabacion`,
+> `lib/grabacion-de-llamada.server.ts`): 60 vueltas de 30 s, o sea **media
+> hora**. El backend avisa **en cuanto lanza la llamada**, con `esperar: true`,
+> y la ruta contesta `202` y sigue de fondo. Dos esperas —una en cada
+> repositorio, con dos ventanas distintas— es una que se afina y otra que se
+> queda atrás, y aquí la que se quedaba atrás no dejaba ni rastro.
+
+Y **los dos caminos usan esa misma función**: el botón la llama directo, el
+flujo entra por la ruta. Con una espera por camino, el día que se toque una el
+otro se queda con la vieja.
+
+### Y el astracalls SÍ emite `recording.ready`, pero no lo escucha nadie
+
+`finalizeRecording` lo manda. Ni la App ni el backend tienen ruta que lo
+reciba, así que hoy no sirve de nada. **No se montó** —sería una tercera
+tubería para lo que la espera ya resuelve—, pero queda dicho: el día que se
+quiera quitar el sondeo, ese webhook es por donde se hace, y entonces hay que
+quitar la espera, no dejar las dos.
+
+### Transcribir una llamada COBRA, y se cobra como una nota de voz
+
+Esto no se cobraba. Las notas de voz de Chats y las del chat de equipo sí, con
+la misma tarifa, y una llamada de diez minutos es exactamente el mismo consumo
+de Whisper.
+
+**La tarifa no se vuelve a escribir**: `queHacerConLaGrabacion`
+(`lib/transcripcion-de-la-llamada.ts`, puro) llama a `costoDeLaNota` — los
+mismos seis créditos por minuto prorrateados, con su `ceil` y su mínimo de uno.
+Una cuarta cuenta con su propia aritmética es la forma de que dentro de un año
+dos pantallas cobren precios distintos por el mismo minuto de audio.
+
+Cuatro cosas que hay que mantener:
+
+1. **Paga la CUENTA, y dentro de una familia la MADRE**
+   (`laCuentaQuePagaLaTranscripcion` sobre `laFamiliaDeLaCuenta`), igual que en
+   el chat de equipo. `ia_credits` tiene una fila por cuenta: cobrarle a la
+   persona sería cobrarle a una fila que normalmente no existe, y entonces
+   `losCreditosQueQuedan` devolvería 0 y **no se transcribiría nada**. Lo
+   comprueba el banco por los dos lados: la madre gasta, la hija y la persona
+   no.
+2. **El tope va sobre BYTES y se mira ANTES que los créditos.** Los 25 MB son
+   un límite de OpenAI y los bytes son el dato que va a viajar. Y el orden
+   importa: con las dos cosas mal, decir «sin créditos» manda a recargar para
+   nada — con créditos tampoco se habría transcrito.
+3. **El cobro va DESPUÉS de tener el texto, y solo si esta vuelta escribió.**
+   `guardarYCobrar` lleva `WHERE (raw->'call'->>'transcript') IS NULL`: dos
+   vueltas a la vez escriben una sola vez y **solo esa descuenta**. Es la misma
+   forma que ya tienen las notas de voz.
+4. **Un fallo de hoy no deja marca.** La espera sigue mientras la grabación no
+   esté; lo que no se pudo transcribir por créditos o por tamaño se dice con su
+   motivo, y nunca se cobra lo que no se entregó.
+
+### La duración sale del propio WAV, no del proveedor
+
+La fila de una llamada del bot se escribe con `durationSecs: 0` —el servidor de
+llamadas no devuelve la duración al lanzarla— así que la tarjeta salía sin
+tiempo y el cobro no tenía con qué calcularse. `duracionDelWav` lee el
+encabezado RIFF (canales, frecuencia y bits, recorriendo los trozos hasta
+`data`): **la grabación es, en la práctica, la llamada**, y es lo único fiable
+que hay.
+
+### Nada de esto puede ser mudo, y lo era en cinco sitios
+
+Cada punto donde el camino se rendía devolvía un `{ success: false }` dentro de
+un `void`. Desde fuera eso es exactamente el síntoma reportado. Ahora **cada
+abandono escribe**: la grabación que nunca llegó, la fila que no se encontró
+—que pasa cuando se escribió bajo otra cuenta o bajo otra línea—, la cuenta sin
+clave de IA, la transcripción vacía, y **el resumen que no salió**.
+
+El último lo destapó el propio banco: `summarize` tenía un `catch { return ''; }`
+mudo, así que una llamada podía quedar **con Transcripción y sin Resumen** sin
+que nadie supiera si falló el modelo, la clave o la red. Es la regla de siempre
+—*ningún `catch` mudo*— en el sitio donde más se parece al fallo original.
+
+### Y `getUserAiConfig` era más estricta que su hermana
+
+Pedía la clave del proveedor por defecto y nada más. `laClaveDeOpenAi` —la que
+usan las notas de voz— es más indulgente: el proveedor por defecto **activo**,
+luego cualquiera activo, luego la primera. Una cuenta con su clave puesta y sin
+proveedor por defecto marcado se llevaba un «Sin configuración de IA activa» y
+ninguna transcripción.
+
+Con el modelo hay una condición que no se puede aflojar: **el modelo por
+defecto de la cuenta solo vale si es del MISMO proveedor que la clave
+elegida.** Con la clave de OpenAI y un modelo de Gemini escrito al lado, la
+transcripción se pediría con un nombre que esa API no conoce y volvería vacía
+sin decir por qué.
+
+### La fila se busca con la cuenta bajo la que QUEDÓ
+
+`logOutgoingCallAction` devuelve ahora también el `userId`, y no es un detalle:
+esa función escribe la burbuja **bajo la cuenta dueña de la línea** (#849), que
+cuando la conversación es de una línea de otra cuenta de la familia **no es la
+de quien llamó**. `processCallRecordingForUser` busca con
+`where: { id, userId }`, así que pasándole la cuenta de quien pulsó no
+encontraría la fila y se rendiría — otra vez sin decir nada.
+
+### El banco: cuatro mitades, y el modo roto AFIRMA el fallo
+
+`scripts/banco-grabacion-de-llamada.sh`, contra Postgres y con una familia de
+`linked_accounts` sembrada dentro. Se ejercen **las acciones**, no las
+funciones puras: probar `processCallRecordingForUser` a solas no diría nada del
+fallo, que estaba en quién la llama.
+
+| | qué prueba |
+| --- | --- |
+| A | la decisión, pura: la tarifa es la de `costoDeLaNota`, el tope antes que los créditos, `null` es ilimitado |
+| B | el botón: la fila queda con su `astraSid` y su `astraCallId`, y al colgar tiene Transcripción, Resumen y la duración del WAV |
+| C | el flujo: la ruta interna acepta con `202` y la llamada acaba con las dos cosas |
+| D | los créditos: paga la madre, la persona no tiene bolsa, y una segunda vuelta no vuelve a cobrar |
+
+`MODO=roto` corre **lo que había, escrito literal**: el registro sin el par de
+ids y el sondeo de 200 s del backend. Y afirma el fallo —la fila sin
+`astraCallId`, la grabación que no se pide ni una vez, el sondeo que se rinde
+antes de que el audio exista y los cero créditos gastados—. Sin ese modo, lo
+verde del otro no diría si se arregló la causa o si el caso no llega a
+ejercerse.
+
+Se fingen **dos** cosas y ninguna más: `currentUser()` y el paquete `openai`
+—transcribir y resumir salen de la red, y el doble cubre **las dos**
+(`audio.transcriptions` y `chat.completions`, que es lo que usa `OpenAiClient`):
+con una sola, la mitad del camino se quedaría sin ejercer y el banco saldría
+verde sin haber probado que el resumen llega a la fila—.
+
+Y tres cosas del propio banco que costaron su vuelta:
+
+1. **Solo se acelera EL temporizador de la espera**, leyendo
+   `ESPERA_ENTRE_INTENTOS_MS` **del módulo** en vez de escribir 30.000 a mano.
+   Copiado, el banco probaría que su número coincide con el suyo y no con el
+   que corre. Y acortando todos los temporizadores del proceso se moverían
+   también los de Prisma y los del corredor.
+2. **`AiProvider.name` es ÚNICO y la base del banco se reutiliza entre
+   ejecuciones.** Con un `create` la segunda vuelta se cae en la siembra y todo
+   lo de abajo sale rojo por algo que no tiene nada que ver.
+3. **Un paquete de esbuild necesita un `require` de verdad.** `@google/genai`
+   pide `child_process` y `xml2js` pide `events` con `require` dinámicos, y el
+   envoltorio de esbuild los tira. Eso no es un fallo de producción —ahí corre
+   Node— pero aquí **se lo comía el `catch` de `summarize`** y la llamada salía
+   con Transcripción y sin Resumen: o sea, el banco reproducía el síntoma que
+   venía a probar, por un motivo que no era el suyo. Se arregla con un
+   `--banner:js` que defina `require` con `createRequire`.
+
+Lo que **no** se pudo ejercer aquí, y se dice: el servidor de llamadas de
+verdad. El `fetch` está apuntado, así que lo probado es el camino entero
+—lanzar, registrar, esperar, transcribir, resumir, guardar y cobrar— contra un
+astracalls fingido que devuelve un WAV de verdad y que **no entrega la
+grabación hasta la vuelta 15**, que es el caso que el sondeo viejo no aguantaba.
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
