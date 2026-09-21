@@ -31,12 +31,19 @@ import { envolverSeleccion } from '@/lib/formato-whatsapp';
 import {
   BOTON_DE_ENVIAR,
   BOTON_DE_HERRAMIENTA,
-  BOTON_REDONDO,
-  BOTON_REDONDO_EN_REPOSO,
   BOTON_REDONDO_GRABANDO,
-  COLUMNA_DE_HERRAMIENTAS,
-  COLUMNA_DE_VOZ,
+  archivosDelPortapapeles,
 } from '@/lib/barra-de-escribir';
+// El «+» con sus herramientas, el ancho que decide si van en fila, y los
+// botones redondos de la derecha: los mismos que pinta el chat de equipo.
+// Escritos dos veces, aquel acabó con el dictado en un icono de texto y sin
+// pegar desde el portapapeles.
+import {
+  BotonesDeLaDerecha,
+  ZonaDeHerramientas,
+  rellenoParaLosBotones,
+  useBarraCompacta,
+} from '@/components/shared/BarraDeEscribir';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
@@ -138,30 +145,13 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [editando, setEditando] = useState<number | null>(null);
   const [inputMenuOpen, setInputMenuOpen] = useState(false);
   const [rightMenuOpen, setRightMenuOpen] = useState(false);
-  const [isCompactToolbar, setIsCompactToolbar] = useState(false);
-  const inputBarRef = useRef<HTMLDivElement>(null);
+  const toolsRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const rightMenuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const element = inputBarRef.current;
-    if (!element) return;
-
-    const updateCompactState = () => {
-      setIsCompactToolbar(element.getBoundingClientRect().width < 640);
-    };
-
-    updateCompactState();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateCompactState);
-      return () => window.removeEventListener('resize', updateCompactState);
-    }
-
-    const observer = new ResizeObserver(updateCompactState);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+  // Si la barra va plegada, MEDIDO — y con la misma función que el chat de
+  // equipo, que es lo que hace que las dos se vean igual con el mismo ancho.
+  const { compacta: isCompactToolbar, medir: medirLaBarra } = useBarraCompacta();
 
   useEffect(() => {
     if (!isCompactToolbar) {
@@ -316,14 +306,14 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   };
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageItem = Array.from(e.clipboardData.items).find((item) =>
-      item.type.startsWith('image/'),
-    );
-    if (!imageItem) return;
+    // Qué trae el portapapeles lo decide `archivosDelPortapapeles`, la misma
+    // función que usa el chat de equipo. Y **solo actúa si trae ficheros**: el
+    // `preventDefault` va dentro de esa condición, nunca antes, o pegar texto
+    // dejaría de comportarse como siempre.
+    const [file] = archivosDelPortapapeles(e.clipboardData?.items, { soloImagenes: true });
+    if (!file) return;
 
     e.preventDefault();
-    const file = imageItem.getAsFile();
-    if (!file) return;
 
     if (file.size > 8 * 1024 * 1024) {
       toast.error('La imagen es demasiado grande (máximo 8 MB).');
@@ -353,6 +343,22 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const isPreviewingAudio = recordedAudio !== null && !isRecording;
   const isInputActive = !isRecording && !isPreviewingAudio && !isSending;
   const isSendButtonVisible = isInputActive && (input.trim().length > 0 || composeMediaList.length > 0);
+
+  /**
+   * El estado del que salen los botones de la derecha **y** el hueco que la
+   * caja les deja. Uno solo, porque si fueran dos podrían discrepar: de más,
+   * la última palabra se corta contra un hueco vacío; de menos, el texto pasa
+   * por debajo del botón.
+   */
+  const estadoDeLaDerecha = {
+    compacta: isCompactToolbar,
+    conVoz: !isPreviewingAudio,
+    hayDictado: dictation.supported,
+    dictando: dictation.listening,
+    grabando: isRecording,
+    hayAlgoQueEnviar:
+      isSendButtonVisible || isPreviewingAudio || (noteMode && input.trim().length > 0),
+  };
 
   const handleSendNote = async () => {
     if (!onSendNote || !input.trim()) return;
@@ -420,7 +426,11 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   ) : null;
 
   return (
-    <div ref={inputBarRef} className={cn(
+    // `data-barra` es la marca por la que el banco de Chromium ENCUENTRA la
+    // barra para medir su ancho: lo que decide si va plegada es ese ancho
+    // (`ANCHO_COMPACTO`), no el de la ventana, y sin poder medirlo el banco
+    // compararía dos barras que no miden lo mismo.
+    <div ref={medirLaBarra} data-barra="escribir" className={cn(
       "px-2 py-1.5 sm:px-3 sm:py-2 border-t dark:border-gray-700 transition-colors",
       noteMode
         ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
@@ -579,55 +589,33 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
       {/* Input + botones */}
       <div className="relative flex flex-nowrap items-center gap-2">
-        <div className="relative flex flex-nowrap z-10 items-center justify-center">
-          {/* Estado de sesión (Activa/Pausada) + Firma — inline solo en desktop.
-              En móvil el toggle de sesión vive en el header y la firma en el menú "+". */}
-          <div className={cn('hidden pr-2 items-center gap-1', !isCompactToolbar && 'sm:flex')}>
-            {session && (
-              <span className="hidden md:flex items-center">
-                <SwitchStatus
-                  key={`${session.id}-${session.status ? 'on' : 'off'}`}
-                  sessionId={session.id ?? -1}
-                  checked={session.status ?? false}
-                  mutateSessions={onSessionMutate}
-                  onChanged={onSessionStatusChange}
-                />
-              </span>
-            )}
-            {signatureControl}
-          </div>
-
-          {/* Botón toggle — solo móvil */}
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className={cn(
-              BOTON_DE_HERRAMIENTA,
-              isCompactToolbar ? 'flex' : 'sm:hidden',
-              inputMenuOpen
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-            )}
-            aria-label="Herramientas de mensaje"
-            onClick={() => setInputMenuOpen((v) => !v)}
-          >
-            {inputMenuOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          </Button>
-
-          {/* Los 4 botones de acción:
-              - Móvil: ocultos por defecto, se muestran como panel flotante cuando inputMenuOpen
-              - Desktop (sm+): siempre visibles en fila */}
-          <div
-            className={cn(
-              'items-center gap-1',
-              inputMenuOpen
-                ? COLUMNA_DE_HERRAMIENTAS
-                : isCompactToolbar
-                  ? 'hidden'
-                  : 'hidden sm:flex',
-            )}
-          >
+        {/* El «+» y sus herramientas los pinta `ZonaDeHerramientas`, la misma
+            que el chat de equipo: lo que cambia entre las dos barras es QUÉ
+            botones van dentro, y eso entra por `children`. Lo de WhatsApp —el
+            interruptor de la IA y la firma— va en `fijo`, que es lo que se
+            queda fuera del menú cuando hay sitio. */}
+        <ZonaDeHerramientas
+          compacta={isCompactToolbar}
+          abierta={inputMenuOpen}
+          alAlternar={() => setInputMenuOpen((v) => !v)}
+          contenedorRef={toolsRef}
+          fijo={
+            <>
+              {session && (
+                <span className="hidden md:flex items-center">
+                  <SwitchStatus
+                    key={`${session.id}-${session.status ? 'on' : 'off'}`}
+                    sessionId={session.id ?? -1}
+                    checked={session.status ?? false}
+                    mutateSessions={onSessionMutate}
+                    onChanged={onSessionStatusChange}
+                  />
+                </span>
+              )}
+              {signatureControl}
+            </>
+          }
+        >
             {/* Firma — solo dentro del menú en móvil (en desktop va inline arriba) */}
             <div className={cn(isCompactToolbar ? 'block' : 'sm:hidden')}>{signatureControl}</div>
             <ChatAutomationPicker
@@ -695,8 +683,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                 )}
               </div>
             )}
-          </div>
-        </div>
+        </ZonaDeHerramientas>
 
         {/* Sugerencias de @menciones (modo nota) */}
         {mentionOpen && mentionSuggestions.length > 0 && (
@@ -770,7 +757,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           className={cn(
             'min-h-10 rounded-xl w-full shadow-sm',
             'pl-4 py-2 resize-none overflow-y-auto text-base sm:text-sm leading-relaxed',
-            isCompactToolbar ? 'pr-12' : 'pr-28', // móvil: 1 botón; desktop: 3
+            // Sale de la MISMA lista que pinta los botones.
+            rellenoParaLosBotones(estadoDeLaDerecha),
             'transition-[height] duration-100 ease-out',
             noteMode
               ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none'
@@ -778,124 +766,59 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           )}
         />
 
-        {(() => {
-          const dictadoBtn = dictation.supported && !isPreviewingAudio ? (
-            <Button
-              key="dictado"
-              onClick={() => { dictation.toggle(input, setDictatedText); setRightMenuOpen(false); }}
-              size="icon"
-              disabled={!isInputActive || isRecording}
-              className={cn(
-                BOTON_REDONDO,
-                dictation.listening
-                  ? `${BOTON_REDONDO_GRABANDO} animate-pulse`
-                  : BOTON_REDONDO_EN_REPOSO,
-              )}
-              aria-label={dictation.listening ? 'Detener dictado' : 'Dictar por voz'}
-              title={dictation.listening ? 'Detener dictado' : 'Dictar por voz (escribe lo que hablas)'}
-              type="button"
-            >
-              <AudioLines className={cn('w-3.5 h-3.5', dictation.listening ? 'text-white' : 'text-black dark:text-white')} />
-            </Button>
-          ) : null;
-
-          const voiceNoteBtn = !isPreviewingAudio ? (
-            <Button
-              key="voicenote"
-              onClick={() => { (isRecording ? onStopRecordingAndPreview() : onStartRecording()); setRightMenuOpen(false); }}
-              size="icon"
-              className={cn(
-                BOTON_REDONDO,
-                isRecording
-                  ? BOTON_REDONDO_GRABANDO
-                  : BOTON_REDONDO_EN_REPOSO,
-              )}
-              aria-label={isRecording ? 'Detener grabación y previsualizar' : 'Grabar nota de voz'}
-              title={isRecording ? 'Detener y previsualizar' : 'Grabar nota de voz'}
-              type="button"
-            >
-              <Mic className={cn('w-3.5 h-3.5', isRecording ? 'text-white' : 'text-black dark:text-white')} />
-            </Button>
-          ) : null;
-
-          const sendBtn = (
-            <Button
-              key="send"
-              onClick={() => {
-                if (dictation.listening) dictation.stop();
-                if (noteMode) void handleSendNote();
-                else onSend();
-              }}
-              size="icon"
-              className={cn(
-                BOTON_REDONDO,
-                noteMode ? 'bg-amber-500 hover:bg-amber-600' : BOTON_DE_ENVIAR,
-              )}
-              aria-label={noteMode ? 'Guardar nota' : 'Enviar'}
-              title={noteMode ? 'Guardar nota interna' : 'Enviar'}
-              disabled={noteMode ? !input.trim() : (!isPreviewingAudio && !isSendButtonVisible)}
-              type="button"
-            >
-              {noteMode ? <Lock className="w-3.5 h-3.5 text-white" /> : <SendIcon className="w-3.5 h-3.5 text-white" />}
-            </Button>
-          );
-
-          // En MÓVIL se muestra un SOLO botón a la derecha: si hay algo que enviar
-          // (texto/audio/nota) → Enviar; si se está grabando → detener; si no →
-          // un botón que despliega arriba [dictado] + [nota de voz], como el "+"
-          // de la izquierda. En DESKTOP van los tres en fila (como siempre).
-          const hasSomethingToSend =
-            isSendButtonVisible || isPreviewingAudio || (noteMode && input.trim().length > 0);
-
-          let mobileContent: React.ReactNode;
-          if (isRecording) {
-            mobileContent = voiceNoteBtn; // botón detener grabación
-          } else if (hasSomethingToSend) {
-            mobileContent = sendBtn;
-          } else if (dictation.supported) {
-            mobileContent = (
-              <div className="relative" ref={rightMenuRef}>
-                <Button
-                  type="button"
-                  size="icon"
-                  onClick={() => setRightMenuOpen((v) => !v)}
-                  className={cn(
-                    BOTON_REDONDO,
-                    rightMenuOpen
-                      ? 'bg-zinc-300 dark:bg-zinc-600'
-                      : BOTON_REDONDO_EN_REPOSO,
-                  )}
-                  aria-label="Opciones de voz"
-                  title="Voz (dictado / nota de voz)"
-                >
-                  <Mic className="w-3.5 h-3.5 text-black dark:text-white" />
-                </Button>
-                {rightMenuOpen && (
-                  <div className={COLUMNA_DE_VOZ}>
-                    {dictadoBtn}
-                    {voiceNoteBtn}
-                  </div>
-                )}
-              </div>
-            );
-          } else {
-            mobileContent = voiceNoteBtn; // sin dictado (navegador sin soporte): solo nota de voz
+        {/* Los botones redondos: dictado, nota de voz y enviar. **Cuáles
+            salen lo decide `losBotonesDeLaDerecha`**, puro y compartido con el
+            chat de equipo — donde, escrito a mano, el dictado llevaba un icono
+            de texto en vez de este. */}
+        <BotonesDeLaDerecha
+          {...estadoDeLaDerecha}
+          menuAbierto={rightMenuOpen}
+          alAlternarMenu={() => setRightMenuOpen((v) => !v)}
+          menuRef={rightMenuRef}
+          dictado={
+            dictation.supported
+              ? {
+                  alPulsar: () => { dictation.toggle(input, setDictatedText); setRightMenuOpen(false); },
+                  deshabilitado: !isInputActive || isRecording,
+                  marcado: dictation.listening,
+                  etiqueta: dictation.listening ? 'Detener dictado' : 'Dictar por voz',
+                  titulo: dictation.listening
+                    ? 'Detener dictado'
+                    : 'Dictar por voz (escribe lo que hablas)',
+                  clase: dictation.listening
+                    ? `${BOTON_REDONDO_GRABANDO} animate-pulse`
+                    : undefined,
+                  icono: (
+                    <AudioLines className={cn('w-3.5 h-3.5', dictation.listening ? 'text-white' : 'text-black dark:text-white')} />
+                  ),
+                }
+              : null
           }
-
-          return (
-            <div className="absolute right-1.5 flex flex-row items-center gap-1 bottom-1.5">
-              {isCompactToolbar ? (
-                mobileContent
-              ) : (
-                <>
-                  {dictadoBtn}
-                  {voiceNoteBtn}
-                  {sendBtn}
-                </>
-              )}
-            </div>
-          );
-        })()}
+          nota={{
+            alPulsar: () => { (isRecording ? onStopRecordingAndPreview() : onStartRecording()); setRightMenuOpen(false); },
+            marcado: isRecording,
+            etiqueta: isRecording ? 'Detener grabación y previsualizar' : 'Grabar nota de voz',
+            titulo: isRecording ? 'Detener y previsualizar' : 'Grabar nota de voz',
+            clase: isRecording ? BOTON_REDONDO_GRABANDO : undefined,
+            icono: (
+              <Mic className={cn('w-3.5 h-3.5', isRecording ? 'text-white' : 'text-black dark:text-white')} />
+            ),
+          }}
+          enviar={{
+            alPulsar: () => {
+              if (dictation.listening) dictation.stop();
+              if (noteMode) void handleSendNote();
+              else onSend();
+            },
+            deshabilitado: noteMode ? !input.trim() : (!isPreviewingAudio && !isSendButtonVisible),
+            etiqueta: noteMode ? 'Guardar nota' : 'Enviar',
+            titulo: noteMode ? 'Guardar nota interna' : 'Enviar',
+            clase: noteMode ? 'bg-amber-500 hover:bg-amber-600' : BOTON_DE_ENVIAR,
+            icono: noteMode
+              ? <Lock className="w-3.5 h-3.5 text-white" />
+              : <SendIcon className="w-3.5 h-3.5 text-white" />,
+          }}
+        />
       </div>
     </div>
   );

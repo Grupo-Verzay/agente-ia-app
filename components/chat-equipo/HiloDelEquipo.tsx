@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    AudioLines,
     Building2,
     ExternalLink,
     Hash,
@@ -24,7 +25,6 @@ import {
     SmilePlus,
     Square,
     Trash2,
-    Type,
     Video,
     X,
     Users,
@@ -144,6 +144,17 @@ import { avisarDeQueSeLeyo, avisarDelCanalAbierto } from "@/hooks/useSinLeerDelE
 // parecen.
 import { AbrirReunion } from "@/components/video/AbrirReunion";
 import { EmojiPickerPanel } from "@/components/shared/EmojiPickerPanel";
+// La barra de escribir es UNA: el «+» con sus herramientas, el alto de la
+// caja y los botones redondos de la derecha salen del mismo sitio que los de
+// Chats. Escritos aquí a mano es como el icono del dictado acabó siendo una T
+// y como esta caja se quedó sin pegar desde el portapapeles.
+import {
+    BotonesDeLaDerecha,
+    ZonaDeHerramientas,
+    rellenoParaLosBotones,
+    useAltoDeLaCaja,
+    useBarraCompacta,
+} from "@/components/shared/BarraDeEscribir";
 import { FormatoDeTexto } from "@/components/shared/FormatoDeTexto";
 import { TextoConFormato } from "@/components/shared/TextoConFormato";
 import { TarjetaDeReunion } from "@/components/video/TarjetaDeReunion";
@@ -152,11 +163,8 @@ import { envolverSeleccion } from "@/lib/formato-whatsapp";
 import {
     BOTON_DE_ENVIAR,
     BOTON_DE_HERRAMIENTA,
-    BOTON_REDONDO,
-    BOTON_REDONDO_EN_REPOSO,
     BOTON_REDONDO_GRABANDO,
-    COLUMNA_DE_HERRAMIENTAS,
-    COLUMNA_DE_VOZ,
+    archivosDelPortapapeles,
 } from "@/lib/barra-de-escribir";
 import { cn } from "@/lib/utils";
 
@@ -1014,17 +1022,85 @@ export function HiloDelEquipo({
      * para siempre, y un mensaje de tres líneas escrito a ciegas es un mensaje
      * que se manda a medias.
      */
-    useEffect(() => {
-        const caja = cajaDeEscribir.current;
-        if (!caja) return;
-        // Los BORDES aparte: `box-sizing` es `border-box`, así que la altura
-        // los incluye y `scrollHeight` no. Poniendo el `scrollHeight` pelado la
-        // caja se queda dos píxeles corta y sale una barra de desplazamiento
-        // con una sola línea dentro, para siempre.
-        const bordes = caja.offsetHeight - caja.clientHeight;
-        caja.style.height = "auto";
-        caja.style.height = `${caja.scrollHeight + bordes}px`;
-    }, [texto]);
+    // Quien decide es `lib/alto-de-la-caja-de-escribir.ts` y el enganche es el
+    // MISMO que el de Chats. Aquí estaba escrito a mano con un `max-h-40`, o
+    // sea un tope en PÍXELES: el fallo que este repositorio da por arreglado,
+    // vivo en la barra de al lado porque el arreglo se hizo en una sola.
+    // `reiniciarCon` es lo único propio: al cambiar de canal la caja es otra.
+    useAltoDeLaCaja({ ref: cajaDeEscribir, texto, reiniciarCon: canal?.id });
+
+    /**
+     * Si la barra va plegada: **medido**, no supuesto.
+     *
+     * Este hilo se lee en dos sitios —el panel lateral de 18 a 24 rem, donde
+     * no cabe nada en fila, y su propia RUTA a todo lo ancho, donde hay tanto
+     * sitio como en Chats—. Escrito a mano iba plegado en los dos, y por eso
+     * se reportó que «el desplegable abre distinto que en Chats».
+     *
+     * `medir` va en el `ref` de la barra: es un ref de callback a propósito,
+     * porque aquí el compositor no existe en el primer render (el hilo pinta
+     * antes su carga) y un efecto sobre un `useRef` se rendiría con `null` y
+     * no volvería a mirar. Ver `useBarraCompacta`.
+     */
+    const { compacta, medir: medirLaBarra } = useBarraCompacta();
+
+    /**
+     * El estado del que salen los botones de la derecha **y** el hueco que la
+     * caja les deja. Uno solo, porque si fueran dos podrían discrepar.
+     *
+     * `conVoz` es falso mientras se edita un mensaje: ahí lo único que se
+     * puede hacer es guardar, y ofrecer un micrófono que no graba nada es un
+     * botón que al pulsarlo no hace nada.
+     */
+    const laDerecha = useMemo(
+        () => ({
+            compacta,
+            conVoz: !editando,
+            hayDictado: dictado.supported,
+            dictando: dictado.listening,
+            grabando,
+            hayAlgoQueEnviar: Boolean(texto.trim() || grabada || archivos.length),
+        }),
+        [compacta, editando, dictado.supported, dictado.listening, grabando, texto, grabada, archivos.length],
+    );
+
+    /**
+     * Pegar con Ctrl+V.
+     *
+     * Esto **no existía aquí**: la caja no llevaba ningún `onPaste`, así que
+     * pegar una captura no hacía absolutamente nada —ni error, ni aviso— y eso
+     * se lee como que el chat del equipo no admite imágenes. Va por la misma
+     * función que Chats (`archivosDelPortapapeles`) y por el mismo camino que
+     * el clip (`elegirLosArchivos`), así que hereda su tope de tamaño, su tope
+     * de cuántos y sus avisos.
+     *
+     * Y **solo actúa si el portapapeles trae FICHEROS**: el `preventDefault` va
+     * dentro de esa condición, nunca antes, o pegar texto dejaría de
+     * comportarse como siempre.
+     */
+    const alPegar = useCallback(
+        (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+            if (!canal?.puedoEscribir || enviando || editando) return;
+            const pegados = archivosDelPortapapeles(e.clipboardData?.items);
+            if (!pegados.length) return;
+            e.preventDefault();
+            // Una captura pegada no trae nombre: el portapapeles la llama
+            // «image.png» siempre. Sin renombrarla, tres capturas salen con el
+            // mismo nombre y no hay forma de distinguirlas.
+            const sello = new Date().toISOString().replace(/[:.]/g, "-");
+            const conNombre = pegados.map((f, i) => {
+                if (f.name && f.name !== "image.png") return f;
+                const ext = (f.type.split("/")[1] || "png").replace(/[^a-z0-9]/gi, "");
+                return new File([f], `captura-${sello}${i ? `-${i + 1}` : ""}.${ext}`, {
+                    type: f.type,
+                });
+            });
+            const lista = new DataTransfer();
+            for (const f of conNombre) lista.items.add(f);
+            elegirLosArchivos(lista.files);
+        },
+        [canal?.puedoEscribir, enviando, editando, elegirLosArchivos],
+    );
 
     /**
      * Poner (o quitar) una marca de formato de WhatsApp sobre lo seleccionado.
@@ -1281,7 +1357,12 @@ export function HiloDelEquipo({
                 className="bottom-20"
             />
 
-            <div className="shrink-0 border-t border-border bg-background px-3 py-3 sm:px-6">
+            <div
+                ref={medirLaBarra}
+                // La misma marca que la barra de Chats: el banco mide por ella.
+                data-barra="escribir"
+                className="shrink-0 border-t border-border bg-background px-3 py-3 sm:px-6"
+            >
                 {/* Editando: lo que se está tocando, encima de la caja y con
                     su salida. Sin este aviso, el texto de otro mensaje aparece
                     en la caja y se lee como que la App se ha equivocado. */}
@@ -1431,107 +1512,79 @@ export function HiloDelEquipo({
                         onElegir={meterLaMencion}
                         onSenalar={setElegido}
                     />
-                    {/* IZQUIERDA: el «+», que al abrirse es la equis de cerrar,
-                        y sus herramientas en columna flotante por encima de la
-                        conversación. Sueltas en la fila le comen el ancho a la
-                        caja, que es lo que esto viene a devolver. */}
-                    <div className="relative flex shrink-0 items-center" ref={cajaDeHerramientas}>
+                    {/* IZQUIERDA: las herramientas. Con sitio van EN FILA,
+                        como en Chats; sin él se pliegan en la columna que sale
+                        del «+». Quién lo decide es `ZonaDeHerramientas`, la
+                        misma que pinta la de la bandeja: escrito aquí a mano
+                        iba plegado siempre, y por eso «el desplegable abre
+                        distinto que en Chats». */}
+                    <ZonaDeHerramientas
+                        compacta={compacta}
+                        abierta={herramientas}
+                        alAlternar={() => {
+                            setHerramientas((v) => !v);
+                            setEmojis(false);
+                        }}
+                        deshabilitado={enviando || !canal.puedoEscribir}
+                        contenedorRef={cajaDeHerramientas}
+                    >
+                        <FormatoDeTexto
+                            onAplicar={aplicarFormato}
+                            disabled={enviando || !canal.puedoEscribir}
+                        />
                         <Button
                             type="button"
                             size="icon"
                             variant="ghost"
                             onClick={() => {
-                                setHerramientas((v) => !v);
-                                setEmojis(false);
+                                setEmojis((v) => !v);
+                                setHerramientas(false);
                             }}
                             disabled={enviando || !canal.puedoEscribir}
-                            aria-expanded={herramientas}
-                            aria-label={
-                                herramientas ? "Cerrar las herramientas" : "Herramientas de mensaje"
-                            }
-                            title="Formato y emojis"
+                            aria-label="Emojis"
+                            title="Emojis"
                             className={cn(
                                 BOTON_DE_HERRAMIENTA,
-                                herramientas
-                                    ? "bg-muted text-foreground"
-                                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                "text-muted-foreground hover:bg-muted hover:text-foreground",
                             )}
                         >
-                            {herramientas ? (
-                                <X className="h-4 w-4" />
-                            ) : (
-                                <Plus className="h-4 w-4" />
-                            )}
+                            <SmilePlus className="h-4 w-4" />
                         </Button>
-                        {herramientas ? (
-                            <div className={COLUMNA_DE_HERRAMIENTAS}>
-                                <FormatoDeTexto
-                                    onAplicar={aplicarFormato}
-                                    disabled={enviando || !canal.puedoEscribir}
-                                />
-                                <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => {
-                                        setEmojis((v) => !v);
-                                        setHerramientas(false);
-                                    }}
-                                    disabled={enviando || !canal.puedoEscribir}
-                                    aria-label="Emojis"
-                                    title="Emojis"
-                                    className={cn(
-                                        BOTON_DE_HERRAMIENTA,
-                                        "text-muted-foreground hover:bg-muted hover:text-foreground",
-                                    )}
-                                >
-                                    <SmilePlus className="h-4 w-4" />
-                                </Button>
-                                {/* El clip va AQUÍ DENTRO y no suelto en la
-                                    fila: es lo que se pidió, y es lo mismo que
-                                    ya hizo el formato — cada botón suelto le
-                                    come ancho a la caja, que en este panel es
-                                    lo único que escasea. */}
-                                <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => {
-                                        elegirArchivos.current?.click();
-                                        setHerramientas(false);
-                                    }}
-                                    disabled={
-                                        enviando || !canal.puedoEscribir || Boolean(editando)
-                                    }
-                                    aria-label="Adjuntar archivos"
-                                    title="Imágenes, vídeos o archivos"
-                                    className={cn(
-                                        BOTON_DE_HERRAMIENTA,
-                                        "text-muted-foreground hover:bg-muted hover:text-foreground",
-                                    )}
-                                >
-                                    <Paperclip className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        ) : null}
-                        {/* Escondido, y fuera de la columna: la columna se
-                            desmonta al cerrarse, y con el input dentro el
-                            diálogo del sistema se llevaría por delante su
-                            propio `onChange`. */}
-                        <input
-                            ref={elegirArchivos}
-                            type="file"
-                            multiple
-                            className="hidden"
-                            onChange={(e) => {
-                                elegirLosArchivos(e.target.files);
-                                // Sin esto, volver a elegir el MISMO fichero no
-                                // dispara `change` y parece que el clip no hace
-                                // nada.
-                                e.target.value = "";
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                                elegirArchivos.current?.click();
+                                setHerramientas(false);
                             }}
-                        />
-                    </div>
+                            disabled={enviando || !canal.puedoEscribir || Boolean(editando)}
+                            aria-label="Adjuntar archivos"
+                            title="Imágenes, vídeos o archivos"
+                            className={cn(
+                                BOTON_DE_HERRAMIENTA,
+                                "text-muted-foreground hover:bg-muted hover:text-foreground",
+                            )}
+                        >
+                            <Paperclip className="h-4 w-4" />
+                        </Button>
+                    </ZonaDeHerramientas>
+                    {/* Escondido, y FUERA de la zona: la columna se desmonta al
+                        cerrarse, y con el input dentro el diálogo del sistema se
+                        llevaría por delante su propio `onChange`. */}
+                    <input
+                        ref={elegirArchivos}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                            elegirLosArchivos(e.target.files);
+                            // Sin esto, volver a elegir el MISMO fichero no
+                            // dispara `change` y parece que el clip no hace
+                            // nada.
+                            e.target.value = "";
+                        }}
+                    />
                     {/* Los emojis se abren sobre el ANCHO DE LA FILA, y cierran
                         la columna en vez de salir dentro de ella. El panel mide
                         300 px y este lateral, en su ancho estrecho, 288: colgado
@@ -1577,197 +1630,119 @@ export function HiloDelEquipo({
                             }}
                             onBlur={() => setArroba(null)}
                             onKeyDown={alTeclear}
+                            onPaste={alPegar}
                             rows={1}
                             placeholder={
                                 editando ? "Edita tu mensaje" : "@ para mencionar"
                             }
                             className={cn(
-                                "max-h-40 min-h-[40px] w-full resize-none overflow-y-auto",
-                                // Sitio para lo que de verdad haya a la derecha.
-                                // De más, la última palabra se corta sola contra
-                                // un hueco vacío; de menos, el texto pasa por
-                                // debajo del botón y no se lee.
-                                dictado.listening && (texto.trim() || grabada)
-                                    ? "pr-[4.5rem]"
-                                    : "pr-11",
+                                "min-h-10 w-full resize-none overflow-y-auto",
+                                // El tope va en LÍNEAS y lo pone
+                                // `useAltoDeLaCaja`; aquí había un `max-h-40`,
+                                // o sea en píxeles, que es el fallo que Chats
+                                // ya tenía arreglado.
+                                // Y el hueco de la derecha sale de la MISMA
+                                // lista que pinta los botones: de más, la
+                                // última palabra se corta contra un hueco
+                                // vacío; de menos, el texto pasa por debajo.
+                                rellenoParaLosBotones(laDerecha),
                             )}
                             disabled={enviando || !canal.puedoEscribir}
                         />
-                        {(() => {
-                            const botonDeDictado = dictado.supported ? (
-                                <Button
-                                    key="dictado"
-                                    type="button"
-                                    size="icon"
-                                    onClick={() => {
-                                        dictado.toggle(texto, setTexto);
-                                        setVoz(false);
-                                    }}
-                                    disabled={
-                                        enviando ||
-                                        grabando ||
-                                        !canal.puedoEscribir ||
-                                        Boolean(editando)
-                                    }
-                                    aria-pressed={dictado.listening}
-                                    aria-label={dictado.listening ? "Dejar de dictar" : "Dictar"}
-                                    title={
-                                        dictado.listening
-                                            ? "Dictando… pulsa para parar"
-                                            : "Dictar: lo que digas se escribe aquí"
-                                    }
-                                    className={cn(
-                                        BOTON_REDONDO,
-                                        dictado.listening
-                                            ? `${BOTON_REDONDO_GRABANDO} animate-pulse`
-                                            : BOTON_REDONDO_EN_REPOSO,
-                                    )}
-                                >
-                                    <Type
-                                        className={cn(
-                                            "h-3.5 w-3.5",
-                                            dictado.listening
-                                                ? "text-white"
-                                                : "text-black dark:text-white",
-                                        )}
-                                    />
-                                </Button>
-                            ) : null;
-
-                            const botonDeNota = (
-                                <Button
-                                    key="nota"
-                                    type="button"
-                                    size="icon"
-                                    onClick={() => {
-                                        if (grabando) terminarDeGrabar();
-                                        else void empezarAGrabar();
-                                        setVoz(false);
-                                    }}
-                                    disabled={
-                                        enviando ||
-                                        dictado.listening ||
-                                        !canal.puedoEscribir ||
-                                        Boolean(editando)
-                                    }
-                                    aria-pressed={grabando}
-                                    aria-label={
-                                        grabando
-                                            ? "Terminar la nota de voz"
-                                            : "Grabar una nota de voz"
-                                    }
-                                    title={
-                                        grabando
-                                            ? `Grabando ${comoSeLeeLaDuracion(segundosGrabados)} — pulsa para terminar`
-                                            : "Grabar una nota de voz"
-                                    }
-                                    className={cn(
-                                        BOTON_REDONDO,
-                                        grabando
-                                            ? BOTON_REDONDO_GRABANDO
-                                            : BOTON_REDONDO_EN_REPOSO,
-                                    )}
-                                >
-                                    {grabando ? (
-                                        <Square className="h-3.5 w-3.5 text-white" />
-                                    ) : (
-                                        <Mic className="h-3.5 w-3.5 text-black dark:text-white" />
-                                    )}
-                                </Button>
-                            );
-
-                            const botonDeEnviar = (
-                                <Button
-                                    key="enviar"
-                                    type="button"
-                                    size="icon"
-                                    onClick={() => {
-                                        if (dictado.listening) dictado.stop();
-                                        void enviar(grabada);
-                                    }}
-                                    disabled={enviando || grabando || !canal.puedoEscribir}
-                                    aria-label="Enviar"
-                                    title="Enviar"
-                                    className={cn(BOTON_REDONDO, BOTON_DE_ENVIAR)}
-                                >
-                                    {enviando ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
-                                    ) : (
-                                        <Send className="h-3.5 w-3.5 text-white" />
-                                    )}
-                                </Button>
-                            );
-
-                            // El micrófono es el de siempre cuando el navegador
-                            // no tiene dictado: un botón que despliega una sola
-                            // cosa es un clic de más.
-                            const botonDeVoz = dictado.supported ? (
-                                <div className="relative" key="voz" ref={cajaDeVoz}>
-                                    <Button
-                                        type="button"
-                                        size="icon"
-                                        onClick={() => setVoz((v) => !v)}
-                                        disabled={
-                                            enviando ||
-                                            !canal.puedoEscribir ||
-                                            Boolean(editando)
-                                        }
-                                        aria-expanded={voz}
-                                        aria-label="Voz: dictado o nota de voz"
-                                        title="Voz: dictado o nota de voz"
-                                        className={cn(
-                                            BOTON_REDONDO,
-                                            voz
-                                                ? "bg-zinc-300 dark:bg-zinc-600"
-                                                : BOTON_REDONDO_EN_REPOSO,
-                                        )}
-                                    >
-                                        <Mic className="h-3.5 w-3.5 text-black dark:text-white" />
-                                    </Button>
-                                    {voz ? (
-                                        <div className={COLUMNA_DE_VOZ}>
-                                            {botonDeDictado}
-                                            {botonDeNota}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            ) : (
-                                botonDeNota
-                            );
-
-                            // Con la caja vacía NO hay botón de enviar: es lo que
-                            // deja sitio al micrófono, que es lo que se usa
-                            // cuando no hay nada escrito. Una nota ya grabada
-                            // cuenta como algo que enviar.
-                            const hayAlgoQueEnviar = Boolean(
-                                texto.trim() || grabada || archivos.length,
-                            );
-
-                            let derecha: React.ReactNode;
-                            if (grabando) {
-                                // Grabando manda la grabación: lo único que se
-                                // puede hacer es terminarla.
-                                derecha = botonDeNota;
-                            } else if (dictado.listening) {
-                                // Dictando, el botón de parar no puede
-                                // desaparecer porque haya texto: se estaría
-                                // obligando a enviar para poder callarlo.
-                                derecha = (
-                                    <>
-                                        {botonDeDictado}
-                                        {hayAlgoQueEnviar ? botonDeEnviar : null}
-                                    </>
-                                );
-                            } else {
-                                derecha = hayAlgoQueEnviar ? botonDeEnviar : botonDeVoz;
+                        {/* Los botones redondos: dictado, nota de voz y
+                            enviar. **Cuáles salen y en qué orden lo decide
+                            `losBotonesDeLaDerecha`**, que es puro y el mismo
+                            que usa Chats — escrito aquí a mano, el dictado
+                            llevaba un icono de texto (`Type`, o sea una T) y
+                            en la ruta a todo lo ancho salía un solo botón
+                            donde en la bandeja salen tres. */}
+                        <BotonesDeLaDerecha
+                            {...laDerecha}
+                            menuAbierto={voz}
+                            alAlternarMenu={() => setVoz((v) => !v)}
+                            menuRef={cajaDeVoz}
+                            menuDeshabilitado={
+                                enviando || !canal.puedoEscribir || Boolean(editando)
                             }
-
-                            return (
-                                <div className="absolute bottom-1.5 right-1.5 z-10 flex flex-row items-center gap-1">
-                                    {derecha}
-                                </div>
-                            );
-                        })()}
+                            dictado={
+                                dictado.supported
+                                    ? {
+                                          alPulsar: () => {
+                                              dictado.toggle(texto, setTexto);
+                                              setVoz(false);
+                                          },
+                                          deshabilitado:
+                                              enviando ||
+                                              grabando ||
+                                              !canal.puedoEscribir ||
+                                              Boolean(editando),
+                                          marcado: dictado.listening,
+                                          etiqueta: dictado.listening
+                                              ? "Dejar de dictar"
+                                              : "Dictar por voz",
+                                          titulo: dictado.listening
+                                              ? "Dictando… pulsa para parar"
+                                              : "Dictar por voz (escribe lo que hablas)",
+                                          clase: dictado.listening
+                                              ? `${BOTON_REDONDO_GRABANDO} animate-pulse`
+                                              : undefined,
+                                          icono: (
+                                              <AudioLines
+                                                  className={cn(
+                                                      "h-3.5 w-3.5",
+                                                      dictado.listening
+                                                          ? "text-white"
+                                                          : "text-black dark:text-white",
+                                                  )}
+                                              />
+                                          ),
+                                      }
+                                    : null
+                            }
+                            nota={{
+                                alPulsar: () => {
+                                    if (grabando) terminarDeGrabar();
+                                    else void empezarAGrabar();
+                                    setVoz(false);
+                                },
+                                deshabilitado:
+                                    enviando ||
+                                    dictado.listening ||
+                                    !canal.puedoEscribir ||
+                                    Boolean(editando),
+                                marcado: grabando,
+                                etiqueta: grabando
+                                    ? "Terminar la nota de voz"
+                                    : "Grabar una nota de voz",
+                                titulo: grabando
+                                    ? `Grabando ${comoSeLeeLaDuracion(segundosGrabados)} — pulsa para terminar`
+                                    : "Grabar una nota de voz",
+                                clase: grabando ? BOTON_REDONDO_GRABANDO : undefined,
+                                icono: grabando ? (
+                                    <Square className="h-3.5 w-3.5 text-white" />
+                                ) : (
+                                    <Mic className="h-3.5 w-3.5 text-black dark:text-white" />
+                                ),
+                            }}
+                            enviar={{
+                                alPulsar: () => {
+                                    if (dictado.listening) dictado.stop();
+                                    void enviar(grabada);
+                                },
+                                deshabilitado:
+                                    enviando ||
+                                    grabando ||
+                                    !canal.puedoEscribir ||
+                                    !laDerecha.hayAlgoQueEnviar,
+                                etiqueta: "Enviar",
+                                clase: BOTON_DE_ENVIAR,
+                                icono: enviando ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
+                                ) : (
+                                    <Send className="h-3.5 w-3.5 text-white" />
+                                ),
+                            }}
+                        />
                     </div>
                 </div>
             </div>
@@ -2553,9 +2528,15 @@ function Burbuja({
         <div
             // El id es por donde lo encuentra el aviso de la mención.
             id={`mensaje-${mensaje.id}`}
-            className={`flex flex-col gap-1 ${mio ? "items-end" : "items-start"}`}
+            // El `group` es la BURBUJA ENTERA, no la línea del nombre y la
+            // hora. Ahí era una franja de doce píxeles de alto: había que
+            // acertarle con el cursor para que salieran «responder», «editar»
+            // y «eliminar», así que desde fuera se lee como que el chat de
+            // equipo no deja editar. En Chats el `group` es la fila completa
+            // del mensaje desde siempre (`MessageBubble`).
+            className={`group flex flex-col gap-1 ${mio ? "items-end" : "items-start"}`}
         >
-            <div className="group flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">{mio ? "Tú" : quien}</span>
                 <span>{hora}</span>
                 {/* Que se sepa que se tocó. Sin la marca, un mensaje que

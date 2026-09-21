@@ -47,3 +47,125 @@ export const BOTON_REDONDO_EN_REPOSO =
 
 /** Y grabando, que tiene que verse sin leer nada. */
 export const BOTON_REDONDO_GRABANDO = "bg-red-500 hover:bg-red-600";
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Y lo que DECIDE la barra, no solo cómo se ve
+ *
+ * El #790 sacó a `lib/` las clases y a `components/shared/` el formato, los
+ * emojis y el texto ya pintado. La barra en sí siguió siendo **dos**:
+ * `ChatInputBar.tsx` y un compositor escrito dentro de `HiloDelEquipo.tsx`. Y
+ * dos implementaciones no divergen en lo grande —las dos mandan mensajes—:
+ * divergen en lo pequeño, que es lo que se reporta como «en el chat de equipo
+ * no deja pegar capturas» y «el icono del dictado sale como una T».
+ *
+ * Así que lo que decide la barra vive aquí, es PURO, y lo llaman las dos.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Por debajo de este ancho la barra va **plegada**: las herramientas salen del
+ * «+» en su columna y a la derecha queda un solo botón.
+ *
+ * Es una MEDIDA, no una pantalla: el chat de equipo se lee en un panel lateral
+ * de 18 a 24 rem —siempre plegado— y también en su propia ruta a todo lo
+ * ancho, donde tiene tanto sitio como Chats. Escrito como «aquí siempre
+ * plegado» las dos pantallas se ven distintas sin que nada lo justifique.
+ */
+export const ANCHO_COMPACTO = 640;
+
+/** Qué botón va a la derecha de la caja, dentro de ella. */
+export type BotonDeLaDerecha = "dictado" | "nota" | "enviar" | "menu";
+
+/** Lo que hay que saber para decidirlo. */
+export type EstadoDeLaDerecha = {
+    /** La barra no tiene ancho para los tres (ver `ANCHO_COMPACTO`). */
+    compacta: boolean;
+    /** Hay voz que ofrecer. Falso al previsualizar un audio o al editar. */
+    conVoz: boolean;
+    /** El navegador tiene dictado (Web Speech). */
+    hayDictado: boolean;
+    dictando: boolean;
+    grabando: boolean;
+    hayAlgoQueEnviar: boolean;
+};
+
+/**
+ * Los botones de la derecha, en orden, y **es la misma decisión en las dos
+ * barras**.
+ *
+ * Con sitio van los tres en fila —dictado, nota de voz y enviar— y el de
+ * enviar sale apagado mientras no haya nada que mandar. Plegada hay uno solo,
+ * y cuál es depende de lo que se esté haciendo:
+ *
+ * 1. **Grabando manda la grabación**: lo único que se puede hacer es
+ *    terminarla.
+ * 2. **Dictando, el botón de parar NO desaparece porque haya texto.** Si
+ *    desapareciera, la única forma de callar el dictado sería enviar el
+ *    mensaje.
+ * 3. Con algo que enviar, el azul.
+ * 4. Y si no, el micrófono — que despliega dictado y nota **solo cuando el
+ *    navegador tiene dictado**: un menú con una sola cosa dentro es un clic de
+ *    más.
+ */
+export function losBotonesDeLaDerecha(e: EstadoDeLaDerecha): BotonDeLaDerecha[] {
+    if (!e.compacta) {
+        const fila: BotonDeLaDerecha[] = [];
+        if (e.conVoz && e.hayDictado) fila.push("dictado");
+        if (e.conVoz) fila.push("nota");
+        fila.push("enviar");
+        return fila;
+    }
+    if (!e.conVoz) return ["enviar"];
+    if (e.grabando) return ["nota"];
+    if (e.dictando) return e.hayAlgoQueEnviar ? ["dictado", "enviar"] : ["dictado"];
+    if (e.hayAlgoQueEnviar) return ["enviar"];
+    return e.hayDictado ? ["menu"] : ["nota"];
+}
+
+/**
+ * El hueco que hay que dejarle a esos botones dentro de la caja.
+ *
+ * Sale de la MISMA lista, y por eso no pueden discrepar: de más, la última
+ * palabra se corta sola contra un hueco vacío; de menos, el texto pasa por
+ * debajo del botón y no se lee. Los tres números son los que Chats llevaba
+ * medidos (`pr-12` / `pr-28`) más el de dos que el chat de equipo ya había
+ * tenido que calcular por su cuenta.
+ */
+export function rellenoDeLaCaja(cuantos: number): string {
+    if (cuantos >= 3) return "pr-28";
+    if (cuantos === 2) return "pr-[4.5rem]";
+    return "pr-12";
+}
+
+/**
+ * Los ficheros que trae el portapapeles, o ninguno.
+ *
+ * **Pegar una captura es la forma en que la gente adjunta una imagen**: se
+ * recorta y se pega, no se guarda en el escritorio para buscarla luego. Es la
+ * misma regla que ya rige en los adjuntos de una tarea, y el chat de equipo
+ * **no la tenía**: su `<Textarea>` no llevaba ningún `onPaste`, así que Ctrl+V
+ * con una captura dentro no hacía absolutamente nada — ni error, ni aviso.
+ *
+ * Devuelve `[]` cuando el portapapeles trae solo texto, y quien llama **no
+ * toca el evento en ese caso**: sin esa condición, pegar texto dejaría de
+ * comportarse como siempre.
+ *
+ * `soloImagenes` es la diferencia legítima entre las dos barras: por WhatsApp
+ * se compone con imágenes (`ComposeMedia`), y el chat de equipo admite
+ * cualquier fichero.
+ */
+export function archivosDelPortapapeles(
+    items: ArrayLike<DataTransferItem> | null | undefined,
+    opciones?: { soloImagenes?: boolean },
+): File[] {
+    if (!items) return [];
+    const soloImagenes = opciones?.soloImagenes ?? false;
+    const salen: File[] = [];
+    for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+        if (!item || item.kind !== "file") continue;
+        if (soloImagenes && !String(item.type ?? "").startsWith("image/")) continue;
+        const fichero = item.getAsFile();
+        if (fichero) salen.push(fichero);
+    }
+    return salen;
+}

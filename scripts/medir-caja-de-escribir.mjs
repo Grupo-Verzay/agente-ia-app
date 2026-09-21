@@ -42,12 +42,42 @@ const ternarios = [
     ...bloque.matchAll(/(\w+)\s*\n?\s*\?\s*\n?\s*'([^']*)'\s*\n?\s*:\s*\n?\s*'([^']*)'/g),
 ];
 const porBandera = Object.fromEntries(ternarios.map((t) => [t[1], { si: t[2], no: t[3] }]));
-if (!porBandera.isCompactToolbar || !porBandera.noteMode) {
+if (!porBandera.noteMode) {
     throw new Error(
         "el <Textarea> cambió de forma: no se reconocen sus ternarios " +
             `(${ternarios.map((t) => t[1]).join(", ") || "ninguno"})`,
     );
 }
+
+/*
+ * El hueco de la derecha ya NO es un ternario escrito aquí: sale de la misma
+ * lista que pinta los botones (`rellenoParaLosBotones`), compartida con la
+ * barra del chat de equipo. Así que se importa esa decisión en vez de volver
+ * a escribirla — copiada, esto mediría una caja que React no pinta, que es
+ * justo lo que este banco existe para no hacer.
+ */
+if (!bloque.includes("rellenoParaLosBotones")) {
+    throw new Error("el <Textarea> ya no saca su relleno de `rellenoParaLosBotones`");
+}
+const COMPILADO = path.join(RAIZ, "lib/__tests__/.compilado/barra/barra-de-escribir.js");
+if (!fs.existsSync(COMPILADO)) {
+    throw new Error(
+        "falta `lib/__tests__/.compilado/barra`: esto corre desde scripts/banco-caja.sh",
+    );
+}
+const { losBotonesDeLaDerecha, rellenoDeLaCaja } = await import(`file://${COMPILADO}`);
+/** El caso de siempre: hay voz, hay dictado y no se está grabando ni dictando. */
+const rellenoDe = (compacta) =>
+    rellenoDeLaCaja(
+        losBotonesDeLaDerecha({
+            compacta,
+            conVoz: true,
+            hayDictado: true,
+            dictando: false,
+            grabando: false,
+            hayAlgoQueEnviar: false,
+        }).length,
+    );
 
 const deTernario = new Set(ternarios.flatMap((t) => [t[2], t[3]]));
 const sueltas = [...bloque.matchAll(/'([^']*)'/g)].map((m) => m[1]).filter((c) => !deTernario.has(c));
@@ -57,7 +87,7 @@ function clasesDeLaCaja(compacta) {
     return twMerge(
         [
             ...sueltas,
-            compacta ? porBandera.isCompactToolbar.si : porBandera.isCompactToolbar.no,
+            rellenoDe(compacta),
             porBandera.noteMode.no,
         ].join(" "),
     );
