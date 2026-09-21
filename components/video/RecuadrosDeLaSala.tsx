@@ -196,9 +196,10 @@ export function Recuadro({
             className={cn(
                 "relative h-full min-h-0 overflow-hidden border bg-zinc-900",
                 sinMarco ? "rounded-none" : "rounded-lg",
-                // El anillo ámbar es la mano levantada, y va en el BORDE y no
-                // solo en el icono: en la tira de miniaturas el icono mide diez
-                // píxeles y no lo ve nadie. Se pinta **aunque el recuadro vaya
+                // El anillo ámbar es la mano levantada, y va en el BORDE: el
+                // icono, en el pie (ver abajo). El borde se ve por los lados y
+                // por abajo aunque la cabecera flotante tape el filo de arriba,
+                // así que sigue siendo señal. Se pinta **aunque el recuadro vaya
                 // sin marco**: es lo único que dice que alguien pidió la
                 // palabra, y con una sola persona en la sala esa persona es la
                 // que la pidió.
@@ -265,24 +266,30 @@ export function Recuadro({
                 </div>
             ) : null}
 
-            {/* La mano, arriba a la izquierda y fuera del pie: el pie ya lleva
-                el nombre y los dos iconos de estado, y en una miniatura no cabe
-                un tercero sin comerse el nombre. */}
-            {manoLevantada ? (
-                <span
-                    className="absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-zinc-900"
-                    title={`${nombre} ha levantado la mano`}
-                    aria-label={`${nombre} ha levantado la mano`}
-                >
-                    <Hand className="h-3.5 w-3.5" />
-                </span>
-            ) : null}
-
             {/* El pie va a la IZQUIERDA y la barra de mandos flota centrada,
                 así que no se pisan aunque el recuadro llegue al borde de abajo.
                 Medido: la barra son ~290 px centrados y el nombre se queda en
-                su mitad. */}
+                su mitad.
+
+                La mano va AQUÍ, al principio del pie, y NO arriba a la
+                izquierda. Ahí la tapaba el título flotante «Reunión» de la
+                cabecera —misma esquina, `absolute top-0 z-20` a todo lo ancho—,
+                así que en el recuadro grande y en el de arriba la señal quedaba
+                escondida detrás de «Reunión». El pie nunca queda debajo de la
+                cabecera, así que se ve siempre; el anillo ámbar del borde la
+                acompaña. Es `shrink-0` y solo aparece cuando la mano está
+                levantada —raro—, así que como mucho recorta un poco el nombre en
+                una miniatura, que es lo que antes se evitaba sacándola del pie. */}
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
+                {manoLevantada ? (
+                    <span
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-zinc-900"
+                        title={`${nombre} ha levantado la mano`}
+                        aria-label={`${nombre} ha levantado la mano`}
+                    >
+                        <Hand className="h-3 w-3" />
+                    </span>
+                ) : null}
                 <span className="min-w-0 flex-1 truncate text-xs text-zinc-100">{nombre}</span>
                 {compartiendo ? (
                     <MonitorUp className="h-3.5 w-3.5 shrink-0 text-sky-300" />
