@@ -26,6 +26,7 @@
     "../reconexion-de-la-sala.ts",
     "../grabacion-de-reunion.ts",
     "../transcripcion-de-voz.ts",
-    "../rango-de-fechas-chats.ts"
+    "../rango-de-fechas-chats.ts",
+    "../editar-asesor.ts"
   ]
 }
