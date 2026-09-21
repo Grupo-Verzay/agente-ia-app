@@ -25,6 +25,15 @@ export type AdvisorRow = {
   activeCount: number;
   advisorAvailable: boolean;
   lastActivity: string | null;
+  /**
+   * Si es alguien del EQUIPO de esta cuenta y no una cuenta VINCULADA.
+   *
+   * Esta lista mezcla las dos, y desde el navegador no hay forma de
+   * distinguirlas. Lo necesita «Mover a otra cuenta»: una cuenta vinculada no
+   * se muda —no cuelga de nadie— y la acción la rechaza, así que ofrecer ahí
+   * esa opción es ofrecer un botón que da error.
+   */
+  esDelEquipo: boolean;
 };
 export type AdvisorInfo = {
   id: string;
@@ -126,7 +135,8 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
         name,
         email,
         role,
-        advisor_available
+        advisor_available,
+        priority
       FROM members
       ORDER BY id, priority DESC
     )
@@ -136,6 +146,10 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       d.email,
       d.role AS "advisorRole",
       d.advisor_available AS "advisorAvailable",
+      -- priority 0 es la gente de Equipo (owner_id); 1 son las cuentas
+      -- vinculadas. El DISTINCT ON de arriba ya decide cual gana cuando
+      -- alguien esta en las dos.
+      (d.priority = 0) AS "esDelEquipo",
       COUNT(s.id)::int AS "assignedCount",
       COUNT(s.id) FILTER (WHERE s.status = true)::int AS "activeCount",
       MAX(s."updatedAt") AS "lastActivity"
@@ -146,7 +160,7 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
     LEFT JOIN "Session" s
       ON s.assigned_advisor_id = d.id
      AND s."userId" = ${owner.id}
-    GROUP BY d.id, d.name, d.email, d.role, d.advisor_available
+    GROUP BY d.id, d.name, d.email, d.role, d.advisor_available, d.priority
     ORDER BY d.name ASC
   `;
 
