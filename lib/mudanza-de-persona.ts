@@ -246,9 +246,21 @@ export function laSuerteDeCadaArea(input: {
  * **Y la trampa está en el recorte, no en el reparto:** esa misma línea trata
  * «cero filas» como «sin restricción». Recortar a vacío no la deja sin módulos
  * — la deja **sin tope**, viendo todo lo que su plan permita, que es
- * exactamente lo contrario de lo que el recorte viene a hacer. Por eso cuando
- * el cruce se queda en nada se le dan **los de la cuenta nueva**: nunca más que
- * su cuenta, y nunca el «sin tope» de la lista vacía.
+ * exactamente lo contrario de lo que el recorte viene a hacer.
+ *
+ * De ahí salen los dos casos en que el cruce se queda en nada, que **no son el
+ * mismo** y se llevaron una mudanza de verdad por delante para verse:
+ *
+ * 1. **La cuenta nueva TIENE lista y no comparte ninguno.** Se le dan los de
+ *    ella: nunca más que su cuenta, y nunca el «sin tope» de la lista vacía.
+ * 2. **La cuenta nueva NO tiene lista** —está sin tope, que es lo normal en una
+ *    cuenta de administrador o de plan personalizado—. Aquí darle «los suyos»
+ *    sería vaciarla, y eso **la ensancha**: María Alejandra pasaba de sus tres
+ *    módulos a los catorce que permitía el plan de la cuenta nueva. Se
+ *    **conservan los suyos**, que siguen sin ser más que su cuenta —su cuenta
+ *    no tiene tope— y no la mueven de donde estaba.
+ *
+ * La regla corta: **el recorte solo puede quitar, nunca ensanchar.**
  *
  * Quien no tenía ninguna no gana ninguna: ya estaba sin tope y sigue igual,
  * que es lo mismo que le pasa a su cuenta.
@@ -261,6 +273,10 @@ export function losModulosQueLeQuedan(
     if (mios.length === 0) return [];
 
     const nueva = new Set(losDeLaCuentaNueva.filter(Boolean));
+    // La cuenta nueva no tiene tope. Vaciar los suyos la dejaría a ella sin
+    // tope también, o sea viendo MÁS que antes de mudarse; se conservan.
+    if (nueva.size === 0) return mios;
+
     const cruce = mios.filter((id) => nueva.has(id));
     if (cruce.length > 0) return cruce;
 
