@@ -9663,6 +9663,114 @@ co-administradas. Aquí no se busca a nadie: se mira el dueño de ESA línea, qu
 es un dato concreto de la fila. Cada cuenta principal conserva su número y desde
 sus propios chats sigue usando el suyo.
 
+## La salida es la línea de la CONVERSACIÓN, y se resuelve AL ENVIAR
+
+Un cliente escribe por **Verzay | Atención**, el asesor contesta desde la
+plataforma… y el mensaje sale por otra línea. Igual la llamada. Desde fuera no
+hay ningún error: el mensaje se envía, el cliente lo recibe **de un número que
+no conoce**, y la burbuja de la llamada aparece en otra conversación.
+
+**El servidor nunca tuvo la culpa.** `resolverContexto` resuelve la clave de la
+cuenta dueña de `context.instanceName` y `sendOutgoingPayload` y
+`persistOutgoingHistory` van todos por ahí: lo que le llegue, eso respeta. El
+que se equivocaba era el navegador, al decirle **por cuál**.
+
+### Lo que decidía: un `useRef` escrito en UN SOLO camino
+
+```ts
+result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(sendJid, payload);
+```
+
+`activeActionSetRef` se escribe **solo** dentro de `handleSelectFromSidebar`. Y
+`sendAnyAction` está atado en la página a `pickWhatsappOrNull(instancias)`, o
+sea **la primera línea de la cuenta de quien mira**. Así que cualquier forma de
+abrir una conversación que no sea pulsarla en la bandeja dejaba el ref en `null`
+y la respuesta salía por la línea equivocada:
+
+| cómo se abre | qué pasaba |
+| --- | --- |
+| enlace `?jid=` —el que escribe *Chats → equipo*, y el aterrizaje de un aviso— | el estado se siembra directo y el efecto que llamaría a `handleSelectFromSidebar` sale por `if (selectedJid)`: **nadie escribe la línea** |
+| un contacto que no entró en la página cargada de la bandeja (tope de 300) | `selectedContact` es `undefined` y `effectiveInstanceName` cae en la línea de la página, que además se escribe en `info` |
+| el reloj reabriendo el chat (`selectFromSidebarRef.current?.(jid)`) | iba **sin línea**, así que buscaba el contacto solo por número y podía quedarse con el de la otra línea |
+
+Y esa `info.instanceName` equivocada **se propagaba**: la cabecera la usa para
+el botón de llamar y el caché de mensajes se escribe con ella.
+
+> **La línea de salida es la de la CONVERSACIÓN, y se resuelve AL ENVIAR, no al
+> seleccionar.** Lo decide `lib/linea-de-la-conversacion.ts`, que es puro:
+> `laLineaDeLaConversacion` mira, por ese orden, **el contacto abierto, la línea
+> seleccionada y `info`** —tres formas de la misma cosa, y con tres el día que
+> una se quede sin escribir las otras contestan—, y `porDondeSaleLaRespuesta`
+> busca su juego de acciones. Los tres envíos y la plantilla de Meta pasan por
+> ahí.
+
+Y lo que no se puede ablandar:
+
+> **Cuando la línea se conoce y no hay con qué enviar por ella, NO se envía: se
+> dice.** Mandarlo por otra es escribirle al cliente desde un número que no es
+> el suyo, y eso no produce ningún error en ninguna capa. Solo el caso de
+> verdad desconocido —`sin-linea`— cae en el respaldo de siempre, y entonces
+> sale un `console.warn`.
+
+### Y el estado nace sembrado, que es la causa raíz
+
+Resolver al enviar arregla el envío; lo que arregla **todo lo demás que cuelga
+de la línea** —leer el historial, la presencia, el caché, el botón de llamar de
+la cabecera— es que `selectedInstanceName`, `info.instanceName` y el propio
+`activeActionSetRef` **nazcan con la línea de `initialSelectedChat`** en vez de
+en `null` y con la línea de la página. Y que el reloj reabra el chat **con su
+línea**.
+
+### Las llamadas: tres agujeros, y ninguno era `sidParaLlamar`
+
+`sidParaLlamar` ya estaba bien desde *se llama con el número de la línea, no con
+el de quien mira*. Lo que fallaba estaba antes y después:
+
+1. **`CallDialog` resolvía la línea y después la tiraba.** Calculaba `effName`
+   —de la prop, o de la cuenta gestionada cuando quien llama no la pasa— y
+   luego hacía `startAstraCall(\`+${phone}\`, instanceName)`, **con la prop en
+   crudo**. Desde una burbuja o desde el CRM eso es `undefined`, así que se
+   llamaba con el número propio. Va `effName`.
+2. **«Devolver llamada» de una burbuja no pasaba línea ninguna.** Baja por
+   **contexto** (`useConversacionDeLaNota`, el mismo que ya le lleva la
+   conversación al botón de transcribir una nota) y no por props: `MessageBubble`
+   está al fondo de tres componentes memoizados, y atravesarlos sería tocar la
+   firma de cada fila — lo que prohíbe *la lista es grande, no rehacerla por
+   gusto*. El contexto gana un campo, `instanceType`.
+3. **`logOutgoingCallAction` no recibía la línea.** Escribía la burbuja con
+   `userId = getCallAccountUserId()` y la línea por QR **de esa** cuenta, así
+   que llamando desde una conversación de otra línea el registro caía en **otra
+   conversación**: se escribía perfectamente y en la que se tenía delante no
+   aparecía nada. Ahora recibe la línea, resuelve su dueña y comprueba el
+   permiso con `assertCanAccessTargetUser` —la misma puerta que `sidParaLlamar`—;
+   sin permiso, o sin línea, se cae a lo de antes. **Perder el registro sería
+   peor que escribirlo donde ya se escribía.**
+
+### El banco, en dos modos
+
+`scripts/banco-linea-de-la-conversacion.sh`, y son **tres mitades** porque el
+fallo vive en tres capas:
+
+- **La decisión**, pura y sin base, con el resolvedor viejo escrito al lado: un
+  ref que solo se escribe al pulsar en la lista, y que abriendo por enlace
+  devuelve la línea de la cuenta.
+- **El código de verdad**, leído del fichero: que los tres envíos ya no
+  consultan `activeActionSetRef`, que el estado nace sembrado, que `CallDialog`
+  llama con `effName` y registra con su línea, y que la burbuja pasa la suya.
+  En `MODO=roto` **los mismos ficheros se leen de `origin/main`** —no de
+  `HEAD`, que en cuanto esto se comitee sería ya la versión nueva— y se afirma
+  que el fallo está ahí.
+- **Las acciones contra Postgres**, con la malla de `linked_accounts` dentro y
+  el `fetch` apuntado para poder afirmar **a qué sesión de llamadas se habló**:
+  con la línea ajena se llama con el número de su cuenta y la burbuja se anota
+  bajo ella; sin línea, con el propio y bajo la propia.
+
+Lo que **no** se puede ejercer aquí, y se dice: `sendManualChatPayloadAction`
+necesita hablar con Evolution o con Waha, así que el envío de verdad no se
+prueba contra un proveedor. Lo que sí se prueba es lo único que estaba mal —qué
+contexto se elige— y que el servidor respeta el que le llegue ya estaba cubierto
+por la forma de `resolverContexto`.
+
 ## El Robot no es el webhook
 
 El botón **Robot** de cada línea encendía y apagaba el **webhook de Evolution**.

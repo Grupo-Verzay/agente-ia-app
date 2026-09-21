@@ -14,7 +14,7 @@ import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-t
 import { TextoConFormato } from '@/components/shared/TextoConFormato';
 import { useOrigenDeLaApp } from '@/components/shared/OrigenDeLaApp';
 import { recortarSinPartirEnlaces } from '@/lib/enlaces-del-texto';
-import { useTranscribirNota } from './TranscribirNota';
+import { useConversacionDeLaNota, useTranscribirNota } from './TranscribirNota';
 
 /* ─── ExpandableText ─── */
 interface ExpandableTextProps {
@@ -186,6 +186,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     esNotaEntrante: !isUserMessage && media?.type === 'audio',
   });
 
+  // La linea por la que entro esta conversacion: la necesita «devolver
+  // llamada». Se pide aqui, antes de cualquier rama, como exige la regla de
+  // los hooks —la burbuja de llamada sale por un `return` de mas arriba—.
+  const laConversacion = useConversacionDeLaNota();
+
   // Sin avatar por mensaje (como WhatsApp en chats 1-a-1): burbujas limpias y
   // más espacio. El avatar del contacto ya se ve en la cabecera del chat.
   const showAvatar = false;
@@ -314,7 +319,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {callPhone && (
             <button
               type="button"
-              onClick={() => abrirLlamadaAqui({ phone: callPhone, contactName })}
+              // CON la linea de la conversacion. Sin ella, «devolver llamada»
+              // salia por la linea de la cuenta de quien mira: el cliente veia
+              // una llamada de un numero que no conoce, y el registro caia en
+              // otra conversacion. Baja por CONTEXTO y no por props porque esto
+              // esta al fondo de tres componentes memoizados: es el mismo
+              // camino que ya usa el boton de transcribir una nota.
+              onClick={() =>
+                abrirLlamadaAqui({
+                  phone: callPhone,
+                  contactName,
+                  instanceName: laConversacion?.instanceName,
+                  instanceType: laConversacion?.instanceType,
+                })
+              }
               className="ml-1 flex items-center gap-1 rounded-full bg-green-600 px-2 py-0.5 text-[0.65rem] font-semibold text-white transition-colors hover:bg-green-700"
               title="Devolver llamada"
             >

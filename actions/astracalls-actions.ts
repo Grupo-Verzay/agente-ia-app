@@ -376,6 +376,42 @@ export async function astraCallWebrtc(
 }
 
 /**
+ * Donde se anota una llamada: la LINEA por la que entro la conversacion.
+ *
+ * La burbuja «Llamada realizada» se guarda con `(userId, instanceName)`, asi
+ * que si esos dos no son los de la conversacion desde la que se llamo, el
+ * registro cae en OTRA conversacion —la del mismo numero en la linea por
+ * defecto de quien mira— y en la que se estaba mirando no aparece nada. Y no
+ * da ningun error: el mensaje se escribe perfectamente, solo que en otro sitio.
+ *
+ * Es la misma regla que ya sigue `sidParaLlamar` para elegir con que numero se
+ * llama: **la linea sale de la conversacion, y su dueña es quien manda**. Sin
+ * permiso sobre esa cuenta se cae a lo de siempre en vez de fallar — perder el
+ * registro seria peor que escribirlo donde ya se escribia.
+ */
+async function dondeSeAnotaLaLlamada(
+  instanceName?: string | null,
+): Promise<{ userId: string; instanceName: string } | null> {
+  const nombre = instanceName?.trim();
+  if (!nombre) return null;
+  try {
+    const linea = await db.instancia.findFirst({
+      where: { instanceName: nombre },
+      select: { userId: true, instanceName: true },
+    });
+    if (!linea?.userId) return null;
+    await assertCanAccessTargetUser(linea.userId);
+    return { userId: linea.userId, instanceName: linea.instanceName };
+  } catch (error) {
+    console.warn('[llamadas] no se pudo anotar la llamada en la linea de la conversacion', {
+      instanceName: nombre,
+      error: String(error),
+    });
+    return null;
+  }
+}
+
+/**
  * Registra en los Chats una llamada SALIENTE hecha desde la app (burbuja
  * "Llamada realizada"). Devuelve el id de la fila chat_messages para poder
  * adjuntarle luego la disposición (resultado). `disposition` es opcional y se
@@ -387,21 +423,29 @@ export async function logOutgoingCallAction(
   isVideo = false,
   disposition?: string,
   meta?: { astraSid?: string; astraCallId?: string; metaCallId?: string; provider?: string; isBot?: boolean },
+  /** La linea por la que entro la conversacion desde la que se llamo. */
+  lineaDeLaConversacion?: string | null,
 ): Promise<{ id: string | null }> {
   try {
+    const enLaLinea = await dondeSeAnotaLaLlamada(lineaDeLaConversacion);
     const me = await currentUser();
-    const userId = (await getCallAccountUserId()) ?? me?.ownerId ?? me?.id;
+    const userId = enLaLinea?.userId ?? (await getCallAccountUserId()) ?? me?.ownerId ?? me?.id;
     if (!userId) return { id: null };
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { id: null };
-    // Instancia para asociar la llamada: la línea por QR de la cuenta, con el
-    // proveedor que sea. La lista escrita a mano dejaba fuera `waha` —que es
-    // como nacen hoy las líneas— así que en esas cuentas caía en el respaldo
-    // «cualquier instancia», y con un canal de Meta al lado podía asociar la
-    // llamada al canal equivocado. Si no hay ninguna se usa un nombre por
-    // defecto para NO perder el registro, que es lo que importa aquí.
-    const { linea, todas } = await laLineaDeWhatsappDeLaCuenta(userId);
-    const instanceName = linea?.instanceName || todas[0]?.instanceName || 'llamadas';
+    // Instancia para asociar la llamada: la de la conversacion si se sabe cual
+    // es, y si no la línea por QR de la cuenta, con el proveedor que sea. La
+    // lista escrita a mano dejaba fuera `waha` —que es como nacen hoy las
+    // líneas— así que en esas cuentas caía en el respaldo «cualquier
+    // instancia», y con un canal de Meta al lado podía asociar la llamada al
+    // canal equivocado. Si no hay ninguna se usa un nombre por defecto para NO
+    // perder el registro, que es lo que importa aquí.
+    const deLaCuenta = enLaLinea ? null : await laLineaDeWhatsappDeLaCuenta(userId);
+    const instanceName =
+      enLaLinea?.instanceName ||
+      deLaCuenta?.linea?.instanceName ||
+      deLaCuenta?.todas[0]?.instanceName ||
+      'llamadas';
     const remoteJid = `${digits}@s.whatsapp.net`;
     const messageId = `callout_${Date.now()}_${digits}`;
     await persistChatMessage({
