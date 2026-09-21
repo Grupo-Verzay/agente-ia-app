@@ -15,6 +15,7 @@ import {
   posicionesDelTablero,
 } from "@/lib/orden-de-tablero-db";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+import { avisarDelTicketNuevo, laGenteQueAtiende } from "@/lib/avisar-del-ticket";
 import { elOrigenDeLaApp } from "@/lib/origen-de-la-app";
 import { apuntarComoAcabo, apuntarLoQueHizo } from "@/lib/apuntar-actividad";
 import { isAdminLike } from "@/lib/rbac";
@@ -275,6 +276,25 @@ export async function abrirTicketAction(
     // Entra al FINAL de su columna —«recibido»—, nunca arriba: colarse por
     // delante pisaría el orden que puso alguien a mano en el tablero.
     await alFinalDelTablero("tickets", destino, id);
+
+    // Y salta la ventana que interrumpe, la misma de una mención del chat del
+    // equipo. **Con responsable el aviso es suyo y de nadie más**; sin él va a
+    // todo el que alcance el módulo, que es el caso de un ticket recién
+    // llegado. No lanza: el ticket ya está creado.
+    await avisarDelTicketNuevo({
+      ticket: {
+        id,
+        destinoId: destino,
+        titulo: parsed.titulo,
+        responsableId,
+        // Lo abrió alguien con cuenta: el nombre lo pone el aviso desde su
+        // fila, no una cadena que hayamos copiado.
+        contactoNombre: null,
+      },
+      // La PERSONA que lo tecleó, para que no se avise a sí misma. La misma
+      // con la que se firma `creadoPorId`.
+      actorId: laPersonaQueActua(user).id,
+    });
 
     // Actividad del equipo. Con `refId`, para poder cerrar el círculo cuando
     // el ticket se resuelva y saber cuánto tardó. No lanza: el ticket ya está
@@ -602,21 +622,15 @@ async function avisarAlCliente(ticket: Ticket, id: string): Promise<boolean> {
  * que se ofrece: la propia cuenta de destino, su equipo (`ownerId`) y las
  * cuentas vinculadas a ella. Con un criterio más estrecho, el desplegable
  * ofrecería gente que al guardar se cae sin decir por qué.
+ *
+ * **Y lo pregunta a `laGenteQueAtiende`, que es también de donde sale la lista
+ * de a quién se le avisa.** Escrito dos veces —una aquí y otra en el aviso— el
+ * día que uno de los dos se afine se puede asignar un ticket a alguien que
+ * nunca va a recibir su aviso, y eso no se ve como un error: se ve como que «a
+ * mí los tickets no me llegan».
  */
 async function esDelEquipoQueAtiende(destinoId: string, personaId: string): Promise<boolean> {
-  if (personaId === destinoId) return true;
-
-  const fila = await db.user.findUnique({
-    where: { id: personaId },
-    select: { ownerId: true },
-  });
-  if (fila?.ownerId === destinoId) return true;
-
-  const enlazadas = await db.$queryRaw<Array<{ n: bigint }>>`
-    SELECT COUNT(*)::bigint AS n FROM "linked_accounts"
-    WHERE "master_user_id" = ${destinoId} AND "linked_user_id" = ${personaId}
-  `;
-  return Number(enlazadas[0]?.n ?? 0) > 0;
+  return (await laGenteQueAtiende(destinoId)).includes(personaId);
 }
 
 /**

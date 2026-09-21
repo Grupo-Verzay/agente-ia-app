@@ -11428,6 +11428,120 @@ sm:grid-cols-4`**, y eso arregla también los diálogos de tarea y de ticket en 
 móvil, que es donde estaba escondido: dentro de un diálogo casi no se miraba, y
 en la ficha pública es lo primero que ve el cliente.
 
+### Un ticket que entra SALTA, y es la MISMA ventana de una mención
+
+Un ticket llegaba por el enlace público, entraba en la bandeja… y no se
+enteraba nadie hasta que alguien se asomaba al tablero por su cuenta. Con un
+cliente esperando al otro lado, eso es exactamente el fallo del que viene toda
+esta familia: *un aviso que espera es un aviso que no llega.*
+
+Así que saca **la misma ventana que interrumpe** que una mención del chat del
+equipo: la misma tabla (`task_alerts`), la misma campanita y el mismo clic
+obligatorio. **No estrena ninguna tubería**, y eso no es comodidad: un aviso
+más, en otro sitio y con otra forma de despacharse, se aprende a ignorar — y el
+precio no es ese aviso, es que con él se empiezan a despachar los otros.
+
+**Cero tablas y cero columnas nuevas.** `task_alerts.taskId` ya es opcional y
+`enlace` ya existe, los dos por las menciones del chat de equipo: un aviso de
+ticket es un `tipo` más con `taskId: null` y su `enlace`. Y por eso el `tipo`
+entra a la vez en `TIPOS_DE_AVISO` y en `TIPOS_QUE_INTERRUMPEN` —`vence` sigue
+fuera, por su propia regla— y en los dos `Record<TipoDeAviso, …>` de la ventana:
+sin ellos compila y en pantalla sale un aviso sin icono y sin color, que no se
+parece a un error.
+
+**La regla, y es una frase:**
+
+> **Si el ticket tiene responsable, el aviso es suyo; si no, es de todo el que
+> alcance el módulo.** Lo decide `aQuienAvisaUnTicket` (`lib/aviso-de-ticket.ts`,
+> puro), y lo preguntan los dos caminos por los que entra un ticket.
+
+Un ticket recién llegado no tiene a nadie asignado —lo abre un cliente, y el
+cliente no reparte el trabajo del equipo que lo atiende—, así que va a todos. En
+cuanto alguien se lo asigna **deja de ser de todos**: seguir avisando al equipo
+entero de un ticket que ya tiene dueño es el aviso de más que enseña a
+despacharlos sin leer.
+
+#### Y el universo es el MISMO con el que se elige responsable
+
+`laGenteQueAtiende` —la cuenta de destino, su equipo (`owner_id`) y sus cuentas
+vinculadas, o sea el mismo universo de `getTeamAdvisorInfos`— la usan ahora las
+dos cosas: a quién se le avisa **y** `esDelEquipoQueAtiende`, que es la puerta
+que decide si un `responsableId` que llega del navegador se acepta. Escritas por
+separado, el día que una se afine se podría asignar un ticket a alguien que
+nunca va a recibir su aviso, y eso no se ve como un error: se ve como que «a mí
+los tickets no me llegan».
+
+**La cuenta de destino entra**, y no es un detalle: su fila no cuelga de nadie,
+así que `owner_id = destino` no la devuelve — es el mismo agujero que ya costó
+una vuelta en los directos del chat de equipo, donde al dueño no se le podía
+escribir.
+
+#### El filtro de módulo se pregunta a la fila EFECTIVA, y es una RESTRICCIÓN
+
+Encima del universo va el módulo: quien no alcanza `/tickets` no recibe nada,
+porque un aviso que lleva a una pantalla que esa persona no puede abrir es peor
+que no mandarlo. Se pregunta **por cada persona y no por su cuenta**: alguien
+del equipo tiene sus propios `_UserModules`, sus apartados negados y sus
+concedidos.
+
+Y la lectura es la que ya costó una vuelta con el botón de grabar: **una fila
+sin ninguna entrada en `_UserModules` no es «no tiene ningún módulo», es «sin
+tope»** — ve todo lo que su plan permita. Esa lectura vive en
+`cuentaAlcanzaLaRuta` y **no se vuelve a escribir**: se sacó a
+`quienesAlcanzanLaRuta` (`lib/alcance-de-modulo.server.ts`), que ahora usan los
+dos sitios que la necesitaban —el módulo de grabación y esto—. Copiarla habría
+sido la segunda oportunidad de leerla al revés.
+
+Al extraerla salió además un fallo que aquella no tenía a la vista: el rol con
+el que se abre un módulo «Solo Admin» es el de la CUENTA
+(`rolQueAbrePuertas`), no el de la persona — el equipo se crea con `role: user`
+y no cambia nunca, así que preguntando por él un administrador se quedaba sin su
+propio módulo. No cambia nada de la grabación, que solo se llama con ids de
+cuenta.
+
+#### Tres cosas más que hay que mantener
+
+1. **El aviso NO puede tumbar el ticket.** El ticket ya está guardado cuando se
+   avisa, así que `avisarDelTicketNuevo` no lanza — la misma regla que
+   `crearLosAvisos`. Pero **no es mudo**: escribe cuando nadie de la cuenta
+   alcanza el módulo, y escribe también el único caso raro de verdad —que el
+   ticket tenga responsable y **ese** no lo alcance—, porque eso no es un fallo
+   del aviso: es una cuenta mal configurada y hay que poder verlo.
+2. **El clic aterriza en EL TICKET**, no en la lista. `elEnlaceDelTicket` es una
+   sola función para los tres sitios que escriben ese enlace —los dos caminos de
+   entrada y el runner de vencimientos—, y `aDondeLleva` prefiere el `enlace`
+   sobre todo lo demás: sin él, un aviso sin tarea cae en `/chat-equipo`, que es
+   el respaldo del chat, y ahí no hay nada que leer.
+3. **Por la ficha pública el `actorId` va en NULO**, a propósito: quien escribe
+   no tiene fila en `User`, así que no hay persona que descontar de la lista. Su
+   nombre se copia en `actorNombre`, que es lo único que lo identifica.
+
+Y **el runner de vencimientos no cambia su reparto**: allí, sin responsable, el
+aviso va a **quien creó el ticket** y no a todo el equipo. Es a propósito —un
+vencimiento le toca a la misma gente el mismo día a la misma hora, y por eso ni
+siquiera saca la ventana—; lo único que comparte con esto es el enlace.
+
+#### El banco ejerce las ACCIONES, no la función de avisar
+
+`scripts/banco-avisos-de-ticket.sh`, y son dos mitades. La decisión va pura y
+sin base; lo que solo se ve contra Postgres es que **la lista sale de filas** —el
+módulo, sus `_UserModules`, el rol y `linked_accounts`— y no de un parámetro.
+Probar `avisarDelTicketNuevo` a solas sería probar justo el lado que no tiene
+puerta, así que lo que corre son los **dos caminos por los que entra un ticket**;
+lo único que se finge es `currentUser()`, `revalidatePath` y el `cache()` de
+React.
+
+Los cuatro casos del encargo están: ticket nuevo sin asignar, ticket ya
+asignado, **una persona con el menú recortado a otro módulo que no recibe nada**
+—y es una fila de `_UserModules` de verdad, no un id inventado— y que al pulsar
+el aviso `aDondeLleva` devuelve `/tickets?ticket=<id>`.
+
+`MODO=roto` corre la forma INGENUA —avisar a todo el equipo sin mirar el módulo
+ni el responsable— y **afirma los dos fallos**: que la persona sin acceso recibe
+y que un ticket ya asignado sigue despertando al equipo entero. Sin ese modo, lo
+verde de al lado no diría si la regla se cumple o si el caso no se llega a
+ejercer.
+
 ## «Súper administrador» es la PERSONA, y pasa por encima de todo
 
 `currentUser()` devuelve la fila de la cuenta **efectiva**. Con el conmutador de

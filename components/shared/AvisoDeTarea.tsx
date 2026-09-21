@@ -6,6 +6,7 @@ import {
   BellRing,
   CalendarClock,
   CheckCircle2,
+  LifeBuoy,
   MessageSquare,
   UserPlus,
   type LucideIcon,
@@ -91,6 +92,9 @@ const ICONO: Record<TipoDeAviso, LucideIcon> = {
   // aviso no saca la ventana —solo va a la campanita—, el mapa tiene que
   // conocerlo: el historial de la campanita usa estos mismos dos.
   vence: CalendarClock,
+  // Un ticket de soporte: no cuelga de ninguna tarea y su clic aterriza por el
+  // `enlace`, pero para la ventana es un aviso más.
+  ticket: LifeBuoy,
 };
 
 const COLOR: Record<TipoDeAviso, string> = {
@@ -99,6 +103,7 @@ const COLOR: Record<TipoDeAviso, string> = {
   comentario: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
   mencion: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   vence: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  ticket: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
 };
 
 function cuando(iso: string) {

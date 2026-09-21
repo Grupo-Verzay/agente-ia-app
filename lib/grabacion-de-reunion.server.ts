@@ -1,12 +1,8 @@
 import "server-only";
 
-import { db } from "@/lib/db";
 import { minioClient } from "@/lib/minio";
 import { laFamiliaDeLaCuenta } from "@/lib/familia-de-cuentas";
-import { isAdmin, isSuperAdmin } from "@/lib/rbac";
-import { aplicaBloqueoPorPlan } from "@/lib/panel-tabs";
-import { parseItemIds } from "@/lib/permisos";
-import { cuentaAlcanzaLaRuta } from "@/lib/acceso-a-modulo";
+import { quienesAlcanzanLaRuta } from "@/lib/alcance-de-modulo.server";
 import {
     COMO_SE_PIDE_EL_RESUMEN,
     TOPE_DE_OPENAI,
@@ -50,70 +46,7 @@ export const RUTA_DE_GRABACIONES = "/reuniones/grabaciones";
  * módulos de esta plataforma.
  */
 async function algunaCuentaAlcanzaLaRuta(cuentaIds: string[]): Promise<boolean> {
-    const ids = cuentaIds.filter((c) => c && c.trim());
-    if (!ids.length) return false;
-
-    // Los módulos que llevan la ruta, por su cabecera o por un apartado. Es la
-    // misma consulta cada vez y no depende de la cuenta.
-    const modulos = await db.module.findMany({
-        where: {
-            OR: [
-                { route: RUTA_DE_GRABACIONES },
-                { moduleItems: { some: { url: RUTA_DE_GRABACIONES } } },
-            ],
-        },
-        select: {
-            id: true,
-            route: true,
-            adminOnly: true,
-            allowedPlans: true,
-            lockedPlans: true,
-            moduleItems: { select: { id: true, url: true, lockedPlans: true } },
-        },
-    });
-    // Si nadie ha creado el módulo, no hay ruta que alcanzar.
-    if (!modulos.length) return false;
-
-    // Las cuentas, con lo que decide su visibilidad y su lista de restricción.
-    const cuentas = await db.user.findMany({
-        where: { id: { in: ids } },
-        select: {
-            id: true,
-            role: true,
-            plan: true,
-            ownerId: true,
-            advisorRole: true,
-            trialEndsAt: true,
-            deniedModuleItems: true,
-            grantedModuleItems: true,
-            userModules: { select: { A: true } },
-        },
-    });
-
-    for (const cuenta of cuentas) {
-        // Una cuenta actúa por su propio rol (su `ownerId` es nulo). Un agente
-        // —fila con dueño y sin `administrador`— no abre los «Solo Admin».
-        const esAgente = !!cuenta.ownerId && cuenta.advisorRole !== "administrador";
-        const alcanza = cuentaAlcanzaLaRuta(
-            {
-                esSuperAdmin: isSuperAdmin(cuenta.role),
-                esAdmin: isAdmin(cuenta.role) && !esAgente,
-                // La prueba abre todo: `aplicaBloqueoPorPlan` lo mira, así que
-                // hace falta traer `trialEndsAt` o una cuenta en prueba se
-                // trataría como limitada por plan y se le escondería de más.
-                filtraPorPlan: aplicaBloqueoPorPlan(cuenta),
-                plan: cuenta.plan ?? null,
-                restriccion: new Set(cuenta.userModules.map((r) => r.A)),
-                negados: parseItemIds(cuenta.deniedModuleItems),
-                concedidos: parseItemIds(cuenta.grantedModuleItems),
-            },
-            modulos,
-            RUTA_DE_GRABACIONES,
-        );
-        if (alcanza) return true;
-    }
-
-    return false;
+    return (await quienesAlcanzanLaRuta(cuentaIds, RUTA_DE_GRABACIONES)).size > 0;
 }
 
 /**
