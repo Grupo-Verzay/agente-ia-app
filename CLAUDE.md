@@ -13504,6 +13504,158 @@ de llamadas de verdad y los proveedores de WhatsApp de verdad. El `fetch` y los
 adaptadores están apuntados, así que lo probado es a qué línea se habla, con qué
 jid y qué se persiste — no que Waha entregue el mensaje.
 
+
+## Llamar y llamar con IA: una barra, y un MENÚ en vez de un segundo botón
+
+Dos pantallas de la misma área, y el mismo encargo: que llamar de las dos
+formas se alcance desde donde ya se está, sin inventar mandos nuevos.
+**Ninguna llamada cambia de comportamiento** — lo único que cambia es cómo se
+llega a ellas.
+
+### 1. El marcador de CRM › Llamadas: una fila, no tres bloques
+
+Eran **dos recuadros con una palabra de más en cada uno**. Arriba un bloque
+que se presentaba a sí mismo —un icono de teléfono y la palabra «Marcador»—
+con el campo, los dos botones y, al final, un «Rellamar:» con la pastilla del
+último contacto. Abajo, pegada a la tabla, otra cabecera que decía «Historial»
+y llevaba a la derecha los conteos y los filtros de dirección.
+
+Nada de eso informaba: la pantalla ya se llama Llamadas, el campo ya se ve que
+es un campo, y la tabla de abajo ya se ve que es el historial. Lo que sí
+costaba es que **los conteos y el filtro vivieran lejos del marcador**, dos
+bloques de alto por encima de lo que se viene a leer.
+
+Medido en Chromium sobre el CSS del build, lo que había **por encima de la
+primera fila** de la tabla:
+
+| ventana | antes | ahora | recupera |
+| --- | --- | --- | --- |
+| 1440 | 162 px | **62 px** | 100 px |
+| 1280 | 162 px | **62 px** | 100 px |
+| 1024 | 162 px | **62 px** | 100 px |
+| 390 | **306 px** | **106 px** | **200 px** |
+
+En un teléfono la cabecera se llevaba una pantalla entera antes de la primera
+llamada. Es la misma familia que *las métricas van en la BARRA, no en tarjetas
+encima de la lista*: la franja de arriba es la que le falta a la tabla.
+
+Cuatro cosas que hay que mantener:
+
+1. **En computador UNA fila; en el teléfono DOS**, y la de abajo se desplaza.
+   El corte es `sm:` —el de siempre— y lo que se apila es el
+   `flex-col sm:flex-row` de la caja, **no un `flex-wrap`**: con `wrap` la fila
+   se parte por donde toque y el resultado depende de cuánto mida un rótulo.
+   Medido: una fila a 1440/1280/1024 y dos a 390, siempre.
+2. **Lo de la derecha va en UN carril, no en dos.** Las pastillas y el grupo de
+   dirección comparten el sitio: metiendo cada una en su propio
+   `BarraDeslizable` habría dos scrollports pegados, y en un teléfono el
+   segundo se lleva el ancho que le falta al primero. Uno solo, con
+   `min-w-max` dentro para que **nada se comprima** — que es la regla que
+   `BarraDeAcciones` ya pagó una vez: *un carril que se desplaza no impide que
+   lo de dentro encoja*.
+3. **«Llamar con IA» pesa lo mismo que «Llamar».** Los dos sólidos, el mismo
+   alto y el mismo relleno; lo único que los separa es el color y el icono. En
+   contorno, el de IA se leía como el secundario de los dos, y no lo es: son
+   dos formas de llamar al mismo número.
+4. **Y las pastillas salen también en el teléfono** (`enElTelefono`, opt-in de
+   `PastillasDeMetricas`). Van `hidden sm:flex` **a propósito** —son cifras que
+   la lista de abajo ya contesta—, y esa sigue siendo la regla; lo que esta
+   excepción abre es el caso contrario: **aquí las tres pastillas SON el filtro
+   de dirección**, así que esconderlas en un teléfono no ahorra sitio, quita la
+   función. Su renglón ya se desplaza, así que no le roban ancho a nada.
+
+#### En el teléfono cede el CAMPO, y los botones se quedan solo con su icono
+
+Esto **lo cazó medir, no leer**, y con el banco ya en verde por lo demás: a
+390 px la página **se desplazaba a lo ancho** —`documentElement.scrollWidth`
+461 sobre 390—. Listando lo que salía por la derecha, el culpable era el botón
+«Llamar con IA» en `position: static`, con su `right` en 461: el campo con su
+ancho fijo más los dos botones **con su palabra** y sus huecos pedían del orden
+de 450 px en un hueco de 348.
+
+Dos cosas, y hacen falta las dos:
+
+1. **La fila de marcar es `w-full sm:w-auto` y el campo `min-w-0 flex-1
+   sm:w-52 sm:flex-none`.** En el teléfono el campo es lo ÚNICO que cede: se
+   queda con lo que los dos botones le dejen. De `sm:` en adelante vuelve a
+   medir lo suyo y no empuja al carril.
+2. **Y los dos botones se quedan solo con su icono por debajo de `sm`**
+   (`<span className="hidden sm:inline">`, `px-3 sm:px-4`), con su `aria-label`
+   y su `title` puestos. Es la misma decisión que `BotonDeCrear` con su «+» y
+   que las acciones secundarias de `BarraDeAcciones`, y por el mismo motivo: en
+   un teléfono el ancho es lo único que escasea.
+
+Medido después: **nada desborda en ninguna de las cuatro anchuras**, ningún
+rótulo se recorta y a 1024 el carril sobra 202 px que **se desplazan** —que es
+lo que esta barra hace desde el #815—.
+
+### 2. En Chats el botón verde es un MENÚ, no dos botones
+
+El encargo decía «no agregues un segundo botón en la cabecera», y eso es lo
+que decide la forma: el disparador **sigue siendo el mismo botón verde** y lo
+único que cambia es que al pulsarlo se abren dos opciones, en su orden:
+**Llamar** (teléfono) y **Llamar con IA** (robot).
+
+`components/chats/MenuDeLlamada.tsx` lo pinta, y **la cabecera lo monta en sus
+dos sitios** —el compacto y el ancho— con el mismo componente. Con dos copias,
+el día que se afine una el otro se queda atrás, que es la lección de *la barra
+de escribir es UNA*.
+
+**Y no hizo falta tocar el servidor.** `startBotCallAction` ya recibe la línea
+como segundo parámetro desde el #849, así que la opción de IA le pasa
+`datos.instanceName` y la llamada sale **por la línea de la conversación
+abierta**, con su burbuja anotada donde toca. La opción normal dispara
+`abrirLlamadaAqui(...)`, o sea exactamente lo que el botón hacía ya: el evento
+que escucha `AnfitrionDeLlamada` desde el layout, que es lo que hace que una
+llamada sobreviva a navegar (#860).
+
+Dos cosas que el banco ejerce y que no se contestan leyendo:
+
+1. **Cada opción dispara la SUYA y no la otra.** Un menú que al pulsar
+   «Llamar» lanzara además la llamada con IA gastaría créditos sin que nadie
+   los pidiera, y eso no da ningún error.
+2. **Las dos van por la línea de la conversación**, no por la de quien mira.
+   Es el fallo que ya costó una vuelta entera en *la salida es la línea de la
+   CONVERSACIÓN*, y aquí reaparecería solo: copiar el manejador del marcador
+   del CRM da `startBotCallAction(digitos)` sin línea, que es exactamente lo
+   que el modo roto del banco monta y **afirma**.
+
+### El banco: dos mitades, y cada una con su modo roto
+
+`scripts/banco-llamar-con-ia.sh`, porque el cambio vive en dos capas.
+
+- **El menú**, en Chromium y con el componente REAL: Radix monta el contenido
+  en un portal y solo al abrirlo, así que el `onSelect` de cada opción es
+  código que **no se ejecuta sin navegador**. `MODO=roto` monta la versión
+  INGENUA —la que sale de copiar el manejador del marcador— y afirma el fallo:
+  `ia[0].linea === null`. No es «el componente de antes» —este menú es nuevo—
+  y **se dice en vez de disimularlo**: es la forma en que esto se escribe solo.
+- **La barra**, sobre el CSS del build, con las cuatro anchuras y el hueco real
+  de la pantalla. El «antes» **no se escribe a mano**: los dos bloques salen de
+  `origin/main` con `git show`, recortados por sus propios comentarios
+  (`scripts/sacar-marcador-de-antes.py`), y el script **se cae con estruendo**
+  si alguno de sus cinco anclajes no aparece exactamente una vez. Copiados al
+  banco se estaría midiendo lo que alguien recuerda de la pantalla vieja.
+
+Y dos errores del propio banco que costaron su vuelta, porque los dos daban
+verde o rojo por el motivo equivocado:
+
+1. **Desbordar DENTRO de un carril que se desplaza no es estar fuera.** La
+   primera medida cantaba los tres filtros como «fuera de la tarjeta» a 1024:
+   `getBoundingClientRect()` informa de su posición **sin recortar**, y ahí
+   estaban perfectamente alcanzables —`clientW 230 / scrollW 432`—. Un mando
+   solo cuenta como perdido cuando **no tiene ningún antepasado que se
+   desplace**.
+2. **`variant="outline"` de esta casa NO es transparente.** Lleva
+   `bg-background`, que computa a **blanco opaco**, así que la heurística de
+   «sólido = fondo no transparente» daba `true` también para el botón de antes
+   y el modo roto fallaba por no reproducir nada. Lo que separa un relleno de
+   un contorno es que **el fondo del botón no sea el de la tarjeta**, más que
+   sea distinto del de «Llamar». Medido: antes `rgb(255,255,255)` con 1 px de
+   borde violeta —el mismo blanco de la tarjeta—; ahora `rgb(124,58,237)` sin
+   borde, contra el `rgb(22,163,74)` de «Llamar».
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
