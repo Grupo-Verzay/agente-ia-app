@@ -3,6 +3,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import { minioClient } from "@/lib/minio";
 import { laFamiliaDeLaCuenta } from "@/lib/familia-de-cuentas";
+import { isAdmin, isSuperAdmin } from "@/lib/rbac";
+import { aplicaBloqueoPorPlan } from "@/lib/panel-tabs";
+import { parseItemIds } from "@/lib/permisos";
+import { cuentaAlcanzaLaRuta } from "@/lib/acceso-a-modulo";
 import {
     COMO_SE_PIDE_EL_RESUMEN,
     TOPE_DE_OPENAI,
@@ -26,36 +30,90 @@ import {
 export const RUTA_DE_GRABACIONES = "/reuniones/grabaciones";
 
 /**
- * Si ALGUNA de estas cuentas tiene el módulo de grabación.
+ * Si ALGUNA de estas cuentas ALCANZA el módulo de grabación —lo VE en su menú—.
  *
- * Se pregunta por la cuenta y **no por la persona**: es un módulo que se vende
- * y se activa en Panel › Módulos, igual que los demás, así que lo que decide es
- * lo que se le repartió a la cuenta (`_UserModules`), no el rol de quien está
- * sentado delante. Un agente de una cuenta con grabación graba; el dueño de una
- * cuenta sin ella, no.
+ * Se pregunta por la cuenta y **no por la persona**: es un módulo que se vende y
+ * se activa en Panel › Módulos, igual que los demás. Y «como los demás» es
+ * exacto: el botón sale cuando la cuenta vería la ruta `/reuniones/grabaciones`
+ * en su menú, con la MISMA regla que el layout (`cuentaAlcanzaLaRuta`).
+ *
+ * Esto arregla un fallo real. Antes se miraba si EXISTÍA una fila en
+ * `_UserModules` para el módulo, y esa tabla en esta plataforma es una
+ * **restricción**, no una concesión: una cuenta sin filas —lo normal en una de
+ * administrador o Enterprise— **ve todos** los módulos que su plan permite, así
+ * que en el menú tenía la pestaña y en el botón daba `false`. Se asignara el
+ * módulo las veces que se asignara, no aparecía. Ahora las dos puertas —el menú
+ * y el botón— preguntan lo mismo.
  *
  * Mira también los apartados (`ModuleItem`), porque un módulo puede llevar la
  * ruta dentro en vez de en su cabecera — que es como se monta la mitad de los
- * módulos de esta plataforma. Sin esa mitad, una cuenta con el apartado
- * asignado vería el botón apagado y nadie sabría por qué.
+ * módulos de esta plataforma.
  */
-async function algunaCuentaTieneElModulo(cuentaIds: string[]): Promise<boolean> {
+async function algunaCuentaAlcanzaLaRuta(cuentaIds: string[]): Promise<boolean> {
     const ids = cuentaIds.filter((c) => c && c.trim());
     if (!ids.length) return false;
-    const filas = await db.userModule.findMany({
+
+    // Los módulos que llevan la ruta, por su cabecera o por un apartado. Es la
+    // misma consulta cada vez y no depende de la cuenta.
+    const modulos = await db.module.findMany({
         where: {
-            B: { in: ids },
-            Module: {
-                OR: [
-                    { route: RUTA_DE_GRABACIONES },
-                    { moduleItems: { some: { url: RUTA_DE_GRABACIONES } } },
-                ],
-            },
+            OR: [
+                { route: RUTA_DE_GRABACIONES },
+                { moduleItems: { some: { url: RUTA_DE_GRABACIONES } } },
+            ],
         },
-        select: { A: true },
-        take: 1,
+        select: {
+            id: true,
+            route: true,
+            adminOnly: true,
+            allowedPlans: true,
+            lockedPlans: true,
+            moduleItems: { select: { id: true, url: true, lockedPlans: true } },
+        },
     });
-    return filas.length > 0;
+    // Si nadie ha creado el módulo, no hay ruta que alcanzar.
+    if (!modulos.length) return false;
+
+    // Las cuentas, con lo que decide su visibilidad y su lista de restricción.
+    const cuentas = await db.user.findMany({
+        where: { id: { in: ids } },
+        select: {
+            id: true,
+            role: true,
+            plan: true,
+            ownerId: true,
+            advisorRole: true,
+            trialEndsAt: true,
+            deniedModuleItems: true,
+            grantedModuleItems: true,
+            userModules: { select: { A: true } },
+        },
+    });
+
+    for (const cuenta of cuentas) {
+        // Una cuenta actúa por su propio rol (su `ownerId` es nulo). Un agente
+        // —fila con dueño y sin `administrador`— no abre los «Solo Admin».
+        const esAgente = !!cuenta.ownerId && cuenta.advisorRole !== "administrador";
+        const alcanza = cuentaAlcanzaLaRuta(
+            {
+                esSuperAdmin: isSuperAdmin(cuenta.role),
+                esAdmin: isAdmin(cuenta.role) && !esAgente,
+                // La prueba abre todo: `aplicaBloqueoPorPlan` lo mira, así que
+                // hace falta traer `trialEndsAt` o una cuenta en prueba se
+                // trataría como limitada por plan y se le escondería de más.
+                filtraPorPlan: aplicaBloqueoPorPlan(cuenta),
+                plan: cuenta.plan ?? null,
+                restriccion: new Set(cuenta.userModules.map((r) => r.A)),
+                negados: parseItemIds(cuenta.deniedModuleItems),
+                concedidos: parseItemIds(cuenta.grantedModuleItems),
+            },
+            modulos,
+            RUTA_DE_GRABACIONES,
+        );
+        if (alcanza) return true;
+    }
+
+    return false;
 }
 
 /**
@@ -79,16 +137,16 @@ export async function laCuentaPuedeGrabar(
     raizHint?: string | null,
 ): Promise<boolean> {
     try {
-        // Camino barato: la cuenta de la sala tiene su propio módulo. Cubre la
+        // Camino barato: la propia cuenta de la sala alcanza la ruta. Cubre la
         // reunión de la propia cuenta sin tocar la familia.
-        if (await algunaCuentaTieneElModulo([cuentaId])) return true;
+        if (await algunaCuentaAlcanzaLaRuta([cuentaId])) return true;
 
-        // Si no, ¿la tiene la madre? La raíz llega ya resuelta desde la vuelta
+        // Si no, ¿la alcanza la madre? La raíz llega ya resuelta desde la vuelta
         // del reloj cuando la sala es de otra cuenta de la familia; si no, se
         // resuelve aquí (una vez, en el camino que no es el caliente).
         const raiz = (raizHint ?? "").trim() || (await laFamiliaDeLaCuenta(cuentaId)).raiz;
         if (raiz && raiz !== cuentaId) {
-            return algunaCuentaTieneElModulo([raiz]);
+            return algunaCuentaAlcanzaLaRuta([raiz]);
         }
         return false;
     } catch (error) {
