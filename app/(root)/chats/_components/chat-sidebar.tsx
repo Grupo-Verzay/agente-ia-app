@@ -1412,17 +1412,23 @@ export function ChatSidebar({
               channelCounts={channelCounts}
               onChannelChange={onChannelChange}
             />
-            {/* Etiquetas. Sube de la fila de abajo: filtra por que TIPO de chat
-                es, no por su situacion. Donde estaba el boton de refrescar, que
-                sobraba: la lista se refresca sola cada 20 s. */}
-            {allTags.length > 0 && (
-              <TagFilterPanel
-                tags={allTags}
-                selectedTagIds={selectedTagIds}
-                onToggleTag={toggleTagFilter}
-                onClearFilter={() => setSelectedTagIds(new Set())}
-              />
-            )}
+            {/* El embudo: rango de fechas arriba y etiquetas debajo. Sale
+                SIEMPRE —aunque no haya etiquetas—, porque el rango de fechas
+                aplica a cualquier cuenta. */}
+            <TagFilterPanel
+              tags={allTags}
+              selectedTagIds={selectedTagIds}
+              onToggleTag={toggleTagFilter}
+              onClearFilter={() => setSelectedTagIds(new Set())}
+              rangoDesde={rangoDesde}
+              rangoHasta={rangoHasta}
+              campoDeFecha={campoDeFecha}
+              rangoActivo={rangoActivo}
+              onRangoDesde={setRangoDesde}
+              onRangoHasta={setRangoHasta}
+              onCampoDeFecha={setCampoDeFecha}
+              onLimpiarRango={limpiarRango}
+            />
             {showAdvisorFilter && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1531,14 +1537,6 @@ export function ChatSidebar({
             onSetServiceType={clientValidationEnabled ? (v) => setServiceTypeFilter((prev) => prev === v ? null : v) : undefined}
             iaCount={filterCounts.ia}
             humanCount={filterCounts.human}
-            rangoDesde={rangoDesde}
-            rangoHasta={rangoHasta}
-            campoDeFecha={campoDeFecha}
-            rangoActivo={rangoActivo}
-            onRangoDesde={setRangoDesde}
-            onRangoHasta={setRangoHasta}
-            onCampoDeFecha={setCampoDeFecha}
-            onLimpiarRango={limpiarRango}
             onDeleteByDate={canDeleteChats && onBulkDelete ? () => setDateDeleteOpen(true) : undefined}
           />
 
