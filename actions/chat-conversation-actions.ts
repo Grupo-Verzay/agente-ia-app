@@ -323,8 +323,20 @@ async function assertCanDeleteChats(userId: string) {
  *
  * `buildWhatsAppJidCandidates` con un `@lid` devuelve solo el `@lid`, a
  * proposito: sus digitos no son un telefono. Y con un numero no sabe cual es su
- * `@lid`. Quien sabe cruzarlas es `chat_messages`, que guarda cada mensaje con
- * todas.
+ * `@lid`. Quien sabe cruzar `@lid` con numero son NUESTRAS tablas, que guardan
+ * cada fila con todas las formas del contacto.
+ *
+ * Y se leen las TRES, no solo `chat_messages`. Ese era el fallo de fondo de los
+ * chats que se borran y vuelven: `chat_messages` es la unica fuente que este
+ * mismo borrado VACIA, y ademas CADUCA a los 90 dias. Una conversacion vieja
+ * -junio, borrada en septiembre- ya no tiene ni un mensaje, asi que el puente
+ * `@lid`<->numero se perdia: la marca (y el `DELETE`) cubrian solo la forma con
+ * la que se pidio, y la lista trae al contacto por la OTRA -su `@lid` si se pidio
+ * por numero, o al reves-, se saltaba la marca y reaparecia. `chat_conversations`
+ * y `Session` son DURABLES -la ficha del lead no caduca y la conversacion es
+ * justo lo que la bandeja lista-, asi que de ahi sale el puente aunque los
+ * mensajes ya no esten. Es la misma regla de siempre en Chats: cuando una forma
+ * se queda corta, se miran todas -y ahora tambien en la fuente que sobrevive-.
  *
  * Es la misma consulta que ya hacia el borrado; vive aparte porque la marca de
  * anclado necesita exactamente lo mismo (ver `upsertPreferenceEnTodasLasIdentidades`).
@@ -336,25 +348,55 @@ async function identidadesDelContacto(
   extra: string[] = [],
 ): Promise<string[]> {
   const formasBase = buildWhatsAppJidCandidates(normalizedRemoteJid, extra);
-  const vistos = await db.chatMessage
-    .findMany({
-      where: {
-        userId,
-        ...(linea ? { instanceName: linea } : {}),
-        OR: [
-          { remoteJid: { in: formasBase } },
-          { remoteJidAlt: { in: formasBase } },
-          { senderPn: { in: formasBase } },
-        ],
-      },
-      select: { remoteJid: true, remoteJidAlt: true, senderPn: true },
-      distinct: ["remoteJid", "remoteJidAlt", "senderPn"],
-      take: 50,
-    })
-    .catch(() => [] as { remoteJid: string; remoteJidAlt: string | null; senderPn: string | null }[]);
+  const deLaLinea = linea ? { instanceName: linea } : {};
+  const orPorIdentidad = [
+    { remoteJid: { in: formasBase } },
+    { remoteJidAlt: { in: formasBase } },
+    { senderPn: { in: formasBase } },
+  ];
+
+  // Las tres a la vez, cada una a prueba de fallos por su cuenta: que falte una
+  // tabla o que una consulta reviente no puede dejar al borrado sin las
+  // identidades que las demas si saben.
+  const [enMensajes, enConversaciones, enSesiones] = await Promise.all([
+    db.chatMessage
+      .findMany({
+        where: { userId, ...deLaLinea, OR: orPorIdentidad },
+        select: { remoteJid: true, remoteJidAlt: true, senderPn: true },
+        distinct: ["remoteJid", "remoteJidAlt", "senderPn"],
+        take: 50,
+      })
+      .catch(() => [] as { remoteJid: string; remoteJidAlt: string | null; senderPn: string | null }[]),
+    db.chatConversation
+      .findMany({
+        // `chat_conversations` acota por `instanceName`, igual que los mensajes.
+        where: { userId, ...deLaLinea, OR: orPorIdentidad },
+        select: { remoteJid: true, remoteJidAlt: true, senderPn: true },
+        take: 50,
+      })
+      .catch(() => [] as { remoteJid: string; remoteJidAlt: string | null; senderPn: string | null }[]),
+    db.session
+      .findMany({
+        // La ficha del CRM guarda la linea en `instanceId` (el NOMBRE de la
+        // linea, no su id), y no tiene columna `senderPn`.
+        where: {
+          userId,
+          ...(linea ? { instanceId: linea } : {}),
+          OR: [
+            { remoteJid: { in: formasBase } },
+            { remoteJidAlt: { in: formasBase } },
+          ],
+        },
+        select: { remoteJid: true, remoteJidAlt: true },
+        take: 50,
+      })
+      .catch(() => [] as { remoteJid: string; remoteJidAlt: string | null }[]),
+  ]);
 
   return buildWhatsAppJidCandidates(normalizedRemoteJid, [
-    ...vistos.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
+    ...enMensajes.flatMap((m) => [m.remoteJid, m.remoteJidAlt, m.senderPn]),
+    ...enConversaciones.flatMap((c) => [c.remoteJid, c.remoteJidAlt, c.senderPn]),
+    ...enSesiones.flatMap((s) => [s.remoteJid, s.remoteJidAlt]),
     ...extra,
   ]);
 }
@@ -1498,15 +1540,29 @@ export async function bulkArchiveChatsAction(
   }
 }
 
+const bulkDeleteSchema = bulkBaseSchema.extend({
+  // Las identidades que la PANTALLA conoce de cada chat, por si nuestra base ya
+  // no las cruza (mensajes caducados o el segundo borrado, que vacio
+  // `chat_messages`). El borrado de uno en uno ya las pasaba; a este —el que usa
+  // «Eliminar por fecha» y la seleccion multiple— se le habia pasado, asi que la
+  // marca cubria menos identidades y el chat volvia por la que quedo fuera.
+  identidadesPorJid: z.record(z.string(), z.array(z.string().trim().min(1))).optional(),
+});
+
 export async function bulkDeleteChatsAction(
-  input: z.infer<typeof bulkBaseSchema>,
+  input: z.infer<typeof bulkDeleteSchema>,
 ): Promise<ChatPreferenceResponse<ChatConversationPreference[]>> {
   try {
-    const parsed = bulkBaseSchema.parse(input);
+    const parsed = bulkDeleteSchema.parse(input);
     await assertCanDeleteChats(parsed.userId);
     const results = await Promise.all(
       parsed.remoteJids.map((remoteJid) =>
-        hardDeleteLocalChat(parsed.userId, parsed.instanceName, remoteJid),
+        hardDeleteLocalChat(
+          parsed.userId,
+          parsed.instanceName,
+          remoteJid,
+          parsed.identidadesPorJid?.[remoteJid] ?? [],
+        ),
       ),
     );
 
