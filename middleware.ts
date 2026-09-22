@@ -27,6 +27,63 @@ const apiHealthPrefix = "/api/health";
 // contra la base — nunca un `userID` que mande el navegador.
 const apiTicketsPublicoPrefix = "/api/tickets-publico";
 
+// Las rutas de LLAMADAS que llama el BACKEND, no un navegador.
+//
+// Esta es la puerta por la que se caía el aviso de fin de llamada, y el fallo
+// era **completamente mudo**. El backend hace
+// `fetch(NEXTJS_URL + "/api/calls/call-ended")` con su clave interna y sin
+// cookie de sesión; el middleware no tenía este prefijo, así que contestaba
+// `307` hacia `/login` — y **`fetch` sigue las redirecciones**: se traía la
+// página de login con un `200`, `resp.ok` salía `true`, y el backend escribía
+// «fin de llamada avisado a la App» habiendo entregado exactamente nada.
+//
+// Medido sobre el build servido:
+//
+//   POST /api/calls/call-ended  ->  307 -> /login?callbackUrl=...
+//   resp.ok true · resp.status 200 · resp.url .../login
+//
+// De ahí el síntoma: la llamada sale, se habla, se cuelga, y en CRM › Llamadas
+// no queda ni la duración. Lo que lo tapaba hasta el 21 era el sondeo en
+// memoria de la propia App —que no pasa por HTTP—; en cuanto un redespliegue
+// se llevó esas promesas, quedó a la vista.
+//
+// Y ser pública NO abre ninguna: las cuatro comprueban por su cuenta, que es
+// la regla de siempre —ninguna ruta `/api` confía solo en el middleware—.
+// `call-ended`, `process-bot-recording` y `rescatar` piden
+// `CRM_FOLLOW_UP_RUNNER_KEY`; `recording` pide `currentUser()`.
+const apiCallsPrefix = "/api/calls";
+
+// Y las OTRAS que estaban igual, encontradas por el barrido del banco: las
+// herramientas del agente. Se autentican SOLO con la clave interna —ninguna
+// acepta sesión, porque ninguna la abre un navegador— así que recibían el
+// mismo `307` hacia `/login`, medido:
+//
+//   POST /api/send-media           307 -> /login?callbackUrl=%2Fapi%2Fsend-media
+//   POST /api/products             307 -> ...
+//   POST /api/external-client-data 307 -> ...
+//
+// O sea que el agente pedía sus productos y sus datos externos y se traía la
+// página de login con un `200`. Sin un solo error.
+//
+// Abrirlas aquí no abre nada: comprobado ruta por ruta, las nueve de estos
+// cuatro prefijos tienen su puerta propia —ocho con la clave interna y
+// `calls/recording` con `currentUser()`—. Es la regla de siempre: ninguna
+// ruta `/api` confía solo en el middleware.
+//
+// **`/api/bookings` se queda FUERA a propósito, y sigue rota.** Sus tres
+// rutas están igual de redirigidas, pero importan ficheros `'use server'`
+// (`bookings-actions`, `send-message-with-history-action`) y abrir su prefijo
+// pone en rojo `acciones-de-sistema.test.mjs`, que es la guarda de que un
+// runner de sistema no quede publicado como endpoint. Eso es un frente aparte
+// —o se le quita el `'use server'` a esos dos, o se decide que la guarda no
+// aplica a una ruta con clave propia— y no se resuelve de paso en un arreglo
+// de llamadas. Lo que no puede pasar es que se dé por revisado: está en la
+// lista de exclusiones del banco con este motivo escrito al lado.
+const apiSendMediaPrefix = "/api/send-media";
+const apiProductsPrefix = "/api/products";
+const apiExternalClientDataPrefix = "/api/external-client-data";
+
+
 export default auth((req) => {
   const { nextUrl } = req;
   const currentPath = nextUrl.pathname;
@@ -55,6 +112,10 @@ export default auth((req) => {
   if (currentPath.startsWith(apiPaymentPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiHealthPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiTicketsPublicoPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiCallsPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiSendMediaPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiProductsPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiExternalClientDataPrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
