@@ -161,31 +161,52 @@ async function consultarElAlcance(propia: string, todaLaFamilia: boolean): Promi
 }
 
 export async function resolverLasCuentasDelCrm(
-    propia: string,
+    pedida: string,
     cuentasPedidas?: string | string[] | null,
 ): Promise<CuentasDelCrm> {
-    const soloLaSuya = (): CuentasDelCrm => ({
+    const soloLaSuya = (propia: string): CuentasDelCrm => ({
         propia,
         disponibles: [],
         elegidas: [propia],
         puedeElegir: false,
     });
 
-    if (!propia) return soloLaSuya();
+    if (!pedida) return soloLaSuya(pedida);
 
     const persona = await currentUser();
-    if (!persona) return soloLaSuya();
+    if (!persona) return soloLaSuya(pedida);
 
-    // Un `agente` participa, no administra. Va **antes** de tocar la base y
-    // antes de la llave del recuerdo: sin permiso no hay ninguna consulta que
-    // hacer, y su respuesta no depende de la familia.
-    if (!canManageWorkspace(persona)) return soloLaSuya();
+    const superAdmin = esSuperAdminDeVerdad(persona);
+    const manda = canManageWorkspace(persona);
 
-    const { disponibles, puedeElegir } = await alcanceDeLaCuenta(
-        propia,
-        esSuperAdminDeVerdad(persona),
-    );
-    if (!puedeElegir) return soloLaSuya();
+    // **La cuenta desde la que se mira tampoco la decide el navegador.** Varias
+    // acciones reciben `userId` como parámetro y su puerta
+    // (`assertCanAccessTargetUser`) deja pasar en los DOS sentidos de
+    // `linked_accounts`: una hija que mandara el id de su madre obtendría a la
+    // madre y todo lo que cuelga de ella —sus hermanas incluidas—. Así que la
+    // pedida solo vale si es la propia o cuelga de ella; si no, se mira desde
+    // la propia, y se dice.
+    const ancla = persona.effectiveId || pedida;
+    let propia = pedida;
+    if (pedida !== ancla && !superAdmin) {
+        const deLaPropia = manda
+            ? (await alcanceDeLaCuenta(ancla, false)).disponibles.map((c) => c.id)
+            : [];
+        if (!deLaPropia.includes(pedida)) {
+            console.warn("[crm] se pidió una cuenta que no cuelga de la propia; se mira desde la propia", {
+                pedida,
+                propia: ancla,
+                persona: persona.sessionUserId,
+            });
+            propia = ancla;
+        }
+    }
+
+    // Un `agente` participa, no administra: ve su cuenta y nada más.
+    if (!manda) return soloLaSuya(propia);
+
+    const { disponibles, puedeElegir } = await alcanceDeLaCuenta(propia, superAdmin);
+    if (!puedeElegir) return soloLaSuya(propia);
 
     const elegidas = laSeleccionDelCrm(
         comoListaDeCuentas(cuentasPedidas),
