@@ -314,8 +314,14 @@ function Maqueta({ carril, columna }: { carril: number; columna: number }) {
                             <Panel id="hCita" clase="cabecera" primitiva="popover" contenedor={MARCA_DE_LA_CABECERA} ancho="w-64" />
                             <Panel id="hEtiquetas" clase="cabecera" primitiva="popover" contenedor={MARCA_DE_LA_CABECERA} ancho="w-72" />
                         </div>
-                        {/* La fila de Macros y Acciones: la que no se puede tapar. */}
+                        {/* La fila de Macros y Acciones: la que no se puede tapar.
+                            Van a la DERECHA, detrás de las pestañas, como en
+                            \`ChatHeader\`: desde que todo menú de la
+                            conversación crece hacia la izquierda, una maqueta
+                            con Macros pegado a la izquierda mediría un caso que
+                            la cabecera de verdad no tiene. */}
                         <div className="flex items-center gap-1 px-3 pb-2">
+                            <span className="min-w-0 flex-1 truncate text-sm">Mensajes · Notas · Copiloto</span>
                             <Panel id="hMacros" clase="cabecera" primitiva="menu" contenedor={MARCA_DE_LA_CABECERA} ancho="w-56" />
                             <Panel id="hAcciones" clase="cabecera" primitiva="menu" contenedor={MARCA_DE_LA_CABECERA} ancho="w-56" />
                         </div>

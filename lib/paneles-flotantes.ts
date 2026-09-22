@@ -282,87 +282,92 @@ export function cabecera(
         desde < cabeceraCaja.right
             ? desde
             : undefined;
-    // El panel CUELGA DE SU BOTÓN, del lado en el que está el botón: si está
-    // en la mitad derecha de la cabecera, su filo derecho es el del botón y
-    // crece hacia la IZQUIERDA; si está en la izquierda, al revés. Lo que
-    // tiene para crecer es lo que va del botón al borde de la cabecera por ese
-    // lado — ese es el techo, no la cabecera entera.
-    const centro = (disparador.left + disparador.right) / 2;
-    const aLaDerecha = centro >= (cabeceraCaja.left + cabeceraCaja.right) / 2;
-    const hueco = aLaDerecha
-        ? Math.max(0, disparador.right - cabeceraCaja.left)
-        : Math.max(0, cabeceraCaja.right - disparador.left);
-    const tope = Math.max(0, hueco - MARGEN_DE_LA_VENTANA);
-    // El ancho lo pide la fila; el suelo es un GUARDA (ver
-    // `ANCHO_MINIMO_DE_LA_CABECERA`) y el hueco sigue siendo el techo: un
-    // ancho mayor se saldría de la conversación.
-    const ancho =
+    // El panel CUELGA DE SU BOTÓN, SIEMPRE por el filo derecho: su borde
+    // derecho es el del botón y crece hacia la IZQUIERDA (`colgarDelFiloDerecho`).
+    // Antes se elegía el lado mirando en qué mitad de la cabecera caía el
+    // botón, y la cita agendada —en la mitad izquierda con la ficha de
+    // contacto o un panel lateral abierto— crecía hacia la derecha desde el
+    // centro de la conversación.
+    //
+    // El ancho lo pide la fila (del filo de Macros al filo derecho); el suelo
+    // es un GUARDA (ver `ANCHO_MINIMO_DE_LA_CABECERA`) y la cabecera entera es
+    // el techo.
+    const deseado =
         desdeValido === undefined
             ? undefined
-            : Math.min(
-                  tope,
-                  Math.max(
-                      ANCHO_MINIMO_DE_LA_CABECERA,
-                      Math.round(cabeceraCaja.right - desdeValido),
-                  ),
-              );
-    return {
-        side: "bottom",
-        // Con offset 0, `end` pone el filo derecho del panel en el del botón y
-        // `start` el izquierdo en el izquierdo. Antes se llevaba siempre al
-        // filo de la cabecera, y el panel de un icono de en medio no colgaba
-        // de nadie: cruzaba la conversación.
-        align: aLaDerecha ? "end" : "start",
-        collisionPadding: MARGEN_DE_LA_VENTANA,
-        alignOffset: 0,
-        sideOffset: Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)),
-        avoidCollisions: false,
-        estilo: {
-            ...(ancho === undefined ? {} : { width: `${ancho}px` }),
-            maxWidth: `${ancho ?? Math.round(tope)}px`,
-            maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
-        },
-    };
+            : Math.max(ANCHO_MINIMO_DE_LA_CABECERA, Math.round(cabeceraCaja.right - desdeValido));
+    return colgarDelFiloDerecho(cabeceraCaja, disparador, deseado, primitiva);
 }
 
 /**
- * Colgado de SU icono de la cabecera: alineado a su borde IZQUIERDO y nacido
- * bajo la cabecera entera.
+ * El menú del botón verde de llamar: colgado de SU icono como todos los de la
+ * conversación —filo derecho con filo derecho, creciendo hacia la izquierda— y
+ * nacido bajo la cabecera entera.
  *
- * Es el menú del botón verde de llamar. No es un panel de la cabecera como los
- * otros seis —no se pasa de uno a otro, son dos opciones cortas—, así que no
- * lleva el ancho de la fila de Macros ni va al filo derecho: nace donde se
- * pulsó, con el borde izquierdo en el del icono, que es lo que dice de dónde
- * sale.
+ * No lleva el ancho de la fila de Macros: son dos opciones cortas y mide lo que
+ * ocupan. Nacía con su borde IZQUIERDO en el del icono; se pasó al derecho
+ * porque «todos los menús de la conversación crecen hacia la izquierda» es una
+ * regla, y con una excepción deja de serlo.
  *
- * Y la altura es la de los otros seis: **bajo la cabecera entera**. Pegado al
- * icono (`sideOffset` de 4, que es lo que tenía) el menú caía sobre la segunda
- * fila de la cabecera y **tapaba el botón Macros**, que vive justo ahí debajo.
- * Medirlo aquí y no achicar el menú es lo que lo hace cierto en todas las
- * anchuras: cuánto se solapaba dependía del ancho del badge del asesor y del
- * botón de resolver, o sea de cada conversación.
- *
- * `avoidCollisions: false` por lo mismo que los otros seis: volteado subiría
- * sobre la cabecera. Con `align="start"` y `alignOffset` 0 el borde izquierdo
- * cae exactamente en el del icono.
+ * Y la altura es la de los otros: **bajo la cabecera entera**. Pegado al icono
+ * (`sideOffset` de 4) caía sobre la segunda fila y **tapaba Macros**.
+ * `avoidCollisions: false` por lo mismo: volteado subiría sobre la cabecera.
  */
 export function colgadoDelIcono(
     cabeceraCaja: Caja,
     disparador: Caja,
     primitiva: Primitiva,
 ): Geometria {
-    const hueco = Math.max(0, cabeceraCaja.right - disparador.left);
+    // Sin ancho escrito: el menú mide lo que ocupan sus dos entradas (`w-max`).
+    // `ANCHO_DEL_MENU_CORTO` solo decide si hace falta correrlo para que no se
+    // salga por la izquierda cuando el icono está pegado a ese borde.
+    const g = colgarDelFiloDerecho(cabeceraCaja, disparador, ANCHO_DEL_MENU_CORTO, primitiva);
+    const { width: _sinAncho, ...estilo } = g.estilo;
+    return { ...g, estilo };
+}
+
+/**
+ * Lo que se da por ancho del menú de llamar para decidir si cabe a la
+ * izquierda de su icono. Sus dos entradas («Llamar», «Llamar IA») miden unos
+ * 140 px; se redondea hacia arriba, porque equivocarse hacia de más solo lo
+ * corre un poco a la derecha, y hacia de menos lo sacaría de la cabecera.
+ */
+export const ANCHO_DEL_MENU_CORTO = 176;
+
+/**
+ * **Una sola regla para todo menú de la conversación**: colgado de SU botón,
+ * con el filo derecho en el filo derecho del botón y creciendo hacia la
+ * IZQUIERDA, bajo la cabecera entera.
+ *
+ * `ancho` es lo que el panel pide (`undefined` = el suyo, sin tocar). Cuando no
+ * cabe a la izquierda del botón —un icono pegado al borde izquierdo de una
+ * cabecera estrecha, que en un móvil es el caso del de llamar— se CORRE a la
+ * derecha lo justo para no salirse (`alignOffset` negativo: con `align="end"`
+ * un positivo mueve a la izquierda y un negativo a la derecha; al revés no da
+ * error, deja el panel al otro lado). Nunca pasa a `align="start"`: eso es lo
+ * que hacía que la cita naciera en el centro.
+ */
+export function colgarDelFiloDerecho(
+    cabeceraCaja: Caja,
+    disparador: Caja,
+    ancho: number | undefined,
+    primitiva: Primitiva,
+): Geometria {
+    const anchoDeLaCabecera = Math.max(0, cabeceraCaja.right - cabeceraCaja.left - MARGEN_DE_LA_VENTANA * 2);
+    // Lo que hay del filo del botón al borde izquierdo de la cabecera.
+    const aLaIzquierda = Math.max(0, disparador.right - cabeceraCaja.left - MARGEN_DE_LA_VENTANA);
+    const mide = ancho === undefined ? undefined : Math.min(ancho, anchoDeLaCabecera);
+    const corrimiento = mide !== undefined && mide > aLaIzquierda ? Math.round(mide - aLaIzquierda) : 0;
     return {
         side: "bottom",
-        align: "start",
+        align: "end",
         collisionPadding: MARGEN_DE_LA_VENTANA,
-        alignOffset: 0,
+        alignOffset: corrimiento === 0 ? 0 : -corrimiento,
         sideOffset: Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)),
         avoidCollisions: false,
         estilo: {
-            // Acotado por lo que queda de cabecera a la derecha del icono: no
-            // se sale del área de conversación por el filo.
-            maxWidth: `${Math.round(Math.max(0, hueco - MARGEN_DE_LA_VENTANA))}px`,
+            ...(mide === undefined ? {} : { width: `${mide}px` }),
+            maxWidth: `${mide ?? Math.round(aLaIzquierda)}px`,
             maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
         },
     };

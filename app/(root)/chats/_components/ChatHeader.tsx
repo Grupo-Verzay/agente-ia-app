@@ -31,7 +31,7 @@ import { LeadStatusSelect } from './LeadStatusSelect';
 import { reopenSession, resolveSession } from '@/actions/advisor-assign-actions';
 import { addSessionParticipantAction } from '@/actions/collab-actions';
 import { devolverChatALaIaAction, quitarDeEsperaAction } from '@/actions/advisor-assign-actions';
-import { SintesisEditDialog } from './SintesisEditDialog';
+import { PestanasDelChat } from './PestanasDelChat';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
 import { MenuDeLlamada } from '@/components/chats/MenuDeLlamada';
@@ -647,6 +647,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   const macrosMenu = session && onRunMacro ? <MacrosMenu onRunMacro={onRunMacro} /> : null;
 
+  // Las pestañas de la conversación, en su orden. Las pintan las dos filas (la
+  // del móvil y la de escritorio) con el mismo componente.
+  const pestanasDelChat = [
+    { id: 'messages', nombre: 'Mensajes' },
+    ...(onChatViewChange
+      ? [
+          { id: 'notes', nombre: 'Notas' },
+          ...userIntegrations.map((intg) => ({ id: intg.id, nombre: intg.name })),
+        ]
+      : []),
+  ];
+
   return (
     /* `data-cabecera-de-chat`: de aquí salen los DOS números con los que se
        coloca todo panel de esta fila de iconos —su borde DERECHO, que es el
@@ -773,7 +785,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 registrosResumen={session.registrosResumen}
                 onSessionRefresh={onSessionRefresh}
               />
-              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+              {/* La síntesis se ve y se edita en el Contexto del lead (el cerebro). */}
+              <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               {tagsCombobox}
               {/* 4. Gestión */}
               {sessionToggle}
@@ -781,48 +794,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </div>
         )}
 
-        {/* Fila 2 mobile: tabs + lupa — siempre al fondo */}
+        {/* Fila 2 mobile: pestañas + lupa — siempre al fondo. Las pestañas
+            que no caben se pliegan en «Más» (`PestanasDelChat`); la lupa y la
+            ficha no se van por la derecha. */}
         {(onChatViewChange || onToggleSearch) && (
-          <div className="-mx-2 -mt-1 flex items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-t border-border/20">
-            <button
-              onClick={() => onChatViewChange?.('messages')}
-              className={cn(
-                'px-3 py-1.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                chatView === 'messages' || !chatView
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              Mensajes
-            </button>
-            {onChatViewChange && (
-              <button
-                onClick={() => onChatViewChange('notes')}
-                className={cn(
-                  'px-3 py-1.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                  chatView === 'notes'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Notas
-              </button>
-            )}
-            {onChatViewChange && userIntegrations.map((intg) => (
-              <button
-                key={intg.id}
-                onClick={() => onChatViewChange(intg.id)}
-                className={cn(
-                  'px-3 py-1.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                  chatView === intg.id
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {intg.name}
-              </button>
-            ))}
-            <div className="ml-auto flex items-center gap-0.5 mr-1">
+          <div className="-mx-2 -mt-1 flex items-center border-t border-border/20">
+            <PestanasDelChat
+              pestanas={pestanasDelChat}
+              activa={chatView ?? 'messages'}
+              onCambiar={(id) => onChatViewChange?.(id)}
+              clasePestana="px-3 py-1.5"
+            />
+            <div className="flex shrink-0 items-center gap-0.5 mr-1">
               {onToggleSearch && (
                 <Button
                   type="button"
@@ -963,8 +946,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 registrosResumen={session.registrosResumen}
                 onSessionRefresh={onSessionRefresh}
               />
+              {/* La síntesis se ve y se edita aquí dentro: ya no hay icono aparte. */}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
-              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
             </>
           )}
@@ -985,48 +968,22 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       </div>{/* end fila 1 */}
 
-      {/* ── Fila 2: tabs de integraciones + búsqueda ── */}
+      {/* ── Fila 2: pestañas + búsqueda, Macros y Acciones ──
+        *
+        * Dos cajas y no una. Era una sola con `overflow-x-auto`, y cuando
+        * faltaba ancho —ficha de contacto, un panel lateral— lo que se iba por
+        * la derecha eran Macros y Acciones. Ahora ceden las PESTAÑAS (se
+        * pliegan en «Más», `PestanasDelChat`) y la caja de la derecha va
+        * `shrink-0`: Macros y Acciones se ven siempre. */}
       {(onChatViewChange || onToggleSearch) && (
-        <div className="flex items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <button
-            onClick={() => onChatViewChange?.('messages')}
-            className={cn(
-              'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-              chatView === 'messages' || !chatView
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
-          >
-            Mensajes
-          </button>
-          {onChatViewChange && (
-            <button
-              onClick={() => onChatViewChange('notes')}
-              className={cn(
-                'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                chatView === 'notes'
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              Notas
-            </button>
-          )}
-          {onChatViewChange && userIntegrations.map((intg) => (
-            <button
-              key={intg.id}
-              onClick={() => onChatViewChange(intg.id)}
-              className={cn(
-                'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                chatView === intg.id
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {intg.name}
-            </button>
-          ))}
-          <div className={cn('ml-auto flex items-center gap-1', MARGEN_DERECHO_DE_LA_CABECERA)}>
+        <div data-fila-de-pestanas className="flex items-center">
+          <PestanasDelChat
+            pestanas={pestanasDelChat}
+            activa={chatView ?? 'messages'}
+            onCambiar={(id) => onChatViewChange?.(id)}
+            clasePestana="px-4 py-2"
+          />
+          <div data-mandos-de-la-fila className={cn('flex shrink-0 items-center gap-1 pl-1', MARGEN_DERECHO_DE_LA_CABECERA)}>
             {onToggleSearch && (
               <Button
                 type="button"

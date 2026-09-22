@@ -14812,6 +14812,80 @@ Y la otra: **la emulación de móvil necesita el `<meta name="viewport">`.** Sin
 la página medía **2120** de alto y lo que se estaba midiendo no era una pantalla
 de teléfono. La App de verdad lo lleva; la maqueta del banco también.
 
+## Chats: Macros y Acciones no se van nunca; las pestañas se pliegan en «Más»
+
+La fila de abajo de la cabecera era **una sola caja con `overflow-x-auto`**: las
+pestañas (Mensajes, Notas, Sheets, Copiloto, Web…) y, al final, Macros y
+Acciones. Cuando faltaba ancho —la ficha de contacto abierta, un panel lateral,
+un portátil— lo que se iba por la derecha, detrás de un desplazamiento sin
+barra, eran justo los dos mandos que se usan en cada conversación (y Acciones es
+donde está Resolver).
+
+> **Son dos cajas.** Las pestañas viven en `PestanasDelChat`, un hueco
+> `flex-1 min-w-0` que se MIDE; Macros y Acciones van en otra caja `shrink-0`.
+> Lo que no cabe de las pestañas entra en un desplegable «Más». Lo decide
+> `repartirLasPestanas` (`lib/pestanas-del-chat.ts`, pura), y lo usan la fila
+> del móvil y la de escritorio.
+
+Tres cosas que hay que mantener:
+
+1. **La pestaña abierta se ve siempre**: si le toca plegarse, ocupa el sitio de
+   la última que cabía. Plegada, nadie sabría qué se está mirando.
+2. **Se mide una fila FANTASMA** (invisible, fuera del flujo) con todas las
+   pestañas y el «Más». Medir las visibles sería medir el resultado de la
+   última decisión y oscilar.
+3. **Sin medidas no se decide**: se pintan todas. Un reparto con ceros plegaría
+   todas en el primer pintado.
+
+Medido en Chromium sobre el CSS del build, con una cabecera de 1056 a 440 px:
+Macros y Acciones quedan **enteros dentro de la fila en las cinco**; el «antes»
+dejaba Acciones fuera a 520 y a 440.
+
+### La síntesis se edita en el Contexto del lead, y el icono aparte se fue
+
+El icono de Síntesis de la barra abría una ventana emergente
+(`SintesisEditDialog`) con lo mismo que ya enseñaba el panel del cerebro. Se
+fue, y la síntesis **se edita y se guarda en el propio panel**, con el mismo
+comportamiento (`comoSeGuardaLaSintesis`, `lib/sintesis-del-lead.ts`): con
+seguimiento se actualiza el suyo, sin él se crea una manual, y vacía no se
+guarda. En el móvil el cerebro ocupa el sitio del icono que se quitó: sin él,
+la síntesis no tendría forma de verse ahí.
+
+El panel va en este orden, y los tres primeros de la segunda línea en formato
+directo —solo el dato—: **Puntuación IA · Estado del lead** (solo la etiqueta)
+**· Etiquetas** (solo las etiquetas) **· Follow-ups pendientes** (el número a la
+derecha del título) **· Síntesis IA · Playbook de venta**. El orden está en
+`ORDEN_DEL_CONTEXTO` y el banco lo compara con los `data-bloque` del panel.
+
+### Todo menú de la conversación crece hacia la IZQUIERDA
+
+`cabecera()` elegía el lado mirando en qué mitad de la cabecera caía el botón.
+Con la ficha de contacto o un panel lateral abierto, el icono de la **cita
+agendada** caía en la mitad izquierda y su panel crecía hacia la derecha, desde
+el centro de la conversación.
+
+> **Una sola regla, `colgarDelFiloDerecho`**: filo derecho del panel con filo
+> derecho de SU botón, creciendo hacia la izquierda, bajo la cabecera entera.
+> La usan `cabecera()` y `colgadoDelIcono()` (el menú de llamar, que antes
+> nacía por su filo izquierdo). Nunca se pasa a `align="start"`.
+
+Cuando a la izquierda del botón no cabe el ancho pedido —un icono pegado al
+borde de una cabecera estrecha, que en el móvil es el de llamar— se **corre a la
+derecha lo justo** para quedar dentro (`alignOffset` negativo: con
+`align="end"`, negativo mueve a la derecha). Para el menú de llamar, que no tiene
+ancho escrito, esa cuenta usa `ANCHO_DEL_MENU_CORTO`.
+
+La maqueta de `banco-paneles-flotantes` tenía Macros pegado a la izquierda de su
+fila; en `ChatHeader` va a la derecha, detrás de las pestañas. Con la regla
+nueva esa maqueta medía un caso que la cabecera no tiene, y se corrigió.
+
+Lo prueba `scripts/banco-cabecera-del-chat.sh`, en dos modos: la decisión y un
+barrido sin navegador, y en Chromium la fila real con `PestanasDelChat`, el menú
+de la cita en la mitad izquierda y el `LeadContextSheet` real con sus tres
+acciones de servidor fingidas. `MODO=roto` construye con `ANTES_REF` y afirma
+los fallos: Acciones fuera, la cita creciendo a la derecha, el párrafo del
+estado, «3 pendientes» repetido y la síntesis sin forma de editarse.
+
 ## Chats: la campanita, la barrita de formato y resolver en lote
 
 Tres cosas que entraron con la unificación de los paneles y que no son de
