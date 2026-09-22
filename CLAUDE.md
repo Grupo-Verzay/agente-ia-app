@@ -13991,6 +13991,125 @@ alguno lo tome, ese banco se pone rojo a propósito: entonces se puede volver a
 decidir, leyendo el bloque `deploy:`, no borrando la línea.
 
 
+## CRM › Llamadas: la barra es la de Leads, y marcar vive en una ventana
+
+La pantalla tenía **tres filas de mandos** donde las demás tienen una: la de
+pestañas del CRM arriba, debajo el marcador —campo del número, «Llamar» y
+«Llamar con IA»— con los rangos de días y «Actualizar» a su derecha, y todavía
+una tercera con el buscador, las pastillas y los filtros de dirección. Puesta
+al lado de Leads no se leían como la misma plataforma.
+
+Ahora es lo de siempre: **los rangos y el «Actualizar» suben a la fila de
+pestañas** (Analíticas · Registros · Llamadas · Kanban · Reportes, pegados a su
+derecha con `ml-auto`) y debajo queda **una sola** `BarraDeAcciones` con sus
+cinco huecos en orden:
+
+```
+[buscador] [·· pastillas + dirección ··] [Exportar CSV] [Llamar] [⋯]
+```
+
+Medido en Chromium sobre el CSS de los **dos** builds —el «antes» sale de
+`origin/main` con `git show`, nunca de una copia escrita en el banco—, lo que
+había por encima de la primera fila de la tabla:
+
+| ventana | antes | ahora | recupera |
+| --- | --- | --- | --- |
+| 1440 | 110 px | **40 px** | 70 px |
+| 1280 | 110 px | **40 px** | 70 px |
+| 1024 | 110 px | **40 px** | 70 px |
+| 390 | **198 px** | **40 px** | **158 px** |
+
+En un teléfono eran casi doscientos píxeles de mandos antes de la primera
+llamada. Y en las cuatro anchuras el `⋯` queda pegado al borde derecho y el
+azul justo antes (a 48 px, el ancho del `⋯` más su hueco), sin desbordar.
+
+### El rango de días es de la FILA DE PESTAÑAS, no de la pantalla
+
+`RANGOS_DE_DIAS` y `DIAS_POR_DEFECTO` viven en
+`app/(root)/crm/llamadas/_components/rango-de-dias.ts` porque los pintan **dos
+sitios**: `CrmDashboard`, que tiene el mando, y `CallsCrmClient`, que los
+consume. Escrita la lista en cada uno, el día que se añada un rango se añade en
+uno y el otro se queda atrás — y eso no se ve como un error: se ve como un
+botón que no cambia nada.
+
+Y **no es el `period` de al lado.** Aquel es `AnalyticsPeriod` (`"7d"`…) y
+decide los filtros de Registros; este es un número de días y va a
+`getCallsCrmData`. Juntarlos sería un filtro que promete lo que la pantalla de
+al lado no hace.
+
+«Actualizar» es un contador que sube (`refrescoDeLlamadas`) y con eso la
+pantalla vuelve a pedir su vuelta; el `cargandoLlamadas` que sube sirve **solo**
+para que el icono gire. Un botón que no se ve pulsado se pulsa cinco veces.
+
+### Marcar es lo excepcional: el campo y «Llamar con IA» se fueron al diálogo
+
+El campo del número y los dos botones se comían unos **340 px** de la fila, y
+en un teléfono eso obligaba a que el campo cediera hasta cuatro dígitos y a que
+los dos botones se quedaran solo con su icono (#866). Marcar un número se hace
+de vez en cuando; la barra la usa quien viene a **leer** el historial.
+
+Así que la barra se queda como la de Leads —un solo botón azul, **«Llamar»**,
+con el mismo peso y el mismo estilo que su «+ Nuevo»— y lo de marcar vive en
+una ventana con la forma de «Crear contacto»: mismo ancho (`sm:max-w-[400px]`),
+misma cabecera, mismo `Label` + `Input`, mismo pie.
+
+Cuatro cosas que hay que mantener:
+
+1. **Las dos llamadas son EXACTAMENTE las de antes.** `DialogoDeLlamar` no sabe
+   llamar: recibe `alLlamar` y `alLlamarConIa` y los dispara. Cambiar aquí cómo
+   se llama sería tener dos formas de hacerlo, y la del menú de la cabecera de
+   Chats (#866) se quedaría atrás.
+2. **El campo va alineado a la IZQUIERDA**, con su `text-left` escrito: es un
+   número que se teclea y se revisa dígito a dígito, y centrado no se puede
+   comparar con el de al lado.
+3. **Los tres botones son hijos DIRECTOS de `DialogFooter`.** Ese pie es
+   `justify-between`: metidos en un `<div>` ve un solo hijo y los manda todos a
+   un extremo — está medido en este repositorio, +198 px.
+4. **Y llamar CIERRA la ventana.** No es un detalle de estilo: el velo de Radix
+   es `fixed inset-0 z-50 bg-black/80` y **se traga las pulsaciones de todo lo
+   que hay debajo**, y debajo está la tarjeta flotante que `abrirLlamadaAqui`
+   acaba de abrir — **no se podría ni colgar**, ni marcar un segundo número.
+   Cerrar no cambia qué llamada sale, y del lado de la IA el aviso no se pierde:
+   lo cuenta el `toast` de `startBotDial`. **Lo cazó el banco**, no leer el
+   código.
+
+### El banco: la barra sobre el CSS del build, y la ventana en Chromium
+
+`scripts/banco-llamar-con-ia.sh` ya tenía su mitad del menú de Chats; ahora
+lleva una segunda, `lib/__tests__/barra-de-llamadas.test.mjs`, y va en
+Chromium por un motivo concreto: **Radix monta el contenido de un `Dialog` en
+un portal y solo al abrirlo**, así que el `onClick` de cada botón del pie es
+código que sin navegador no se ejecuta nunca.
+
+Los dos lados salen de código de verdad. El «ahora» es el `<BarraDeAcciones>`
+del árbol de trabajo —que se trae con él el `DialogoDeLlamar` real— y el
+«antes», las dos filas de `origin/main`, recortadas por
+`scripts/sacar-barra-de-llamadas.py` con anclas que tienen que aparecer
+**exactamente una vez**: si no, el script se cae con estruendo en vez de
+devolver un fichero que no mide nada.
+
+Y tres cosas del propio banco que costaron su vuelta:
+
+1. **Una barra que no llega a pintarse mide cero y pasa cualquier comprobación
+   de «no desborda».** El andamiaje del modo roto no declaraba `unificado` —lo
+   nombra el toolbar viejo— así que React reventaba al pintar y el modo roto
+   **dejaba de reproducir el fallo en silencio**. Ahora `abrir()` falla con su
+   mensaje ante un `pageerror` y ante un hueco que se queda vacío.
+2. **`innerText` no ve un rótulo escondido por CSS.** A 390 px el marcador de
+   `origin/main` pinta sus dos botones **solo con el icono** (#866), así que
+   buscar «Llamar con IA» en el texto de la página daba vacío en el modo roto y
+   fallaba por el motivo equivocado. Se afirma sobre marcas del DOM —
+   `[data-boton="llamar-ia"]`, `input[aria-label="Número al que llamar"]`— que
+   están ahí se pinte el rótulo o no.
+3. **El hueco de la pantalla no es la ventana.** Se mide contra
+   `{ 1440: 1160, 1280: 1000, 1024: 744, 390: 374 }`, que es lo que le queda a
+   la barra con el menú lateral abierto.
+
+`MODO=roto` **afirma el fallo**: no hay ninguna `[data-barra-de-acciones]`, no
+hay botón que abra la ventana, y el campo del número y «Llamar con IA» están
+sueltos en la fila con el rango de días encima.
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

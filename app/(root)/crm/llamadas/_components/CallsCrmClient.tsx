@@ -1,13 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Phone,
   PhoneOutgoing,
   PhoneMissed,
   PhoneCall,
   Loader2,
-  RefreshCw,
   Search,
   Download,
   ChevronDown,
@@ -65,16 +64,13 @@ import {
 } from '@/actions/calls-crm-actions';
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { startBotCallAction } from '@/actions/voicebot-actions';
-import { BarraDelMarcador } from './BarraDelMarcador';
+import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
+import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
+import { DialogoDeLlamar } from './DialogoDeLlamar';
+import { DIAS_POR_DEFECTO } from './rango-de-dias';
 import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { CallDetailDialog } from './CallDetailDialog';
 import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
-
-const DAY_OPTIONS = [
-  { label: '7 días', value: 7 },
-  { label: '30 días', value: 30 },
-  { label: '90 días', value: 90 },
-];
 
 const DIRECTION_OPTIONS: { label: string; value: 'all' | 'outgoing' | 'incoming' }[] = [
   { label: 'Todas', value: 'all' },
@@ -163,10 +159,26 @@ const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
  */
 export function CallsCrmClient({
   embedded = false,
-}: { embedded?: boolean } = {}) {
+  dias = DIAS_POR_DEFECTO,
+  refresco = 0,
+  alCargar,
+}: {
+  embedded?: boolean;
+  /**
+   * El rango de días. Lo manda la fila de pestañas del CRM, que es donde vive
+   * ahora: el número que se elige arriba y el que consulta esta pantalla salen
+   * de la MISMA lista (`rango-de-dias.ts`), o serían dos y un día dirían cosas
+   * distintas.
+   */
+  dias?: number;
+  /** Sube al pulsar «Actualizar» arriba; con eso se vuelve a pedir la vuelta. */
+  refresco?: number;
+  /** Para que el botón de arriba pueda girar mientras la consulta va y vuelve. */
+  alCargar?: (cargando: boolean) => void;
+} = {}) {
   const [data, setData] = useState<CallsCrmData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(30);
+  const days = dias;
   const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
@@ -187,12 +199,27 @@ export function CallsCrmClient({
     else toast.error(res.message ?? 'No se pudo iniciar la llamada con IA.');
   };
 
+  // `alCargar` va por REFERENCIA a propósito: quien lo pasa lo escribe inline,
+  // así que metiéndolo en las dependencias `load` cambiaría de identidad en
+  // cada pintado del padre y el efecto de abajo volvería a pedir la vuelta
+  // entera — una consulta por repintado.
+  const alCargarRef = useRef(alCargar);
+  alCargarRef.current = alCargar;
+
   const load = useCallback(() => {
     setLoading(true);
+    alCargarRef.current?.(true);
     getCallsCrmData({ days, direction })
       .then(setData)
-      .finally(() => setLoading(false));
-  }, [days, direction]);
+      .finally(() => {
+        setLoading(false);
+        alCargarRef.current?.(false);
+      });
+    // `refresco` no se lee aquí dentro: está en las dependencias para que
+    // pulsar «Actualizar» en la fila de pestañas vuelva a disparar el efecto.
+    // Sin él el botón no haría nada, que es peor que no tenerlo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, direction, refresco]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -350,51 +377,122 @@ export function CallsCrmClient({
         </div>
       )}
 
-      {/* Toolbar: buscador + rango de días */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="relative w-full sm:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por contacto o número..."
-            className="h-9 pl-9"
-          />
-        </div>
-        <div className="toolbar-collapse flex items-center gap-2">
-          {/* Rango de días */}
-          <div className="flex rounded-lg border border-border p-0.5">
-            {DAY_OPTIONS.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => setDays(o.value)}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                  days === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
+      {/*
+        UNA sola fila, la misma que el resto de listas de la plataforma
+        (`BarraDeAcciones`, cinco huecos y el orden ES la regla):
+
+            [buscador] [·· pastillas + dirección ··] [Exportar] [Llamar] [⋯]
+
+        Antes eran DOS recuadros —el marcador arriba con su campo y sus dos
+        botones, y los conteos pegados al historial— más los rangos de días,
+        que se fueron a la fila de pestañas del CRM. El campo del número y
+        «Llamar con IA» viven ahora dentro del diálogo de «Llamar», que es el
+        botón azul de esta barra: **las dos llamadas son exactamente las
+        mismas de antes**, lo único que cambia es desde dónde se pulsan.
+      */}
+      <BarraDeAcciones
+        buscador={
+          <div className="relative w-56 min-w-0 sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por contacto o número..."
+              className="w-full pl-9 text-xs"
+            />
           </div>
-          {EXPORTACION_DE_CLIENTES_HABILITADA && (
+        }
+        filtros={
+          <>
+            {/* Aquí las pastillas SON el filtro de dirección, así que salen
+                también en el teléfono (`enElTelefono`): esconderlas no
+                ahorraría sitio, quitaría la función. */}
+            <PastillasDeMetricas
+              enElTelefono
+              metricas={[
+                {
+                  clave: 'all',
+                  icono: <Phone />,
+                  etiqueta: 'Total',
+                  valor: kpis?.total ?? 0,
+                  color: '#3B82F6',
+                  ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`,
+                  alPulsar: () => setDirection('all'),
+                  activa: direction === 'all',
+                },
+                {
+                  clave: 'outgoing',
+                  icono: <PhoneOutgoing />,
+                  etiqueta: 'Salientes',
+                  valor: kpis?.outgoing ?? 0,
+                  color: '#22C55E',
+                  ayuda: 'Llamadas realizadas desde el panel',
+                  alPulsar: () => setDirection(direction === 'outgoing' ? 'all' : 'outgoing'),
+                  activa: direction === 'outgoing',
+                },
+                {
+                  clave: 'incoming',
+                  icono: <PhoneMissed />,
+                  etiqueta: 'Entrantes',
+                  valor: kpis?.incoming ?? 0,
+                  color: '#EF4444',
+                  ayuda: 'Llamadas recibidas / perdidas',
+                  alPulsar: () => setDirection(direction === 'incoming' ? 'all' : 'incoming'),
+                  activa: direction === 'incoming',
+                },
+              ]}
+            />
+            <div
+              data-grupo="direccion"
+              className="flex shrink-0 rounded-lg border border-border p-0.5"
+            >
+              {DIRECTION_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setDirection(o.value)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                    direction === o.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </>
+        }
+        secundarias={
+          EXPORTACION_DE_CLIENTES_HABILITADA ? (
             <Button
               variant="outline"
               size="sm"
-              className="h-9 gap-1.5"
+              className="gap-1.5"
               onClick={handleExport}
               disabled={visibleCalls.length === 0}
+              title="Exportar CSV"
+              aria-label="Exportar CSV"
             >
               <Download className="h-4 w-4 shrink-0" />
-              <span className="truncate">Exportar</span>
+              <span className="hidden truncate sm:inline">Exportar</span>
             </Button>
-          )}
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} title="Actualizar">
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          </Button>
+          ) : undefined
+        }
+        crear={
+          <DialogoDeLlamar
+            numero={dialNumber}
+            alEscribir={setDialNumber}
+            alLlamar={startDial}
+            alLlamarConIa={() => void startBotDial()}
+            llamandoConIa={botDialing}
+          />
+        }
+        acciones={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9" title="Acciones" disabled={clearing}>
+              <Button variant="outline" size="icon" className="h-10 w-10" title="Acciones" disabled={clearing}>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -413,54 +511,7 @@ export function CallsCrmClient({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
-
-      {/* La barra de arriba: marcar a la izquierda, acotar a la derecha. Los
-          conteos y el filtro de dirección estaban pegados al historial, dos
-          bloques de alto más abajo; están aquí porque es la misma fila de
-          mandos, y lo que gana es la tabla. Ver `BarraDelMarcador`. */}
-      <BarraDelMarcador
-        numero={dialNumber}
-        alEscribir={setDialNumber}
-        alLlamar={startDial}
-        alLlamarConIa={() => void startBotDial()}
-        llamandoConIa={botDialing}
-        direcciones={DIRECTION_OPTIONS}
-        direccion={direction}
-        alCambiarDireccion={(v) => setDirection(v as 'all' | 'outgoing' | 'incoming')}
-        metricas={[
-          {
-            clave: 'all',
-            icono: <Phone />,
-            etiqueta: 'Total',
-            valor: kpis?.total ?? 0,
-            color: '#3B82F6',
-            ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`,
-            alPulsar: () => setDirection('all'),
-            activa: direction === 'all',
-          },
-          {
-            clave: 'outgoing',
-            icono: <PhoneOutgoing />,
-            etiqueta: 'Salientes',
-            valor: kpis?.outgoing ?? 0,
-            color: '#22C55E',
-            ayuda: 'Llamadas realizadas desde el panel',
-            alPulsar: () => setDirection(direction === 'outgoing' ? 'all' : 'outgoing'),
-            activa: direction === 'outgoing',
-          },
-          {
-            clave: 'incoming',
-            icono: <PhoneMissed />,
-            etiqueta: 'Entrantes',
-            valor: kpis?.incoming ?? 0,
-            color: '#EF4444',
-            ayuda: 'Llamadas recibidas / perdidas',
-            alPulsar: () => setDirection(direction === 'incoming' ? 'all' : 'incoming'),
-            activa: direction === 'incoming',
-          },
-        ]}
+        }
       />
 
       {/* Gráficos eliminados aquí: ya están en la pestaña Analíticas. */}
