@@ -2,7 +2,9 @@
 
 import React from "react";
 import ErrorScreen, { ErrorReportPayload } from "./shared/ErrorScreen";
+import { anotarElFallo, comoSeLee, esRecuperable } from "@/lib/fallos-del-navegador";
 import { hardReload } from "@/lib/hard-reload";
+import { intentarRecuperar } from "@/lib/recuperar-del-desfase";
 
 type State = {
     hasError: boolean;
@@ -28,38 +30,20 @@ export default class ErrorBoundary extends React.Component<Props, State> {
         return { hasError: true, error };
     }
 
-    async componentDidCatch(error: any, info: { componentStack: string }) {
+    componentDidCatch(error: any, info: { componentStack: string }) {
         this.setState({ componentStack: info?.componentStack });
 
-        // Intento automático de recuperación cuando es un fallo de carga de chunks (deploy + cliente con cache vieja)
-        if (error?.name === "ChunkLoadError" || /Loading chunk [\d]+ failed/i.test(String(error))) {
-            if (!this.state.triedChunkRecovery) {
-                this.setState({ triedChunkRecovery: true });
-                await this.tryChunkRecovery();
-            }
-        }
+        // Queda anotado ANTES de cualquier recarga: lo que no se anote aqui se
+        // lo lleva la recarga por delante y no queda ni rastro que mirar.
+        anotarElFallo("arbol", error, info?.componentStack ? "con componentStack" : undefined);
 
-        // Aquí podrías loguear en tu sistema (Sentry/tu API) si gustas
-        // console.error("Captured by ErrorBoundary:", error, info);
-    }
-
-    private async tryChunkRecovery() {
-        try {
-            // Limpia Cache Storage (si existiera)
-            if ("caches" in window) {
-                const keys = await caches.keys();
-                await Promise.all(keys.map((k) => caches.delete(k)));
-            }
-            // Actualiza SW si existiera
-            if ("serviceWorker" in navigator) {
-                const reg = await navigator.serviceWorker.getRegistration();
-                await reg?.update();
-            }
-        } catch {
-            // Silencio: es best-effort
-        } finally {
-            // Fuerza recarga pidiendo el documento al servidor (ver hardReload).
-            hardReload('error no capturado (error boundary)');
+        // Intento automatico de recuperacion cuando es un desfase de version
+        // (un despliegue mientras la pestaña estaba abierta). La lista de lo
+        // que se cura recargando vive en `lib/`, no copiada aqui.
+        const leido = comoSeLee(error);
+        if (esRecuperable(leido.mensaje, leido.nombre) && !this.state.triedChunkRecovery) {
+            this.setState({ triedChunkRecovery: true });
+            intentarRecuperar(`error no capturado (error boundary): ${leido.nombre || leido.mensaje}`);
         }
     }
 

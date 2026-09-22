@@ -69,9 +69,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `try{var m=document.cookie.match(/(?:^|; )ui_scale=([^;]+)/);var v=m?decodeURIComponent(m[1]):'100';if(v&&v!=='100')document.documentElement.style.fontSize=v+'%';}catch(e){}`,
           }}
         />
-        <FontScaleApplier />
-        <StoragePersistence />
         <ErrorBoundary>
+          {/* Los tres van DENTRO del limite. Fuera de el, lo que reventara aqui
+              se le escapaba por arriba al layout raiz y acababa en la pantalla
+              en blanco de Next, que es justo lo que este limite existe para
+              evitar. */}
+          <FontScaleApplier />
+          <StoragePersistence />
           <ChunkRecovery />
           <NavegacionLenta />
           <AppProviders>

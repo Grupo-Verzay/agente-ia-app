@@ -14158,6 +14158,190 @@ Tres cosas del propio banco, que costaron su vuelta:
    todas iguales, un total equivocado seguiría cuadrando.
 
 
+## La pantalla en blanco: `app/global-error.tsx` no existia, y sin el no hay NADA
+
+«Application error: a client-side exception has occurred (see the browser
+console for more information).» sobre una pantalla en blanco, de forma
+intermitente y en rutas distintas —se vio en `/crm/llamadas` y en otras—. Sin
+un boton, sin decir que hacer y **sin dejar rastro de nada**: cuando pasa, la
+persona recarga a mano o se va, y no queda ni una linea que mirar despues.
+
+Ese texto **es de Next**, literal, en
+`node_modules/next/dist/client/components/error-boundary.js:149`. Y saber de
+quien es acota la busqueda entera, porque dice **donde** se monta:
+
+```
+ErrorBoundary(errorComponent = globalErrorComponent)   <- app/global-error.tsx
+  \_ Router  (las tripas de AppRouter)
+       \_ RootLayout (app/layout.tsx)
+            \_ <ErrorBoundary> (la clase nuestra) -> ErrorScreen
+```
+
+> **El limite propio vive DENTRO del layout raiz, o sea por DEBAJO del que Next
+> monta en la raiz del enrutador.** Todo lo que reviente en el propio enrutador,
+> en el layout raiz o en lo que cuelgue fuera de ese boundary se le escapa por
+> arriba — y arriba no habia absolutamente nada.
+
+Y no habia nada de forma literal, que es la parte que hay que leer en el codigo
+de Next antes de dar por hecho que «algun limite habra»:
+
+```js
+function ErrorBoundary({ errorComponent, errorStyles, errorScripts, children }) {
+  const pathname = usePathname();
+  if (errorComponent) { return <ErrorBoundaryHandler … /> }
+  return <>{children}</>;          // <- SIN errorComponent es un Fragment PELADO
+}
+```
+
+El repositorio no tenia **ni `app/global-error.tsx` ni `app/error.tsx`**, asi
+que la App corria con **cero limites del App Router**: los dos boundaries que
+Next monta eran Fragments, y lo unico que quedaba era su `GlobalError` por
+defecto — la pantalla en blanco.
+
+### Medido: el limite propio SI caza lo de dentro, y por eso el fallo venia de arriba
+
+Es lo que hace falta saber antes de tocar nada, porque descarta media
+investigacion. Se inyectaron fallos en un build servido de verdad, con sesion,
+y se leyo que pantalla salia:
+
+| que revienta | antes |
+| --- | --- |
+| la pagina, en el servidor | `ErrorScreen` (el limite propio) |
+| un componente de cliente al pintar, dentro de `{children}` | `ErrorScreen` |
+| un componente de cliente al pulsar | `ErrorScreen` |
+| **`StoragePersistence`, montado FUERA del limite** | **la pantalla en blanco de Next** |
+| **algo por ENCIMA del limite** (el enrutador, el layout raiz) | **la pantalla en blanco de Next** |
+
+Las tres primeras filas son la prueba: **el `ErrorBoundary` de la clase
+funciona**. Asi que lo reportado no podia venir de ahi, y las dos ultimas dicen
+de donde venia. En las dos, `document.documentElement.id === "__next_error__"`
+—la firma de `GlobalError`—, **cero botones** y cero registros.
+
+Y el `<html id="__next_error__">` explica lo otro: `GlobalError` **pinta su
+propio `<html>` y su propio `<body>`**, o sea que **sustituye al layout raiz
+entero**. No hereda la hoja de estilos, ni las fuentes, ni nada. De ahi que se
+vea en blanco y no «como la App pero con un error».
+
+### `FontScaleApplier` y `StoragePersistence` estaban montados FUERA del limite
+
+Eran los dos unicos, y el barrido del banco lo afirma leyendo `app/layout.tsx`
+de `origin/main`. Pasan dentro, con su motivo escrito al lado.
+
+Que no hayan reventado nunca hasta ahora no los hace seguros: **lo que se monta
+fuera del limite no tiene red**, y los dos tocan APIs del navegador
+(`navigator.storage`, la cookie del escalado). Es la misma familia que *nada que
+detecte un fallo puede ir detras de algo que falle*, aplicada a la maqueta.
+
+### `ChunkRecovery` no podia salvarlo, por tres motivos a la vez
+
+Conviene decirlo porque parecia que ya habia una red puesta:
+
+1. **Sus oyentes se instalan en un `useEffect`.** Hasta que la hidratacion no
+   termina no escucha nadie, y un `ChunkLoadError` de un chunk de arranque
+   revienta **antes** de eso.
+2. **Cuando el limite global pinta, el layout raiz se desmonta** — y con el, el
+   propio `ChunkRecovery`. La red se va con lo que venia a rescatar.
+3. **Y su `return` era MUDO.** `MIN_GAP_MS` son 60 s, asi que dentro de ese
+   minuto `recover()` se rendia sin escribir una linea: desde fuera, «no se
+   recarga y no dice por que». Ahora avisa —y esa espera vive en un solo sitio,
+   `lib/recuperar-del-desfase.ts`, que usan la pantalla global, la de ruta, el
+   limite de la clase y los oyentes de ventana. Con la cuenta en cada sitio, uno
+   recargaria mientras otro cree que todavia no toca.
+
+### Las tres pantallas, y por que son tres y no una
+
+| | de quien es | que pinta |
+| --- | --- | --- |
+| `app/global-error.tsx` | la raiz del enrutador | su propio `<html>`, con **estilos EN LINEA** |
+| `app/error.tsx` | cada ruta | el `ErrorScreen` que ya existia |
+| `components/error-bundary.tsx` | el arbol del layout | el mismo `ErrorScreen` |
+
+**La global va con estilos en linea y sin importar ni un componente de la
+interfaz.** Esto se monta cuando ya ha fallado algo gordo y Next ha sustituido
+el layout raiz: dar por hecho que la hoja de estilos esta cargada es apostar la
+ultima red a lo mismo que se acaba de romper. **Si no se ve, no sirve.**
+
+Y la de ruta **reutiliza `ErrorScreen`**, con su recarga automatica, su copia
+del detalle y su descarga. Escribir otra pantalla habria sido una segunda que
+mantener a la par.
+
+### El fallo se ANOTA antes de recargar, y se cuenta en el arranque siguiente
+
+Es la mitad que de verdad cambia el diagnostico. Una recarga —la de un boton o
+la automatica— **se lleva la consola por delante**, asi que lo que no este
+guardado no existe: es exactamente el motivo por el que `hardReload(motivo)`
+anota el suyo, y aqui se aplica al fallo.
+
+`lib/fallos-del navegador.ts` guarda un anillo de **cinco** en `localStorage`
+(`verzay:fallos`), y `ChunkRecovery` los cuenta al arrancar:
+
+```
+[app] esta pestaña arrastra 2 fallo(s) de pantalla sin contar
+[app] fallo de pantalla { cazadoEn: "global", nombre: "ChunkLoadError", … }
+```
+
+Cinco cosas que hay que mantener:
+
+1. **`localStorage`, no `sessionStorage`.** Una pestaña que muere y se abre de
+   nuevo pierde la sesion, y ese es justo el caso: la persona cierra y vuelve a
+   entrar. Y **cada acceso va en su `try`** — en una ventana privada leerlo
+   lanza, y la ultima red no puede caerse por eso.
+2. **`cazadoEn` dice por cual de las tres puertas entro** (`global`, `ruta`,
+   `arbol`, `ventana`). Sin eso, un fallo anotado no dice si al limite propio se
+   le escapo o si nunca llego a el, que es la pregunta que hay que contestar
+   ANTES de tocar nada.
+3. **Cinco y no cincuenta.** Un desfase de version dispara varios a la vez; lo
+   que hace falta es el primero y saber que hubo mas, no un historial.
+4. **Se anota ANTES de ofrecer el boton**, en el mismo efecto. Al reves, quien
+   pulse deprisa recarga sin haber dejado rastro.
+5. **Y sale por `console.error`**, que es lo unico que `removeConsole` no borra
+   en ninguna configuracion. Comprobado en el build, y **buscando un trozo sin
+   acentos** (la receta de *el build borraba los avisos*).
+
+### La recarga automatica solo para lo que se cura recargando
+
+`esRecuperable` es una lista cerrada: `ChunkLoadError`, «Loading chunk … failed»,
+«Loading CSS chunk», «error loading dynamically imported module» y «Failed to
+find Server Action». Todos son la misma cosa —**el navegador se quedo con el
+build anterior**—, y esta plataforma despliega decenas de veces al dia con dos
+replicas, asi que es la familia mas probable detras de lo reportado.
+
+**Lo que no este en la lista NO recarga sola.** Un `TypeError` de verdad
+recargando en bucle es peor que una pantalla con un boton: la pantalla se puede
+leer y el bucle no se puede ni diagnosticar. Y el caso comun de un `undefined`
+—`Cannot read properties of undefined (reading 'success')`, una accion que
+revento— **se trata como recuperable a proposito**: ese patron sale de un
+desfase entre el cliente y el servidor y lo unico que lo arregla es recargar.
+
+**Lo que NO se pudo hacer, y se dice en vez de disimularlo:** el bundle de
+produccion no se pudo inspeccionar desde aqui —`curl
+https://agente.ia-app.com/login` contesta `curl: (56) CONNECT tunnel failed,
+response 403`, la politica de red de este entorno— y ninguna de las inyecciones
+locales reproduce el disparador exacto de produccion. Lo que si queda
+establecido y medido es la causa estructural: el fallo escapaba por arriba y no
+habia limite, ni mensaje, ni boton, ni registro. **El registro es lo que dira el
+disparador la proxima vez**, y para eso se anade.
+
+### El banco: la decision aparte, y el barrido del layout en dos modos
+
+`scripts/banco-pantalla-en-blanco.sh`, sin navegador y en dos modos. Lo que
+comprueba y no se ve leyendo:
+
+- Las cinco formas del desfase se reconocen y las cuatro que no lo son **no
+  recargan**.
+- El anillo se queda con los ultimos cinco, y anotar con un `localStorage` que
+  **lanza** no tumba nada.
+- Existen las dos pantallas, la global va con `style={` y **sin ni un
+  `className=`**, y llama a `anotarElFallo(` antes que a `hardReload(`.
+- **Nada nuestro se monta fuera del limite**, leyendo el marcado de
+  `app/layout.tsx`.
+- Y ningun `hardReload(` de los seis ficheros que recargan se queda sin motivo.
+
+`MODO=roto` lee `app/layout.tsx` de **`origin/main` con `git show`** y afirma el
+fallo: encuentra exactamente `["FontScaleApplier","StoragePersistence"]` por
+encima del limite. Copiado al banco se estaria comprobando lo que alguien
+recuerda del layout viejo.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
