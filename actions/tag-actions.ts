@@ -5,6 +5,7 @@ import { Tag } from '@prisma/client';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { comoListaDeCuentas } from '@/lib/etiquetas-de-la-linea';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` llegaba
@@ -98,6 +99,45 @@ export async function listTagsAction(
             success: false,
             message: "Error obteniendo los tags.",
         };
+    }
+}
+
+/**
+ * Las etiquetas de VARIAS cuentas, cada una con su dueña (`userId`).
+ *
+ * Es lo que necesita Chats: la bandeja enseña líneas de varias cuentas de la
+ * familia, y a cada conversación solo se le ofrecen las etiquetas de la cuenta
+ * de su línea (`lib/etiquetas-de-la-linea.ts`). Con `listTagsAction` sobre la
+ * cuenta de quien mira, desde la madre una conversación de Atención ofrecía
+ * las etiquetas de la madre, que el servidor luego rechaza.
+ *
+ * Cada cuenta pasa por `laCuentaDeLaAccion`, la misma puerta con la que después
+ * se asigna: lo que no se alcanza no se lista. Y es UNA consulta para todas.
+ */
+export async function listTagsDeLasCuentasAction(
+    userIds: string[],
+): Promise<ActionResponse<(TagWithCount & { userId: string })[]>> {
+    try {
+        const pedidas = comoListaDeCuentas(userIds);
+        if (pedidas.length === 0) {
+            return { success: true, message: "Sin cuentas.", data: [] };
+        }
+        const alcanzadas = (
+            await Promise.all(pedidas.map((id) => laCuentaDeLaAccion(id)))
+        ).filter((c): c is string => Boolean(c));
+        const cuentas = Array.from(new Set(alcanzadas));
+        if (cuentas.length === 0) return { success: false, message: 'No autorizado.' };
+
+        const tags = await db.tag.findMany({
+            where: { userId: { in: cuentas } },
+            orderBy: [{ order: "asc" }, { id: "asc" }],
+            include: { _count: { select: { sessionTags: true } } },
+        });
+
+        return { success: true, message: "Tags obtenidos correctamente.", data: tags };
+    } catch (error) {
+        console.error("listTagsDeLasCuentasAction error:", error);
+        return { success: false, message: "Error obteniendo los tags." };
     }
 }
 

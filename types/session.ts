@@ -21,6 +21,12 @@ export type SimpleTag = {
   slug: string;             // obligatorio para ser consistente
   color?: string | null;
   order: number;
+  /**
+   * La cuenta dueña. En Chats hace falta: la bandeja trae las etiquetas de
+   * varias cuentas y a cada conversación solo se le ofrecen las de la suya
+   * (`lib/etiquetas-de-la-linea.ts`).
+   */
+  userId?: string;
 };
 
 export type LeadStatus = PrismaLeadStatus;

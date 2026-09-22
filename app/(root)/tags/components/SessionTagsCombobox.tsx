@@ -158,7 +158,9 @@ export function SessionTagsCombobox({
                     role="combobox"
                     aria-expanded={open}
                     className="h-7 justify-between px-2 text-xs border-indigo-300 bg-indigo-100 text-indigo-800 hover:bg-indigo-200 hover:text-indigo-900"
-                    disabled={isPending || allTags.length === 0}
+                    // En Chats se abre aunque la linea no tenga etiquetas: un
+                    // boton apagado no dice por que, y el panel vacio si.
+                    disabled={isPending || (allTags.length === 0 && !panel)}
                 >
                     <span className="flex items-center gap-1 truncate">
                         <span className="truncate">{summaryLabel()}</span>
@@ -177,7 +179,9 @@ export function SessionTagsCombobox({
                     <CommandInput placeholder="Buscar etiqueta..." className="h-8 text-xs" />
                     <CommandList>
                         <CommandEmpty className="text-xs">
-                            No se encontraron etiquetas.
+                            {allTags.length === 0
+                                ? "Esta línea no tiene etiquetas creadas."
+                                : "No se encontraron etiquetas."}
                         </CommandEmpty>
                         <CommandGroup className="max-h-64 overflow-auto">
                             {allTags.map((tag) => {

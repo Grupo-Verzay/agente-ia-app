@@ -93,6 +93,7 @@ import {
   type SeleccionDeChat,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
+import { etiquetasDelLote } from "@/lib/etiquetas-de-la-linea";
 import { normalizeDeliveryState } from "./chat-message-utils";
 import { saveSidebarCache } from "./chats-sidebar-cache";
 import type { ChatData } from "@/actions/chat-actions";
@@ -200,6 +201,8 @@ type LoParaNoLeido = {
 
 type ChatSidebarProps = {
   allTags?: SimpleTag[];
+  /** Las del filtro de la lista; si no llega, todas. */
+  etiquetasDelFiltro?: SimpleTag[];
   chatPreferences: ChatConversationPreferenceMap;
   chatSessions: ChatContactSessionMap;
   onArchiveChat?: (remoteJid: string, archived: boolean, instanceName?: string) => void | Promise<void>;
@@ -257,6 +260,7 @@ type ChatSidebarProps = {
 
 export function ChatSidebar({
   allTags = [],
+  etiquetasDelFiltro,
   chatPreferences,
   chatSessions,
   onArchiveChat,
@@ -1263,6 +1267,22 @@ export function ChatSidebar({
     clearSelection();
   }, [onBulkAssignAdvisor, selectedChats, clearSelection]);
 
+  // Las etiquetas del lote son las de la cuenta de la linea de lo marcado, y
+  // solo si todo es de la misma cuenta (`etiquetasDelLote`). Mezclando lineas
+  // de cuentas distintas no hay ninguna etiqueta que valga para todas.
+  const loteDeEtiquetas = useMemo(
+    () =>
+      etiquetasDelLote(
+        allTags,
+        selectedChats.map(({ remoteJid, instanceName }) =>
+          (instanceName
+            ? chatSessions[`${instanceName}::${remoteJid}`]
+            : chatSessions[remoteJid])?.userId,
+        ),
+      ),
+    [allTags, selectedChats, chatSessions],
+  );
+
   const handleBulkAddTag = useCallback(async (tagId: number) => {
     if (!onBulkAddTag || selectedChats.length === 0) return;
     await onBulkAddTag(selectedChats, tagId);
@@ -1348,8 +1368,13 @@ export function ChatSidebar({
     clearSelection();
   }, [selectedChats, clearSelection]);
 
-  const handleAssignTag = useCallback(async (remoteJid: string, tagId: number) => {
-    const session = chatSessionsRef.current[remoteJid];
+  // La sesion de SU linea, no la de la llave global: el mismo contacto puede
+  // tener conversacion en Atencion y en Ventas, y cada una lleva sus propias
+  // etiquetas. Con la global se etiquetaba la de la otra linea.
+  const handleAssignTag = useCallback(async (remoteJid: string, tagId: number, instanceName?: string) => {
+    const session = instanceName
+      ? chatSessionsRef.current[`${instanceName}::${remoteJid}`]
+      : chatSessionsRef.current[remoteJid];
     if (!session?.id) { toast.error("Sin sesión CRM para etiquetar."); return; }
     const res = await assignTagToSessionAction({ userId: session.userId, sessionId: session.id, tagId });
     if (res.success) toast.success("Etiqueta asignada.");
@@ -1438,7 +1463,7 @@ export function ChatSidebar({
                 SIEMPRE —aunque no haya etiquetas—, porque el rango de fechas
                 aplica a cualquier cuenta. */}
             <TagFilterPanel
-              tags={allTags}
+              tags={etiquetasDelFiltro ?? allTags}
               selectedTagIds={selectedTagIds}
               onToggleTag={toggleTagFilter}
               onClearFilter={() => setSelectedTagIds(new Set())}
@@ -1572,10 +1597,10 @@ export function ChatSidebar({
             onResolve={handleBulkResolve}
               onPin={onBulkPin ? handleBulkPin : undefined}
               onAssignAdvisor={onBulkAssignAdvisor ? handleBulkAssignAdvisor : undefined}
-              onAddTag={onBulkAddTag && allTags.length > 0 ? handleBulkAddTag : undefined}
+              onAddTag={onBulkAddTag && loteDeEtiquetas.etiquetas.length > 0 ? handleBulkAddTag : undefined}
               advisors={advisors}
               advisorRole={advisorRole}
-              allTags={allTags}
+              allTags={loteDeEtiquetas.etiquetas}
             />
           )}
         </div>
