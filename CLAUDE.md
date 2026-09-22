@@ -15687,3 +15687,41 @@ de las pastillas dentro de la barra.
 > aparece 0 veces». Llevaba roto desde entonces. Los dos llevan ya su
 > `ANTES_REF`, con el commit escrito y con la variable para poder apuntar a
 > otro sitio.
+
+### Y la segunda vuelta: las columnas de Leads, Acciones que no se corta, y el menú de Chats
+
+1. **Las columnas son las de Leads**: Contacto, Nombre, Duración, Fecha,
+   Detalle, Resultado y Acciones. «Tipo» decía siempre «Saliente» y «Estado»
+   era un segundo mando del estado del lead, que se cambia en Leads, en el CRM
+   y en Chats. Con la columna se fue **`setCallLeadStatusAction`**, que era su
+   único llamador —una acción de servidor ES un endpoint—; el dato
+   (`Session.leadStatus`) no se toca. Y **el nombre va en su propia columna**,
+   no colgado bajo el número.
+2. **Un solo tamaño, pastillas incluidas.** La primera vuelta dejó la pastilla
+   de Resultado en `text-xs` con el argumento de que Leads hace lo mismo con las
+   suyas; al pasar de una pestaña a otra se seguía notando. Ahora es `text-sm`
+   como todo lo demás, y el banco mide **todos** los nodos con texto.
+3. **Acciones se ve siempre, y lo sostiene `table-fixed`.** Con `table-auto`
+   el texto de Detalle —que va en una línea con `truncate`— tiene un ancho
+   mínimo igual al texto ENTERO, así que empujaba la tabla y Acciones quedaba
+   fuera: un `max-w` en un `<td>` no manda nada en una tabla automática. Las
+   columnas fijas llevan su ancho en el `<colgroup>` (`ANCHO_DE_LAS_COLUMNAS`)
+   y **Detalle y Resultado se reparten lo que sobra**: cuando falta sitio son
+   ellas las que encogen, con «…». Y por si ni así cabe —un teléfono— Acciones
+   va `sticky right-0`.
+4. **La ventana de Llamar son DOS botones**: «Llamar IA» a la izquierda y
+   «Llamar» a la derecha, en la misma fila (`flex-nowrap`: el pie de la casa
+   lleva `flex-wrap` y en un teléfono los partiría). Sin «Cancelar», que la
+   ventana ya se cierra con la X y tocando fuera.
+5. **El menú de llamar de Chats dice «Llamar IA»** —el mismo nombre que en la
+   ventana: una acción no se llama de dos formas— y **nace colgado de su icono
+   y bajo la cabecera entera** (`colgadoDelIcono`, `lib/paneles-flotantes.ts`).
+   Pegado al icono con el `sideOffset` de siempre caía sobre la segunda fila y
+   tapaba Macros; y cuánto la tapaba dependía del ancho del badge del asesor y
+   del botón de resolver, o sea de cada conversación. Por eso se MIDE y no se
+   achica el menú.
+
+Lo prueba `scripts/banco-llamadas-como-leads.sh`, en Chromium y con los
+componentes de verdad, en dos modos: el roto monta el «antes» pinchado a un
+commit —con sus vecinos del mismo commit en una carpeta hermana, para que sus
+`./` no resuelvan al fichero de hoy— y afirma los cinco fallos.

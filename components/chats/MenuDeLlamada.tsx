@@ -14,6 +14,8 @@ import {
 import { abrirLlamadaAqui, type DatosDeLaLlamada } from "@/components/chats/AnfitrionDeLlamada";
 import { startBotCallAction } from "@/actions/voicebot-actions";
 import { cn } from "@/lib/utils";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 
 /**
  * El botón verde de la cabecera de Chats: ahora un menú con DOS formas de
@@ -43,6 +45,16 @@ import { cn } from "@/lib/utils";
  * el número de la cuenta dueña de ESA línea y que su burbuja se anote en ESA
  * conversación — sin ella se cae en la cuenta de quien mira, que es el fallo
  * que aquel documento describe entero.
+ *
+ * # Dónde se abre: colgado de SU icono, y sin tapar Macros
+ *
+ * Pegado al icono con el `sideOffset` de siempre, el menú caía sobre la segunda
+ * fila de la cabecera y tapaba el botón Macros. Ahora nace con su borde
+ * izquierdo en el del icono y **bajo la cabecera entera**, como los otros
+ * paneles de esa fila (`colgadoDelIcono`, en `lib/paneles-flotantes.ts`).
+ *
+ * Y la segunda opción dice «Llamar IA», igual que el botón de la ventana de
+ * Llamar de CRM › Llamadas: la misma acción no puede llamarse de dos formas.
  */
 export interface DatosParaLlamar extends DatosDeLaLlamada {}
 
@@ -58,6 +70,7 @@ export function MenuDeLlamada({
     iconoClassName?: string;
 }) {
     const [llamandoConIa, setLlamandoConIa] = useState(false);
+    const panel = usePanelFlotante("colgadoDelIcono", "menu");
 
     // Los dígitos se resuelven aquí y no en cada opción: las dos llaman al
     // mismo número, y con dos limpiezas una podría aceptar lo que la otra no.
@@ -91,8 +104,8 @@ export function MenuDeLlamada({
     };
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+        <DropdownMenu onOpenChange={panel.alAbrir}>
+            <DropdownMenuTrigger asChild ref={panel.disparador}>
                 <Button
                     type="button"
                     variant="ghost"
@@ -112,9 +125,13 @@ export function MenuDeLlamada({
                     )}
                 </Button>
             </DropdownMenuTrigger>
-            {/* Dos entradas cortas: no crece con nada, así que no necesita
-                tope de alto como los menús que llevan una lista dentro. */}
-            <DropdownMenuContent align="start" className="w-48">
+            {/* Dos entradas cortas: mide lo que ocupan (`w-max`), con el
+                borde izquierdo en el del icono y bajo la cabecera entera. */}
+            <DropdownMenuContent
+                data-menu-llamada-contenido
+                {...panel.props}
+                className={cn("w-max", PANEL_QUE_SE_DESPLAZA)}
+            >
                 <DropdownMenuItem data-opcion="llamar" onSelect={() => llamar()}>
                     <Phone className="mr-2 h-4 w-4" /> Llamar
                 </DropdownMenuItem>
@@ -123,7 +140,7 @@ export function MenuDeLlamada({
                     onSelect={() => void llamarConIa()}
                     disabled={llamandoConIa}
                 >
-                    <Bot className="mr-2 h-4 w-4" /> Llamar con IA
+                    <Bot className="mr-2 h-4 w-4" /> Llamar IA
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

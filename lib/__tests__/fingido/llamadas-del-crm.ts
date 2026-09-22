@@ -58,7 +58,8 @@ export const LLAMADAS: CallRow[] = [
         durationSecs: 187,
         ts: Date.parse("2026-09-18T15:04:00Z"),
         disposition: "interested",
-        leadSynthesis: "Pidió la cotización del plan anual",
+        leadSynthesis:
+            "Pidió la cotización del plan anual para las tres sedes y quiere que le llamen el jueves por la tarde para cerrar el pago",
         cuentaId: "u1",
     },
     {
@@ -78,10 +79,16 @@ export async function getCallsCrmData(): Promise<CallsCrmData> {
 }
 
 const bien = async () => ({ success: true as const });
+
+/**
+ * Ya no la llama la pantalla —la columna «Estado» se fue y la acción con
+ * ella—, pero el «antes» de los modos rotos sí: sin este export su paquete no
+ * se construye y el modo roto dejaría de reproducir nada.
+ */
+export const setCallLeadStatusAction = async () => ({ success: true as const, created: false });
 export const setCallDisposition = bien;
 export const scheduleCallbackAction = bien;
 export const clearMissedCallsAction = async () => ({ success: true as const, deleted: 0 });
-export const setCallLeadStatusAction = async () => ({ success: true as const, created: false });
 export const setCallContactNameAction = bien;
 export const deleteCallAction = bien;
 export const deleteAllCallsAction = async () => ({ success: true as const, deleted: 0 });
