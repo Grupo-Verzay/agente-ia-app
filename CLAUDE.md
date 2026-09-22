@@ -15175,11 +15175,87 @@ mirara. Comprobado además que quitando el barrido el modo normal **se pone en
 rojo por seis sitios**: sin eso no se sabría si lo verde es que se arregló la
 causa o que el caso no se ejerce.
 
-### Lo que NO se pudo confirmar desde aquí, y se dice
+### Y el eslabón que se cayó era un CUARTO que no estaba en la lista
 
-Cuál de los tres eslabones se cayó el 22 **no se puede saber sin mirar el stack
-que corre**: desde el entorno de desarrollo no hay salida a `backend.ia-app.com`
-ni a Portainer (el proxy contesta `403`). Lo que sí está establecido es que los
-tres podían caerse mudos y que ninguno dejaba nada que mirar después — y eso es
-lo que este cambio quita. **A partir de ahora el barrido lo dice**: `sinAviso`
-por encima de cero nombra la cadena en el registro del backend.
+La primera versión de esta sección decía que cuál de los tres se cayó no se
+podía saber sin mirar el stack. **Se podía, y no era ninguno de los tres**: era
+el `middleware.ts` de esta App, y está contado entero en la sección siguiente.
+Lo que sigue valiendo de esta es la forma del arreglo — la red sale de la base
+— que es lo que hace que el fallo, venga del eslabón que venga, deje de ser
+definitivo. **A partir de ahora el barrido lo dice**: `sinAviso` por encima de
+cero nombra la cadena en el registro del backend.
+
+## Un `fetch` SIGUE las redirecciones, así que el middleware puede tragarse un aviso entero
+
+Esta es la causa de verdad de «las llamadas con IA no dejan ni duración», y es
+de las que se anuncian como un éxito.
+
+El backend avisa del fin de una llamada con
+`fetch(NEXTJS_URL + "/api/calls/call-ended")`, con su clave interna y **sin
+cookie de sesión**. En `middleware.ts` no había ningún prefijo `/api/calls`, así
+que esa petición caía en el `redirect` final hacia `/login`. Y ahí está lo
+caro:
+
+> **`fetch` sigue las redirecciones por defecto.** Así que el backend se traía
+> **la página de login con un `200`**, `resp.ok` salía `true`, y escribía en su
+> registro «fin de llamada avisado a la App» habiendo entregado exactamente
+> nada.
+
+Medido sobre el build servido, no deducido:
+
+```
+POST /api/calls/call-ended   ->  307 -> /login?callbackUrl=%2Fapi%2Fcalls%2Fcall-ended
+como lo ve el backend        ->  resp.ok true · resp.status 200 · resp.url .../login
+```
+
+### Por qué su banco estaba verde
+
+Porque llamaba al **manejador** directamente
+(`avisarDelFinDeLaLlamada(new Request(...))`), y ahí no hay middleware. El
+camino de producción tiene una capa más que ningún caso ejercía.
+
+> **Un banco que llama al manejador de una ruta no prueba que esa ruta se
+> alcance.** Son dos preguntas, y la segunda es la que falla en silencio.
+
+### Y no era una ruta: eran nueve
+
+El barrido que se escribió para esto —toda ruta que se autentique con la clave
+interna tiene que estar detrás de un prefijo del middleware— encontró **ocho
+más**, todas medidas con el mismo `307`:
+
+| | qué se caía |
+| --- | --- |
+| `/api/calls/{call-ended,process-bot-recording,rescatar}` | el fin de llamada, la transcripción del flujo y su red |
+| `/api/send-media`, `/api/products`, `/api/external-client-data{,/search,/tools}` | **las herramientas del agente**: pedía sus productos y sus datos externos y se traía la página de login |
+| `/api/bookings/{slots,services,appointment}` | los horarios de reserva del agente |
+
+**Abrir esos prefijos no abre nada**, y se comprobó ruta por ruta antes de
+tocarlos: las doce tienen su puerta propia —once con la clave interna y
+`calls/recording` con `currentUser()`—. Es la regla de siempre: *ninguna ruta
+`/api` confía solo en el middleware*. Comprobado además sobre el build servido
+que después del arreglo siguen contestando **401 sin clave y con clave
+equivocada**.
+
+### `/api/bookings` se queda fuera A PROPÓSITO, y sigue rota
+
+Sus tres rutas importan ficheros `'use server'` (`bookings-actions`,
+`send-message-with-history-action`), así que abrir su prefijo pone en rojo
+`acciones-de-sistema.test.mjs` —la guarda de que un runner de sistema no quede
+publicado como endpoint—. Eso es un frente aparte: o se le quita el
+`'use server'` a esos dos, o se decide que esa guarda no aplica a una ruta con
+clave propia. **Lo que no puede pasar es que se dé por revisado**: está en la
+lista de exclusiones del banco con su motivo escrito al lado, y el banco falla
+si el motivo se queda vacío.
+
+### Las dos cosas que quedan para que no vuelva
+
+1. **El barrido del banco**, que es lo que caza la PRÓXIMA ruta que nazca con
+   el mismo agujero. Lee los prefijos **del propio `middleware.ts`** —copiados
+   a mano se quedarían cortos el día que se añada uno— y exige además que cada
+   prefijo declarado se USE en un `return NextResponse.next()`: declararlo y no
+   usarlo se lee igual de bien y no deja pasar a nadie.
+2. **Y el backend mira `resp.redirected`**, en los dos sitios que llaman a la
+   App. El middleware ya está arreglado; la comprobación se queda porque **un
+   fallo que se anuncia como un éxito es el más caro de todos**, y el día que
+   alguien añada una ruta sin su prefijo esto lo dice en vez de callarlo.
+   Comprobado quitándola: los dos casos se ponen en rojo.
