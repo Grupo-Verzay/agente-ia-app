@@ -15701,7 +15701,8 @@ de las pastillas dentro de la barra.
    de Resultado en `text-xs` con el argumento de que Leads hace lo mismo con las
    suyas; al pasar de una pestaña a otra se seguía notando. Ahora es `text-sm`
    como todo lo demás, y el banco mide **todos** los nodos con texto.
-3. **Acciones se ve siempre, y lo sostiene `table-fixed`.** Con `table-auto`
+3. **Acciones se ve siempre** — ver abajo, *la tercera vuelta*, que cambió
+   cómo se sostiene. Aquí se contó con `table-fixed`: Con `table-auto`
    el texto de Detalle —que va en una línea con `truncate`— tiene un ancho
    mínimo igual al texto ENTERO, así que empujaba la tabla y Acciones quedaba
    fuera: un `max-w` en un `<td>` no manda nada en una tabla automática. Las
@@ -15725,3 +15726,50 @@ Lo prueba `scripts/banco-llamadas-como-leads.sh`, en Chromium y con los
 componentes de verdad, en dos modos: el roto monta el «antes» pinchado a un
 commit —con sus vecinos del mismo commit en una carpeta hermana, para que sus
 `./` no resuelvan al fichero de hoy— y afirma los cinco fallos.
+
+### Y la tercera vuelta: la cabecera ES la de Leads, y el ancho se reparte como allí
+
+«Los encabezados se ven distintos que en Leads» y «queda un hueco grande entre
+Fecha y Detalle». Medido sobre las dos páginas SERVIDAS (build con `next start`,
+sesión de verdad), y no sobre una maqueta, porque la mitad del fallo la decide
+`.app-module-content`, que solo existe dentro del layout:
+
+| | antes | ahora | Leads |
+| --- | --- | --- | --- |
+| encabezado | **16 px** / 500 | 14 px / 500 | 14 px / 500 |
+| alineación de las celdas | Duración→Acciones **centradas** | todas a la izquierda | a la izquierda |
+| tabla dentro de su tarjeta (1440) | **1332 / 1382** | 1380 / 1382 | 1380 / 1380 |
+| hueco Fecha → Detalle (1440) | **150 px** | 18 px | — |
+
+1. **La cabecera se pinta con los MISMOS componentes que Leads**: `TableHead`
+   con las clases de `sessions/_components/data-table.tsx` y dentro el mismo
+   `Button` fantasma de `Columns.tsx`. El `<th>` escrito a mano salía a 16 px
+   porque dentro de `.app-module-content` un `.text-sm` suelto vale **1rem**
+   (`globals.css`) y solo lo compacto (`app-typography-compact`, que lleva
+   `TableHead`) o un botón lo bajan a 14. Con los mismos componentes no puede
+   notarse al pasar de una pestaña a otra. El color y el grosor se midieron
+   iguales (`rgb(100,116,139)`, 500) en los dos: la diferencia que se ve era el
+   tamaño.
+2. **`table-auto` y sin `<colgroup>`**, como Leads: cada columna mide su
+   contenido (`whitespace-nowrap`) y **lo que sobra se lo lleva Detalle**
+   (`w-full max-w-0`). Solo con `max-w-0` —probado— el sobrante se repartía
+   también a Fecha y el hueco volvía (101 px). `max-w-0` sigue siendo lo que
+   impide que el texto de Detalle empuje la tabla. El nombre va topado a `10rem`,
+   porque en una tabla automática un nombre largo ensancharía su columna; y la
+   celda de Resultado NO lleva `whitespace-nowrap`, para que su pastilla pueda
+   encoger con «…».
+3. **La tarjeta va sin relleno** (`CardContent p-0`), como la de Leads: la tabla
+   llega a los dos bordes. Carga y lista vacía llevan su propio `p-10`.
+
+Y lo que cuesta, que se dice: a **1024 con el menú lateral abierto** la tabla ya
+no cabe entera —los encabezados de Leads no se recortan— y **se desplaza**, igual
+que la de Leads. Acciones sigue a la vista porque va `sticky`, y eso es lo que
+el banco de `llamadas-como-leads` exige ahora a esa anchura; a 1440 y 1280 sigue
+exigiendo que no se desplace.
+
+Lo prueba `scripts/banco-cabecera-de-llamadas.sh`, sobre las dos páginas
+servidas y comparando **contra Leads medido en la misma sesión** (nada de
+números escritos). `MODO=roto` necesita `BUILD_ANTES=<un .next del commit de
+antes>`: lo **mueve** a `.next` —con un enlace simbólico el servidor no resuelve
+`node_modules`— y afirma los cuatro fallos; el hueco solo sale con un Detalle
+CORTO («Sin detalle»), así que se mide en todas las filas y no en la primera.

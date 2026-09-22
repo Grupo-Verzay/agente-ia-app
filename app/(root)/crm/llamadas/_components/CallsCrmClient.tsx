@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { TableHead } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -113,59 +114,59 @@ function cleanName(name?: string | null): string {
 type SortKey = 'contacto' | 'nombre' | 'duracion' | 'fecha' | 'detalle' | 'resultado';
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
-// Encabezado con flecha de ordenar (↕), estilo Registros. Centrado salvo en
-// Contacto y Nombre, que van a la izquierda porque su contenido va ahí.
+/*
+ * El encabezado es el de Leads, no uno parecido: la misma celda (`TableHead`,
+ * que lleva `app-typography-compact`) con las mismas clases que le pone
+ * `sessions/_components/data-table.tsx`, y dentro el mismo `Button` fantasma
+ * de `Columns.tsx`. Un `<th>` escrito a mano salía a 16 px —dentro de
+ * `.app-module-content` un `.text-sm` suelto vale 1rem, y solo lo compacto o
+ * un botón lo baja a 14— y con otro grosor aparente: al pasar de Leads a
+ * Llamadas se notaba el salto. Con los mismos componentes no puede notarse.
+ *
+ * Lo único que cambia respecto a Leads es la alineación: aquí el contenido va
+ * a la izquierda, así que el rótulo también (`justify-start`, `px-0` para que
+ * el texto arranque en el mismo píxel que la celda de debajo).
+ */
+const CELDA_DE_CABECERA = 'py-2 px-2 font-medium text-muted-foreground';
+const ROTULO_DE_CABECERA = 'text-sm font-medium text-muted-foreground';
+
 function Th({
   label,
   sortKey,
   sort,
   onSort,
-  izquierda = false,
   className,
 }: {
   label: string;
   sortKey?: SortKey;
   sort: SortState;
   onSort: (k: SortKey) => void;
-  izquierda?: boolean;
   className?: string;
 }) {
-  const clases = cn('px-2 py-2 font-medium', izquierda ? 'text-left' : 'text-center', className);
   if (!sortKey) {
-    return <th className={clases}>{label}</th>;
+    return (
+      <TableHead className={cn(CELDA_DE_CABECERA, className)}>
+        <div className={cn('w-full text-left', ROTULO_DE_CABECERA)}>{label}</div>
+      </TableHead>
+    );
   }
   const active = sort?.key === sortKey;
   return (
-    <th className={clases}>
-      <button
-        type="button"
+    <TableHead className={cn(CELDA_DE_CABECERA, className)}>
+      <Button
+        variant="ghost"
         onClick={() => onSort(sortKey)}
-        className={cn('inline-flex items-center gap-1 hover:text-foreground', active && 'text-foreground')}
+        className={cn(
+          'w-full justify-start px-0 hover:text-foreground',
+          ROTULO_DE_CABECERA,
+          active && 'text-foreground',
+        )}
       >
-        {label}
-        <ArrowUpDown className={cn('h-3.5 w-3.5', active ? 'opacity-100' : 'opacity-50')} />
-      </button>
-    </th>
+        {label} <ArrowUpDown className="ml-0.5 h-3 w-3" />
+      </Button>
+    </TableHead>
   );
 }
-
-/**
- * El ancho de las columnas FIJAS. Detalle y Resultado no llevan ninguno: se
- * reparten lo que sobre, y son las que encogen cuando falta sitio.
- *
- * Los números no son a ojo: salen de medir en Chromium lo que ocupa cada
- * contenido a 14 px (el número con su prefijo, la fecha «22/09, 10:30 a. m.»,
- * los tres puntos) más el `px-2` de la celda. Lo comprueba
- * `lib/__tests__/tabla-de-llamadas.test.mjs`, que falla si alguno se corta.
- */
-const ANCHO_DE_LAS_COLUMNAS = {
-  cuenta: '8.5rem',
-  contacto: '9.5rem',
-  nombre: '9rem',
-  duracion: '5.25rem',
-  fecha: '8.75rem',
-  acciones: '5.5rem',
-} as const;
 
 /** Acciones, pegada al borde derecho: si la tabla se desplaza, ella no. */
 const ACCIONES_PEGADAS = 'sticky right-0 bg-card';
@@ -560,12 +561,14 @@ export function CallsCrmClient({
       {/* Gráficos eliminados aquí: ya están en la pestaña Analíticas. */}
 
       {/* Tabla */}
+      {/* Sin relleno, como la tarjeta de Leads: la tabla llega a los dos
+          bordes. Los estados de carga y de lista vacía llevan el suyo. */}
       <Card className="border-border flex-1">
-        <CardContent className="pt-6">
+        <CardContent className="p-0">
           {loading ? (
-            <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center p-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : visibleCalls.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-10">
+            <div className="flex flex-col items-center gap-3 p-10">
               <p className="text-center text-sm text-muted-foreground">
                 {query.trim() ? 'No hay llamadas que coincidan con la búsqueda.' : 'No hay llamadas en este periodo.'}
               </p>
@@ -599,36 +602,35 @@ export function CallsCrmClient({
               siempre «Saliente» y «Estado» era un segundo mando del estado del
               lead, que se cambia en Leads.
 
-              `table-fixed` con el ancho de cada columna escrito en el
-              `<colgroup>`: las fijas miden lo suyo y **Detalle y Resultado se
-              reparten lo que sobra**, así que cuando falta sitio —el menú
-              lateral abierto a 1024— son ellas las que encogen y Acciones no se
-              corta nunca. Con `table-auto` era al revés: el texto de Detalle,
-              que va en una línea, empujaba la tabla y Acciones quedaba fuera.
+              El ancho se reparte COMO EN LEADS: `table-auto`, sin anchos
+              escritos, y cada columna mide lo que pide su contenido. Con
+              `table-fixed` y un `<colgroup>`, Detalle y Resultado se repartían
+              a partes iguales lo que sobraba —362 px cada una a 1440 para un
+              texto y una pastilla— y con el contenido centrado eso dejaba un
+              hueco grande entre Fecha y Detalle.
 
-              Y por si aún así no cabe —un teléfono—, Acciones va `sticky` al
-              borde derecho: la tabla se desplaza por debajo y los tres puntos
-              siguen a la vista.
+              Lo que sobra se lo lleva Detalle (`w-full`), que es la columna
+              de texto: las demás miden su contenido y quedan pegadas a él, así
+              que Fecha y Detalle ya no tienen un hueco en medio. Con solo
+              `max-w-0` —probado— el sobrante se repartía también a Fecha y el
+              hueco volvía, 101 px a 1440.
+
+              Lo que `table-fixed` protegía se sigue cumpliendo: Detalle lleva
+              además `max-w-0`, así que su texto de una línea NO empuja la
+              tabla —su ancho mínimo es cero y se recorta con «…»— y Acciones
+              no se corta. Las demás van en una línea (`whitespace-nowrap`),
+              que es su ancho mínimo. Y por si aún así no cabe —un teléfono—,
+              Acciones va `sticky` al borde derecho.
+
+              Todo el contenido va a la IZQUIERDA, como en Leads.
             */
             <div className="overflow-x-auto">
-              <table data-tabla-de-llamadas className="w-full table-fixed text-sm">
-                <colgroup>
-                  {unificado && <col style={{ width: ANCHO_DE_LAS_COLUMNAS.cuenta }} />}
-                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.contacto }} />
-                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.nombre }} />
-                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.duracion }} />
-                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.fecha }} />
-                  <col />
-                  <col />
-                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.acciones }} />
-                </colgroup>
+              <table data-tabla-de-llamadas className="w-full table-auto text-sm">
                 <thead>
-                  {/* `text-sm`, el mismo que el cuerpo y el mismo que la
-                      cabecera de Leads: la tabla entera va a un solo tamaño. */}
-                  <tr className="border-b text-sm text-muted-foreground">
+                  <tr className="border-b border-border">
                     {unificado && <Th label="Cuenta" sort={sort} onSort={toggleSort} />}
-                    <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} izquierda />
-                    <Th label="Nombre" sortKey="nombre" sort={sort} onSort={toggleSort} izquierda />
+                    <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} />
+                    <Th label="Nombre" sortKey="nombre" sort={sort} onSort={toggleSort} />
                     <Th label="Duración" sortKey="duracion" sort={sort} onSort={toggleSort} />
                     <Th label="Fecha" sortKey="fecha" sort={sort} onSort={toggleSort} />
                     <Th label="Detalle" sortKey="detalle" sort={sort} onSort={toggleSort} />
@@ -892,7 +894,9 @@ function ContactNameCell({
         // Sin `text-xs`: mide lo que mide el resto de la tabla. Y sin sangría
         // propia (`px-0`), para que arranque en el borde de su columna igual
         // que el número en la suya.
-        'block max-w-full truncate rounded text-left transition-colors hover:bg-muted disabled:opacity-60',
+        // `max-w-[10rem]`: en una tabla automática el ancho mínimo de la
+        // columna es el de su contenido, y un nombre largo la ensancharía.
+        'block max-w-[10rem] truncate rounded text-left transition-colors hover:bg-muted disabled:opacity-60',
         name ? 'text-muted-foreground hover:text-foreground' : 'italic text-muted-foreground/60 hover:text-foreground',
       )}
     >
@@ -954,14 +958,14 @@ function CallTableRow({
     <>
     <tr className="border-b last:border-0 align-top hover:bg-muted/40">
       {nombreDeLaCuenta !== undefined && (
-        <td className="px-2 py-2 text-center">
+        <td className="px-2 py-2 text-left whitespace-nowrap">
           <InsigniaDeCuenta nombre={nombreDeLaCuenta} />
         </td>
       )}
       {/* Contacto: el número, A LA IZQUIERDA y en azul, que es como lo pinta
           Leads —misma clase, no una parecida—. Es lo que se pulsa para abrir
           el chat, y centrado no se puede comparar con el de la fila de arriba. */}
-      <td className="px-2 py-2 text-left">
+      <td className="px-2 py-2 text-left whitespace-nowrap">
         <button
           type="button"
           onClick={onOpenChat}
@@ -974,22 +978,24 @@ function CallTableRow({
       {/* Nombre: su propia columna, como en Leads, y no colgado bajo el número. */}
       <td className="px-2 py-2 text-left">
         {ajena ? (
-          name ? <p className="truncate text-muted-foreground">{name}</p> : <span className="text-muted-foreground">—</span>
+          name ? <p className="max-w-[10rem] truncate text-muted-foreground">{name}</p> : <span className="text-muted-foreground">—</span>
         ) : (
           <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
         )}
       </td>
       {/* Duración */}
-      <td className="px-2 py-2 text-center tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
+      <td className="px-2 py-2 text-left whitespace-nowrap tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
       {/* Fecha */}
-      <td className="px-2 py-2 text-center whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
+      <td className="px-2 py-2 text-left whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
       {/* Detalle: botón clicable que abre el detalle completo (como en Registros) */}
-      <td className="px-2 py-2 text-center">
+      {/* `w-full max-w-0`: Detalle se lleva lo que sobra y su texto no empuja
+          la tabla (ver arriba). */}
+      <td className="w-full max-w-0 px-2 py-2 text-left">
         <button
           type="button"
           onClick={() => setDetailOpen(true)}
           title="Ver detalle de la llamada"
-          className="block w-full text-center"
+          className="block w-full text-left"
         >
           <span
             className={cn(
@@ -1004,7 +1010,10 @@ function CallTableRow({
         </button>
       </td>
       {/* Resultado (disposición) */}
-      <td className="px-2 py-2 text-center">
+      {/* Resultado sí puede encoger: su pastilla recorta el rótulo con «…»
+          (el completo va en el `title`). Es lo que deja que la tabla quepa
+          con el menú lateral abierto sin desplazarse. */}
+      <td className="px-2 py-2 text-left">
         {ajena ? (
           dispMeta ? (
             <span className={cn('inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-sm font-medium', dispMeta.badgeClass)}>
@@ -1045,8 +1054,8 @@ function CallTableRow({
         )}
       </td>
       {/* Acciones: pegada al borde derecho, nunca se corta. */}
-      <td className={cn('px-2 py-2 text-center', ACCIONES_PEGADAS)}>
-        <div className="flex justify-center">
+      <td className={cn('px-2 py-2 text-left', ACCIONES_PEGADAS)}>
+        <div className="flex justify-start">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acciones">
