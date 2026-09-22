@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 
 import {
   sendManualChatPayloadAction,
@@ -97,37 +98,18 @@ function ownerOf(user: { id: string; ownerId?: string | null }) {
 /* ─────────────── LÍNEAS / ENVÍO POR OTRA LÍNEA ─────────────── */
 
 /**
- * Conjunto de cuentas autorizadas del usuario = cuenta activa + su login + dueño
- * + cuentas vinculadas (maestras donde es miembro y miembros de la cuenta activa).
- * Mismo scope que usa el panel de Chats para el equipo/multi-cuenta.
+ * Las cuentas cuyas líneas se ofrecen en «Enviar por otra línea»: las MISMAS
+ * que la bandeja de Chats (`getAssociatedAccountIds`) — la propia y las que
+ * cuelgan de ella hacia abajo, nunca la madre ni las hermanas.
+ *
+ * Antes tenía su propia consulta en los dos sentidos, así que el selector
+ * ofrecía las líneas de la cuenta madre. Con una lista propia aquí, el día que
+ * se afine la de la bandeja esta se queda atrás.
  */
-async function authorizedAccountIds(user: {
-  id: string;
-  effectiveId: string;
-  ownerId?: string | null;
-  sessionUserId?: string | null;
-}): Promise<string[]> {
-  const ids = new Set<string>(
-    [user.effectiveId, user.id, user.ownerId, user.sessionUserId].filter(
-      (v): v is string => Boolean(v),
-    ),
-  );
-  const realId = user.sessionUserId ?? user.id;
-  try {
-    const [masters, linked] = await Promise.all([
-      db.$queryRaw<{ id: string }[]>`
-        SELECT "master_user_id" AS id FROM "linked_accounts" WHERE "linked_user_id" = ${realId}
-      `,
-      db.$queryRaw<{ id: string }[]>`
-        SELECT "linked_user_id" AS id FROM "linked_accounts" WHERE "master_user_id" = ${user.effectiveId}
-      `,
-    ]);
-    masters.forEach((r) => r.id && ids.add(r.id));
-    linked.forEach((r) => r.id && ids.add(r.id));
-  } catch {
-    // Tabla linked_accounts ausente: degradar a las cuentas base.
-  }
-  return Array.from(ids);
+async function authorizedAccountIds(
+  user: Parameters<typeof getAssociatedAccountIds>[0],
+): Promise<string[]> {
+  return getAssociatedAccountIds(user);
 }
 
 /**

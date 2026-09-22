@@ -151,10 +151,11 @@ export type SuerteDelArea = { suerte: Suerte; porque: string };
  *
  * **El rol importa y la familia también, y no dicen lo mismo:**
  *
- * - La **bandeja de Chats** alcanza un nivel de `linked_accounts` en los dos
- *   sentidos… pero solo si NO se es agente: `esAgenteDeLaCuenta` corta la lista
- *   a las líneas propias. Así que una agente pierde sus chats tomados en las
- *   líneas de la cuenta que deja, y una administradora no.
+ * - La **bandeja de Chats** alcanza las cuentas que cuelgan de la suya HACIA
+ *   ABAJO, nunca la madre ni las hermanas (`lib/alcance-de-la-bandeja.ts`), y
+ *   solo si NO se es agente. Así que una administradora conserva los chats de
+ *   la cuenta que deja solo si esa cuenta cuelga de la de destino; una agente
+ *   los pierde siempre.
  * - **Tareas y Proyectos NO miran vinculadas en absoluto**: sus consultas van
  *   con `ownerId = user.ownerId ?? user.id` a secas. Se pierden con los dos
  *   roles, y eso es lo que hay que decir antes de mudar a nadie.
@@ -170,24 +171,30 @@ export function laSuerteDeCadaArea(input: {
     rol: RolDeDestino;
     /** Si origen y destino están unidas por `linked_accounts`. */
     mismaFamilia: boolean;
+    /**
+     * Si la cuenta de antes cuelga de la de destino. Sin el dato se toma
+     * `mismaFamilia`, que es lo que se preguntaba antes de que la bandeja solo
+     * bajara; quien lo sabe —`elInforme`— lo pasa siempre.
+     */
+    origenCuelgaDelDestino?: boolean;
 }): Record<Area, SuerteDelArea> {
     const { rol, mismaFamilia } = input;
     const manda = rol === "administrador";
-    // La bandeja suma las líneas de las cuentas vinculadas, y solo a quien no
-    // es agente.
-    const alcanzaLasLineasDeAntes = manda && mismaFamilia;
+    // La bandeja suma las líneas de las cuentas que cuelgan de la suya, y solo
+    // a quien no es agente.
+    const alcanzaLasLineasDeAntes = manda && (input.origenCuelgaDelDestino ?? mismaFamilia);
 
     return {
         chats: alcanzaLasLineasDeAntes
             ? {
                   suerte: "sigue",
                   porque:
-                      "La bandeja suma las líneas de las cuentas vinculadas, un nivel y en los dos sentidos.",
+                      "La bandeja suma las líneas de las cuentas que cuelgan de la suya, y la de antes cuelga de la de destino.",
               }
             : {
                   suerte: "se_pierde",
                   porque: manda
-                      ? "Las dos cuentas no están vinculadas, así que la bandeja no alcanza las líneas de la de antes."
+                      ? "La cuenta de antes no cuelga de la de destino, así que la bandeja no alcanza sus líneas: solo baja, nunca sube ni va a las hermanas."
                       : "Un agente solo ve las líneas de su propia cuenta, aunque estén vinculadas.",
               },
         tareas: {

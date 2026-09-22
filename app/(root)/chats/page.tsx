@@ -37,7 +37,8 @@ import {
   sendChannelQuickReplyAction,
 } from "@/actions/channel-chat-actions";
 import { getInstancesByUserId } from "@/actions/instances-actions";
-import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
+import { lasLineasDeLasCuentas } from "@/lib/lineas-de-las-cuentas.server";
+import { lasCuentasQueVeLaBandeja } from "@/lib/cuentas-asociadas";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
 import { getTeamAdvisorInfos, type AdvisorInfo } from "@/actions/team-actions";
 import { listTagsDeLasCuentasAction } from "@/actions/tag-actions";
@@ -240,20 +241,30 @@ export default async function ChatsPage({
         )
       : user.apiKeyId;
   // Fase 1: todo lo que no depende de los chats corre en paralelo
+  //
+  // Las cuentas que alcanza la bandeja: la propia y las que cuelgan de ella
+  // HACIA ABAJO (`lib/alcance-de-la-bandeja.ts`). Nunca la madre ni las
+  // hermanas: antes se juntaban las vinculadas en los dos sentidos y la hija
+  // veía las líneas de su madre, sobre las que toda acción contestaba
+  // «No autorizado» desde #898. Es el MISMO alcance que las rutas de la
+  // bandeja y el token de tiempo real.
+  const cuentasDeLaBandeja =
+    settleValue(await settle(lasCuentasQueVeLaBandeja(user))) ?? [effectiveOwnerId];
+  const cuentasVinculadas = cuentasDeLaBandeja.filter(
+    (id) => id !== effectiveOwnerId && id !== user.sessionUserId && id !== user.id,
+  );
   const [
     resInstancias,
     resSessionUserInstancias,
     resApikey,
     linkedAccountsResponse,
-    masterAccountsResponse,
   ] = await Promise.all([
     settle(getInstancesByUserId(effectiveOwnerId)),
     user.sessionUserId && user.sessionUserId !== effectiveOwnerId
       ? settle(getInstancesByUserId(user.sessionUserId))
       : Promise.resolve(null),
     settle(getApiKeyById(ownerApiKeyId ?? "")),
-    settle(getLinkedAccountsInstances(effectiveOwnerId)),
-    settle(getMasterAccountInstances(user.sessionUserId ?? user.id)),
+    settle(lasLineasDeLasCuentas(cuentasVinculadas)),
   ]);
 
   const __tFase1 = performance.now();
@@ -265,25 +276,18 @@ export default async function ChatsPage({
           (inst) => inst.instanceType === "meta" && (inst.metaChannel ?? "whatsapp") === "whatsapp",
         )
       : [];
-  const linkedAccountsData =
-    linkedAccountsResponse?.success && Array.isArray(linkedAccountsResponse.data)
-      ? linkedAccountsResponse.data
-      : [];
-  const masterAccountsData =
-    masterAccountsResponse?.success && Array.isArray(masterAccountsResponse.data)
-      ? masterAccountsResponse.data
-      : [];
+  const linkedAccountsData = Array.isArray(linkedAccountsResponse) ? linkedAccountsResponse : [];
 
-  // Instancias de asesores del usuario + instancias de cuentas maestras vinculadas
+  // Las líneas de las cuentas que cuelgan de esta + las de Meta de la persona.
   const linkedInstancias = [
     ...linkedAccountsData.flatMap((la) => la.instances),
-    ...masterAccountsData.flatMap((ma) => ma.instances),
     ...sessionUserInstancias,
   ].filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
 
   // Un agente trabaja en UNA cuenta: no se le juntan las líneas de las cuentas
   // vinculadas. Sin esto veía los chats de todas ellas mezclados, y ni siquiera
   // eran de la cuenta en la que está.
+  // (`lasCuentasQueVeLaBandeja` ya se lo da recortado; esto es la red de abajo.)
   const esAgenteDeLaCuenta = !!user?.ownerId && user?.advisorRole !== "administrador";
   /**
    * Una linea, UNA vez. Gana la primera aparicion.
@@ -325,10 +329,9 @@ export default async function ChatsPage({
    *
    * El chat del equipo puede señalar una conversacion, y un canal que cruza
    * cuentas vinculadas pone ese enlace delante de gente de otra cuenta. La
-   * bandeja alcanza UN SOLO NIVEL y en los dos sentidos (`linked_accounts`:
-   * desde una vinculada se ven las lineas de la madre, y desde la madre las de
-   * sus vinculadas) — no alcanza a las HERMANAS. Asi que alguien de Ventas
-   * puede recibir el enlace de una conversacion de una linea de Atencion.
+   * bandeja alcanza HACIA ABAJO (`lib/alcance-de-la-bandeja.ts`): nunca a la
+   * madre ni a las HERMANAS. Asi que alguien de Ventas puede recibir el enlace
+   * de una conversacion de una linea de Atencion, o de la cuenta madre.
    *
    * Sin esto aterrizaba con `selectedJid` puesto y sin fila: cabecera con el
    * jid crudo, conversacion vacia y ninguna explicacion. Eso no se lee como
@@ -399,7 +402,6 @@ export default async function ChatsPage({
     effectiveOwnerId,
     user.sessionUserId,
     ...linkedAccountsData.map((la) => la.linkedUserId),
-    ...masterAccountsData.map((ma) => ma.masterUserId),
   ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
   const ownCompanyName = user.company || user.name || "";
 
@@ -424,19 +426,6 @@ export default async function ChatsPage({
           metaChannel: li.metaChannel,
           linkedUserId: la.linkedUserId,
           company: la.company || li.instanceName,
-        })),
-    ),
-    ...masterAccountsData.flatMap((ma) =>
-      ma.instances
-        .filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName))
-        .map((li) => ({
-          instanceName: li.instanceName,
-          instanceId: li.instanceId,
-          instanceType: li.instanceType,
-          displayName: li.displayName,
-          metaChannel: li.metaChannel,
-          linkedUserId: ma.masterUserId,
-          company: ma.company || li.instanceName,
         })),
     ),
     ...sessionUserInstancias

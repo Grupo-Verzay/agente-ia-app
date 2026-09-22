@@ -1791,7 +1791,10 @@ export async function toggleSessionSignatureAction(
 
   // Y solo sobre una cuenta a la que uno de verdad alcanza: el id de sesión
   // llega del navegador.
-  const alcanza = await getAuthorizedAccountUserIds(user);
+  // El alcance de la bandeja: la propia y las que cuelgan de ella, nunca la
+  // madre. Con el de los recursos (que sube a la madre) se podía cambiar la
+  // firma de las conversaciones de la cuenta de arriba.
+  const alcanza = await getAssociatedAccountIds(user);
   if (!alcanza.includes(cuentaDeLaConversacion)) {
     return { success: false, message: "No autorizado." };
   }
@@ -1805,6 +1808,10 @@ export async function toggleSessionSignatureAction(
 }
 
 /**
+ * OJO: esto es para RECURSOS (respuestas rápidas, workflows), no para líneas.
+ * Lo que decide sobre una línea o una conversación va con
+ * `getAssociatedAccountIds`, que solo baja.
+ *
  * Devuelve el conjunto de userIds cuyos recursos (respuestas rápidas, workflows)
  * puede usar el usuario actual: él mismo + las cuentas DUEÑAS a las que está
  * vinculado como agente/administrador (línea principal del equipo) + las
@@ -2208,7 +2215,8 @@ export async function deleteMessageAction(
   // `instanceName` llega del navegador.
   const duenoDeLaLinea = await resolveInstanceOwner(context?.instanceName ?? "");
   if (duenoDeLaLinea?.userId) {
-    const cuentasPermitidas = await getAuthorizedAccountUserIds(user);
+    // Es una LINEA: el alcance de la bandeja, que no sube a la madre.
+    const cuentasPermitidas = await getAssociatedAccountIds(user);
     if (!cuentasPermitidas.includes(duenoDeLaLinea.userId)) {
       return { success: false, message: "Esa línea no es de tu cuenta." };
     }

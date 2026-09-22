@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { laFamiliaDeLaCuenta } from "@/lib/familia-de-cuentas";
+import { lasCuentasQueCuelganDe } from "@/lib/crm-de-la-familia";
 import {
     type CuentaDeDestino,
     type PersonaQueSeMuda,
@@ -80,6 +81,12 @@ export async function laCuentaDeDestino(id: string): Promise<FilaDeCuenta | null
 export type Recuento = {
     /** Si las dos cuentas están unidas por `linked_accounts`. */
     mismaFamilia: boolean;
+    /**
+     * Si la cuenta de ANTES cuelga de la de destino hacia abajo. Es lo único
+     * que conserva los chats: la bandeja solo baja, nunca sube ni va a las
+     * hermanas (`lib/alcance-de-la-bandeja.ts`).
+     */
+    origenCuelgaDelDestino: boolean;
     /** Lo que se escribe. */
     cartera: number | null;
     modulosQueSeQuitan: string[];
@@ -142,6 +149,8 @@ export async function elRecuento(input: {
 
     const familia = await laFamiliaDeLaCuenta(origenId);
     const mismaFamilia = familia.cuentas.includes(destinoId);
+    const origenCuelgaDelDestino =
+        mismaFamilia && lasCuentasQueCuelganDe(destinoId, familia.enlaces ?? []).includes(origenId);
 
     const [suyos, delDestino] = await Promise.all([
         db.userModule
@@ -245,6 +254,7 @@ export async function elRecuento(input: {
 
     return {
         mismaFamilia,
+        origenCuelgaDelDestino,
         cartera,
         modulosQueSeQuitan: losModulosQueSeLeQuitan(mios, nuevos),
         modulosQueSeDan: losModulosQueSeLeDan(mios, nuevos),
@@ -278,7 +288,11 @@ export async function elInforme(input: {
         destino,
         rol,
         recuento,
-        areas: laSuerteDeCadaArea({ rol, mismaFamilia: recuento.mismaFamilia }),
+        areas: laSuerteDeCadaArea({
+            rol,
+            mismaFamilia: recuento.mismaFamilia,
+            origenCuelgaDelDestino: recuento.origenCuelgaDelDestino,
+        }),
     };
 }
 
