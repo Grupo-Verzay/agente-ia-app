@@ -37,6 +37,7 @@ import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
 
 const INSTANCE_COLORS = ["bg-violet-500","bg-blue-500","bg-emerald-500","bg-orange-500","bg-pink-500","bg-cyan-500","bg-amber-500"];
 function instanceColor(name: string): string {
@@ -115,7 +116,7 @@ type ChatContactItemProps = {
   onMarkRead?: (id: string) => void;
   onMarkUnread?: (id: string) => void;
   onResolve?: (id: string) => void;
-  onAssignTag?: (remoteJid: string, tagId: number) => void;
+  onAssignTag?: (remoteJid: string, tagId: number, instanceName?: string) => void;
   onRenameRequest?: (contact: SidebarContact) => void;
   isStarred?: boolean;
   onToggleStar?: (id: string, instanceName?: string | null) => void;
@@ -159,6 +160,13 @@ function ChatContactItemBase({
   const panelDeLaFila = usePanelFlotante("columnaDerecha", "menu");
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
+  // Solo las etiquetas de la cuenta de la linea de ESTA conversacion. Sin
+  // ficha CRM no hay ninguna: nunca se cae a las de otra linea.
+  const cuentaDeLaFila = contact.chatSession?.userId;
+  const etiquetasDeEstaLinea = React.useMemo(
+    () => etiquetasDeLaConversacion(allTags ?? [], cuentaDeLaFila),
+    [allTags, cuentaDeLaFila],
+  );
   const apptStatus = contact.chatSession?.latestAppointmentStatus;
   /**
    * El menu de asignar sale con UNA sola fila para uno mismo.
@@ -624,7 +632,7 @@ function ChatContactItemBase({
                 </DropdownMenuSub>
               )}
               {/* 4. Asignar etiqueta */}
-              {onAssignTag && allTags && allTags.length > 0 && (
+              {onAssignTag && etiquetasDeEstaLinea.length > 0 && (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Tag className="h-4 w-4" />
@@ -634,12 +642,12 @@ function ChatContactItemBase({
                     className="w-44 overflow-y-auto"
                     style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
                   >
-                    {allTags.map((tag) => {
+                    {etiquetasDeEstaLinea.map((tag) => {
                       const hasTag = contact.chatSession?.tags?.some((t) => t.id === tag.id);
                       return (
                         <DropdownMenuItem
                           key={tag.id}
-                          onSelect={() => onAssignTag(contact.id, tag.id)}
+                          onSelect={() => onAssignTag(contact.id, tag.id, contact.instanceName ?? undefined)}
                           className="flex items-center justify-between gap-2"
                         >
                           <span className="flex items-center gap-2 text-sm">

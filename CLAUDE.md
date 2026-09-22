@@ -1960,6 +1960,46 @@ lista es el motivo del menú, scroll; si es una opción más entre otras,
 submenú** —y el submenú también con su `max-h`, como los de «Asignar agente» y
 «Asignar etiqueta» del menú de la fila—.
 
+## Chats: las etiquetas de una conversación son las de SU línea
+
+Una etiqueta (`Tag`) cuelga de una **cuenta**, y cada línea es de una cuenta:
+Atención y Ventas son cuentas distintas de la familia. La conversación guarda la
+cuenta de su línea en `Session.userId`, y el servidor exige que coincidan
+(`assignTagToSessionAction`: `tag.userId === session.userId`).
+
+Chats pedía las etiquetas de la cuenta de **quien mira** (`listTagsAction` con
+`effectiveOwnerId`) y se las ofrecía a cualquier conversación. Desde la madre,
+una conversación de Atención enseñaba las etiquetas de la madre, y al pulsar una
+el servidor contestaba «Tag no encontrado o no pertenece a este usuario»:
+menú abierto, puerta cerrada.
+
+> **A cada conversación se le ofrecen las etiquetas de la cuenta de su línea, y
+> ninguna más** (`lib/etiquetas-de-la-linea.ts`, puro). Si esa línea no tiene
+> etiquetas, el selector sale **vacío** y lo dice —nunca cae a las de otra—.
+
+Cuatro cosas que hay que mantener:
+
+1. **La bandeja trae las etiquetas de TODAS sus cuentas, cada una con su dueña**
+   (`listTagsDeLasCuentasAction`, una consulta). Cada cuenta pasa por
+   `laCuentaDeLaAccion`, la misma puerta con la que después se asigna: un
+   asesor solo alcanza las de su cuenta y una ajena no se cuela.
+2. **Los tres sitios que etiquetan filtran igual**: la cabecera, el menú de la
+   fila y el lote. El menú de la fila buscaba la sesión por la llave GLOBAL, así
+   que con el mismo cliente en dos líneas etiquetaba la conversación de la otra;
+   ahora va con `linea::numero`.
+3. **El lote solo ofrece etiquetas si todo lo marcado es de la misma cuenta**, y
+   asigna con la cuenta de cada conversación. Mezclando líneas no hay ninguna
+   etiqueta que valga para todas.
+4. **El filtro de la lista**, con una línea elegida en Canales, ofrece las de su
+   cuenta; sin línea, todas.
+
+Dos líneas de la **misma** cuenta comparten etiquetas: `Tag` no tiene columna de
+línea, y añadírsela es otro frente (la tabla la toca el backend, ver el #360).
+
+Lo prueba `scripts/banco-etiquetas-de-la-linea.sh`, contra Postgres y con las
+acciones de verdad, en dos modos: el roto corre el camino viejo y afirma que la
+conversación de Atención ofrecía las de la madre y el servidor las rechazaba.
+
 ## Chats: quitar un mando de la fila NO quita su dato
 
 Cada fila de la lista llevaba dos selectores con icono y flechita —el **estado

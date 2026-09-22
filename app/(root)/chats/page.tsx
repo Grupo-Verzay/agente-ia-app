@@ -40,7 +40,7 @@ import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
 import { getTeamAdvisorInfos, type AdvisorInfo } from "@/actions/team-actions";
-import { listTagsAction } from "@/actions/tag-actions";
+import { listTagsDeLasCuentasAction } from "@/actions/tag-actions";
 import { leerTrazaConfigAction } from "@/actions/traza-actions";
 import { conLaCuentaPropia } from "@/lib/asesores";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
@@ -575,7 +575,11 @@ export default async function ChatsPage({
     // decidir si la fila de la lista pintaba el estado del cliente y el tipo de
     // asistencia. Esos dos selectores se fueron (#864), asi que esa consulta ya
     // no la pedia nadie y se cayo con ellos: una menos en cada carga de Chats.
-    settle(listTagsAction(effectiveOwnerId)),
+    // Las etiquetas de TODAS las cuentas de la bandeja, cada una con su dueña:
+    // a cada conversación se le ofrecen solo las de la cuenta de SU línea
+    // (`lib/etiquetas-de-la-linea.ts`). Con las de la cuenta de quien mira, una
+    // conversación de Atención vista desde la madre ofrecía las de la madre.
+    settle(listTagsDeLasCuentasAction(allSessionUserIds)),
     // El interruptor de la traza, tambien desde el SERVIDOR.
     //
     // Esto era una accion de servidor, y ademas la PRIMERA de la cola: montada
@@ -604,6 +608,7 @@ export default async function ChatsPage({
       color: tag.color,
       order: tag.order ?? 0,
       sessionCount: tag._count?.sessionTags ?? 0,
+      userId: tag.userId,
     })) ?? [];
 
   const initialChatPreferences = initialPreferencesResult.success

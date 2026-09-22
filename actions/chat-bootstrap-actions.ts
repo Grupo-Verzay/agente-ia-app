@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
-import { listTagsAction } from "@/actions/tag-actions";
+import { listTagsDeLasCuentasAction } from "@/actions/tag-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { getWorkFlowByUserIds } from "@/actions/workflow-actions";
 import { getAllRRsByUserIds } from "@/actions/rr-actions";
@@ -180,7 +180,7 @@ export async function loadChatBootstrapData(
     quickRepliesRes,
     advisorsRes,
   ] = await Promise.all([
-    medir("etiquetas", () => settle(listTagsAction(effectiveOwnerId))),
+    medir("etiquetas", () => settle(listTagsDeLasCuentasAction(sessionUserIds))),
     medir("asesoresAsignados", () => idsDeAsesoresConChatsAsignados(sessionUserIds)),
     medir("marcasDeBorrado", () => settle(getChatConversationPreferencesForAssociatedAccounts())),
     medir("flujos", () => settle(getWorkFlowByUserIds(sessionUserIds))),
@@ -197,6 +197,7 @@ export async function loadChatBootstrapData(
       color: tag.color,
       order: tag.order ?? 0,
       sessionCount: tag._count?.sessionTags ?? 0,
+      userId: tag.userId,
     })) ?? [];
 
   const workflows = workflowsRes?.success && Array.isArray(workflowsRes.data)

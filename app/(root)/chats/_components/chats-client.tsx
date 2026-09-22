@@ -1,5 +1,6 @@
 "use client";
 
+import { etiquetasDelFiltro } from "@/lib/etiquetas-de-la-linea";
 import { getWahaPresenceAction } from "@/actions/waha-chat-actions";
 import { suscribirPresenciaEvolucionAction } from "@/actions/chat-manual-actions";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -4352,22 +4353,32 @@ export function ChatsClient({
     [sesionDeLaSeleccion, aplicarEnLaSesion, advisors],
   );
 
+  // El filtro de etiquetas de la lista: con una linea elegida, solo las de su
+  // cuenta (`lib/etiquetas-de-la-linea.ts`).
+  const etiquetasParaFiltrar = useMemo(
+    () => etiquetasDelFiltro(allTags, selectedChannel ? instanceOwners[selectedChannel] ?? null : null),
+    [allTags, instanceOwners, selectedChannel],
+  );
+
   const handleBulkAddTag = useCallback(
     async (chats: SeleccionDeChat[], tagId: number) => {
       // La sesion de SU linea, igual que al asignar asesor.
       const sessionPairs = chats
         .map((c) => ({ jid: c.remoteJid, sesion: sesionDeLaSeleccion(c) }))
         .filter((p): p is { jid: string; sesion: ChatContactSessionSummary } => p.sesion !== undefined)
-        .map((p) => ({ jid: p.jid, sessionId: p.sesion.id, tags: p.sesion.tags }));
+        .map((p) => ({ jid: p.jid, sessionId: p.sesion.id, cuenta: p.sesion.userId, tags: p.sesion.tags }));
 
       if (sessionPairs.length === 0) {
         toast.error("Ninguno de los chats seleccionados tiene sesión CRM.");
         return;
       }
 
+      // Con la cuenta de la LINEA de cada conversacion, que es la que el
+      // servidor exige (`tag.userId === session.userId`). Con la de quien mira,
+      // toda conversacion de una linea de otra cuenta de la familia fallaba.
       const results = await Promise.allSettled(
-        sessionPairs.map(({ sessionId }) =>
-          assignTagToSessionAction({ userId, sessionId, tagId }),
+        sessionPairs.map(({ sessionId, cuenta }) =>
+          assignTagToSessionAction({ userId: cuenta || userId, sessionId, tagId }),
         ),
       );
 
@@ -5335,6 +5346,7 @@ export function ChatsClient({
       >
         <ChatSidebar
           allTags={allTags}
+          etiquetasDelFiltro={etiquetasParaFiltrar}
           presencias={presenciasVisibles}
           chatPreferences={chatPreferences}
           chatSessions={chatSessions}
