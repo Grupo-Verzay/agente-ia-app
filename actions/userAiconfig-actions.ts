@@ -3,6 +3,7 @@
 import { unstable_noStore as noStore } from 'next/cache';
 import { db } from '@/lib/db';
 import { Prisma, AiModel, AiProvider, UserAiConfig, User } from '@prisma/client';
+import { sinLaClave, laClaveQueSeGuarda, type ClaveVistaDesdeElNavegador } from '@/lib/clave-de-ia-para-el-navegador';
 import { currentUser } from '@/lib/auth';
 import { isAdminOrReseller } from '@/lib/rbac';
 // Validación de la API key en un módulo puro (sin 'use server'): un archivo
@@ -15,12 +16,6 @@ import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 /* ============================
    Tipos de respuesta y DTOs
 ============================ */
-export type ResolvedAiClientDTO = {
-  provider: string;
-  model: string;
-  apiKey: string;
-};
-
 export type ActionResult<T = undefined> = {
   success: boolean;
   message: string;
@@ -29,9 +24,16 @@ export type ActionResult<T = undefined> = {
 
 export type ProviderWithModels = AiProvider & { models: AiModel[] };
 
-export type UserAiConfigDTO = UserAiConfig & {
-  provider: Pick<AiProvider, 'id' | 'name'>;
-};
+/**
+ * Una configuración tal como puede viajar al navegador: **sin `apiKey`**.
+ * En su lugar va si hay clave y sus cuatro últimos caracteres. Ver
+ * `lib/clave-de-ia-para-el-navegador.ts`: la clave de estas filas suele ser la
+ * de la casa o la del reseller, no la del cliente que mira.
+ */
+export type UserAiConfigDTO = Omit<UserAiConfig, 'apiKey'> &
+  ClaveVistaDesdeElNavegador & {
+    provider: Pick<AiProvider, 'id' | 'name'>;
+  };
 
 export type UserDefaultsDTO = {
   defaultProviderId: string | null;
@@ -190,7 +192,7 @@ export async function getUserAiConfigs(userId: string): Promise<ActionResult<Use
       include: { provider: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    return { success: true, message: 'ok', data: configs };
+    return { success: true, message: 'ok', data: configs.map(sinLaClave) };
   } catch (error) {
     console.warn('[userAiconfig] no se pudieron leer las configuraciones', error);
     return { success: false, message: 'No autorizado.' };
@@ -504,13 +506,25 @@ export async function upsertUserAiConfig(input: UpsertUserAiConfigInput): Promis
     await ensureUser(userId);
     const provider = await ensureProvider(providerId);
 
-    const keyError = validateProviderApiKey(provider.name, apiKey);
-    if (keyError) return { success: false, message: keyError };
+    // El formulario ya no conoce la clave guardada, así que vacío significa
+    // «conservar la que hay». Solo se valida la que se escribe nueva: la vieja
+    // ya pasó por aquí el día que se guardó.
+    const existente = await db.userAiConfig.findUnique({
+      where: { userId_providerId: { userId, providerId } },
+      select: { apiKey: true },
+    });
+    const queSeGuarda = laClaveQueSeGuarda(apiKey, existente?.apiKey);
+    if (!queSeGuarda.ok) return { success: false, message: 'Ingresa tu API key.' };
+    if (queSeGuarda.esNueva) {
+      const keyError = validateProviderApiKey(provider.name, queSeGuarda.clave);
+      if (keyError) return { success: false, message: keyError };
+    }
+    const claveFinal = queSeGuarda.clave;
 
     const cfg = await db.userAiConfig.upsert({
       where: { userId_providerId: { userId, providerId } },
-      update: { apiKey, isActive, temperature },
-      create: { userId, providerId, apiKey, isActive, temperature },
+      update: { apiKey: claveFinal, isActive, temperature },
+      create: { userId, providerId, apiKey: claveFinal, isActive, temperature },
       include: { provider: { select: { id: true, name: true } } },
     });
 
@@ -530,7 +544,7 @@ export async function upsertUserAiConfig(input: UpsertUserAiConfigInput): Promis
       }
     }
 
-    return { success: true, message: 'user_config_upsert_ok', data: cfg };
+    return { success: true, message: 'user_config_upsert_ok', data: sinLaClave(cfg) };
   } catch (e) {
     if (isUniqueError(e, ['userId', 'providerId'])) {
       // No debería pasar con upsert, pero por si acaso
@@ -555,8 +569,9 @@ export async function updateUserAiConfig(input: {
     await ensureUser(userId);
     const provider = await ensureProvider(providerId);
 
-    if (typeof apiKey === 'string') {
-      const keyError = validateProviderApiKey(provider.name, apiKey);
+    // Vacía = conservar la guardada, igual que en `upsertUserAiConfig`.
+    if (typeof apiKey === 'string' && apiKey.trim()) {
+      const keyError = validateProviderApiKey(provider.name, apiKey.trim());
       if (keyError) return { success: false, message: keyError };
     }
 
@@ -568,13 +583,13 @@ export async function updateUserAiConfig(input: {
     const cfg = await db.userAiConfig.update({
       where: { userId_providerId: { userId, providerId } },
       data: {
-        apiKey: apiKey ?? exists.apiKey,
+        apiKey: apiKey?.trim() || exists.apiKey,
         isActive: typeof isActive === 'boolean' ? isActive : exists.isActive,
       },
       include: { provider: { select: { id: true, name: true } } },
     });
 
-    return { success: true, message: 'user_config_update_ok', data: cfg };
+    return { success: true, message: 'user_config_update_ok', data: sinLaClave(cfg) };
   } catch {
     return { success: false, message: 'user_config_update_error' };
   }
@@ -595,7 +610,7 @@ export async function toggleUserAiConfigActive(
       include: { provider: { select: { id: true, name: true } } },
     });
 
-    return { success: true, message: 'user_config_toggle_ok', data: cfg };
+    return { success: true, message: 'user_config_toggle_ok', data: sinLaClave(cfg) };
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
       return { success: false, message: 'user_config_not_found' };
@@ -841,42 +856,5 @@ export async function inheritResellerAiConfig(
   }
 }
 
-export async function resolveUserAiClient(userId: string): Promise<ActionResult<ResolvedAiClientDTO>> {
-  noStore();
-  try {
-    const u = await ensureUser(userId);
-
-    if (!u.defaultProviderId || !u.defaultAiModelId) {
-      return { success: false, message: "user_missing_defaults" };
-    }
-
-    const cfg = await db.userAiConfig.findFirst({
-      where: { userId, isActive: true, providerId: u.defaultProviderId },
-      select: { apiKey: true },
-    });
-
-    if (!cfg?.apiKey) return { success: false, message: "user_missing_active_apikey" };
-
-    const provider = await db.aiProvider.findUnique({
-      where: { id: u.defaultProviderId },
-      select: { name: true },
-    });
-
-    const model = await db.aiModel.findUnique({
-      where: { id: u.defaultAiModelId },
-      select: { name: true },
-    });
-
-    if (!provider?.name || !model?.name) {
-      return { success: false, message: "provider_or_model_invalid" };
-    }
-
-    return {
-      success: true,
-      message: "ok",
-      data: { provider: provider.name, model: model.name, apiKey: cfg.apiKey },
-    };
-  } catch (e) {
-    return { success: false, message: "resolve_ai_client_error" };
-  }
-}
+// `resolveUserAiClient` se mudó a `lib/cliente-de-ia.server.ts`: exportada desde
+// este fichero `'use server'` era un endpoint que devolvía la clave en claro.

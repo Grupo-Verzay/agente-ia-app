@@ -4,7 +4,8 @@ import { currentUser } from "@/lib/auth";
 import type { ChatMessage } from "@/types/ai-assistence-chat";
 import { toAiMessages } from "@/app/(root)/ai-chat/helpers/toAiMessages";
 import { createAiClient } from "@/app/(root)/ai-chat/helpers/createAiClient";
-import { resolveUserAiClient, type ActionResult } from "./userAiconfig-actions";
+import { type ActionResult } from "./userAiconfig-actions";
+import { resolveUserAiClient } from "@/lib/cliente-de-ia.server";
 
 export type AgentPromptChatContext = {
   activeSection: string;

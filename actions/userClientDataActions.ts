@@ -1,5 +1,6 @@
 ﻿'use server';
 
+import { sinLaClave } from '@/lib/clave-de-ia-para-el-navegador';
 import { db } from '@/lib/db';
 import { UserWithPausar } from '@/lib/types';
 import { IaCredit, Pausar, Prisma, User } from '@prisma/client';
@@ -448,6 +449,9 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         return {
           ...user,
           pausar: user.pausar as Pausar[],
+          // Sin la clave de IA: esta lista viaja entera al navegador, y la
+          // clave de estas filas suele ser la de la casa o la del reseller.
+          aiConfigs: user.aiConfigs.map(sinLaClave),
           isEvoEnabled,
           qrStatus,
           reseller,

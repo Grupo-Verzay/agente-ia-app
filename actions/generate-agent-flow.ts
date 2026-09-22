@@ -1,7 +1,7 @@
 ﻿'use server';
 
 import { currentUser } from '@/lib/auth';
-import { resolveUserAiClient } from '@/actions/userAiconfig-actions';
+import { resolveUserAiClient } from '@/lib/cliente-de-ia.server';
 import { WELCOME_MAIN_MESSAGE, WELCOME_TITLE } from '@/app/(root)/ai/_components/helpers/trainingDefaults';
 import {
     patchBusinessSection,

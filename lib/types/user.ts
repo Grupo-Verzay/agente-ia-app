@@ -1,3 +1,4 @@
+import type { ClaveVistaDesdeElNavegador } from "@/lib/clave-de-ia-para-el-navegador";
 import { BillingStatus, IaCredit, Pausar, ServiceAccessStatus, Session, User, UserAiConfig } from "@prisma/client";
 
 export interface UserWithPausar extends User {
@@ -5,7 +6,8 @@ export interface UserWithPausar extends User {
 };
 export interface ClientInterface extends User {
     pausar: Pausar[];
-    aiConfigs: UserAiConfig[];
+    /** Sin `apiKey`: esta lista viaja al navegador (Panel › Clientes). */
+    aiConfigs: Array<Omit<UserAiConfig, 'apiKey'> & ClaveVistaDesdeElNavegador>;
     isEvoEnabled: boolean;
     qrStatus: boolean;
     reseller: User | null;

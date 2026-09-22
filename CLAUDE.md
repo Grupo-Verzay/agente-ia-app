@@ -15338,6 +15338,39 @@ Lo que **no** se tocó, a propósito: el editor de flujos **legado** (`/flow`),
 que nunca tuvo ningún nodo de llamada. Esto entra solo en el lienzo de
 `/workflow`.
 
+## Una clave de IA no viaja al navegador: ni la del cliente, ni la de la casa
+
+Perfil › API key recibía la fila entera de `user_ai_configs` —`apiKey` en
+claro— y la metía en el formulario. El `type="password"` solo la tapaba en
+pantalla: la clave iba en la respuesta de la acción y quedaba en el estado de
+React. Y esa clave **casi nunca es del cliente**: las cuentas nuevas nacen con
+una llave de la casa (Panel › API keys; antes `SECRET_API_KEY`) y los clientes
+de un reseller heredan la suya. O sea que cualquier cuenta leía la clave de
+OpenAI de Verzay desde su propio Perfil. Estuvo así desde `2e35653c`.
+
+> **Al navegador solo le llega SI hay clave y sus cuatro últimos caracteres.**
+> Lo decide `lib/clave-de-ia-para-el-navegador.ts` (puro): toda acción que
+> devuelva una configuración pasa por `sinLaClave`, y guardar con el campo
+> **vacío conserva la guardada** (`laClaveQueSeGuarda`), que es lo que permite
+> no devolverla nunca.
+
+Tres cosas que hay que mantener:
+
+1. **El lector que sí devuelve la clave vive en `lib/cliente-de-ia.server.ts`,
+   con `server-only`**, no en un fichero `'use server'`. Exportada desde
+   `userAiconfig-actions.ts`, `resolveUserAiClient` era un endpoint que daba la
+   clave a quien la pidiera con su sesión. Lo que devuelve **no se reenvía**.
+2. **El ojito y el «copiar» de quien administra se fueron**, a propósito: un
+   reseller que ve la clave de la casa es la misma fuga. Para saber cuál llave
+   es, está el final y el aviso de origen (`getAiKeyOriginInfo`).
+3. **Panel › Clientes** (`getEnrichedClients`) también mandaba `aiConfigs` con
+   la clave; va con `sinLaClave`. Si se añade otra lista que incluya
+   `aiConfigs`, va igual.
+
+Lo comprueba `scripts/banco-clave-de-ia.sh`: la decisión, un barrido del código
+y las acciones de verdad contra Postgres, y en `MODO=roto` el código de
+`ANTES_REF` afirma la clave en claro en la respuesta.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

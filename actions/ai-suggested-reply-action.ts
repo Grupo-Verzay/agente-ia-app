@@ -1,6 +1,7 @@
 'use server';
 
-import { resolveUserAiClient, ActionResult } from './userAiconfig-actions';
+import { type ActionResult } from './userAiconfig-actions';
+import { resolveUserAiClient } from '@/lib/cliente-de-ia.server';
 import { createAiClient } from '@/app/(root)/ai-chat/helpers/createAiClient';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';

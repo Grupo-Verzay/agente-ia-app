@@ -31,7 +31,7 @@ import {
     CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { ChevronsUpDown, Check, Eye, EyeOff, Building2, User as UserIcon, Copy } from "lucide-react";
+import { ChevronsUpDown, Check, Building2, User as UserIcon } from "lucide-react";
 
 // Server actions del CRUD (usa la ruta donde lo pegaste)
 import { upsertUserAiConfig, setUserDefaults, getUserAiSettings, getAiKeyOriginInfo, type AiKeyOriginDTO } from "@/actions/userAiconfig-actions";
@@ -47,8 +47,9 @@ type ApiKeyConfiguratorProps = {
     /** callback opcional luego de guardar por si quieres refrescar datos del padre */
     onSaved?: () => void;
     /**
-     * Solo admin/reseller: muestra el ojito para revelar la key completa y el
-     * badge de origen (Verzay compartida vs propia del cliente).
+     * Solo admin/reseller: el badge de origen (Verzay compartida vs propia del
+     * cliente). Ya no hay ojito ni copiar: la clave completa no llega al
+     * navegador, tampoco al de quien administra.
      */
     showOrigin?: boolean;
 };
@@ -61,18 +62,22 @@ type SettingsData = NonNullable<
 const FormSchema = z.object({
     providerId: z.string({ required_error: "Selecciona un proveedor" }).min(1),
     modelId: z.string({ required_error: "Selecciona un modelo" }).min(1),
-    apiKey: z
-        .string({ required_error: "Ingresa tu API key" })
-        .min(8, "La API key es demasiado corta"),
+    // Vacía = conservar la guardada. La clave guardada ya no llega al
+    // navegador (ver lib/clave-de-ia-para-el-navegador.ts), así que el
+    // formulario no puede rellenarse con ella: si falta y no hay ninguna
+    // guardada, lo dice `submit`.
+    apiKey: z.string().default(""),
     temperature: z.number().min(0).max(0.5).default(0),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
 
 // ====== Utils ======
-function maskKey(key?: string) {
-    if (!key) return "";
-    return "*".repeat(24);
+type ClaveGuardada = { tieneClave: boolean; finalDeLaClave: string | null };
+const SIN_CLAVE: ClaveGuardada = { tieneClave: false, finalDeLaClave: null };
+
+function comoSeEnsena(clave: ClaveGuardada) {
+    return clave.finalDeLaClave ? `•••• ${clave.finalDeLaClave}` : "••••••••";
 }
 
 export function ApiKeyConfigurator({
@@ -84,24 +89,8 @@ export function ApiKeyConfigurator({
     showOrigin = false,
 }: ApiKeyConfiguratorProps) {
     const [open, setOpen] = useState(false);
-    // Solo admin/reseller: revelar la key completa + origen (Verzay vs propia).
-    const [revealed, setRevealed] = useState(false);
-    const [copied, setCopied] = useState(false);
+    // Solo admin/reseller: origen (Verzay vs propia).
     const [origin, setOrigin] = useState<AiKeyOriginDTO | null>(null);
-
-    const handleCopyKey = async (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!previewApiKey) return;
-        try {
-            await navigator.clipboard.writeText(previewApiKey);
-            setCopied(true);
-            toast.success("API key copiada");
-            setTimeout(() => setCopied(false), 1500);
-        } catch {
-            toast.error("No se pudo copiar la key");
-        }
-    };
 
     useEffect(() => {
         if (defaultOpen) setOpen(true);
@@ -121,7 +110,7 @@ export function ApiKeyConfigurator({
 
     // Estado de preview (fuera del diálogo)
     const [previewProviderId, setPreviewProviderId] = useState<string | null>(null);
-    const [previewApiKey, setPreviewApiKey] = useState<string>("");
+    const [previewClave, setPreviewClave] = useState<ClaveGuardada>(SIN_CLAVE);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(FormSchema),
@@ -180,15 +169,15 @@ export function ApiKeyConfigurator({
             form.setValue("providerId", defProvId);
             form.setValue("modelId", defModelId);
 
-            // Prefill apiKey y temperature si ya había config para ese provider
+            // Temperatura si ya había config para ese provider. La clave NO se
+            // rellena: no llega al navegador, y vacía significa «conservarla».
             const existingCfg = dataFormatted.configs.find((c) => c.providerId === defProvId);
             if (existingCfg) {
-                form.setValue("apiKey", existingCfg.apiKey);
                 form.setValue("temperature", existingCfg.temperature ?? 0);
             }
 
-                    setPreviewProviderId(defProvId);
-            setPreviewApiKey(existingCfg?.apiKey || "");
+            setPreviewProviderId(defProvId);
+            setPreviewClave(existingCfg ?? SIN_CLAVE);
         })();
         return () => {
             cancelado = true;
@@ -216,12 +205,12 @@ export function ApiKeyConfigurator({
         }
 
         const cfg = settings.configs.find((c) => c.providerId === currentProviderId);
-        form.setValue("apiKey", cfg?.apiKey || "");
+        form.setValue("apiKey", "");
         form.setValue("temperature", cfg?.temperature ?? 0);
 
         // actualiza preview (fuera del diálogo)
         setPreviewProviderId(currentProviderId);
-        setPreviewApiKey(cfg?.apiKey || "");
+        setPreviewClave(cfg ?? SIN_CLAVE);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentProviderId, settings]);
 
@@ -231,7 +220,6 @@ export function ApiKeyConfigurator({
             setOrigin(null);
             return;
         }
-        setRevealed(false);
         let cancelled = false;
         (async () => {
             const res = await getAiKeyOriginInfo(userId, previewProviderId);
@@ -241,7 +229,7 @@ export function ApiKeyConfigurator({
             cancelled = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showOrigin, userId, previewProviderId, previewApiKey]);
+    }, [showOrigin, userId, previewProviderId, previewClave]);
 
     const submit = async (data: FormValues) => {
         // Validación de formato de la API key según el proveedor: evita guardar una
@@ -249,7 +237,15 @@ export function ApiKeyConfigurator({
         // clasificador de leads). Usamos la MISMA función que el server action para
         // no divergir; el servidor la revalida como barrera definitiva.
         const providerName = providers.find((p) => p.id === data.providerId)?.name ?? "";
-        const keyError = validateProviderApiKey(providerName, data.apiKey);
+        const escrita = (data.apiKey ?? "").trim();
+        const guardada = settings?.configs.find((c) => c.providerId === data.providerId);
+        if (!escrita && !guardada?.tieneClave) {
+            form.setError("apiKey", { type: "manual", message: "Ingresa tu API key" });
+            toast.error("Ingresa tu API key");
+            return;
+        }
+        // Vacía y ya había una: se conserva, y no hay nada que validar aquí.
+        const keyError = escrita ? validateProviderApiKey(providerName, escrita) : null;
         if (keyError) {
             form.setError("apiKey", { type: "manual", message: keyError });
             toast.error(keyError);
@@ -262,7 +258,7 @@ export function ApiKeyConfigurator({
             const up = await upsertUserAiConfig({
                 userId,
                 providerId: data.providerId,
-                apiKey: data.apiKey,
+                apiKey: escrita,
                 isActive: true,
                 temperature: data.temperature ?? 0,
                 makeDefaultProvider: true,
@@ -300,7 +296,8 @@ export function ApiKeyConfigurator({
 
                 const cfg = filtered.configs.find((c: any) => c.providerId === data.providerId);
                 setPreviewProviderId(data.providerId);
-                setPreviewApiKey(cfg?.apiKey || "");
+                setPreviewClave(cfg ?? SIN_CLAVE);
+                form.setValue("apiKey", "");
             }
 
             onSaved?.();
@@ -322,6 +319,11 @@ export function ApiKeyConfigurator({
         modelsForProvider.find((m) => m.id === form.getValues("modelId"))?.name ||
         "Selecciona un modelo";
 
+    // La clave guardada del proveedor que está elegido en el diálogo: solo si
+    // la hay y su final, nunca la clave.
+    const claveDelProveedor: ClaveGuardada =
+        settings?.configs.find((c) => c.providerId === form.watch("providerId")) ?? SIN_CLAVE;
+
     // Preview label (fuera del diálogo)
     const previewProviderLabel =
         fmtProvider(providers.find((p) => p.id === previewProviderId)?.name ?? "") || "Proveedor";
@@ -337,46 +339,18 @@ export function ApiKeyConfigurator({
                             readOnly
                             disabled={disabled || loading}
                             value={
-                                previewApiKey
-                                    ? `${previewProviderLabel}: ${showOrigin && revealed ? previewApiKey : maskKey(previewApiKey)}`
+                                previewClave.tieneClave
+                                    ? `${previewProviderLabel}: ${comoSeEnsena(previewClave)}`
                                     : `${previewProviderLabel}: No configurada`
                             }
                             placeholder="No configurada"
                             className={cn(
                                 "cursor-pointer bg-muted/40 border-border",
-                                showOrigin && previewApiKey ? "pr-52" : "pr-28",
+                                "pr-28",
                                 (disabled || loading) && "cursor-not-allowed opacity-60"
                             )}
                         />
                         <div className="absolute right-1 top-1 flex items-center gap-1">
-                            {showOrigin && previewApiKey && (
-                                <>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setRevealed((v) => !v);
-                                        }}
-                                        title={revealed ? "Ocultar key" : "Ver key completa"}
-                                    >
-                                        {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground"
-                                        onClick={handleCopyKey}
-                                        title="Copiar API key"
-                                    >
-                                        {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-                                    </Button>
-                                </>
-                            )}
                             <Button
                                 type="button"
                                 variant="secondary"
@@ -554,9 +528,11 @@ export function ApiKeyConfigurator({
                             <Input
                                 type="password"
                                 placeholder={
-                                    providers.find(p => p.id === form.watch("providerId"))?.name === "google"
-                                        ? "AIza****************************"
-                                        : "sk-****************************"
+                                    claveDelProveedor.tieneClave
+                                        ? `Guardada (${comoSeEnsena(claveDelProveedor)}). Déjala vacía para conservarla`
+                                        : providers.find(p => p.id === form.watch("providerId"))?.name === "google"
+                                            ? "AIza****************************"
+                                            : "sk-****************************"
                                 }
                                 {...form.register("apiKey")}
                                 className="bg-background border-border"

@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
-import { resolveUserAiClient } from '@/actions/userAiconfig-actions';
+import { resolveUserAiClient } from '@/lib/cliente-de-ia.server';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
