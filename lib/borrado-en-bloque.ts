@@ -43,6 +43,22 @@ export function comoListaDeIds(ids: unknown): string[] {
 }
 
 /**
+ * Lo mismo, con ids que son NÚMEROS.
+ *
+ * Las sesiones del CRM se identifican con un entero, no con un `cuid`. Se
+ * descarta lo que no sea un entero finito —`NaN`, un decimal, una cadena— en
+ * vez de convertirlo: `Number("")` es 0 y `Number(null)` también, así que un
+ * saneado indulgente convierte basura en el id 0 y lo mete en el `IN`.
+ */
+export function comoListaDeIdsNumericos(ids: unknown): number[] {
+    if (!Array.isArray(ids)) return [];
+    const limpios = ids.filter(
+        (id): id is number => typeof id === "number" && Number.isSafeInteger(id) && id > 0,
+    );
+    return Array.from(new Set(limpios)).slice(0, TOPE_DE_IDS);
+}
+
+/**
  * Borra de una en una cuando no se puede con un solo `deleteMany`.
  *
  * Es el caso de lo que arrastra limpieza detrás —ficheros en el bucket, filas

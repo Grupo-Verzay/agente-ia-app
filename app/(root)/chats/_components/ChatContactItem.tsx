@@ -35,6 +35,8 @@ import type { SidebarContact } from "./chat-sidebar.types";
 import type { LeadStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 
 const INSTANCE_COLORS = ["bg-violet-500","bg-blue-500","bg-emerald-500","bg-orange-500","bg-pink-500","bg-cyan-500","bg-amber-500"];
 function instanceColor(name: string): string {
@@ -148,6 +150,13 @@ function ChatContactItemBase({
   onToggleStar,
   hasNotes,
 }: ChatContactItemProps) {
+  // El «⋯» de ESTA fila. Los paneles de una fila nacen pegados al filo derecho
+  // de la columna y voltean arriba si la fila está abajo del todo; lo decide
+  // `usePanelFlotante` y no un `align` escrito aquí.
+  //
+  // El hook no pinta nada y no mide con el panel cerrado, así que esto no
+  // cuesta en una lista de miles de filas —que es la regla de esta pantalla—.
+  const panelDeLaFila = usePanelFlotante("columnaDerecha", "menu");
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
   const apptStatus = contact.chatSession?.latestAppointmentStatus;
@@ -536,8 +545,8 @@ function ChatContactItemBase({
 
         {/* Dropdown menu — hidden in selection mode */}
         {!selectionMode && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu onOpenChange={panelDeLaFila.alAbrir}>
+            <DropdownMenuTrigger asChild ref={panelDeLaFila.disparador}>
               <Button
                 type="button"
                 variant="ghost"
@@ -548,10 +557,12 @@ function ChatContactItemBase({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
+            {/* Pegado al filo derecho de la COLUMNA, no al de su icono: con
+                `align="end"` a secas nacía donde cayera la fila. El tope y el
+                scroll son los de siempre, puestos ahora en un solo sitio. */}
             <DropdownMenuContent
-              align="end"
-              className="w-52 overflow-y-auto"
-              style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+              {...panelDeLaFila.props}
+              className={cn("w-52", PANEL_QUE_SE_DESPLAZA)}
             >
               {/* 1. Marcar como leído / no leído */}
               {contact.isUnreadLocal ? (

@@ -7,6 +7,7 @@ import { ChatSearchBar } from "./ChatSearchBar";
 import { ChatTabBar } from "./ChatTabBar";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
+import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import type { TabCounts } from "./chat-sidebar.types";
 import {
   readSidebarCache,
@@ -79,7 +80,13 @@ export function CachedSidebar() {
 
   return (
     <div className="hidden h-full flex-shrink-0 border-r border-border md:block md:w-[20rem] lg:w-[22rem] xl:w-[24rem]">
-      <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur">
+      {/* La misma marca que el sidebar de verdad: este puente pinta los mismos
+          componentes, y con ella sus paneles se colocan igual en vez de caer en
+          «no encontré dónde colocarme». */}
+      <aside
+        {...{ [MARCA_DE_LA_COLUMNA]: "" }}
+        className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur"
+      >
         {/* Mismas clases y MISMA altura fija que la barra real, para que el
             divisor no salte al cambiar el puente por ella. */}
         <div

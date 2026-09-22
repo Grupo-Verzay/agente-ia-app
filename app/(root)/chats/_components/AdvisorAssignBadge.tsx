@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { UserCheck, UserPlus, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { usePanelFlotante, type ClaseDePanel } from '@/hooks/usePanelFlotante';
 import { cn } from '@/lib/utils';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { AssignmentLogEntry } from '@/actions/advisor-assign-actions';
@@ -44,6 +45,16 @@ interface AdvisorAssignBadgeProps {
   sessionId?: number;
   onAssign?: (advisorId: string | null) => Promise<void>;
   size?: 'sm' | 'md';
+  /**
+   * Dónde nace el panel, que no es lo mismo en los dos sitios que lo pintan.
+   *
+   * En la FILA de la lista va pegado al filo derecho de la columna, bajo su
+   * control y volteando arriba si la fila está abajo del todo. En la CABECERA
+   * de la conversación va pegado al filo derecho del área de conversación y a
+   * la misma altura que los otros cinco paneles de esa fila, para poder pasar
+   * de uno a otro sin cerrar.
+   */
+  panel?: ClaseDePanel;
 }
 
 export function AdvisorAssignBadge({
@@ -54,8 +65,10 @@ export function AdvisorAssignBadge({
   sessionId,
   onAssign,
   size = 'sm',
+  panel = 'columnaDerecha',
 }: AdvisorAssignBadgeProps) {
   const [open, setOpen] = useState(false);
+  const colocacion = usePanelFlotante(panel, 'popover');
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<AssignmentLogEntry[] | null>(null);
 
@@ -146,8 +159,13 @@ export function AdvisorAssignBadge({
 
   // Dueño / admin: popover para asignar/reasignar + historial
   return (
-    <Popover onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <Popover
+      onOpenChange={(v) => {
+        setOpen(v);
+        colocacion.alAbrir(v);
+      }}
+    >
+      <PopoverTrigger asChild ref={colocacion.disparador}>
         <button
           type="button"
           disabled={busy}
@@ -211,22 +229,18 @@ export function AdvisorAssignBadge({
         * quedan fijos «Sin asignar» y «Asignarme», abajo el Historial, y solo la
         * lista se desplaza.
         *
-        * Y el tope NO puede ser `70vh` a secas: eso mide la ventana, no el
-        * hueco que hay entre el botón y el borde. Con la fila arriba del todo,
-        * el menú se abría hacia arriba y **se salía por encima de la pantalla**:
-        * el título «Asignar asesor» quedaba cortado y no había forma de
-        * subir. El tope es el hueco de verdad, que Radix mide y publica en
-        * `--radix-popover-content-available-height`, y encima de eso el 70 %
-        * como techo. Cualquier menú con una lista dentro va igual.
+        * Y el tope sigue sin poder ser `70vh` a secas —eso mide la ventana, no
+        * el hueco que hay entre el botón y el borde—: lo pone `usePanelFlotante`
+        * con la variable de Radix, que es el hueco de verdad y se recalcula al
+        * voltear. Lo que cambió es DÓNDE nace: iba `side="top" align="start"`,
+        * o sea arriba y a la izquierda de su icono, que en una fila de la lista
+        * lo dejaba flotando en mitad de la columna. Ahora va pegado al filo
+        * derecho de la columna —o de la cabecera, según quién lo pinte— y
+        * voltea arriba solo cuando de verdad no cabe.
         */}
       <PopoverContent
+        {...colocacion.props}
         className="flex w-56 flex-col overflow-hidden p-1"
-        style={{
-          maxHeight: 'min(70vh, var(--radix-popover-content-available-height))',
-        }}
-        side="top"
-        align="start"
-        collisionPadding={12}
         onClick={(e) => e.stopPropagation()}
       >
         <p className="shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

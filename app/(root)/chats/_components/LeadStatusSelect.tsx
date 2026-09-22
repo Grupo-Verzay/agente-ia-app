@@ -13,6 +13,8 @@ import { LeadStatusBadge } from "../../crm/dashboard/components/records-table/Le
 import { LEAD_STATUS_FILTER_OPTIONS } from "../../crm/dashboard/helpers/leadStatus";
 import { updateSessionLeadStatus } from "@/actions/session-action";
 import type { LeadStatus } from "@/types/session";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 
 interface LeadStatusSelectProps {
   sessionId: number;
@@ -22,6 +24,11 @@ interface LeadStatusSelectProps {
 
 export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadStatusSelectProps) {
   const [isPending, setIsPending] = useState(false);
+  // La temperatura vive en una FILA de la lista, así que su panel nace pegado
+  // al filo derecho de la columna, bajo su control, y voltea arriba si la fila
+  // está abajo del todo. Antes era `align="start"`: salía hacia la derecha y
+  // se montaba sobre la conversación.
+  const panel = usePanelFlotante("columnaDerecha", "menu");
 
   const handleSelect = async (status: LeadStatus | null) => {
     if (status === currentStatus) return;
@@ -39,15 +46,16 @@ export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadSt
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={panel.alAbrir}>
       <DropdownMenuTrigger
+        ref={panel.disparador}
         disabled={isPending}
         className="inline-flex h-7 items-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 focus:outline-none"
         aria-label="Cambiar estado del lead"
       >
         <LeadStatusBadge status={currentStatus} showDot={false} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent {...panel.props} className={PANEL_QUE_SE_DESPLAZA}>
         <DropdownMenuGroup>
           {LEAD_STATUS_FILTER_OPTIONS.map((option) => (
             <DropdownMenuItem

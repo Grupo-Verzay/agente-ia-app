@@ -10,7 +10,7 @@
  * OJO con copiar el editor de otras bandejas: Chatwoot y compañía escriben
  * **markdown** (`**negrilla**`, con dos asteriscos). Aquí no vale: con dos
  * asteriscos WhatsApp deja uno a la vista. La barra de botones
- * (`FormatoDeTexto.tsx`) escribe marcas de WhatsApp a propósito, y este lector
+ * (`BarritaDeFormato.tsx`) escribe marcas de WhatsApp a propósito, y este lector
  * entiende esas mismas.
  *
  * Este fichero es **puro**: entra una cadena y salen nodos. No sabe de React ni

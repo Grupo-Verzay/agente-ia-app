@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CalendarDays, Check, Filter, Search, Tag, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
 import type { SimpleTag } from "@/types/session";
 import {
@@ -63,6 +65,8 @@ export function TagFilterPanel({
   onLimpiarRango,
 }: TagFilterPanelProps) {
   const [search, setSearch] = useState("");
+  // El embudo: ancho de la columna, filo izquierdo, bajo las pastillas.
+  const panel = usePanelFlotante("columnaAncha", "popover");
   const filterCount = selectedTagIds.size;
   // El embudo se marca activo con CUALQUIERA de los dos filtros, igual que ya se
   // marcaba con las etiquetas.
@@ -87,8 +91,8 @@ export function TagFilterPanel({
     .filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <Popover onOpenChange={panel.alAbrir}>
+      <PopoverTrigger asChild ref={panel.disparador}>
         <button
           type="button"
           aria-label="Filtros"
@@ -111,9 +115,13 @@ export function TagFilterPanel({
         </button>
       </PopoverTrigger>
 
-      {/* w-72: sitio de sobra para que «Inicio de conversación» no se parta en
-          dos renglones y para que los campos de fecha no se corten. */}
-      <PopoverContent align="end" sideOffset={8} className="w-72 p-2">
+      {/* El ancho lo pone la COLUMNA, no un `w-72` escrito aquí.
+          Aquel medía 288 px y la columna mide 352 a 1024: con `align="end"` el
+          panel salía flotando en mitad de la lista, y en un móvil estrecho se
+          montaba sobre el borde. Ahora ocupa la columna entera —donde
+          «Inicio de conversación» cabe de sobra, que era lo que aquel ancho
+          protegía— y nace bajo las pastillas, como los otros tres filtros. */}
+      <PopoverContent {...panel.props} className={cn("p-2", PANEL_QUE_SE_DESPLAZA)}>
         {/* ── Rango de fechas ─────────────────────────────────────────────── */}
         <div className="mb-1 flex items-center justify-between px-1">
           <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { getInstanceUiDisplayName } from "@/lib/instance-display-name";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 
 type Channel = {
   instanceName: string;
@@ -42,6 +44,8 @@ export function ChatSearchBar({
   onChannelChange,
 }: ChatSearchBarProps) {
   const hasChannels = channels.length > 1;
+  // Canales: uno de los cuatro paneles que ocupan el ancho de la columna.
+  const panelDeCanales = usePanelFlotante("columnaAncha", "menu");
   const activeChannel = channels.find((ch) => ch.instanceName === selectedChannel);
   const activeLabel = activeChannel
     ? getInstanceUiDisplayName(activeChannel)
@@ -84,8 +88,8 @@ export function ChatSearchBar({
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
       {hasChannels ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu onOpenChange={panelDeCanales.alAbrir}>
+          <DropdownMenuTrigger asChild ref={panelDeCanales.disparador}>
             <button
               type="button"
               title={activeLabel}
@@ -95,14 +99,14 @@ export function ChatSearchBar({
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-          {/* Con su propio scroll: la lista crece con las lineas de la cuenta y
-              el tope es el hueco de verdad, no `vh` (ver la regla de los menus
-              con listas dentro). */}
+          {/* El ancho ENTERO de la columna, pegado a su filo izquierdo y bajo
+              la fila de pastillas: lo decide `usePanelFlotante`, que es quien lo
+              decide para los cuatro filtros de esta cabecera. El scroll sigue
+              siendo el de siempre —la lista crece con las lineas de la cuenta—
+              y su tope, el hueco de verdad y no `vh`. */}
           <DropdownMenuContent
-            align="start"
-            className="w-56 overflow-y-auto"
-            collisionPadding={12}
-            style={{ maxHeight: 'min(70vh, var(--radix-dropdown-menu-content-available-height))' }}
+            {...panelDeCanales.props}
+            className={cn(PANEL_QUE_SE_DESPLAZA)}
           >
             <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Canales

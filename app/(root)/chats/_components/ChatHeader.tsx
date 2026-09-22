@@ -40,6 +40,8 @@ import { TaskFormDialog } from './TaskFormDialog';
 import { MergeLidDialog } from './MergeLidDialog';
 import { deleteLidChat } from '@/actions/merge-lid-contact';
 import { cn } from '@/lib/utils';
+import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
+import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 
@@ -210,6 +212,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [resolving, setResolving] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  // «Acciones»: el sexto panel de la fila, y el que da nombre a la altura a la
+  // que nacen todos —justo por debajo de su fila, sin taparla—.
+  const panelDeAcciones = usePanelFlotante('cabecera', 'menu');
   const [mergeOpen, setMergeOpen] = useState(false);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
   const [confirmDeleteLid, setConfirmDeleteLid] = useState(false);
@@ -377,6 +382,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         if (!remoteJid) return;
         onSessionTagsChange?.(remoteJid, selectedIds);
       }}
+      panel="cabecera"
     />
   );
 
@@ -399,12 +405,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       sessionId={session.id}
       onAssign={onAssignAdvisor}
       size="md"
+      panel="cabecera"
     />
   );
 
   const lifecycleButton = showLifecycleButton && (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu onOpenChange={panelDeAcciones.alAbrir}>
+      <DropdownMenuTrigger asChild ref={panelDeAcciones.disparador}>
         <Button
           size="sm"
           variant="secondary"
@@ -415,10 +422,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           <ChevronDown className="h-3 w-3" />
         </Button>
       </DropdownMenuTrigger>
+      {/* Al filo derecho del área de conversación y a la misma altura que los
+          otros cinco. El tope y el scroll son los de siempre, puestos ahora en
+          un solo sitio. */}
       <DropdownMenuContent
-        className="w-52 overflow-y-auto p-1"
-        style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
-        align="end"
+        {...panelDeAcciones.props}
+        className={cn('w-52 p-1', PANEL_QUE_SE_DESPLAZA)}
       >
         {onNewMessage && (
           <>
@@ -607,7 +616,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const macrosMenu = session && onRunMacro ? <MacrosMenu onRunMacro={onRunMacro} /> : null;
 
   return (
-    <div className="sticky top-0 z-10 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50">
+    /* `data-cabecera-de-chat`: de aquí salen los DOS números con los que se
+       coloca todo panel de esta fila de iconos —su borde DERECHO, que es el
+       filo del área de conversación, y su borde de ABAJO, que queda justo por
+       debajo de la fila de Macros y Acciones (es la última del encabezado)—.
+       Un solo elemento y una sola medida: así los seis nacen a la misma altura
+       y se puede pasar de uno a otro sin cerrar. Lo lee `usePanelFlotante`. */
+    <div
+      {...{ [MARCA_DE_LA_CABECERA]: "" }}
+      className="sticky top-0 z-10 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50"
+    >
       {/* ── Mobile ── */}
       <div className="md:hidden px-2 py-2 space-y-2 border-b-2 border-border">
         {/* Fila única: volver + avatar + nombre + activa + acciones */}
