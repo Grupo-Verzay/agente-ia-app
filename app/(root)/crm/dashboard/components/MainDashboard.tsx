@@ -15,6 +15,7 @@ import {
   updateRegistroEstado
 } from "@/actions/registro-action";
 import { LoadingProgress } from "@/components/shared/LoadingProgress";
+import type { CuentasDelCrm } from "@/lib/cuentas-del-crm";
 import { RegistroWithSession, TipoRegistro } from "@/types/session";
 import { toast } from "sonner";
 import { ESTADOS_POR_TIPO } from "@/types/registro";
@@ -22,6 +23,12 @@ import { ESTADOS_POR_TIPO } from "@/types/registro";
 export type MainDashboardProps = {
   userId: string;
   initialView?: "registros" | "analiticas" | "kanban" | "reportes" | "llamadas";
+  /**
+   * Las cuentas de la familia que el CRM esta mirando, ya resueltas en el
+   * servidor (`resolverLasCuentasDelCrm`). Baja como dato y no se vuelve a
+   * calcular aqui: la pantalla no decide a que llega.
+   */
+  cuentas: CuentasDelCrm;
 };
 export type DashboardStats = {
   totalRegistros: number;
@@ -48,11 +55,17 @@ type CrmPageKeyPayload = {
   activeTab: "TODOS" | TipoRegistro;
   filters: RegistrosFilters;
   pageIndex: number;
+  /**
+   * Va DENTRO de la llave de SWR: sin esto, cambiar el filtro por cuenta
+   * dejaria la lista con las paginas ya cacheadas de la seleccion anterior.
+   */
+  cuentas: string[];
 };
 
 export const MainDashboard = ({
   userId,
   initialView,
+  cuentas,
 }: MainDashboardProps) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"TODOS" | TipoRegistro>("TODOS");
@@ -73,6 +86,7 @@ export const MainDashboard = ({
       activeTab,
       filters,
       pageIndex,
+      cuentas: cuentas.elegidas,
     };
 
     return JSON.stringify(payload);
@@ -90,7 +104,8 @@ export const MainDashboard = ({
           payload.pageIndex * PAGE_SIZE,
           PAGE_SIZE,
           tipo,
-          payload.filters
+          payload.filters,
+          payload.cuentas
         );
 
         if (!res.success) throw new Error(res.message || "No se pudieron cargar los registros");
@@ -108,12 +123,16 @@ export const MainDashboard = ({
   }, []);
 
   const refreshStats = useCallback(async () => {
-    const res = await getCrmDashboardStatsByUserId(userId, {
-      fechaDesde: filters.fechaDesde,
-      fechaHasta: filters.fechaHasta,
-    });
+    const res = await getCrmDashboardStatsByUserId(
+      userId,
+      {
+        fechaDesde: filters.fechaDesde,
+        fechaHasta: filters.fechaHasta,
+      },
+      cuentas.elegidas
+    );
     if (res.success) setStats(res.data);
-  }, [userId, filters.fechaDesde, filters.fechaHasta]);
+  }, [userId, filters.fechaDesde, filters.fechaHasta, cuentas.elegidas]);
 
 
   // libera lock al terminar
@@ -256,6 +275,7 @@ export const MainDashboard = ({
       <CrmDashboard
         stats={stats}
         userId={userId}
+        cuentas={cuentas}
         initialView={initialView}
         activeTab={activeTab}
         onActiveTabChange={handleTabChange}

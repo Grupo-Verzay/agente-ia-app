@@ -29,11 +29,25 @@ export type FilaDelInforme = {
   pregunta: string;
   caso: string;
   createdAt: Date | string;
+  /**
+   * La cuenta de la que es la fila. Baja siempre, unificado o no: sin dueno no
+   * se puede pintar de quien es una pregunta en una vista de varias cuentas, y
+   * el indicador se decide al pintar con `elCrmVaUnificado`.
+   */
+  cuentaId: string;
 };
 
 /** Un grupo de preguntas iguales, listo para pintar. */
 export type PreguntaAgrupada = {
   grupoId: string;
+  /**
+   * La cuenta del grupo. Es la del representante, y no hay mezcla posible: el
+   * `grupoId` ES el id de la fila que abrio el grupo, unico en la tabla, asi
+   * que dos cuentas nunca caen en el mismo grupo. La misma pregunta hecha en
+   * dos lineas sale como dos grupos, cada uno con su cuenta — que es lo
+   * correcto: el hueco del entrenamiento hay que taparlo en cada una.
+   */
+  cuentaId: string;
   /** La pregunta que abrió el grupo: la que se enseña. */
   pregunta: string;
   veces: number;
@@ -73,14 +87,21 @@ export function agruparLasPreguntas(filas: FilaDelInforme[]): PreguntaAgrupada[]
   const porGrupo = new Map<string, { filas: FilaDelInforme[] }>();
 
   for (const fila of filas) {
-    const clave = fila.grupoId ?? `suelta::${fila.pregunta}::${String(fila.createdAt)}`;
+    // La CUENTA entra en la clave, y no es decoración: con la vista unificada
+    // del CRM llegan filas de varias cuentas a la vez, y el mismo `grupoId`
+    // —que lo calcula un embedding sobre el texto— aparece en dos. Sin la
+    // cuenta delante, las dos se fundirían en una sola fila que después se
+    // pinta con la insignia de UNA de ellas: un dato de otra cuenta enseñado
+    // bajo el nombre equivocado. Con una sola cuenta elegida todas las filas
+    // comparten prefijo, así que agrupa exactamente igual que antes.
+    const clave = `${fila.cuentaId}::${fila.grupoId ?? `suelta::${fila.pregunta}::${String(fila.createdAt)}`}`;
     const grupo = porGrupo.get(clave) ?? { filas: [] };
     grupo.filas.push(fila);
     porGrupo.set(clave, grupo);
   }
 
   const grupos: PreguntaAgrupada[] = [];
-  for (const [grupoId, { filas: suyas }] of porGrupo) {
+  for (const [clave, { filas: suyas }] of porGrupo) {
     const ordenadas = [...suyas].sort(
       (a, b) => aFecha(a.createdAt).getTime() - aFecha(b.createdAt).getTime(),
     );
@@ -94,7 +115,11 @@ export function agruparLasPreguntas(filas: FilaDelInforme[]): PreguntaAgrupada[]
     }
 
     grupos.push({
-      grupoId,
+      // Lo que se emite es la clave con la cuenta dentro, que es lo único
+      // único en una lista unificada: dos cuentas con el mismo `grupoId` son
+      // dos filas y necesitan dos llaves distintas al pintarlas.
+      grupoId: clave,
+      cuentaId: principal.cuentaId,
       pregunta: principal.pregunta.trim(),
       veces: ordenadas.length,
       porEscalado: ordenadas.filter((f) => f.caso === "escalo_sin_saber").length,

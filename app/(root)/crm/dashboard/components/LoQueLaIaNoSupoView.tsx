@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getInformeSinRespuesta } from '@/actions/informe-sin-respuesta-actions';
+import { InsigniaDeCuenta } from '@/components/shared/InsigniaDeCuenta';
 import type { PreguntaAgrupada } from '@/lib/lo-que-la-ia-no-supo';
 
 /**
@@ -42,7 +43,14 @@ function haceCuanto(fecha: Date): string {
   return dias === 1 ? 'ayer' : `hace ${dias} días`;
 }
 
-function FilaDePregunta({ grupo }: { grupo: PreguntaAgrupada }) {
+function FilaDePregunta({
+  grupo,
+  nombreDeLaCuenta,
+}: {
+  grupo: PreguntaAgrupada;
+  /** Solo con la vista unificada; si no, va vacío y no se pinta nada. */
+  nombreDeLaCuenta?: string;
+}) {
   const [abierta, setAbierta] = useState(false);
   const tieneVariantes = grupo.variantes.length > 0;
 
@@ -58,6 +66,11 @@ function FilaDePregunta({ grupo }: { grupo: PreguntaAgrupada }) {
 
         <div className="min-w-0 flex-1">
           <p className="text-sm leading-snug break-words">{grupo.pregunta}</p>
+          {nombreDeLaCuenta && (
+            <div className="mt-1">
+              <InsigniaDeCuenta nombre={nombreDeLaCuenta} />
+            </div>
+          )}
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
             <span>{haceCuanto(grupo.ultimaVez)}</span>
             {/* Los dos casos no significan lo mismo: uno le costó la
@@ -98,12 +111,28 @@ function FilaDePregunta({ grupo }: { grupo: PreguntaAgrupada }) {
   );
 }
 
-export function LoQueLaIaNoSupoView({ userId }: { userId: string }) {
+export function LoQueLaIaNoSupoView({
+  userId,
+  cuentas,
+  unificado,
+  nombresDeCuenta,
+}: {
+  userId: string;
+  /** Las cuentas que el filtro del CRM tiene puestas. */
+  cuentas: string[];
+  /** Con una sola cuenta elegida esto se ve EXACTAMENTE como antes. */
+  unificado: boolean;
+  nombresDeCuenta: Record<string, string>;
+}) {
   const [grupos, setGrupos] = useState<PreguntaAgrupada[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dias, setDias] = useState<number>(30);
   const [alTope, setAlTope] = useState(false);
+
+  // `join` y no el arreglo: llega uno nuevo en cada pintado del padre, así que
+  // con el arreglo en las dependencias el informe se recargaría sin parar.
+  const llaveDeCuentas = cuentas.join(',');
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -111,7 +140,11 @@ export function LoQueLaIaNoSupoView({ userId }: { userId: string }) {
     try {
       const desde =
         dias > 0 ? new Date(Date.now() - dias * 86400_000).toISOString() : null;
-      const res = await getInformeSinRespuesta({ userId, desde });
+      const res = await getInformeSinRespuesta({
+        userId,
+        desde,
+        cuentas: llaveDeCuentas ? llaveDeCuentas.split(',') : null,
+      });
       if (!res.success) {
         setError(res.msg);
         setGrupos([]);
@@ -128,7 +161,7 @@ export function LoQueLaIaNoSupoView({ userId }: { userId: string }) {
     } finally {
       setCargando(false);
     }
-  }, [userId, dias]);
+  }, [userId, dias, llaveDeCuentas]);
 
   useEffect(() => {
     void cargar();
@@ -206,7 +239,11 @@ export function LoQueLaIaNoSupoView({ userId }: { userId: string }) {
       ) : (
         <div className="space-y-2">
           {grupos.map((g) => (
-            <FilaDePregunta key={g.grupoId} grupo={g} />
+            <FilaDePregunta
+              key={g.grupoId}
+              grupo={g}
+              nombreDeLaCuenta={unificado ? nombresDeCuenta[g.cuentaId] : undefined}
+            />
           ))}
         </div>
       )}

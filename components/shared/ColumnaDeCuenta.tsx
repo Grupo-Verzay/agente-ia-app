@@ -1,7 +1,7 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@/components/ui/badge';
+import { InsigniaDeCuenta } from '@/components/shared/InsigniaDeCuenta';
 
 /**
  * La columna «Cuenta», que solo existe cuando se está consolidando.
@@ -27,17 +27,6 @@ export function columnaDeCuenta<T>(
         // esta columna, y buscar por el nombre de una cuenta es justo lo que se
         // hace en una lista consolidada.
         accessorFn: (fila) => nombres[String(duenoDeLaFila(fila) ?? '')] ?? '',
-        cell: ({ getValue }) => {
-            const nombre = (getValue() as string) || '—';
-            return (
-                <Badge
-                    variant="outline"
-                    className="h-6 max-w-[12rem] truncate text-[11px] font-normal"
-                    title={nombre}
-                >
-                    {nombre}
-                </Badge>
-            );
-        },
+        cell: ({ getValue }) => <InsigniaDeCuenta nombre={getValue() as string} />,
     };
 }

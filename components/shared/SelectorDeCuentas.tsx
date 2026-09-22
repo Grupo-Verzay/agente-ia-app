@@ -37,16 +37,38 @@ import {
  * que es lo único que pueden leer para consultar; y así un enlace a «las tres
  * de ventas» se puede guardar y compartir, igual que `?month=`.
  *
- * Quién lo ve lo decide el servidor (`resolverLasCuentasDeFinanzas`): manda en
- * su cuenta, es la MADRE de su familia, y la familia tiene más de una cuenta.
- * Una cuenta hija recibe la lista vacía y aquí no se pinta nada.
+ * Quién lo ve lo decide el servidor (`resolverLasCuentasDeFinanzas`, y en el CRM
+ * `resolverLasCuentasDelCrm`): manda en su cuenta, es la MADRE de su familia, y
+ * la familia tiene más de una cuenta. Una cuenta hija recibe la lista vacía y
+ * aquí no se pinta nada.
+ *
+ * # Y `porDefecto` es lo único que cambia entre Finanzas y el CRM
+ *
+ * | | sin parámetro en la URL |
+ * | --- | --- |
+ * | Finanzas (`propia`) | solo la cuenta propia: consolidar es una elección |
+ * | CRM (`todas`) | TODAS las de la familia: la vista unificada es el punto de partida |
+ *
+ * De ahí sale lo que este componente hace distinto, y es **una sola cosa**:
+ * **cuál es el estado que se escribe quitando el parámetro**. La URL limpia
+ * tiene que ser la que ya funcionaba, así que en Finanzas se limpia al volver a
+ * la cuenta propia y en el CRM al volver a todas — o sea que allí el parámetro
+ * se escribe para AMPLIAR y aquí para REDUCIR.
+ *
+ * Y `conMoneda` apaga la columna de moneda y su aviso de mezcla: en el CRM no
+ * se suma dinero por ningún lado, así que un triángulo ámbar diciendo que esas
+ * cifras no se pueden sumar hablaría de una suma que no existe.
  */
 export function SelectorDeCuentas({
     disponibles,
     elegidas,
+    porDefecto = 'propia',
+    conMoneda = true,
 }: {
     disponibles: CuentaDeFinanzas[];
     elegidas: string[];
+    porDefecto?: 'propia' | 'todas';
+    conMoneda?: boolean;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -63,21 +85,25 @@ export function SelectorDeCuentas({
      * cifras no se van a sumar en ninguna parte.
      */
     const mezcla = useMemo(() => {
+        if (!conMoneda) return null;
         const puestas = lasCuentasElegidas(disponibles, elegidas);
         if (!estaConsolidando(elegidas)) return null;
         return laMonedaDeLaSeleccion(puestas).motivo;
-    }, [disponibles, elegidas]);
+    }, [conMoneda, disponibles, elegidas]);
 
     if (disponibles.length === 0) return null;
 
     const irA = (ids: string[]) => {
         const params = new URLSearchParams(searchParams.toString());
 
-        // Volver a la cuenta propia y sola es el estado de siempre, así que se
-        // escribe quitando el parámetro en vez de repitiéndolo: la URL limpia
-        // es la que ya funcionaba antes de que esto existiera.
+        // Volver al estado de siempre se escribe QUITANDO el parámetro, no
+        // repitiéndolo: la URL limpia es la que ya funcionaba antes de que esto
+        // existiera. Y cuál es ese estado lo dice `porDefecto` — en Finanzas la
+        // cuenta propia y sola, en el CRM la familia entera.
         const soloLaPropia = ids.length === 1 && disponibles.find((c) => c.id === ids[0])?.esLaPropia;
-        if (ids.length === 0 || soloLaPropia) params.delete('cuentas');
+        const yaEsElPorDefecto =
+            porDefecto === 'todas' ? ids.length === disponibles.length : soloLaPropia;
+        if (ids.length === 0 || yaEsElPorDefecto) params.delete('cuentas');
         else params.set('cuentas', comoParametroDeCuentas(ids));
 
         const query = params.toString();
@@ -89,20 +115,29 @@ export function SelectorDeCuentas({
         if (siguiente.has(id)) siguiente.delete(id);
         else siguiente.add(id);
 
-        // Dejarlo sin ninguna no es un estado: se cae a la cuenta propia, que
-        // es lo que la pantalla enseñaría de todas formas. Sin esto, quitar la
+        // Dejarlo sin ninguna no es un estado: se cae al de por defecto, que es
+        // lo que la pantalla enseñaría de todas formas. Sin esto, quitar la
         // última casilla deja una pantalla vacía sin explicar por qué.
         const ids = disponibles.map((c) => c.id).filter((c) => siguiente.has(c));
         irA(ids);
     };
 
     const rotulo = () => {
+        // Con la familia entera puesta el rótulo lo dice con palabras y no con
+        // un número: «5 cuentas» se lee como un filtro puesto, y en el CRM eso
+        // es el estado de siempre.
+        if (porDefecto === 'todas' && elegidas.length === disponibles.length) {
+            return 'Todas las cuentas';
+        }
         if (elegidas.length > 1) return `${elegidas.length} cuentas`;
         const unica = disponibles.find((c) => c.id === elegidas[0]);
         return unica?.nombre ?? 'Cuenta';
     };
 
-    const consolidando = estaConsolidando(elegidas);
+    const consolidandoDeVerdad =
+        porDefecto === 'todas'
+            ? elegidas.length !== disponibles.length
+            : estaConsolidando(elegidas);
 
     return (
         <DropdownMenu open={abierto} onOpenChange={setAbierto}>
@@ -114,7 +149,7 @@ export function SelectorDeCuentas({
                     className={`h-10 max-w-[16rem] shrink-0 justify-start gap-2 ${
                         mezcla
                             ? 'border-amber-500 text-amber-700'
-                            : consolidando
+                            : consolidandoDeVerdad
                               ? 'border-blue-500 text-blue-600'
                               : ''
                     }`}
@@ -156,9 +191,11 @@ export function SelectorDeCuentas({
                             <span className="min-w-0 flex-1 truncate" title={cuenta.nombre}>
                                 {cuenta.nombre}
                             </span>
-                            <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
-                                {cuenta.moneda}
-                            </span>
+                            {conMoneda && (
+                                <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
+                                    {cuenta.moneda}
+                                </span>
+                            )}
                         </span>
                     </DropdownMenuCheckboxItem>
                 ))}
@@ -173,9 +210,12 @@ export function SelectorDeCuentas({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => irA(disponibles.map((c) => c.id))} className="gap-2">
                     <Check className="h-4 w-4" />
-                    Consolidar todas
+                    {porDefecto === 'todas' ? 'Todas las cuentas' : 'Consolidar todas'}
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => irA([])} className="gap-2">
+                <DropdownMenuItem
+                    onSelect={() => irA(disponibles.filter((c) => c.esLaPropia).map((c) => c.id))}
+                    className="gap-2"
+                >
                     <Building2 className="h-4 w-4" />
                     Solo mi cuenta
                 </DropdownMenuItem>
