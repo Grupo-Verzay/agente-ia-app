@@ -27,6 +27,19 @@ interface ChatAutomationPickerProps {
   workflows: ChatWorkflowOption[];
   onSendQuickReply: (quickReplyId: number) => Promise<ChatToolActionResult>;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
+  /**
+   * La línea de la conversación abierta. Los atajos ya llegan filtrados a la
+   * cuenta de esa línea (`lib/atajos-de-la-linea.ts`); esto solo sirve para
+   * decir, cuando sale vacío, de QUÉ cuenta no hay nada — nunca se rellena con
+   * los de la madre ni los de una hermana.
+   */
+  lineaDeLosAtajos?: string | null;
+}
+
+function vacioDeLaLinea(que: 'workflows' | 'respuestas rapidas', linea?: string | null) {
+  return linea
+    ? `La cuenta de la linea ${linea} no tiene ${que} ${que === 'workflows' ? 'creados' : 'creadas'}.`
+    : `No hay ${que} para la cuenta de esta conversacion.`;
 }
 
 export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
@@ -34,6 +47,7 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
   workflows,
   onSendQuickReply,
   onSendWorkflow,
+  lineaDeLosAtajos,
 }) => {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'workflows' | 'quickReplies'>('quickReplies');
@@ -106,7 +120,9 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
         <div className="mb-3">
           <p className="text-sm font-semibold text-foreground">Atajos</p>
           <p className="text-xs text-muted-foreground">
-            Usa una respuesta rapida o lanza un workflow manual.
+            {lineaDeLosAtajos
+              ? `Los de la cuenta de la linea ${lineaDeLosAtajos}.`
+              : 'Usa una respuesta rapida o lanza un workflow manual.'}
           </p>
         </div>
 
@@ -126,7 +142,11 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
             <Command className="rounded-lg border">
               <CommandInput placeholder="Buscar workflow..." className="h-9 text-xs" />
               <CommandList>
-                <CommandEmpty className="text-xs">No hay workflows disponibles.</CommandEmpty>
+                <CommandEmpty className="text-xs">
+                  {workflows.length === 0
+                    ? vacioDeLaLinea('workflows', lineaDeLosAtajos)
+                    : 'Ningun workflow coincide con la busqueda.'}
+                </CommandEmpty>
                 <CommandGroup className="max-h-64 overflow-auto">
                   {workflows.map((workflow) => (
                     <CommandItem
@@ -183,7 +203,11 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
               <Command className="rounded-lg border">
                 <CommandInput placeholder="Buscar respuesta rapida..." className="h-9 text-xs" />
                 <CommandList>
-                  <CommandEmpty className="text-xs">No hay respuestas rapidas disponibles.</CommandEmpty>
+                  <CommandEmpty className="text-xs">
+                    {quickReplies.length === 0
+                      ? vacioDeLaLinea('respuestas rapidas', lineaDeLosAtajos)
+                      : 'Ninguna respuesta rapida coincide.'}
+                  </CommandEmpty>
                   <CommandGroup className="max-h-64 overflow-auto">
                     {filteredQuickReplies
                       .filter((qr) => qr.name !== null)

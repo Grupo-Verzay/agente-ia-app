@@ -1,6 +1,7 @@
 "use client";
 
 import { etiquetasDelFiltro } from "@/lib/etiquetas-de-la-linea";
+import { atajosDeLaConversacion } from "@/lib/atajos-de-la-linea";
 import { getWahaPresenceAction } from "@/actions/waha-chat-actions";
 import { suscribirPresenciaEvolucionAction } from "@/actions/chat-manual-actions";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -76,6 +77,7 @@ import {
 } from "@/lib/chat-preference-key";
 import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
 import {
+  laLineaDeLaConversacion,
   porDondeSaleLaRespuesta,
   porQueNoSeEnvia,
 } from "@/lib/linea-de-la-conversacion";
@@ -4353,6 +4355,30 @@ export function ChatsClient({
     [sesionDeLaSeleccion, aplicarEnLaSesion, advisors],
   );
 
+  // Los atajos —respuestas rapidas y workflows— de la conversacion abierta:
+  // solo los de la cuenta dueña de SU linea (`lib/atajos-de-la-linea.ts`).
+  // `workflows` y `quickReplies` traen los de TODA la bandeja; ofrecerlos tal
+  // cual era lanzar el workflow de Ventas desde un chat de Atencion, o sea
+  // mandarle al cliente los mensajes de otra empresa.
+  //
+  // La cuenta sale de `instanceOwners` directamente y NO de `ownerForChat`, que
+  // cae a la cuenta de quien mira si no conoce la linea: aqui una linea que no
+  // se sabe de quien es tiene que dar vacio, nunca los atajos de otra cuenta.
+  const lineaDeLosAtajos = laLineaDeLaConversacion({
+    contacto: currentContact,
+    seleccionada: selectedInstanceName,
+    info,
+  });
+  const cuentaDeLosAtajos = lineaDeLosAtajos ? instanceOwners[lineaDeLosAtajos] ?? null : null;
+  const workflowsDeLaConversacion = useMemo(
+    () => atajosDeLaConversacion(workflows, cuentaDeLosAtajos),
+    [workflows, cuentaDeLosAtajos],
+  );
+  const quickRepliesDeLaConversacion = useMemo(
+    () => atajosDeLaConversacion(quickReplies, cuentaDeLosAtajos),
+    [quickReplies, cuentaDeLosAtajos],
+  );
+
   // El filtro de etiquetas de la lista: con una linea elegida, solo las de su
   // cuenta (`lib/etiquetas-de-la-linea.ts`).
   const etiquetasParaFiltrar = useMemo(
@@ -5429,12 +5455,13 @@ export function ChatsClient({
             onSessionResolved={handleSessionResolved}
             onSessionStatusChange={handleSessionStatusChange}
             onSessionTagsChange={handleSessionTagsChange}
-            quickReplies={quickReplies}
+            quickReplies={quickRepliesDeLaConversacion}
+            lineaDeLosAtajos={lineaDeLosAtajos}
             userId={userId}
             viewerUserId={viewerUserId}
             sessionUserIds={sessionUserIds?.length ? sessionUserIds : undefined}
             initialSession={currentContactSession}
-            workflows={workflows}
+            workflows={workflowsDeLaConversacion}
             advisors={advisors}
             currentAdvisorId={currentAdvisorId}
             advisorRole={advisorRole}
@@ -5524,6 +5551,7 @@ export function ChatsClient({
         initialContact={composeInitialContact}
         quickReplies={quickReplies}
         workflows={workflows}
+        cuentasDeLasLineas={instanceOwners}
         advisorRole={advisorRole}
       />
     )}

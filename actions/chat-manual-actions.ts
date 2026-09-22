@@ -1,5 +1,7 @@
 "use server";
 
+import { esAtajoDeLaLinea } from "@/lib/atajos-de-la-linea.server";
+import { porQueNoEsDeLaLinea } from "@/lib/atajos-de-la-linea";
 import type { MediaType, FetchChatsResult, FindMessagesResult, SendMessageResult } from "./chat-actions";
 import type { ChatToolActionResult } from "@/types/chat";
 import { Prisma, type WorkflowNode } from "@prisma/client";
@@ -1893,6 +1895,13 @@ export async function sendManualWorkflowAction(
     };
   }
 
+  // Alcanzar la cuenta del workflow no basta: tiene que ser la de ESTA línea.
+  // Lanzar un workflow de Ventas desde una conversación de Atención le manda
+  // al cliente los mensajes de otra empresa (`lib/atajos-de-la-linea.ts`).
+  if (!(await esAtajoDeLaLinea(workflow.userId, ctx.instanceName)).ok) {
+    return { success: false, message: porQueNoEsDeLaLinea("workflow", ctx.instanceName) };
+  }
+
   const nodes = await getExecutionNodesForWorkflow(workflowId);
   const dueno = storageUserId ?? workflow.userId;
   let sentCount = 0;
@@ -2019,6 +2028,13 @@ export async function sendManualQuickReplyAction(
       success: false,
       message: "La respuesta rapida seleccionada no existe o no pertenece al usuario.",
     };
+  }
+
+  // Y de la cuenta de ESTA línea, no de cualquiera de la familia. Va antes de
+  // mandar el texto: un workflow asociado que luego se rechazara dejaría la
+  // mitad enviada.
+  if (!(await esAtajoDeLaLinea(quickReply.userId, context.instanceName)).ok) {
+    return { success: false, message: porQueNoEsDeLaLinea("respuesta rápida", context.instanceName) };
   }
 
   const message = quickReply.mensaje?.trim() ?? "";

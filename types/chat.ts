@@ -24,6 +24,8 @@ export type ChatWorkflowOption = {
   id: string;
   name: string;
   isPro: boolean;
+  /** La cuenta dueña (ver `lib/atajos-de-la-linea.ts`). Filtra el panel de Atajos. */
+  cuentaId: string;
 };
 
 export type ChatQuickReplyOption = {
@@ -33,6 +35,8 @@ export type ChatQuickReplyOption = {
   category: string;
   workflowId: string | null;
   workflowName: string | null;
+  /** La cuenta dueña (ver `lib/atajos-de-la-linea.ts`). Filtra el panel de Atajos. */
+  cuentaId: string;
 };
 
 export type ChatToolActionResult =

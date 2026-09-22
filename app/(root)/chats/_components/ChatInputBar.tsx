@@ -62,6 +62,8 @@ interface ChatInputBarProps {
   session: Session | null;
   quickReplies: ChatQuickReplyOption[];
   workflows: ChatWorkflowOption[];
+  /** La línea de la conversación: el panel de Atajos la nombra cuando sale vacío. */
+  lineaDeLosAtajos?: string | null;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   slashOpen: boolean;
   slashSuggestions: ChatQuickReplyOption[];
@@ -108,6 +110,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   session,
   quickReplies,
   workflows,
+  lineaDeLosAtajos,
   textareaRef,
   slashOpen,
   slashSuggestions,
@@ -624,6 +627,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             <ChatAutomationPicker
               quickReplies={quickReplies}
               workflows={workflows}
+              lineaDeLosAtajos={lineaDeLosAtajos}
               onSendQuickReply={onSendQuickReply}
               onSendWorkflow={onSendWorkflow}
             />

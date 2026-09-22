@@ -2000,6 +2000,43 @@ Lo prueba `scripts/banco-etiquetas-de-la-linea.sh`, contra Postgres y con las
 acciones de verdad, en dos modos: el roto corre el camino viejo y afirma que la
 conversación de Atención ofrecía las de la madre y el servidor las rechazaba.
 
+## Chats: los Atajos de una conversación son los de SU línea
+
+El panel de Atajos de la barra de escribir —pestañas **Rápidas** y
+**Workflows**— ofrecía los de **todas** las cuentas de la bandeja: la madre y
+sus hijas revueltas. Es el mismo fallo de alcance que las etiquetas, pero aquí
+**no es solo visual**: lanzar el workflow de Ventas desde un chat de Atención le
+manda al cliente los mensajes de otra empresa.
+
+> **A cada conversación se le ofrecen los atajos de la cuenta dueña de su
+> línea, y ninguno más** (`lib/atajos-de-la-linea.ts`, puro). Si esa cuenta no
+> tiene, la pestaña sale **vacía y lo dice** —«La cuenta de la línea X no tiene
+> workflows creados»— y nunca cae a los de la madre ni a los de una hermana.
+
+Cuatro cosas que hay que mantener:
+
+1. **Cada opción trae su `cuentaId`**, y es la CUENTA (`ownerId ?? id` de quien
+   la creó), no la fila: un workflow creado por un asesor cuelga de su persona y
+   es de la cuenta para la que trabaja. Lo resuelve el bootstrap en una consulta.
+2. **La cuenta de la conversación sale de `instanceOwners[linea]`, no de
+   `ownerForChat`**, que cae a la cuenta de quien mira si no conoce la línea. Una
+   línea que no se sabe de quién es da vacío.
+3. **El servidor manda, y en los TRES caminos**: `sendManualWorkflowAction` /
+   `sendManualQuickReplyAction` (Evolution y Waha), `sendWahaQuickReplyAction` y
+   `sendChannelQuickReplyAction` pasan por `esAtajoDeLaLinea`
+   (`lib/atajos-de-la-linea.server.ts`), que resuelve las dos puntas en el
+   servidor. Antes aceptaban cualquiera de la familia, y los dos últimos **no
+   comprobaban nada**: con el id de cualquier respuesta rápida de la plataforma
+   se mandaba su texto. Y `getWorkFlowByUserIds` no pedía ni sesión.
+4. **«Nueva conversación» filtra igual**, por la línea elegida
+   (`cuentasDeLasLineas`). Si se añade otro sitio que ofrezca atajos, va por
+   `atajosDeLaConversacion`.
+
+Lo prueba `scripts/banco-atajos-de-la-linea.sh`, contra Postgres y con
+`currentUser()` de verdad, en dos modos: el roto empaqueta las mismas pruebas
+contra un commit pinchado y afirma que Ventas ofrecía lo de Atención y que la
+respuesta rápida de la madre salía por la línea de Atención.
+
 ## Chats: quitar un mando de la fila NO quita su dato
 
 Cada fila de la lista llevaba dos selectores con icono y flechita —el **estado

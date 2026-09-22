@@ -109,6 +109,8 @@ type ChatMainProps = {
   allTags: SimpleTag[];
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
+  /** La línea de la conversación: el panel de Atajos la nombra cuando sale vacío. */
+  lineaDeLosAtajos?: string | null;
   onSessionResolved?: (remoteJid: string, session: Session | null) => void;
   /** El interruptor de la IA cambio: para pintarlo al momento en la lista. */
   onSessionStatusChange?: (sessionId: number, remoteJid: string, status: boolean) => void;
@@ -151,6 +153,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   onSendTemplate,
   onBackToList,
   quickReplies,
+  lineaDeLosAtajos,
   userId,
   viewerUserId,
   sessionUserIds,
@@ -1377,6 +1380,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         session={session}
         quickReplies={quickReplies}
         workflows={workflows}
+        lineaDeLosAtajos={lineaDeLosAtajos}
         textareaRef={textareaRef}
         slashOpen={slashOpen}
         slashSuggestions={slashSuggestions}

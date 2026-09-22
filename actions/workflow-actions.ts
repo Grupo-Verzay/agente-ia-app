@@ -8,6 +8,7 @@ import { Workflow } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { deleteAllNodes, deleteFileNode } from "./workflow-node-action";
 import { currentUser } from "@/lib/auth";
+import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
 
 interface GetWorkFlowResponse {
     success: boolean;
@@ -57,12 +58,23 @@ export const getWorkFlowByUser = async (userId?: string): Promise<GetWorkFlowRes
  * workflows del dueño de la línea principal desde su propio usuario.
  */
 export const getWorkFlowByUserIds = async (userIds: string[]): Promise<GetWorkFlowResponse> => {
-    const ids = Array.from(new Set((userIds ?? []).filter(Boolean)));
-    if (!ids.length) {
+    const pedidos = Array.from(new Set((userIds ?? []).filter(Boolean)));
+    if (!pedidos.length) {
         return { success: false, error: "No autenticado.", message: "No autenticado." };
     }
 
     try {
+        // Una acción ES un endpoint, y esta no preguntaba nada: con sesión y el
+        // id de otra cuenta devolvía sus workflows. La lista se **filtra** —como
+        // `getAllRRsByUserIds`, su hermana de la bandeja—: lo que no se alcanza
+        // se cae y no arrastra a los buenos.
+        const ids: string[] = [];
+        for (const pedido of pedidos) {
+            const cuenta = await laCuentaDeLaAccion(pedido);
+            if (cuenta) ids.push(cuenta);
+        }
+        if (!ids.length) return { success: true, data: [] };
+
         const workflows = await db.workflow.findMany({
             where: { userId: { in: ids } },
             orderBy: [{ triggerOnNewSession: "desc" }, { order: "asc" }, { createdAt: "asc" }],
