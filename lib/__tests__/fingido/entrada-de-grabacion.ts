@@ -20,10 +20,12 @@ export { ponerLoQueDiceLaIa, loQueSeLePidioALaIa, olvidarLoPedido } from "./ia-d
 export { startBotCallAction } from "@/actions/voicebot-actions";
 export { logOutgoingCallAction } from "@/actions/astracalls-actions";
 export { POST as pedirLaTranscripcion } from "@/app/api/calls/process-bot-recording/route";
+export { POST as avisarDelFinDeLaLlamada } from "@/app/api/calls/call-ended/route";
 
 export {
     processCallRecordingForUser,
     esperarYProcesarLaGrabacion,
+    procesarElFinDeLaLlamada,
     ESPERA_ENTRE_INTENTOS_MS,
     INTENTOS_DE_GRABACION,
 } from "@/lib/grabacion-de-llamada.server";
@@ -32,7 +34,12 @@ export {
     queHacerConLaGrabacion,
     porQueNoSeTranscribio,
     TOPE_DE_BYTES_DE_AUDIO,
+    TOPE_DE_TROZOS,
 } from "@/lib/transcripcion-de-la-llamada";
+
+// El corte del WAV: lo que hace que una llamada de mas de 6 min 49 s deje de
+// ser «demasiado grande» y pase a transcribirse por partes.
+export { trozosDeWav, cuantosTrozos, segundosDelWav, elFormatoDelWav } from "@/lib/wav-en-trozos";
 
 export { costoDeLaNota, TOKENS_POR_CREDITO } from "@/lib/transcripcion-de-voz";
 export { conElNombreDeLaMarca, PISTA_DE_VOCABULARIO } from "@/lib/nombres-de-la-marca";

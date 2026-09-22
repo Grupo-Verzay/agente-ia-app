@@ -13655,6 +13655,238 @@ verde o rojo por el motivo equivocado:
    borde violeta —el mismo blanco de la tarjeta—; ahora `rgb(124,58,237)` sin
    borde, contra el `rgb(22,163,74)` de «Llamar».
 
+## La llamada termina y la plataforma no se entera: el fin lo AVISA AstraCalls
+
+«Las llamadas con IA salen, se habla varios minutos, se cuelga, y en CRM ›
+Llamadas la **Duración** se queda en un guion y **Detalle** dice "Sin
+detalle". En todas, no en algunas.»
+
+Que no quede **ni la duración** es lo que acota la búsqueda: la duración no
+necesita ni OpenAI ni créditos ni clave de IA, así que si tampoco está es que
+la plataforma **nunca llegó a enterarse de que esa llamada había acabado**. Por
+ahí se empezó, y por ahí resultó estar.
+
+Son cinco fallos encadenados. Los tres primeros explican el guion; los dos
+últimos, por qué tampoco habría habido texto aunque se hubiera enterado.
+
+### 1. No existía ningún aviso de fin. Ninguno
+
+Es lo primero que se pidió mirar —si se envía, si llega, si la firma lo
+rechaza, si el id coincide— y la respuesta se corta en la primera pregunta:
+**AstraCalls no avisaba a nadie de que una llamada había terminado.**
+
+Lo único que emite al colgar es `recording.ready`, y sale por el **webhook por
+sesión** (`dispatchWebhook` → `getWebhook()`), que **nadie configura**: sin URL
+guardada la función se rinde en su primera línea y el evento no sale del
+proceso. Así que no hay firma que rechazarlo ni id que comparar; no hay
+petición.
+
+Lo que había en su lugar era **sondeo a ciegas**: la plataforma lanzaba la
+llamada y se ponía a pedir la grabación cada tanto, a ver si aparecía.
+
+### 2. Y ese sondeo es una promesa suelta dentro de una petición
+
+`esperarYProcesarLaGrabacion` se lanza **sin `await`** desde una acción de
+servidor. No está persistido en ninguna parte: vive en la memoria del proceso
+de Next, y **un despliegue lo mata sin dejar rastro**. Esta plataforma
+despliega decenas de veces al día —está contado en *por qué reiniciaba el
+contenedor*, treinta en un día—, así que media hora de espera es media hora
+apostando a que no entre ningún merge.
+
+Y cuando se lo lleva un despliegue **no queda nada**: ni fila a medias, ni
+error, ni una línea en el registro. La llamada se queda exactamente como nació.
+
+> **Un aviso que existe es lo único que convierte un sondeo en una red de
+> seguridad.** Mientras el fin no lo diga nadie, el sondeo no es el respaldo:
+> es el mecanismo entero, y es el que se pierde.
+
+### 3. La duración se calculaba… y se tiraba si no se transcribía
+
+Este es el que explica el guion incluso cuando el sondeo sí sobrevivía.
+
+`processCallRecordingForUser` bajaba el WAV, sacaba sus segundos del
+encabezado, preguntaba `queHacerConLaGrabacion` y **solo escribía la fila en el
+camino de transcribir**. Sin créditos, o con el audio por encima del tope, se
+salía con un `return` y **la duración que ya tenía en la mano se perdía**.
+
+O sea: se hizo el trabajo caro —pedirla, bajarla, medirla— y se tiró el dato
+barato, que además es el único que no depende de nada de fuera.
+
+> **Lo que ya se sabe se escribe ANTES de decidir si se hace lo demás.**
+> `anotarQueHayGrabacion` va inmediatamente después de calcular los segundos, y
+> **se hace `await`**: es el único dato que no puede perderse, así que no viaja
+> de fondo. Lo que venga después —transcribir, resumir, cobrar— puede fallar
+> entero y la tarjeta sigue diciendo cuánto duró.
+
+Y escribe con **`GREATEST`**, no con asignación: esa fila la tocan el aviso de
+fin y el procesado de la grabación, y el segundo no puede **bajar** una
+duración que el primero ya había dejado puesta.
+
+### 4. Una llamada de más de 6 min 49 s NO se podía transcribir, y era firme
+
+El WAV de AstraCalls es PCM de 16 kHz, **dos canales** y 16 bits: exactamente
+**64.000 bytes por segundo**. El tope de una transcripción de OpenAI son 25 MB,
+así que **6 minutos y 49 segundos** es donde deja de caber — y «conversación
+real de varios minutos», que es lo que decía el reporte, lo pasa sin esfuerzo.
+
+`queHacerConLaGrabacion` devolvía `demasiado_grande` y ahí se acababa: ni texto,
+ni resumen, ni —por el punto 3— duración.
+
+> **25 MB dejó de ser el final del camino: es el tamaño de un TROZO.** El audio
+> ya está en PCM, así que se corta (`lib/wav-en-trozos.ts`) y se manda por
+> partes; los textos se pegan en orden. **El precio no cambia**, porque se
+> cobra por segundos y los segundos son los mismos.
+
+Cinco cosas del corte:
+
+1. **El encabezado se RECORRE hasta `data`**, no se da por hecho que está en el
+   offset 44. Un WAV con un chunk `LIST` delante es normal, y el tamaño
+   declarado puede mentir si el fichero se cerró a lo bruto: manda lo que de
+   verdad hay en el buffer.
+2. **Los cortes van alineados a `bytesPorMuestra`.** Cortar a mitad de una
+   muestra desfasa los canales del trozo siguiente y lo que se transcribe es
+   ruido — que no da ningún error: da un texto malo.
+3. **Si cabe entero, se devuelve el buffer TAL CUAL**, sin copiar ni rehacer el
+   encabezado. El caso normal no paga nada, y así el camino de siempre no puede
+   romperse por esto.
+4. **Lo que no se reconoce como WAV se manda entero**, como antes. Adivinar
+   sobre un formato que no se entiende es peor que dejarlo pasar: OpenAI
+   contestará lo que tenga que contestar.
+5. **Y sigue habiendo un tope, `TOPE_DE_TROZOS` (12)**, o sea más de hora y
+   cuarto. Existe para que un audio absurdo —una grabación que se quedó
+   abierta, un fichero que no es lo que dice ser— no se convierta en cien
+   peticiones a OpenAI cobradas de la bolsa de alguien. Por encima sí se
+   abandona, y se dice con esas palabras y con los minutos delante.
+
+### 5. Y «Sin detalle» nunca fue el resumen de la llamada
+
+Es el fallo que sobrevive a todos los demás, y el más fácil de dar por
+contestado: la columna **Detalle** de CRM › Llamadas pintaba `leadSynthesis`
+—la síntesis de lead que escriben los seguimientos del CRM—, **no** el resumen
+ni la transcripción. Así que aunque el camino entero hubiera funcionado desde
+el primer día, esa columna habría seguido diciendo «Sin detalle».
+
+`elDetalleDeLaLlamada` (`lib/detalle-de-la-llamada.ts`, puro) mira, por ese
+orden, `leadSynthesis`, el **resumen** y la **transcripción**, y se queda con la
+primera línea con contenido —saltándose el guion de una viñeta, que es como
+escribe el resumen—. Lo usan la celda **y el comparador de ordenación**: con
+dos criterios, ordenar por Detalle ordenaría por un texto que no es el que se
+ve.
+
+### El arreglo: el aviso viaja por el canal que YA existe
+
+No se inventó ninguna tubería, y esa es la decisión de diseño:
+
+```
+AstraCalls  --POST /voicebot/call-ended-->  backend  --POST /api/calls/call-ended-->  App
+            X-Voicebot-Secret                        x-internal-secret
+```
+
+AstraCalls ya tiene configurado `VOICEBOT_RESOLVE_URL` hacia el backend y ya
+manda por ahí su uso y su resultado, **con su mismo secreto**. `voicebotURL`
+deriva `/call-ended` de esa misma URL y **se niega si no lleva `/resolve`
+dentro**: inventarse un endpoint a partir de una URL que no se reconoce es
+mandarle el fin de una llamada a cualquier sitio.
+
+Y el backend lo relaya con `CRM_FOLLOW_UP_RUNNER_KEY`, que es la clave interna
+de siempre. **Cero variables de entorno nuevas en los tres repositorios.**
+
+Seis cosas que hay que mantener:
+
+1. **El aviso sale de `removeCall`, que es por donde pasan los tres finales**
+   —colgar nosotros, colgar el otro y el barrido de sesión—. Con el aviso
+   escrito en cada uno, el tercero se olvida, y un final que no avisa se ve
+   exactamente igual que el fallo original.
+2. **Los datos del bot se leen ANTES de `finalizeRecording`**, que cierra el
+   grabador y suelta la llamada. Leídos después, el aviso sale con el teléfono
+   y el `answered` en blanco.
+3. **Va en una goroutine** (`go reportCallEnded(...)`): colgar no puede quedarse
+   esperando a que la plataforma conteste. Y la plataforma, por lo mismo,
+   **contesta `202` en cuanto ha escrito la duración** y deja la grabación de
+   fondo.
+4. **Sin `sid` o sin `callId` no se manda nada**, y la ruta de la App los exige
+   con un `400`. Es el par con el que se encuentra la fila; medio aviso no
+   encuentra nada y lo que deja es un error que no se parece a su causa.
+5. **`durationSecs` que no venga NO es cero.** La ruta solo lo usa si es finito
+   y mayor que cero; lo demás es «no lo dijo», y con `GREATEST` eso deja la
+   fila como estaba en vez de borrarle el tiempo a una llamada que sí ocurrió.
+   Es la misma regla de *un número que no se puede calcular no se sustituye por
+   otro*.
+6. **`hasRecording` solo cuenta cuando es un `false` explícito.** Sin el campo
+   es «no se sabe», y darlo por falso dejaría sin transcribir una grabación que
+   sí está — el mismo reparto que `abierta` en las tarjetas de reunión. Con un
+   `false` de verdad la App escribe la duración, contesta `Sin grabación.` y
+   **no sondea ni una vez**.
+
+### La fila se busca por `(sid, callId)` y nada más
+
+`laLlamadaDeEseId` no recibe cuenta ninguna. Y eso es a propósito, porque **la
+cuenta bajo la que quedó la fila no es la de quien llamó**: `logOutgoingCallAction`
+la escribe bajo la cuenta **dueña de la línea** (#849), que en una conversación
+de una línea de otra cuenta de la familia es otra. Buscando con la cuenta de
+quien pulsó no se encontraría, y el aviso se rendiría sin decir nada — que es
+literalmente el fallo del que venimos.
+
+El par `(astraSid, astraCallId)` **ya identifica la llamada sin ambigüedad**: lo
+genera el servidor de llamadas y no se repite. La consulta se acota además a
+**dos días** (`DIAS_PARA_BUSCAR_LA_LLAMADA`) con `make_interval(days => $1::int)`
+—moldeado, que es la regla de siempre: Prisma manda el parámetro sin tipo y
+`make_interval` solo acepta `int`—, y eso no es un filtro de permisos: es lo
+que impide que esto barra `chat_messages`, que es la tabla más grande de la
+plataforma.
+
+Y el aviso **es idempotente**: `procesarElFinDeLaLlamada` puede llegar dos veces
+—un reintento de AstraCalls, el flujo y el botón— y no pasa nada. La duración va
+con `GREATEST` y el guardado del texto lleva
+`WHERE (raw->'call'->>'transcript') IS NULL`, así que solo una vuelta escribe y
+**solo esa cobra**.
+
+Y **el sondeo se queda**, ahora sí como lo que debería haber sido: la red de
+abajo. El aviso intenta procesar la grabación **una vez de inmediato** —es lo
+normal: al colgar suele estar— y solo si no está cae en
+`esperarYProcesarLaGrabacion`. Si el aviso no llega nunca —AstraCalls caído, la
+red— el camino viejo sigue existiendo.
+
+### Lo que NO era, y se descartó mirándolo
+
+Conviene que esté escrito, porque las dos sospechas naturales cuestan una tarde
+cada una y **ninguna de las dos tenía que ver**:
+
+| se sospechaba | por qué no |
+| --- | --- |
+| el arreglo anterior (#861, el contexto y `enviar_whatsapp`) | ese toca **qué se le dice al modelo** y **por qué línea sale un WhatsApp**. No interviene después de que la llamada empiece, y no escribe nada en la fila. |
+| el `VOICEBOT_SECRET` | guarda `resolve`, o sea si la llamada **sale**. El reporte dice que sale y se habla. Después de eso no vuelve a intervenir. |
+
+### El banco
+
+`scripts/banco-grabacion-de-llamada.sh` (App) más los dos de los otros
+repositorios, y cada uno prueba lo que solo él puede:
+
+| | qué ejerce |
+| --- | --- |
+| **App**, secciones F y G | la ruta de fin: `401` sin clave, `400` sin el par, `404` con una llamada que no está, **la duración escrita aunque la transcripción se abandone por créditos**, el `202` que deja `durationSecs: 187` antes de contestar, y `hasRecording: false` que **no sondea ni una vez** |
+| **App**, secciones A5–A7 y G | el corte del WAV: un WAV que cabe vuelve intacto, uno que no cabe sale en trozos con encabezado propio y sin perder un byte de datos, y una llamada de 500 s (**32 MB**) que el modo roto abandona por tamaño acaba con **dos** peticiones a la IA, el texto de los dos trozos y su resumen |
+| **astracalls**, `fin_de_llamada_test.go` | que `voicebotURL` deriva el endpoint y **se niega** con una URL que no lleva `/resolve`, y que 2 canales × 16.000 Hz × 16 bits son 64.000 bytes/s — el número del que cuelga el punto 4 |
+| **api-webhook**, `__banco__/fin-de-llamada.banco.ts` | el relay: la forma exacta de lo que sale hacia la App, que un secreto equivocado **no relaya**, que sin `sid` o `callId` tampoco, y que si falta la configuración **no es mudo** |
+
+`MODO=roto` corre **lo que había, escrito literal** —`laDecisionDeAntes`, con su
+`bytes > TOPE_DE_BYTES_DE_AUDIO → demasiado_grande`, y `comoSeProcesabaAntes`,
+que baja el audio, decide y **devuelve sin escribir**— y **afirma los dos
+fallos**: `durationSecs === 0` y ninguna transcripción.
+
+Y una del propio banco que costó una vuelta, porque es la trampa de esta
+familia entera: **el modo roto NO puede llamar a la función de hoy.**
+`comoSeProcesabaAntes` empezó llamando a `queHacerConLaGrabacion`, que ya corta
+en trozos, así que sobre 32 MB contestaba `transcribir` y el modo roto **no
+reproducía nada**: salía verde por no ejercer el caso. Con el «antes» escrito
+dentro del banco, los dos modos pasan sus 30 casos y el rojo del roto es el
+fallo de verdad.
+
+Por lo mismo hizo falta un `INABARCABLE` (`TOPE_DE_TROZOS × TOPE_DE_BYTES + 1`)
+para los casos que prueban `demasiado_grande`: el tamaño que antes lo
+disparaba —`TOPE + 1`— ahora se transcribe en dos partes, así que esos dos
+casos habrían dejado de ejercer su rama **sin dejar de estar en verde**.
+
 
 # Pendientes
 

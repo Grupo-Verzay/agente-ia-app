@@ -42,6 +42,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { elDetalleDeLaLlamada } from '@/lib/detalle-de-la-llamada';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import {
@@ -292,7 +293,9 @@ export function CallsCrmClient({
           case 'tipo': cmp = a.direction.localeCompare(b.direction); break;
           case 'duracion': cmp = a.durationSecs - b.durationSecs; break;
           case 'fecha': cmp = a.ts - b.ts; break;
-          case 'detalle': cmp = (a.leadSynthesis ?? '').localeCompare(b.leadSynthesis ?? ''); break;
+          // La MISMA funcion que pinta la celda: ordenando por `leadSynthesis`
+          // a secas, la columna se ordenaba por un valor y ensenaba otro.
+          case 'detalle': cmp = elDetalleDeLaLlamada(a).localeCompare(elDetalleDeLaLlamada(b)); break;
           case 'resultado': cmp = (a.disposition ?? '').localeCompare(b.disposition ?? ''); break;
         }
         return cmp * dir;
@@ -854,7 +857,10 @@ function CallTableRow({
   const [detailOpen, setDetailOpen] = useState(false);
   const hasDetail = call.hasRecording || !!call.transcript || !!call.summary;
   const name = cleanName(call.contactName);
-  const sintesis = (call.leadSynthesis || '').trim();
+  // No es solo `leadSynthesis`: una llamada con su resumen y su transcripcion
+  // guardados decia «Sin detalle», y eso se lee como que la grabacion no dejo
+  // nada. Ver `lib/detalle-de-la-llamada.ts`.
+  const sintesis = elDetalleDeLaLlamada(call);
   const recordingUrl =
     call.recordingUrl // llamadas Meta: URL directa de la grabación subida a S3
       ? call.recordingUrl
