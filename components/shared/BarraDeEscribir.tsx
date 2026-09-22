@@ -6,7 +6,7 @@
  * # Lo que había
  *
  * El #790 movió a sitio común las clases (`lib/barra-de-escribir.ts`) y tres
- * componentes de pintado —`FormatoDeTexto`, `EmojiPickerPanel`,
+ * componentes de pintado —`BarritaDeFormato`, `EmojiPickerPanel`,
  * `TextoConFormato`— y dejó escrito que «la barra de escribir es UNA». No lo
  * era: seguían siendo **dos implementaciones independientes**,
  * `app/(root)/chats/_components/ChatInputBar.tsx` y un compositor escrito

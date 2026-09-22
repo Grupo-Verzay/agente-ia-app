@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX } from "lucide-react";
+import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,6 +23,14 @@ type BulkActionBarProps = {
   onDelete?: () => void;
   onPin?: (pin: boolean) => void;
   onMarkRead?: (read: boolean) => void;
+  /**
+   * Resolver las conversaciones marcadas.
+   *
+   * Omitir para esconder la acción. No se pinta apagada: una opción en gris
+   * invita a preguntar por qué no se puede, y la respuesta —«tu rol no
+   * resuelve»— no cabe en un menú.
+   */
+  onResolve?: () => void;
   onAssignAdvisor?: (advisorId: string | null) => void;
   onAddTag?: (tagId: number) => void;
   advisors?: AdvisorInfo[];
@@ -49,6 +57,7 @@ export function BulkActionBar({
   onDelete,
   onPin,
   onMarkRead,
+  onResolve,
   onAssignAdvisor,
   onAddTag,
   advisors,
@@ -123,6 +132,24 @@ export function BulkActionBar({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        )}
+
+        {/* Resolver, justo al lado de marcar como leído: son las dos cosas que
+            se hacen sobre una tanda de conversaciones ya atendidas, y van
+            seguidas. **No hay «destacar» en lote**: destacar es «esta me
+            importa a mí», y marcar cuarenta de golpe es lo contrario de lo que
+            significa — se queda de a una, en el menú de la fila. */}
+        {onResolve && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="Resolver conversaciones"
+            aria-label="Resolver conversaciones"
+            onClick={onResolve}
+          >
+            <CheckCheck className="h-4 w-4" />
+          </Button>
         )}
 
         {onPin && (

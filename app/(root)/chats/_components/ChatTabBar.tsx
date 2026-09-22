@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { MARCA_DE_LAS_PASTILLAS, usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import type { TabCounts, TabKey } from "./chat-sidebar.types";
 
 type ChatTabBarProps = {
@@ -103,6 +105,11 @@ const INSIGNIA = "flex h-3.5 min-w-3.5 shrink-0 items-center justify-center roun
 
 
 export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, showMine = false, unreadOnly, onToggleUnread, unreadCount, enEsperaOnly, onToggleEnEspera, enEsperaCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, onCompose, onDeleteByDate }: ChatTabBarProps) {
+  // El «⋯» abre un panel del ANCHO de la columna, pegado a su filo izquierdo y
+  // justo debajo de esta misma fila. Lo decide `usePanelFlotante`, igual que los
+  // otros tres filtros de la cabecera de la lista: escrito aquí a mano sería el
+  // quinto `align` distinto de la pantalla.
+  const masFiltros = usePanelFlotante("columnaAncha", "menu");
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly;
   const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
@@ -167,7 +174,10 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
        `overflow-hidden` se queda de red de seguridad y NO como la solución:
        es preferible a una barra de deslizar, pero lo que de verdad evita que
        una pastilla se corte es que los huecos de dentro cedan. */
-    <div className="flex w-full items-center justify-between gap-1 overflow-hidden">
+    <div
+      {...{ [MARCA_DE_LAS_PASTILLAS]: "" }}
+      className="flex w-full items-center justify-between gap-1 overflow-hidden"
+    >
       {visibleTabs.map(renderTab)}
 
       {/* «Sin leer» —antes «No leídos»—. Dos palabras cortas en vez de dos
@@ -255,8 +265,8 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
           `justify-between`, así que el hueco que la separa de la última
           pastilla es el mismo que hay entre dos pastillas. Fuera de la fila
           —que es como estaba— ese hueco era todo el sobrante de golpe. */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <DropdownMenu onOpenChange={masFiltros.alAbrir}>
+        <DropdownMenuTrigger asChild ref={masFiltros.disparador}>
           <button
             type="button"
             className={cn(
@@ -269,7 +279,7 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
             <ChevronDown className="h-3 w-3" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-44 p-1">
+        <DropdownMenuContent {...masFiltros.props} className={cn("p-1", PANEL_QUE_SE_DESPLAZA)}>
           {onCompose && (
             <>
               <DropdownMenuItem

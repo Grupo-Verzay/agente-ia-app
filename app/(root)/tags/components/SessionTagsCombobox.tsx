@@ -8,6 +8,7 @@ import {
     removeTagFromSessionAction,
 } from "@/actions/tag-actions";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { usePanelFlotante, type ClaseDePanel } from "@/hooks/usePanelFlotante";
 import {
     Command,
     CommandEmpty,
@@ -34,6 +35,15 @@ interface SessionTagsComboboxProps {
     allTags: SimpleTag[];
     initialSelectedIds: number[];
     onSelectedIdsChange?: (selectedIds: number[]) => void;
+    /**
+     * Dónde nace el panel cuando lo pinta la cabecera de Chats.
+     *
+     * Va con su valor de siempre por defecto (`undefined`) porque este
+     * combobox lo pintan además el CRM y la tabla de `/sessions`, y allí no hay
+     * ninguna cabecera de conversación contra la que medir: unificar Chats no
+     * puede moverles el panel a dos pantallas que nadie pidió tocar.
+     */
+    panel?: ClaseDePanel;
 }
 
 export function SessionTagsCombobox({
@@ -42,8 +52,10 @@ export function SessionTagsCombobox({
     allTags,
     initialSelectedIds,
     onSelectedIdsChange,
+    panel,
 }: SessionTagsComboboxProps) {
     const [open, setOpen] = useState(false);
+    const colocacion = usePanelFlotante(panel ?? "columnaDerecha", "popover");
     const [selectedIds, setSelectedIds] = useState<number[]>(initialSelectedIds);
     const [isPending, startTransition] = useTransition();
     const normalizedInitialSelectedIds = useMemo(
@@ -133,8 +145,14 @@ export function SessionTagsCombobox({
     };
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
+        <Popover
+            open={open}
+            onOpenChange={(v) => {
+                setOpen(v);
+                if (panel) colocacion.alAbrir(v);
+            }}
+        >
+            <PopoverTrigger asChild ref={panel ? colocacion.disparador : undefined}>
                 <Button
                     variant="outline"
                     role="combobox"
@@ -148,7 +166,13 @@ export function SessionTagsCombobox({
                 </Button>
             </PopoverTrigger>
 
-            <PopoverContent className="w-60 p-0" align="start">
+            {/* En Chats va al filo derecho del área de conversación y a la
+                misma altura que los otros cinco paneles de la fila. Fuera de
+                Chats se queda EXACTAMENTE como estaba: `align="start"`. */}
+            <PopoverContent
+                className="w-60 p-0"
+                {...(panel ? colocacion.props : { align: "start" as const })}
+            >
                 <Command>
                     <CommandInput placeholder="Buscar etiqueta..." className="h-8 text-xs" />
                     <CommandList>

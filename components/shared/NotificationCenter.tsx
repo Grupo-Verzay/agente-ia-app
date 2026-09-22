@@ -7,6 +7,7 @@ import {
   Bell,
   CalendarClock,
   CalendarDays,
+  CheckCheck,
   CheckCircle2,
   FileText,
   MessageCircle,
@@ -36,6 +37,9 @@ import {
   markCollabNotificationReadAction,
 } from "@/actions/collab-actions";
 import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
+import { CHIPS_DE_LA_CAMPANA, lasQueSeMarcan } from "@/lib/campana";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
 
 // Lo que ya se abrió desde la campanita.
@@ -123,7 +127,14 @@ const KIND_META: Record<
   },
 };
 
-const FILTER_ORDER: NotificationKind[] = ["tarea", "mention", "chat", "appointment", "task", "followup", "connection"];
+/**
+ * Los chips, sin «Tareas».
+ *
+ * Sale de `lib/campana.ts` —puro y probado— y no de una lista escrita aquí: lo
+ * que se marca al pulsar «marcar leídas» se decide con la misma lista, y con
+ * dos copias el día que entre un chip nuevo una de las dos se quedaría atrás.
+ */
+const FILTER_ORDER = CHIPS_DE_LA_CAMPANA as NotificationKind[];
 
 const EMPTY_DATA: NotificationCenterData = {
   total: 0,
@@ -150,6 +161,9 @@ export function NotificationCenter() {
   const [activeKind, setActiveKind] = useState<NotificationKind | "all">("all");
   const [isPending, startTransition] = useTransition();
   const storeChatCount = useChatsQueEsperan();
+  // El panel nace bajo la BARRA de arriba, no bajo el botón: el botón es más
+  // bajo que ella y con el hueco de siempre el panel se le montaba encima.
+  const panel = usePanelFlotante("barraDeArriba", "menu");
 
   const load = useCallback(() => {
     startTransition(async () => {
@@ -251,6 +265,41 @@ export function NotificationCenter() {
     window.location.href = href;
   }, []);
 
+  /**
+   * Marcar como leídas las del chip que esté puesto.
+   *
+   * Hace **lo mismo que el clic de una**, menos navegar: guarda el id como
+   * visto y, si es de colaboración, lo marca leído en el servidor. Lo que NO
+   * hace es tocar las de otros chips —eso es lo que se pidió, y es lo correcto:
+   * un aviso que desaparece sin haberlo visto no vuelve—; quién entra lo decide
+   * `lasQueSeMarcan`, que es puro y lo prueba el banco.
+   *
+   * Los avisos de conexión se quedan, como en el clic de una: describen algo
+   * que sigue roto y esconderlos dejaría a la cuenta sin enviar mensajes sin
+   * que nadie lo recuerde.
+   */
+  const marcables = useMemo(
+    () => lasQueSeMarcan(data.items, activeKind),
+    [data.items, activeKind],
+  );
+
+  const marcarLeidas = useCallback(() => {
+    if (marcables.length === 0) return;
+    const idsQueSeVan = new Set(marcables.map((i) => i.id));
+    for (const item of marcables) {
+      saveDismissed(item.id);
+      if (item.id.startsWith("collab:")) {
+        void markCollabNotificationReadAction(item.id.slice("collab:".length));
+      }
+    }
+    setData((prev) => {
+      const items = prev.items.filter((i) => !idsQueSeVan.has(i.id));
+      const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0, tarea: 0 } as Record<NotificationKind, number>;
+      for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+      return { items, counts, total: items.length };
+    });
+  }, [marcables]);
+
   // Conteo de chats viene del mismo store que el badge izquierdo del sidebar
   const effectiveCounts = useMemo(
     () => ({ ...data.counts, chat: storeChatCount }),
@@ -272,8 +321,14 @@ export function NotificationCenter() {
   );
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(v) => {
+        panel.alAbrir(v);
+        setOpen(v);
+      }}
+    >
+      <DropdownMenuTrigger asChild ref={panel.disparador}>
         <Button
           variant="ghost"
           size="icon"
@@ -288,12 +343,49 @@ export function NotificationCenter() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="flex max-h-[min(82vh,620px)] w-[min(92vw,380px)] flex-col overflow-hidden p-0">
-        <div className="flex shrink-0 items-center justify-between px-3 py-2">
+      {/* Nace por DEBAJO de la barra de arriba, no 4 px bajo la campanita: el
+          botón mide menos que la barra que lo contiene, así que con el hueco de
+          siempre el panel se montaba sobre ella. Y el ancho va acotado a la
+          ventana, que es lo que impedía que se cortara por la derecha. Lo
+          decide `usePanelFlotante`, igual que los paneles de Chats. */}
+      <DropdownMenuContent
+        {...panel.props}
+        className="flex w-[min(92vw,380px)] flex-col overflow-hidden p-0"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-1 px-3 py-2">
           <DropdownMenuLabel className="p-0 text-sm font-semibold">Notificaciones</DropdownMenuLabel>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} disabled={isPending}>
-            <RefreshCw className={cn("h-3.5 w-3.5", isPending && "animate-spin")} />
-          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {/* Marca SOLO las del chip puesto. Apagado cuando no hay ninguna
+                que marcar —un chip de errores, por ejemplo, que no se pueden
+                dar por leídos— porque un botón que al pulsarlo no hace nada es
+                peor que no tenerlo; y lo dice en su rótulo. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={marcarLeidas}
+              disabled={marcables.length === 0}
+              aria-label={
+                marcables.length === 0
+                  ? "No hay notificaciones que marcar como leídas"
+                  : activeKind === "all"
+                    ? `Marcar como leídas las ${marcables.length} que se ven`
+                    : `Marcar como leídas las ${marcables.length} de ${KIND_META[activeKind].label}`
+              }
+              title={
+                marcables.length === 0
+                  ? "No hay notificaciones que marcar como leídas"
+                  : activeKind === "all"
+                    ? `Marcar como leídas las ${marcables.length} que se ven`
+                    : `Marcar como leídas las ${marcables.length} de ${KIND_META[activeKind].label}`
+              }
+            >
+              <CheckCheck className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} disabled={isPending} aria-label="Actualizar" title="Actualizar">
+              <RefreshCw className={cn("h-3.5 w-3.5", isPending && "animate-spin")} />
+            </Button>
+          </div>
         </div>
         <DropdownMenuSeparator />
 
@@ -334,7 +426,13 @@ export function NotificationCenter() {
           </div>
         )}
 
-        <ScrollArea className="h-[min(56vh,420px)] min-h-0">
+        {/* La lista se queda con lo que sobre del panel y se desplaza por
+            dentro. Iba con alto FIJO (`min(56vh,420px)`), y con un panel
+            acotado a lo que de verdad queda entre la barra y el borde eso se
+            pasaba de largo: el contenedor es `overflow-hidden`, así que las
+            últimas filas se recortaban y no había forma de llegar a ellas.
+            `flex-1 min-h-0` es lo que hace que ceda ella y no el panel. */}
+        <ScrollArea className="min-h-0 flex-1">
           {filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 px-6 py-8 text-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />

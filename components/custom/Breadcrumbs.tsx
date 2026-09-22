@@ -35,6 +35,7 @@ import { NotificationCenter } from '@/components/shared/NotificationCenter';
 import { AvisoDeTareaEmergente } from '@/components/shared/AvisoDeTarea';
 import { GlobalSearch } from '@/components/shared/GlobalSearch';
 import { MedidaDeLaBarra } from '@/components/shared/MedidaDeLaBarra';
+import { MARCA_DE_LA_BARRA } from '@/hooks/usePanelFlotante';
 import { BotonDeSoporte } from '@/components/tickets/BotonDeSoporte';
 
 export const breadcrumbLabels: Record<string, string> = {
@@ -137,7 +138,14 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
           clase —`h-18` no existe en Tailwind—, así que se mide. */}
       <MedidaDeLaBarra de={laBarra} />
       <div ref={laBarra} className={`h-18 shrink-0 ${isFlow && 'flex flex-1'}`}>
-          <header className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white">
+          {/* `data-barra-de-arriba`: de aquí sale el borde de ABAJO con el que
+              se coloca el panel de la campanita. Sin esta marca ese panel nace
+              pegado a su botón —que mide menos que la barra— y se monta sobre
+              ella. Lo lee `usePanelFlotante`. */}
+          <header
+            {...{ [MARCA_DE_LA_BARRA]: "" }}
+            className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white"
+          >
             <Breadcrumb className="py-3 flex flex-row flex-1 overflow-hidden dark:bg-gray-900 dark:text-white">
               <BreadcrumbList>
                 {!isFlow && (

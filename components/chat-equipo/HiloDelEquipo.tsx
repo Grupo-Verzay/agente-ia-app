@@ -155,7 +155,7 @@ import {
     useAltoDeLaCaja,
     useBarraCompacta,
 } from "@/components/shared/BarraDeEscribir";
-import { FormatoDeTexto } from "@/components/shared/FormatoDeTexto";
+import { BarritaDeFormato } from "@/components/shared/BarritaDeFormato";
 import { TextoConFormato } from "@/components/shared/TextoConFormato";
 import { TarjetaDeReunion } from "@/components/video/TarjetaDeReunion";
 import { apartarLasReuniones } from "@/lib/enlaces-del-texto";
@@ -1110,13 +1110,17 @@ export function HiloDelEquipo({
      * a su sitio **después del pintado**, por lo mismo que `meterLaMencion`.
      */
     const aplicarFormato = useCallback(
-        (marca: string) => {
+        (marca: string, desde?: number, hasta?: number) => {
             const caja = cajaDeEscribir.current;
             if (!caja) return;
+            // El tramo puede venir de fuera: la barrita flotante lo RECUERDA,
+            // porque pulsarla en un móvil quita el foco del cuadro y con él la
+            // selección. Sin parámetros se lee del cuadro, que es lo que hacen
+            // los atajos de teclado.
             const r = envolverSeleccion(
                 texto,
-                caja.selectionStart ?? texto.length,
-                caja.selectionEnd ?? texto.length,
+                desde ?? caja.selectionStart ?? texto.length,
+                hasta ?? caja.selectionEnd ?? texto.length,
                 marca,
             );
             if (r.texto === texto) return;
@@ -1528,10 +1532,6 @@ export function HiloDelEquipo({
                         deshabilitado={enviando || !canal.puedoEscribir}
                         contenedorRef={cajaDeHerramientas}
                     >
-                        <FormatoDeTexto
-                            onAplicar={aplicarFormato}
-                            disabled={enviando || !canal.puedoEscribir}
-                        />
                         <Button
                             type="button"
                             size="icon"
@@ -1602,6 +1602,17 @@ export function HiloDelEquipo({
                     {/* La caja se lleva TODO el ancho que queda, y los botones
                         de la derecha van dentro de ella, no al lado. */}
                     <div className="relative min-w-0 flex-1">
+                        {/* El formato sale al SELECCIONAR, no detrás de un
+                            botón. Va aquí y no solo en Chats por la regla de
+                            este repositorio —«la barra de escribir es UNA»—:
+                            dejar la «T» en una de las dos es la divergencia que
+                            luego se lee como «en el chat del equipo a veces no
+                            funciona». */}
+                        <BarritaDeFormato
+                            cuadro={cajaDeEscribir as React.RefObject<HTMLTextAreaElement>}
+                            onAplicar={aplicarFormato}
+                            activa={!enviando && canal.puedoEscribir}
+                        />
                         <Textarea
                             ref={cajaDeEscribir}
                             value={texto}

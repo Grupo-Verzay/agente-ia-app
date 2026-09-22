@@ -14460,6 +14460,282 @@ fallo: encuentra exactamente `["FontScaleApplier","StoragePersistence"]` por
 encima del limite. Copiado al banco se estaria comprobando lo que alguien
 recuerda del layout viejo.
 
+## Chats: dónde nace un panel flotante lo decide UNA función
+
+Había **once** paneles en Chats y cada uno traía su `align`, su `side` y su
+`sideOffset` escritos a mano. Puestos uno al lado de otro no se leían como la
+misma pantalla, y varios se salían de su columna. Medido en Chromium sobre el
+CSS del build, con la colocación de `origin/main`:
+
+| panel | a 1440 iba de… | la columna es | |
+| --- | --- | --- | --- |
+| Filtrar por asesor | **0**→224 | 48→432 | se salía sobre el carril de iconos |
+| rango de fechas | **0**→256 | 48→432 | igual |
+| etiquetas | **0**→288 | 48→432 | igual |
+| el «⋯» de la cabecera | 391→**567** | 48→432 | se montaba sobre la conversación |
+| temperatura de una fila | 319→**479** | 48→432 | igual |
+| asignar asesor de una fila | 355→**579** | 48→432 | igual |
+| Macros, en la cabecera | **252**→476 | 432→1440 | invadía la lista |
+
+Y ninguno nacía a la misma altura: los de la columna salían a 108, 112 y 148, y
+los de la cabecera a 108 y 148 — así que pasar de un panel a otro hacía saltar
+el contenido de sitio.
+
+No era que ninguno estuviera mal por su cuenta: es que **nadie contestaba la
+pregunta una sola vez**. Es la misma familia que `BarraDeAcciones` —cada
+pantalla colocaba sus mandos donde le tocó— y que `lib/panel-lateral.ts`.
+
+> **Dónde nace un panel lo decide `lib/paneles-flotantes.ts`, y lo mide
+> `hooks/usePanelFlotante.ts`.** Cuatro clases y ninguna más:
+>
+> | clase | dónde nace | por qué |
+> | --- | --- | --- |
+> | `columnaAncha` | el ancho ENTERO de la columna, a su filo izquierdo, bajo las pastillas | son filtros de la lista: lo que eligen se aplica a la columna entera |
+> | `columnaDerecha` | al filo DERECHO de la columna, bajo su control, volteando si no cabe | son de UNA fila: nacen donde se pulsó, y la fila puede estar abajo |
+> | `cabecera` | al filo derecho del área de conversación, bajo la cabecera entera | se pasa de uno a otro sin cerrar: todos a la misma altura |
+> | `barraDeArriba` | bajo la barra de la plataforma y dentro de la ventana | es la campanita, y la barra es la misma en todas las pantallas |
+
+El nombre no dice «de Chats» a propósito: la campanita vive en la barra de
+arriba y tenía exactamente el mismo defecto.
+
+### El signo de `alignOffset` depende de la ALINEACIÓN, y al revés no da error
+
+Es la parte que no se ve leyendo, y por la que las cuentas viven en un módulo y
+no en cada componente. `alignOffset` entra en Floating UI como
+`offset({ alignmentAxis })`, y ahí:
+
+```js
+crossAxis = alignment === 'end' ? alignmentAxis * -1 : alignmentAxis;   // @floating-ui/core
+```
+
+O sea: con `align="start"` un positivo mueve a la **derecha**, y con
+`align="end"` mueve a la **izquierda**. Escribirlo al revés **no da ningún
+error**: deja el panel al otro lado y del doble de lejos. Costó una vuelta ya en
+el propio banco, donde el ayudante que reconstruye el filo lo tenía invertido y
+cantaba tres fallos que no existían.
+
+Tres cosas más de Radix que hay que tener delante (leídas de
+`@radix-ui/react-popper`, no supuestas):
+
+1. **`shift` NO mueve en horizontal** (`crossAxis: false`), así que no hay que
+   contar con que meta el panel dentro por el lado. Lo que lo mete es la cuenta.
+2. **`size` corre siempre**, con `avoidCollisions` o sin él, así que
+   `--radix-…-content-available-height` está puesta pase lo que pase. Es la que
+   acota el alto, y es el hueco de VERDAD: `vh` mide la ventana, no lo que queda
+   entre el panel y el borde.
+3. **`collisionPadding` no es decoración**: entra en `detectOverflow`, así que
+   es también lo que descuenta esa variable. Sin él un panel que llega justo al
+   borde se queda pegado y su última fila no se lee. Va en las cuatro clases.
+
+### `avoidCollisions` es distinto en los fijados y en los de una fila
+
+No es un gusto, y las dos mitades se rompen si se igualan:
+
+- **`false` en los fijados** (`columnaAncha`, `cabecera`, `barraDeArriba`). Con
+  él, Radix puede **voltear** el panel arriba del disparador — y un filtro
+  volteado se pone encima de las pastillas, que es justo el mando que dice qué
+  se está mirando; y uno de la cabecera se come la fila de Macros y Acciones.
+- **`true` en los de una fila** (`columnaDerecha`). La fila puede estar abajo
+  del todo, y ahí voltear es lo correcto. Medido: la última fila abre su panel
+  de 586 a 852 en una ventana de 900.
+
+### Se MIDE el contenedor, no se resta de variables
+
+Es la misma razón que `MedidaDeLaBarra` y `--alto-de-la-barra`: la columna tiene
+**tres anchos** (`--ancho-lateral`, 18/20/22/24 rem), en un móvil ocupa la
+pantalla entera —donde esa variable no la describe—, lleva un `max-w-[700px]`
+encima y se anima al plegarse. Y la fila de pastillas cambia de alto con los
+contadores. Restando variables se acierta en una anchura y se falla en las
+otras tres, y eso no se ve como un error: se ve como un panel que unas veces se
+sale y otras no.
+
+Cinco cosas del hook que hay que mantener:
+
+1. **Se mide al ABRIR, y solo al abrir** (`onOpenChange`). Esta pantalla tiene
+   una regla entera sobre no rehacer nada en cada repintado de una lista de
+   miles de filas; con el panel cerrado esto no cuesta nada, y si la ventana
+   cambia de tamaño con él abierto Radix lo recoloca solo (`autoUpdate`).
+2. **El disparador se pasa por `ref`, no se adivina.** La primera versión lo
+   buscaba con `document.activeElement` razonando que Radix le da el foco.
+   **No siempre**: un `DropdownMenu` mueve el foco DENTRO del contenido al
+   abrirse. Un disparador adivinado mal no da ningún error — deja el panel a
+   otra altura.
+3. **Las marcas del DOM son el contrato**: `data-columna-de-chats`,
+   `data-pastillas-de-chats`, `data-cabecera-de-chat` y `data-barra-de-arriba`.
+   Si se añade otro panel, se le cuelga de una de las cuatro.
+4. **Sin contenedor NO se inventa**: se devuelve la colocación de siempre
+   (`comoSiempre`) y se dice en la consola. Pasa de verdad y no es un fallo:
+   `SessionTagsCombobox` lo pinta también el kanban de `/tags` y
+   `AdvisorAssignBadge` la lista de asesores de otras pantallas, donde no hay
+   ninguna columna de Chats de la que colgar. Callado sería un panel colocado de
+   otra forma sin que nadie sepa por qué.
+5. **Y el «⋯» de la fila de pastillas lleva su hueco.** Ese disparador vive
+   DENTRO de esa fila, así que «bajo las pastillas» le sale a cero y su panel
+   nacería pegado a ellas mientras los otros cuatro salen 4px más abajo. El
+   `HUECO_DEL_DISPARADOR` va dentro de `columnaAncha`, no en cada llamador.
+
+### Medido, antes y después
+
+Chromium sobre el CSS del build, con la maqueta de Chats —carril de iconos,
+columna con su fila de pastillas, conversación con su cabecera y la barra de
+arriba— en las cuatro anchuras:
+
+| | 1440 | 1280 | 1024 | 390 |
+| --- | --- | --- | --- | --- |
+| los cinco paneles anchos | 48→432 (384) | 48→432 (384) | 48→400 (352) | 1→391 (390) |
+| …y nacen todos en | 156 | 156 | 156 | 156 |
+| los tres de una fila, filo derecho | 432 | 432 | 400 | 382 |
+| los seis de la cabecera, filo derecho | 1440 | 1280 | 1024 | — |
+| …y nacen todos en | 153 | 153 | 153 | — |
+| la campana | 1173→1428 | 1013→1268 | 757→1012 | 123→378 |
+| …y nace en (la barra acaba en 64) | 69 | 69 | 69 | 69 |
+
+Los cinco anchos miden **exactamente** la columna en las cuatro; los seis de la
+cabecera nacen **en el mismo píxel**, que es lo que permite pasar de uno a otro
+sin que salte nada; y ninguno de los diecisiete se sale de su contenedor ni le
+añade una barra de desplazamiento a la página.
+
+**Un móvil NO es el caso estrecho de esto**, y conviene saberlo antes de buscar
+ahí: a 390 la columna ocupa la pantalla entera, así que el `avoidCollisions` de
+Radix ya metía dentro los paneles del «antes» —la columna y la ventana son la
+misma caja— y **no se salían**. Lo que sí fallaba en las cuatro anchuras es que
+ninguno medía la columna y que tapaban las pastillas. El banco lo afirma así, y
+no finge un rojo que no existe.
+
+### Y una trampa del banco: un panel EN MOVIMIENTO no está en ningún sitio
+
+Las animaciones de Radix (`zoom-in-95`, `slide-in-from-top-2`) **mueven y
+encogen el panel mientras juegan**. Medido a media animación, un panel de 384
+salía de **381** y su borde de arriba dos píxeles más alto — o sea, tres fallos
+que no existían. El banco las apaga (`animation: none !important`) antes de
+medir.
+
+Y la otra: **la emulación de móvil necesita el `<meta name="viewport">`.** Sin
+él, Playwright monta un viewport de maqueta de 980px y lo escala, así que a 390
+la página medía **2120** de alto y lo que se estaba midiendo no era una pantalla
+de teléfono. La App de verdad lo lleva; la maqueta del banco también.
+
+## Chats: la campanita, la barrita de formato y resolver en lote
+
+Tres cosas que entraron con la unificación de los paneles y que no son de
+colocación.
+
+### La campanita: fuera «Tareas», y «marcar leídas» es del CHIP
+
+Convivían dos chips que se leen igual —«Tareas», las del CRM que vencen, y «Mis
+tareas», las que alguien te asignó—. Dos rótulos casi iguales uno al lado del
+otro no son dos filtros: son una pregunta sobre cuál es cuál cada vez que se
+abre la campanita. Se fue «Tareas».
+
+> **Quitar el chip NO esconde sus avisos.** Los de clase `task` siguen en la
+> lista —salen sin filtro— y siguen contando en la insignia roja del botón, que
+> suma las siete clases y no estas seis. Lo único que se va es la forma de
+> mirarlos por separado. Y de paso la rejilla sale exacta: seis son dos filas
+> de tres, sin última fila a medias.
+
+Y hay «marcar leídas», al lado del botón de actualizar. **Marca SOLO lo del chip
+puesto** (`lasQueSeMarcan`, en `lib/campana.ts`, puro): con la lista entera,
+pulsarlo desde «Menciones» se llevaría por delante los chats y las citas que ni
+se estaban mirando — y un aviso que desaparece sin haberlo visto no vuelve. Sin
+chip (`"all"`, que es como abre) marca lo que se está viendo, que es todo: eso
+es lo que hace el botón predecible.
+
+**Un aviso de conexión no se marca**, ni siquiera desde su propio chip. Es la
+regla que ya tenía el clic de uno en uno: describe algo que **sigue roto** —una
+cuenta sin instancia, sin clave— y esconderlo para siempre la dejaría sin enviar
+mensajes sin que nadie lo recuerde.
+
+### La barrita de formato: va DEBAJO de la selección
+
+Se quitó el botón de la «T» de la barra de escribir y en su sitio sale una
+barrita flotante al seleccionar texto, con negrilla, cursiva y tachado —las
+marcas de WhatsApp, `*_~`, nunca las de markdown: con `**` WhatsApp deja un
+asterisco a la vista en el teléfono del cliente—.
+
+> **Va DEBAJO, y encima solo cuando debajo no cabe.** En un móvil, iOS y Android
+> pintan su propio menú de selección **encima** de lo seleccionado, y ese menú
+> **no es DOM**: no se puede medir, ni mover, ni saber cuánto ocupa. Encima se
+> pelean por el mismo sitio y gana el del sistema, que la tapa entera. Y cuando
+> debajo no cabe —la última línea, pegada al borde— es justo el caso en que el
+> sistema se lleva el suyo abajo, así que siguen sin coincidir.
+
+**Una sola regla, no dos.** Con una en escritorio y otra en móvil habría dos
+comportamientos que mantener a la par, y el que no se prueba es el que se rompe.
+
+Cuatro cosas de la barrita que no se ven leyendo:
+
+1. **La selección de un `<textarea>` se mide con un espejo.** Un `<textarea>`
+   no expone el rectángulo de su selección y `window.getSelection()` no entra en
+   los controles de formulario. Se clona su tipografía en un `<div>` fuera de
+   pantalla, se parte el texto en tres y se lee el rectángulo del trozo de en
+   medio. El espejo se crea y se quita en la misma pasada.
+2. **Se recuerda el último rango no vacío.** Tocar la barrita en un móvil quita
+   el foco de la caja y **colapsa la selección**: sin esa memoria, el botón
+   aplicaría el formato sobre nada.
+3. **`onPointerDown` con `preventDefault`**, nunca `onClick` a secas: el `blur`
+   llega antes que el clic y el botón desaparecería justo antes de que su
+   pulsación llegue. Es el mismo fallo que ya costó una vuelta en el selector de
+   menciones del chat de equipo.
+4. **Y el ancho manda sobre el sitio.** La barrita se acota a la ventana antes
+   de colocarse; sin eso, seleccionar una palabra al final de una línea larga la
+   saca por el borde derecho — que es exactamente el fallo que este cambio
+   entero viene a quitar de los paneles.
+
+### Resolver en lote, y por qué no hay «destacar»
+
+En la barra de acciones en lote entra **Resolver**, justo al lado de marcar como
+leído: son las dos cosas que se hacen sobre una tanda de conversaciones ya
+atendidas.
+
+**No entra «destacar», y no es un olvido**: destacar es «esta me importa a mí», y
+marcar cuarenta de golpe es lo contrario de lo que significa. Se queda de a una,
+en el menú de la fila.
+
+Cuatro cosas que hay que mantener:
+
+1. **Es UNA acción de servidor con todos los ids dentro**
+   (`resolverSesionesAction`), no N llamadas. Next serializa las acciones de una
+   misma página, así que cuarenta borrados desde el navegador son cuarenta idas
+   y vueltas **en fila india**. Es la regla que ya está escrita para el borrado
+   en bloque, aplicada aquí.
+2. **La sesión se busca por la llave de SU línea**, igual que `getSessionForChat`:
+   `linea::numero` cuando se conoce la línea, y **sin caer de vuelta a la llave
+   global**. Un contacto sin sesión en esta línea no puede resolver en silencio
+   la conversación que tiene con otra.
+3. **Los ids se sanean como NÚMEROS** (`comoListaDeIdsNumericos`): una sesión
+   del CRM se identifica con un entero, no con un `cuid`. Se **descarta** lo que
+   no sea un entero positivo en vez de convertirlo — `Number("")` es 0 y
+   `Number(null)` también, así que un saneado indulgente convierte basura en el
+   id 0 y lo mete en el `IN`.
+4. **Lo que no se pudo resolver se CUENTA y se dice**, incluidas las filas sin
+   sesión CRM. Un «listo» sobre veinte de las que se fueron dieciocho es peor
+   que un error, porque nadie vuelve a mirar.
+
+Y la puerta no es nueva: la acción llama a `resolveSession` una a una por dentro,
+que es la que ya comprueba quién puede resolver. Reescribir su comprobación sería
+un segundo permiso que el día que se afine el de al lado se queda atrás.
+
+### El banco
+
+`scripts/banco-paneles-flotantes.sh`, dos mitades y las dos en dos modos:
+
+- **La decisión**, pura y sin navegador: dónde nace cada panel, qué marca
+  «marcar leídas», qué ids acepta resolver en lote y dónde va la barrita. Su
+  `MODO=roto` **no escribe el «antes» a mano**: lo saca de `origin/main` con
+  `git show` y afirma el desorden —cuatro colocaciones distintas para la misma
+  pregunta y ni un solo panel colocado contra su contenedor—.
+- **Los paneles PINTADOS por Radix**, sobre el CSS del build, en las cuatro
+  anchuras y en móvil. Es lo único que puede decir si Radix hace con esos
+  números lo que se espera. Su `MODO=roto` pinta los mismos paneles con las
+  props de `origin/main`, leídas de ahí igual, y afirma los fallos medidos en la
+  tabla de arriba.
+
+Y una del propio `MODO=roto`, que costó una vuelta: **el bloque de un panel se
+corta con `(?:[^>]|=>)`, no en el primer `>`.** Esos tags llevan dentro un
+`onClick={(e) => …}`, así que cortando en el primer `>` el bloque se queda a
+medias — y el que se caía era justo `AdvisorAssignBadge`, el único que abría
+hacia arriba, que es el caso que más había que afirmar.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

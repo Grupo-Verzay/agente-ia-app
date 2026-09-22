@@ -18,6 +18,9 @@ import { loadRegistrosSnapshot } from "./chat-registros-cache";
 import { guardarResumen, leerResumen } from "./chat-registros-store";
 import { RESUMEN_VACIO, type ResumenDeRegistros } from "@/lib/registros-del-lead";
 import type { SimpleTag } from "@/types/session";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { cn } from "@/lib/utils";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO", "REPORTE"];
 
@@ -73,6 +76,8 @@ export function ChatRegistrosBadge({
   onSessionRefresh?: () => Promise<void> | void;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Uno de los seis paneles de la fila de iconos de la cabecera.
+  const panel = usePanelFlotante("cabecera", "popover");
 
   /**
    * UNA fuente para el numero y para las filas.
@@ -159,8 +164,13 @@ export function ChatRegistrosBadge({
 
   return (
     <>
-      <Popover onOpenChange={(abierto) => { if (abierto) calentarElPanel(); }}>
-        <PopoverTrigger asChild>
+      <Popover
+        onOpenChange={(abierto) => {
+          panel.alAbrir(abierto);
+          if (abierto) calentarElPanel();
+        }}
+      >
+        <PopoverTrigger asChild ref={panel.disparador}>
           <button
             type="button"
             title="Registros del lead"
@@ -178,7 +188,11 @@ export function ChatRegistrosBadge({
           </button>
         </PopoverTrigger>
 
-        <PopoverContent align="center" className="w-52 p-3 space-y-2">
+        {/* Pegado al filo derecho del área de conversación y a la misma altura
+            que los otros cinco paneles de la fila de iconos: iba
+            `align="center"`, o sea centrado sobre su propio icono, así que
+            saltaba de sitio al pasar de un icono al de al lado. */}
+        <PopoverContent {...panel.props} className={cn("w-52 p-3 space-y-2", PANEL_QUE_SE_DESPLAZA)}>
           <p className="text-xs font-semibold">Registros del lead</p>
 
           {allRows.length === 0 ? (

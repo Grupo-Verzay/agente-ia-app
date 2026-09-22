@@ -9,6 +9,11 @@ import { db } from "@/lib/db";
 import { quitarSelloDeEscaladoPorSesion } from "@/lib/escalado";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
+import {
+  borrarUnaAUna,
+  comoListaDeIdsNumericos,
+  type ResumenDelBorrado,
+} from "@/lib/borrado-en-bloque";
 
 type Result = { success: true; warning?: string } | { success: false; message: string };
 
@@ -499,6 +504,66 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   await logAssignment(sessionId, assignedAdvisorId, laPersona(user).id, "resolved");
 
   return { success: true, message: "Conversación resuelta." };
+}
+
+/**
+ * Resuelve VARIAS conversaciones de una vez.
+ *
+ * # Por qué es UNA acción y no N llamadas
+ *
+ * Next **serializa las acciones de servidor de una misma página** —una en
+ * vuelo, la siguiente espera—, así que resolver veinte desde el navegador
+ * serían veinte idas y vueltas en fila india: minutos de barra pensando con una
+ * selección de verdad. Es la misma regla que ya rige el borrado en bloque.
+ *
+ * # Y por dentro va de una en una, a propósito
+ *
+ * Llama a `resolveSession`, que es **la misma puerta** que el botón de
+ * «Resolver» de una conversación: comprueba quién puede cerrar cada una,
+ * genera su resumen, apaga la IA, marca la fila y anota el movimiento.
+ * Reescribir todo eso como un `updateMany` sería una segunda forma de resolver
+ * que el día que se afine la de al lado se queda atrás — y aquí quedarse atrás
+ * significa cerrar una conversación sin su resumen o sin comprobar el permiso.
+ *
+ * `borrarUnaAUna` es quien lo recorre: **en serie**, porque el pool de Prisma
+ * es de diez por proceso y son los mismos turnos que atienden la bandeja.
+ *
+ * Lo que no se pudo resolver **se cuenta y se dice**. Un «listo» sobre veinte
+ * de las que se cerraron dieciocho es peor que un error: nadie vuelve a mirar.
+ */
+export async function resolverSesionesAction(
+  ids: number[],
+): Promise<ResumenDelBorrado> {
+  const limpios = comoListaDeIdsNumericos(ids);
+  if (limpios.length === 0) {
+    return { success: false, borrados: 0, fallaron: 0, message: "No hay conversaciones que resolver." };
+  }
+
+  const { borrados, fallaron } = await borrarUnaAUna(
+    limpios.map(String),
+    async (id) => {
+      const res = await resolveSession(Number(id));
+      return res.success;
+    },
+  );
+
+  if (borrados === 0) {
+    return { success: false, borrados, fallaron, message: "No se pudo resolver ninguna conversación." };
+  }
+  if (fallaron > 0) {
+    return {
+      success: true,
+      borrados,
+      fallaron,
+      message: `Se resolvieron ${borrados} conversaciones; ${fallaron} no se pudieron resolver.`,
+    };
+  }
+  return {
+    success: true,
+    borrados,
+    fallaron,
+    message: borrados === 1 ? "Conversación resuelta." : `${borrados} conversaciones resueltas.`,
+  };
 }
 
 /**

@@ -3,7 +3,7 @@
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { resolveSession } from "@/actions/advisor-assign-actions";
+import { resolveSession, resolverSesionesAction } from "@/actions/advisor-assign-actions";
 import { getSessionIdsWithNotesAction } from "@/actions/internal-notes-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { updateLeadPushNameAction } from "@/actions/registro-action";
@@ -53,6 +53,8 @@ import { ChatSearchBar } from "./ChatSearchBar";
 import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { ChatTabBar } from "./ChatTabBar";
+import { MARCA_DE_LA_COLUMNA, usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
 
 const PALETTE = [
@@ -1296,6 +1298,11 @@ export function ChatSidebar({
     chatSessionsRef.current = chatSessions;
   }, [chatSessions]);
 
+  // Los paneles flotantes de esta columna: el de asesores ocupa su ancho
+  // entero, como canales y como el embudo. Es una sola decisión y vive en
+  // `usePanelFlotante`.
+  const panelDeAsesores = usePanelFlotante("columnaAncha", "menu");
+
   const handleResolve = useCallback(async (remoteJid: string) => {
     const session = chatSessionsRef.current[remoteJid];
     if (!session?.id) { toast.error("Sin sesión CRM para resolver."); return; }
@@ -1303,6 +1310,43 @@ export function ChatSidebar({
     if (res.success) toast.success("Conversación resuelta.");
     else toast.error(res.message ?? "Error al resolver.");
   }, []);
+
+  // Resolver en lote. Va por UNA accion de servidor con todos los ids dentro:
+  // Next serializa las acciones de una misma pagina, asi que cuarenta llamadas
+  // desde el navegador son cuarenta idas y vueltas en fila india.
+  const handleBulkResolve = useCallback(async () => {
+    if (selectedChats.length === 0) return;
+
+    // La sesion de SU linea, igual que `getSessionForChat`. Cuando se conoce la
+    // linea se usa ESA y solo esa, sin caer de vuelta a la llave global: un
+    // contacto sin sesion en esta linea no puede resolver en silencio la
+    // conversacion que tiene con otra.
+    const ids: number[] = [];
+    const sinSesion: string[] = [];
+    for (const { remoteJid, instanceName } of selectedChats) {
+      const session = instanceName
+        ? chatSessionsRef.current[`${instanceName}::${remoteJid}`]
+        : chatSessionsRef.current[remoteJid];
+      if (session?.id) ids.push(session.id);
+      else sinSesion.push(remoteJid);
+    }
+
+    if (ids.length === 0) {
+      toast.error("Ninguna de las conversaciones marcadas tiene sesión CRM.");
+      return;
+    }
+
+    const res = await resolverSesionesAction(ids);
+    // Lo que no se pudo resolver se CUENTA y se dice: un «listo» sobre veinte
+    // filas de las que se fueron dieciocho es peor que un error, porque nadie
+    // vuelve a mirar. Y las que no tenian sesion tampoco se callan.
+    const coletilla = sinSesion.length > 0 ? ` ${sinSesion.length} sin sesión CRM.` : "";
+    if (res.success && res.fallaron === 0 && sinSesion.length === 0) toast.success(res.message);
+    else if (res.borrados > 0) toast.warning(`${res.message}${coletilla}`);
+    else toast.error(`${res.message}${coletilla}`);
+
+    clearSelection();
+  }, [selectedChats, clearSelection]);
 
   const handleAssignTag = useCallback(async (remoteJid: string, tagId: number) => {
     const session = chatSessionsRef.current[remoteJid];
@@ -1358,7 +1402,15 @@ export function ChatSidebar({
 
   return (
     <>
-      <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px] sm:border-r border-border">
+      {/* `data-columna-de-chats`: la marca que leen los paneles flotantes de la
+          columna para no salirse de ella. Va en el `<aside>` y no en el
+          envoltorio porque este es el que tiene los bordes de verdad —el
+          `max-w-[700px]` y el `border-r`—, que es contra lo que hay que medir.
+          Lo lee `usePanelFlotante`. */}
+      <aside
+        {...{ [MARCA_DE_LA_COLUMNA]: "" }}
+        className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px] sm:border-r border-border"
+      >
         {/* Alto FIJO (rem) del toolbar: igual al del header del chat para que el borde/
             divisor quede continuo de lado a lado a cualquier zoom. */}
         <div
@@ -1400,8 +1452,8 @@ export function ChatSidebar({
               onLimpiarRango={limpiarRango}
             />
             {showAdvisorFilter && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <DropdownMenu onOpenChange={panelDeAsesores.alAbrir}>
+                <DropdownMenuTrigger asChild ref={panelDeAsesores.disparador}>
                   <BotonDeAsesores
                     activo={advisorFilter !== null}
                     /* Cuantos asesores del EQUIPO hay dados de alta. No cuenta la
@@ -1413,7 +1465,13 @@ export function ChatSidebar({
                     cantidad={asesoresDelEquipo}
                   />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 p-1">
+                {/* Ancho de la columna, filo izquierdo, bajo las pastillas: lo
+                    mismo que canales y que el embudo. Antes era `align="end"`
+                    y salía pegado a su icono, en mitad de la columna. */}
+                <DropdownMenuContent
+                  {...panelDeAsesores.props}
+                  className={cn("p-1", PANEL_QUE_SE_DESPLAZA)}
+                >
                   <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Filtrar por asesor
                   </p>
@@ -1511,6 +1569,7 @@ export function ChatSidebar({
               onArchive={handleBulkArchive}
               onDelete={canDeleteChats ? () => setBulkDeleteOpen(true) : undefined}
               onMarkRead={handleBulkMarkRead}
+            onResolve={handleBulkResolve}
               onPin={onBulkPin ? handleBulkPin : undefined}
               onAssignAdvisor={onBulkAssignAdvisor ? handleBulkAssignAdvisor : undefined}
               onAddTag={onBulkAddTag && allTags.length > 0 ? handleBulkAddTag : undefined}

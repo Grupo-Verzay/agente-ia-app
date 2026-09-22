@@ -22,7 +22,7 @@ import {
   updateAdvisorSignatureAction,
 } from '@/actions/chat-manual-actions';
 import { EmojiPickerPanel } from '@/components/shared/EmojiPickerPanel';
-import { FormatoDeTexto } from '@/components/shared/FormatoDeTexto';
+import { BarritaDeFormato } from '@/components/shared/BarritaDeFormato';
 import { EditorDeImagen } from './EditorDeImagen';
 import { envolverSeleccion } from '@/lib/formato-whatsapp';
 // La forma de la barra —la columna flotante, los botones redondos— vive en un
@@ -206,13 +206,16 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
    * ha repintado el `value`, asi que tocar `selectionStart` antes no sirve de
    * nada.
    */
-  const aplicarFormato = useCallback((marca: string) => {
+  const aplicarFormato = useCallback((marca: string, desde?: number, hasta?: number) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+    // El tramo puede venir de fuera: la barrita flotante lo RECUERDA, porque
+    // pulsarla en un móvil quita el foco del cuadro y con él la selección. Sin
+    // parámetros se lee del cuadro, que es lo que hacen los atajos de teclado.
     const r = envolverSeleccion(
       input,
-      textarea.selectionStart ?? input.length,
-      textarea.selectionEnd ?? input.length,
+      desde ?? textarea.selectionStart ?? input.length,
+      hasta ?? textarea.selectionEnd ?? input.length,
       marca,
     );
     if (r.texto === input) return;
@@ -661,9 +664,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               </Button>
             )}
             {!isRecording && !isPreviewingAudio && (
-              <FormatoDeTexto onAplicar={aplicarFormato} disabled={!isInputActive} />
-            )}
-            {!isRecording && !isPreviewingAudio && (
               <div className="relative" ref={emojiRef}>
                 <Button
                   onClick={() => setEmojiOpen((v) => !v)}
@@ -735,6 +735,16 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             ))}
           </div>
         )}
+
+        {/* El formato ya no es un botón: sale al SELECCIONAR, encima de lo
+            seleccionado, como en WhatsApp. El botón de la «T» se fue con su
+            menú —eran dos gestos y un botón más en la fila que peor lleva el
+            ancho—. Los atajos de teclado (Ctrl+B / I / Mayús+X) siguen igual. */}
+        <BarritaDeFormato
+          cuadro={textareaRef}
+          onAplicar={aplicarFormato}
+          activa={isInputActive && !isRecording && !isPreviewingAudio}
+        />
 
         <Textarea
           ref={textareaRef}

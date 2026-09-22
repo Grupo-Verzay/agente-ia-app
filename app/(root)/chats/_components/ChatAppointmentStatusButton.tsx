@@ -36,6 +36,8 @@ import {
 } from '@/actions/appointments-actions';
 import { STATUS_LABELS } from '@/types/schedule';
 import { cn } from '@/lib/utils';
+import { usePanelFlotante } from '@/hooks/usePanelFlotante';
+import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   PENDIENTE:   'bg-yellow-500',
@@ -63,6 +65,8 @@ export function ChatAppointmentStatusButton({
   instanceId,
 }: ChatAppointmentStatusButtonProps) {
   const [open, setOpen] = useState(false);
+  // Uno de los seis paneles de la fila de iconos de la cabecera.
+  const panel = usePanelFlotante('cabecera', 'popover');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [appointment, setAppointment] = useState<SessionAppointmentCard | null | undefined>(undefined);
@@ -113,8 +117,14 @@ export function ChatAppointmentStatusButton({
 
   return (
     <>
-      <Popover open={open} onOpenChange={handleOpen}>
-        <PopoverTrigger asChild>
+      <Popover
+        open={open}
+        onOpenChange={(v) => {
+          panel.alAbrir(v);
+          handleOpen(v);
+        }}
+      >
+        <PopoverTrigger asChild ref={panel.disparador}>
           <button
             type="button"
             title="Estado de cita"
@@ -132,7 +142,9 @@ export function ChatAppointmentStatusButton({
           </button>
         </PopoverTrigger>
 
-        <PopoverContent className="w-64 p-3 space-y-3" align="center">
+        {/* A la misma altura y al mismo filo que los otros cinco: iba
+            `align="center"` sobre su icono. */}
+        <PopoverContent {...panel.props} className={cn("w-64 p-3 space-y-3", PANEL_QUE_SE_DESPLAZA)}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cita agendada</p>
 
           {loading && (
