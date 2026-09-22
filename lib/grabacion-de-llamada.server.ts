@@ -33,8 +33,6 @@ import { Readable } from 'stream';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
 import { minioClient } from '@/lib/minio';
-import { laFamiliaDeLaCuenta } from '@/lib/familia-de-cuentas';
-import { laCuentaQuePagaLaTranscripcion } from '@/lib/nota-de-voz-del-equipo';
 import { descontarLaTranscripcion, losCreditosQueQuedan } from '@/lib/creditos-de-transcripcion';
 import {
   TOPE_DE_BYTES_DE_AUDIO,
@@ -125,28 +123,20 @@ async function getUserAiConfig(userId: string): Promise<AiCfg | null> {
 }
 
 /**
- * Quien PAGA la transcripcion de una llamada.
+ * Quien PAGA la transcripcion de una llamada: **la cuenta bajo la que quedo la
+ * fila**, que es la DUENA de la conversacion desde la que se llamo.
  *
- * **La cuenta, nunca la persona**, y dentro de una familia la **madre** — que
- * es exactamente la misma regla, y la misma funcion, con la que se cobran las
- * notas de voz de Chats y las del chat del equipo. `ia_credits` tiene una fila
- * por cuenta: cobrarle a una persona seria cobrarle a una fila que no existe,
- * y entonces `losCreditosQueQuedan` devolveria 0 y no se transcribiria nada.
+ * **La cuenta, nunca la persona**: `ia_credits` tiene una fila por cuenta, y
+ * cobrarle a una persona seria cobrarle a una fila que no existe.
  *
- * Un fallo al resolver la familia **no deja la llamada sin texto**: se sigue
- * con la cuenta suelta, que es el lado seguro, y se dice.
+ * Y **no sube a la madre de la familia**, a proposito y distinto de las notas
+ * del chat de equipo: una llamada con IA la lanza, la configura y la gasta la
+ * cuenta de la linea de la conversacion (Ventas por Ventas, Atencion por
+ * Atencion). Cobrarsela a la madre es exactamente el fallo de «la llamada queda
+ * en la cuenta de quien mira», movido de la fila a la bolsa de creditos.
  */
 async function laCuentaQuePagaLaLlamada(cuentaId: string): Promise<string> {
-  try {
-    const familia = await laFamiliaDeLaCuenta(cuentaId);
-    return laCuentaQuePagaLaTranscripcion({ cuentaId, raizDeLaFamilia: familia.raiz });
-  } catch (error) {
-    console.warn('[llamadas] no se pudo resolver la familia para cobrar la transcripcion', {
-      cuentaId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return cuentaId;
-  }
+  return cuentaId;
 }
 
 /**
