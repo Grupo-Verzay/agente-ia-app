@@ -8,7 +8,9 @@ import {
     sendViaWhatsAppDispatcher,
     type WhatsAppDispatcherLine,
 } from "@/actions/whatsapp-dispatcher";
-import { listMetaTemplates, sendMetaTemplate } from "@/actions/channel-chat-actions";
+// Sin puerta a propósito: quien llama aquí no tiene sesión (cron, página pública)
+// y la línea no la elige el navegador. Ver `lib/envio-por-canal.server.ts`.
+import { listarPlantillasMeta as listMetaTemplates, enviarPlantillaMeta as sendMetaTemplate } from "@/lib/envio-por-canal.server";
 import { db } from "@/lib/db";
 import type { BillingStatus, BillingTemplateType, AccessStatus } from "@/types/billing";
 

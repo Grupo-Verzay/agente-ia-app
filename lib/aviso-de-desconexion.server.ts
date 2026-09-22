@@ -7,7 +7,8 @@ import {
   sendViaWhatsAppDispatcher,
 } from "@/actions/whatsapp-dispatcher";
 import { anotarElEnvio } from "@/lib/salud-del-envio-db";
-import { listMetaTemplates, sendMetaTemplate } from "@/actions/channel-chat-actions";
+// Sin puerta: esto corre desde el cron, sin sesión. Ver `lib/envio-por-canal.server.ts`.
+import { listarPlantillasMeta as listMetaTemplates, enviarPlantillaMeta as sendMetaTemplate } from "@/lib/envio-por-canal.server";
 
 /**
  * El aviso de «tu WhatsApp se desvinculo»: el unico mensaje que la plataforma
