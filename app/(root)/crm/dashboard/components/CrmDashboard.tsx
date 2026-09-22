@@ -11,7 +11,6 @@ import {
     TrendingUp,
     Kanban,
     PhoneCall,
-    RefreshCw,
     X,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
@@ -36,8 +35,6 @@ import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 import { WeeklyReportsView } from "./WeeklyReportsView";
 import { LoQueLaIaNoSupoView } from "./LoQueLaIaNoSupoView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
-import { RANGOS_DE_DIAS, DIAS_POR_DEFECTO } from "../../llamadas/_components/rango-de-dias";
-import { cn } from "@/lib/utils";
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -98,23 +95,23 @@ export const CrmDashboard = ({
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
-    /*
-     * Los tres mandos de Llamadas viven AQUÍ, no dentro de la pantalla: son de
-     * la misma familia que las pestañas —acotan lo que se está mirando— y en su
-     * sitio de antes le quitaban una fila entera a la tabla. `diasDeLlamadas`
-     * es el rango; `refrescoDeLlamadas` sube en cada pulsación de «Actualizar»
-     * y con eso la pantalla vuelve a pedir su vuelta; `cargandoLlamadas` es
-     * solo para que el icono gire.
-     *
-     * Ojo: NO es el `period` de al lado. Aquel es `AnalyticsPeriod` ("7d"…) y
-     * decide los filtros de Registros; este es un número de días y va a
-     * `getCallsCrmData`. Juntarlos sería un filtro que promete lo que la
-     * pantalla de al lado no hace.
-     */
-    const [diasDeLlamadas, setDiasDeLlamadas] = useState(DIAS_POR_DEFECTO);
-    const [refrescoDeLlamadas, setRefrescoDeLlamadas] = useState(0);
-    const [cargandoLlamadas, setCargandoLlamadas] = useState(false);
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
+
+    /*
+     * DENTRO de Llamadas esta fila entera sobra, así que no se pinta.
+     *
+     * Llevaba las cinco pestañas del CRM —a las que se llega por el menú del
+     * módulo, que es de donde salen sus cinco rutas—, el rango de 7/30/90 días
+     * y «Actualizar». Puesta encima de la barra de la pantalla eran DOS filas
+     * de mandos donde el resto de la plataforma tiene una, y la de arriba le
+     * quitaba su alto a la tabla.
+     *
+     * Se decide por la RUTA (`initialView`), no por `viewMode`: desde `/crm`
+     * se puede abrir la vista de llamadas con esas pestañas, y escondiéndolas
+     * ahí no habría forma de volver — menú cerrado por dentro. En su ruta el
+     * modo no cambia nunca, así que no hay nada que cerrar.
+     */
+    const esLaPantallaDeLlamadas = initialView === "llamadas";
 
     const toggleScoreRange = (key: ScoreRangeKey) => {
         setSelectedScoreRanges(new Set([key]));
@@ -207,201 +204,169 @@ export const CrmDashboard = ({
                  * Analíticas trae los suyos por su cuenta.
                  */}
 
-                {/* View toggle + period selector + actions */}
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex flex-nowrap gap-1 overflow-x-auto max-w-full rounded-lg border border-border/60 bg-muted/30 p-1 [&>button]:shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("analiticas")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "analiticas"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <TrendingUp className="h-3.5 w-3.5" />
-                            Analíticas
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("registros")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "registros"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <LayoutList className="h-3.5 w-3.5" />
-                            Registros
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("llamadas")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "llamadas"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <PhoneCall className="h-3.5 w-3.5" />
-                            Llamadas
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("kanban")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "kanban"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <Kanban className="h-3.5 w-3.5" />
-                            Kanban
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("reportes")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "reportes"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <FileText className="h-3.5 w-3.5" />
-                            Reportes
-                        </button>
-                    </div>
-
-                    {viewMode !== "kanban" && viewMode !== "reportes" && viewMode !== "llamadas" && (
-                        <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
-                            {ANALYTICS_PERIODS.map((p) => (
-                                <button
-                                    key={p.value}
-                                    type="button"
-                                    onClick={() => applyPeriod(p.value)}
-                                    className={[
-                                        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                        period === p.value
-                                            ? "bg-background shadow-sm text-foreground"
-                                            : "text-muted-foreground hover:text-foreground",
-                                    ].join(" ")}
-                                >
-                                    {p.label}
-                                </button>
-                            ))}
+                {/* La fila de pestañas del CRM. No se pinta dentro de
+                    Llamadas: ver `esLaPantallaDeLlamadas` arriba. */}
+                {!esLaPantallaDeLlamadas && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-nowrap gap-1 overflow-x-auto max-w-full rounded-lg border border-border/60 bg-muted/30 p-1 [&>button]:shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("analiticas")}
+                                className={[
+                                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                    viewMode === "analiticas"
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
+                                ].join(" ")}
+                            >
+                                <TrendingUp className="h-3.5 w-3.5" />
+                                Analíticas
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("registros")}
+                                className={[
+                                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                    viewMode === "registros"
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
+                                ].join(" ")}
+                            >
+                                <LayoutList className="h-3.5 w-3.5" />
+                                Registros
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("llamadas")}
+                                className={[
+                                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                    viewMode === "llamadas"
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
+                                ].join(" ")}
+                            >
+                                <PhoneCall className="h-3.5 w-3.5" />
+                                Llamadas
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("kanban")}
+                                className={[
+                                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                    viewMode === "kanban"
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
+                                ].join(" ")}
+                            >
+                                <Kanban className="h-3.5 w-3.5" />
+                                Kanban
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("reportes")}
+                                className={[
+                                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                    viewMode === "reportes"
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
+                                ].join(" ")}
+                            >
+                                <FileText className="h-3.5 w-3.5" />
+                                Reportes
+                            </button>
                         </div>
-                    )}
 
-
-                    {/*
-                      * El filtro por cuenta acota la lista de abajo, asi que va
-                      * con los demas filtros y no en una fila propia — una fila
-                      * suelta son 40 px que se le quitan a la tabla en las cinco
-                      * vistas. Se pinta solo si el servidor dijo que se puede
-                      * elegir: quien no es la cuenta madre de su familia recibe
-                      * la lista vacia y aqui no sale nada.
-                      */}
-                    {cuentas.puedeElegir && (
-                        <SelectorDeCuentas
-                            disponibles={cuentas.disponibles}
-                            elegidas={cuentas.elegidas}
-                            porDefecto="todas"
-                            conMoneda={false}
-                        />
-                    )}
-
-                    {/* Llamadas: su rango y su «Actualizar», a la derecha de
-                        esta misma fila. `ml-auto` los pega al borde, igual que
-                        las acciones de Registros de más abajo. */}
-                    {viewMode === "llamadas" && (
-                        <div className="ml-auto flex items-center gap-2">
+                        {viewMode !== "kanban" && viewMode !== "reportes" && viewMode !== "llamadas" && (
                             <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
-                                {RANGOS_DE_DIAS.map((r) => (
+                                {ANALYTICS_PERIODS.map((p) => (
                                     <button
-                                        key={r.value}
+                                        key={p.value}
                                         type="button"
-                                        onClick={() => setDiasDeLlamadas(r.value)}
+                                        onClick={() => applyPeriod(p.value)}
                                         className={[
                                             "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                            diasDeLlamadas === r.value
+                                            period === p.value
                                                 ? "bg-background shadow-sm text-foreground"
                                                 : "text-muted-foreground hover:text-foreground",
                                         ].join(" ")}
                                     >
-                                        {r.label}
+                                        {p.label}
                                     </button>
                                 ))}
                             </div>
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-10 w-10"
-                                title="Actualizar"
-                                aria-label="Actualizar"
-                                onClick={() => setRefrescoDeLlamadas((n) => n + 1)}
-                            >
-                                <RefreshCw className={cn("h-4 w-4", cargandoLlamadas && "animate-spin")} />
-                            </Button>
-                        </div>
-                    )}
+                        )}
 
-                    {viewMode === "kanban" && (
-                        <div className="flex items-center gap-2">
-                            <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                            <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
-                                {SCORE_RANGES.map((range) => {
-                                    const active = selectedScoreRanges.has(range.key);
-                                    const count = scoreCounts[range.key] ?? 0;
-                                    return (
-                                        <button
-                                            key={range.key}
-                                            type="button"
-                                            title={`Score ${range.range}`}
-                                            onClick={() => toggleScoreRange(range.key)}
-                                            className="rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1 whitespace-nowrap"
-                                            style={{
-                                                color: active ? range.color : undefined,
-                                                backgroundColor: active ? range.color + "18" : undefined,
-                                                boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
-                                            }}
-                                        >
-                                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: range.color }} />
-                                            {range.label}
-                                            {count > 0 && (
-                                                <span
-                                                    className="ml-1 text-[10px] font-bold px-1 py-0 rounded-full text-white"
-                                                    style={{ backgroundColor: range.color }}
-                                                >
-                                                    {count}
-                                                </span>
-                                            )}
-                                            {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
 
-                    {viewMode === "registros" && (
-                        <div className="ml-auto flex items-center gap-2">
-                            <Button onClick={() => router.push("/crm/rules")}>
-                                <Settings2 className="h-4 w-4" />
-                                Reglas IA CRM
-                            </Button>
-                            <CrmGlobalActionsMenu
-                                userId={userId}
-                                stats={stats}
-                                onDataChanged={onRecordsChanged}
+                        {/*
+                          * El filtro por cuenta acota la lista de abajo, asi que va
+                          * con los demas filtros y no en una fila propia — una fila
+                          * suelta son 40 px que se le quitan a la tabla en las cinco
+                          * vistas. Se pinta solo si el servidor dijo que se puede
+                          * elegir: quien no es la cuenta madre de su familia recibe
+                          * la lista vacia y aqui no sale nada.
+                          */}
+                        {cuentas.puedeElegir && (
+                            <SelectorDeCuentas
+                                disponibles={cuentas.disponibles}
+                                elegidas={cuentas.elegidas}
+                                porDefecto="todas"
+                                conMoneda={false}
                             />
-                        </div>
-                    )}
-                </div>
+                        )}
+
+                        {viewMode === "kanban" && (
+                            <div className="flex items-center gap-2">
+                                <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
+                                    {SCORE_RANGES.map((range) => {
+                                        const active = selectedScoreRanges.has(range.key);
+                                        const count = scoreCounts[range.key] ?? 0;
+                                        return (
+                                            <button
+                                                key={range.key}
+                                                type="button"
+                                                title={`Score ${range.range}`}
+                                                onClick={() => toggleScoreRange(range.key)}
+                                                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                                                style={{
+                                                    color: active ? range.color : undefined,
+                                                    backgroundColor: active ? range.color + "18" : undefined,
+                                                    boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
+                                                }}
+                                            >
+                                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: range.color }} />
+                                                {range.label}
+                                                {count > 0 && (
+                                                    <span
+                                                        className="ml-1 text-[10px] font-bold px-1 py-0 rounded-full text-white"
+                                                        style={{ backgroundColor: range.color }}
+                                                    >
+                                                        {count}
+                                                    </span>
+                                                )}
+                                                {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {viewMode === "registros" && (
+                            <div className="ml-auto flex items-center gap-2">
+                                <Button onClick={() => router.push("/crm/rules")}>
+                                    <Settings2 className="h-4 w-4" />
+                                    Reglas IA CRM
+                                </Button>
+                                <CrmGlobalActionsMenu
+                                    userId={userId}
+                                    stats={stats}
+                                    onDataChanged={onRecordsChanged}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Content */}
                 {viewMode === "reportes" ? (
@@ -470,9 +435,20 @@ export const CrmDashboard = ({
                             cuentaPropia={cuentas.propia}
                             unificado={unificado}
                             nombresDeCuenta={nombresDeCuenta}
-                            dias={diasDeLlamadas}
-                            refresco={refrescoDeLlamadas}
-                            alCargar={setCargandoLlamadas}
+                            /* El selector baja SOLO cuando esta pantalla es la
+                               que tiene que pintarlo, o sea cuando la fila de
+                               pestañas no existe. Pasándolo siempre saldrían
+                               dos para el mismo filtro. */
+                            selectorDeCuentas={
+                                esLaPantallaDeLlamadas && cuentas.puedeElegir ? (
+                                    <SelectorDeCuentas
+                                        disponibles={cuentas.disponibles}
+                                        elegidas={cuentas.elegidas}
+                                        porDefecto="todas"
+                                        conMoneda={false}
+                                    />
+                                ) : undefined
+                            }
                         />
                     </div>
                 ) : (

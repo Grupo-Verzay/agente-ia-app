@@ -2,8 +2,8 @@
 """Saca la barra de CRM › Llamadas —la de AHORA y la de ANTES— del código real.
 
 Ninguna de las dos se escribe a mano. La de ahora sale del árbol de trabajo y
-la de antes de `origin/main` con `git show`; copiadas al banco se estaría
-midiendo lo que alguien recuerda de cada pantalla y no la que React pinta.
+la de antes de un commit con `git show`; copiadas al banco se estaría midiendo
+lo que alguien recuerda de cada pantalla y no la que React pinta.
 
 Lo que se saca:
 
@@ -16,7 +16,7 @@ Lo que se saca:
          días, exportar, actualizar y el `⋯`; y debajo el `<BarraDelMarcador>`
          con el campo del número y los dos botones de llamar dentro.
          `BarraDelMarcador.tsx` se copia **entero y literal** a un fichero
-         aparte, para que su marcado sea el de `origin/main` sin una coma de
+         aparte, para que su marcado sea el de ese commit sin una coma de
          diferencia.
 
 Alrededor va lo mínimo para que eso se pueda pintar solo: los locales que las
@@ -29,7 +29,7 @@ vez**; si no, esto se cae con estruendo en vez de devolver un fichero que no
 mide nada.
 
 Uso:  scripts/sacar-barra-de-llamadas.py ahora <salida.tsx>
-      scripts/sacar-barra-de-llamadas.py antes <salida.tsx> <salida-marcador.tsx>
+      scripts/sacar-barra-de-llamadas.py antes <salida.tsx> <salida-marcador.tsx> [ref]
 """
 import subprocess
 import sys
@@ -43,14 +43,21 @@ def del_arbol(ruta: str) -> str:
         return f.read()
 
 
-def de_origin_main(ruta: str) -> str:
+def de_un_commit(ruta: str, ref: str) -> str:
+    """El fichero tal cual estaba en `ref`.
+
+    La referencia se PASA, y por defecto es un commit y no `origin/main`: un
+    «antes» que apunta a una rama viva deja de ser un antes en cuanto el
+    cambio se fusiona, y entonces el modo roto se cae —o, peor, se pone verde
+    sin ejercer nada—.
+    """
     hecho = subprocess.run(
-        ["git", "show", f"origin/main:{ruta}"],
+        ["git", "show", f"{ref}:{ruta}"],
         capture_output=True, text=True,
     )
     if hecho.returncode != 0:
         sys.exit(
-            f"no se pudo leer {ruta!r} de origin/main: {hecho.stderr.strip()}\n"
+            f"no se pudo leer {ruta!r} de {ref}: {hecho.stderr.strip()}\n"
             "corre `git fetch origin main` antes"
         )
     return hecho.stdout
@@ -95,7 +102,7 @@ CABECERA_AHORA = '''"use client";
 // El `<BarraDeAcciones>` de dentro sale del árbol de trabajo tal cual.
 
 import React from "react";
-import { Download, MessageSquare, MoreVertical, Phone, PhoneMissed, PhoneOutgoing, Search, Trash2 } from "lucide-react";
+import { Download, MessageSquare, MoreVertical, Phone, PhoneMissed, PhoneOutgoing, RefreshCw, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -107,7 +114,6 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { BarraDeAcciones } from "@/components/shared/BarraDeAcciones";
-import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas";
 import { DialogoDeLlamar } from "@/app/(root)/crm/llamadas/_components/DialogoDeLlamar";
 import { cn } from "@/lib/utils";
 '''
@@ -159,10 +165,14 @@ export function LaBarra() {
     // El menú de acciones esconde los dos borrados en bloque mientras se
     // consolidan varias cuentas de Finanzas; aquí se mide la pantalla normal.
     const unificado = false;
-    // `days`, `setDays`, `load` y `unificado` solo los nombra la fila de ANTES;
-    // se declaran en los dos para que el andamiaje sea el mismo y la única
+    // El filtro por cuenta de la familia: baja como nodo desde el CRM y solo
+    // lo tiene la cuenta MADRE. Aquí se mide la pantalla normal, que es la que
+    // ve todo el mundo, así que va vacío.
+    const selectorDeCuentas = null;
+    // `days`, `setDays` y `unificado` solo los nombra la fila de ANTES; se
+    // declaran en los dos para que el andamiaje sea el mismo y la única
     // diferencia medible sea la barra.
-    void days; void setDays; void load; void loading; void unificado;
+    void days; void setDays; void load; void loading; void unificado; void kpis; void selectorDeCuentas;
 
     return (
         <div className="flex flex-col gap-3">
@@ -185,9 +195,10 @@ def main() -> None:
         cuerpo = rebanada(src, "      <BarraDeAcciones\n", "\n      />", True)
         cabecera = CABECERA_AHORA
     elif modo == "antes":
-        if len(sys.argv) != 4:
+        if len(sys.argv) not in (4, 5):
             sys.exit("el modo «antes» necesita también el fichero del marcador")
-        src = de_origin_main(PANTALLA)
+        ref = sys.argv[4] if len(sys.argv) == 5 else "origin/main"
+        src = de_un_commit(PANTALLA, ref)
         toolbar = rebanada(
             src,
             "      {/* Toolbar: buscador + rango de días */}\n",
@@ -200,7 +211,7 @@ def main() -> None:
         with open(sys.argv[3], "w", encoding="utf-8") as f:
             f.write("// GENERADO por scripts/sacar-barra-de-llamadas.py — copia LITERAL\n")
             f.write("// de `origin/main:" + MARCADOR + "`.\n")
-            f.write(de_origin_main(MARCADOR))
+            f.write(de_un_commit(MARCADOR, ref))
     else:
         sys.exit(f"modo desconocido: {modo!r} (ahora | antes)")
 

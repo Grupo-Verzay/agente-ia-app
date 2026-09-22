@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Phone,
   PhoneOutgoing,
@@ -17,6 +17,7 @@ import {
   Trash2,
   MessageSquare,
   ArrowUpDown,
+  RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,6 @@ import {
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { startBotCallAction } from '@/actions/voicebot-actions';
 import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
-import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { DialogoDeLlamar } from './DialogoDeLlamar';
 import { DIAS_POR_DEFECTO } from './rango-de-dias';
 import { InsigniaDeCuenta } from '@/components/shared/InsigniaDeCuenta';
@@ -165,9 +165,7 @@ export function CallsCrmClient({
   cuentaPropia,
   unificado = false,
   nombresDeCuenta = {},
-  dias = DIAS_POR_DEFECTO,
-  refresco = 0,
-  alCargar,
+  selectorDeCuentas,
 }: {
   embedded?: boolean;
   /**
@@ -179,20 +177,24 @@ export function CallsCrmClient({
   unificado?: boolean;
   nombresDeCuenta?: Record<string, string>;
   /**
-   * El rango de días. Lo manda la fila de pestañas del CRM, que es donde vive
-   * ahora: el número que se elige arriba y el que consulta esta pantalla salen
-   * de la MISMA lista (`rango-de-dias.ts`), o serían dos y un día dirían cosas
-   * distintas.
+   * El filtro por cuenta de la familia, cuando esta pantalla es la que lo
+   * pinta. Baja como nodo y no como datos porque **solo puede haber UNO**: en
+   * las otras cuatro vistas del CRM lo pinta la fila de pestañas, y aquí esa
+   * fila no existe. Pintarlo en los dos sitios serían dos selectores para el
+   * mismo filtro, que es tanto como no saber cuál manda.
    */
-  dias?: number;
-  /** Sube al pulsar «Actualizar» arriba; con eso se vuelve a pedir la vuelta. */
-  refresco?: number;
-  /** Para que el botón de arriba pueda girar mientras la consulta va y vuelve. */
-  alCargar?: (cargando: boolean) => void;
+  selectorDeCuentas?: ReactNode;
 }) {
   const [data, setData] = useState<CallsCrmData | null>(null);
   const [loading, setLoading] = useState(true);
-  const days = dias;
+  /*
+   * El rango es FIJO y no un mando de la pantalla. Los tres botones de 7/30/90
+   * días vivían en la fila de pestañas del CRM y se fueron con ella: dentro de
+   * Llamadas esa fila sobra. Lo que decide cuánto se trae sigue saliendo de un
+   * solo sitio (`rango-de-dias.ts`), que es lo que impide que el número que se
+   * pide y el que se enseña se separen.
+   */
+  const days = DIAS_POR_DEFECTO;
   const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
@@ -213,13 +215,6 @@ export function CallsCrmClient({
     else toast.error(res.message ?? 'No se pudo iniciar la llamada con IA.');
   };
 
-  // `alCargar` va por REFERENCIA a propósito: quien lo pasa lo escribe inline,
-  // así que metiéndolo en las dependencias `load` cambiaría de identidad en
-  // cada pintado del padre y el efecto de abajo volvería a pedir la vuelta
-  // entera — una consulta por repintado.
-  const alCargarRef = useRef(alCargar);
-  alCargarRef.current = alCargar;
-
   // La llave es la CADENA, nunca el arreglo: el padre crea uno nuevo en cada
   // pintado, asi que con el arreglo dentro de las dependencias la lista se
   // recargaria en bucle.
@@ -227,22 +222,14 @@ export function CallsCrmClient({
 
   const load = useCallback(() => {
     setLoading(true);
-    alCargarRef.current?.(true);
     getCallsCrmData({
       days,
       direction,
       cuentas: llaveDeCuentas ? llaveDeCuentas.split(',') : null,
     })
       .then(setData)
-      .finally(() => {
-        setLoading(false);
-        alCargarRef.current?.(false);
-      });
-    // `refresco` no se lee aquí dentro: está en las dependencias para que
-    // pulsar «Actualizar» en la fila de pestañas vuelva a disparar el efecto.
-    // Sin él el botón no haría nada, que es peor que no tenerlo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, direction, llaveDeCuentas, refresco]);
+      .finally(() => setLoading(false));
+  }, [days, direction, llaveDeCuentas]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -404,14 +391,19 @@ export function CallsCrmClient({
         UNA sola fila, la misma que el resto de listas de la plataforma
         (`BarraDeAcciones`, cinco huecos y el orden ES la regla):
 
-            [buscador] [·· pastillas + dirección ··] [Exportar] [Llamar] [⋯]
+            [buscador] [·· dirección ··] [Actualizar] [Exportar] [Llamar] [⋯]
 
-        Antes eran DOS recuadros —el marcador arriba con su campo y sus dos
-        botones, y los conteos pegados al historial— más los rangos de días,
-        que se fueron a la fila de pestañas del CRM. El campo del número y
-        «Llamar con IA» viven ahora dentro del diálogo de «Llamar», que es el
-        botón azul de esta barra: **las dos llamadas son exactamente las
-        mismas de antes**, lo único que cambia es desde dónde se pulsan.
+        El campo del número y «Llamar con IA» viven dentro del diálogo de
+        «Llamar», que es el botón azul de esta barra: **las dos llamadas son
+        exactamente las mismas de antes**, lo único que cambia es desde dónde
+        se pulsan.
+
+        Y esta barra es ya la ÚNICA fila de mandos de la pantalla: encima iba
+        la de pestañas del CRM —Analíticas, Registros, Llamadas, Kanban,
+        Reportes— con el rango de días y «Actualizar» pegados a su derecha.
+        Dentro de Llamadas esas pestañas sobran, así que la fila entera se
+        fue: el rango es fijo y «Actualizar» bajó a las secundarias, al lado
+        de «Exportar».
       */}
       <BarraDeAcciones
         buscador={
@@ -427,46 +419,26 @@ export function CallsCrmClient({
         }
         filtros={
           <>
-            {/* Aquí las pastillas SON el filtro de dirección, así que salen
-                también en el teléfono (`enElTelefono`): esconderlas no
-                ahorraría sitio, quitaría la función. */}
-            <PastillasDeMetricas
-              enElTelefono
-              metricas={[
-                {
-                  clave: 'all',
-                  icono: <Phone />,
-                  etiqueta: 'Total',
-                  valor: kpis?.total ?? 0,
-                  color: '#3B82F6',
-                  ayuda: `Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`,
-                  alPulsar: () => setDirection('all'),
-                  activa: direction === 'all',
-                },
-                {
-                  clave: 'outgoing',
-                  icono: <PhoneOutgoing />,
-                  etiqueta: 'Salientes',
-                  valor: kpis?.outgoing ?? 0,
-                  color: '#22C55E',
-                  ayuda: 'Llamadas realizadas desde el panel',
-                  alPulsar: () => setDirection(direction === 'outgoing' ? 'all' : 'outgoing'),
-                  activa: direction === 'outgoing',
-                },
-                {
-                  clave: 'incoming',
-                  icono: <PhoneMissed />,
-                  etiqueta: 'Entrantes',
-                  valor: kpis?.incoming ?? 0,
-                  color: '#EF4444',
-                  ayuda: 'Llamadas recibidas / perdidas',
-                  alPulsar: () => setDirection(direction === 'incoming' ? 'all' : 'incoming'),
-                  activa: direction === 'incoming',
-                },
-              ]}
-            />
+            {/* El filtro por cuenta, cuando esta pantalla es la que lo pinta:
+                acota la lista de abajo, así que va con los demás filtros y no
+                en una fila propia. */}
+            {selectorDeCuentas}
+            {/*
+              Aquí abrían tres pastillas con los conteos —Total, Salientes,
+              Entrantes— pegadas a este mismo grupo de botones. Eran **el
+              mismo filtro dos veces**, con la cifra delante: se pulsaba una y
+              el grupo de al lado se ponía igual. Se fueron las pastillas y se
+              queda el grupo, que es el mando de siempre y el que dice cuál
+              está puesto.
+
+              Y lo que la pastilla «Total» llevaba en su tooltip —duración
+              total, promedio y contestadas— no se pierde: se lee al posarse
+              sobre este grupo. Un dato que solo se mira de reojo no necesita
+              una cifra en la barra, pero tampoco desaparece sin decirlo.
+            */}
             <div
               data-grupo="direccion"
+              title={`${kpis?.total ?? 0} llamadas · duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`}
               className="flex shrink-0 rounded-lg border border-border p-0.5"
             >
               {DIRECTION_OPTIONS.map((o) => (
@@ -488,20 +460,36 @@ export function CallsCrmClient({
           </>
         }
         secundarias={
-          EXPORTACION_DE_CLIENTES_HABILITADA ? (
+          <>
+            {/* Refrescar es lo que se hace sobre la lista ENTERA sin acotarla,
+                así que su hueco es este y no el carril de los filtros. Estaba
+                en la fila de pestañas del CRM, que aquí ya no se pinta. */}
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
-              onClick={handleExport}
-              disabled={visibleCalls.length === 0}
-              title="Exportar CSV"
-              aria-label="Exportar CSV"
+              className="px-2.5"
+              onClick={load}
+              disabled={loading}
+              title="Actualizar"
+              aria-label="Actualizar"
             >
-              <Download className="h-4 w-4 shrink-0" />
-              <span className="hidden truncate sm:inline">Exportar</span>
+              <RefreshCw className={cn('h-4 w-4 shrink-0', loading && 'animate-spin')} />
             </Button>
-          ) : undefined
+            {EXPORTACION_DE_CLIENTES_HABILITADA && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleExport}
+                disabled={visibleCalls.length === 0}
+                title="Exportar CSV"
+                aria-label="Exportar CSV"
+              >
+                <Download className="h-4 w-4 shrink-0" />
+                <span className="hidden truncate sm:inline">Exportar</span>
+              </Button>
+            )}
+          </>
         }
         crear={
           <DialogoDeLlamar
@@ -584,7 +572,9 @@ export function CallsCrmClient({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-xs text-muted-foreground">
+                  {/* `text-sm`, el mismo que el cuerpo y el mismo que la
+                      cabecera de Leads: la tabla entera va a un solo tamaño. */}
+                  <tr className="border-b text-sm text-muted-foreground">
                     {unificado && <Th label="Cuenta" sort={sort} onSort={toggleSort} />}
                     <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} />
                     <Th label="Tipo" sortKey="tipo" sort={sort} onSort={toggleSort} />
@@ -846,7 +836,7 @@ function ContactNameCell({
           }
         }}
         placeholder="Nombre del contacto"
-        className="mx-auto mt-1 h-7 max-w-[180px] text-center text-xs"
+        className="mt-1 h-7 max-w-[180px] text-sm"
       />
     );
   }
@@ -858,7 +848,9 @@ function ContactNameCell({
       disabled={guardando}
       title="Editar el nombre del contacto"
       className={cn(
-        'mx-auto mt-0.5 block max-w-[180px] truncate rounded px-1 text-xs transition-colors hover:bg-muted disabled:opacity-60',
+        // Sin `mx-auto` y sin `text-xs`: cuelga del número, así que empieza
+        // donde empieza él y mide lo que mide el resto de la tabla.
+        'mt-0.5 block max-w-[180px] truncate rounded px-1 text-left transition-colors hover:bg-muted disabled:opacity-60',
         name ? 'text-muted-foreground hover:text-foreground' : 'italic text-muted-foreground/60 hover:text-foreground',
       )}
     >
@@ -977,18 +969,23 @@ function CallTableRow({
           <InsigniaDeCuenta nombre={nombreDeLaCuenta} />
         </td>
       )}
-      {/* Contacto: número limpio (primario) + nombre si aporta */}
-      <td className="px-2 py-2 text-center">
+      {/* Contacto: número limpio (primario) + nombre si aporta.
+
+          A la IZQUIERDA y en azul, que es como lo pinta Leads: un número
+          centrado en su columna no se puede comparar con el de la fila de
+          arriba, y en negro no se lee como lo que es —lo que se pulsa para
+          abrir el chat—. Misma clase que allí, no una parecida. */}
+      <td className="px-2 py-2 text-left">
         <button
           type="button"
           onClick={onOpenChat}
           title="Abrir chat del contacto"
-          className="whitespace-nowrap font-medium tabular-nums hover:text-blue-600 hover:underline"
+          className="min-w-[80px] cursor-pointer text-left text-blue-600 transition-colors hover:text-blue-800"
         >
-          {formatPhone(call.phone)}
+          <p className="whitespace-nowrap font-medium tabular-nums">{formatPhone(call.phone)}</p>
         </button>
         {ajena ? (
-          name ? <p className="truncate text-xs text-muted-foreground">{name}</p> : null
+          name ? <p className="truncate text-muted-foreground">{name}</p> : null
         ) : (
           <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
         )}
@@ -1037,7 +1034,7 @@ function CallTableRow({
               <Tag className="h-3 w-3" /> {dispMeta.label}
             </span>
           ) : (
-            <span className="text-xs text-muted-foreground">—</span>
+            <span className="text-muted-foreground">—</span>
           )
         ) : (
         <DropdownMenu>
@@ -1072,7 +1069,7 @@ function CallTableRow({
       {/* Estado (junto al resultado) */}
       <td className="px-2 py-2 text-center">
         {ajena ? (
-          <span className="text-xs text-muted-foreground">—</span>
+          <span className="text-muted-foreground">—</span>
         ) : (
           <LeadStatusButton phone={call.phone} contactName={call.contactName} />
         )}
