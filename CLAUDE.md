@@ -14283,6 +14283,70 @@ puesto, el banco normal se pone rojo por los tres sitios.
 puerta. Las demás pantallas que cruzan cuentas (Chats, Leads, Finanzas,
 Reuniones, Documentos…) **no se han tocado aquí**: están auditadas en el PR.
 
+## Ninguna puerta sube: «Ingresar», el conmutador y `assertCanAccessTargetUser`
+
+La regla del CRM —*el alcance va HACIA ABAJO*— se aplicó después a las tres
+puertas que dejan actuar sobre otra cuenta, porque las tres dejaban subir y dos
+de ellas dejaban hacerse pasar por el superadministrador:
+
+| puerta | qué dejaba |
+| --- | --- |
+| «Ingresar» (`impersonateUser`, y la cookie que `currentUser()` lee) | cualquier cuenta con rol `admin` entraba como **cualquier** usuario, Carlos Arcos incluido, y dentro tenía sus poderes |
+| el conmutador de cuentas (`active_account_id`) | una hija se cambiaba a la cuenta de su madre y actuaba como ella |
+| `assertCanAccessTargetUser` | el vínculo valía en los dos sentidos, y el rol `admin` abría cualquier cuenta |
+
+Y aparte, cinco consultas de Leads (`getSessionsByUserId`,
+`getSessionsCountByUserId`, `searchSessionsByUserId`, `getLeadsPorLinea` y
+`deleteSession`) **no preguntaban nada**: con sesión y el id de otra cuenta se
+leían —y se borraban— sus leads. Ahora pasan por `assertCanAccessTargetUser`,
+y `getSessionByRemoteJid` filtra sus cuentas igual que `getSesionesDeLaCuenta`.
+
+> **Quién puede llegar a qué lo decide `puedeLlegarA`
+> (`lib/alcance-entre-cuentas.ts`, puro), y lo aplica `juzgarElAlcance`
+> (`.server.ts`) en las tres puertas.** Nunca a una cuenta de
+> superadministrador, nunca a una por encima de la propia, nunca a una cuenta de
+> la casa (`admin`) que no cuelgue de ella. El superadministrador de verdad
+> llega a todo. **Solo quita**: lo que queda —los clientes— sigue con las reglas
+> de rol de cada puerta.
+
+Cinco cosas que hay que mantener:
+
+1. **El objetivo se juzga por su CUENTA** (`ownerId ?? id`). Entrar como una
+   persona del equipo de Carlos es actuar con el alcance de Carlos: su fila dice
+   `user`, su cuenta es la de arriba.
+2. **La cookie se vuelve a juzgar en CADA petición**, no solo al pulsar
+   «Ingresar». Vive treinta días: una puesta antes de esta regla no puede seguir
+   abriendo lo que ya no se abre. Si no alcanza, se ignora y se sigue en la
+   cuenta propia, con aviso.
+3. **El conmutador solo BAJA** (`master = yo, linked = ella`). La rama
+   «membership» —cambiarse a quien te vinculó— se quitó entera de `lib/auth.ts`,
+   de `switchToAccount` y del menú (`getMyLinkedAccounts`). En producción eso
+   dejó sin ese cambio a: Atencion, Ventas, Notificaciones y Pruebas → Carlos;
+   Ventas → Atencion; Asesor → Daniel Peralta; y Carlos Padilla, Genesis Crespo
+   y Genesis Velez → Roberto Crespo. Todas son cuentas con su propia línea, no
+   personas del equipo: el equipo entra por `owner_id`, que no se toca.
+4. **Leer los enlaces LANZA** (`losEnlacesDeLaCuenta`), a diferencia de
+   `laFamiliaDeLaCuenta`. Sin enlaces «¿está por encima?» contesta que no y la
+   puerta se abriría hacia arriba; así que un fallo es un «no», dicho.
+5. **Una fila `master = yo, linked = ella` sigue abriendo**, en el conmutador y
+   en `assertCanAccessTargetUser`, aunque haya otra de vuelta: es un vínculo que
+   uno mismo declaró. Por eso las dos cuentas de Edgar Pérez —vinculadas en los
+   dos sentidos— siguen llegando la una a la otra. Lo que una pareja recíproca
+   NO da es «Ingresar» como cuenta de la casa: ahí cada una está por encima de
+   la otra, igual que en el CRM.
+
+**Lo que esto deja a medias, a sabiendas:** la bandeja de Chats sigue enseñando
+las líneas de la madre (`getAssociatedAccountIds` va en los dos sentidos) y
+ahora sus acciones sobre esas líneas contestan «No autorizado» — menú abierto,
+puerta cerrada. Es el punto 5 de la auditoría del 2026-09-22 y va aparte.
+
+Lo prueba `scripts/banco-alcance-entre-cuentas.sh`, contra Postgres y con
+`currentUser()` DE VERDAD —solo se finge la petición: la sesión y las cookies—.
+`MODO=roto` empaqueta **las mismas pruebas** contra el código de un commit
+pinchado (`ANTES_REF`) sacado a un `git worktree`, y afirma la fuga: Yair entra
+como Carlos, Atencion se cambia a Carlos, y un cliente lee y borra los leads de
+otra cuenta.
+
 ## CRM › Llamadas: la barra es la de Leads, y marcar vive en una ventana
 
 La pantalla tenía **tres filas de mandos** donde las demás tienen una: la de

@@ -4,6 +4,12 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isAdmin, isAdminOrReseller } from "@/lib/rbac";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+import { cuelgaHaciaAbajo } from "@/lib/alcance-entre-cuentas";
+import {
+  juzgarElAlcance,
+  losEnlacesDeLaCuenta,
+} from "@/lib/alcance-entre-cuentas.server";
 import { buildBillingServiceAccessState } from "./service-access";
 import { facturacionQueMandaEn } from "./billing-owner";
 
@@ -19,17 +25,28 @@ export async function assertCanAccessTargetUser(targetUserId: string) {
   // Asesores pueden acceder a datos de su dueño
   if (actor.ownerId === cleanTarget) return actor;
 
-  // Cuentas vinculadas: el actor (o su dueño) puede acceder a cuentas
-  // relacionadas via linked_accounts en cualquier dirección
+  // El superadministrador de verdad llega a todo, porque todo cuelga de él.
+  // Va aquí delante y no en la rama de rol: las reglas de abajo ya no dejan
+  // pasar hacia arriba, y él es la única excepción. Dentro de un cliente por
+  // «Ingresar» esto es falso a propósito —se entra a ver lo que ve el cliente—.
+  if (esSuperAdminDeVerdad(actor)) return actor;
+
+  const effectiveActorId = actor.ownerId ?? actor.id;
+
+  // Cuentas vinculadas: SOLO HACIA ABAJO. Se llega a una cuenta que uno vinculó
+  // bajo la suya, y a lo que cuelga de ella; nunca a la que le vinculó a uno.
+  // Antes la consulta miraba las dos direcciones, así que una cuenta hija
+  // actuaba sobre los datos de su madre con solo nombrar su id.
   try {
-    const effectiveActorId = actor.ownerId ?? actor.id;
     const link = await db.$queryRaw<{ id: string }[]>`
       SELECT id FROM "linked_accounts"
-      WHERE ("master_user_id" = ${effectiveActorId} AND "linked_user_id" = ${cleanTarget})
-         OR ("linked_user_id" = ${effectiveActorId} AND "master_user_id" = ${cleanTarget})
+      WHERE "master_user_id" = ${effectiveActorId} AND "linked_user_id" = ${cleanTarget}
       LIMIT 1
     `;
     if (link.length > 0) return actor;
+    if (cuelgaHaciaAbajo(effectiveActorId, cleanTarget, await losEnlacesDeLaCuenta(effectiveActorId))) {
+      return actor;
+    }
   } catch {
     // Si la tabla aún no existe, continuar con los checks normales
   }
@@ -54,6 +71,19 @@ export async function assertCanAccessTargetUser(targetUserId: string) {
   if (!isAdminOrReseller(cuenta.role)) {
     throw new Error("No autorizado.");
   }
+
+  // Tener rol de gestión no abre CUALQUIER cuenta: nunca una de
+  // superadministrador, nunca una por encima de la propia y nunca una cuenta
+  // de la casa que no cuelgue de ella (`lib/alcance-entre-cuentas.ts`). Lo que
+  // queda —los clientes— sigue como siempre: el admin sobre todos, el reseller
+  // sobre su cartera.
+  const alcance = await juzgarElAlcance({
+    esSuperAdmin: false,
+    cuenta: cuenta.id,
+    objetivoId: cleanTarget,
+    donde: "assertCanAccessTargetUser",
+  });
+  if (!alcance.puede) throw new Error("No autorizado.");
 
   if (cuenta.role === "reseller") {
     // Contra `cuenta.id` y no contra `actor.id`, por lo mismo: la cartera

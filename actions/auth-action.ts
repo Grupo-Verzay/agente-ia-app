@@ -2,6 +2,7 @@
 
 import { auth, signIn } from "@/auth";
 import { db } from "@/lib/db";
+import { juzgarElAlcance } from "@/lib/alcance-entre-cuentas.server";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
 import { loginSchema, registerSchema } from "@/lib/zod";
@@ -245,6 +246,19 @@ export async function impersonateUser(targetUserId: string) {
   });
 
   if (!exists) return { success: false, message: "Usuario no existe" };
+
+  // A DÓNDE se puede entrar, con la misma regla que vuelve a mirar
+  // `currentUser()` en cada petición: nunca a un superadministrador, nunca a
+  // una cuenta por encima de la propia y nunca a una cuenta de la casa que no
+  // cuelgue de ella. Tener rol de `admin` no bastaba para esto: desde
+  // Verzay | Atencion se podía «Ingresar» a Carlos Arcos, que es su madre.
+  const alcance = await juzgarElAlcance({
+    esSuperAdmin: realUser.role === "super_admin",
+    cuenta: cuenta.id,
+    objetivoId: targetUserId,
+    donde: "impersonateUser",
+  });
+  if (!alcance.puede) return { success: false, message: "No autorizado" };
 
   // Los resellers (no admin) solo pueden entrar a SUS propios clientes:
   // ya sea asignados en la tabla `reseller` o creados como demo por ellos.

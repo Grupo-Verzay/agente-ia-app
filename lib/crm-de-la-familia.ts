@@ -197,7 +197,39 @@ export function lasCuentasQueCuelganDe(
 ): string[] {
     const propia = String(desde ?? "").trim();
     if (!propia) return [];
+    const { hijas, madres } = losGrafos(enlaces);
 
+    // Primero quién está por ENCIMA. Y al bajar no se PASA por ninguna de
+    // ellas: con un enlace de vuelta (hija → madre), bajar atravesando a la
+    // madre llevaría a las hermanas — la otra mitad de la fuga.
+    const arriba = recorrer(propia, madres, new Set());
+    const abajo = recorrer(propia, hijas, arriba);
+
+    return [propia, ...Array.from(abajo).sort()];
+}
+
+/**
+ * Las cuentas que están POR ENCIMA de `desde`: las que la alcanzan bajando.
+ *
+ * Es la otra mitad de `lasCuentasQueCuelganDe`, sacada para que la usen las
+ * puertas que no son del CRM —«Ingresar», el conmutador y
+ * `assertCanAccessTargetUser`—. Con dos cálculos de «quién está encima», el día
+ * que se afine uno el otro deja pasar hacia arriba sin decir nada.
+ *
+ * No incluye a la propia. En una pareja recíproca (`A ↔ B`) cada una está por
+ * encima de la otra, que es el lado seguro: ninguna manda sobre la otra.
+ */
+export function lasCuentasPorEncimaDe(
+    desde: string,
+    enlaces: readonly { de: string; a: string }[],
+): string[] {
+    const propia = String(desde ?? "").trim();
+    if (!propia) return [];
+    const { madres } = losGrafos(enlaces);
+    return Array.from(recorrer(propia, madres, new Set())).sort();
+}
+
+function losGrafos(enlaces: readonly { de: string; a: string }[]) {
     const hijas = new Map<string, string[]>();
     const madres = new Map<string, string[]>();
     for (const e of enlaces ?? []) {
@@ -207,27 +239,24 @@ export function lasCuentasQueCuelganDe(
         (hijas.get(de) ?? hijas.set(de, []).get(de)!).push(a);
         (madres.get(a) ?? madres.set(a, []).get(a)!).push(de);
     }
+    return { hijas, madres };
+}
 
-    const recorrer = (grafo: Map<string, string[]>, vetadas: Set<string>): Set<string> => {
-        const vistos = new Set<string>();
-        const cola = [propia];
-        while (cola.length > 0) {
-            const actual = cola.shift()!;
-            for (const siguiente of grafo.get(actual) ?? []) {
-                if (siguiente === propia || vistos.has(siguiente)) continue;
-                if (vetadas.has(siguiente)) continue;
-                vistos.add(siguiente);
-                cola.push(siguiente);
-            }
+function recorrer(
+    propia: string,
+    grafo: Map<string, string[]>,
+    vetadas: Set<string>,
+): Set<string> {
+    const vistos = new Set<string>();
+    const cola = [propia];
+    while (cola.length > 0) {
+        const actual = cola.shift()!;
+        for (const siguiente of grafo.get(actual) ?? []) {
+            if (siguiente === propia || vistos.has(siguiente)) continue;
+            if (vetadas.has(siguiente)) continue;
+            vistos.add(siguiente);
+            cola.push(siguiente);
         }
-        return vistos;
-    };
-
-    // Primero quién está por ENCIMA. Y al bajar no se PASA por ninguna de
-    // ellas: con un enlace de vuelta (hija → madre), bajar atravesando a la
-    // madre llevaría a las hermanas — la otra mitad de la fuga.
-    const arriba = recorrer(madres, new Set());
-    const abajo = recorrer(hijas, arriba);
-
-    return [propia, ...Array.from(abajo).sort()];
+    }
+    return vistos;
 }

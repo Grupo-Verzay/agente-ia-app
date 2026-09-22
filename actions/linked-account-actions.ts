@@ -65,34 +65,10 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
   });
 
   try {
-    const [selfRows, incomingRows, currentMembership, legacyCurrent] = await Promise.all([
+    const [selfRows, legacyCurrent] = await Promise.all([
       db.$queryRaw<{ id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan }[]>`
         SELECT id, name, email, company, image, plan FROM "User" WHERE id = ${realUserId} LIMIT 1
       `,
-      db.$queryRaw<LinkedAccountInfo[]>`
-        SELECT la.id,
-               la."master_user_id" AS "accountUserId",
-               la.role,
-               la.label,
-               u.name,
-               u.email,
-               u.company,
-               u.image,
-               u.plan
-        FROM "linked_accounts" la
-        JOIN "User" u ON u.id = la."master_user_id"
-        WHERE la."linked_user_id" = ${realUserId}
-        ORDER BY la."createdAt" ASC
-      `,
-      activeAccountId === realUserId
-        ? Promise.resolve([] as { role: AccountRole }[])
-        : db.$queryRaw<{ role: AccountRole }[]>`
-            SELECT role
-            FROM "linked_accounts"
-            WHERE "master_user_id" = ${activeAccountId}
-              AND "linked_user_id" = ${realUserId}
-            LIMIT 1
-          `,
       activeAccountId === realUserId
         ? Promise.resolve([] as { id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan; role: AccountRole | null }[])
         : db.$queryRaw<{ id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan; role: AccountRole | null }[]>`
@@ -113,19 +89,14 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
               select: { id: true, name: true, email: true, company: true, image: true, plan: true },
             }).then((row) => row ?? selfRows[0] ?? null)
           : selfRows[0] ?? null
-        : currentMembership[0]
-          ? await db.user.findUnique({
-              where: { id: activeAccountId },
-              select: { id: true, name: true, email: true, company: true, image: true, plan: true },
-            }).then((row) => row ?? selfRows[0] ?? null)
-          : legacyCurrent[0] ?? selfRows[0] ?? null;
+        : legacyCurrent[0] ?? selfRows[0] ?? null;
 
     const currentRole =
       activeAccountId === realUserId
         ? realUser?.ownerId
           ? (realUser.advisorRole as AccountRole | null) ?? null
           : null
-        : currentMembership[0]?.role ?? legacyCurrent[0]?.role ?? null;
+        : legacyCurrent[0]?.role ?? null;
 
     /**
      * Las cuentas que uno mismo vinculó bajo SU cuenta.
@@ -161,9 +132,9 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
     `;
 
     const accessibleAccountsMap = new Map<string, LinkedAccountInfo>();
-    for (const row of incomingRows) {
-      if (row.accountUserId !== currentAccount?.id) accessibleAccountsMap.set(row.accountUserId, row);
-    }
+    // Solo las que cuelgan de uno (`outgoingRows`). Las de arriba —las que me
+    // vincularon bajo la suya (`incomingRows`)— ya no se ofrecen: el conmutador
+    // solo baja, y ofrecerlas sería un menú que abre una puerta cerrada.
     for (const row of outgoingRows) {
       if (row.accountUserId !== currentAccount?.id) accessibleAccountsMap.set(row.accountUserId, row);
     }
@@ -211,31 +182,21 @@ export async function switchToAccount(targetAccountId: string): Promise<Result> 
     return { success: true };
   }
 
+  // Solo se BAJA: a una cuenta que uno vinculó bajo la suya. La otra dirección
+  // —una hija cambiándose a su madre— se cerró: una cuenta hija no actúa como
+  // su madre. `currentUser()` aplica la misma regla a la cookie, así que esto
+  // es la fachada de esa puerta, no la puerta.
   let link: { id: string }[];
   try {
     link = await db.$queryRaw<{ id: string }[]>`
       SELECT id
       FROM "linked_accounts"
-      WHERE "master_user_id" = ${targetAccountId}
-        AND "linked_user_id" = ${realUserId}
+      WHERE "master_user_id" = ${realUserId}
+        AND "linked_user_id" = ${targetAccountId}
       LIMIT 1
     `;
   } catch {
     link = [];
-  }
-
-  if (link.length === 0) {
-    try {
-      link = await db.$queryRaw<{ id: string }[]>`
-        SELECT id
-        FROM "linked_accounts"
-        WHERE "master_user_id" = ${realUserId}
-          AND "linked_user_id" = ${targetAccountId}
-        LIMIT 1
-      `;
-    } catch {
-      link = [];
-    }
   }
 
   if (link.length === 0 && realUser?.ownerId === targetAccountId) {
