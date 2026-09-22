@@ -142,8 +142,10 @@ export function ChatAppointmentStatusButton({
           </button>
         </PopoverTrigger>
 
-        {/* A la misma altura y al mismo filo que los otros cinco: iba
-            `align="center"` sobre su icono. */}
+        {/* Como todo menú de la conversación: colgado de SU botón, filo
+            derecho con filo derecho y creciendo hacia la izquierda. Iba
+            `align="center"` y después crecía hacia la derecha cuando el icono
+            caía en la mitad izquierda de la cabecera. */}
         <PopoverContent {...panel.props} className={cn("w-64 p-3 space-y-3", PANEL_QUE_SE_DESPLAZA)}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cita agendada</p>
 

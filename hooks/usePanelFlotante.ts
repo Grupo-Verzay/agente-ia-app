@@ -85,7 +85,7 @@ function caja(nodo: Element): Caja {
 }
 
 function porDefecto(clase: ClaseDePanel): PropsDelPanel {
-    const g = comoSiempre(clase === "columnaAncha" || clase === "colgadoDelIcono" ? "start" : "end");
+    const g = comoSiempre(clase === "columnaAncha" ? "start" : "end");
     return { ...g, style: g.estilo };
 }
 
