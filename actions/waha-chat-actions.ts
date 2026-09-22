@@ -1,5 +1,7 @@
 'use server';
 
+import { esAtajoDeLaLinea } from '@/lib/atajos-de-la-linea.server';
+import { porQueNoEsDeLaLinea } from '@/lib/atajos-de-la-linea';
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
@@ -299,9 +301,18 @@ export async function sendWahaQuickReplyAction(
   quickReplyId: number,
 ): Promise<ChatToolActionResult> {
   try {
+    // Esto no comprobaba NADA: con el id de cualquier respuesta rápida de la
+    // plataforma se mandaba su texto por esta línea. La línea tiene que ser
+    // alcanzable y la respuesta, de su cuenta (`lib/atajos-de-la-linea.ts`).
+    const linea = await lineaWahaAutorizada(instanceName);
+    if (!linea.ok) return { success: false, message: linea.message };
+
     const rr = await db.quickReply.findUnique({ where: { id: quickReplyId } });
     const texto = rr?.mensaje?.trim();
     if (!texto) return { success: false, message: 'Respuesta rápida no encontrada.' };
+    if (!(await esAtajoDeLaLinea(rr!.userId, instanceName)).ok) {
+      return { success: false, message: porQueNoEsDeLaLinea('respuesta rápida', instanceName) };
+    }
 
     const result = await sendWahaTextAction(instanceName, remoteJid, { kind: 'text', text: texto });
     return { success: result.success, message: result.message };

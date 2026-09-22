@@ -10,6 +10,7 @@ import { getWorkFlowByUserIds } from "@/actions/workflow-actions";
 import { getAllRRsByUserIds } from "@/actions/rr-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { conLaCuentaPropia } from "@/lib/asesores";
+import { lasCuentasDeLosCreadores } from "@/lib/atajos-de-la-linea.server";
 import type {
   ChatConversationPreferenceMap,
   ChatQuickReplyOption,
@@ -204,15 +205,27 @@ export async function loadChatBootstrapData(
     ? workflowsRes.data
     : [];
 
+  const quickReplies = quickRepliesRes?.success && Array.isArray(quickRepliesRes.data)
+    ? quickRepliesRes.data
+    : [];
+
+  // Cada atajo lleva la CUENTA dueña, no la fila que lo creó: el panel de
+  // Atajos ofrece solo los de la cuenta de la línea de la conversación abierta
+  // (`lib/atajos-de-la-linea.ts`). Sin este dato ofrecía los de toda la bandeja.
+  const cuentas = await settle(
+    lasCuentasDeLosCreadores([
+      ...workflows.map((workflow) => workflow.userId),
+      ...quickReplies.map((quickReply) => quickReply.userId),
+    ]),
+  );
+  const cuentaDe = (creador: string) => cuentas?.get(creador) ?? creador;
+
   const workflowOptions: ChatWorkflowOption[] = workflows.map((workflow) => ({
     id: workflow.id,
     name: workflow.name,
     isPro: workflow.isPro,
+    cuentaId: cuentaDe(workflow.userId),
   }));
-
-  const quickReplies = quickRepliesRes?.success && Array.isArray(quickRepliesRes.data)
-    ? quickRepliesRes.data
-    : [];
 
   const quickReplyOptions = quickReplies.reduce<ChatQuickReplyOption[]>((items, quickReply) => {
     const workflow = workflows.find((item) => item.id === quickReply.workflowId);
@@ -226,6 +239,7 @@ export async function loadChatBootstrapData(
       category: normalizeQuickReplyCategory(quickReply.category),
       workflowId: quickReply.workflowId ?? null,
       workflowName: workflow?.name ?? null,
+      cuentaId: cuentaDe(quickReply.userId),
     });
     return items;
   }, []);

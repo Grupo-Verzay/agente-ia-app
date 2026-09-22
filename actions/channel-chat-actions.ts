@@ -364,6 +364,14 @@ export async function sendChannelQuickReplyAction(
     const { db } = await import('@/lib/db');
     const rr = await db.quickReply.findUnique({ where: { id: quickReplyId } });
     if (!rr?.mensaje?.trim()) return { success: false, message: 'Respuesta rápida no encontrada.' };
+    // No comprobaba de quién era: cualquier respuesta rápida de la plataforma
+    // salía por esta línea. Tiene que ser de la cuenta de la línea
+    // (`lib/atajos-de-la-linea.ts`).
+    const { esAtajoDeLaLinea } = await import('@/lib/atajos-de-la-linea.server');
+    const { porQueNoEsDeLaLinea } = await import('@/lib/atajos-de-la-linea');
+    if (!(await esAtajoDeLaLinea(rr.userId, instanceName)).ok) {
+      return { success: false, message: porQueNoEsDeLaLinea('respuesta rápida', instanceName) };
+    }
 
     const res = await sendChannelTextAction(instanceName, remoteJid, { kind: 'text', text: rr.mensaje.trim() });
     return res.success

@@ -17,6 +17,7 @@ import type { ChatQuickReplyOption, ChatWorkflowOption } from '@/types/chat';
 import { TemplatePickerDialog } from './TemplatePickerDialog';
 import { sendMetaTemplate, type MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { telefonoParaMostrar } from '@/lib/telefono-visible';
+import { atajosDeLaConversacion } from '@/lib/atajos-de-la-linea';
 
 type Instancia = {
   instanceName: string;
@@ -35,9 +36,15 @@ interface Props {
   initialContact?: { jid: string; name: string; phone: string };
   quickReplies?: ChatQuickReplyOption[];
   workflows?: ChatWorkflowOption[];
+  /**
+   * La cuenta dueña de cada línea. Con ella las pestañas de respuestas rápidas
+   * y workflows ofrecen solo los de la cuenta de la línea elegida
+   * (`lib/atajos-de-la-linea.ts`), igual que el panel de Atajos del chat.
+   */
+  cuentasDeLasLineas?: Record<string, string>;
 }
 
-export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies = [], workflows = [], advisorRole }: Props & { advisorRole?: string | null }) {
+export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies: todasLasRapidas = [], workflows: todosLosWorkflows = [], cuentasDeLasLineas = {}, advisorRole }: Props & { advisorRole?: string | null }) {
   const [phone, setPhone] = React.useState('');
   const [selectedJid, setSelectedJid] = React.useState('');
   const [selectedContactName, setSelectedContactName] = React.useState('');
@@ -113,6 +120,17 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     : 'Seleccionar bandeja';
 
   const selectedActionSet = instanceActionSets.find((s) => s.instanceName === selectedInstanceName);
+  // Solo los atajos de la cuenta de la línea elegida. Sin cuenta conocida,
+  // vacío: nunca los de la madre ni los de una hermana.
+  const cuentaDeLaLinea = selectedInstanceName ? cuentasDeLasLineas[selectedInstanceName] ?? null : null;
+  const quickReplies = React.useMemo(
+    () => atajosDeLaConversacion(todasLasRapidas, cuentaDeLaLinea),
+    [todasLasRapidas, cuentaDeLaLinea],
+  );
+  const workflows = React.useMemo(
+    () => atajosDeLaConversacion(todosLosWorkflows, cuentaDeLaLinea),
+    [todosLosWorkflows, cuentaDeLaLinea],
+  );
   const effectiveJid = selectedJid || normalizeWhatsAppConversationJid(phone.trim());
   const selectedContact = contacts.find(
     (contact) => contact.remoteJid === selectedJid || contact.aliases?.includes(selectedJid),
