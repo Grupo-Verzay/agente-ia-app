@@ -1,0 +1,4 @@
+{
+  "ref": "663826f62b552e1f9e53daa3aed75f7e36d13624",
+  "porque": "El «antes» de los paneles de Chats NO puede salir de `origin/main`: la unificación (#882) ya está fusionada ahí, así que leyendo main el modo roto encuentra los paneles YA unificados y se pone en verde sin haber ejercido nada. Este es el commit ANTERIOR a esa unificación —`130393e^`, el padre del merge—, que es donde cada panel traía todavía su `align` y su `side` escritos a mano. Se escribe aquí una sola vez porque lo leen el banco puro y el arnés del banco de navegador, y con el ref copiado en los dos, el día que se mueva uno el otro mediría otra cosa."
+}

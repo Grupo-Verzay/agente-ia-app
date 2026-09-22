@@ -14721,9 +14721,9 @@ un segundo permiso que el día que se afine el de al lado se queda atrás.
 
 - **La decisión**, pura y sin navegador: dónde nace cada panel, qué marca
   «marcar leídas», qué ids acepta resolver en lote y dónde va la barrita. Su
-  `MODO=roto` **no escribe el «antes» a mano**: lo saca de `origin/main` con
-  `git show` y afirma el desorden —cuatro colocaciones distintas para la misma
-  pregunta y ni un solo panel colocado contra su contenedor—.
+  `MODO=roto` **no escribe el «antes» a mano**: lo saca de git con `git show` y
+  afirma el desorden —cuatro colocaciones distintas para la misma pregunta y ni
+  un solo panel colocado contra su contenedor—.
 - **Los paneles PINTADOS por Radix**, sobre el CSS del build, en las cuatro
   anchuras y en móvil. Es lo único que puede decir si Radix hace con esos
   números lo que se espera. Su `MODO=roto` pinta los mismos paneles con las
@@ -14735,6 +14735,235 @@ corta con `(?:[^>]|=>)`, no en el primer `>`.** Esos tags llevan dentro un
 `onClick={(e) => …}`, así que cortando en el primer `>` el bloque se queda a
 medias — y el que se caía era justo `AdvisorAssignBadge`, el único que abría
 hacia arriba, que es el caso que más había que afirmar.
+
+#### Y el «antes» de un banco CADUCA el día que su PR se fusiona
+
+Este banco se puso en verde solo, sin que nadie lo tocara. `MODO=roto` leía los
+paneles de `origin/main`… y la unificación ya estaba fusionada ahí, así que lo
+que encontraba eran **los paneles ya unificados**: cuatro colocaciones pasaron a
+ser una y el modo roto dejó de reproducir nada. No falló: **pasó**, que es lo
+peor que puede hacer un modo roto.
+
+> **El «antes» es el estado anterior al SUYO, no `origin/main`.** Mientras el PR
+> está abierto los dos coinciden; el día que se fusiona, `origin/main` pasa a ser
+> el «después». El commit va escrito en
+> `lib/__tests__/el-antes-de-los-paneles.json` —una vez, porque lo leen el banco
+> puro y el arnés del de navegador— con el motivo al lado.
+
+Y eso **no** convierte `origin/main` en mala referencia para todo: el banco de la
+simetría de la cabecera (abajo) sí la usa, y es lo correcto, porque ese cambio
+todavía no está fusionado. Lo que hay que mirar antes de escribir un modo roto
+es si el «antes» que se quiere afirmar sigue estando donde se le va a pedir.
+
+Y la señal de que ha caducado es la de siempre: **un modo roto que pasa no está
+en verde, está muerto.** Se comprueba quitándole el arreglo al modo bueno y
+viendo que se pone en rojo — aquí se hizo con la exclusión de los paneles
+laterales, y cayó por el caso que tenía que caer.
+
+## Chats: un ancho COMÚN para los paneles, y las dos filas por sus dos extremos
+
+Tres cosas de la misma pantalla, y las tres salen de la misma raíz: **cada
+panel y cada fila medía su contenedor**, así que ninguno coincidía con el de al
+lado y todos cambiaban de tamaño al abrir otro.
+
+### Los cinco de la columna: 18 rem, y acotados por la columna MEDIDA
+
+Canales, Filtrar por asesor, el rango de fechas, las etiquetas y el «⋯» ocupaban
+el ancho ENTERO de la columna, así que entre el texto y su número de la derecha
+quedaba un desierto — y, peor, **saltaban de tamaño al abrir uno u otro** y al
+cambiar de ventana, porque la columna tiene tres anchos.
+
+> **`ANCHO_DE_LOS_FILTROS`, 18 rem, el mismo para los cinco.** El número no es a
+> ojo: es el escalón más pequeño de `--ancho-lateral` y el que ya pedía el mayor
+> de los cinco (el de etiquetas, `w-72`), así que **ninguno se queda más
+> estrecho de lo que estaba**.
+
+Y va acotado por la columna **medida**, no por la variable: en una columna
+estrecha manda ella, que es lo que impide que el panel se monte sobre la
+conversación. Siguen naciendo donde nacían —al filo izquierdo y bajo las
+pastillas— y **no se toca el tamaño de letra** de lo que va dentro: lo que junta
+el texto con su número es el ancho, no la tipografía.
+
+### Los seis de la cabecera: del filo de Macros al filo derecho
+
+Acciones, etiquetas, macros, registros del lead y la cita agendada comparten el
+ancho que va **del borde izquierdo de Macros al filo derecho**, que es el que ya
+tenían Acciones y Registros. Antes el de etiquetas se pasaba y el de la cita se
+quedaba corto.
+
+Sale de **medir** esa fila (`MARCA_DE_MACROS`) y no de una constante, porque se
+mueve con el ancho de la conversación —que depende de la lista, de la ficha de
+contacto y de los paneles laterales—. Con el ancho fijo, un texto largo se
+acomoda en varias líneas: **el panel crece hacia abajo, nunca hacia los lados.**
+
+Tres cosas que hay que mantener:
+
+1. **Sin el filo de Macros, `cabecera()` no inventa ningún ancho.** El combobox
+   de etiquetas lo pintan además el CRM y `/sessions`, y el de asesores otras
+   pantallas: ahí no hay ninguna fila de Macros que medir. Cada uno conserva su
+   `w-*` de siempre — inventarles un ancho a dos pantallas que nadie pidió tocar
+   sería peor que no unificar.
+2. **Hay un mínimo** (`ANCHO_MINIMO_DE_LA_CABECERA`), y es una GUARDA, no un
+   diseño: con la fila de Macros pegada al filo el ancho saldría ridículo. Una
+   conversación estrechísima **le gana al mínimo**, que es el lado seguro.
+3. **El ancho se acota con `MARGEN_DE_LA_VENTANA`**, como todo lo demás de este
+   módulo: un panel que llega justo al borde se pega y su última fila no se lee.
+
+### La simetría de las dos filas: 16 px, y lo que sobresalía era Acciones
+
+La fila de Macros y Acciones no cuadraba con la fila de iconos de encima. Medido
+en Chromium sobre el CSS del build, con las clases leídas del componente:
+
+| | izquierda | derecha |
+| --- | --- | --- |
+| fila de iconos | **12** | **12** |
+| fila de Macros y Acciones | texto del tab a **16** | Acciones a **8** |
+
+**Los dos extremos torcidos, y en sentidos contrarios.** Por eso la fila se lee
+descuadrada aunque cada número por separado parezca razonable — y por eso lo que
+se percibe no es lo que pasa: quien sobresalía a la derecha era **Acciones**, no
+el icono de ficha de contacto.
+
+> **El margen es 16 px** (`MARGEN_DE_LA_CABECERA` / `MARGEN_DERECHO_DE_LA_CABECERA`),
+> y no es un gusto: es el ÚNICO número al que las dos filas pueden llegar sin
+> deformarse. **La de abajo no se pone su hueco de la izquierda**: se lo pone el
+> `px-4` de la primera pestaña, que es además el ancho del subrayado de la
+> activa. Bajarlo a 12 estrecharía ese subrayado en Mensajes, en Notas y en cada
+> integración de la cuenta — o sea deformar la tira de pestañas para cuadrar un
+> margen, que es al revés de lo que se pide.
+
+Son **dos constantes y no una** porque cada fila llega de una forma —la de
+arriba se pone las dos mitades, la de abajo solo la derecha—. El número es el
+mismo, y eso es lo único que no puede separarse: lo comprueba el banco, que
+exige que las dos acaben en el mismo escalón. Medido después: **16/16 y 16/16**
+en las tres anchuras, y nada desborda.
+
+Y el móvil no se toca: allí las dos filas ya van con `px-2` y cuadran.
+
+## Chats: el contexto del lead, el recordatorio y la tarea son barra lateral
+
+Los tres se abrían como **modal centrado con velo**, y el velo es justo lo que
+no deja leer la conversación mientras se rellenan — que es para lo que se
+abren: se mira lo que dijo el cliente y se escribe el recordatorio. Ahora se
+comportan como la ficha de contacto, el copiloto y el chat de equipo: **una
+franja a la derecha que empuja la conversación**, sin fondo oscuro.
+
+### `PanelLateral`: compartir las CLASES no es compartir el componente
+
+El copiloto y el chat del equipo ya compartían `lib/panel-lateral.ts` y **cada
+uno escribía su propio marco**: la franja, la hoja, el `translate-x-full` que la
+desliza y la cabecera con su equis. Con tres más eso serían cinco copias, y el
+día que se afine el deslizamiento se afina en una y las otras cuatro se quedan
+atrás — es la lección que ya costó una vuelta entera en la barra de escribir.
+
+`components/shared/PanelLateral.tsx` lo escribe una vez. Cuatro cosas:
+
+1. **La hoja se monta SIEMPRE y lo que cambia es su `translate-x`**: es lo que
+   da la animación de entrada **y la de salida**.
+2. **Lo de dentro es perezoso** (`useSigueDentro`): no existe hasta la primera
+   apertura, así que tener cinco paneles montados en todas las pantallas no
+   cuesta nada — ni consultas, ni relojes. Es el `activo` del chat del equipo
+   aplicado a los cinco.
+3. **Y al cerrar se conserva lo que dura el deslizamiento.** Desmontando al
+   instante, lo que se ve irse es una hoja en blanco. Que se desmonte al acabar
+   es lo que hace que reabrir empiece de cero: un formulario a medias de OTRO
+   chat sería peor que uno vacío.
+4. **Es una sola hoja, no dos.** El chat del equipo pinta la suya dos veces
+   —`hidden sm:block` y `sm:hidden`— y eso con un formulario dentro sería **el
+   mismo formulario montado dos veces, con dos estados**. `FRANJA_DEL_PANEL` y
+   `HOJA_DEL_PANEL` son la versión de un solo nodo, con el móvil de base.
+
+**No tiene hueco de pie, a propósito**: el desplazamiento lo pone él. El pie de
+un diálogo convertido va DENTRO del contenido, con sus dos botones como hijos
+directos de la fila — que es lo que hace que `justify-between` los reparta
+(metidos en un `<div>` ve un solo hijo y los manda juntos a un extremo, medido
+en este repositorio: +198 px).
+
+### Y `/tareas` también lo hereda, que se dice en vez de esconderlo
+
+`TaskFormDialog` no es solo de Chats: «+ Nueva» de `/tareas` es **el mismo
+componente**. Así que ahí también se abre como barra lateral. Fuera de Chats no
+hay `[data-chat-view]`, así que no empuja nada: se abre encima, que es
+exactamente lo que ya hacen el copiloto y el chat del equipo en el resto de la
+plataforma.
+
+Se deja **una sola forma** a propósito. Un parámetro para elegir entre modal y
+panel serían dos comportamientos que mantener a la par, y el que no se prueba
+es el que se rompe — que es la regla de siempre de esta casa.
+
+### El registro es un CONJUNTO, no un booleano
+
+Es la pieza que no se puede simplificar. Los cinco paneles reservan la misma
+franja escribiendo `data-panel-lateral="abierto"` en la raíz, y **abrir uno
+cierra el otro**: así que el orden normal es *se abre el segundo, se cierra el
+primero*. Con un booleano ese cierre **borraría el sitio que el segundo acaba de
+reservar** y la conversación se destaparía sola, a mitad de gesto y sin que
+nadie sepa por qué.
+
+`avisarDelPanelLateral` guarda los abiertos en un `Set` y la marca existe
+mientras quede alguno. Comprobado en Chromium relevando dos paneles: la marca no
+se cae y **la conversación no da ningún salto**.
+
+#### Y lo que entra en el registro es la INSTANCIA, no el panel
+
+Esto no se ve leyendo, y lo destapó barrer **quién monta cada uno**: el mismo
+panel está montado más de una vez. La cabecera de Chats pinta el recordatorio
+**dos veces** —una en la fila del móvil y otra en la de escritorio— y la tarea
+sale de **tres** sitios (la cabecera, el copiloto de `chat-main` y `/tareas`).
+
+Con el registro llevado por el id del PANEL, la instancia cerrada borra lo que
+acaba de apuntar la abierta: la marca se cae con el panel abierto y la
+conversación se destapa sola. **Es el mismo fallo que el registro vino a evitar,
+entrando por la otra puerta.**
+
+Así que lo que se registra es la instancia (`useId`) y lo que se compara en la
+exclusión es el panel. De ahí salen bien las dos puntas: dos instancias del
+MISMO panel no se cierran entre ellas —son el mismo panel— y cualquier otro sí.
+
+Y por lo mismo la hoja lleva **`data-panel` y no `id`**: dos nodos con el mismo
+`id` no son HTML válido, y `getElementById` devolvería siempre el primero.
+
+> **Antes de darle una llave a algo, se cuenta cuántas veces está montado.** La
+> pregunta no es cuántos paneles hay: es cuántas instancias, y aquí son ocho
+> para cinco paneles.
+
+### Y la exclusión se decide en UN sitio
+
+La pareja de botones del borde la tenía escrita a mano, y solo para sus dos.
+Ahora la pone `usePanelLateral`, que es por donde pasan los cinco. Con la
+condición escrita también en la pareja habría **dos reglas que mantener a la
+par**, y el día que se afine una la otra se queda atrás: dos paneles abiertos a
+la vez de vez en cuando, que es el fallo más difícil de reproducir de esta
+familia.
+
+Dos cosas del hook:
+
+1. **`cerrar` se lee por REFERENCIA.** Un manejador nuevo en cada pintado haría
+   que el oyente se quitara y se volviera a poner, y en esa ventana el panel no
+   está escuchando — que es exactamente el hueco por el que se cuelan dos
+   abiertos a la vez.
+2. **Al desmontar se suelta el sitio pase lo que pase.** Un panel que se va del
+   árbol sin soltarlo deja la conversación encogida para siempre.
+
+### Los bancos
+
+`scripts/banco-paneles-flotantes.sh` gana una tercera mitad —la simetría de la
+cabecera, en Chromium, con las clases **leídas del componente** y el «antes»
+sacado de `origin/main`— y `scripts/banco-panel-lateral.sh` es nuevo, con dos:
+
+- **Un barrido sin navegador**: que las tres ya no monten un modal, que los
+  cinco pasen por `usePanelLateral` y que la pareja de botones no haya vuelto a
+  cerrar el otro por su cuenta. Su `MODO=roto` lee las tres de `origin/main` y
+  **afirma que eran modales**.
+- **Los paneles de verdad en Chromium**, con el `PanelLateral` real montado dos
+  veces: que abrir uno cierre el otro, que la franja no se pierda al relevarse y
+  que lo de dentro no exista antes de la primera apertura.
+
+Esa segunda mitad **no tiene modo roto, y se dice en vez de disimularlo**:
+reproducir el «antes» ahí serían dos builds, uno por versión del código. Lo que
+sí se hizo es lo que de verdad prueba que un banco mira: **quitarle el arreglo
+al modo bueno y ver que se pone en rojo** — se rompió la exclusión de
+`usePanelLateral` y cayó por el caso que tenía que caer.
 
 ## Un saliente automático lo escribe QUIEN LO MANDA, no el eco del proveedor
 

@@ -3,12 +3,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { BellPlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { PanelLateral } from '@/components/shared/PanelLateral';
+import { PANEL_DEL_RECORDATORIO } from '@/lib/panel-lateral';
 import { ReminderForm } from '@/app/(root)/reminders/_components/ReminderForm';
 import { getReminderFormDeps, getRemindersByRemoteJid } from '@/actions/reminders-actions';
 import { readBadgeCount, writeBadgeCount } from './chat-badge-cache';
@@ -147,12 +143,16 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
         )}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Crear recordatorio</DialogTitle>
-          </DialogHeader>
-
+      <PanelLateral
+        id={PANEL_DEL_RECORDATORIO}
+        abierto={open}
+        onCerrar={() => setOpen(false)}
+        titulo="Crear recordatorio"
+        subtitulo={session.pushName}
+        icono={<BellPlus className="h-4 w-4" />}
+      >
+        {/* El desplazamiento lo pone PanelLateral: aqui solo el relleno. */}
+        <div className="px-4 py-4">
           {isLoading || !deps ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -173,8 +173,8 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
               }}
             />
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+      </PanelLateral>
     </>
   );
 }
