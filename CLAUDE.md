@@ -4906,31 +4906,71 @@ el `/favicon.ico` que Next emite por convención de fichero, cada uno con su
 por tipo, no por orden—, así que añadir el nuestro al final no ganaba nada: en
 Edge y en Chrome seguía resolviendo `/favicon.ico`.
 
-> **La única forma de que no lo pise nadie es que no haya nadie.** Al poner la
-> insignia se **apartan** los `<link rel="icon">` del documento —se guardan y se
-> quitan del `<head>`— y se devuelven tal cual al quitarla. El
-> `apple-touch-icon` NO se aparta: es otro `rel`, lo usa iOS y además es nuestro
-> respaldo para leer el icono de base.
+> **La única forma de que no lo pise nadie es que no haya ningún otro
+> `rel="icon"`.** Al poner la insignia se **apartan** los del documento
+> **cambiándoles el `rel`** —el original se guarda en `data-insignia-rel`— y se
+> devuelven tal cual al quitarla. **Nunca se sacan del `<head>`** (ver la
+> sección de abajo: eso rompía la navegación entera). El `apple-touch-icon` NO
+> se aparta: es otro `rel`, lo usa iOS y además es nuestro respaldo para leer el
+> icono de base.
 
 Cuatro cosas que hay que mantener:
 
-1. **Se aparta y se DEVUELVE**, no se borra. Sin pendientes vuelven los tres de
-   siempre con su `sizes` intacto; recrearlos a ojo perdería el que el navegador
-   necesita. Comprobado: al quitar la insignia, el `<head>` queda igual que
-   estaba.
-2. **Un `MutationObserver` vuelve a apartarlos si reaparecen.** Next puede
-   reinyectar sus `<link rel="icon">` al navegar entre rutas, y entonces
-   volvería a ganar el suyo sin que nadie lo note — el icono se quedaría limpio a
-   mitad de sesión, que es imposible de diagnosticar. No hay bucle: el vigilante
-   solo QUITA nodos, y se desconecta antes de devolverlos, que es lo único que
-   añadiría.
-3. **El `<link>` se REHACE en cada número**, no se le cambia el `href`. Cambiar
-   el atributo a secas no siempre hace que el navegador vuelva a leer el icono;
-   sustituir el nodo sí, y esto pasa poquísimas veces —una por cada cambio de
-   número—.
+1. **Se aparta y se DEVUELVE**, no se borra ni se mueve. Sin pendientes vuelven
+   los de siempre con su `sizes` intacto y en su sitio.
+2. **Un `MutationObserver` vuelve a apartarlos si reaparecen.** Next reinyecta
+   sus `<link rel="icon">` al navegar entre rutas, y entonces volvería a ganar
+   el suyo sin que nadie lo note. No hay bucle: observa `childList` y apartar
+   solo cambia un atributo.
+3. **El `<link>` NUESTRO se REHACE en cada número**, no se le cambia el `href`.
+   Cambiar el atributo a secas no siempre hace que el navegador vuelva a leer el
+   icono; sustituir el nodo sí. Ese sí se puede sacar del `<head>`: es nuestro,
+   React no sabe que existe.
 4. **`rel~="icon"` es coincidencia por PALABRA.** Coge `shortcut icon` y deja
    fuera `apple-touch-icon` y `mask-icon`, que es justo lo que hace falta para no
    apartar el respaldo.
+
+### Un nodo que pinta React no se saca del DOM desde fuera
+
+/panel se quedaba **pegado**: se pulsaba Proyectos, Tickets, Diagramas… y la
+vista no cambiaba, y salía «No se pudo cargar la pantalla» con
+**`TypeError: Cannot read properties of null (reading 'removeChild')`**. Y
+**volvía al recargar**.
+
+No era /panel ni ninguna de sus pantallas: era la insignia de arriba. La
+primera versión apartaba los iconos con `link.remove()`, y **esos `<link>` son
+de React**: Next pinta los `icons` del `generateMetadata` del layout como
+elementos *hoistables*, y el React que Next lleva dentro (el canario de React
+19, `next/dist/compiled/react-dom`) los desmonta así:
+
+```js
+function unmountHoistable(instance) { instance.parentNode.removeChild(instance); }
+```
+
+Con el nodo fuera del documento `parentNode` es `null`. Cada navegación que
+rehacía el `<head>` reventaba en la fase de commit: la transición se abortaba
+—la pestaña se quedaba en la pantalla de antes— y saltaba el límite de error.
+Volvía al recargar porque en cuanto hay un pendiente la insignia se vuelve a
+poner; se veía en /panel porque ahí se salta de pestaña en pestaña y el
+superadministrador casi siempre tiene algo pendiente. Quien no tuviera nada
+pendiente no lo veía nunca, que es lo que lo hacía parecer aleatorio.
+
+> **La regla: ningún código nuestro saca del DOM un nodo que React pintó** —el
+> `<head>` incluido, que parece de nadie y no lo es—. Si hay que neutralizarlo,
+> se le cambia un atributo y se le devuelve después. El nodo sigue en su sitio,
+> así que cuando React lo desmonta encuentra su padre.
+
+Y la pista para la próxima vez: **`Cannot read properties of null (reading
+'removeChild')` es casi siempre alguien de fuera de React tocando un nodo de
+React** —código nuestro, o una extensión como el traductor del navegador—, no
+un fallo de la pantalla donde salta.
+
+Lo prueba `scripts/banco-insignia.sh`, que monta una App con **ese mismo
+React** (esbuild con `--alias` a `next/dist/compiled/react-dom`; el de
+`package.json` es el 18 y no tiene `unmountHoistable`), pone la insignia y
+navega tres veces. `MODO=roto` carga el `lib/insignia-del-favicon.ts` del #838
+**sacado de git en un commit pinchado** y afirma el fallo: el mismo mensaje y
+la pantalla que no cambia.
 
 ### Tres cosas del dibujo que no se ven mirando
 
