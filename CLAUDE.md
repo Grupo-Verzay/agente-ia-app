@@ -13888,6 +13888,109 @@ disparaba —`TOPE + 1`— ahora se transcribe en dos partes, así que esos dos
 casos habrían dejado de ejercer su rama **sin dejar de estar en verde**.
 
 
+## La App va a DOS réplicas; el backend a UNA, y la diferencia no es de tamaño
+
+Aparecieron **dos contenedores del backend** corriendo en paralelo en
+Portainer, donde siempre había habido uno. La tentación es leerlo como lo de
+la App —que va a dos **a propósito**, y está contado en *los 100 segundos de
+caída por despliegue*— y darlo por bueno. No lo es, y la diferencia es de
+**corrección, no de escala**:
+
+| | qué es el proceso | ¿dos réplicas? |
+| --- | --- | --- |
+| la App | un servidor que atiende peticiones; lo que hay que evitar es el hueco de `502` | **sí**, con `start-first` |
+| el backend | un servidor **más 18 planificadores dentro del mismo proceso** | **no**, y subirlo es un fallo |
+
+> **Un proceso que lleva dentro planificadores sin candado compartido no se
+> replica.** Dos réplicas no reparten ese trabajo: lo **duplican**. Y lo que se
+> duplica aquí son WhatsApps a clientes de verdad —seguimientos del CRM,
+> recordatorios, informe semanal, seguimiento de prueba— y una vuelta de
+> facturación que **suspende y elimina cuentas**.
+
+Comprobado con un barrido, no supuesto: ninguno de los dieciocho
+`*.scheduler.service.ts` toma `advisory_lock`, ni `FOR UPDATE SKIP LOCKED`, ni
+elige líder. Y hay dos cosas más que se rompen al duplicar, las dos de familias
+que este documento ya conoce:
+
+- **`baileys-sessions` es un volumen `local`.** Dos procesos escribiendo los
+  mismos ficheros de sesión de WhatsApp es exactamente la avería de *copiar
+  sesiones de WAHA*: sesión corrupta y QR nuevo.
+- **El antiflood guarda su estado en un `Map` de memoria.** Con dos réplicas
+  cada una ve la mitad del tráfico, así que el tope deja pasar el doble **sin
+  que nadie lo note** — un fallo mudo de los caros.
+
+### Un healthcheck que no puede pasar deja DOS contenedores, no cero
+
+Es la causa que estaba debajo, y es la misma trampa que ya costó el primer
+intento del healthcheck de la App —*sin `ENV HOSTNAME=0.0.0.0`, `127.0.0.1` da
+conexión rechazada*— reaparecida por el otro lado:
+
+```
+HEALTHCHECK ... http://localhost:3000/health     ← el de antes
+```
+
+Desde **Node 17** el orden de DNS es `verbatim`, y estas imágenes de Debian
+llevan `::1 localhost` en `/etc/hosts`, así que `localhost` puede resolver a
+**IPv6** primero. Nest escucha en `0.0.0.0`, que es **solo IPv4**: la petición
+sale con `ECONNREFUSED` y el healthcheck falla **siempre**, sin que la App
+tenga nada malo.
+
+Y lo que eso produce no es «el servicio se cae». Es lo contrario, y por eso
+despista: una tarea que no pasa el healthcheck se queda en `starting`, así que
+con `start-first` **la vieja no se retira nunca** y quedan **dos contenedores
+corriendo en paralelo indefinidamente**. El síntoma que se reporta no es un
+error: es «ahora hay dos».
+
+Dos reglas, y las dos valen para cualquier healthcheck de esta plataforma:
+
+1. **`127.0.0.1`, nunca `localhost`.** Un nombre que puede resolver a dos
+   familias de direcciones no sirve para preguntarle a un proceso que solo
+   escucha en una.
+2. **El margen de arranque cubre lo que de verdad tarda el arranque.** El
+   backend corre `prisma migrate deploy` **antes** de `node dist/main`: con
+   `--start-period=40s --retries=3` bastaban 90 segundos de arranque lento para
+   dar la tarea por muerta.
+
+### `start-first` es correcto en la App y está PROHIBIDO en el backend
+
+Por lo mismo que prohíbe la segunda réplica: `start-first` **solapa** la vieja y
+la nueva unos segundos, y en ese solape los planificadores corren por duplicado
+y las dos tocan el volumen de baileys. El backend va con `stop-first` —que
+además es el de Swarm por defecto— **escrito explícito**, para que no se cambie
+sin leer por qué.
+
+**Lo que cuesta se dice:** cada despliegue del backend deja un hueco en el que
+los webhooks de Evolution, Waha y Meta no encuentran a nadie. Se acepta frente
+a mandarle a un cliente el mismo seguimiento dos veces. Volver a `start-first`
+pide sacar antes los planificadores a un candado compartido, y eso es un frente
+aparte.
+
+### Y se comprueba en el SERVICIO, nunca en el fichero
+
+Es la regla del pendiente 1 aplicada aquí, y hay que tenerla delante antes de
+dar nada por arreglado: el `portainer-stack.yml` del repo **no manda** sobre lo
+que corre. Del repo entra el `HEALTHCHECK` de la imagen con el siguiente build
+—el stack del backend no declara `healthcheck:`, así que el de la imagen es el
+que corre—; el bloque `deploy:` solo entra si alguien vuelve a pegar ese stack
+en Portainer.
+
+```
+docker service inspect backend-app_api-webhook-verzay \
+  --format '{{.Spec.Mode.Replicated.Replicas}} {{.Spec.UpdateConfig.Order}}'
+docker service ps backend-app_api-webhook-verzay --no-trunc
+```
+
+Un `2` ahí es el número que hay que bajar. Y `start-first` con una tarea vieja
+en `Running` es la réplica sin retirar.
+
+Lo protege `scripts/banco-replicas.sh` en el repo del backend, en dos modos:
+comprueba que `replicas` es **1** y está declarado **una sola vez**, que el
+orden es `stop-first`, que el healthcheck no usa `localhost` y tiene margen, y
+que **ningún planificador toma candado** —que es *por qué* va a una—. Cuando
+alguno lo tome, ese banco se pone rojo a propósito: entonces se puede volver a
+decidir, leyendo el bloque `deploy:`, no borrando la línea.
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
