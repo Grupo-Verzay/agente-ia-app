@@ -38,7 +38,7 @@ export type WorkflowNodeType =
   | "intention"
   | "guardar-ficha"
   | AutomationActionType
-  | `seguimiento-${"text" | "image" | "video" | "document" | "audio"}`;
+  | `seguimiento-${"text" | "image" | "video" | "document" | "audio" | "ai-call"}`;
 
 // Nodos de automatización (reúsan los handlers de las automatizaciones del
 // Kanban en el backend). Su configuración se guarda como JSON en el campo
@@ -145,6 +145,7 @@ export type SeguimientoActionType =
   | "seguimiento-video"
   | "seguimiento-document"
   | "seguimiento-audio"
+  | "seguimiento-ai-call"
 
 export type PropsWorkflowSidebar = {
   totalNodes: number;
@@ -189,6 +190,7 @@ export const seguimientoActions: Action[] = [
   { type: "seguimiento-video", label: "Video", icon: Video, iconClassName: `text-red-500` },
   { type: "seguimiento-document", label: "Documento", icon: File, iconClassName: `text-gray-500` },
   { type: "seguimiento-audio", label: "Nota de voz", icon: Music, iconClassName: `text-green-500`, keywords: "audio" },
+  { type: "seguimiento-ai-call", label: "Llamada con IA", icon: Phone, iconClassName: `text-green-600`, keywords: "llamar voz telefono ai call" },
 ];
 
 //  Acciones de automatización (efecto CRM: mismas del Kanban)
@@ -235,6 +237,7 @@ export const cardSeguimientoActions: Action[] = [
   { type: "seguimiento-video", label: "Video", icon: Video, bg: "bg-red-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
   { type: "seguimiento-document", label: "Documento", icon: File, bg: "bg-gray-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
   { type: "seguimiento-audio", label: "Nota de voz", icon: Music, bg: "bg-green-500", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
+  { type: "seguimiento-ai-call", label: "Llamada con IA", icon: Phone, bg: "bg-green-600", iconClassName: `h-4 w-4 text-white ${stylesSeguimiento}` },
 ];
 
 export const cardAutomationActions: Action[] = [

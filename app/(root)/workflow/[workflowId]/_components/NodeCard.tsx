@@ -23,6 +23,7 @@ import { AutomationNodeConfig } from "./AutomationNodeConfig";
 import { SafeImage } from "@/components/custom/SafeImage";
 import { Badge } from "@/components/ui/badge";
 import { NodeDocumentViewer } from "@/components/shared/NodeDocumentViewer";
+import { esSeguimiento, esSeguimientoDeLlamada, tipoBaseDelNodo } from "@/lib/seguimiento-de-llamada";
 
 export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCard) => {
   const router = useRouter();
@@ -53,9 +54,10 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const [isSavingAiEnabled, setIsSavingAiEnabled] = useState(false);
 
   const nodeType = nodes.tipo?.toLowerCase() as Action['type'];
-  const baseType = nodeType.startsWith('seguimiento-')
-    ? nodeType.split('-')[1] as Action['type']
-    : nodeType;
+  // El tipo base sale de `tipoBaseDelNodo`, no de partir por el primer guion:
+  // `seguimiento-ai-call` daba `ai` y la tarjeta caia al caso por defecto,
+  // pidiendo subir un archivo para hacer una llamada.
+  const baseType = tipoBaseDelNodo(nodeType) as Action['type'];
   const isIntention = nodeType === 'intention';
   const isPauseNode = nodeType === 'node_pause';
   const isNotifyNode = nodeType === 'nodo-notify';
@@ -69,7 +71,11 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
 
   const accept = baseType && ACCEPT_TYPES[baseType] ? ACCEPT_TYPES[baseType].join(',') : '*';
 
-  const isSeguimiento = nodeType.startsWith('seguimiento-');
+  const isSeguimiento = esSeguimiento(nodeType);
+  // Seguimiento «Llamada con IA»: no sube ningun archivo y no lleva pie de
+  // texto. Lo unico que aporta la tarjeta es el retraso y la inactividad, que
+  // ya los pinta `isSeguimiento` mas abajo.
+  const esLlamadaConIa = esSeguimientoDeLlamada(nodeType);
   const labelSegumientoCategory = isSeguimiento
     ? `Seguimiento ${currentAction?.label.replace('Seguimiento ', '')}`
     : currentAction?.label;
@@ -338,6 +344,22 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const renderContent = () => {
     if (isAutomationNode) {
       return <AutomationNodeConfig node={nodes} user={user} />;
+    }
+
+    if (esLlamadaConIa) {
+      return (
+        <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3 nodrag">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Pasado el retraso, la IA llamara por voz al numero del contacto y
+            conversara con el. Respeta el horario de envio de la cuenta y
+            descuenta creditos.
+          </p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Requiere: numero de llamadas vinculado (Conexion &rarr; Llamadas),
+            &quot;Asistente de voz IA&quot; activo y creditos disponibles.
+          </p>
+        </div>
+      );
     }
 
     if (nodeType === 'guardar-ficha') {
@@ -625,7 +647,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
         <CardContent className="p-4">
           {renderContent()}
 
-          {!isNotifyNode && !isMenuNode && !isPauseNode && !isAutomationNode && nodeType !== 'guardar-ficha' && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
+          {!isNotifyNode && !isMenuNode && !isPauseNode && !isAutomationNode && !esLlamadaConIa && nodeType !== 'guardar-ficha' && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
             <div className="flex w-full mt-2 nodrag">
               <GenericTextarea
                 fileType={baseType}
