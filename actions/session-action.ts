@@ -233,6 +233,10 @@ async function buildCrmFollowUpSummaryForSession(
 export async function getLeadsPorLinea(userId: string) {
   try {
     if (!userId) return { success: false as const, message: "No existe el userId" };
+    // Una accion de servidor ES un endpoint: el userId llega del navegador y
+    // se comprueba antes de usarlo (H02). Sin esto cualquiera con sesion leia
+    // los leads de otra cuenta nombrando su id.
+    await assertCanAccessTargetUser(userId);
 
     const filas = await db.session.groupBy({
       by: ["instanceId"],
@@ -254,6 +258,10 @@ export async function getLeadsPorLinea(userId: string) {
 
 export async function getSessionsCountByUserId(userId: string, instanceId?: string) {
   try {
+    // Una accion de servidor ES un endpoint: el userId llega del navegador y
+    // se comprueba antes de usarlo (H02). Sin esto cualquiera con sesion leia
+    // los leads de otra cuenta nombrando su id.
+    await assertCanAccessTargetUser(userId);
     // Excluir sesiones fantasma por LID (@lid): son IDs de privacidad de WhatsApp,
     // no teléfonos → aparecían como "Você" sin número. No cuentan como leads.
     const baseWhere = {
@@ -314,6 +322,10 @@ export async function getSessionsByUserId(
         data: [],
       };
     }
+    // Una accion de servidor ES un endpoint: el userId llega del navegador y
+    // se comprueba antes de usarlo (H02). Sin esto cualquiera con sesion leia
+    // los leads de otra cuenta nombrando su id.
+    await assertCanAccessTargetUser(userId);
 
     const sessions = await db.session.findMany({
       where: {
@@ -624,6 +636,10 @@ export async function deleteSession(
   remoteJid: string
 ): Promise<SessionsListResponse> {
   try {
+    // Borrar es lo más caro de este fichero, y no preguntaba nada: con el id de
+    // otra cuenta y los datos de un lead se lo llevaba.
+    await assertCanAccessTargetUser(userId);
+
     const candidates = buildRemoteJidCandidates(remoteJid);
     const session = await db.session.findFirst({
       where: {
@@ -680,6 +696,10 @@ export async function searchSessionsByUserId(
         data: [],
       };
     }
+    // Una accion de servidor ES un endpoint: el userId llega del navegador y
+    // se comprueba antes de usarlo (H02). Sin esto cualquiera con sesion leia
+    // los leads de otra cuenta nombrando su id.
+    await assertCanAccessTargetUser(userId);
 
     const sessions = await db.session.findMany({
       where: {
@@ -984,7 +1004,20 @@ export async function getSessionByRemoteJid(
     const candidates = buildRemoteJidCandidates(trimmedRemoteJid, observedAliases);
     const preferredRemoteJid = resolvePreferredRemoteJid(observedAliases);
     const trimmedInstanceId = options?.instanceId?.trim();
-    const userIds = Array.isArray(userId) ? userId : [userId];
+    const pedidos = (Array.isArray(userId) ? userId : [userId]).filter(Boolean);
+    // Cada cuenta pedida se comprueba, como en `getSesionesDeLaCuenta`: la que
+    // no pasa se deja fuera con aviso, sin tumbar la búsqueda de las demás.
+    const permitidas = await Promise.allSettled(
+      pedidos.map((id) => assertCanAccessTargetUser(id)),
+    );
+    const userIds = pedidos.filter((id, i) => {
+      if (permitidas[i].status === 'fulfilled') return true;
+      console.warn('[sesiones] se pidió la sesión de una cuenta fuera del alcance', { cuenta: id });
+      return false;
+    });
+    if (userIds.length === 0) {
+      return { success: false, message: 'No autorizado.' };
+    }
 
     const sessions = await db.session.findMany({
       where: {

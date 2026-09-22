@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { juzgarElAlcance } from "@/lib/alcance-entre-cuentas.server";
 import { cookies } from "next/headers";
 import { llaveDeLaSesion, recordarPorSesion } from "@/lib/cache-de-sesion";
 import type { Prisma } from "@prisma/client";
@@ -121,8 +122,6 @@ export type CurrentUser = DbUser & {
     nombreDeLaPersona: string | null;
 };
 
-type AccountRole = "agente" | "administrador";
-
 // El cache por objeto `Request` que habia aqui se fue con la cache por sesion:
 // exigia que el llamador pasara el `Request` y NINGUNO lo hacia (comprobado en
 // todo el repo). La de `lib/cache-de-sesion.ts` no pide nada al llamador.
@@ -203,9 +202,7 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
     if (!realUser) return null;
 
     let effectiveUserId = realUser.id;
-    let fromMembership = false;
     let porImpersonacion = false;
-    let accountRole: AccountRole | null = null;
 
     // Con qué alcance se entra a otra cuenta. El `administrador` de una cuenta
     // entra a donde entra ella: si no, «Ingresar» ponía la cookie y la sesión
@@ -215,7 +212,26 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
         ? await cuentaQueManda(realUser)
         : { id: realUser.id, role: realUser.role as string };
 
-    if (impersonateId && isAdminLike(quienEntra.role)) {
+    // Y a DÓNDE se entra, que se vuelve a mirar en cada petición y no solo al
+    // pulsar «Ingresar»: la cookie vive treinta días y una que se puso antes de
+    // esta regla —o a mano— no puede seguir abriendo lo que ya no se abre.
+    // Nunca a un superadministrador, nunca hacia arriba, nunca a una cuenta de
+    // la casa que no cuelgue de la suya (`lib/alcance-entre-cuentas.ts`).
+    // Si no alcanza, la cookie se ignora y se sigue en la cuenta propia.
+    const alcanza = impersonateId
+        ? (
+              await juzgarElAlcance({
+                  esSuperAdmin: realUser.role === "super_admin",
+                  cuenta: quienEntra.id,
+                  objetivoId: impersonateId,
+                  donde: "currentUser",
+              })
+          ).puede
+        : false;
+
+    if (impersonateId && !alcanza) {
+        // Se queda en la suya. El aviso ya lo escribió `juzgarElAlcance`.
+    } else if (impersonateId && isAdminLike(quienEntra.role)) {
         effectiveUserId = impersonateId;
         porImpersonacion = true;
     } else if (impersonateId && isAdminOrReseller(quienEntra.role)) {
@@ -252,34 +268,36 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
             porImpersonacion = true;
         }
     } else if (activeAccountId && activeAccountId !== realUser.id) {
+        // El conmutador solo BAJA: se cambia a una cuenta que uno vinculó bajo
+        // la suya (`master = yo, linked = ella`). El camino contrario —una hija
+        // cambiándose a la cuenta de su madre porque su madre la vinculó— se
+        // cerró a propósito: una cuenta hija no actúa como su madre. Antes esa
+        // rama («membership») dejaba a Verzay | Atencion entrar como Carlos
+        // Arcos con un clic en el menú de cuentas.
         try {
-            const membership = await db.$queryRaw<{ role: AccountRole }[]>`
-                SELECT role
+            const haciaAbajo = await db.$queryRaw<{ id: string }[]>`
+                SELECT id
                 FROM "linked_accounts"
-                WHERE "master_user_id" = ${activeAccountId}
-                  AND "linked_user_id" = ${realUser.id}
+                WHERE "master_user_id" = ${realUser.id}
+                  AND "linked_user_id" = ${activeAccountId}
                 LIMIT 1
             `;
 
-            if (membership.length > 0) {
+            if (haciaAbajo.length > 0) {
                 effectiveUserId = activeAccountId;
-                fromMembership = true;
-                accountRole = membership[0].role;
-            } else {
-                const legacyLink = await db.$queryRaw<{ id: string }[]>`
-                    SELECT id
-                    FROM "linked_accounts"
-                    WHERE "master_user_id" = ${realUser.id}
-                      AND "linked_user_id" = ${activeAccountId}
-                    LIMIT 1
-                `;
-
-                if (legacyLink.length > 0) {
-                    effectiveUserId = activeAccountId;
-                }
+            } else if (activeAccountId !== realUser.ownerId) {
+                // Una cookie que ya no abre nada —se puso cuando la rama de
+                // subir existía— se ignora, pero no en silencio.
+                console.warn("[cuentas] el conmutador pidió una cuenta que no cuelga de la propia", {
+                    persona: realUser.id,
+                    pedida: activeAccountId,
+                });
             }
-        } catch {
-            // Tabla aún no existe o no responde, ignorar y seguir con la cuenta base.
+        } catch (error) {
+            console.warn("[cuentas] no se pudo leer el conmutador; se sigue en la cuenta propia", {
+                persona: realUser.id,
+                error: error instanceof Error ? error.message : String(error),
+            });
         }
     }
 
@@ -311,22 +329,6 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                 grantedModuleItems: realUser.grantedModuleItems,
                 canTakeUnassigned: realUser.canTakeUnassigned,
             };
-
-        if (fromMembership) {
-            return {
-                ...u,
-                ...permisosDeLaPersona,
-                ownerId: effectiveUserId === realUser.id ? null : effectiveUserId,
-                advisorRole: accountRole,
-                effectiveId: effectiveUserId,
-                sessionUserId: realUser.id,
-                rolDeLaPersona: realUser.role,
-                nombreDeLaPersona: realUser.name,
-                // Con el conmutador, `u` ya ES la fila de la cuenta.
-                rolDeLaCuenta: u.role,
-                porImpersonacion,
-            };
-        }
 
         if (u.ownerId) {
             const ownerCreds = await db.user.findUnique({
