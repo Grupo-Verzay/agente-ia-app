@@ -14974,6 +14974,45 @@ Y por lo mismo la hoja lleva **`data-panel` y no `id`**: dos nodos con el mismo
 > pregunta no es cuántos paneles hay: es cuántas instancias, y aquí son ocho
 > para cinco paneles.
 
+### Un `fixed` NO es fijo dentro de un `backdrop-filter`: el panel va en un PORTAL
+
+El #888 convirtió los tres en barra lateral y en producción salieron mal los
+tres, sin un solo error: el recordatorio se abría **dentro de la
+conversación**, y «Nueva tarea» salía en blanco a la derecha con una equis que
+no cerraba nada.
+
+Una sola causa. La cabecera de Chats lleva `backdrop-blur-sm`, y un ancestro
+con `filter`, `backdrop-filter`, `transform`, `perspective`, `contain` o
+`will-change` pasa a ser el **bloque contenedor** de todo `position: fixed` que
+cuelgue de él. El panel se montaba dentro de esa cabecera, así que se colocaba
+contra ella y no contra la ventana. Y lo de «Nueva tarea» era peor: lo que se
+veía era una instancia **CERRADA** —hay tres montadas—, que con su
+`translate-x-full` contado desde la cabecera caía justo en la franja de la
+derecha, en blanco porque lo de dentro es perezoso, y con una equis que llamaba
+a cerrar algo que ya estaba cerrado.
+
+> **`PanelLateral` se pinta en un portal al `<body>`.** Dónde se monte el
+> componente deja de decidir dónde se ve — es lo que hace Radix con todos sus
+> diálogos y menús, por el mismo motivo. Y una vez fuera, la hoja lleva
+> `invisible`: un panel cerrado que asoma se lee como un panel roto.
+
+Por qué no lo cazó el banco del #888: su arnés montaba los paneles **colgando
+del layout**, que es donde cuelgan el copiloto y el chat del equipo, y no dentro
+de la cabecera, que es donde cuelgan estos tres. **Un arnés que no reproduce
+DÓNDE se monta algo no prueba cómo se coloca.** Ahora monta la cabecera con sus
+mismas clases, y su `MODO=roto` —con el `PanelLateral` de antes, pinchado a un
+commit— reproduce las capturas al píxel: el panel en 672→1056 a 1440 y la
+instancia cerrada asomando.
+
+Y hay un segundo banco, `scripts/banco-paneles-en-chats.sh`, sobre la página
+**servida** con sesión y una conversación abierta: los tres paneles de la
+cabecera nacen en el filo derecho de la ventana y bajo la barra, empujan la
+conversación, cargan su contenido, cierran con la equis y ninguna instancia
+cerrada asoma; y Canales, Filtrar por asesor y el embudo miden **los tres 288
+px**, menos que la columna, en 1440, 1366 y 1024. La semilla lleva **dos
+líneas** a propósito: con una, el selector de Canales no se pinta y la
+comparación de anchos se haría sobre dos de los tres.
+
 ### Y la exclusión se decide en UN sitio
 
 La pareja de botones del borde la tenía escrita a mano, y solo para sus dos.

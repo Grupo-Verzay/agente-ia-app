@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -35,6 +36,28 @@ import { usePanelLateral } from "@/hooks/usePanelLateral";
  * cerrar se conserva mientras la hoja termina de salir, o lo que se vería
  * deslizarse es una hoja en blanco.
  *
+ * # Y se PORTA al `<body>`: un `fixed` no es fijo dentro de un `backdrop-filter`
+ *
+ * La cabecera de Chats lleva `backdrop-blur-sm`, y un ancestro con `filter`,
+ * `backdrop-filter`, `transform`, `perspective`, `contain` o `will-change`
+ * pasa a ser el **bloque contenedor** de todo `position: fixed` que cuelgue de
+ * él. Montado ahí, el panel no se colocaba contra la ventana sino contra la
+ * cabecera: el recordatorio salía DENTRO de la conversación, y una instancia
+ * CERRADA de la tarea —desplazada su `translate-x-full`— asomaba entera en la
+ * franja de la derecha, en blanco (lo de dentro es perezoso) y con una equis
+ * que llamaba a cerrar algo que ya estaba cerrado. Tres fallos, una causa.
+ *
+ * Así que la franja se pinta en un portal al `<body>`: dónde se monte el
+ * componente deja de decidir dónde se ve. Es lo mismo que hace Radix con
+ * todos sus diálogos y menús, y por el mismo motivo.
+ *
+ * # Y cerrado del todo, no existe para la vista ni para el ratón
+ *
+ * Una vez fuera, la hoja lleva `invisible` —que además la saca del foco del
+ * teclado y de los clics—. No es decoración: es la
+ * red por si algún día vuelve a caer dentro de un bloque contenedor raro —un
+ * panel cerrado que asoma se lee como un panel roto, no como uno cerrado—.
+ *
  * # Y no tiene velo
  *
  * A propósito, y es el encargo entero: un panel lateral deja **leer la
@@ -67,9 +90,15 @@ export function PanelLateral({
 }) {
     usePanelLateral(id, abierto, onCerrar);
     const dentro = useSigueDentro(abierto);
+    const destino = useElBody();
+    // Cerrado y ya fuera: ni se ve ni se pulsa. Mientras sale (`dentro` aún en
+    // true) sigue visible, o no se vería la animación de salida.
+    const escondida = !abierto && !dentro;
 
-    return (
-        <div className={FRANJA_DEL_PANEL}>
+    if (!destino) return null;
+
+    return createPortal(
+        <div className={FRANJA_DEL_PANEL} data-franja-lateral={id}>
             <section
                 // `data-panel` y no `id`: el mismo panel puede estar montado
                 // más de una vez —el recordatorio va en las dos filas de la
@@ -77,7 +106,11 @@ export function PanelLateral({
                 data-panel={id}
                 aria-label={titulo}
                 aria-hidden={!abierto}
-                className={cn(HOJA_DEL_PANEL, abierto ? "translate-x-0" : "translate-x-full")}
+                className={cn(
+                    HOJA_DEL_PANEL,
+                    abierto ? "translate-x-0" : "translate-x-full",
+                    escondida && "invisible",
+                )}
             >
                 <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
                     <div className="flex min-w-0 items-center gap-2">
@@ -112,8 +145,23 @@ export function PanelLateral({
                     {dentro ? children : null}
                 </div>
             </section>
-        </div>
+        </div>,
+        destino,
     );
+}
+
+/**
+ * El `<body>`, una vez montado.
+ *
+ * En el servidor no hay documento, y pintar la franja allí y no en el
+ * navegador daría dos salidas distintas —una hidratación rota—. Así que el
+ * primer pintado no pinta nada y el portal entra al montar. No se pierde nada:
+ * lo de dentro ya era perezoso y la hoja nace cerrada.
+ */
+function useElBody(): HTMLElement | null {
+    const [body, setBody] = useState<HTMLElement | null>(null);
+    useEffect(() => setBody(document.body), []);
+    return body;
 }
 
 /**
