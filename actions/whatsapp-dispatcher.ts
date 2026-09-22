@@ -27,7 +27,9 @@ import {
   type WahaMediaType,
 } from '@/lib/waha';
 import { canonicalToWahaJid } from '@/lib/waha-jid';
-import { sendChannelTextAction } from '@/actions/channel-chat-actions';
+// El cuerpo SIN puerta: aquí no hay sesión (cron, avisos) y la línea la elige
+// este despachador, no el navegador. Ver `lib/envio-por-canal.server.ts`.
+import { enviarPorCanal } from '@/lib/envio-por-canal.server';
 import { sendingMessages } from '@/actions/sending-messages-actions';
 import { sendMediaByUrl } from '@/actions/chat-actions';
 import { persistChatMessage } from '@/lib/chat-persistence';
@@ -583,7 +585,7 @@ async function mandarElTexto(args: {
   history?: Parameters<typeof sendingMessages>[0]['history'];
 }) {
   if (args.dispatcher.provider === 'meta') {
-    return sendChannelTextAction(args.dispatcher.instanceName, args.remoteJid, {
+    return enviarPorCanal(args.dispatcher.instanceName, args.remoteJid, {
       kind: 'text',
       text: args.text,
     });
@@ -788,7 +790,7 @@ export async function sendMediaViaWhatsAppDispatcher(args: {
   }
 
   if (args.dispatcher.provider === 'meta') {
-    const res = await sendChannelTextAction(args.dispatcher.instanceName, args.remoteJid, {
+    const res = await enviarPorCanal(args.dispatcher.instanceName, args.remoteJid, {
       kind: 'media',
       mediatype: args.media.mediatype,
       mediaUrl: args.media.mediaUrl,

@@ -14445,6 +14445,42 @@ Lo prueba `scripts/banco-bandeja-hacia-abajo.sh`, contra Postgres y con
 mismas pruebas contra `22dd27b` y afirma la fuga: la hija ve, ofrece, comparte
 y escucha lo de su madre.
 
+## Enviar por un canal (Meta, Telegram) pide que la línea sea tuya o de abajo
+
+`sendChannelTextAction` —texto y archivos por Meta y Telegram— **no comprobaba
+de quién era la línea**. Con sesión y el nombre de cualquiera, se le escribía a
+un cliente por un canal ajeno. Quedó anotado en el #899; las hermanas del mismo
+fichero tenían el mismo hueco: `sendMetaTemplate`, `listMetaTemplates`,
+`sendChannelQuickReplyAction` (que solo miraba el atajo, no la línea),
+`fetchChannelChats` y `warmChannelMessages`.
+
+> **La puerta es `laLineaDelCanalAlcanza` (`lib/linea-del-canal.server.ts`,
+> con la decisión pura en `lib/linea-del-canal.ts`)**: la cuenta dueña de la
+> línea tiene que estar en `getAssociatedAccountIds` —la propia y las que
+> cuelgan HACIA ABAJO, el mismo alcance con el que la bandeja la enseña—.
+> Nunca la madre, nunca una hermana.
+
+Tres cosas que hay que mantener:
+
+1. **Va ANTES de todo**: antes de pausar la IA y antes del `fetch` al backend.
+   Un rechazo no escribe nada ni llega al proveedor, y dice
+   «No tienes acceso a la línea X: es de otra cuenta.». Tampoco es mudo:
+   `[canales] envío rechazado`.
+2. **El cuerpo sin puerta vive en `lib/envio-por-canal.server.ts`**
+   (`server-only`), y solo lo importan los caminos del servidor SIN sesión que
+   eligen la línea ellos: el despachador de avisos, las notificaciones de
+   facturación, el aviso de desconexión y `sendMessageWithHistoryAction` (que
+   ya está abierta a propósito por la página pública). Ponerles la guarda los
+   APAGARÍA —la regla de *un runner de sistema no puede ser una acción*—.
+   **Una pantalla nunca importa de ahí**: va por la acción.
+3. Lo que llama con sesión (macros, respuesta a llamada perdida) sigue por la
+   acción guardada: su línea es propia y pasa.
+
+Lo prueba `scripts/banco-linea-del-canal.sh`, contra Postgres, con
+`currentUser()` de verdad y el `fetch` al backend contado. `MODO=roto`
+empaqueta las mismas pruebas contra `f48dbe5` y afirma la fuga: la hija escribe
+por la línea de su madre y el backend lo recibe.
+
 ## CRM › Llamadas: la barra es la de Leads, y marcar vive en una ventana
 
 La pantalla tenía **tres filas de mandos** donde las demás tienen una: la de

@@ -3,80 +3,26 @@
 import {
   getPersistedInboxChats,
   getPersistedMessages,
-  persistChatMessage,
   resolveInstanceOwner,
 } from '@/lib/chat-persistence';
 import { currentUser } from '@/lib/auth';
-import { db } from '@/lib/db';
 import type {
   FetchChatsResult,
   FindMessagesResult,
   SendMessageResult,
 } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
-import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
 import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
-import { apuntarLoQueHizo, apuntarUnaVezAlDia } from '@/lib/apuntar-actividad';
+import {
+  enviarPlantillaMeta,
+  enviarPorCanal,
+  listarPlantillasMeta,
+  type ChannelOutgoingPayload,
+  type MetaTemplateOption,
+} from '@/lib/envio-por-canal.server';
+import { laLineaDelCanalAlcanza } from '@/lib/linea-del-canal.server';
 
-type ChannelOutgoingPayload = { kind: string; text?: string; [key: string]: unknown };
-
-function backendUrl() {
-  return (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
-}
-
-function authHeaders(): Record<string, string> {
-  return {
-    'x-internal-secret': process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '',
-    'Content-Type': 'application/json',
-  };
-}
-
-function mediaFallbackLabel(payload: ChannelOutgoingPayload) {
-  const mediatype = String(payload.mediatype ?? 'media');
-  if (mediatype === 'image') return '🖼️ Imagen';
-  if (mediatype === 'video') return '🎥 Video';
-  if (mediatype === 'audio') return payload.ptt === false ? '🎧 Audio' : '🎙️ Nota de voz';
-  if (mediatype === 'document') return '📄 Documento';
-  return '📎 Archivo';
-}
-
-/**
- * Apunta el envio en la Actividad del equipo.
- *
- * Se llama SOLO tras haber persistido el mensaje, o sea cuando de verdad salio:
- * contar un envio que rebotó seria anotar algo que no paso. Y resuelve la
- * persona aqui —`currentUser()`— porque el `userId` que estas funciones tienen a
- * mano es el de la CUENTA dueña de la linea, no el de quien escribe.
- */
-async function apuntarElEnvio(remoteJid: string): Promise<void> {
-  const quien = await currentUser();
-  if (!quien) return;
-  await apuntarLoQueHizo(quien, 'mensaje_enviado');
-  await apuntarUnaVezAlDia(quien, 'chat_atendido', remoteJid);
-}
-
-async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: string, text: string) {
-  const user = await currentUser();
-  const signature = (user?.advisorSignature as string | null | undefined)?.trim();
-  if (!user?.id || !signature) return text;
-
-  const owner = await resolveInstanceOwner(instanceName);
-  const userIds = Array.from(
-    new Set([owner?.userId, user.effectiveId, user.ownerId, user.id].filter(Boolean) as string[]),
-  );
-  if (userIds.length === 0) return text;
-
-  const sessionRow = await db.session.findFirst({
-    where: {
-      userId: { in: userIds },
-      remoteJid,
-      signatureEnabled: true,
-    },
-    select: { id: true },
-  });
-
-  return sessionRow ? `${signature}\n${text}` : text;
-}
+export type { MetaTemplateOption } from '@/lib/envio-por-canal.server';
 
 /**
  * Acciones de chat para canales que viven en el store unificado
@@ -88,6 +34,11 @@ async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: s
 
 export async function fetchChannelChats(instanceName: string): Promise<FetchChatsResult> {
   try {
+    // Una acción ES un endpoint: la ruta de la lista ya comprueba la línea,
+    // pero esto se puede llamar directo con el nombre de cualquier otra.
+    const puerta = await laLineaDelCanalAlcanza(instanceName, 'lista');
+    if (!puerta.ok) return { success: false, message: puerta.message };
+
     const owner = await resolveInstanceOwner(instanceName);
     if (!owner?.userId) return { success: false, message: 'Instancia sin propietario.' };
 
@@ -144,6 +95,11 @@ export async function warmChannelMessages(
   // Telegram/Meta siempre leen de local (el webhook persiste todo), así que
   // localFirst/localOnly se comportan igual: no hay fuente remota a la que caer.
   try {
+    // Misma puerta que la lista: llamada directa, sería leer la conversación de
+    // cualquier línea de la plataforma.
+    const puerta = await laLineaDelCanalAlcanza(instanceName, 'conversacion');
+    if (!puerta.ok) return { success: false, message: puerta.message };
+
     const owner = await resolveInstanceOwner(instanceName);
     if (!owner?.userId) return { success: false, message: 'Instancia sin propietario.' };
 
@@ -170,99 +126,27 @@ export async function warmChannelMessages(
   }
 }
 
+/**
+ * Envío manual de texto o archivo por un canal (Meta, Telegram).
+ *
+ * **Pregunta primero de quién es la línea.** Antes no lo hacía: con sesión y el
+ * nombre de cualquier línea se le escribía a un cliente por un canal ajeno. Lo
+ * decide `laLineaDelCanalAlcanza` —la cuenta propia y las que cuelgan de ella,
+ * nunca la madre ni las hermanas— y va ANTES de pausar la IA y de hablar con
+ * el backend: un rechazo no toca nada ni llega al proveedor.
+ *
+ * El cuerpo de siempre vive en `lib/envio-por-canal.server.ts`; los caminos del
+ * servidor sin sesión (despachador, facturación) van por ahí directamente.
+ */
 export async function sendChannelTextAction(
   instanceName: string,
   remoteJid: string,
   payload: ChannelOutgoingPayload,
 ): Promise<SendMessageResult> {
   try {
-    // El asesor interviene: la IA se calla antes de que salga el mensaje, no
-    // después. Un audio o una imagen tardan segundos en subir y la IA alcanzaba
-    // a contestar encima.
-    const dueno = await resolveInstanceOwner(instanceName);
-    await pausarIaPorIntervencionHumana(dueno?.userId, remoteJid);
-
-    if (payload.kind === 'media') {
-      const res = await fetch(
-        `${backendUrl()}/whatsapp/channels/send-media-channel/${encodeURIComponent(instanceName)}`,
-        {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({
-            remoteJid,
-            mediatype: payload.mediatype,
-            mediaUrl: payload.mediaUrl,
-            mimetype: payload.mimetype,
-            fileName: payload.fileName,
-            caption: payload.caption,
-            ptt: payload.ptt ?? false,
-          }),
-          cache: 'no-store',
-        },
-      );
-      if (!res.ok) {
-        const reason = await res.json().then((j) => j?.message).catch(() => null);
-        return { success: false, message: typeof reason === 'string' && reason ? reason : `Error ${res.status} al enviar.`, remoteJid };
-      }
-      const publicUrl = await res.json().then((j) => j?.mediaUrl).catch(() => null);
-      const owner = dueno;
-      if (owner?.userId) {
-        await persistChatMessage({
-          userId: owner.userId,
-          instanceName,
-          instanceType: owner.instanceType ?? undefined,
-          remoteJid,
-          fromMe: true,
-          messageType: `${String(payload.mediatype ?? 'media')}Message`,
-          content: String(payload.caption ?? payload.fileName ?? mediaFallbackLabel(payload)),
-          mediaUrl: typeof publicUrl === 'string' ? publicUrl : (typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null),
-          messageTimestamp: new Date(),
-        });
-      }
-      await apuntarElEnvio(remoteJid);
-      return { success: true, message: 'Enviado.', remoteJid };
-    }
-    const text = await applyAdvisorSignatureIfEnabled(
-      instanceName,
-      remoteJid,
-      (payload.text ?? '').trim(),
-    );
-    if (!text) return { success: false, message: 'Mensaje vacío.', remoteJid };
-
-    const res = await fetch(
-      `${backendUrl()}/whatsapp/channels/send-channel/${encodeURIComponent(instanceName)}`,
-      {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ remoteJid, text }),
-        cache: 'no-store',
-      },
-    );
-    if (!res.ok) {
-      // El backend devuelve un motivo legible (p.ej. fuera de la ventana de 24h de Meta).
-      const reason = await res.json().then((j) => j?.message).catch(() => null);
-      return {
-        success: false,
-        message: typeof reason === 'string' && reason ? reason : `Error ${res.status} al enviar.`,
-        remoteJid,
-      };
-    }
-
-    const owner = dueno;
-    if (owner?.userId) {
-      await persistChatMessage({
-        userId: owner.userId,
-        instanceName,
-        instanceType: owner.instanceType ?? undefined,
-        remoteJid,
-        fromMe: true,
-        messageType: 'conversation',
-        content: text,
-        messageTimestamp: new Date(),
-      });
-    }
-    await apuntarElEnvio(remoteJid);
-    return { success: true, message: 'Enviado.', remoteJid };
+    const puerta = await laLineaDelCanalAlcanza(instanceName, 'texto');
+    if (!puerta.ok) return { success: false, message: puerta.message, remoteJid };
+    return await enviarPorCanal(instanceName, remoteJid, payload);
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar.', remoteJid };
   }
@@ -270,37 +154,23 @@ export async function sendChannelTextAction(
 
 /* ─── Plantillas de WhatsApp Cloud (Meta) ─── */
 
-export interface MetaTemplateOption {
-  name: string;
-  language: string;
-  category: string;
-  bodyText: string;
-  paramCount: number;
-}
-
-/** Lista las plantillas aprobadas de la WABA de una instancia Meta. */
+/**
+ * Lista las plantillas aprobadas de la WABA de una línea Meta. Con la misma
+ * puerta: la lista de plantillas de otra cuenta no es de quien pregunta.
+ */
 export async function listMetaTemplates(
   instanceName: string,
 ): Promise<{ success: boolean; templates: MetaTemplateOption[] }> {
   try {
-    const res = await fetch(
-      `${backendUrl()}/whatsapp/channels/meta-templates/${encodeURIComponent(instanceName)}`,
-      { headers: authHeaders(), cache: 'no-store' },
-    );
-    if (!res.ok) return { success: false, templates: [] };
-    const json = await res.json();
-    return { success: true, templates: (json?.templates ?? []) as MetaTemplateOption[] };
+    const puerta = await laLineaDelCanalAlcanza(instanceName, 'plantillas');
+    if (!puerta.ok) return { success: false, templates: [] };
+    return await listarPlantillasMeta(instanceName);
   } catch {
     return { success: false, templates: [] };
   }
 }
 
-/** Renderiza el cuerpo de la plantilla sustituyendo {{1}}, {{2}}… por los params. */
-function renderTemplateBody(bodyText: string, params: string[]): string {
-  return bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => params[Number(n) - 1] ?? `{{${n}}}`);
-}
-
-/** Envía una plantilla de WhatsApp Cloud y persiste el saliente en el panel. */
+/** Envía una plantilla de WhatsApp Cloud por una línea de quien envía. */
 export async function sendMetaTemplate(
   instanceName: string,
   remoteJid: string,
@@ -308,40 +178,9 @@ export async function sendMetaTemplate(
   params: string[],
 ): Promise<SendMessageResult> {
   try {
-    const res = await fetch(
-      `${backendUrl()}/whatsapp/channels/send-template/${encodeURIComponent(instanceName)}`,
-      {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          remoteJid,
-          name: template.name,
-          language: template.language,
-          params,
-        }),
-        cache: 'no-store',
-      },
-    );
-    if (!res.ok) {
-      const reason = await res.json().then((j) => j?.message).catch(() => null);
-      return { success: false, message: typeof reason === 'string' && reason ? reason : `Error ${res.status} al enviar la plantilla.`, remoteJid };
-    }
-
-    const owner = await resolveInstanceOwner(instanceName);
-    if (owner?.userId) {
-      await persistChatMessage({
-        userId: owner.userId,
-        instanceName,
-        instanceType: owner.instanceType ?? 'meta',
-        remoteJid,
-        fromMe: true,
-        messageType: 'conversation',
-        content: renderTemplateBody(template.bodyText, params) || `[Plantilla: ${template.name}]`,
-        messageTimestamp: new Date(),
-      });
-    }
-    await apuntarElEnvio(remoteJid);
-    return { success: true, message: 'Plantilla enviada.', remoteJid };
+    const puerta = await laLineaDelCanalAlcanza(instanceName, 'plantilla');
+    if (!puerta.ok) return { success: false, message: puerta.message, remoteJid };
+    return await enviarPlantillaMeta(instanceName, remoteJid, template, params);
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar la plantilla.', remoteJid };
   }
@@ -361,6 +200,11 @@ export async function sendChannelQuickReplyAction(
   quickReplyId: number,
 ): Promise<ChatToolActionResult> {
   try {
+    // La línea primero: sin ella, el aviso de abajo diría «no es de la línea»
+    // a quien en realidad no tiene acceso a la línea.
+    const puerta = await laLineaDelCanalAlcanza(instanceName, 'respuesta rápida');
+    if (!puerta.ok) return { success: false, message: puerta.message };
+
     const { db } = await import('@/lib/db');
     const rr = await db.quickReply.findUnique({ where: { id: quickReplyId } });
     if (!rr?.mensaje?.trim()) return { success: false, message: 'Respuesta rápida no encontrada.' };
