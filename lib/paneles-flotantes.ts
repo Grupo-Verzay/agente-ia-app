@@ -302,6 +302,49 @@ export function cabecera(
 }
 
 /**
+ * Colgado de SU icono de la cabecera: alineado a su borde IZQUIERDO y nacido
+ * bajo la cabecera entera.
+ *
+ * Es el menú del botón verde de llamar. No es un panel de la cabecera como los
+ * otros seis —no se pasa de uno a otro, son dos opciones cortas—, así que no
+ * lleva el ancho de la fila de Macros ni va al filo derecho: nace donde se
+ * pulsó, con el borde izquierdo en el del icono, que es lo que dice de dónde
+ * sale.
+ *
+ * Y la altura es la de los otros seis: **bajo la cabecera entera**. Pegado al
+ * icono (`sideOffset` de 4, que es lo que tenía) el menú caía sobre la segunda
+ * fila de la cabecera y **tapaba el botón Macros**, que vive justo ahí debajo.
+ * Medirlo aquí y no achicar el menú es lo que lo hace cierto en todas las
+ * anchuras: cuánto se solapaba dependía del ancho del badge del asesor y del
+ * botón de resolver, o sea de cada conversación.
+ *
+ * `avoidCollisions: false` por lo mismo que los otros seis: volteado subiría
+ * sobre la cabecera. Con `align="start"` y `alignOffset` 0 el borde izquierdo
+ * cae exactamente en el del icono.
+ */
+export function colgadoDelIcono(
+    cabeceraCaja: Caja,
+    disparador: Caja,
+    primitiva: Primitiva,
+): Geometria {
+    const hueco = Math.max(0, cabeceraCaja.right - disparador.left);
+    return {
+        side: "bottom",
+        align: "start",
+        collisionPadding: MARGEN_DE_LA_VENTANA,
+        alignOffset: 0,
+        sideOffset: Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)),
+        avoidCollisions: false,
+        estilo: {
+            // Acotado por lo que queda de cabecera a la derecha del icono: no
+            // se sale del área de conversación por el filo.
+            maxWidth: `${Math.round(Math.max(0, hueco - MARGEN_DE_LA_VENTANA))}px`,
+            maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
+        },
+    };
+}
+
+/**
  * Bajo la BARRA DE ARRIBA de la plataforma y dentro de la ventana.
  *
  * Es el panel de la campanita, y no es de Chats —la barra es la misma en todas

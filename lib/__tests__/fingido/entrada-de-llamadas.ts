@@ -17,7 +17,7 @@ export { ponerAQuienMira } from "./auth-de-llamadas";
 
 export { getVoicebotConfig, setVoicebotConfig } from "@/actions/voicebot-actions";
 
-export { setCallContactNameAction, setCallLeadStatusAction } from "@/actions/calls-crm-actions";
+export { setCallContactNameAction } from "@/actions/calls-crm-actions";
 
 export {
     esLineaDeWhatsappQr,

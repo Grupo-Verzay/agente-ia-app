@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Phone,
-  PhoneOutgoing,
   PhoneMissed,
   PhoneCall,
   Loader2,
@@ -21,7 +20,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -54,7 +52,6 @@ import {
   setCallDisposition,
   scheduleCallbackAction,
   clearMissedCallsAction,
-  setCallLeadStatusAction,
   setCallContactNameAction,
   diagnoseCallsAction,
   deleteCallAction,
@@ -113,27 +110,33 @@ function cleanName(name?: string | null): string {
   return n;
 }
 
-type SortKey = 'contacto' | 'tipo' | 'duracion' | 'fecha' | 'detalle' | 'resultado';
+type SortKey = 'contacto' | 'nombre' | 'duracion' | 'fecha' | 'detalle' | 'resultado';
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
-// Encabezado centrado con flecha de ordenar (↕), estilo Registros.
+// Encabezado con flecha de ordenar (↕), estilo Registros. Centrado salvo en
+// Contacto y Nombre, que van a la izquierda porque su contenido va ahí.
 function Th({
   label,
   sortKey,
   sort,
   onSort,
+  izquierda = false,
+  className,
 }: {
   label: string;
   sortKey?: SortKey;
   sort: SortState;
   onSort: (k: SortKey) => void;
+  izquierda?: boolean;
+  className?: string;
 }) {
+  const clases = cn('px-2 py-2 font-medium', izquierda ? 'text-left' : 'text-center', className);
   if (!sortKey) {
-    return <th className="px-2 py-2 text-center font-medium">{label}</th>;
+    return <th className={clases}>{label}</th>;
   }
   const active = sort?.key === sortKey;
   return (
-    <th className="px-2 py-2 text-center font-medium">
+    <th className={clases}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
@@ -145,6 +148,27 @@ function Th({
     </th>
   );
 }
+
+/**
+ * El ancho de las columnas FIJAS. Detalle y Resultado no llevan ninguno: se
+ * reparten lo que sobre, y son las que encogen cuando falta sitio.
+ *
+ * Los números no son a ojo: salen de medir en Chromium lo que ocupa cada
+ * contenido a 14 px (el número con su prefijo, la fecha «22/09, 10:30 a. m.»,
+ * los tres puntos) más el `px-2` de la celda. Lo comprueba
+ * `lib/__tests__/tabla-de-llamadas.test.mjs`, que falla si alguno se corta.
+ */
+const ANCHO_DE_LAS_COLUMNAS = {
+  cuenta: '8.5rem',
+  contacto: '9.5rem',
+  nombre: '9rem',
+  duracion: '5.25rem',
+  fecha: '8.75rem',
+  acciones: '5.5rem',
+} as const;
+
+/** Acciones, pegada al borde derecho: si la tabla se desplaza, ella no. */
+const ACCIONES_PEGADAS = 'sticky right-0 bg-card';
 
 const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
   day: '2-digit',
@@ -327,7 +351,7 @@ export function CallsCrmClient({
         let cmp = 0;
         switch (sort.key) {
           case 'contacto': cmp = a.phone.localeCompare(b.phone); break;
-          case 'tipo': cmp = a.direction.localeCompare(b.direction); break;
+          case 'nombre': cmp = cleanName(a.contactName).localeCompare(cleanName(b.contactName)); break;
           case 'duracion': cmp = a.durationSecs - b.durationSecs; break;
           case 'fecha': cmp = a.ts - b.ts; break;
           // La MISMA funcion que pinta la celda: ordenando por `leadSynthesis`
@@ -569,21 +593,47 @@ export function CallsCrmClient({
               )}
             </div>
           ) : (
+            /*
+              Las columnas son las de Leads y ninguna más: Contacto, Nombre,
+              Duración, Fecha, Detalle, Resultado y Acciones. «Tipo» decía
+              siempre «Saliente» y «Estado» era un segundo mando del estado del
+              lead, que se cambia en Leads.
+
+              `table-fixed` con el ancho de cada columna escrito en el
+              `<colgroup>`: las fijas miden lo suyo y **Detalle y Resultado se
+              reparten lo que sobra**, así que cuando falta sitio —el menú
+              lateral abierto a 1024— son ellas las que encogen y Acciones no se
+              corta nunca. Con `table-auto` era al revés: el texto de Detalle,
+              que va en una línea, empujaba la tabla y Acciones quedaba fuera.
+
+              Y por si aún así no cabe —un teléfono—, Acciones va `sticky` al
+              borde derecho: la tabla se desplaza por debajo y los tres puntos
+              siguen a la vista.
+            */
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table data-tabla-de-llamadas className="w-full table-fixed text-sm">
+                <colgroup>
+                  {unificado && <col style={{ width: ANCHO_DE_LAS_COLUMNAS.cuenta }} />}
+                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.contacto }} />
+                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.nombre }} />
+                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.duracion }} />
+                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.fecha }} />
+                  <col />
+                  <col />
+                  <col style={{ width: ANCHO_DE_LAS_COLUMNAS.acciones }} />
+                </colgroup>
                 <thead>
                   {/* `text-sm`, el mismo que el cuerpo y el mismo que la
                       cabecera de Leads: la tabla entera va a un solo tamaño. */}
                   <tr className="border-b text-sm text-muted-foreground">
                     {unificado && <Th label="Cuenta" sort={sort} onSort={toggleSort} />}
-                    <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} />
-                    <Th label="Tipo" sortKey="tipo" sort={sort} onSort={toggleSort} />
+                    <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} izquierda />
+                    <Th label="Nombre" sortKey="nombre" sort={sort} onSort={toggleSort} izquierda />
                     <Th label="Duración" sortKey="duracion" sort={sort} onSort={toggleSort} />
                     <Th label="Fecha" sortKey="fecha" sort={sort} onSort={toggleSort} />
                     <Th label="Detalle" sortKey="detalle" sort={sort} onSort={toggleSort} />
                     <Th label="Resultado" sortKey="resultado" sort={sort} onSort={toggleSort} />
-                    <Th label="Estado" sort={sort} onSort={toggleSort} />
-                    <Th label="Acciones" sort={sort} onSort={toggleSort} />
+                    <Th label="Acciones" sort={sort} onSort={toggleSort} className={ACCIONES_PEGADAS} />
                   </tr>
                 </thead>
                 <tbody>
@@ -765,17 +815,8 @@ function CallbackDialog({
   );
 }
 
-const LEAD_STATUS_META: Record<string, { label: string; className: string }> = {
-  FRIO: { label: 'Frío', className: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-400' },
-  TIBIO: { label: 'Tibio', className: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-400' },
-  CALIENTE: { label: 'Caliente', className: 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-400' },
-  FINALIZADO: { label: 'Finalizado', className: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400' },
-  DESCARTADO: { label: 'Descartado', className: 'border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400' },
-};
-
-// Control compacto para fijar/cambiar el estado del lead desde la fila de llamada.
 /**
- * El nombre bajo el número, editable en el sitio.
+ * El nombre del contacto, en su propia columna y editable en el sitio.
  *
  * En un historial de llamadas un número suelto no dice de qué cliente es, y el
  * nombre que da WhatsApp muchas veces no existe o no sirve. Un clic sobre él lo
@@ -836,7 +877,7 @@ function ContactNameCell({
           }
         }}
         placeholder="Nombre del contacto"
-        className="mt-1 h-7 max-w-[180px] text-sm"
+        className="h-7 w-full text-sm"
       />
     );
   }
@@ -848,66 +889,15 @@ function ContactNameCell({
       disabled={guardando}
       title="Editar el nombre del contacto"
       className={cn(
-        // Sin `mx-auto` y sin `text-xs`: cuelga del número, así que empieza
-        // donde empieza él y mide lo que mide el resto de la tabla.
-        'mt-0.5 block max-w-[180px] truncate rounded px-1 text-left transition-colors hover:bg-muted disabled:opacity-60',
+        // Sin `text-xs`: mide lo que mide el resto de la tabla. Y sin sangría
+        // propia (`px-0`), para que arranque en el borde de su columna igual
+        // que el número en la suya.
+        'block max-w-full truncate rounded text-left transition-colors hover:bg-muted disabled:opacity-60',
         name ? 'text-muted-foreground hover:text-foreground' : 'italic text-muted-foreground/60 hover:text-foreground',
       )}
     >
       {name || 'Poner nombre'}
     </button>
-  );
-}
-
-// Si el lead no existe aún, la acción lo crea (lead mínimo) para no perder el contacto.
-function LeadStatusButton({ phone, contactName }: { phone: string; contactName?: string | null }) {
-  const [status, setStatus] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const meta = status ? LEAD_STATUS_META[status] : null;
-
-  const apply = async (value: string | null) => {
-    const prev = status;
-    setStatus(value);
-    setSaving(true);
-    const res = await setCallLeadStatusAction({ phone, contactName, leadStatus: value });
-    setSaving(false);
-    if (!res.success) {
-      setStatus(prev);
-      toast.error(res.message || 'No se pudo cambiar el estado.');
-      return;
-    }
-    toast.success(res.created ? 'Lead creado y estado guardado.' : 'Estado del lead actualizado.');
-  };
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          disabled={saving}
-          title="Estado del lead"
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors disabled:opacity-60',
-            meta ? meta.className : 'border-dashed border-border bg-transparent text-muted-foreground hover:bg-muted/60',
-          )}
-        >
-          {meta ? meta.label : 'Estado'}
-          <ChevronDown className="h-3 w-3 opacity-60" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {Object.entries(LEAD_STATUS_META).map(([value, m]) => (
-          <DropdownMenuItem key={value} onSelect={() => apply(value)}>
-            {m.label}
-          </DropdownMenuItem>
-        ))}
-        {status && (
-          <DropdownMenuItem onSelect={() => apply(null)} className="text-muted-foreground">
-            Quitar estado
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -945,7 +935,6 @@ function CallTableRow({
    */
   ajena?: boolean;
 }) {
-  const isOut = call.direction === 'outgoing';
   const dispMeta = getDispositionMeta(call.disposition);
   const callable = /\d{6,}/.test(call.phone);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -969,37 +958,25 @@ function CallTableRow({
           <InsigniaDeCuenta nombre={nombreDeLaCuenta} />
         </td>
       )}
-      {/* Contacto: número limpio (primario) + nombre si aporta.
-
-          A la IZQUIERDA y en azul, que es como lo pinta Leads: un número
-          centrado en su columna no se puede comparar con el de la fila de
-          arriba, y en negro no se lee como lo que es —lo que se pulsa para
-          abrir el chat—. Misma clase que allí, no una parecida. */}
+      {/* Contacto: el número, A LA IZQUIERDA y en azul, que es como lo pinta
+          Leads —misma clase, no una parecida—. Es lo que se pulsa para abrir
+          el chat, y centrado no se puede comparar con el de la fila de arriba. */}
       <td className="px-2 py-2 text-left">
         <button
           type="button"
           onClick={onOpenChat}
           title="Abrir chat del contacto"
-          className="min-w-[80px] cursor-pointer text-left text-blue-600 transition-colors hover:text-blue-800"
+          className="max-w-full cursor-pointer truncate text-left text-blue-600 transition-colors hover:text-blue-800"
         >
-          <p className="whitespace-nowrap font-medium tabular-nums">{formatPhone(call.phone)}</p>
+          <span className="whitespace-nowrap font-medium tabular-nums">{formatPhone(call.phone)}</span>
         </button>
+      </td>
+      {/* Nombre: su propia columna, como en Leads, y no colgado bajo el número. */}
+      <td className="px-2 py-2 text-left">
         {ajena ? (
-          name ? <p className="truncate text-muted-foreground">{name}</p> : null
+          name ? <p className="truncate text-muted-foreground">{name}</p> : <span className="text-muted-foreground">—</span>
         ) : (
           <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
-        )}
-      </td>
-      {/* Tipo */}
-      <td className="px-2 py-2 text-center">
-        {isOut ? (
-          <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400">
-            <PhoneOutgoing className="h-3 w-3" /> Saliente
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-            <PhoneMissed className="h-3 w-3" /> Perdida
-          </Badge>
         )}
       </td>
       {/* Duración */}
@@ -1007,7 +984,7 @@ function CallTableRow({
       {/* Fecha */}
       <td className="px-2 py-2 text-center whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
       {/* Detalle: botón clicable que abre el detalle completo (como en Registros) */}
-      <td className="max-w-[260px] px-2 py-2 text-center">
+      <td className="px-2 py-2 text-center">
         <button
           type="button"
           onClick={() => setDetailOpen(true)}
@@ -1030,8 +1007,8 @@ function CallTableRow({
       <td className="px-2 py-2 text-center">
         {ajena ? (
           dispMeta ? (
-            <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium', dispMeta.badgeClass)}>
-              <Tag className="h-3 w-3" /> {dispMeta.label}
+            <span className={cn('inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-sm font-medium', dispMeta.badgeClass)}>
+              <Tag className="h-3 w-3 shrink-0" /> <span className="truncate">{dispMeta.label}</span>
             </span>
           ) : (
             <span className="text-muted-foreground">—</span>
@@ -1041,19 +1018,20 @@ function CallTableRow({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
+              title={dispMeta ? dispMeta.label : 'Marcar resultado'}
               className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors',
+                // Un solo tamaño en toda la tabla, también en la pastilla. Y
+                // encoge con su columna: el rótulo se recorta con «…» y el
+                // completo va en el `title`.
+                'inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-sm font-medium transition-colors',
                 dispMeta
                   ? dispMeta.badgeClass
                   : 'border-dashed border-border bg-transparent text-muted-foreground hover:bg-muted/60',
               )}
             >
-              {dispMeta ? (
-                <><Tag className="h-3 w-3" /> {dispMeta.label}</>
-              ) : (
-                <>Marcar resultado</>
-              )}
-              <ChevronDown className="h-3 w-3 opacity-60" />
+              {dispMeta && <Tag className="h-3 w-3 shrink-0" />}
+              <span className="truncate">{dispMeta ? dispMeta.label : 'Marcar resultado'}</span>
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
@@ -1066,16 +1044,8 @@ function CallTableRow({
         </DropdownMenu>
         )}
       </td>
-      {/* Estado (junto al resultado) */}
-      <td className="px-2 py-2 text-center">
-        {ajena ? (
-          <span className="text-muted-foreground">—</span>
-        ) : (
-          <LeadStatusButton phone={call.phone} contactName={call.contactName} />
-        )}
-      </td>
-      {/* Acciones */}
-      <td className="px-2 py-2 text-center">
+      {/* Acciones: pegada al borde derecho, nunca se corta. */}
+      <td className={cn('px-2 py-2 text-center', ACCIONES_PEGADAS)}>
         <div className="flex justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
