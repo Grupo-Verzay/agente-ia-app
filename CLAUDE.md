@@ -14736,6 +14736,91 @@ corta con `(?:[^>]|=>)`, no en el primer `>`.** Esos tags llevan dentro un
 medias — y el que se caía era justo `AdvisorAssignBadge`, el único que abría
 hacia arriba, que es el caso que más había que afirmar.
 
+## Un saliente automático lo escribe QUIEN LO MANDA, no el eco del proveedor
+
+El recordatorio de una cita le llegaba al cliente por WhatsApp y **en Chats no
+quedaba ninguna fila**. Cuando el cliente respondía citándolo, el panel pintaba
+**«Ese mensaje todavía no está cargado»** — porque el mensaje citado no existía
+en `chat_messages`. En varias citas, no en una.
+
+Y no era el envío: era que **nadie lo escribía**.
+
+Un recordatorio de cita **no** es una fila de `Reminders`. Al agendar, la App
+escribe una fila de `seguimientos` con `idNodo = appt-reminder-<id>`, y la
+entrega `FollowUpRunnerService`. Ese runner pedía el emisor a pelo
+—`factory.getSender(...).sendText(...)`— y eso **manda y no guarda nada**.
+
+### Por qué solo se veía en unas líneas
+
+Esta es la parte que hace que el fallo parezca intermitente y que despista:
+
+| la línea | ¿hay eco del proveedor? | ¿quedaba escrito? |
+| --- | --- | --- |
+| **Evolution** | sí: `messages.upsert` devuelve también lo que sale por su API | **sí**, lo guardaba el eco |
+| **Waha, Meta, Telegram** | el eco se **descarta a propósito** | **no**, nada |
+
+Lo de Waha no es un olvido: `if (esPropio && msg.source !== 'app') return []`
+es lo que impide que la IA oiga su propia respuesta, se tome por intervención
+humana y **se pause justo después de hablar**. Ese filtro lleva escrita al lado
+su premisa: *«lo que sale por la API ya lo guardamos nosotros al enviarlo»*. El
+follow-up runner no cumplía su mitad del trato.
+
+> **La regla: un saliente automático se escribe en el mismo sitio donde se
+> manda, y se manda por el camino que lo escribe.** En este repositorio ese
+> camino ya existía y tenía tres puertas —`sendEvolutionAiText`,
+> `enviarMediaIaPorLinea` y `enviarAudioIaPorLinea`, de `WorkflowService`—, que
+> es por donde ya salían los follow-ups del CRM, los nodos de flujo y la mitad
+> de los recordatorios. **Nadie manda un automático con
+> `factory.getSender(...)` a pelo.**
+
+### Y no duplica, porque la fila lleva el id REAL
+
+Es lo que permite que la regla valga también en Evolution, donde el eco SÍ
+llega: se envía capturando el id de WhatsApp (`sendTextNodeReturnId` en
+Evolution, `sendTextConId` en los canales) y se guarda con él, así que el eco es
+**la MISMA fila** y el `ON CONFLICT` la dedupe. Guardar sin id es lo que hacía
+salir el mismo mensaje dos veces en el panel —uno «Agente IA» y otro con el
+nombre del asesor— habiéndole llegado UNA sola vez al cliente.
+
+Y el id real hace la otra mitad: el acuse (`message.ack`) encuentra la fila y el
+✓✓ avanza. Sin él la fila se queda con una palomita para siempre.
+
+### Cinco cosas que hay que mantener
+
+1. **El proveedor sale de la FILA, no del parámetro.** `resolveInstanceType`
+   preguntaba con la cuenta y, sin cuenta, se caía a `'evolution'` a ciegas: el
+   saliente de una línea de Waha se mandaba al servidor de Evolution —que para
+   ella no existe— y no llegaba nada. Ahora la cuenta acota cuando se sabe y,
+   cuando no, se pregunta por la línea a secas, que es lo que
+   `WhatsAppSenderFactory.getSender` hace desde siempre.
+2. **Sin ficha de conversación, la cuenta sale de la LÍNEA.**
+   `canSendWithoutSession` deja salir un seguimiento sin sesión, y
+   `persistMessage` necesita saber de quién es la fila: con la cuenta vacía el
+   mensaje sale y no queda escrito. `Instancias` sabe de quién es la línea.
+3. **Y si aun así falta, se avisa.** Un saliente que no queda escrito no se ve
+   como un error: se ve como un panel al que le faltan mensajes, que es de lo
+   más caro de diagnosticar.
+4. **Los tres tipos van por el mismo sitio.** Si el texto se guarda y la media
+   no, un recordatorio con imagen sigue desapareciendo — y eso no se lee como
+   «falta un caso», se lee como «a veces funciona».
+5. **Si se añade otro emisor automático, va por ahí.** Eran dos los que se
+   habían quedado fuera —los seguimientos y la rama sin `serverUrl` del runner
+   de recordatorios, que es **toda** línea de Waha—, y los dos se veían igual
+   desde fuera.
+
+### El banco
+
+`scripts/banco-recordatorio-en-el-chat.sh` (en el repositorio del backend), en
+dos modos y contra Postgres, con el **`ChatStoreService` de producción**
+escribiendo las filas: las tablas del chat las crea él mismo con
+`CREATE TABLE IF NOT EXISTS`, que es el mismo camino que en producción, en vez
+de una DDL escrita a mano que podría no parecerse a la de verdad.
+
+`MODO=roto` lleva dentro, **escritos literales**, los tres trozos de antes, y
+afirma el fallo: la línea envía y `chat_messages` queda vacía. Y se comprobó lo
+que de verdad hace falta comprobar de un modo roto: **quitándole esos trozos se
+pone en rojo**, o sea que no estaba verde por no ejercer nada.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
