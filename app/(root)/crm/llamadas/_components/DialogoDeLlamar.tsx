@@ -28,7 +28,7 @@ import {
  * Así que la barra se queda como la de Leads —buscador, pastillas y un solo
  * botón de acción a la derecha— y lo de marcar vive en una ventana, con el
  * mismo estilo que «Crear contacto» de Leads: mismo ancho (`sm:max-w-[400px]`),
- * misma cabecera, mismo `Label` + `Input`, mismo pie.
+ * misma cabecera, mismo `Label` + `Input`.
  *
  * # Las tres cosas que hay que mantener
  *
@@ -39,9 +39,11 @@ import {
  * 2. **El campo va alineado a la IZQUIERDA**, con su `text-left` escrito: es un
  *    número que se teclea y se revisa dígito a dígito, y centrado no se puede
  *    comparar con el de al lado.
- * 3. **Los tres botones son hijos DIRECTOS de `DialogFooter`.** Ese pie es
+ * 3. **Los dos botones son hijos DIRECTOS de `DialogFooter`.** Ese pie es
  *    `justify-between`: metidos en un `<div>` el pie ve un solo hijo y los manda
- *    todos a un extremo — está medido en este repositorio, +198 px.
+ *    todos a un extremo — está medido en este repositorio, +198 px. Y son DOS:
+ *    «Llamar IA» a la izquierda y «Llamar» a la derecha. «Cancelar» sobraba —la
+ *    ventana se cierra con la X y tocando fuera— y con él el pie tenía tres.
  *
  * # Y llamar CIERRA la ventana
  *
@@ -120,38 +122,40 @@ export function DialogoDeLlamar({
                             />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setAbierto(false)}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            data-boton="llamar"
-                            type="button"
-                            className="gap-2 bg-green-600 text-white hover:bg-green-700"
-                            onClick={llamar}
-                            disabled={sinNumero}
-                        >
-                            <Phone className="h-4 w-4" />
-                            Llamar
-                        </Button>
+                    {/*
+                      Dos botones y ninguno más: sin «Cancelar», que la ventana
+                      ya se cierra con la X y tocando fuera. «Llamar IA» a la
+                      IZQUIERDA y «Llamar» a la DERECHA, en la misma fila —
+                      `flex-nowrap`, que el pie de la casa lleva `flex-wrap` y
+                      en un teléfono los partiría en dos líneas—. Son hijos
+                      DIRECTOS del pie: es lo que hace que `justify-between` los
+                      lleve a cada extremo.
+                    */}
+                    <DialogFooter className="flex-nowrap">
                         <Button
                             data-boton="llamar-ia"
                             type="button"
-                            className="gap-2 bg-violet-600 text-white hover:bg-violet-700"
+                            className="min-w-0 gap-2 bg-violet-600 text-white hover:bg-violet-700"
                             onClick={llamarConIa}
                             disabled={sinNumero || llamandoConIa}
                             title="El asistente de voz IA llama y conversa por ti"
                         >
                             {llamandoConIa ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                             ) : (
-                                <Bot className="h-4 w-4" />
+                                <Bot className="h-4 w-4 shrink-0" />
                             )}
-                            Llamar con IA
+                            Llamar IA
+                        </Button>
+                        <Button
+                            data-boton="llamar"
+                            type="button"
+                            className="min-w-0 gap-2 bg-green-600 text-white hover:bg-green-700"
+                            onClick={llamar}
+                            disabled={sinNumero}
+                        >
+                            <Phone className="h-4 w-4 shrink-0" />
+                            Llamar
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import {
     bajoLaBarraDeArriba,
     cabecera,
+    colgadoDelIcono,
     columnaAncha,
     columnaDerecha,
     comoSiempre,
@@ -60,7 +61,12 @@ export const MARCA_DE_MACROS = "data-macros-de-chat";
 /** La barra de arriba de la plataforma, que es la misma en todas las pantallas. */
 export const MARCA_DE_LA_BARRA = "data-barra-de-arriba";
 
-export type ClaseDePanel = "columnaAncha" | "columnaDerecha" | "cabecera" | "barraDeArriba";
+export type ClaseDePanel =
+    | "columnaAncha"
+    | "columnaDerecha"
+    | "cabecera"
+    | "colgadoDelIcono"
+    | "barraDeArriba";
 
 /** Lo que se le pasa a `PopoverContent` / `DropdownMenuContent`, ya resuelto. */
 export type PropsDelPanel = {
@@ -79,7 +85,7 @@ function caja(nodo: Element): Caja {
 }
 
 function porDefecto(clase: ClaseDePanel): PropsDelPanel {
-    const g = comoSiempre(clase === "columnaAncha" ? "start" : "end");
+    const g = comoSiempre(clase === "columnaAncha" || clase === "colgadoDelIcono" ? "start" : "end");
     return { ...g, style: g.estilo };
 }
 
@@ -93,7 +99,7 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
 
             const nodo = disparador.current;
             const marca =
-                clase === "cabecera"
+                clase === "cabecera" || clase === "colgadoDelIcono"
                     ? MARCA_DE_LA_CABECERA
                     : clase === "barraDeArriba"
                       ? MARCA_DE_LA_BARRA
@@ -133,6 +139,11 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
                 const macros = contenedor.querySelector(`[${MARCA_DE_MACROS}]`);
                 const desde = macros ? caja(macros).left : undefined;
                 const g = cabecera(contCaja, dispCaja, primitiva, desde);
+                setProps({ ...g, style: g.estilo });
+                return;
+            }
+            if (clase === "colgadoDelIcono") {
+                const g = colgadoDelIcono(contCaja, dispCaja, primitiva);
                 setProps({ ...g, style: g.estilo });
                 return;
             }

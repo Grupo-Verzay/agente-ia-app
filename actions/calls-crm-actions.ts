@@ -507,9 +507,6 @@ export async function diagnoseCallsAction(): Promise<{
   };
 }
 
-// NO exportar (este archivo es 'use server': solo puede exportar funciones async).
-const CALL_LEAD_STATUSES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
-
 /**
  * Pone (o quita) el nombre del contacto de una llamada.
  *
@@ -579,64 +576,11 @@ export async function setCallContactNameAction(input: {
   }
 }
 
-/**
- * Cambia el estado del lead asociado al número de la llamada, directamente desde
- * el CRM de llamadas. Si aún no existe lead/sesión para ese número, lo crea
- * (lead mínimo) para que aparezca en el CRM. Pasa null para quitar el estado.
+/*
+ * Aquí vivía `setCallLeadStatusAction`, el estado del lead cambiado desde la
+ * columna «Estado» de CRM › Llamadas. La columna se fue —Llamadas se alinea con
+ * Leads, y el estado del lead se cambia en Leads, en el CRM y en Chats— y con
+ * ella su único llamador. **Una acción de servidor ES un endpoint**: dejarla
+ * publicada sin ninguna pantalla que la abra es una puerta que ya no vigila
+ * nadie. El dato (`Session.leadStatus`) no se toca.
  */
-export async function setCallLeadStatusAction(input: {
-  phone: string;
-  contactName?: string | null;
-  leadStatus: string | null;
-}): Promise<{ success: boolean; message?: string; created?: boolean }> {
-  const me = await currentUser();
-  const ownerId = me?.ownerId ?? me?.id;
-  if (!ownerId) return { success: false, message: 'No autorizado.' };
-
-  const status = input.leadStatus;
-  if (status && !CALL_LEAD_STATUSES.includes(status as (typeof CALL_LEAD_STATUSES)[number])) {
-    return { success: false, message: 'Estado inválido.' };
-  }
-  const digits = (input.phone || '').replace(/\D/g, '');
-  if (!digits) return { success: false, message: 'Número inválido.' };
-  const remoteJid = `${digits}@s.whatsapp.net`;
-
-  try {
-    const existing = await db.session.findFirst({
-      where: { userId: ownerId, remoteJid },
-      select: { id: true },
-    });
-
-    if (existing) {
-      await db.session.update({
-        where: { id: existing.id },
-        data: { leadStatus: (status as any) ?? null, leadStatusUpdatedAt: new Date() },
-      });
-      return { success: true };
-    }
-
-    // No existe lead: crear uno mínimo para no perder el contacto de la llamada.
-    // Misma línea, mismo motivo que arriba: la de QR, con el proveedor que sea.
-    const { linea, todas } = await laLineaDeWhatsappDeLaCuenta(ownerId);
-    const instanceId = linea?.instanceId;
-    if (!instanceId) {
-      return { success: false, message: porQueNoHayLineaQr(todas.map((i) => i.instanceType)) };
-    }
-
-    await db.session.create({
-      data: {
-        userId: ownerId,
-        remoteJid,
-        pushName: input.contactName?.trim() || `+${digits}`,
-        instanceId,
-        status: true,
-        leadStatus: (status as any) ?? null,
-        leadStatusUpdatedAt: new Date(),
-      },
-    });
-    return { success: true, created: true };
-  } catch (err) {
-    console.error('[setCallLeadStatusAction]', err);
-    return { success: false, message: 'No se pudo actualizar el estado del lead.' };
-  }
-}

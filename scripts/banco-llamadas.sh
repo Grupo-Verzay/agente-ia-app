@@ -28,16 +28,19 @@ export DIRECT_URL="$DATABASE_URL"
 # decide nada de lo que este banco prueba.
 export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
        CRM_FOLLOW_UP_RUNNER_KEY=banco S3_ACCESS_KEY=banco S3_SECRET_KEY=banco \
-       S3_ENDPOINT=http://localhost S3_PUBLIC_URL=http://localhost GEMINI_API_KEY=banco
+       S3_ENDPOINT=localhost S3_PUBLIC_URL=http://localhost GEMINI_API_KEY=banco
 
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 
+# El `require` del banner: el paquete ESM de esbuild tira los `require`
+# dinámicos (`events`, `child_process`) y el banco se caía antes de empezar.
 # `currentUser` es lo ÚNICO que se finge: el de verdad pide next-auth entero y
 # no decide nada de lo que se prueba aquí. La regla, la consulta y las cuatro
 # acciones son las de producción.
 npx esbuild lib/__tests__/fingido/entrada-de-llamadas.ts --bundle \
   --platform=node --format=esm --outdir=lib/__tests__/.compilado/llamadas \
   --external:@prisma/client --external:server-only \
+  --banner:js='import{createRequire as __cr}from "module";const require=__cr(import.meta.url);' \
   --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-llamadas.ts \
   --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
   --alias:react=./lib/__tests__/fingido/react-cache.ts \

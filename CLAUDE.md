@@ -1960,6 +1960,46 @@ lista es el motivo del menú, scroll; si es una opción más entre otras,
 submenú** —y el submenú también con su `max-h`, como los de «Asignar agente» y
 «Asignar etiqueta» del menú de la fila—.
 
+## Chats: las etiquetas de una conversación son las de SU línea
+
+Una etiqueta (`Tag`) cuelga de una **cuenta**, y cada línea es de una cuenta:
+Atención y Ventas son cuentas distintas de la familia. La conversación guarda la
+cuenta de su línea en `Session.userId`, y el servidor exige que coincidan
+(`assignTagToSessionAction`: `tag.userId === session.userId`).
+
+Chats pedía las etiquetas de la cuenta de **quien mira** (`listTagsAction` con
+`effectiveOwnerId`) y se las ofrecía a cualquier conversación. Desde la madre,
+una conversación de Atención enseñaba las etiquetas de la madre, y al pulsar una
+el servidor contestaba «Tag no encontrado o no pertenece a este usuario»:
+menú abierto, puerta cerrada.
+
+> **A cada conversación se le ofrecen las etiquetas de la cuenta de su línea, y
+> ninguna más** (`lib/etiquetas-de-la-linea.ts`, puro). Si esa línea no tiene
+> etiquetas, el selector sale **vacío** y lo dice —nunca cae a las de otra—.
+
+Cuatro cosas que hay que mantener:
+
+1. **La bandeja trae las etiquetas de TODAS sus cuentas, cada una con su dueña**
+   (`listTagsDeLasCuentasAction`, una consulta). Cada cuenta pasa por
+   `laCuentaDeLaAccion`, la misma puerta con la que después se asigna: un
+   asesor solo alcanza las de su cuenta y una ajena no se cuela.
+2. **Los tres sitios que etiquetan filtran igual**: la cabecera, el menú de la
+   fila y el lote. El menú de la fila buscaba la sesión por la llave GLOBAL, así
+   que con el mismo cliente en dos líneas etiquetaba la conversación de la otra;
+   ahora va con `linea::numero`.
+3. **El lote solo ofrece etiquetas si todo lo marcado es de la misma cuenta**, y
+   asigna con la cuenta de cada conversación. Mezclando líneas no hay ninguna
+   etiqueta que valga para todas.
+4. **El filtro de la lista**, con una línea elegida en Canales, ofrece las de su
+   cuenta; sin línea, todas.
+
+Dos líneas de la **misma** cuenta comparten etiquetas: `Tag` no tiene columna de
+línea, y añadírsela es otro frente (la tabla la toca el backend, ver el #360).
+
+Lo prueba `scripts/banco-etiquetas-de-la-linea.sh`, contra Postgres y con las
+acciones de verdad, en dos modos: el roto corre el camino viejo y afirma que la
+conversación de Atención ofrecía las de la madre y el servidor las rechazaba.
+
 ## Chats: quitar un mando de la fila NO quita su dato
 
 Cada fila de la lista llevaba dos selectores con icono y flechita —el **estado
@@ -4906,31 +4946,71 @@ el `/favicon.ico` que Next emite por convención de fichero, cada uno con su
 por tipo, no por orden—, así que añadir el nuestro al final no ganaba nada: en
 Edge y en Chrome seguía resolviendo `/favicon.ico`.
 
-> **La única forma de que no lo pise nadie es que no haya nadie.** Al poner la
-> insignia se **apartan** los `<link rel="icon">` del documento —se guardan y se
-> quitan del `<head>`— y se devuelven tal cual al quitarla. El
-> `apple-touch-icon` NO se aparta: es otro `rel`, lo usa iOS y además es nuestro
-> respaldo para leer el icono de base.
+> **La única forma de que no lo pise nadie es que no haya ningún otro
+> `rel="icon"`.** Al poner la insignia se **apartan** los del documento
+> **cambiándoles el `rel`** —el original se guarda en `data-insignia-rel`— y se
+> devuelven tal cual al quitarla. **Nunca se sacan del `<head>`** (ver la
+> sección de abajo: eso rompía la navegación entera). El `apple-touch-icon` NO
+> se aparta: es otro `rel`, lo usa iOS y además es nuestro respaldo para leer el
+> icono de base.
 
 Cuatro cosas que hay que mantener:
 
-1. **Se aparta y se DEVUELVE**, no se borra. Sin pendientes vuelven los tres de
-   siempre con su `sizes` intacto; recrearlos a ojo perdería el que el navegador
-   necesita. Comprobado: al quitar la insignia, el `<head>` queda igual que
-   estaba.
-2. **Un `MutationObserver` vuelve a apartarlos si reaparecen.** Next puede
-   reinyectar sus `<link rel="icon">` al navegar entre rutas, y entonces
-   volvería a ganar el suyo sin que nadie lo note — el icono se quedaría limpio a
-   mitad de sesión, que es imposible de diagnosticar. No hay bucle: el vigilante
-   solo QUITA nodos, y se desconecta antes de devolverlos, que es lo único que
-   añadiría.
-3. **El `<link>` se REHACE en cada número**, no se le cambia el `href`. Cambiar
-   el atributo a secas no siempre hace que el navegador vuelva a leer el icono;
-   sustituir el nodo sí, y esto pasa poquísimas veces —una por cada cambio de
-   número—.
+1. **Se aparta y se DEVUELVE**, no se borra ni se mueve. Sin pendientes vuelven
+   los de siempre con su `sizes` intacto y en su sitio.
+2. **Un `MutationObserver` vuelve a apartarlos si reaparecen.** Next reinyecta
+   sus `<link rel="icon">` al navegar entre rutas, y entonces volvería a ganar
+   el suyo sin que nadie lo note. No hay bucle: observa `childList` y apartar
+   solo cambia un atributo.
+3. **El `<link>` NUESTRO se REHACE en cada número**, no se le cambia el `href`.
+   Cambiar el atributo a secas no siempre hace que el navegador vuelva a leer el
+   icono; sustituir el nodo sí. Ese sí se puede sacar del `<head>`: es nuestro,
+   React no sabe que existe.
 4. **`rel~="icon"` es coincidencia por PALABRA.** Coge `shortcut icon` y deja
    fuera `apple-touch-icon` y `mask-icon`, que es justo lo que hace falta para no
    apartar el respaldo.
+
+### Un nodo que pinta React no se saca del DOM desde fuera
+
+/panel se quedaba **pegado**: se pulsaba Proyectos, Tickets, Diagramas… y la
+vista no cambiaba, y salía «No se pudo cargar la pantalla» con
+**`TypeError: Cannot read properties of null (reading 'removeChild')`**. Y
+**volvía al recargar**.
+
+No era /panel ni ninguna de sus pantallas: era la insignia de arriba. La
+primera versión apartaba los iconos con `link.remove()`, y **esos `<link>` son
+de React**: Next pinta los `icons` del `generateMetadata` del layout como
+elementos *hoistables*, y el React que Next lleva dentro (el canario de React
+19, `next/dist/compiled/react-dom`) los desmonta así:
+
+```js
+function unmountHoistable(instance) { instance.parentNode.removeChild(instance); }
+```
+
+Con el nodo fuera del documento `parentNode` es `null`. Cada navegación que
+rehacía el `<head>` reventaba en la fase de commit: la transición se abortaba
+—la pestaña se quedaba en la pantalla de antes— y saltaba el límite de error.
+Volvía al recargar porque en cuanto hay un pendiente la insignia se vuelve a
+poner; se veía en /panel porque ahí se salta de pestaña en pestaña y el
+superadministrador casi siempre tiene algo pendiente. Quien no tuviera nada
+pendiente no lo veía nunca, que es lo que lo hacía parecer aleatorio.
+
+> **La regla: ningún código nuestro saca del DOM un nodo que React pintó** —el
+> `<head>` incluido, que parece de nadie y no lo es—. Si hay que neutralizarlo,
+> se le cambia un atributo y se le devuelve después. El nodo sigue en su sitio,
+> así que cuando React lo desmonta encuentra su padre.
+
+Y la pista para la próxima vez: **`Cannot read properties of null (reading
+'removeChild')` es casi siempre alguien de fuera de React tocando un nodo de
+React** —código nuestro, o una extensión como el traductor del navegador—, no
+un fallo de la pantalla donde salta.
+
+Lo prueba `scripts/banco-insignia.sh`, que monta una App con **ese mismo
+React** (esbuild con `--alias` a `next/dist/compiled/react-dom`; el de
+`package.json` es el 18 y no tiene `unmountHoistable`), pone la insignia y
+navega tres veces. `MODO=roto` carga el `lib/insignia-del-favicon.ts` del #838
+**sacado de git en un commit pinchado** y afirma el fallo: el mismo mensaje y
+la pantalla que no cambia.
 
 ### Tres cosas del dibujo que no se ven mirando
 
@@ -14934,6 +15014,45 @@ Y por lo mismo la hoja lleva **`data-panel` y no `id`**: dos nodos con el mismo
 > pregunta no es cuántos paneles hay: es cuántas instancias, y aquí son ocho
 > para cinco paneles.
 
+### Un `fixed` NO es fijo dentro de un `backdrop-filter`: el panel va en un PORTAL
+
+El #888 convirtió los tres en barra lateral y en producción salieron mal los
+tres, sin un solo error: el recordatorio se abría **dentro de la
+conversación**, y «Nueva tarea» salía en blanco a la derecha con una equis que
+no cerraba nada.
+
+Una sola causa. La cabecera de Chats lleva `backdrop-blur-sm`, y un ancestro
+con `filter`, `backdrop-filter`, `transform`, `perspective`, `contain` o
+`will-change` pasa a ser el **bloque contenedor** de todo `position: fixed` que
+cuelgue de él. El panel se montaba dentro de esa cabecera, así que se colocaba
+contra ella y no contra la ventana. Y lo de «Nueva tarea» era peor: lo que se
+veía era una instancia **CERRADA** —hay tres montadas—, que con su
+`translate-x-full` contado desde la cabecera caía justo en la franja de la
+derecha, en blanco porque lo de dentro es perezoso, y con una equis que llamaba
+a cerrar algo que ya estaba cerrado.
+
+> **`PanelLateral` se pinta en un portal al `<body>`.** Dónde se monte el
+> componente deja de decidir dónde se ve — es lo que hace Radix con todos sus
+> diálogos y menús, por el mismo motivo. Y una vez fuera, la hoja lleva
+> `invisible`: un panel cerrado que asoma se lee como un panel roto.
+
+Por qué no lo cazó el banco del #888: su arnés montaba los paneles **colgando
+del layout**, que es donde cuelgan el copiloto y el chat del equipo, y no dentro
+de la cabecera, que es donde cuelgan estos tres. **Un arnés que no reproduce
+DÓNDE se monta algo no prueba cómo se coloca.** Ahora monta la cabecera con sus
+mismas clases, y su `MODO=roto` —con el `PanelLateral` de antes, pinchado a un
+commit— reproduce las capturas al píxel: el panel en 672→1056 a 1440 y la
+instancia cerrada asomando.
+
+Y hay un segundo banco, `scripts/banco-paneles-en-chats.sh`, sobre la página
+**servida** con sesión y una conversación abierta: los tres paneles de la
+cabecera nacen en el filo derecho de la ventana y bajo la barra, empujan la
+conversación, cargan su contenido, cierran con la equis y ninguna instancia
+cerrada asoma; y Canales, Filtrar por asesor y el embudo miden **los tres 288
+px**, menos que la columna, en 1440, 1366 y 1024. La semilla lleva **dos
+líneas** a propósito: con una, el selector de Canales no se pinta y la
+comparación de anchos se haría sobre dos de los tres.
+
 ### Y la exclusión se decide en UN sitio
 
 La pareja de botones del borde la tenía escrita a mano, y solo para sus dos.
@@ -15641,3 +15760,41 @@ de las pastillas dentro de la barra.
 > aparece 0 veces». Llevaba roto desde entonces. Los dos llevan ya su
 > `ANTES_REF`, con el commit escrito y con la variable para poder apuntar a
 > otro sitio.
+
+### Y la segunda vuelta: las columnas de Leads, Acciones que no se corta, y el menú de Chats
+
+1. **Las columnas son las de Leads**: Contacto, Nombre, Duración, Fecha,
+   Detalle, Resultado y Acciones. «Tipo» decía siempre «Saliente» y «Estado»
+   era un segundo mando del estado del lead, que se cambia en Leads, en el CRM
+   y en Chats. Con la columna se fue **`setCallLeadStatusAction`**, que era su
+   único llamador —una acción de servidor ES un endpoint—; el dato
+   (`Session.leadStatus`) no se toca. Y **el nombre va en su propia columna**,
+   no colgado bajo el número.
+2. **Un solo tamaño, pastillas incluidas.** La primera vuelta dejó la pastilla
+   de Resultado en `text-xs` con el argumento de que Leads hace lo mismo con las
+   suyas; al pasar de una pestaña a otra se seguía notando. Ahora es `text-sm`
+   como todo lo demás, y el banco mide **todos** los nodos con texto.
+3. **Acciones se ve siempre, y lo sostiene `table-fixed`.** Con `table-auto`
+   el texto de Detalle —que va en una línea con `truncate`— tiene un ancho
+   mínimo igual al texto ENTERO, así que empujaba la tabla y Acciones quedaba
+   fuera: un `max-w` en un `<td>` no manda nada en una tabla automática. Las
+   columnas fijas llevan su ancho en el `<colgroup>` (`ANCHO_DE_LAS_COLUMNAS`)
+   y **Detalle y Resultado se reparten lo que sobra**: cuando falta sitio son
+   ellas las que encogen, con «…». Y por si ni así cabe —un teléfono— Acciones
+   va `sticky right-0`.
+4. **La ventana de Llamar son DOS botones**: «Llamar IA» a la izquierda y
+   «Llamar» a la derecha, en la misma fila (`flex-nowrap`: el pie de la casa
+   lleva `flex-wrap` y en un teléfono los partiría). Sin «Cancelar», que la
+   ventana ya se cierra con la X y tocando fuera.
+5. **El menú de llamar de Chats dice «Llamar IA»** —el mismo nombre que en la
+   ventana: una acción no se llama de dos formas— y **nace colgado de su icono
+   y bajo la cabecera entera** (`colgadoDelIcono`, `lib/paneles-flotantes.ts`).
+   Pegado al icono con el `sideOffset` de siempre caía sobre la segunda fila y
+   tapaba Macros; y cuánto la tapaba dependía del ancho del badge del asesor y
+   del botón de resolver, o sea de cada conversación. Por eso se MIDE y no se
+   achica el menú.
+
+Lo prueba `scripts/banco-llamadas-como-leads.sh`, en Chromium y con los
+componentes de verdad, en dos modos: el roto monta el «antes» pinchado a un
+commit —con sus vecinos del mismo commit en una carpeta hermana, para que sus
+`./` no resuelvan al fichero de hoy— y afirma los cinco fallos.

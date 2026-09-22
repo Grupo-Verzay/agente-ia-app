@@ -171,21 +171,46 @@ export const COLORES_DE_LA_INSIGNIA = {
 export const MARCA = "data-insignia";
 
 /**
- * Los iconos que declaró el documento, apartados mientras manda la insignia.
+ * Los iconos que declaró el documento se APARTAN mientras manda la insignia —
+ * y apartar NO es sacarlos del `<head>`.
  *
  * **Añadir el nuestro al final no bastaba, y ese era el fallo 3 del #838.** El
  * layout declara TRES (`/favicon-48.png`, `/icon-192.png`, `/icon-512.png`)
  * más los que Next emite por convención de fichero, todos con su `sizes`. Con
  * varios candidatos el navegador **elige**, y elige por tamaño y tipo, no por
- * orden: en Edge y en Chrome seguía ganando el de 48, así que el PNG con el
- * número se dibujaba, se metía en su `<link>`… y la pestaña no cambiaba.
+ * orden. La única forma de que no lo pise nadie es que no haya ningún otro
+ * `rel="icon"`.
  *
- * La única forma de que no lo pise nadie es que **no haya nadie**: se apartan
- * y se devuelven tal cual al quitar la insignia. `apple-touch-icon` NO se
- * aparta —es otro `rel`, lo usa iOS y además es nuestro respaldo para leer el
- * icono de base—.
+ * # Y la primera forma de apartarlos rompía la navegación entera
+ *
+ * El #838 los apartaba con `link.remove()`. **Esos `<link>` no son nuestros:
+ * son de React** —Next pinta los `icons` del `generateMetadata` del layout como
+ * elementos *hoistables*— y React 19 los desmonta así:
+ *
+ * ```js
+ * function unmountHoistable(instance) { instance.parentNode.removeChild(instance); }
+ * ```
+ *
+ * Con el nodo fuera del documento `parentNode` es `null`, y cada navegación que
+ * rehacía el `<head>` reventaba con **«Cannot read properties of null (reading
+ * 'removeChild')»**: la transición se abortaba —la pestaña se quedaba en la
+ * pantalla de antes— y salía «No se pudo cargar la pantalla». Y **volvía al
+ * recargar**, porque en cuanto hay un pendiente la insignia se vuelve a poner.
+ * Se vio en /panel porque ahí se salta de pestaña en pestaña y el
+ * superadministrador casi siempre tiene algo pendiente.
+ *
+ * > **Un nodo que pinta React no se saca del DOM desde fuera.** Se apartan
+ * > cambiándoles el `rel` —queda guardado en `RELACION_ORIGINAL`— y se
+ * > devuelven poniéndoselo otra vez. El nodo sigue en su sitio, así que cuando
+ * > React lo desmonta su `parentNode` es el `<head>` y no pasa nada.
+ *
+ * `apple-touch-icon` NO se aparta —es otro `rel`, lo usa iOS y además es
+ * nuestro respaldo para leer el icono de base—.
  */
-let apartados: HTMLLinkElement[] = [];
+export const RELACION_ORIGINAL = "data-insignia-rel";
+
+/** El `rel` que llevan mientras están apartados: no es un icono para nadie. */
+const REL_APARTADO = "x-icono-apartado";
 
 /**
  * El vigilante del `<head>`.
@@ -195,9 +220,8 @@ let apartados: HTMLLinkElement[] = [];
  * quedaría limpio a mitad de sesión y no habría forma de explicarlo. Se vuelven
  * a apartar en cuanto aparecen.
  *
- * No hay bucle: lo único que hace es QUITAR nodos, y quitarlos no añade
- * ninguno. Y se desconecta antes de devolverlos, que es lo único que sí
- * añadiría.
+ * No hay bucle: observa `childList` y apartar solo cambia un atributo, que no
+ * es un cambio de hijos.
  */
 let vigilante: MutationObserver | null = null;
 
@@ -211,16 +235,28 @@ function losDelDocumento(): HTMLLinkElement[] {
     );
 }
 
+/** Los que están apartados ahora mismo, siguen en el `<head>`. */
+function losApartados(): HTMLLinkElement[] {
+    return Array.from(
+        document.head.querySelectorAll<HTMLLinkElement>(`link[${RELACION_ORIGINAL}]`),
+    );
+}
+
 function apartarLosOtros() {
     for (const link of losDelDocumento()) {
-        link.remove();
-        apartados.push(link);
+        link.setAttribute(RELACION_ORIGINAL, link.getAttribute("rel") ?? "icon");
+        link.setAttribute("rel", REL_APARTADO);
     }
 }
 
 function devolverLosOtros() {
-    for (const link of apartados) document.head.appendChild(link);
-    apartados = [];
+    // Solo los que siguen en el `<head>`: los que React desmontó mientras
+    // estaban apartados ya no son de nadie, y volver a meterlos sería pintar
+    // un icono de una pantalla que ya no está.
+    for (const link of losApartados()) {
+        link.setAttribute("rel", link.getAttribute(RELACION_ORIGINAL) || "icon");
+        link.removeAttribute(RELACION_ORIGINAL);
+    }
 }
 
 function vigilarElHead() {
@@ -265,7 +301,7 @@ export function quitarElIcono() {
  * Se prueban **tres** sitios y el orden importa:
  *
  * 1. Los `<link rel="icon">` que siguen en el `<head>`.
- * 2. Los que esta misma función APARTÓ (`apartados`). Sin esta mitad, el
+ * 2. Los que esta misma función APARTÓ (`losApartados`). Sin esta mitad, el
  *    segundo número de una sesión no encontraría ningún icono de base —los
  *    acabamos de quitar nosotros— y la insignia dejaría de dibujarse sola.
  * 3. El `apple-touch-icon`, que sale de `/api/brand-icon`. Es el respaldo para
@@ -281,7 +317,7 @@ export function quitarElIcono() {
 export async function elIconoDeLaPestana(): Promise<HTMLImageElement | null> {
     const candidatas = [
         ...losDelDocumento().map((l) => l.href),
-        ...apartados.map((l) => l.href),
+        ...losApartados().map((l) => l.href),
         document.head.querySelector<HTMLLinkElement>('link[rel~="apple-touch-icon"]')?.href,
     ].filter((h): h is string => Boolean(h));
 

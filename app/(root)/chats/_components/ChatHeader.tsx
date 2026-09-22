@@ -1,7 +1,7 @@
 'use client';
 
 import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CompartirConElEquipo } from "@/components/chat-equipo/CompartirConElEquipo";
 import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, X } from 'lucide-react';
@@ -26,6 +26,7 @@ import type { AdvisorInfo } from '@/actions/team-actions';
 import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { MacrosMenu } from './MacrosMenu';
 import { SessionTagsCombobox } from '../../tags/components/SessionTagsCombobox';
+import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { reopenSession, resolveSession } from '@/actions/advisor-assign-actions';
 import { addSessionParticipantAction } from '@/actions/collab-actions';
@@ -395,11 +396,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
     : 'border-amber-300 bg-amber-100 text-amber-800';
 
+  // Las etiquetas de la cuenta de la linea de ESTA conversacion, y ninguna
+  // mas. Si esa linea no tiene etiquetas el selector sale vacio: ofrecer las
+  // de otra linea serian botones que el servidor rechaza.
+  const etiquetasDeEstaLinea = useMemo(
+    () => etiquetasDeLaConversacion(allTags, session?.userId),
+    [allTags, session?.userId],
+  );
+
   const tagsCombobox = session && (
     <SessionTagsCombobox
       userId={session.userId}
       sessionId={session.id}
-      allTags={allTags}
+      allTags={etiquetasDeEstaLinea}
       initialSelectedIds={initialSelectedTagIds}
       onSelectedIdsChange={(selectedIds) => {
         if (!remoteJid) return;
