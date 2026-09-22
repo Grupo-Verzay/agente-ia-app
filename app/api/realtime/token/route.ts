@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { lasCuentasQueVeLaBandeja } from "@/lib/cuentas-asociadas";
 import { signRealtimeToken } from "@/lib/realtime/realtime-token";
 
 export const dynamic = "force-dynamic";
@@ -30,46 +30,30 @@ export async function GET() {
 
   // userIds cuyas conversaciones puede ver el usuario. El webhook emite a la
   // sala `user:{dueño de la línea}`, así que hay que unirse a la sala de CADA
-  // cuenta cuyas líneas salen en la bandeja.
+  // cuenta cuyas líneas salen en la bandeja — y de NINGUNA más.
   //
-  // Iban solo la propia, la del dueño y la de sesión. Pero la bandeja de Chats
-  // junta también las líneas de las cuentas VINCULADAS (`linked_accounts`, en
-  // los dos sentidos: las que esta cuenta tiene vinculadas y las que la tienen
-  // vinculada a ella; ver `allSessionUserIds` en chats/page.tsx). Para esas
-  // líneas no llegaba NINGÚN aviso en vivo: la fila de la lista se movía con
-  // el reloj de 20 s y la conversación abierta se quedaba esperando a su
-  // sondeo, que con Evolution lenta eran minutos. "Se ve en la columna y en
-  // la conversación no", para todas las líneas de cuentas vinculadas, siempre.
+  // Es exactamente el conjunto de la bandeja (`lasCuentasQueVeLaBandeja`): la
+  // propia y las que cuelgan de ella hacia abajo. Antes se calculaba aquí con
+  // su propia consulta y en los dos sentidos, así que una cuenta hija se unía a
+  // la sala de su MADRE y recibía en vivo los avisos de sus líneas, que ni
+  // salen en su bandeja ni puede tocar (punto 5 de la auditoría de alcance).
+  // Una sala de más no es un aviso de más: es una conversación ajena llegando
+  // al navegador.
   //
-  // Mismo conjunto que la bandeja, calculado igual.
+  // Si no se puede calcular, la propia, la de sesión y la efectiva: se pierden
+  // avisos de las vinculadas —el reloj de 20 s los trae igual—, nunca se ganan
+  // los de otra cuenta.
   const effectiveOwnerId = user.ownerId ?? user.id;
-  const sessionUserId = user.sessionUserId ?? user.id;
-
-  const [vinculadas, maestras] = await Promise.all([
-    db.$queryRaw<{ id: string }[]>`
-      SELECT "linked_user_id" AS id FROM "linked_accounts" WHERE "master_user_id" = ${effectiveOwnerId}
-    `.catch((error) => {
-      console.error("[realtime] no se pudieron leer las cuentas vinculadas:", error);
-      return [] as { id: string }[];
-    }),
-    db.$queryRaw<{ id: string }[]>`
-      SELECT "master_user_id" AS id FROM "linked_accounts" WHERE "linked_user_id" = ${sessionUserId}
-    `.catch((error) => {
-      console.error("[realtime] no se pudieron leer las cuentas maestras:", error);
-      return [] as { id: string }[];
-    }),
-  ]);
+  let cuentas: string[];
+  try {
+    cuentas = await lasCuentasQueVeLaBandeja(user);
+  } catch (error) {
+    console.error("[realtime] no se pudieron calcular las cuentas de la bandeja:", error);
+    cuentas = [effectiveOwnerId];
+  }
 
   const userIds = Array.from(
-    new Set(
-      [
-        effectiveOwnerId,
-        user.id,
-        user.sessionUserId,
-        ...vinculadas.map((fila) => fila.id),
-        ...maestras.map((fila) => fila.id),
-      ].filter(Boolean),
-    ),
+    new Set([effectiveOwnerId, user.id, user.sessionUserId, ...cuentas].filter(Boolean)),
   ) as string[];
 
   const token = signRealtimeToken({ userIds }, secret, 3600);

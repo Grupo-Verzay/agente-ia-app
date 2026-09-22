@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { isAdminLike } from "@/lib/rbac";
 import { rolQueManda } from "@/lib/cuenta-que-manda";
 import { cookies } from "next/headers";
-import type { Instancia, Plan } from "@prisma/client";
+import type { Plan } from "@prisma/client";
 
 type Result<T = undefined> =
   | { success: true; data?: T; warning?: string }
@@ -326,111 +326,5 @@ export async function resetAllLinkedAccounts(): Promise<Result> {
   } catch (error) {
     console.error("[resetAllLinkedAccounts]", error);
     return { success: false, message: "No se pudieron reiniciar los vínculos." };
-  }
-}
-
-export type LinkedAccountInstances = {
-  linkedUserId: string;
-  company: string;
-  instances: Instancia[];
-};
-
-export async function getLinkedAccountsInstances(
-  masterUserId: string,
-): Promise<{ success: true; data: LinkedAccountInstances[] } | { success: false; message: string }> {
-  if (!masterUserId) return { success: true, data: [] };
-
-  try {
-    type LinkedRow = { linkedUserId: string; company: string };
-    const linkedRows = await db.$queryRaw<LinkedRow[]>`
-      SELECT la."linked_user_id" AS "linkedUserId", u.company
-      FROM "linked_accounts" la
-      JOIN "User" u ON u.id = la."linked_user_id"
-      WHERE la."master_user_id" = ${masterUserId}
-    `;
-
-    if (linkedRows.length === 0) return { success: true, data: [] };
-
-    const linkedIds = linkedRows.map((r) => r.linkedUserId);
-
-    const instances = await db.instancia.findMany({
-      where: {
-        userId: { in: linkedIds },
-        OR: [
-          // "waha" es WhatsApp Mensajería, tan línea de WhatsApp como las otras.
-          // Faltaba aquí, así que en cuanto una línea de una cuenta vinculada
-          // pasaba a ese proveedor DESAPARECÍA de la bandeja y del selector de
-          // canales, como si se hubiera borrado. Con Evolution se veía; al
-          // cambiar de proveedor, no. La línea es la misma.
-          { instanceType: { in: ["Whatsapp", "waha"] } },
-          { instanceType: "meta", metaChannel: "whatsapp" },
-        ],
-      },
-    });
-
-    const data: LinkedAccountInstances[] = linkedRows.map((row) => ({
-      linkedUserId: row.linkedUserId,
-      company: row.company,
-      instances: instances.filter((inst) => inst.userId === row.linkedUserId),
-    }));
-
-    return { success: true, data };
-  } catch (error) {
-    console.error("[getLinkedAccountsInstances]", error);
-    return { success: true, data: [] };
-  }
-}
-
-export type MasterAccountInstances = {
-  masterUserId: string;
-  company: string;
-  instances: Instancia[];
-};
-
-// Inverso de getLinkedAccountsInstances: dado un asesor/admin vinculado,
-// devuelve las instancias de las cuentas DUEÑAS a las que está vinculado.
-export async function getMasterAccountInstances(
-  linkedUserId: string,
-): Promise<{ success: true; data: MasterAccountInstances[] } | { success: false; message: string }> {
-  if (!linkedUserId) return { success: true, data: [] };
-
-  try {
-    type MasterRow = { masterUserId: string; company: string };
-    const masterRows = await db.$queryRaw<MasterRow[]>`
-      SELECT la."master_user_id" AS "masterUserId", u.company
-      FROM "linked_accounts" la
-      JOIN "User" u ON u.id = la."master_user_id"
-      WHERE la."linked_user_id" = ${linkedUserId}
-    `;
-
-    if (masterRows.length === 0) return { success: true, data: [] };
-
-    const masterIds = masterRows.map((r) => r.masterUserId);
-
-    const instances = await db.instancia.findMany({
-      where: {
-        userId: { in: masterIds },
-        OR: [
-          // "waha" es WhatsApp Mensajería, tan línea de WhatsApp como las otras.
-          // Faltaba aquí, así que en cuanto una línea de una cuenta vinculada
-          // pasaba a ese proveedor DESAPARECÍA de la bandeja y del selector de
-          // canales, como si se hubiera borrado. Con Evolution se veía; al
-          // cambiar de proveedor, no. La línea es la misma.
-          { instanceType: { in: ["Whatsapp", "waha"] } },
-          { instanceType: "meta", metaChannel: "whatsapp" },
-        ],
-      },
-    });
-
-    const data: MasterAccountInstances[] = masterRows.map((row) => ({
-      masterUserId: row.masterUserId,
-      company: row.company,
-      instances: instances.filter((inst) => inst.userId === row.masterUserId),
-    }));
-
-    return { success: true, data };
-  } catch (error) {
-    console.error("[getMasterAccountInstances]", error);
-    return { success: true, data: [] };
   }
 }

@@ -14335,10 +14335,9 @@ Cinco cosas que hay que mantener:
    NO da es «Ingresar» como cuenta de la casa: ahí cada una está por encima de
    la otra, igual que en el CRM.
 
-**Lo que esto deja a medias, a sabiendas:** la bandeja de Chats sigue enseñando
-las líneas de la madre (`getAssociatedAccountIds` va en los dos sentidos) y
-ahora sus acciones sobre esas líneas contestan «No autorizado» — menú abierto,
-puerta cerrada. Es el punto 5 de la auditoría del 2026-09-22 y va aparte.
+**Lo que esto dejó a medias** —la bandeja de Chats seguía enseñando las líneas
+de la madre y sus acciones contestaban «No autorizado»— está cerrado en la
+sección siguiente.
 
 Lo prueba `scripts/banco-alcance-entre-cuentas.sh`, contra Postgres y con
 `currentUser()` DE VERDAD —solo se finge la petición: la sesión y las cookies—.
@@ -14346,6 +14345,68 @@ Lo prueba `scripts/banco-alcance-entre-cuentas.sh`, contra Postgres y con
 pinchado (`ANTES_REF`) sacado a un `git worktree`, y afirma la fuga: Yair entra
 como Carlos, Atencion se cambia a Carlos, y un cliente lee y borra los leads de
 otra cuenta.
+
+## La bandeja de Chats también va HACIA ABAJO: líneas, rutas, otra línea, notas y tiempo real
+
+Es el punto 5 de la auditoría del 2026-09-22. Después de #898 las acciones solo
+bajaban, pero **la bandeja seguía juntando las cuentas vinculadas en los dos
+sentidos**: la hija veía las líneas de su madre y todo lo que hacía sobre ellas
+contestaba «No autorizado». Botones rotos, y además una fuga: el token de tiempo
+real la unía a la sala de la madre, así que recibía en vivo sus avisos.
+
+> **Qué cuentas alcanza la bandeja lo decide `lasCuentasDeLaBandeja`
+> (`lib/alcance-de-la-bandeja.ts`, puro)**: la cuenta por la que se actúa, la
+> fila de la persona, y las que cuelgan de esa cuenta HACIA ABAJO
+> (`lasCuentasQueCuelganDe`, la regla del CRM). Nunca la madre ni las
+> hermanas. El superadministrador de verdad, la familia entera. Un `agente`,
+> solo lo suyo.
+
+La aplican, y **tienen que decir lo mismo**:
+
+| dónde | por qué función |
+| --- | --- |
+| la página de Chats (qué líneas se pintan) | `lasCuentasQueVeLaBandeja` + `lasLineasDeLasCuentas` |
+| las rutas `/api/chats/{lista,conversacion,precarga}` y las acciones de una línea o conversación | `getAssociatedAccountIds` |
+| el token de tiempo real (a qué salas se une) | `lasCuentasQueVeLaBandeja` |
+| «Enviar por otra línea» de las macros | `getAssociatedAccountIds` |
+| con quién se comparte una nota (`getTeamIds`) | `lasCuentasQueCuelganDe` / la familia del superadmin |
+
+`getAssociatedAccountIds` es la de las puertas y **no** recorta al agente —era
+así antes y el agente no ve esas líneas de todas formas—; `lasCuentasQueVeLaBandeja`
+es la de lo que se ENSEÑA y sí. Una sala de tiempo real de más no es un aviso de
+más: es una conversación ajena llegando al navegador.
+
+Seis cosas que hay que mantener:
+
+1. **`getLinkedAccountsInstances` y `getMasterAccountInstances` se fueron.**
+   Vivían en un fichero `'use server'`, o sea eran dos endpoints que devolvían
+   las líneas de la cuenta que se les nombrara sin preguntar nada, y la
+   segunda era justo la que traía las de la madre. Su sustituto,
+   `lib/lineas-de-las-cuentas.server.ts`, no decide a quién: la lista la pone
+   quien llama.
+2. **Una pareja recíproca (`A ↔ B`) se anula**, como en el CRM: ninguna ve las
+   líneas de la otra en la bandeja, aunque `assertCanAccessTargetUser` las
+   deje actuar. Eso no rompe ningún botón —la bandeja enseña MENOS de lo que
+   la puerta deja hacer, nunca más—; si hace falta que una vea a la otra, se
+   borra el enlace que sobra.
+3. **Un enlace directo `A → N` hace de N una hija de A**, aunque N cuelgue
+   también de la madre de A. «Hermana» es la que solo comparte madre.
+4. **Las notas: el equipo es la cuenta, su dueña y sus asesores, más lo que
+   cuelga hacia abajo.** Antes sumaba las cuentas que la vincularon a una (la
+   madre), con su nombre y su correo en el selector.
+5. **`getAuthorizedAccountUserIds` de `chat-manual-actions` sigue subiendo, a
+   propósito**: es para RECURSOS —las respuestas rápidas y los flujos de la
+   cuenta madre—, no para líneas. Lo que decide sobre una línea (la firma,
+   borrar un mensaje) va ya con `getAssociatedAccountIds`. Cerrar también los
+   recursos es otra decisión, y está pendiente.
+6. **El informe de mudanza lo dice**: `origenCuelgaDelDestino`. Pasar de la
+   cuenta madre a una hija pierde los chats de la madre, aunque sea
+   administradora y estén en la misma familia.
+
+Lo prueba `scripts/banco-bandeja-hacia-abajo.sh`, contra Postgres y con
+`currentUser()` de verdad, por las cinco puertas. `MODO=roto` empaqueta las
+mismas pruebas contra `22dd27b` y afirma la fuga: la hija ve, ofrece, comparte
+y escucha lo de su madre.
 
 ## CRM › Llamadas: la barra es la de Leads, y marcar vive en una ventana
 

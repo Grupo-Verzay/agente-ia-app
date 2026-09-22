@@ -6,6 +6,10 @@ import type { NoteFolder, UserNote } from '@prisma/client'
 import { getAuditActorId, writeAuditLog } from './audit-log-actions'
 import { currentUser } from '@/lib/auth'
 import { getAssociatedAccountIds } from '@/lib/cuentas-asociadas'
+import { lasCuentasQueCuelganDe } from '@/lib/crm-de-la-familia'
+import { losEnlacesDeLaCuenta } from '@/lib/alcance-entre-cuentas.server'
+import { laFamiliaDeLaCuenta } from '@/lib/familia-de-cuentas'
+import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad'
 import { identidadesQueRecibenCompartidos } from '@/lib/notas-compartidas'
 
 export type NoteFolderWithCount = NoteFolder & { _count: { notes: number } }
@@ -413,8 +417,8 @@ export async function deleteNote(id: string, userId: string) {
  *     de todos los dias. No estan en `linked_accounts` -esa tabla es para
  *     vincular cuentas enteras, no para las personas de dentro-, asi que la
  *     consulta anterior no los veia.
- *   - Las cuentas vinculadas, EN LAS DOS DIRECCIONES: las que uno vinculo
- *     bajo la suya y aquellas bajo las que a uno lo vincularon.
+ *   - Las cuentas vinculadas que cuelgan de esta HACIA ABAJO. Nunca la madre
+ *     ni las hermanas (punto 5 de la auditoria de alcance).
  *
  * Antes se subia primero a un "master" -el primer `master_user_id` que
  * apareciera, con un LIMIT 1 sin orden- y el equipo se armaba a partir de ESE.
@@ -422,8 +426,10 @@ export async function deleteNote(id: string, userId: string) {
  * padre y listaba lo suyo, dejando fuera las hermanas y a todos los asesores.
  * Se quita ese salto: el equipo se arma alrededor de la cuenta que pregunta.
  */
-async function getTeamIds(accountId: string): Promise<string[]> {
+async function getTeamIds(accountId: string, esSuperAdmin = false): Promise<string[]> {
   try {
+    // Su cuenta, si trabaja para otra, y sus asesores: eso no es cruzar
+    // cuentas, es su propio equipo.
     const rows = await db.$queryRaw<{ id: string }[]>`
       SELECT ${accountId} AS id
       UNION
@@ -431,14 +437,25 @@ async function getTeamIds(accountId: string): Promise<string[]> {
       WHERE id = ${accountId} AND "owner_id" IS NOT NULL
       UNION
       SELECT id FROM "User" WHERE "owner_id" = ${accountId}
-      UNION
-      SELECT "linked_user_id" AS id FROM "linked_accounts"
-      WHERE "master_user_id" = ${accountId}
-      UNION
-      SELECT "master_user_id" AS id FROM "linked_accounts"
-      WHERE "linked_user_id" = ${accountId}
     `
-    return rows.map(r => r.id).filter(Boolean)
+    // Y de las cuentas vinculadas, SOLO las que cuelgan de esta hacia abajo
+    // (`lasCuentasQueCuelganDe`), igual que la bandeja de Chats y el CRM.
+    // Antes se sumaban las vinculadas en los dos sentidos: la cuenta madre, y
+    // con los enlaces sueltos entre hermanas, cuentas HERMANAS — el selector
+    // enseñaba su nombre y su correo y dejaba compartirles notas. El
+    // superadministrador de verdad alcanza la familia entera.
+    let cuentas: string[] = []
+    try {
+      cuentas = esSuperAdmin
+        ? (await laFamiliaDeLaCuenta(accountId)).cuentas
+        : lasCuentasQueCuelganDe(accountId, await losEnlacesDeLaCuenta(accountId))
+    } catch (error) {
+      console.warn('[notas] no se pudieron leer las cuentas vinculadas; solo el equipo propio', {
+        cuenta: accountId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+    return Array.from(new Set([...rows.map(r => r.id), ...cuentas].filter(Boolean)))
   } catch {
     return [accountId]
   }
@@ -460,7 +477,7 @@ export async function getTeamAccounts(accountId: string): Promise<{ success: boo
     // Se arma con la MISMA lista que luego deja compartir (`setNoteShare`).
     // Antes eran dos consultas gemelas y bastaba con que se separaran para
     // ofrecer a alguien y luego rechazarlo.
-    const ids = (await getTeamIds(accountId)).filter(id => id !== accountId)
+    const ids = (await getTeamIds(accountId, esSuperAdminDeVerdad(user))).filter(id => id !== accountId)
     if (ids.length === 0) return { success: true, data: [] }
 
     const rows = await db.$queryRaw<TeamAccount[]>`
@@ -510,7 +527,7 @@ export async function setNoteShare(
     if (!note) return { success: false, error: 'No autorizado.' }
     if (targetUserId === dueno) return { success: false, error: 'No puedes compartir contigo mismo.' }
 
-    const team = await getTeamIds(dueno)
+    const team = await getTeamIds(dueno, esSuperAdminDeVerdad(await currentUser()))
     if (!team.includes(targetUserId)) return { success: false, error: 'La cuenta no pertenece a tu equipo.' }
 
     if (permission === 'none') {
