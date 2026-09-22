@@ -375,23 +375,12 @@
   transition: padding-right 500ms cubic-bezier(0.17, 0.61, 0.54, 0.9);
 }
 
-/* Y la ficha de Contacto se superpone mientras haya un panel abierto.
-
-   No es una preferencia: NO CABEN. Medido en Chromium, con la lista, la
-   conversación con su suelo de 15rem, la ficha y el panel, los cuatro al mismo
-   ancho, harían falta ~1.400 px para ponerlos en fila. Por debajo de eso la
-   conversación se quedaba en CERO y quedaban dos columnas de fichas, una al
-   lado de otra, sin nada que leer entre ellas.
-
-   Superponerse es lo que la ficha ya hace en un móvil (`absolute inset-0` y
-   `md:static`), así que no es un comportamiento nuevo: es el mismo, aplicado
-   también cuando el sitio se lo come un panel. */
-:root[data-panel-lateral="abierto"] [data-ficha-de-contacto] {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  width: auto;
-}
+/* La ficha de Contacto ya NO se superpone a un panel: entra en la exclusión
+   (`PANEL_DE_LA_FICHA`), así que abrir un panel la cierra y abrirla cierra el
+   panel. La regla que la ponía `absolute inset-0` cuando había un panel
+   abierto la sacaba ENCIMA de la conversación —a su izquierda— con el panel a
+   la derecha: dos paneles apilados, uno a cada lado. Todos salen ya por el
+   mismo lado, el derecho de la conversación. */
 
 /* La franja se reserva DONDE CABE.
 

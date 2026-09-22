@@ -1,18 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Hash, Loader2, MessagesSquare, Users } from "lucide-react";
+import { Hash, Loader2, MessagesSquare, Share2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { PanelLateral } from "@/components/shared/PanelLateral";
+import { PANEL_DE_ENVIAR_AL_EQUIPO } from "@/lib/panel-lateral";
 import { Textarea } from "@/components/ui/textarea";
 import { TOPE_DEL_CONTEXTO, type ChatCompartido } from "@/lib/chat-compartido";
 import {
@@ -42,6 +36,13 @@ import {
  *    rechaza — un botón que al pulsarlo da error es peor que no tenerlo.
  * 3. **El botón dice que se pulsó antes de que el servidor conteste**, y la
  *    segunda pulsación no hace nada. Es la regla del botón «Salir».
+ *
+ * # Y es un PANEL LATERAL, no un diálogo
+ *
+ * Era un modal centrado con velo. Se abre desde la cabecera de Chats como la
+ * ficha, el recordatorio y la tarea, así que va por el mismo sitio —la franja
+ * de la derecha— y entra en la misma exclusión: abrirlo cierra el panel que
+ * hubiera, y abrir otro lo cierra a él.
  */
 export function CompartirConElEquipo({
     abierto,
@@ -121,16 +122,19 @@ export function CompartirConElEquipo({
     };
 
     return (
-        <Dialog open={abierto} onOpenChange={(v) => (v ? null : cerrar())}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Enviar al equipo</DialogTitle>
-                    <DialogDescription>
-                        Se publica en el canal que elijas, con un enlace que abre esta
-                        conversación.
-                    </DialogDescription>
-                </DialogHeader>
-
+        <PanelLateral
+            id={PANEL_DE_ENVIAR_AL_EQUIPO}
+            abierto={abierto}
+            onCerrar={cerrar}
+            titulo="Enviar al equipo"
+            subtitulo={chat.nombre?.trim() || chat.jid}
+            icono={<Share2 className="h-4 w-4" />}
+        >
+            <div className="space-y-4 px-4 py-4">
+                <p className="text-sm text-muted-foreground">
+                    Se publica en el canal que elijas, con un enlace que abre esta
+                    conversación.
+                </p>
                 <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
                     <MessagesSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
@@ -156,7 +160,7 @@ export function CompartirConElEquipo({
                     ) : (
                         // Su propio scroll: la lista crece con los canales de la
                         // cuenta, y sin tope el diálogo se estira sin fin.
-                        <div className="max-h-40 space-y-0.5 overflow-y-auto rounded-md border border-border p-1">
+                        <div className="max-h-60 space-y-0.5 overflow-y-auto rounded-md border border-border p-1">
                             {canales.map((c) => (
                                 <button
                                     key={c.id}
@@ -197,27 +201,29 @@ export function CompartirConElEquipo({
                     />
                 </div>
 
-                {/* Cancelar a la izquierda y la acción a la derecha: el pie de
-                    la casa es `DialogFooter`, que ya lleva `justify-between`. */}
-                <DialogFooter>
-                    <Button variant="ghost" onClick={cerrar} disabled={enviando}>
-                        Cancelar
-                    </Button>
-                    <Button
-                        onClick={() => void enviar()}
-                        disabled={enviando || !elegido || !canales?.length}
-                    >
-                        {enviando ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Enviando…
-                            </>
-                        ) : (
-                            "Enviar"
-                        )}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            </div>
+
+            {/* Cancelar a la izquierda y la acción a la derecha, los dos como
+                hijos DIRECTOS de la fila: es lo que hace que `justify-between`
+                los reparta. Mismo pie que el recordatorio y la tarea. */}
+            <div className="mt-auto flex flex-row flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+                <Button variant="ghost" onClick={cerrar} disabled={enviando}>
+                    Cancelar
+                </Button>
+                <Button
+                    onClick={() => void enviar()}
+                    disabled={enviando || !elegido || !canales?.length}
+                >
+                    {enviando ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Enviando…
+                        </>
+                    ) : (
+                        "Enviar"
+                    )}
+                </Button>
+            </div>
+        </PanelLateral>
     );
 }

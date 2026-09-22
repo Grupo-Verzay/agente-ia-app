@@ -24,7 +24,7 @@
  * | --- | --- | --- |
  * | `columnaAncha` | un ancho COMÚN, pegado al filo izquierdo de la columna y bajo la fila de pastillas | son filtros de la lista: se abren en el mismo sitio y con el mismo tamaño |
  * | `columnaDerecha` | pegado al filo DERECHO de la columna, bajo su control | son de UNA fila: nacen donde se pulsó, y voltean arriba si no cabe |
- * | `cabecera` | al filo derecho del área de conversación, bajo la cabecera, con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de sitio ni de tamaño |
+ * | `cabecera` | colgando de SU botón —su filo derecho es el del botón y crece hacia la izquierda—, bajo la cabecera, con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de altura ni de tamaño |
  *
  * # Cómo se pinta eso con Radix, que es la parte que no se ve leyendo
  *
@@ -236,8 +236,9 @@ export function columnaDerecha(
 }
 
 /**
- * Al filo derecho del área de conversación, bajo la cabecera entera, y con el
- * ancho de la fila de Macros y Acciones.
+ * Colgando de SU botón —filo derecho con filo derecho, creciendo hacia la
+ * izquierda—, bajo la cabecera entera, y con el ancho de la fila de Macros y
+ * Acciones.
  *
  * Dos cosas, y cada una arregla un fallo distinto:
  *
@@ -270,27 +271,50 @@ export function cabecera(
     primitiva: Primitiva,
     desde?: number,
 ): Geometria {
-    const hueco = Math.max(0, cabeceraCaja.right - cabeceraCaja.left);
+    // Un `desde` fuera de la cabecera no es una medida: es la copia de Macros
+    // de la fila del MÓVIL, que va `md:hidden` y mide 0×0 en el origen. Con
+    // ella el ancho salía de la cabecera entera y el menú de Acciones cruzaba
+    // la pantalla de lado a lado. Se trata como si no hubiera fila que medir.
+    const desdeValido =
+        desde !== undefined &&
+        Number.isFinite(desde) &&
+        desde > cabeceraCaja.left &&
+        desde < cabeceraCaja.right
+            ? desde
+            : undefined;
+    // El panel CUELGA DE SU BOTÓN, del lado en el que está el botón: si está
+    // en la mitad derecha de la cabecera, su filo derecho es el del botón y
+    // crece hacia la IZQUIERDA; si está en la izquierda, al revés. Lo que
+    // tiene para crecer es lo que va del botón al borde de la cabecera por ese
+    // lado — ese es el techo, no la cabecera entera.
+    const centro = (disparador.left + disparador.right) / 2;
+    const aLaDerecha = centro >= (cabeceraCaja.left + cabeceraCaja.right) / 2;
+    const hueco = aLaDerecha
+        ? Math.max(0, disparador.right - cabeceraCaja.left)
+        : Math.max(0, cabeceraCaja.right - disparador.left);
     const tope = Math.max(0, hueco - MARGEN_DE_LA_VENTANA);
     // El ancho lo pide la fila; el suelo es un GUARDA (ver
-    // `ANCHO_MINIMO_DE_LA_CABECERA`) y la cabecera sigue siendo el techo: un
-    // ancho mayor que ella se saldría por el filo derecho, que es justo lo que
-    // esto viene a quitar.
+    // `ANCHO_MINIMO_DE_LA_CABECERA`) y el hueco sigue siendo el techo: un
+    // ancho mayor se saldría de la conversación.
     const ancho =
-        desde === undefined
+        desdeValido === undefined
             ? undefined
             : Math.min(
                   tope,
                   Math.max(
                       ANCHO_MINIMO_DE_LA_CABECERA,
-                      Math.round(cabeceraCaja.right - desde),
+                      Math.round(cabeceraCaja.right - desdeValido),
                   ),
               );
     return {
         side: "bottom",
-        align: "end",
+        // Con offset 0, `end` pone el filo derecho del panel en el del botón y
+        // `start` el izquierdo en el izquierdo. Antes se llevaba siempre al
+        // filo de la cabecera, y el panel de un icono de en medio no colgaba
+        // de nadie: cruzaba la conversación.
+        align: aLaDerecha ? "end" : "start",
         collisionPadding: MARGEN_DE_LA_VENTANA,
-        alignOffset: Math.round(disparador.right - cabeceraCaja.right),
+        alignOffset: 0,
         sideOffset: Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)),
         avoidCollisions: false,
         estilo: {

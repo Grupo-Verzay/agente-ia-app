@@ -84,14 +84,26 @@ function porDefecto(clase: ClaseDePanel): PropsDelPanel {
 }
 
 export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
-    const disparador = useRef<HTMLButtonElement>(null);
+    // El disparador puede estar montado DOS veces —`ChatHeader` pinta Acciones,
+    // Macros y la cita en la fila del móvil y en la de escritorio con el mismo
+    // hook—, y un `useRef` se queda con el último que se monte, que en un móvil
+    // es el ESCONDIDO: el panel se colocaba contra un botón de 0×0. Así que se
+    // guardan todos y al abrir se mide el que se ve.
+    const nodos = useRef(new Set<HTMLButtonElement>());
+    const disparador = useCallback((nodo: HTMLButtonElement | null) => {
+        if (nodo) nodos.current.add(nodo);
+    }, []);
     const [props, setProps] = useState<PropsDelPanel>(() => porDefecto(clase));
 
     const alAbrir = useCallback(
         (abierto: boolean) => {
             if (!abierto || typeof document === "undefined") return;
 
-            const nodo = disparador.current;
+            // Se sueltan los que ya no están en el documento (un callback ref
+            // recibe `null` al desmontar sin decir cuál era).
+            for (const n of nodos.current) if (!n.isConnected) nodos.current.delete(n);
+            const todos = Array.from(nodos.current);
+            const nodo = todos.find((n) => n.getBoundingClientRect().width > 0) ?? todos[0] ?? null;
             const marca =
                 clase === "cabecera"
                     ? MARCA_DE_LA_CABECERA
@@ -130,7 +142,15 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
                 // falta el borde IZQUIERDO de Macros. Sin esa marca se cae al
                 // ancho de siempre —cada panel con su `w-*`—, que es lo que ya
                 // hacía: se ve de menos, nunca fuera.
-                const macros = contenedor.querySelector(`[${MARCA_DE_MACROS}]`);
+                //
+                // Y Macros está pintado DOS veces —la fila del móvil y la de
+                // escritorio—, así que `querySelector` devuelve el primero, que
+                // en escritorio es el escondido (0×0 en el origen). Con él el
+                // menú de Acciones cruzaba la pantalla entera. Se coge el que
+                // de verdad se ve.
+                const macros = Array.from(contenedor.querySelectorAll(`[${MARCA_DE_MACROS}]`)).find(
+                    (n) => n.getBoundingClientRect().width > 0,
+                );
                 const desde = macros ? caja(macros).left : undefined;
                 const g = cabecera(contCaja, dispCaja, primitiva, desde);
                 setProps({ ...g, style: g.estilo });
