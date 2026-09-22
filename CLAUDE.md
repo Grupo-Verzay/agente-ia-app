@@ -13278,13 +13278,14 @@ dos pantallas cobren precios distintos por el mismo minuto de audio.
 
 Cuatro cosas que hay que mantener:
 
-1. **Paga la CUENTA, y dentro de una familia la MADRE**
-   (`laCuentaQuePagaLaTranscripcion` sobre `laFamiliaDeLaCuenta`), igual que en
-   el chat de equipo. `ia_credits` tiene una fila por cuenta: cobrarle a la
-   persona sería cobrarle a una fila que normalmente no existe, y entonces
-   `losCreditosQueQuedan` devolvería 0 y **no se transcribiría nada**. Lo
-   comprueba el banco por los dos lados: la madre gasta, la hija y la persona
-   no.
+1. **Paga la CUENTA dueña de la conversación, nunca la persona ni la madre.**
+   `ia_credits` tiene una fila por cuenta: cobrarle a la persona sería
+   cobrarle a una fila que normalmente no existe. Y **no** la raíz de la
+   familia: una llamada de Verzay Ventas la paga Ventas, que es donde se
+   registró y por cuyo número salió (ver *Una llamada es de la cuenta DUEÑA de
+   la conversación*). Esto decía antes «la madre», como el chat de equipo; se
+   corrigió a propósito — el chat de equipo sigue cobrando a la madre porque un
+   canal es de la familia, y una conversación de WhatsApp no.
 2. **El tope va sobre BYTES y se mira ANTES que los créditos.** Los 25 MB son
    un límite de OpenAI y los bytes son el dato que va a viajar. Y el orden
    importa: con las dos cosas mal, decir «sin créditos» manda a recargar para
@@ -15998,3 +15999,49 @@ números escritos). `MODO=roto` necesita `BUILD_ANTES=<un .next del commit de
 antes>`: lo **mueve** a `.next` —con un enlace simbólico el servidor no resuelve
 `node_modules`— y afirma los cuatro fallos; el hueco solo sale con un Detalle
 CORTO («Sin detalle»), así que se mide en todas las filas y no en la primera.
+
+## Una llamada es de la cuenta DUEÑA de la conversación, no de quien mira
+
+Estando la madre en una conversación de Verzay Ventas y pulsando «Llamar con
+IA», la llamada salía con **el número de la madre**, cobraba a **la madre** y
+aparecía en **el chat de la madre**. Sin un solo error.
+
+La causa: AstraCalls identifica la cuenta por la **sesión de llamadas** (`sid`,
+`User.astraCallsSid`) — de ahí salen la línea de WhatsApp por la que sale, el
+asistente, su configuración y los créditos que se descuentan. Y cada camino
+elegía el `sid` a su manera:
+
+| camino | con qué cuenta decidía |
+| --- | --- |
+| llamada con IA (`startBotCallAction`) | **siempre la de quien mira**, ignorando la línea |
+| llamada manual (`startAstraCall`) | la dueña de la línea… y si no tenía número, **en silencio la de quien mira** |
+| procesar la grabación desde la tarjeta | buscaba la fila con la cuenta de quien mira: **no la encontraba** |
+| la transcripción | cobraba a **la raíz de la familia** |
+
+> **Quién es la cuenta de una llamada lo contesta `laCuentaDeLaLlamada`
+> (`lib/cuenta-de-la-llamada.server.ts`), y la preguntan los tres caminos**:
+> llamar con IA, llamar a mano y anotar la burbuja. Con la línea de la
+> conversación, es su dueña —pasada por `assertCanAccessTargetUser`, que deja a
+> la madre llegar a sus hijas y nunca al revés—. Sin línea (el marcador de
+> CRM › Llamadas), la de quien mira.
+
+Cuatro cosas que hay que mantener:
+
+1. **Si la cuenta dueña de la línea no tiene número, NO se llama: se dice**
+   (`SIN_NUMERO_EN_LA_LINEA`). Caer en el número de quien mira es exactamente
+   el fallo: la llamada sale de otro WhatsApp y cobra a otra cuenta.
+2. **Grabar y transcribir buscan la fila por el dueño de la FILA**
+   (`laCuentaDeLaFilaDeLlamada`), no por `effectiveId`. La fila está escrita
+   bajo la cuenta de la conversación; con la de quien mira, `(id, userId)` no
+   la encuentra.
+3. **La transcripción la paga la cuenta de la fila**, no la raíz de la familia.
+4. **La fila del CRM lleva su `instanceName`** (`CallRow`), y volver a llamar
+   desde una fila sale por esa línea. Sin eso, relanzar desde el CRM unificado
+   de la madre volvía a salir por la madre.
+
+Lo prueba `scripts/banco-cuenta-de-la-llamada.sh`, contra Postgres y con las
+acciones de verdad: la madre llama desde Ventas y la llamada sale con el `sid`
+de Ventas, se registra y se cobra en Ventas, y aparece en el CRM de Ventas;
+desde Pruebas —sin número— no se llama; y una hija no llama desde la línea de
+su madre. Corre dos veces, y la segunda empaqueta el mismo fichero contra un
+commit pinchado (`ANTES_REF`) y **afirma** los fallos.

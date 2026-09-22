@@ -11,6 +11,7 @@ import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
 import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
 import { logOutgoingCallAction } from '@/actions/astracalls-actions';
 import { esperarYProcesarLaGrabacion } from '@/lib/grabacion-de-llamada.server';
+import { laCuentaDeLaLlamada, SIN_NUMERO_EN_LA_LINEA } from '@/lib/cuenta-de-la-llamada.server';
 
 const ASTRA_BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const ASTRA_KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -145,15 +146,30 @@ export async function startBotCallAction(
   const digits = (phone || '').replace(/\D/g, '');
   if (digits.length < 6) return { success: false, message: 'Número inválido.' };
 
-  // El número de llamadas es de la CUENTA, no de la persona: es donde lo
-  // guarda `linkMyCallSession` y donde lo lee la tarjeta de Conexión. Con
-  // `me.id`, un asesor —cuya fila no tiene `astraCallsSid` y nunca lo va a
-  // tener— recibía «No tienes un número de llamadas vinculado» con el número
-  // de su cuenta perfectamente conectado.
-  const cuenta = laCuentaDelVoicebot(me) ?? me.id;
-  const user = await db.user.findUnique({ where: { id: cuenta }, select: { astraCallsSid: true } });
-  const sid = user?.astraCallsSid;
-  if (!sid) return { success: false, message: 'No tienes un número de llamadas vinculado (Conexión → Llamadas).' };
+  // **La llamada es de la cuenta DUEÑA de la conversación**, no de quien mira
+  // (`laCuentaDeLaLlamada`). El servidor de llamadas identifica la cuenta por
+  // la sesión (`sid`): de ahí salen el asistente y su configuración, los
+  // créditos que se descuentan y el WhatsApp por el que sale. Con el `sid` de
+  // quien mira —que es lo que había— una llamada lanzada desde una
+  // conversación de Verzay Ventas salía por el número de la madre, cobraba a
+  // la madre y aparecía en el chat de la madre.
+  //
+  // Sin línea (el marcador de CRM › Llamadas) es la cuenta de quien mira, y
+  // de la CUENTA, no de la persona: un asesor no tiene `astraCallsSid` propio.
+  const cuentaDeLaLlamada = await laCuentaDeLaLlamada(lineaDeLaConversacion);
+  if (!cuentaDeLaLlamada.ok) return { success: false, message: cuentaDeLaLlamada.motivo };
+  const cuenta = cuentaDeLaLlamada.cuentaId;
+  const sid = cuentaDeLaLlamada.sid;
+  if (!sid) {
+    if (cuentaDeLaLlamada.origen === 'linea') {
+      console.warn('[llamadas] la cuenta dueña de la linea no tiene numero vinculado; no se llama con IA', {
+        instanceName: cuentaDeLaLlamada.instanceName,
+        cuentaId: cuenta,
+      });
+      return { success: false, message: SIN_NUMERO_EN_LA_LINEA };
+    }
+    return { success: false, message: 'No tienes un número de llamadas vinculado (Conexión → Llamadas).' };
+  }
 
   try {
     const r = await fetch(`${ASTRA_BASE}/api/sessions/${sid}/calls/bot`, {

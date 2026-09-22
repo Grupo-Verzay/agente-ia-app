@@ -1,6 +1,6 @@
 'use server';
 
-import { currentUser } from '@/lib/auth';
+import { laCuentaDeLaFilaDeLlamada } from '@/lib/cuenta-de-la-llamada.server';
 import {
   processCallRecordingForUser,
   processMetaCallRecordingForUser,
@@ -14,7 +14,13 @@ import {
  *
  * En dos palabras: **una accion es un endpoint**, y la funcion de debajo
  * aceptaba el `userId` que le mandaran — o sea, transcribir con los creditos de
- * otra cuenta. Aqui el id no llega del navegador: sale de la sesion.
+ * otra cuenta. Aqui el id no llega del navegador: sale de la FILA de la
+ * llamada, pasada por la puerta de siempre (`laCuentaDeLaFilaDeLlamada`).
+ *
+ * Y es la fila y no la sesion por lo mismo que la llamada sale por la cuenta
+ * dueña de la conversacion: esa fila esta escrita bajo ESA cuenta. Con
+ * `effectiveId` —la de quien mira— la busqueda `(id, userId)` no la encontraba
+ * y la llamada se quedaba sin transcripcion ni Resumen IA, sin un error.
  */
 
 export async function processCallRecordingAction(input: {
@@ -22,8 +28,7 @@ export async function processCallRecordingAction(input: {
   astraSid: string;
   astraCallId: string;
 }): Promise<{ success: boolean; message?: string }> {
-  const me = await currentUser();
-  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
+  const userId = await laCuentaDeLaFilaDeLlamada(input.chatMessageId);
   if (!userId) return { success: false, message: 'No autorizado.' };
   return processCallRecordingForUser({ ...input, userId });
 }
@@ -33,8 +38,7 @@ export async function processMetaCallRecordingAction(input: {
   audioBase64: string;
   mimeType?: string;
 }): Promise<{ success: boolean; message?: string }> {
-  const me = await currentUser();
-  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
+  const userId = await laCuentaDeLaFilaDeLlamada(input.chatMessageId);
   if (!userId) return { success: false, message: 'No autorizado.' };
   return processMetaCallRecordingForUser({ ...input, userId });
 }

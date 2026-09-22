@@ -40,6 +40,11 @@ export interface CallRow {
    * resultado y el borrado abiertos sobre filas que la accion luego rechaza.
    */
   cuentaId: string;
+  /**
+   * La linea por la que se hizo. Volver a llamar desde esta fila tiene que
+   * salir por ESA linea (y con el numero de su cuenta), no por la de quien mira.
+   */
+  instanceName: string | null;
 }
 
 export interface CallsKpis {
@@ -76,6 +81,7 @@ const EMPTY: CallsCrmData = {
 interface RawCallRow {
   id: unknown;
   userId: string;
+  instanceName: string | null;
   remoteJid: string;
   fromMe: boolean;
   content: string | null;
@@ -127,7 +133,7 @@ export async function getCallsCrmData(params?: {
   let rows: RawCallRow[] = [];
   try {
     rows = await db.$queryRaw<RawCallRow[]>`
-      SELECT m."id", m."userId", m."remoteJid", m."fromMe", m."content", m."raw", m."messageTimestamp", c."pushName"
+      SELECT m."id", m."userId", m."instanceName", m."remoteJid", m."fromMe", m."content", m."raw", m."messageTimestamp", c."pushName"
       FROM "chat_messages" m
       LEFT JOIN "chat_conversations" c
         ON c."userId" = m."userId" AND c."instanceName" = m."instanceName" AND c."remoteJid" = m."remoteJid"
@@ -176,6 +182,7 @@ export async function getCallsCrmData(params?: {
       astraCallId: callRaw.astraCallId ? String(callRaw.astraCallId) : null,
       ts: new Date(r.messageTimestamp).getTime(),
       cuentaId: r.userId,
+      instanceName: r.instanceName ?? null,
     };
   });
 

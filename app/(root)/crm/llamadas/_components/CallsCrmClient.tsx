@@ -645,7 +645,7 @@ export function CallsCrmClient({
                       call={c}
                       nombreDeLaCuenta={unificado ? nombresDeCuenta[c.cuentaId] : undefined}
                       ajena={esDeOtraCuentaDelCrm(c.cuentaId, cuentaPropia)}
-                      onCall={() => abrirLlamadaAqui({ phone: c.phone, contactName: c.contactName ?? undefined })}
+                      onCall={() => abrirLlamadaAqui({ phone: c.phone, contactName: c.contactName ?? undefined, instanceName: c.instanceName ?? undefined })}
                       onDisposition={(value) => applyDisposition(c.id, value)}
                       onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
                       onOpenChat={() => openChat(c.phone)}

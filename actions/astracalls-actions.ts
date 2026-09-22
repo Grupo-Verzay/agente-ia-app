@@ -9,8 +9,8 @@
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { persistChatMessage } from '@/lib/chat-persistence';
-import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-guard';
 import { laLineaDeWhatsappDeLaCuenta } from '@/lib/linea-de-whatsapp';
+import { laCuentaDeLaLlamada, SIN_NUMERO_EN_LA_LINEA } from '@/lib/cuenta-de-la-llamada.server';
 
 const BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -271,52 +271,26 @@ export async function unlinkMyCallSession(): Promise<{ success: boolean }> {
 
 /**
  * El numero con el que se llama: el de la CUENTA DUEÑA DE LA LINEA de la
- * conversacion, y solo si no lo hay, el de la cuenta propia.
+ * conversacion (`laCuentaDeLaLlamada`), y solo sin linea, el de la propia.
  *
- * Antes se usaba siempre el de la cuenta con la que uno entra. Desde una cuenta
- * que administra otra —un super admin mirando los chats de un cliente, una
- * cuenta principal con otra asociada— eso decia "no tienes un numero vinculado"
- * aunque la linea de esa conversacion tuviera el suyo conectado y funcionando.
- * La llamada sale por la linea del chat, asi que el numero tiene que ser el de
- * esa linea.
- *
- * Esto NO es el salto por `linked_accounts` que se quito a proposito: no se
- * busca ningun "master", se mira el dueño de ESTA linea, que es un dato
- * concreto. Cada cuenta principal conserva su numero, y desde sus propios
- * chats se sigue usando el suyo.
- *
- * El permiso se comprueba igual que en el resto: si no se puede administrar esa
- * cuenta, se cae a la propia en vez de fallar.
+ * Antes, si la dueña de la linea no tenia numero, se caia en silencio al de
+ * quien mira: la llamada salia de OTRO WhatsApp y el registro acababa en la
+ * cuenta madre. Ahora eso no llama: se dice.
  */
-async function sidParaLlamar(instanceName?: string | null): Promise<string | null> {
-  const nombre = instanceName?.trim();
-  if (nombre) {
-    try {
-      const linea = await db.instancia.findFirst({
-        where: { instanceName: nombre },
-        select: { userId: true },
-      });
-      if (linea?.userId) {
-        await assertCanAccessTargetUser(linea.userId);
-        const dueno = await db.user.findUnique({
-          where: { id: linea.userId },
-          select: { astraCallsSid: true },
-        });
-        if (dueno?.astraCallsSid) return dueno.astraCallsSid;
-        console.warn('[llamadas] la cuenta dueña de la linea no tiene numero vinculado', {
-          instanceName: nombre,
-        });
-      }
-    } catch (error) {
-      // Sin permiso sobre esa cuenta, o la consulta fallo: se sigue con el
-      // numero propio, que es lo que se hacia antes de esto.
-      console.warn('[llamadas] no se pudo usar el numero de la linea', {
-        instanceName: nombre,
-        error: String(error),
-      });
-    }
+async function sidParaLlamar(
+  instanceName?: string | null,
+): Promise<{ sid: string | null; motivo?: string }> {
+  const cuenta = await laCuentaDeLaLlamada(instanceName);
+  if (!cuenta.ok) return { sid: null, motivo: cuenta.motivo };
+  if (cuenta.sid) return { sid: cuenta.sid };
+  if (cuenta.origen === 'linea') {
+    console.warn('[llamadas] la cuenta dueña de la linea no tiene numero vinculado; no se llama', {
+      instanceName: cuenta.instanceName,
+      cuentaId: cuenta.cuentaId,
+    });
+    return { sid: null, motivo: SIN_NUMERO_EN_LA_LINEA };
   }
-  return getMySid();
+  return { sid: null };
 }
 
 /* ── Llamadas (por la línea de la conversación) ────────────────────────── */
@@ -325,8 +299,8 @@ export async function startAstraCall(
   instanceName?: string | null,
 ): Promise<{ success: boolean; sid?: string; callId?: string; message?: string }> {
   if (!configured()) return { success: false, message: 'Llamadas no configuradas.' };
-  const sid = await sidParaLlamar(instanceName);
-  if (!sid) return { success: false, message: 'Esta línea no tiene un número vinculado para llamar. Vincúlalo en Conexión → Llamadas.' };
+  const { sid, motivo } = await sidParaLlamar(instanceName);
+  if (!sid) return { success: false, message: motivo ?? 'Esta línea no tiene un número vinculado para llamar. Vincúlalo en Conexión → Llamadas.' };
   try {
     const r = await fetch(`${BASE}/api/sessions/${sid}/calls`, {
       method: 'POST',
@@ -376,35 +350,23 @@ export async function astraCallWebrtc(
 }
 
 /**
- * Donde se anota una llamada: la LINEA por la que entro la conversacion.
- *
- * La burbuja «Llamada realizada» se guarda con `(userId, instanceName)`, asi
- * que si esos dos no son los de la conversacion desde la que se llamo, el
- * registro cae en OTRA conversacion —la del mismo numero en la linea por
- * defecto de quien mira— y en la que se estaba mirando no aparece nada. Y no
- * da ningun error: el mensaje se escribe perfectamente, solo que en otro sitio.
- *
- * Es la misma regla que ya sigue `sidParaLlamar` para elegir con que numero se
- * llama: **la linea sale de la conversacion, y su dueña es quien manda**. Sin
- * permiso sobre esa cuenta se cae a lo de siempre en vez de fallar — perder el
- * registro seria peor que escribirlo donde ya se escribia.
+ * Donde se anota una llamada: la LINEA por la que entro la conversacion, bajo
+ * su cuenta dueña. Es la MISMA pregunta que decide con que numero se llama
+ * (`laCuentaDeLaLlamada`), asi que llamada y registro no pueden separarse.
+ * Sin permiso sobre esa cuenta se cae a lo de siempre en vez de fallar: la
+ * llamada ya salio, y perder su registro seria peor.
  */
 async function dondeSeAnotaLaLlamada(
   instanceName?: string | null,
 ): Promise<{ userId: string; instanceName: string } | null> {
-  const nombre = instanceName?.trim();
-  if (!nombre) return null;
+  if (!instanceName?.trim()) return null;
   try {
-    const linea = await db.instancia.findFirst({
-      where: { instanceName: nombre },
-      select: { userId: true, instanceName: true },
-    });
-    if (!linea?.userId) return null;
-    await assertCanAccessTargetUser(linea.userId);
-    return { userId: linea.userId, instanceName: linea.instanceName };
+    const cuenta = await laCuentaDeLaLlamada(instanceName);
+    if (!cuenta.ok || cuenta.origen !== 'linea' || !cuenta.instanceName) return null;
+    return { userId: cuenta.cuentaId, instanceName: cuenta.instanceName };
   } catch (error) {
     console.warn('[llamadas] no se pudo anotar la llamada en la linea de la conversacion', {
-      instanceName: nombre,
+      instanceName,
       error: String(error),
     });
     return null;
