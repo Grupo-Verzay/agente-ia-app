@@ -1,0 +1,161 @@
+"use client";
+
+import { useState } from "react";
+import { Bot, Loader2, Phone } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+
+/**
+ * El botón «Llamar» de la barra de CRM › Llamadas, y su ventana.
+ *
+ * # Por qué el campo y «Llamar con IA» salieron de la barra
+ *
+ * La fila de mandos llevaba dentro el campo del número y los DOS botones de
+ * llamar, que entre los tres se comían unos 340 px — y en un teléfono eso
+ * obligaba a que el campo cediera hasta cuatro dígitos y a que los dos botones
+ * se quedaran solo con su icono. Marcar un número es algo que se hace de vez en
+ * cuando; la barra la usa quien viene a LEER el historial.
+ *
+ * Así que la barra se queda como la de Leads —buscador, pastillas y un solo
+ * botón de acción a la derecha— y lo de marcar vive en una ventana, con el
+ * mismo estilo que «Crear contacto» de Leads: mismo ancho (`sm:max-w-[400px]`),
+ * misma cabecera, mismo `Label` + `Input`, mismo pie.
+ *
+ * # Las tres cosas que hay que mantener
+ *
+ * 1. **Las dos llamadas son EXACTAMENTE las de antes.** Este componente no
+ *    sabe llamar: recibe `alLlamar` y `alLlamarConIa` y los dispara. Cambiar
+ *    aquí cómo se llama sería tener dos formas de hacerlo, y la de la cabecera
+ *    de Chats se quedaría atrás.
+ * 2. **El campo va alineado a la IZQUIERDA**, con su `text-left` escrito: es un
+ *    número que se teclea y se revisa dígito a dígito, y centrado no se puede
+ *    comparar con el de al lado.
+ * 3. **Los tres botones son hijos DIRECTOS de `DialogFooter`.** Ese pie es
+ *    `justify-between`: metidos en un `<div>` el pie ve un solo hijo y los manda
+ *    todos a un extremo — está medido en este repositorio, +198 px.
+ *
+ * # Y llamar CIERRA la ventana
+ *
+ * Lo cazó el banco, y no es un detalle de estilo. El velo de Radix es
+ * `fixed inset-0 z-50 bg-black/80` y **se traga las pulsaciones de todo lo que
+ * hay debajo**: dejándolo puesto, la tarjeta flotante que `abrirLlamadaAqui`
+ * acaba de abrir queda detrás de él, así que **no se puede ni colgar**. Y la
+ * barra tampoco responde, con lo que no se puede marcar un segundo número.
+ *
+ * Cerrar **no cambia qué llamada sale** —la regla de arriba sigue en pie, este
+ * componente solo dispara lo que le pasan— y del lado de la IA el aviso no se
+ * pierde: `startBotDial` lo cuenta con su `toast`.
+ */
+export function DialogoDeLlamar({
+    numero,
+    alEscribir,
+    alLlamar,
+    alLlamarConIa,
+    llamandoConIa,
+}: {
+    numero: string;
+    alEscribir: (valor: string) => void;
+    alLlamar: () => void;
+    alLlamarConIa: () => void;
+    llamandoConIa: boolean;
+}) {
+    const [abierto, setAbierto] = useState(false);
+
+    // El mismo criterio de siempre: sin seis dígitos no hay número al que
+    // llamar, así que los dos botones se apagan a la vez.
+    const digitos = numero.replace(/\D/g, "");
+    const sinNumero = digitos.length < 6;
+
+    // Llamar CIERRA la ventana: el velo de Radix se traga las pulsaciones de
+    // todo lo que hay debajo, y debajo está la tarjeta flotante de la llamada
+    // que se acaba de abrir. Ver la explicación de arriba.
+    const llamar = () => {
+        setAbierto(false);
+        alLlamar();
+    };
+    const llamarConIa = () => {
+        setAbierto(false);
+        alLlamarConIa();
+    };
+
+    return (
+        <>
+            <Button
+                data-boton="abrir-llamar"
+                onClick={() => setAbierto(true)}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+                Llamar
+            </Button>
+
+            <Dialog open={abierto} onOpenChange={setAbierto}>
+                <DialogContent data-dialogo="llamar" className="sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle>Llamar</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-4 py-2">
+                        <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="llamar-numero">Número de WhatsApp</Label>
+                            <Input
+                                id="llamar-numero"
+                                value={numero}
+                                onChange={(e) => alEscribir(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !sinNumero) llamar();
+                                }}
+                                placeholder="573001234567"
+                                inputMode="tel"
+                                aria-label="Número al que llamar"
+                                className="text-left"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setAbierto(false)}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            data-boton="llamar"
+                            type="button"
+                            className="gap-2 bg-green-600 text-white hover:bg-green-700"
+                            onClick={llamar}
+                            disabled={sinNumero}
+                        >
+                            <Phone className="h-4 w-4" />
+                            Llamar
+                        </Button>
+                        <Button
+                            data-boton="llamar-ia"
+                            type="button"
+                            className="gap-2 bg-violet-600 text-white hover:bg-violet-700"
+                            onClick={llamarConIa}
+                            disabled={sinNumero || llamandoConIa}
+                            title="El asistente de voz IA llama y conversa por ti"
+                        >
+                            {llamandoConIa ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Bot className="h-4 w-4" />
+                            )}
+                            Llamar con IA
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# El banco de «Llamar con IA»: el menú de la cabecera de Chats y la barra del
-# marcador de CRM › Llamadas.
+# El banco de «Llamar con IA»: el menú de la cabecera de Chats y la barra de
+# CRM › Llamadas con su ventana de llamar.
 #
 # Son DOS mitades porque el cambio vive en dos capas y cada una se rompe de una
 # forma distinta:
@@ -10,9 +10,11 @@
 #      y las dos van por la LÍNEA de la conversación abierta. Radix monta el
 #      menú en un portal y solo al abrirlo, así que sin navegador el `onSelect`
 #      de cada opción no se ejecuta nunca.
-#   2. `barra-del-marcador.test.mjs` — en Chromium y sobre el CSS del build:
-#      una fila en computador, dos renglones en el teléfono, y nada recortado,
-#      fuera de la tarjeta ni desbordando la página.
+#   2. `barra-de-llamadas.test.mjs` — en Chromium y sobre el CSS del build:
+#      la barra de Leads con sus cinco huecos en orden, la ventana de llamar
+#      abriéndose y cerrándose, y cada botón del pie disparando SU llamada.
+#      Radix monta el contenido de un `Dialog` en un portal y solo al abrirlo,
+#      así que sin navegador ese `onClick` no se ejecuta nunca.
 #
 # Las dos corren en dos modos:
 #
@@ -20,9 +22,11 @@
 #     marcador, `startBotCallAction(digitos)` sin línea— y afirma que la pierde.
 #     No es «el componente de antes», porque este menú es nuevo: es la forma en
 #     que esto se escribe solo, y se dice en vez de disimularlo.
-#   - la barra, con los DOS bloques de `origin/main` sacados con `git show`:
-#     el recuadro «Marcador» con su palabra, su icono y su «Rellamar:», y la
-#     cabecera «Historial» con los conteos y los filtros dos bloques más abajo.
+#   - la barra, con las DOS filas de `origin/main` sacadas con `git show`: el
+#     toolbar con el rango de días y el `BarraDelMarcador` con el campo del
+#     número y los dos botones de llamar dentro. Los dos lados salen de código
+#     de verdad —el «ahora», del árbol de trabajo— y comparten andamiaje, así
+#     que la única diferencia medible es la barra.
 #
 # Uso:  scripts/banco-llamar-con-ia.sh
 #       MODO=roto scripts/banco-llamar-con-ia.sh   <- afirma los fallos
@@ -45,8 +49,9 @@ mkdir -p lib/__tests__/.compilado
 ENTRY_MENU=".banco-menu-entry.tsx"
 ENTRY_BARRA=".banco-barra-entry.tsx"
 INGENUO=".banco-menu-ingenuo.tsx"
-ANTES=".banco-marcador-antes.tsx"
-trap 'rm -f "$ENTRY_MENU" "$ENTRY_BARRA" "$INGENUO" "$ANTES"' EXIT
+BARRA=".banco-barra-de-llamadas.tsx"
+ANTES_MARCADOR=".banco-marcador-antes.tsx"
+trap 'rm -f "$ENTRY_MENU" "$ENTRY_BARRA" "$INGENUO" "$BARRA" "$ANTES_MARCADOR"' EXIT
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. El menú de la cabecera de Chats
@@ -136,66 +141,34 @@ echo "── el menú de la cabecera de Chats (MODO=$MODO) ──"
 node --test lib/__tests__/menu-de-llamada.test.mjs "$@"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. La barra del marcador de CRM › Llamadas
+# 2. La barra de CRM › Llamadas y su ventana de llamar
 # ─────────────────────────────────────────────────────────────────────────────
+# Los DOS lados salen de código de verdad, nunca de una copia escrita aquí: el
+# «ahora» es el `<BarraDeAcciones>` del árbol de trabajo —que se trae con él el
+# `DialogoDeLlamar` real— y el «antes», las dos filas de `origin/main`. El
+# andamiaje que las rodea es el mismo en los dos, así que lo único que se puede
+# medir distinto es la barra.
+git fetch origin main --quiet 2>/dev/null || true
 if [ "$MODO" = "roto" ]; then
-  # El «antes» NO se escribe a mano: los dos bloques salen de `origin/main` con
-  # `git show`, recortados por sus propios comentarios. Copiados, este modo
-  # mediría lo que alguien recuerda de la pantalla vieja.
-  git fetch origin main --quiet 2>/dev/null || true
-  python3 scripts/sacar-marcador-de-antes.py "$ANTES"
-  DESDE_BARRA="@/.banco-marcador-antes"
+  python3 scripts/sacar-barra-de-llamadas.py antes "$BARRA" "$ANTES_MARCADOR"
 else
-  DESDE_BARRA="@/app/(root)/crm/llamadas/_components/BarraDelMarcador"
+  python3 scripts/sacar-barra-de-llamadas.py ahora "$BARRA"
 fi
 
 cat > "$ENTRY_BARRA" <<TSX
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { Phone, PhoneOutgoing, PhoneMissed } from "lucide-react";
-import { BarraDelMarcador } from "$DESDE_BARRA";
-
-const DIRECCIONES = [
-    { label: "Todas", value: "all" },
-    { label: "Salientes", value: "outgoing" },
-    { label: "Entrantes", value: "incoming" },
-];
-
-/** Cifras de una cuenta con tráfico de verdad: las que más ancho piden. */
-const KPIS = { total: 1284, outgoing: 742, incoming: 542, answered: 903 };
-
-function Demo() {
-    const [numero, setNumero] = React.useState("");
-    const [direccion, setDireccion] = React.useState("all");
-    return React.createElement(BarraDelMarcador as any, {
-        numero,
-        alEscribir: setNumero,
-        alLlamar: () => {},
-        alLlamarConIa: () => {},
-        llamandoConIa: false,
-        direcciones: DIRECCIONES,
-        direccion,
-        alCambiarDireccion: setDireccion,
-        // El «antes» los pinta desde \`kpis\`; el de ahora, desde \`metricas\`.
-        kpis: KPIS,
-        metricas: [
-            { clave: "all", icono: React.createElement(Phone), etiqueta: "Total", valor: KPIS.total, color: "#3B82F6", alPulsar: () => setDireccion("all"), activa: direccion === "all" },
-            { clave: "outgoing", icono: React.createElement(PhoneOutgoing), etiqueta: "Salientes", valor: KPIS.outgoing, color: "#22C55E", alPulsar: () => setDireccion("outgoing"), activa: direccion === "outgoing" },
-            { clave: "incoming", icono: React.createElement(PhoneMissed), etiqueta: "Entrantes", valor: KPIS.incoming, color: "#EF4444", alPulsar: () => setDireccion("incoming"), activa: direccion === "incoming" },
-        ],
-    });
-}
+import { LaBarra } from "@/.banco-barra-de-llamadas";
 
 (window as any).pintarBarra = () => {
     const raiz = ((window as any).__raizBarra ??= createRoot(document.getElementById("barra")!));
-    // La misma caja que la pantalla: \`flex flex-col gap-3\`.
-    raiz.render(React.createElement("div", { className: "flex flex-col gap-3" }, React.createElement(Demo)));
+    raiz.render(React.createElement(LaBarra));
 };
 (window as any).listo = true;
 TSX
 
 npx esbuild "$ENTRY_BARRA" --bundle --format=esm \
-  --outfile=lib/__tests__/.compilado/harness-barra-del-marcador.js \
+  --outfile=lib/__tests__/.compilado/harness-barra-de-llamadas.js \
   --alias:@="$(pwd)" \
   --alias:@/components/chats/AnfitrionDeLlamada=./lib/__tests__/fingido/anfitrion-mudo.ts \
   --alias:sonner=./lib/__tests__/fingido/sonner-mudo.ts \
@@ -203,5 +176,5 @@ npx esbuild "$ENTRY_BARRA" --bundle --format=esm \
   --define:process.env.NODE_ENV='"production"' --log-level=error
 
 echo
-echo "── la barra del marcador (MODO=$MODO) ──"
-node --test lib/__tests__/barra-del-marcador.test.mjs "$@"
+echo "── la barra de Llamadas y su ventana (MODO=$MODO) ──"
+node --test lib/__tests__/barra-de-llamadas.test.mjs "$@"

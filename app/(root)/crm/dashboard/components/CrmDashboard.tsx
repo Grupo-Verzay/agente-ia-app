@@ -11,6 +11,7 @@ import {
     TrendingUp,
     Kanban,
     PhoneCall,
+    RefreshCw,
     X,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
@@ -35,6 +36,8 @@ import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 import { WeeklyReportsView } from "./WeeklyReportsView";
 import { LoQueLaIaNoSupoView } from "./LoQueLaIaNoSupoView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
+import { RANGOS_DE_DIAS, DIAS_POR_DEFECTO } from "../../llamadas/_components/rango-de-dias";
+import { cn } from "@/lib/utils";
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -95,6 +98,22 @@ export const CrmDashboard = ({
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
+    /*
+     * Los tres mandos de Llamadas viven AQUÍ, no dentro de la pantalla: son de
+     * la misma familia que las pestañas —acotan lo que se está mirando— y en su
+     * sitio de antes le quitaban una fila entera a la tabla. `diasDeLlamadas`
+     * es el rango; `refrescoDeLlamadas` sube en cada pulsación de «Actualizar»
+     * y con eso la pantalla vuelve a pedir su vuelta; `cargandoLlamadas` es
+     * solo para que el icono gire.
+     *
+     * Ojo: NO es el `period` de al lado. Aquel es `AnalyticsPeriod` ("7d"…) y
+     * decide los filtros de Registros; este es un número de días y va a
+     * `getCallsCrmData`. Juntarlos sería un filtro que promete lo que la
+     * pantalla de al lado no hace.
+     */
+    const [diasDeLlamadas, setDiasDeLlamadas] = useState(DIAS_POR_DEFECTO);
+    const [refrescoDeLlamadas, setRefrescoDeLlamadas] = useState(0);
+    const [cargandoLlamadas, setCargandoLlamadas] = useState(false);
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
 
     const toggleScoreRange = (key: ScoreRangeKey) => {
@@ -296,6 +315,41 @@ export const CrmDashboard = ({
                         />
                     )}
 
+                    {/* Llamadas: su rango y su «Actualizar», a la derecha de
+                        esta misma fila. `ml-auto` los pega al borde, igual que
+                        las acciones de Registros de más abajo. */}
+                    {viewMode === "llamadas" && (
+                        <div className="ml-auto flex items-center gap-2">
+                            <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+                                {RANGOS_DE_DIAS.map((r) => (
+                                    <button
+                                        key={r.value}
+                                        type="button"
+                                        onClick={() => setDiasDeLlamadas(r.value)}
+                                        className={[
+                                            "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                            diasDeLlamadas === r.value
+                                                ? "bg-background shadow-sm text-foreground"
+                                                : "text-muted-foreground hover:text-foreground",
+                                        ].join(" ")}
+                                    >
+                                        {r.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-10 w-10"
+                                title="Actualizar"
+                                aria-label="Actualizar"
+                                onClick={() => setRefrescoDeLlamadas((n) => n + 1)}
+                            >
+                                <RefreshCw className={cn("h-4 w-4", cargandoLlamadas && "animate-spin")} />
+                            </Button>
+                        </div>
+                    )}
+
                     {viewMode === "kanban" && (
                         <div className="flex items-center gap-2">
                             <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -416,6 +470,9 @@ export const CrmDashboard = ({
                             cuentaPropia={cuentas.propia}
                             unificado={unificado}
                             nombresDeCuenta={nombresDeCuenta}
+                            dias={diasDeLlamadas}
+                            refresco={refrescoDeLlamadas}
+                            alCargar={setCargandoLlamadas}
                         />
                     </div>
                 ) : (
