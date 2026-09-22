@@ -58,6 +58,17 @@
  * la siguiente: la fila no se va a ninguna parte. */
 export const TOPE_POR_VUELTA = 10;
 
+/** Cuántas se rescatan en la vuelta del cron DIARIO, que es otra cosa.
+ *
+ * Esa ruta la llama el reloj de facturación del backend, que corta a los 20
+ * segundos con un `AbortController`. Un rescate se baja un WAV y lo
+ * transcribe, así que con el tope de arriba esa vuelta se pasa del plazo y el
+ * backend apunta un fallo diario **sobre un cobro que sí se hizo**. Un aviso
+ * que sale todos los días se aprende a despachar sin leer, y entonces deja de
+ * avisar el día que el cobro falle de verdad. Aquí la red es de propina: el
+ * grueso lo hace el reloj de diez minutos, que no tiene prisa. */
+export const TOPE_EN_LA_VUELTA_DIARIA = 2;
+
 /** Cuántos días atrás se mira.
  *
  * El mismo `DIAS_PARA_BUSCAR_LA_LLAMADA` del aviso de fin, y por el mismo
