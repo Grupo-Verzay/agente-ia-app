@@ -52,12 +52,22 @@ OUT="lib/__tests__/.compilado/harness-paneles.js"
 ANTES="lib/__tests__/.compilado/colocaciones-de-antes.json"
 trap 'rm -f "$ENTRY"' EXIT
 
-# Las colocaciones del «antes», sacadas de `origin/main`. El arnés las lee y
-# pinta los mismos paneles con ellas cuando MODO=roto.
+# Las colocaciones del «antes». El arnés las lee y pinta los mismos paneles con
+# ellas cuando MODO=roto. El commit del que salen lo dice
+# `lib/__tests__/el-antes-de-los-paneles.json` — no `origin/main`, donde la
+# unificación ya está fusionada y el modo roto se pondría verde sin ejercer nada.
 git fetch origin main --quiet 2>/dev/null || true
 node - "$ANTES" <<'NODE'
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
+
+// De dónde sale el «antes». Escrito en un JSON y no aquí porque lo leen los
+// DOS —este arnés y el banco puro—, y con el ref copiado en los dos, el día
+// que se mueva uno el otro mediría otra cosa. En una frase: NO puede ser
+// `origin/main`, porque la unificación ya está fusionada ahí.
+const EL_ANTES = JSON.parse(
+  fs.readFileSync("lib/__tests__/el-antes-de-los-paneles.json", "utf8"),
+).ref;
 
 // Qué panel de la maqueta corresponde a qué `<…Content>` de qué fichero. El
 // índice es el orden en que aparecen en el fichero: hay ficheros con más de uno.
@@ -78,7 +88,7 @@ const DE_DONDE = {
 const cache = new Map();
 function bloques(fichero) {
   if (!cache.has(fichero)) {
-    const texto = execFileSync("git", ["show", `origin/main:${fichero}`], { encoding: "utf8" });
+    const texto = execFileSync("git", ["show", `${EL_ANTES}:${fichero}`], { encoding: "utf8" });
     // `(?:[^>]|=>)` por los `onClick={(e) => …}` que llevan dentro: cortando en
     // el primer `>` el bloque se queda a medias y se pierde el `side`.
     cache.set(fichero, texto.match(/<(?:PopoverContent|DropdownMenuContent)(?:[^>]|=>)*?>/g) ?? []);
@@ -89,7 +99,7 @@ function bloques(fichero) {
 const salida = {};
 for (const [id, [fichero, i]] of Object.entries(DE_DONDE)) {
   const b = bloques(fichero)[i];
-  if (!b) throw new Error(`no se encontró el panel de ${fichero} en origin/main`);
+  if (!b) throw new Error(`no se encontró el panel de ${fichero} en ${EL_ANTES}`);
   salida[id] = {
     align: /align="(start|end|center)"/.exec(b)?.[1] ?? "start",
     side: /side="(top|bottom)"/.exec(b)?.[1] ?? "bottom",
@@ -99,13 +109,13 @@ for (const [id, [fichero, i]] of Object.entries(DE_DONDE)) {
     ancho: /w-\[?([\w.%()]+)\]?/.exec(b)?.[1] ?? null,
   };
 }
-// Los que no tenían panel propio en origin/main heredan el de su hermano: los
+// Los que no tenían panel propio en el «antes» heredan el de su hermano: los
 // tres de la fila de iconos de la cabecera eran el mismo `align="end"`.
 for (const id of ["asesor", "fechas", "filaMas", "hAsesor", "hEtiquetas", "largo"]) {
   salida[id] ??= { align: "end", side: "bottom", sideOffset: 4, collisionPadding: 0, ancho: null };
 }
 fs.writeFileSync(process.argv[2], JSON.stringify(salida, null, 2));
-console.log(`el «antes» de ${Object.keys(salida).length} paneles, sacado de origin/main`);
+console.log(`el «antes» de ${Object.keys(salida).length} paneles, sacado de ${EL_ANTES.slice(0, 7)}`);
 NODE
 
 cat > "$ENTRY" <<'TSX'
@@ -333,3 +343,12 @@ npx esbuild "$ENTRY" --bundle --format=esm --outfile="$OUT" \
 rm -f "$ENTRY"
 
 node --test lib/__tests__/paneles-flotantes-dom.test.mjs "$@"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. La simetría de las dos filas de la cabecera, también en Chromium
+# ─────────────────────────────────────────────────────────────────────────────
+# Aparte de la mitad de arriba porque no necesita el arnés de React: se pintan
+# las dos filas con las clases REALES del componente, leídas de él. Y su
+# «antes» es OTRO —`origin/main`, que es donde la fila va con `px-3` y el grupo
+# con `pr-2`—: cada cambio se compara contra el estado anterior al SUYO.
+node --test lib/__tests__/cabecera-simetrica.test.mjs "$@"

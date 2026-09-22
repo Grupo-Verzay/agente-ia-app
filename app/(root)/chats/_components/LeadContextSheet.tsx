@@ -5,13 +5,8 @@ import { Brain, TrendingUp, Tag, Bell, Loader2, Sparkles, RefreshCw, BookOpen, C
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
-} from '@/components/ui/sheet';
+import { PanelLateral } from '@/components/shared/PanelLateral';
+import { PANEL_DEL_CONTEXTO } from '@/lib/panel-lateral';
 import { getSessionLatestSummarySnapshot } from '@/actions/crm-follow-up-actions';
 import { scoreLeadBySessionId } from '@/actions/lead-score-action';
 import type { Session } from '@/types/session';
@@ -122,35 +117,34 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
     const pendingFollowUps = session.crmFollowUpSummary?.pending ?? 0;
 
     return (
-        <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    title={localScore !== null ? `Score: ${localScore}/100` : 'Ver contexto del lead'}
-                >
-                    {localScore !== null ? (
-                        <span className="text-[10px] font-bold leading-none" style={{ color: scoreColor(localScore) }}>
-                            {localScore}
-                        </span>
-                    ) : (
-                        <Brain className="h-3.5 w-3.5" />
-                    )}
-                </Button>
-            </SheetTrigger>
+        <>
+            <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setOpen(true)}
+                title={localScore !== null ? `Score: ${localScore}/100` : 'Ver contexto del lead'}
+            >
+                {localScore !== null ? (
+                    <span className="text-[10px] font-bold leading-none" style={{ color: scoreColor(localScore) }}>
+                        {localScore}
+                    </span>
+                ) : (
+                    <Brain className="h-3.5 w-3.5" />
+                )}
+            </Button>
 
-            <SheetContent side="right" className="w-full sm:w-[420px] flex flex-col gap-0 p-0">
-                <SheetHeader className="px-5 pt-5 pb-4 border-b">
-                    <SheetTitle className="flex items-center gap-2 text-base">
-                        <Brain className="h-4 w-4 text-primary" />
-                        Contexto del lead
-                    </SheetTitle>
-                    <p className="text-sm text-muted-foreground truncate">{session.pushName}</p>
-                </SheetHeader>
-
-                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <PanelLateral
+                id={PANEL_DEL_CONTEXTO}
+                abierto={open}
+                onCerrar={() => setOpen(false)}
+                titulo="Contexto del lead"
+                subtitulo={session.pushName}
+                icono={<Brain className="h-4 w-4" />}
+            >
+                {/* El desplazamiento lo pone PanelLateral: aqui solo el relleno. */}
+                <div className="px-5 py-4 space-y-5">
 
                     {/* ── Score ── */}
                     <section className="space-y-2">
@@ -398,7 +392,7 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
                     )}
 
                 </div>
-            </SheetContent>
-        </Sheet>
+            </PanelLateral>
+        </>
     );
 }

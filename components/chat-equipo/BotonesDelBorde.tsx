@@ -62,24 +62,21 @@ export function BotonesDelBorde({
     const { total: sinLeer, sonido, dirigidos } = useSinLeerDelEquipo();
 
     // Nunca los dos a la vez: son dos paneles en el mismo sitio, y abiertos a
-    // la vez uno taparía al otro sin decir cuál está delante.
-    const alternarEquipo = () => {
-        setEquipoAbierto((antes) => {
-            if (!antes) abrirCopiloto(false);
-            return !antes;
-        });
-    };
-    const alternarCopiloto = (v: boolean) => {
-        if (v) setEquipoAbierto(false);
-        abrirCopiloto(v);
-    };
+    // la vez uno taparía al otro sin decir cuál está delante. Eso ya NO se
+    // escribe aquí: lo decide `usePanelLateral`, que es por donde pasan los
+    // CINCO paneles —estos dos, el contexto del lead, el recordatorio y la
+    // tarea—. Con la condición escrita también en esta pareja habría dos
+    // reglas que mantener a la par, y el día que se afine una la otra se
+    // queda atrás: dos paneles abiertos a la vez de vez en cuando, que es el
+    // fallo más difícil de reproducir de esta familia.
+    const alternarEquipo = () => setEquipoAbierto((antes) => !antes);
 
     return (
         <>
             <div className="fixed right-0 top-1/2 z-[60] flex -translate-y-1/2 flex-col items-end gap-1">
                 <ChatLauncher
                     open={copilotoAbierto}
-                    onOpenChange={alternarCopiloto}
+                    onOpenChange={abrirCopiloto}
                     // Le quitamos SU posición: la pone la columna.
                     className="static right-auto top-auto translate-y-0 max-sm:static max-sm:right-auto max-sm:top-auto max-sm:translate-y-0"
                 />
@@ -131,7 +128,7 @@ export function BotonesDelBorde({
                 No pinta nada en el árbol. */}
             <InsigniaDelFavicon delEquipo={dirigidos} />
 
-            <ChatSheet open={copilotoAbierto} onOpenChange={alternarCopiloto} />
+            <ChatSheet open={copilotoAbierto} onOpenChange={abrirCopiloto} />
             <PanelDeEquipo
                 abierto={equipoAbierto}
                 sonido={sonido}

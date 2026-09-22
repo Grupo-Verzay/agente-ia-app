@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { Trash2, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -9,8 +8,9 @@ import {
     FRANJA_LATERAL_MOVIL,
     HOJA_LATERAL,
     HOJA_LATERAL_MOVIL,
-    avisarDelPanelLateral,
+    PANEL_DEL_COPILOTO,
 } from "@/lib/panel-lateral";
+import { usePanelLateral } from "@/hooks/usePanelLateral";
 import { MessageList } from "./MessageList";
 import { ChatComposer } from "./ChatComposer";
 import { QuickActions } from "./QuickActions";
@@ -37,10 +37,11 @@ export function ChatSheet({
     // Chats acomoda la conversación mientras haya un panel abierto, igual que
     // ya hace con la ficha de Contacto. Fuera de Chats esto no hace nada: la
     // regla de CSS está acotada a `[data-chat-view]`.
-    useEffect(() => {
-        avisarDelPanelLateral(open);
-        return () => avisarDelPanelLateral(false);
-    }, [open]);
+    //
+    // Y el mismo hook aparta a los demás paneles de la franja. Antes eran dos
+    // y la exclusión estaba escrita a mano en `BotonesDelBorde`; con cinco, esa
+    // cuenta se olvida.
+    usePanelLateral(PANEL_DEL_COPILOTO, open, () => onOpenChange(false));
 
     return (
         <>

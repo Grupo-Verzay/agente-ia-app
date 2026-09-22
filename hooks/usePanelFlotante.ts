@@ -55,6 +55,8 @@ import {
 export const MARCA_DE_LA_COLUMNA = "data-columna-de-chats";
 export const MARCA_DE_LAS_PASTILLAS = "data-pastillas-de-chats";
 export const MARCA_DE_LA_CABECERA = "data-cabecera-de-chat";
+/** El disparador de Macros: su borde izquierdo es el ancho de los paneles de la cabecera. */
+export const MARCA_DE_MACROS = "data-macros-de-chat";
 /** La barra de arriba de la plataforma, que es la misma en todas las pantallas. */
 export const MARCA_DE_LA_BARRA = "data-barra-de-arriba";
 
@@ -124,7 +126,13 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
                 return;
             }
             if (clase === "cabecera") {
-                const g = cabecera(contCaja, dispCaja, primitiva);
+                // El ancho sale de la fila de Macros y Acciones, así que hace
+                // falta el borde IZQUIERDO de Macros. Sin esa marca se cae al
+                // ancho de siempre —cada panel con su `w-*`—, que es lo que ya
+                // hacía: se ve de menos, nunca fuera.
+                const macros = contenedor.querySelector(`[${MARCA_DE_MACROS}]`);
+                const desde = macros ? caja(macros).left : undefined;
+                const g = cabecera(contCaja, dispCaja, primitiva, desde);
                 setProps({ ...g, style: g.estilo });
                 return;
             }

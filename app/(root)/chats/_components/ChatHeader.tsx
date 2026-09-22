@@ -50,6 +50,29 @@ import { useModuleStore } from '@/stores/modules/useModuleStore';
 // duplicado de nadie: no hay con qué unirlo. En esos, el aviso es ruido fijo, así
 // que se puede cerrar y no vuelve a salir EN ESE chat. En los @lid nuevos sí
 // sigue apareciendo, por si alguno sí es un duplicado que conviene unir.
+/**
+ * Los 16 px a los que empiezan y acaban las DOS filas de la cabecera.
+ *
+ * No es un gusto: es el ÚNICO número al que las dos pueden llegar sin
+ * deformarse. La de abajo **no se pone su hueco de la izquierda**: se lo pone
+ * el `px-4` de la primera pestaña, que es además el ancho del subrayado de la
+ * activa. Bajarlo a 12 estrecharía ese subrayado en Mensajes, en Notas y en
+ * cada integración de la cuenta — o sea deformar la tira de pestañas para
+ * cuadrar un margen, que es al revés de lo que se pide.
+ *
+ * Medido en Chromium sobre el CSS del build, antes: arriba **12 y 12**, abajo
+ * **16 a la izquierda y 8 a la derecha**. Los dos extremos torcidos, y en
+ * sentidos contrarios: por eso la fila se lee descuadrada aunque cada número
+ * por separado parezca razonable.
+ *
+ * Son dos constantes y no una porque cada fila llega de una forma —la de
+ * arriba se pone las dos mitades, la de abajo solo la derecha—. **El número es
+ * el mismo, y eso es lo que no puede separarse**: lo comprueba el banco, que
+ * exige que las dos acaben en el mismo escalón.
+ */
+const MARGEN_DE_LA_CABECERA = 'px-4';
+const MARGEN_DERECHO_DE_LA_CABECERA = 'pr-4';
+
 const LID_AVISO_KEY = 'lid_aviso_oculto_v1';
 function avisosLidOcultos(): Set<string> {
   if (typeof window === 'undefined') return new Set();
@@ -829,7 +852,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* Alto FIJO (rem) IGUAL al del toolbar del sidebar → el borde/divisor queda
           continuo de lado a lado a cualquier zoom. Contenido centrado vertical. */}
       <div className="hidden md:flex md:flex-col md:justify-center overflow-hidden border-b-2 border-border" style={{ height: '5.125rem' }}>
-      <div className="flex items-center px-3 py-0 gap-3 overflow-hidden">
+      <div className={cn('flex items-center py-0 gap-3 overflow-hidden', MARGEN_DE_LA_CABECERA)}>
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onExpandChatList && (
             <Button
@@ -994,7 +1017,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {intg.name}
             </button>
           ))}
-          <div className="ml-auto flex items-center gap-1 pr-2">
+          <div className={cn('ml-auto flex items-center gap-1', MARGEN_DERECHO_DE_LA_CABECERA)}>
             {onToggleSearch && (
               <Button
                 type="button"

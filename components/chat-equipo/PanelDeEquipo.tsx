@@ -16,8 +16,9 @@ import {
     FRANJA_LATERAL_MOVIL,
     HOJA_LATERAL,
     HOJA_LATERAL_MOVIL,
-    avisarDelPanelLateral,
+    PANEL_DEL_EQUIPO,
 } from "@/lib/panel-lateral";
+import { usePanelLateral } from "@/hooks/usePanelLateral";
 import {
     darDeBajaEsteDispositivo,
     suscribirEsteDispositivo,
@@ -71,10 +72,10 @@ export function PanelDeEquipo({
     // Chats acomoda la conversación mientras haya un panel abierto, igual que
     // ya hace con la ficha de Contacto. En el resto de la plataforma esto no
     // hace nada: la regla de CSS está acotada a `[data-chat-view]`.
-    useEffect(() => {
-        avisarDelPanelLateral(abierto);
-        return () => avisarDelPanelLateral(false);
-    }, [abierto]);
+    //
+    // Y el mismo hook aparta a los demás paneles de la franja, que es lo que
+    // antes hacía a mano `BotonesDelBorde` — y solo entre estos dos.
+    usePanelLateral(PANEL_DEL_EQUIPO, abierto, onCerrar);
 
     return (
         <>

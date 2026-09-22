@@ -6,13 +6,8 @@ import { Check, ClipboardList, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { PanelLateral } from "@/components/shared/PanelLateral";
+import { PANEL_DE_LA_TAREA } from "@/lib/panel-lateral";
 import {
   Select,
   SelectContent,
@@ -156,21 +151,16 @@ export function TaskFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-primary" />
-            Nueva tarea
-            {session?.pushName && (
-              <span className="text-sm font-normal text-muted-foreground">
-                — {session.pushName}
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="flex flex-col flex-1 min-h-0 space-y-3 overflow-y-auto py-1 px-1">
+    <PanelLateral
+      id={PANEL_DE_LA_TAREA}
+      abierto={open}
+      onCerrar={() => onOpenChange(false)}
+      titulo="Nueva tarea"
+      subtitulo={session?.pushName}
+      icono={<ClipboardList className="h-4 w-4" />}
+    >
+        {/* El desplazamiento lo pone PanelLateral: aqui solo el relleno. */}
+        <div className="flex flex-col space-y-3 px-4 py-4">
           {/* Tipo */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">TIPO</label>
@@ -281,7 +271,7 @@ export function TaskFormDialog({
         </div>
 
         {/* Recordatorio WhatsApp */}
-        <div className="flex items-center gap-2 py-1 px-1">
+        <div className="flex items-center gap-2 px-4 pb-4">
           <Checkbox
             id="wa-reminder"
             checked={sendWhatsApp}
@@ -292,15 +282,18 @@ export function TaskFormDialog({
           </label>
         </div>
 
-        <DialogFooter className="gap-2">
+        {/* El pie va DENTRO del contenido: PanelLateral no tiene hueco de pie,
+            y sus dos botones son hijos DIRECTOS de la fila — que es lo que hace
+            que `justify-between` los reparta (metidos en un <div> ve un solo
+            hijo y los manda juntos a un extremo, medido: +198 px). */}
+        <div className="mt-auto flex flex-row flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
             Cancelar
           </Button>
           <Button onClick={() => void handleSave()} disabled={saving} type="button">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear tarea"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+    </PanelLateral>
   );
 }
