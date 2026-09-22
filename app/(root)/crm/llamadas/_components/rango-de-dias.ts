@@ -1,17 +1,15 @@
 /**
- * El rango de días de CRM › Llamadas (7 / 30 / 90).
+ * Cuánto historial trae CRM › Llamadas.
  *
- * Vive aquí y no dentro de la pantalla porque lo pintan DOS sitios: la fila de
- * pestañas del CRM (`CrmDashboard`, que es quien tiene el mando) y la consulta
- * de `CallsCrmClient`, que es quien lo consume. Con la lista escrita en cada
- * uno, el día que se añada un rango se añade en uno y el otro se queda atrás —
- * y eso no se ve como un error: se ve como un botón que no cambia nada.
+ * Fue una lista de tres botones —7 / 30 / 90 días— que vivían en la fila de
+ * pestañas del CRM. Esa fila no se pinta dentro de Llamadas (ver
+ * `CrmDashboard`), así que el rango dejó de ser un mando y pasó a ser lo que
+ * siempre había elegido casi todo el mundo: el valor por defecto.
+ *
+ * **Si vuelve a hacer falta elegirlo, vuelve AQUÍ y no a la pantalla.** El
+ * número que se ofrece y el que se consulta tienen que salir del mismo sitio;
+ * escritos en dos, el día que se añada un rango se añade en uno y el otro se
+ * queda atrás — y eso no se ve como un error: se ve como un botón que no
+ * cambia nada.
  */
-export const RANGOS_DE_DIAS: { label: string; value: number }[] = [
-    { label: "7 días", value: 7 },
-    { label: "30 días", value: 30 },
-    { label: "90 días", value: 90 },
-];
-
-/** El que se abre por defecto. */
 export const DIAS_POR_DEFECTO = 30;

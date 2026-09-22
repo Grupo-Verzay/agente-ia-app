@@ -14174,6 +14174,10 @@ cinco huecos en orden:
 [buscador] [·· pastillas + dirección ··] [Exportar CSV] [Llamar] [⋯]
 ```
 
+> Esa fila de pestañas ya no existe dentro de Llamadas, y con ella se fueron
+> los rangos y las pastillas de conteo. Lo que queda es **una sola** barra, la
+> de abajo. Está contado entero en *Llamadas se alinea con Leads*.
+
 Medido en Chromium sobre el CSS de los **dos** builds —el «antes» sale de
 `origin/main` con `git show`, nunca de una copia escrita en el banco—, lo que
 había por encima de la primera fila de la tabla:
@@ -14189,23 +14193,26 @@ En un teléfono eran casi doscientos píxeles de mandos antes de la primera
 llamada. Y en las cuatro anchuras el `⋯` queda pegado al borde derecho y el
 azul justo antes (a 48 px, el ancho del `⋯` más su hueco), sin desbordar.
 
-### El rango de días es de la FILA DE PESTAÑAS, no de la pantalla
+### El rango de días ya no es un mando: es el valor por defecto
 
-`RANGOS_DE_DIAS` y `DIAS_POR_DEFECTO` viven en
-`app/(root)/crm/llamadas/_components/rango-de-dias.ts` porque los pintan **dos
-sitios**: `CrmDashboard`, que tiene el mando, y `CallsCrmClient`, que los
-consume. Escrita la lista en cada uno, el día que se añada un rango se añade en
-uno y el otro se queda atrás — y eso no se ve como un error: se ve como un
-botón que no cambia nada.
+Estuvo en la fila de pestañas del CRM, y se fue con ella. `rango-de-dias.ts`
+conserva **solo `DIAS_POR_DEFECTO`**, que es lo que consulta la pantalla.
+
+**Si vuelve a hacer falta elegirlo, vuelve AHÍ y no a la pantalla**: el número
+que se ofrece y el que se consulta tienen que salir del mismo sitio o un día
+dirán cosas distintas, y eso no se ve como un error — se ve como un botón que
+no cambia nada.
 
 Y **no es el `period` de al lado.** Aquel es `AnalyticsPeriod` (`"7d"`…) y
 decide los filtros de Registros; este es un número de días y va a
 `getCallsCrmData`. Juntarlos sería un filtro que promete lo que la pantalla de
 al lado no hace.
 
-«Actualizar» es un contador que sube (`refrescoDeLlamadas`) y con eso la
-pantalla vuelve a pedir su vuelta; el `cargandoLlamadas` que sube sirve **solo**
-para que el icono gire. Un botón que no se ve pulsado se pulsa cinco veces.
+«Actualizar» pasó al hueco `secundarias` de la barra, al lado de «Exportar»:
+es lo que se hace sobre la lista ENTERA sin acotarla, que es justo lo que ese
+hueco significa. Llama a `load` directamente —ya no hay contador que subir— y
+gira mientras la consulta va y vuelve, porque un botón que no se ve pulsado se
+pulsa cinco veces.
 
 ### Marcar es lo excepcional: el campo y «Llamar con IA» se fueron al diálogo
 
@@ -15259,3 +15266,116 @@ si el motivo se queda vacío.
    fallo que se anuncia como un éxito es el más caro de todos**, y el día que
    alguien añada una ruta sin su prefijo esto lo dice en vez de callarlo.
    Comprobado quitándola: los dos casos se ponen en rojo.
+
+## Llamadas se alinea con Leads: una fila de mandos, un tamaño y el número en azul
+
+La referencia de una pantalla de lista en esta plataforma es **Leads**
+(`/sessions`), y CRM › Llamadas se había separado de ella por cuatro sitios a
+la vez. Ninguno es grave por su cuenta; puestas las dos pantallas lado a lado,
+se leen como dos plataformas.
+
+### 1. El número: a la IZQUIERDA y en AZUL
+
+Iba centrado en su celda y en negro. Las dos cosas son el mismo error de fondo
+—**la celda no decía lo que la celda es**— y cada una molesta por su lado:
+
+> **Una columna de teléfonos se lee comparando filas**, así que centrada no se
+> puede leer: cada número arranca donde le deja su propio ancho, y el nombre
+> que cuelga debajo arranca en otro sitio. Y **el número es lo que se pulsa
+> para abrir el chat**, así que en negro no se lee como lo que es.
+
+La clase es **la misma que la de Leads**, no una parecida: `text-blue-600` con
+`hover:text-blue-800`, la celda `text-left` y el nombre de debajo sin su
+`mx-auto`. Medido en Chromium sobre el CSS del build, a 1440, 1280 y 1024: el
+número arranca **a 0 px** del borde interior de su celda, el nombre arranca en
+**el mismo píxel** que él, y el color es exactamente el que pinta
+`text-blue-600` en esta hoja.
+
+Ojo con ese color: **no es el azul de Tailwind.** Esta plataforma redefine la
+paleta y sale `rgb(31, 102, 173)`. El banco no lo lleva escrito —pinta una
+sonda con la clase y le pregunta al navegador—, porque un número copiado a mano
+probaría que coincide con lo que alguien recuerda del tema, y se pondría rojo
+el día que se afine un color sin que nada esté roto.
+
+### 2. Un solo tamaño de letra, y las pastillas no cuentan
+
+La tabla mezclaba dos: `text-sm` (14 px) en el cuerpo y `text-xs` (12 px) en la
+cabecera, en el nombre del contacto y en los «—» de una fila ajena. Todo va al
+de Leads, que es el `text-sm` de `components/ui/table.tsx`.
+
+**Lo que NO se toca son las pastillas** —el tipo, el resultado, el estado—, y
+eso no es una excepción que se inventa aquí: Leads pinta las suyas igual
+(`SeguimientoBadge`, las etiquetas). Una píldora es una píldora; lo que tiene
+que ser un solo tamaño es el **texto**.
+
+Por eso el banco mide el conjunto de tamaños **descontando lo que cuelgue de un
+`rounded-full`**, y afirma que es exactamente uno. Midiendo todo saldrían dos
+y habría que ablandar la comprobación hasta que no dijera nada.
+
+### 3. Dentro de Llamadas la fila de pestañas sobra
+
+Encima de la barra iba la fila del CRM —Analíticas · Registros · Llamadas ·
+Kanban · Reportes— con el rango de 7/30/90 días y «Actualizar» a su derecha.
+Eran **dos filas de mandos** donde el resto de la plataforma tiene una, y la de
+arriba le quitaba su alto a la tabla. A las cinco vistas se llega por el menú
+del módulo, que es de donde salen sus cinco rutas (`navigation-routes.ts`).
+
+> **Se decide por la RUTA (`initialView`), no por `viewMode`.** Desde `/crm` se
+> puede abrir la vista de llamadas **con** esas pestañas, y escondiéndolas ahí
+> no habría forma de volver: menú cerrado por dentro, que es el fallo contrario
+> al «menú abierto, puerta cerrada» que este documento persigue y se ve igual
+> de mal. En su propia ruta el modo no cambia nunca, así que no hay nada que
+> cerrar.
+
+Y con la fila se va su contenido: el rango pasa a ser fijo y «Actualizar» baja
+al hueco `secundarias` de la barra.
+
+**El selector de cuentas de la familia no se pierde.** Vivía en esa fila, así
+que baja a la pantalla **como nodo** (`selectorDeCuentas`) y se pinta en el
+hueco `filtros`, que es donde va lo que acota la lista. Y baja **solo en la
+ruta de Llamadas**: en las otras cuatro vistas lo sigue pintando la fila de
+pestañas, y pasándolo siempre saldrían **dos selectores para el mismo filtro**,
+que es tanto como no saber cuál manda.
+
+### 4. Los conteos eran el mismo filtro DOS veces
+
+Las tres pastillas —Total, Salientes, Entrantes, con su cifra— estaban pegadas
+al grupo de botones «Todas / Salientes / Entrantes», y hacían **exactamente lo
+mismo**: se pulsaba una y el grupo de al lado se ponía igual. Se van las
+pastillas y se queda el grupo, que es el mando de siempre y el que dice cuál
+está puesto. **No se pierde ningún filtro.**
+
+Lo que sí se habría perdido es el tooltip de «Total», que llevaba la duración
+total, el promedio y cuántas se contestaron. **Un dato que desaparece se dice**,
+así que no desaparece: se lee posándose sobre el grupo de dirección. Un dato que
+solo se mira de reojo no necesita una cifra en la barra.
+
+### El banco: la tabla PINTADA, y el «antes» pinchado a un commit
+
+`scripts/banco-tabla-de-llamadas.sh`. Las tres primeras preguntas son de
+píxeles y no se contestan leyendo, así que se miden en Chromium sobre el CSS
+del build y con el componente **real**: se monta `CallsCrmClient` entero y lo
+único que se finge son sus acciones de servidor, con los **mismos datos en los
+dos modos** — así la única diferencia medible es cómo se pinta la fila.
+
+La cuarta vive en otro componente y **se lee del código**: montar
+`CrmDashboard` arrastraría el kanban y las gráficas para contestar algo que es
+una condición de una línea. Se dice en vez de disimularlo.
+
+`MODO=roto` monta el `CallsCrmClient` de antes, sacado con `git show` y puesto
+**junto a sus vecinos** para que sus `./` resuelvan sin tocarle una línea, y
+**afirma los cuatro fallos**: la celda centrada, el número en un color que no
+es el de Leads, dos tamaños de letra dentro de la misma tabla y las tres cifras
+de las pastillas dentro de la barra.
+
+> **Y el «antes» va PINCHADO a un commit, nunca a `origin/main`.** En cuanto un
+> cambio se fusiona, `origin/main` pasa a ser el «ahora»: el modo roto deja de
+> reproducir nada y **se pone verde sin ejercer el fallo**, que es la peor
+> forma de tener un banco.
+>
+> No es hipotético — le había pasado al de al lado. `banco-llamar-con-ia.sh`
+> sacaba su «antes» de `origin/main`, y desde que su propio cambio entró en
+> main se caía con «el ancla `{/* Toolbar: buscador + rango de días */}`
+> aparece 0 veces». Llevaba roto desde entonces. Los dos llevan ya su
+> `ANTES_REF`, con el commit escrito y con la variable para poder apuntar a
+> otro sitio.

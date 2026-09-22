@@ -22,7 +22,7 @@
 #     marcador, `startBotCallAction(digitos)` sin línea— y afirma que la pierde.
 #     No es «el componente de antes», porque este menú es nuevo: es la forma en
 #     que esto se escribe solo, y se dice en vez de disimularlo.
-#   - la barra, con las DOS filas de `origin/main` sacadas con `git show`: el
+#   - la barra, con las DOS filas de antes sacadas con `git show`: el
 #     toolbar con el rango de días y el `BarraDelMarcador` con el campo del
 #     número y los dos botones de llamar dentro. Los dos lados salen de código
 #     de verdad —el «ahora», del árbol de trabajo— y comparten andamiaje, así
@@ -145,12 +145,16 @@ node --test lib/__tests__/menu-de-llamada.test.mjs "$@"
 # ─────────────────────────────────────────────────────────────────────────────
 # Los DOS lados salen de código de verdad, nunca de una copia escrita aquí: el
 # «ahora» es el `<BarraDeAcciones>` del árbol de trabajo —que se trae con él el
-# `DialogoDeLlamar` real— y el «antes», las dos filas de `origin/main`. El
-# andamiaje que las rodea es el mismo en los dos, así que lo único que se puede
-# medir distinto es la barra.
-git fetch origin main --quiet 2>/dev/null || true
+# `DialogoDeLlamar` real— y el «antes», las dos filas de antes de que esto
+# cambiara. El andamiaje que las rodea es el mismo en los dos, así que lo único
+# que se puede medir distinto es la barra.
+# El «antes» va PINCHADO a un commit y no a `origin/main`: el día que este
+# cambio se fusionó, `origin/main` pasó a ser el «ahora» y el modo roto se
+# quedó sin sus anclas —se caía con «el ancla aparece 0 veces»—. Un «antes»
+# que apunta a una rama viva deja de ser un antes en cuanto se fusiona.
+ANTES_REF="${ANTES_REF:-c4395f85d6754fd2a824e32f9557d15e3d16a6b7}"
 if [ "$MODO" = "roto" ]; then
-  python3 scripts/sacar-barra-de-llamadas.py antes "$BARRA" "$ANTES_MARCADOR"
+  python3 scripts/sacar-barra-de-llamadas.py antes "$BARRA" "$ANTES_MARCADOR" "$ANTES_REF"
 else
   python3 scripts/sacar-barra-de-llamadas.py ahora "$BARRA"
 fi
