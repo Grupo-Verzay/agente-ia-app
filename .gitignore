@@ -55,3 +55,4 @@ lib/__tests__/.compilado/
 # El segmentador de fondo: lo copia `npm run prebuild` desde node_modules.
 # Son 6 MB de wasm que no tienen por que vivir en el historial de git.
 /public/segmentacion/
+lib/__tests__/.antes/

@@ -5,3 +5,5 @@
  */
 export function revalidatePath(_ruta: string) {}
 export function revalidateTag(_etiqueta: string) {}
+/** Tampoco decide nada: le dice a Next que no guarde en caché la respuesta. */
+export function unstable_noStore() {}

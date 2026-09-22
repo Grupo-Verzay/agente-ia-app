@@ -1,7 +1,8 @@
 "use server";
 
 import { AppContextSnapshot, ChatMessage } from "@/types/ai-assistence-chat";
-import { ActionResult, resolveUserAiClient } from "./userAiconfig-actions";
+import { type ActionResult } from "./userAiconfig-actions";
+import { resolveUserAiClient } from "@/lib/cliente-de-ia.server";
 import { currentUser } from "@/lib/auth";
 import { toAiMessages } from "@/app/(root)/ai-chat/helpers/toAiMessages";
 import { createAiClient } from "@/app/(root)/ai-chat/helpers/createAiClient";
