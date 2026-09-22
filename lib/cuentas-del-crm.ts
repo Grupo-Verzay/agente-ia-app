@@ -3,13 +3,14 @@ import "server-only";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canManageWorkspace } from "@/lib/workspace-roles";
-import { laFamiliaDeLaCuenta, esLaCuentaMadre } from "@/lib/familia-de-cuentas";
+import { laFamiliaDeLaCuenta } from "@/lib/familia-de-cuentas";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { recordarPorSesion } from "@/lib/cache-de-sesion";
 import {
     comoListaDeCuentas,
     laSeleccionDelCrm,
-    seEnsenaElFiltroDelCrm,
+    lasCuentasQueCuelganDe,
     type CuentaDelCrm,
 } from "@/lib/crm-de-la-familia";
 
@@ -33,13 +34,17 @@ import {
  * común sí resuelve la familia**, porque sin resolverla no se sabe cuál es el
  * «todas». Por eso se recuerda unos segundos (ver abajo).
  *
- * # Los vínculos van solo de madre a hija
+ * # El alcance va HACIA ABAJO, nunca hacia arriba ni hacia los lados
  *
- * No hace falta ninguna comprobación aparte: `seEnsenaElFiltroDelCrm` exige ser
- * la **raíz** de la familia, y una cuenta hija no lo es. Así que una hija cae
- * en `soloLaSuya()` y ve únicamente lo suyo — ni lo de su madre ni lo de sus
- * hermanas. Es la misma puerta del selector de Finanzas, sin una condición
- * nueva al lado.
+ * Cada cuenta ve lo suyo y lo de las cuentas que cuelgan de ella
+ * (`lasCuentasQueCuelganDe`), y nunca lo de su madre ni lo de sus hermanas. El
+ * superadministrador de verdad ve la familia entera, porque todas cuelgan de él.
+ *
+ * Antes era «la RAÍZ de la familia ve el componente entero», con la raíz
+ * sacada de un recuento de votos. Eso dejó a Yair —administrador de Verzay |
+ * Atencion, una cuenta INTERMEDIA— viendo las llamadas de Carlos Arcos, que está
+ * por encima: en cuanto la intermedia gana el recuento, ve hacia arriba. El
+ * alcance ya no depende de quién gane ningún recuento.
  */
 export type CuentasDelCrm = {
     /** La cuenta desde la que se mira: la fila EFECTIVA de quien abre. */
@@ -67,8 +72,11 @@ const SOLA: Alcance = { disponibles: [], puedeElegir: false };
  * decide la persona (`canManageWorkspace`) se resuelve **antes**, sin tocar la
  * base, y ni siquiera llega a esta llave.
  */
-function llaveDelAlcanceDelCrm(propia: string): string {
-    return `crm-de-la-familia|${propia}`;
+function llaveDelAlcanceDelCrm(propia: string, todaLaFamilia: boolean): string {
+    // `todaLaFamilia` ENTRA en la llave: el superadministrador y el
+    // administrador de la misma cuenta no ven lo mismo, y compartir entrada
+    // cinco segundos le pasaría a uno el alcance del otro.
+    return `crm-de-la-familia|${todaLaFamilia ? "toda" : "abajo"}|${propia}`;
 }
 
 /**
@@ -84,10 +92,10 @@ function llaveDelAlcanceDelCrm(propia: string): string {
  * tarda en notarse es **vincular o desvincular una cuenta**, que no es una
  * operación de cada minuto.
  */
-async function alcanceDeLaCuenta(propia: string): Promise<Alcance> {
+async function alcanceDeLaCuenta(propia: string, todaLaFamilia: boolean): Promise<Alcance> {
     return recordarPorSesion(
-        llaveDelAlcanceDelCrm(propia),
-        () => consultarElAlcance(propia),
+        llaveDelAlcanceDelCrm(propia, todaLaFamilia),
+        () => consultarElAlcance(propia, todaLaFamilia),
         // Un alcance recortado por un fallo de la base NO se queda pegado cinco
         // segundos: sería propagar esa pérdida de vista a las peticiones de al
         // lado, y eso se ve como una pantalla que a veces trae menos filas.
@@ -95,22 +103,21 @@ async function alcanceDeLaCuenta(propia: string): Promise<Alcance> {
     );
 }
 
-async function consultarElAlcance(propia: string): Promise<Alcance> {
+async function consultarElAlcance(propia: string, todaLaFamilia: boolean): Promise<Alcance> {
     try {
         const familia = await laFamiliaDeLaCuenta(propia);
 
-        if (
-            !seEnsenaElFiltroDelCrm({
-                mandaEnSuCuenta: true,
-                esLaMadre: esLaCuentaMadre(familia, propia),
-                cuantasCuentas: familia.cuentas.length,
-            })
-        ) {
-            return SOLA;
-        }
+        // El superadministrador ve la familia entera. Cualquier otro, lo que
+        // cuelga de su cuenta hacia abajo — nunca su madre ni sus hermanas.
+        const alcanzables = todaLaFamilia
+            ? familia.cuentas
+            : lasCuentasQueCuelganDe(propia, familia.enlaces ?? []);
+
+        // Con una sola cuenta no hay nada que elegir ni que unificar.
+        if (alcanzables.length <= 1) return SOLA;
 
         const filas = await db.user.findMany({
-            where: { id: { in: familia.cuentas } },
+            where: { id: { in: alcanzables } },
             select: {
                 id: true,
                 name: true,
@@ -174,7 +181,10 @@ export async function resolverLasCuentasDelCrm(
     // hacer, y su respuesta no depende de la familia.
     if (!canManageWorkspace(persona)) return soloLaSuya();
 
-    const { disponibles, puedeElegir } = await alcanceDeLaCuenta(propia);
+    const { disponibles, puedeElegir } = await alcanceDeLaCuenta(
+        propia,
+        esSuperAdminDeVerdad(persona),
+    );
     if (!puedeElegir) return soloLaSuya();
 
     const elegidas = laSeleccionDelCrm(

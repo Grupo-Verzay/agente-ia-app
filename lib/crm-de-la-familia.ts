@@ -1,12 +1,13 @@
 /**
- * El CRM de una familia de cuentas: la madre ve lo suyo y lo de sus hijas,
- * unificado, y puede reducirlo a las cuentas que elija.
+ * El CRM de una familia de cuentas: cada cuenta ve lo suyo y lo de las que
+ * cuelgan de ella HACIA ABAJO, unificado, y puede reducirlo a las que elija.
+ * Nunca lo de su madre ni lo de sus hermanas (`lasCuentasQueCuelganDe`).
  *
  * # Por qué esto no es «Finanzas de la familia» con otro nombre
  *
  * El mecanismo es el mismo y se reutiliza entero —`laFamiliaDeLaCuenta` para
- * saber quiénes son, `esLaCuentaMadre` para saber quién consolida,
- * `comoListaDeCuentas` para leer el parámetro de la URL—, y eso es a propósito:
+ * saber quiénes son y `comoListaDeCuentas` para leer el parámetro de la URL—,
+ * y eso es a propósito:
  * dos formas de resolver «qué cuentas alcanza esta pantalla» son una que se
  * afina y otra que se queda atrás.
  *
@@ -35,7 +36,6 @@
 
 import {
     comoListaDeCuentas,
-    seEnsenaElSelector,
     type CuentaDeFinanzas,
 } from "@/lib/finanzas-de-la-familia";
 
@@ -93,28 +93,6 @@ export function laSeleccionDelCrm(
     // qué — y el caso más común de llegar aquí no es un ataque, es un
     // `?cuentas=` rancio de un enlace guardado.
     return buenas.length > 0 ? buenas : permitidas;
-}
-
-/**
- * ¿Se enseña el filtro por cuenta?
- *
- * Es **la misma función que decide el de Finanzas** (`seEnsenaElSelector`), y no
- * una condición nueva: manda en su cuenta —un `agente` participa, no
- * administra—, es la cuenta MADRE de su familia, y la familia tiene más de una
- * cuenta.
- *
- * La segunda condición es la que cumple el encargo por su lado más delicado:
- * **los vínculos van solo de madre a hija.** Una cuenta hija no es la raíz, así
- * que no consolida nada y sigue viendo únicamente lo suyo — ni lo de su madre
- * ni lo de sus hermanas. No hace falta ninguna comprobación aparte para eso: se
- * cae de que solo la raíz alcanza a la familia.
- */
-export function seEnsenaElFiltroDelCrm(args: {
-    mandaEnSuCuenta: boolean;
-    esLaMadre: boolean;
-    cuantasCuentas: number;
-}): boolean {
-    return seEnsenaElSelector(args);
 }
 
 /**
@@ -181,3 +159,75 @@ export function elTopeDelCrm(porCuenta: number, cuantasCuentas: number): number 
  * nada.
  */
 export const TECHO_DE_CUENTAS_EN_UN_TOPE = 5;
+
+/**
+ * Las cuentas que CUELGAN de esta, hacia abajo, empezando por ella misma.
+ *
+ * # Por qué el alcance no puede ser «la familia»
+ *
+ * La familia (`laFamiliaDeLaCuenta`) es el componente de `linked_accounts`
+ * **sin dirección**: sirve para que un chat del equipo no se parta, pero NO es
+ * un alcance. Antes se decía «la raíz ve el componente entero y las demás solo
+ * lo suyo», y la raíz sale de un recuento de votos (`laRaizQueManda`). Con eso,
+ * **quien ve de más lo decide un número**: una cuenta intermedia que vincule a
+ * tantas como su madre —o a su propia madre de vuelta, que en esta tabla es lo
+ * normal— gana el recuento y pasa a ver lo de su madre y lo de sus hermanas.
+ * Es exactamente la fuga del administrador de Verzay | Atencion viendo las
+ * llamadas de Carlos Arcos.
+ *
+ * # La regla
+ *
+ * > **Se ve lo que se alcanza bajando por los enlaces (`de` → `a`) sin pasar
+ * > nunca por una cuenta que también alcanza a esta.** Lo primero es «mis
+ * > hijas y las hijas de mis hijas»; lo segundo quita a quien está por ENCIMA
+ * > —aunque haya un enlace de vuelta— y a todo lo que solo se alcanza a
+ * > través de ella, que son las hermanas.
+ *
+ * Una pareja recíproca (`A → B` y `B → A`) se anula por los dos lados: ninguna
+ * ve a la otra. Es el lado seguro a propósito —un enlace de ida y vuelta no
+ * dice quién es la madre, y adivinarlo es lo que abrió la fuga—. Si hace falta
+ * que una vea a la otra, se borra el enlace que sobra y queda dicho el sentido.
+ *
+ * Pura: entra el id y los enlaces, sale la lista. La propia va **siempre
+ * primera**, aunque no aparezca en ningún enlace.
+ */
+export function lasCuentasQueCuelganDe(
+    desde: string,
+    enlaces: readonly { de: string; a: string }[],
+): string[] {
+    const propia = String(desde ?? "").trim();
+    if (!propia) return [];
+
+    const hijas = new Map<string, string[]>();
+    const madres = new Map<string, string[]>();
+    for (const e of enlaces ?? []) {
+        const de = String(e?.de ?? "").trim();
+        const a = String(e?.a ?? "").trim();
+        if (!de || !a || de === a) continue;
+        (hijas.get(de) ?? hijas.set(de, []).get(de)!).push(a);
+        (madres.get(a) ?? madres.set(a, []).get(a)!).push(de);
+    }
+
+    const recorrer = (grafo: Map<string, string[]>, vetadas: Set<string>): Set<string> => {
+        const vistos = new Set<string>();
+        const cola = [propia];
+        while (cola.length > 0) {
+            const actual = cola.shift()!;
+            for (const siguiente of grafo.get(actual) ?? []) {
+                if (siguiente === propia || vistos.has(siguiente)) continue;
+                if (vetadas.has(siguiente)) continue;
+                vistos.add(siguiente);
+                cola.push(siguiente);
+            }
+        }
+        return vistos;
+    };
+
+    // Primero quién está por ENCIMA. Y al bajar no se PASA por ninguna de
+    // ellas: con un enlace de vuelta (hija → madre), bajar atravesando a la
+    // madre llevaría a las hermanas — la otra mitad de la fuga.
+    const arriba = recorrer(madres, new Set());
+    const abajo = recorrer(hijas, arriba);
+
+    return [propia, ...Array.from(abajo).sort()];
+}
