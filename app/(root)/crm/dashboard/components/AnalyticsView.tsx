@@ -135,10 +135,27 @@ function DonutChart({ data }: { data: { name: string; value: number; color: stri
 }
 
 /* --- componente principal --- */
-export function AnalyticsView({ userId, stats, period }: { userId: string; stats: DashboardStats | null; period: AnalyticsPeriod }) {
+export function AnalyticsView({
+    userId,
+    stats,
+    period,
+    cuentas,
+}: {
+    userId: string;
+    stats: DashboardStats | null;
+    period: AnalyticsPeriod;
+    /**
+     * Las cuentas que el filtro del CRM tiene puestas. Va DENTRO de la llave de
+     * SWR: sin eso, reducir el filtro a una sola cuenta dejaria los totales con
+     * la respuesta ya cacheada de la seleccion anterior — y en Reportes los
+     * totales tienen que corresponder a lo que el filtro tenga seleccionado.
+     */
+    cuentas: string[];
+}) {
+    const llaveDeCuentas = cuentas.join(",");
     const { data, isLoading } = useSWR(
-        ["crm-analytics", userId, period],
-        ([, uid, p]) => getAnalyticsDataByUserId(uid, p as AnalyticsPeriod)
+        ["crm-analytics", userId, period, llaveDeCuentas],
+        ([, uid, p]) => getAnalyticsDataByUserId(uid, p as AnalyticsPeriod, cuentas)
     );
     const a = data?.success ? data.data : null;
     const loading = isLoading;
@@ -146,8 +163,8 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
     /* llamadas (bloque resumido) */
     const callDays = period === "7d" ? 7 : period === "90d" ? 90 : period === "all" ? 365 : 30;
     const { data: callsData, isLoading: callsLoading } = useSWR(
-        ["crm-analytics-calls", userId, period],
-        () => getCallsCrmData({ days: callDays })
+        ["crm-analytics-calls", userId, period, llaveDeCuentas],
+        () => getCallsCrmData({ days: callDays, cuentas })
     );
     const callKpis = callsData?.kpis;
     const callsBarData = (callsData?.byDay ?? []).map((d) => ({

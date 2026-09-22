@@ -19,6 +19,9 @@ import type { AnalyticsPeriod } from "@/actions/analytics-action";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { RegistroWithSession, TipoRegistro } from "@/types/session";
+import { SelectorDeCuentas } from "@/components/shared/SelectorDeCuentas";
+import { elCrmVaUnificado, nombresDeLasCuentas } from "@/lib/crm-de-la-familia";
+import type { CuentasDelCrm } from "@/lib/cuentas-del-crm";
 import { CrmGlobalActionsMenu } from "./CrmGlobalActionsMenu";
 import type { DashboardStats } from "./MainDashboard";
 import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
@@ -70,6 +73,7 @@ export const CrmDashboard = ({
     sentinelRef,
     onScrollRootReady,
     initialView,
+    cuentas,
 }: {
     stats: DashboardStats | null;
     registros: RegistroWithSession[];
@@ -88,6 +92,7 @@ export const CrmDashboard = ({
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
     initialView?: "registros" | "analiticas" | "kanban" | "reportes" | "llamadas";
+    cuentas: CuentasDelCrm;
 }) => {
     const router = useRouter();
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas">(initialView ?? "analiticas");
@@ -137,6 +142,18 @@ export const CrmDashboard = ({
             });
         }
     };
+
+    /*
+     * Con una sola cuenta elegida —el caso de siempre, y el unico que ve una
+     * cuenta hija— las cinco vistas se tienen que ver EXACTAMENTE como antes de
+     * que esto existiera: ni columna «Cuenta», ni insignias, ni filas de solo
+     * lectura. De ahi cuelga todo lo que cambia al unificar.
+     */
+    const unificado = elCrmVaUnificado(cuentas.elegidas);
+    const nombresDeCuenta = useMemo(
+        () => nombresDeLasCuentas(cuentas.disponibles),
+        [cuentas.disponibles],
+    );
 
     const totalRegistros = stats?.totalRegistros ?? registros.length;
 
@@ -281,6 +298,23 @@ export const CrmDashboard = ({
                     )}
 
 
+                    {/*
+                      * El filtro por cuenta acota la lista de abajo, asi que va
+                      * con los demas filtros y no en una fila propia — una fila
+                      * suelta son 40 px que se le quitan a la tabla en las cinco
+                      * vistas. Se pinta solo si el servidor dijo que se puede
+                      * elegir: quien no es la cuenta madre de su familia recibe
+                      * la lista vacia y aqui no sale nada.
+                      */}
+                    {cuentas.puedeElegir && (
+                        <SelectorDeCuentas
+                            disponibles={cuentas.disponibles}
+                            elegidas={cuentas.elegidas}
+                            porDefecto="todas"
+                            conMoneda={false}
+                        />
+                    )}
+
                     {/* Llamadas: su rango y su «Actualizar», a la derecha de
                         esta misma fila. `ml-auto` los pega al borde, igual que
                         las acciones de Registros de más abajo. */}
@@ -372,19 +406,32 @@ export const CrmDashboard = ({
                 {/* Content */}
                 {viewMode === "reportes" ? (
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                        <WeeklyReportsView />
+                        <WeeklyReportsView
+                            cuentas={cuentas.elegidas}
+                            cuentaPropia={cuentas.propia}
+                            unificado={unificado}
+                            nombresDeCuenta={nombresDeCuenta}
+                        />
                         {/* Lo que la IA no supo responder. Va en Informes y no en
                             Analiticas a proposito: no es una metrica que se mire de
                             reojo, es una lista de cosas concretas que hay que anadirle
                             al entrenamiento. */}
                         <div className="mt-6 border-t pt-6">
-                            <LoQueLaIaNoSupoView userId={userId} />
+                            <LoQueLaIaNoSupoView
+                                userId={userId}
+                                cuentas={cuentas.elegidas}
+                                unificado={unificado}
+                                nombresDeCuenta={nombresDeCuenta}
+                            />
                         </div>
                     </div>
                 ) : viewMode === "kanban" ? (
                     <div className="flex-1 min-h-0 flex flex-col">
                         <KanbanBoard
                             userId={userId}
+                            cuentas={cuentas.elegidas}
+                            unificado={unificado}
+                            nombresDeCuenta={nombresDeCuenta}
                             selectedScoreRanges={selectedScoreRanges}
                             onToggleScoreRange={(key) => toggleScoreRange(key as ScoreRangeKey)}
                             onScoreCountsChange={setScoreCounts}
@@ -410,6 +457,8 @@ export const CrmDashboard = ({
                         isLoadingMore={isLoadingMore}
                         sentinelRef={sentinelRef}
                         onScrollRootReady={onScrollRootReady}
+                        unificado={unificado}
+                        nombresDeCuenta={nombresDeCuenta}
                         hideDateBadge={period !== "all"}
                     />
                     </div>
@@ -417,13 +466,22 @@ export const CrmDashboard = ({
                     <div className="flex-1 min-h-0 overflow-y-auto">
                         <CallsCrmClient
                             embedded
+                            cuentas={cuentas.elegidas}
+                            cuentaPropia={cuentas.propia}
+                            unificado={unificado}
+                            nombresDeCuenta={nombresDeCuenta}
                             dias={diasDeLlamadas}
                             refresco={refrescoDeLlamadas}
                             alCargar={setCargandoLlamadas}
                         />
                     </div>
                 ) : (
-                    <AnalyticsView userId={userId} stats={stats} period={period} />
+                    <AnalyticsView
+                        userId={userId}
+                        stats={stats}
+                        period={period}
+                        cuentas={cuentas.elegidas}
+                    />
                 )}
             </div>
         </TooltipProvider>

@@ -3,6 +3,7 @@
 import { type CSSProperties } from "react";
 import type { Column, ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
+import { columnaDeCuenta } from "@/components/shared/ColumnaDeCuenta";
 import { useSidebar } from "@/components/ui/sidebar";
 
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,8 @@ export function createCrmRecordColumns({
     onFollowUpChanged,
     onRecordsChanged,
     onNavigateToChat,
+    unificado = false,
+    nombresDeCuenta = {},
 }: {
     userId: string;
     isUpdatingRegistros?: boolean;
@@ -83,8 +86,24 @@ export function createCrmRecordColumns({
     onFollowUpChanged?: () => Promise<void> | void;
     onRecordsChanged?: () => Promise<void> | void;
     onNavigateToChat?: (remoteJid: string) => void;
+    /** Con varias cuentas elegidas se pinta la columna «Cuenta». */
+    unificado?: boolean;
+    nombresDeCuenta?: Record<string, string>;
 }): ColumnDef<RegistroWithSession>[] {
     return [
+        // La columna «Cuenta» solo existe consolidando, y va la PRIMERA: es lo
+        // que agrupa la lectura, asi que al final habria que recorrer la fila
+        // entera para saber de donde sale.
+        ...(unificado
+            ? [
+                  columnaDeCuenta<RegistroWithSession>(
+                      // `Registro.userId` es opcional —lo rellena un disparador
+                      // de la base—, asi que la sesion es el respaldo.
+                      (fila) => fila.userId ?? fila.session.userId,
+                      nombresDeCuenta,
+                  ),
+              ]
+            : []),
         {
             id: "whatsapp",
             accessorFn: (row) => getDisplayWhatsappFromSession(row.session),

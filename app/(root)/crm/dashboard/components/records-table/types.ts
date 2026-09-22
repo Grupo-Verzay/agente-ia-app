@@ -34,4 +34,7 @@ export type CrmRecordsSectionProps = {
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
     hideDateBadge?: boolean;
+    /** Con varias cuentas elegidas se pinta la columna «Cuenta». */
+    unificado?: boolean;
+    nombresDeCuenta?: Record<string, string>;
 };

@@ -7,6 +7,7 @@ import { getAuditActorId, writeAuditLog } from "@/actions/audit-log-actions";
 import { assertUserCanUseApp } from "@/actions/billing/helpers/app-access-guard";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 import { db } from "@/lib/db";
+import { lasCuentasQueConsultaElCrm } from "@/lib/cuentas-del-crm";
 import { ActionResult } from "@/types/registro";
 import {
     CrmFollowUpStatus,
@@ -316,13 +317,16 @@ async function getCrmFollowUpSummaryMapBySessions(sessions: SessionLookup[]) {
 }
 
 async function getSessionIdsByCrmFollowUpFilter(
-    userId: string,
+    // Las cuentas que se están mirando, no una sola: unificada la vista, este
+    // filtro tiene que abarcar las mismas filas que la lista o el resultado
+    // saldría recortado a la cuenta propia sin decir por qué.
+    cuentas: readonly string[],
     crmFollowUpStatus?: CrmFollowUpStatus | "none"
 ) {
     if (!crmFollowUpStatus) return null;
 
     const sessions = await db.session.findMany({
-        where: { userId },
+        where: { userId: { in: [...cuentas] } },
         select: {
             id: true,
             remoteJid: true,
@@ -713,10 +717,20 @@ export async function getRegistrosByUserId(
     skip = 0,
     take = 50,
     tipo?: TipoRegistro,
-    filters?: RegistrosFilters
+    filters?: RegistrosFilters,
+    /**
+     * Las cuentas de la familia que el filtro tiene puestas. **No se usan tal
+     * cual**: se re-resuelven con `lasCuentasQueConsultaElCrm`, porque una
+     * acción de servidor es un endpoint y esta lista llega del navegador. Sin
+     * nada, todas las que esa persona alcance —que para una cuenta hija o un
+     * agente es solo la suya—.
+     */
+    cuentasPedidas?: readonly string[] | null
 ) {
     try {
         await assertUserCanUseApp(userId);
+
+        const cuentas = await lasCuentasQueConsultaElCrm(userId, cuentasPedidas);
 
         const estado = (filters?.estado ?? "").trim();
         const leadStatus = filters?.leadStatus;
@@ -740,7 +754,7 @@ export async function getRegistrosByUserId(
                 : undefined;
 
         const sessionIdsByCrmFollowUp = await getSessionIdsByCrmFollowUpFilter(
-            userId,
+            cuentas,
             crmFollowUpStatus
         );
 
@@ -778,7 +792,11 @@ export async function getRegistrosByUserId(
             ...(combinedSessionIds ? { id: { in: combinedSessionIds } } : {}),
         };
 
-        const whereClauses: Prisma.RegistroWhereInput[] = [{ userId }];
+        // La vista unificada acota por las cuentas elegidas. Con una sola
+        // —el caso de siempre— es exactamente el `{ userId }` de antes.
+        const whereClauses: Prisma.RegistroWhereInput[] = [
+            { userId: { in: cuentas } },
+        ];
 
         if (Object.keys(filtroDeSesion).length) {
             whereClauses.push({ session: filtroDeSesion });
@@ -875,10 +893,20 @@ export async function getRegistrosByUserId(
 
 export async function getCrmDashboardStatsByUserId(
     userId: string,
-    dateFilter?: { fechaDesde?: string; fechaHasta?: string }
+    dateFilter?: { fechaDesde?: string; fechaHasta?: string },
+    /**
+     * Las cuentas que el filtro tiene puestas. **Los totales de Reportes y de
+     * Analíticas tienen que cuadrar con lo que la lista enseña**, así que las
+     * cinco consultas de aquí abajo acotan por las MISMAS cuentas que
+     * `getRegistrosByUserId`. Con una cifra calculada sobre otro conjunto, el
+     * total y la lista se leen como dos datos que se contradicen.
+     */
+    cuentasPedidas?: readonly string[] | null
 ) {
     try {
         await assertUserCanUseApp(userId);
+
+        const cuentas = await lasCuentasQueConsultaElCrm(userId, cuentasPedidas);
 
         const fechaDesde = dateFilter?.fechaDesde
             ? new Date(`${dateFilter.fechaDesde}T00:00:00.000`)
@@ -897,7 +925,7 @@ export async function getCrmDashboardStatsByUserId(
         // Igual que el listado: el dueño sale de la columna del registro, sin
         // cruzar la sesión de cada uno.
         const registroWhere = {
-            userId,
+            userId: { in: cuentas },
             ...(fechaWhere ? { fecha: fechaWhere } : {}),
         };
 
@@ -924,7 +952,7 @@ export async function getCrmDashboardStatsByUserId(
 
             // 4) últimos 7 días
             db.registro.findMany({
-                where: { userId, fecha: { gte: start } },
+                where: { userId: { in: cuentas }, fecha: { gte: start } },
                 select: { fecha: true },
                 orderBy: { fecha: "asc" },
             }),
@@ -996,7 +1024,7 @@ export async function getCrmDashboardStatsByUserId(
             // cifra correcta, no un cambio de criterio.
             const crmFollowUpCounts = await db.crmFollowUp.groupBy({
                 by: ["status"],
-                where: { userId },
+                where: { userId: { in: cuentas } },
                 _count: { _all: true },
             });
 
