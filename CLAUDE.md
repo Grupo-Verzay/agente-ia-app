@@ -14821,6 +14821,80 @@ afirma el fallo: la línea envía y `chat_messages` queda vacía. Y se comprobó
 que de verdad hace falta comprobar de un modo roto: **quitándole esos trozos se
 pone en rojo**, o sea que no estaba verde por no ejercer nada.
 
+## «Llamar con IA» como SEGUIMIENTO: una sola puerta, y el prefijo se quita entero
+
+En el creador de flujos «Llamar con IA (voz)» existía solo como **acción**, que
+se ejecuta en cuanto el flujo llega a ese nodo. Ahora existe además en
+**SEGUIMIENTOS**, junto a Texto, Imagen, Vídeo, Documento y Nota de voz, con su
+duración de retraso y su «Activar Inactividad». **La acción inmediata no
+cambia**: son dos nodos distintos, y lo único que los separa es cuándo sale la
+llamada.
+
+### La regla: NO se escribe un segundo camino de llamada
+
+> El seguimiento llama por **la misma puerta** que la acción inmediata
+> (`StageAutomationService.lanzarLlamadaConIa` → `doAiCall` → wacalls). Con dos
+> caminos, el día que se afine uno el otro se queda atrás — y aquí «quedarse
+> atrás» es una llamada que sale **sin pasar por la comprobación de créditos**,
+> porque quien los descuenta es wacalls al resolver.
+
+De ahí salen gratis las dos mitades del encargo, sin escribir ninguna rama:
+
+- **Los créditos**, porque es el mismo POST a la misma sesión de llamadas de la
+  cuenta.
+- **El horario**, porque un seguimiento del creador de flujos tiene su `idNodo`
+  propio —sin prefijo de recordatorio—, así que `isFlowFollowUp` es cierto y ya
+  pasa por `isWithinSendWindow`. Un recordatorio de cita sale siempre y este
+  no: son cosas distintas y el runner ya las distinguía.
+
+### El prefijo se quita ENTERO, no el primer trozo
+
+Esto era un fallo latente que salió al añadir el tipo. El tipo base se sacaba
+con `tipo.split('-')[1]`, que de `seguimiento-text` da `text` y de
+`seguimiento-ai-call` da **`ai`** — un tipo que no existe. Así que la tarjeta se
+caía al caso por defecto y pedía subir un archivo para una llamada.
+
+Los cinco tipos de siempre no lo delataban porque ninguno lleva un guion dentro:
+`text`, `image`, `video`, `document` y `audio` dan lo mismo por los dos caminos.
+**Un separador que solo se prueba con nombres de una sola palabra no está
+probado.** La decisión vive en `lib/seguimiento-de-llamada.ts`, pura, y el banco
+la ejerce con el invariante —`seguimiento-uno-dos-tres` → `uno-dos-tres`— y no
+solo con el caso que la motivó.
+
+### Cuatro cosas más que hay que mantener
+
+1. **La llamada NO sale por la línea de WhatsApp**, así que va **antes** de
+   pedir el emisor: pedirlo sería trabajo tirado y un sitio más donde fallar por
+   algo que no se usa. Y por lo mismo **no espera el turno del número** ni se lo
+   gasta al siguiente WhatsApp que sí va por él: el ritmo de la línea existe
+   porque WhatsApp bloquea a quien emite en ráfaga, y esto no emite por ahí.
+2. **Sin ficha de conversación no hay a quién llamar**, y se dice con esas
+   palabras: el teléfono y la línea salen de `Session`, y el seguimiento solo
+   guarda su `remoteJid`. El motivo tiene que poder leerse en la fila.
+3. **Nunca un éxito callado.** `doAiCall` devuelve un resultado con motivo en
+   sus cinco salidas, y el runner lo convierte en un error de verdad. Sin eso,
+   el seguimiento se marcaba como enviado sin haber llamado a nadie — que es lo
+   contrario de lo que se ve desde fuera.
+4. **El nodo entra en las DOS paletas y en el catálogo por plan.** El fallo de
+   esta familia es que a una hermana se le pasa, así que el banco lo comprueba
+   leyendo los ficheros, y su modo roto los lee de `origin/main` para afirmar
+   que allí no están.
+
+### Los bancos, uno por mitad
+
+- `scripts/banco-seguimiento-de-llamada.sh` (App) — la decisión, sin navegador,
+  y las dos paletas más el catálogo. El modo roto es el `split('-')[1]` de
+  antes y **afirma** que de `seguimiento-ai-call` sale `ai`.
+- `scripts/banco-llamada-como-seguimiento.sh` (backend) — el runner de verdad
+  contra Postgres: la llamada sale por el lanzador y **no** por la línea, al
+  mismo endpoint que la acción inmediata; respeta el horario; no gasta el turno;
+  y un «no se pudo» deja su motivo en la fila. El modo roto lleva dentro,
+  literal, el `sendSeguimiento` de antes y afirma el «tipo no soportado».
+
+Lo que **no** se tocó, a propósito: el editor de flujos **legado** (`/flow`),
+que nunca tuvo ningún nodo de llamada. Esto entra solo en el lienzo de
+`/workflow`.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

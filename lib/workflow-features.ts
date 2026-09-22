@@ -54,6 +54,7 @@ export const WORKFLOW_FEATURES: WorkflowFeature[] = [
   { key: "seguimiento-video", label: "Video", group: "Seguimientos" },
   { key: "seguimiento-document", label: "Documento", group: "Seguimientos" },
   { key: "seguimiento-audio", label: "Nota de voz", group: "Seguimientos" },
+  { key: "seguimiento-ai-call", label: "Llamada con IA", group: "Seguimientos" },
 ];
 
 const VALID_FEATURE_KEYS = new Set(WORKFLOW_FEATURES.map((f) => f.key));
