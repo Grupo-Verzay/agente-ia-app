@@ -55,6 +55,15 @@ export type WeeklyMetrics = {
 
 export type WeeklyReportItem = {
     id: string;
+    /**
+     * La cuenta a la que pertenece el informe.
+     *
+     * Baja siempre, unificado o no: la insignia se decide al pintar con
+     * `elCrmVaUnificado`, y el gate de «esta fila es de otra cuenta» necesita el
+     * dueno — **sin dueno no es ajena**, asi que un campo opcional dejaria la
+     * papelera abierta sobre informes que la accion luego rechaza.
+     */
+    cuentaId: string;
     periodStart: string;
     periodEnd: string;
     summary: string;

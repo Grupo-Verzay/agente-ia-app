@@ -3,6 +3,7 @@
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { assertUserCanUseApp } from "@/actions/billing/helpers/app-access-guard";
+import { lasCuentasQueConsultaElCrm } from "@/lib/cuentas-del-crm";
 
 export type AnalyticsPeriod = "7d" | "30d" | "90d" | "all";
 
@@ -15,9 +16,25 @@ function getPeriodStart(period: AnalyticsPeriod): Date | null {
     return d;
 }
 
-export async function getAnalyticsDataByUserId(userId: string, period: AnalyticsPeriod = "30d") {
+export async function getAnalyticsDataByUserId(
+    userId: string,
+    period: AnalyticsPeriod = "30d",
+    /**
+     * Las cuentas que el filtro del CRM tiene puestas. Se re-resuelven en el
+     * servidor: una accion ES un endpoint y esta lista llega del navegador.
+     */
+    cuentasPedidas?: readonly string[] | null,
+) {
     try {
         await assertUserCanUseApp(userId);
+
+        // Sin parametro son TODAS las de la familia alcanzable, que es la
+        // diferencia entera con Finanzas: aqui la vista unificada es el punto de
+        // partida. Para una cuenta hija, para un agente y para una cuenta sin
+        // vinculadas la lista es `[userId]`, asi que estas cifras salen
+        // exactamente como salian antes de que existiera el filtro.
+        const cuentas = await lasCuentasQueConsultaElCrm(userId, cuentasPedidas);
+        const deLasCuentas = { in: cuentas };
 
         const periodStart = getPeriodStart(period);
         const dateFilter = periodStart ? { gte: periodStart } : undefined;
@@ -25,7 +42,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         /* ── 1) Lead status distribution (estado actual, sin filtro de fecha) ── */
         const leadStatusGroups = await db.session.groupBy({
             by: ["leadStatus"],
-            where: { userId, ...SIN_GRUPOS, leadStatus: { not: null } },
+            where: { userId: deLasCuentas, ...SIN_GRUPOS, leadStatus: { not: null } },
             _count: { _all: true },
         });
         const leadStatusCounts = { FRIO: 0, TIBIO: 0, CALIENTE: 0, FINALIZADO: 0, DESCARTADO: 0 };
@@ -38,7 +55,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         /* ── 2) Workflows por status (estado actual) ── */
         const workflowGroups = await db.workflow.groupBy({
             by: ["status"],
-            where: { userId },
+            where: { userId: deLasCuentas },
             _count: { _all: true },
         });
         const workflowCounts: Record<string, number> = {};
@@ -48,7 +65,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         /* ── 3) Flujos ejecutados ── */
         const workflowExecutions = await db.sessionWorkflowState.groupBy({
             by: ["workflowId"],
-            where: { workflow: { userId } },
+            where: { workflow: { userId: deLasCuentas } },
             _count: { _all: true },
         });
         const workflowIds = workflowExecutions.map((r) => r.workflowId);
@@ -68,18 +85,18 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
             .slice(0, 6);
 
         /* ── 4) Sesiones ── */
-        const totalSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS } });
-        const activeSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS, status: true } });
-        const agentActiveSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS, agentDisabled: false } });
-        const escalatedSessions = await db.session.count({ where: { userId, ...SIN_GRUPOS, agentDisabled: true } });
+        const totalSessions = await db.session.count({ where: { userId: deLasCuentas, ...SIN_GRUPOS } });
+        const activeSessions = await db.session.count({ where: { userId: deLasCuentas, ...SIN_GRUPOS, status: true } });
+        const agentActiveSessions = await db.session.count({ where: { userId: deLasCuentas, ...SIN_GRUPOS, agentDisabled: false } });
+        const escalatedSessions = await db.session.count({ where: { userId: deLasCuentas, ...SIN_GRUPOS, agentDisabled: true } });
         const newSessions = dateFilter
-            ? await db.session.count({ where: { userId, ...SIN_GRUPOS, createdAt: dateFilter } })
+            ? await db.session.count({ where: { userId: deLasCuentas, ...SIN_GRUPOS, createdAt: dateFilter } })
             : totalSessions;
 
         /* ── 4b) CrmFollowUp por status (histórico total) ── */
         const followUpGroups = await db.crmFollowUp.groupBy({
             by: ["status"],
-            where: { userId },
+            where: { userId: deLasCuentas },
             _count: { _all: true },
         });
         const fuCounts = { PENDING: 0, PROCESSING: 0, SENT: 0, FAILED: 0, CANCELLED: 0, SKIPPED: 0 };
@@ -92,26 +109,26 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         const totalClassifiedLeads = Object.values(leadStatusCounts).reduce((a, b) => a + b, 0);
 
         /* ── 5) Productos ── */
-        const totalProducts = await db.product.count({ where: { userId } });
-        const activeProducts = await db.product.count({ where: { userId, isActive: true } });
-        const lowStockProducts = await db.product.count({ where: { userId, isActive: true, stock: { gt: 0, lte: 5 } } });
-        const outOfStockProducts = await db.product.count({ where: { userId, isActive: true, stock: 0 } });
+        const totalProducts = await db.product.count({ where: { userId: deLasCuentas } });
+        const activeProducts = await db.product.count({ where: { userId: deLasCuentas, isActive: true } });
+        const lowStockProducts = await db.product.count({ where: { userId: deLasCuentas, isActive: true, stock: { gt: 0, lte: 5 } } });
+        const outOfStockProducts = await db.product.count({ where: { userId: deLasCuentas, isActive: true, stock: 0 } });
         const topProducts = await db.product.findMany({
-            where: { userId, isActive: true },
+            where: { userId: deLasCuentas, isActive: true },
             select: { title: true, stock: true, category: true },
             orderBy: { stock: "desc" },
             take: 6,
         });
         const productsByCategory = await db.product.groupBy({
             by: ["category"],
-            where: { userId, isActive: true },
+            where: { userId: deLasCuentas, isActive: true },
             _count: { _all: true },
         });
 
         /* ── 6) Citas por estado ── */
         const appointmentGroups = await db.appointment.groupBy({
             by: ["status"],
-            where: { userId, ...(dateFilter ? { createdAt: dateFilter } : {}) },
+            where: { userId: deLasCuentas, ...(dateFilter ? { createdAt: dateFilter } : {}) },
             _count: { _all: true },
         });
         const appointmentCounts = {
@@ -129,7 +146,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         in7Days.setDate(in7Days.getDate() + 7);
         const upcomingAppointments = await db.appointment.count({
             where: {
-                userId,
+                userId: deLasCuentas,
                 startTime: { gte: now, lte: in7Days },
                 status: { in: ["PENDIENTE", "CONFIRMADA"] },
             },
@@ -138,7 +155,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         /* ── 7) Ventas ── */
         const salesRaw = await db.financeTransaction.findMany({
             where: {
-                userId,
+                userId: deLasCuentas,
                 type: "SALE",
                 status: { not: "DELETED" },
                 ...(dateFilter ? { occurredAt: dateFilter } : {}),
@@ -179,7 +196,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         /* ── 8b) Gastos por categoría ── */
         const expensesRaw = await db.financeTransaction.findMany({
             where: {
-                userId,
+                userId: deLasCuentas,
                 type: "EXPENSE",
                 status: { not: "DELETED" },
                 ...(dateFilter ? { occurredAt: dateFilter } : {}),
@@ -210,6 +227,12 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
             .map((c) => ({ ...c, amount: Math.round(c.amount * 100) / 100 }));
 
         /* ── 8c) Créditos IA ── */
+        // La UNICA cifra que NO se consolida, y no es un olvido: `ia_credits`
+        // tiene una fila por cuenta y dentro de una familia paga la MADRE
+        // (`laCuentaQuePagaLaTranscripcion`). Sumar las bolsas de tres cuentas
+        // daria un saldo perfectamente creible que no significa nada — la
+        // familia del «999999999 de -1 creditos». Se ensena la de la cuenta con
+        // la que se entro, que es la que se recarga desde su Perfil.
         const iaCreditRaw = await db.iaCredit.findUnique({
             where: { userId },
             select: { total: true, used: true, renewalDate: true },
@@ -222,7 +245,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         activityStart.setHours(0, 0, 0, 0);
 
         const recentSessions = await db.session.findMany({
-            where: { userId, createdAt: { gte: activityStart } },
+            where: { userId: deLasCuentas, createdAt: { gte: activityStart } },
             select: { createdAt: true },
             take: 3000,
         });

@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Download, Loader2, Sparkles, TrendingUp, Users, CheckCheck, Send, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
+import { InsigniaDeCuenta } from '@/components/shared/InsigniaDeCuenta';
+import { esDeOtraCuentaDelCrm } from '@/lib/crm-de-la-familia';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,7 +48,24 @@ const TIPO_LABELS: Record<string, { emoji: string; label: string }> = {
 
 // ─── Report Card ──────────────────────────────────────────────────────────────
 
-function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: (id: string) => void }) {
+function ReportCard({
+    report,
+    onDelete,
+    ajeno,
+    nombreDeLaCuenta,
+}: {
+    report: WeeklyReportItem;
+    onDelete: (id: string) => void;
+    /**
+     * De otra cuenta de la familia. **Consolidar es para MIRAR, no para
+     * editar**: `deleteWeeklyReport` acota por la cuenta propia, asi que la
+     * papelera sobre una fila hermana contestaria «no encontrada» — menu
+     * abierto, puerta cerrada.
+     */
+    ajeno: boolean;
+    /** Solo con la vista unificada; si no, va vacio y no se pinta nada. */
+    nombreDeLaCuenta?: string;
+}) {
     const [expanded, setExpanded] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const m = report.metrics;
@@ -81,6 +100,7 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                         <p className="font-semibold text-sm">{fmtPeriod(report.periodStart, report.periodEnd)}</p>
                         <p className="text-xs text-muted-foreground">{fmtDate(report.createdAt)}</p>
                     </div>
+                    {nombreDeLaCuenta && <InsigniaDeCuenta nombre={nombreDeLaCuenta} />}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -102,13 +122,15 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                         </Badge>
                     )}
 
-                    <button
-                        onClick={handleDelete}
-                        disabled={deleting}
-                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                    >
-                        {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
+                    {!ajeno && (
+                        <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
+                    )}
 
                     {expanded
                         ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -227,22 +249,39 @@ function ActivityChip({ label, value, emoji, color }: { label: string; value: nu
  * doce últimos reportes y se ven enteros. Se quitaron las tarjetas, y con
  * ellas este canal, que no tenía otro consumidor.
  */
-export function WeeklyReportsView() {
+export function WeeklyReportsView({
+    cuentas,
+    cuentaPropia,
+    unificado,
+    nombresDeCuenta,
+}: {
+    /** Las cuentas que el filtro del CRM tiene puestas. */
+    cuentas: string[];
+    /** La cuenta desde la que se mira: decide que fila es ajena. */
+    cuentaPropia: string;
+    /** Con una sola cuenta elegida esta pantalla se ve EXACTAMENTE como antes. */
+    unificado: boolean;
+    nombresDeCuenta: Record<string, string>;
+}) {
     const [reports, setReports] = useState<WeeklyReportItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [deletingAll, setDeletingAll] = useState(false);
 
-    const load = async () => {
+    // `join` y no el arreglo: llega uno nuevo en cada pintado del padre, asi
+    // que con el arreglo en las dependencias esto se recargaria sin parar.
+    const llaveDeCuentas = cuentas.join(",");
+
+    const load = useCallback(async () => {
         setLoading(true);
-        const res = await getWeeklyReports();
+        const res = await getWeeklyReports(llaveDeCuentas ? llaveDeCuentas.split(",") : null);
         if (res.success && res.data) {
             setReports(res.data);
         }
         setLoading(false);
-    };
+    }, [llaveDeCuentas]);
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [load]);
 
     const handleGenerate = async () => {
         setGenerating(true);
@@ -309,7 +348,10 @@ export function WeeklyReportsView() {
                             <span className="hidden sm:inline">Exportar</span>
                         </Button>
                     )}
-                    {reports.length > 0 && (
+                    {/* Consolidando no se pinta: `deleteAllWeeklyReports` acota por
+                        la cuenta propia, asi que debajo de una lista de tres cuentas
+                        prometeria lo que no hace. */}
+                    {reports.length > 0 && !unificado && (
                         <Button variant="outline" size="sm" onClick={handleDeleteAll} disabled={deletingAll} className="gap-1.5 text-destructive hover:text-destructive max-sm:w-9 max-sm:px-0" title="Eliminar todos">
                             {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 shrink-0" />}
                             <span className="hidden sm:inline">Eliminar todos</span>
@@ -345,7 +387,15 @@ export function WeeklyReportsView() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {reports.map((r) => <ReportCard key={r.id} report={r} onDelete={handleDeleteOne} />)}
+                    {reports.map((r) => (
+                        <ReportCard
+                            key={r.id}
+                            report={r}
+                            onDelete={handleDeleteOne}
+                            ajeno={esDeOtraCuentaDelCrm(r.cuentaId, cuentaPropia)}
+                            nombreDeLaCuenta={unificado ? nombresDeCuenta[r.cuentaId] : undefined}
+                        />
+                    ))}
                 </div>
             )}
         </div>

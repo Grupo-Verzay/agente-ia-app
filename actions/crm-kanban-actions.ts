@@ -3,6 +3,7 @@
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
+import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
 import type { LeadStatus } from '@prisma/client';
 
 export type KanbanCard = {
@@ -18,9 +19,24 @@ export type KanbanCard = {
     leadScoreReason: string | null;
     leadScoredAt: string | null;
     assignedAdvisorId: string | null;
+    /**
+     * La cuenta a la que pertenece la tarjeta.
+     *
+     * Baja siempre, unificado o no: la insignia se decide al pintar con
+     * `elCrmVaUnificado`, y el gate de «esta fila es de otra cuenta» necesita el
+     * dueño — **sin dueño no es ajena**, así que un campo opcional dejaría el
+     * arrastre abierto sobre tarjetas que la acción luego rechaza.
+     */
+    cuentaId: string;
 };
 
-export async function getKanbanSessionsAction(): Promise<{
+export async function getKanbanSessionsAction(
+    /**
+     * Las cuentas que el filtro tiene puestas. Se re-resuelven en el servidor:
+     * una acción ES un endpoint y esta lista llega del navegador.
+     */
+    cuentasPedidas?: readonly string[] | null,
+): Promise<{
     success: boolean;
     data?: KanbanCard[];
     message?: string;
@@ -29,8 +45,18 @@ export async function getKanbanSessionsAction(): Promise<{
         const user = await currentUser();
         if (!user?.id) return { success: false, message: 'No autorizado.' };
 
+        // Este tablero lo pintan TRES pantallas —el CRM, `/tags` y `/asesores`—
+        // y **solo la del CRM unifica**. `lasCuentasQueConsultaElCrm` sin
+        // parámetro devuelve TODAS las de la familia, así que llamarla a secas
+        // pondría de golpe las tarjetas de las cuentas hijas en dos tableros
+        // que nadie tocó, sin un solo error. Sin parámetro se contesta con la
+        // cuenta propia, que es exactamente lo que esas dos enseñaban antes.
+        const cuentas = cuentasPedidas
+            ? await lasCuentasQueConsultaElCrm(user.effectiveId, cuentasPedidas)
+            : [user.effectiveId];
+
         const sessions = await db.session.findMany({
-            where: { userId: user.effectiveId, ...SIN_GRUPOS },
+            where: { userId: { in: cuentas }, ...SIN_GRUPOS },
             include: {
                 sessionTags: { include: { tag: true } },
                 crmFollowUps: {
@@ -61,6 +87,7 @@ export async function getKanbanSessionsAction(): Promise<{
             leadScoreReason: s.leadScoreReason ?? null,
             leadScoredAt: s.leadScoredAt?.toISOString() ?? null,
             assignedAdvisorId: s.assignedAdvisorId ?? null,
+            cuentaId: s.userId,
         }));
 
         return { success: true, data: cards };

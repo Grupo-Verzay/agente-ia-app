@@ -9,6 +9,8 @@ import { Prisma } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { isCallDisposition } from '@/lib/call-dispositions';
+import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
+import { elTopeDelCrm } from '@/lib/crm-de-la-familia';
 import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
 
 export type CallDirection = 'incoming' | 'outgoing';
@@ -29,6 +31,15 @@ export interface CallRow {
   astraSid: string | null;
   astraCallId: string | null;
   ts: number; // epoch ms
+  /**
+   * La cuenta bajo la que esta guardada la llamada.
+   *
+   * Baja siempre, unificado o no: la insignia se decide al pintar con
+   * `elCrmVaUnificado`, y el gate de «esta fila es de otra cuenta» necesita el
+   * dueno — **sin dueno no es ajena**, asi que un campo opcional dejaria el
+   * resultado y el borrado abiertos sobre filas que la accion luego rechaza.
+   */
+  cuentaId: string;
 }
 
 export interface CallsKpis {
@@ -47,6 +58,15 @@ export interface CallsCrmData {
   calls: CallRow[];
 }
 
+/**
+ * Cuantas llamadas se leen por cuenta elegida. Esta lista viaja ENTERA al
+ * navegador, asi que crece con las cuentas y con techo (`elTopeDelCrm`):
+ * dejando el tope de una sola cuenta al unificar tres, las tres se reparten las
+ * mismas filas —van ordenadas por fecha, asi que se intercalan— y cada una
+ * ensena menos de lo que ensena sola.
+ */
+const TOPE_DE_LLAMADAS_POR_CUENTA = 1000;
+
 const EMPTY: CallsCrmData = {
   kpis: { total: 0, outgoing: 0, incoming: 0, missed: 0, answered: 0, totalDurationSecs: 0, avgDurationSecs: 0 },
   byDay: [],
@@ -55,6 +75,7 @@ const EMPTY: CallsCrmData = {
 
 interface RawCallRow {
   id: unknown;
+  userId: string;
   remoteJid: string;
   fromMe: boolean;
   content: string | null;
@@ -66,15 +87,36 @@ interface RawCallRow {
 export async function getCallsCrmData(params?: {
   days?: number;
   direction?: 'all' | CallDirection;
+  /**
+   * Las cuentas que el filtro tiene puestas. Se re-resuelven en el servidor:
+   * una accion ES un endpoint y esta lista llega del navegador.
+   */
+  cuentas?: readonly string[] | null;
 }): Promise<CallsCrmData> {
   const me = await currentUser();
+  if (!me?.effectiveId) return EMPTY;
+
+  const cuentas = await lasCuentasQueConsultaElCrm(me.effectiveId, params?.cuentas);
+
   // Las llamadas pueden quedar guardadas bajo cualquiera de los ids ligados al
   // usuario (cuenta activa, dueño del equipo, la propia o la sesión real del
   // admin). Leemos bajo TODOS para que el historial no desaparezca al cambiar de
   // cuenta/equipo. Son ids de su propia identidad, no hay fuga entre clientes.
+  //
+  // Pero esas variantes SOLO entran cuando la cuenta propia esta entre las
+  // elegidas: reduciendo el filtro a una sola cuenta hermana, el respaldo de
+  // identidad volveria a arrastrar las filas de la propia y el filtro no
+  // filtraria nada — «un filtro que ofrece un numero tiene que poder llegar a
+  // el», por la otra puerta.
+  const laPropiaEstaElegida = cuentas.includes(me.effectiveId);
   const scopeIds = Array.from(
     new Set(
-      [me?.effectiveId, me?.ownerId, me?.id, (me as any)?.sessionUserId].filter(Boolean),
+      [
+        ...cuentas,
+        ...(laPropiaEstaElegida
+          ? [me?.ownerId, me?.id, (me as any)?.sessionUserId]
+          : []),
+      ].filter(Boolean),
     ),
   ) as string[];
   if (scopeIds.length === 0) return EMPTY;
@@ -85,13 +127,13 @@ export async function getCallsCrmData(params?: {
   let rows: RawCallRow[] = [];
   try {
     rows = await db.$queryRaw<RawCallRow[]>`
-      SELECT m."id", m."remoteJid", m."fromMe", m."content", m."raw", m."messageTimestamp", c."pushName"
+      SELECT m."id", m."userId", m."remoteJid", m."fromMe", m."content", m."raw", m."messageTimestamp", c."pushName"
       FROM "chat_messages" m
       LEFT JOIN "chat_conversations" c
         ON c."userId" = m."userId" AND c."instanceName" = m."instanceName" AND c."remoteJid" = m."remoteJid"
       WHERE m."userId" IN (${Prisma.join(scopeIds)}) AND m."messageType" = 'call' AND m."messageTimestamp" >= ${since}
       ORDER BY m."messageTimestamp" DESC
-      LIMIT 1000
+      LIMIT ${elTopeDelCrm(TOPE_DE_LLAMADAS_POR_CUENTA, cuentas.length)}
     `;
   } catch (err) {
     console.error('[getCallsCrmData]', err);
@@ -133,6 +175,7 @@ export async function getCallsCrmData(params?: {
       astraSid: callRaw.astraSid ? String(callRaw.astraSid) : null,
       astraCallId: callRaw.astraCallId ? String(callRaw.astraCallId) : null,
       ts: new Date(r.messageTimestamp).getTime(),
+      cuentaId: r.userId,
     };
   });
 

@@ -13991,6 +13991,173 @@ alguno lo tome, ese banco se pone rojo a propósito: entonces se puede volver a
 decidir, leyendo el bloque `deploy:`, no borrando la línea.
 
 
+## El CRM de la familia: la URL limpia significa TODAS
+
+La cuenta madre tenía que entrar cuenta por cuenta para ver los leads de sus
+hijas: Llamadas, Registros, Kanban y Reportes acotaban cada uno por la cuenta
+con la que se abría la pantalla. Con cinco cuentas eso es cinco sesiones
+abiertas para mirar un mismo embudo.
+
+**No se estrenó ningún mecanismo.** `laFamiliaDeLaCuenta` —la malla de
+`linked_accounts` del #812, en los dos sentidos y con ciclos—, `esLaCuentaMadre`
+y `comoListaDeCuentas` son las de siempre, y el selector y la columna de cuenta
+son los mismos componentes que ya usa Finanzas de la familia
+(`SelectorDeCuentas`, `ColumnaDeCuenta`). Lo que decide vive en
+`lib/crm-de-la-familia.ts`, **puro**, y quien lo resuelve contra la base en
+`lib/cuentas-del-crm.ts`.
+
+### La diferencia con Finanzas, que es la que decide todo lo demás
+
+Es una sola cosa y de ella cuelga el resto, así que conviene tenerla delante
+antes de tocar nada:
+
+| | sin `?cuentas=` en la URL |
+| --- | --- |
+| **Finanzas** | **solo la cuenta propia** — el selector sirve para JUNTAR a mano |
+| **CRM** | **TODAS las de la familia** — unificado es el punto de partida |
+
+En Finanzas consolidar es una elección porque en la cuenta madre conviven las
+finanzas de la casa con las personales y sumarlas casi nunca es lo que se
+quiere. En el CRM no: los leads, los registros, las llamadas y el tablero de una
+familia son **el mismo embudo repartido entre varias líneas**, y mirarlos de uno
+en uno es justo el trabajo que esto viene a quitar.
+
+> De ahí la asimetría: **aquí el parámetro se escribe para REDUCIR**, no para
+> ampliar. Y `laSeleccionDelCrm` **nunca devuelve una lista vacía**: un
+> `?cuentas=` rancio de un enlace guardado dejaría la pantalla en blanco sin
+> decir por qué, y el caso común de llegar ahí no es un ataque.
+
+**Y los vínculos siguen yendo solo de madre a hija sin ninguna condición
+nueva**: el filtro exige ser la **raíz** de la familia (`seEnsenaElSelector`,
+la misma de Finanzas), y una hija no lo es — así que cae en `soloLaSuya()` y no
+ve ni a su madre ni a sus hermanas. Es lo que el banco ejerce escribiendo el
+parámetro a mano desde una hija: se re-resuelve y vuelve `[HIJA_A]`.
+
+### La puerta va en la acción, y el camino común SÍ paga la familia
+
+La lista viaja en la URL y en los parámetros de cada acción, así que **una
+acción de servidor ES un endpoint**: `getRegistrosByUserId(propia, …, ids)` se
+llama a mano con los ids que uno quiera. Las cinco pestañas la re-resuelven con
+`lasCuentasQueConsultaElCrm`, que es la misma puerta que pinta el filtro.
+
+Y aquí está la consecuencia de coste que Finanzas no tiene: allí, sin
+parámetro, no se consulta nada —la respuesta es «la propia»—; **aquí hay que
+resolver la familia para saber cuál es el «todas»**. Por eso el alcance se
+recuerda unos segundos con `recordarPorSesion`, con dos cosas que hay que
+mantener:
+
+1. **La llave son los ids que deciden y nada más** (`crm-de-la-familia|<propia>`):
+   la familia de una cuenta solo depende de esa cuenta. Lo que decide la
+   **persona** —`canManageWorkspace`, que un `agente` no pasa— se resuelve
+   **antes** y sin tocar la base, así que ni llega a la llave.
+2. **Un alcance recortado por un fallo NO se cachea** (`sirveParaCachear`). Es
+   la regla de siempre: guardar cinco segundos una pérdida de vista la propaga
+   a las peticiones de al lado, y eso se ve como una pantalla que a veces trae
+   menos filas.
+
+### Lo que se puede TOCAR y lo que solo se MIRA no es igual en las cinco
+
+Es el hallazgo de esta vuelta y no se ve leyendo una pantalla: **las acciones de
+escritura del CRM no acotan todas igual**, así que el gate de «fila ajena» hace
+falta en unas y sobraría en otras.
+
+| | de dónde saca el dueño una escritura | ¿fila ajena de solo lectura? |
+| --- | --- | --- |
+| Registros | de la FILA (`assertUserCanUseApp(registro.session.userId)`) | **no hace falta**: la madre sí está autorizada |
+| Kanban | de la FILA (`updateSessionLeadStatus` resuelve la sesión) | **no hace falta** |
+| Llamadas | de la cuenta de quien LLAMA | **sí** — sus cuatro escrituras |
+| Reportes | de la cuenta de quien llama | **sí**, y «Eliminar todos» se esconde unificado |
+
+Poner el candado donde no hace falta es peor que no ponerlo: se pinta un «—»
+sobre una fila perfectamente editable y nadie sabe por qué. Y no ponerlo donde
+hace falta es el «menú abierto, puerta cerrada» de siempre. Por eso
+`esDeOtraCuentaDelCrm` está escrita una vez y **sin dueño no es ajena**.
+
+De ahí salió además un rastro muerto que el barrido del diff cazó: una prop
+`cuentaPropia` declarada, pasada y **nunca leída** en la tabla de Registros —la
+mitad de un gate que al final no hacía falta—. Una prop obligatoria que nadie
+usa es la que la próxima pantalla copia creyendo que decide algo.
+
+### El TOPE de una lista crece con las cuentas elegidas
+
+Es la misma trampa que Finanzas ya midió, y aquí vale para las cinco:
+`elTopeDelCrm(porCuenta, cuantas)`. Dejando el tope de una cuenta al unificar
+cinco, las cinco se reparten las mismas filas —van ordenadas por fecha, así que
+se intercalan— y **cada una enseña menos de lo que enseñaba sola**: unificar se
+vería como perder filas. Con techo (`TECHO_DE_CUENTAS_EN_UN_TOPE`, 5), porque
+esta lista viaja entera al navegador.
+
+El del informe de lo que la IA no supo se llamaba `TOPE_DEL_INFORME` y era un
+número fijo; se renombró a `TOPE_POR_CUENTA` **para que el nombre diga la
+unidad**, que es lo único que impide volver a dejarlo fijo.
+
+### Y el `grupoId` de dos cuentas distintas NO es el mismo grupo
+
+`lo-que-la-ia-no-supo` agrupaba por `grupoId`, que lo calcula el backend con un
+embedding **dentro de una cuenta**. Al unificar, el mismo hueco del
+entrenamiento en dos líneas distintas colapsaba en **una sola fila**, con la
+cuenta de la primera que apareciera: un número que no se puede explicar
+señalando la pantalla.
+
+La clave de agrupación es **compuesta**, `cuenta::grupo`, y el `grupoId` que sale
+es esa clave. El banco lo ejerce a propósito sembrando el MISMO `grupoId` en las
+tres cuentas: sin la cuenta dentro, tres grupos se leerían como uno.
+
+### El Kanban sin parámetro sigue siendo el de SU cuenta
+
+`getKanbanSessionsAction` lo pintan **tres** pantallas —el CRM, `/tags` y
+`/asesores`— y **solo la del CRM unifica**. Llamar a
+`lasCuentasQueConsultaElCrm` a secas devuelve todas las de la familia, así que
+pondría de golpe las tarjetas de las hijas en dos tableros que nadie tocó, sin
+un solo error. **Sin parámetro se contesta con la cuenta propia**, que es
+exactamente lo que esas dos enseñaban antes.
+
+Y `KanbanCard.cuentaId` baja **siempre**, unificado o no: la insignia se decide
+al pintar y el gate necesita el dueño — con un campo opcional, «sin dueño no es
+ajena» dejaría el arrastre abierto sobre tarjetas que la acción luego rechaza.
+
+### Una cosa que se midió y no se tocó: los créditos
+
+`getAnalyticsDataByUserId` consolida sus sesiones, sus mensajes y sus tareas, y
+**`ia_credits` no**: esa fila es de la cuenta y sumar los saldos de cinco
+cuentas daría un número perfectamente creíble que no corresponde a ninguna
+bolsa. Es la familia del «999999999 de -1 créditos»: lo que no se puede sumar no
+se suma.
+
+### El banco: la decisión aparte, y las ACCIONES contra Postgres
+
+`scripts/banco-crm-de-la-familia.sh`, dos mitades. Probar `laSeleccionDelCrm` a
+solas sería probar el lado que **no tiene puerta**; lo que hay que demostrar es
+que las cinco pestañas pasan por ella y que el alcance sale de FILAS —con
+`linked_accounts` sembrada— y no de un parámetro. Se finge **solo**
+`currentUser()`, `revalidatePath` y el `cache()` de React.
+
+Los cuatro casos del encargo están, y uno más que se añadió al ver el riesgo:
+la madre ve las llamadas de sus dos hijas y ninguna de una cuenta ajena; una
+hija no ve nada de su madre ni de su hermana **ni escribiendo el parámetro a
+mano**; el filtro reduce a una sola cuenta en las cinco pestañas; los totales de
+Reportes cuadran con el filtro puesto —y la lista de abajo da el mismo número,
+que es lo que evita dos cifras que se contradicen—; y el Kanban sin parámetro
+sigue siendo el de su cuenta.
+
+`MODO=roto` lleva **la consulta vieja escrita dentro, literal** —cada acción
+acotada a `userId = la propia`— y **afirma el fallo**: la madre ve solo lo suyo.
+Sin ese modo, lo verde del otro no diría si se arregló la causa o si el caso no
+se llega a ejercer.
+
+Tres cosas del propio banco, que costaron su vuelta:
+
+1. **`weekly_reports` e `ia_sin_respuesta` no están en `schema.prisma`** —las
+   crea el backend— así que el banco las escribe con su propia DDL. `Session`,
+   `Registro` y `chat_messages` sí están, y las crea `db push`.
+2. **`Registro.userId` lo rellena un disparador en producción**, y con
+   `db push` no hay disparador: se pone a mano o la siembra entera cae en la
+   cuenta equivocada sin decir nada.
+3. **La base se reutiliza entre ejecuciones**, así que los ids llevan el sello
+   de la vuelta. Y los conteos de cada cuenta son **distintos a propósito**: con
+   todas iguales, un total equivocado seguiría cuadrando.
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

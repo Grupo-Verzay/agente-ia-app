@@ -66,6 +66,8 @@ import {
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { startBotCallAction } from '@/actions/voicebot-actions';
 import { BarraDelMarcador } from './BarraDelMarcador';
+import { InsigniaDeCuenta } from '@/components/shared/InsigniaDeCuenta';
+import { esDeOtraCuentaDelCrm } from '@/lib/crm-de-la-familia';
 import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { CallDetailDialog } from './CallDetailDialog';
 import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
@@ -163,7 +165,21 @@ const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
  */
 export function CallsCrmClient({
   embedded = false,
-}: { embedded?: boolean } = {}) {
+  cuentas,
+  cuentaPropia,
+  unificado = false,
+  nombresDeCuenta = {},
+}: {
+  embedded?: boolean;
+  /**
+   * Las cuentas que el filtro tiene puestas. Se re-resuelven en el servidor
+   * —una accion ES un endpoint— y aqui solo deciden que se pide.
+   */
+  cuentas: string[];
+  cuentaPropia: string;
+  unificado?: boolean;
+  nombresDeCuenta?: Record<string, string>;
+}) {
   const [data, setData] = useState<CallsCrmData | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -187,12 +203,21 @@ export function CallsCrmClient({
     else toast.error(res.message ?? 'No se pudo iniciar la llamada con IA.');
   };
 
+  // La llave es la CADENA, nunca el arreglo: el padre crea uno nuevo en cada
+  // pintado, asi que con el arreglo dentro de las dependencias la lista se
+  // recargaria en bucle.
+  const llaveDeCuentas = cuentas.join(',');
+
   const load = useCallback(() => {
     setLoading(true);
-    getCallsCrmData({ days, direction })
+    getCallsCrmData({
+      days,
+      direction,
+      cuentas: llaveDeCuentas ? llaveDeCuentas.split(',') : null,
+    })
       .then(setData)
       .finally(() => setLoading(false));
-  }, [days, direction]);
+  }, [days, direction, llaveDeCuentas]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -404,13 +429,21 @@ export function CallsCrmClient({
               <DropdownMenuItem onSelect={() => void openMissedCfg()}>
                 <MessageSquare className="mr-2 h-4 w-4" /> Mensaje al no contestar
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void clearMissed()} className="text-red-600 focus:text-red-700">
-                <PhoneMissed className="mr-2 h-4 w-4" /> Limpiar perdidas
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void deleteAll()} className="text-destructive focus:text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" /> Eliminar todas las llamadas
-              </DropdownMenuItem>
+              {/* Los dos borrados en bloque acotan por la cuenta propia, asi
+                  que debajo de una lista de tres cuentas prometerian lo que no
+                  hacen: se van mientras se consolida, como «Eliminar todas» de
+                  Finanzas. */}
+              {!unificado && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => void clearMissed()} className="text-red-600 focus:text-red-700">
+                    <PhoneMissed className="mr-2 h-4 w-4" /> Limpiar perdidas
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void deleteAll()} className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar todas las llamadas
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -503,6 +536,7 @@ export function CallsCrmClient({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
+                    {unificado && <Th label="Cuenta" sort={sort} onSort={toggleSort} />}
                     <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} />
                     <Th label="Tipo" sortKey="tipo" sort={sort} onSort={toggleSort} />
                     <Th label="Duración" sortKey="duracion" sort={sort} onSort={toggleSort} />
@@ -518,6 +552,8 @@ export function CallsCrmClient({
                     <CallTableRow
                       key={c.id}
                       call={c}
+                      nombreDeLaCuenta={unificado ? nombresDeCuenta[c.cuentaId] : undefined}
+                      ajena={esDeOtraCuentaDelCrm(c.cuentaId, cuentaPropia)}
                       onCall={() => abrirLlamadaAqui({ phone: c.phone, contactName: c.contactName ?? undefined })}
                       onDisposition={(value) => applyDisposition(c.id, value)}
                       onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
@@ -842,6 +878,8 @@ function CallTableRow({
   onOpenChat,
   onDelete,
   onChanged,
+  nombreDeLaCuenta,
+  ajena = false,
 }: {
   call: CallRow;
   onCall: () => void;
@@ -850,6 +888,21 @@ function CallTableRow({
   onOpenChat: () => void;
   onDelete: () => void;
   onChanged?: () => void;
+  /** Solo llega consolidando. */
+  nombreDeLaCuenta?: string;
+  /**
+   * **Consolidar es para MIRAR, no para editar.** Las cuatro escrituras de
+   * Llamadas —el resultado, el borrado, el nombre del contacto y el estado del
+   * lead— acotan por la cuenta propia (`scopeIds` / `ownerId`), asi que sobre
+   * una fila de una cuenta hermana contestarian «no encontrada»: menu abierto,
+   * puerta cerrada. Es la misma regla que ya rige en Finanzas.
+   *
+   * Y es la excepcion dentro del CRM: en Registros y en el tablero las
+   * acciones resuelven el dueno DESDE LA FILA (`assertUserCanUseApp(
+   * session.userId)`), asi que ahi la madre SI esta autorizada y no se gatea
+   * nada — gatearlo seria quitarle algo que los permisos ya le dan.
+   */
+  ajena?: boolean;
 }) {
   const isOut = call.direction === 'outgoing';
   const dispMeta = getDispositionMeta(call.disposition);
@@ -870,6 +923,11 @@ function CallTableRow({
   return (
     <>
     <tr className="border-b last:border-0 align-top hover:bg-muted/40">
+      {nombreDeLaCuenta !== undefined && (
+        <td className="px-2 py-2 text-center">
+          <InsigniaDeCuenta nombre={nombreDeLaCuenta} />
+        </td>
+      )}
       {/* Contacto: número limpio (primario) + nombre si aporta */}
       <td className="px-2 py-2 text-center">
         <button
@@ -880,7 +938,11 @@ function CallTableRow({
         >
           {formatPhone(call.phone)}
         </button>
-        <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
+        {ajena ? (
+          name ? <p className="truncate text-xs text-muted-foreground">{name}</p> : null
+        ) : (
+          <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
+        )}
       </td>
       {/* Tipo */}
       <td className="px-2 py-2 text-center">
@@ -920,6 +982,15 @@ function CallTableRow({
       </td>
       {/* Resultado (disposición) */}
       <td className="px-2 py-2 text-center">
+        {ajena ? (
+          dispMeta ? (
+            <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium', dispMeta.badgeClass)}>
+              <Tag className="h-3 w-3" /> {dispMeta.label}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )
+        ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -947,10 +1018,15 @@ function CallTableRow({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </td>
       {/* Estado (junto al resultado) */}
       <td className="px-2 py-2 text-center">
-        <LeadStatusButton phone={call.phone} contactName={call.contactName} />
+        {ajena ? (
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <LeadStatusButton phone={call.phone} contactName={call.contactName} />
+        )}
       </td>
       {/* Acciones */}
       <td className="px-2 py-2 text-center">
@@ -978,13 +1054,17 @@ function CallTableRow({
               <DropdownMenuItem onSelect={() => setDetailOpen(true)}>
                 <FileText className="mr-2 h-4 w-4" /> Ver detalle
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={onDelete}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-              </DropdownMenuItem>
+              {!ajena && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={onDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

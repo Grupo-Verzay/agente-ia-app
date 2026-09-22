@@ -90,6 +90,8 @@ export function CrmRecordsSection({
     sentinelRef,
     onScrollRootReady,
     hideDateBadge = false,
+    unificado = false,
+    nombresDeCuenta = {},
 }: CrmRecordsSectionProps) {
     const router = useRouter();
     const [sorting, setSorting] = useState<SortingState>([
@@ -208,9 +210,13 @@ export function CrmRecordsSection({
                 onFollowUpChanged,
                 onRecordsChanged,
                 onNavigateToChat: handleNavigateToChat,
+                unificado,
+                nombresDeCuenta,
             }),
         [
             userId,
+            unificado,
+            nombresDeCuenta,
             isUpdatingRegistros,
             onChangeEstado,
             onChangeDetalle,

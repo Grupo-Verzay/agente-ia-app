@@ -21,6 +21,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { StageAutomationsPanel } from '../../rules/components/StageAutomationsPanel';
 import { cn } from '@/lib/utils';
 import { fmtPhone } from '@/lib/whatsapp-jid';
+import { InsigniaDeCuenta } from '@/components/shared/InsigniaDeCuenta';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { updateSessionLeadStatus } from '@/actions/session-action';
 import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
@@ -136,11 +137,17 @@ function KanbanCardItem({
     isDragging = false,
     onScore,
     scoring = false,
+    nombreDeLaCuenta,
 }: {
     card: KanbanCard;
     isDragging?: boolean;
     onScore?: (id: number) => void;
     scoring?: boolean;
+    /**
+     * Solo llega consolidando: sin decir de quien es cada tarjeta, un tablero
+     * con tres cuentas dentro es un revoltijo.
+     */
+    nombreDeLaCuenta?: string;
 }) {
     const ago = timeAgo(card.leadStatusUpdatedAt);
     return (
@@ -162,6 +169,9 @@ function KanbanCardItem({
                         >
                             {fmtPhone(card.remoteJid)}
                         </Link>
+                        {nombreDeLaCuenta && (
+                            <InsigniaDeCuenta nombre={nombreDeLaCuenta} className="mt-1 h-5" />
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -232,10 +242,11 @@ function KanbanCardItem({
 
 // ─── Draggable wrapper ────────────────────────────────────────────────────────
 
-function DraggableCard({ card, onScore, scoring }: {
+function DraggableCard({ card, onScore, scoring, nombreDeLaCuenta }: {
     card: KanbanCard;
     onScore?: (id: number) => void;
     scoring?: boolean;
+    nombreDeLaCuenta?: string;
 }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id,
@@ -248,7 +259,7 @@ function DraggableCard({ card, onScore, scoring }: {
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <KanbanCardItem card={card} isDragging={isDragging} onScore={onScore} scoring={scoring} />
+            <KanbanCardItem card={card} isDragging={isDragging} onScore={onScore} scoring={scoring} nombreDeLaCuenta={nombreDeLaCuenta} />
         </div>
     );
 }
@@ -261,12 +272,15 @@ function KanbanColumn({
     onScore,
     scoringIds,
     userId,
+    nombreDeLaCuentaDe,
 }: {
     col: (typeof COLUMNS)[number];
     cards: KanbanCard[];
     onScore?: (id: number) => void;
     scoringIds?: Set<number>;
     userId?: string;
+    /** Devuelve el nombre a pintar, o nada cuando no se esta consolidando. */
+    nombreDeLaCuentaDe?: (card: KanbanCard) => string | undefined;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
     const [automationsOpen, setAutomationsOpen] = useState(false);
@@ -318,7 +332,7 @@ function KanbanColumn({
                 )}
             >
                 {cards.map((card) => (
-                    <DraggableCard key={card.id} card={card} onScore={onScore} scoring={scoringIds?.has(card.id)} />
+                    <DraggableCard key={card.id} card={card} onScore={onScore} scoring={scoringIds?.has(card.id)} nombreDeLaCuenta={nombreDeLaCuentaDe?.(card)} />
                 ))}
                 {cards.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
@@ -334,11 +348,21 @@ function KanbanColumn({
 
 export function KanbanBoard({
     userId,
+    cuentas,
+    unificado = false,
+    nombresDeCuenta = {},
     selectedScoreRanges = new Set(),
     onToggleScoreRange,
     onScoreCountsChange,
 }: {
     userId?: string;
+    /**
+     * Las cuentas que el filtro tiene puestas. Se re-resuelven en el servidor
+     * —una accion ES un endpoint— y aqui solo deciden que se pide.
+     */
+    cuentas: string[];
+    unificado?: boolean;
+    nombresDeCuenta?: Record<string, string>;
     selectedScoreRanges?: Set<string>;
     onToggleScoreRange?: (key: string) => void;
     onScoreCountsChange?: (counts: Record<string, number>) => void;
@@ -355,9 +379,23 @@ export function KanbanBoard({
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     );
 
+    // Con una sola cuenta elegida no se pinta ninguna insignia: seria repetir
+    // el nombre de la cuenta en cada tarjeta del tablero.
+    const nombreDeLaCuentaDe = useCallback(
+        (card: KanbanCard) => (unificado ? nombresDeCuenta[card.cuentaId] : undefined),
+        [unificado, nombresDeCuenta],
+    );
+
+    // La llave es la CADENA, nunca el arreglo: el padre crea uno nuevo en cada
+    // pintado, asi que con el arreglo dentro de las dependencias el tablero se
+    // recargaria en bucle.
+    const llaveDeCuentas = cuentas.join(',');
+
     const loadCards = useCallback(async () => {
         setLoading(true);
-        const res = await getKanbanSessionsAction();
+        const res = await getKanbanSessionsAction(
+            llaveDeCuentas ? llaveDeCuentas.split(',') : null,
+        );
         if (res.success && res.data) {
             setCards(res.data);
             if (onScoreCountsChange) {
@@ -373,7 +411,7 @@ export function KanbanBoard({
             toast.error(res.message ?? 'Error al cargar el tablero');
         }
         setLoading(false);
-    }, [onScoreCountsChange]);
+    }, [onScoreCountsChange, llaveDeCuentas]);
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
@@ -522,7 +560,7 @@ export function KanbanBoard({
                 <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
                     <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                         {COLUMNS.map((col) => (
-                            <KanbanColumn key={col.id} col={col} cards={columnCards(col)} onScore={handleScore} scoringIds={scoringIds} userId={userId} />
+                            <KanbanColumn key={col.id} col={col} cards={columnCards(col)} onScore={handleScore} scoringIds={scoringIds} userId={userId} nombreDeLaCuentaDe={nombreDeLaCuentaDe} />
                         ))}
                     </div>
                 </div>
@@ -531,7 +569,7 @@ export function KanbanBoard({
                 <DragOverlay>
                     {activeCard && (
                         <div className="w-[244px] rotate-2 shadow-2xl">
-                            <KanbanCardItem card={activeCard} isDragging />
+                            <KanbanCardItem card={activeCard} isDragging nombreDeLaCuenta={nombreDeLaCuentaDe(activeCard)} />
                         </div>
                     )}
                 </DragOverlay>
