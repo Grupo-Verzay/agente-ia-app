@@ -6,6 +6,7 @@ import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
 import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
 import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
 import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
+import { TOPE_EN_LA_VUELTA_DIARIA } from "@/lib/rescate-de-llamadas";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -110,9 +111,20 @@ export async function POST(request: Request) {
   // reloj en el backend— porque esta vuelta diaria es lo unico que corre
   // aunque ese reloj se quede sin configurar en un redespliegue: justo el
   // fallo que este barrido viene a tapar. En su propio `try`, como los demas.
+  //
+  // **Con un tope corto, y no es el de siempre.** Quien llama a esta ruta es
+  // el reloj de facturacion del backend, que corta a los 20 segundos
+  // (`BILLING_CRON_TIMEOUT_MS`, con un `AbortController` de verdad). Cada
+  // rescate se baja un WAV entero y lo transcribe, asi que una vuelta con el
+  // tope normal se come ese presupuesto varias veces y deja al backend
+  // apuntando un fallo diario sobre un cobro que SI se hizo —esta linea va
+  // despues de todo lo demas—. Ese aviso falso es peor que no tener red aqui:
+  // un fallo que sale todos los dias se aprende a despachar sin leer, y el
+  // dia que el cobro falle de verdad nadie lo mira. El grueso lo hace el
+  // reloj de diez minutos, que no tiene prisa.
   let llamadas: unknown = null;
   try {
-    llamadas = await rescatarLlamadasSinCerrar();
+    llamadas = await rescatarLlamadasSinCerrar({ limite: TOPE_EN_LA_VUELTA_DIARIA });
   } catch (e) {
     llamadas = { error: e instanceof Error ? e.message : String(e) };
   }

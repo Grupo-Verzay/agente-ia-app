@@ -23,6 +23,7 @@ export {
     elSelloQueTrae,
     elSiguienteSello,
     TOPE_POR_VUELTA,
+    TOPE_EN_LA_VUELTA_DIARIA,
     TOPE_DE_RESCATES,
     EDAD_MINIMA_MS,
     ESPERA_ENTRE_RESCATES_MS,
