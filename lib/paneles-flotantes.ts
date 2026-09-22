@@ -22,9 +22,9 @@
  *
  * | clase | dónde nace | qué lo sostiene |
  * | --- | --- | --- |
- * | `columnaAncha` | el ancho ENTERO de la columna, pegado a su filo izquierdo, bajo la fila de pastillas | son filtros de la lista: lo que eligen se aplica a la columna entera |
+ * | `columnaAncha` | un ancho COMÚN, pegado al filo izquierdo de la columna y bajo la fila de pastillas | son filtros de la lista: se abren en el mismo sitio y con el mismo tamaño |
  * | `columnaDerecha` | pegado al filo DERECHO de la columna, bajo su control | son de UNA fila: nacen donde se pulsó, y voltean arriba si no cabe |
- * | `cabecera` | pegado al filo derecho del área de conversación, bajo la cabecera | se pasa de uno a otro sin cerrar: todos a la misma altura |
+ * | `cabecera` | al filo derecho del área de conversación, bajo la cabecera, con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de sitio ni de tamaño |
  *
  * # Cómo se pinta eso con Radix, que es la parte que no se ve leyendo
  *
@@ -63,6 +63,37 @@ export const MARGEN_DE_LA_VENTANA = 8;
 
 /** El tope de un panel que nace fijado: no se come la pantalla entera. */
 export const TOPE_FIJADO = "70vh";
+
+/**
+ * El ancho COMÚN de los cinco paneles de la columna de la lista.
+ *
+ * Nacen al filo izquierdo y bajo las pastillas —eso no cambia— pero ya no
+ * miden la columna entera. Con el ancho de la columna (384 px a 1440) un panel
+ * de cuatro palabras deja un desierto entre el texto y su número de la
+ * derecha, y encima **cada uno saltaba de tamaño**: la columna mide 384, 352 o
+ * 390 según la anchura, así que el mismo panel cambiaba de ancho al cambiar de
+ * ventana sin que nadie hubiera pedido nada.
+ *
+ * Son 18 rem, que es el escalón más pequeño de `--ancho-lateral` y el ancho
+ * que ya pedía el más grande de los cinco (el de etiquetas, `w-72`): así
+ * ninguno se queda más estrecho de lo que estaba y todos miden lo mismo.
+ *
+ * **No se toca el tamaño de letra de lo que va dentro.** Lo que junta el texto
+ * con su número es el ancho, no la tipografía; achicar la letra sería arreglar
+ * la sensación y empeorar la lectura.
+ */
+export const ANCHO_DE_LOS_FILTROS = 288;
+
+/**
+ * El suelo del ancho de un panel de la cabecera, y es un GUARDA, no un diseño.
+ *
+ * El ancho de esos paneles sale de medir la fila de Macros y Acciones (ver
+ * `cabecera`), que en las anchuras reales da unos 200 px. Este número solo
+ * existe para que una maqueta rara —la fila sin pintar todavía, un Macros de
+ * ancho cero— no produzca un panel de treinta píxeles, que no se lee como un
+ * ancho pequeño: se lee como un panel roto.
+ */
+export const ANCHO_MINIMO_DE_LA_CABECERA = 176;
 
 /** El tope de un panel de una fila, que además puede voltear. */
 export const TOPE_DE_FILA = "60vh";
@@ -128,14 +159,15 @@ export type Geometria = {
 };
 
 /**
- * El ancho ENTERO de la columna, pegado a su filo izquierdo, bajo las pastillas.
+ * Un ancho COMÚN, pegado al filo izquierdo de la columna, bajo las pastillas.
  *
  * Tres cosas que hay que mantener:
  *
- * 1. **El ancho es el de la columna medido, no `--ancho-lateral`.** En un móvil
- *    la columna ocupa la pantalla entera y esa variable no la describe; y el
- *    `<aside>` lleva además un `max-w-[700px]`. Se mide, como el alto de la
- *    barra de arriba.
+ * 1. **El ancho es `ANCHO_DE_LOS_FILTROS`, acotado por la columna medida.** Los
+ *    cinco miden lo mismo, así que abrir uno y otro no cambia el tamaño de lo
+ *    que hay delante. Y la cota sigue siendo la columna MEDIDA y no
+ *    `--ancho-lateral`: en un móvil la columna ocupa la pantalla entera y esa
+ *    variable no la describe, y el `<aside>` lleva además un `max-w-[700px]`.
  * 2. **Nace bajo las PASTILLAS, no bajo su disparador.** Los cuatro controles
  *    viven en la fila de arriba, así que un panel pegado a su disparador tapa
  *    «Mías / Todos / Sin leer / En espera», que es el mando que dice qué se
@@ -149,7 +181,10 @@ export function columnaAncha(
     bajoLasPastillas: number,
     primitiva: Primitiva,
 ): Geometria {
-    const ancho = Math.max(0, columna.right - columna.left);
+    // El ancho COMÚN, acotado por la columna: en una columna estrecha manda
+    // ella, que es lo que impide que el panel se monte sobre la conversación.
+    const hueco = Math.max(0, columna.right - columna.left);
+    const ancho = Math.min(ANCHO_DE_LOS_FILTROS, Math.max(0, hueco - MARGEN_DE_LA_VENTANA));
     return {
         side: "bottom",
         align: "start",
@@ -201,19 +236,56 @@ export function columnaDerecha(
 }
 
 /**
- * Pegado al filo derecho del área de conversación, bajo la cabecera entera.
+ * Al filo derecho del área de conversación, bajo la cabecera entera, y con el
+ * ancho de la fila de Macros y Acciones.
  *
- * Los seis paneles de la fila de iconos nacen **a la misma altura**, que es lo
- * que permite pasar de uno a otro sin cerrar primero: no salta nada de sitio.
- * Y esa altura es el borde de abajo de la cabecera, así que la fila de Macros y
- * Acciones —que es su última fila— no se tapa nunca. Con `avoidCollisions` un
- * panel alto volteaba arriba y se comía la cabecera entera.
+ * Dos cosas, y cada una arregla un fallo distinto:
+ *
+ * 1. **Los seis nacen a la misma ALTURA.** Es lo que permite pasar de uno a
+ *    otro sin cerrar primero: no salta nada de sitio. Y esa altura es el borde
+ *    de abajo de la cabecera, así que la fila de Macros y Acciones —que es su
+ *    última fila— no se tapa nunca. Con `avoidCollisions` un panel alto
+ *    volteaba arriba y se comía la cabecera entera.
+ * 2. **Y los seis miden lo MISMO**: del borde izquierdo de Macros al filo
+ *    derecho, que es el ancho que ya tenían Acciones y Registros. Antes cada
+ *    uno traía el suyo —el de etiquetas se pasaba de ancho, el de la cita se
+ *    quedaba corto— así que además de no saltar de sitio hacía falta que no
+ *    saltaran de tamaño. Con el ancho fijo, un texto largo se acomoda en
+ *    varias líneas: **el panel crece hacia abajo, nunca hacia los lados.**
+ *
+ * `desde` es el borde izquierdo de Macros, MEDIDO —no `--ancho-lateral` ni una
+ * constante—: esa fila cambia de sitio con el ancho de la conversación, que
+ * depende de la lista, de la ficha de contacto y de los paneles laterales.
+ *
+ * Y sin `desde` se queda **exactamente como estaba**: cada componente con su
+ * `w-*` de siempre, acotado por la cabecera. Es el caso de fuera de Chats —el
+ * combobox de etiquetas lo pintan además el CRM y `/sessions`, y el de asesores
+ * otras pantallas—, donde no hay ninguna fila de Macros contra la que medir.
+ * Inventarles un ancho a dos pantallas que nadie pidió tocar es peor que no
+ * unificar.
  */
 export function cabecera(
     cabeceraCaja: Caja,
     disparador: Caja,
     primitiva: Primitiva,
+    desde?: number,
 ): Geometria {
+    const hueco = Math.max(0, cabeceraCaja.right - cabeceraCaja.left);
+    const tope = Math.max(0, hueco - MARGEN_DE_LA_VENTANA);
+    // El ancho lo pide la fila; el suelo es un GUARDA (ver
+    // `ANCHO_MINIMO_DE_LA_CABECERA`) y la cabecera sigue siendo el techo: un
+    // ancho mayor que ella se saldría por el filo derecho, que es justo lo que
+    // esto viene a quitar.
+    const ancho =
+        desde === undefined
+            ? undefined
+            : Math.min(
+                  tope,
+                  Math.max(
+                      ANCHO_MINIMO_DE_LA_CABECERA,
+                      Math.round(cabeceraCaja.right - desde),
+                  ),
+              );
     return {
         side: "bottom",
         align: "end",
@@ -222,7 +294,8 @@ export function cabecera(
         sideOffset: Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)),
         avoidCollisions: false,
         estilo: {
-            maxWidth: `${Math.round(Math.max(0, cabeceraCaja.right - cabeceraCaja.left) - MARGEN_DE_LA_VENTANA)}px`,
+            ...(ancho === undefined ? {} : { width: `${ancho}px` }),
+            maxWidth: `${ancho ?? Math.round(tope)}px`,
             maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
         },
     };

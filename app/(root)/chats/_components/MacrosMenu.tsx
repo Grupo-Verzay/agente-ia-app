@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { getMacrosAction, type MacroData } from '@/actions/macro-actions';
-import { usePanelFlotante } from '@/hooks/usePanelFlotante';
+import { MARCA_DE_MACROS, usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
 import { cn } from '@/lib/utils';
 
@@ -54,7 +54,15 @@ export function MacrosMenu({ onRunMacro }: Props) {
       }}
     >
       <DropdownMenuTrigger asChild ref={panel.disparador}>
-        <Button size="sm" variant="secondary" className="h-8 gap-1.5 px-2.5 text-sm" title="Macros">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-8 gap-1.5 px-2.5 text-sm"
+          title="Macros"
+          // De aquí sale el ancho de los SEIS paneles de la cabecera: su borde
+          // izquierdo es el extremo de la fila de Macros y Acciones.
+          {...{ [MARCA_DE_MACROS]: '' }}
+        >
           <Zap className="h-3.5 w-3.5" />
           Macros
         </Button>
