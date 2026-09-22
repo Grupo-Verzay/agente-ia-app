@@ -15137,6 +15137,48 @@ sí se hizo es lo que de verdad prueba que un banco mira: **quitarle el arreglo
 al modo bueno y ver que se pone en rojo** — se rompió la exclusión de
 `usePanelLateral` y cayó por el caso que tenía que caer.
 
+## Chats: UN panel a la vez, todos por la derecha, y los menús cuelgan de SU botón
+
+Tres fallos de la misma pantalla, reportados juntos con capturas (22-09):
+
+| lo que se veía | lo que era |
+| --- | --- |
+| la ficha de Contacto y «Nueva tarea» abiertas a la vez | la ficha **no estaba en la exclusión**: es un hermano del flex, no un `PanelLateral`, y nadie la cerraba |
+| la ficha salía a la IZQUIERDA de la conversación | una regla de CSS la ponía `absolute inset-0` —encima de la conversación— mientras hubiera un panel abierto |
+| Acciones y Registros del lead cruzando la conversación entera | `ChatHeader` pinta Macros **dos veces** y la medida cogía la del móvil, escondida: 0×0 en el origen |
+
+Cinco cosas que hay que mantener:
+
+1. **La ficha entra en la exclusión con `reservar: false`**
+   (`usePanelLateral(PANEL_DE_LA_FICHA, …)`). Entra en la exclusión igual que
+   los demás, pero **no reserva la franja**: ya ocupa su sitio en el flex, y
+   reservar además el `padding-right` le quitaría a la conversación el doble.
+   Con esto la regla que la superponía sobra, y se fue: era la que la sacaba
+   por la izquierda.
+2. **«Enviar al equipo» es un `PanelLateral`**, no un `Dialog`. Se abre desde
+   la cabecera como los demás, así que sale por el mismo lado y entra en la
+   misma exclusión. **Si se añade otro panel en Chats, va por `PanelLateral`**
+   (o por `usePanelLateral` si vive en el flex): un modal centrado es un
+   panel que no cierra a los demás ni se deja cerrar por ellos.
+3. **Un panel de la cabecera cuelga de SU botón** (`cabecera()`): si el botón
+   está en la mitad derecha, filo derecho con filo derecho y crece hacia la
+   izquierda; en la izquierda, al revés. Antes se llevaba siempre al filo de la
+   cabecera, y el de un icono de en medio no colgaba de nadie.
+4. **Lo que se mide es lo que SE VE.** `ChatHeader` pinta Macros, Acciones y la
+   cita en la fila del móvil y en la de escritorio, así que `querySelector` y un
+   `useRef` se quedan con uno cualquiera — a menudo el escondido. El hook guarda
+   todos los disparadores y mide el de ancho > 0; y `cabecera()` ignora un
+   `desde` fuera de la cabecera, que es la firma de haber medido el escondido.
+5. **La prueba que lo destapó monta Macros DOS veces.** La maqueta de
+   `banco-paneles-flotantes` pintaba uno, y por eso estaba verde con el fallo
+   en producción: *un arnés que no reproduce cuántas veces se monta algo no
+   prueba cómo se mide.*
+
+Lo comprueba `scripts/banco-paneles-de-chats.sh` —barrido del código, la
+exclusión con el hook real y los menús pintados por Radix, en dos modos; el
+roto construye con el código de `ANTES_REF` y afirma las tres capturas— y
+`scripts/banco-paneles-en-chats.sh` sobre la página servida.
+
 ## Un saliente automático lo escribe QUIEN LO MANDA, no el eco del proveedor
 
 El recordatorio de una cita le llegaba al cliente por WhatsApp y **en Chats no

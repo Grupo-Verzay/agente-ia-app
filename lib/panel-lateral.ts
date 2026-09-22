@@ -164,3 +164,14 @@ export const PANEL_DEL_EQUIPO = "panel-chat-equipo";
 export const PANEL_DEL_CONTEXTO = "panel-contexto-del-lead";
 export const PANEL_DEL_RECORDATORIO = "panel-crear-recordatorio";
 export const PANEL_DE_LA_TAREA = "panel-nueva-tarea";
+/**
+ * La ficha de Contacto. **No es un panel del portal**: es un hermano del flex
+ * de Chats y ya ocupa su sitio al abrirse, así que entra en la exclusión pero
+ * NO reserva la franja (ver `usePanelLateral`, opción `reservar`).
+ *
+ * Fuera de la exclusión quedaba abierta debajo de un panel, y la regla que la
+ * superponía la sacaba a la IZQUIERDA de la conversación: dos paneles apilados
+ * tapándola, uno a cada lado.
+ */
+export const PANEL_DE_LA_FICHA = "panel-ficha-de-contacto";
+export const PANEL_DE_ENVIAR_AL_EQUIPO = "panel-enviar-al-equipo";

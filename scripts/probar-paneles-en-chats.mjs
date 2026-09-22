@@ -209,6 +209,94 @@ for (const v of VENTANAS) {
         `${v.width}: los paneles de la columna no miden lo mismo: ${anchos.join(" / ")}`,
     );
 
+    // ── 3. Uno a la vez: la ficha de Contacto entra en la exclusión ───────
+    // Las capturas del 22-09: la ficha y «Nueva tarea» abiertas a la vez, la
+    // ficha encima de la conversación (a su izquierda) y la tarea a la derecha.
+    const fichaAbierta = () => pagina.evaluate(() => !!document.querySelector("[data-ficha-de-contacto]"));
+    const hojaAbierta = (id) =>
+        pagina.evaluate((i) => {
+            const h = document.querySelector(`[data-panel="${i}"][aria-hidden="false"]`);
+            return h ? Math.round(h.getBoundingClientRect().right) : null;
+        }, id);
+    const abrirFicha = () => pulsarVisible(pagina, 'button[title="Ver ficha del contacto"]');
+
+    exigir(await abrirFicha(), `${v.width}: no se encontró el botón de la ficha`);
+    await pagina.waitForTimeout(700);
+    const ficha = await pagina.evaluate(() => {
+        const r = document.querySelector("[data-ficha-de-contacto]")?.getBoundingClientRect();
+        return r ? Math.round(r.right) : null;
+    });
+    exigir(ficha !== null, `${v.width}: la ficha no se abrió`);
+
+    await pulsarVisible(pagina, 'button[title="Nueva tarea"]');
+    await pagina.waitForTimeout(900);
+    const tareaRight = await hojaAbierta("panel-nueva-tarea");
+    exigir(tareaRight !== null, `${v.width}: «Nueva tarea» no se abrió con la ficha abierta`);
+    exigir(!(await fichaAbierta()), `${v.width}: abrir «Nueva tarea» no cerró la ficha: quedan dos apiladas`);
+    exigir(
+        // El mismo lado: el derecho. La ficha es un hermano del flex y acaba en
+        // el borde de la bandeja (a unos px del de la ventana, por su relleno);
+        // la hoja, en el de la ventana.
+        ficha === null || tareaRight === null || Math.abs(ficha - tareaRight) <= 8,
+        `${v.width}: la ficha (${ficha}) y la tarea (${tareaRight}) no salen por el mismo lado`,
+    );
+    filas.push({ ventana: v.width, panel: "ficha → tarea", fichaRight: ficha, tareaRight });
+
+    await abrirFicha();
+    await pagina.waitForTimeout(900);
+    exigir(await fichaAbierta(), `${v.width}: la ficha no se abrió con la tarea abierta`);
+    exigir((await hojaAbierta("panel-nueva-tarea")) === null, `${v.width}: abrir la ficha no cerró «Nueva tarea»`);
+
+    // «Enviar al equipo», desde Acciones: un panel lateral más, que cierra la ficha.
+    await pulsarVisible(pagina, 'button:has-text("Acciones")');
+    await pagina.waitForTimeout(400);
+    const hayEnviar = await pagina.$('[role="menuitem"]:has-text("Enviar al equipo")');
+    if (hayEnviar) {
+        await hayEnviar.click();
+        await pagina.waitForTimeout(900);
+        const enviar = await hojaAbierta("panel-enviar-al-equipo");
+        exigir(enviar === v.width, `${v.width}: «Enviar al equipo» no sale por el filo derecho (${enviar})`);
+        exigir(!(await fichaAbierta()), `${v.width}: «Enviar al equipo» no cerró la ficha`);
+        await pagina.click('[data-panel="panel-enviar-al-equipo"][aria-hidden="false"] header button[aria-label^="Cerrar"]');
+        await pagina.waitForTimeout(800);
+    } else {
+        await pagina.keyboard.press("Escape");
+        filas.push({ ventana: v.width, panel: "Enviar al equipo", nota: "no se ofrece en esta semilla" });
+    }
+
+    // ── 4. Los menús de la cabecera cuelgan de SU botón ─────────────────
+    for (const m of [
+        { nombre: "Acciones", disparador: 'button:has-text("Acciones")' },
+        { nombre: "Registros del lead", disparador: 'button[title="Registros del lead"]' },
+    ]) {
+        const boton = await (async () => {
+            for (const b of await pagina.$$(m.disparador)) if (await b.isVisible()) return b;
+            return null;
+        })();
+        exigir(!!boton, `${v.width}: no se encontró «${m.nombre}»`);
+        if (!boton) continue;
+        const rb = await boton.boundingBox();
+        await boton.click();
+        await pagina.waitForTimeout(500);
+        const r = await pagina.evaluate(() => {
+            const c = document.querySelector("[data-radix-popper-content-wrapper] > [data-state='open']");
+            const cab = document.querySelector("[data-cabecera-de-chat]")?.getBoundingClientRect();
+            const x = c?.getBoundingClientRect();
+            return x && cab
+                ? { left: Math.round(x.left), right: Math.round(x.right), ancho: Math.round(x.width), cab: Math.round(cab.width), cabLeft: Math.round(cab.left) }
+                : null;
+        });
+        filas.push({ ventana: v.width, panel: m.nombre, ...r, boton: Math.round(rb.x + rb.width) });
+        exigir(!!r, `${v.width}: «${m.nombre}» no se abrió`);
+        if (r) {
+            exigir(Math.abs(r.right - (rb.x + rb.width)) <= 1, `${v.width}: «${m.nombre}» no cuelga del filo derecho de su botón (${r.right} vs ${Math.round(rb.x + rb.width)})`);
+            exigir(r.ancho < r.cab * 0.6, `${v.width}: «${m.nombre}» cruza la conversación (${r.ancho} de ${r.cab})`);
+            exigir(r.left >= r.cabLeft, `${v.width}: «${m.nombre}» se sale de la conversación por la izquierda`);
+        }
+        await pagina.keyboard.press("Escape");
+        await pagina.waitForTimeout(400);
+    }
+
     await contexto.close();
 }
 
@@ -218,4 +306,4 @@ if (fallos.length) {
     console.error("\nFALLOS:\n- " + fallos.join("\n- "));
     process.exit(1);
 }
-console.log("\nlos seis paneles, bien en las tres anchuras");
+console.log("\nlos paneles, bien en las tres anchuras: uno a la vez, por la derecha, y los menús colgando de su botón");

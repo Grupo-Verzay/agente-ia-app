@@ -1,5 +1,7 @@
 'use client';
 
+import { usePanelLateral } from '@/hooks/usePanelLateral';
+import { PANEL_DE_LA_FICHA } from '@/lib/panel-lateral';
 import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, {
   useCallback,
@@ -1137,6 +1139,18 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     });
   }, [onInfoPanelChange]);
 
+  /* La ficha entra en la exclusión de los paneles laterales: al abrirla se
+     cierra el recordatorio, la tarea, el contexto, el copiloto o el chat del
+     equipo, y al abrirse cualquiera de ellos se cierra ella. Sin esto quedaban
+     dos apilados y la ficha se superponía a la conversación por la izquierda.
+     `reservar: false` porque ya es un hermano del flex y ocupa su sitio. */
+  const cerrarFicha = useCallback(() => {
+    setInfoPanelOpen(false);
+    localStorage.setItem('chat-info-panel', 'false');
+    onInfoPanelChange?.(false);
+  }, [onInfoPanelChange]);
+  usePanelLateral(PANEL_DE_LA_FICHA, infoPanelOpen && !!session, cerrarFicha, { reservar: false });
+
   return (
     <div className="relative flex h-full w-full min-w-[100px] sm:border-l sm:border-r border-border overflow-hidden">
       {/* ── Chat area ── */}
@@ -1406,7 +1420,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           remoteJid={info?.remoteJid}
           notesCount={notes.length}
           advisors={advisors}
-          onClose={toggleInfoPanel}
+          onClose={cerrarFicha}
           onSessionMutate={mutateSessionStatus}
           onSessionRefresh={refreshSessionStatus}
         />

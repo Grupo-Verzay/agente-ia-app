@@ -47,17 +47,29 @@ import { AVISO_DE_PANEL_LATERAL, avisarDelPanelLateral } from "@/lib/panel-later
  * dos instancias del MISMO panel no se cierran entre ellas —son el mismo
  * panel— y cualquier otro sí.
  */
-export function usePanelLateral(id: string, abierto: boolean, cerrar: () => void): void {
+export function usePanelLateral(
+    id: string,
+    abierto: boolean,
+    cerrar: () => void,
+    /**
+     * `false` solo para la ficha de Contacto: es un hermano del flex y ya ocupa
+     * su sitio, así que reservar además la franja le quitaría a la
+     * conversación el doble de ancho. Entra en la EXCLUSIÓN igual que los
+     * demás — que es lo que impide dos paneles apilados.
+     */
+    { reservar = true }: { reservar?: boolean } = {},
+): void {
     const instancia = useId();
     const cerrarRef = useRef(cerrar);
     cerrarRef.current = cerrar;
 
     useEffect(() => {
+        if (!reservar) return;
         avisarDelPanelLateral(instancia, abierto);
         // Al desmontar se suelta pase lo que pase: un panel que se va del árbol
         // sin soltar su sitio deja la conversación encogida para siempre.
         return () => avisarDelPanelLateral(instancia, false);
-    }, [instancia, abierto]);
+    }, [instancia, abierto, reservar]);
 
     useEffect(() => {
         if (!abierto || typeof window === "undefined") return;
