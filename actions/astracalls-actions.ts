@@ -484,9 +484,31 @@ export async function logOutgoingCallAction(
     // id de quien llamo, esa busqueda no encuentra nada y la llamada se queda
     // sin Resumen IA sin un solo error: «se guarda en la llamada correcta y en
     // la cuenta correcta» empieza por devolver cual fue.
+    if (!row) {
+      // La fila se escribio y no se pudo volver a leer: la llamada existe y no
+      // hay id con el que pedirle nunca su grabacion. No rompe la llamada
+      // —eso manda— pero no puede ser mudo.
+      console.warn('[llamadas] la llamada se registro y no se pudo recuperar su fila', {
+        userId,
+        instanceName,
+        messageId,
+      });
+    }
     return { id: row ? String(row.id) : null, userId };
-  } catch {
-    /* best-effort, nunca rompe la llamada */
+  } catch (error) {
+    // **Best-effort, pero NUNCA mudo.** Este `catch` estaba vacio, y eso es
+    // exactamente el sintoma «la llamada se hizo, se hablo, y no aparece
+    // registrada en ninguna parte»: la llamada ya salio cuando se llega aqui,
+    // asi que lo unico que se pierde es el registro — y sin fila no hay a quien
+    // pedirle la grabacion, ni ahora ni en el barrido de rescate. Una llamada
+    // que no se registra no se recupera de ningun modo, asi que tiene que
+    // dejar rastro en el sitio donde se busca.
+    console.warn('[llamadas] NO se pudo registrar una llamada que ya salio', {
+      phone: (phone || '').replace(/\D/g, '').slice(-4),
+      linea: lineaDeLaConversacion ?? null,
+      astraCallId: meta?.astraCallId ?? null,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { id: null };
   }
 }

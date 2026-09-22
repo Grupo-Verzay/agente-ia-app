@@ -15057,3 +15057,129 @@ nunca en el fichero.
   dos meses). Tiene borrado a los 90 días con el resto de la limpieza nocturna.
 - **Archivos huérfanos.** Borrados `components/form-register.tsx` y
   `MisClientesMain.tsx`.
+
+## Una cadena de tres servicios sin red debajo se cae con cualquier redespliegue
+
+El 21 las llamadas con IA se registraban completas —duración, Resumen IA y
+transcripción—. El 22 por la mañana, no. En medio: se cayó Postgres, se
+borraron a mano los contenedores del backend en Portainer, y **los stacks de
+postgres y del backend se volvieron a desplegar desde el editor**.
+
+El arreglo del 21 (#877) es correcto y no se toca: AstraCalls avisa al colgar,
+el backend lo relaya, la App anota la duración y va a por la grabación. Lo que
+no tenía es **red debajo**, y eso es lo que lo hace frágil a cualquier cosa que
+pase en un servidor:
+
+| eslabón | de qué depende | qué se ve cuando falla |
+| --- | --- | --- |
+| AstraCalls → backend | `VOICEBOT_RESOLVE_URL`, con `/resolve` dentro | un `log.Warn` en un servidor |
+| backend → App | `NEXTJS_URL` + `CRM_FOLLOW_UP_RUNNER_KEY` | otro `logger.warn` |
+| la imagen del backend | que el redespliegue no fije un digest viejo | un `404` que solo ve AstraCalls |
+
+**Los tres se configuran a mano en un editor de Portainer, los tres fallan
+mudos, y ninguno deja nada en la base.** Así que el día que uno se cae, lo que
+se ve desde fuera es el síntoma original y no hay dónde mirar.
+
+### Lo que había debajo NO era una red
+
+`esperarYProcesarLaGrabacion` es una promesa suelta (`void`) dentro de una
+petición, en un proceso que **se despliega decenas de veces al día y corre a
+dos réplicas**. Un despliegue se la lleva sin dejar rastro ni a quien
+retomarla. Con la llamada ya colgada, eso es un dato que no vuelve nunca.
+
+> **La red tiene que salir de la BASE, no de la memoria de nadie.** Una llamada
+> que se lanzó dejó su fila con su par de ids dentro (`astraSid`,
+> `astraCallId`); con eso se vuelve a ella desde cero, en otro proceso, en otro
+> contenedor y tres despliegues después. Eso es lo único que sobrevive a un
+> redespliegue del stack.
+
+Lo decide `lib/rescate-de-llamadas.ts` (puro) y lo ejecuta
+`lib/rescate-de-llamadas.server.ts`, por `/api/calls/rescatar`.
+
+### Y la red no puede depender de lo mismo que viene a tapar
+
+Es la decisión de la que cuelga todo lo demás, y es lo que hace que esto
+sobreviva a un re-pegado de la plantilla:
+
+> **El barrido usa SOLO `NEXTJS_URL` y `CRM_FOLLOW_UP_RUNNER_KEY`** —las dos
+> que el relay ya usaba y **las dos que el `portainer-stack.yml` del repo sí
+> lleva**—. Ninguna variable nueva: una variable más es una más que perder en
+> el próximo redespliegue, que es exactamente el fallo del que viene. Y su
+> reloj **nace ENCENDIDO**, al revés que los dieciocho runners del backend: uno
+> que se apaga cuando se pierde su propia variable no tapa nada.
+
+### El número de rescates ES la alarma
+
+Esto no sustituye al aviso: hace que su caída deje de ser invisible. Si el
+barrido no rescata nada, la cadena funciona. **Si `sinAviso` no es cero, algún
+eslabón está roto ahora mismo**, y se dice nombrando los tres. Es la misma idea
+que *una línea muerta no tiene filas*: el cero es el dato.
+
+### Cinco cosas que hay que mantener
+
+1. **Una llamada EN CURSO no está rota.** Sin `EDAD_MINIMA_MS` el barrido le
+   pediría a AstraCalls la grabación de una conversación que se está teniendo
+   —que no existe hasta que alguien cuelga— y gastaría sus intentos antes de
+   que hubiera nada que rescatar.
+2. **Hay un tope de intentos, y hace falta.** Cada rescate **se baja el WAV
+   entero**. Sin tope, una llamada que no se puede transcribir —sin créditos,
+   un audio imposible— se lo bajaría en cada vuelta para siempre. El sello va
+   en `raw.call.rescate`: ni tabla nueva ni migración.
+3. **El sello se escribe ANTES de intentarlo.** Al revés, un intento que
+   revienta a mitad —o un despliegue que se lleva el proceso, que es justo lo
+   que pasa aquí— dejaría la llamada sin gastar su turno y la vuelta siguiente
+   volvería a bajarse el mismo WAV.
+4. **Va acotado por `messageTimestamp`, en serie y a trozos.** Los cinco
+   índices de `chat_messages` empiezan por `userId` y aquí no hay ninguno que
+   dar: sin esa condición se barre la tabla más grande de la plataforma. Y el
+   pool de Prisma son diez por proceso, los mismos turnos que atienden Chats.
+5. **`hasRecording === false` es AstraCalls diciendo que no hay audio**, y esa
+   llamada está cerrada y correcta. Solo el `false` explícito: sin el campo es
+   «no se sabe», que es justo lo que hay que ir a mirar.
+
+### Y lo que estaba mudo: una llamada que no se registra NO se recupera
+
+`logOutgoingCallAction` tenía el `catch` **vacío**. Eso es exactamente el
+síntoma «la llamada se hizo, se habló, y no aparece registrada en ninguna
+parte»: cuando se llega ahí la llamada ya salió, así que lo único que se pierde
+es el registro — y sin fila no hay a quién pedirle la grabación, **ni ahora ni
+en el barrido**. De todos los fallos de esta familia es el único que no tiene
+arreglo después, así que es el que menos puede callarse.
+
+### La plantilla del stack no lleva los secretos, y eso hay que SABERLO
+
+`api-webhook/portainer-stack.yml` **no lleva** `VOICEBOT_SECRET`,
+`ASTRACALLS_URL` ni `ASTRACALLS_API_KEY`: son secretos y no se comitean. Lo que
+no puede pasar es que nadie lo sepa, porque **pegar esa plantilla en el editor
+de Portainer se los lleva por delante**. Ahora lo dice un bloque en la propia
+plantilla, y el backend **nombra en el arranque** las que falten —una vez, no
+por petición, que ahí se pierde entre los `logger.log` de `webhook.service`—.
+
+Y lo que hace cada una al faltar, que no es lo mismo:
+
+- **`VOICEBOT_SECRET`**: `if (expected && secret !== expected)`. Vacía **no
+  cierra: ABRE** — `/voicebot/*` deja de pedir secreto y cualquiera puede
+  gastar los créditos de una cuenta. No rompe las llamadas, y por eso no se
+  nota.
+- **`ASTRACALLS_URL` / `_API_KEY`**: la acción `AI_CALL` de un flujo no llama a
+  nadie. Eso sí se nota, y solo en el registro del backend.
+
+### El banco
+
+`scripts/banco-rescate-de-llamadas.sh` (App, contra Postgres) y su hermano en
+el backend. Los dos en dos modos, y el roto **afirma el fallo**: se reproduce
+el despliegue que se lleva la promesa suelta y se comprueba que la llamada se
+queda como nació —y que **su par de ids seguía ahí todo el tiempo**, que es lo
+que convierte el fallo en arreglable: no faltaba el dato, faltaba quien lo
+mirara. Comprobado además que quitando el barrido el modo normal **se pone en
+rojo por seis sitios**: sin eso no se sabría si lo verde es que se arregló la
+causa o que el caso no se ejerce.
+
+### Lo que NO se pudo confirmar desde aquí, y se dice
+
+Cuál de los tres eslabones se cayó el 22 **no se puede saber sin mirar el stack
+que corre**: desde el entorno de desarrollo no hay salida a `backend.ia-app.com`
+ni a Portainer (el proxy contesta `403`). Lo que sí está establecido es que los
+tres podían caerse mudos y que ninguno dejaba nada que mirar después — y eso es
+lo que este cambio quita. **A partir de ahora el barrido lo dice**: `sinAviso`
+por encima de cero nombra la cadena en el registro del backend.

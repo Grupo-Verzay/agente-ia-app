@@ -5,6 +5,7 @@ import { podarRevisionesDePromptsPendientes } from "@/lib/prompt-revisions-clean
 import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
 import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
 import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
+import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -104,8 +105,20 @@ export async function POST(request: Request) {
     grabaciones = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // Las llamadas a las que no les llego el aviso de fin. Es la red de abajo
+  // de `/api/calls/call-ended`, y cuelga tambien de aqui —ademas de su propio
+  // reloj en el backend— porque esta vuelta diaria es lo unico que corre
+  // aunque ese reloj se quede sin configurar en un redespliegue: justo el
+  // fallo que este barrido viene a tapar. En su propio `try`, como los demas.
+  let llamadas: unknown = null;
+  try {
+    llamadas = await rescatarLlamadasSinCerrar();
+  } catch (e) {
+    llamadas = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   return NextResponse.json(
-    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros, vencimientos, grabaciones },
+    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros, vencimientos, grabaciones, llamadas },
     { status: result.success ? 200 : 500 },
   );
 }
