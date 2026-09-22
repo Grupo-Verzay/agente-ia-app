@@ -14107,11 +14107,12 @@ en uno es justo el trabajo que esto viene a quitar.
 > `?cuentas=` rancio de un enlace guardado dejaría la pantalla en blanco sin
 > decir por qué, y el caso común de llegar ahí no es un ataque.
 
-**Y los vínculos siguen yendo solo de madre a hija sin ninguna condición
-nueva**: el filtro exige ser la **raíz** de la familia (`seEnsenaElSelector`,
-la misma de Finanzas), y una hija no lo es — así que cae en `soloLaSuya()` y no
-ve ni a su madre ni a sus hermanas. Es lo que el banco ejerce escribiendo el
-parámetro a mano desde una hija: se re-resuelve y vuelve `[HIJA_A]`.
+> **Corregido después**: esto decía que bastaba con exigir ser la **raíz** de
+> la familia para que una hija no viera a su madre. **No bastaba**: la raíz sale
+> de un recuento de votos que una cuenta intermedia puede ganar, y entonces veía
+> hacia arriba. El alcance es ahora `lasCuentasQueCuelganDe` —lo propio y lo de
+> abajo, nunca la madre ni las hermanas—; está contado entero en *El alcance del
+> CRM va HACIA ABAJO*.
 
 ### La puerta va en la acción, y el camino común SÍ paga la familia
 
@@ -14236,6 +14237,51 @@ Tres cosas del propio banco, que costaron su vuelta:
 3. **La base se reutiliza entre ejecuciones**, así que los ids llevan el sello
    de la vuelta. Y los conteos de cada cuenta son **distintos a propósito**: con
    todas iguales, un total equivocado seguiría cuadrando.
+
+## El alcance del CRM va HACIA ABAJO: la familia no es un alcance
+
+Yair —administrador de Verzay | Atencion, que cuelga de Carlos Arcos y tiene
+a Verzay Ventas debajo— veía desde su sesión las llamadas de Carlos. Fuga entre
+cuentas, **hacia arriba**.
+
+La causa estaba en cómo se decía «qué alcanza» el CRM (ver *El CRM de la familia*):
+**la RAÍZ del componente de `linked_accounts` veía el componente entero**, y la
+raíz sale de un recuento de votos (`laRaizQueManda`: quien más vinculó bajo la
+suya, y a igualdad el id menor). Esa tabla es una malla con enlaces de vuelta,
+así que el recuento lo gana una cuenta INTERMEDIA en cuanto vincula a tantas
+como su madre —o a su propia madre de vuelta—. Y el id de Atencion empieza por
+dígito: gana los empates. Con eso Atencion era «la madre» y su administrador
+veía hacia arriba y hacia los lados.
+
+> **La familia (`laFamiliaDeLaCuenta`) es un componente SIN dirección.** Sirve
+> para que un chat del equipo no se parta; **no es un alcance de datos**.
+
+La regla, en `lasCuentasQueCuelganDe` (`lib/crm-de-la-familia.ts`, pura):
+
+1. Se ve lo propio y lo que se alcanza **bajando** por `master → linked`.
+2. **Nunca se pasa por una cuenta que también alcanza a esta**: esa está por
+   encima. Sin esa condición, un enlace de vuelta (hija → madre) lleva a la
+   madre, y de ella a las hermanas.
+3. Una pareja recíproca (`A ↔ B`) se anula: ninguna ve a la otra. Es el lado
+   seguro a propósito —un enlace de ida y vuelta no dice quién manda—; si hace
+   falta, se borra el enlace que sobra y queda escrito el sentido.
+4. **El superadministrador de verdad ve la familia entera** (`esSuperAdminDeVerdad`),
+   porque todas cuelgan de él. Y eso entra en la llave del recuerdo de 5 s:
+   con la misma llave, el administrador heredaría el alcance del super.
+
+Un `agente` sigue viendo solo su cuenta. El alcance ya no depende de quién gane
+ningún recuento: `laRaizQueManda` sigue decidiendo quién reparte canales del
+chat del equipo, **y nada más**.
+
+Lo prueba `scripts/banco-crm-de-la-familia.sh` (con
+`lib/__tests__/crm-alcance-hacia-abajo-db.test.mjs`): el caso de producción con
+sus nombres, contra Postgres y por `getCallsCrmData` de verdad. `MODO=roto`
+afirma que con la regla vieja Yair alcanzaba a Carlos; y con el código anterior
+puesto, el banco normal se pone rojo por los tres sitios.
+
+**Vale para las cinco pestañas del CRM**, porque las cinco pasan por la misma
+puerta. Las demás pantallas que cruzan cuentas (Chats, Leads, Finanzas,
+Reuniones, Documentos…) **no se han tocado aquí**: están auditadas en el PR.
 
 ## CRM › Llamadas: la barra es la de Leads, y marcar vive en una ventana
 

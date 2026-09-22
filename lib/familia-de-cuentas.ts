@@ -69,6 +69,16 @@ export type Familia = {
     raiz: string;
     /** Todas las cuentas de la familia. Siempre trae al menos la preguntada. */
     cuentas: string[];
+    /**
+     * Los enlaces de `linked_accounts` dentro de la familia, con su SENTIDO:
+     * `de` vinculó a `a` bajo la suya. Hacen falta para saber qué cuelga de
+     * qué —la familia es el componente sin dirección, y eso NO es un alcance:
+     * ver `lasCuentasQueCuelganDe` en `lib/crm-de-la-familia.ts`—.
+     *
+     * Opcional en el tipo porque hay quien construye una familia a mano (los
+     * bancos, el respaldo de un fallo); sin enlaces no cuelga nada de nadie.
+     */
+    enlaces?: EnlaceDeCuentas[];
 };
 
 /**
@@ -151,13 +161,17 @@ export async function laFamiliaDeLaCuenta(cuentaId: string): Promise<Familia> {
         const cuentas = new Set<string>(deLaFamilia);
         cuentas.add(id);
 
-        return { raiz: laRaizQueManda(deLaFamilia, enlaces), cuentas: Array.from(cuentas) };
+        return {
+            raiz: laRaizQueManda(deLaFamilia, enlaces),
+            cuentas: Array.from(cuentas),
+            enlaces,
+        };
     } catch (error) {
         console.warn("[chat-equipo] no se pudo resolver la familia de la cuenta", {
             cuenta: id,
             error: error instanceof Error ? error.message : String(error),
         });
-        return { raiz: id, cuentas: [id] };
+        return { raiz: id, cuentas: [id], enlaces: [] };
     }
 }
 

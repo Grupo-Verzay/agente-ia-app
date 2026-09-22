@@ -60,10 +60,12 @@ npx esbuild lib/__tests__/fingido/entrada-del-crm.ts --bundle \
   --log-level=error
 sed -i '/server-only/d' lib/__tests__/.compilado/crm/entrada-del-crm.js
 
-node --test lib/__tests__/crm-de-la-familia.test.mjs \
-            lib/__tests__/crm-de-la-familia-db.test.mjs "$@"
+node --test --test-concurrency=1 lib/__tests__/crm-de-la-familia.test.mjs \
+            lib/__tests__/crm-de-la-familia-db.test.mjs \
+            lib/__tests__/crm-alcance-hacia-abajo-db.test.mjs "$@"
 
 echo
 echo "── el CRM, con la consulta VIEJA (tiene que afirmar el fallo) ──"
-MODO=roto node --test lib/__tests__/crm-de-la-familia.test.mjs \
-                      lib/__tests__/crm-de-la-familia-db.test.mjs
+MODO=roto node --test --test-concurrency=1 lib/__tests__/crm-de-la-familia.test.mjs \
+                      lib/__tests__/crm-de-la-familia-db.test.mjs \
+                      lib/__tests__/crm-alcance-hacia-abajo-db.test.mjs
