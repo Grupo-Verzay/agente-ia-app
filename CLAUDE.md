@@ -16460,6 +16460,39 @@ antes>`: lo **mueve** a `.next` —con un enlace simbólico el servidor no resue
 `node_modules`— y afirma los cuatro fallos; el hueco solo sale con un Detalle
 CORTO («Sin detalle»), así que se mide en todas las filas y no en la primera.
 
+## Llamadas: la cuenta es «● Ventas» junto al nombre, no una columna
+
+Consolidando, CRM › Llamadas abría con una columna «Cuenta» —la primera— con el
+nombre largo en una pastilla («Verzay | Ventas»). Ocupaba la columna que se lee
+primero para decir algo que se mira de reojo. Se fue: las columnas son
+Contacto, Nombre, Duración, Fecha, Detalle, Resultado y Acciones, y la cuenta
+va **pegada a la derecha del nombre**, como puntico de color y palabra corta.
+
+> **Es la marca de Chats, no una parecida.** Vivía escrita dentro de
+> `ChatContactItem` (`instanceColor`, `shortInstanceLabel`); se sacó a
+> `lib/insignia-de-linea.ts` (puro) y `components/shared/InsigniaDeLinea.tsx`,
+> y las dos pantallas la importan. Con una copia en cada una, el día que se
+> afine la paleta la misma cuenta saldría de un color en Chats y de otro en
+> Llamadas.
+
+Tres cosas que hay que mantener:
+
+1. **La llave del color es el nombre CRUDO de la línea** (`instanceName`), que
+   es con lo que Chats pinta; sin línea, el nombre de la cuenta. El hash no se
+   toca: cambiarlo recolorea todas las líneas de golpe.
+2. **Solo cambió la presentación.** Sale en las mismas filas que salía la
+   columna (consolidando, `unificado`), el filtro por cuenta sigue en la barra
+   y en el servidor, y la columna nunca fue ordenable.
+3. **Es la excepción a «un solo tamaño en la tabla»**, a propósito: es la marca
+   de Chats (9 px), no texto de la tabla. El encargo fue que se viera igual que
+   allí.
+
+Lo prueba `scripts/banco-cuenta-en-llamadas.sh`: el color y la palabra contra
+las funciones que Chats llevaba dentro —leídas de git—, un barrido de que las
+dos pantallas usan la pieza compartida, y la tabla pintada en Chromium
+consolidando a 1440/1280/1024. `MODO=roto` pinta la de `ANTES_REF` y afirma la
+columna «Cuenta» y la falta del puntico.
+
 ## Una llamada es de la cuenta DUEÑA de la conversación, no de quien mira
 
 Estando la madre en una conversación de Verzay Ventas y pulsando «Llamar con

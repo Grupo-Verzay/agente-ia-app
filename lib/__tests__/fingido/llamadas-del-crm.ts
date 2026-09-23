@@ -26,6 +26,7 @@ export type CallRow = {
     astraSid?: string | null;
     astraCallId?: string | null;
     cuentaId: string;
+    instanceName?: string | null;
 };
 
 export type CallsKpis = {
@@ -61,6 +62,7 @@ export const LLAMADAS: CallRow[] = [
         leadSynthesis:
             "Pidió la cotización del plan anual para las tres sedes y quiere que le llamen el jueves por la tarde para cerrar el pago",
         cuentaId: "u1",
+        instanceName: "VERZAY_ATENCION",
     },
     {
         id: "c2",
@@ -71,6 +73,21 @@ export const LLAMADAS: CallRow[] = [
         ts: Date.parse("2026-09-18T11:22:00Z"),
         disposition: null,
         cuentaId: "u1",
+        instanceName: "VERZAY_ATENCION",
+    },
+    // Una hija: la fila que, consolidando, lleva «● Ventas» junto al nombre.
+    // Va la ÚLTIMA a propósito: los otros bancos miden la primera fila y no
+    // pueden cambiar de lo que miden por esto.
+    {
+        id: "c3",
+        phone: "573154445566",
+        contactName: "Julián Ospina",
+        direction: "outgoing",
+        durationSecs: 64,
+        ts: Date.parse("2026-09-17T09:10:00Z"),
+        disposition: null,
+        cuentaId: "u2",
+        instanceName: "VERZAY_VENTAS",
     },
 ];
 
