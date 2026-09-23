@@ -12692,6 +12692,87 @@ Y se cierra **el último tramo abierto** de ese `refId`, no todos: un ticket se
 puede reabrir y volver a cerrar, y cerrarlos todos de golpe le pondría a un
 tramo de horas la antigüedad del primero.
 
+## Chat de equipo: limpiar un historial, un puesto que cambia de ocupante, y el orden de los directos
+
+### Limpiar es del súper administrador, y es un `DELETE` de verdad
+
+Desde la propia conversación —canal, General o directo— sale un «⋯» con
+**Limpiar historial**, y **solo para el súper administrador de verdad**
+(`esSuperAdminDeVerdad`, que con «Ingresar» ya no cuenta). Ni el dueño ni el
+administrador de una cuenta: vaciar un canal se lleva lo que escribió todo el
+mundo. La puerta está en `limpiarHistorialDelCanalAction`, que lo vuelve a
+preguntar, exige la palabra tecleada (`PALABRA_PARA_LIMPIAR`) y **exige que el
+canal esté entre los que esa persona ve** —la misma lista que pinta la barra—:
+un id que llega del navegador no decide qué se borra.
+
+Cuatro cosas que hay que mantener:
+
+1. **Es un borrado de verdad**, no la señal de «Mensaje eliminado» de borrar un
+   mensaje. Limpiar es que la conversación arranque de cero, y cien filas de
+   «Mensaje eliminado» no lo serían. Mensajes y reacciones van en **una
+   transacción** (`vaciarElHistorial`); el canal y la marca de leído se quedan.
+2. **El General es de la FAMILIA**: se vacía con `cuentaId = ANY(familia)` y
+   `canalId IS NULL OR 'general'`. Sin el `IS NULL` queda viva la mitad vieja;
+   sin acotar por la familia se iría el General de toda la plataforma, que
+   comparte el mismo `'general'`.
+3. **Las menciones que apuntaban ahí se van con él** (por el `enlace`, con
+   `starts_with` y no `left(..., $n)`: Prisma manda el número como `bigint` y
+   `left(text, bigint)` no existe). Un aviso que lleva a un hilo vacío se lee
+   como que la App pierde mensajes.
+4. **El diálogo dice las dos cosas**, y las escribe una función
+   (`laAdvertenciaDeLimpiar`): que es irreversible y, en un canal, que afecta a
+   todos sus miembros. Y pide teclear la palabra: un «Aceptar» se pulsa sin leer.
+
+### Un directo es una pareja de IDS, así que un puesto que cambia de persona heredaba la conversación
+
+Cuando alguien deja su puesto y otra persona entra **con el mismo usuario**
+(Equipo › Editar asesor, cambiando el correo), la fila es la misma y el directo
+también: la persona nueva leía la conversación privada de la anterior. Borrar y
+crear el asesor no tiene ese problema —el id nuevo abre directos nuevos—, así
+que esto solo hace falta al EDITAR.
+
+La casilla **«Entra otra persona en este puesto»** sale **marcada sola al
+cambiar el correo** (`sugiereNuevoOcupante`) y se puede desmarcar: la misma
+persona puede cambiar de correo. **El servidor solo actúa con la marca
+explícita** (`nuevoOcupante: true`); deducirlo del correo sería borrar
+conversaciones sin que nadie lo pida. Con la marca, `arrancarDeCeroElPuesto`:
+
+1. **Vacía sus directos** para los dos lados —un directo es una conversación,
+   no dos copias—. El canal se queda: se habla con quien ocupe el puesto.
+2. **Quita sus menciones pendientes**, que le saltarían a la persona nueva.
+3. **Da de baja los dispositivos de la anterior** (`push_subscriptions`): si
+   no, los avisos del puesto seguirían llegando a su teléfono.
+
+Los canales de área y el General **no se tocan**: son del equipo. Y va **antes**
+de cambiar la identidad: si falla no se cambia nada, porque al revés quedaría la
+persona nueva dentro con el historial todavía ahí.
+
+### El orden de los directos es de cada PERSONA, y la llave es con QUIÉN se habla
+
+La lista de Directos se arrastra por un asa (la fila es un botón que abre la
+conversación). Se guarda en `orden_en_tablero` con `tipo: "directos"` y
+`tableroId` = **la persona que mira** —el único tipo cuya llave es una persona—,
+con la tubería de siempre (`useOrdenDeColumna`, `guardarElOrdenDeLaColumnaAction`).
+La acción exige que el `tableroId` sea el de quien llama y filtra los ids contra
+la gente de su familia.
+
+Tres cosas que hay que mantener:
+
+1. **La tarjeta es la PERSONA, no el canal.** La lista mezcla directos abiertos
+   y gente sin directo todavía; por el canal, escribirle a alguien por primera
+   vez lo movería de sitio.
+2. **Lo sin colocar va DETRÁS** (`ordenarLosDirectos`), al revés que un tablero:
+   aquí nadie le da posición a quien entra en el equipo, y delante saltaría
+   encima del orden puesto a mano. Sin nada guardado, la lista sale como antes.
+3. **Un directo que se lee sin pertenecer** —lo que supervisa quien
+   administra— no se ordena: va al final, fuera de la parte que se arrastra.
+
+Lo prueban `scripts/banco-historial-del-equipo.sh` (las acciones contra
+Postgres, en dos modos: el roto afirma que no había forma de limpiar, que la
+persona nueva leía el directo de la anterior y que el orden no se guardaba) y
+`scripts/banco-historial-navegador.sh` (Chromium sobre el build: arrastrar,
+recargar, y el diálogo solo para el súper administrador).
+
 ## Chat de equipo: se vuelve al canal donde se estaba
 
 Al recargar o al volver de otra sección el hilo se abría **siempre en

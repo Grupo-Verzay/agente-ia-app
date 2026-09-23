@@ -91,7 +91,11 @@ import {
 } from "@/lib/adjuntos-del-equipo";
 import { comoSeGuardaLaReaccion } from "@/lib/reacciones-del-equipo";
 import { sePuedeBorrar, sePuedeEditar } from "@/lib/editar-del-equipo";
-import { minioClient } from "@/lib/minio";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+import { confirmaLaLimpieza } from "@/lib/historial-del-equipo";
+import { limpiarLaConversacion, quitarDelBucket } from "@/lib/historial-del-equipo.server";
+import { posicionesDelTablero } from "@/lib/orden-de-tablero-db";
+import type { PosicionesDelTablero } from "@/lib/orden-del-tablero";
 
 type Respuesta<T> = { success: true; data: T } | { success: false; message: string };
 
@@ -156,6 +160,20 @@ export type HiloAbierto = {
      * cuesta nada. Lo que no esté aquí se pinta como una tarjeta genérica.
      */
     reuniones: Record<string, { titulo: string | null; abierta: boolean; dentro: number }>;
+    /**
+     * Si quien mira puede LIMPIAR el historial de una conversación.
+     *
+     * Solo el súper administrador de verdad (`esSuperAdminDeVerdad`), esté en
+     * la cuenta que esté —y nunca dentro de la de un cliente por «Ingresar»,
+     * que es la excepción de esa misma función—. Enseñar el botón no es abrir
+     * la puerta: `limpiarHistorialDelCanalAction` lo vuelve a preguntar.
+     */
+    puedoLimpiar: boolean;
+    /**
+     * El orden que ESTA persona le puso a su lista de directos, por la persona
+     * con quien habla (`lib/orden-de-los-directos.ts`). Vacío = sin tocar.
+     */
+    ordenDeDirectos: PosicionesDelTablero;
 };
 
 /**
@@ -179,6 +197,8 @@ async function quienYDonde(): Promise<
           familia: Familia;
           escritoDesde: string | null;
           manda: boolean;
+          /** Súper administrador de verdad: el único que limpia un historial. */
+          superAdmin: boolean;
       }
     | null
 > {
@@ -204,7 +224,28 @@ async function quienYDonde(): Promise<
         // pero no manda. Escribir aquí una condición nueva es lo que dejó
         // fuera a media gente en Clientes, Equipo y Analíticas.
         manda: canManageWorkspace(user),
+        superAdmin: esSuperAdminDeVerdad(user),
     };
+}
+
+/**
+ * El orden de los directos de esta persona.
+ *
+ * **Nunca tumba el hilo**: si no se puede leer, la lista sale en el orden de
+ * siempre, que es exactamente lo que había antes de que esto existiera. Pero
+ * no es mudo — un orden que se guarda y al volver no está se lee como que la
+ * App pierde lo que haces.
+ */
+async function elOrdenDeMisDirectos(personaId: string): Promise<PosicionesDelTablero> {
+    try {
+        return await posicionesDelTablero("directos", personaId);
+    } catch (error) {
+        console.warn("[chat-equipo] no se pudo leer el orden de los directos", {
+            persona: personaId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return {};
+    }
 }
 
 /**
@@ -404,13 +445,14 @@ export async function hiloDelEquipoAction(
         const quien = await quienYDonde();
         if (!quien) return { success: false, message: "No autorizado." };
 
-        const [filas, gente] = await Promise.all([
+        const [filas, gente, ordenDeDirectos] = await Promise.all([
             canalesQueAlcanzan({
                 cuentaId: quien.cuentaId,
                 personaId: quien.persona.id,
                 manda: quien.manda,
             }),
             laGente(quien.familia),
+            elOrdenDeMisDirectos(quien.persona.id),
         ]);
 
         const canales = losCanalesQueVe(
@@ -518,6 +560,8 @@ export async function hiloDelEquipoAction(
                 soyLaMadre,
                 origen,
                 reuniones: await lasReunionesDeEstaPagina(mensajes, canal.id, origen),
+                puedoLimpiar: quien.superAdmin,
+                ordenDeDirectos,
             },
         };
     } catch (error) {
@@ -1247,30 +1291,75 @@ export async function borrarMensajeDelEquipoAction(
 }
 
 /**
- * Quitar del bucket lo que colgaba de un mensaje borrado.
+ * Limpiar el historial ENTERO de una conversación: un canal, el General o un
+ * directo. **Irreversible.**
  *
- * **Best-effort y nunca lanza**: la fila ya está limpia cuando esto corre, así
- * que un fallo aquí deja un archivo huérfano y no un borrado a medias. Pero no
- * es mudo: un bucket que crece con lo que ya nadie enseña se nota meses
- * después y sin forma de saber de dónde salió.
+ * La puerta es una sola y no es la de siempre: **solo el súper administrador
+ * de verdad** (`esSuperAdminDeVerdad`). Ni el dueño ni el administrador de una
+ * cuenta: vaciar un canal se lleva lo que escribió todo el mundo, y no es algo
+ * que se deba poder hacer desde un puesto del equipo. Esconder el botón no
+ * cierra la petición directa; esto sí.
  *
- * Qué se deja borrar lo decide `llaveDelArchivoSubido`, la misma función que
- * usa `/api/upload/borrar`: **una sola regla** sobre qué direcciones son
- * nuestras. Aquí la dirección viene de nuestra propia fila y no del navegador,
- * pero pasarla igual por la regla es lo que hace que no haya dos criterios.
+ * Y el canal **tiene que estar entre los que esa persona ve** —la misma lista
+ * con la que se pinta la barra de canales—. Un id que llega del navegador no
+ * decide qué se borra: sin esto, un súper administrador metido en una cuenta
+ * limpiaría por id un canal de otra familia que no tiene delante.
+ *
+ * `confirmacion` es la palabra tecleada (`PALABRA_PARA_LIMPIAR`), comprobada
+ * también aquí: el diálogo que la pide es la fachada.
  */
-async function quitarDelBucket(urls: string[]): Promise<void> {
-    const bucket = process.env.S3_BUCKET_NAME || "verzay-media";
-    for (const url of urls) {
-        try {
-            const destino = llaveDelArchivoSubido(url, process.env.S3_PUBLIC_URL, bucket);
-            if (!destino) continue;
-            await minioClient.removeObject(bucket, destino.llave);
-        } catch (error) {
-            console.warn("[chat-equipo] no se pudo quitar del bucket un archivo borrado", {
-                error: error instanceof Error ? error.message : String(error),
+export async function limpiarHistorialDelCanalAction(
+    canalId: string,
+    confirmacion: string,
+): Promise<Respuesta<{ canalId: string; mensajes: number }>> {
+    try {
+        const quien = await quienYDonde();
+        if (!quien) return { success: false, message: "No autorizado." };
+        if (!quien.superAdmin) {
+            console.warn("[chat-equipo] se intentó limpiar un historial sin ser súper administrador", {
+                persona: quien.persona.id,
+                canal: canalId,
             });
+            return { success: false, message: "Solo el súper administrador puede limpiar el historial." };
         }
+        if (!confirmaLaLimpieza(confirmacion)) {
+            return { success: false, message: "Escribe la palabra de confirmación para limpiar el historial." };
+        }
+
+        const [filas, gente] = await Promise.all([
+            canalesQueAlcanzan({
+                cuentaId: quien.cuentaId,
+                personaId: quien.persona.id,
+                manda: quien.manda,
+            }),
+            laGente(quien.familia),
+        ]);
+        const canales = losCanalesQueVe(filas, quien.persona.id, quien.cuentaId, quien.manda, gente);
+        const pedido = canalDeLaFila(canalId);
+        const canal = canales.find((c) => c.id === pedido);
+        if (!canal) return { success: false, message: "Esa conversación no está aquí." };
+
+        const hecho = await limpiarLaConversacion({
+            canalId: canal.id,
+            cuentas: quien.familia.cuentas,
+        });
+
+        // Un borrado que no se puede deshacer deja rastro de quién y cuándo.
+        // Va como `info`, que sobrevive al build (ver la regla de
+        // `removeConsole`).
+        console.info("[chat-equipo] historial limpiado", {
+            canal: canal.id,
+            tipo: canal.tipo,
+            persona: quien.persona.id,
+            cuenta: quien.cuentaId,
+            mensajes: hecho.mensajes,
+            avisos: hecho.avisos,
+        });
+
+        return { success: true, data: { canalId: canal.id, mensajes: hecho.mensajes } };
+    } catch (error) {
+        console.error("[chat-equipo] no se pudo limpiar el historial", error);
+        return { success: false, message: "No se pudo limpiar el historial. Inténtalo de nuevo." };
     }
 }
 

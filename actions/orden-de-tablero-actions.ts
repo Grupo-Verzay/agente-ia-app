@@ -78,6 +78,31 @@ async function laColumnaQueSePuedeGuardar(
         return ids.filter((id) => validos.has(id));
     }
 
+    if (tipo === "directos") {
+        // La lista de directos del chat de equipo. El tablero es **la persona
+        // que mira** —cada quien ordena la suya— y por eso el `tableroId` que
+        // llega no decide nada: tiene que ser el suyo. Sin esto, cualquiera le
+        // reordenaría la lista a otro poniendo su id.
+        //
+        // Y la persona es la PERSONA (`laPersonaQueActua`), no la fila
+        // efectiva: dentro de otra cuenta sigue siendo su lista, que es con el
+        // id que la lee `hiloDelEquipoAction`.
+        const { laPersonaQueActua, quienFirma } = await import("@/lib/chat-de-equipo");
+        const persona = laPersonaQueActua(user).id;
+        if (!persona || tableroId !== persona) throw new Error("Tablero no encontrado.");
+
+        // Una lista de fuera no decide qué se guarda: solo pasa la gente de la
+        // familia, que es exactamente la que la lista ofrece.
+        const { laFamiliaDeLaCuenta } = await import("@/lib/familia-de-cuentas");
+        const { laGenteDeLasCuentas } = await import("@/lib/chat-de-equipo-db");
+        const cuenta = quienFirma(user)?.cuentaId;
+        if (!cuenta) throw new Error("No autorizado.");
+        const familia = await laFamiliaDeLaCuenta(cuenta);
+        const gente = await laGenteDeLasCuentas(familia.cuentas);
+        const validos = new Set(gente.map((g) => g.id));
+        return ids.filter((id) => id !== persona && validos.has(id));
+    }
+
     if (tipo === "documentacion") {
         // La vista de tablero de una lista. La puerta es la MISMA con la que se
         // crea y se edita una fila —`accesoAEsteDocumento().puedeEditar`—, y no
