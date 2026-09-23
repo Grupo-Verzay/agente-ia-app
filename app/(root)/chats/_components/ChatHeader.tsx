@@ -4,7 +4,7 @@ import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChats
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CompartirConElEquipo } from "@/components/chat-equipo/CompartirConElEquipo";
-import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, X } from 'lucide-react';
+import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,8 +38,6 @@ import { MenuDeLlamada } from '@/components/chats/MenuDeLlamada';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
-import { MergeLidDialog } from './MergeLidDialog';
-import { deleteLidChat } from '@/actions/merge-lid-contact';
 import { cn } from '@/lib/utils';
 import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
@@ -53,25 +51,6 @@ import { useModuleStore } from '@/stores/modules/useModuleStore';
  * columna de chats, y con los números escritos aquí el día que se afine uno el
  * otro se queda atrás.
  */
-
-// Avisos de "@lid" que el usuario ya cerró, por chat. Muchos contactos usan un
-// WhatsApp sin número visible (cuenta por nombre de usuario) y su @lid no es un
-// duplicado de nadie: no hay con qué unirlo. En esos, el aviso es ruido fijo, así
-// que se puede cerrar y no vuelve a salir EN ESE chat. En los @lid nuevos sí
-// sigue apareciendo, por si alguno sí es un duplicado que conviene unir.
-const LID_AVISO_KEY = 'lid_aviso_oculto_v1';
-function avisosLidOcultos(): Set<string> {
-  if (typeof window === 'undefined') return new Set();
-  try { return new Set(JSON.parse(window.localStorage.getItem(LID_AVISO_KEY) ?? '[]') as string[]); }
-  catch { return new Set(); }
-}
-function ocultarAvisoLid(jid: string): void {
-  try {
-    const s = avisosLidOcultos(); s.add(jid);
-    // Tope generoso: una entrada por chat cerrado, y nada la borra.
-    window.localStorage.setItem(LID_AVISO_KEY, JSON.stringify(Array.from(s).slice(-2000)));
-  } catch {}
-}
 
 const PALETTE = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500'];
 function colorFor(id: string) {
@@ -224,15 +203,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   // «Acciones»: el sexto panel de la fila, y el que da nombre a la altura a la
   // que nacen todos —justo por debajo de su fila, sin taparla—.
   const panelDeAcciones = usePanelFlotante('cabecera', 'menu');
-  const [mergeOpen, setMergeOpen] = useState(false);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
-  const [confirmDeleteLid, setConfirmDeleteLid] = useState(false);
-  const [deletingLid, setDeletingLid] = useState(false);
-  // ¿El aviso de @lid de ESTE chat ya se cerró? Se relee al cambiar de chat.
-  const [avisoLidOculto, setAvisoLidOculto] = useState(false);
-  useEffect(() => {
-    setAvisoLidOculto(!!remoteJid && avisosLidOcultos().has(remoteJid));
-  }, [remoteJid]);
 
   const isAgent = !!advisorRole;
   const isOwnerLike = !advisorRole || advisorRole === 'administrador';
@@ -1006,69 +977,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           Sin sesión CRM sincronizada
         </div>
       )}
-
-      {remoteJid && isLidJid(remoteJid) && !avisoLidOculto && (
-        <div className="flex items-center justify-between gap-2 border-t border-amber-200/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/30 dark:bg-amber-950/20 dark:text-amber-400">
-          {confirmDeleteLid ? (
-            <>
-              <span className="min-w-0">¿Eliminar este chat duplicado? Quedará solo el contacto original.</span>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button size="sm" variant="outline" className="h-7" disabled={deletingLid} onClick={() => setConfirmDeleteLid(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="h-7"
-                  disabled={deletingLid}
-                  onClick={async () => {
-                    setDeletingLid(true);
-                    try {
-                      const res = await deleteLidChat({ lidJid: remoteJid, instanceName });
-                      if (!res.ok) { toast.error(res.error); return; }
-                      toast.success('Chat eliminado.');
-                      setTimeout(() => window.location.reload(), 700);
-                    } catch {
-                      toast.error('No se pudo eliminar. Intenta de nuevo.');
-                    } finally {
-                      setDeletingLid(false);
-                    }
-                  }}
-                >
-                  {deletingLid ? 'Eliminando…' : 'Sí, eliminar'}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="min-w-0">
-                Este chat usa un ID interno de WhatsApp. Si es un contacto duplicado, únelo con el real.
-              </span>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button size="sm" variant="outline" className="h-7" onClick={() => setMergeOpen(true)}>
-                  Unir contacto
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => setConfirmDeleteLid(true)}>
-                  Eliminar
-                </Button>
-                {/* Cerrar el aviso: este contacto no tiene número real y no hay
-                    nada que unir. No vuelve a salir en este chat. */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 shrink-0 text-amber-700 hover:text-amber-900 dark:text-amber-400"
-                  title="Ocultar este aviso"
-                  onClick={() => { if (remoteJid) { ocultarAvisoLid(remoteJid); setAvisoLidOculto(true); } }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <MergeLidDialog open={mergeOpen} onOpenChange={setMergeOpen} lidJid={remoteJid ?? ''} instanceName={instanceName} />
 
       {/* Compartir con el equipo.
         *
