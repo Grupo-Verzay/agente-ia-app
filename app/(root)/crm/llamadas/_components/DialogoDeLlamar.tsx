@@ -13,6 +13,9 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { SelectorDeVia } from "@/components/shared/SelectorDeVia";
+import { cuentasParaLlamarAction } from "@/actions/cuentas-para-llamar-actions";
+import { laOpcionPorDefecto, type OpcionDeLlamada } from "@/lib/cuentas-para-llamar";
 
 /**
  * El botón «Llamar» de la barra de CRM › Llamadas, y su ventana.
@@ -56,6 +59,18 @@ import {
  * Cerrar **no cambia qué llamada sale** —la regla de arriba sigue en pie, este
  * componente solo dispara lo que le pasan— y del lado de la IA el aviso no se
  * pierde: `startBotDial` lo cuenta con su `toast`.
+ *
+ * # Y el «Vía:» dice por qué cuenta sale
+ *
+ * El mismo mando que «Nuevo mensaje» de Chats (`SelectorDeVia`), con las
+ * cuentas que quien mira alcanza —la suya y las de abajo— y la suya elegida al
+ * abrir. Lo que se le pasa a `alLlamar`/`alLlamarConIa` es la LÍNEA de esa
+ * cuenta (`null` para la propia), y de ahí el servidor saca número, créditos y
+ * registro por el camino de siempre. Ver `lib/cuentas-para-llamar.ts`.
+ *
+ * Se piden al ABRIR, no en cada carga de la pantalla: el diálogo casi nunca se
+ * abre y la lista cuesta tres consultas. Si falla, se llama con la propia —lo
+ * que se hacía antes— y se dice.
  */
 export function DialogoDeLlamar({
     numero,
@@ -66,34 +81,61 @@ export function DialogoDeLlamar({
 }: {
     numero: string;
     alEscribir: (valor: string) => void;
-    alLlamar: () => void;
-    alLlamarConIa: () => void;
+    alLlamar: (instanceName: string | null) => void;
+    alLlamarConIa: (instanceName: string | null) => void;
     llamandoConIa: boolean;
 }) {
     const [abierto, setAbierto] = useState(false);
+    const [opciones, setOpciones] = useState<OpcionDeLlamada[]>([]);
+    const [via, setVia] = useState("");
+    const [avisoCuentas, setAvisoCuentas] = useState<string | null>(null);
+
+    const abrir = () => {
+        setAbierto(true);
+        void cuentasParaLlamarAction()
+            .then((r) => {
+                if (!r.success) {
+                    setAvisoCuentas(r.message);
+                    return;
+                }
+                setAvisoCuentas(null);
+                setOpciones(r.opciones);
+                // La propia, cada vez que se abre: la elección de la vez
+                // anterior no puede quedarse puesta sin que nadie la vea.
+                setVia(laOpcionPorDefecto(r.opciones));
+            })
+            .catch((error) => {
+                console.warn("[llamadas] no se pudieron cargar las cuentas para llamar", error);
+                setAvisoCuentas("No se pudieron cargar las cuentas; se llama con la tuya.");
+            });
+    };
+
+    const elegida = opciones.find((o) => o.id === via) ?? null;
+    const linea = elegida?.instanceName ?? null;
+    const viaNoSirve = Boolean(elegida?.motivo);
 
     // El mismo criterio de siempre: sin seis dígitos no hay número al que
     // llamar, así que los dos botones se apagan a la vez.
     const digitos = numero.replace(/\D/g, "");
-    const sinNumero = digitos.length < 6;
+    const sinNumero = digitos.length < 6 || viaNoSirve;
 
     // Llamar CIERRA la ventana: el velo de Radix se traga las pulsaciones de
     // todo lo que hay debajo, y debajo está la tarjeta flotante de la llamada
     // que se acaba de abrir. Ver la explicación de arriba.
     const llamar = () => {
         setAbierto(false);
-        alLlamar();
+        alLlamar(linea);
     };
     const llamarConIa = () => {
         setAbierto(false);
-        alLlamarConIa();
+        alLlamarConIa(linea);
     };
 
     return (
         <>
             <Button
                 data-boton="abrir-llamar"
-                onClick={() => setAbierto(true)}
+                onClick={abrir}
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white"
             >
@@ -106,6 +148,23 @@ export function DialogoDeLlamar({
                         <DialogTitle>Llamar</DialogTitle>
                     </DialogHeader>
                     <div className="flex flex-col gap-4 py-2">
+                        <SelectorDeVia
+                            opciones={opciones.map((o) => ({
+                                id: o.id,
+                                etiqueta: o.nombre,
+                                deshabilitada: Boolean(o.motivo),
+                                motivo: o.motivo,
+                            }))}
+                            valor={via}
+                            alCambiar={setVia}
+                            vacio="Seleccionar cuenta"
+                        />
+                        {elegida?.motivo && (
+                            <p data-aviso="via" className="text-xs text-amber-600">
+                                {elegida.nombre}: {elegida.motivo.toLowerCase()}. Vincúlalo en Conexión de esa cuenta.
+                            </p>
+                        )}
+                        {avisoCuentas && <p className="text-xs text-amber-600">{avisoCuentas}</p>}
                         <div className="flex flex-col gap-1.5">
                             <Label htmlFor="llamar-numero">Número de WhatsApp</Label>
                             <Input

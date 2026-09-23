@@ -228,13 +228,16 @@ export function CallsCrmClient({
 
   const [botDialing, setBotDialing] = useState(false);
   const dialDigits = dialNumber.replace(/\D/g, '');
-  const startDial = () => {
-    if (dialDigits.length >= 6) abrirLlamadaAqui({ phone: dialDigits });
+  // `linea` es la de la cuenta elegida en el «Vía:» del diálogo, o `null` para
+  // la propia: de ella salen número, créditos y registro
+  // (`laCuentaDeLaLlamada`), igual que al llamar desde una conversación.
+  const startDial = (linea: string | null) => {
+    if (dialDigits.length >= 6) abrirLlamadaAqui({ phone: dialDigits, instanceName: linea ?? undefined });
   };
-  const startBotDial = async () => {
+  const startBotDial = async (linea: string | null) => {
     if (dialDigits.length < 6 || botDialing) return;
     setBotDialing(true);
-    const res = await startBotCallAction(dialDigits);
+    const res = await startBotCallAction(dialDigits, linea);
     setBotDialing(false);
     if (res.success) toast.success('El asistente de voz IA está llamando…');
     else toast.error(res.message ?? 'No se pudo iniciar la llamada con IA.');
@@ -521,7 +524,7 @@ export function CallsCrmClient({
             numero={dialNumber}
             alEscribir={setDialNumber}
             alLlamar={startDial}
-            alLlamarConIa={() => void startBotDial()}
+            alLlamarConIa={(linea) => void startBotDial(linea)}
             llamandoConIa={botDialing}
           />
         }

@@ -16253,3 +16253,36 @@ de Ventas, se registra y se cobra en Ventas, y aparece en el CRM de Ventas;
 desde Pruebas —sin número— no se llama; y una hija no llama desde la línea de
 su madre. Corre dos veces, y la segunda empaqueta el mismo fichero contra un
 commit pinchado (`ANTES_REF`) y **afirma** los fallos.
+
+### Y el marcador de CRM › Llamadas elige la cuenta con un «Vía:»
+
+El diálogo de Llamar solo pedía el número, así que desde el marcador la llamada
+salía **siempre** por la cuenta de quien mira. Ahora lleva el mismo «Vía:» que
+«Nuevo mensaje» de Chats (`components/shared/SelectorDeVia.tsx`, que usan los
+dos) con las cuentas que esa persona alcanza, y la suya preseleccionada. Vale
+para Llamar y para Llamar IA.
+
+> **No hay un camino de llamada nuevo.** Elegir una cuenta es pasarle **su línea
+> por QR** a las dos llamadas de siempre, y de ahí `laCuentaDeLaLlamada` saca
+> número, créditos y registro, con su `assertCanAccessTargetUser` delante. Lo
+> decide `lib/cuentas-para-llamar.ts` (puro) y lo alimenta
+> `cuentasParaLlamarAction`.
+
+Cuatro cosas que hay que mantener:
+
+1. **El alcance es el del filtro del CRM** (`resolverLasCuentasDelCrm`): la
+   propia y lo de abajo; un `agente`, solo la suya. La lista solo decide qué se
+   OFRECE; la puerta sigue en el servidor, que rechaza una línea de arriba o de
+   una hermana aunque llegue a mano.
+2. **La propia va SIN línea**, que es lo que el marcador hacía antes: elegirla no
+   cambia nada, ni para una cuenta con número y sin línea por QR.
+3. **Lo que no puede llamar se enseña apagado y dice por qué**: sin número de
+   llamadas, o —una de abajo— sin línea por QR, que es por donde se enruta.
+4. **Al reabrir vuelve la propia.** Una elección de la vez anterior que se queda
+   puesta sin que nadie la vea es una llamada por otra cuenta sin querer.
+
+Lo prueba `scripts/banco-llamar-por-cuenta.sh`: contra Postgres, con las
+acciones de verdad, qué ve la madre, una hija y un agente y que Llamar y Llamar
+IA por la elegida salen con su número, se registran en ella y le cobran a ella;
+y en Chromium, el diálogo real. `MODO=roto` monta el diálogo de `ANTES_REF` y
+afirma el fallo: sin «Vía:» y llamando sin cuenta.

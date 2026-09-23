@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Loader2, Send, Phone, ChevronDown, Check, MessageCircleMore, Workflow } from 'lucide-react';
+import { Loader2, Send, Phone, Check, MessageCircleMore, Workflow } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { TemplatePickerDialog } from './TemplatePickerDialog';
 import { sendMetaTemplate, type MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { telefonoParaMostrar } from '@/lib/telefono-visible';
 import { atajosDeLaConversacion } from '@/lib/atajos-de-la-linea';
+import { SelectorDeVia } from '@/components/shared/SelectorDeVia';
 
 type Instancia = {
   instanceName: string;
@@ -65,7 +66,6 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
   const [sendingQuickReplyId, setSendingQuickReplyId] = React.useState<number | null>(null);
   const [sendingWorkflowId, setSendingWorkflowId] = React.useState<string | null>(null);
   const [contactOpen, setContactOpen] = React.useState(false);
-  const [instanceOpen, setInstanceOpen] = React.useState(false);
 
   const sendableInstanceNames = React.useMemo(
     () => new Set(instanceActionSets.map((s) => s.instanceName)),
@@ -115,9 +115,6 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
       metaChannel: inst.metaChannel,
     });
   };
-  const instanceLabel = selectedInstance
-    ? getInstanceLabel(selectedInstance)
-    : 'Seleccionar bandeja';
 
   const selectedActionSet = instanceActionSets.find((s) => s.instanceName === selectedInstanceName);
   // Solo los atajos de la cuenta de la línea elegida. Sin cuenta conocida,
@@ -250,7 +247,6 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     setSendingQuickReplyId(null);
     setSendingWorkflowId(null);
     setContactOpen(false);
-    setInstanceOpen(false);
     onClose();
   };
 
@@ -395,52 +391,18 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
             </div>
           </div>
 
-          {/* Vía: */}
+          {/* Vía: el mismo mando que el diálogo de Llamar de CRM › Llamadas. */}
           {whatsappInstancias.length > 0 && (
-            <div className="flex items-center gap-3 px-5 py-3">
-              <span className="w-10 shrink-0 text-sm text-muted-foreground">Vía:</span>
-              {whatsappInstancias.length === 1 ? (
-                <span className="text-sm text-muted-foreground">{instanceLabel}</span>
-              ) : (
-                <Popover open={instanceOpen} onOpenChange={setInstanceOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <span>
-                        {selectedInstance
-                          ? getInstanceLabel(selectedInstance)
-                          : 'Seleccionar bandeja'}
-                      </span>
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-1" align="start">
-                    {whatsappInstancias.map((inst, idx) => {
-                      const label = getInstanceLabel(inst);
-                      const isActive = inst.instanceName === selectedInstanceName;
-                      return (
-                        <button
-                          key={inst.instanceName}
-                          type="button"
-                          className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent ${isActive ? 'bg-accent/60 font-medium' : ''}`}
-                          onClick={() => {
-                            setSelectedInstanceName(inst.instanceName);
-                            setInstanceOpen(false);
-                          }}
-                        >
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold">
-                            {idx + 1}
-                          </span>
-                          <span className="truncate">{label}</span>
-                          {isActive && <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />}
-                        </button>
-                      );
-                    })}
-                  </PopoverContent>
-                </Popover>
-              )}
+            <div className="px-5 py-3">
+              <SelectorDeVia
+                opciones={whatsappInstancias.map((inst) => ({
+                  id: inst.instanceName,
+                  etiqueta: getInstanceLabel(inst),
+                }))}
+                valor={selectedInstanceName}
+                alCambiar={setSelectedInstanceName}
+                vacio="Seleccionar bandeja"
+              />
             </div>
           )}
 

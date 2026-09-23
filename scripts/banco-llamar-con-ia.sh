@@ -175,6 +175,7 @@ npx esbuild "$ENTRY_BARRA" --bundle --format=esm \
   --outfile=lib/__tests__/.compilado/harness-barra-de-llamadas.js \
   --alias:@="$(pwd)" \
   --alias:@/components/chats/AnfitrionDeLlamada=./lib/__tests__/fingido/anfitrion-mudo.ts \
+  --alias:@/actions/cuentas-para-llamar-actions=./lib/__tests__/fingido/cuentas-para-llamar-de-mentira.ts \
   --alias:sonner=./lib/__tests__/fingido/sonner-mudo.ts \
   --loader:.tsx=tsx --jsx=automatic \
   --define:process.env.NODE_ENV='"production"' --log-level=error
