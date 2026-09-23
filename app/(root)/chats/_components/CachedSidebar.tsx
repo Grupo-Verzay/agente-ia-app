@@ -9,6 +9,7 @@ import { TagFilterPanel } from "./TagFilterPanel";
 import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
 import { cn } from "@/lib/utils";
 import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2 } from "@/lib/cabeceras-de-chats";
+import { LISTA_DE_CHATS } from "@/lib/lista-de-chats";
 import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import type { TabCounts } from "./chat-sidebar.types";
 import {
@@ -143,7 +144,7 @@ export function CachedSidebar() {
         </div>
 
         {/* Lista de chats (desde caché) — misma disposición que ChatContactItem */}
-        <div className="flex-1 overflow-y-auto p-1">
+        <div className={LISTA_DE_CHATS}>
           {!rows || rows.length === 0 ? (
             <SkeletonRows />
           ) : (
