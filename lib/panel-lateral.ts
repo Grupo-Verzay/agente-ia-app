@@ -135,6 +135,61 @@ export function avisarDelPanelLateral(instancia: string, abierto: boolean): void
 }
 
 /**
+ * ¿Hay otro panel lateral abierto que no sea esta instancia?
+ *
+ * Es lo que distingue ABRIR de RELEVAR: con la franja vacía, el panel entra
+ * deslizándose; con otro ya puesto, lo sustituye en su sitio (ver
+ * `comoSeMueveLaHoja`).
+ */
+export function hayOtroPanelAbierto(instancia: string): boolean {
+    for (const otra of abiertos) if (otra !== instancia) return true;
+    return false;
+}
+
+/**
+ * Cómo se mueve la hoja en este cambio. **Dos respuestas y ninguna más.**
+ *
+ * - `desliza`: la franja estaba vacía (o se queda vacía): entra de derecha a
+ *   izquierda, o sale de izquierda a derecha, en `MS_DEL_DESLIZAMIENTO` y con
+ *   la curva de `HOJA_DEL_PANEL`.
+ * - `relevo`: otro panel ocupa ya la franja y este lo SUSTITUYE, o este se va
+ *   porque otro lo sustituye. Sin transición: el que entra aparece ya puesto y
+ *   el que sale desaparece en el mismo fotograma.
+ *
+ * # Por qué el relevo no anima
+ *
+ * Con los dos animando, el que sale se desliza hacia fuera mientras el que
+ * entra se desliza hacia dentro en el mismo sitio: la franja se «vacía» y se
+ * «llena» a la vez, y eso es exactamente el reinicio y el tirón que se viene a
+ * quitar. Un relevo tiene que leerse como UN contenedor que cambia de
+ * contenido. La conversación no se mueve en ningún caso: el registro de
+ * `abiertos` mantiene la franja reservada durante el relevo.
+ */
+export type MovimientoDeLaHoja = "desliza" | "relevo";
+
+export function comoSeMueveLaHoja({
+    abriendo,
+    hayOtroAbierto,
+    loCierraOtro,
+}: {
+    /** `true` al abrirse; `false` al cerrarse. */
+    abriendo: boolean;
+    /** Al abrirse: si otro panel ocupaba ya la franja. */
+    hayOtroAbierto: boolean;
+    /** Al cerrarse: si lo cierra la exclusión porque se abrió otro. */
+    loCierraOtro: boolean;
+}): MovimientoDeLaHoja {
+    if (abriendo) return hayOtroAbierto ? "relevo" : "desliza";
+    return loCierraOtro ? "relevo" : "desliza";
+}
+
+/**
+ * La clase que apaga la transición de la hoja durante un relevo. Va DESPUÉS de
+ * las clases de la hoja en un `cn()`: `tailwind-merge` deja la última.
+ */
+export const HOJA_SIN_TRANSICION = "transition-none";
+
+/**
  * El aviso con el que un panel lateral dice que acaba de abrirse.
  *
  * Los cinco viven **en el mismo sitio** —la franja de la derecha—, así que dos
@@ -165,13 +220,12 @@ export const PANEL_DEL_CONTEXTO = "panel-contexto-del-lead";
 export const PANEL_DEL_RECORDATORIO = "panel-crear-recordatorio";
 export const PANEL_DE_LA_TAREA = "panel-nueva-tarea";
 /**
- * La ficha de Contacto. **No es un panel del portal**: es un hermano del flex
- * de Chats y ya ocupa su sitio al abrirse, así que entra en la exclusión pero
- * NO reserva la franja (ver `usePanelLateral`, opción `reservar`).
+ * La ficha de Contacto. Es un `PanelLateral` como los demás: misma franja,
+ * mismo deslizamiento, misma exclusión y reserva la franja igual.
  *
- * Fuera de la exclusión quedaba abierta debajo de un panel, y la regla que la
- * superponía la sacaba a la IZQUIERDA de la conversación: dos paneles apilados
- * tapándola, uno a cada lado.
+ * Fue un hermano del flex de Chats que se montaba y desmontaba de golpe —sin
+ * deslizarse, empujando la conversación en un fotograma— y al alternar con los
+ * otros cinco se notaba el salto.
  */
 export const PANEL_DE_LA_FICHA = "panel-ficha-de-contacto";
 export const PANEL_DE_ENVIAR_AL_EQUIPO = "panel-enviar-al-equipo";

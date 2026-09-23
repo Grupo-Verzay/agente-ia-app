@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
     FRANJA_DEL_PANEL,
     HOJA_DEL_PANEL,
+    HOJA_SIN_TRANSICION,
     MS_DEL_DESLIZAMIENTO,
 } from "@/lib/panel-lateral";
 import { usePanelLateral } from "@/hooks/usePanelLateral";
@@ -88,8 +89,8 @@ export function PanelLateral({
     etiquetaDeCerrar?: string;
     children: ReactNode;
 }) {
-    usePanelLateral(id, abierto, onCerrar);
-    const dentro = useSigueDentro(abierto);
+    const relevo = usePanelLateral(id, abierto, onCerrar);
+    const dentro = useSigueDentro(abierto, relevo);
     const destino = useElBody();
     // Cerrado y ya fuera: ni se ve ni se pulsa. Mientras sale (`dentro` aún en
     // true) sigue visible, o no se vería la animación de salida.
@@ -110,6 +111,7 @@ export function PanelLateral({
                     HOJA_DEL_PANEL,
                     abierto ? "translate-x-0" : "translate-x-full",
                     escondida && "invisible",
+                    relevo && HOJA_SIN_TRANSICION,
                 )}
             >
                 <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
@@ -180,7 +182,7 @@ function useElBody(): HTMLElement | null {
  * como se comportaban estos tres siendo diálogos: un formulario a medias de
  * OTRO chat sería peor que uno en blanco.
  */
-function useSigueDentro(abierto: boolean): boolean {
+function useSigueDentro(abierto: boolean, relevo: boolean): boolean {
     const [dentro, setDentro] = useState(abierto);
 
     useEffect(() => {
@@ -188,8 +190,17 @@ function useSigueDentro(abierto: boolean): boolean {
             setDentro(true);
             return;
         }
+        // En un relevo la hoja se va sin deslizarse: no hay salida que esperar,
+        // y dejarla montada medio segundo sería una hoja fantasma fuera de vista.
+        if (relevo) {
+            setDentro(false);
+            return;
+        }
         const reloj = setTimeout(() => setDentro(false), MS_DEL_DESLIZAMIENTO);
         return () => clearTimeout(reloj);
+        // `relevo` fuera de las dependencias a propósito: vuelve a `false` dos
+        // fotogramas después y eso no tiene que reiniciar el reloj de salida.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [abierto]);
 
     return dentro;

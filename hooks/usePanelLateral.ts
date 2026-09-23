@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { AVISO_DE_PANEL_LATERAL, avisarDelPanelLateral } from "@/lib/panel-lateral";
+import {
+    AVISO_DE_PANEL_LATERAL,
+    avisarDelPanelLateral,
+    comoSeMueveLaHoja,
+    hayOtroPanelAbierto,
+} from "@/lib/panel-lateral";
+
+/** `useLayoutEffect` en el navegador, `useEffect` en el servidor (sin aviso). */
+const useEfectoAntesDePintar = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
  * Lo que todo panel lateral hace igual: reservar la franja y apartar a los demás.
@@ -46,22 +54,60 @@ import { AVISO_DE_PANEL_LATERAL, avisarDelPanelLateral } from "@/lib/panel-later
  * la exclusión es el panel. De ahí sale además lo correcto en las dos puntas:
  * dos instancias del MISMO panel no se cierran entre ellas —son el mismo
  * panel— y cualquier otro sí.
+ *
+ * # Y devuelve si el cambio en curso es un RELEVO
+ *
+ * `true` mientras este panel entra sustituyendo a otro, o sale porque otro lo
+ * sustituye. Quien pinta la hoja le pone entonces `HOJA_SIN_TRANSICION`: al
+ * alternar entre paneles tiene que sentirse un mismo contenedor que cambia de
+ * contenido, no uno que se va y otro que llega. Ver `comoSeMueveLaHoja`.
  */
 export function usePanelLateral(
     id: string,
     abierto: boolean,
     cerrar: () => void,
     /**
-     * `false` solo para la ficha de Contacto: es un hermano del flex y ya ocupa
-     * su sitio, así que reservar además la franja le quitaría a la
-     * conversación el doble de ancho. Entra en la EXCLUSIÓN igual que los
-     * demás — que es lo que impide dos paneles apilados.
+     * `false` para un panel que ya ocupe su sitio en el flujo: reservar además
+     * la franja le quitaría a la conversación el doble de ancho. Hoy no lo usa
+     * nadie —la ficha de Contacto pasó a ser un `PanelLateral`— y se deja por
+     * si vuelve a hacer falta.
      */
     { reservar = true }: { reservar?: boolean } = {},
-): void {
+): boolean {
     const instancia = useId();
     const cerrarRef = useRef(cerrar);
     cerrarRef.current = cerrar;
+    const [relevo, setRelevo] = useState(false);
+
+    /* Abrir mientras otro ocupa la franja es un RELEVO: sin deslizamiento.
+       Va ANTES de pintar (layout) y antes de que este panel se registre, así
+       que el otro sigue apuntado y la re-pintada sin transición llega antes de
+       que el navegador calcule ningún estilo: la hoja aparece ya puesta. */
+    useEfectoAntesDePintar(() => {
+        if (!abierto) return;
+        const movimiento = comoSeMueveLaHoja({
+            abriendo: true,
+            hayOtroAbierto: hayOtroPanelAbierto(instancia),
+            loCierraOtro: false,
+        });
+        if (movimiento === "relevo") setRelevo(true);
+    }, [abierto, instancia]);
+
+    /* El relevo dura UN cambio. Pasados dos fotogramas —el estilo sin
+       transición ya se aplicó— se devuelve la transición, para que el cierre
+       siguiente, si es normal, vuelva a deslizarse. Devolverla con la hoja ya
+       quieta no anima nada. */
+    useEffect(() => {
+        if (!relevo || typeof window === "undefined") return;
+        let segundo = 0;
+        const primero = requestAnimationFrame(() => {
+            segundo = requestAnimationFrame(() => setRelevo(false));
+        });
+        return () => {
+            cancelAnimationFrame(primero);
+            cancelAnimationFrame(segundo);
+        };
+    }, [relevo]);
 
     useEffect(() => {
         if (!reservar) return;
@@ -71,16 +117,27 @@ export function usePanelLateral(
         return () => avisarDelPanelLateral(instancia, false);
     }, [instancia, abierto, reservar]);
 
-    useEffect(() => {
+    /* También ANTES de pintar: así el que se va se cierra en el mismo
+       fotograma en que entra este, y no queda ni uno con los dos encima. */
+    useEfectoAntesDePintar(() => {
         if (!abierto || typeof window === "undefined") return;
 
         window.dispatchEvent(new CustomEvent(AVISO_DE_PANEL_LATERAL, { detail: id }));
 
         const alAbrirseOtro = (evento: Event) => {
             const quien = (evento as CustomEvent<string>).detail;
-            if (quien !== id) cerrarRef.current();
+            if (quien === id) return;
+            // Lo cierra la exclusión porque entra otro: se va SIN deslizarse,
+            // en el mismo render que su cierre (las dos actualizaciones van
+            // juntas), para que el que entra lo sustituya en su sitio.
+            if (comoSeMueveLaHoja({ abriendo: false, hayOtroAbierto: true, loCierraOtro: true }) === "relevo") {
+                setRelevo(true);
+            }
+            cerrarRef.current();
         };
         window.addEventListener(AVISO_DE_PANEL_LATERAL, alAbrirseOtro);
         return () => window.removeEventListener(AVISO_DE_PANEL_LATERAL, alAbrirseOtro);
     }, [id, abierto]);
+
+    return relevo;
 }
