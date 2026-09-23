@@ -123,9 +123,9 @@ type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
  * un botón lo baja a 14— y con otro grosor aparente: al pasar de Leads a
  * Llamadas se notaba el salto. Con los mismos componentes no puede notarse.
  *
- * Lo único que cambia respecto a Leads es la alineación: aquí el contenido va
- * a la izquierda, así que el rótulo también (`justify-start`, `px-0` para que
- * el texto arranque en el mismo píxel que la celda de debajo).
+ * Y los rótulos van CENTRADOS, como en Leads (`justify-center`), aunque el
+ * contenido de casi todas las columnas vaya a la izquierda: la cabecera se lee
+ * como una fila de títulos, y el contenido como filas que se comparan.
  */
 const CELDA_DE_CABECERA = 'py-2 px-2 font-medium text-muted-foreground';
 const ROTULO_DE_CABECERA = 'text-sm font-medium text-muted-foreground';
@@ -146,7 +146,7 @@ function Th({
   if (!sortKey) {
     return (
       <TableHead className={cn(CELDA_DE_CABECERA, className)}>
-        <div className={cn('w-full text-left', ROTULO_DE_CABECERA)}>{label}</div>
+        <div className={cn('w-full text-center', ROTULO_DE_CABECERA)}>{label}</div>
       </TableHead>
     );
   }
@@ -157,7 +157,7 @@ function Th({
         variant="ghost"
         onClick={() => onSort(sortKey)}
         className={cn(
-          'w-full justify-start px-0 hover:text-foreground',
+          'w-full justify-center px-0 hover:text-foreground',
           ROTULO_DE_CABECERA,
           active && 'text-foreground',
         )}
@@ -170,6 +170,15 @@ function Th({
 
 /** Acciones, pegada al borde derecho: si la tabla se desplaza, ella no. */
 const ACCIONES_PEGADAS = 'sticky right-0 bg-card';
+
+/*
+ * El nombre, la fecha y el detalle en negrilla y en el color del texto —no en
+ * gris—, como se leen en Leads. Eran `text-muted-foreground` y la fila parecía
+ * apagada al lado de la de Leads. Mismo grosor que el número de WhatsApp de al
+ * lado (`font-medium`). Lo que es un hueco —«Poner nombre», «Sin detalle»— se
+ * queda en gris y cursiva: no es un dato.
+ */
+const TEXTO_DE_LA_FILA = 'font-medium text-foreground';
 
 const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
   day: '2-digit',
@@ -600,7 +609,7 @@ export function CallsCrmClient({
             </div>
           ) : (
             /*
-              Las columnas son las de Leads y ninguna más: Contacto, Nombre,
+              Las columnas son las de Leads y ninguna más: WhatsApp, Nombre,
               Duración, Fecha, Detalle, Resultado y Acciones. «Tipo» decía
               siempre «Saliente» y «Estado» era un segundo mando del estado del
               lead, que se cambia en Leads.
@@ -631,7 +640,7 @@ export function CallsCrmClient({
               <table data-tabla-de-llamadas className="w-full table-auto text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} />
+                    <Th label="WhatsApp" sortKey="contacto" sort={sort} onSort={toggleSort} />
                     <Th label="Nombre" sortKey="nombre" sort={sort} onSort={toggleSort} />
                     <Th label="Duración" sortKey="duracion" sort={sort} onSort={toggleSort} />
                     <Th label="Fecha" sortKey="fecha" sort={sort} onSort={toggleSort} />
@@ -899,7 +908,7 @@ function ContactNameCell({
         // `max-w-[10rem]`: en una tabla automática el ancho mínimo de la
         // columna es el de su contenido, y un nombre largo la ensancharía.
         'block max-w-[10rem] truncate rounded text-left transition-colors hover:bg-muted disabled:opacity-60',
-        name ? 'text-muted-foreground hover:text-foreground' : 'italic text-muted-foreground/60 hover:text-foreground',
+        name ? TEXTO_DE_LA_FILA : 'italic text-muted-foreground/60 hover:text-foreground',
       )}
     >
       {name || 'Poner nombre'}
@@ -959,7 +968,7 @@ function CallTableRow({
   return (
     <>
     <tr className="border-b last:border-0 align-top hover:bg-muted/40">
-      {/* Contacto: el número, A LA IZQUIERDA y en azul, que es como lo pinta
+      {/* WhatsApp: el número, A LA IZQUIERDA y en azul, que es como lo pinta
           Leads —misma clase, no una parecida—. Es lo que se pulsa para abrir
           el chat, y centrado no se puede comparar con el de la fila de arriba. */}
       <td className="px-2 py-2 text-left whitespace-nowrap">
@@ -983,7 +992,7 @@ function CallTableRow({
       <td className="px-2 py-2 text-left">
         <div className="flex min-w-0 items-center gap-1.5">
           {ajena ? (
-            name ? <p className="max-w-[10rem] truncate text-muted-foreground">{name}</p> : <span className="text-muted-foreground">—</span>
+            name ? <p className={cn('max-w-[10rem] truncate', TEXTO_DE_LA_FILA)}>{name}</p> : <span className="text-muted-foreground">—</span>
           ) : (
             <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
           )}
@@ -995,10 +1004,10 @@ function CallTableRow({
           )}
         </div>
       </td>
-      {/* Duración */}
-      <td className="px-2 py-2 text-left whitespace-nowrap tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
+      {/* Duración: centrada, que es un número corto de ancho fijo. */}
+      <td className="px-2 py-2 text-center whitespace-nowrap tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
       {/* Fecha */}
-      <td className="px-2 py-2 text-left whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
+      <td className={cn('px-2 py-2 text-left whitespace-nowrap', TEXTO_DE_LA_FILA)}>{DATE_FMT.format(new Date(call.ts))}</td>
       {/* Detalle: botón clicable que abre el detalle completo (como en Registros) */}
       {/* `w-full max-w-0`: Detalle se lleva lo que sobra y su texto no empuja
           la tabla (ver arriba). */}
@@ -1013,7 +1022,7 @@ function CallTableRow({
             className={cn(
               'block truncate text-sm',
               sintesis
-                ? 'text-muted-foreground hover:text-foreground'
+                ? TEXTO_DE_LA_FILA
                 : 'italic text-muted-foreground/60 hover:text-foreground',
             )}
           >
@@ -1065,9 +1074,10 @@ function CallTableRow({
         </DropdownMenu>
         )}
       </td>
-      {/* Acciones: pegada al borde derecho, nunca se corta. */}
-      <td className={cn('px-2 py-2 text-left', ACCIONES_PEGADAS)}>
-        <div className="flex justify-start">
+      {/* Acciones: pegada al borde derecho, nunca se corta, y el menú
+          centrado en su columna, debajo de su rótulo. */}
+      <td className={cn('px-2 py-2 text-center', ACCIONES_PEGADAS)}>
+        <div className="flex justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acciones">

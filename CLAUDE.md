@@ -16460,6 +16460,33 @@ antes>`: lo **mueve** a `.next` —con un enlace simbólico el servidor no resue
 `node_modules`— y afirma los cuatro fallos; el hueco solo sale con un Detalle
 CORTO («Sin detalle»), así que se mide en todas las filas y no en la primera.
 
+## Llamadas: rótulos centrados, contenido alineado, y lo que se lee en negrilla
+
+Cuarta vuelta de alinear CRM › Llamadas con Leads, y es solo presentación:
+
+| | cómo va |
+| --- | --- |
+| encabezados | **centrados**, con el estilo que ya tenían (el de Leads: 14 px, 500, gris). El primero dice **«WhatsApp»**, no «Contacto» |
+| WhatsApp, Nombre, Fecha, Detalle, Resultado | a la **izquierda** |
+| Duración | **centrada** |
+| Acciones | el menú **centrado** en su columna |
+| nombre, fecha, detalle | en **negrilla** (`font-medium`, el grosor del número de al lado) y en el **color del texto**, no en gris |
+
+Tres cosas que hay que mantener:
+
+1. **El rótulo centrado y el contenido a la izquierda no se contradicen.** La
+   cabecera se lee como una fila de títulos; el contenido como filas que se
+   comparan, y eso pide un borde común.
+2. **Lo que es un hueco se queda en gris y cursiva**: «Poner nombre» y «Sin
+   detalle» no son datos, y en negrilla se leerían como uno.
+3. **El CSV no cambia**: su cabecera sigue diciendo «Contacto» porque es lógica
+   de datos, no la tabla.
+
+Lo prueba `scripts/banco-alineacion-de-llamadas.sh`, en Chromium sobre el CSS
+del build y con el `CallsCrmClient` real, a 1440, 1280 y 1024. `MODO=roto`
+pinta la tabla de `ANTES_REF` y afirma el fallo. `probar-cabecera-de-llamadas`
+deja fuera de su «todo a la izquierda» a Duración y Acciones.
+
 ## Llamadas: la cuenta es «● Ventas» junto al nombre, no una columna
 
 Consolidando, CRM › Llamadas abría con una columna «Cuenta» —la primera— con el
