@@ -5,7 +5,7 @@
 # Tres mitades:
 #
 #   1. Un BARRIDO del código real: la ficha de Contacto entra en la exclusión
-#      (`usePanelLateral(PANEL_DE_LA_FICHA, …, { reservar: false })`), «Enviar
+#      (hoy es un `PanelLateral` con `PANEL_DE_LA_FICHA`), «Enviar
 #      al equipo» es un `PanelLateral` y no un `Dialog`, y ya no existe la regla
 #      de CSS que ponía la ficha ENCIMA de la conversación —a su izquierda—
 #      cuando había un panel abierto.
@@ -94,10 +94,17 @@ function Menu({ id, primitiva, marca }: { id: string; primitiva: "menu" | "popov
     );
 }
 
-/** La ficha: un hermano del flex, como en `chat-main`. En el modo roto va sin
- *  la exclusión, que es como estaba (el barrido lo comprueba en el fichero). */
+/** La ficha. Hoy es un `PanelLateral` más, como en `ContactInfoPanel`. En el
+ *  modo roto es lo que era: un hermano del flex, sin la exclusión. */
 function Ficha({ abierta, cerrar }: { abierta: boolean; cerrar: () => void }) {
-    if (!ROTO) (usePanelLateral as any)(FICHA, abierta, cerrar, { reservar: false });
+    if (!ROTO) {
+        return (
+            <PanelLateral id={FICHA} abierto={abierta} onCerrar={cerrar} titulo="Contacto">
+                <div data-ficha-de-contacto className="p-4">Contacto</div>
+            </PanelLateral>
+        );
+    }
+    void usePanelLateral;
     if (!abierta) return null;
     return <aside data-ficha-de-contacto className="w-[var(--ancho-lateral)] shrink-0 border-l">Contacto</aside>;
 }

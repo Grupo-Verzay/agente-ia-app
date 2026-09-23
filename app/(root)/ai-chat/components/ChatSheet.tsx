@@ -8,6 +8,7 @@ import {
     FRANJA_LATERAL_MOVIL,
     HOJA_LATERAL,
     HOJA_LATERAL_MOVIL,
+    HOJA_SIN_TRANSICION,
     PANEL_DEL_COPILOTO,
 } from "@/lib/panel-lateral";
 import { usePanelLateral } from "@/hooks/usePanelLateral";
@@ -41,7 +42,8 @@ export function ChatSheet({
     // Y el mismo hook aparta a los demás paneles de la franja. Antes eran dos
     // y la exclusión estaba escrita a mano en `BotonesDelBorde`; con cinco, esa
     // cuenta se olvida.
-    usePanelLateral(PANEL_DEL_COPILOTO, open, () => onOpenChange(false));
+    const relevo = usePanelLateral(PANEL_DEL_COPILOTO, open, () => onOpenChange(false));
+    const movimiento = cn(open ? "translate-x-0" : "translate-x-full", relevo && HOJA_SIN_TRANSICION);
 
     return (
         <>
@@ -51,7 +53,7 @@ export function ChatSheet({
                     moduleLabel={ctx.moduleLabel ?? "Seccion actual"}
                     resolvedMode={ctx.resolvedCopilotMode ?? "general"}
                     onClose={() => onOpenChange(false)}
-                    className={open ? "translate-x-0" : "translate-x-full"}
+                    className={movimiento}
                 />
             </div>
 
@@ -62,7 +64,7 @@ export function ChatSheet({
                     moduleLabel={ctx.moduleLabel ?? "Seccion actual"}
                     resolvedMode={ctx.resolvedCopilotMode ?? "general"}
                     onClose={() => onOpenChange(false)}
-                    className={open ? "translate-x-0" : "translate-x-full"}
+                    className={movimiento}
                 />
             </div>
         </>

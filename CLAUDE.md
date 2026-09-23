@@ -15572,6 +15572,51 @@ sí se hizo es lo que de verdad prueba que un banco mira: **quitarle el arreglo
 al modo bueno y ver que se pone en rojo** — se rompió la exclusión de
 `usePanelLateral` y cayó por el caso que tenía que caer.
 
+## Chats: los paneles laterales se mueven IGUAL, y un cambio es un RELEVO
+
+La ficha de Contacto entraba «empujada y frenada de golpe» mientras notas,
+recordatorio, tarea, contexto, copiloto y equipo se deslizaban; y al alternar
+entre dos paneles se sentía un salto. Eran dos fallos:
+
+| lo que se veía | lo que era |
+| --- | --- |
+| la ficha aparece de golpe y la conversación se encoge en un fotograma | era un **hermano del flex** montado con `{infoPanelOpen && session && …}`: sin hoja que deslizar y sin fotograma de salida |
+| al cambiar de un panel a otro, un reinicio | el que salía se deslizaba hacia fuera y el que entraba hacia dentro, **en el mismo sitio y a la vez** |
+
+> **La ficha es un `PanelLateral`** (`ContactInfoPanel`, con
+> `PANEL_DE_LA_FICHA`), montado siempre desde `chat-main`: misma franja, mismo
+> ancho (`--ancho-lateral`), mismo anclaje (derecha, bajo la barra), misma
+> duración y curva, y reserva la franja como los demás, así que la
+> conversación se acomoda con la misma transición. Su cuerpo
+> (`FichaDeContacto`) trae sus consultas y es perezoso, como antes.
+
+> **Un cambio entre paneles es un RELEVO, sin transición.** Lo decide
+> `comoSeMueveLaHoja` (`lib/panel-lateral.ts`, puro): con la franja vacía,
+> `desliza`; con otro ya puesto, `relevo`. `usePanelLateral` lo devuelve y los
+> tres marcos de hoja —`PanelLateral`, `ChatSheet` y `PanelDeEquipo`— ponen
+> `HOJA_SIN_TRANSICION`: el que entra aparece ya en su sitio y el que sale
+> desaparece en el mismo fotograma. La conversación no se mueve porque el
+> registro mantiene la franja reservada.
+
+Cuatro cosas que hay que mantener:
+
+1. **Todo va ANTES de pintar** (`useLayoutEffect`): la comprobación de si hay
+   otro abierto —antes de registrarse— y el aviso de exclusión. Con
+   `useEffect` hay un fotograma con los dos paneles encima o con el nuevo ya
+   deslizándose.
+2. **El relevo dura UN cambio**: dos fotogramas después se devuelve la
+   transición, para que el cierre siguiente se deslice.
+3. **En un relevo lo de dentro se desmonta al instante**: no hay salida que
+   esperar.
+4. **Duración y curva viven en `lib/panel-lateral.ts`** y la conversación
+   (`[data-chat-view]` en `globals.css`) las repite: el banco las compara.
+
+Lo prueba `scripts/banco-animacion-de-paneles.sh`: la decisión, un barrido del
+código y, en Chromium sobre el CSS del build con la ficha REAL, muestreo
+fotograma a fotograma de abrir, cerrar y relevar en los dos sentidos.
+`MODO=roto` construye con `ANTES_REF` y afirma que la ficha no se deslizaba y
+que el relevo reiniciaba la animación.
+
 ## Chats: UN panel a la vez, todos por la derecha, y los menús cuelgan de SU botón
 
 Tres fallos de la misma pantalla, reportados juntos con capturas (22-09):
@@ -15584,12 +15629,10 @@ Tres fallos de la misma pantalla, reportados juntos con capturas (22-09):
 
 Cinco cosas que hay que mantener:
 
-1. **La ficha entra en la exclusión con `reservar: false`**
-   (`usePanelLateral(PANEL_DE_LA_FICHA, …)`). Entra en la exclusión igual que
-   los demás, pero **no reserva la franja**: ya ocupa su sitio en el flex, y
-   reservar además el `padding-right` le quitaría a la conversación el doble.
-   Con esto la regla que la superponía sobra, y se fue: era la que la sacaba
-   por la izquierda.
+1. **La ficha entra en la exclusión.** Primero lo hizo como hermano del flex
+   con `reservar: false`; hoy es un `PanelLateral` más (ver *Los paneles
+   laterales se mueven IGUAL*). La regla que la superponía sobra, y se fue:
+   era la que la sacaba por la izquierda.
 2. **«Enviar al equipo» es un `PanelLateral`**, no un `Dialog`. Se abre desde
    la cabecera como los demás, así que sale por el mismo lado y entra en la
    misma exclusión. **Si se añade otro panel en Chats, va por `PanelLateral`**

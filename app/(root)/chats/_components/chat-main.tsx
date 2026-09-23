@@ -1,7 +1,5 @@
 'use client';
 
-import { usePanelLateral } from '@/hooks/usePanelLateral';
-import { PANEL_DE_LA_FICHA } from '@/lib/panel-lateral';
 import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, {
   useCallback,
@@ -1142,17 +1140,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     });
   }, [onInfoPanelChange]);
 
-  /* La ficha entra en la exclusión de los paneles laterales: al abrirla se
-     cierra el recordatorio, la tarea, el contexto, el copiloto o el chat del
-     equipo, y al abrirse cualquiera de ellos se cierra ella. Sin esto quedaban
-     dos apilados y la ficha se superponía a la conversación por la izquierda.
-     `reservar: false` porque ya es un hermano del flex y ocupa su sitio. */
+  /* La ficha es un `PanelLateral` más (ver `ContactInfoPanel`): entra en la
+     exclusión, reserva la franja y se desliza como los demás. */
   const cerrarFicha = useCallback(() => {
     setInfoPanelOpen(false);
     localStorage.setItem('chat-info-panel', 'false');
     onInfoPanelChange?.(false);
   }, [onInfoPanelChange]);
-  usePanelLateral(PANEL_DE_LA_FICHA, infoPanelOpen && !!session, cerrarFicha, { reservar: false });
 
   return (
     <div className="relative flex h-full w-full min-w-[100px] sm:border-l sm:border-r border-border overflow-hidden">
@@ -1413,22 +1407,22 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       </div>{/* end messages view */}
       </div>{/* end chat area */}
 
-      {/* ── Contact info panel (desktop only) ── */}
-      {infoPanelOpen && session && (
-        <ContactInfoPanel
-          session={session}
-          displayedContactName={displayedContactName}
-          displayedWhatsapp={displayedWhatsapp}
-          avatarSrc={header.avatarSrc}
-          userId={userId}
-          remoteJid={info?.remoteJid}
-          notesCount={notes.length}
-          advisors={advisors}
-          onClose={cerrarFicha}
-          onSessionMutate={mutateSessionStatus}
-          onSessionRefresh={refreshSessionStatus}
-        />
-      )}
+      {/* ── Ficha de contacto: un panel lateral como los demás, montado
+          siempre para que pueda deslizarse al entrar y al salir. ── */}
+      <ContactInfoPanel
+        abierto={infoPanelOpen}
+        session={session ?? null}
+        displayedContactName={displayedContactName}
+        displayedWhatsapp={displayedWhatsapp}
+        avatarSrc={header.avatarSrc}
+        userId={userId}
+        remoteJid={info?.remoteJid}
+        notesCount={notes.length}
+        advisors={advisors}
+        onClose={cerrarFicha}
+        onSessionMutate={mutateSessionStatus}
+        onSessionRefresh={refreshSessionStatus}
+      />
     </div>
   );
 };

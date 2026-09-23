@@ -16,6 +16,7 @@ import {
     FRANJA_LATERAL_MOVIL,
     HOJA_LATERAL,
     HOJA_LATERAL_MOVIL,
+    HOJA_SIN_TRANSICION,
     PANEL_DEL_EQUIPO,
 } from "@/lib/panel-lateral";
 import { usePanelLateral } from "@/hooks/usePanelLateral";
@@ -75,13 +76,14 @@ export function PanelDeEquipo({
     //
     // Y el mismo hook aparta a los demás paneles de la franja, que es lo que
     // antes hacía a mano `BotonesDelBorde` — y solo entre estos dos.
-    usePanelLateral(PANEL_DEL_EQUIPO, abierto, onCerrar);
+    const relevo = usePanelLateral(PANEL_DEL_EQUIPO, abierto, onCerrar);
 
     return (
         <>
             <div className={FRANJA_LATERAL}>
                 <Marco
                     abierto={abierto}
+                    relevo={relevo}
                     sonido={sonido}
                     onCerrar={onCerrar}
                     cuentaId={cuentaId}
@@ -92,6 +94,7 @@ export function PanelDeEquipo({
                 <Marco
                     movil
                     abierto={abierto}
+                    relevo={relevo}
                     sonido={sonido}
                     onCerrar={onCerrar}
                     cuentaId={cuentaId}
@@ -104,6 +107,7 @@ export function PanelDeEquipo({
 
 function Marco({
     abierto,
+    relevo = false,
     sonido,
     onCerrar,
     movil = false,
@@ -111,6 +115,8 @@ function Marco({
     personaId,
 }: {
     abierto: boolean;
+    /** Entra o sale sustituyendo a otro panel: sin deslizamiento. */
+    relevo?: boolean;
     sonido: boolean;
     onCerrar: () => void;
     movil?: boolean;
@@ -125,6 +131,7 @@ function Marco({
             className={cn(
                 movil ? HOJA_LATERAL_MOVIL : HOJA_LATERAL,
                 abierto ? "translate-x-0" : "translate-x-full",
+                relevo && HOJA_SIN_TRANSICION,
             )}
         >
             <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
