@@ -121,8 +121,11 @@ type ChatMainProps = {
   resolvedAt?: number | null;
   /** Desde cuando espera a una persona (ms), o null si no esta en espera. */
   escalatedAt?: number | null;
-  /** Aviso de que se reabrio, para que la lista la saque de "Resueltos". */
-  onSessionReopened?: () => void;
+  /**
+   * Se resolvio (true) o se reabrio (false): para pintarlo al momento en la
+   * lista y en el contador de «Todos», en todas las llaves de la sesion.
+   */
+  onResolucionCambiada?: (sessionId: number, resuelta: boolean) => void;
   /** Se quito de «En espera»: para bajar el conteo en memoria al momento. */
   onUnescalated?: (sessionId: number) => void;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
@@ -167,7 +170,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   assignedAdvisorId,
   resolvedAt,
   escalatedAt,
-  onSessionReopened,
+  onResolucionCambiada,
   onUnescalated,
   onAssignAdvisor,
   onNewMessage,
@@ -1186,7 +1189,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         assignedAdvisorId={assignedAdvisorId}
         resolvedAt={resolvedAt}
         escalatedAt={escalatedAt}
-        onSessionReopened={onSessionReopened}
+        onResolucionCambiada={onResolucionCambiada}
         onUnescalated={onUnescalated}
         onAssignAdvisor={onAssignAdvisor}
         onNewMessage={onNewMessage}

@@ -10705,6 +10705,28 @@ Lo prueba `scripts/banco-total-de-todos.sh` contra Postgres con las funciones
 de producción; `MODO=roto` corre la consulta y la cuenta de antes y afirma que
 el número no baja.
 
+### Y la pantalla tiene que ENTERARSE: resolver se pinta en memoria, por id
+
+Con lo de arriba en producción, el número seguía sin bajar al resolver: el
+`COUNT` y la cuenta eran buenos, pero **ninguna de las tres formas de resolver
+—«Acciones», el menú de la fila y el lote— escribía la marca en la pantalla**,
+así que fila y número esperaban al reloj de sesiones (60 s). Y reabrir limpiaba
+solo la llave GLOBAL del contacto, mientras la lista lee la de su línea
+(`linea::numero`): la reabierta no volvía. Desde fuera: «solo cambia al
+recargar».
+
+> **Resolver y reabrir llaman a `marcarResolucion(ids, resuelta)`**
+> (`conLaResolucion`, `lib/total-de-todos.ts`), que toca TODAS las llaves de la
+> sesión por su `id`. `resolverSesionesAction` devuelve `resueltos` para marcar
+> solo las que salieron bien. **Si se añade otra forma de resolver o reabrir, va
+> por ahí.** Y el menú de la fila resuelve la sesión de SU línea, no la global.
+
+El banco puro no lo cazaba porque releía las marcas de la base: **probar la
+cuenta no prueba que la pantalla se entere.** Lo cubre
+`scripts/banco-todos-en-chats.sh`, sobre la página servida: resolver desde
+«Acciones», recargar, reabrir y resolver desde la fila, exigiendo número = filas
+en 8 s. `MODO=roto` con un `.next` de `5288fa2` reproduce 6 fallos.
+
 ## Una consulta que devuelve una página tiene que poder PARARSE
 
 Una consulta que junta varias fuentes, las deduplica y al final se queda con 26

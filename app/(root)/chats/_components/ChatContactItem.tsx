@@ -98,7 +98,7 @@ type ChatContactItemProps = {
   allTags?: SimpleTag[];
   onMarkRead?: (id: string) => void;
   onMarkUnread?: (id: string) => void;
-  onResolve?: (id: string) => void;
+  onResolve?: (id: string, instanceName?: string) => void;
   onAssignTag?: (remoteJid: string, tagId: number, instanceName?: string) => void;
   onRenameRequest?: (contact: SidebarContact) => void;
   isStarred?: boolean;
@@ -561,7 +561,7 @@ function ChatContactItemBase({
               )}
               {/* 2. Marcar como resuelto */}
               {contact.chatSession && onResolve && (
-                <DropdownMenuItem onSelect={() => onResolve(contact.id)}>
+                <DropdownMenuItem onSelect={() => onResolve(contact.id, contact.instanceName ?? undefined)}>
                   <CheckCircle className="h-4 w-4" />
                   Marcar como resuelto
                 </DropdownMenuItem>

@@ -7,5 +7,5 @@
  */
 export { contarChatsPorLinea } from "@/lib/chat-persistence";
 export { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
-export { totalesDeTodos, estaResuelta } from "@/lib/total-de-todos";
+export { totalesDeTodos, estaResuelta, conLaResolucion } from "@/lib/total-de-todos";
 export { db } from "@/lib/db";

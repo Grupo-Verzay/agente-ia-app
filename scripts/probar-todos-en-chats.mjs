@@ -13,7 +13,7 @@
  *  2. Resolver desde «Acciones» baja el número a 3 SIN recargar, y la fila se va.
  *  3. Recargando sigue en 3 (el `COUNT` del servidor no cuenta resueltas).
  *  4. Reabrir desde «Acciones» lo sube a 4 SIN recargar, y la fila vuelve.
- *  5. Resolver desde el menú de la FILA baja a 3 sin recargar.
+ *  5. Resolver desde el menú de la FILA baja uno sin recargar.
  *
  * «Sin recargar» es con un plazo de 8 s: el reloj de sesiones va a 60 s, así
  * que lo que llegue dentro del plazo es lo que pinta la propia acción.
@@ -103,9 +103,21 @@ async function abrirChat(pagina) {
     await pagina.goto(`${BASE}/chats?jid=${encodeURIComponent(JID)}&instance=${encodeURIComponent(LINEA)}`, {
         waitUntil: "domcontentloaded",
     });
-    await pagina.waitForSelector('[data-cabecera-de-chat] button:has-text("Acciones")', { timeout: 60000 });
+    // La cabecera pinta «Acciones» dos veces (móvil y escritorio): se espera al visible.
+    await pagina.locator('[data-cabecera-de-chat] button:visible:has-text("Acciones")').first().waitFor({ timeout: 60000 });
     // Las sesiones llegan después que la lista; hasta entonces no hay nada que resolver.
     await pagina.waitForTimeout(3000);
+    await apartarLoQueTapa(pagina);
+}
+
+/** Algún diálogo de bienvenida puede abrirse al entrar y tapar la pantalla. */
+async function apartarLoQueTapa(pagina) {
+    for (let i = 0; i < 4; i += 1) {
+        const capa = await pagina.$('div[data-state="open"].fixed.inset-0');
+        if (!capa) break;
+        await pagina.keyboard.press("Escape");
+        await pagina.waitForTimeout(300);
+    }
 }
 
 const navegador = await chromium.launch({ executablePath: process.env.CHROME_BIN || undefined });
@@ -137,15 +149,18 @@ const reabierta = await esperarA(pagina, 4);
 exigir(reabierta.filas === 4, `al reabrir, la fila vuelve (filas ${reabierta.filas})`);
 exigir(reabierta.todos === 4, `al reabrir, «Todos» sube a 4 sin recargar (dice ${reabierta.todos})`);
 
-// 5. Resolver desde el menú de la FILA de otra conversación
+// 5. Resolver desde el menú de la FILA de otra conversación. Relativo a lo que
+// haya: si el paso 4 falló, la reabierta sigue fuera y partir de 4 no valdría.
+const antesDeLaFila = await leer(pagina);
 const otra = pagina.locator('[data-chat-id="573001112266@s.whatsapp.net"] button[aria-label="Más opciones del chat"]').first();
 if (await otra.count()) {
     await otra.click();
     await pagina.waitForTimeout(400);
     exigir(await pulsarOpcion(pagina, "Marcar como resuelto"), "hay «Marcar como resuelto» en la fila");
-    const fila = await esperarA(pagina, 3);
-    exigir(fila.filas === 3, `desde la fila, la fila se va (filas ${fila.filas})`);
-    exigir(fila.todos === 3, `desde la fila, «Todos» baja a 3 sin recargar (dice ${fila.todos})`);
+    const meta = antesDeLaFila.filas - 1;
+    const fila = await esperarA(pagina, meta);
+    exigir(fila.filas === meta, `desde la fila, la fila se va (filas ${antesDeLaFila.filas} -> ${fila.filas})`);
+    exigir(fila.todos === meta, `desde la fila, «Todos» baja a ${meta} sin recargar (dice ${fila.todos})`);
 } else {
     exigir(false, "está la fila de Diana con su menú");
 }

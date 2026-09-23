@@ -102,3 +102,37 @@ export function totalesDeTodos(
   }
   return totales;
 }
+
+/**
+ * Pinta en memoria que unas sesiones se resolvieron (o se reabrieron), en
+ * TODAS las llaves bajo las que vive cada una.
+ *
+ * Es lo que faltaba para que «Todos» bajara al resolver sin recargar: las tres
+ * formas de resolver —el botón de la cabecera, el menú de la fila y el lote—
+ * escribian la marca en la base y NO en la pantalla, así que la fila y el
+ * número esperaban al reloj de sesiones (60 s). Y reabrir solo limpiaba la
+ * llave global del contacto, mientras la lista lee la de su línea
+ * (`linea::numero`): la reabierta no volvía hasta ese mismo reloj.
+ *
+ * Se busca por `id`, que es el mismo en todas las llaves de una sesión — la
+ * regla de siempre de Chats (`aplicarEnLaSesion`).
+ *
+ * `resueltaEn` es la hora de la marca (ms) o `null` para reabrir. Devuelve el
+ * mapa nuevo y cuántas entradas tocó: con cero, quien llama lo dice en la
+ * consola y conserva el anterior.
+ */
+export function conLaResolucion<T extends { id?: number | null; resolvedAt?: number | null }>(
+  sesiones: Record<string, T>,
+  ids: number[],
+  resueltaEn: number | null,
+): { siguiente: Record<string, T>; tocadas: number } {
+  const buscadas = new Set(ids);
+  const siguiente = { ...sesiones };
+  let tocadas = 0;
+  for (const [clave, sesion] of Object.entries(sesiones)) {
+    if (!sesion || sesion.id == null || !buscadas.has(sesion.id)) continue;
+    siguiente[clave] = { ...sesion, resolvedAt: resueltaEn };
+    tocadas++;
+  }
+  return { siguiente, tocadas };
+}

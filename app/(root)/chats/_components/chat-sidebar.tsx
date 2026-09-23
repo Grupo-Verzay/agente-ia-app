@@ -251,6 +251,11 @@ type ChatSidebarProps = {
   onBulkPin?: (chats: SeleccionDeChat[], isPinned: boolean) => Promise<void>;
   onBulkAssignAdvisor?: (chats: SeleccionDeChat[], advisorId: string | null) => Promise<void>;
   onBulkAddTag?: (chats: SeleccionDeChat[], tagId: number) => Promise<void>;
+  /**
+   * Se resolvieron (true) o reabrieron (false) estas sesiones: la pantalla las
+   * pinta al momento, y con ellas la fila y el contador de «Todos».
+   */
+  onResolucion?: (sessionIds: number[], resuelta: boolean) => void;
   onCollapse?: () => void;
   tab?: TabKey;
   onTabChange?: (tab: TabKey) => void;
@@ -295,6 +300,7 @@ export function ChatSidebar({
   onBulkPin,
   onBulkAssignAdvisor,
   onBulkAddTag,
+  onResolucion,
   onCollapse,
   tab: tabProp,
   onTabChange: onTabChangeProp,
@@ -1325,13 +1331,19 @@ export function ChatSidebar({
   // `usePanelFlotante`.
   const panelDeAsesores = usePanelFlotante("columnaAncha", "menu");
 
-  const handleResolve = useCallback(async (remoteJid: string) => {
-    const session = chatSessionsRef.current[remoteJid];
+  // La sesion de SU linea, igual que el lote y que `getSessionForChat`: con el
+  // mismo contacto en dos lineas, la llave global resolvia la de la otra.
+  const handleResolve = useCallback(async (remoteJid: string, instanceName?: string) => {
+    const session = instanceName
+      ? chatSessionsRef.current[`${instanceName}::${remoteJid}`]
+      : chatSessionsRef.current[remoteJid];
     if (!session?.id) { toast.error("Sin sesión CRM para resolver."); return; }
     const res = await resolveSession(session.id);
-    if (res.success) toast.success("Conversación resuelta.");
-    else toast.error(res.message ?? "Error al resolver.");
-  }, []);
+    if (res.success) {
+      toast.success("Conversación resuelta.");
+      onResolucion?.([session.id], true);
+    } else toast.error(res.message ?? "Error al resolver.");
+  }, [onResolucion]);
 
   // Resolver en lote. Va por UNA accion de servidor con todos los ids dentro:
   // Next serializa las acciones de una misma pagina, asi que cuarenta llamadas
@@ -1359,6 +1371,8 @@ export function ChatSidebar({
     }
 
     const res = await resolverSesionesAction(ids);
+    // Las que SÍ se resolvieron salen de la lista y del contador al momento.
+    onResolucion?.(res.resueltos ?? [], true);
     // Lo que no se pudo resolver se CUENTA y se dice: un «listo» sobre veinte
     // filas de las que se fueron dieciocho es peor que un error, porque nadie
     // vuelve a mirar. Y las que no tenian sesion tampoco se callan.
@@ -1368,7 +1382,7 @@ export function ChatSidebar({
     else toast.error(`${res.message}${coletilla}`);
 
     clearSelection();
-  }, [selectedChats, clearSelection]);
+  }, [selectedChats, clearSelection, onResolucion]);
 
   // La sesion de SU linea, no la de la llave global: el mismo contacto puede
   // tener conversacion en Atencion y en Ventas, y cada una lleva sus propias
