@@ -144,6 +144,10 @@ for (const v of VENTANAS) {
             );
             const r = abierta?.getBoundingClientRect();
             const cuerpo = abierta?.querySelector(":scope > div:last-child");
+            // En Chats el panel es la tercera columna de la bandeja: acaba en
+            // su filo derecho y arranca en su borde de arriba (ver
+            // `lib/panel-lateral.ts`), no en los de la ventana.
+            const bandeja = document.querySelector("[data-chat-view]")?.getBoundingClientRect();
             return {
                 hay: !!abierta,
                 left: r ? Math.round(r.left) : null,
@@ -152,7 +156,8 @@ for (const v of VENTANAS) {
                 bottomBarra: Number.isFinite(alto) ? Math.round(alto) : null,
                 conContenido: !!cuerpo && cuerpo.querySelectorAll("input, textarea, button, p").length > 0,
                 cabecera: Math.round(document.querySelector("[data-cabecera-de-chat]")?.getBoundingClientRect().right ?? -1),
-                ancho: window.innerWidth,
+                ancho: bandeja ? Math.round(bandeja.right) : window.innerWidth,
+                arribaBandeja: bandeja ? Math.round(bandeja.top) : null,
                 asoman,
             };
         }, p.panel);
@@ -161,8 +166,8 @@ for (const v of VENTANAS) {
         exigir(m.hay, `${v.width}: «${p.nombre}» no se abrió`);
         exigir(m.right === m.ancho, `${v.width}: «${p.nombre}» no llega al filo derecho (${m.right} de ${m.ancho})`);
         exigir(
-            m.bottomBarra === null || Math.abs(m.top - m.bottomBarra) <= 1,
-            `${v.width}: «${p.nombre}» no nace bajo la barra (${m.top} vs ${m.bottomBarra})`,
+            m.arribaBandeja === null || Math.abs(m.top - m.arribaBandeja) <= 1,
+            `${v.width}: «${p.nombre}» no nace a la altura de la bandeja (${m.top} vs ${m.arribaBandeja}; barra ${m.bottomBarra})`,
         );
         exigir(m.conContenido, `${v.width}: «${p.nombre}» abrió vacío`);
         exigir(m.asoman.length === 0, `${v.width}: con «${p.nombre}» abierto asoman instancias cerradas: ${m.asoman}`);
@@ -273,7 +278,10 @@ for (const v of VENTANAS) {
         await hayEnviar.click();
         await pagina.waitForTimeout(900);
         const enviar = await hojaAbierta("panel-enviar-al-equipo");
-        exigir(enviar === v.width, `${v.width}: «Enviar al equipo» no sale por el filo derecho (${enviar})`);
+        const filoDeLaBandeja = await pagina.evaluate(() =>
+            Math.round(document.querySelector("[data-chat-view]")?.getBoundingClientRect().right ?? window.innerWidth),
+        );
+        exigir(enviar === filoDeLaBandeja, `${v.width}: «Enviar al equipo» no sale por el filo derecho de la bandeja (${enviar} vs ${filoDeLaBandeja})`);
         exigir(!(await fichaAbierta()), `${v.width}: «Enviar al equipo» no cerró la ficha`);
         await pagina.click('[data-panel="panel-enviar-al-equipo"][aria-hidden="false"] header button[aria-label^="Cerrar"]');
         await pagina.waitForTimeout(800);

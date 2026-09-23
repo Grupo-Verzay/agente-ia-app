@@ -50,12 +50,25 @@ async function apartarLoQueTapa(pagina) {
     }
 }
 
+/**
+ * La LISTA de canales y directos. El chat del equipo enseña una vista por vez:
+ * abre en la lista, o en el chat donde se estaba —y entonces se vuelve con la
+ * flecha de arriba—. Era un «Cambiar» que desplegaba la lista encima del hilo.
+ */
 async function abrirLaLista(pagina) {
     await pagina.goto(`${BASE}/chat-equipo`, { waitUntil: "domcontentloaded" });
-    await pagina.waitForSelector("textarea", { timeout: 60000 });
+    await pagina.waitForSelector('[data-lista="directos"], [data-boton="volver-a-la-lista"]', { timeout: 60000 });
     await apartarLoQueTapa(pagina);
-    await pagina.getByRole("button", { name: /Cambiar/ }).first().click();
+    const volver = await pagina.$('[data-boton="volver-a-la-lista"]');
+    if (volver && (await volver.isVisible())) await volver.click();
     await pagina.waitForSelector('[data-lista="directos"]', { timeout: 20000 });
+}
+
+/** Abrir un canal desde la lista, por su nombre. */
+async function abrirElCanal(pagina, nombre) {
+    await abrirLaLista(pagina);
+    await pagina.locator("[data-fila-de-canal]", { hasText: nombre }).first().click();
+    await pagina.waitForSelector("textarea", { timeout: 20000 });
 }
 
 const elOrden = (pagina) =>
@@ -94,12 +107,8 @@ try {
     // La fila sigue siendo un botón que abre el directo: el clic no se lo come el arrastre.
     await beto.locator('[data-lista="directos"] [data-directo] button:not([data-asa])').first().click();
     await beto.waitForTimeout(1500);
-    // La barra de canales: el botón que dice «Cambiar» o «Cerrar», no el
-    // primer `aria-expanded` de la página (ese es el menú de la cuenta).
-    const cabecera = await beto
-        .locator('button[aria-expanded]:has-text("Cambiar"), button[aria-expanded]:has-text("Cerrar")')
-        .first()
-        .innerText();
+    // La fila del canal abierto: su nombre, junto a la flecha de volver.
+    const cabecera = await beto.locator("[data-nombre-del-canal]").first().innerText();
     exigir(cabecera.includes(alVolver[0]), `pulsar el nombre abre ese directo (cabecera: ${cabecera.split("\n")[0]})`);
     exigir(!(await beto.$('[data-boton="opciones-del-canal"]')), "un agente no ve el «⋯» de limpiar");
 
@@ -113,9 +122,7 @@ try {
 
     /* ── La casa limpia el General ── */
     const casa = await entrar(navegador, "casa@banco.test");
-    await casa.goto(`${BASE}/chat-equipo`, { waitUntil: "domcontentloaded" });
-    await casa.waitForSelector("textarea", { timeout: 60000 });
-    await apartarLoQueTapa(casa);
+    await abrirElCanal(casa, "General");
     const marca = `mensaje-para-limpiar-${Date.now()}`;
     await casa.fill("textarea", marca);
     await casa.keyboard.press("Enter");

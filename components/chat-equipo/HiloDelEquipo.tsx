@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    ArrowLeft,
     AudioLines,
     Building2,
     ExternalLink,
@@ -100,9 +101,20 @@ import {
     elCanalDeEntrada,
     elCanalRecordado,
     recordarElCanal,
+    laVistaDeEntrada,
+    laVistaRecordada,
+    recordarLaVista,
     TOPE_DEL_NOMBRE,
     type CanalDeEquipo,
+    type VistaDelEquipo,
 } from "@/lib/canales-de-equipo";
+import {
+    CABECERA_DEL_PANEL,
+    CONTROL_DE_ICONO,
+    FILA_1_DEL_PANEL,
+    FILA_2_DEL_PANEL,
+    GLIFO_DE_CONTROL,
+} from "@/lib/cabeceras-de-chats";
 import {
     aDondeLlevaElChat,
     elNumeroQueSeEnsena,
@@ -229,6 +241,7 @@ export function HiloDelEquipo({
     mensajeInicial,
     cuentaId,
     personaId,
+    filaDeArriba,
 }: {
     /**
      * Si el reloj tiene que correr y si hay que cargar.
@@ -259,13 +272,33 @@ export function HiloDelEquipo({
      */
     cuentaId?: string;
     personaId?: string;
+    /**
+     * La PRIMERA fila de la cabecera, cuando el hilo vive en el panel lateral:
+     * el título y sus iconos (sonido, avisos, cerrar).
+     *
+     * Con ella el hilo pinta la cabecera entera de 78 px —las dos filas y la
+     * raya de abajo, como la conversación y la lista de Chats—, porque la
+     * SEGUNDA fila es suya. Sin ella (la ruta `/chat-equipo`) pinta solo su
+     * fila, como siempre.
+     */
+    filaDeArriba?: React.ReactNode;
 }) {
     const [datos, setDatos] = useState<HiloAbierto | null>(null);
     const [fallo, setFallo] = useState<string | null>(null);
     const [canalId, setCanalId] = useState<string>(canalInicial || CANAL_GENERAL);
     const [texto, setTexto] = useState("");
     const [enviando, setEnviando] = useState(false);
-    const [listaAbierta, setListaAbierta] = useState(false);
+    // UNA vista por vez: la lista de canales y directos, o el chat de uno.
+    // Nace en la lista y la primera carga decide (`laVistaDeEntrada`): se
+    // arranca así —y no leyendo `localStorage` aquí— para que el servidor y
+    // el navegador pinten lo mismo.
+    const [vista, setVista] = useState<VistaDelEquipo>(
+        canalInicial || mensajeInicial ? "chat" : "lista",
+    );
+    // Por referencia, para el reloj: si entrara en sus dependencias, cambiar
+    // de vista remontaría el `setInterval`.
+    const vistaRef = useRef(vista);
+    vistaRef.current = vista;
     // La arroba que se está escribiendo ahora mismo, si es que hay una.
     const [arroba, setArroba] = useState<ArrobaEnCurso | null>(null);
     const [elegido, setElegido] = useState(0);
@@ -350,10 +383,13 @@ export function HiloDelEquipo({
     // La otra mitad de «delante» —si la pestaña está a la vista— la pone quien
     // pregunta: aquí no se sabe, y con la pestaña de fondo el canal sigue
     // abierto en la pantalla sin que lo mire nadie.
+    //
+    // Y solo con el CHAT delante: con la lista a la vista el canal cargado no
+    // lo mira nadie, y callarlo sería perder el aviso de lo que entre ahí.
     useEffect(() => {
-        avisarDelCanalAbierto(activo ? canalId : null);
+        avisarDelCanalAbierto(activo && vista === "chat" ? canalId : null);
         return () => avisarDelCanalAbierto(null);
-    }, [activo, canalId]);
+    }, [activo, canalId, vista]);
 
     // A qué mensaje ir, por referencia: el ciclo se monta una vez y esto
     // cambia al pulsar un resultado.
@@ -386,7 +422,15 @@ export function HiloDelEquipo({
         // El mensaje solo se pide cuando se viene A POR ÉL. En las vueltas del
         // reloj no: el hilo se traería centrado en un mensaje viejo para
         // siempre y no se vería entrar nada nuevo.
-        const res = await hiloDelEquipoAction(pedido, mensaje ?? undefined, deRecuerdo);
+        // Con la LISTA delante el hilo se trae —la lista de canales viaja en la
+        // misma respuesta— pero NO se marca leído: nadie lo está mirando.
+        const enLaLista = vistaRef.current === "lista";
+        const res = await hiloDelEquipoAction(
+            pedido,
+            mensaje ?? undefined,
+            deRecuerdo,
+            enLaLista,
+        );
         if (!res.success) return res.message;
         // Una vuelta del reloj que salió con el canal anterior NO puede pintar
         // encima del que se acaba de abrir: llega tarde, con los mensajes de
@@ -401,7 +445,7 @@ export function HiloDelEquipo({
         // quince segundos después de haberlo leído, que se ve como roto.
         const ultimo = res.data.mensajes[res.data.mensajes.length - 1];
         const marca = `${res.data.canalId}::${ultimo?.id ?? ""}`;
-        if (yaMarcado.current !== marca) {
+        if (!enLaLista && yaMarcado.current !== marca) {
             yaMarcado.current = marca;
             avisarDeQueSeLeyo();
         }
@@ -445,6 +489,17 @@ export function HiloDelEquipo({
                             ? elCanalRecordado(cuentaId, personaId)
                             : null,
                 });
+                // Y la vista: la del enlace si se llega a algo, la de la
+                // última vez si no, y la lista si no hay nada. Antes de traer:
+                // es la que decide si esa primera carga marca leído.
+                const deEntrada = laVistaDeEntrada({
+                    pedido: canalInicial,
+                    mensaje: aPorEsteRef.current,
+                    recordada:
+                        cuentaId && personaId ? laVistaRecordada(cuentaId, personaId) : null,
+                });
+                vistaRef.current = deEntrada;
+                if (vivo) setVista(deEntrada);
                 const malo = await traer(
                     entrada.canal,
                     aPorEsteRef.current,
@@ -574,7 +629,10 @@ export function HiloDelEquipo({
     const mensajes = datos?.mensajes;
     const { pegado, sinLeer, irAlFinal, soltar } = useHiloPegadoAbajo({
         ref: elHilo,
-        clave: canalId,
+        // Con la vista dentro: volver de la lista al chat es ABRIR el hilo, y un
+        // hilo se abre por el final. Escondido (`display: none`) pierde su
+        // posición, así que sin esto volvería arriba del todo.
+        clave: `${canalId}::${vista}`,
         total: mensajes?.length ?? 0,
         ultimoId: mensajes?.length ? String(mensajes[mensajes.length - 1].id) : null,
     });
@@ -601,9 +659,27 @@ export function HiloDelEquipo({
         [datos, canalId],
     );
 
+    /**
+     * Pasar a una vista, y recordarla para la próxima vez.
+     *
+     * La referencia se mueve YA y no en el render siguiente: `cambiarDeCanal`
+     * trae el hilo justo después, y esa carga tiene que saber que ahora sí se
+     * tiene delante (y marcarlo leído).
+     */
+    const irALaVista = useCallback(
+        (v: VistaDelEquipo) => {
+            vistaRef.current = v;
+            setVista(v);
+            const cuenta = datos?.cuentaId ?? cuentaId;
+            const quien = datos?.yo ?? personaId;
+            if (cuenta && quien) recordarLaVista(cuenta, quien, v);
+        },
+        [datos?.cuentaId, datos?.yo, cuentaId, personaId],
+    );
+
     const cambiarDeCanal = useCallback(
         async (cual: string) => {
-            setListaAbierta(false);
+            irALaVista("chat");
             setTexto("");
             // Reclamar el canal —mover `canalRef` YA, no en el render
             // siguiente— lo hace `traer`, que es por donde pasan los TRES que
@@ -617,7 +693,7 @@ export function HiloDelEquipo({
                 toast.error("No se pudo abrir ese canal.");
             }
         },
-        [traer],
+        [traer, irALaVista],
     );
 
     /**
@@ -1273,36 +1349,88 @@ export function HiloDelEquipo({
         return m;
     }, [datos?.gente, datos?.nombres]);
 
+    /**
+     * La cabecera. En el panel, la de las columnas de Chats —78 px, dos filas
+     * y la raya de abajo—, con `filaDeArriba` arriba y lo del hilo abajo. En
+     * la ruta, solo la fila del hilo, como siempre.
+     *
+     * Se pinta TAMBIÉN cargando y con un fallo: sin ella el panel se quedaba
+     * sin título y sin equis mientras cargaba, o sea sin forma de cerrarlo.
+     */
+    const cabecera = (fila: React.ReactNode) =>
+        filaDeArriba ? (
+            <header className={CABECERA_DEL_PANEL} data-cabecera-del-panel>
+                <div className={FILA_1_DEL_PANEL}>{filaDeArriba}</div>
+                <div className={FILA_2_DEL_PANEL} data-fila-del-hilo>
+                    {fila}
+                </div>
+            </header>
+        ) : fila ? (
+            <div
+                data-fila-del-hilo
+                className="flex h-11 shrink-0 items-center gap-1 border-b border-border bg-background px-3 sm:px-6"
+            >
+                {fila}
+            </div>
+        ) : null;
+
     if (fallo) {
         return (
-            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                {fallo}
+            <div className="flex h-full min-h-0 w-full flex-col">
+                {cabecera(null)}
+                <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                    {fallo}
+                </div>
             </div>
         );
     }
 
     if (!datos || !canal) {
         return (
-            <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-                Cargando…
+            <div className="flex h-full min-h-0 w-full flex-col">
+                {cabecera(null)}
+                <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+                    Cargando…
+                </div>
             </div>
         );
     }
 
     return (
-        // `relative` por la flecha de bajar al final, que se coloca contra ESTA
-        // caja. Contra la que scrollea no vale: un absoluto dentro de un
-        // contenedor con scroll se desplaza con el contenido.
-        <div className="relative flex h-full min-h-0 w-full flex-col">
-            <BarraDeCanales
-                abierta={listaAbierta}
-                onAlternar={() => setListaAbierta((v) => !v)}
-                canal={canal}
-                datos={datos}
-                onElegir={(id) => void cambiarDeCanal(id)}
-                onRefrescar={() => void traer()}
-            />
+        <div className="flex h-full min-h-0 w-full flex-col" data-vista-del-equipo={vista}>
+            {cabecera(
+                vista === "lista" ? (
+                    <RotuloDeLaLista />
+                ) : (
+                    <FilaDelCanal
+                        canal={canal}
+                        datos={datos}
+                        onVolver={() => irALaVista("lista")}
+                        onRefrescar={() => void traer()}
+                    />
+                ),
+            )}
 
+            {vista === "lista" && (
+                <ListaDeCanales
+                    canal={canal}
+                    datos={datos}
+                    onElegir={(id) => void cambiarDeCanal(id)}
+                    onRefrescar={() => void traer()}
+                />
+            )}
+
+            {/* El CHAT. Con la lista delante se ESCONDE, no se desmonta: dentro
+                están el borrador, la cita, los archivos elegidos y el hilo con
+                su anclaje, y desmontarlo tiraría lo escrito a medias al ir a
+                mirar otro canal. `relative` por la flecha de bajar al final,
+                que se coloca contra ESTA caja: contra la que scrollea no vale,
+                un absoluto dentro de un contenedor con scroll se desplaza con
+                el contenido. */}
+            <div
+                data-vista-chat
+                className={cn("relative flex min-h-0 flex-1 flex-col", vista === "lista" && "hidden")}
+            >
             <BarraDeBusqueda
                 texto={busqueda}
                 onTexto={setBusqueda}
@@ -1786,6 +1914,8 @@ export function HiloDelEquipo({
                 </div>
             </div>
 
+            </div>
+
             {/* Borrar pregunta, y es un `AlertDialog` y no un `div` con fondo
                 oscuro: se cierra con Escape, atrapa el foco dentro y un lector
                 de pantalla se entera de que se abrió algo. Un borrado no se
@@ -1830,24 +1960,202 @@ export function HiloDelEquipo({
  * lista de Chats —288 px en una pantalla normal— y una columna de canales ahí
  * dentro dejaría la conversación en la mitad.
  */
-function BarraDeCanales({
-    abierta,
-    onAlternar,
+/**
+ * La SEGUNDA fila de la cabecera con la LISTA delante: su rótulo y nada más.
+ *
+ * En la vista de lista no puede asomar nada del chat —ni el nombre del canal
+ * cargado detrás, ni sus mandos—: lo que se tiene delante es la lista.
+ */
+function RotuloDeLaLista() {
+    return (
+        <span data-rotulo="lista-de-canales" className="min-w-0 flex-1 truncate px-1 text-sm font-medium">
+            Canales y directos
+        </span>
+    );
+}
+
+/**
+ * La SEGUNDA fila de la cabecera con el CHAT delante: volver a la lista, el
+ * canal abierto y sus mandos —llamar (solo en un directo), la reunión y el
+ * «⋯»—, en cajas de 28 px como los controles de la cabecera de Chats.
+ *
+ * Volver es una flecha a la IZQUIERDA y arriba, donde se busca: era un
+ * «Cambiar» a la derecha del nombre que desplegaba la lista ENCIMA del hilo,
+ * y así no se podía usar ninguna de las dos.
+ */
+function FilaDelCanal({
+    canal,
+    datos,
+    onVolver,
+    onRefrescar,
+}: {
+    canal: CanalDeEquipo;
+    datos: HiloAbierto;
+    onVolver: () => void;
+    onRefrescar: () => void;
+}) {
+    const [reunion, setReunion] = useState(false);
+    const [limpiando, setLimpiando] = useState(false);
+    const control = cn(
+        "inline-flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors",
+        CONTROL_DE_ICONO,
+    );
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={onVolver}
+                aria-label="Volver a la lista de canales"
+                title="Volver a la lista"
+                data-boton="volver-a-la-lista"
+                className={cn(control, "hover:bg-muted hover:text-foreground")}
+            >
+                <ArrowLeft className={GLIFO_DE_CONTROL} />
+            </button>
+            <IconoDeCanal canal={canal} />
+            <span data-nombre-del-canal className="min-w-0 flex-1 truncate text-sm font-medium">
+                {canal.nombre}
+            </span>
+            {/* Llamar: SOLO en un directo.
+              *
+              * Un canal de varias personas no tiene «el otro», y una
+              * llamada de uno a uno no sabria a quien sonarle. La puerta de
+              * verdad esta en la accion —comprueba que sea un directo y que
+              * quien llama pertenezca—; esto es la fachada. */}
+            {canal.tipo === "directo" && (
+                // Un MENÚ y no dos botones: voz o video. Es el mismo
+                // reparto que el menú de llamar de Chats. Una de voz
+                // arranca en voz y se puede subir a video a mitad —si el
+                // otro acepta—; una videollamada arranca ya en video.
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            type="button"
+                            aria-label={`Llamar a ${canal.nombre}`}
+                            title={`Llamar a ${canal.nombre}`}
+                            data-boton="llamar-en-el-directo"
+                            className={cn(control, "hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40")}
+                        >
+                            <Phone className={GLIFO_DE_CONTROL} />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        {(["voz", "video"] as const).map((modo) => (
+                            <DropdownMenuItem
+                                key={modo}
+                                data-llamar={modo}
+                                onSelect={() =>
+                                    window.dispatchEvent(
+                                        new CustomEvent("llamada:salir", {
+                                            detail: {
+                                                canalId: canal.id,
+                                                conQuien: canal.nombre,
+                                                modo,
+                                            },
+                                        }),
+                                    )
+                                }
+                            >
+                                {modo === "video" ? (
+                                    <Video className="mr-2 h-4 w-4" />
+                                ) : (
+                                    <Phone className="mr-2 h-4 w-4" />
+                                )}
+                                {modo === "video" ? "Videollamada" : "Llamada de voz"}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
+            {/* La reunión, en CUALQUIER canal y no solo en un directo.
+              *
+              * Es la diferencia con la llamada de al lado: una llamada de
+              * uno a uno necesita «el otro» —por eso solo sale en un
+              * directo—, y una reunión es un sitio al que se entra, así que
+              * un canal de área es justo donde tiene sentido. La puerta de
+              * verdad está en la acción: comprueba que se PERTENECE al
+              * canal, no que se pueda leer. */}
+            <button
+                type="button"
+                onClick={() => setReunion(true)}
+                aria-label={`Abrir una reunión en ${canal.nombre}`}
+                title="Reunión de video"
+                data-boton="reunion-del-canal"
+                className={cn(control, "hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-sky-950/40")}
+            >
+                <VideoCamara className={GLIFO_DE_CONTROL} />
+            </button>
+            <AbrirReunion
+                canalId={canal.id}
+                nombreDelCanal={canal.nombre}
+                abierto={reunion}
+                onAbierto={setReunion}
+            />
+            {/* Limpiar el historial: SOLO el súper administrador. La puerta
+              * de verdad está en `limpiarHistorialDelCanalAction`, que lo
+              * vuelve a preguntar; esto solo decide si se enseña. Va en un
+              * «⋯» y no suelto en la cabecera: es algo de una vez, y un
+              * botón de borrar al lado de «llamar» se pulsa sin querer. */}
+            {datos.puedoLimpiar && (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            type="button"
+                            aria-label={`Más opciones de ${canal.nombre}`}
+                            title="Más opciones"
+                            data-boton="opciones-del-canal"
+                            className={cn(control, "hover:bg-muted hover:text-foreground")}
+                        >
+                            <MoreHorizontal className={GLIFO_DE_CONTROL} />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                            data-opcion="limpiar-historial"
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => setLimpiando(true)}
+                        >
+                            <Eraser className="mr-2 h-4 w-4" />
+                            Limpiar historial
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
+            {datos.puedoLimpiar && (
+                <LimpiarHistorial
+                    canal={canal}
+                    personas={datos.equipo.length}
+                    abierto={limpiando}
+                    onAbierto={setLimpiando}
+                    onLimpio={onRefrescar}
+                />
+            )}
+        </>
+    );
+}
+
+/**
+ * La LISTA de canales y directos, a panel completo.
+ *
+ * Ocupa todo lo que queda bajo la cabecera y **se desplaza dentro de su propia
+ * área** (`min-h-0 flex-1 overflow-y-auto`): con cuarenta canales o sesenta
+ * directos la lista crece hacia abajo y se recorre con la rueda, sin empujar
+ * la cabecera ni salirse del panel. Era una caja topada a 320 px encima del
+ * hilo: con más de siete filas la lista no cabía y el hilo tampoco.
+ */
+function ListaDeCanales({
     canal,
     datos,
     onElegir,
     onRefrescar,
 }: {
-    abierta: boolean;
-    onAlternar: () => void;
     canal: CanalDeEquipo;
     datos: HiloAbierto;
     onElegir: (id: string) => void;
     onRefrescar: () => void;
 }) {
     const [creando, setCreando] = useState(false);
-    const [reunion, setReunion] = useState(false);
-    const [limpiando, setLimpiando] = useState(false);
 
     const areas = datos.canales.filter((c) => c.tipo !== "directo");
     const directos = datos.canales.filter((c) => c.tipo === "directo");
@@ -1857,191 +2165,60 @@ function BarraDeCanales({
     const porAbrir = datos.gente.filter((p) => p.id !== datos.yo && !yaHablo.has(p.id));
 
     return (
-        <div className="shrink-0 border-b border-border bg-background">
-            <div className="flex items-center">
-                <button
-                    type="button"
-                    onClick={onAlternar}
-                    aria-expanded={abierta}
-                    className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/60 sm:px-6"
-                >
-                    <IconoDeCanal canal={canal} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {canal.nombre}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                        {abierta ? "Cerrar" : "Cambiar"}
-                    </span>
-                </button>
-                {/* Llamar: SOLO en un directo.
-                  *
-                  * Un canal de varias personas no tiene «el otro», y una
-                  * llamada de uno a uno no sabria a quien sonarle. La puerta de
-                  * verdad esta en la accion —comprueba que sea un directo y que
-                  * quien llama pertenezca—; esto es la fachada. */}
-                {canal.tipo === "directo" && (
-                    // Un MENÚ y no dos botones: voz o video. Es el mismo
-                    // reparto que el menú de llamar de Chats. Una de voz
-                    // arranca en voz y se puede subir a video a mitad —si el
-                    // otro acepta—; una videollamada arranca ya en video.
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label={`Llamar a ${canal.nombre}`}
-                                title={`Llamar a ${canal.nombre}`}
-                                data-boton="llamar-en-el-directo"
-                                className="shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40"
-                            >
-                                <Phone className="h-4 w-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            {(["voz", "video"] as const).map((modo) => (
-                                <DropdownMenuItem
-                                    key={modo}
-                                    data-llamar={modo}
-                                    onSelect={() =>
-                                        window.dispatchEvent(
-                                            new CustomEvent("llamada:salir", {
-                                                detail: {
-                                                    canalId: canal.id,
-                                                    conQuien: canal.nombre,
-                                                    modo,
-                                                },
-                                            }),
-                                        )
-                                    }
-                                >
-                                    {modo === "video" ? (
-                                        <Video className="mr-2 h-4 w-4" />
-                                    ) : (
-                                        <Phone className="mr-2 h-4 w-4" />
-                                    )}
-                                    {modo === "video" ? "Videollamada" : "Llamada de voz"}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
-                {/* La reunión, en CUALQUIER canal y no solo en un directo.
-                  *
-                  * Es la diferencia con la llamada de al lado: una llamada de
-                  * uno a uno necesita «el otro» —por eso solo sale en un
-                  * directo—, y una reunión es un sitio al que se entra, así que
-                  * un canal de área es justo donde tiene sentido. La puerta de
-                  * verdad está en la acción: comprueba que se PERTENECE al
-                  * canal, no que se pueda leer. */}
-                <button
-                    type="button"
-                    onClick={() => setReunion(true)}
-                    aria-label={`Abrir una reunión en ${canal.nombre}`}
-                    title="Reunión de video"
-                    className="mr-2 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-sky-950/40"
-                >
-                    <VideoCamara className="h-4 w-4" />
-                </button>
-                <AbrirReunion
-                    canalId={canal.id}
-                    nombreDelCanal={canal.nombre}
-                    abierto={reunion}
-                    onAbierto={setReunion}
-                />
-                {/* Limpiar el historial: SOLO el súper administrador. La puerta
-                  * de verdad está en `limpiarHistorialDelCanalAction`, que lo
-                  * vuelve a preguntar; esto solo decide si se enseña. Va en un
-                  * «⋯» y no suelto en la cabecera: es algo de una vez, y un
-                  * botón de borrar al lado de «llamar» se pulsa sin querer. */}
-                {datos.puedoLimpiar && (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label={`Más opciones de ${canal.nombre}`}
-                                title="Más opciones"
-                                data-boton="opciones-del-canal"
-                                className="mr-2 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            >
-                                <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                                data-opcion="limpiar-historial"
-                                className="text-destructive focus:text-destructive"
-                                onSelect={() => setLimpiando(true)}
-                            >
-                                <Eraser className="mr-2 h-4 w-4" />
-                                Limpiar historial
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
-                {datos.puedoLimpiar && (
-                    <LimpiarHistorial
-                        canal={canal}
-                        personas={datos.equipo.length}
-                        abierto={limpiando}
-                        onAbierto={setLimpiando}
-                        onLimpio={onRefrescar}
+        <div
+            data-lista-de-canales
+            className="min-h-0 flex-1 overflow-y-auto bg-background px-2 py-2"
+        >
+            <Grupo titulo="Canales">
+                {areas.map((c) => (
+                    <FilaDeCanal
+                        key={c.id}
+                        canal={c}
+                        activo={c.id === canal.id}
+                        mando={datos.mando}
+                        gente={datos.gente}
+                        cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
+                        onElegir={onElegir}
+                        onRefrescar={onRefrescar}
                     />
-                )}
-            </div>
-
-            {abierta && (
-                <div className="max-h-[min(50vh,320px)] overflow-y-auto border-t border-border px-2 py-2">
-                    <Grupo titulo="Canales">
-                        {areas.map((c) => (
-                            <FilaDeCanal
-                                key={c.id}
-                                canal={c}
-                                activo={c.id === canal.id}
-                                mando={datos.mando}
-                                gente={datos.gente}
-                                cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
-                                onElegir={onElegir}
-                                onRefrescar={onRefrescar}
-                            />
-                        ))}
-                        {datos.mando &&
-                            (creando ? (
-                                <FormularioDeCanal
-                                    cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
-                                    onListo={(id) => {
-                                        setCreando(false);
-                                        onRefrescar();
-                                        if (id) onElegir(id);
-                                    }}
-                                />
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => setCreando(true)}
-                                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                                >
-                                    <Plus className="h-3.5 w-3.5 shrink-0" />
-                                    <span>Crear canal</span>
-                                </button>
-                            ))}
-                    </Grupo>
-
-                    <Grupo titulo="Directos">
-                        <ListaDeDirectos
-                            directos={directos}
-                            porAbrir={porAbrir}
-                            canalActivo={canal.id}
-                            datos={datos}
-                            onElegir={onElegir}
-                            onRefrescar={onRefrescar}
+                ))}
+                {datos.mando &&
+                    (creando ? (
+                        <FormularioDeCanal
+                            cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
+                            onListo={(id) => {
+                                setCreando(false);
+                                onRefrescar();
+                                if (id) onElegir(id);
+                            }}
                         />
-                        {!directos.length && !porAbrir.length && (
-                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                                No hay nadie más en esta cuenta.
-                            </p>
-                        )}
-                    </Grupo>
-                </div>
-            )}
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setCreando(true)}
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                        >
+                            <Plus className="h-3.5 w-3.5 shrink-0" />
+                            <span>Crear canal</span>
+                        </button>
+                    ))}
+            </Grupo>
+
+            <Grupo titulo="Directos">
+                <ListaDeDirectos
+                    directos={directos}
+                    porAbrir={porAbrir}
+                    canalActivo={canal.id}
+                    datos={datos}
+                    onElegir={onElegir}
+                    onRefrescar={onRefrescar}
+                />
+                {!directos.length && !porAbrir.length && (
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                        No hay nadie más en esta cuenta.
+                    </p>
+                )}
+            </Grupo>
         </div>
     );
 }
@@ -2360,6 +2537,7 @@ function FilaDeCanal({
             <button
                 type="button"
                 onClick={() => onElegir(canal.id)}
+                data-fila-de-canal={canal.tipo}
                 className={[
                     "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
                     activo ? "bg-primary/10 text-primary" : "hover:bg-muted/60",
@@ -3399,7 +3577,7 @@ function BarraDeBusqueda({
     onAbrirResultado: (r: ResultadoDeBusqueda) => void;
 }) {
     return (
-        <div className="shrink-0 border-b border-border bg-background">
+        <div data-buscador-del-equipo className="shrink-0 border-b border-border bg-background">
             <form
                 onSubmit={(e) => {
                     e.preventDefault();

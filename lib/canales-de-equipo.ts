@@ -330,3 +330,59 @@ export function recordarElCanal(cuentaId: string, personaId: string, canalId: st
         // exactamente como se comportaba esto antes.
     }
 }
+
+/**
+ * # Una sola vista por vez: la LISTA o el CHAT
+ *
+ * El panel enseñaba a la vez la lista de canales —desplegada con «Cambiar»,
+ * topada a 320 px— y el hilo abierto debajo, y ninguna de las dos se podía
+ * usar: la lista se cortaba y el hilo se quedaba en una rendija. Ahora es una
+ * cosa u otra: la lista ocupa el panel entero y se desplaza dentro, y al
+ * elegir un canal el panel pasa entero a su chat, con una flecha de volver
+ * arriba.
+ */
+export type VistaDelEquipo = "lista" | "chat";
+
+/**
+ * Con qué vista se abre.
+ *
+ * 1. **Si se llega a algo concreto** —el `?canal=` o el `?mensaje=` de un aviso
+ *    de mención, un resultado de búsqueda— se abre en el CHAT: abrir la lista
+ *    sería un enlace que no lleva donde dice.
+ * 2. **Si no, donde se estaba** la última vez (lo recuerda
+ *    `recordarLaVista`), que es la regla de siempre del chat de equipo: se
+ *    vuelve al sitio, no se empieza de cero.
+ * 3. **Y sin nada, la LISTA**, que es por donde se empieza.
+ */
+export function laVistaDeEntrada(input: {
+    pedido?: string | null;
+    mensaje?: string | null;
+    recordada?: string | null;
+}): VistaDelEquipo {
+    if ((input.pedido ?? "").trim() || (input.mensaje ?? "").trim()) return "chat";
+    return input.recordada === "chat" ? "chat" : "lista";
+}
+
+/** La llave de la vista recordada: la del canal, con su sufijo. */
+export function llaveDeLaVista(cuentaId: string, personaId: string): string {
+    return `${llaveDelUltimoCanal(cuentaId, personaId)}::vista`;
+}
+
+/** Leer la vista recordada. Nunca lanza, por lo mismo que `elCanalRecordado`. */
+export function laVistaRecordada(cuentaId: string, personaId: string): VistaDelEquipo | null {
+    try {
+        const v = localStorage.getItem(llaveDeLaVista(cuentaId, personaId));
+        return v === "chat" || v === "lista" ? v : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Guardar la vista. Nunca lanza. */
+export function recordarLaVista(cuentaId: string, personaId: string, vista: VistaDelEquipo): void {
+    try {
+        localStorage.setItem(llaveDeLaVista(cuentaId, personaId), vista);
+    } catch {
+        // Sin `localStorage` se abre por la lista, que es donde se empieza.
+    }
+}

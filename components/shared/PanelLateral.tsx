@@ -12,6 +12,21 @@ import {
     MS_DEL_DESLIZAMIENTO,
 } from "@/lib/panel-lateral";
 import { usePanelLateral } from "@/hooks/usePanelLateral";
+import {
+    CABECERA_DEL_PANEL,
+    CONTROL_DE_ICONO,
+    FILA_1_DEL_PANEL,
+    FILA_2_DEL_PANEL,
+    GLIFO_DE_CONTROL,
+} from "@/lib/cabeceras-de-chats";
+
+/**
+ * El botón de la cabecera de un panel: la caja de 28 px de los controles de
+ * Chats (`CONTROL_DE_ICONO`). Lo usan los tres marcos —este, el copiloto y el
+ * chat del equipo— y los mandos que cada panel pone en su segunda fila.
+ */
+export const BOTON_DE_LA_CABECERA_DEL_PANEL =
+    `inline-flex ${CONTROL_DE_ICONO} shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`;
 
 /**
  * Un panel lateral, con su franja, su hoja y su cabecera. **Escrito una vez.**
@@ -84,7 +99,7 @@ export function PanelLateral({
     /** Debajo del título y recortado: el nombre del contacto, normalmente. */
     subtitulo?: ReactNode;
     icono?: ReactNode;
-    /** Mandos propios de la cabecera, a la izquierda de la equis. */
+    /** Mandos propios del panel: van en la SEGUNDA fila, a la derecha, como Macros y Acciones en la conversación. */
     acciones?: ReactNode;
     etiquetaDeCerrar?: string;
     children: ReactNode;
@@ -105,6 +120,7 @@ export function PanelLateral({
                 // más de una vez —el recordatorio va en las dos filas de la
                 // cabecera— y dos nodos con el mismo `id` no son HTML válido.
                 data-panel={id}
+                data-hoja-lateral
                 aria-label={titulo}
                 aria-hidden={!abierto}
                 className={cn(
@@ -114,32 +130,32 @@ export function PanelLateral({
                     relevo && HOJA_SIN_TRANSICION,
                 )}
             >
-                <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
-                    <div className="flex min-w-0 items-center gap-2">
+                {/* La cabecera es la de las otras dos columnas de Chats: 78 px,
+                    dos filas. Arriba el título y la equis; abajo lo que es del
+                    panel (el nombre del contacto y sus mandos). Ver
+                    `CABECERA_DEL_PANEL`. */}
+                <header className={CABECERA_DEL_PANEL} data-cabecera-del-panel>
+                    <div className={FILA_1_DEL_PANEL}>
                         {icono && (
                             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                                 {icono}
                             </span>
                         )}
-                        <div className="min-w-0">
-                            <h2 className="truncate text-base font-semibold">{titulo}</h2>
-                            {subtitulo && (
-                                <p className="truncate text-sm text-muted-foreground">
-                                    {subtitulo}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                        {acciones}
+                        <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{titulo}</h2>
                         <button
                             type="button"
                             onClick={onCerrar}
                             aria-label={etiquetaDeCerrar ?? `Cerrar ${titulo.toLowerCase()}`}
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            className={cn(BOTON_DE_LA_CABECERA_DEL_PANEL)}
                         >
-                            <X className="h-4 w-4" />
+                            <X className={GLIFO_DE_CONTROL} />
                         </button>
+                    </div>
+                    <div className={FILA_2_DEL_PANEL}>
+                        <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                            {subtitulo}
+                        </p>
+                        {acciones}
                     </div>
                 </header>
 

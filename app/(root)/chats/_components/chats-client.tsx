@@ -1,5 +1,6 @@
 "use client";
 
+import { MedidaDeChats } from "@/components/chats/MedidaDeChats";
 import { etiquetasDelFiltro } from "@/lib/etiquetas-de-la-linea";
 import { atajosDeLaConversacion } from "@/lib/atajos-de-la-linea";
 import { getWahaPresenceAction } from "@/actions/waha-chat-actions";
@@ -5357,6 +5358,10 @@ export function ChatsClient({
     <OrigenDeLaAppProvider value={origen}>
     <>
     <div data-full-bleed data-chat-view className="flex h-full w-full overflow-hidden">
+      {/* Coloca los paneles laterales como la TERCERA columna de la bandeja:
+          mismo arriba, mismo abajo, y pegados a la conversación por una raya
+          de 1 px. Ver `lib/panel-lateral.ts`. */}
+      <MedidaDeChats />
       {/* El ancho de ESTA columna es el de todos los paneles laterales de la
           App: sale de `--ancho-lateral` (app/globals.css), que es la misma
           escala de siempre (18/20/22/24 rem) movida a un solo sitio. La ficha

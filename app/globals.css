@@ -394,3 +394,41 @@
     padding-right: var(--ancho-lateral);
   }
 }
+
+/* En Chats, el panel lateral es la TERCERA COLUMNA de la bandeja.
+
+   `MedidaDeChats` mide la bandeja y publica dónde está (`--chats-arriba`,
+   `--chats-alto`, `--chats-derecha`). Con eso la franja se pone EXACTAMENTE
+   sobre la franja que la bandeja le reserva por la derecha: mismo borde de
+   arriba que la lista y la conversación, mismo de abajo, y pegada a la
+   conversación.
+
+   Y la hoja deja de «flotar»: sin redondeo, sin sombra y sin más borde que el
+   izquierdo, de 1 px y del color de `border-border` — el MISMO separador que
+   hay entre la lista y la conversación (`sm:border-r border-border`). Las dos
+   esquinas de la derecha llevan el radio interior de la caja del módulo
+   (`sm:rounded-md` con su borde de 1 px), para no asomar sobre su curva.
+
+   `overflow: hidden` en la franja: cerrada, la hoja se desplaza su ancho a la
+   derecha, y sin recorte asomaría por el hueco entre la bandeja y el borde de
+   la ventana. Recortada, entra y sale por el filo de la bandeja.
+
+   Solo de `lg` para arriba, que es donde se reserva la franja. */
+@media (min-width: 1024px) {
+  :root[data-chats-medidos] [data-franja-lateral] {
+    top: var(--chats-arriba);
+    bottom: auto;
+    height: var(--chats-alto);
+    right: var(--chats-derecha);
+    overflow: hidden;
+    border-top-right-radius: calc(var(--radius) - 3px);
+    border-bottom-right-radius: calc(var(--radius) - 3px);
+  }
+  :root[data-chats-medidos] [data-franja-lateral] > [data-hoja-lateral] {
+    border-radius: 0;
+    box-shadow: none;
+    border-style: solid;
+    border-width: 0 0 0 1px;
+    border-color: hsl(var(--border));
+  }
+}

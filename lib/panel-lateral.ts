@@ -229,3 +229,56 @@ export const PANEL_DE_LA_TAREA = "panel-nueva-tarea";
  */
 export const PANEL_DE_LA_FICHA = "panel-ficha-de-contacto";
 export const PANEL_DE_ENVIAR_AL_EQUIPO = "panel-enviar-al-equipo";
+
+/**
+ * # En Chats, el panel es la TERCERA COLUMNA y no una hoja sobre la ventana
+ *
+ * La franja se coloca contra la VENTANA: arranca justo bajo la barra y llega
+ * al borde derecho de la pantalla. La bandeja, en cambio, vive dentro de la
+ * caja del módulo, que tiene su relleno (`sm:p-1`) y su borde. Así que con un
+ * panel abierto:
+ *
+ * - el panel **subía** más que la lista y la conversación (el relleno y el
+ *   borde de la caja: 5 px), y con él su cabecera entera quedaba descolgada;
+ * - y entre la conversación y el panel quedaba un **hueco** —el relleno, el
+ *   borde redondeado de la caja y la sombra del panel— donde entre la lista y
+ *   la conversación hay una raya de 1 px.
+ *
+ * La respuesta no es restar variables: la caja se MIDE (`MedidaDeChats`) y la
+ * franja se pone exactamente sobre la franja que la bandeja ya le reserva por
+ * la derecha (`padding-right: var(--ancho-lateral)`). Arriba y abajo, los de la
+ * bandeja; a la derecha, el de la bandeja. Y la hoja pierde lo que la hacía
+ * «flotar» —redondeo, sombra y bordes— y se queda con un borde izquierdo de
+ * 1 px del color de la raya de la lista: **el mismo separador en los dos
+ * puntos** (`app/globals.css`, bajo `data-chats-medidos`).
+ *
+ * Solo de `lg` para arriba, que es donde la bandeja reserva la franja; por
+ * debajo el panel se sigue abriendo encima, como en el resto de la plataforma.
+ */
+
+/** La marca de la franja (la caja fija). La leen la regla de CSS y el banco. */
+export const MARCA_DE_FRANJA = "data-franja-lateral";
+/** La marca de la hoja (lo que se desliza dentro). */
+export const MARCA_DE_HOJA = "data-hoja-lateral";
+
+/** Lo que se publica en la raíz, medido de la bandeja. En px. */
+export type MedidaDeLaBandeja = { arriba: number; alto: number; derecha: number };
+
+/**
+ * De la caja medida de la bandeja a los tres números de la franja.
+ *
+ * `derecha` es lo que queda entre el borde derecho de la bandeja y el de la
+ * ventana (el relleno y el borde de la caja del módulo). Redondeado a medio
+ * píxel hacia fuera no: se deja tal cual, porque el borde de la caja puede caer
+ * en un píxel fraccionario y redondear abriría una raya de fondo de 1 px.
+ */
+export function laFranjaDeLaBandeja(
+    caja: { top: number; right: number; height: number },
+    anchoDeLaVentana: number,
+): MedidaDeLaBandeja {
+    return {
+        arriba: caja.top,
+        alto: caja.height,
+        derecha: Math.max(0, anchoDeLaVentana - caja.right),
+    };
+}

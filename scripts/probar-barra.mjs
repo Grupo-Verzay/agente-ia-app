@@ -72,10 +72,18 @@ const exigir = (bien, que) => {
 async function entrar(contexto) {
     const pagina = await contexto.newPage();
     await pagina.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+    // Pulsando antes de que React hidrate, el formulario se envía a pelo y la
+    // página se queda en /login (la misma espera que las demás sondas).
+    await pagina.waitForTimeout(2500);
     await pagina.fill('input[name="email"]', USUARIO);
     await pagina.fill('input[name="password"]', CLAVE);
     await pagina.click('button[type="submit"]');
-    await pagina.waitForURL((u) => !String(u).includes("/login"), { timeout: 60000 });
+    // Se sondea la URL: el login navega en el cliente y `waitForURL` se
+    // quedaba esperando un evento de carga que ya había pasado.
+    for (let i = 0; i < 120 && pagina.url().includes("/login"); i += 1) {
+        await pagina.waitForTimeout(500);
+    }
+    if (pagina.url().includes("/login")) throw new Error("no se pudo entrar: la página sigue en /login");
     return pagina;
 }
 
@@ -155,6 +163,12 @@ for (const v of VENTANAS) {
     /* ─── el chat de equipo ─── */
     await pagina.goto(`${BASE}/chat-equipo`, { waitUntil: "domcontentloaded" });
     await apartarLoQueTapa(pagina);
+    // El chat del equipo enseña UNA vista por vez y abre en la lista de
+    // canales: la barra de escribir es del chat, así que se entra en uno.
+    await pagina.waitForSelector("[data-lista-de-canales], textarea", { timeout: 60000 });
+    await apartarLoQueTapa(pagina);
+    const fila = await pagina.$("[data-lista-de-canales] [data-fila-de-canal]");
+    if (fila && (await fila.isVisible())) await fila.click();
     await pagina.waitForSelector("textarea", { timeout: 60000 });
     const equipo = await leerLaBarra(pagina, "textarea");
 

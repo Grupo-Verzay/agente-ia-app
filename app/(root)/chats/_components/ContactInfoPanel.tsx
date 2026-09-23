@@ -185,7 +185,7 @@ export function ContactInfoPanel({
       titulo="Contacto"
       etiquetaDeCerrar="Cerrar ficha de contacto"
       acciones={
-        <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" onClick={() => setConfigOpen(true)} title="Configurar campos" aria-label="Configurar campos">
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setConfigOpen(true)} title="Configurar campos" aria-label="Configurar campos">
           <SlidersHorizontal className="h-4 w-4" />
         </Button>
       }
