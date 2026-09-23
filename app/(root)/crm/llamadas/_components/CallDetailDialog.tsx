@@ -1,19 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Sparkles, FileText, Loader2, PhoneOutgoing, PhoneMissed, Play, Pause } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Sparkles, FileText, Loader2, PhoneOutgoing, PhoneMissed, Bot, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getCallDetailAction } from "@/actions/calls-crm-actions";
 import type { CallRow } from "@/lib/fila-de-llamada";
-import { laDuracionDelReproductor, elTiempoDelReproductor } from "@/lib/reproductor-de-llamada";
+import { NotaDeVozSuelta } from "@/components/shared/NotaDeVoz";
+import { losTurnos, type QuienHabla } from "@/lib/turnos-de-la-transcripcion";
 
 const DATE_FMT = new Intl.DateTimeFormat("es-CO", {
   day: "2-digit",
@@ -145,7 +144,9 @@ export function CallDetailDialog({
         {url && (
           <div>
             <div className="mb-1 text-xs font-medium text-muted-foreground">Grabación</div>
-            <ReproductorDeLlamada src={url} durationSecs={call.durationSecs} />
+            {/* La MISMA nota de voz que pinta Chats, sin excepciones: ver
+                `components/shared/NotaDeVoz.tsx`. */}
+            <NotaDeVozSuelta src={url} />
           </div>
         )}
 
@@ -169,9 +170,7 @@ export function CallDetailDialog({
             <FileText className="h-3.5 w-3.5" /> Transcripción
           </div>
           {call.transcript ? (
-            <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-sm text-muted-foreground">
-              {call.transcript}
-            </p>
+            <Transcripcion texto={call.transcript} />
           ) : (
             <p className="flex items-center gap-1.5 text-sm italic text-muted-foreground">
               {(cargando || procesando) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -179,86 +178,42 @@ export function CallDetailDialog({
             </p>
           )}
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cerrar
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
+const QUIEN: Record<QuienHabla, { Icono: typeof Bot; rotulo: string; color: string }> = {
+  asistente: { Icono: Bot, rotulo: "Asistente", color: "text-violet-600" },
+  persona: { Icono: User, rotulo: "Persona", color: "text-sky-600" },
+};
+
 /**
- * El reproductor propio. Con `<audio controls>` el total sale «0:00» hasta que
- * el navegador baja los metadatos —con un webm, hasta pulsar play—. Aquí el
- * total es el de la columna Duración desde que se abre, y el del navegador
- * solo cuenta si la fila no lo trae.
+ * La transcripción. Cuando el texto trae quién habla, cada turno empieza con
+ * su icono; cuando no —OpenAI devuelve un texto corrido—, se pinta tal cual y
+ * NO se reparte: eso sería inventar quién habló. Ver
+ * `lib/turnos-de-la-transcripcion.ts`.
  */
-function ReproductorDeLlamada({ src, durationSecs }: { src: string; durationSecs: number }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [sonando, setSonando] = useState(false);
-  const [actual, setActual] = useState(0);
-  const [delAudio, setDelAudio] = useState<number | null>(null);
-
-  const total = laDuracionDelReproductor(durationSecs, delAudio);
-
-  const alternar = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (a.paused) {
-      a.play().catch((err) => console.warn("[llamadas] no se pudo reproducir la grabacion", err));
-    } else {
-      a.pause();
-    }
-  };
-
-  const buscar = (valor: number) => {
-    const a = audioRef.current;
-    if (!a || !Number.isFinite(valor)) return;
-    a.currentTime = valor;
-    setActual(valor);
-  };
-
+function Transcripcion({ texto }: { texto: string }) {
+  const turnos = losTurnos(texto);
+  if (!turnos) {
+    return (
+      <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-sm text-muted-foreground">{texto}</p>
+    );
+  }
   return (
-    <div className="flex items-center gap-2 rounded-md border px-2 py-1.5" data-reproductor>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="metadata"
-        className="hidden"
-        onPlay={() => setSonando(true)}
-        onPause={() => setSonando(false)}
-        onEnded={() => setSonando(false)}
-        onTimeUpdate={(e) => setActual(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDelAudio(e.currentTarget.duration)}
-        onDurationChange={(e) => setDelAudio(e.currentTarget.duration)}
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7 shrink-0"
-        onClick={alternar}
-        aria-label={sonando ? "Pausar" : "Reproducir"}
-      >
-        {sonando ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-      </Button>
-      <input
-        type="range"
-        min={0}
-        max={total || 0}
-        step={0.1}
-        value={Math.min(actual, total || 0)}
-        onChange={(e) => buscar(Number(e.target.value))}
-        className="h-1 min-w-0 flex-1 cursor-pointer accent-violet-600"
-        aria-label="Posición de la grabación"
-      />
-      <span className="shrink-0 tabular-nums text-xs text-muted-foreground" data-tiempo>
-        {elTiempoDelReproductor(actual)} / {elTiempoDelReproductor(total)}
-      </span>
+    <div className="space-y-1.5 rounded-md bg-muted/40 p-2 text-sm text-muted-foreground" data-turnos>
+      {turnos.map((t, i) => {
+        const { Icono, rotulo, color } = QUIEN[t.quien];
+        return (
+          <div key={i} className="flex items-start gap-1.5" data-turno={t.quien}>
+            <Icono className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${color}`} aria-label={rotulo}>
+              <title>{rotulo}</title>
+            </Icono>
+            <p className="min-w-0 whitespace-pre-wrap">{t.texto}</p>
+          </div>
+        );
+      })}
     </div>
   );
 }

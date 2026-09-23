@@ -16162,6 +16162,39 @@ Lo comprueba `scripts/banco-clave-de-ia.sh`: la decisión, un barrido del códig
 y las acciones de verdad contra Postgres, y en `MODO=roto` el código de
 `ANTES_REF` afirma la clave en claro en la respuesta.
 
+## CRM › Llamadas: el detalle usa la nota de voz de Chats, y los turnos solo si el texto los trae
+
+Cuatro arreglos del diálogo «Detalle de la llamada», y la regla de cada uno:
+
+1. **La grabación es la MISMA nota de voz que en Chats**, no una parecida:
+   `components/shared/NotaDeVoz.tsx` la pintan `MediaRenderer` y el diálogo
+   (`NotaDeVozSuelta`, con el marco y los 350 px de un adjunto). Sin tamaños ni
+   colores propios. La duración sale al abrir: `<audio preload="metadata">` y,
+   para un webm que dice `Infinity`, `pedirLaDuracionDeVerdad` (salta al final,
+   espera `durationchange` y vuelve a 0). Con dos reproductores, el día que se
+   afine uno el otro se queda atrás.
+2. **«Verzi», «Verzei» y «Berzy» se corrigen AL GUARDAR** —la lista cerrada de
+   `lib/nombres-de-la-marca.ts`, con su `PISTA_DE_VOCABULARIO` arriba—. Solo
+   transcripciones nuevas: lo guardado no se reescribe, que es un registro de lo
+   que pasó.
+3. **Los iconos por hablante salen solo si el TEXTO trae quién habla**
+   (`lib/turnos-de-la-transcripcion.ts`, puro: `Operador:`/`Asistente:` → robot,
+   `Cliente:` → persona). **Comprobado: OpenAI (`gpt-4o-transcribe`/`whisper-1`),
+   que es el camino normal, devuelve texto CORRIDO sin hablantes**; solo el de
+   Google marca turnos. Sin marcas se pinta tal cual y **no se inventa la
+   separación**: repartir un texto corrido sería atribuirle frases a quien no las
+   dijo. Si hace falta en todas, el camino es transcribir los dos canales del WAV
+   por separado (izquierdo = asistente, derecho = cliente). El Resumen IA no
+   lleva iconos: no es una conversación.
+4. **Sin «Cerrar» abajo**: el diálogo se cierra con la X, y sin pie no queda una
+   fila vacía.
+
+Lo prueba `scripts/banco-detalle-de-llamada.sh`, en dos modos: la regla pura y
+el diálogo real en Chromium. `MODO=roto` saca los ficheros de `ANTES_REF` con
+`git show` y afirma los fallos. Y el test importa playwright con
+`createRequire`: el del entorno vive fuera del repo y un `import()` de ESM no
+mira `NODE_PATH`, así que las pruebas de navegador se saltaban en silencio.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

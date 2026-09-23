@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Maximize2, Mic } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SafeImage } from '@/components/custom/SafeImage';
 import { cn } from '@/lib/utils';
 import type { MediaData } from './chat-message-types';
 import { MediaViewer, useMediaGallery } from './media-viewer';
 import { DocumentCard } from './DocumentCard';
+import { NotaDeVoz, MARCO_DE_UN_ADJUNTO, ANCHO_DE_LA_NOTA } from '@/components/shared/NotaDeVoz';
 
 /**
  * El ancho de un adjunto, que es tambien el del PIE que lo acompana.
@@ -32,7 +33,7 @@ import { DocumentCard } from './DocumentCard';
  */
 export function anchoDelAdjunto(tipo: MediaData['type']): string {
   return tipo === 'audio' || tipo === 'document'
-    ? 'w-[350px] max-w-full'
+    ? ANCHO_DE_LA_NOTA
     : 'max-w-full md:max-w-[300px]';
 }
 
@@ -91,7 +92,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({
     if ((type === 'image' || type === 'video') && gallery?.openByUrl(url)) return;
     setViewerOpen(true);
   };
-  const baseStyle = 'my-1 rounded-md overflow-hidden border dark:border-gray-600';
+  const baseStyle = MARCO_DE_UN_ADJUNTO;
 
   return (
     <>
@@ -129,29 +130,9 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({
         )}
 
         {type === 'audio' && (
-          <div className="p-2 bg-gray-50/90 dark:bg-gray-700 flex items-center gap-2 border border-gray-200/70 dark:border-gray-600 rounded-lg">
-            {/*
-              El micrófono es el tercer estado de una nota de voz, como en
-              WhatsApp: azul cuando el contacto la escuchó. No es lo mismo que
-              las dos palomitas azules —eso es que abrió el chat—, y por eso se
-              dice aquí y no allí. Lo que hace se lee al posarse encima.
-            */}
-            <button
-              type="button"
-              onClick={() => setViewerOpen(true)}
-              className={cn(
-                'flex-shrink-0 transition-colors',
-                reproducido
-                  ? 'text-sky-500 dark:text-sky-400 hover:text-sky-600 dark:hover:text-sky-300'
-                  : 'text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400',
-              )}
-              title={reproducido ? 'Reproducido por el contacto' : 'Abrir reproductor'}
-              aria-label={reproducido ? 'Reproducido por el contacto' : 'Abrir reproductor'}
-            >
-              <Mic className="w-5 h-5" />
-            </button>
-            <audio src={url} controls className="flex-1 h-8" preload="metadata" />
-          </div>
+          // La nota de voz es UNA pieza, la misma que pinta el detalle de una
+          // llamada en CRM › Llamadas: ver `components/shared/NotaDeVoz.tsx`.
+          <NotaDeVoz src={url} reproducido={!!reproducido} onAbrir={() => setViewerOpen(true)} />
         )}
 
         {/* La transcripcion, debajo del audio y sin quitarlo — o el motivo por

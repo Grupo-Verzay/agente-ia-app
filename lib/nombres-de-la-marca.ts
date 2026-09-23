@@ -52,19 +52,30 @@ const LO_QUE_SE_HA_OIDO: Record<string, string> = {
   berzay: VERZAY,
   berzai: VERZAY,
   verzai: VERZAY,
+  verzei: VERZAY, // «Verzi de Verzei», visto el 2026-09-22
   // Verzy → suena «VER-si»
   bersi: VERZY,
   bersy: VERZY,
   bercy: VERZY,
   berci: VERZY,
   berzi: VERZY,
+  berzy: VERZY, // visto el 2026-09-22
+  verzi: VERZY, // «Verzi de Verzei», visto el 2026-09-22
   versi: VERZY,
   verci: VERZY,
   versy: VERZY,
 };
 
-/** El vocabulario que se le pasa a la transcripción para que acierte de entrada. */
-export const PISTA_DE_VOCABULARIO = "Verzay, Verzy, WhatsApp, CRM, IA.";
+/**
+ * El vocabulario que se le pasa a la transcripción para que acierte de entrada.
+ *
+ * Con la lista pelada de nombres —«Verzay, Verzy, WhatsApp…»— el motor seguía
+ * escribiendo «Verzi de Verzei»: la pista de Whisper funciona como el TEXTO
+ * ANTERIOR a lo que transcribe, no como un glosario. Así que va escrita como la
+ * frase con la que se presenta el asistente: es exactamente lo que va a oír.
+ */
+export const PISTA_DE_VOCABULARIO =
+  "Hola, soy Verzy, de Verzay. El asistente se llama Verzy y la empresa es Verzay. WhatsApp, CRM, IA.";
 
 function sinAcentos(texto: string): string {
   return texto.normalize("NFD").replace(/[̀-ͯ]/g, "");
