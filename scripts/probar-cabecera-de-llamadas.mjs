@@ -7,8 +7,9 @@
  *      tamaño. Se comparan contra los de `/sessions` medidos en la MISMA
  *      sesión, no contra números escritos aquí: si mañana se afina el tema, el
  *      banco sigue comparando lo que de verdad hay que comparar.
- *   2. **Todo el contenido va a la izquierda**, como en Leads: cada celda
- *      alinea a la izquierda y lo que lleva dentro arranca en su borde.
+ *   2. **El contenido va a la izquierda**, como en Leads: cada celda alinea a
+ *      la izquierda y lo que lleva dentro arranca en su borde. Duración y
+ *      Acciones van centradas a propósito, y quedan fuera de esta comprobación.
  *   3. **El ancho se reparte como en Leads**: la tabla llega a los bordes de
  *      su tarjeta, no queda un hueco grande entre Fecha y Detalle, y Acciones
  *      sigue entera a la vista.
@@ -161,8 +162,12 @@ for (const v of VENTANAS) {
     }
     if (cabeceraDistinta) rojosDelAntes.cabecera += 1;
 
-    // 2. Alineación a la izquierda
-    const centradas = m.celdas.filter((c) => !["left", "start"].includes(c.alineacion) || c.desdeElBorde > 2);
+    // 2. Alineación: todo a la izquierda salvo Duración y Acciones, que van
+    //    centradas (ver `banco-alineacion-de-llamadas.sh`).
+    const CENTRADAS = ["Duración", "Acciones"];
+    const centradas = m.celdas.filter(
+        (c) => !CENTRADAS.includes(c.rotulo) && (!["left", "start"].includes(c.alineacion) || c.desdeElBorde > 2),
+    );
     if (centradas.length) rojosDelAntes.alineacion += 1;
     if (!ROTO)
         exigir(
