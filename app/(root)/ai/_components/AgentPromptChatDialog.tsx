@@ -539,7 +539,7 @@ export function AgentPromptChatDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(585px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0 [&>button]:text-destructive/60 [&>button]:hover:text-destructive [&>button]:hover:bg-destructive/10">
+      <DialogContent className="flex h-[min(585px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0 [&>[data-cerrar]>button]:text-destructive/60 [&>[data-cerrar]>button]:hover:text-destructive [&>[data-cerrar]>button]:hover:bg-destructive/10">
 
         <div className="relative flex flex-1 flex-col min-h-0">
           {/* Divisor vertical header+body */}

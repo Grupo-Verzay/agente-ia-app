@@ -37,7 +37,7 @@ import {
 import { STATUS_LABELS } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 import { usePanelFlotante } from '@/hooks/usePanelFlotante';
-import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
+import { ENCIMA_DE_SU_PANEL, PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   PENDIENTE:   'bg-yellow-500',
@@ -200,7 +200,10 @@ export function ChatAppointmentStatusButton({
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Cambiar estado" />
                 </SelectTrigger>
-                <SelectContent>
+                {/* Encima de la ficha: nace en `z-50` y la ficha va en
+                    `z-[70]`, así que sus primeras opciones quedaban tapadas
+                    por ella. Ver `ENCIMA_DE_SU_PANEL`. */}
+                <SelectContent className={ENCIMA_DE_SU_PANEL} data-estado-de-la-cita="">
                   {(Object.keys(STATUS_LABELS) as AppointmentStatus[]).map((s) => (
                     <SelectItem key={s} value={s} className="text-xs">
                       {STATUS_LABELS[s]}

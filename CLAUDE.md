@@ -16020,6 +16020,53 @@ menús; `MODO=roto BUILD_ANTES=<.next de antes>` afirma los fallos— y
 `scripts/banco-contexto-del-lead.sh`, con las acciones de verdad contra
 Postgres y su modo roto.
 
+## Lo que se abre DENTRO de un flotante va encima de él, y la ✕ se esconde con `hideCloseButton`
+
+Cuatro fallos de posición reportados juntos (2026-09-23), cada uno con su causa:
+
+| lo que se veía | la causa |
+| --- | --- |
+| en la ficha de la cita, «Pendiente» y «Confirmada» del desplegable de estado tapadas y cortadas | el `Select` nace en el `z-50` de `components/ui/select.tsx` y la ficha en `ENCIMA_DEL_BORDE` (`z-[70]`): el hijo quedaba DEBAJO del padre, justo donde se solapan |
+| dos ✕ en «Registros», una cortada en la esquina | `[&>button]:hidden` dejó de alcanzar la ✕ del diálogo cuando se metió en su caja `data-cerrar`; además esa ✕, a `-right-2` en un diálogo `p-0`, lo hacía desbordar 8 px a lo ancho |
+| el menú de «+ Nuevo» fuera de su sitio | colgaba con `suelto(...)`: con hueco bajo el botón y con Floating UI libre de correrlo contra la ventana, no contra el diálogo |
+| la campanita no llegaba al filo derecho | colgaba de su botón, que acaba a 12 px por el `pr-3` de la barra |
+
+Cuatro reglas:
+
+1. **Lo que se abre desde DENTRO de un flotante lleva `ENCIMA_DE_SU_PANEL`
+   (`z-[80]`)**, por encima del panel y por debajo de la sala (`z-[99]`). Un
+   `Select`, un `Popover` o un menú dentro de algo que ya lleva
+   `PANEL_QUE_SE_DESPLAZA` nace en `z-50` si no se le dice nada.
+2. **La ✕ de un diálogo se esconde con `hideCloseButton`, nunca con
+   `[&>button]:hidden`**, y se estiliza con `[&>[data-cerrar]>button]:…`. Lo
+   comprueba un barrido (`menus-de-registros-geometria.test.mjs`) que falla si
+   algún `DialogContent` vuelve a escribir `[&>button]`. Estaban así Registros
+   (`ChatRegistrosSheet`), Seguimientos (`SeguimientosDetailCell`) y el color
+   rojo de la ✕ de `AgentPromptChatDialog`, que tampoco se aplicaba.
+3. **Un menú que cuelga de un botón dentro de un diálogo va por
+   `bajoSuBotonEnElDialogo`** (clase `bajoSuBotonEnElDialogo` de
+   `usePanelFlotante`, que mide el `[role="dialog"]` que lo contiene): pegado
+   bajo el botón (`SEPARACION_DEL_MENU`), filo derecho en el del botón y nunca
+   más allá del diálogo, creciendo hacia la izquierda, ancho acotado al diálogo
+   y `avoidCollisions: false`. Es el criterio de los menús de la cabecera
+   aplicado a su contenedor. En el banco no se reprodujo la salida por la
+   derecha tal cual —solo el hueco y el desbordamiento de la ✕—, así que la
+   garantía va por construcción, no por un caso.
+4. **La campanita acaba en el filo derecho de la BARRA** (`bajoLaBarraDeArriba`,
+   `alignOffset = botón.right − filo`, negativo), como Acciones en el de su
+   recuadro. **Su `sideOffset` y su tope de alto no se tocan**: nace donde nacía,
+   y el banco lo compara contra la cuenta de antes.
+
+Lo prueba `scripts/banco-menus-de-registros.sh`: la decisión y el barrido sin
+navegador, y en Chromium sobre el CSS del build los componentes REALES
+(`ChatAppointmentStatusButton`, `ChatRegistrosSheet`, `NotificationCenter`) a
+1440/1280/1024/390. Dos trampas del propio banco: **un `Select` abierto pone
+`pointer-events: none` fuera de él**, y `elementFromPoint` se salta lo que no
+recibe el puntero —la ficha que tapa no saldría—, así que se devuelven los
+punteros antes de preguntar; y una opción cortada puede tener el centro a la
+vista, así que se mira arriba, en medio y abajo. `MODO=roto` empaqueta el mismo
+arnés contra `ANTES_REF` (un `git worktree`) y afirma los cuatro fallos.
+
 ## Chats: todo lo flotante mide el hueco y elige el lado donde CABE
 
 La barra de reacciones de un mensaje abría siempre hacia arriba, y con el

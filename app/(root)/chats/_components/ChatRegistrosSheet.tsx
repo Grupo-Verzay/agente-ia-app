@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X, ArrowLeft, Loader2, Pencil } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
@@ -165,6 +166,9 @@ export function ChatRegistrosSheet({
   const [porTipoSemilla, setPorTipoSemilla] = useState<Record<string, number> | null>(null);
   const [detalleCargado, setDetalleCargado] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab ?? "RESUMEN");
+  // El menú de «+ Nuevo»: pegado bajo su botón y creciendo hacia DENTRO del
+  // diálogo, nunca más allá de su borde derecho (`bajoSuBotonEnElDialogo`).
+  const menuNuevo = usePanelFlotante("bajoSuBotonEnElDialogo", "menu");
   const [agendaMode, setAgendaMode] = useState<"all" | "legacy" | "crm" | "reminders" | "appointments">("all");
   const [sintesisExpanded, setSintesisExpanded] = useState(false);
 
@@ -374,7 +378,11 @@ export function ChatRegistrosSheet({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full max-w-3xl h-[85vh] flex flex-col p-0 gap-0 [&>button]:hidden">
+        {/* `hideCloseButton`, no `[&>button]:hidden`: la ✕ del diálogo vive
+            dentro de una caja `data-cerrar` y ya no es hija directa, así que
+            ese selector no la escondía y salían DOS —la de la cabecera y otra
+            cortada en la esquina—. */}
+        <DialogContent hideCloseButton className="w-full max-w-3xl h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-4 pt-3 pb-3 border-b shrink-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -399,13 +407,13 @@ export function ChatRegistrosSheet({
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {activeTab === "RESUMEN" ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                  <DropdownMenu onOpenChange={menuNuevo.alAbrir}>
+                    <DropdownMenuTrigger asChild ref={menuNuevo.disparador}>
                       <Button size="sm" className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
                         + Nuevo
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={PANEL_QUE_SE_DESPLAZA}>
+                    <DropdownMenuContent {...menuNuevo.props} className={PANEL_QUE_SE_DESPLAZA}>
                       {TIPOS.map((tipo) => (
                         <DropdownMenuItem key={tipo} onClick={() => openCreate(tipo)}>
                           {NUEVO_TIPO_LABEL[tipo]}
