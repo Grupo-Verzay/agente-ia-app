@@ -10,9 +10,9 @@
  */
 import React from "react";
 import { createRoot } from "react-dom/client";
-// @ts-ignore — las dos rutas las reescribe el script según el modo: en el
-// bueno, el componente y la clase de la lista de hoy; en el roto, los de
-// `ANTES_REF`, sacados de git.
+// @ts-ignore — las dos rutas las reescribe el script. La lista es la de hoy
+// en los dos modos (con su barra); la fila, en el roto, sale de un árbol de
+// `ANTES_REF` sacado de git.
 import { ChatContactItem } from "__FILA__";
 // @ts-ignore
 import { LISTA_DE_CHATS } from "__LISTA__";

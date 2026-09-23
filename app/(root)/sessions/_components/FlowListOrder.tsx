@@ -5,6 +5,8 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import React from "react";
+import { cn } from "@/lib/utils";
+import { RELLENO_DE_PX_2 } from "@/lib/pastillas-de-la-fila";
 
 type FlowEntry = { id: string; name: string };
 
@@ -32,7 +34,8 @@ function parseFlujos(raw: string): FlowEntry[] {
         .map((name) => ({ id: name, name }));
 }
 
-export const FlowListOrder = ({ raw }: { raw: string }) => {
+/** `compacta`: en la fila de una tarjeta de Chats, 2 px menos de relleno por lado (`lib/pastillas-de-la-fila.ts`). */
+export const FlowListOrder = ({ raw, compacta = false }: { raw: string; compacta?: boolean }) => {
     const flowsArr = parseFlujos(raw).sort((a, b) =>
         a.name.localeCompare(b.name, "es")
     );
@@ -46,7 +49,7 @@ export const FlowListOrder = ({ raw }: { raw: string }) => {
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span className="inline-flex">
-                        <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-blue-300 bg-blue-100 px-2 text-xs font-medium text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full border border-blue-300 bg-blue-100 text-xs font-medium text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300", compacta ? RELLENO_DE_PX_2 : "px-2")}>
                             <span className="h-2 w-2 rounded-full bg-blue-500 dark:bg-blue-400" />
                             {count}
                         </span>

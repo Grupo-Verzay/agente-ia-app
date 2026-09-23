@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { usePanelFlotante, type ClaseDePanel } from '@/hooks/usePanelFlotante';
 import { cn } from '@/lib/utils';
+import { RELLENO_DE_PX_1, RELLENO_DE_PX_1_5, RELLENO_DE_PX_2 } from '@/lib/pastillas-de-la-fila';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { AssignmentLogEntry } from '@/actions/advisor-assign-actions';
 import { RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
@@ -83,6 +84,9 @@ export function AdvisorAssignBadge({
   const otrosAsesores = advisors.filter((a) => a.id !== currentAdvisorId);
   const hasAssignment = !!assignedAdvisorId;
 
+  // `sm` es la pastilla de la fila de una tarjeta de Chats, la única que lo
+  // usa: lleva 2 px menos de relleno por lado, igual que las demás de la fila
+  // (`lib/pastillas-de-la-fila.ts`).
   const isPill = size === 'sm';
 
   useEffect(() => {
@@ -118,8 +122,8 @@ export function AdvisorAssignBadge({
             void handleAssign(currentAdvisorId ?? null);
           }}
           className={cn(
-            'inline-flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/50 px-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50',
-            isPill ? 'h-6 text-[10px]' : 'h-7 text-xs',
+            'inline-flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50',
+            isPill ? cn('h-6 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
           )}
           title="Tomar esta conversación"
         >
@@ -132,8 +136,8 @@ export function AdvisorAssignBadge({
       return (
         <span
           className={cn(
-            'inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 px-2 text-green-700 dark:text-green-400',
-            isPill ? 'h-6 text-[10px]' : 'h-7 text-xs',
+            'inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-400',
+            isPill ? cn('h-6 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
           )}
           title="Mi conversación"
         >
@@ -148,7 +152,7 @@ export function AdvisorAssignBadge({
         className={cn(
           'inline-flex items-center justify-center font-semibold text-white shrink-0',
           isPill
-            ? cn('h-6 rounded-full px-1.5 text-[10px]', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground')
+            ? cn(cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5), assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground')
             : cn('h-7 w-7 rounded-full text-xs', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground'),
         )}
         title={assigned ? (assigned.name ?? assigned.email) : 'Asignado'}
@@ -185,25 +189,25 @@ export function AdvisorAssignBadge({
             isMySession
               ? cn(
                   'border border-green-300 bg-green-100 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400',
-                  isPill ? 'h-6 rounded-full px-1.5 text-[10px]' : 'h-7 rounded-full px-2 text-xs',
+                  isPill ? cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5) : 'h-7 rounded-full px-2 text-xs',
                 )
               : assigned
               ? cn(
                   'font-semibold text-white',
                   isPill
-                    ? cn('h-6 rounded-full px-1.5 text-[10px]', colorFor(assigned.id))
+                    ? cn(cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5), colorFor(assigned.id))
                     : cn('h-7 w-7 rounded-full text-xs', colorFor(assigned.id)),
                 )
               : hasAssignment
               ? cn(
                   'font-semibold text-white',
                   isPill
-                    ? cn('h-6 rounded-full px-1.5 text-[10px]', colorFor(assignedAdvisorId!))
+                    ? cn(cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5), colorFor(assignedAdvisorId!))
                     : cn('h-7 w-7 rounded-full text-xs', colorFor(assignedAdvisorId!)),
                 )
               : cn(
                   'border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary',
-                  isPill ? 'h-6 rounded-full px-1 gap-0.5 text-[10px]' : 'h-7 w-7 rounded-full',
+                  isPill ? cn('h-6 rounded-full gap-0.5 text-[10px]', RELLENO_DE_PX_1) : 'h-7 w-7 rounded-full',
                 ),
           )}
         >
