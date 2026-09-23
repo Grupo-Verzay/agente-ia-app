@@ -10675,6 +10675,36 @@ un lado y listar por otro.**
    esconde el número**: un hueco donde antes había una cifra no explica nada, y
    el número es justo lo que se viene a mirar.
 
+### Y «Todos» cuenta lo que la lista ENSEÑA: sin resueltas
+
+Al resolver una conversación salía de «Todos» y el número no bajaba, ni
+recargando (lo reportó un cliente). Las dos fuentes del número contaban las
+resueltas: el `COUNT` de `contarChatsPorLinea` no miraba `resolved_at`, y el
+navegador hacía `max(servidor, cargadas)` con las resueltas dentro — así que
+aunque una fuente bajara, la otra lo tapaba.
+
+> **«Todos» son las ACTIVAS: ni borradas, ni archivadas, ni resueltas.** La
+> regla de resuelta es UNA, `estaResuelta` (`lib/total-de-todos.ts`): la usa la
+> lista para esconder la fila y el número para no contarla, y el servidor la
+> repite en SQL (marca y ningún mensaje posterior). Si se toca una, se toca la
+> otra.
+
+Tres cosas que hay que mantener:
+
+1. **El número se corrige EN VIVO sin volver a preguntar** (`totalesDeTodos`):
+   se recuerda si cada fila estaba activa la primera vez que se la vio **con su
+   sesión puesta** —eso es lo que el `COUNT` dio por hecho— y cada cambio
+   posterior suma o resta uno. Resolver baja, reabrir sube, archivar baja.
+2. **La primera vez CON SESIÓN, no la primera a secas.** Las sesiones llegan
+   segundos después que la lista; apuntar antes haría que una resuelta se
+   restara dos veces.
+3. **Los grupos van en un `UNION` con `COUNT DISTINCT`**, no en dos ramas
+   sumadas: desde que un grupo tiene ficha, las dos ramas lo contaban.
+
+Lo prueba `scripts/banco-total-de-todos.sh` contra Postgres con las funciones
+de producción; `MODO=roto` corre la consulta y la cuenta de antes y afirma que
+el número no baja.
+
 ## Una consulta que devuelve una página tiene que poder PARARSE
 
 Una consulta que junta varias fuentes, las deduplica y al final se queda con 26

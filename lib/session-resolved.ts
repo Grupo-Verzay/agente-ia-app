@@ -27,7 +27,7 @@ import { db } from "@/lib/db";
  */
 let asegurarColumnaResolvedAt: Promise<void> | null = null;
 
-async function ensureResolvedAtColumn(): Promise<void> {
+export async function ensureResolvedAtColumn(): Promise<void> {
     asegurarColumnaResolvedAt ??= (async () => {
         await db.$executeRawUnsafe(
             'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP(3)',
