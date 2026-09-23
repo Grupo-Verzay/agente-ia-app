@@ -36,6 +36,8 @@ import { toggleAgentDisabled } from '@/actions/session-action';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
 import { ConversationParticipants } from './ConversationParticipants';
+import { PanelLateral } from '@/components/shared/PanelLateral';
+import { PANEL_DE_LA_FICHA } from '@/lib/panel-lateral';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { Session } from '@/types/session';
 
@@ -153,7 +155,55 @@ interface ContactInfoPanelProps {
 }
 
 /* ── Panel ─────────────────────────────────────────────────── */
+/**
+ * La ficha de Contacto, en el MISMO `PanelLateral` que el recordatorio, la
+ * tarea, el contexto del lead, el copiloto y el chat del equipo.
+ *
+ * Era un hermano del flex de Chats que se montaba y desmontaba de golpe: la
+ * conversación se encogía en un fotograma y la ficha aparecía ya puesta, sin
+ * deslizarse —«empujada y frenada»— mientras los otros cinco entraban con su
+ * deslizamiento de 500 ms. Al alternar entre ella y cualquiera de ellos se
+ * notaba el salto. Ahora comparte marco, ancho, anclaje, duración y curva, y la
+ * conversación se acomoda con la misma reserva de franja que los demás.
+ *
+ * El marco es este y el cuerpo es `FichaDeContacto`: el cuerpo trae sus
+ * consultas, así que solo existe mientras el panel está dentro (lo de dentro
+ * de `PanelLateral` es perezoso), igual que cuando se montaba con un `&&`.
+ */
 export function ContactInfoPanel({
+  abierto,
+  onClose,
+  ...resto
+}: Omit<ContactInfoPanelProps, 'session'> & { session: Session | null; abierto: boolean }) {
+  const [configOpen, setConfigOpen] = useState(false);
+  const session = resto.session;
+  return (
+    <PanelLateral
+      id={PANEL_DE_LA_FICHA}
+      abierto={abierto && !!session}
+      onCerrar={onClose}
+      titulo="Contacto"
+      etiquetaDeCerrar="Cerrar ficha de contacto"
+      acciones={
+        <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" onClick={() => setConfigOpen(true)} title="Configurar campos" aria-label="Configurar campos">
+          <SlidersHorizontal className="h-4 w-4" />
+        </Button>
+      }
+    >
+      {session ? (
+        <FichaDeContacto
+          {...resto}
+          session={session}
+          onClose={onClose}
+          configOpen={configOpen}
+          setConfigOpen={setConfigOpen}
+        />
+      ) : null}
+    </PanelLateral>
+  );
+}
+
+function FichaDeContacto({
   session,
   displayedContactName,
   displayedWhatsapp,
@@ -165,10 +215,11 @@ export function ContactInfoPanel({
   onClose,
   onSessionMutate,
   onSessionRefresh,
-}: ContactInfoPanelProps) {
+  configOpen,
+  setConfigOpen,
+}: ContactInfoPanelProps & { configOpen: boolean; setConfigOpen: (v: boolean) => void }) {
   const [fields, setFields] = useState<ContactFields>(EMPTY_FIELDS);
   const [fieldDefs, setFieldDefs] = useState<ContactFieldDef[]>(DEFAULT_CONTACT_FIELDS);
-  const [configOpen, setConfigOpen] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -360,24 +411,10 @@ export function ContactInfoPanel({
     }));
   })();
 
-  // Mismo ancho que la lista de la izquierda y que los demás paneles:
-  // `--ancho-lateral`. Estaba en `md:w-80` —320 px fijos—, así que a partir de
-  // 1024 px la columna derecha salía más estrecha que la izquierda.
+  // El ancho, el anclaje y el deslizamiento los pone `PanelLateral`: aquí
+  // solo va el cuerpo.
   return (
-    <aside data-ficha-de-contacto className="flex flex-col w-full md:w-[var(--ancho-lateral)] shrink-0 border-l bg-background h-full overflow-hidden absolute inset-0 z-20 md:static md:z-auto md:inset-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
-        <span className="text-sm font-semibold">Contacto</span>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={() => setConfigOpen(true)} title="Configurar campos">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose} title="Cerrar">
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-
+    <div data-ficha-de-contacto className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ContactFieldsConfigDialog
         userId={ownerId}
         open={configOpen}
@@ -386,7 +423,7 @@ export function ContactInfoPanel({
         onSaved={(defs) => { fieldsConfigCache = { userId: ownerId, value: defs }; setFieldDefs(defs); }}
       />
 
-      <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
+      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
 
         {/* Contact card */}
         <div className="flex flex-col items-center gap-1 pt-3 pb-2 px-4 border-b">
@@ -589,6 +626,6 @@ export function ContactInfoPanel({
           </Button>
         </div>
       )}
-    </aside>
+    </div>
   );
 }

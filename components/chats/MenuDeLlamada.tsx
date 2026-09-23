@@ -15,7 +15,7 @@ import { abrirLlamadaAqui, type DatosDeLaLlamada } from "@/components/chats/Anfi
 import { startBotCallAction } from "@/actions/voicebot-actions";
 import { cn } from "@/lib/utils";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 
 /**
  * El botón verde de la cabecera de Chats: ahora un menú con DOS formas de
@@ -130,7 +130,7 @@ export function MenuDeLlamada({
             <DropdownMenuContent
                 data-menu-llamada-contenido
                 {...panel.props}
-                className={cn("w-max", PANEL_QUE_SE_DESPLAZA)}
+                className={cn("w-max", RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
             >
                 <DropdownMenuItem data-opcion="llamar" onSelect={() => llamar()}>
                     <Phone className="mr-2 h-4 w-4" /> Llamar

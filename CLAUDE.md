@@ -1913,6 +1913,42 @@ Y el rótulo se cambió **en los dos sitios donde se nombra ese filtro**: la
 pastilla y el atajo de la pantalla vacía. Con dos nombres para el mismo filtro,
 se leen como dos filtros distintos.
 
+## Chats: la barra de la lista se comía el margen derecho de cada tarjeta
+
+«La fila de pastillas no llega al filo derecho y las etiquetas se caen a otra
+línea con sitio». Medido en Chromium **con barras de verdad**: la fila SÍ
+llegaba al borde de su tarjeta; lo que no llegaba al borde de la columna era la
+tarjeta. La lista desplaza con `overflow-y-auto`, y con barras clásicas
+(Windows, Linux) la barra se queda su ancho —10 px con `scrollbar-width: thin`—
+aunque su pista sea transparente:
+
+| | izquierda | derecha | ancho de la fila (1440 / 1024) |
+| --- | --- | --- | --- |
+| antes | 13 px | **23 px** | 346 / 314 |
+| ahora | 13 px | **13 px** | 356 / 324 |
+
+Esos 10 px eran el hueco muerto a la vista y lo que mandaba las etiquetas abajo
+(con contadores de dos cifras, a 1440 y 1280). La lista va con
+`scrollbar-hidden`, en **una** constante (`LISTA_DE_CHATS`,
+`lib/lista-de-chats.ts`) que usan la lista y la de la caché. Se sigue
+desplazando igual; lo que se quita es la pista. Las pastillas no se tocan.
+
+Dos cosas que hay que saber:
+
+1. **Playwright esconde las barras por defecto** (`--hide-scrollbars`). Con esa
+   bandera este fallo no existe en el banco: la lista mide lo mismo con y sin
+   barra. `lib/__tests__/pastillas-de-la-fila.test.mjs` la quita
+   (`ignoreDefaultArgs`). Un banco de maquetación de una lista que desplaza,
+   igual.
+2. **A 1024 «Descartado» + «Asignar» + tres contadores + etiquetas NO cabe en
+   una línea**, ni simétrico: pide 326 px y la columna de 22 rem deja 324. Ahí
+   la caída es honrada y el banco solo comprueba eso (lo que sobra arriba es
+   menos que la pastilla que baja). Meterla exigiría tocar tamaños o márgenes.
+
+Lo prueba `scripts/banco-pastillas-de-la-fila.sh` a 1440/1280/1024 con la ficha
+abierta y cerrada; `MODO=roto` monta la lista con la clase de `ANTES_REF` y
+afirma el margen de 23 y la caída de las etiquetas.
+
 ## Chats: el menú de Acciones no puede crecer con el equipo
 
 En «Acciones» iban abiertas, una detrás de otra, las dos listas de asesores:
@@ -15025,10 +15061,10 @@ Cinco cosas del hook que hay que mantener:
    `AdvisorAssignBadge` la lista de asesores de otras pantallas, donde no hay
    ninguna columna de Chats de la que colgar. Callado sería un panel colocado de
    otra forma sin que nadie sepa por qué.
-5. **Y el «⋯» de la fila de pastillas lleva su hueco.** Ese disparador vive
-   DENTRO de esa fila, así que «bajo las pastillas» le sale a cero y su panel
-   nacería pegado a ellas mientras los otros cuatro salen 4px más abajo. El
-   `HUECO_DEL_DISPARADOR` va dentro de `columnaAncha`, no en cada llamador.
+5. **Y los cinco nacen EN el borde de abajo de las pastillas, sin hueco**
+   (`SEPARACION_DEL_MENU`, 0). Se mide la fila y no el botón: el «⋯» vive
+   DENTRO de ella, y así los cinco salen a la misma altura. Fueron 4 px; ver
+   *Pegados, sin separación, y el mismo tratamiento en todos*.
 
 ### Medido, antes y después
 
@@ -15536,6 +15572,51 @@ sí se hizo es lo que de verdad prueba que un banco mira: **quitarle el arreglo
 al modo bueno y ver que se pone en rojo** — se rompió la exclusión de
 `usePanelLateral` y cayó por el caso que tenía que caer.
 
+## Chats: los paneles laterales se mueven IGUAL, y un cambio es un RELEVO
+
+La ficha de Contacto entraba «empujada y frenada de golpe» mientras notas,
+recordatorio, tarea, contexto, copiloto y equipo se deslizaban; y al alternar
+entre dos paneles se sentía un salto. Eran dos fallos:
+
+| lo que se veía | lo que era |
+| --- | --- |
+| la ficha aparece de golpe y la conversación se encoge en un fotograma | era un **hermano del flex** montado con `{infoPanelOpen && session && …}`: sin hoja que deslizar y sin fotograma de salida |
+| al cambiar de un panel a otro, un reinicio | el que salía se deslizaba hacia fuera y el que entraba hacia dentro, **en el mismo sitio y a la vez** |
+
+> **La ficha es un `PanelLateral`** (`ContactInfoPanel`, con
+> `PANEL_DE_LA_FICHA`), montado siempre desde `chat-main`: misma franja, mismo
+> ancho (`--ancho-lateral`), mismo anclaje (derecha, bajo la barra), misma
+> duración y curva, y reserva la franja como los demás, así que la
+> conversación se acomoda con la misma transición. Su cuerpo
+> (`FichaDeContacto`) trae sus consultas y es perezoso, como antes.
+
+> **Un cambio entre paneles es un RELEVO, sin transición.** Lo decide
+> `comoSeMueveLaHoja` (`lib/panel-lateral.ts`, puro): con la franja vacía,
+> `desliza`; con otro ya puesto, `relevo`. `usePanelLateral` lo devuelve y los
+> tres marcos de hoja —`PanelLateral`, `ChatSheet` y `PanelDeEquipo`— ponen
+> `HOJA_SIN_TRANSICION`: el que entra aparece ya en su sitio y el que sale
+> desaparece en el mismo fotograma. La conversación no se mueve porque el
+> registro mantiene la franja reservada.
+
+Cuatro cosas que hay que mantener:
+
+1. **Todo va ANTES de pintar** (`useLayoutEffect`): la comprobación de si hay
+   otro abierto —antes de registrarse— y el aviso de exclusión. Con
+   `useEffect` hay un fotograma con los dos paneles encima o con el nuevo ya
+   deslizándose.
+2. **El relevo dura UN cambio**: dos fotogramas después se devuelve la
+   transición, para que el cierre siguiente se deslice.
+3. **En un relevo lo de dentro se desmonta al instante**: no hay salida que
+   esperar.
+4. **Duración y curva viven en `lib/panel-lateral.ts`** y la conversación
+   (`[data-chat-view]` en `globals.css`) las repite: el banco las compara.
+
+Lo prueba `scripts/banco-animacion-de-paneles.sh`: la decisión, un barrido del
+código y, en Chromium sobre el CSS del build con la ficha REAL, muestreo
+fotograma a fotograma de abrir, cerrar y relevar en los dos sentidos.
+`MODO=roto` construye con `ANTES_REF` y afirma que la ficha no se deslizaba y
+que el relevo reiniciaba la animación.
+
 ## Chats: UN panel a la vez, todos por la derecha, y los menús cuelgan de SU botón
 
 Tres fallos de la misma pantalla, reportados juntos con capturas (22-09):
@@ -15548,12 +15629,10 @@ Tres fallos de la misma pantalla, reportados juntos con capturas (22-09):
 
 Cinco cosas que hay que mantener:
 
-1. **La ficha entra en la exclusión con `reservar: false`**
-   (`usePanelLateral(PANEL_DE_LA_FICHA, …)`). Entra en la exclusión igual que
-   los demás, pero **no reserva la franja**: ya ocupa su sitio en el flex, y
-   reservar además el `padding-right` le quitaría a la conversación el doble.
-   Con esto la regla que la superponía sobra, y se fue: era la que la sacaba
-   por la izquierda.
+1. **La ficha entra en la exclusión.** Primero lo hizo como hermano del flex
+   con `reservar: false`; hoy es un `PanelLateral` más (ver *Los paneles
+   laterales se mueven IGUAL*). La regla que la superponía sobra, y se fue:
+   era la que la sacaba por la izquierda.
 2. **«Enviar al equipo» es un `PanelLateral`**, no un `Dialog`. Se abre desde
    la cabecera como los demás, así que sale por el mismo lado y entra en la
    misma exclusión. **Si se añade otro panel en Chats, va por `PanelLateral`**
@@ -15615,6 +15694,34 @@ y con «Nueva tarea» abiertas: los seis menús acaban en el mismo píxel en las
 doce combinaciones (1418 a 1440 sin panel; 650 a 1024 con la ficha). Lo prueba
 `scripts/probar-menus-de-la-cabecera.mjs` desde `banco-paneles-en-chats.sh`, y
 `MODO=roto` con un `.next` de `960abc1` afirma los bordes distintos.
+
+### Pegados, sin separación, y el mismo tratamiento en todos
+
+El #917 probó lo contrario —cada menú colgando de SU botón, con una flecha y
+10 px de hueco— y **se deshizo sin fusionar**: lo pedido es el filo, no el
+botón. Así que la regla del filo de arriba se queda, y encima se cierra la
+simetría entre todos los menús de Chats (`lib/paneles-flotantes.ts`):
+
+| | |
+| --- | --- |
+| separación | **0** (`SEPARACION_DEL_MENU`): los de la cabecera nacen EN el borde de abajo de la cabecera; los filtros, EN el de las pastillas; los de una fila, pegados a su control |
+| relleno | **uno**, `RELLENO_DEL_MENU` (`p-2`), en los catorce. Convivían `p-1`, `p-2`, `p-3` y ninguno |
+| ancho por tipo | filtros `ANCHO_DE_LOS_FILTROS` (288); cabecera, de Macros al filo; fila `ANCHO_DE_UNA_FILA` (240) — los tres de una fila traían sin ancho, `w-52` y `w-56` |
+| alto | `TOPE_FIJADO` en los fijados y `TOPE_DE_FILA` en los de fila, acotados por la variable de Radix |
+| flecha | **ninguna**: con separación cero no hay hueco donde ponerla, y Radix le suma su alto al `sideOffset` |
+
+Tres cosas que hay que mantener:
+
+1. **Los filtros de la columna no se abren nunca sobre la conversación.**
+   `columnaAncha` los acota a la columna MEDIDA menos el margen; el banco de la
+   página servida (`probar-paneles-en-chats.mjs`) exige que su filo derecho
+   quede dentro de la columna en todas las anchuras.
+2. **Los de una fila, volteados, no suben sobre la búsqueda ni los filtros**:
+   `columnaDerecha` recibe el borde de abajo de las pastillas y lo pone de
+   `collisionPadding.top`. Es un objeto por lados, no un número.
+3. **Un menú anclado al botón no es lo pedido.** Si vuelve la duda, está
+   contestada aquí: el borde derecho es el de la conversación y no se mueve al
+   pasar de un menú a otro.
 
 ### Las dos cabeceras de Chats: un margen, un alto, y la ficha fuera de la tira
 

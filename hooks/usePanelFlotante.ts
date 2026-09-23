@@ -12,6 +12,7 @@ import {
     type Caja,
     type EstiloDelPanel,
     type Primitiva,
+    type Relleno,
 } from "@/lib/paneles-flotantes";
 
 /**
@@ -83,7 +84,7 @@ export type PropsDelPanel = {
     alignOffset: number;
     sideOffset: number;
     avoidCollisions: boolean;
-    collisionPadding: number;
+    collisionPadding: Relleno;
     /**
      * Contra qué se mide el hueco. Sin él, la ventana. Solo lo pone `enElHilo`:
      * lo que se abre desde un mensaje no «cabe» por salirse del hilo y taparle
@@ -215,7 +216,15 @@ export function usePanelFlotante(
                 return;
             }
             if (clase === "columnaDerecha") {
-                const g = columnaDerecha(contCaja, dispCaja, primitiva);
+                // El techo: si la fila está abajo y el menú voltea, no sube
+                // sobre la búsqueda ni las pastillas.
+                const pastillas = contenedor.querySelector(`[${MARCA_DE_LAS_PASTILLAS}]`);
+                const g = columnaDerecha(
+                    contCaja,
+                    dispCaja,
+                    primitiva,
+                    pastillas ? caja(pastillas).bottom : undefined,
+                );
                 setProps({ ...g, style: g.estilo });
                 return;
             }

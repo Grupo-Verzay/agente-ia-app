@@ -14,7 +14,7 @@ import { LEAD_STATUS_FILTER_OPTIONS } from "../../crm/dashboard/helpers/leadStat
 import { updateSessionLeadStatus } from "@/actions/session-action";
 import type { LeadStatus } from "@/types/session";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 
 interface LeadStatusSelectProps {
   sessionId: number;
@@ -55,7 +55,7 @@ export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadSt
       >
         <LeadStatusBadge status={currentStatus} showDot={false} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent {...panel.props} className={PANEL_QUE_SE_DESPLAZA}>
+      <DropdownMenuContent {...panel.props} className={`${RELLENO_DEL_MENU} ${PANEL_QUE_SE_DESPLAZA}`}>
         <DropdownMenuGroup>
           {LEAD_STATUS_FILTER_OPTIONS.map((option) => (
             <DropdownMenuItem

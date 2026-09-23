@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { getMacrosAction, type MacroData } from '@/actions/macro-actions';
 import { MARCA_DE_MACROS, usePanelFlotante } from '@/hooks/usePanelFlotante';
-import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -67,7 +67,7 @@ export function MacrosMenu({ onRunMacro }: Props) {
           Macros
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent {...panel.props} className={cn("w-56 p-1", PANEL_QUE_SE_DESPLAZA)}>
+      <DropdownMenuContent {...panel.props} className={cn("w-56", RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
         {loading ? (
           <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…

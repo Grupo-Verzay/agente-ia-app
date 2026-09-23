@@ -190,17 +190,35 @@ for (const v of VENTANAS) {
             const cont = document.querySelector("[data-radix-popper-content-wrapper] > [data-state='open']");
             const col = document.querySelector("[data-columna-de-chats]")?.getBoundingClientRect();
             const r = cont?.getBoundingClientRect();
+            const past = document.querySelector("[data-pastillas-de-chats]")?.getBoundingClientRect();
             return {
                 ancho: r ? Math.round(r.width) : null,
                 left: r ? Math.round(r.left) : null,
+                right: r ? Math.round(r.right) : null,
+                top: r ? Math.round(r.top) : null,
                 columna: col ? Math.round(col.width) : null,
                 colLeft: col ? Math.round(col.left) : null,
+                colRight: col ? Math.round(col.right) : null,
+                bajoPastillas: past ? Math.round(past.bottom) : null,
+                relleno: cont ? getComputedStyle(cont).paddingTop : null,
             };
         });
         anchos.push(m.ancho);
         filas.push({ ventana: v.width, panel: p.nombre, ...m });
         exigir(m.ancho !== null, `${v.width}: «${p.nombre}» no se abrió`);
         exigir(m.ancho < m.columna, `${v.width}: «${p.nombre}» no es menor que la columna (${m.ancho} de ${m.columna})`);
+        // Nunca por encima de la conversación: el filtro acaba DENTRO de la
+        // columna, en cualquier anchura.
+        exigir(
+            m.right !== null && m.right <= m.colRight,
+            `${v.width}: «${p.nombre}» pasa del filo de la columna sobre la conversación (${m.right} > ${m.colRight})`,
+        );
+        exigir(m.left !== null && m.left >= m.colLeft, `${v.width}: «${p.nombre}» se sale por la izquierda de la columna`);
+        exigir(
+            m.bajoPastillas === null || Math.abs(m.top - m.bajoPastillas) <= 1,
+            `${v.width}: «${p.nombre}» no nace pegado a las pastillas (${m.top} vs ${m.bajoPastillas})`,
+        );
+        exigir(m.relleno === "8px", `${v.width}: «${p.nombre}» lleva otro relleno (${m.relleno})`);
         await pagina.keyboard.press("Escape");
         await pagina.waitForTimeout(400);
     }

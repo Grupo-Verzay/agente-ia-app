@@ -54,9 +54,10 @@ import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { ChatTabBar } from "./ChatTabBar";
 import { MARCA_DE_LA_COLUMNA, usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
 import { CABECERA_ESCRITORIO, CABECERA_ESCRITORIO_MINIMA, CLASE_FILA_1, CLASE_FILA_2 } from "@/lib/cabeceras-de-chats";
+import { LISTA_DE_CHATS } from "@/lib/lista-de-chats";
 
 const PALETTE = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
@@ -1499,7 +1500,7 @@ export function ChatSidebar({
                     y salía pegado a su icono, en mitad de la columna. */}
                 <DropdownMenuContent
                   {...panelDeAsesores.props}
-                  className={cn("p-1", PANEL_QUE_SE_DESPLAZA)}
+                  className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
                 >
                   <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Filtrar por asesor
@@ -1617,7 +1618,7 @@ export function ChatSidebar({
           role="list"
           ref={listScrollRef}
           onScroll={handleListScroll}
-          className="flex-1 overflow-y-auto p-1"
+          className={LISTA_DE_CHATS}
         >
           {result.success && filtered.length > 0 ? (
             <div className="flex flex-col gap-1">

@@ -36,7 +36,7 @@ import type { LeadStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA, deSubmenu } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from "@/lib/paneles-flotantes";
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
 import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 
@@ -544,7 +544,7 @@ function ChatContactItemBase({
                 scroll son los de siempre, puestos ahora en un solo sitio. */}
             <DropdownMenuContent
               {...panelDeLaFila.props}
-              className={cn("w-52", PANEL_QUE_SE_DESPLAZA)}
+              className={cn("w-52", RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
             >
               {/* 1. Marcar como leído / no leído */}
               {contact.isUnreadLocal ? (

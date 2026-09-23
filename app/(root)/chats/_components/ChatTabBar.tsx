@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { MARCA_DE_LAS_PASTILLAS, usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import type { TabCounts, TabKey } from "./chat-sidebar.types";
 
 type ChatTabBarProps = {
@@ -279,7 +279,7 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
             <ChevronDown className="h-3 w-3" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent {...masFiltros.props} className={cn("p-1", PANEL_QUE_SE_DESPLAZA)}>
+        <DropdownMenuContent {...masFiltros.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
           {onCompose && (
             <>
               <DropdownMenuItem

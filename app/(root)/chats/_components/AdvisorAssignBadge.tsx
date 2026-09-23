@@ -8,6 +8,7 @@ import { usePanelFlotante, type ClaseDePanel } from '@/hooks/usePanelFlotante';
 import { cn } from '@/lib/utils';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { AssignmentLogEntry } from '@/actions/advisor-assign-actions';
+import { RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 
 const PALETTE = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
@@ -240,7 +241,7 @@ export function AdvisorAssignBadge({
         */}
       <PopoverContent
         {...colocacion.props}
-        className="flex w-56 flex-col overflow-hidden p-1"
+        className={`flex w-56 flex-col overflow-hidden ${RELLENO_DEL_MENU}`}
         onClick={(e) => e.stopPropagation()}
       >
         <p className="shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
