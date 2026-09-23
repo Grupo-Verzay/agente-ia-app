@@ -264,7 +264,7 @@ for (const v of VENTANAS) {
         filas.push({ ventana: v.width, panel: "Enviar al equipo", nota: "no se ofrece en esta semilla" });
     }
 
-    // ── 4. Los menús de la cabecera cuelgan de SU botón ─────────────────
+    // ── 4. Los menús de la cabecera comparten el filo de la conversación ─
     for (const m of [
         { nombre: "Acciones", disparador: 'button:has-text("Acciones")' },
         { nombre: "Registros del lead", disparador: 'button[title="Registros del lead"]' },
@@ -283,13 +283,13 @@ for (const v of VENTANAS) {
             const cab = document.querySelector("[data-cabecera-de-chat]")?.getBoundingClientRect();
             const x = c?.getBoundingClientRect();
             return x && cab
-                ? { left: Math.round(x.left), right: Math.round(x.right), ancho: Math.round(x.width), cab: Math.round(cab.width), cabLeft: Math.round(cab.left) }
+                ? { left: Math.round(x.left), right: Math.round(x.right), ancho: Math.round(x.width), cab: Math.round(cab.width), cabLeft: Math.round(cab.left), cabRight: Math.round(cab.right) }
                 : null;
         });
         filas.push({ ventana: v.width, panel: m.nombre, ...r, boton: Math.round(rb.x + rb.width) });
         exigir(!!r, `${v.width}: «${m.nombre}» no se abrió`);
         if (r) {
-            exigir(Math.abs(r.right - (rb.x + rb.width)) <= 1, `${v.width}: «${m.nombre}» no cuelga del filo derecho de su botón (${r.right} vs ${Math.round(rb.x + rb.width)})`);
+            exigir(Math.abs(r.right - (r.cabRight - 16)) <= 1, `${v.width}: «${m.nombre}» no tiene el filo de la conversación menos 16 (${r.right} vs ${r.cabRight - 16})`);
             exigir(r.ancho < r.cab * 0.6, `${v.width}: «${m.nombre}» cruza la conversación (${r.ancho} de ${r.cab})`);
             exigir(r.left >= r.cabLeft, `${v.width}: «${m.nombre}» se sale de la conversación por la izquierda`);
         }
@@ -306,4 +306,4 @@ if (fallos.length) {
     console.error("\nFALLOS:\n- " + fallos.join("\n- "));
     process.exit(1);
 }
-console.log("\nlos paneles, bien en las tres anchuras: uno a la vez, por la derecha, y los menús colgando de su botón");
+console.log("\nlos paneles, bien en las tres anchuras: uno a la vez, por la derecha, y los menús con el filo de la conversación");

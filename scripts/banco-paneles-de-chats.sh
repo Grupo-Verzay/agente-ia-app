@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # El banco de los paneles de Chats: uno a la vez, todos por la derecha, y los
-# menús de la cabecera colgando de SU botón.
+# menús de la cabecera con el MISMO filo derecho: el de la conversación −16.
 #
 # Tres mitades:
 #
