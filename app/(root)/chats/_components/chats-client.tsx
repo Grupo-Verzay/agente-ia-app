@@ -76,16 +76,23 @@ import {
   chatPreferenceKeys,
   elegirPreferenciaDelChat,
 } from "@/lib/chat-preference-key";
-import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
+import {
+  contarLaLista,
+  dedupeAndSortChats,
+  getChatSortTimestamp,
+  laSesionDelChat,
+  lasFilasDeLaLista,
+  type ConteoDeLaLista,
+} from "./lo-que-ve-todos";
 import {
   laLineaDeLaConversacion,
   porDondeSaleLaRespuesta,
   porQueNoSeEnvia,
 } from "@/lib/linea-de-la-conversacion";
 import { avatarSrcFor } from "@/lib/avatar";
-import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
+import type { LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
-import { conLaResolucion, estaResuelta, totalesDeTodos, type FilaDelConteo } from "@/lib/total-de-todos";
+import { conLaResolucion, totalesDeTodos } from "@/lib/total-de-todos";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
   ChatConversationPreference,
@@ -563,13 +570,6 @@ function filterChatList(result: FetchChatsResult, lidMap?: LidPhoneMap): FetchCh
   };
 }
 
-function getChatSortTimestamp(chat: ChatData) {
-  return (
-    chat.lastMessage?.messageTimestamp ??
-    (chat.updatedAt ? Math.floor(new Date(chat.updatedAt).getTime() / 1000) : 0)
-  );
-}
-
 // Las preferencias van indexadas por «cuenta::número» (ver lib/chat-preference-key):
 // la bandeja enseña las líneas de todas las cuentas asociadas y la marca debe
 // aplicarse solo a los chats de SU línea, no a cualquiera con el mismo número.
@@ -606,17 +606,10 @@ function getPreferenceForJid(
 
 function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
   // Un mismo numero puede escribirle a mas de una linea: `emparejarSesiones`
-  // deja la sesion de ESTA linea bajo una llave compuesta. Si se conoce la
-  // linea del chat, se usa ESA y solo esa — sin caer de vuelta a la busqueda
-  // global — porque el caso a blindar es que un contacto SIN sesion en esta
-  // linea no debe heredar en silencio el asesor/etiquetas de otra linea.
-  if (chat.instanceName) {
-    return sessions[`${chat.instanceName}::${chat.remoteJid}`];
-  }
-
-  return getChatIdentityCandidates(chat)
-    .map((candidate) => sessions[candidate])
-    .find(Boolean);
+  // deja la sesion de ESTA linea bajo una llave compuesta. La busqueda vive en
+  // `lo-que-ve-todos` porque el numero de «Todos` —aqui y en el servidor— la
+  // tiene que hacer igual.
+  return laSesionDelChat(chat, sessions);
 }
 
 function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
@@ -681,50 +674,6 @@ function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
   return getChatIdentityCandidates(chat).some((candidate) => jids.has(candidate));
 }
 
-function getChatMessageDuplicateKey(chat: ChatData) {
-  const messageId = chat.lastMessage?.key?.id || chat.lastMessage?.id;
-  if (!messageId) return "";
-
-  return [
-    chat.instanceName ?? "",
-    messageId,
-    chat.lastMessage?.key?.fromMe ? "1" : "0",
-    chat.lastMessage?.messageType ?? "",
-  ].join(":");
-}
-
-function dedupeAndSortChats(chats: ChatData[], lidMap?: LidPhoneMap) {
-  const seenIdentities = new Set<string>();
-  const seenMessages = new Set<string>();
-  // Canonicaliza los @lid con número conocido (incluye los que llegan en vivo)
-  // antes de deduplicar, para que se fusionen con el contacto real de forma
-  // estable y no reaparezcan.
-  return [...applyLidMappingToChats(chats, lidMap)]
-    .sort((a, b) => getChatSortTimestamp(b) - getChatSortTimestamp(a))
-    .filter((chat) => {
-      if (!chat.remoteJid) return false;
-
-      // Los chats 1-a-1 se deduplican POR INSTANCIA (línea): el mismo cliente que
-      // escribe a dos números distintos (p. ej. Atención por Meta y Ventas por
-      // Evolution) debe quedar como DOS conversaciones, no una. Solo los grupos
-      // (@g.us) se unifican entre líneas.
-      const isGroup = chat.remoteJid.endsWith("@g.us");
-      const scope = isGroup ? "" : `${chat.instanceName ?? ""}::`;
-      const identityCandidates = getChatIdentityCandidates(chat).map((c) => `${scope}${c}`);
-      const messageKey = getChatMessageDuplicateKey(chat);
-      if (
-        identityCandidates.some((candidate) => seenIdentities.has(candidate)) ||
-        (messageKey && seenMessages.has(messageKey))
-      ) {
-        return false;
-      }
-
-      for (const candidate of identityCandidates) seenIdentities.add(candidate);
-      if (messageKey) seenMessages.add(messageKey);
-      return true;
-    });
-}
-
 interface ChatsClientProps {
   userId: string;
   /**
@@ -746,7 +695,7 @@ interface ChatsClientProps {
   sessionUserIds?: string[];
   instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
   /** Cuantas conversaciones tiene cada linea de verdad, sin el tope de la lista. */
-  conteosPorLinea?: Record<string, number>;
+  conteosPorLinea?: ConteoDeLaLista;
   chatsResult: FetchChatsResult;
   initialChatPreferences: ChatConversationPreferenceMap;
   initialChatSessions: ChatContactSessionMap;
@@ -952,6 +901,10 @@ export function ChatsClient({
   const [chatPreferences, setChatPreferences] =
     useState<ChatConversationPreferenceMap>(initialChatPreferences);
   const [chatSessions, setChatSessions] = useState<ChatContactSessionMap>(initialChatSessions);
+  // Si ya llegaron las sesiones de la cuenta. Hasta entonces no se sabe que
+  // conversacion esta resuelta ni de quien es, asi que el numero de «Todos»
+  // se fia del servidor (ver `totalesDeTodos`).
+  const [sesionesListas, setSesionesListas] = useState(false);
   const [allTags, setAllTags] = useState<SimpleTag[]>(initialAllTags);
   const [workflows, setWorkflows] = useState<ChatWorkflowOption[]>(initialWorkflows);
   const [quickReplies, setQuickReplies] =
@@ -1554,24 +1507,6 @@ export function ChatsClient({
   );
 
   /**
-   * Cuantas conversaciones tiene cada linea.
-   *
-   * El NUMERO no es lo mismo que la LISTA. La lista va acotada a proposito
-   * -nadie baja mas alla de los primeros chats- pero el contador tiene que ser
-   * el real, y contando las filas cargadas nunca lo era: con el tope de la
-   * bandeja mordiendo, una linea de 576 conversaciones decia 290.
-   *
-   * Manda `conteosPorLinea`, que viene del servidor y es un COUNT (no lee el
-   * JSON de ningun mensaje). Cuando una linea no esta ahi -no llego el conteo,
-   * o es una linea sin sesiones- se cuenta lo cargado, que es lo de antes.
-   *
-   * Cuenta lo MISMO que la lista enseña bajo «Todos»: sin borradas, sin
-   * archivadas y sin resueltas, por los dos caminos. El servidor ya se las
-   * quita, y aqui se corrige su numero con lo que cambio despues —resolver,
-   * reabrir, archivar, borrar— para que baje y suba al momento
-   * (`totalesDeTodos`, en `lib/total-de-todos.ts`).
-   */
-  /**
    * Los contactos que estan en mas de una linea.
    *
    * Sale de la lista SIN FILTRAR (`currentChatsResult`), no de la que ve la
@@ -1584,10 +1519,24 @@ export function ChatsClient({
     [currentChatsResult],
   );
 
-  // Lo que el `COUNT` del servidor dio por hecho de cada fila, para poder
-  // corregirlo en vivo (ver `totalesDeTodos`). Se vacia cuando llega un numero
-  // nuevo del servidor: ese ya trae los cambios de antes.
-  const baseDeTodos = useRef<{ de: Record<string, number> | undefined; filas: Map<string, boolean> }>({
+  /**
+   * El numero de «Todos» de cada linea, y la suma de «Todos» en el menu de
+   * canales.
+   *
+   * Sale de lo MISMO que la lista: las filas que tiene la pantalla, pasadas por
+   * `lasFilasDeLaLista` —la regla con la que la barra lateral decide que se ve—,
+   * incluido lo que un agente no ve. Antes salia de un `COUNT` sobre `Session`
+   * (los leads de la linea), que no son las conversaciones que enseña la lista:
+   * Rca decia 32 y marcando todas salian 16.
+   *
+   * Cuando la linea esta ENTERA en la pantalla, manda lo cargado y ya. Cuando
+   * le faltan paginas, el numero es el del servidor (`conteosPorLinea`), que
+   * cuenta la bandeja entera con la misma regla, corregido con lo que cambio
+   * despues —resolver, reabrir, archivar, borrar— (`totalesDeTodos`).
+   */
+  // Lo que el conteo del servidor dio por hecho de cada fila, para poder
+  // corregirlo en vivo. Se vacia cuando llega un numero nuevo del servidor.
+  const baseDeTodos = useRef<{ de: ConteoDeLaLista | undefined; filas: Map<string, boolean> }>({
     de: conteosPorLinea,
     filas: new Map(),
   });
@@ -1597,38 +1546,28 @@ export function ChatsClient({
     if (baseDeTodos.current.de !== conteosPorLinea) {
       baseDeTodos.current = { de: conteosPorLinea, filas: new Map() };
     }
-
-    // Las mismas que la lista enseña bajo «Todos»: ni borradas, ni archivadas,
-    // ni resueltas. Las resueltas contaban aqui y en el servidor, asi que
-    // resolver sacaba la fila y el numero no se movia ni recargando.
-    const filas: FilaDelConteo[] = [];
-    const vistas = new Set<string>();
-    for (const chat of currentChatsResult.data) {
-      if (!chat.instanceName) continue;
-      const clave = `${chat.instanceName}::${chat.remoteJid}`;
-      if (vistas.has(clave)) continue;
-      vistas.add(clave);
-      const preference = getPreferenceForChat(
-        chat,
-        chatPreferences,
-        ownerForChat(chat),
-        repartidasEntreLineas,
-      );
-      const session = getSessionForChat(chat, chatSessions) ?? null;
-      const resuelta = estaResuelta(
-        epochToMs(chat.lastMessage?.messageTimestamp),
-        session?.resolvedAt,
-      );
-      filas.push({
-        clave,
-        linea: chat.instanceName,
-        conSesion: !!session,
-        activa: !isChatDeletedByPreference(chat, preference) && !preference?.isArchived && !resuelta,
-      });
+    // `contacts`, no `currentChatsResult`: es la lista YA recortada a lo que un
+    // agente ve. Contando la otra, un agente con 14 conversaciones veia 34.
+    const filas = lasFilasDeLaLista(contacts, {
+      preferencias: chatPreferences,
+      duenoDelChat: ownerForChat,
+      sesionDelChat: (chat) => getSessionForChat(chat, chatSessions),
+      repartidasEntreLineas,
+    });
+    const totales = totalesDeTodos(
+      contarLaLista(filas),
+      filas,
+      conteosPorLinea,
+      baseDeTodos.current.filas,
+      sesionesListas,
+    );
+    // Toda linea de la bandeja tiene numero, aunque sea 0. Una linea sin
+    // numero en el menu de canales no dice si esta vacia o si falta contarla.
+    for (const inst of instancias) {
+      if (inst.instanceName && totales[inst.instanceName] === undefined) totales[inst.instanceName] = 0;
     }
-
-    return totalesDeTodos(filas, conteosPorLinea, baseDeTodos.current.filas);
-  }, [currentChatsResult, chatPreferences, chatSessions, ownerForChat, conteosPorLinea, repartidasEntreLineas]);
+    return totales;
+  }, [instancias, currentChatsResult, contacts, chatPreferences, chatSessions, ownerForChat, conteosPorLinea, repartidasEntreLineas, sesionesListas]);
 
   const filteredSidebarResult = useMemo((): FetchChatsResult => {
     if (!selectedChannel || !sidebarResult.success) return sidebarResult;
@@ -1981,6 +1920,7 @@ export function ChatsClient({
       }
 
       if (result.success) {
+        setSesionesListas(true);
         setChatSessions((prev) => {
           const next = { ...mapa };
           // Preservar customName de memoria si DB aún no lo tiene (race condition de rename)
@@ -2013,6 +1953,7 @@ export function ChatsClient({
     const aplicarSesiones = (sesiones: ChatContactSessionSummary[]) => {
       ultimoRefrescoDeSesionesRef.current = Date.now();
       const mapa = emparejarSesiones(currentChatsResult.data, sesiones);
+      setSesionesListas(true);
       setChatSessions((prev) => {
         const next = { ...mapa };
         for (const jid of Object.keys(next)) {
@@ -2447,14 +2388,21 @@ export function ChatsClient({
               ? currentChatsResult.data.filter((c) => c.instanceName === linea)
               : [];
             if (!suyos.length) return { linea, res: null };
+            // En MILISEGUNDOS: la accion hace `new Date(anteriorA)`, y la marca
+            // de la lista viene casi siempre en segundos. Con segundos el
+            // cursor caia en 1970, la pagina siguiente salia vacia y la linea
+            // se daba por terminada en la primera vuelta: nunca pasaba de la
+            // primera pagina.
             const masAntiguo = suyos.reduce(
-              (min, c) => Math.min(min, getChatSortTimestamp(c) || Number.MAX_SAFE_INTEGER),
+              (min, c) => Math.min(min, epochToMs(getChatSortTimestamp(c)) || Number.MAX_SAFE_INTEGER),
               Number.MAX_SAFE_INTEGER,
             );
             if (!Number.isFinite(masAntiguo) || masAntiguo === Number.MAX_SAFE_INTEGER) {
               return { linea, res: null };
             }
-            const res = await traerMasChatsDeLaLinea(linea, masAntiguo);
+            // Con las MISMAS cuentas que la primera pagina: con solo la dueña de
+            // la linea, lo guardado bajo otra cuenta de la bandeja no llegaba.
+            const res = await traerMasChatsDeLaLinea(linea, masAntiguo, sessionUserIds);
             return { linea, res };
           }),
         );
@@ -2469,8 +2417,10 @@ export function ChatsClient({
             console.warn("[chats] no se pudo traer la pagina siguiente", { linea, motivo: res.message });
             continue;
           }
-          // Menos de una pagina entera significa que ya no queda nada detras.
-          if (res.data.length < TOPE_DE_LA_BANDEJA) sinMasRef.current[linea] = true;
+          // Solo una pagina VACIA dice que no queda nada. Una corta no: la
+          // consulta descarta lo borrado despues de escoger sus candidatos, asi
+          // que una pagina puede salir corta con mas filas detras.
+          if (res.data.length === 0) sinMasRef.current[linea] = true;
           nuevos.push(...res.data);
         }
 
@@ -2481,7 +2431,7 @@ export function ChatsClient({
         cargandoMasRef.current = false;
       }
     })();
-  }, [selectedChannel, instancias, aplicarChatsFrescos, lidPhoneMap, currentChatsResult]);
+  }, [selectedChannel, instancias, aplicarChatsFrescos, lidPhoneMap, currentChatsResult, sessionUserIds]);
 
   /**
    * Refresca la barra lateral. `forzar` SOLO desde el boton de refrescar.

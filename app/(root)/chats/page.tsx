@@ -14,7 +14,8 @@ import {
   sendWahaWorkflowAction,
   sendWahaQuickReplyAction,
 } from "@/actions/waha-chat-actions";
-import { contarChatsPorLinea, getPersistedInboxChats } from "@/lib/chat-persistence";
+import { getPersistedInboxChats } from "@/lib/chat-persistence";
+import { contarTodosDeLaBandeja, leerParaElConteo } from "@/lib/conteo-de-todos.server";
 import { getApiKeyById } from "@/actions/api-action";
 import {
   fetchChatsFromEvolution,
@@ -512,7 +513,7 @@ export default async function ChatsPage({
     persistedInitialChats,
     initialPreferencesResult,
     initialAdvisorsResult,
-    conteosPorLinea,
+    leidoParaElConteo,
     initialTagsResult,
     initialTrazaConfig,
   ] = await Promise.all([
@@ -544,9 +545,11 @@ export default async function ChatsPage({
       }
     })(),
     // El NUMERO de cada linea, aparte de la lista. La lista va acotada -nadie
-    // baja mas alla de los primeros chats- pero el contador tiene que ser el
-    // real: es un COUNT, no lee el JSON de ningun mensaje.
-    contarChatsPorLinea({
+    // baja mas alla de los primeros chats- pero el numero de «Todos» tiene que
+    // ser el de la lista ENTERA. Se lee aqui la bandeja entera (las mismas
+    // filas que la lista, sin el tope y sin el JSON) y se cuenta mas abajo,
+    // cuando ya estan las preferencias y el puente @lid.
+    leerParaElConteo({
       userIds: allSessionUserIds,
       instanceNames: instancias.map((inst) => inst.instanceName),
     }),
@@ -814,6 +817,24 @@ export default async function ChatsPage({
     };
   }
 
+  // «Todos», contado con la MISMA regla que la lista (lo-que-ve-todos).
+  const duenoDeLaLinea: Record<string, string> = {};
+  for (const inst of instanciasMeta) {
+    if (!inst.instanceName) continue;
+    const vinculada = "linkedUserId" in inst && typeof inst.linkedUserId === "string" ? inst.linkedUserId : "";
+    duenoDeLaLinea[inst.instanceName] = vinculada || effectiveOwnerId;
+  }
+  const conteosPorLinea = contarTodosDeLaBandeja(leidoParaElConteo, {
+    preferencias: initialChatPreferences,
+    duenoDeLaLinea,
+    cuentaPorDefecto: effectiveOwnerId,
+    lidMap: lidPhoneMap,
+    agente:
+      user.advisorRole === "agente"
+        ? { advisorId: laPersonaQueActua(user).id, puedeTomarSinAsignar: user?.canTakeUnassigned ?? true }
+        : null,
+  });
+
   const __tFin = performance.now();
   const __total = __tFin - __t0;
   // Umbral en 800 ms, no en 2.000.
@@ -895,7 +916,7 @@ export default async function ChatsPage({
       viewerUserId={user.id}
       sessionUserIds={allSessionUserIds}
       instancias={instanciasMeta}
-      conteosPorLinea={conteosPorLinea}
+      conteosPorLinea={conteosPorLinea ?? undefined}
       chatsResult={chatsResult}
       initialChatPreferences={initialChatPreferences}
       initialChatSessions={{}}

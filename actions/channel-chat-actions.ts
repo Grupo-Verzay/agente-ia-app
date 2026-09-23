@@ -64,7 +64,16 @@ export async function fetchChannelChats(instanceName: string): Promise<FetchChat
  */
 export async function traerMasChatsDeLaLinea(
   instanceName: string,
+  /** El mas antiguo que ya tiene la pantalla, en MILISEGUNDOS. */
   anteriorA: number,
+  /**
+   * Las cuentas de la bandeja, las mismas con las que se pidio la primera
+   * pagina. Una conversacion de esta linea puede estar guardada bajo otra de
+   * ellas (el cache de la bandeja se guarda bajo quien mira); pidiendo solo la
+   * dueña de la linea, esas no llegaban nunca por mucho que se bajara. Cada una
+   * se comprueba: una lista que llega del navegador no decide a que se llega.
+   */
+  cuentas?: string[],
 ): Promise<FetchChatsResult> {
   try {
     const user = await currentUser();
@@ -76,8 +85,24 @@ export async function traerMasChatsDeLaLinea(
     // De quien es la linea, igual que en cualquier otra accion que reciba un id.
     await assertCanAccessTargetUser(owner.userId);
 
+    const pedidas = Array.from(
+      new Set((Array.isArray(cuentas) ? cuentas : []).filter((c): c is string => typeof c === 'string' && !!c)),
+    ).slice(0, 50);
+    const alcanzadas = (
+      await Promise.allSettled(pedidas.map((c) => assertCanAccessTargetUser(c).then(() => c)))
+    )
+      .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+      .map((r) => r.value);
+    if (alcanzadas.length < pedidas.length) {
+      console.warn('[chats] pagina siguiente: se ignoran cuentas sin acceso', {
+        instanceName,
+        pedidas: pedidas.length,
+        aceptadas: alcanzadas.length,
+      });
+    }
+
     const data = await getPersistedInboxChats({
-      userIds: [owner.userId],
+      userIds: Array.from(new Set([owner.userId, ...alcanzadas])),
       instanceNames: [instanceName],
       antesDe: anteriorA > 0 ? new Date(anteriorA) : undefined,
     });

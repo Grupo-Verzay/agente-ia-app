@@ -4,14 +4,14 @@
  * Lo reportado en producción: al resolver una conversación sale de la lista y
  * la pastilla «Todos» no baja. Lo que hay que ver es el camino ENTERO —la
  * acción, lo que se pinta en memoria, el número y la recarga—, y eso solo se ve
- * con la App de verdad: el banco de `total-de-todos-db` prueba las funciones,
+ * con la App de verdad: el banco de `todos-como-la-lista-db` prueba las funciones,
  * no quién las llama.
  *
  * Cuatro conversaciones en una línea (`sembrar-todos.mjs`), y se comprueba:
  *
  *  1. Al abrir, «Todos» = filas que se ven = 4.
  *  2. Resolver desde «Acciones» baja el número a 3 SIN recargar, y la fila se va.
- *  3. Recargando sigue en 3 (el `COUNT` del servidor no cuenta resueltas).
+ *  3. Recargando sigue en 3 (el conteo del servidor no cuenta resueltas).
  *  4. Reabrir desde «Acciones» lo sube a 4 SIN recargar, y la fila vuelve.
  *  5. Resolver desde el menú de la FILA baja uno sin recargar.
  *

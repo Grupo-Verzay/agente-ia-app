@@ -10727,6 +10727,62 @@ cuenta no prueba que la pantalla se entere.** Lo cubre
 «Acciones», recargar, reabrir y resolver desde la fila, exigiendo número = filas
 en 8 s. `MODO=roto` con un `.next` de `5288fa2` reproduce 6 fallos.
 
+### Y el número sale de LAS FILAS DE LA LISTA, no de las fichas
+
+Después de #926 y #928 seguía sin cuadrar, y en todas partes: Rca «Todos 32» y
+al seleccionar todas salían 16; Zoo Shop 26 y 24; un cliente con 14 conversaciones
+veía 34; Multigama sin número. Y fallaba en la cuenta que acababa de **importar
+historial**.
+
+La causa era de fondo, no un filtro de más: el número era un `COUNT` sobre
+`Session` —los **leads** de la línea— y la lista enseña **conversaciones**
+pasadas por los filtros del navegador. Un historial importado deja las dos a
+medias, y cada hueco caía en esa grieta: la conversación guardada por el `@lid`
+con la ficha por el número y el archivado puesto bajo el `@lid` (el `COUNT` no
+lo veía archivado), fichas cuya conversación es solo una reacción (la lista no
+las enseña), el mismo contacto con el sufijo de dispositivo (dos fichas, una
+fila), conversaciones sin ficha (la lista sí, el `COUNT` no), y lo que un
+**agente** no ve (el número lo contaba igual). Medido en el banco con el código
+de antes: «Todos 12» sobre **9 filas**; a un agente, 27 sobre 17.
+
+> **Qué sale bajo «Todos» lo decide UNA función,
+> `lasFilasDeLaLista` (`app/(root)/chats/_components/lo-que-ve-todos.ts`,
+> pura)**: los repetidos, el orden, la marca elegida por línea, borradas,
+> archivadas, resueltas y lo que ve un agente. La usan el número del navegador
+> (`channelCounts`, sobre `contacts`, que ya lleva el recorte del agente), la
+> barra lateral (`ordenDeLaLista`, `claveEnLaLista`) y **el servidor**
+> (`lib/conteo-de-todos.server.ts`), que pasa por ella la bandeja ENTERA —la
+> misma consulta de la lista sin ventana ni tope, `leerLaBandejaEntera`—.
+
+Y el reparto (`totalesDeTodos`): **si la línea está ENTERA en la pantalla
+—tiene al menos tantas filas como dice el servidor— manda lo cargado, sin
+discusión**; si le faltan páginas, el del servidor corregido con lo que cambió
+después. Antes de que lleguen las sesiones manda el servidor: sin ellas no se
+sabe qué está resuelto.
+
+Tres cosas más que salieron por el camino y hay que mantener:
+
+1. **La lista no pasaba de la primera página.** El cursor viajaba en SEGUNDOS y
+   `traerMasChatsDeLaLinea` hace `new Date(anteriorA)`: caía en 1970, la
+   página salía vacía y la línea se daba por terminada. Va en milisegundos
+   (`epochToMs`), pide con las **mismas cuentas** que la primera página, la
+   ventana de candidatos se recorta **desde el cursor** (sin eso lo que quedaba
+   fuera de la ventana no llegaba nunca) y solo una página **vacía** dice que
+   no queda nada — una corta no, porque se descarta lo borrado después de
+   escoger candidatos.
+2. **«Seleccionar todas» marca lo CARGADO**, no el total: es `filtered`. Con la
+   línea entera coinciden; con una línea a medias hay que bajar para que entren
+   las filas que faltan.
+3. **Toda línea del menu de canales tiene número, aunque sea 0.** Una línea sin
+   número no dice si está vacía o si falta contarla.
+
+Lo prueban `scripts/banco-total-de-todos.sh` (contra Postgres: tres líneas con
+historial importado, resueltas, archivadas, borradas revividas, un contacto en
+dos líneas, más de una página y un agente; exige número = total real de la
+lista paginada hasta el final) y `scripts/banco-todos-como-la-lista.sh` (la
+página servida: pastilla, «seleccionar todas», el menú y cada línea elegida).
+Los dos en dos modos; el roto afirma el `COUNT` de leads y el cursor de antes.
+
 ## Una consulta que devuelve una página tiene que poder PARARSE
 
 Una consulta que junta varias fuentes, las deduplica y al final se queda con 26
