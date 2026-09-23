@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    Building2,
     CalendarClock,
     Copy,
     Link2Off,
@@ -39,13 +38,16 @@ import {
     type ReunionPasada,
     type SalaParaLaPantalla,
 } from "@/actions/salas-de-video-actions";
-import { GrabacionesDeLaReunion } from "@/components/reuniones/GrabacionesDeLaReunion";
+import { ListaDeGrabaciones } from "@/components/reuniones/ListaDeGrabaciones";
+import { InsigniaDeCuenta } from "@/components/reuniones/InsigniaDeCuenta";
+import { lasGrabacionesEnLista, type VistaDeReuniones } from "@/lib/grabaciones-de-la-pantalla";
 import {
     DURACION_POR_DEFECTO,
     comoSeLeeLaCaducidad,
     duracionesQuePuedeElegir,
     type Duracion,
 } from "@/lib/sala-de-video";
+import { DIAS_DE_GRABACION } from "@/lib/grabacion-de-reunion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -94,6 +96,16 @@ import { cn } from "@/lib/utils";
  *    aquí. Con la condición escrita también en la pantalla, el día que se afine
  *    una saldría un botón que al pulsarlo dice «no autorizado»: el «menú
  *    abierto, puerta cerrada» de siempre.
+ *
+ * # Las grabaciones son la TERCERA pestaña, no un bloque dentro de cada fila
+ *
+ * Iban pegadas dentro de la fila de su reunión, y esa fila es un `flex` en
+ * línea: el video a `w-full` se quedaba con todo el ancho que sobraba y una
+ * sola grabación empujaba las demás reuniones fuera de la vista. Reuniones
+ * contesta «¿a cuál entro?» y grabaciones «¿qué veo de lo que ya pasó?», así
+ * que van separadas: «Grabaciones» es una pestaña más, con su contador, y
+ * **solo sale si la cuenta tiene el módulo** (`puedeGrabar`, que baja del
+ * servidor). Ver `components/reuniones/ListaDeGrabaciones.tsx`.
  */
 /**
  * Las grabaciones se piden APARTE de la lista, y en una sola vuelta.
@@ -170,7 +182,7 @@ export function ReunionesClient({
     fallo: string | null;
 }) {
     const [salas, setSalas] = useState(inicial);
-    const [vista, setVista] = useState<"abiertas" | "pasadas">("abiertas");
+    const [vista, setVista] = useState<VistaDeReuniones>("abiertas");
     const [titulo, setTitulo] = useState("");
     const [duracion, setDuracion] = useState<Duracion>(DURACION_POR_DEFECTO);
     const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
@@ -181,6 +193,13 @@ export function ReunionesClient({
         [historial, salas],
     );
     const grabaciones = useLasGrabaciones(idsDeLasSalas);
+    // Una sola lista, con el título de su reunión dentro y la más reciente
+    // arriba. Se arma aquí porque aquí están las dos mitades: las grabaciones
+    // por sala y las reuniones que les dan nombre.
+    const listaDeGrabaciones = useMemo(
+        () => lasGrabacionesEnLista(grabaciones.porSala, [...salas, ...historial]),
+        [grabaciones.porSala, historial, salas],
+    );
 
     // La lista que se OFRECE es la que el servidor acepta: las dos salen de la
     // misma función y de la misma respuesta (`puedoNoCaducar`). Con una
@@ -238,6 +257,18 @@ export function ReunionesClient({
                                una vez, no un dato que se mira. */
                             ayuda={`Reuniones terminadas · últimos ${dias} días`}
                         />
+                        {/* Solo con el módulo de grabación: sin él no hay nada
+                            que ver aquí, y una pestaña siempre a cero es ruido
+                            para la mayoría de las cuentas. */}
+                        {grabaciones.puedeGrabar ? (
+                            <PastillaDeFiltro
+                                etiqueta="Grabaciones"
+                                cuantas={listaDeGrabaciones.length}
+                                activa={vista === "grabaciones"}
+                                alPulsar={() => setVista("grabaciones")}
+                                ayuda={`Lo grabado en las reuniones · se guarda ${DIAS_DE_GRABACION} días`}
+                            />
+                        ) : null}
                     </>
                 }
                 crear={
@@ -333,8 +364,14 @@ export function ReunionesClient({
                 </p>
             ) : null}
 
-            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
-                {vista === "abiertas" ? (
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto" data-lista-de-reuniones={vista}>
+                {vista === "grabaciones" && grabaciones.puedeGrabar ? (
+                    <ListaDeGrabaciones
+                        grabaciones={listaDeGrabaciones}
+                        variasCuentas={variasCuentas}
+                        alTranscribir={grabaciones.alTranscribir}
+                    />
+                ) : vista === "abiertas" || vista === "grabaciones" ? (
                     salas.length === 0 ? (
                         <Vacio texto="No hay ninguna reunión abierta." />
                     ) : (
@@ -353,8 +390,6 @@ export function ReunionesClient({
                                 onRegenerada={(nueva) =>
                                     setSalas((a) => a.map((x) => (x.id === s.id ? nueva : x)))
                                 }
-                                grabaciones={grabaciones.porSala[s.id] ?? []}
-                                alTranscribir={grabaciones.alTranscribir}
                             />
                         ))
                     )
@@ -366,8 +401,6 @@ export function ReunionesClient({
                             key={r.id}
                             reunion={r}
                             variasCuentas={variasCuentas}
-                            grabaciones={grabaciones.porSala[r.id] ?? []}
-                            alTranscribir={grabaciones.alTranscribir}
                         />
                     ))
                 )}
@@ -418,33 +451,6 @@ function Vacio({ texto }: { texto: string }) {
     return <p className="px-1 py-6 text-center text-sm text-muted-foreground">{texto}</p>;
 }
 
-/**
- * A qué cuenta pertenece la sala.
- *
- * Solo se pinta cuando la familia tiene varias cuentas y la sala trae nombre:
- * en una cuenta sola sería repetir su propio nombre en cada fila, que es ruido.
- * Es lo que hace visible que la madre está entrando a la sala de una hija sin
- * haber cambiado de cuenta.
- */
-function InsigniaDeCuenta({
-    nombre,
-    variasCuentas,
-}: {
-    nombre: string | null;
-    variasCuentas: boolean;
-}) {
-    if (!variasCuentas || !nombre) return null;
-    return (
-        <span
-            className="inline-flex max-w-[10rem] items-center gap-1 truncate rounded-full border border-border bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
-            title={nombre}
-        >
-            <Building2 className="h-3 w-3 shrink-0" />
-            <span className="truncate">{nombre}</span>
-        </span>
-    );
-}
-
 function FilaViva({
     sala,
     variasCuentas,
@@ -452,8 +458,6 @@ function FilaViva({
     onFuera,
     onCaducidad,
     onRegenerada,
-    grabaciones,
-    alTranscribir,
 }: {
     sala: SalaParaLaPantalla;
     variasCuentas: boolean;
@@ -461,8 +465,6 @@ function FilaViva({
     onFuera: () => void;
     onCaducidad: (expiraEn: string | null) => void;
     onRegenerada: (nueva: SalaParaLaPantalla) => void;
-    grabaciones: GrabacionEnLaFicha[];
-    alTranscribir: (id: string, texto: string, resumen: string | null) => void;
 }) {
     const [ocupado, setOcupado] = useState(false);
 
@@ -629,7 +631,6 @@ function FilaViva({
                     </DropdownMenuContent>
                 </DropdownMenu>
             ) : null}
-            <GrabacionesDeLaReunion grabaciones={grabaciones} alTranscribir={alTranscribir} />
         </div>
     );
 }
@@ -637,13 +638,9 @@ function FilaViva({
 function FilaPasada({
     reunion,
     variasCuentas,
-    grabaciones,
-    alTranscribir,
 }: {
     reunion: ReunionPasada;
     variasCuentas: boolean;
-    grabaciones: GrabacionEnLaFicha[];
-    alTranscribir: (id: string, texto: string, resumen: string | null) => void;
 }) {
     return (
         <div className="rounded-md border border-border px-3 py-2">
@@ -667,7 +664,6 @@ function FilaPasada({
                           .map((a) => (a.esInvitado ? `${a.nombre} (invitado)` : a.nombre))
                           .join(", ")}
             </p>
-            <GrabacionesDeLaReunion grabaciones={grabaciones} alTranscribir={alTranscribir} />
         </div>
     );
 }

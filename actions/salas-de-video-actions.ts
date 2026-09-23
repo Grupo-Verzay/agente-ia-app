@@ -6,6 +6,8 @@ import { currentUser } from "@/lib/auth";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { quienFirma } from "@/lib/chat-de-equipo";
 import { laFamiliaDeLaCuenta } from "@/lib/familia-de-cuentas";
+import { lasCuentasQueConsultaElCrm } from "@/lib/cuentas-del-crm";
+import { lasQueAlcanza } from "@/lib/grabaciones-de-la-pantalla";
 import { canalesQueAlcanzan, guardarUnMensaje } from "@/lib/chat-de-equipo-db";
 import {
     CANAL_GENERAL,
@@ -1914,7 +1916,10 @@ export async function transcribirLaReunionAction(input: {
         // La puerta: la grabación es de una CUENTA, y se comprueba contra la de
         // quien pregunta. Sin esto, con un id a mano se leería —y se pagaría—
         // la reunión de otra cuenta.
-        if (fila.cuentaId !== yo.cuentaId) {
+        // La misma puerta que la lista (lo propio y lo de abajo): con otra, la
+        // pestaña ofrecería «Transcribir» sobre una grabación que la acción
+        // luego rechaza.
+        if (!lasQueAlcanza([fila], await lasCuentasQueConsultaElCrm(yo.cuentaId)).length) {
             return { success: false, message: "No autorizado." };
         }
         if (!(await laCuentaPuedeGrabar(fila.cuentaId))) {
@@ -1937,9 +1942,12 @@ export async function transcribirLaReunionAction(input: {
         // persona — `ia_credits` tiene una fila por cuenta, así que cobrarle a
         // alguien del equipo sería cobrarle a una fila que no existe y nadie
         // podría transcribir nada.
-        const familia = await laFamiliaDeLaCuenta(yo.cuentaId);
+        // La cuenta es la de la GRABACIÓN, no la de quien pulsa: desde la madre
+        // se puede transcribir la de una hija, y cobra la familia de esa
+        // grabación (su raíz, como siempre).
+        const familia = await laFamiliaDeLaCuenta(fila.cuentaId);
         const paga = laCuentaQuePagaLaTranscripcion({
-            cuentaId: yo.cuentaId,
+            cuentaId: fila.cuentaId,
             raizDeLaFamilia: familia.raiz,
         });
 
@@ -2111,12 +2119,18 @@ export async function lasGrabacionesDeLasReunionesAction(
             loQueOcupanLasGrabaciones(yo.cuentaId),
         ]);
 
+        // El alcance es el de siempre en esta plataforma: lo propio y lo que
+        // cuelga HACIA ABAJO —la madre ve las grabaciones de sus hijas, nunca
+        // al revés ni entre hermanas—. Es la MISMA puerta que el CRM; un
+        // `agente` se queda con su cuenta.
+        const alcanzables = await lasCuentasQueConsultaElCrm(yo.cuentaId);
+
         const porSala: Record<string, GrabacionEnLaFicha[]> = {};
         for (const [salaId, filas] of mapa) {
             // La cuenta se vuelve a comprobar fila a fila: los ids de sala
             // llegan del navegador, y sin esto una lista a mano devolvería las
             // grabaciones de la reunión de otra cuenta.
-            const mias = filas.filter((f) => f.cuentaId === yo.cuentaId);
+            const mias = lasQueAlcanza(filas, alcanzables);
             if (mias.length) porSala[salaId] = mias.map(comoSeVeLaGrabacion);
         }
 
