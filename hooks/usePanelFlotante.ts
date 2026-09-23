@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import {
     bajoLaBarraDeArriba,
+    bajoSuBotonEnElDialogo,
     cabecera,
     colgadoDelIcono,
     columnaAncha,
@@ -70,6 +71,11 @@ export const MARCA_DE_LA_BARRA = "data-barra-de-arriba";
  * escribir, y es el límite de lo que se abre desde un mensaje.
  */
 export const MARCA_DEL_HILO = "data-hilo-de-chat";
+/**
+ * El diálogo: lo pone Radix en todo `DialogContent` (`role="dialog"`), así que
+ * no hace falta marcar nada. Es el contenedor de `bajoSuBotonEnElDialogo`.
+ */
+export const MARCA_DEL_DIALOGO = "role=\"dialog\"";
 
 export type ClaseDePanel =
     | "columnaAncha"
@@ -77,7 +83,9 @@ export type ClaseDePanel =
     | "cabecera"
     | "colgadoDelIcono"
     | "barraDeArriba"
-    | "enElHilo";
+    | "enElHilo"
+    /** Un botón dentro de un DIÁLOGO (el «+ Nuevo» de Registros). */
+    | "bajoSuBotonEnElDialogo";
 
 /** Lo que se le pasa a `PopoverContent` / `DropdownMenuContent`, ya resuelto. */
 export type PropsDelPanel = {
@@ -145,7 +153,9 @@ export function usePanelFlotante(
                       ? MARCA_DE_LA_BARRA
                       : clase === "enElHilo"
                         ? MARCA_DEL_HILO
-                        : MARCA_DE_LA_COLUMNA;
+                        : clase === "bajoSuBotonEnElDialogo"
+                          ? MARCA_DEL_DIALOGO
+                          : MARCA_DE_LA_COLUMNA;
             const contenedor =
                 nodo?.closest(`[${marca}]`) ?? document.querySelector(`[${marca}]`);
 
@@ -172,6 +182,11 @@ export function usePanelFlotante(
                 return;
             }
 
+            if (clase === "bajoSuBotonEnElDialogo") {
+                const g = bajoSuBotonEnElDialogo(contCaja, dispCaja, primitiva);
+                setProps({ ...g, style: g.estilo });
+                return;
+            }
             if (clase === "barraDeArriba") {
                 const g = bajoLaBarraDeArriba(
                     contCaja,

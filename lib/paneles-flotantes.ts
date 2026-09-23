@@ -151,6 +151,19 @@ export type EstiloDelPanel = {
 export const ENCIMA_DEL_BORDE = "z-[70]";
 
 /**
+ * La capa de lo que se abre DESDE DENTRO de un flotante: el desplegable de
+ * estado de la ficha de la cita, que es un `Select` dentro de un `Popover`.
+ *
+ * Los dos van en su portal al `<body>`, pero el `Select` nace en el `z-50` de
+ * `components/ui/select.tsx` y su panel en `ENCIMA_DEL_BORDE` (`z-[70]`): el
+ * hijo quedaba DEBAJO del padre. Como abre hacia abajo sobre el propio panel,
+ * sus primeras opciones —«Pendiente», «Confirmada»— salían tapadas por la ficha
+ * y cortadas, y las de abajo, fuera del panel, sí se veían. Un nivel más, y por
+ * debajo de la sala de reunión (`z-[99]`).
+ */
+export const ENCIMA_DE_SU_PANEL = "z-[80]";
+
+/**
  * Lo que hace que un panel que no cabe **se desplace por dentro**.
  *
  * Lleva además `ENCIMA_DEL_BORDE`: lo usan todos los flotantes de Chats, y es
@@ -490,17 +503,22 @@ export function alFiloDeLaConversacion(
 }
 
 /**
- * Bajo la BARRA DE ARRIBA de la plataforma y dentro de la ventana.
+ * Bajo la BARRA DE ARRIBA de la plataforma, con el filo derecho EN el de la barra.
  *
  * Es el panel de la campanita, y no es de Chats —la barra es la misma en todas
- * las pantallas—, pero la pregunta es exactamente la de arriba: nace pegado a
- * su botón y ese botón vive DENTRO de una barra más alta que él, así que un
- * `sideOffset` de 4 lo deja montado sobre ella. Se mide la barra, como se mide
- * la cabecera de la conversación.
+ * las pantallas—. Nace a la altura que ya tenía: bajo la barra medida más el
+ * hueco de siempre (`sideOffset`), que es lo que decide cuánto tapa de ella y
+ * eso **no se toca**.
  *
- * Y el ancho se acota a la ventana: el panel pide `min(92vw, 380px)` y con
- * `align="end"` su filo derecho cae en el del botón; acotado además por la
- * ventana no puede cortarse por ningún lado en ninguna anchura.
+ * Lo que cambió es el lado: colgaba de su botón (`align="end"` sin
+ * desplazamiento), así que acababa donde acaba la campanita —a los 12 px del
+ * `pr-3` de la barra— mientras Acciones acaba en el filo de su recuadro. Ahora
+ * es la misma regla que `alFiloDeLaConversacion`: el filo derecho de la BARRA,
+ * nunca más allá de la ventana, creciendo hacia la izquierda. A Radix se le da
+ * como `alignOffset = disparador.right − filo`, que sale NEGATIVO (mueve a la
+ * derecha con `align="end"`).
+ *
+ * Y el ancho se acota para que el borde IZQUIERDO no se salga de la ventana.
  */
 export function bajoLaBarraDeArriba(
     barra: Caja,
@@ -508,19 +526,57 @@ export function bajoLaBarraDeArriba(
     anchoDeLaVentana: number,
     primitiva: Primitiva,
 ): Geometria {
-    // Positivo mueve a la IZQUIERDA con `align="end"`: solo se usa si el botón
-    // llegara a quedar pegado al borde, que hoy no pasa (la barra lleva `pr-3`).
-    const seSale = disparador.right - (anchoDeLaVentana - MARGEN_DE_LA_VENTANA);
+    const filo = Math.round(Math.min(barra.right, anchoDeLaVentana));
     return {
         side: "bottom",
         align: "end",
         collisionPadding: MARGEN_DE_LA_VENTANA,
-        alignOffset: Math.round(Math.max(0, seSale)),
+        alignOffset: Math.round(disparador.right - filo),
         sideOffset:
             Math.max(0, Math.round(barra.bottom - disparador.bottom)) + HUECO_DEL_DISPARADOR,
         avoidCollisions: false,
         estilo: {
-            maxWidth: `${Math.round(anchoDeLaVentana - MARGEN_DE_LA_VENTANA * 2)}px`,
+            maxWidth: `${Math.max(0, filo - MARGEN_DE_LA_VENTANA)}px`,
+            maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
+        },
+    };
+}
+
+/**
+ * Un menú que cuelga de un botón DENTRO de un diálogo: el «+ Nuevo» de
+ * Registros.
+ *
+ * Nace **pegado** bajo el botón (`SEPARACION_DEL_MENU`, sin hueco), con su filo
+ * derecho en el del botón, y crece hacia la izquierda —hacia dentro del
+ * diálogo—. Es el criterio de los menús de la cabecera de la conversación
+ * aplicado a su contenedor, que aquí es el diálogo y no la cabecera.
+ *
+ * Tres cosas que no se dejan a Radix:
+ *
+ * 1. **El filo nunca pasa del borde derecho del diálogo**: si el botón llegara
+ *    más allá, el filo se queda en el del diálogo (`alignOffset` positivo, que
+ *    con `align="end"` mueve a la izquierda).
+ * 2. **El ancho se acota al diálogo**: del filo al borde izquierdo del diálogo.
+ *    Así no se sale por ningún lado.
+ * 3. **`avoidCollisions: false`**: con él Floating UI puede correr el menú en
+ *    horizontal (`shift`) o voltearlo, y lo que decide dónde nace es el
+ *    diálogo, no la ventana. El alto sigue acotado al hueco de verdad.
+ */
+export function bajoSuBotonEnElDialogo(
+    dialogo: Caja,
+    disparador: Caja,
+    primitiva: Primitiva,
+): Geometria {
+    const filo = Math.round(Math.min(disparador.right, dialogo.right));
+    return {
+        side: "bottom",
+        align: "end",
+        collisionPadding: MARGEN_DE_LA_VENTANA,
+        alignOffset: Math.round(disparador.right - filo),
+        sideOffset: SEPARACION_DEL_MENU,
+        avoidCollisions: false,
+        estilo: {
+            maxWidth: `${Math.max(0, Math.round(filo - dialogo.left))}px`,
             maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
         },
     };
