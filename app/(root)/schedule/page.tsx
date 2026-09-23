@@ -8,6 +8,8 @@ import { getSessionsByUserId } from "@/actions/session-action"
 import { getWorkFlowByUser } from "@/actions/workflow-actions"
 import { getInstancesByUserId } from "@/actions/instances-actions"
 
+import { resolverLasCuentasDelCrm } from "@/lib/cuentas-del-crm";
+
 import { MainSchedule } from './_components';
 
 function hasApiKey(result: { data?: ApiKey | null }): result is { data: ApiKey } {
@@ -31,7 +33,12 @@ function hasInstancia(result: { data?: Instancia[] }): result is { data: Instanc
 }
 
 // Puedes precargar el asesor para mostrar info contextual
-const SchedulePage = async ({ params }: { params: { userId: string } }) => {
+const SchedulePage = async ({
+    searchParams,
+}: {
+    params: { userId: string };
+    searchParams?: { cuentas?: string | string[] };
+}) => {
     const user = await currentUser()
     if (!user) return null;
 
@@ -42,11 +49,16 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     const apiKey = hasApiKey(resApikey) ? resApikey.data : null;
 
     // Obtener recordatorios, sesiones, workflows e instancia en paralelo
-    const [resReminder, resSession, resWorkflow, resInstancia] = await Promise.all([
+    // Las citas del tablero se leen de la cuenta y de las que cuelgan de ella,
+    // con la MISMA puerta que el CRM (ver `lib/agenda-de-la-familia.ts`). Solo
+    // las CITAS: disponibilidad, servicios, formulario, recordatorios y ajustes
+    // siguen siendo de la cuenta propia (`effectiveId`).
+    const [resReminder, resSession, resWorkflow, resInstancia, cuentas] = await Promise.all([
         getRemindersByUserId(effectiveId),
         getSessionsByUserId(effectiveId),
         getWorkFlowByUser(effectiveId),
         getInstancesByUserId(effectiveId),
+        resolverLasCuentasDelCrm(effectiveId, searchParams?.cuentas),
     ]);
 
     if (!resReminder.success) {
@@ -82,6 +94,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
             leads={sessions}
             workflows={workflows}
             instancia={resInstancia.data[0]}
+            cuentas={cuentas}
         />
     );
 };

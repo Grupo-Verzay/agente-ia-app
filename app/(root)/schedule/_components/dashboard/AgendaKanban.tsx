@@ -31,6 +31,8 @@ import {
 } from '@/actions/appointments-actions';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ApptAutomationsPanel } from '@/app/(root)/crm/rules/components/ApptAutomationsPanel';
+import { InsigniaDeLinea } from '@/components/shared/InsigniaDeLinea';
+import { laInsigniaDeLaFila } from '@/lib/agenda-de-la-familia';
 
 // ─── Column config ─────────────────────────────────────────────────────────────
 
@@ -56,7 +58,25 @@ function fmtDate(iso: string) {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-function AgendaCardItem({ card, isDragging = false }: { card: AgendaKanbanCard; isDragging?: boolean }) {
+/** Qué insignia lleva una tarjeta: `null` cuando se mira una sola cuenta. */
+type InsigniaDeTarjeta = { clave: string; nombre: string } | null;
+
+/** A qué conversación lleva el teléfono: con su LÍNEA, para que una cita de
+ *  otra cuenta de la familia abra la conversación de esa línea. */
+function enlaceAlChat(card: AgendaKanbanCard): string {
+    const jid = encodeURIComponent(card.remoteJid);
+    return card.linea ? `/chats?jid=${jid}&instance=${encodeURIComponent(card.linea)}` : `/chats?jid=${jid}`;
+}
+
+function AgendaCardItem({
+    card,
+    isDragging = false,
+    insignia = null,
+}: {
+    card: AgendaKanbanCard;
+    isDragging?: boolean;
+    insignia?: InsigniaDeTarjeta;
+}) {
     return (
         <div className={cn(
             'bg-background rounded-lg border border-border p-3 shadow-sm space-y-2 select-none',
@@ -67,11 +87,16 @@ function AgendaCardItem({ card, isDragging = false }: { card: AgendaKanbanCard; 
                     <User className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                    <p className="text-sm font-medium truncate leading-tight capitalize">
-                        {card.pushName ?? 'Sin nombre'}
-                    </p>
+                    {/* El nombre y, pegada a su derecha, la insignia de la
+                        cuenta: la misma posición que en CRM › Llamadas. */}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <p className="text-sm font-medium truncate leading-tight capitalize">
+                            {card.pushName ?? 'Sin nombre'}
+                        </p>
+                        {insignia && <InsigniaDeLinea clave={insignia.clave} nombre={insignia.nombre} />}
+                    </div>
                     <Link
-                        href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
+                        href={enlaceAlChat(card)}
                         className="block truncate text-[11px] text-primary hover:underline"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -121,7 +146,7 @@ function AgendaCardItem({ card, isDragging = false }: { card: AgendaKanbanCard; 
 
 // ─── Draggable wrapper ────────────────────────────────────────────────────────
 
-function DraggableCard({ card }: { card: AgendaKanbanCard }) {
+function DraggableCard({ card, insignia }: { card: AgendaKanbanCard; insignia: InsigniaDeTarjeta }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id,
         data: { card },
@@ -133,7 +158,7 @@ function DraggableCard({ card }: { card: AgendaKanbanCard }) {
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <AgendaCardItem card={card} isDragging={isDragging} />
+            <AgendaCardItem card={card} isDragging={isDragging} insignia={insignia} />
         </div>
     );
 }
@@ -144,10 +169,12 @@ function AgendaColumn({
     col,
     cards,
     userId,
+    insigniaDe,
 }: {
     col: (typeof COLUMNS)[number];
     cards: AgendaKanbanCard[];
     userId: string;
+    insigniaDe: (card: AgendaKanbanCard) => InsigniaDeTarjeta;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
     const [automationsOpen, setAutomationsOpen] = useState(false);
@@ -187,7 +214,7 @@ function AgendaColumn({
                     isOver && 'ring-2 ring-inset ring-primary/30 bg-primary/5',
                 )}
             >
-                {cards.map((card) => <DraggableCard key={card.id} card={card} />)}
+                {cards.map((card) => <DraggableCard key={card.id} card={card} insignia={insigniaDe(card)} />)}
                 {cards.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
                         Sin citas
@@ -202,11 +229,24 @@ function AgendaColumn({
 
 export function AgendaKanban({
     userId,
+    cuentas,
+    unificado = false,
+    nombresDeCuenta = {},
     onStatusCountsChange,
 }: {
     userId: string;
+    /** Las cuentas cuyas citas se ven. Sin ellas, la propia. */
+    cuentas?: string[];
+    unificado?: boolean;
+    nombresDeCuenta?: Record<string, string>;
     onStatusCountsChange?: (counts: { status: AppointmentStatus; count: number }[]) => void;
 }) {
+    const llaveDeCuentas = (cuentas ?? [userId]).join(',');
+    const insigniaDe = useCallback(
+        (card: AgendaKanbanCard): InsigniaDeTarjeta =>
+            unificado ? laInsigniaDeLaFila(card.linea, nombresDeCuenta[card.cuentaId]) : null,
+        [unificado, nombresDeCuenta],
+    );
     const [cards, setCards] = useState<AgendaKanbanCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<AgendaKanbanCard | null>(null);
@@ -220,7 +260,7 @@ export function AgendaKanban({
 
     const loadCards = useCallback(async () => {
         setLoading(true);
-        const res = await getAppointmentsForKanban(userId);
+        const res = await getAppointmentsForKanban(userId, llaveDeCuentas.split(','));
         if (res.success && res.data) {
             setCards(res.data);
             if (onStatusCountsChange) {
@@ -234,7 +274,7 @@ export function AgendaKanban({
             toast.error(res.message ?? 'Error al cargar el tablero');
         }
         setLoading(false);
-    }, [userId, onStatusCountsChange]);
+    }, [userId, llaveDeCuentas, onStatusCountsChange]);
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
@@ -423,7 +463,7 @@ export function AgendaKanban({
                             <div className="overflow-x-auto w-full h-full pb-3" style={{ minHeight: 0 }}>
                                 <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                                     {COLUMNS.map((col) => (
-                                        <AgendaColumn key={col.id} col={col} cards={columnCards(col)} userId={userId} />
+                                        <AgendaColumn key={col.id} col={col} cards={columnCards(col)} userId={userId} insigniaDe={insigniaDe} />
                                     ))}
                                 </div>
                             </div>
@@ -431,7 +471,7 @@ export function AgendaKanban({
                         <DragOverlay>
                             {activeCard && (
                                 <div className="w-[224px] rotate-2 shadow-2xl">
-                                    <AgendaCardItem card={activeCard} isDragging />
+                                    <AgendaCardItem card={activeCard} isDragging insignia={insigniaDe(activeCard)} />
                                 </div>
                             )}
                         </DragOverlay>

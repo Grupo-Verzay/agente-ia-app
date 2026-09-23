@@ -10,9 +10,14 @@ import { startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 
-import { getAppointmentsByUser, updateAppointmentStatus, deleteAppointment } from "@/actions/appointments-actions";
+import {
+    getAppointmentsByUser,
+    updateAppointmentStatus,
+    deleteAppointment,
+    sendAppointmentStatusNotification,
+} from "@/actions/appointments-actions";
 import { AppointmentStatus, User } from "@prisma/client";
-import { AppointmentWithSession, buildStatusOwnerMessage, normalizeAppointmentsToEvents } from "../../helpers";
+import { AppointmentWithSession, normalizeAppointmentsToEvents } from "../../helpers";
 
 
 import esLocale from '@fullcalendar/core/locales/es';
@@ -54,7 +59,8 @@ import {
 import { ScheduleInterface } from "@/schema/schema";
 import { XCircleIcon, Phone } from 'lucide-react';
 import Link from "next/link";
-import { sendMessageWithHistoryAction } from "@/actions/chat-history/send-message-with-history-action";
+import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
+import { esCitaDeOtraCuenta, laInsigniaDeLaFila } from "@/lib/agenda-de-la-familia";
 import { STATUS_LABELS } from "@/types/schedule";
 import { fmtPhone } from "@/lib/whatsapp-jid";
 
@@ -79,7 +85,116 @@ const APPOINTMENT_STATUS_META: Record<AppointmentStatus, { label: string; color:
 };
 
 
-export const CustomCalendar = ({ user }: ScheduleInterface) => {
+/** A qué conversación lleva el teléfono de una cita: con su LÍNEA, para que
+ *  una cita de otra cuenta de la familia abra la conversación de esa línea y
+ *  no la primera que aparezca con ese número. */
+function enlaceAlChat(appt: AppointmentWithSession): string {
+    const jid = encodeURIComponent(appt.session.remoteJid);
+    const linea = appt.session.instanceId;
+    return linea ? `/chats?jid=${jid}&instance=${encodeURIComponent(linea)}` : `/chats?jid=${jid}`;
+}
+
+/**
+ * «● Ventas» junto al nombre del cliente: de qué cuenta es la cita. Es la
+ * MISMA pieza que CRM › Llamadas, con la misma regla de color y palabra
+ * (`laInsigniaDeLaFila`), y sale en las mismas condiciones: solo cuando se
+ * mira más de una cuenta a la vez.
+ */
+function InsigniaDeLaCita({
+    appt,
+    nombresDeCuenta,
+}: {
+    appt: AppointmentWithSession;
+    nombresDeCuenta: Record<string, string>;
+}) {
+    const { clave, nombre } = laInsigniaDeLaFila(appt.session?.instanceId, nombresDeCuenta[appt.userId]);
+    return <InsigniaDeLinea clave={clave} nombre={nombre} />;
+}
+
+/** La tarjeta de una cita en las columnas Mañana / Tarde / Noche. Era la misma
+ *  copiada tres veces; ahora es una. */
+function TarjetaDeCita({
+    appt,
+    ownerTz,
+    unificado,
+    nombresDeCuenta,
+    onAbrir,
+}: {
+    appt: AppointmentWithSession;
+    ownerTz: string;
+    unificado: boolean;
+    nombresDeCuenta: Record<string, string>;
+    onAbrir: (appt: AppointmentWithSession) => void;
+}) {
+    const status = APPOINTMENT_STATUS_META[appt.status];
+    return (
+        <button
+            type="button"
+            data-cita={appt.id}
+            onClick={() => onAbrir(appt)}
+            className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
+        >
+            <div className="flex flex-col gap-1.5">
+                <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-bold leading-tight text-muted-foreground">
+                        {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
+                    </p>
+                    {appt.service?.name && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
+                            {appt.service.name}
+                        </span>
+                    )}
+                </div>
+
+                {/* El nombre, y pegada a su derecha la insignia de la cuenta:
+                    la misma posición que en la columna Nombre de CRM › Llamadas. */}
+                <div className="flex min-w-0 items-center gap-1.5">
+                    <p className="text-sm font-semibold leading-tight truncate">
+                        {appt.clientName || appt.session?.pushName || "Sin nombre"}
+                    </p>
+                    {unificado && <InsigniaDeLaCita appt={appt} nombresDeCuenta={nombresDeCuenta} />}
+                </div>
+
+                <div className="flex items-end justify-between gap-3">
+                    <Link
+                        href={enlaceAlChat(appt)}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight min-w-0"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Phone className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{fmtPhone(appt.session.remoteJid)}</span>
+                    </Link>
+
+                    <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
+                        style={{
+                            borderColor: status.color,
+                            backgroundColor: `${status.color}20`,
+                            color: status.color,
+                        }}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
+                        {status.label}
+                    </span>
+                </div>
+            </div>
+        </button>
+    );
+}
+
+export const CustomCalendar = ({
+    user,
+    cuentas,
+    unificado = false,
+    nombresDeCuenta = {},
+}: ScheduleInterface & {
+    /** Las cuentas cuyas citas se ven. Sin ellas, la propia. */
+    cuentas?: string[];
+    unificado?: boolean;
+    nombresDeCuenta?: Record<string, string>;
+}) => {
+    const propia = user.effectiveId ?? user.id;
+    const llaveDeCuentas = (cuentas ?? [propia]).join(",");
     const toastId = "progress-calendar";
 
     const [appointments, setAppointments] = useState<AppointmentWithSession[]>([]);
@@ -121,14 +236,14 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     }, [activeView]);
 
     const loadAppointments = useCallback(async () => {
-        const res = await getAppointmentsByUser(user.effectiveId ?? user.id);
+        const res = await getAppointmentsByUser(propia, llaveDeCuentas.split(","));
         if (res.success) {
             setAppointments((res.data || []) as AppointmentWithSession[]);
             toast.success("Agenda cargada con éxito", { id: toastId });
         } else {
             toast.error(res.message, { id: toastId });
         }
-    }, [user.effectiveId ?? user.id, toastId]);
+    }, [propia, llaveDeCuentas, toastId]);
 
     useEffect(() => {
         toast.loading("Cargando su agenda, un momento por favor...", {
@@ -144,7 +259,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         if (res.success) {
             toast.success("Estado actualizado correctamente", { id: toastId });
 
-            if (status !== 'FINALIZADO' && status !== 'DESCARTADO') await notifyChangeStatus();
+            if (status !== 'FINALIZADO' && status !== 'DESCARTADO') await notifyChangeStatus(id, status);
             await loadAppointments();
         } else {
             toast.error(res.message, { id: toastId });
@@ -195,47 +310,23 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     };
 
 
-    const notifyChangeStatus = async () => {
-        if (!user.apiKey || !user.instancias || !currentAppointment) return toast.info('Campos incompletos o vacios');
-
-        const urlevo = user.apiKey?.url;
-        const apikey = user.apiKey.key;
-        const instanceName = user.instancias[0]?.instanceName ?? "";
-
-        const url = `https://${urlevo}/message/sendText/${instanceName}`;
-        const text = buildStatusOwnerMessage({
-            appointment: currentAppointment,
-            newStatus,
-            userId: user.effectiveId ?? user.id
-        });
-
-        const remoteJid = currentAppointment.session.remoteJid;
-
+    /**
+     * El aviso al cliente lo manda el SERVIDOR, desde la cuenta DUEÑA de la
+     * cita. Antes se mandaba desde aquí con la clave y la primera línea de
+     * quien miraba: desde la madre, el aviso de una cita de su hija le habría
+     * llegado al cliente desde el número de la madre.
+     */
+    const notifyChangeStatus = async (id: string, status: AppointmentStatus) => {
         try {
-            const result = await sendMessageWithHistoryAction({
-                instanceName,
-                url,
-                apikey,
-                remoteJid,
-                message: text,
-                historyType: 'notification',
-                additionalKwargs: {
-                    source: 'CustomCalendar',
-                    appointmentId: currentAppointment.id,
-                    nextStatus: newStatus,
-                },
-            });
-
+            const result = await sendAppointmentStatusNotification(id, status);
             if (result.success) {
                 toast.success(result.message);
             } else {
-                toast.info(`No se envio el mensaje de notificacion`);
-                console.error(`Error SchedulePageClient line: 232 ${result.message}`)
+                toast.info(`No se envió el mensaje de notificación: ${result.message}`);
             }
-
         } catch (error) {
-            console.error("Error en notificacion:", error);
-            toast.error("Ocurrio un error al intentar notificar la cita.");
+            console.error("[agenda] error al notificar la cita:", error);
+            toast.error("Ocurrió un error al intentar notificar la cita.");
         }
     };
 
@@ -294,6 +385,19 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                     allDaySlot={false}
                     slotMinTime="07:00:00"
                     slotMaxTime="19:00:00"
+                    // En Semana y Mes, cada cita lleva también su insignia de
+                    // cuenta cuando se mira más de una: es donde se ven los
+                    // cruces de horario entre las cuentas de la familia.
+                    eventContent={unificado ? (arg) => {
+                        const appt = appointments.find((a) => a.id === arg.event.id);
+                        return (
+                            <div className="flex min-w-0 items-center gap-1 overflow-hidden px-0.5 text-xs">
+                                {arg.timeText && <span className="shrink-0 font-semibold">{arg.timeText}</span>}
+                                <span className="truncate">{arg.event.title}</span>
+                                {appt && <InsigniaDeLaCita appt={appt} nombresDeCuenta={nombresDeCuenta} />}
+                            </div>
+                        );
+                    } : undefined}
                     eventClick={(info) => {
                         const appt = appointments.find((a) => a.id === info.event.id);
                         if (!appt) return;
@@ -323,57 +427,16 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2 pb-4">
                             {morningAppts.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
-                            ) : morningAppts.map((appt) => {
-                                const status = APPOINTMENT_STATUS_META[appt.status];
-                                return (
-                                    <button
-                                        key={appt.id}
-                                        type="button"
-                                        onClick={() => openApptDialog(appt)}
-                                        className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
-                                    >
-                                        <div className="flex flex-col gap-1.5">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                                    {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
-                                                </p>
-                                                {appt.service?.name && (
-                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
-                                                        {appt.service.name}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <p className="text-sm font-semibold leading-tight truncate">
-                                                {appt.clientName || appt.session?.pushName || "Sin nombre"}
-                                            </p>
-
-                                            <div className="flex items-end justify-between gap-3">
-                                                <Link
-                                                    href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
-                                                    className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight min-w-0"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    <Phone className="w-3 h-3 shrink-0" />
-                                                    <span className="truncate">{fmtPhone(appt.session.remoteJid)}</span>
-                                                </Link>
-
-                                                <span
-                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
-                                                    style={{
-                                                        borderColor: status.color,
-                                                        backgroundColor: `${status.color}20`,
-                                                        color: status.color,
-                                                    }}
-                                                >
-                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
-                                                    {status.label}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                            ) : morningAppts.map((appt) => (
+                                <TarjetaDeCita
+                                    key={appt.id}
+                                    appt={appt}
+                                    ownerTz={ownerTz}
+                                    unificado={unificado}
+                                    nombresDeCuenta={nombresDeCuenta}
+                                    onAbrir={openApptDialog}
+                                />
+                            ))}
                         </div>
                     </div>
 
@@ -385,57 +448,16 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2 pb-4">
                             {afternoonAppts.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
-                            ) : afternoonAppts.map((appt) => {
-                                const status = APPOINTMENT_STATUS_META[appt.status];
-                                return (
-                                    <button
-                                        key={appt.id}
-                                        type="button"
-                                        onClick={() => openApptDialog(appt)}
-                                        className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
-                                    >
-                                        <div className="flex flex-col gap-1.5">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                                    {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
-                                                </p>
-                                                {appt.service?.name && (
-                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
-                                                        {appt.service.name}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <p className="text-sm font-semibold leading-tight truncate">
-                                                {appt.clientName || appt.session?.pushName || "Sin nombre"}
-                                            </p>
-
-                                            <div className="flex items-end justify-between gap-3">
-                                                <Link
-                                                    href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
-                                                    className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight min-w-0"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    <Phone className="w-3 h-3 shrink-0" />
-                                                    <span className="truncate">{fmtPhone(appt.session.remoteJid)}</span>
-                                                </Link>
-
-                                                <span
-                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
-                                                    style={{
-                                                        borderColor: status.color,
-                                                        backgroundColor: `${status.color}20`,
-                                                        color: status.color,
-                                                    }}
-                                                >
-                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
-                                                    {status.label}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                            ) : afternoonAppts.map((appt) => (
+                                <TarjetaDeCita
+                                    key={appt.id}
+                                    appt={appt}
+                                    ownerTz={ownerTz}
+                                    unificado={unificado}
+                                    nombresDeCuenta={nombresDeCuenta}
+                                    onAbrir={openApptDialog}
+                                />
+                            ))}
                         </div>
                     </div>
 
@@ -445,57 +467,16 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                 Noche
                             </p>
                             <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2 pb-4">
-                                {nightAppts.map((appt) => {
-                                    const status = APPOINTMENT_STATUS_META[appt.status];
-                                    return (
-                                        <button
-                                            key={appt.id}
-                                            type="button"
-                                            onClick={() => openApptDialog(appt)}
-                                            className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
-                                        >
-                                            <div className="flex flex-col gap-1.5">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                                        {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
-                                                    </p>
-                                                    {appt.service?.name && (
-                                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
-                                                            {appt.service.name}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <p className="text-sm font-semibold leading-tight truncate">
-                                                    {appt.clientName || appt.session?.pushName || "Sin nombre"}
-                                                </p>
-
-                                                <div className="flex items-end justify-between gap-3">
-                                                    <Link
-                                                        href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
-                                                        className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight min-w-0"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                        <Phone className="w-3 h-3 shrink-0" />
-                                                        <span className="truncate">{fmtPhone(appt.session.remoteJid)}</span>
-                                                    </Link>
-
-                                                    <span
-                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
-                                                        style={{
-                                                            borderColor: status.color,
-                                                            backgroundColor: `${status.color}20`,
-                                                            color: status.color,
-                                                        }}
-                                                    >
-                                                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
-                                                        {status.label}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
+                                {nightAppts.map((appt) => (
+                                    <TarjetaDeCita
+                                        key={appt.id}
+                                        appt={appt}
+                                        ownerTz={ownerTz}
+                                        unificado={unificado}
+                                        nombresDeCuenta={nombresDeCuenta}
+                                        onAbrir={openApptDialog}
+                                    />
+                                ))}
                             </div>
                         </div>
                     )}
@@ -584,6 +565,11 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Cliente:</strong>
                                                 {currentAppointment.clientName || currentAppointment.session.pushName || "Cliente desconocido"}
+                                                {unificado && (
+                                                    <span className="ml-1 inline-flex items-center">
+                                                        <InsigniaDeLaCita appt={currentAppointment} nombresDeCuenta={nombresDeCuenta} />
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Telefono:</strong>
@@ -634,7 +620,12 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                             </Card>
                             <div className="flex justify-between pt-4">
                                 <Button variant="outline" onClick={() => setOpenDialog(false)}>Cancelar</Button>
-                                <Button variant="destructive" onClick={() => setOpenDeleteAlert(true)}>Eliminar</Button>
+                                {/* Una cita de otra cuenta de la familia se ve y se le
+                                    cambia el estado, pero no se borra desde aquí:
+                                    borrar se queda en la cuenta dueña. */}
+                                {currentAppointment && !esCitaDeOtraCuenta(currentAppointment.userId, propia) && (
+                                    <Button variant="destructive" onClick={() => setOpenDeleteAlert(true)}>Eliminar</Button>
+                                )}
                             </div>
                         </TabsContent>
 

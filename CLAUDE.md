@@ -16874,3 +16874,50 @@ acciones de verdad, qué ve la madre, una hija y un agente y que Llamar y Llamar
 IA por la elegida salen con su número, se registran en ella y le cobran a ella;
 y en Chromium, el diálogo real. `MODO=roto` monta el diálogo de `ANTES_REF` y
 afirma el fallo: sin «Vía:» y llamando sin cuenta.
+
+## La Agenda de la familia: las CITAS bajan, la configuración se queda
+
+El tablero de Agenda (Dashboard y Kanban de `/schedule`) enseña las citas de
+la cuenta y las de las cuentas que cuelgan de ella, **en una sola lista**, para
+que se vean los cruces de horario. Nunca las de la madre ni las de una hermana.
+
+> **No se estrenó ningún mecanismo.** El alcance es la MISMA puerta del CRM
+> (`resolverLasCuentasDelCrm` en la página, `lasCuentasQueConsultaElCrm` en las
+> tres lecturas): hacia abajo, la URL limpia es «todas», un `agente` ve lo suyo.
+> El filtro es el mismo `SelectorDeCuentas` con las mismas props que CRM ›
+> Llamadas, y la marca «● Ventas» es la misma `InsigniaDeLinea` con la misma
+> regla de color y palabra (`laInsigniaDeLaFila`, en
+> `lib/agenda-de-la-familia.ts`, que ahora usa también Llamadas). Sale solo
+> cuando se mira más de una cuenta, igual que allí.
+
+Cinco cosas que hay que mantener:
+
+1. **Solo las citas.** Disponibilidad, Servicios, Recordatorios, Formulario,
+   Registros y Ajustes siguen siendo de la cuenta propia (`effectiveId`), y el
+   filtro **solo se pinta en las pestañas de citas**: en las otras sería un
+   filtro que promete lo que la pantalla no hace.
+2. **Sin `cuentasPedidas` las lecturas devuelven la cuenta propia**, como
+   siempre. Solo el tablero pasa la lista; cualquier otro llamador no cambia.
+3. **Desde la madre, una cita de una hija se ve y se le cambia el estado** —es
+   la misma fila, así que el cambio se ve en las dos cuentas—, **pero no se
+   borra ni se crea**: «Eliminar» no se ofrece en una cita ajena
+   (`esCitaDeOtraCuenta`). `updateAppointmentStatus` ya dejaba a la madre y no
+   a la hija, por `assertCanAccessTargetUser`.
+4. **El aviso al cliente sale de la cuenta DUEÑA de la cita.** El calendario lo
+   mandaba desde el navegador con la clave y la primera línea de **quien
+   miraba**: desde la madre, el cliente de la hija habría recibido el aviso del
+   número de la madre. Ahora lo manda `sendAppointmentStatusNotification`, en
+   el servidor, por `laLineaDeLaNotificacionDeCita`: la línea de la
+   conversación si es de la dueña, y si no su línea por QR — nunca una línea de
+   otra cuenta, y ya no `instancias[0]` a secas, que podía ser un canal de Meta.
+   Y deja de ser mudo: devuelve si salió y por qué no.
+5. **El teléfono de una cita abre el chat con su línea** (`&instance=`): con el
+   mismo contacto en dos líneas, sin ella se abría el de la primera.
+
+Lo prueba `scripts/banco-agenda-de-la-familia.sh`: la decisión y un barrido
+(el filtro y la insignia comparados con los de CRM › Llamadas), y las acciones
+contra Postgres —una madre con dos hijas, una hija que no ve ni a su madre ni a
+su hermana aunque escriba el parámetro, el filtro que reduce, el cambio de
+estado visto desde las dos cuentas y el aviso saliendo por la línea y con la
+clave de la hija—. `MODO=roto` lee la Agenda de un commit pinchado (`ANTES_REF`)
+y lleva la consulta y el aviso viejos escritos dentro, y afirma el fallo.

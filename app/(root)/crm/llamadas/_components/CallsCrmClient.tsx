@@ -69,6 +69,8 @@ import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
 import { DialogoDeLlamar } from './DialogoDeLlamar';
 import { DIAS_POR_DEFECTO } from './rango-de-dias';
 import { InsigniaDeLinea } from '@/components/shared/InsigniaDeLinea';
+// La regla de color y palabra de la insignia, la MISMA que usa Agenda.
+import { laInsigniaDeLaFila } from '@/lib/agenda-de-la-familia';
 import { esDeOtraCuentaDelCrm } from '@/lib/crm-de-la-familia';
 import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { CallDetailDialog } from './CallDetailDialog';
@@ -1017,10 +1019,7 @@ function CallTableRow({
             <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
           )}
           {nombreDeLaCuenta !== undefined && (
-            <InsigniaDeLinea
-              clave={call.instanceName || nombreDeLaCuenta}
-              nombre={nombreDeLaCuenta || call.instanceName || '—'}
-            />
+            <InsigniaDeLinea {...laInsigniaDeLaFila(call.instanceName, nombreDeLaCuenta)} />
           )}
         </div>
       </td>
