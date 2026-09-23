@@ -99,6 +99,33 @@ export const ANCHO_MINIMO_DE_LA_CABECERA = 176;
 export const TOPE_DE_FILA = "60vh";
 
 /**
+ * La separación entre un menú y la línea de la que nace: **ninguna**.
+ *
+ * Los de la cabecera nacen pegados al borde de abajo de la cabecera; los
+ * filtros, pegados al de la fila de pastillas; los de una fila, pegados a su
+ * control. Fueron 4 px en unos y 0 en otros, y el #917 los llevó a 10 con una
+ * flecha: lo que se pidió es que queden pegados, sin hueco, y el mismo en todos.
+ */
+export const SEPARACION_DEL_MENU = 0;
+
+/**
+ * El ancho COMÚN de los menús de una fila de la lista (temperatura, asignar
+ * asesor, el «⋯» de la fila). Cada uno traía el suyo —sin ancho, `w-52`,
+ * `w-56`— y abrir uno tras otro cambiaba el tamaño. Acotado por la columna
+ * medida, igual que los filtros: nunca se monta sobre la conversación.
+ */
+export const ANCHO_DE_UNA_FILA = 240;
+
+/**
+ * El relleno COMÚN de todo menú de Chats. Convivían `p-1`, `p-2`, `p-3` y
+ * ninguno; puestos uno al lado de otro no se leían como la misma pantalla.
+ */
+export const RELLENO_DEL_MENU = "p-2";
+
+/** Lo que se le deja a cada lado al medir y al voltear (ver `Geometria`). */
+export type Relleno = number | { top: number; right: number; bottom: number; left: number };
+
+/**
  * El estilo en línea del panel.
  *
  * Se declara aquí en vez de usar `React.CSSProperties` para que el módulo siga
@@ -141,8 +168,11 @@ export type Geometria = {
      * No es decoración: entra en `detectOverflow`, así que es también lo que
      * descuenta `--radix-…-available-height`. Sin él un panel que llega justo
      * al borde se queda pegado a él y su última fila no se lee.
+     *
+     * Un menú de fila lo lleva por lados: arriba, el borde de abajo de las
+     * pastillas, para que volteado no suba sobre la búsqueda ni los filtros.
      */
-    collisionPadding: number;
+    collisionPadding: Relleno;
     align: "start" | "end";
     alignOffset: number;
     sideOffset: number;
@@ -192,11 +222,11 @@ export function columnaAncha(
         // Positivo mueve a la derecha con `align="start"`, y la columna empieza
         // a la IZQUIERDA del disparador: sale negativo.
         alignOffset: Math.round(columna.left - disparador.left),
-        // «Bajo las pastillas» son las pastillas MÁS el hueco de siempre: el
-        // «⋯» vive DENTRO de esa fila, así que sin el hueco su panel nacería
-        // pegado a ella y los cuatro no saldrían a la misma altura.
+        // «Bajo las pastillas» es el borde de abajo de esa fila, sin hueco
+        // (`SEPARACION_DEL_MENU`). El «⋯» vive DENTRO de ella, así que se mide
+        // la fila y no su botón: los cinco salen a la misma altura.
         sideOffset:
-            Math.max(0, Math.round(bajoLasPastillas - disparador.bottom)) + HUECO_DEL_DISPARADOR,
+            Math.max(0, Math.round(bajoLasPastillas - disparador.bottom)) + SEPARACION_DEL_MENU,
         avoidCollisions: false,
         estilo: {
             width: `${Math.round(ancho)}px`,
@@ -209,27 +239,43 @@ export function columnaAncha(
 /**
  * Pegado al filo DERECHO de la columna, bajo su control, volteando si no cabe.
  *
- * El ancho no se fija —cada uno tiene el suyo— pero sí se **acota** al de la
- * columna: es lo que impide que el panel de etiquetas, que pide 18rem, se monte
- * sobre la conversación cuando la columna mide menos.
+ * Los tres miden `ANCHO_DE_UNA_FILA`, acotado por la columna: es lo que impide
+ * que se monten sobre la conversación. Y si voltean arriba, el techo es el
+ * borde de abajo de las pastillas (`bajoLasPastillas`): nunca tapan la
+ * búsqueda ni los filtros.
  */
 export function columnaDerecha(
     columna: Caja,
     disparador: Caja,
     primitiva: Primitiva,
+    bajoLasPastillas?: number,
 ): Geometria {
-    const ancho = Math.max(0, columna.right - columna.left);
+    const hueco = Math.max(0, columna.right - columna.left);
+    // El ancho COMÚN de una fila, acotado por la columna: nunca sobre la
+    // conversación.
+    const ancho = Math.min(ANCHO_DE_UNA_FILA, Math.max(0, hueco - MARGEN_DE_LA_VENTANA));
+    // Volteado arriba, no sube sobre la búsqueda ni las pastillas.
+    const techo =
+        bajoLasPastillas === undefined || !Number.isFinite(bajoLasPastillas)
+            ? MARGEN_DE_LA_VENTANA
+            : Math.max(MARGEN_DE_LA_VENTANA, Math.round(bajoLasPastillas));
     return {
         side: "bottom",
         align: "end",
-        collisionPadding: MARGEN_DE_LA_VENTANA,
+        collisionPadding: {
+            top: techo,
+            right: MARGEN_DE_LA_VENTANA,
+            bottom: MARGEN_DE_LA_VENTANA,
+            left: MARGEN_DE_LA_VENTANA,
+        },
         // Con `align="end"` un positivo mueve a la IZQUIERDA, y hay que mover a
         // la derecha hasta el filo de la columna: sale negativo o cero.
         alignOffset: Math.round(disparador.right - columna.right),
-        sideOffset: HUECO_DEL_DISPARADOR,
+        sideOffset: SEPARACION_DEL_MENU,
         avoidCollisions: true,
         estilo: {
-            maxWidth: `${Math.round(ancho - MARGEN_DE_LA_VENTANA)}px`,
+            width: `${Math.round(ancho)}px`,
+            maxWidth: `${Math.round(ancho)}px`,
             maxHeight: `min(${TOPE_DE_FILA}, ${alturaDisponible(primitiva)})`,
         },
     };
@@ -383,7 +429,8 @@ export function alFiloDeLaConversacion(
         align: "end",
         collisionPadding: MARGEN_DE_LA_VENTANA,
         alignOffset: Math.round(disparador.right - filo),
-        sideOffset: Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)),
+        sideOffset:
+            Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)) + SEPARACION_DEL_MENU,
         avoidCollisions: false,
         estilo: {
             ...(mide === undefined ? {} : { width: `${mide}px` }),

@@ -19,7 +19,7 @@ import { guardarResumen, leerResumen } from "./chat-registros-store";
 import { RESUMEN_VACIO, type ResumenDeRegistros } from "@/lib/registros-del-lead";
 import type { SimpleTag } from "@/types/session";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO", "REPORTE"];
@@ -192,7 +192,7 @@ export function ChatRegistrosBadge({
             que los otros cinco paneles de la fila de iconos: iba
             `align="center"`, o sea centrado sobre su propio icono, así que
             saltaba de sitio al pasar de un icono al de al lado. */}
-        <PopoverContent {...panel.props} className={cn("w-52 p-3 space-y-2", PANEL_QUE_SE_DESPLAZA)}>
+        <PopoverContent {...panel.props} className={cn("w-52 space-y-2", RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
           <p className="text-xs font-semibold">Registros del lead</p>
 
           {allRows.length === 0 ? (

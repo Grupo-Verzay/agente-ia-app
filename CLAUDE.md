@@ -15061,10 +15061,10 @@ Cinco cosas del hook que hay que mantener:
    `AdvisorAssignBadge` la lista de asesores de otras pantallas, donde no hay
    ninguna columna de Chats de la que colgar. Callado sería un panel colocado de
    otra forma sin que nadie sepa por qué.
-5. **Y el «⋯» de la fila de pastillas lleva su hueco.** Ese disparador vive
-   DENTRO de esa fila, así que «bajo las pastillas» le sale a cero y su panel
-   nacería pegado a ellas mientras los otros cuatro salen 4px más abajo. El
-   `HUECO_DEL_DISPARADOR` va dentro de `columnaAncha`, no en cada llamador.
+5. **Y los cinco nacen EN el borde de abajo de las pastillas, sin hueco**
+   (`SEPARACION_DEL_MENU`, 0). Se mide la fila y no el botón: el «⋯» vive
+   DENTRO de ella, y así los cinco salen a la misma altura. Fueron 4 px; ver
+   *Pegados, sin separación, y el mismo tratamiento en todos*.
 
 ### Medido, antes y después
 
@@ -15694,6 +15694,34 @@ y con «Nueva tarea» abiertas: los seis menús acaban en el mismo píxel en las
 doce combinaciones (1418 a 1440 sin panel; 650 a 1024 con la ficha). Lo prueba
 `scripts/probar-menus-de-la-cabecera.mjs` desde `banco-paneles-en-chats.sh`, y
 `MODO=roto` con un `.next` de `960abc1` afirma los bordes distintos.
+
+### Pegados, sin separación, y el mismo tratamiento en todos
+
+El #917 probó lo contrario —cada menú colgando de SU botón, con una flecha y
+10 px de hueco— y **se deshizo sin fusionar**: lo pedido es el filo, no el
+botón. Así que la regla del filo de arriba se queda, y encima se cierra la
+simetría entre todos los menús de Chats (`lib/paneles-flotantes.ts`):
+
+| | |
+| --- | --- |
+| separación | **0** (`SEPARACION_DEL_MENU`): los de la cabecera nacen EN el borde de abajo de la cabecera; los filtros, EN el de las pastillas; los de una fila, pegados a su control |
+| relleno | **uno**, `RELLENO_DEL_MENU` (`p-2`), en los catorce. Convivían `p-1`, `p-2`, `p-3` y ninguno |
+| ancho por tipo | filtros `ANCHO_DE_LOS_FILTROS` (288); cabecera, de Macros al filo; fila `ANCHO_DE_UNA_FILA` (240) — los tres de una fila traían sin ancho, `w-52` y `w-56` |
+| alto | `TOPE_FIJADO` en los fijados y `TOPE_DE_FILA` en los de fila, acotados por la variable de Radix |
+| flecha | **ninguna**: con separación cero no hay hueco donde ponerla, y Radix le suma su alto al `sideOffset` |
+
+Tres cosas que hay que mantener:
+
+1. **Los filtros de la columna no se abren nunca sobre la conversación.**
+   `columnaAncha` los acota a la columna MEDIDA menos el margen; el banco de la
+   página servida (`probar-paneles-en-chats.mjs`) exige que su filo derecho
+   quede dentro de la columna en todas las anchuras.
+2. **Los de una fila, volteados, no suben sobre la búsqueda ni los filtros**:
+   `columnaDerecha` recibe el borde de abajo de las pastillas y lo pone de
+   `collisionPadding.top`. Es un objeto por lados, no un número.
+3. **Un menú anclado al botón no es lo pedido.** Si vuelve la duda, está
+   contestada aquí: el borde derecho es el de la conversación y no se mueve al
+   pasar de un menú a otro.
 
 ### Las dos cabeceras de Chats: un margen, un alto, y la ficha fuera de la tira
 

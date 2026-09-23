@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { usePanelFlotante } from '@/hooks/usePanelFlotante';
-import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
 import { repartirLasPestanas, type RepartoDePestanas } from '@/lib/pestanas-del-chat';
 import { cn } from '@/lib/utils';
 
@@ -132,7 +132,7 @@ export function PestanasDelChat({
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent {...panel.props} className={cn('w-48 p-1', PANEL_QUE_SE_DESPLAZA)}>
+          <DropdownMenuContent {...panel.props} className={cn('w-48', RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
             {enMenu.map((id) => (
               <DropdownMenuItem
                 key={id}
