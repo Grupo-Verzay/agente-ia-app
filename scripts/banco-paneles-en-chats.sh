@@ -7,13 +7,14 @@
 # maqueta que no monte esa cabecera. La semilla es la del banco de la barra.
 #
 # Uso:  scripts/banco-paneles-en-chats.sh      (hace falta `npx next build` antes)
+#       MODO=roto: con un `.next` construido desde el commit de antes.
 #
 # Y una segunda sonda, `probar-menus-de-la-cabecera.mjs`: los cinco menús de la
 # cabecera (Macros, Etiquetas, Cita, Registros, Acciones y Llamar) comparten el
-# filo derecho de la conversación menos 16 px, con y sin panel lateral, a cuatro
+# filo derecho de la conversación (sin margen), con y sin panel lateral, a cuatro
 # anchuras. `MODO=roto` exige que FALLE, y se corre con un `.next` construido
-# desde el commit de antes (960abc1): ahí cada menú colgaba de su botón y el
-# borde derecho saltaba de uno a otro.
+# desde el commit de antes (fd08262; o 960abc1, donde cada menú colgaba de su botón y el
+# borde derecho saltaba de uno a otro).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -93,4 +94,21 @@ if [ "${MODO:-bueno}" = roto ]; then
   echo "MODO=roto: reproduce el fallo — los menús de la cabecera no comparten el filo"
 else
   node scripts/probar-menus-de-la-cabecera.mjs
+fi
+
+# Y una tercera, `probar-margenes-de-chats.mjs`: las dos cabeceras (la columna de
+# chats y la conversación) con UN margen de 16 px a los cuatro lados, el mismo
+# alto, sus filas en la misma línea, la ficha y Acciones en el mismo filo, y los
+# menús PEGADOS al filo del recuadro. `MODO=roto` —con un `.next` del commit de
+# antes (fd08262)— exige que FALLE: allí la columna iba a 12/8, la conversación a
+# 16/3/0, la ficha se salía con la conversación estrecha y los menús flotaban a
+# 16 px del borde.
+if [ "${MODO:-bueno}" = roto ]; then
+  if node scripts/probar-margenes-de-chats.mjs; then
+    echo "MODO=roto: los márgenes salieron bien — este .next no es el de antes, o el caso no se ejerce" >&2
+    exit 1
+  fi
+  echo "MODO=roto: reproduce el fallo — las cabeceras no comparten margen, alto ni filos"
+else
+  node scripts/probar-margenes-de-chats.mjs
 fi

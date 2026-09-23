@@ -15585,8 +15585,9 @@ Cinco cosas que hay que mantener:
 
 La regla, y es una sola: **el borde derecho de todo menú de la cabecera es el
 filo derecho del PANEL DE CONVERSACIÓN** (el recuadro del chat; con la ficha de
-contacto abierta, su borde izquierdo), **menos
-`MARGEN_INTERIOR_DE_LA_CONVERSACION` (16 px)**, y crece hacia la izquierda. No
+contacto abierta, su borde izquierdo), **sin margen**
+(`MARGEN_INTERIOR_DE_LA_CONVERSACION`, que fue 16 px y hoy es 0: ver *Las dos
+cabeceras de Chats: un margen, un alto*), y crece hacia la izquierda. No
 depende del botón que lo abre ni del borde de ninguna fila interna.
 
 Lo decide `alFiloDeLaConversacion` (`lib/paneles-flotantes.ts`, puro), y
@@ -15597,10 +15598,11 @@ asesor y «Más»— y `colgadoDelIcono()` —el menú de llamar—. Cuatro cosa
    `data-cabecera-de-chat` es el primer hijo de la columna del chat en
    `chat-main` y mide su ancho entero; la ficha de contacto es un hermano del
    flex, así que queda fuera. No hizo falta ninguna marca nueva.
-2. **16 px no es a ojo: es el `pr-4` de la fila de Macros y Acciones**
-   (`MARGEN_DERECHO_DE_LA_CABECERA`). Con ese margen el borde derecho de los
-   menús cae en el píxel exacto en que acaba Acciones, el último botón. El
-   banco compara la constante con la clase del componente.
+2. **Pegados al borde del recuadro, no al de Acciones.** Fueron 16 px —el
+   `pr-4` de la fila de Macros y Acciones, para que el menú acabara donde
+   acaba el botón—, y así flotaban dentro del recuadro. Ahora van al filo, y
+   contra el borde de la VENTANA (no contra su margen de 8 px): en escritorio
+   el recuadro acaba antes que la pantalla.
 3. **A Radix se le da como desplazamiento**, porque ancla al disparador: con
    `align="end"`, `alignOffset = disparador.right − filo`, que sale NEGATIVO
    (mueve a la derecha). Al revés no da error: lo deja al otro lado del botón.
@@ -15613,6 +15615,56 @@ y con «Nueva tarea» abiertas: los seis menús acaban en el mismo píxel en las
 doce combinaciones (1418 a 1440 sin panel; 650 a 1024 con la ficha). Lo prueba
 `scripts/probar-menus-de-la-cabecera.mjs` desde `banco-paneles-en-chats.sh`, y
 `MODO=roto` con un `.next` de `960abc1` afirma los bordes distintos.
+
+### Las dos cabeceras de Chats: un margen, un alto, y la ficha fuera de la tira
+
+La columna de chats y el panel de conversación se leían desalineados al pasar
+de uno a otro. Medido sobre la página servida, cada cabecera traía sus números:
+
+| | izquierda | derecha | arriba | abajo | alto |
+| --- | --- | --- | --- | --- | --- |
+| columna (antes) | 12 | 12 | 8 | 8 | 82 |
+| conversación (antes) | 16 | 16 | 0 | 0 | 82 |
+| **las dos (ahora)** | **16** | **16** | **16** | **16** | **110** |
+
+Y la primera fila caía en 82 en una y en 79 en la otra.
+
+> **Los números viven en `lib/cabeceras-de-chats.ts` y los usan las DOS
+> cabeceras.** El margen es 16 px —el de la fila de Macros y Acciones, que era
+> el correcto— a los cuatro lados; las filas miden lo mismo en las dos (36 y
+> 32 px, con 8 entre ellas), y de ahí sale el alto: 16 + 36 + 8 + 32 + 16 + 2
+> de borde = **110 px**. Con filas del mismo alto y el mismo relleno, lo de
+> dentro cae en la misma línea horizontal en las dos columnas. Solo desde `md`:
+> por debajo cada una tiene su cabecera de móvil, que no se toca.
+
+Cuatro cosas que hay que mantener:
+
+1. **El margen lo pone la CABECERA, no cada fila.** Con el relleno escrito
+   fila por fila (`px-4` arriba, `pr-4` abajo, nada en vertical) es como se
+   llegó a tener cuatro números distintos.
+2. **La fila de pestañas tira de sí misma `-ml-4`.** La primera pestaña lleva
+   su propio `px-4`, que es el ancho de su subrayado; sin tirar, su TEXTO
+   arrancaría 16 px más adentro que el avatar de encima. El banco mide el
+   texto, no la caja.
+3. **La ficha de contacto va FUERA de la tira de iconos que se desplaza**,
+   `shrink-0`, como Acciones en la fila de abajo. Dentro, con la conversación
+   estrecha —la ficha abierta, un panel lateral— la tira desbordaba y la ficha
+   se iba por la derecha: medido **−72 px** (fuera de la caja) a 1024 con la
+   ficha abierta, que es el «la ficha y Acciones no acaban en el mismo filo»
+   de la captura. Ahora cede la tira; la ficha y Acciones acaban siempre en el
+   mismo píxel.
+4. **Los menús de la cabecera van PEGADOS al borde del recuadro**, sin margen
+   (ver la sección de arriba).
+
+Lo mide `scripts/probar-margenes-de-chats.mjs` (lo corre
+`banco-paneles-en-chats.sh`) sobre la página servida, a 1440/1366/1280/1024,
+sin panel y con la ficha abierta: los cuatro márgenes de las dos cabeceras, el
+texto de la primera pestaña, la ficha y Acciones, el alto, que las filas caigan
+en la misma línea y que los menús de Macros y Acciones acaben en el filo.
+`MODO=roto` con un `.next` de `fd08262` afirma los fallos (74 en total). Y
+`lib/__tests__/cabecera-simetrica.test.mjs` comprueba que el alto de las clases
+sale de los números del módulo y que ninguna de las dos vuelve a escribir los
+suyos.
 
 Lo que queda abierto y no es de esto: a 1024 con la ficha o un panel abierto,
 el botón de llamar de la fila de iconos queda **tapado** (la fila no cabe) y no

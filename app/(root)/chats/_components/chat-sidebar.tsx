@@ -56,6 +56,7 @@ import { ChatTabBar } from "./ChatTabBar";
 import { MARCA_DE_LA_COLUMNA, usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
+import { CABECERA_ESCRITORIO, CABECERA_ESCRITORIO_MINIMA, CLASE_FILA_1, CLASE_FILA_2 } from "@/lib/cabeceras-de-chats";
 
 const PALETTE = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
@@ -1436,20 +1437,23 @@ export function ChatSidebar({
         {...{ [MARCA_DE_LA_COLUMNA]: "" }}
         className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px] sm:border-r border-border"
       >
-        {/* Alto FIJO (rem) del toolbar: igual al del header del chat para que el borde/
-            divisor quede continuo de lado a lado a cualquier zoom. */}
+        {/* Alto FIJO del toolbar, el MISMO que la cabecera de la conversación
+            (`lib/cabeceras-de-chats.ts`): el divisor queda continuo de lado a
+            lado y las dos filas caen en la misma línea. Con chats seleccionados
+            aparece debajo la barra de acciones, que no cabe: ahí la altura pasa
+            a ser un mínimo y la cabecera crece. */}
         <div
-          className={`sticky top-0 z-10 flex flex-col justify-center space-y-1.5 border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:space-y-2 sm:px-3 ${haySeleccion ? "" : "overflow-hidden"
-            }`}
-          // La altura fija mantiene el divisor a la misma altura siempre. Pero
-          // con chats seleccionados aparece debajo la barra de acciones, que no
-          // cabe: ahi la altura pasa a ser un minimo y la cabecera crece.
-          style={haySeleccion ? { minHeight: '5.125rem' } : { height: '5.125rem' }}
+          data-cabecera-de-la-columna
+          className={cn(
+            "sticky top-0 z-10 flex flex-col justify-center gap-1.5 border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-2 sm:px-3",
+            haySeleccion ? "min-h-[5.125rem]" : "h-[5.125rem] overflow-hidden",
+            haySeleccion ? CABECERA_ESCRITORIO_MINIMA : CABECERA_ESCRITORIO,
+          )}
         >
           {/* Arriba: QUIEN o QUE TIPO de chat es. Abajo: en que SITUACION esta.
               Tres iconos y ninguno mas —etiquetas, asesores, grupos—, y el
               buscador con todo el ancho que sobra. */}
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
+          <div className={cn("grid shrink-0 min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2", CLASE_FILA_1)}>
             <ChatSearchBar
               value={q}
               onChange={setQ}
@@ -1563,6 +1567,9 @@ export function ChatSidebar({
             />
           </div>
 
+          {/* La fila de pastillas mide lo MISMO que la de pestañas de la
+              conversación: así las dos caen en la misma línea horizontal. */}
+          <div className={cn("flex shrink-0 items-center", CLASE_FILA_2)}>
           <ChatTabBar
             tab={tab}
             hayFiltroDeEstado={unreadOnly || enEsperaOnly}
@@ -1584,6 +1591,7 @@ export function ChatSidebar({
             notesCount={filterCounts.notes}
             onDeleteByDate={canDeleteChats && onBulkDelete ? () => setDateDeleteOpen(true) : undefined}
           />
+          </div>
 
           {selectedJids.size > 0 && (
             <BulkActionBar

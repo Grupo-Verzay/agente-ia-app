@@ -289,7 +289,7 @@ for (const v of VENTANAS) {
         filas.push({ ventana: v.width, panel: m.nombre, ...r, boton: Math.round(rb.x + rb.width) });
         exigir(!!r, `${v.width}: «${m.nombre}» no se abrió`);
         if (r) {
-            exigir(Math.abs(r.right - (r.cabRight - 16)) <= 1, `${v.width}: «${m.nombre}» no tiene el filo de la conversación menos 16 (${r.right} vs ${r.cabRight - 16})`);
+            exigir(Math.abs(r.right - r.cabRight) <= 1, `${v.width}: «${m.nombre}» no está pegado al filo de la conversación (${r.right} vs ${r.cabRight})`);
             exigir(r.ancho < r.cab * 0.6, `${v.width}: «${m.nombre}» cruza la conversación (${r.ancho} de ${r.cab})`);
             exigir(r.left >= r.cabLeft, `${v.width}: «${m.nombre}» se sale de la conversación por la izquierda`);
         }
