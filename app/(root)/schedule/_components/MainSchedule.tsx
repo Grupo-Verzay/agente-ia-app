@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     LayoutDashboard,
     CalendarDays,
@@ -28,6 +28,9 @@ import { BookingFormBuilder } from './form/BookingFormBuilder';
 import { BookingFormResponsesList, type BookingResponseCounts } from './form/BookingFormResponsesList';
 import { getAppointmentStatusCounts } from '@/actions/appointments-actions';
 import { AppointmentStatus } from '@prisma/client';
+import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
+import { elCrmVaUnificado, nombresDeLasCuentas } from '@/lib/crm-de-la-familia';
+import type { CuentasDelCrm } from '@/lib/cuentas-del-crm';
 
 type TabValue = 'dashboard' | 'availability' | 'kanban' | 'services' | 'reminders' | 'form' | 'registros' | 'settings';
 
@@ -63,20 +66,43 @@ export const MainSchedule = ({
     leads,
     workflows,
     instancia,
-}: MainReminderInterface) => {
+    cuentas,
+}: MainReminderInterface & {
+    /**
+     * Las cuentas cuyas CITAS enseña el tablero, resueltas en el servidor con
+     * la puerta del CRM. Solo las citas: lo demás es configuración de la
+     * cuenta propia y se queda en ella.
+     */
+    cuentas?: CuentasDelCrm;
+}) => {
     const [tab, setTab] = useState<TabValue>('dashboard');
     const [statusCounts, setStatusCounts] = useState<{ status: AppointmentStatus; count: number }[]>([]);
     const [bookingCounts, setBookingCounts] = useState<BookingResponseCounts>({ total: 0, synced: 0, pending: 0, recent: 0 });
     const userId: string = user.effectiveId ?? user.id;
+
+    // Igual que en CRM › Llamadas: con una sola cuenta elegida —el caso de
+    // siempre, y el único que ve una cuenta hija— el tablero se ve EXACTAMENTE
+    // como antes: ni insignias ni citas de solo mirar.
+    const elegidas = cuentas?.elegidas ?? [userId];
+    const llaveDeCuentas = elegidas.join(',');
+    const unificado = elCrmVaUnificado(elegidas);
+    const nombresDeCuenta = useMemo(
+        () => nombresDeLasCuentas(cuentas?.disponibles ?? []),
+        [cuentas?.disponibles],
+    );
+    // Solo las pestañas de CITAS respetan el filtro: en Disponibilidad,
+    // Servicios o Ajustes sería un filtro que promete lo que la pantalla no
+    // hace — el «menú abierto, puerta cerrada» de siempre.
+    const pestanaDeCitas = tab === 'dashboard' || tab === 'kanban';
 
     const handleBookingCounts = useCallback((counts: BookingResponseCounts) => {
         setBookingCounts(counts);
     }, []);
 
     const loadCounts = useCallback(async () => {
-        const res = await getAppointmentStatusCounts(userId);
+        const res = await getAppointmentStatusCounts(userId, llaveDeCuentas.split(','));
         if (res.success && res.data) setStatusCounts(res.data);
-    }, [userId]);
+    }, [userId, llaveDeCuentas]);
 
     useEffect(() => { loadCounts(); }, [loadCounts]);
 
@@ -121,6 +147,19 @@ export const MainSchedule = ({
                         </button>
                     ))}
                 </div>
+                {/* El filtro por cuenta: el MISMO control y las mismas props que
+                    en CRM › Llamadas. Lo decide el servidor —quien no tiene
+                    cuentas debajo no lo ve— y solo sale donde acota algo. */}
+                {cuentas?.puedeElegir && pestanaDeCitas && (
+                    <div className="ml-auto shrink-0">
+                        <SelectorDeCuentas
+                            disponibles={cuentas.disponibles}
+                            elegidas={cuentas.elegidas}
+                            porDefecto="todas"
+                            conMoneda={false}
+                        />
+                    </div>
+                )}
                 <PastillasDeMetricas
                     metricas={tab === 'registros'
                         ? bookingMetrics.map((m) => ({
@@ -149,7 +188,12 @@ export const MainSchedule = ({
                     <div className="h-full min-h-0 overflow-hidden pb-4">
                         <Card className="border-none bg-transparent">
                             <CardContent className="p-0">
-                                <CustomCalendar user={user} />
+                                <CustomCalendar
+                                    user={user}
+                                    cuentas={elegidas}
+                                    unificado={unificado}
+                                    nombresDeCuenta={nombresDeCuenta}
+                                />
                             </CardContent>
                         </Card>
                     </div>
@@ -172,7 +216,13 @@ export const MainSchedule = ({
                 {/* Kanban */}
                 {tab === 'kanban' && (
                     <div className="h-full flex flex-col">
-                        <AgendaKanban userId={userId} onStatusCountsChange={setStatusCounts} />
+                        <AgendaKanban
+                            userId={userId}
+                            cuentas={elegidas}
+                            unificado={unificado}
+                            nombresDeCuenta={nombresDeCuenta}
+                            onStatusCountsChange={setStatusCounts}
+                        />
                     </div>
                 )}
 

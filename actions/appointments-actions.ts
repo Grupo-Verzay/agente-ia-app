@@ -11,6 +11,8 @@ import {
     deleteCalendarEvent,
 } from './google-calendar-actions';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
+import { laLineaDeLaNotificacionDeCita } from '@/lib/agenda-de-la-familia';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —y en
@@ -37,6 +39,27 @@ async function laCuentaDeLaConversacion(sessionId: number) {
     return laCuentaDeLaAccion(suya.userId);
 }
 
+/**
+ * Las cuentas cuyas citas se leen en el tablero de Agenda.
+ *
+ * **Sin `cuentasPedidas` es la cuenta propia y nada más**, que es lo que estas
+ * lecturas devolvían siempre: así cualquier otro llamador sigue viendo lo
+ * suyo. El tablero de Agenda pasa la lista del filtro —la que resolvió
+ * `resolverLasCuentasDelCrm` en la página— y entonces se re-resuelve con la
+ * MISMA puerta del CRM (`lasCuentasQueConsultaElCrm`): lo propio y lo que
+ * cuelga HACIA ABAJO, nunca la madre ni las hermanas. Una acción de servidor
+ * ES un endpoint: la lista que llega del navegador no decide a qué se llega.
+ */
+async function lasCuentasDeLaAgenda(
+    userId: string,
+    cuentasPedidas?: readonly string[] | null,
+): Promise<string[] | null> {
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return null;
+    if (cuentasPedidas === undefined || cuentasPedidas === null) return [cuenta];
+    return lasCuentasQueConsultaElCrm(cuenta, cuentasPedidas);
+}
+
 interface AppointmentOperationResponse {
     success: boolean;
     message: string;
@@ -57,13 +80,16 @@ interface CreateAppointmentInput {
 }
 
 //Obtener citas por usuario (Asesor)
-export async function getAppointmentsByUser(userId: string): Promise<AppointmentOperationResponse> {
+export async function getAppointmentsByUser(
+    userId: string,
+    cuentasPedidas?: string[] | null,
+): Promise<AppointmentOperationResponse> {
     try {
-        const cuenta = await laCuentaDeLaAccion(userId);
-        if (!cuenta) return { success: false, message: 'No autorizado.' };
+        const cuentas = await lasCuentasDeLaAgenda(userId, cuentasPedidas);
+        if (!cuentas) return { success: false, message: 'No autorizado.' };
 
         const list = await db.appointment.findMany({
-            where: { userId: cuenta },
+            where: { userId: { in: cuentas } },
             include: {
                 session: {
                     include: {
@@ -307,11 +333,25 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 }
 
 //Actualizar estado de cita
+/**
+ * Avisa al cliente del cambio de estado de su cita.
+ *
+ * **El aviso sale de la cuenta DUEÑA de la cita**, con su clave y por su línea
+ * (`laLineaDeLaNotificacionDeCita`): la de la conversación si es suya, y si no
+ * su línea por QR. Nunca de quien pulsa: desde el tablero de la cuenta madre,
+ * el aviso de una cita de una hija sale por la línea de la hija.
+ *
+ * Antes cogía `instancias[0]` a secas —que podía ser un canal de Meta o de
+ * Telegram— y exigía la clave de Evolution, así que en una cuenta de Waha no
+ * salía nunca; y el `catch` era mudo. Ahora devuelve si salió y por qué no.
+ */
 export async function sendAppointmentStatusNotification(
     appointmentId: string,
     status: AppointmentStatus,
-): Promise<void> {
-    if (status === 'FINALIZADO' || status === 'DESCARTADO') return;
+): Promise<{ success: boolean; message: string; instanceName?: string }> {
+    if (status === 'FINALIZADO' || status === 'DESCARTADO') {
+        return { success: true, message: 'Este estado no se notifica.' };
+    }
     try {
         const appt = await db.appointment.findUnique({
             where: { id: appointmentId },
@@ -321,19 +361,32 @@ export async function sendAppointmentStatusNotification(
                 user: {
                     select: {
                         apiKey: { select: { url: true, key: true } },
-                        instancias: { take: 1, select: { instanceName: true } },
+                        instancias: {
+                            orderBy: { id: 'asc' },
+                            select: { instanceName: true, instanceType: true },
+                        },
                     },
                 },
             },
         });
-        if (!appt) return;
-        if (!(await laCuentaDeLaAccion(appt.userId))) return;
+        if (!appt) return { success: false, message: 'La cita ya no existe.' };
+        if (!(await laCuentaDeLaAccion(appt.userId))) return { success: false, message: 'No autorizado.' };
 
-        const apiKeyUrl = appt.user?.apiKey?.url;
-        const apiKeyValue = appt.user?.apiKey?.key;
-        const instanceName = appt.user?.instancias?.[0]?.instanceName;
-        const remoteJid = appt.session.remoteJid;
-        if (!apiKeyUrl || !apiKeyValue || !instanceName) return;
+        const { esLineaDeWhatsappQr } = await import('@/lib/linea-de-whatsapp');
+        const instanceName = laLineaDeLaNotificacionDeCita({
+            lineaDeLaConversacion: appt.session?.instanceId,
+            lineasDeLaDuena: (appt.user?.instancias ?? []).map((i) => ({
+                instanceName: i.instanceName,
+                esQr: esLineaDeWhatsappQr(i.instanceType),
+            })),
+        });
+        if (!instanceName) {
+            console.warn('[agenda] la cuenta dueña de la cita no tiene línea por la que avisar', {
+                cita: appointmentId,
+                cuenta: appt.userId,
+            });
+            return { success: false, message: 'La cuenta de esta cita no tiene una línea de WhatsApp conectada.' };
+        }
 
         const { buildStatusOwnerMessage } = await import('@/app/(root)/schedule/helpers/buildStatusOwnerMessage');
         const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
@@ -344,16 +397,37 @@ export async function sendAppointmentStatusNotification(
             userId: appt.userId,
         });
 
-        await sendMessageWithHistoryAction({
+        // La clave de Evolution es la de la DUEÑA. En Waha y Meta no hace falta:
+        // `sendMessageWithHistoryAction` resuelve el proveedor por la línea.
+        const apiKeyUrl = appt.user?.apiKey?.url;
+        const apiKeyValue = appt.user?.apiKey?.key;
+        const result = await sendMessageWithHistoryAction({
             instanceName,
-            url: `https://${apiKeyUrl}/message/sendText/${instanceName}`,
-            apikey: apiKeyValue,
-            remoteJid,
+            url: apiKeyUrl ? `https://${apiKeyUrl}/message/sendText/${instanceName}` : undefined,
+            apikey: apiKeyValue ?? undefined,
+            remoteJid: appt.session.remoteJid,
             message,
             historyType: 'notification',
             additionalKwargs: { source: 'AgendaStatusChange', appointmentId, nextStatus: status },
         });
-    } catch { /* silent */ }
+
+        if (!result.success) {
+            console.warn('[agenda] no salió el aviso de cambio de estado', {
+                cita: appointmentId,
+                cuenta: appt.userId,
+                linea: instanceName,
+                motivo: result.message,
+            });
+            return { success: false, message: result.message || 'No se envió la notificación.', instanceName };
+        }
+        return { success: true, message: 'Notificación enviada.', instanceName };
+    } catch (error) {
+        console.error('[agenda] fallo al avisar del cambio de estado', {
+            cita: appointmentId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return { success: false, message: 'Ocurrió un error al notificar la cita.' };
+    }
 }
 
 /**
@@ -661,18 +735,21 @@ export async function getAppointmentsBySession(sessionId: number): Promise<{
 }
 
 // Conteos de citas por estado
-export async function getAppointmentStatusCounts(userId: string): Promise<{
+export async function getAppointmentStatusCounts(
+    userId: string,
+    cuentasPedidas?: string[] | null,
+): Promise<{
     success: boolean;
     data?: { status: AppointmentStatus; count: number }[];
     message?: string;
 }> {
     try {
-        const cuenta = await laCuentaDeLaAccion(userId);
-        if (!cuenta) return { success: false, message: 'No autorizado.' };
+        const cuentas = await lasCuentasDeLaAgenda(userId, cuentasPedidas);
+        if (!cuentas) return { success: false, message: 'No autorizado.' };
 
         const counts = await db.appointment.groupBy({
             by: ['status'],
-            where: { userId: cuenta },
+            where: { userId: { in: cuentas } },
             _count: { id: true },
         });
         return {
@@ -695,22 +772,29 @@ export type AgendaKanbanCard = {
     remoteJid: string;
     serviceName: string | null;
     tags: { id: number; name: string; color: string | null }[];
+    /** La cuenta DUEÑA de la cita, para su insignia y para saber si es ajena. */
+    cuentaId: string;
+    /** La línea de la conversación: es la llave del color de la insignia. */
+    linea: string | null;
 };
 
 // Obtener citas para el Kanban
-export async function getAppointmentsForKanban(userId: string): Promise<{
+export async function getAppointmentsForKanban(
+    userId: string,
+    cuentasPedidas?: string[] | null,
+): Promise<{
     success: boolean;
     data?: AgendaKanbanCard[];
     message?: string;
 }> {
     try {
-        const cuenta = await laCuentaDeLaAccion(userId);
-        if (!cuenta) return { success: false, message: 'No autorizado.' };
+        const cuentas = await lasCuentasDeLaAgenda(userId, cuentasPedidas);
+        if (!cuentas) return { success: false, message: 'No autorizado.' };
 
         const list = await db.appointment.findMany({
-            where: { userId: cuenta },
+            where: { userId: { in: cuentas } },
             include: {
-                session: { select: { pushName: true, remoteJid: true, sessionTags: { include: { tag: { select: { id: true, name: true, color: true } } } } } },
+                session: { select: { pushName: true, remoteJid: true, instanceId: true, sessionTags: { include: { tag: { select: { id: true, name: true, color: true } } } } } },
                 service: { select: { name: true } },
             },
             orderBy: { startTime: 'asc' },
@@ -727,6 +811,8 @@ export async function getAppointmentsForKanban(userId: string): Promise<{
                 remoteJid: a.session.remoteJid,
                 serviceName: a.service?.name ?? null,
                 tags: a.session.sessionTags.map((st) => ({ id: st.tag.id, name: st.tag.name, color: st.tag.color })),
+                cuentaId: a.userId,
+                linea: a.session.instanceId || null,
             })),
         };
     } catch (error) {
