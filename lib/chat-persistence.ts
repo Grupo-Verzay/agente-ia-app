@@ -1448,6 +1448,50 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
   `;
 }
 
+/**
+ * Lo que se guarda de un mensaje de Evolution, sin guardarlo todavia.
+ *
+ * Lo usan el resincronizado de la conversacion abierta y el relleno de
+ * historial de una linea (`lib/relleno-de-historial.server.ts`): con la forma
+ * escrita en dos sitios, el dia que se afine una la otra guardaria el mismo
+ * mensaje distinto.
+ */
+export function entradaDeMensajeDeEvolution(
+  message: EvolutionMessage,
+  params: { userId: string; instanceName: string; instanceType?: string | null; remoteJid: string },
+): PersistChatMessageInput {
+  const rawMsgJid = message.key?.remoteJid || params.remoteJid;
+  const canonicalMsgJid = normalizeStoredRemoteJid(rawMsgJid, [
+    message.key?.remoteJidAlt,
+    message.key?.senderPn,
+    message.senderPn,
+    params.remoteJid,
+  ]);
+  const altFromRaw =
+    rawMsgJid && rawMsgJid !== canonicalMsgJid ? rawMsgJid : undefined;
+  return {
+    // Esto es historial que se resincroniza, no novedad: el reloj del chat
+    // abierto pasa por aqui cada pocos segundos con los MISMOS mensajes.
+    // Si se dejara reabrir, cada vuelta despausaria la conversacion que el
+    // asesor acaba de pausar al escribir.
+    puedeReabrir: false,
+    userId: params.userId,
+    instanceName: params.instanceName,
+    instanceType: params.instanceType ?? 'evolution',
+    remoteJid: canonicalMsgJid,
+    remoteJidAlt: message.key?.remoteJidAlt || altFromRaw,
+    senderPn: message.key?.senderPn || message.senderPn,
+    messageId: message.key?.id || message.id,
+    fromMe: Boolean(message.key?.fromMe),
+    pushName: message.pushName,
+    messageType: message.messageType || 'conversation',
+    content: extractMessageText(message),
+    mediaUrl: message.message?.mediaUrl,
+    raw: message as unknown as Prisma.InputJsonValue,
+    messageTimestamp: message.messageTimestamp,
+  };
+}
+
 export async function persistEvolutionMessages(params: {
   userId: string;
   instanceName: string;
@@ -1474,36 +1518,7 @@ export async function persistEvolutionMessages(params: {
         // la conversación (params.remoteJid), así que lo damos como candidato para
         // que gane el número real cuando exista; el @lid pasa a remoteJidAlt, nunca
         // como clave. Así el eco choca por ON CONFLICT en vez de duplicar.
-        const rawMsgJid = message.key?.remoteJid || params.remoteJid;
-        const canonicalMsgJid = normalizeStoredRemoteJid(rawMsgJid, [
-          message.key?.remoteJidAlt,
-          message.key?.senderPn,
-          message.senderPn,
-          params.remoteJid,
-        ]);
-        const altFromRaw =
-          rawMsgJid && rawMsgJid !== canonicalMsgJid ? rawMsgJid : undefined;
-        return persistChatMessage({
-          // Esto es historial que se resincroniza, no novedad: el reloj del chat
-          // abierto pasa por aqui cada pocos segundos con los MISMOS mensajes.
-          // Si se dejara reabrir, cada vuelta despausaria la conversacion que el
-          // asesor acaba de pausar al escribir.
-          puedeReabrir: false,
-          userId: params.userId,
-          instanceName: params.instanceName,
-          instanceType: params.instanceType ?? 'evolution',
-          remoteJid: canonicalMsgJid,
-          remoteJidAlt: message.key?.remoteJidAlt || altFromRaw,
-          senderPn: message.key?.senderPn || message.senderPn,
-          messageId: message.key?.id || message.id,
-          fromMe: Boolean(message.key?.fromMe),
-          pushName: message.pushName,
-          messageType: message.messageType || 'conversation',
-          content: extractMessageText(message),
-          mediaUrl: message.message?.mediaUrl,
-          raw: message as unknown as Prisma.InputJsonValue,
-          messageTimestamp: message.messageTimestamp,
-        }).catch((error) => {
+        return persistChatMessage(entradaDeMensajeDeEvolution(message, params)).catch((error) => {
           // Una falla puntual no debe abortar el resto del lote.
           console.error('[chat-persistence] persistChatMessage falló:', error);
         });

@@ -16484,6 +16484,51 @@ el diálogo real en Chromium. `MODO=roto` saca los ficheros de `ANTES_REF` con
 `createRequire`: el del entorno vive fuera del repo y un `import()` de ESM no
 mira `NODE_PATH`, así que las pruebas de navegador se saltaban en silencio.
 
+## Rellenar el historial de una línea: no duplicar y no partir la conversación
+
+Lo que el dueño escribía desde su teléfono no se guardaba (lo arreglaron
+api-webhook#174 y #175), pero Evolution y Waha sí lo tienen en su propia base.
+`lib/relleno-de-historial.server.ts` lo trae, y se lanza sobre cualquier línea
+desde `/api/admin/rellenar-historial` (solo superadministrador de verdad o la
+clave interna):
+
+```
+POST { linea, jid }                  revisa UN chat, sin escribir
+POST { linea, jid, escribir: true }  rellena ese chat
+POST { linea, todos: true }          la línea entera, de fondo (202)
+GET  ?linea=X                        cómo va
+```
+
+Lo que decide vive en `lib/relleno-de-historial.ts`, puro, y son dos reglas:
+
+1. **Un mensaje ya está si su id de WhatsApp está en la línea bajo CUALQUIERA
+   de las identidades del contacto**, comparando el id CRUDO (`idDeWhatsapp`,
+   ahora en `lib/`) y `fromMe`. Waha lo serializa y Evolution lo da pelado, y
+   una línea que cambió de proveedor tiene las dos formas.
+2. **Lo que falta se escribe donde YA VIVE la conversación** (la identidad con
+   más filas), no donde lo diga el proveedor. Un chat guardado bajo su `@lid`
+   y devuelto por su número se partiría en dos: es exactamente lo que hace el
+   relleno ingenuo de volver a pasar todo por `persistEvolutionMessages`, y lo
+   que el `MODO=roto` del banco afirma. Y bajo un `@lid` se escribe SIN alias de
+   teléfono: `persistChatMessage` se queda con el primero que vea.
+
+Tres cosas del recorrido:
+
+- **En serie y con pausas** (`PAUSA_ENTRE_CHATS_MS`, `PAUSA_ENTRE_PAGINAS_MS`):
+  la línea sigue atendiendo y su proveedor no recibe una ráfaga.
+- **El avance vive en `relleno_de_historial`**, no en la promesa: un despliegue
+  se lleva el proceso, no el avance, y relanzarlo sigue por el chat siguiente
+  (por jid, no por posición). Uno que dice «corriendo» sin latido en
+  `SIN_LATIDO_MS` se da por interrumpido. Dos lanzamientos a la vez: gana uno,
+  lo decide un `INSERT … ON CONFLICT … WHERE` en una sola sentencia.
+- **Los adjuntos vienen sin archivo** —«[Imagen]» con su pie—, igual que el
+  historial de Waha al abrir un chat. Y el tope por chat son 5.000 mensajes; uno
+  más largo se cuenta en `chatsRecortados`.
+
+Lo prueba `scripts/banco-relleno-de-historial.sh` contra Postgres, con
+`persistChatMessage` de verdad y solo la red fingida (el proveedor se arma con
+los mismos traductores, `traidoDeEvolution` y `traidoDeWaha`).
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
