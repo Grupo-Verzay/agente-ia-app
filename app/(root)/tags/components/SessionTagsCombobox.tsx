@@ -8,6 +8,7 @@ import {
     removeTagFromSessionAction,
 } from "@/actions/tag-actions";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import { usePanelFlotante, type ClaseDePanel } from "@/hooks/usePanelFlotante";
 import {
     Command,
@@ -172,7 +173,7 @@ export function SessionTagsCombobox({
                 misma altura que los otros cinco paneles de la fila. Fuera de
                 Chats se queda EXACTAMENTE como estaba: `align="start"`. */}
             <PopoverContent
-                className="w-60 p-0"
+                className={panel ? `w-60 ${RELLENO_DEL_MENU}` : "w-60 p-0"}
                 {...(panel ? colocacion.props : { align: "start" as const })}
             >
                 <Command>

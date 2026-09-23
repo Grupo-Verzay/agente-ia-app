@@ -41,7 +41,7 @@ import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
 import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
-import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 
@@ -415,7 +415,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           un solo sitio. */}
       <DropdownMenuContent
         {...panelDeAcciones.props}
-        className={cn('w-52 p-1', PANEL_QUE_SE_DESPLAZA)}
+        className={cn('w-52', RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
       >
         {onNewMessage && (
           <>

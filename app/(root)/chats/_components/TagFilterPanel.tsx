@@ -5,7 +5,7 @@ import { CalendarDays, Check, Filter, Search, Tag, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from "@/lib/cabeceras-de-chats";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
 import type { SimpleTag } from "@/types/session";
 import {
@@ -123,7 +123,7 @@ export function TagFilterPanel({
           montaba sobre el borde. Ahora ocupa la columna entera —donde
           «Inicio de conversación» cabe de sobra, que era lo que aquel ancho
           protegía— y nace bajo las pastillas, como los otros tres filtros. */}
-      <PopoverContent {...panel.props} className={cn("p-2", PANEL_QUE_SE_DESPLAZA)}>
+      <PopoverContent {...panel.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
         {/* ── Rango de fechas ─────────────────────────────────────────────── */}
         <div className="mb-1 flex items-center justify-between px-1">
           <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

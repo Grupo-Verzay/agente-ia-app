@@ -69,6 +69,7 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
         await p.waitForTimeout(900);
 
         const derechos = new Set();
+        const altos = new Set();
         for (const m of MENUS) {
             const boton = await visible(p, m.sel);
             if (!boton && m.opcional) continue;
@@ -99,7 +100,14 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
                 const x = c?.getBoundingClientRect();
                 const k = cab?.getBoundingClientRect();
                 return x && k
-                    ? { left: Math.round(x.left), right: Math.round(x.right), top: Math.round(x.top), cabRight: Math.round(k.right) }
+                    ? {
+                          left: Math.round(x.left),
+                          right: Math.round(x.right),
+                          top: Math.round(x.top),
+                          cabRight: Math.round(k.right),
+                          cabBottom: Math.round(k.bottom),
+                          relleno: getComputedStyle(c).paddingTop,
+                      }
                     : null;
             });
             exigir(!!r, `${ancho} · ${estado}: «${m.nombre}» no se abrió`);
@@ -111,13 +119,22 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
                 );
                 exigir(r.left < r.right, `${ancho} · ${estado}: «${m.nombre}» no crece hacia la izquierda`);
                 exigir(r.left >= MARGEN - 1 && r.right <= ancho + 1, `${ancho} · ${estado}: «${m.nombre}» se sale de la pantalla (${r.left}→${r.right})`);
+                // Pegados, sin separación: el menú nace EN el borde de abajo de
+                // la cabecera, y el relleno es el mismo en todos (p-2 = 8px).
+                exigir(
+                    Math.abs(r.top - r.cabBottom) <= 1,
+                    `${ancho} · ${estado}: «${m.nombre}» no nace pegado a la cabecera (arriba ${r.top}, cabecera acaba en ${r.cabBottom})`,
+                );
+                exigir(r.relleno === "8px", `${ancho} · ${estado}: «${m.nombre}» lleva otro relleno (${r.relleno})`);
                 derechos.add(r.right);
+                altos.add(r.top);
                 filas.push({ ancho, estado, menu: m.nombre, boton: Math.round(b.x + b.width), panel: `${r.left}→${r.right}`, filo, desfase: r.right - filo });
             }
             await p.keyboard.press("Escape");
             await p.waitForTimeout(400);
         }
         exigir(derechos.size <= 1, `${ancho} · ${estado}: los menús no comparten el filo derecho (${[...derechos].join(", ")})`);
+        exigir(altos.size <= 1, `${ancho} · ${estado}: los menús no nacen a la misma altura (${[...altos].join(", ")})`);
     }
     await contexto.close();
 }

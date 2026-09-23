@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getInstanceUiDisplayName } from "@/lib/instance-display-name";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 
 type Channel = {
   instanceName: string;
@@ -106,7 +106,7 @@ export function ChatSearchBar({
               y su tope, el hueco de verdad y no `vh`. */}
           <DropdownMenuContent
             {...panelDeCanales.props}
-            className={cn(PANEL_QUE_SE_DESPLAZA)}
+            className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
           >
             <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Canales

@@ -37,7 +37,7 @@ import {
 import { STATUS_LABELS } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 import { usePanelFlotante } from '@/hooks/usePanelFlotante';
-import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   PENDIENTE:   'bg-yellow-500',
@@ -146,7 +146,7 @@ export function ChatAppointmentStatusButton({
             derecho con filo derecho y creciendo hacia la izquierda. Iba
             `align="center"` y después crecía hacia la derecha cuando el icono
             caía en la mitad izquierda de la cabecera. */}
-        <PopoverContent {...panel.props} className={cn("w-64 p-3 space-y-3", PANEL_QUE_SE_DESPLAZA)}>
+        <PopoverContent {...panel.props} className={cn("w-64 space-y-3", RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cita agendada</p>
 
           {loading && (
