@@ -555,6 +555,27 @@ export function LaLlamada({
     // Los dos `<video>` se enganchan aquí y solo si cambió: reasignar el mismo
     // `srcObject` reinicia la reproducción y hace parpadear la imagen en cada
     // repintado.
+    //
+    // Y se enganchan TAMBIÉN al montarse el elemento (el ref de callback de
+    // abajo). Con solo el efecto, un `<video>` que aparece después de que
+    // llegara la imagen —al pasar de voz a video, o al volver a ampliar una
+    // llamada plegada— se quedaba sin `srcObject` para siempre: el efecto ya
+    // había corrido con el elemento desmontado y no volvía a correr. Desde
+    // fuera, «el otro tiene la cámara encendida y yo veo negro».
+    const remotoRef = useRef(remoto);
+    remotoRef.current = remoto;
+    const localRef = useRef(medios.local);
+    localRef.current = medios.local;
+
+    const engancharRemoto = useCallback((el: HTMLVideoElement | null) => {
+        videoRef.current = el;
+        if (el && el.srcObject !== remotoRef.current) el.srcObject = remotoRef.current;
+    }, []);
+    const engancharPropio = useCallback((el: HTMLVideoElement | null) => {
+        propioRef.current = el;
+        if (el && el.srcObject !== localRef.current) el.srcObject = localRef.current;
+    }, []);
+
     useEffect(() => {
         const el = videoRef.current;
         if (el && el.srcObject !== remoto) el.srcObject = remoto;
@@ -721,7 +742,7 @@ export function LaLlamada({
                     {hayImagen ? (
                         <div className="relative overflow-hidden rounded-lg bg-zinc-900">
                             <video
-                                ref={videoRef}
+                                ref={engancharRemoto}
                                 autoPlay
                                 playsInline
                                 className={cn(
@@ -740,7 +761,7 @@ export function LaLlamada({
                                 pantalla saldría al revés. */}
                             {medios.local ? (
                                 <video
-                                    ref={propioRef}
+                                    ref={engancharPropio}
                                     autoPlay
                                     playsInline
                                     muted

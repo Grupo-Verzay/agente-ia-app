@@ -45,11 +45,11 @@ PGDIR=/tmp/pgllamadaequipo
 PORT=55497
 if [ ! -d "$PGDIR" ]; then
   mkdir -p "$PGDIR"; chown postgres:postgres "$PGDIR"
-  su postgres -c "initdb -D $PGDIR -U postgres -A trust" >/dev/null
+  su postgres -c "/usr/lib/postgresql/16/bin/initdb -D $PGDIR -U postgres -A trust" >/dev/null
 fi
-su postgres -c "pg_ctl -D $PGDIR -o '-p $PORT -k $PGDIR' -l $PGDIR/log start" >/dev/null 2>&1 || true
+su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D $PGDIR -o '-p $PORT -k $PGDIR' -l $PGDIR/log start" >/dev/null 2>&1 || true
 sleep 2
-su postgres -c "createdb -h $PGDIR -p $PORT -U postgres banco" 2>/dev/null || true
+su postgres -c "/usr/lib/postgresql/16/bin/createdb -h $PGDIR -p $PORT -U postgres banco" 2>/dev/null || true
 export DATABASE_URL="postgresql://postgres@localhost:$PORT/banco?host=$PGDIR"
 export DIRECT_URL="$DATABASE_URL"
 export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
