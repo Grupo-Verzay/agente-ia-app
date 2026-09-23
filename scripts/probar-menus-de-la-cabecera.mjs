@@ -3,7 +3,7 @@
  *
  * Macros, Etiquetas, Cita agendada, Registros del lead y Acciones, y además el
  * menú de llamar de la fila de iconos: todos tienen que nacer con su filo
- * DERECHO en el filo derecho del PANEL DE CONVERSACIÓN menos 16 px, y crecer
+ * DERECHO en el filo derecho del PANEL DE CONVERSACIÓN, sin margen, y crecer
  * hacia la izquierda. **El mismo filo para todos**: abrir uno tras otro no
  * mueve el borde derecho. No se alinean al botón que los abre.
  *
@@ -29,7 +29,7 @@ const MENUS = [
     { nombre: "Acciones", sel: '[data-cabecera-de-chat] button:has-text("Acciones")' },
     { nombre: "Llamar", sel: '[data-cabecera-de-chat] button[title="Llamar"]', opcional: true },
 ];
-const MARGEN_INTERIOR = 16;
+const MARGEN_INTERIOR = 0;
 const ESTADOS = ["sin panel", "ficha abierta", "panel lateral abierto"];
 
 const fallos = [];
@@ -104,7 +104,7 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
             });
             exigir(!!r, `${ancho} · ${estado}: «${m.nombre}» no se abrió`);
             if (r) {
-                const filo = Math.min(r.cabRight - MARGEN_INTERIOR, ancho - MARGEN);
+                const filo = Math.min(r.cabRight - MARGEN_INTERIOR, ancho);
                 exigir(
                     Math.abs(r.right - filo) <= 1,
                     `${ancho} · ${estado}: «${m.nombre}» no tiene el filo de la conversación (panel ${r.left}→${r.right}, filo ${filo}, botón acaba en ${Math.round(b.x + b.width)})`,

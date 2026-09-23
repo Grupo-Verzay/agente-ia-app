@@ -41,39 +41,24 @@ import { TaskFormDialog } from './TaskFormDialog';
 import { MergeLidDialog } from './MergeLidDialog';
 import { deleteLidChat } from '@/actions/merge-lid-contact';
 import { cn } from '@/lib/utils';
+import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2 } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
+
+/*
+ * El margen de la cabecera (16 px a los cuatro lados), el alto (110 px) y el de
+ * cada fila viven en `lib/cabeceras-de-chats.ts`: los comparte la cabecera de la
+ * columna de chats, y con los números escritos aquí el día que se afine uno el
+ * otro se queda atrás.
+ */
 
 // Avisos de "@lid" que el usuario ya cerró, por chat. Muchos contactos usan un
 // WhatsApp sin número visible (cuenta por nombre de usuario) y su @lid no es un
 // duplicado de nadie: no hay con qué unirlo. En esos, el aviso es ruido fijo, así
 // que se puede cerrar y no vuelve a salir EN ESE chat. En los @lid nuevos sí
 // sigue apareciendo, por si alguno sí es un duplicado que conviene unir.
-/**
- * Los 16 px a los que empiezan y acaban las DOS filas de la cabecera.
- *
- * No es un gusto: es el ÚNICO número al que las dos pueden llegar sin
- * deformarse. La de abajo **no se pone su hueco de la izquierda**: se lo pone
- * el `px-4` de la primera pestaña, que es además el ancho del subrayado de la
- * activa. Bajarlo a 12 estrecharía ese subrayado en Mensajes, en Notas y en
- * cada integración de la cuenta — o sea deformar la tira de pestañas para
- * cuadrar un margen, que es al revés de lo que se pide.
- *
- * Medido en Chromium sobre el CSS del build, antes: arriba **12 y 12**, abajo
- * **16 a la izquierda y 8 a la derecha**. Los dos extremos torcidos, y en
- * sentidos contrarios: por eso la fila se lee descuadrada aunque cada número
- * por separado parezca razonable.
- *
- * Son dos constantes y no una porque cada fila llega de una forma —la de
- * arriba se pone las dos mitades, la de abajo solo la derecha—. **El número es
- * el mismo, y eso es lo que no puede separarse**: lo comprueba el banco, que
- * exige que las dos acaben en el mismo escalón.
- */
-const MARGEN_DE_LA_CABECERA = 'px-4';
-const MARGEN_DERECHO_DE_LA_CABECERA = 'pr-4';
-
 const LID_AVISO_KEY = 'lid_aviso_oculto_v1';
 function avisosLidOcultos(): Set<string> {
   if (typeof window === 'undefined') return new Set();
@@ -662,8 +647,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     /* `data-cabecera-de-chat`: de aquí salen los DOS números con los que se
        coloca todo panel de esta cabecera —su borde DERECHO, que es el filo
-       del panel de conversación (todos los menús acaban ahí menos
-       `MARGEN_DERECHO_DE_LA_CABECERA`, el mismo píxel que Acciones), y su borde de ABAJO, que queda justo por
+       del panel de conversación (todos los menús acaban ahí, sin margen:
+       pegados al borde del recuadro), y su borde de ABAJO, que queda justo por
        debajo de la fila de Macros y Acciones (es la última del encabezado)—.
        Un solo elemento y una sola medida: así los seis nacen a la misma altura
        y se puede pasar de uno a otro sin cerrar. Lo lee `usePanelFlotante`. */
@@ -844,8 +829,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* ── Desktop ── */}
       {/* Alto FIJO (rem) IGUAL al del toolbar del sidebar → el borde/divisor queda
           continuo de lado a lado a cualquier zoom. Contenido centrado vertical. */}
-      <div className="hidden md:flex md:flex-col md:justify-center overflow-hidden border-b-2 border-border" style={{ height: '5.125rem' }}>
-      <div className={cn('flex items-center py-0 gap-3 overflow-hidden', MARGEN_DE_LA_CABECERA)}>
+      <div data-cabecera-escritorio className={cn('hidden md:flex md:flex-col md:justify-center overflow-hidden border-b-2 border-border', CABECERA_ESCRITORIO)}>
+      <div className={cn('flex shrink-0 items-center gap-3 overflow-hidden', CLASE_FILA_1)}>
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onExpandChatList && (
             <Button
@@ -866,7 +851,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {/* Alto FIJO del bloque nombre(+subtítulo): con `justify-center` el contenido se
               centra, así el header mide EXACTAMENTE igual con o sin el subtítulo del
               anuncio → "Mensajes/Notas/Web" queda a la misma altura en todos los chats. */}
-          <div className="flex flex-col justify-center overflow-hidden min-w-0" style={{ height: 44 }}>
+          <div className="flex h-9 flex-col justify-center overflow-hidden min-w-0">
             <div className="flex items-center gap-1.5">
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
@@ -905,7 +890,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {session && (
             <>
               {/* 1. Acción directa */}
@@ -952,21 +937,27 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {tagsCombobox}
             </>
           )}
-          {onToggleInfoPanel && session && (
-            <Button
-              type="button"
-              onClick={onToggleInfoPanel}
-              title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
-              className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
-              size="sm"
-            >
-              <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
-              {infoPanelOpen
-                ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
-                : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
-            </Button>
-          )}
         </div>
+        {/* La ficha va FUERA de la tira que se desplaza, como Acciones en la
+            fila de abajo. Dentro, cuando la conversación se estrechaba —la
+            ficha abierta, un panel lateral— la tira desbordaba y la ficha se
+            iba por la derecha (medido: 72 px fuera a 1024) o quedaba en otro
+            filo que Acciones. Así las dos acaban en el mismo píxel: el borde
+            menos el margen de la cabecera. */}
+        {onToggleInfoPanel && session && (
+          <Button
+            type="button"
+            onClick={onToggleInfoPanel}
+            title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
+            className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
+            size="sm"
+          >
+            <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
+            {infoPanelOpen
+              ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+              : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
+          </Button>
+        )}
       </div>{/* end fila 1 */}
 
       {/* ── Fila 2: pestañas + búsqueda, Macros y Acciones ──
@@ -977,14 +968,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         * pliegan en «Más», `PestanasDelChat`) y la caja de la derecha va
         * `shrink-0`: Macros y Acciones se ven siempre. */}
       {(onChatViewChange || onToggleSearch) && (
-        <div data-fila-de-pestanas className="flex items-center">
+        /* `-ml-4`: la primera pestaña lleva su propio `px-4`, que es además el
+           ancho de su subrayado; sin tirar de la fila, su TEXTO arrancaría 16 px
+           más adentro que el avatar de encima. */
+        <div data-fila-de-pestanas className={cn('-ml-4 flex shrink-0 items-center', CLASE_FILA_2)}>
           <PestanasDelChat
             pestanas={pestanasDelChat}
             activa={chatView ?? 'messages'}
             onCambiar={(id) => onChatViewChange?.(id)}
-            clasePestana="px-4 py-2"
+            clasePestana="px-4 h-8"
           />
-          <div data-mandos-de-la-fila className={cn('flex shrink-0 items-center gap-1 pl-1', MARGEN_DERECHO_DE_LA_CABECERA)}>
+          <div data-mandos-de-la-fila className="flex shrink-0 items-center gap-1 pl-1">
             {onToggleSearch && (
               <Button
                 type="button"

@@ -24,7 +24,7 @@
  * | --- | --- | --- |
  * | `columnaAncha` | un ancho COMÚN, pegado al filo izquierdo de la columna y bajo la fila de pastillas | son filtros de la lista: se abren en el mismo sitio y con el mismo tamaño |
  * | `columnaDerecha` | pegado al filo DERECHO de la columna, bajo su control | son de UNA fila: nacen donde se pulsó, y voltean arriba si no cabe |
- * | `cabecera` | con su filo derecho en el del PANEL DE CONVERSACIÓN (menos 16 px), creciendo hacia la izquierda, bajo la cabecera y con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de altura, ni de tamaño, ni de filo |
+ * | `cabecera` | con su filo derecho en el del PANEL DE CONVERSACIÓN (sin margen), creciendo hacia la izquierda, bajo la cabecera y con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de altura, ni de tamaño, ni de filo |
  *
  * # Cómo se pinta eso con Radix, que es la parte que no se ve leyendo
  *
@@ -236,17 +236,17 @@ export function columnaDerecha(
 }
 
 /**
- * El margen interior de TODO menú de la conversación respecto al filo derecho
- * del panel de conversación.
+ * El margen de TODO menú de la conversación respecto al filo derecho del panel
+ * de conversación: **ninguno**.
  *
- * Son 16 px, y no es a ojo: es el `pr-4` con el que la fila de Macros y
- * Acciones se separa de ese mismo filo (`MARGEN_DERECHO_DE_LA_CABECERA` en
- * `ChatHeader`). Así el borde derecho de los menús cae en el píxel exacto en
- * que acaba el botón de Acciones, que es el último de la cabecera, y la
- * cabecera y sus menús se leen como una sola columna. El banco lo compara con
- * la clase del componente para que no se separen.
+ * Fueron 16 px (el `pr-4` de la fila de Macros y Acciones), y así los menús
+ * quedaban flotando dentro del recuadro blanco que envuelve la conversación,
+ * a 16 px de su borde. Lo que se pide es que queden PEGADOS a ese borde: el
+ * menú se lee como algo que sale del recuadro, no como una tarjeta suelta
+ * encima de la conversación. El banco (`probar-margenes-de-chats.mjs`) lo mide
+ * sobre la página servida.
  */
-export const MARGEN_INTERIOR_DE_LA_CONVERSACION = 16;
+export const MARGEN_INTERIOR_DE_LA_CONVERSACION = 0;
 
 /**
  * Bajo la cabecera entera y con el ancho de la fila de Macros y Acciones, con
@@ -258,8 +258,8 @@ export const MARGEN_INTERIOR_DE_LA_CONVERSACION = 16;
  *    Así no tapan la fila de Macros y Acciones y se pasa de uno a otro sin que
  *    nada salte en vertical. Con `avoidCollisions` un panel alto volteaba
  *    arriba y se comía la cabecera entera.
- * 2. **Y el mismo FILO DERECHO**, el del panel de conversación menos
- *    `MARGEN_INTERIOR_DE_LA_CONVERSACION`. No el del botón que los abre: con
+ * 2. **Y el mismo FILO DERECHO**, el del panel de conversación, sin margen
+ *    (`MARGEN_INTERIOR_DE_LA_CONVERSACION`). No el del botón que los abre: con
  *    cada menú colgando de su botón, abrir la cita, luego Registros y luego
  *    Acciones movía el borde derecho de un sitio a otro, que es justo lo que
  *    se reportó. Ver `alFiloDeLaConversacion`.
@@ -323,8 +323,8 @@ export function colgadoDelIcono(
 }
 
 /**
- * Dónde cae el filo derecho COMPARTIDO: el del panel de conversación menos su
- * margen interior, y nunca más allá del margen de la ventana (la conversación
+ * Dónde cae el filo derecho COMPARTIDO: el del panel de conversación, y nunca
+ * más allá del borde de la ventana (la conversación
  * llega al borde de la pantalla en casi todas las anchuras, pero no se da por
  * hecho).
  */
@@ -332,17 +332,17 @@ export function elFiloDeLaConversacion(
     cabeceraCaja: Caja,
     anchoDeLaVentana: number = Number.POSITIVE_INFINITY,
 ): number {
+    // Contra el borde de la VENTANA, no contra su margen: el filo es el del
+    // recuadro, que en escritorio acaba antes que la pantalla. Solo si el
+    // recuadro llegara más allá de la ventana manda la ventana.
     return Math.round(
-        Math.min(
-            cabeceraCaja.right - MARGEN_INTERIOR_DE_LA_CONVERSACION,
-            anchoDeLaVentana - MARGEN_DE_LA_VENTANA,
-        ),
+        Math.min(cabeceraCaja.right - MARGEN_INTERIOR_DE_LA_CONVERSACION, anchoDeLaVentana),
     );
 }
 
 /**
  * **Una sola regla para todo menú de la conversación**: su filo derecho en el
- * filo derecho del panel de conversación —menos el margen interior—, creciendo
+ * filo derecho del panel de conversación —sin margen—, creciendo
  * hacia la IZQUIERDA, bajo la cabecera entera. **No depende del botón que lo
  * abre**: abrir uno tras otro no mueve el borde derecho ni un píxel.
  *
