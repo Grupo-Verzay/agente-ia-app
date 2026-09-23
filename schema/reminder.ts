@@ -87,6 +87,11 @@ export interface ReminderInterface {
     dateSchedule?: string,
     instanceId?: string,
     forceCreate?: boolean,
+    /**
+     * Pintado dentro de un `PanelLateral` (Chats): el formulario se desplaza
+     * solo y su fila de botones es el pie fijo del panel (`PIE_DEL_PANEL`).
+     */
+    enPanel?: boolean,
 };
 
 export interface MainReminderInterface {

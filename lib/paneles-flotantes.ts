@@ -22,7 +22,7 @@
  *
  * | clase | dónde nace | qué lo sostiene |
  * | --- | --- | --- |
- * | `columnaAncha` | un ancho COMÚN, pegado al filo izquierdo de la columna y bajo la fila de pastillas | son filtros de la lista: se abren en el mismo sitio y con el mismo tamaño |
+ * | `columnaAncha` | un ancho COMÚN, colgado de SU botón y creciendo hacia dentro de la columna, justo DEBAJO de la raya de su cabecera | son filtros de la lista: el mismo tamaño y la misma altura, sin comerse la línea divisoria |
  * | `columnaDerecha` | pegado al filo DERECHO de la columna, bajo su control | son de UNA fila: nacen donde se pulsó, y voltean arriba si no cabe |
  * | `cabecera` | con su filo derecho en el del PANEL DE CONVERSACIÓN (sin margen), creciendo hacia la izquierda, bajo la cabecera y con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de altura, ni de tamaño, ni de filo |
  *
@@ -205,44 +205,59 @@ export type Geometria = {
 };
 
 /**
- * Un ancho COMÚN, pegado al filo izquierdo de la columna, bajo las pastillas.
+ * Un ancho COMÚN, colgado de SU botón y creciendo hacia dentro de la columna,
+ * y nacido justo DEBAJO de la raya de la cabecera de la columna.
  *
- * Tres cosas que hay que mantener:
+ * # Lo que había, y por qué se cambió
  *
- * 1. **El ancho es `ANCHO_DE_LOS_FILTROS`, acotado por la columna medida.** Los
- *    cinco miden lo mismo, así que abrir uno y otro no cambia el tamaño de lo
- *    que hay delante. Y la cota sigue siendo la columna MEDIDA y no
- *    `--ancho-lateral`: en un móvil la columna ocupa la pantalla entera y esa
- *    variable no la describe, y el `<aside>` lleva además un `max-w-[700px]`.
- * 2. **Nace bajo las PASTILLAS, no bajo su disparador.** Los cuatro controles
- *    viven en la fila de arriba, así que un panel pegado a su disparador tapa
- *    «Mías / Todos / Sin leer / En espera», que es el mando que dice qué se
- *    está mirando.
- * 3. **`avoidCollisions: false`.** Ver arriba: volteado, el panel sube sobre
- *    las pastillas.
+ * Los cuatro —canales, etiquetas y fechas, asesores y el «⌄» de la fila de
+ * pastillas— nacían todos en el filo IZQUIERDO de la columna y en el borde de
+ * abajo de las PASTILLAS. Pero debajo de las pastillas todavía quedan el
+ * relleno de la cabecera y su raya (`border-b-2`): el menú se pintaba encima
+ * de los dos y **se comía la línea divisoria**, que es justo la que dice dónde
+ * acaba la cabecera. Y el de asesores o el del «⌄», cuyos botones están a la
+ * derecha, se abrían lejos de ellos, pegados al filo contrario.
+ *
+ * # La regla
+ *
+ * 1. **Nace en el borde de abajo de la cabecera de la columna** —el píxel
+ *    siguiente a su raya—, sin hueco (`SEPARACION_DEL_MENU`). La raya se ve
+ *    entera y el menú queda pegado a ella. Los cuatro, a la misma altura.
+ * 2. **Se ancla a su botón**: uno que está en la mitad izquierda de la columna
+ *    alinea su filo IZQUIERDO con el del botón y crece hacia la derecha; uno
+ *    de la mitad derecha alinea su filo DERECHO y crece hacia la izquierda. Los
+ *    dos hacia DENTRO de la columna.
+ * 3. **Nunca se sale por un costado**: si con ese anclaje el ancho no cabe, se
+ *    corre lo justo para quedar dentro de la columna. Mejor un menú que no
+ *    empieza exactamente en su botón que uno montado sobre la conversación.
+ *
+ * Se sigue calculando con `align="start"` y un `alignOffset` —el filo
+ * izquierdo que sale menos el del botón—, que es lo único que se le puede
+ * pasar a Radix sin depender del signo que invierte `align="end"`.
+ *
+ * Y `avoidCollisions: false`: volteado, el menú subiría sobre la cabecera.
  */
 export function columnaAncha(
     columna: Caja,
     disparador: Caja,
-    bajoLasPastillas: number,
+    bajoLaRaya: number,
     primitiva: Primitiva,
 ): Geometria {
     // El ancho COMÚN, acotado por la columna: en una columna estrecha manda
     // ella, que es lo que impide que el panel se monte sobre la conversación.
     const hueco = Math.max(0, columna.right - columna.left);
     const ancho = Math.min(ANCHO_DE_LOS_FILTROS, Math.max(0, hueco - MARGEN_DE_LA_VENTANA));
+    const izquierdo = elFiloIzquierdoEnLaColumna(columna, disparador, ancho);
     return {
         side: "bottom",
         align: "start",
         collisionPadding: MARGEN_DE_LA_VENTANA,
-        // Positivo mueve a la derecha con `align="start"`, y la columna empieza
-        // a la IZQUIERDA del disparador: sale negativo.
-        alignOffset: Math.round(columna.left - disparador.left),
-        // «Bajo las pastillas» es el borde de abajo de esa fila, sin hueco
-        // (`SEPARACION_DEL_MENU`). El «⋯» vive DENTRO de ella, así que se mide
-        // la fila y no su botón: los cinco salen a la misma altura.
+        // Positivo mueve a la derecha con `align="start"`.
+        alignOffset: Math.round(izquierdo - disparador.left),
+        // Desde el borde de abajo del botón hasta el de la cabecera: el menú
+        // arranca justo debajo de la raya, sin comérsela ni dejar hueco.
         sideOffset:
-            Math.max(0, Math.round(bajoLasPastillas - disparador.bottom)) + SEPARACION_DEL_MENU,
+            Math.max(0, Math.round(bajoLaRaya - disparador.bottom)) + SEPARACION_DEL_MENU,
         avoidCollisions: false,
         estilo: {
             width: `${Math.round(ancho)}px`,
@@ -250,6 +265,24 @@ export function columnaAncha(
             maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
         },
     };
+}
+
+/**
+ * Dónde queda el filo IZQUIERDO de un menú de la columna, anclado a su botón.
+ *
+ * Exportado para el banco: es la regla entera del punto 2 y 3 de
+ * `columnaAncha`, y probarla sin Radix es lo que permite ver que ninguno se
+ * sale por un costado en ninguna anchura.
+ */
+export function elFiloIzquierdoEnLaColumna(columna: Caja, disparador: Caja, ancho: number): number {
+    const mitad = (columna.left + columna.right) / 2;
+    const centro = (disparador.left + disparador.right) / 2;
+    // Mitad izquierda: filo izquierdo con el del botón. Derecha: el derecho.
+    const deseado = centro <= mitad ? disparador.left : disparador.right - ancho;
+    // Y dentro de la columna: nunca por un costado.
+    const minimo = columna.left;
+    const maximo = Math.max(minimo, columna.right - ancho);
+    return Math.min(maximo, Math.max(minimo, deseado));
 }
 
 /**

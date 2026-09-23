@@ -204,6 +204,8 @@ import {
     BOTON_DE_ENVIAR,
     BOTON_DE_HERRAMIENTA,
     BOTON_REDONDO_GRABANDO,
+    FILA_DE_LA_BARRA,
+    MARCO_DE_LA_BARRA,
     archivosDelPortapapeles,
 } from "@/lib/barra-de-escribir";
 import { cn } from "@/lib/utils";
@@ -1521,7 +1523,11 @@ export function HiloDelEquipo({
                 ref={medirLaBarra}
                 // La misma marca que la barra de Chats: el banco mide por ella.
                 data-barra="escribir"
-                className="shrink-0 border-t border-border bg-background px-3 py-3 sm:px-6"
+                // El marco de las tres barras (`MARCO_DE_LA_BARRA`): era
+                // `px-3 py-3 sm:px-6`, o sea 65 px de alto frente a los 57 de
+                // la conversación —la raya caía 8 px más arriba— y el «+» a
+                // 24 px del filo. Ahora mide y respira lo mismo que aquella.
+                className={cn(MARCO_DE_LA_BARRA, "bg-background")}
             >
                 {/* Editando: lo que se está tocando, encima de la caja y con
                     su salida. Sin este aviso, el texto de otro mensaje aparece
@@ -1662,7 +1668,7 @@ export function HiloDelEquipo({
                         </button>
                     </div>
                 ) : null}
-                <div className="relative mx-auto flex max-w-3xl items-end gap-2">
+                <div className={cn(FILA_DE_LA_BARRA, "mx-auto max-w-3xl")}>
                     {/* La lista va POR ENCIMA de la caja, no debajo: debajo está
                         el borde de la ventana y en un panel lateral no hay sitio
                         para desplegar nada hacia abajo. */}

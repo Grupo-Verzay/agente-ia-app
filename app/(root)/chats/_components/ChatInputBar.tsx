@@ -32,6 +32,8 @@ import {
   BOTON_DE_ENVIAR,
   BOTON_DE_HERRAMIENTA,
   BOTON_REDONDO_GRABANDO,
+  FILA_DE_LA_BARRA,
+  MARCO_DE_LA_BARRA,
   archivosDelPortapapeles,
 } from '@/lib/barra-de-escribir';
 // El «+» con sus herramientas, el ancho que decide si van en fila, y los
@@ -426,7 +428,11 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     // (`ANCHO_COMPACTO`), no el de la ventana, y sin poder medirlo el banco
     // compararía dos barras que no miden lo mismo.
     <div ref={medirLaBarra} data-barra="escribir" className={cn(
-      "px-2 py-1.5 sm:px-3 sm:py-2 border-t dark:border-gray-700 transition-colors",
+      // El marco es el de las tres barras (`MARCO_DE_LA_BARRA`): el «+» a 6 px
+      // del filo y a 6 px de la caja, y el mismo alto que la del equipo y la
+      // del copiloto.
+      MARCO_DE_LA_BARRA,
+      "dark:border-gray-700 transition-colors",
       noteMode
         ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
         : "bg-gray-50 dark:bg-gray-900",
@@ -583,7 +589,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       )}
 
       {/* Input + botones */}
-      <div className="relative flex flex-nowrap items-center gap-2">
+      <div className={FILA_DE_LA_BARRA}>
         {/* El «+» y sus herramientas los pinta `ZonaDeHerramientas`, la misma
             que el chat de equipo: lo que cambia entre las dos barras es QUÉ
             botones van dentro, y eso entra por `children`. Lo de WhatsApp —el

@@ -99,11 +99,11 @@ export function ChatSearchBar({
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-          {/* El ancho ENTERO de la columna, pegado a su filo izquierdo y bajo
-              la fila de pastillas: lo decide `usePanelFlotante`, que es quien lo
-              decide para los cuatro filtros de esta cabecera. El scroll sigue
-              siendo el de siempre —la lista crece con las lineas de la cuenta—
-              y su tope, el hueco de verdad y no `vh`. */}
+          {/* El ancho común, colgado de su botón y justo DEBAJO de la raya de
+              la cabecera: lo decide `usePanelFlotante` (`columnaAncha`) para
+              los cuatro menús de esta cabecera. El scroll sigue siendo el de
+              siempre —la lista crece con las lineas de la cuenta— y su tope,
+              el hueco de verdad y no `vh`. */}
           <DropdownMenuContent
             {...panelDeCanales.props}
             className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}

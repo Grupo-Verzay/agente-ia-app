@@ -111,10 +111,14 @@ async function leerLaBarra(pagina, caja) {
                 return r.width > 0 && r.left >= ra.left - 4 && r.right <= ra.right + 8;
             })
             .map((b) => b.getAttribute("aria-label"));
-        const herramientas = [...document.querySelectorAll("button[aria-label]")]
+        const laBarra = area.closest('[data-barra="escribir"]');
+        // Los de ESTA barra, no los del documento: el copiloto tiene ahora su
+        // propia barra con su «+», y cerrado sigue montado fuera de la
+        // pantalla — contando el documento entero, su «+» se leía como que
+        // la barra que se mide se había plegado.
+        const herramientas = [...(laBarra ?? document).querySelectorAll("button[aria-label]")]
             .filter((b) => b.getBoundingClientRect().width > 0)
             .map((b) => b.getAttribute("aria-label"));
-        const laBarra = area.closest('[data-barra="escribir"]');
         return {
             rellenoDerecho: cs.paddingRight,
             alto: Math.round(area.getBoundingClientRect().height),

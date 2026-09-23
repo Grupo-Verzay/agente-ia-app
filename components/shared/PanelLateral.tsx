@@ -12,6 +12,7 @@ import {
     MS_DEL_DESLIZAMIENTO,
 } from "@/lib/panel-lateral";
 import { usePanelLateral } from "@/hooks/usePanelLateral";
+import { PIE_DEL_PANEL } from "@/lib/barra-de-escribir";
 import {
     CABECERA_DEL_PANEL,
     CONTROL_DE_ICONO,
@@ -89,6 +90,8 @@ export function PanelLateral({
     icono,
     acciones,
     etiquetaDeCerrar,
+    pie,
+    cuerpoPropio = false,
     children,
 }: {
     /** Su nombre en el registro. Único: con dos iguales se cerrarían entre ellos. */
@@ -102,6 +105,20 @@ export function PanelLateral({
     /** Mandos propios del panel: van en la SEGUNDA fila, a la derecha, como Macros y Acciones en la conversación. */
     acciones?: ReactNode;
     etiquetaDeCerrar?: string;
+    /**
+     * La fila FIJA de abajo: se queda puesta mientras el cuerpo se desplaza por
+     * detrás, con su raya arriba y el alto de la barra de escribir
+     * (`PIE_DEL_PANEL`). Es del PANEL, no de una sección: sale aunque el cuerpo
+     * esté vacío o cargando. Sus botones van como hijos DIRECTOS —el pie es
+     * `justify-between`—.
+     */
+    pie?: ReactNode;
+    /**
+     * El cuerpo se desplaza SOLO y trae su propio pie (un `<form>` cuyo botón
+     * de enviar tiene que vivir dentro de él, como el del recordatorio). Aquí
+     * entonces no se desplaza nada: se le da la columna entera y él reparte.
+     */
+    cuerpoPropio?: boolean;
     children: ReactNode;
 }) {
     const relevo = usePanelLateral(id, abierto, onCerrar);
@@ -159,9 +176,21 @@ export function PanelLateral({
                     </div>
                 </header>
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <div
+                    className={cn(
+                        "flex min-h-0 flex-1 flex-col",
+                        !cuerpoPropio && "overflow-y-auto",
+                    )}
+                    data-cuerpo-del-panel
+                >
                     {dentro ? children : null}
                 </div>
+
+                {pie && dentro ? (
+                    <div className={PIE_DEL_PANEL} data-pie-del-panel>
+                        {pie}
+                    </div>
+                ) : null}
             </section>
         </div>,
         destino,

@@ -3,6 +3,7 @@
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { getDispositionMeta } from "@/lib/call-dispositions";
 
 const SCORE_PROMPT = `Eres un experto en ventas y CRM. Analiza el siguiente resumen de conversación con un prospecto y asígnale un Lead Score del 0 al 100.
@@ -142,11 +143,34 @@ export async function scoreLeadBySessionId(sessionId: number): Promise<{
         const user = await currentUser();
         if (!user?.id) return { success: false, message: "No autorizado." };
 
-        const aiConfig = await getUserAiConfig(user.id);
+        // La conversación se busca por su id y se comprueba contra la cuenta
+        // DUEÑA de ella, no contra la de quien mira: con `userId: user.id` un
+        // chat de una cuenta que cuelga de la suya —los que enseña la bandeja—
+        // salía «Sesión no encontrada.» y no se podía puntuar.
+        const dueno = await db.session.findUnique({
+            where: { id: sessionId },
+            select: { userId: true },
+        });
+        if (!dueno?.userId) return { success: false, message: "Sesión no encontrada." };
+        try {
+            await assertCanAccessTargetUser(dueno.userId);
+        } catch {
+            console.warn("[lead-score] conversación fuera del alcance de quien mira", {
+                sessionId,
+                cuentaDeLaConversacion: dueno.userId,
+                quienMira: user.id,
+            });
+            return { success: false, message: "No autorizado." };
+        }
+        const cuentaId = dueno.userId;
+
+        // La IA la paga la cuenta de la conversación, como las llamadas y las
+        // notas de voz: es su lead.
+        const aiConfig = await getUserAiConfig(cuentaId);
         if (!aiConfig) return { success: false, message: "No hay configuración de IA activa. Configúrala en Ajustes." };
 
         const session = await db.session.findUnique({
-            where: { id: sessionId, userId: user.id },
+            where: { id: sessionId, userId: cuentaId },
             include: {
                 crmFollowUps: {
                     where: { summarySnapshot: { not: null } },
@@ -167,7 +191,7 @@ export async function scoreLeadBySessionId(sessionId: number): Promise<{
 
         // Resumen del resultado de llamadas recientes (disposiciones registradas),
         // para que la puntuación también considere lo ocurrido por teléfono.
-        const callContext = await buildCallResultsContext(user.id, [
+        const callContext = await buildCallResultsContext(cuentaId, [
             session.remoteJid,
             session.remoteJidAlt,
         ]);

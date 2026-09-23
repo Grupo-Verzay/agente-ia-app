@@ -275,8 +275,11 @@ export function BotonesDeLaDerecha(props: {
     dictando: boolean;
     grabando: boolean;
     hayAlgoQueEnviar: boolean;
+    /** Sin nota de voz: el copiloto solo dicta (ver `conNota` en `lib/barra-de-escribir`). */
+    conNota?: boolean;
     dictado: Boton | null;
-    nota: Boton;
+    /** Obligatorio salvo con `conNota={false}`, donde no se pinta nunca. */
+    nota?: Boton | null;
     enviar: Boton;
     /** El menú del micrófono, en compacto, con el dictado y la nota dentro. */
     menuAbierto: boolean;
@@ -291,6 +294,7 @@ export function BotonesDeLaDerecha(props: {
         dictando,
         grabando,
         hayAlgoQueEnviar,
+        conNota,
         dictado,
         nota,
         enviar,
@@ -307,6 +311,7 @@ export function BotonesDeLaDerecha(props: {
         dictando,
         grabando,
         hayAlgoQueEnviar,
+        conNota,
     });
 
     const pintar = (b: Boton, clave: string) => (
@@ -327,7 +332,7 @@ export function BotonesDeLaDerecha(props: {
 
     const uno = (cual: BotonDeLaDerecha) => {
         if (cual === "dictado") return dictado ? pintar(dictado, "dictado") : null;
-        if (cual === "nota") return pintar(nota, "nota");
+        if (cual === "nota") return nota ? pintar(nota, "nota") : null;
         if (cual === "enviar") return pintar(enviar, "enviar");
         return (
             <div className="relative" key="menu" ref={menuRef}>
@@ -349,7 +354,7 @@ export function BotonesDeLaDerecha(props: {
                 {menuAbierto ? (
                     <div className={COLUMNA_DE_VOZ}>
                         {dictado ? pintar(dictado, "dictado-menu") : null}
-                        {pintar(nota, "nota-menu")}
+                        {nota ? pintar(nota, "nota-menu") : null}
                     </div>
                 ) : null}
             </div>
@@ -376,6 +381,7 @@ export function rellenoParaLosBotones(estado: {
     dictando: boolean;
     grabando: boolean;
     hayAlgoQueEnviar: boolean;
+    conNota?: boolean;
 }): string {
     return rellenoDeLaCaja(losBotonesDeLaDerecha(estado).length);
 }

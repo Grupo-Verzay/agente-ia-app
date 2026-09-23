@@ -21,7 +21,6 @@ import {
 } from "@/lib/cabeceras-de-chats";
 import { MessageList } from "./MessageList";
 import { ChatComposer } from "./ChatComposer";
-import { QuickActions } from "./QuickActions";
 import { useChatContext } from "../hooks/useChatContext";
 import {
     COPILOT_MODE_DESCRIPTIONS,
@@ -176,15 +175,9 @@ function ChatPanel({
                 <MessageList />
             </ScrollArea>
 
-            <div
-                className={cn(
-                    "space-y-2 border-t px-3 py-3",
-                    mobile && "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
-                )}
-            >
-                <QuickActions />
-                <ChatComposer />
-            </div>
+            {/* La barra de escribir de las otras dos: el «+» con las
+                sugerencias dentro y un solo botón a la derecha. */}
+            <ChatComposer mobile={mobile} />
         </section>
     );
 }

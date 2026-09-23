@@ -13,6 +13,8 @@ import { formValuesReminderSchema, ReminderInterface, reminderSchema, repeatType
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { PIE_DEL_PANEL } from "@/lib/barra-de-escribir"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -75,6 +77,7 @@ export const ReminderForm = ({
     initialData,
     isSchedule,
     forceCreate,
+    enPanel = false,
 }: ReminderInterface) => {
     const router = useRouter();
     const { selectedReminderId: reminderId, isCampaignPage } = useReminderDialogStore();
@@ -241,7 +244,6 @@ export const ReminderForm = ({
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    const modalTitle = isCampaignPage ? 'campaña' : 'recordatorio';
 
     const uploadReminderMedia = async () => {
         if (!selectedMediaFile || !mediaPreview) return {};
@@ -324,7 +326,7 @@ export const ReminderForm = ({
                     ))}
                 </>
 
-                <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto px-1 pb-1 pt-1">
+                <div className={cn("flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto", enPanel ? "px-4 py-4" : "px-1 pb-1 pt-1")}>
 
                 <div className="flex flex-col gap-1.5">
                     <Label className="text-sm font-semibold">Título</Label>
@@ -589,12 +591,27 @@ export const ReminderForm = ({
 
                 </div>
 
-                <div className="flex justify-between gap-2 pt-3 mt-2 shrink-0 pb-3">
-                    <Button type="button" variant="secondary" onClick={onCancel}>
+                {/* En un panel, la fila es el pie FIJO del panel (`PIE_DEL_PANEL`):
+                    con su raya, el alto de la barra de escribir y quieta mientras
+                    el formulario se desplaza por detrás. Antes estaba al final y
+                    había que bajar por todo el formulario para llegar a ella. */}
+                <div
+                    className={enPanel ? PIE_DEL_PANEL : "flex justify-between gap-2 pt-3 mt-2 shrink-0 pb-3"}
+                    {...(enPanel ? { "data-pie-del-panel": "" } : {})}
+                >
+                    <Button type="button" variant={enPanel ? "outline" : "secondary"} onClick={onCancel}>
                         Cancelar
                     </Button>
-                    <Button type="submit" variant="save" disabled={mutation.isPending || uploadingMedia}>
-                        {uploadingMedia ? "Subiendo archivo..." : mutation.isPending ? "Guardando..." : isEdit ? "Actualizar" : `Crear ${modalTitle}`}
+                    {/* Crear va en AZUL y guardar en VERDE, que es la regla de la
+                        plataforma: estaba en verde. Y dice «Crear» a secas: el
+                        título del panel —y el del diálogo— ya dice qué se crea. */}
+                    <Button
+                        type="submit"
+                        variant={isEdit ? "save" : "default"}
+                        disabled={mutation.isPending || uploadingMedia}
+                        data-boton={isEdit ? "guardar" : "crear"}
+                    >
+                        {uploadingMedia ? "Subiendo archivo..." : mutation.isPending ? "Guardando..." : isEdit ? "Actualizar" : "Crear"}
                     </Button>
                 </div>
             </form>

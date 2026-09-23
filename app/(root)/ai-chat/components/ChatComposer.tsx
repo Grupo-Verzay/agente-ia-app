@@ -1,10 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState } from "react";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { SendHorizontal, Mic } from "lucide-react";
+import { Mic, SendIcon } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import {
+    BOTON_DE_ENVIAR,
+    BOTON_REDONDO_GRABANDO,
+    FILA_DE_LA_BARRA,
+    MARCO_DE_LA_BARRA,
+} from "@/lib/barra-de-escribir";
+import {
+    BotonesDeLaDerecha,
+    ZonaDeHerramientas,
+    rellenoParaLosBotones,
+    useAltoDeLaCaja,
+} from "@/components/shared/BarraDeEscribir";
+import { OpcionesRapidas } from "./QuickActions";
 
 import { useChatContext } from "../hooks/useChatContext";
 import { mergeBufferedUserMessages } from "../helpers/mergeBufferedUserMessages";
@@ -31,8 +45,35 @@ async function withClientTimeout<T>(promise: Promise<T>, ms = CLIENT_TIMEOUT_MS)
     }
 }
 
-export function ChatComposer() {
+/**
+ * La barra de escribir del copiloto: **la misma de la conversación y del chat
+ * de equipo**, no una parecida.
+ *
+ * Tenía tres botones sueltos encima de la caja —«Sugerir respuesta», «Resumir
+ * chat», «Seguimiento»— y a la derecha el micrófono Y la flecha a la vez. Ahora
+ * las sugerencias viven dentro del «+» de la izquierda (`ZonaDeHerramientas`,
+ * siempre plegada: es un panel de 18 a 24 rem) y a la derecha hay UN botón, que
+ * decide `losBotonesDeLaDerecha` con `conNota: false`: el micrófono con la caja
+ * vacía, la flecha en cuanto hay algo escrito. El marco y la fila son los de
+ * las otras dos (`MARCO_DE_LA_BARRA`, `FILA_DE_LA_BARRA`).
+ */
+export function ChatComposer({ mobile = false }: { mobile?: boolean }) {
     const [text, setText] = useState("");
+    const [herramientas, setHerramientas] = useState(false);
+    const caja = useRef<HTMLTextAreaElement>(null);
+    const zona = useRef<HTMLDivElement>(null);
+
+    useAltoDeLaCaja({ ref: caja, texto: text });
+
+    // La columna del «+» se cierra al pulsar fuera, como en las otras dos.
+    useEffect(() => {
+        if (!herramientas) return;
+        const fuera = (e: MouseEvent) => {
+            if (zona.current && !zona.current.contains(e.target as Node)) setHerramientas(false);
+        };
+        document.addEventListener("mousedown", fuera);
+        return () => document.removeEventListener("mousedown", fuera);
+    }, [herramientas]);
 
     const dictation = useSpeechDictation();
 
@@ -140,45 +181,91 @@ export function ChatComposer() {
         scheduleFlush();
     };
 
+    const laDerecha = {
+        compacta: true,
+        conVoz: true,
+        conNota: false,
+        hayDictado: dictation.supported,
+        dictando: dictation.listening,
+        grabando: false,
+        hayAlgoQueEnviar: text.trim().length > 0,
+    };
+
     return (
-        <div className="flex items-end gap-2">
-            <Input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Escribe tu duda... Enter para enviar"
-                className="h-11 text-sm"
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        sendLocal();
-                    }
-                }}
-                disabled={isTyping}
-            />
-            {dictation.supported && (
-                <Button
-                    type="button"
-                    onClick={() => !isTyping && dictation.toggle(text, setText)}
-                    size="icon"
-                    variant={dictation.listening ? "default" : "outline"}
-                    className={`h-11 w-11 shrink-0 rounded-md ${dictation.listening ? "animate-pulse bg-red-500 text-white hover:bg-red-600" : ""}`}
-                    disabled={isTyping}
-                    aria-label={dictation.listening ? "Detener dictado" : "Dictar por voz"}
-                    title={dictation.listening ? "Detener dictado" : "Dictar por voz"}
-                >
-                    <Mic className="h-4 w-4" />
-                </Button>
+        <div
+            data-barra="escribir"
+            className={cn(
+                MARCO_DE_LA_BARRA,
+                "bg-background",
+                mobile && "pb-[max(0.375rem,env(safe-area-inset-bottom))]",
             )}
-            <Button
-                type="button"
-                onClick={sendLocal}
-                size="icon"
-                className="h-11 w-11 shrink-0 rounded-md"
-                disabled={isTyping}
-                aria-label="Enviar mensaje"
-            >
-                <SendHorizontal className="h-4 w-4" />
-            </Button>
+        >
+            <div className={FILA_DE_LA_BARRA}>
+                <ZonaDeHerramientas
+                    compacta
+                    abierta={herramientas}
+                    alAlternar={() => setHerramientas((v) => !v)}
+                    contenedorRef={zona}
+                >
+                    <OpcionesRapidas onElegida={() => setHerramientas(false)} />
+                </ZonaDeHerramientas>
+                <div className="relative min-w-0 flex-1">
+                    <Textarea
+                        ref={caja}
+                        rows={1}
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder="Escribe tu duda..."
+                        aria-label="Escribe tu duda"
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                sendLocal();
+                            }
+                        }}
+                        disabled={isTyping}
+                        className={cn(
+                            "min-h-10 w-full resize-none overflow-y-auto rounded-xl py-2 pl-4 text-base leading-relaxed shadow-sm sm:text-sm",
+                            rellenoParaLosBotones(laDerecha),
+                        )}
+                    />
+                    <BotonesDeLaDerecha
+                        {...laDerecha}
+                        menuAbierto={false}
+                        alAlternarMenu={() => {}}
+                        dictado={
+                            dictation.supported
+                                ? {
+                                      alPulsar: () => {
+                                          if (!isTyping) dictation.toggle(text, setText);
+                                      },
+                                      deshabilitado: isTyping,
+                                      marcado: dictation.listening,
+                                      etiqueta: dictation.listening ? "Detener dictado" : "Dictar por voz",
+                                      clase: dictation.listening
+                                          ? `${BOTON_REDONDO_GRABANDO} animate-pulse`
+                                          : undefined,
+                                      icono: (
+                                          <Mic
+                                              className={cn(
+                                                  "h-3.5 w-3.5",
+                                                  dictation.listening ? "text-white" : "text-black dark:text-white",
+                                              )}
+                                          />
+                                      ),
+                                  }
+                                : null
+                        }
+                        enviar={{
+                            alPulsar: sendLocal,
+                            deshabilitado: isTyping || !text.trim(),
+                            etiqueta: "Enviar mensaje",
+                            clase: BOTON_DE_ENVIAR,
+                            icono: <SendIcon className="h-3.5 w-3.5 text-white" />,
+                        }}
+                    />
+                </div>
+            </div>
         </div>
     );
 }

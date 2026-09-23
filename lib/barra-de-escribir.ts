@@ -19,6 +19,54 @@
  * buscando la DECLARACIÓN en el CSS del build, no la clase en el código.
  */
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * El MARCO de la barra: relleno, fila y alto. Uno solo para las tres.
+ *
+ * Convivían tres: la conversación `px-2 py-1.5 sm:px-3 sm:py-2`, el chat de
+ * equipo `px-3 py-3 sm:px-6` y el copiloto `px-3 py-3`. Medido sobre la página
+ * servida, la barra del equipo medía **65 px** donde la de la conversación
+ * mide **57**, así que en las dos columnas la raya de arriba caía a distinta
+ * altura; y el «+» quedaba a 12, 24 o 12 px del filo, con 8 px más hasta la
+ * caja. Cada píxel de ese aire es ancho que le falta a la caja de escribir.
+ *
+ * > **El «+» queda a la MISMA distancia del filo que de la caja, y esa
+ * > distancia es la mínima**: 6 px, el margen de las cabeceras de Chats
+ * > (`MARGEN_DE_LAS_CABECERAS`). A la derecha, la caja llega hasta los mismos
+ * > 6 px del filo.
+ *
+ * El relleno vertical es el de la conversación, que era el modelo. Con la caja
+ * en su línea (`min-h-10`, 40 px) eso son 57 px con la raya: el ALTO de la
+ * barra, y el de todo pie fijo de un panel (`PIE_DEL_PANEL`).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** El hueco a cada lado del «+» (filo → «+» y «+» → caja), en px. */
+export const HUECO_DEL_MAS = 6;
+
+/** El alto de la barra con la caja en una línea, raya incluida, en px (escritorio). */
+export const ALTO_DE_LA_BARRA = 57;
+
+/** El marco: la raya de arriba y el relleno. Lo usan las tres barras. */
+export const MARCO_DE_LA_BARRA = "shrink-0 border-t border-border px-1.5 py-1.5 sm:py-2";
+
+/** La fila de dentro: el «+», la caja y lo que vaya al lado. */
+export const FILA_DE_LA_BARRA = "relative flex flex-nowrap items-center gap-1.5";
+
+/**
+ * El pie FIJO de un panel lateral: la fila de «Cancelar / Crear» del
+ * recordatorio y de la tarea, y la de «No se envía al cliente» del contexto
+ * del lead. Se queda abajo mientras lo de encima se desplaza.
+ *
+ * **Mide lo que la barra de escribir**, con su raya arriba: así, con un panel
+ * abierto al lado de la conversación, la raya del pie y la de la barra caen en
+ * el mismo píxel. El alto es el de la barra con la caja en una línea —el
+ * relleno de arriba y abajo más los 40 px de un botón—, escrito en `rem` más
+ * el píxel de la raya, que es como lo suma la barra: así cuadra también con la
+ * escala de letra de la plataforma (`ui_scale`), que mueve los `rem` y no la
+ * raya.
+ */
+export const PIE_DEL_PANEL =
+    "flex shrink-0 items-center justify-between gap-2 border-t border-border bg-background px-1.5 h-[calc(3rem+1px)] sm:h-[calc(3.5rem+1px)]";
+
 /**
  * La columna flotante que sale del «+», por ENCIMA de la caja.
  *
@@ -81,6 +129,12 @@ export type EstadoDeLaDerecha = {
     compacta: boolean;
     /** Hay voz que ofrecer. Falso al previsualizar un audio o al editar. */
     conVoz: boolean;
+    /**
+     * Hay nota de voz. Falso en el copiloto, que solo dicta: ahí el botón de
+     * la derecha es UNO —el micrófono con la caja vacía, la flecha con texto—
+     * y no hay menú que desplegar. Sin el campo, `true`.
+     */
+    conNota?: boolean;
     /** El navegador tiene dictado (Web Speech). */
     hayDictado: boolean;
     dictando: boolean;
@@ -107,6 +161,14 @@ export type EstadoDeLaDerecha = {
  *    más.
  */
 export function losBotonesDeLaDerecha(e: EstadoDeLaDerecha): BotonDeLaDerecha[] {
+    if (e.conNota === false) {
+        // Solo dictado: un botón, el que toca. Dictando se queda el de parar
+        // aunque haya texto (regla 2), y enviar sale en cuanto hay algo que
+        // mandar. Sin dictado en el navegador, enviar siempre.
+        if (!e.conVoz || !e.hayDictado) return ["enviar"];
+        if (e.dictando) return ["dictado"];
+        return e.hayAlgoQueEnviar ? ["enviar"] : ["dictado"];
+    }
     if (!e.compacta) {
         const fila: BotonDeLaDerecha[] = [];
         if (e.conVoz && e.hayDictado) fila.push("dictado");

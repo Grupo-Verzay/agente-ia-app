@@ -1495,9 +1495,9 @@ export function ChatSidebar({
                     cantidad={asesoresDelEquipo}
                   />
                 </DropdownMenuTrigger>
-                {/* Ancho de la columna, filo izquierdo, bajo las pastillas: lo
-                    mismo que canales y que el embudo. Antes era `align="end"`
-                    y salía pegado a su icono, en mitad de la columna. */}
+                {/* Colgado de su botón, creciendo hacia dentro de la columna y
+                    justo debajo de la raya de la cabecera: lo mismo que
+                    canales, el embudo y el «⌄» (`columnaAncha`). */}
                 <DropdownMenuContent
                   {...panelDeAsesores.props}
                   className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}

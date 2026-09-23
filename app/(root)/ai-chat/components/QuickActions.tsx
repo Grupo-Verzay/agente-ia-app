@@ -56,7 +56,13 @@ const SUGGESTIONS_BY_MODE: Record<string, Suggestion[]> = {
     ],
 };
 
-export const QuickActions = () => {
+/**
+ * Las sugerencias del modo en curso y cómo se mandan. Es la lógica de siempre;
+ * lo que cambió es DÓNDE se pintan: ya no son una rejilla de botones sueltos
+ * encima de la caja, sino las opciones del «+» de la barra de escribir, como
+ * las herramientas de la conversación y del chat de equipo (`ChatComposer`).
+ */
+export function useQuickActions() {
     const ctx = useChatContext();
     const addMessage = useChatStore((s) => s.addMessage);
     const setTyping = useChatStore((s) => s.setTyping);
@@ -117,20 +123,26 @@ export const QuickActions = () => {
         }
     };
 
+    return { suggestions, sendSuggestion, isTyping };
+}
+
+/** Una opción del «+»: el rótulo, con la pregunta entera en el `title`. */
+export function OpcionesRapidas({ onElegida }: { onElegida?: () => void }) {
+    const { suggestions, sendSuggestion, isTyping } = useQuickActions();
     return (
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-            {suggestions.map((suggestion, index) => (
+        <div className="flex w-52 flex-col items-stretch gap-0.5" data-opciones-rapidas>
+            {suggestions.map((suggestion) => (
                 <Button
                     key={suggestion.label}
                     type="button"
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
                     disabled={isTyping}
-                    onClick={() => sendSuggestion(suggestion)}
-                    className={cn(
-                        "h-8 min-w-0 justify-center rounded-md px-2 text-xs",
-                        suggestions.length === 3 && index === 2 && "col-span-2 sm:col-span-1",
-                    )}
+                    onClick={() => {
+                        onElegida?.();
+                        void sendSuggestion(suggestion);
+                    }}
+                    className={cn("h-8 w-full justify-start rounded-md px-2 text-left text-sm font-normal")}
                     title={suggestion.prompt}
                 >
                     <span className="truncate">{suggestion.label}</span>
@@ -138,4 +150,4 @@ export const QuickActions = () => {
             ))}
         </div>
     );
-};
+}

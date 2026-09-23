@@ -57,6 +57,8 @@ import {
 /** Las marcas del DOM. Son el contrato entre quien mide y quien se deja medir. */
 export const MARCA_DE_LA_COLUMNA = "data-columna-de-chats";
 export const MARCA_DE_LAS_PASTILLAS = "data-pastillas-de-chats";
+/** La cabecera de la columna de la lista: su borde de abajo es la raya divisoria. */
+export const MARCA_DE_LA_CABECERA_DE_LA_COLUMNA = "data-cabecera-de-la-columna";
 export const MARCA_DE_LA_CABECERA = "data-cabecera-de-chat";
 /** El disparador de Macros: su borde izquierdo es el ancho de los paneles de la cabecera. */
 export const MARCA_DE_MACROS = "data-macros-de-chat";
@@ -229,11 +231,18 @@ export function usePanelFlotante(
                 return;
             }
 
-            // Ancho completo: hace falta además el borde de abajo de las
-            // pastillas. Sin esa marca se cae al borde de abajo del disparador,
-            // que es el hueco de siempre — se ve de menos, nunca fuera.
+            // Nacen justo DEBAJO de la raya de la cabecera de la columna —su
+            // borde de abajo, raya incluida—, no bajo las pastillas: debajo de
+            // ellas quedan el relleno y la raya, y el menú se los comía. Sin
+            // esa marca se cae a las pastillas y, sin ellas, al disparador —
+            // se ve de menos, nunca fuera—.
+            const cabeceraDeLaColumna = contenedor.querySelector(`[${MARCA_DE_LA_CABECERA_DE_LA_COLUMNA}]`);
             const pastillas = contenedor.querySelector(`[${MARCA_DE_LAS_PASTILLAS}]`);
-            const bajo = pastillas ? caja(pastillas).bottom : dispCaja.bottom;
+            const bajo = cabeceraDeLaColumna
+                ? caja(cabeceraDeLaColumna).bottom
+                : pastillas
+                  ? caja(pastillas).bottom
+                  : dispCaja.bottom;
             const g = columnaAncha(contCaja, dispCaja, bajo, primitiva);
             setProps({ ...g, style: g.estilo });
         },
