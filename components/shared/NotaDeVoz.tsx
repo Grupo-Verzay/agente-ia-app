@@ -109,10 +109,20 @@ export function NotaDeVoz({
   );
 }
 
-/** La nota con su marco y su ancho, para pintarla fuera de una burbuja. */
-export function NotaDeVozSuelta(props: React.ComponentProps<typeof NotaDeVoz>) {
+/**
+ * La nota con su marco y su ancho, para pintarla fuera de una burbuja.
+ *
+ * `ancho` cambia SOLO el largo: el detalle de una llamada la estira a todo su
+ * recuadro (`w-full`), porque ahí 350 px dejaban medio recuadro vacío. El
+ * diseño —marco, micrófono, `<audio>` con su duración— es el mismo; por eso es
+ * un parámetro y no otra nota.
+ */
+export function NotaDeVozSuelta({
+  ancho = ANCHO_DE_LA_NOTA,
+  ...props
+}: React.ComponentProps<typeof NotaDeVoz> & { ancho?: string }) {
   return (
-    <div className={cn(MARCO_DE_UN_ADJUNTO, ANCHO_DE_LA_NOTA)}>
+    <div className={cn(MARCO_DE_UN_ADJUNTO, ancho)}>
       <NotaDeVoz {...props} />
     </div>
   );

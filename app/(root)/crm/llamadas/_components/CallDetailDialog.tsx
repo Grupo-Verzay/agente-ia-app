@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Sparkles, FileText, Loader2, PhoneOutgoing, PhoneMissed, Bot, User } from "lucide-react";
+import { Sparkles, FileText, AudioWaveform, Loader2, PhoneOutgoing, PhoneMissed, Bot, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -143,10 +143,14 @@ export function CallDetailDialog({
         {/* Grabación */}
         {url && (
           <div>
-            <div className="mb-1 text-xs font-medium text-muted-foreground">Grabación</div>
-            {/* La MISMA nota de voz que pinta Chats, sin excepciones: ver
-                `components/shared/NotaDeVoz.tsx`. */}
-            <NotaDeVozSuelta src={url} />
+            {/* Onda de sonido y no micrófono: la nota ya lleva el suyo dentro. */}
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <AudioWaveform className="h-3.5 w-3.5" /> Grabación
+            </div>
+            {/* La MISMA nota de voz que pinta Chats (ver
+                `components/shared/NotaDeVoz.tsx`); lo único propio es el
+                largo: ocupa todo el recuadro. */}
+            <NotaDeVozSuelta src={url} ancho="w-full" />
           </div>
         )}
 
