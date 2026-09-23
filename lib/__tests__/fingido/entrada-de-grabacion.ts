@@ -26,6 +26,7 @@ export {
     processCallRecordingForUser,
     esperarYProcesarLaGrabacion,
     procesarElFinDeLaLlamada,
+    proponerElResultado,
     ESPERA_ENTRE_INTENTOS_MS,
     INTENTOS_DE_GRABACION,
 } from "@/lib/grabacion-de-llamada.server";
@@ -44,5 +45,10 @@ export { trozosDeWav, cuantosTrozos, segundosDelWav, elFormatoDelWav } from "@/l
 export { costoDeLaNota, TOKENS_POR_CREDITO } from "@/lib/transcripcion-de-voz";
 export { conElNombreDeLaMarca, PISTA_DE_VOCABULARIO } from "@/lib/nombres-de-la-marca";
 export { descontarLaTranscripcion, losCreditosQueQuedan } from "@/lib/creditos-de-transcripcion";
+
+// El resultado: lo que propone la IA y la corrección a mano encima, con las
+// acciones de verdad de CRM › Llamadas.
+export { setCallDisposition, getCallDetailAction } from "@/actions/calls-crm-actions";
+export { getDispositionMeta, CALL_DISPOSITIONS } from "@/lib/call-dispositions";
 
 export { db } from "@/lib/db";

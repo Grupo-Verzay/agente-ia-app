@@ -28,7 +28,6 @@ import "server-only";
  */
 
 
-import { Prisma } from '@prisma/client';
 import { Readable } from 'stream';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
@@ -41,6 +40,12 @@ import {
 } from '@/lib/transcripcion-de-la-llamada';
 import { segundosDelWav, trozosDeWav } from '@/lib/wav-en-trozos';
 import { PISTA_DE_VOCABULARIO, conElNombreDeLaMarca } from '@/lib/nombres-de-la-marca';
+import {
+  INSTRUCCIONES_DE_CLASIFICACION,
+  leerElResultadoDeLaIa,
+  resultadoSinConversacion,
+} from '@/lib/resultado-de-la-llamada';
+import type { CallDisposition } from '@/lib/call-dispositions';
 
 const BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -313,6 +318,85 @@ async function summarize(transcript: string, cfg: AiCfg): Promise<string> {
 }
 
 /**
+ * El resultado que PROPONE la IA a partir de la transcripción. Va con la misma
+ * clave y el mismo modelo que el resumen, y no se cobra aparte: es un precio y
+ * tres entregas (texto, resumen y resultado), igual que el resumen ya no se
+ * cobraba aparte.
+ *
+ * Nunca lanza y **nunca es mudo**: sin propuesta la fila se queda en «Marcar
+ * resultado», que es lo mismo que había antes, y se dice por qué.
+ */
+async function clasificar(transcript: string, cfg: AiCfg): Promise<CallDisposition | null> {
+  const sinModelo = resultadoSinConversacion({ transcript });
+  if (sinModelo) return sinModelo;
+  try {
+    const { OpenAiClient, GoogleAiClient } = await import('@/actions/open-ai-actions');
+    const cliente = cfg.providerName === 'google' ? new GoogleAiClient() : new OpenAiClient();
+    const res = await cliente.complete({
+      apiKey: cfg.apiKey,
+      model: cfg.modelName || (cfg.providerName === 'google' ? 'gemini-2.0-flash' : 'gpt-4o-mini'),
+      system: INSTRUCCIONES_DE_CLASIFICACION,
+      messages: [{ role: 'user', content: transcript }],
+    });
+    const valor = leerElResultadoDeLaIa(res.content);
+    if (!valor) {
+      console.warn('[llamadas] la IA contesto un resultado que no se entiende', {
+        proveedor: cfg.providerName,
+        contesto: String(res.content ?? '').slice(0, 80),
+      });
+    }
+    return valor;
+  } catch (error) {
+    console.warn('[llamadas] no se pudo clasificar el resultado', {
+      proveedor: cfg.providerName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+/**
+ * Escribe la propuesta de la IA. Siempre en `dispositionIa` (para poder verla
+ * aunque alguien la haya cambiado) y en `disposition` **solo si nadie la cambió
+ * a mano**: sin resultado, o con uno que también puso la IA. Es la misma regla
+ * que `laIaPuedeEscribir`, escrita en el `WHERE` para que dos escrituras
+ * simultáneas —la persona eligiendo y la IA terminando— no dependan de quién
+ * leyó primero.
+ *
+ * Un resultado guardado sin `dispositionSource` (todos los de antes, y el «No
+ * contesta» que pone la tarjeta de llamada al colgar sin respuesta) cuenta como
+ * de una persona.
+ */
+export async function proponerElResultado(id: bigint, valor: CallDisposition): Promise<void> {
+  try {
+    await db.$executeRaw`
+      UPDATE "chat_messages"
+         SET "raw" = COALESCE("raw", '{}'::jsonb)
+                  || jsonb_build_object(
+                       'call',
+                       COALESCE("raw" -> 'call', '{}'::jsonb)
+                       || jsonb_build_object('dispositionIa', ${valor}::text)
+                       || CASE
+                            WHEN NULLIF("raw" -> 'call' ->> 'disposition', '') IS NULL
+                              OR ("raw" -> 'call' ->> 'dispositionSource') = 'ia'
+                            THEN jsonb_build_object('disposition', ${valor}::text, 'dispositionSource', 'ia')
+                            ELSE '{}'::jsonb
+                          END
+                     ),
+             "updatedAt" = NOW()
+       WHERE "id" = ${id}
+    `;
+    console.info('[llamadas] resultado propuesto por la IA', { chatMessageId: String(id), valor });
+  } catch (error) {
+    console.warn('[llamadas] no se pudo guardar el resultado propuesto', {
+      chatMessageId: String(id),
+      valor,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
  * Procesa la grabación de una llamada: descarga el WAV de AstraCalls, transcribe,
  * resume y guarda en chat_messages.raw.call. Best-effort e idempotente (si ya hay
  * transcripción, no rehace). Se llama desde el cliente tras colgar.
@@ -435,26 +519,22 @@ export async function processCallRecordingForUser(input: {
   // Y también en el resumen: sale de la transcripción ya corregida, pero el
   // modelo puede volver a escribirlo a su manera.
   const summary = transcript ? conElNombreDeLaMarca(await summarize(transcript, cfg)) : '';
+  // El resultado se propone con la transcripción ya corregida.
+  const propuesta = transcript ? await clasificar(transcript, cfg) : null;
 
-  const nextRaw = {
-    ...rawObj,
-    call: {
-      ...callObj,
+  const escribio = await guardarYCobrar({
+    id,
+    campos: {
       hasRecording: true,
       astraSid: input.astraSid,
       astraCallId: input.astraCallId,
       transcript: transcript || null,
       summary: summary || null,
-      durationSecs: duracion,
     },
-  };
-
-  await guardarYCobrar({
-    id,
-    nextRaw,
     cuentaQuePaga: paga,
     tokens: transcript ? que.costo.tokens : 0,
   });
+  if (escribio && propuesta) await proponerElResultado(id, propuesta);
   return { success: true };
 }
 
@@ -473,13 +553,25 @@ export async function processCallRecordingForUser(input: {
  */
 async function guardarYCobrar(input: {
   id: bigint;
-  nextRaw: Record<string, unknown>;
+  /** SOLO lo que esta vuelta calculó: se funde dentro de `raw.call`. */
+  campos: Record<string, unknown>;
   cuentaQuePaga: string;
   tokens: number;
-}): Promise<void> {
+}): Promise<boolean> {
+  // **Un MERGE, nunca el objeto entero.** Antes se escribía `raw` completo tal
+  // como se leyó ANTES de transcribir —decenas de segundos antes—, así que lo
+  // que alguien escribiera en medio se perdía: el resultado elegido en la
+  // tarjeta al colgar, o la duración que anotó el aviso de fin. Y al revés, una
+  // escritura del objeto entero hecha por otro camino con `raw` viejo borraba
+  // la transcripción recién guardada: la llamada la tenía un momento y luego no.
   const filas = await db.$executeRaw`
     UPDATE "chat_messages"
-       SET "raw" = ${input.nextRaw as Prisma.InputJsonValue}
+       SET "raw" = COALESCE("raw", '{}'::jsonb)
+                || jsonb_build_object(
+                     'call',
+                     COALESCE("raw" -> 'call', '{}'::jsonb) || ${JSON.stringify(input.campos)}::jsonb
+                   ),
+           "updatedAt" = NOW()
      WHERE "id" = ${input.id}
        AND ("raw" -> 'call' ->> 'transcript') IS NULL
   `;
@@ -487,9 +579,10 @@ async function guardarYCobrar(input: {
     console.info('[llamadas] otra vuelta ya habia guardado la transcripcion; no se cobra', {
       chatMessageId: String(input.id),
     });
-    return;
+    return false;
   }
   if (input.tokens > 0) await descontarLaTranscripcion(input.cuentaQuePaga, input.tokens);
+  return true;
 }
 
 /**
@@ -698,6 +791,8 @@ export async function procesarElFinDeLaLlamada(input: {
   astraCallId: string;
   durationSecs?: number;
   hasRecording?: boolean;
+  /** Si la otra parte contestó. Sin el campo es «no se sabe». */
+  answered?: boolean;
 }): Promise<{ success: boolean; message?: string }> {
   const fila = await laLlamadaDeEseId(input.astraSid, input.astraCallId);
   if (!fila) {
@@ -725,6 +820,18 @@ export async function procesarElFinDeLaLlamada(input: {
     segundos,
     hayGrabacion: input.hasRecording !== false,
   });
+
+  if (input.answered === false) {
+    // Nadie contestó a la llamada del bot: eso ES «No contesta», y la IA no
+    // necesita ningún modelo para decirlo. Respeta un resultado puesto a mano.
+    // Solo con un `false` EXPLÍCITO: en una llamada manual AstraCalls no sabe
+    // si se contestó, y dar por no contestada una que sí lo fue es peor que
+    // dejarla en «Marcar resultado».
+    await proponerElResultado(
+      fila.id,
+      resultadoSinConversacion({ contestada: false }) ?? 'no_contesta',
+    );
+  }
 
   if (input.hasRecording === false) {
     // Sin audio no hay nada que transcribir, y sondear media hora una grabacion
@@ -865,23 +972,19 @@ export async function processMetaCallRecordingForUser(input: {
     );
     summary = transcript ? conElNombreDeLaMarca(await summarize(transcript, cfg)) : '';
   }
+  const propuesta = transcript && cfg ? await clasificar(transcript, cfg) : null;
 
-  const nextRaw = {
-    ...rawObj,
-    call: {
-      ...callObj,
+  const escribio = await guardarYCobrar({
+    id,
+    campos: {
       hasRecording: Boolean(recordingUrl),
       recordingUrl: recordingUrl || null,
       transcript: transcript || null,
       summary: summary || null,
     },
-  };
-
-  await guardarYCobrar({
-    id,
-    nextRaw,
     cuentaQuePaga: paga,
     tokens: transcript && que.hacer === 'transcribir' ? que.costo.tokens : 0,
   });
+  if (escribio && propuesta) await proponerElResultado(id, propuesta);
   return { success: true };
 }

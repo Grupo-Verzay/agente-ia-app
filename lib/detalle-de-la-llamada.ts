@@ -6,37 +6,24 @@
  * enseña otro — que es la familia de «dos fórmulas para la misma pantalla» que
  * este repositorio ya pagó media docena de veces.
  *
- * # Por qué hacía falta, que no es obvio
+ * # Es el resumen de ESTA llamada, y nada más
  *
- * Esa columna pintaba **solo `leadSynthesis`**, o sea la síntesis del LEAD que
- * arman los seguimientos del CRM — no la llamada. Así que una llamada con su
- * transcripción y su resumen perfectamente guardados seguía diciendo **«Sin
- * detalle»**, y desde fuera eso se lee como que la grabación no dejó nada.
+ * La columna pintaba primero `leadSynthesis`, la síntesis del LEAD que arman
+ * los seguimientos del CRM. Eso es contexto del chat, no de la llamada: dos
+ * llamadas al mismo contacto salían con el mismo detalle, y el de ninguna de
+ * las dos decía qué pasó en ella. La síntesis se queda en el chat, que es donde
+ * se edita.
  *
- * El orden no es indiferente:
+ * Tampoco se cae a la transcripción: la primera línea de una transcripción es
+ * el saludo («Hola, ¿hablo con…?»), que no dice nada de la llamada. Sin
+ * resumen, «Sin detalle» — que es la verdad.
  *
- * 1. **La síntesis del lead primero.** Es lo que esa columna prometía y lo que
- *    la gente ya está acostumbrada a leer ahí; cambiarlo de sitio sería
- *    arreglar un hueco rompiendo lo que funcionaba.
- * 2. **Después el resumen de ESTA llamada**, que es lo que faltaba.
- * 3. **Y por último su transcripción.** Un resumen que no salió —el modelo
- *    falló, la cuenta paga su propia IA y no hay clave— no puede dejar en
- *    blanco una celda cuando el texto de la llamada sí está.
- *
- * **Una línea, no un párrafo.** La celda es de 260 px con `truncate`: un
- * resumen en viñetas metido entero ahí sale como un renglón de guiones que no
- * dice nada. Lo entero se lee al abrir el detalle, que es para lo que está.
+ * **Una línea, no un párrafo.** La celda va con `truncate`: un resumen en
+ * viñetas metido entero sale como un renglón de guiones. Lo entero se lee al
+ * abrir el detalle, que es para lo que está.
  */
-export function elDetalleDeLaLlamada(call: {
-    leadSynthesis?: string | null;
-    summary?: string | null;
-    transcript?: string | null;
-}): string {
-    return (
-        laPrimeraLinea(call.leadSynthesis) ||
-        laPrimeraLinea(call.summary) ||
-        laPrimeraLinea(call.transcript)
-    );
+export function elDetalleDeLaLlamada(call: { summary?: string | null }): string {
+    return laPrimeraLinea(call.summary);
 }
 
 /**
@@ -49,7 +36,7 @@ export function elDetalleDeLaLlamada(call: {
  */
 function laPrimeraLinea(texto: string | null | undefined): string {
     for (const linea of (texto ?? '').split('\n')) {
-        const limpia = linea.replace(/^\s*[-*•]\s*/, '').trim();
+        const limpia = linea.replace(/^\s*[-*•]\s*/, '').replace(/^#+\s*/, '').replace(/\*\*/g, '').trim();
         if (limpia) return limpia;
     }
     return '';

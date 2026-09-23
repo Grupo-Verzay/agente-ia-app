@@ -1,15 +1,23 @@
 // Taxonomía compartida de "disposición" (resultado) de una llamada.
 // La usan el CRM de llamadas (CallsCrmClient), el diálogo de llamada (CallDialog)
 // y el lead scoring. El valor se guarda en chat_messages.raw.call.disposition.
+//
+// Son CINCO y en este orden, que es el del embudo: Interesado → Link enviado
+// (el estado más avanzado: además de interés, se le mandó el enlace de agenda)
+// → Volver a llamar → No contesta → No interesado. «Buzón de voz» y «Número
+// equivocado» se fueron porque no aplican; «Agendó» pasó a llamarse «Link
+// enviado», que es lo que de verdad se sabe desde la llamada.
+//
+// Las filas viejas NO se reescriben: `getDispositionMeta` las traduce al leer
+// (`agendo` → Link enviado, `buzon` → No contesta). Un `numero_equivocado`
+// guardado no tiene equivalente y vuelve a salir como «Marcar resultado».
 
 export type CallDisposition =
   | 'interesado'
-  | 'agendo'
+  | 'link_enviado'
   | 'volver_llamar'
   | 'no_contesta'
-  | 'buzon'
-  | 'no_interesado'
-  | 'numero_equivocado';
+  | 'no_interesado';
 
 export interface CallDispositionMeta {
   value: CallDisposition;
@@ -29,8 +37,8 @@ export const CALL_DISPOSITIONS: CallDispositionMeta[] = [
     scoreHint: 2,
   },
   {
-    value: 'agendo',
-    label: 'Agendó',
+    value: 'link_enviado',
+    label: 'Link enviado',
     badgeClass:
       'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-400',
     scoreHint: 3,
@@ -50,25 +58,11 @@ export const CALL_DISPOSITIONS: CallDispositionMeta[] = [
     scoreHint: 0,
   },
   {
-    value: 'buzon',
-    label: 'Buzón de voz',
-    badgeClass:
-      'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400',
-    scoreHint: 0,
-  },
-  {
     value: 'no_interesado',
     label: 'No interesado',
     badgeClass:
       'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400',
     scoreHint: -2,
-  },
-  {
-    value: 'numero_equivocado',
-    label: 'Número equivocado',
-    badgeClass:
-      'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400',
-    scoreHint: -1,
   },
 ];
 
@@ -76,9 +70,22 @@ const BY_VALUE = new Map<string, CallDispositionMeta>(
   CALL_DISPOSITIONS.map((d) => [d.value, d]),
 );
 
-export function getDispositionMeta(value: string | null | undefined): CallDispositionMeta | null {
+/** Los valores de antes, leídos como el de ahora que les corresponde. */
+const DE_ANTES: Record<string, CallDisposition> = {
+  agendo: 'link_enviado',
+  buzon: 'no_contesta',
+};
+
+/** El valor vigente de lo guardado (traduce los viejos), o null. */
+export function comoResultadoVigente(value: string | null | undefined): CallDisposition | null {
   if (!value) return null;
-  return BY_VALUE.get(value) ?? null;
+  if (BY_VALUE.has(value)) return value as CallDisposition;
+  return DE_ANTES[value] ?? null;
+}
+
+export function getDispositionMeta(value: string | null | undefined): CallDispositionMeta | null {
+  const vigente = comoResultadoVigente(value);
+  return vigente ? BY_VALUE.get(vigente) ?? null : null;
 }
 
 export function isCallDisposition(value: string): value is CallDisposition {

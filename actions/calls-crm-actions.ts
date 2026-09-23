@@ -9,43 +9,12 @@ import { Prisma } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { isCallDisposition } from '@/lib/call-dispositions';
+import { elCallRowDesdeLaFila, type CallRow, type CallDirection } from '@/lib/fila-de-llamada';
 import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
 import { elTopeDelCrm } from '@/lib/crm-de-la-familia';
 import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
 
-export type CallDirection = 'incoming' | 'outgoing';
-
-export interface CallRow {
-  id: string;
-  direction: CallDirection;
-  phone: string;
-  contactName: string | null;
-  durationSecs: number;
-  status: string;
-  disposition: string | null;
-  hasRecording: boolean;
-  recordingUrl: string | null;
-  transcript: string | null;
-  summary: string | null;
-  leadSynthesis: string | null; // "Detalle del lead (síntesis)" = summarySnapshot del lead
-  astraSid: string | null;
-  astraCallId: string | null;
-  ts: number; // epoch ms
-  /**
-   * La cuenta bajo la que esta guardada la llamada.
-   *
-   * Baja siempre, unificado o no: la insignia se decide al pintar con
-   * `elCrmVaUnificado`, y el gate de «esta fila es de otra cuenta» necesita el
-   * dueno — **sin dueno no es ajena**, asi que un campo opcional dejaria el
-   * resultado y el borrado abiertos sobre filas que la accion luego rechaza.
-   */
-  cuentaId: string;
-  /**
-   * La linea por la que se hizo. Volver a llamar desde esta fila tiene que
-   * salir por ESA linea (y con el numero de su cuenta), no por la de quien mira.
-   */
-  instanceName: string | null;
-}
+export type { CallRow, CallDirection };
 
 export interface CallsKpis {
   total: number;
@@ -146,55 +115,18 @@ export async function getCallsCrmData(params?: {
     return EMPTY;
   }
 
-  const calls: CallRow[] = rows.map((r) => {
-    const rawObj = r.raw && typeof r.raw === 'object' ? (r.raw as Record<string, any>) : {};
-    const callRaw = (rawObj.call ?? {}) as {
-      direction?: string;
-      durationSecs?: number;
-      status?: string;
-      disposition?: string;
-      hasRecording?: boolean;
-      recordingUrl?: string | null;
-      transcript?: string | null;
-      summary?: string | null;
-      astraSid?: string;
-      astraCallId?: string;
-    };
-    const direction: CallDirection =
-      callRaw.direction === 'outgoing' ? 'outgoing'
-      : callRaw.direction === 'incoming' ? 'incoming'
-      : (r.fromMe ? 'outgoing' : 'incoming');
-    const phone = (r.remoteJid || '').split('@')[0].split(':')[0];
-    return {
-      id: String(r.id),
-      direction,
-      phone,
-      contactName: r.pushName ?? null,
-      durationSecs: Number(callRaw.durationSecs ?? 0) || 0,
-      status: String(callRaw.status ?? ''),
-      disposition: callRaw.disposition ? String(callRaw.disposition) : null,
-      hasRecording: Boolean(callRaw.hasRecording),
-      recordingUrl: callRaw.recordingUrl ? String(callRaw.recordingUrl) : null,
-      transcript: callRaw.transcript ? String(callRaw.transcript) : null,
-      summary: callRaw.summary ? String(callRaw.summary) : null,
-      leadSynthesis: null as string | null,
-      astraSid: callRaw.astraSid ? String(callRaw.astraSid) : null,
-      astraCallId: callRaw.astraCallId ? String(callRaw.astraCallId) : null,
-      ts: new Date(r.messageTimestamp).getTime(),
-      cuentaId: r.userId,
-      instanceName: r.instanceName ?? null,
-    };
-  });
+  const calls: CallRow[] = rows.map(elCallRowDesdeLaFila);
 
-  // Síntesis del lead ("Detalle del lead") por teléfono: sesión → último follow-up
-  // con summarySnapshot. En lote para no hacer N consultas.
+  // El nombre puesto a mano del lead, por teléfono. La columna Detalle ya NO
+  // lee la síntesis del lead (eso es contexto del chat y se queda allá): lee
+  // el resumen de ESTA llamada. Aquí solo queda el nombre.
   try {
     const phones = Array.from(new Set(calls.map((c) => c.phone).filter(Boolean)));
     if (phones.length > 0) {
       const jids = phones.map((p) => `${p}@s.whatsapp.net`);
       const sessions = await db.session.findMany({
         where: { userId: { in: scopeIds }, remoteJid: { in: jids } },
-        select: { id: true, remoteJid: true, customName: true },
+        select: { remoteJid: true, customName: true },
       });
 
       // El nombre puesto a mano manda sobre el que da WhatsApp. Es el mismo
@@ -209,48 +141,9 @@ export async function getCallsCrmData(params?: {
         const propio = jidToCustomName.get(`${c.phone}@s.whatsapp.net`);
         if (propio) c.contactName = propio;
       }
-
-      if (sessions.length > 0) {
-        const sessionIds = sessions.map((s) => s.id);
-        const sessionIdToJid = new Map(sessions.map((s) => [s.id, s.remoteJid]));
-
-        // 1) Síntesis manual (summarySnapshot del último follow-up).
-        const followUps = await db.crmFollowUp.findMany({
-          where: { sessionId: { in: sessionIds }, summarySnapshot: { not: null } },
-          orderBy: { createdAt: 'desc' },
-          select: { sessionId: true, summarySnapshot: true },
-        });
-        const jidToSynthesis = new Map<string, string>();
-        for (const f of followUps) {
-          const jid = f.sessionId != null ? sessionIdToJid.get(f.sessionId) : undefined;
-          if (jid && !jidToSynthesis.has(jid) && f.summarySnapshot?.trim()) {
-            jidToSynthesis.set(jid, f.summarySnapshot.trim());
-          }
-        }
-
-        // 2) Respaldo: resumen automático del lead (último Registro), como en Registros.
-        const registros = await db.registro
-          .findMany({
-            where: { sessionId: { in: sessionIds } },
-            orderBy: { createdAt: 'desc' },
-            select: { sessionId: true, resumen: true, detalles: true },
-          })
-          .catch(() => [] as { sessionId: number; resumen: string | null; detalles: string | null }[]);
-        const jidToResumen = new Map<string, string>();
-        for (const r of registros) {
-          const jid = sessionIdToJid.get(r.sessionId);
-          const txt = (r.resumen || r.detalles || '').trim();
-          if (jid && !jidToResumen.has(jid) && txt) jidToResumen.set(jid, txt);
-        }
-
-        for (const c of calls) {
-          const jid = `${c.phone}@s.whatsapp.net`;
-          c.leadSynthesis = jidToSynthesis.get(jid) ?? jidToResumen.get(jid) ?? null;
-        }
-      }
     }
   } catch (err) {
-    console.error('[getCallsCrmData] síntesis', err);
+    console.error('[getCallsCrmData] nombres', err);
   }
 
   const outgoing = calls.filter((c) => c.direction === 'outgoing');
@@ -290,6 +183,27 @@ export async function getCallsCrmData(params?: {
 }
 
 /**
+ * El MISMO alcance con el que `getCallsCrmData` enseñó la fila: la cuenta
+ * propia, lo que cuelga de ella HACIA ABAJO y las variantes de su identidad.
+ * Con solo las de su identidad, la llamada de una cuenta hija se veía y no se
+ * podía marcar (la pantalla pintaba un «—»). Nunca la madre ni una hermana:
+ * eso lo decide `lasCuentasQueConsultaElCrm`, no el navegador.
+ */
+async function elAlcanceDeEscritura(me: NonNullable<Awaited<ReturnType<typeof currentUser>>>): Promise<string[]> {
+  return Array.from(
+    new Set(
+      [
+        ...(await lasCuentasQueConsultaElCrm(me.effectiveId!)),
+        me.effectiveId,
+        me.ownerId,
+        me.id,
+        (me as any).sessionUserId,
+      ].filter(Boolean),
+    ),
+  ) as string[];
+}
+
+/**
  * Guarda/actualiza la disposición (resultado) de una llamada concreta.
  * La llamada es una fila de chat_messages (messageType='call'); el resultado se
  * fusiona dentro de raw.call.disposition sin tocar el resto del JSON.
@@ -301,22 +215,7 @@ export async function setCallDisposition(
   const me = await currentUser();
   if (!me?.effectiveId) return { success: false, message: 'No autorizado.' };
   if (!isCallDisposition(disposition)) return { success: false, message: 'Resultado inválido.' };
-  // El MISMO alcance con el que `getCallsCrmData` enseñó la fila: la cuenta
-  // propia, lo que cuelga de ella HACIA ABAJO y las variantes de su identidad.
-  // Con solo las de su identidad, la llamada de una cuenta hija se veía y no se
-  // podía marcar (la pantalla pintaba un «—»). Nunca la madre ni una hermana:
-  // eso lo decide `lasCuentasQueConsultaElCrm`, no el navegador.
-  const scopeIds = Array.from(
-    new Set(
-      [
-        ...(await lasCuentasQueConsultaElCrm(me.effectiveId)),
-        me.effectiveId,
-        me.ownerId,
-        me.id,
-        (me as any).sessionUserId,
-      ].filter(Boolean),
-    ),
-  ) as string[];
+  const scopeIds = await elAlcanceDeEscritura(me);
 
   let id: bigint;
   try {
@@ -327,28 +226,65 @@ export async function setCallDisposition(
 
   try {
     // Sólo la fila del propio usuario/equipo y de tipo 'call'.
-    const row = await db.chatMessage.findFirst({
-      where: { id, userId: { in: scopeIds }, messageType: 'call' },
-      select: { raw: true },
-    });
-    if (!row) return { success: false, message: 'Llamada no encontrada.' };
-
-    const rawObj = row.raw && typeof row.raw === 'object' && !Array.isArray(row.raw)
-      ? (row.raw as Record<string, unknown>)
-      : {};
-    const callObj = rawObj.call && typeof rawObj.call === 'object' && !Array.isArray(rawObj.call)
-      ? (rawObj.call as Record<string, unknown>)
-      : {};
-    const nextRaw = { ...rawObj, call: { ...callObj, disposition } };
-
-    await db.chatMessage.update({
-      where: { id },
-      data: { raw: nextRaw as Prisma.InputJsonValue },
-    });
+    //
+    // Y un MERGE en la base, no leer-cambiar-escribir el objeto entero: la
+    // transcripción de la misma llamada se guarda en paralelo (se procesa al
+    // colgar, justo cuando se elige el resultado), y escribir `raw` tal como se
+    // leyó borraba la transcripción recién guardada. `dispositionSource:
+    // 'manual'` es lo que hace que la propuesta de la IA ya no la pise.
+    const filas = await db.$executeRaw`
+      UPDATE "chat_messages"
+         SET "raw" = COALESCE("raw", '{}'::jsonb)
+                  || jsonb_build_object(
+                       'call',
+                       COALESCE("raw" -> 'call', '{}'::jsonb)
+                       || jsonb_build_object('disposition', ${disposition}::text, 'dispositionSource', 'manual')
+                     ),
+             "updatedAt" = NOW()
+       WHERE "id" = ${id}
+         AND "messageType" = 'call'
+         AND "userId" IN (${Prisma.join(scopeIds)})
+    `;
+    if (filas < 1) return { success: false, message: 'Llamada no encontrada.' };
     return { success: true };
   } catch (err) {
     console.error('[setCallDisposition]', err);
     return { success: false, message: 'No se pudo guardar el resultado.' };
+  }
+}
+
+/**
+ * El detalle de UNA llamada, leído de la base al abrir su diálogo.
+ *
+ * El diálogo pintaba la fila tal como vino con la lista, y la lista se carga
+ * UNA vez al abrir la pantalla: una llamada cuya transcripción y resumen se
+ * guardaron después —se procesan al colgar, tardan de segundos a minutos—
+ * abría vacía aunque en la base ya los tuviera, hasta recargar la página.
+ * Mismo alcance que `setCallDisposition` (lo propio y lo de abajo).
+ */
+export async function getCallDetailAction(callId: string): Promise<CallRow | null> {
+  const me = await currentUser();
+  if (!me?.effectiveId) return null;
+  const scopeIds = await elAlcanceDeEscritura(me);
+  let id: bigint;
+  try {
+    id = BigInt(callId);
+  } catch {
+    return null;
+  }
+  try {
+    const rows = await db.$queryRaw<RawCallRow[]>`
+      SELECT m."id", m."userId", m."instanceName", m."remoteJid", m."fromMe", m."content", m."raw", m."messageTimestamp", c."pushName"
+      FROM "chat_messages" m
+      LEFT JOIN "chat_conversations" c
+        ON c."userId" = m."userId" AND c."instanceName" = m."instanceName" AND c."remoteJid" = m."remoteJid"
+      WHERE m."id" = ${id} AND m."messageType" = 'call' AND m."userId" IN (${Prisma.join(scopeIds)})
+      LIMIT 1
+    `;
+    return rows[0] ? elCallRowDesdeLaFila(rows[0]) : null;
+  } catch (err) {
+    console.error('[getCallDetailAction]', err);
+    return null;
   }
 }
 
@@ -408,28 +344,12 @@ export async function deleteAllCallsAction(): Promise<{ success: boolean; delete
   }
 }
 
-/**
- * Resuelve el sessionId del lead asociado a un número de teléfono, para poder
- * abrir/editar la síntesis del lead desde el detalle de una llamada.
- * Usa el mismo scope de dueño que el resto del módulo de llamadas.
+/*
+ * Aquí vivía `getSessionIdByPhone`, que usaba el diálogo de detalle para
+ * editar la síntesis del lead. La síntesis es contexto del CHAT y se quedó
+ * allá; sin pantalla que la llame, la acción se va con ella — una acción de
+ * servidor ES un endpoint.
  */
-export async function getSessionIdByPhone(phone: string): Promise<number | null> {
-  const me = await currentUser();
-  const ownerId = me?.effectiveId ?? me?.ownerId ?? me?.id;
-  if (!ownerId) return null;
-  const digits = (phone || '').replace(/\D/g, '');
-  if (!digits) return null;
-  try {
-    const session = await db.session.findFirst({
-      where: { userId: ownerId, remoteJid: `${digits}@s.whatsapp.net` },
-      select: { id: true },
-    });
-    return session?.id ?? null;
-  } catch (err) {
-    console.error('[getSessionIdByPhone]', err);
-    return null;
-  }
-}
 
 /**
  * Crea una tarea interna de "volver a llamar" (callback) para el asesor.

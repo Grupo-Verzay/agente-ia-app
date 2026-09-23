@@ -18,6 +18,9 @@ export type CallRow = {
     durationSecs: number;
     ts: number;
     disposition: string | null;
+    dispositionSource?: "ia" | "manual" | null;
+    dispositionIa?: string | null;
+    status?: string;
     leadSynthesis?: string | null;
     transcript?: string | null;
     summary?: string | null;
@@ -50,6 +53,13 @@ export const KPIS: CallsKpis = {
     avgDurationSecs: 40,
 };
 
+export const SINTESIS_DEL_LEAD =
+    "Lead de tres sedes, viene de la campaña de agosto y ya compró el plan básico en 2025";
+export const PRIMERA_LINEA_DEL_RESUMEN =
+    "Pidió la cotización del plan anual para las tres sedes y quiere revisar precios con su socio antes de decidir";
+export const TRANSCRIPCION =
+    "Agente: Hola Marta, te llamo de Verzay.\nCliente: Hola, sí, quería la cotización del plan anual.\nAgente: Claro, te la envío.\nCliente: Llámame el jueves por la tarde.";
+
 export const LLAMADAS: CallRow[] = [
     {
         id: "c1",
@@ -59,8 +69,19 @@ export const LLAMADAS: CallRow[] = [
         durationSecs: 187,
         ts: Date.parse("2026-09-18T15:04:00Z"),
         disposition: "interesado",
-        leadSynthesis:
-            "Pidió la cotización del plan anual para las tres sedes y quiere que le llamen el jueves por la tarde para cerrar el pago",
+        dispositionSource: "ia",
+        dispositionIa: "interesado",
+        // La síntesis del LEAD sigue en el dato —es lo que pintaba el «antes»—
+        // y NO es lo que tiene que salir en Detalle: sale el resumen.
+        leadSynthesis: SINTESIS_DEL_LEAD,
+        // El resumen empieza por una viñeta a propósito: la primera línea se
+        // lee SIN el guion. Y es larga, para que la celda recorte con «…».
+        summary: `- ${PRIMERA_LINEA_DEL_RESUMEN}\n- Pidió que le llamen el jueves por la tarde para cerrar el pago`,
+        transcript: TRANSCRIPCION,
+        hasRecording: true,
+        // Una URL que no existe: el total del reproductor tiene que salir
+        // igual, de `durationSecs`, sin bajar ni un byte del audio.
+        recordingUrl: "/grabacion-que-no-existe.webm",
         cuentaId: "u1",
         instanceName: "VERZAY_ATENCION",
     },
@@ -115,4 +136,21 @@ export const diagnoseCallsAction = async () => ({
     lastCall: null as { ts: number; content: string } | null,
     instances: [] as { instanceName: string | null; instanceType: string | null }[],
 });
+/** El «antes» del diálogo la pedía; se deja para que su paquete se construya. */
 export const getSessionIdByPhone = async () => null;
+
+/**
+ * Lo que la base ya tiene de c3 y la lista NO: se procesó después de cargarla.
+ * Es el caso de «abre sin resumen y sin transcripción aunque sí las tiene».
+ */
+export const RESUMEN_FRESCO = "- Julián confirmó que revisará la propuesta con su equipo";
+export const TRANSCRIPCION_FRESCA = "Agente: Hola Julián.\nCliente: Hola, la reviso con mi equipo y te aviso.";
+
+/** El detalle fresco que pide el diálogo al abrirse. */
+export async function getCallDetailAction(id: string): Promise<CallRow | null> {
+    const fila = LLAMADAS.find((c) => c.id === id) ?? null;
+    if (fila?.id === "c3") {
+        return { ...fila, summary: RESUMEN_FRESCO, transcript: TRANSCRIPCION_FRESCA, hasRecording: true };
+    }
+    return fila;
+}

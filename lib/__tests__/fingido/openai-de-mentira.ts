@@ -25,7 +25,12 @@ class OpenAiDeMentira {
 
     chat = {
         completions: {
-            create: async ({ model }: { model: string }) => {
+            create: async ({ model, messages }: { model: string; messages?: { role: string; content: string }[] }) => {
+                const sistema = messages?.find((m) => m.role === "system")?.content ?? "";
+                if (sistema.includes("Clasifica el resultado")) {
+                    laIa.pedidos.push({ que: "clasificar" as const, modelo: model });
+                    return { choices: [{ message: { content: laIa.resultado } }] };
+                }
                 laIa.pedidos.push({ que: "resumir" as const, modelo: model });
                 return { choices: [{ message: { content: laIa.resumen } }] };
             },
