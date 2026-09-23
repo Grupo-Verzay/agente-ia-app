@@ -87,3 +87,26 @@ export const LADO_DEL_CONTROL = 28;
 export const CONTROL_DE_ICONO = "h-7 min-w-7";
 /** El glifo dentro de esa caja (14 px). */
 export const GLIFO_DE_CONTROL = "h-3.5 w-3.5";
+
+/**
+ * La cabecera de un PANEL LATERAL: la misma caja que la de la conversación,
+ * sin el `md:`.
+ *
+ * Los paneles de la derecha —contacto, contexto del lead, recordatorio, tarea,
+ * enviar al equipo, copiloto y chat del equipo— se leen en Chats como la
+ * TERCERA columna, así que su cabecera tiene que medir lo que las otras dos:
+ * 78 px, dos filas de 32 y 28 con 4 entre ellas, 6 de margen y 2 de borde.
+ * Tenían la suya (`px-4 py-3`, ~57 px, una sola fila y el borde a otra
+ * altura), y la línea que separa la cabecera del cuerpo caía unos 20 px más
+ * arriba que la de la conversación.
+ *
+ * Sin `md:` porque un panel es un panel en cualquier anchura (en un móvil
+ * ocupa la pantalla, pero sigue siendo esta cabecera). Los números son los de
+ * arriba: el banco comprueba que las dos cadenas dicen lo mismo.
+ */
+export const CABECERA_DEL_PANEL =
+    "flex shrink-0 flex-col justify-center overflow-hidden border-b-2 border-border h-[4.875rem] p-1.5 gap-1";
+/** La primera fila del panel: el título y sus iconos de cabecera (32 px). */
+export const FILA_1_DEL_PANEL = "flex h-8 min-w-0 shrink-0 items-center gap-2";
+/** La segunda fila del panel: sus propios controles (28 px). */
+export const FILA_2_DEL_PANEL = "flex h-7 min-w-0 shrink-0 items-center gap-1";

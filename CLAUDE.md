@@ -15829,6 +15829,82 @@ exclusión con el hook real y los menús pintados por Radix, en dos modos; el
 roto construye con el código de `ANTES_REF` y afirma las tres capturas— y
 `scripts/banco-paneles-en-chats.sh` sobre la página servida.
 
+## Chats: el panel de la derecha es la TERCERA columna, no una hoja sobre la ventana
+
+Con un panel abierto —contacto, contexto del lead, recordatorio, nueva tarea,
+enviar al equipo, copiloto o chat del equipo— Chats se lee como tres columnas,
+y no lo eran. Medido sobre la página servida, con el commit de antes:
+
+| | lista | conversación | panel |
+| --- | --- | --- | --- |
+| respiro bajo la barra | 5 | 5 | **0** |
+| alto de la cabecera | 78 | 78 | **61–69** |
+| la raya de la cabecera | 83 | 83 | **62–70** |
+| separador con la columna de al lado | 1 px `rgb(226,232,240)` | — | **5 px de hueco, sombra y 1 px `rgb(229,231,235)`** |
+
+La causa es una sola: la franja del panel se coloca contra la VENTANA (bajo la
+barra, pegada al borde derecho) y la bandeja vive dentro de la caja del módulo,
+con su relleno (`sm:p-1`) y su borde. De ahí los 5 px de más arriba, el hueco
+y la sombra entre la conversación y el panel.
+
+> **En Chats la franja se pone sobre la bandeja**: `MedidaDeChats`
+> (`components/chats/MedidaDeChats.tsx`) la MIDE y publica `--chats-arriba`,
+> `--chats-alto` y `--chats-derecha` con `data-chats-medidos` en la raíz, y la
+> regla de `app/globals.css` coloca ahí cada `[data-franja-lateral]`. La hoja
+> (`[data-hoja-lateral]`) pierde redondeo, sombra y bordes y se queda con un
+> borde izquierdo de 1 px de `--border`: **el mismo separador que el
+> `border-r border-border` de la lista.** Solo de `lg` para arriba, que es
+> donde la bandeja reserva la franja.
+
+Y la cabecera de todo panel es **`CABECERA_DEL_PANEL`**
+(`lib/cabeceras-de-chats.ts`): la misma caja que la de la conversación sin el
+`md:` —78 px, filas de 32 y 28, 6 de margen, `border-b-2`—. Arriba el título y
+sus iconos de cabecera (la equis, el sonido, limpiar); abajo lo del panel (el
+nombre del contacto y sus mandos, los modos del copiloto, el canal abierto del
+equipo). Los botones de cabecera son `BOTON_DE_LA_CABECERA_DEL_PANEL`, 28 px.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se MIDE, no se resta.** Encima de la bandeja hay una barra que mide lo que
+   mida, a veces pestañas del módulo, y el relleno y el borde de la caja.
+2. **Los tres marcos llevan las dos marcas** —`PanelLateral`, `ChatSheet` y
+   `PanelDeEquipo`—. Un panel nuevo que no pase por `PanelLateral` las lleva, o
+   sube 5 px y abre un hueco.
+3. **La franja va con `overflow: hidden`**: cerrada, la hoja se desplaza su
+   ancho a la derecha y sin recorte asomaría por el hueco entre la bandeja y el
+   borde de la ventana.
+4. **Fuera de Chats nada cambia**: al desmontar se borran las variables y la
+   marca, y el panel vuelve a la ventana.
+
+### El chat del equipo: UNA vista por vez
+
+Enseñaba a la vez la lista de canales —desplegada con «Cambiar», topada a
+320 px— y el hilo debajo, y ninguna se podía usar. Ahora es la LISTA (a panel
+completo, `min-h-0 flex-1 overflow-y-auto`: con sesenta filas se desplaza
+dentro sin mover la cabecera) o el CHAT de un canal, con su buscador, su caja
+de escribir y una flecha de volver en la segunda fila de la cabecera, donde
+estaba «Cambiar». En la lista no asoma nada del chat.
+
+Tres cosas que hay que mantener:
+
+1. **El chat se ESCONDE en la vista de lista, no se desmonta**: dentro están el
+   borrador, la cita, los archivos elegidos y el anclaje del hilo.
+2. **Con la lista delante el hilo NO se marca leído** (`sinMarcar` en
+   `hiloDelEquipoAction`) ni se calla su sonido: el reloj sigue trayendo el
+   canal cargado —la lista viaja en la misma respuesta— pero nadie lo mira, y
+   un mensaje dado por leído así no vuelve a avisar nunca.
+3. **Con qué vista abre lo decide `laVistaDeEntrada`**: la del enlace si se
+   llega a algo (un aviso de mención, una búsqueda), la de la última vez si no
+   (`recordarLaVista`, al lado del canal recordado), y la lista si no hay nada.
+
+Lo prueba `scripts/banco-columnas-de-chats.sh`: sin navegador los números y un
+barrido del código; y sobre la página servida, a 1440, 1280 y 1024 y con los
+siete paneles, el alto y el centro de las dos filas en las tres columnas, el
+respiro, la raya, el ancho y el color de los dos separadores, y el chat del
+equipo en su lista (30 canales y 30 personas sembrados) y en su chat.
+`MODO=roto` —con un `.next` de `20db904`— lee el código de antes y afirma los
+fallos de la tabla de arriba.
+
 ## Chats: todo lo flotante mide el hueco y elige el lado donde CABE
 
 La barra de reacciones de un mensaje abría siempre hacia arriba, y con el

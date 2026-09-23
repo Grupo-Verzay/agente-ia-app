@@ -25,6 +25,8 @@ import {
     suscribirEsteDispositivo,
 } from "@/lib/avisos-push-navegador";
 import { HiloDelEquipo } from "@/components/chat-equipo/HiloDelEquipo";
+import { BOTON_DE_LA_CABECERA_DEL_PANEL } from "@/components/shared/PanelLateral";
+import { GLIFO_DE_CONTROL } from "@/lib/cabeceras-de-chats";
 
 /**
  * El chat del equipo, **encima de donde estés**.
@@ -80,7 +82,7 @@ export function PanelDeEquipo({
 
     return (
         <>
-            <div className={FRANJA_LATERAL}>
+            <div className={FRANJA_LATERAL} data-franja-lateral={PANEL_DEL_EQUIPO}>
                 <Marco
                     abierto={abierto}
                     relevo={relevo}
@@ -126,6 +128,7 @@ function Marco({
     return (
         <section
             id={movil ? "chat-equipo-movil" : "chat-equipo-escritorio"}
+            data-hoja-lateral={movil ? undefined : ""}
             aria-label="Chat del equipo"
             aria-hidden={!abierto}
             className={cn(
@@ -134,27 +137,10 @@ function Marco({
                 relevo && HOJA_SIN_TRANSICION,
             )}
         >
-            <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
-                <div className="flex min-w-0 items-center gap-2">
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                        <Users className="h-4 w-4" />
-                    </span>
-                    <h2 className="truncate text-base font-semibold">Chat del equipo</h2>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                    <Campana sonido={sonido} />
-                    <AvisosDelNavegador />
-                    <button
-                    type="button"
-                    onClick={onCerrar}
-                    aria-label="Cerrar chat del equipo"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-            </header>
-
+            {/* La cabecera de 78 px la pinta el hilo, porque su SEGUNDA fila
+                —el canal abierto con volver, llamar, reunión y «⋯», o el
+                rótulo de la lista— es suya. Aquí va la primera: el título y
+                sus iconos de cabecera. */}
             <div className="flex min-h-0 flex-1 flex-col">
                 {/* El reloj y la carga solo corren con el panel abierto: con él
                     cerrado no hay nadie mirando, y esto cuelga de TODAS las
@@ -163,6 +149,24 @@ function Marco({
                     activo={abierto}
                     cuentaId={cuentaId}
                     personaId={personaId}
+                    filaDeArriba={
+                        <>
+                            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                <Users className="h-4 w-4" />
+                            </span>
+                            <h2 className="min-w-0 flex-1 truncate text-base font-semibold">Chat del equipo</h2>
+                            <Campana sonido={sonido} />
+                            <AvisosDelNavegador />
+                            <button
+                                type="button"
+                                onClick={onCerrar}
+                                aria-label="Cerrar chat del equipo"
+                                className={BOTON_DE_CABECERA}
+                            >
+                                <X className={GLIFO_DE_CONTROL} />
+                            </button>
+                        </>
+                    }
                 />
             </div>
         </section>
@@ -170,8 +174,7 @@ function Marco({
 }
 
 /** El aspecto de los tres botones de la cabecera. Escrito una vez. */
-const BOTON_DE_CABECERA =
-    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
+const BOTON_DE_CABECERA = BOTON_DE_LA_CABECERA_DEL_PANEL;
 
 /**
  * El sonido, de un toque.
@@ -226,7 +229,7 @@ function Campana({ sonido }: { sonido: boolean }) {
             title={encendido ? "Sonido activado" : "Sonido silenciado"}
             className={cn(BOTON_DE_CABECERA, encendido && "text-primary")}
         >
-            {encendido ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+            {encendido ? <Bell className={GLIFO_DE_CONTROL} /> : <BellOff className={GLIFO_DE_CONTROL} />}
         </button>
     );
 }
@@ -342,7 +345,7 @@ function AvisosDelNavegador() {
             }
             className={cn(BOTON_DE_CABECERA, encendido && "text-primary")}
         >
-            <BellRing className="h-4 w-4" />
+            <BellRing className={GLIFO_DE_CONTROL} />
         </button>
     );
 }

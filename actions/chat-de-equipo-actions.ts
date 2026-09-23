@@ -440,6 +440,15 @@ export async function hiloDelEquipoAction(
      * aprendería a despachar sin leer.
      */
     deRecuerdo?: boolean,
+    /**
+     * Si el hilo NO se tiene delante: el panel está en su vista de LISTA.
+     *
+     * El reloj sigue trayendo el canal —la lista de canales viaja en la misma
+     * respuesta—, pero con la lista delante ese hilo no lo está leyendo nadie.
+     * Marcarlo leído ahí daría por vistos los mensajes que entraran mientras
+     * tanto, y un mensaje que se pierde así no vuelve a avisar nunca.
+     */
+    sinMarcar?: boolean,
 ): Promise<Respuesta<HiloAbierto>> {
     try {
         const quien = await quienYDonde();
@@ -526,7 +535,7 @@ export async function hiloDelEquipoAction(
         // hacer. Pero no es mudo — una marca que no se guarda se ve como un
         // contador que no baja.
         const ultimo = mensajes[mensajes.length - 1];
-        if (ultimo) {
+        if (ultimo && !sinMarcar) {
             await marcarLeido(quien.persona.id, canal.id, new Date(ultimo.creadoEn)).catch(
                 (error) => {
                     console.warn("[chat-equipo] no se pudo marcar el canal como leído", {
