@@ -10,6 +10,7 @@ import {
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
+import { ensureResolvedAtColumn as asegurarColumnaResolvedAt } from '@/lib/session-resolved';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -1946,6 +1947,9 @@ export async function contarChatsPorLinea(params: {
     //
     // Asi son dos pasadas y ya: la tabla de marcas es pequeña -solo hay fila
     // por chat borrado o archivado- y entra entera en memoria.
+    // `resolved_at` se crea en caliente (ver lib/session-resolved.ts); sin la
+    // columna la consulta caeria con 42703 y el numero volveria a lo cargado.
+    await asegurarColumnaResolvedAt();
     const filas = await db.$queryRaw<{ linea: string | null; total: bigint }[]>`
       WITH marcas AS (
         SELECT DISTINCT "userId", "remoteJid"
@@ -1953,8 +1957,8 @@ export async function contarChatsPorLinea(params: {
         WHERE "userId" IN (${Prisma.join(userIds)})
           AND ("deletedAt" IS NOT NULL OR "archivedAt" IS NOT NULL)
       )
-      SELECT linea, SUM(total)::bigint AS total FROM (
-        SELECT s."instanceId" AS linea, COUNT(DISTINCT s."remoteJid") AS total
+      SELECT linea, COUNT(DISTINCT jid)::bigint AS total FROM (
+        SELECT s."instanceId" AS linea, s."remoteJid" AS jid
         FROM "Session" s
         LEFT JOIN marcas m  ON m."userId"  = s."userId" AND m."remoteJid"  = s."remoteJid"
         LEFT JOIN marcas ma ON ma."userId" = s."userId" AND ma."remoteJid" = s."remoteJidAlt"
@@ -1963,28 +1967,43 @@ export async function contarChatsPorLinea(params: {
           ${lineas.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(lineas)})` : Prisma.empty}
           AND m."remoteJid" IS NULL
           AND ma."remoteJid" IS NULL
-        GROUP BY s."instanceId"
+          -- Y SIN LAS RESUELTAS, que la lista no enseña bajo «Todos». Resuelta
+          -- es la regla de estaResuelta (lib/total-de-todos.ts): tener la marca
+          -- y que no haya llegado nada despues. Sin esto, resolver sacaba la
+          -- fila y el numero no bajaba ni recargando.
+          --
+          -- El EXISTS solo se evalua para las que tienen marca (el OR corta
+          -- antes), y entra por el indice unico (userId, instanceName, remoteJid).
+          AND (
+            s.resolved_at IS NULL
+            OR EXISTS (
+              SELECT 1 FROM "chat_conversations" cc
+              WHERE cc."userId" = s."userId"
+                AND cc."instanceName" = s."instanceId"
+                AND cc."remoteJid" IN (s."remoteJid", s."remoteJidAlt")
+                AND cc."lastMessageTimestamp" > s.resolved_at
+            )
+          )
 
-        UNION ALL
+        UNION
 
-        -- Y LOS GRUPOS, que no tienen ficha en Session y nunca la tendran: un
-        -- grupo no es un lead. Contaban cero mientras la lista si los enseña, y
-        -- eso es el fallo de siempre —un filtro que ofrece un numero al que no
-        -- se puede llegar—, del reves: la lista enseñaba MAS de lo que el
-        -- numero prometia, y solo en las lineas grandes, donde el Math.max
-        -- del navegador ya no lo tapa.
+        -- Y LOS GRUPOS SIN FICHA. Un grupo no siempre tiene Session, y la lista
+        -- si los enseña: contaban cero, que es el fallo de siempre —un filtro
+        -- que ofrece un numero al que no se puede llegar—, del reves.
         --
-        -- Sale de chat_conversations, que es donde vive un grupo, por
-        -- (userId, instanceName, remoteJid) -su indice unico-. Y descuenta las
-        -- mismas marcas, o vuelve el fallo de borrar y ver el numero igual.
-        SELECT c."instanceName" AS linea, COUNT(DISTINCT c."remoteJid") AS total
+        -- Los que SI tienen ficha ya salen arriba (con su marca de resuelto), y
+        -- el UNION con COUNT DISTINCT hace que no se cuenten dos veces: antes
+        -- las dos ramas se SUMABAN y un grupo con ficha contaba doble.
+        SELECT c."instanceName" AS linea, c."remoteJid" AS jid
         FROM "chat_conversations" c
         LEFT JOIN marcas mg ON mg."userId" = c."userId" AND mg."remoteJid" = c."remoteJid"
+        LEFT JOIN "Session" sg
+          ON sg."userId" = c."userId" AND sg."instanceId" = c."instanceName" AND sg."remoteJid" = c."remoteJid"
         WHERE c."userId" IN (${Prisma.join(userIds)})
           AND c."remoteJid" LIKE '%@g.us'
           ${lineas.length ? Prisma.sql`AND c."instanceName" IN (${Prisma.join(lineas)})` : Prisma.empty}
           AND mg."remoteJid" IS NULL
-        GROUP BY c."instanceName"
+          AND sg."id" IS NULL
       ) AS todo
       GROUP BY linea
     `;

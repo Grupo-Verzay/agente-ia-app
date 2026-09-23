@@ -85,6 +85,7 @@ import {
 import { avatarSrcFor } from "@/lib/avatar";
 import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
+import { estaResuelta, totalesDeTodos, type FilaDelConteo } from "@/lib/total-de-todos";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
   ChatConversationPreference,
@@ -1564,9 +1565,11 @@ export function ChatsClient({
    * JSON de ningun mensaje). Cuando una linea no esta ahi -no llego el conteo,
    * o es una linea sin sesiones- se cuenta lo cargado, que es lo de antes.
    *
-   * Sigue descontando eliminadas y archivadas por los dos caminos: el servidor
-   * ya se las quita, y aqui se quitan tambien las que el asesor acaba de tocar,
-   * porque limpiar chats tiene que bajar el numero al momento.
+   * Cuenta lo MISMO que la lista enseña bajo «Todos»: sin borradas, sin
+   * archivadas y sin resueltas, por los dos caminos. El servidor ya se las
+   * quita, y aqui se corrige su numero con lo que cambio despues —resolver,
+   * reabrir, archivar, borrar— para que baje y suba al momento
+   * (`totalesDeTodos`, en `lib/total-de-todos.ts`).
    */
   /**
    * Los contactos que estan en mas de una linea.
@@ -1581,31 +1584,51 @@ export function ChatsClient({
     [currentChatsResult],
   );
 
+  // Lo que el `COUNT` del servidor dio por hecho de cada fila, para poder
+  // corregirlo en vivo (ver `totalesDeTodos`). Se vacia cuando llega un numero
+  // nuevo del servidor: ese ya trae los cambios de antes.
+  const baseDeTodos = useRef<{ de: Record<string, number> | undefined; filas: Map<string, boolean> }>({
+    de: conteosPorLinea,
+    filas: new Map(),
+  });
+
   const channelCounts = useMemo((): Record<string, number> => {
     if (!currentChatsResult.success) return {};
-    const cargadas: Record<string, number> = {};
+    if (baseDeTodos.current.de !== conteosPorLinea) {
+      baseDeTodos.current = { de: conteosPorLinea, filas: new Map() };
+    }
+
+    // Las mismas que la lista enseña bajo «Todos»: ni borradas, ni archivadas,
+    // ni resueltas. Las resueltas contaban aqui y en el servidor, asi que
+    // resolver sacaba la fila y el numero no se movia ni recargando.
+    const filas: FilaDelConteo[] = [];
+    const vistas = new Set<string>();
     for (const chat of currentChatsResult.data) {
       if (!chat.instanceName) continue;
+      const clave = `${chat.instanceName}::${chat.remoteJid}`;
+      if (vistas.has(clave)) continue;
+      vistas.add(clave);
       const preference = getPreferenceForChat(
         chat,
         chatPreferences,
         ownerForChat(chat),
         repartidasEntreLineas,
       );
-      if (isChatDeletedByPreference(chat, preference) || preference?.isArchived) continue;
-      cargadas[chat.instanceName] = (cargadas[chat.instanceName] ?? 0) + 1;
+      const session = getSessionForChat(chat, chatSessions) ?? null;
+      const resuelta = estaResuelta(
+        epochToMs(chat.lastMessage?.messageTimestamp),
+        session?.resolvedAt,
+      );
+      filas.push({
+        clave,
+        linea: chat.instanceName,
+        conSesion: !!session,
+        activa: !isChatDeletedByPreference(chat, preference) && !preference?.isArchived && !resuelta,
+      });
     }
 
-    if (!conteosPorLinea) return cargadas;
-
-    const counts: Record<string, number> = { ...cargadas };
-    for (const [linea, total] of Object.entries(conteosPorLinea)) {
-      // El del servidor manda salvo que la pantalla ya vea mas: puede haber
-      // conversaciones que WhatsApp devuelve y todavia no tienen ficha.
-      counts[linea] = Math.max(total, cargadas[linea] ?? 0);
-    }
-    return counts;
-  }, [currentChatsResult, chatPreferences, ownerForChat, conteosPorLinea, repartidasEntreLineas]);
+    return totalesDeTodos(filas, conteosPorLinea, baseDeTodos.current.filas);
+  }, [currentChatsResult, chatPreferences, chatSessions, ownerForChat, conteosPorLinea, repartidasEntreLineas]);
 
   const filteredSidebarResult = useMemo((): FetchChatsResult => {
     if (!selectedChannel || !sidebarResult.success) return sidebarResult;

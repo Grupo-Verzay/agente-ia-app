@@ -4,6 +4,7 @@ import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { resolveSession, resolverSesionesAction } from "@/actions/advisor-assign-actions";
+import { estaResuelta } from "@/lib/total-de-todos";
 import { getSessionIdsWithNotesAction } from "@/actions/internal-notes-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { updateLeadPushNameAction } from "@/actions/registro-action";
@@ -133,11 +134,10 @@ const MAX_CHATS_VISTOS = 1000;
  * cambie nada.
  */
 function esResuelta(c: SidebarContact): boolean {
-  const resueltaEn = c.chatSession?.resolvedAt;
-  if (!resueltaEn) return false;
-
-  // `ts` ya viene en milisegundos (epochToMs), igual que la marca.
-  return c.ts <= resueltaEn;
+  // `ts` ya viene en milisegundos (epochToMs), igual que la marca. La regla
+  // vive en `lib/total-de-todos` porque el numero de «Todos» usa la MISMA: con
+  // dos copias, la fila saldria de la lista y seguiria contando.
+  return estaResuelta(c.ts, c.chatSession?.resolvedAt);
 }
 
 const SIDEBAR_VIRTUALIZE_AFTER = 50;
