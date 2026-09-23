@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { idDeWhatsapp } from '@/lib/id-de-whatsapp';
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { miniaturaDelAnuncio } from '@/lib/miniatura-del-anuncio';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
@@ -176,14 +177,7 @@ export function extensionDeArchivo(valor?: string | null): string {
  * intactos: no empiezan por `true_`/`false_`, y un `wamid` de Meta puede llevar
  * guiones bajos dentro.
  */
-export function idDeWhatsapp(id?: string | null): string {
-  const limpio = (id ?? '').trim();
-  const partes = limpio.split('_');
-  if (partes.length >= 3 && (partes[0] === 'true' || partes[0] === 'false')) {
-    return partes[2];
-  }
-  return limpio;
-}
+export { idDeWhatsapp };
 
 /**
  * ¿Esta version del mensaje tiene algo que pintar?
