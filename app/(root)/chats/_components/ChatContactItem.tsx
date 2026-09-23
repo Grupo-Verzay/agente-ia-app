@@ -38,24 +38,7 @@ import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
-
-const INSTANCE_COLORS = ["bg-violet-500","bg-blue-500","bg-emerald-500","bg-orange-500","bg-pink-500","bg-cyan-500","bg-amber-500"];
-function instanceColor(name: string): string {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
-  return INSTANCE_COLORS[h % INSTANCE_COLORS.length];
-}
-
-function shortInstanceLabel(name: string): string {
-  const clean = name.replace(/_(wh|tg|fb|ig)$/i, "").trim();
-  const pipeParts = clean.split("|").map((part) => part.trim()).filter(Boolean);
-  if (pipeParts.length > 1) return pipeParts[pipeParts.length - 1];
-
-  const parts = clean.split(/[_\s-]+/).map((part) => part.trim()).filter(Boolean);
-  if (parts.length > 1) return parts[parts.length - 1];
-
-  return clean;
-}
+import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 
 function contactInitials(name: string) {
   const clean = name
@@ -507,21 +490,10 @@ function ChatContactItemBase({
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {showInstanceBadge && contact.instanceName && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="flex max-w-[86px] items-center gap-0.5 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium leading-3 text-muted-foreground cursor-default">
-                          <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${instanceColor(contact.instanceName)}`} />
-                          <span className="truncate">
-                            {shortInstanceLabel(contact.instanceDisplayName ?? contact.instanceName)}
-                          </span>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6} className="z-[9999]">
-                        <p className="text-xs font-semibold">{contact.instanceDisplayName ?? contact.instanceName}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <InsigniaDeLinea
+                    clave={contact.instanceName}
+                    nombre={contact.instanceDisplayName ?? contact.instanceName}
+                  />
                 )}
                 {isUnread && (
                   <span className="inline-block h-2 w-2 rounded-full bg-primary" />

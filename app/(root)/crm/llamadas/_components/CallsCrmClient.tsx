@@ -66,7 +66,7 @@ import { startBotCallAction } from '@/actions/voicebot-actions';
 import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
 import { DialogoDeLlamar } from './DialogoDeLlamar';
 import { DIAS_POR_DEFECTO } from './rango-de-dias';
-import { InsigniaDeCuenta } from '@/components/shared/InsigniaDeCuenta';
+import { InsigniaDeLinea } from '@/components/shared/InsigniaDeLinea';
 import { esDeOtraCuentaDelCrm } from '@/lib/crm-de-la-familia';
 import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { CallDetailDialog } from './CallDetailDialog';
@@ -631,7 +631,6 @@ export function CallsCrmClient({
               <table data-tabla-de-llamadas className="w-full table-auto text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    {unificado && <Th label="Cuenta" sort={sort} onSort={toggleSort} />}
                     <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} />
                     <Th label="Nombre" sortKey="nombre" sort={sort} onSort={toggleSort} />
                     <Th label="Duración" sortKey="duracion" sort={sort} onSort={toggleSort} />
@@ -960,11 +959,6 @@ function CallTableRow({
   return (
     <>
     <tr className="border-b last:border-0 align-top hover:bg-muted/40">
-      {nombreDeLaCuenta !== undefined && (
-        <td className="px-2 py-2 text-left whitespace-nowrap">
-          <InsigniaDeCuenta nombre={nombreDeLaCuenta} />
-        </td>
-      )}
       {/* Contacto: el número, A LA IZQUIERDA y en azul, que es como lo pinta
           Leads —misma clase, no una parecida—. Es lo que se pulsa para abrir
           el chat, y centrado no se puede comparar con el de la fila de arriba. */}
@@ -978,13 +972,28 @@ function CallTableRow({
           <span className="whitespace-nowrap font-medium tabular-nums">{formatPhone(call.phone)}</span>
         </button>
       </td>
-      {/* Nombre: su propia columna, como en Leads, y no colgado bajo el número. */}
+      {/* Nombre: su propia columna, como en Leads, y no colgado bajo el número.
+          Consolidando, pegado a su derecha va «● Ventas»: de qué cuenta es la
+          llamada, con la MISMA marca y el mismo color que la lista de Chats
+          (`InsigniaDeLinea`). Antes era una columna «Cuenta» entera, la
+          primera, con el nombre largo —«Verzay | Ventas»— en una pastilla:
+          ocupaba la columna que se lee primero para decir algo que se mira de
+          reojo. El color sale de la LÍNEA (`instanceName`), que es la llave
+          con que lo pinta Chats; sin línea, del nombre de la cuenta. */}
       <td className="px-2 py-2 text-left">
-        {ajena ? (
-          name ? <p className="max-w-[10rem] truncate text-muted-foreground">{name}</p> : <span className="text-muted-foreground">—</span>
-        ) : (
-          <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
-        )}
+        <div className="flex min-w-0 items-center gap-1.5">
+          {ajena ? (
+            name ? <p className="max-w-[10rem] truncate text-muted-foreground">{name}</p> : <span className="text-muted-foreground">—</span>
+          ) : (
+            <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
+          )}
+          {nombreDeLaCuenta !== undefined && (
+            <InsigniaDeLinea
+              clave={call.instanceName || nombreDeLaCuenta}
+              nombre={nombreDeLaCuenta || call.instanceName || '—'}
+            />
+          )}
+        </div>
       </td>
       {/* Duración */}
       <td className="px-2 py-2 text-left whitespace-nowrap tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>

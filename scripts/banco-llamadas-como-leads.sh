@@ -86,6 +86,7 @@ npx esbuild "$ENTRY" --bundle --format=esm \
   --alias:@/actions/voicebot-actions=./lib/__tests__/fingido/acciones-de-llamadas-mudas.ts \
   --alias:@/actions/crm-follow-up-actions=./lib/__tests__/fingido/acciones-de-llamadas-mudas.ts \
   --alias:@/components/chats/AnfitrionDeLlamada=./lib/__tests__/fingido/anfitrion-mudo.ts \
+  --alias:@/actions/cuentas-para-llamar-actions=./lib/__tests__/fingido/cuentas-para-llamar-de-mentira.ts \
   --alias:next/navigation=./lib/__tests__/fingido/next-navigation-mudo.ts \
   --alias:sonner=./lib/__tests__/fingido/sonner-mudo.ts \
   --loader:.tsx=tsx --jsx=automatic \
