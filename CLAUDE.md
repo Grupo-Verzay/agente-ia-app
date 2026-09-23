@@ -6957,6 +6957,47 @@ volver a grabar.
 ya está instalado; lo que no se ha visto correr es la unión contra un bucket de
 verdad. Si algo falla en producción, **ese es el sitio donde mirar primero**.
 
+## Reuniones: las grabaciones son su PROPIA pestaña, con miniatura
+
+Las grabaciones se pintaban dentro de la fila de su reunión, y esa fila es un
+`flex` en línea (título, Entrar, copiar, «⋯»): el bloque caía como un hijo más
+y el `<video className="w-full">` se quedaba con todo el ancho que sobraba. Una
+sola grabación empujaba las demás reuniones fuera de la vista.
+
+> **Reuniones es a cuál entrar; Grabaciones es qué ver de lo que ya pasó.**
+> Van separadas: «Grabaciones» es la tercera pestaña, junto a Abiertas y
+> Pasadas, con su contador, y **solo sale con el módulo de grabación**
+> (`puedeGrabar`, del servidor). Ninguna fila de reunión lleva un medio dentro.
+
+Cuatro cosas que hay que mantener:
+
+1. **Cada grabación es una fila con una miniatura de tamaño FIJO**
+   (`MINIATURA`, 128×72 como mucho, en `components/reuniones/ListaDeGrabaciones.tsx`)
+   y su botón de ampliar. La fila conserva la hora, el peso, quién la grabó,
+   Descargar y Transcribir con sus créditos. Lo que no se puede reproducir
+   —grabando, fallida, borrada— ocupa el mismo hueco con su icono.
+2. **Ampliar abre el video grande en un diálogo**, y el video vive DENTRO del
+   diálogo: cerrar lo desmonta y para la reproducción. La miniatura va con
+   `preload="metadata"` y `#t=0.1`, nunca `auto`.
+3. **La lista es plana y la más reciente arriba** (`lasGrabacionesEnLista`,
+   `lib/grabaciones-de-la-pantalla.ts`, puro), con el título de su reunión
+   dentro. Una grabación cuya reunión no está en la pantalla sale igual.
+4. **El alcance es hacia abajo**: la lista y `transcribirLaReunionAction`
+   filtran con `lasQueAlcanza` sobre `lasCuentasQueConsultaElCrm` —lo propio y
+   lo que cuelga de ella; un `agente`, su cuenta—. Antes era solo la cuenta
+   propia, así que la madre no veía las grabaciones de sus hijas. Y transcribir
+   una de una hija cobra a la familia de esa grabación, no a la de quien pulsa.
+
+**Lo que NO se tocó**: la lista de salas (Abiertas y Pasadas) sigue
+alcanzando por `laFamiliaDeLaCuenta`, o sea la familia entera, hacia arriba
+también. Queda abierto.
+
+Lo prueba `scripts/banco-grabaciones-de-reuniones.sh`: la decisión pura, las
+acciones contra Postgres (madre, hija, hermana, agente y una ajena) y la
+pantalla pintada en Chromium sobre el CSS del build a 1440/1280/1024/390.
+`MODO=roto` pinta el `ReunionesClient` de `ANTES_REF` y lleva el filtro viejo
+dentro, y afirma los fallos.
+
 ## Reuniones: el video llena la CAJA, y los mandos flotan y se apartan
 
 La sala tenía dos franjas propias —la cabecera arriba y la barra de mandos
