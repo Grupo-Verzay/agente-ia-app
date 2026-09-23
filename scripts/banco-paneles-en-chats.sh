@@ -7,6 +7,13 @@
 # maqueta que no monte esa cabecera. La semilla es la del banco de la barra.
 #
 # Uso:  scripts/banco-paneles-en-chats.sh      (hace falta `npx next build` antes)
+#
+# Y una segunda sonda, `probar-menus-de-la-cabecera.mjs`: los cinco menús de la
+# cabecera (Macros, Etiquetas, Cita, Registros y Acciones) cuelgan de SU botón
+# con y sin panel lateral, a cuatro anchuras. `MODO=roto` exige que FALLE, y se
+# corre con un `.next` construido desde el commit de antes (d97ec9f): ahí la
+# cita, Macros y Registros se corren 47-103 px a la derecha de su botón a 1024
+# con la ficha o un panel abierto.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -71,3 +78,13 @@ if ! curl -sf -o /dev/null "http://localhost:$APP/login"; then
 fi
 
 node scripts/probar-paneles-en-chats.mjs
+
+if [ "${MODO:-bueno}" = roto ]; then
+  if node scripts/probar-menus-de-la-cabecera.mjs; then
+    echo "MODO=roto: los menús de la cabecera salieron bien — este .next no es el de antes, o el caso no se ejerce" >&2
+    exit 1
+  fi
+  echo "MODO=roto: reproduce el fallo — los menús de la cabecera no cuelgan de su botón"
+else
+  node scripts/probar-menus-de-la-cabecera.mjs
+fi

@@ -15004,9 +15004,9 @@ el centro de la conversación.
 > La usan `cabecera()` y `colgadoDelIcono()` (el menú de llamar, que antes
 > nacía por su filo izquierdo). Nunca se pasa a `align="start"`.
 
-Cuando a la izquierda del botón no cabe el ancho pedido —un icono pegado al
-borde de una cabecera estrecha, que en el móvil es el de llamar— se **corre a la
-derecha lo justo** para quedar dentro (`alignOffset` negativo: con
+Cuando a la izquierda del botón no cabe el ancho pedido **en la pantalla** —un
+icono pegado al borde izquierdo, que en el móvil es el de llamar— se **corre a
+la derecha lo justo** para no salirse (`alignOffset` negativo: con
 `align="end"`, negativo mueve a la derecha). Para el menú de llamar, que no tiene
 ancho escrito, esa cuenta usa `ANCHO_DEL_MENU_CORTO`.
 
@@ -15446,6 +15446,35 @@ Cinco cosas que hay que mantener:
    `banco-paneles-flotantes` pintaba uno, y por eso estaba verde con el fallo
    en producción: *un arnés que no reproduce cuántas veces se monta algo no
    prueba cómo se mide.*
+
+### Y lo que acota un menú es la PANTALLA, no la cabecera
+
+Con la regla de arriba puesta, la Cita agendada, Registros del lead y Macros
+seguían naciendo desplazados de su botón en cuanto la conversación se
+estrechaba —la ficha o un panel lateral abiertos—. `colgarDelFiloDerecho`
+medía «¿cabe a la izquierda del botón?» contra el borde de la **cabecera**: a
+1024 con un panel abierto la conversación mide 260 px, el panel pide 219, y los
+que caen lejos del filo derecho se corrían a la derecha para no pasar de ese
+borde. Medido sobre la página servida: cita **+103 px**, Macros +93,
+Registros +47. Acciones y Etiquetas, pegados al filo derecho, no se movían, y
+por eso parecía un fallo de unos pocos.
+
+> **A la izquierda de la cabecera está la columna de chats, y eso es
+> pantalla.** El menú se corre solo cuando se saldría de la VENTANA, y lo
+> justo para quedar a `MARGEN_DE_LA_VENTANA` de su borde. Nunca cambia de
+> lado ni se centra.
+
+Y de paso es más robusto: en el caso normal el corrimiento es 0, así que si la
+cabecera cambia de ancho con el menú abierto Radix lo mantiene pegado al botón
+en vez de arrastrar un desfase calculado al abrir. El hook le pasa
+`document.documentElement.clientWidth`.
+
+Lo prueba `scripts/probar-menus-de-la-cabecera.mjs` (lo corre
+`banco-paneles-en-chats.sh`): los cinco menús, sin panel, con la ficha y con
+«Nueva tarea» abiertos, a 1440/1366/1280/1024, sobre la página servida. El
+botón se mide **después** de pulsarlo: la fila de iconos se desplaza en
+horizontal y Playwright la mueve al hacer clic. `MODO=roto` con un `.next` del
+commit de antes afirma los seis desfases.
 
 Lo comprueba `scripts/banco-paneles-de-chats.sh` —barrido del código, la
 exclusión con el hook real y los menús pintados por Radix, en dos modos; el

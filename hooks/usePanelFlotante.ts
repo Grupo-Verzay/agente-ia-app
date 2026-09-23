@@ -158,12 +158,23 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
                     (n) => n.getBoundingClientRect().width > 0,
                 );
                 const desde = macros ? caja(macros).left : undefined;
-                const g = cabecera(contCaja, dispCaja, primitiva, desde);
+                const g = cabecera(
+                    contCaja,
+                    dispCaja,
+                    primitiva,
+                    desde,
+                    document.documentElement.clientWidth,
+                );
                 setProps({ ...g, style: g.estilo });
                 return;
             }
             if (clase === "colgadoDelIcono") {
-                const g = colgadoDelIcono(contCaja, dispCaja, primitiva);
+                const g = colgadoDelIcono(
+                    contCaja,
+                    dispCaja,
+                    primitiva,
+                    document.documentElement.clientWidth,
+                );
                 setProps({ ...g, style: g.estilo });
                 return;
             }

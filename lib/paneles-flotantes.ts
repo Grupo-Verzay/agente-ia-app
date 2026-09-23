@@ -270,6 +270,7 @@ export function cabecera(
     disparador: Caja,
     primitiva: Primitiva,
     desde?: number,
+    anchoDeLaVentana: number = Number.POSITIVE_INFINITY,
 ): Geometria {
     // Un `desde` fuera de la cabecera no es una medida: es la copia de Macros
     // de la fila del MÓVIL, que va `md:hidden` y mide 0×0 en el origen. Con
@@ -296,7 +297,7 @@ export function cabecera(
         desdeValido === undefined
             ? undefined
             : Math.max(ANCHO_MINIMO_DE_LA_CABECERA, Math.round(cabeceraCaja.right - desdeValido));
-    return colgarDelFiloDerecho(cabeceraCaja, disparador, deseado, primitiva);
+    return colgarDelFiloDerecho(cabeceraCaja, disparador, deseado, primitiva, anchoDeLaVentana);
 }
 
 /**
@@ -317,11 +318,18 @@ export function colgadoDelIcono(
     cabeceraCaja: Caja,
     disparador: Caja,
     primitiva: Primitiva,
+    anchoDeLaVentana: number = Number.POSITIVE_INFINITY,
 ): Geometria {
     // Sin ancho escrito: el menú mide lo que ocupan sus dos entradas (`w-max`).
     // `ANCHO_DEL_MENU_CORTO` solo decide si hace falta correrlo para que no se
     // salga por la izquierda cuando el icono está pegado a ese borde.
-    const g = colgarDelFiloDerecho(cabeceraCaja, disparador, ANCHO_DEL_MENU_CORTO, primitiva);
+    const g = colgarDelFiloDerecho(
+        cabeceraCaja,
+        disparador,
+        ANCHO_DEL_MENU_CORTO,
+        primitiva,
+        anchoDeLaVentana,
+    );
     const { width: _sinAncho, ...estilo } = g.estilo;
     return { ...g, estilo };
 }
@@ -339,24 +347,44 @@ export const ANCHO_DEL_MENU_CORTO = 176;
  * con el filo derecho en el filo derecho del botón y creciendo hacia la
  * IZQUIERDA, bajo la cabecera entera.
  *
- * `ancho` es lo que el panel pide (`undefined` = el suyo, sin tocar). Cuando no
- * cabe a la izquierda del botón —un icono pegado al borde izquierdo de una
- * cabecera estrecha, que en un móvil es el caso del de llamar— se CORRE a la
- * derecha lo justo para no salirse (`alignOffset` negativo: con `align="end"`
- * un positivo mueve a la izquierda y un negativo a la derecha; al revés no da
- * error, deja el panel al otro lado). Nunca pasa a `align="start"`: eso es lo
- * que hacía que la cita naciera en el centro.
+ * `ancho` es lo que el panel pide (`undefined` = el suyo, sin tocar).
+ *
+ * # Lo que acota es la PANTALLA, no la cabecera
+ *
+ * Esto medía «¿cabe a la izquierda del botón?» contra el borde izquierdo de la
+ * CABECERA. Con la ficha de contacto o un panel lateral abierto la
+ * conversación se queda en 260 px, el panel pide 219 y la cita, Registros del
+ * lead y Macros —que caen lejos del filo derecho— se corrían 50-100 px a la
+ * derecha para no pasar de ese borde: el menú dejaba de colgar de su botón y
+ * nacía debajo de otro. Medido sobre la página servida a 1024 px, con la ficha
+ * abierta: cita +103 px, Macros +93, Registros +47. Y como el corrimiento se
+ * calcula una vez al abrir, cualquier cambio de ancho posterior lo dejaba
+ * además desfasado.
+ *
+ * A la izquierda de la cabecera está la columna de chats, que es PANTALLA: un
+ * menú puede pasar por encima de ella sin salirse de nada. Así que solo se
+ * corre cuando se saldría de la VENTANA, y lo justo para quedar a
+ * `MARGEN_DE_LA_VENTANA` de su borde. En el caso normal el corrimiento es 0 y
+ * Radix lo mantiene pegado al botón aunque la cabecera cambie de ancho con el
+ * menú abierto.
+ *
+ * `alignOffset` negativo: con `align="end"` un positivo mueve a la izquierda y
+ * un negativo a la derecha; al revés no da error, deja el panel al otro lado.
+ * **Nunca pasa a `align="start"` ni a `"center"`**: eso es lo que hacía que la
+ * cita naciera en el centro o hacia la derecha.
  */
 export function colgarDelFiloDerecho(
     cabeceraCaja: Caja,
     disparador: Caja,
     ancho: number | undefined,
     primitiva: Primitiva,
+    anchoDeLaVentana: number = Number.POSITIVE_INFINITY,
 ): Geometria {
-    const anchoDeLaCabecera = Math.max(0, cabeceraCaja.right - cabeceraCaja.left - MARGEN_DE_LA_VENTANA * 2);
-    // Lo que hay del filo del botón al borde izquierdo de la cabecera.
-    const aLaIzquierda = Math.max(0, disparador.right - cabeceraCaja.left - MARGEN_DE_LA_VENTANA);
-    const mide = ancho === undefined ? undefined : Math.min(ancho, anchoDeLaCabecera);
+    // Lo más ancho que cabe en la ventana, con su margen a cada lado.
+    const cabeEnLaVentana = Math.max(0, anchoDeLaVentana - MARGEN_DE_LA_VENTANA * 2);
+    // Lo que hay del filo del botón al borde izquierdo de la VENTANA.
+    const aLaIzquierda = Math.max(0, disparador.right - MARGEN_DE_LA_VENTANA);
+    const mide = ancho === undefined ? undefined : Math.min(ancho, cabeEnLaVentana);
     const corrimiento = mide !== undefined && mide > aLaIzquierda ? Math.round(mide - aLaIzquierda) : 0;
     return {
         side: "bottom",
@@ -367,7 +395,7 @@ export function colgarDelFiloDerecho(
         avoidCollisions: false,
         estilo: {
             ...(mide === undefined ? {} : { width: `${mide}px` }),
-            maxWidth: `${mide ?? Math.round(aLaIzquierda)}px`,
+            maxWidth: `${mide ?? Math.round(Math.min(aLaIzquierda, cabeEnLaVentana))}px`,
             maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
         },
     };
