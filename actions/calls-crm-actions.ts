@@ -299,11 +299,24 @@ export async function setCallDisposition(
   disposition: string,
 ): Promise<{ success: boolean; message?: string }> {
   const me = await currentUser();
-  const scopeIds = Array.from(
-    new Set([me?.effectiveId, me?.ownerId, me?.id].filter(Boolean)),
-  ) as string[];
-  if (scopeIds.length === 0) return { success: false, message: 'No autorizado.' };
+  if (!me?.effectiveId) return { success: false, message: 'No autorizado.' };
   if (!isCallDisposition(disposition)) return { success: false, message: 'Resultado inválido.' };
+  // El MISMO alcance con el que `getCallsCrmData` enseñó la fila: la cuenta
+  // propia, lo que cuelga de ella HACIA ABAJO y las variantes de su identidad.
+  // Con solo las de su identidad, la llamada de una cuenta hija se veía y no se
+  // podía marcar (la pantalla pintaba un «—»). Nunca la madre ni una hermana:
+  // eso lo decide `lasCuentasQueConsultaElCrm`, no el navegador.
+  const scopeIds = Array.from(
+    new Set(
+      [
+        ...(await lasCuentasQueConsultaElCrm(me.effectiveId)),
+        me.effectiveId,
+        me.ownerId,
+        me.id,
+        (me as any).sessionUserId,
+      ].filter(Boolean),
+    ),
+  ) as string[];
 
   let id: bigint;
   try {
