@@ -16188,6 +16188,14 @@ Cuatro arreglos del diálogo «Detalle de la llamada», y la regla de cada uno:
    lleva iconos: no es una conversación.
 4. **Sin «Cerrar» abajo**: el diálogo se cierra con la X, y sin pie no queda una
    fila vacía.
+5. **El rótulo «Grabación» lleva la ONDA de sonido** (`AudioWaveform`), con la
+   misma caja que los de Resumen IA y Transcripción. No un micrófono: la nota
+   ya trae el suyo y quedarían dos.
+6. **En el detalle la nota ocupa todo su recuadro** (`NotaDeVozSuelta
+   ancho="w-full"`). Cambia solo el largo; el diseño y la duración al abrir son
+   los de Chats, y en Chats sigue a 350 px (`ANCHO_DE_LA_NOTA`). Lo prueba
+   `scripts/banco-grabacion-del-detalle.sh`, en dos modos, midiendo los iconos
+   contra los de los otros dos rótulos en la misma página.
 
 Lo prueba `scripts/banco-detalle-de-llamada.sh`, en dos modos: la regla pura y
 el diálogo real en Chromium. `MODO=roto` saca los ficheros de `ANTES_REF` con
