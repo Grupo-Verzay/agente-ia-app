@@ -24,8 +24,9 @@ const { chromium } = require("playwright");
 const BASE = process.env.BASE ?? "http://localhost:3931";
 const JID = process.env.CHAT_JID ?? "573001112233@s.whatsapp.net";
 const LINEA = process.env.CHAT_LINEA ?? "BANCO_VENTAS";
-const MARGEN = Number(process.env.MARGEN ?? 16);
+const MARGEN = Number(process.env.MARGEN ?? 6);
 const TOLERANCIA = 1;
+const LADO = Number(process.env.LADO ?? 28);
 
 const fallos = [];
 const exigir = (bien, que) => {
@@ -106,6 +107,16 @@ function medir() {
         acciones: caja(acciones),
         convPanel: caja(cabConv),
         textoPestana: textoPestana ? { l: textoPestana.left } : { l: NaN },
+        // Los controles de icono de la fila de arriba de las dos cabeceras: el
+        // embudo, asesores y grupos en la columna; todo lo pulsable de la fila
+        // de la conversación menos el lápiz, que va pegado al nombre.
+        controles: [
+            ...Array.from(filasCol[0]?.querySelectorAll('[data-embudo], button[title="Filtrar por asesor"], button[title="Solo grupos"]') ?? [])
+                .filter(esVisible).map((b) => ({ donde: "columna", que: b.getAttribute("title") ?? b.getAttribute("aria-label"), ...caja(b) })),
+            ...Array.from(fila1?.querySelectorAll("button") ?? [])
+                .filter((b) => esVisible(b) && b.getAttribute("title") !== "Editar contacto")
+                .map((b) => ({ donde: "conversación", que: b.getAttribute("title") ?? b.getAttribute("aria-label") ?? b.textContent?.trim(), ...caja(b) })),
+        ],
     };
 }
 
@@ -164,6 +175,18 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
     exigir(casi(m.col.h, m.conv.h), `${ancho} · ${estado}: las cabeceras no miden lo mismo (columna ${r(m.col.h)}, conversación ${r(m.conv.h)})`);
     exigir(casi(m.col.t, m.conv.t), `${ancho} · ${estado}: las cabeceras no empiezan a la misma altura (${r(m.col.t)} / ${r(m.conv.t)})`);
     exigir(casi(m.ultimoIcono.r, m.acciones.r), `${ancho} · ${estado}: la ficha acaba en ${r(m.ultimoIcono.r)} y Acciones en ${r(m.acciones.r)}`);
+    // Los controles de icono: la misma caja (28 de alto, 28 de ancho como
+    // mínimo) y el mismo centro vertical en las dos cabeceras.
+    const centros = [];
+    for (const c of m.controles) {
+        exigir(casi(c.h, LADO), `${ancho} · ${estado}: ${c.donde} «${c.que}» mide ${r(c.h)} de alto, se pide ${LADO}`);
+        exigir(c.w >= LADO - TOLERANCIA, `${ancho} · ${estado}: ${c.donde} «${c.que}» mide ${r(c.w)} de ancho, menos de ${LADO}`);
+        centros.push((c.t + c.b) / 2);
+    }
+    exigir(m.controles.filter((c) => c.donde === "columna").length >= 2, `${ancho} · ${estado}: no se encontraron los controles de la columna`);
+    if (centros.length) exigir(Math.max(...centros) - Math.min(...centros) <= 1, `${ancho} · ${estado}: los controles no comparten centro vertical (${r(Math.min(...centros))}–${r(Math.max(...centros))})`);
+    fila["controles (alto)"] = [...new Set(m.controles.map((c) => r(c.h)))].join("/");
+
     // Las dos filas de cada cabecera en la misma línea horizontal.
     for (let i = 0; i < 2; i++) {
         const a = m.colFilasVe[i], b = m.convFilasVe[i];

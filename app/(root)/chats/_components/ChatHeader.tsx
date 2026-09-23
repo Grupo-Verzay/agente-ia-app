@@ -41,7 +41,7 @@ import { TaskFormDialog } from './TaskFormDialog';
 import { MergeLidDialog } from './MergeLidDialog';
 import { deleteLidChat } from '@/actions/merge-lid-contact';
 import { cn } from '@/lib/utils';
-import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2 } from '@/lib/cabeceras-de-chats';
+import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
@@ -432,7 +432,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <Button
           size="sm"
           variant="secondary"
-          className="h-8 gap-1.5 px-2.5 text-sm"
+          className="h-8 md:h-7 gap-1.5 px-2.5 text-sm"
           disabled={resolving}
         >
           Acciones
@@ -839,19 +839,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               size="icon"
               onClick={onExpandChatList}
               title="Expandir lista de chats"
-              className="h-8 w-8 shrink-0 rounded-md border border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className={cn('w-7 shrink-0 rounded-md border border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground', CONTROL_DE_ICONO)}
             >
-              <PanelRightOpen className="h-4 w-4" />
+              <PanelRightOpen className={GLIFO_DE_CONTROL} />
             </Button>
           )}
-          <Avatar className="w-9 h-9 ring-2 ring-border flex-shrink-0">
+          <Avatar className="w-8 h-8 ring-2 ring-border flex-shrink-0">
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
           {/* Alto FIJO del bloque nombre(+subtítulo): con `justify-center` el contenido se
               centra, así el header mide EXACTAMENTE igual con o sin el subtítulo del
               anuncio → "Mensajes/Notas/Web" queda a la misma altura en todos los chats. */}
-          <div className="flex h-9 flex-col justify-center overflow-hidden min-w-0">
+          <div className="flex h-8 flex-col justify-center overflow-hidden min-w-0">
             <div className="flex items-center gap-1.5">
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
@@ -894,7 +894,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {session && (
             <>
               {/* 1. Acción directa */}
-              <MenuDeLlamada datos={datosParaLlamar} className="h-7 w-7" iconoClassName="h-4 w-4" />
+              <MenuDeLlamada datos={datosParaLlamar} className={cn(CONTROL_DE_ICONO, "w-7")} iconoClassName={GLIFO_DE_CONTROL} />
               {advisorBadge}
               {/* 2. CRM / agenda */}
               <ChatReminderDialog session={session!} userId={userId} />
@@ -949,7 +949,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             type="button"
             onClick={onToggleInfoPanel}
             title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
-            className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
+            className={cn("hidden md:flex items-center gap-1.5 px-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors", CONTROL_DE_ICONO)}
             size="sm"
           >
             <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
@@ -976,7 +976,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             pestanas={pestanasDelChat}
             activa={chatView ?? 'messages'}
             onCambiar={(id) => onChatViewChange?.(id)}
-            clasePestana="px-4 h-8"
+            clasePestana="px-4 h-7"
           />
           <div data-mandos-de-la-fila className="flex shrink-0 items-center gap-1 pl-1">
             {onToggleSearch && (
