@@ -84,7 +84,7 @@ function medir() {
     const ultimoIcono = botonesFila1[botonesFila1.length - 1];
     // El TEXTO de la primera pestaña, que es lo que se ve (su caja lleva
     // `px-4`, el ancho del subrayado).
-    const pestana = cabConv?.querySelector("[data-pestana-del-chat]");
+    const pestana = escritorio?.querySelector("[data-pestana-del-chat]");
     const rango = document.createRange();
     if (pestana?.firstChild) rango.selectNodeContents(pestana);
     const textoPestana = pestana ? rango.getBoundingClientRect() : null;

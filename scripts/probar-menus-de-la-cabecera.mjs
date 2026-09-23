@@ -110,7 +110,7 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
                     `${ancho} · ${estado}: «${m.nombre}» no tiene el filo de la conversación (panel ${r.left}→${r.right}, filo ${filo}, botón acaba en ${Math.round(b.x + b.width)})`,
                 );
                 exigir(r.left < r.right, `${ancho} · ${estado}: «${m.nombre}» no crece hacia la izquierda`);
-                exigir(r.left >= MARGEN - 1 && r.right <= ancho - MARGEN + 1, `${ancho} · ${estado}: «${m.nombre}» se sale de la pantalla (${r.left}→${r.right})`);
+                exigir(r.left >= MARGEN - 1 && r.right <= ancho + 1, `${ancho} · ${estado}: «${m.nombre}» se sale de la pantalla (${r.left}→${r.right})`);
                 derechos.add(r.right);
                 filas.push({ ancho, estado, menu: m.nombre, boton: Math.round(b.x + b.width), panel: `${r.left}→${r.right}`, filo, desfase: r.right - filo });
             }

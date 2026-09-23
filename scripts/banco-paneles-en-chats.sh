@@ -11,10 +11,10 @@
 #
 # Y una segunda sonda, `probar-menus-de-la-cabecera.mjs`: los cinco menús de la
 # cabecera (Macros, Etiquetas, Cita, Registros, Acciones y Llamar) comparten el
-# filo derecho de la conversación menos 16 px, con y sin panel lateral, a cuatro
+# filo derecho de la conversación (sin margen), con y sin panel lateral, a cuatro
 # anchuras. `MODO=roto` exige que FALLE, y se corre con un `.next` construido
-# desde el commit de antes (960abc1): ahí cada menú colgaba de su botón y el
-# borde derecho saltaba de uno a otro.
+# desde el commit de antes (fd08262; o 960abc1, donde cada menú colgaba de su botón y el
+# borde derecho saltaba de uno a otro).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

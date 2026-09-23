@@ -12,7 +12,7 @@
 #      (`cabecera-del-chat-dom.test.mjs`), con los componentes reales:
 #      `PestanasDelChat` en una fila con Macros y Acciones a cinco anchos de
 #      cabecera; el menú de la cita agendada con el filo de la conversación
-#      (menos 16 px) esté donde esté su botón; y el `LeadContextSheet`
+#      (sin margen) esté donde esté su botón; y el `LeadContextSheet`
 #      real —con sus tres acciones de servidor fingidas— editando y guardando
 #      la síntesis en el propio panel.
 #
