@@ -41,7 +41,7 @@ import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
 import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
-import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 
@@ -486,8 +486,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent
-                className="w-56 overflow-y-auto p-1"
-                style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+                {...deSubmenu()}
+                className="w-56 overflow-y-auto overscroll-contain z-[70] p-1"
               >
                 {otherAdvisors.length === 0 ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground">No hay otros asesores.</p>
@@ -519,8 +519,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent
-                className="w-56 overflow-y-auto p-1"
-                style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+                {...deSubmenu()}
+                className="w-56 overflow-y-auto overscroll-contain z-[70] p-1"
               >
                 {participantCandidates.map((a) => (
                   <DropdownMenuItem

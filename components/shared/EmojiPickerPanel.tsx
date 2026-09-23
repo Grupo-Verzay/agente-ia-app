@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 const CATEGORIES: { label: string; emojis: string[] }[] = [
     {
@@ -36,6 +37,12 @@ const CATEGORIES: { label: string; emojis: string[] }[] = [
 
 interface EmojiPickerPanelProps {
     onSelect: (emoji: string) => void;
+    /**
+     * Para que quien lo abre en un panel flotante le ponga el alto del HUECO
+     * (`h-full`): con sus 350 px fijos, un panel acotado por la ventana los
+     * recortaría por abajo en vez de encogerse.
+     */
+    className?: string;
 }
 
 /**
@@ -47,7 +54,7 @@ interface EmojiPickerPanelProps {
  * emojis no se puede alcanzar. Con él se encoge y la rejilla reparte lo que
  * haya.
  */
-export function EmojiPickerPanel({ onSelect }: EmojiPickerPanelProps) {
+export function EmojiPickerPanel({ onSelect, className }: EmojiPickerPanelProps) {
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState(0);
 
@@ -60,7 +67,7 @@ export function EmojiPickerPanel({ onSelect }: EmojiPickerPanelProps) {
     const display = filtered ?? CATEGORIES[activeCategory].emojis;
 
     return (
-        <div className="flex flex-col w-[300px] max-w-full h-[350px] bg-background border border-border rounded-xl shadow-xl overflow-hidden">
+        <div className={cn("flex flex-col w-[300px] max-w-full h-[350px] bg-background border border-border rounded-xl shadow-xl overflow-hidden", className)}>
             {/* Search */}
             <div className="p-2 border-b border-border shrink-0">
                 <Input

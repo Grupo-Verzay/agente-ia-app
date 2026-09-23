@@ -15826,6 +15826,71 @@ exclusión con el hook real y los menús pintados por Radix, en dos modos; el
 roto construye con el código de `ANTES_REF` y afirma las tres capturas— y
 `scripts/banco-paneles-en-chats.sh` sobre la página servida.
 
+## Chats: todo lo flotante mide el hueco y elige el lado donde CABE
+
+La barra de reacciones de un mensaje abría siempre hacia arriba, y con el
+mensaje pegado al borde de arriba del hilo la fila de emojis quedaba fuera y no
+se podía pulsar. **A zoom 80 % cabía y a 100 % no**, y eso es lo que delata la
+causa: no era un dato, era un RECORTE. El menú (reacciones, Copiar, Editar,
+Eliminar) era un `div` con `absolute bottom-8` **dentro del hilo que se
+desplaza**, así que el `overflow` del hilo se comía lo que asomara por encima.
+Nada lo medía: abría arriba pasara lo que pasara.
+
+> **Todo lo que se abre flotando en Chats va en un PORTAL (Radix), mide el hueco
+> de los dos lados antes de abrirse y elige el que cabe entero; si se sale por
+> un costado se corre al otro, y si no cabe en ninguno se queda con el que más
+> tiene y se desplaza por dentro.** Lo decide `lib/paneles-flotantes.ts`; no se
+> escribe un `side` a mano ni un `div` absoluto.
+
+Tres clases nuevas, al lado de las de siempre:
+
+| clase | para qué | límite |
+| --- | --- | --- |
+| `enElHilo` (por `usePanelFlotante`) | lo que se abre desde un MENSAJE | **el hilo** (`data-hilo-de-chat`, el `div` que se desplaza), no la ventana |
+| `suelto(primitiva, side, align)` | lo que no cuelga de ninguna fila medida: el lote, participantes, automatizaciones, la firma, el clip, los emojis | la ventana |
+| `deSubmenu()` | Transferir a…, Asignar asesor…, etiquetas | la ventana |
+
+Cinco cosas que hay que mantener:
+
+1. **El límite del menú de un mensaje es el HILO**, pasado como
+   `collisionBoundary`. Arriba del hilo está la cabecera con Macros y Acciones y
+   abajo la barra de escribir: un menú que se sale del hilo no «cabe», las tapa.
+   Prefiere arriba —como se abría— y voltea abajo; se alinea con el lado del
+   mensaje (`end` los propios).
+2. **Las clases fijadas NO voltean, y no contradicen esto.** `columnaAncha`,
+   `cabecera` y `barraDeArriba` nacen justo bajo su fila —volteadas taparían las
+   pastillas o la cabecera—, pero su ancho se acota a la ventana y su alto al
+   hueco de verdad (`--radix-…-available-height`), así que tampoco pueden
+   salirse. Es la misma garantía por otra vía.
+3. **Un flotante en un portal no se cierra con un «clic fuera» casero.** El
+   panel de emojis tenía un `mousedown` que comprobaba `contains` sobre el nodo
+   del botón: con el panel en un portal, pulsar un emoji habría sido «fuera» y
+   lo cerraba. Lo cierra Radix. Y `PopoverTrigger` ya alterna: un `onClick` que
+   alterna además lo abre y lo cierra en el mismo clic.
+4. **Y va ENCIMA de los botones del borde** (`ENCIMA_DEL_BORDE`, `z-[70]`,
+   metido en `PANEL_QUE_SE_DESPLAZA`). La pareja del copiloto y el chat del
+   equipo vive fija en el borde derecho a media altura en `z-[60]`, y los menús
+   de Radix nacen en `z-50`: el menú de un mensaje largo a 1024 salía con una
+   esquina TAPADA por esos botones. Lo cazó el banco con `elementFromPoint`;
+   mirando la pantalla no se ve. No más de 70: la sala de reunión es `z-[99]`.
+5. **Lo que queda a mano, y se dice**: la columna del «+» compacto de la barra
+   de escribir (`COLUMNA_DE_HERRAMIENTAS`) y el menú de la derecha siguen siendo
+   `absolute bottom-full`. Son los propios botones de la barra, que se pintan en
+   fila o en columna según el ancho, y pasarlos a un portal es rehacer
+   `BarraDeEscribir`. Abren desde lo más bajo de la pantalla hacia el hilo, que
+   no los recorta. Si algún día se recortan, ese es el sitio.
+
+Lo prueba `scripts/banco-flotantes-del-hilo.sh` sobre la página **servida**
+(ochenta mensajes sembrados: con tres el hilo no se desplaza y no hay borde que
+probar), a 1440/1280/1024 × zoom 100 % y 80 % × ficha cerrada y abierta, con el
+mensaje al borde de arriba, en medio y al borde de abajo, propio y del
+contacto: el menú entero dentro del hilo, cada emoji es lo que hay en su punto
+(`elementFromPoint`) y la primera reacción se PULSA. Y los menús de la
+cabecera, el «⋯» de una tarjeta y el filtro de etiquetas, enteros en la ventana
+y sin nada encima. El zoom se emula como el navegador: a 80 % la ventana CSS
+mide `ancho / 0,8`. `MODO=roto` con un `.next` de `093f071` afirma el recorte.
+La decisión, sin navegador, está en `banco-paneles-flotantes.sh`.
+
 ## Un saliente automático lo escribe QUIEN LO MANDA, no el eco del proveedor
 
 El recordatorio de una cita le llegaba al cliente por WhatsApp y **en Chats no

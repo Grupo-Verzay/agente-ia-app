@@ -1,5 +1,6 @@
 'use client';
 
+import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { UserPlus, X, Loader2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -119,7 +120,7 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
           {hasParticipants ? 'Agregar usuario' : 'Agregar usuarios'}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-64 p-1">
+      <PopoverContent {...suelto("popover", "bottom", "end")} className={cn("w-64 p-1", PANEL_QUE_SE_DESPLAZA)}>
         <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Agregar asesor
         </p>

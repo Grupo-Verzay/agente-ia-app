@@ -8,6 +8,7 @@ import {
     columnaAncha,
     columnaDerecha,
     comoSiempre,
+    enElHilo,
     type Caja,
     type EstiloDelPanel,
     type Primitiva,
@@ -61,13 +62,20 @@ export const MARCA_DE_LA_CABECERA = "data-cabecera-de-chat";
 export const MARCA_DE_MACROS = "data-macros-de-chat";
 /** La barra de arriba de la plataforma, que es la misma en todas las pantallas. */
 export const MARCA_DE_LA_BARRA = "data-barra-de-arriba";
+/**
+ * El hilo de mensajes: el `div` que se DESPLAZA, no su envoltorio. Su caja es
+ * justo el área visible de la conversación, entre la cabecera y la barra de
+ * escribir, y es el límite de lo que se abre desde un mensaje.
+ */
+export const MARCA_DEL_HILO = "data-hilo-de-chat";
 
 export type ClaseDePanel =
     | "columnaAncha"
     | "columnaDerecha"
     | "cabecera"
     | "colgadoDelIcono"
-    | "barraDeArriba";
+    | "barraDeArriba"
+    | "enElHilo";
 
 /** Lo que se le pasa a `PopoverContent` / `DropdownMenuContent`, ya resuelto. */
 export type PropsDelPanel = {
@@ -77,6 +85,12 @@ export type PropsDelPanel = {
     sideOffset: number;
     avoidCollisions: boolean;
     collisionPadding: Relleno;
+    /**
+     * Contra qué se mide el hueco. Sin él, la ventana. Solo lo pone `enElHilo`:
+     * lo que se abre desde un mensaje no «cabe» por salirse del hilo y taparle
+     * la cabecera a la conversación.
+     */
+    collisionBoundary?: Element;
     style: EstiloDelPanel;
 };
 
@@ -85,12 +99,23 @@ function caja(nodo: Element): Caja {
     return { left: r.left, right: r.right, bottom: r.bottom };
 }
 
-function porDefecto(clase: ClaseDePanel): PropsDelPanel {
+function porDefecto(clase: ClaseDePanel, alineado: "start" | "end" = "start"): PropsDelPanel {
+    if (clase === "enElHilo") {
+        // Antes de medir nada: arriba, volteando si no cabe. Es lo mismo que
+        // hará con el hilo medido, solo que contra la ventana.
+        const g = comoSiempre(alineado, "top");
+        return { ...g, style: g.estilo };
+    }
     const g = comoSiempre(clase === "columnaAncha" ? "start" : "end");
     return { ...g, style: g.estilo };
 }
 
-export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
+export function usePanelFlotante(
+    clase: ClaseDePanel,
+    primitiva: Primitiva,
+    /** Solo para `enElHilo`: a qué lado del hilo va el mensaje. */
+    alineado: "start" | "end" = "start",
+) {
     // El disparador puede estar montado DOS veces —`ChatHeader` pinta Acciones,
     // Macros y la cita en la fila del móvil y en la de escritorio con el mismo
     // hook—, y un `useRef` se queda con el último que se monte, que en un móvil
@@ -100,7 +125,7 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
     const disparador = useCallback((nodo: HTMLButtonElement | null) => {
         if (nodo) nodos.current.add(nodo);
     }, []);
-    const [props, setProps] = useState<PropsDelPanel>(() => porDefecto(clase));
+    const [props, setProps] = useState<PropsDelPanel>(() => porDefecto(clase, alineado));
 
     const alAbrir = useCallback(
         (abierto: boolean) => {
@@ -116,7 +141,9 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
                     ? MARCA_DE_LA_CABECERA
                     : clase === "barraDeArriba"
                       ? MARCA_DE_LA_BARRA
-                      : MARCA_DE_LA_COLUMNA;
+                      : clase === "enElHilo"
+                        ? MARCA_DEL_HILO
+                        : MARCA_DE_LA_COLUMNA;
             const contenedor =
                 nodo?.closest(`[${marca}]`) ?? document.querySelector(`[${marca}]`);
 
@@ -127,12 +154,21 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
                     hayContenedor: !!contenedor,
                     hayDisparador: !!nodo,
                 });
-                setProps(porDefecto(clase));
+                setProps(porDefecto(clase, alineado));
                 return;
             }
 
             const dispCaja = caja(nodo);
             const contCaja = caja(contenedor);
+
+            if (clase === "enElHilo") {
+                // Aquí no se calcula ningún desplazamiento: el lado lo elige
+                // Floating UI con el hueco de verdad a cada lado del mensaje,
+                // medido contra el HILO (ver `enElHilo`).
+                const g = enElHilo(contCaja, alineado, primitiva);
+                setProps({ ...g, collisionBoundary: contenedor, style: g.estilo });
+                return;
+            }
 
             if (clase === "barraDeArriba") {
                 const g = bajoLaBarraDeArriba(
@@ -201,7 +237,7 @@ export function usePanelFlotante(clase: ClaseDePanel, primitiva: Primitiva) {
             const g = columnaAncha(contCaja, dispCaja, bajo, primitiva);
             setProps({ ...g, style: g.estilo });
         },
-        [clase, primitiva],
+        [clase, primitiva, alineado],
     );
 
     return { disparador, props, alAbrir };

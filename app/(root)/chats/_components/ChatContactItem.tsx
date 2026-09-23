@@ -36,7 +36,7 @@ import type { LeadStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from "@/lib/paneles-flotantes";
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
 import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 
@@ -533,6 +533,8 @@ function ChatContactItemBase({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0 rounded-full"
+                aria-label="Más opciones del chat"
+                title="Más opciones del chat"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className="h-4 w-4" />
@@ -573,8 +575,8 @@ function ChatContactItemBase({
                     Asignar agente
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent
-                    className="w-48 overflow-y-auto"
-                    style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+                    {...deSubmenu()}
+                    className="w-48 overflow-y-auto overscroll-contain z-[70]"
                   >
                     <DropdownMenuItem onSelect={() => onAssignAdvisor(contact.id, null, contact.instanceName)}>
                       <span className="text-sm text-muted-foreground">Sin asignar</span>
@@ -612,8 +614,8 @@ function ChatContactItemBase({
                     Asignar etiqueta
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent
-                    className="w-44 overflow-y-auto"
-                    style={{ maxHeight: 'min(60vh, var(--radix-dropdown-menu-content-available-height))' }}
+                    {...deSubmenu()}
+                    className="w-44 overflow-y-auto overscroll-contain z-[70]"
                   >
                     {etiquetasDeEstaLinea.map((tag) => {
                       const hasTag = contact.chatSession?.tags?.some((t) => t.id === tag.id);

@@ -1,5 +1,7 @@
 'use client';
 
+import { cn } from "@/lib/utils";
+import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import React, { useCallback, useMemo, useState } from 'react';
 import { Loader2, MessageCircleMore, Workflow, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -116,7 +118,7 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-[340px] p-3">
+      <PopoverContent {...suelto("popover", "bottom", "start")} className={cn("w-[340px] p-3", PANEL_QUE_SE_DESPLAZA)}>
         <div className="mb-3">
           <p className="text-sm font-semibold text-foreground">Atajos</p>
           <p className="text-xs text-muted-foreground">

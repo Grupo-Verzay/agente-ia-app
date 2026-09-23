@@ -1,5 +1,6 @@
 "use client";
 
+import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,7 +119,7 @@ export function BulkActionBar({
                 <MailOpen className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={cn("w-44", PANEL_QUE_SE_DESPLAZA)}>
               <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 MARCAR CHATS
               </p>
@@ -164,7 +165,7 @@ export function BulkActionBar({
                 <Pin className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={cn("w-44", PANEL_QUE_SE_DESPLAZA)}>
               <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 ANCLAR CHATS
               </p>
@@ -192,7 +193,7 @@ export function BulkActionBar({
                 <Archive className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={cn("w-44", PANEL_QUE_SE_DESPLAZA)}>
               <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 ARCHIVAR CHATS
               </p>
@@ -220,7 +221,7 @@ export function BulkActionBar({
                 <Users className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={cn("w-48", PANEL_QUE_SE_DESPLAZA)}>
               <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 ASIGNAR ASESOR
               </p>
@@ -258,7 +259,7 @@ export function BulkActionBar({
                 <Tag className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={cn("w-48", PANEL_QUE_SE_DESPLAZA)}>
               <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 ETIQUETAR
               </p>
