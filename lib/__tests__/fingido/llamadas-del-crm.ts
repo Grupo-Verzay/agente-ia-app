@@ -58,7 +58,7 @@ export const LLAMADAS: CallRow[] = [
         direction: "outgoing",
         durationSecs: 187,
         ts: Date.parse("2026-09-18T15:04:00Z"),
-        disposition: "interested",
+        disposition: "interesado",
         leadSynthesis:
             "Pidió la cotización del plan anual para las tres sedes y quiere que le llamen el jueves por la tarde para cerrar el pago",
         cuentaId: "u1",

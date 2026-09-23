@@ -22,7 +22,7 @@ export { resolverLasCuentasDelCrm, lasCuentasQueConsultaElCrm } from "@/lib/cuen
 export { getRegistrosByUserId, getCrmDashboardStatsByUserId } from "@/actions/registro-action";
 
 /* Llamadas. */
-export { getCallsCrmData } from "@/actions/calls-crm-actions";
+export { getCallsCrmData, setCallDisposition } from "@/actions/calls-crm-actions";
 
 /* Kanban. */
 export { getKanbanSessionsAction } from "@/actions/crm-kanban-actions";

@@ -16460,32 +16460,50 @@ antes>`: lo **mueve** a `.next` —con un enlace simbólico el servidor no resue
 `node_modules`— y afirma los cuatro fallos; el hueco solo sale con un Detalle
 CORTO («Sin detalle»), así que se mide en todas las filas y no en la primera.
 
-## Llamadas: rótulos centrados, contenido alineado, y lo que se lee en negrilla
+## Llamadas y Leads, simétricas: el texto se HEREDA, «Marcar resultado» siempre, y flechas en las dos
 
-Cuarta vuelta de alinear CRM › Llamadas con Leads, y es solo presentación:
+Quinta vuelta de alinear CRM › Llamadas con Leads, y la regla es una: **igual,
+no parecido**. Se mide con las dos tablas de verdad pintadas lado a lado
+(`scripts/banco-leads-y-llamadas-simetricas.sh`), no contra números escritos.
 
 | | cómo va |
 | --- | --- |
-| encabezados | **centrados**, con el estilo que ya tenían (el de Leads: 14 px, 500, gris). El primero dice **«WhatsApp»**, no «Contacto» |
-| WhatsApp, Nombre, Fecha, Detalle, Resultado | a la **izquierda** |
-| Duración | **centrada** |
-| Acciones | el menú **centrado** en su columna |
-| nombre, fecha, detalle | en **negrilla** (`font-medium`, el grosor del número de al lado) y en el **color del texto**, no en gris |
+| encabezados | **centrados**, con el estilo de Leads (14 px, 500, gris). El primero dice **«WhatsApp»** |
+| WhatsApp, Nombre, Fecha, Detalle, Resultado | a la **izquierda**; Duración **centrada**; el menú de Acciones **centrado** |
+| nombre, fecha, detalle | **sin peso ni color propios**: heredan los de la tabla, como en Leads |
+| Resultado sin marcar | el desplegable **«Marcar resultado»**, también en la llamada de una cuenta hija |
+| flechas de ordenar | Llamadas: todas menos Acciones. Leads: añadidas a WhatsApp, Nombre y Etiquetas |
 
-Tres cosas que hay que mantener:
+Cinco cosas que hay que mantener:
 
-1. **El rótulo centrado y el contenido a la izquierda no se contradicen.** La
-   cabecera se lee como una fila de títulos; el contenido como filas que se
-   comparan, y eso pide un borde común.
-2. **Lo que es un hueco se queda en gris y cursiva**: «Poner nombre» y «Sin
-   detalle» no son datos, y en negrilla se leerían como uno.
-3. **El CSV no cambia**: su cabecera sigue diciendo «Contacto» porque es lógica
+1. **Lo que en Leads «se lee en negrilla» no es negrilla**: es texto oscuro al
+   lado de un gris. Esas celdas de Leads no llevan ninguna clase de peso ni de
+   color; heredan de la `Card`. Por eso `TEXTO_DE_LA_FILA` está **vacío** a
+   propósito: tanto `text-muted-foreground` como `font-medium text-foreground`
+   —las dos versiones anteriores— eran «parecido». Lo que es un hueco («Poner
+   nombre», «Sin detalle») sí va en gris y cursiva: no es un dato.
+2. **Marcar resultado se ESCRIBE con el mismo alcance con el que se LEE.**
+   `setCallDisposition` buscaba la fila solo bajo las ids de la identidad de
+   quien mira, así que la madre veía la llamada de su hija consolidando y no
+   podía marcarla: la pantalla pintaba un «—». Ahora acota con
+   `lasCuentasQueConsultaElCrm` —lo propio y lo de abajo, nunca la madre ni una
+   hermana— y lo prueba `crm-de-la-familia-db.test.mjs` contra Postgres.
+3. **Etiquetas de Leads ordena por CANTIDAD** (lo eligió el dueño; no tiene
+   gemela en Llamadas). WhatsApp ordena por el número que se ve y Nombre por el
+   nombre que se ve, no por el crudo: ordenar por un valor y enseñar otro se lee
+   como un orden roto. Acciones no ordena en ninguna de las dos.
+4. **Las flechas nuevas de Leads son el MISMO botón que su «Sesión»** de
+   siempre; el banco compara estilo, tamaño y el tamaño de la flecha contra la
+   de Llamadas.
+5. **El CSV no cambia**: su cabecera sigue diciendo «Contacto» porque es lógica
    de datos, no la tabla.
 
-Lo prueba `scripts/banco-alineacion-de-llamadas.sh`, en Chromium sobre el CSS
-del build y con el `CallsCrmClient` real, a 1440, 1280 y 1024. `MODO=roto`
-pinta la tabla de `ANTES_REF` y afirma el fallo. `probar-cabecera-de-llamadas`
-deja fuera de su «todo a la izquierda» a Duración y Acciones.
+El banco de navegador empaqueta la tabla de Leads con **todas sus acciones de
+servidor mudas** (`scripts/empaquetar-con-acciones-mudas.mjs`): cada import de
+`@/actions/*` se resuelve a un módulo que exporta los nombres que pide quien
+importa. Un módulo **por importador**: esbuild guarda cada módulo por su ruta,
+y con una sola el segundo recibiría los nombres del primero. `MODO=roto` pinta
+las dos tablas de `ANTES_REF` y afirma los cuatro fallos.
 
 ## Llamadas: la cuenta es «● Ventas» junto al nombre, no una columna
 

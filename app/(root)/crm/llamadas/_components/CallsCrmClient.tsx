@@ -172,13 +172,15 @@ function Th({
 const ACCIONES_PEGADAS = 'sticky right-0 bg-card';
 
 /*
- * El nombre, la fecha y el detalle en negrilla y en el color del texto —no en
- * gris—, como se leen en Leads. Eran `text-muted-foreground` y la fila parecía
- * apagada al lado de la de Leads. Mismo grosor que el número de WhatsApp de al
- * lado (`font-medium`). Lo que es un hueco —«Poner nombre», «Sin detalle»— se
- * queda en gris y cursiva: no es un dato.
+ * El nombre, la fecha y el detalle EXACTAMENTE como en Leads, y en Leads esas
+ * celdas no llevan ni peso ni color propios: HEREDAN los de la tabla. Así que
+ * aquí tampoco se pone nada. Estuvieron en `text-muted-foreground` —la fila se
+ * veía apagada— y luego en `font-medium text-foreground` —negrilla añadida y
+ * un tono que no es el de Leads—; los dos eran «parecido», no «igual». Lo que
+ * es un hueco —«Poner nombre», «Sin detalle»— sí va en gris y cursiva: no es
+ * un dato.
  */
-const TEXTO_DE_LA_FILA = 'font-medium text-foreground';
+const TEXTO_DE_LA_FILA = '';
 
 const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
   day: '2-digit',
@@ -1033,17 +1035,11 @@ function CallTableRow({
       {/* Resultado (disposición) */}
       {/* Resultado sí puede encoger: su pastilla recorta el rótulo con «…»
           (el completo va en el `title`). Es lo que deja que la tabla quepa
-          con el menú lateral abierto sin desplazarse. */}
+          con el menú lateral abierto sin desplazarse.
+          Y se puede marcar también en la llamada de una cuenta hija: el
+          servidor saca el dueño de la FILA y lo acota con la misma puerta con
+          la que se leyó (`setCallDisposition`). Antes esa fila pintaba un «—». */}
       <td className="px-2 py-2 text-left">
-        {ajena ? (
-          dispMeta ? (
-            <span className={cn('inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-sm font-medium', dispMeta.badgeClass)}>
-              <Tag className="h-3 w-3 shrink-0" /> <span className="truncate">{dispMeta.label}</span>
-            </span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )
-        ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -1072,7 +1068,6 @@ function CallTableRow({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        )}
       </td>
       {/* Acciones: pegada al borde derecho, nunca se corta, y el menú
           centrado en su columna, debajo de su rótulo. */}

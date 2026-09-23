@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useSidebar } from "@/components/ui/sidebar";
 import { fmtPhone, pickExplicitWhatsAppPhoneJid } from "@/lib/whatsapp-jid";
+import { formatContactDisplayName } from "@/lib/contact-display-name";
 import { SwitchStatus } from "./SwitchStatus";
 import {
   DropdownMenu,
@@ -218,6 +219,12 @@ export const ActionsCell = ({ session, onDeleteSuccess }: { session: Session, on
   );
 }
 
+/** El número que la celda WhatsApp enseña; también es por el que se ordena. */
+function elTelefonoDeLaFila(session: Session): string {
+  const displayJid = pickExplicitWhatsAppPhoneJid([session.remoteJid, session.remoteJidAlt]) || session.remoteJid;
+  return fmtPhone(displayJid);
+}
+
 // --- Columns corregido ---
 export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateToChat }: {
   onDeleteSuccess: (deletedId: number) => void,
@@ -227,12 +234,17 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
 }): ColumnDef<Session>[] => [
     {
       accessorKey: "remoteJid",
-      header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">WhatsApp</div>,
+      // Se ordena por el número que se VE, igual que en CRM › Llamadas: por el
+      // jid crudo, un `@lid` iría mezclado con los teléfonos.
+      sortingFn: (a, b) => elTelefonoDeLaFila(a.original).localeCompare(elTelefonoDeLaFila(b.original)),
+      header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
+          WhatsApp <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
+      ),
       cell: ({ row }) => {
         const remoteJid = row.getValue("remoteJid") as string;
-        const remoteJidAlt = row.original.remoteJidAlt;
-        const displayJid = pickExplicitWhatsAppPhoneJid([remoteJid, remoteJidAlt]) || remoteJid;
-        const phone = fmtPhone(displayJid);
+        const phone = elTelefonoDeLaFila(row.original);
         return (
           <button
             onClick={() => onNavigateToChat(remoteJid, row.original.instanceId)}
@@ -248,7 +260,16 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     },
     {
       accessorKey: "pushName",
-      header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">Nombre</div>,
+      // Por el nombre que se VE (el de `EditableNameCell`), no por el crudo.
+      sortingFn: (a, b) =>
+        formatContactDisplayName(a.original.pushName, "Lead").localeCompare(
+          formatContactDisplayName(b.original.pushName, "Lead"),
+        ),
+      header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
+          Nombre <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
+      ),
       cell: ({ row }) => (
         <EditableNameCell session={row.original} onUpdated={mutateSessions} />
       ),
@@ -331,7 +352,14 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     },
     {
       id: "tags",
-      header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">Etiquetas</div>,
+      // Se ordena por CUÁNTAS etiquetas tiene el lead.
+      accessorFn: (s) => s.tags?.length ?? 0,
+      sortingFn: "basic",
+      header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
+          Etiquetas <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
+      ),
       cell: ({ row }) => {
         const session = row.original;
         const initialSelectedTagIds = (session.tags ?? []).map((t) => t.id);
