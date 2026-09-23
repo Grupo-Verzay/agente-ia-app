@@ -111,13 +111,29 @@ export type EstiloDelPanel = {
 };
 
 /**
+ * La capa de todo lo flotante de Chats: POR ENCIMA de los botones del borde.
+ *
+ * La pareja del copiloto y el chat del equipo (`BotonesDelBorde`) vive fija en
+ * el borde derecho, a media altura y en `z-[60]`; los menús de Radix nacen en
+ * `z-50`. Así que un menú que llegaba al borde derecho a media pantalla —el de
+ * un mensaje largo a 1024, el de Acciones— quedaba con una esquina TAPADA por
+ * esos botones: el banco lo cazó con `elementFromPoint`. Un menú abierto es lo
+ * que se está usando; va encima. `z-[70]` y no más: la sala de reunión es
+ * `z-[99]` y un menú suyo no puede quedar por encima de ella.
+ */
+export const ENCIMA_DEL_BORDE = "z-[70]";
+
+/**
  * Lo que hace que un panel que no cabe **se desplace por dentro**.
+ *
+ * Lleva además `ENCIMA_DEL_BORDE`: lo usan todos los flotantes de Chats, y es
+ * el único sitio donde ponerla sin repetirla en cada uno.
  *
  * El tope de alto sin esto no desplaza: recorta. Y `overscroll-contain` es lo
  * que evita que al llegar al final del panel el gesto siga y arrastre la lista
  * de chats que hay debajo.
  */
-export const PANEL_QUE_SE_DESPLAZA = "overflow-y-auto overscroll-contain";
+export const PANEL_QUE_SE_DESPLAZA = `overflow-y-auto overscroll-contain ${ENCIMA_DEL_BORDE}`;
 
 /** Con qué primitiva se pinta, que es lo único que cambia el nombre de la variable. */
 export type Primitiva = "popover" | "menu";
@@ -134,7 +150,7 @@ export function alturaDisponible(primitiva: Primitiva): string {
 
 /** Lo que se le pasa a Radix para colocar un panel. */
 export type Geometria = {
-    side: "bottom";
+    side: "bottom" | "top";
     /**
      * Lo que se le deja al borde de la ventana al medir y al voltear.
      *
@@ -458,5 +474,113 @@ export function comoSiempre(
         avoidCollisions: true,
         collisionPadding: MARGEN_DE_LA_VENTANA,
         estilo: {},
+    };
+}
+
+/**
+ * # La regla común: se mide el hueco ANTES de abrir y se elige el lado que cabe
+ *
+ * Todo lo que se abre flotando en Chats cumple las tres cosas, venga por la
+ * clase que venga:
+ *
+ * 1. **Va en un portal** (Radix), así que ningún `overflow` de la lista, del
+ *    hilo o de la cabecera lo recorta. El menú de un mensaje era un `div`
+ *    absoluto DENTRO del hilo que se desplaza: abría hacia arriba y, con el
+ *    mensaje pegado al borde de arriba del hilo, la fila de reacciones quedaba
+ *    fuera del área visible y no se podía pulsar. A zoom 80 % cabía y a 100 %
+ *    no: eso delata un recorte, no un fallo de datos.
+ * 2. **Elige el lado donde cabe completo** (`avoidCollisions`: Floating UI
+ *    mide el hueco de los dos lados y voltea al que cabe; si no cabe en
+ *    ninguno se queda con el que más tiene) y **se corre de costado** lo justo
+ *    para no salirse (el `shift` de Radix va en el eje de la alineación).
+ * 3. **Y si ni así cabe, se desplaza por dentro**: el tope de alto es el hueco
+ *    de VERDAD (`--radix-…-available-height`), nunca `vh`.
+ *
+ * Las clases fijadas de arriba (`columnaAncha`, `cabecera`, `barraDeArriba`)
+ * no voltean a propósito —volteadas taparían las pastillas o la cabecera—,
+ * pero cumplen lo mismo por otra vía: nacen justo debajo de su fila, su ancho
+ * se acota a la ventana y su alto al hueco, así que tampoco pueden salirse.
+ */
+
+/**
+ * Lo que se abre DESDE UN MENSAJE del hilo: la barra de reacciones y el menú
+ * de Copiar, Editar y Eliminar.
+ *
+ * - Prefiere ARRIBA —que es como se abría: el mensaje no se tapa a sí mismo—,
+ *   y **voltea abajo si arriba no cabe entero**.
+ * - El límite no es la ventana: es **el HILO** (`hilo`, que el hook pasa como
+ *   `collisionBoundary`). Arriba del hilo está la cabecera de la conversación
+ *   con Macros y Acciones; un menú que se sale del hilo por arriba no «cabe»,
+ *   tapa la cabecera. Y abajo está la barra de escribir.
+ * - Se alinea con el lado del mensaje (`end` los propios, `start` los del
+ *   contacto), y el `shift` lo mete dentro del hilo si se sale por un costado.
+ * - Nunca más ancho que el hilo, nunca más alto que el hueco.
+ */
+export function enElHilo(
+    hilo: Caja,
+    alineado: "start" | "end",
+    primitiva: Primitiva,
+): Geometria {
+    const ancho = Math.max(0, hilo.right - hilo.left - MARGEN_DE_LA_VENTANA * 2);
+    return {
+        side: "top",
+        align: alineado,
+        alignOffset: 0,
+        sideOffset: HUECO_DEL_DISPARADOR,
+        collisionPadding: MARGEN_DE_LA_VENTANA,
+        avoidCollisions: true,
+        estilo: {
+            maxWidth: `${Math.round(ancho)}px`,
+            maxHeight: `min(${TOPE_DE_FILA}, ${alturaDisponible(primitiva)})`,
+        },
+    };
+}
+
+/**
+ * Un panel SUELTO: el que no cuelga de ninguna fila de Chats que haga falta
+ * medir —los menús de la barra de acciones en lote, los participantes, el
+ * selector de automatizaciones, los emojis y el clip de la barra de escribir,
+ * los submenús—. No necesita hook: la ventana es su límite y Radix la conoce.
+ *
+ * Lo único que cambia con `comoSiempre` es el TOPE de alto: sin él, un menú con
+ * treinta asesores dentro (el lote) se salía de la pantalla por mucho que
+ * voltease, porque ninguno de los dos lados tiene treinta filas de hueco.
+ */
+export function suelto(
+    primitiva: Primitiva,
+    side: "top" | "bottom" = "bottom",
+    align: "start" | "end" | "center" = "start",
+): {
+    side: "top" | "bottom";
+    align: "start" | "end" | "center";
+    sideOffset: number;
+    avoidCollisions: true;
+    collisionPadding: number;
+    style: EstiloDelPanel;
+} {
+    return {
+        side,
+        align,
+        sideOffset: HUECO_DEL_DISPARADOR,
+        avoidCollisions: true,
+        collisionPadding: MARGEN_DE_LA_VENTANA,
+        style: { maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})` },
+    };
+}
+
+/**
+ * Lo de un SUBMENÚ (Transferir a…, Asignar asesor…). Radix ya lo voltea de la
+ * derecha a la izquierda cuando no cabe; lo que faltaba es el margen con el
+ * borde y el tope de alto, que son los mismos de todos.
+ */
+export function deSubmenu(): {
+    collisionPadding: number;
+    avoidCollisions: true;
+    style: EstiloDelPanel;
+} {
+    return {
+        collisionPadding: MARGEN_DE_LA_VENTANA,
+        avoidCollisions: true,
+        style: { maxHeight: `min(${TOPE_DE_FILA}, ${alturaDisponible("menu")})` },
     };
 }

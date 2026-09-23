@@ -1,5 +1,7 @@
 'use client';
 
+import { cn } from "@/lib/utils";
+import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import * as React from 'react';
 import { Loader2, Send, Phone, Check, MessageCircleMore, Workflow } from 'lucide-react';
 import { toast } from 'sonner';
@@ -339,7 +341,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                     )}
                   </div>
                 </PopoverTrigger>
-                <PopoverContent className="w-80 p-0" align="start">
+                <PopoverContent {...suelto("popover", "bottom", "start")} className={cn("w-80 p-0", PANEL_QUE_SE_DESPLAZA)}>
                   <Command>
                     <CommandInput
                       placeholder="Buscar contacto..."

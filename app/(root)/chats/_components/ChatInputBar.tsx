@@ -49,6 +49,7 @@ import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session } from '@/types/session';
 import type { RecordedAudioData, UIBubble } from './chat-message-types';
+import { suelto, PANEL_QUE_SE_DESPLAZA, ENCIMA_DEL_BORDE } from "@/lib/paneles-flotantes";
 import { getQuickReplyCategoryClass, getQuickReplyCategoryLabel } from '@/lib/quick-reply-categories';
 
 interface ChatInputBarProps {
@@ -149,7 +150,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [inputMenuOpen, setInputMenuOpen] = useState(false);
   const [rightMenuOpen, setRightMenuOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
-  const emojiRef = useRef<HTMLDivElement>(null);
   const rightMenuRef = useRef<HTMLDivElement>(null);
 
   // Si la barra va plegada, MEDIDO — y con la misma función que el chat de
@@ -162,17 +162,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       setRightMenuOpen(false);
     }
   }, [isCompactToolbar]);
-
-  useEffect(() => {
-    if (!emojiOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
-        setEmojiOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [emojiOpen]);
 
   useEffect(() => {
     if (!rightMenuOpen) return;
@@ -393,7 +382,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           <PenLine className="w-4 h-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="w-72 p-3 space-y-3">
+      <PopoverContent {...suelto("popover", "top", "start")} className={cn("w-72 p-3 space-y-3", PANEL_QUE_SE_DESPLAZA)}>
         <p className="text-xs font-semibold text-foreground">Firma del asesor</p>
 
         <div className="flex items-center gap-1.5">
@@ -668,9 +657,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               </Button>
             )}
             {!isRecording && !isPreviewingAudio && (
-              <div className="relative" ref={emojiRef}>
+              <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
                 <Button
-                  onClick={() => setEmojiOpen((v) => !v)}
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -680,12 +669,19 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                 >
                   <SmilePlus className="w-4 h-4" />
                 </Button>
-                {emojiOpen && (
-                  <div className="absolute bottom-9 left-0 z-50">
-                    <EmojiPickerPanel onSelect={insertEmoji} />
-                  </div>
-                )}
-              </div>
+              </PopoverTrigger>
+                {/* En un portal y eligiendo el lado donde cabe (ver `suelto`).
+                    Era un `div` absoluto que siempre abría hacia arriba: con
+                    poca altura, sus 350 px se salían por encima de la ventana.
+                    Ahora mide el HUECO de verdad y el panel se encoge a él. */}
+                <PopoverContent
+                  {...suelto('popover', 'top', 'start')}
+                  className={cn("w-auto border-0 bg-transparent p-0 shadow-none flex", ENCIMA_DEL_BORDE)}
+                  style={{ height: 'min(350px, var(--radix-popover-content-available-height))' }}
+                >
+                  <EmojiPickerPanel onSelect={insertEmoji} className="h-full" />
+                </PopoverContent>
+              </Popover>
             )}
         </ZonaDeHerramientas>
 

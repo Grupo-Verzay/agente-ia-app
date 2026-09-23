@@ -4,6 +4,8 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Paperclip, ImageIcon, Video, FileText, AudioLines } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { PANEL_QUE_SE_DESPLAZA, suelto } from "@/lib/paneles-flotantes";
 
 /** Tipos compartidos */
 export type MediaType = "image" | "video" | "audio" | "document";
@@ -37,7 +39,6 @@ export function AttachmentMenu({
   const docInputRef = useRef<HTMLInputElement>(null);
   const audInputRef = useRef<HTMLInputElement>(null);
 
-  const toggle = useCallback(() => setOpen((v) => !v), []);
   const close = useCallback(() => setOpen(false), []);
 
   const handlePick = useCallback((ref: React.RefObject<HTMLInputElement>) => {
@@ -112,23 +113,27 @@ export function AttachmentMenu({
 
   return (
     <div className="relative">
-      {/* Clip (está pensado para ir DENTRO de la barra del input, a la izquierda) */}
+      {/* Clip (está pensado para ir DENTRO de la barra del input, a la
+          izquierda). El menú va en un portal y elige el lado donde cabe (ver
+          `suelto` en lib/paneles-flotantes.ts): era un `div` absoluto que
+          siempre abría hacia arriba, recortado por lo que lo contuviera. */}
+      <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
       <Button
         type="button"
         variant="ghost"
-        onClick={toggle}
         className="h-8 w-8 rounded-full p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
         aria-label="Adjuntar"
       >
         <Paperclip className="w-4 h-4" />
       </Button>
+      </PopoverTrigger>
 
-      {/* Popover simple */}
-      {open && (
-        <div
+        <PopoverContent
+          {...suelto("popover", "top", "start")}
           className={cn(
-            "absolute bottom-12 left-0 z-40 w-48 rounded-lg border bg-white dark:bg-gray-800 shadow-lg p-1",
-            "animate-in fade-in-0 zoom-in-95"
+            "w-48 rounded-lg border bg-white dark:bg-gray-800 shadow-lg p-1",
+            PANEL_QUE_SE_DESPLAZA,
           )}
           onMouseLeave={close}
         >
@@ -164,8 +169,8 @@ export function AttachmentMenu({
             <AudioLines className="w-4 h-4" />
             Audio (archivo)
           </button>
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
 
       {/* Inputs ocultos */}
       <input

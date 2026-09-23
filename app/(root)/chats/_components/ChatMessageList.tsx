@@ -503,6 +503,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
       <div
         className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto overflow-x-hidden custom-scrollbar w-full"
         ref={listRef}
+        data-hilo-de-chat=""
         onScroll={handleScroll}
       >
       <div
@@ -525,6 +526,8 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
     <div
       className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto overflow-x-hidden custom-scrollbar w-full"
       ref={listRef}
+      // El límite de lo que se abre desde un mensaje (ver `enElHilo`).
+      data-hilo-de-chat=""
       onScroll={handleScroll}
     >
       <div className="relative z-10 flex min-h-full w-full flex-col p-2 sm:p-4">

@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X, ArrowLeft, Loader2, Pencil } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
@@ -403,7 +405,7 @@ export function ChatRegistrosSheet({
                         + Nuevo
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={PANEL_QUE_SE_DESPLAZA}>
                       {TIPOS.map((tipo) => (
                         <DropdownMenuItem key={tipo} onClick={() => openCreate(tipo)}>
                           {NUEVO_TIPO_LABEL[tipo]}
@@ -557,7 +559,7 @@ export function ChatRegistrosSheet({
                                 <span className="text-base font-bold text-foreground">{flujosCount}</span>
                               </button>
                             </PopoverTrigger>
-                            <PopoverContent align="start" className="w-64 p-3">
+                            <PopoverContent {...suelto("popover", "bottom", "start")} className={cn("w-64 p-3", PANEL_QUE_SE_DESPLAZA)}>
                               <p className="text-xs font-semibold mb-2">Flujos ejecutados</p>
                               <ul className="space-y-1">
                                 {flujosNames.map((name, i) => (
