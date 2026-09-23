@@ -85,7 +85,7 @@ import {
 import { avatarSrcFor } from "@/lib/avatar";
 import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
-import { estaResuelta, totalesDeTodos, type FilaDelConteo } from "@/lib/total-de-todos";
+import { conLaResolucion, estaResuelta, totalesDeTodos, type FilaDelConteo } from "@/lib/total-de-todos";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
   ChatConversationPreference,
@@ -2643,20 +2643,36 @@ export function ChatsClient({
   );
 
   /**
-   * La conversación se reabrió: quitar la marca en memoria.
+   * Se resolvio o se reabrio: pintarlo al momento, en TODAS las llaves.
    *
-   * Sin esto la fila se quedaría en "Resueltos" hasta recargar, que es
-   * justamente lo que se veía al intentar sacarla de ahí con "Liberar".
+   * Resolver escribia la marca en la base y no en la pantalla, asi que la fila
+   * y el contador de «Todos» esperaban al reloj de sesiones (60 s): en
+   * produccion se veia resolver, recargar y ver el numero cambiar solo
+   * entonces. Y reabrir limpiaba solo la llave global del contacto, mientras la
+   * lista lee la de su linea (`linea::numero`): la reabierta no volvia.
+   *
+   * Lo llaman las tres formas de resolver —la cabecera, el menu de la fila y el
+   * lote— y la de reabrir. La hora es la del navegador; el reloj de sesiones la
+   * sustituye despues por la del servidor.
    */
-  const handleSessionReopened = useCallback(
-    (remoteJid: string) => {
-      setChatSessions((previous) => {
-        const current = previous[remoteJid];
-        if (!current) return previous;
-        return { ...previous, [remoteJid]: { ...current, resolvedAt: null } };
-      });
-    },
-    [],
+  const marcarResolucion = useCallback((sessionIds: number[], resuelta: boolean) => {
+    if (sessionIds.length === 0) return;
+    setChatSessions((previous) => {
+      const { siguiente, tocadas } = conLaResolucion(previous, sessionIds, resuelta ? Date.now() : null);
+      if (tocadas === 0) {
+        console.warn(
+          `[chats] ${resuelta ? "resolver" : "reabrir"} se guardo pero no se encontro la sesion en pantalla`,
+          { sessionIds },
+        );
+        return previous;
+      }
+      return siguiente;
+    });
+  }, []);
+
+  const handleResolucionCambiada = useCallback(
+    (sessionId: number, resuelta: boolean) => marcarResolucion([sessionId], resuelta),
+    [marcarResolucion],
   );
 
   /**
@@ -5399,6 +5415,7 @@ export function ChatsClient({
         } h-full flex-shrink-0 transition-all duration-300 sm:border-r border-border`}
       >
         <ChatSidebar
+          onResolucion={marcarResolucion}
           allTags={allTags}
           etiquetasDelFiltro={etiquetasParaFiltrar}
           presencias={presenciasVisibles}
@@ -5496,7 +5513,7 @@ export function ChatsClient({
             assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
             resolvedAt={currentContactSession?.resolvedAt ?? null}
             escalatedAt={currentContactSession?.escalatedAt ?? null}
-            onSessionReopened={() => handleSessionReopened(selectedJid)}
+            onResolucionCambiada={handleResolucionCambiada}
             onUnescalated={(sessionId) =>
               aplicarEnLaSesion(sessionId, selectedJid, { escalatedAt: null }, "quitar de espera")
             }

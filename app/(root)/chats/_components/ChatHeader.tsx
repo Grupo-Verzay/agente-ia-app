@@ -119,8 +119,12 @@ interface ChatHeaderProps {
   resolvedAt?: number | null;
   /** Desde cuando espera a una persona (ms), o null si no esta en espera. */
   escalatedAt?: number | null;
-  /** Aviso de que se reabrio, para que la lista la saque de "Resueltos". */
-  onSessionReopened?: () => void;
+  /**
+   * Se resolvio (true) o se reabrio (false). La lista y el contador de «Todos»
+   * lo pintan al momento; sin este aviso esperaban al reloj de sesiones (60 s)
+   * y el numero no bajaba al resolver.
+   */
+  onResolucionCambiada?: (sessionId: number, resuelta: boolean) => void;
   /**
    * Se quito de «En espera»: quitar el sello en memoria para que el conteo baje
    * al momento. Trae el id de la sesion para tocar TODAS sus llaves.
@@ -163,7 +167,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   assignedAdvisorId,
   resolvedAt,
   escalatedAt,
-  onSessionReopened,
+  onResolucionCambiada,
   onUnescalated,
   onAssignAdvisor,
   onNewMessage,
@@ -238,6 +242,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     setResolving(false);
     if (!res.success) { toast.error(res.message ?? 'Error al resolver.'); return; }
     toast.success('Conversación resuelta.');
+    onResolucionCambiada?.(session.id, true);
     onSessionMutate();
     await onSessionRefresh();
   };
@@ -259,7 +264,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     setResolving(false);
     if (!res.success) { toast.error(res.message ?? 'Error al reabrir.'); return; }
     toast.success('Conversación reabierta.');
-    onSessionReopened?.();
+    onResolucionCambiada?.(session.id, false);
     onSessionMutate();
     await onSessionRefresh();
   };

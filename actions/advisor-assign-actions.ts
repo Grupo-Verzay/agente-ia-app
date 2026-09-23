@@ -533,28 +533,34 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
  */
 export async function resolverSesionesAction(
   ids: number[],
-): Promise<ResumenDelBorrado> {
+): Promise<ResumenDelBorrado & { resueltos: number[] }> {
   const limpios = comoListaDeIdsNumericos(ids);
   if (limpios.length === 0) {
-    return { success: false, borrados: 0, fallaron: 0, message: "No hay conversaciones que resolver." };
+    return { success: false, borrados: 0, fallaron: 0, resueltos: [], message: "No hay conversaciones que resolver." };
   }
 
+  // Cuáles SÍ se resolvieron, por su id: la pantalla las marca en memoria al
+  // momento (la fila sale de «Todos» y el número baja sin esperar al reloj de
+  // sesiones). Con solo el recuento no sabría cuáles marcar si falla alguna.
+  const resueltos: number[] = [];
   const { borrados, fallaron } = await borrarUnaAUna(
     limpios.map(String),
     async (id) => {
       const res = await resolveSession(Number(id));
+      if (res.success) resueltos.push(Number(id));
       return res.success;
     },
   );
 
   if (borrados === 0) {
-    return { success: false, borrados, fallaron, message: "No se pudo resolver ninguna conversación." };
+    return { success: false, borrados, fallaron, resueltos, message: "No se pudo resolver ninguna conversación." };
   }
   if (fallaron > 0) {
     return {
       success: true,
       borrados,
       fallaron,
+      resueltos,
       message: `Se resolvieron ${borrados} conversaciones; ${fallaron} no se pudieron resolver.`,
     };
   }
@@ -562,6 +568,7 @@ export async function resolverSesionesAction(
     success: true,
     borrados,
     fallaron,
+    resueltos,
     message: borrados === 1 ? "Conversación resuelta." : `${borrados} conversaciones resueltas.`,
   };
 }
