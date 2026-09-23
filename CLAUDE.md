@@ -5295,6 +5295,49 @@ arriba y hacia la izquierda, fuera de la pantalla. El banco lo prueba con un
 móvil de 390×667.
 
 
+## La llamada del directo nace en VOZ o en VIDEO, y se SUBE solo si el otro acepta
+
+Dos fallos de la misma ventana, reportados juntos:
+
+| lo que se veía | lo que era |
+| --- | --- |
+| al ampliar, el botón de plegar «desaparecía» y la tarjeta quedaba grande | iba `absolute` en la esquina de la tarjeta, y con imagen esa esquina es el **video**: un botón fantasma de icono oscuro encima de un recuadro casi negro |
+| compartir pantalla en una llamada de voz | los mandos eran una lista fija, sin modo |
+
+> **Qué mandos tiene una llamada lo decide `losMandosDeLaLlamada`
+> (`lib/modo-de-la-llamada.ts`, puro), no la pantalla.** En voz: micro, *subir
+> a video* y colgar. En video: micro, cámara, pantalla y colgar. Compartir
+> pantalla **no se pinta en voz, ni apagado**.
+
+Cinco cosas que hay que mantener:
+
+1. **El modo es de la LLAMADA y lo manda el servidor**: `llamadas_de_voz.modo`
+   y `videoPedidoPor`, con `ADD COLUMN IF NOT EXISTS` (la tabla ya está en
+   producción). Las filas de antes quedan en `voz`, que es lo que eran.
+2. **Subir a video es PEDIR.** Nadie enciende la cámara hasta que el otro
+   acepta, y **quien pidió no puede aceptárselo a sí mismo**: lo impide el
+   `WHERE "videoPedidoPor" <> quien contesta`, no la pantalla. Una petición
+   del otro **despliega la ventana** —plegada, la pregunta no se vería— y un
+   rechazo **se dice** a quien pidió («prefiere seguir solo con voz»).
+3. **Subir no corta nada**: audio y video se negocian en `sendrecv` desde la
+   primera oferta, así que pasar a video es encender la cámara dentro de la
+   MISMA conexión. Ni otra oferta, ni otra fila, ni un segundo de silencio.
+4. **Una videollamada arranca con la cámara encendida** (`arrancar(true)`) y
+   suena como «Videollamada entrante». Se elige en el menú del teléfono de la
+   cabecera del directo (Llamada de voz / Videollamada): un menú, no un segundo
+   botón, como el de Chats. El directo la anota como «Videollamada · 3:07».
+5. **Plegar va en su fila, no flotando**: el extremo derecho de la fila de
+   arriba, **en el mismo píxel** que el de ampliar en la pastilla (7 px del
+   borde derecho, 5 del de arriba). Plegar y ampliar son un gesto de ida y
+   vuelta, así que el botón no cambia de sitio. Por eso la pastilla —que usa
+   también la llamada de WhatsApp— lleva ampliar **el último**.
+
+Lo prueba `scripts/banco-llamada-de-equipo.sh`: la regla sin navegador, y
+**dos Chromium** con cámara y micro falsos, WebRTC de verdad entre los dos y las
+acciones de verdad contra Postgres —cada página con su sesión, por
+`AsyncLocalStorage`, porque las dos se cruzan—. `MODO=roto` monta la ventana,
+la pastilla y el oyente de `ANTES_REF` y afirma los dos fallos.
+
 ## Videollamada y SALAS: la misma llamada, más gente y más pistas
 
 La llamada de voz del directo pasa a llevar **video y pantalla compartida**, y
