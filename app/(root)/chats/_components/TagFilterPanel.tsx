@@ -120,9 +120,9 @@ export function TagFilterPanel({
       {/* El ancho lo pone la COLUMNA, no un `w-72` escrito aquí.
           Aquel medía 288 px y la columna mide 352 a 1024: con `align="end"` el
           panel salía flotando en mitad de la lista, y en un móvil estrecho se
-          montaba sobre el borde. Ahora ocupa la columna entera —donde
-          «Inicio de conversación» cabe de sobra, que era lo que aquel ancho
-          protegía— y nace bajo las pastillas, como los otros tres filtros. */}
+          montaba sobre el borde. Ahora mide el ancho común, colgado de su
+          botón y dentro de la columna, y nace justo debajo de la raya de la
+          cabecera, como los otros tres menús (`columnaAncha`). */}
       <PopoverContent {...panel.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
         {/* ── Rango de fechas ─────────────────────────────────────────────── */}
         <div className="mb-1 flex items-center justify-between px-1">

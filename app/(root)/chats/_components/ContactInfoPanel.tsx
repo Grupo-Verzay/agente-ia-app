@@ -5,7 +5,7 @@ import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin, Users,
   Briefcase, FileText, Check, ChevronDown, Home, CreditCard, Calendar, Flag,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
-  Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal,
+  Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal, User,
 } from 'lucide-react';
 import { getContactFieldsConfig } from '@/actions/contact-fields-actions';
 import {
@@ -183,6 +183,11 @@ export function ContactInfoPanel({
       abierto={abierto && !!session}
       onCerrar={onClose}
       titulo="Contacto"
+      // Como los demás paneles: su icono arriba y el NOMBRE del contacto en la
+      // segunda fila. Sin él la fila salía vacía y la ficha era la única de las
+      // siete que no decía de quién es en su cabecera.
+      icono={<User className="h-4 w-4" />}
+      subtitulo={resto.displayedContactName}
       etiquetaDeCerrar="Cerrar ficha de contacto"
       acciones={
         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setConfigOpen(true)} title="Configurar campos" aria-label="Configurar campos">

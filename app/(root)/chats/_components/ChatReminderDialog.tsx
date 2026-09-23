@@ -150,15 +150,22 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
         titulo="Crear recordatorio"
         subtitulo={session.pushName}
         icono={<BellPlus className="h-4 w-4" />}
+        // El formulario se desplaza SOLO y su fila de botones es el pie fijo
+        // del panel (`enPanel`): el botón de enviar tiene que vivir dentro del
+        // `<form>`, así que el pie lo pinta él con `PIE_DEL_PANEL`.
+        cuerpoPropio
       >
-        {/* El desplazamiento lo pone PanelLateral: aqui solo el relleno. */}
-        <div className="px-4 py-4">
+        <div className="flex min-h-0 flex-1 flex-col">
           {isLoading || !deps ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <ReminderForm
+              enPanel
+              // «Cancelar» no cerraba nada: el formulario llamaba a un
+              // `onCancel` que aquí nadie le pasaba.
+              onCancel={() => setOpen(false)}
               userId={userId}
               serverUrl={deps.serverUrl}
               apikey={deps.apikey}

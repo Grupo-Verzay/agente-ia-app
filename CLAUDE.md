@@ -15905,6 +15905,91 @@ equipo en su lista (30 canales y 30 personas sembrados) y en su chat.
 `MODO=roto` —con un `.next` de `20db904`— lee el código de antes y afirma los
 fallos de la tabla de arriba.
 
+## Chats: las tres barras de escribir y los pies fijos son UNO
+
+La regla de toda la pantalla: lo que en un panel se ve de una forma, en los
+demás se ve **igual, no parecido**, y el modelo es la conversación de WhatsApp.
+Medido sobre la página servida antes de tocar nada:
+
+| | conversación | chat de equipo | copiloto |
+| --- | --- | --- | --- |
+| alto de la barra | 57 | **65** | otra forma |
+| filo → «+» · «+» → caja | 12 · 8 | **24 · 8** | sin «+» |
+| a la derecha | un botón | un botón | **micro Y flecha** |
+
+> **Las tres barras llevan el MISMO marco y la misma fila**
+> (`MARCO_DE_LA_BARRA`, `FILA_DE_LA_BARRA`, en `lib/barra-de-escribir.ts`): el
+> «+» a **6 px** del filo y a 6 de la caja —la mínima y la misma a los dos
+> lados, que es ancho que gana la caja—, y el relleno vertical de la
+> conversación. **57 px con la raya**, las tres: la raya de arriba y la línea de
+> abajo caen en el mismo píxel en las tres columnas.
+
+El copiloto pasó a la barra común: sus sugerencias («Sugerir respuesta»,
+«Resumir chat», «Seguimiento»…) viven **dentro del «+»** (`OpcionesRapidas`), y
+a la derecha hay UN botón: el micrófono con la caja vacía y la flecha con texto.
+Lo decide `losBotonesDeLaDerecha` con `conNota: false` —el copiloto dicta pero
+no graba notas—; sin ese campo las otras dos barras deciden lo de siempre.
+
+### El pie FIJO de un panel mide lo que la barra de escribir
+
+«Crear recordatorio», «Nueva tarea» y «Contexto del lead» llevan su fila de
+abajo **fija**, con su raya encima y el alto de la barra (`PIE_DEL_PANEL`),
+mientras el cuerpo se desplaza por detrás. Antes había que bajar por todo el
+formulario para llegar a «Crear». Cuatro cosas:
+
+1. **Entra por `PanelLateral`**: `pie` para una fila de botones normal, y
+   `cuerpoPropio` cuando el botón de enviar tiene que vivir DENTRO de un
+   `<form>` (el recordatorio: `ReminderForm` con `enPanel` pinta él la fila con
+   la misma clase). Sus botones van como hijos DIRECTOS: el pie es
+   `justify-between`.
+2. **Es del PANEL, no de una sección.** El del contexto sale siempre —«No se
+   envía al cliente» a la izquierda y los dos pulgares a la derecha—, haya
+   recomendación o no (sin ella, los pulgares apagados). Antes era de la
+   sección del playbook y cada caso acababa distinto.
+3. **Los botones dicen «Crear» y «Cancelar».** El título del panel ya dice qué
+   se crea; «Crear recordatorio» debajo de «Crear recordatorio» es repetirlo.
+4. **Crear va en AZUL y guardar en VERDE.** El del recordatorio estaba en verde
+   (`variant="save"`); ahora `isEdit ? "save" : "default"`.
+
+Y un fallo de paso: el «Cancelar» del recordatorio en Chats **no cerraba nada**
+—el formulario llamaba a un `onCancel` que nadie le pasaba—.
+
+### Los menús de la columna nacen DEBAJO de la raya, colgados de su botón
+
+Canales, etiquetas y fechas, asesores y el «⌄» de las pastillas nacían en el
+borde de abajo de las PASTILLAS y en el filo izquierdo de la columna. Debajo de
+las pastillas quedan todavía el relleno de la cabecera y su raya, así que **se
+comían la línea divisoria**, y los de la derecha se abrían lejos de su botón.
+
+> **`columnaAncha` los hace nacer en el borde de abajo de la cabecera de la
+> columna** (`data-cabecera-de-la-columna`, raya incluida), sin hueco, y
+> **anclados a su botón**: uno de la mitad izquierda alinea su filo izquierdo
+> con el del botón, uno de la derecha su filo derecho; los dos crecen hacia
+> dentro y, si no caben, se corren lo justo para no salirse de la columna
+> (`elFiloIzquierdoEnLaColumna`).
+
+La sonda comprueba que la raya **se ve entera** preguntando al navegador qué
+hay en cada punto de ella, y **en píxeles enteros**: con un medio píxel el
+navegador redondea hacia la fila de debajo, que es justo donde el menú sí tiene
+que estar, y se cantaba un fallo que no existía.
+
+### El «No autorizado» del Contexto del lead
+
+Al abrir el panel salía en rojo, también al superadministrador:
+`getSalesPlaybookAction` exigía que la conversación fuera de la cuenta de quien
+mira (`userId = ownerId ?? id`), y la bandeja enseña además las de las cuentas
+que cuelgan de ella. `scoreLeadBySessionId` igual («Sesión no encontrada.»).
+Ahora las dos buscan la conversación por su id y comprueban
+`assertCanAccessTargetUser` con **la cuenta dueña**: hacia abajo, nunca hacia
+arriba. La valoración se guarda con esa cuenta y la firma la persona.
+
+Lo prueban `scripts/banco-simetria-de-chats.sh` —la decisión y un barrido, y en
+Chromium sobre la página servida a 1440/1280/1024: la raya en las tres
+columnas y los siete paneles, las tres barras, los tres pies y los cuatro
+menús; `MODO=roto BUILD_ANTES=<.next de antes>` afirma los fallos— y
+`scripts/banco-contexto-del-lead.sh`, con las acciones de verdad contra
+Postgres y su modo roto.
+
 ## Chats: todo lo flotante mide el hueco y elige el lado donde CABE
 
 La barra de reacciones de un mensaje abría siempre hacia arriba, y con el

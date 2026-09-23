@@ -158,6 +158,20 @@ export function TaskFormDialog({
       titulo="Nueva tarea"
       subtitulo={session?.pushName}
       icono={<ClipboardList className="h-4 w-4" />}
+      // La fila de botones va FIJA abajo, con su raya y el alto de la barra de
+      // escribir: antes iba al final del formulario y había que bajar por
+      // todo él para llegar a «Crear». Hijos directos del pie (`justify-between`).
+      pie={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
+            Cancelar
+          </Button>
+          {/* «Crear», no «Crear tarea»: el título del panel ya dice qué se crea. */}
+          <Button onClick={() => void handleSave()} disabled={saving} type="button" data-boton="crear">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear"}
+          </Button>
+        </>
+      }
     >
         {/* El desplazamiento lo pone PanelLateral: aqui solo el relleno. */}
         <div className="flex flex-col space-y-3 px-4 py-4">
@@ -282,18 +296,6 @@ export function TaskFormDialog({
           </label>
         </div>
 
-        {/* El pie va DENTRO del contenido: PanelLateral no tiene hueco de pie,
-            y sus dos botones son hijos DIRECTOS de la fila — que es lo que hace
-            que `justify-between` los reparta (metidos en un <div> ve un solo
-            hijo y los manda juntos a un extremo, medido: +198 px). */}
-        <div className="mt-auto flex flex-row flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
-            Cancelar
-          </Button>
-          <Button onClick={() => void handleSave()} disabled={saving} type="button">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear tarea"}
-          </Button>
-        </div>
     </PanelLateral>
   );
 }

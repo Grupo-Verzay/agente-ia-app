@@ -195,6 +195,49 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
                 titulo="Contexto del lead"
                 subtitulo={session.pushName}
                 icono={<Brain className="h-4 w-4" />}
+                // UNA fila fija abajo, la misma en todos los casos: «No se envía
+                // al cliente» a la izquierda y los dos pulgares a la derecha. Era
+                // de la sección del playbook y cada caso acababa distinto —con
+                // los pulgares, con «Sin recomendaciones disponibles» o con
+                // nada—; es del PANEL y sale aunque no haya recomendación (los
+                // pulgares, apagados: no hay nada que evaluar).
+                pie={
+                    <>
+                        <span className="min-w-0 truncate pl-1.5 text-xs text-muted-foreground" data-no-se-envia>
+                            No se envía al cliente.
+                        </span>
+                        {feedbackSent ? (
+                            <span className="shrink-0 pr-1.5 text-xs text-emerald-600">Evaluado</span>
+                        ) : (
+                            <div className="flex shrink-0 gap-1" data-pulgares>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-10 w-10"
+                                    onClick={() => sendFeedback(true)}
+                                    disabled={!playbook}
+                                    title="Útil"
+                                    aria-label="Recomendación útil"
+                                >
+                                    <ThumbsUp className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-10 w-10"
+                                    onClick={() => sendFeedback(false)}
+                                    disabled={!playbook}
+                                    title="No útil"
+                                    aria-label="Recomendación no útil"
+                                >
+                                    <ThumbsDown className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                }
             >
                 {/* El desplazamiento lo pone PanelLateral: aqui solo el relleno. */}
                 <div className="px-5 py-4 space-y-5">
@@ -457,37 +500,6 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
                                         ))}
                                     </div>
                                 )}
-                                <div className="flex items-center justify-between gap-2 border-t pt-2">
-                                    <span className="text-[11px] text-muted-foreground">
-                                        No se envía al cliente.
-                                    </span>
-                                    {feedbackSent ? (
-                                        <span className="text-xs text-emerald-600">Evaluado</span>
-                                    ) : (
-                                        <div className="flex gap-1">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7"
-                                                onClick={() => sendFeedback(true)}
-                                                title="Útil"
-                                            >
-                                                <ThumbsUp className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7"
-                                                onClick={() => sendFeedback(false)}
-                                                title="No útil"
-                                            >
-                                                <ThumbsDown className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         ) : (
                             <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">

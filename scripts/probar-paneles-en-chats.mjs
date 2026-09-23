@@ -195,7 +195,10 @@ for (const v of VENTANAS) {
             const cont = document.querySelector("[data-radix-popper-content-wrapper] > [data-state='open']");
             const col = document.querySelector("[data-columna-de-chats]")?.getBoundingClientRect();
             const r = cont?.getBoundingClientRect();
-            const past = document.querySelector("[data-pastillas-de-chats]")?.getBoundingClientRect();
+            // Nacen justo DEBAJO de la raya de la cabecera de la columna, no
+            // bajo las pastillas: ahí quedaban el relleno y la raya, y el menú
+            // se los comía (ver `columnaAncha`).
+            const past = document.querySelector("[data-cabecera-de-la-columna]")?.getBoundingClientRect();
             return {
                 ancho: r ? Math.round(r.width) : null,
                 left: r ? Math.round(r.left) : null,
@@ -221,7 +224,7 @@ for (const v of VENTANAS) {
         exigir(m.left !== null && m.left >= m.colLeft, `${v.width}: «${p.nombre}» se sale por la izquierda de la columna`);
         exigir(
             m.bajoPastillas === null || Math.abs(m.top - m.bajoPastillas) <= 1,
-            `${v.width}: «${p.nombre}» no nace pegado a las pastillas (${m.top} vs ${m.bajoPastillas})`,
+            `${v.width}: «${p.nombre}» no nace justo debajo de la raya de la columna (${m.top} vs ${m.bajoPastillas})`,
         );
         exigir(m.relleno === "8px", `${v.width}: «${p.nombre}» lleva otro relleno (${m.relleno})`);
         await pagina.keyboard.press("Escape");
