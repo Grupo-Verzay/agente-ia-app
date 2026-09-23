@@ -15625,20 +15625,29 @@ de uno a otro. Medido sobre la página servida, cada cabecera traía sus número
 | --- | --- | --- | --- | --- | --- |
 | columna (antes) | 12 | 12 | 8 | 8 | 82 |
 | conversación (antes) | 16 | 16 | 0 | 0 | 82 |
-| **las dos (ahora)** | **16** | **16** | **16** | **16** | **110** |
+| las dos (#909) | 16 | 16 | 16 | 16 | 110 |
+| **las dos (ahora)** | **6** | **6** | **6** | **6** | **78** |
 
 Y la primera fila caía en 82 en una y en 79 en la otra.
 
 > **Los números viven en `lib/cabeceras-de-chats.ts` y los usan las DOS
-> cabeceras.** El margen es 16 px —el de la fila de Macros y Acciones, que era
-> el correcto— a los cuatro lados; las filas miden lo mismo en las dos (36 y
-> 32 px, con 8 entre ellas), y de ahí sale el alto: 16 + 36 + 8 + 32 + 16 + 2
-> de borde = **110 px**. Con filas del mismo alto y el mismo relleno, lo de
+> cabeceras.** El margen es 6 px a los cuatro lados; las filas miden lo mismo
+> en las dos (32 y 28 px, con 4 entre ellas), y de ahí sale el alto: 6 + 32 +
+> 4 + 28 + 6 + 2 de borde = **78 px**. El #909 los había unificado a 16 y
+> 110 px: **unificar no es engordar** — la cabecera tiene que quedar más baja
+> que antes, nunca más alta. Con filas del mismo alto y el mismo relleno, lo de
 > dentro cae en la misma línea horizontal en las dos columnas. Solo desde `md`:
 > por debajo cada una tiene su cabecera de móvil, que no se toca.
 
-Cuatro cosas que hay que mantener:
+Cinco cosas que hay que mantener:
 
+0. **Los controles de icono de la fila de arriba, en las dos cabeceras, tienen
+   UNA caja**: `CONTROL_DE_ICONO` (28 de alto y 28 de ancho como mínimo) y
+   `GLIFO_DE_CONTROL` (14 px). El embudo medía 24 y asesores/grupos 32, y no se
+   leían simétricos. Lo que lleva un número dentro crece a lo ancho, nunca en
+   alto; la forma y el color son de cada uno. Y dentro de la tira que se
+   desplaza van `shrink-0`: si no, con la ficha abierta a 1024 se encogían a
+   16 px en vez de desplazarse. La sonda lo mide.
 1. **El margen lo pone la CABECERA, no cada fila.** Con el relleno escrito
    fila por fila (`px-4` arriba, `pr-4` abajo, nada en vertical) es como se
    llegó a tener cuatro números distintos.

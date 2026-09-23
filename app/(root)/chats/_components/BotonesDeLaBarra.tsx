@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from "@/lib/cabeceras-de-chats";
 
 /**
  * Los dos botones de la derecha de la barra de Chats.
@@ -37,7 +38,8 @@ export const BotonDeAsesores = React.forwardRef<HTMLButtonElement, PropsDeAsesor
                 type="button"
                 title="Filtrar por asesor"
                 className={cn(
-                    "relative inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors sm:h-8 sm:px-2",
+                    "relative inline-flex shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors",
+                    CONTROL_DE_ICONO,
                     activo
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -45,7 +47,7 @@ export const BotonDeAsesores = React.forwardRef<HTMLButtonElement, PropsDeAsesor
                 )}
                 {...resto}
             >
-                <Users className="h-4 w-4 shrink-0" />
+                <Users className={cn(GLIFO_DE_CONTROL, "shrink-0")} />
                 {/* La insignia sí desaparece en cero —como en «Sin leer»—, pero el
                     BOTÓN no: es estructura, y lo que no puede moverse al llegar los
                     datos. */}
@@ -83,7 +85,8 @@ export const BotonDeGrupos = React.forwardRef<HTMLButtonElement, PropsDeGrupos>(
                 title="Solo grupos"
                 aria-pressed={activo}
                 className={cn(
-                    "relative inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors sm:h-8 sm:px-2",
+                    "relative inline-flex shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors",
+                    CONTROL_DE_ICONO,
                     activo
                         ? "border-emerald-600 bg-emerald-600 text-white"
                         : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -91,7 +94,7 @@ export const BotonDeGrupos = React.forwardRef<HTMLButtonElement, PropsDeGrupos>(
                 )}
                 {...resto}
             >
-                <Users className="h-4 w-4 shrink-0" />
+                <Users className={cn(GLIFO_DE_CONTROL, "shrink-0")} />
                 {cantidad > 0 && (
                     <span
                         className={cn(

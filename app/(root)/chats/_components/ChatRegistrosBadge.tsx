@@ -174,7 +174,7 @@ export function ChatRegistrosBadge({
           <button
             type="button"
             title="Registros del lead"
-            className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-teal-100 text-teal-800 hover:bg-teal-200 focus:outline-none transition-colors"
+            className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-teal-300 bg-teal-100 text-teal-800 hover:bg-teal-200 focus:outline-none transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             {displayTotal > 0 && (

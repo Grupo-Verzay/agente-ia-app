@@ -128,7 +128,7 @@ export function ChatAppointmentStatusButton({
           <button
             type="button"
             title="Estado de cita"
-            className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-violet-300 bg-violet-100 text-violet-800 hover:bg-violet-200 focus:outline-none transition-colors"
+            className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-violet-300 bg-violet-100 text-violet-800 hover:bg-violet-200 focus:outline-none transition-colors"
           >
             <CalendarClock className="h-3.5 w-3.5" />
             {appointment && (

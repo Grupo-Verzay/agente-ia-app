@@ -7,6 +7,8 @@ import { ChatSearchBar } from "./ChatSearchBar";
 import { ChatTabBar } from "./ChatTabBar";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
+import { cn } from "@/lib/utils";
+import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2 } from "@/lib/cabeceras-de-chats";
 import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import type { TabCounts } from "./chat-sidebar.types";
 import {
@@ -90,11 +92,13 @@ export function CachedSidebar() {
         {/* Mismas clases y MISMA altura fija que la barra real, para que el
             divisor no salte al cambiar el puente por ella. */}
         <div
-          className="pointer-events-none sticky top-0 z-10 flex flex-col justify-center space-y-1.5 overflow-hidden border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur sm:space-y-2 sm:px-3"
-          style={{ height: '5.125rem' }}
+          className={cn(
+            "pointer-events-none sticky top-0 z-10 flex h-[5.125rem] flex-col justify-center gap-1.5 overflow-hidden border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur sm:gap-2 sm:px-3",
+            CABECERA_ESCRITORIO,
+          )}
           aria-hidden
         >
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
+          <div className={cn("grid shrink-0 min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2", CLASE_FILA_1)}>
             <ChatSearchBar
               value=""
               onChange={nada}
@@ -126,6 +130,7 @@ export function CachedSidebar() {
             <BotonDeGrupos />
           </div>
 
+          <div className={cn("flex shrink-0 items-center", CLASE_FILA_2)}>
           <ChatTabBar
             tab="all"
             onTabChange={nada}
@@ -134,6 +139,7 @@ export function CachedSidebar() {
             onToggleUnread={nada}
             onToggleEnEspera={nada}
           />
+          </div>
         </div>
 
         {/* Lista de chats (desde caché) — misma disposición que ChatContactItem */}

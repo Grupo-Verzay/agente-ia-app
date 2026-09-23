@@ -175,7 +175,7 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 shrink-0"
                 onClick={() => setOpen(true)}
                 title={localScore !== null ? `Score: ${localScore}/100` : 'Ver contexto del lead'}
             >

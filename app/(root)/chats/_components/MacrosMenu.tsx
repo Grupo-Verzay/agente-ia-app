@@ -57,7 +57,7 @@ export function MacrosMenu({ onRunMacro }: Props) {
         <Button
           size="sm"
           variant="secondary"
-          className="h-8 gap-1.5 px-2.5 text-sm"
+          className="h-8 md:h-7 gap-1.5 px-2.5 text-sm"
           title="Macros"
           // De aquí sale el ancho de los SEIS paneles de la cabecera: su borde
           // izquierdo es el extremo de la fila de Macros y Acciones.

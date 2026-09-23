@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarDays, Check, Filter, Search, Tag, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from "@/lib/cabeceras-de-chats";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
@@ -100,13 +101,14 @@ export function TagFilterPanel({
           data-embudo
           data-activo={activo ? "si" : "no"}
           className={cn(
-            "relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors",
+            "relative flex shrink-0 items-center justify-center rounded-full border transition-colors",
+            CONTROL_DE_ICONO,
             activo
               ? "border-primary bg-primary/10 text-primary"
               : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
-          <Filter className="h-3.5 w-3.5" />
+          <Filter className={GLIFO_DE_CONTROL} />
           {filterCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] font-bold text-primary-foreground">
               {filterCount}
