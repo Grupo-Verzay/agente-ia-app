@@ -14999,10 +14999,12 @@ Con la ficha de contacto o un panel lateral abierto, el icono de la **cita
 agendada** caía en la mitad izquierda y su panel crecía hacia la derecha, desde
 el centro de la conversación.
 
-> **Una sola regla, `colgarDelFiloDerecho`**: filo derecho del panel con filo
-> derecho de SU botón, creciendo hacia la izquierda, bajo la cabecera entera.
-> La usan `cabecera()` y `colgadoDelIcono()` (el menú de llamar, que antes
-> nacía por su filo izquierdo). Nunca se pasa a `align="start"`.
+> **Una sola regla**, que hoy es `alFiloDeLaConversacion`: crecen hacia la
+> izquierda, bajo la cabecera entera, y nunca pasan a `align="start"`. La usan
+> `cabecera()` y `colgadoDelIcono()` (el menú de llamar). **Dónde cae su filo
+> derecho cambió después**: ya no es el de su botón, sino el de la
+> conversación (ver *Todos los menús de la conversación comparten UN filo
+> derecho*). Lo que sigue sobre `ANCHO_DEL_MENU_CORTO` es historia.
 
 Cuando a la izquierda del botón no cabe el ancho pedido **en la pantalla** —un
 icono pegado al borde izquierdo, que en el móvil es el de llamar— se **corre a
@@ -15433,10 +15435,10 @@ Cinco cosas que hay que mantener:
    misma exclusión. **Si se añade otro panel en Chats, va por `PanelLateral`**
    (o por `usePanelLateral` si vive en el flex): un modal centrado es un
    panel que no cierra a los demás ni se deja cerrar por ellos.
-3. **Un panel de la cabecera cuelga de SU botón** (`cabecera()`): si el botón
-   está en la mitad derecha, filo derecho con filo derecho y crece hacia la
-   izquierda; en la izquierda, al revés. Antes se llevaba siempre al filo de la
-   cabecera, y el de un icono de en medio no colgaba de nadie.
+3. **Un panel de la cabecera crece hacia la izquierda y nace bajo la
+   cabecera.** Esto decía «cuelga de SU botón»; se corrigió: el filo derecho es
+   el del panel de conversación, el mismo para todos (ver *Todos los menús de
+   la conversación comparten UN filo derecho*).
 4. **Lo que se mide es lo que SE VE.** `ChatHeader` pinta Macros, Acciones y la
    cita en la fila del móvil y en la de escritorio, así que `querySelector` y un
    `useRef` se quedan con uno cualquiera — a menudo el escondido. El hook guarda
@@ -15446,6 +15448,51 @@ Cinco cosas que hay que mantener:
    `banco-paneles-flotantes` pintaba uno, y por eso estaba verde con el fallo
    en producción: *un arnés que no reproduce cuántas veces se monta algo no
    prueba cómo se mide.*
+
+### Todos los menús de la conversación comparten UN filo derecho
+
+> **Esta sección manda sobre las dos de arriba y la de abajo en lo que diga
+> «cuelga de su botón».** Aquella regla (#905) resolvía que un menú no naciera
+> lejos de su botón, y dejaba el fallo que se reportó después: con cada menú
+> colgando de su botón, abrir la cita, luego Registros y luego Acciones movía
+> el borde derecho de sitio. Medido en la página servida a 1440: Macros 1308,
+> Etiquetas 1352, Cita 1210, Registros 1278, Acciones 1418, Llamar 1108.
+> **Seis bordes para seis menús.**
+
+La regla, y es una sola: **el borde derecho de todo menú de la cabecera es el
+filo derecho del PANEL DE CONVERSACIÓN** (el recuadro del chat; con la ficha de
+contacto abierta, su borde izquierdo), **menos
+`MARGEN_INTERIOR_DE_LA_CONVERSACION` (16 px)**, y crece hacia la izquierda. No
+depende del botón que lo abre ni del borde de ninguna fila interna.
+
+Lo decide `alFiloDeLaConversacion` (`lib/paneles-flotantes.ts`, puro), y
+pasan por ahí `cabecera()` —Macros, Acciones, Cita, Registros, Etiquetas, el
+asesor y «Más»— y `colgadoDelIcono()` —el menú de llamar—. Cuatro cosas:
+
+1. **El contenedor que se mide YA es el panel de conversación.**
+   `data-cabecera-de-chat` es el primer hijo de la columna del chat en
+   `chat-main` y mide su ancho entero; la ficha de contacto es un hermano del
+   flex, así que queda fuera. No hizo falta ninguna marca nueva.
+2. **16 px no es a ojo: es el `pr-4` de la fila de Macros y Acciones**
+   (`MARGEN_DERECHO_DE_LA_CABECERA`). Con ese margen el borde derecho de los
+   menús cae en el píxel exacto en que acaba Acciones, el último botón. El
+   banco compara la constante con la clase del componente.
+3. **A Radix se le da como desplazamiento**, porque ancla al disparador: con
+   `align="end"`, `alignOffset = disparador.right − filo`, que sale NEGATIVO
+   (mueve a la derecha). Al revés no da error: lo deja al otro lado del botón.
+4. **El ancho sigue siendo el de la fila de Macros**, ahora de Macros al filo
+   compartido, y se acota para que el borde IZQUIERDO no se salga de la
+   ventana. El filo nunca se mueve para hacer sitio.
+
+Medido sobre la página servida, a 1440/1366/1280/1024, sin panel, con la ficha
+y con «Nueva tarea» abiertas: los seis menús acaban en el mismo píxel en las
+doce combinaciones (1418 a 1440 sin panel; 650 a 1024 con la ficha). Lo prueba
+`scripts/probar-menus-de-la-cabecera.mjs` desde `banco-paneles-en-chats.sh`, y
+`MODO=roto` con un `.next` de `960abc1` afirma los bordes distintos.
+
+Lo que queda abierto y no es de esto: a 1024 con la ficha o un panel abierto,
+el botón de llamar de la fila de iconos queda **tapado** (la fila no cabe) y no
+se puede pulsar. La sonda lo anota como «tapado» en vez de fingir una medida.
 
 ### Y lo que acota un menú es la PANTALLA, no la cabecera
 

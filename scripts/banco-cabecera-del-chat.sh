@@ -11,8 +11,8 @@
 #   2. Lo PINTADO, en Chromium sobre el CSS del build
 #      (`cabecera-del-chat-dom.test.mjs`), con los componentes reales:
 #      `PestanasDelChat` en una fila con Macros y Acciones a cinco anchos de
-#      cabecera; el menú de la cita agendada colgando de SU botón cuando el
-#      botón cae en la mitad IZQUIERDA de la cabecera; y el `LeadContextSheet`
+#      cabecera; el menú de la cita agendada con el filo de la conversación
+#      (menos 16 px) esté donde esté su botón; y el `LeadContextSheet`
 #      real —con sus tres acciones de servidor fingidas— editando y guardando
 #      la síntesis en el propio panel.
 #

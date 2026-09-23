@@ -24,7 +24,7 @@
  * | --- | --- | --- |
  * | `columnaAncha` | un ancho COMÚN, pegado al filo izquierdo de la columna y bajo la fila de pastillas | son filtros de la lista: se abren en el mismo sitio y con el mismo tamaño |
  * | `columnaDerecha` | pegado al filo DERECHO de la columna, bajo su control | son de UNA fila: nacen donde se pulsó, y voltean arriba si no cabe |
- * | `cabecera` | colgando de SU botón —su filo derecho es el del botón y crece hacia la izquierda—, bajo la cabecera, con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de altura ni de tamaño |
+ * | `cabecera` | con su filo derecho en el del PANEL DE CONVERSACIÓN (menos 16 px), creciendo hacia la izquierda, bajo la cabecera y con el ancho de la fila de Macros y Acciones | se pasa de uno a otro sin cerrar: ni saltan de altura, ni de tamaño, ni de filo |
  *
  * # Cómo se pinta eso con Radix, que es la parte que no se ve leyendo
  *
@@ -236,34 +236,47 @@ export function columnaDerecha(
 }
 
 /**
- * Colgando de SU botón —filo derecho con filo derecho, creciendo hacia la
- * izquierda—, bajo la cabecera entera, y con el ancho de la fila de Macros y
- * Acciones.
+ * El margen interior de TODO menú de la conversación respecto al filo derecho
+ * del panel de conversación.
  *
- * Dos cosas, y cada una arregla un fallo distinto:
+ * Son 16 px, y no es a ojo: es el `pr-4` con el que la fila de Macros y
+ * Acciones se separa de ese mismo filo (`MARGEN_DERECHO_DE_LA_CABECERA` en
+ * `ChatHeader`). Así el borde derecho de los menús cae en el píxel exacto en
+ * que acaba el botón de Acciones, que es el último de la cabecera, y la
+ * cabecera y sus menús se leen como una sola columna. El banco lo compara con
+ * la clase del componente para que no se separen.
+ */
+export const MARGEN_INTERIOR_DE_LA_CONVERSACION = 16;
+
+/**
+ * Bajo la cabecera entera y con el ancho de la fila de Macros y Acciones, con
+ * su filo derecho en el FILO DERECHO DEL PANEL DE CONVERSACIÓN.
  *
- * 1. **Los seis nacen a la misma ALTURA.** Es lo que permite pasar de uno a
- *    otro sin cerrar primero: no salta nada de sitio. Y esa altura es el borde
- *    de abajo de la cabecera, así que la fila de Macros y Acciones —que es su
- *    última fila— no se tapa nunca. Con `avoidCollisions` un panel alto
- *    volteaba arriba y se comía la cabecera entera.
- * 2. **Y los seis miden lo MISMO**: del borde izquierdo de Macros al filo
- *    derecho, que es el ancho que ya tenían Acciones y Registros. Antes cada
- *    uno traía el suyo —el de etiquetas se pasaba de ancho, el de la cita se
- *    quedaba corto— así que además de no saltar de sitio hacía falta que no
- *    saltaran de tamaño. Con el ancho fijo, un texto largo se acomoda en
- *    varias líneas: **el panel crece hacia abajo, nunca hacia los lados.**
+ * Tres cosas, y cada una arregla un fallo distinto:
  *
- * `desde` es el borde izquierdo de Macros, MEDIDO —no `--ancho-lateral` ni una
- * constante—: esa fila cambia de sitio con el ancho de la conversación, que
- * depende de la lista, de la ficha de contacto y de los paneles laterales.
+ * 1. **Los seis nacen a la misma ALTURA**: el borde de abajo de la cabecera.
+ *    Así no tapan la fila de Macros y Acciones y se pasa de uno a otro sin que
+ *    nada salte en vertical. Con `avoidCollisions` un panel alto volteaba
+ *    arriba y se comía la cabecera entera.
+ * 2. **Y el mismo FILO DERECHO**, el del panel de conversación menos
+ *    `MARGEN_INTERIOR_DE_LA_CONVERSACION`. No el del botón que los abre: con
+ *    cada menú colgando de su botón, abrir la cita, luego Registros y luego
+ *    Acciones movía el borde derecho de un sitio a otro, que es justo lo que
+ *    se reportó. Ver `alFiloDeLaConversacion`.
+ * 3. **Y miden LO MISMO**: del borde izquierdo de Macros a ese filo, que es el
+ *    ancho de la fila de Macros y Acciones. Con el ancho fijo, un texto largo
+ *    se acomoda en varias líneas: el panel crece hacia abajo, nunca hacia los
+ *    lados.
  *
- * Y sin `desde` se queda **exactamente como estaba**: cada componente con su
- * `w-*` de siempre, acotado por la cabecera. Es el caso de fuera de Chats —el
- * combobox de etiquetas lo pintan además el CRM y `/sessions`, y el de asesores
- * otras pantallas—, donde no hay ninguna fila de Macros contra la que medir.
- * Inventarles un ancho a dos pantallas que nadie pidió tocar es peor que no
- * unificar.
+ * `cabeceraCaja` ES el panel de conversación: el `data-cabecera-de-chat` es el
+ * primer hijo de la columna de la conversación y mide su ancho entero. No se
+ * mide la fila interna de iconos, que lleva su propio relleno y se desplaza en
+ * horizontal.
+ *
+ * `desde` es el borde izquierdo de Macros, MEDIDO: esa fila cambia de sitio con
+ * el ancho de la conversación. Y sin `desde` no se inventa ningún ancho —cada
+ * componente conserva su `w-*`—: es el caso de fuera de Chats, donde el
+ * combobox de etiquetas lo pintan además el CRM y `/sessions`.
  */
 export function cabecera(
     cabeceraCaja: Caja,
@@ -274,8 +287,7 @@ export function cabecera(
 ): Geometria {
     // Un `desde` fuera de la cabecera no es una medida: es la copia de Macros
     // de la fila del MÓVIL, que va `md:hidden` y mide 0×0 en el origen. Con
-    // ella el ancho salía de la cabecera entera y el menú de Acciones cruzaba
-    // la pantalla de lado a lado. Se trata como si no hubiera fila que medir.
+    // ella el menú de Acciones cruzaba la pantalla de lado a lado.
     const desdeValido =
         desde !== undefined &&
         Number.isFinite(desde) &&
@@ -283,36 +295,23 @@ export function cabecera(
         desde < cabeceraCaja.right
             ? desde
             : undefined;
-    // El panel CUELGA DE SU BOTÓN, SIEMPRE por el filo derecho: su borde
-    // derecho es el del botón y crece hacia la IZQUIERDA (`colgarDelFiloDerecho`).
-    // Antes se elegía el lado mirando en qué mitad de la cabecera caía el
-    // botón, y la cita agendada —en la mitad izquierda con la ficha de
-    // contacto o un panel lateral abierto— crecía hacia la derecha desde el
-    // centro de la conversación.
-    //
-    // El ancho lo pide la fila (del filo de Macros al filo derecho); el suelo
-    // es un GUARDA (ver `ANCHO_MINIMO_DE_LA_CABECERA`) y la cabecera entera es
-    // el techo.
+    const filo = elFiloDeLaConversacion(cabeceraCaja, anchoDeLaVentana);
+    // El ancho lo pide la fila (del filo de Macros al filo compartido); el
+    // suelo es un GUARDA (ver `ANCHO_MINIMO_DE_LA_CABECERA`).
     const deseado =
         desdeValido === undefined
             ? undefined
-            : Math.max(ANCHO_MINIMO_DE_LA_CABECERA, Math.round(cabeceraCaja.right - desdeValido));
-    return colgarDelFiloDerecho(cabeceraCaja, disparador, deseado, primitiva, anchoDeLaVentana);
+            : Math.max(ANCHO_MINIMO_DE_LA_CABECERA, Math.round(filo - desdeValido));
+    return alFiloDeLaConversacion(cabeceraCaja, disparador, deseado, primitiva, anchoDeLaVentana);
 }
 
 /**
- * El menú del botón verde de llamar: colgado de SU icono como todos los de la
- * conversación —filo derecho con filo derecho, creciendo hacia la izquierda— y
- * nacido bajo la cabecera entera.
+ * El menú del botón verde de llamar, que vive en la fila de iconos: el mismo
+ * filo derecho que todos los de la conversación y bajo la cabecera entera.
  *
  * No lleva el ancho de la fila de Macros: son dos opciones cortas y mide lo que
- * ocupan. Nacía con su borde IZQUIERDO en el del icono; se pasó al derecho
- * porque «todos los menús de la conversación crecen hacia la izquierda» es una
- * regla, y con una excepción deja de serlo.
- *
- * Y la altura es la de los otros: **bajo la cabecera entera**. Pegado al icono
- * (`sideOffset` de 4) caía sobre la segunda fila y **tapaba Macros**.
- * `avoidCollisions: false` por lo mismo: volteado subiría sobre la cabecera.
+ * ocupan (`w-max`). Pegado al icono (`sideOffset` de 4) caía sobre la segunda
+ * fila y tapaba Macros; `avoidCollisions: false` por lo mismo.
  */
 export function colgadoDelIcono(
     cabeceraCaja: Caja,
@@ -320,82 +319,75 @@ export function colgadoDelIcono(
     primitiva: Primitiva,
     anchoDeLaVentana: number = Number.POSITIVE_INFINITY,
 ): Geometria {
-    // Sin ancho escrito: el menú mide lo que ocupan sus dos entradas (`w-max`).
-    // `ANCHO_DEL_MENU_CORTO` solo decide si hace falta correrlo para que no se
-    // salga por la izquierda cuando el icono está pegado a ese borde.
-    const g = colgarDelFiloDerecho(
-        cabeceraCaja,
-        disparador,
-        ANCHO_DEL_MENU_CORTO,
-        primitiva,
-        anchoDeLaVentana,
-    );
-    const { width: _sinAncho, ...estilo } = g.estilo;
-    return { ...g, estilo };
+    return alFiloDeLaConversacion(cabeceraCaja, disparador, undefined, primitiva, anchoDeLaVentana);
 }
 
 /**
- * Lo que se da por ancho del menú de llamar para decidir si cabe a la
- * izquierda de su icono. Sus dos entradas («Llamar», «Llamar IA») miden unos
- * 140 px; se redondea hacia arriba, porque equivocarse hacia de más solo lo
- * corre un poco a la derecha, y hacia de menos lo sacaría de la cabecera.
+ * Dónde cae el filo derecho COMPARTIDO: el del panel de conversación menos su
+ * margen interior, y nunca más allá del margen de la ventana (la conversación
+ * llega al borde de la pantalla en casi todas las anchuras, pero no se da por
+ * hecho).
  */
-export const ANCHO_DEL_MENU_CORTO = 176;
+export function elFiloDeLaConversacion(
+    cabeceraCaja: Caja,
+    anchoDeLaVentana: number = Number.POSITIVE_INFINITY,
+): number {
+    return Math.round(
+        Math.min(
+            cabeceraCaja.right - MARGEN_INTERIOR_DE_LA_CONVERSACION,
+            anchoDeLaVentana - MARGEN_DE_LA_VENTANA,
+        ),
+    );
+}
 
 /**
- * **Una sola regla para todo menú de la conversación**: colgado de SU botón,
- * con el filo derecho en el filo derecho del botón y creciendo hacia la
- * IZQUIERDA, bajo la cabecera entera.
+ * **Una sola regla para todo menú de la conversación**: su filo derecho en el
+ * filo derecho del panel de conversación —menos el margen interior—, creciendo
+ * hacia la IZQUIERDA, bajo la cabecera entera. **No depende del botón que lo
+ * abre**: abrir uno tras otro no mueve el borde derecho ni un píxel.
  *
- * `ancho` es lo que el panel pide (`undefined` = el suyo, sin tocar).
+ * # Por qué no colgaba de su botón
  *
- * # Lo que acota es la PANTALLA, no la cabecera
+ * Fue la regla anterior (#905): filo derecho del menú con filo derecho de SU
+ * botón. Cada uno nacía en un sitio —la cita a media cabecera, Registros un
+ * poco más allá, Acciones en el filo— y al pasar de uno a otro el borde
+ * derecho saltaba. Y antes todavía se acotaba contra el borde de la cabecera
+ * interna, que corría la cita +103 px con la ficha abierta.
  *
- * Esto medía «¿cabe a la izquierda del botón?» contra el borde izquierdo de la
- * CABECERA. Con la ficha de contacto o un panel lateral abierto la
- * conversación se queda en 260 px, el panel pide 219 y la cita, Registros del
- * lead y Macros —que caen lejos del filo derecho— se corrían 50-100 px a la
- * derecha para no pasar de ese borde: el menú dejaba de colgar de su botón y
- * nacía debajo de otro. Medido sobre la página servida a 1024 px, con la ficha
- * abierta: cita +103 px, Macros +93, Registros +47. Y como el corrimiento se
- * calcula una vez al abrir, cualquier cambio de ancho posterior lo dejaba
- * además desfasado.
+ * # Cómo se le dice a Radix
  *
- * A la izquierda de la cabecera está la columna de chats, que es PANTALLA: un
- * menú puede pasar por encima de ella sin salirse de nada. Así que solo se
- * corre cuando se saldría de la VENTANA, y lo justo para quedar a
- * `MARGEN_DE_LA_VENTANA` de su borde. En el caso normal el corrimiento es 0 y
- * Radix lo mantiene pegado al botón aunque la cabecera cambie de ancho con el
- * menú abierto.
+ * Radix ancla al disparador, no a la conversación, así que se le da el filo
+ * como desplazamiento: con `align="end"` la caja base pone el filo derecho del
+ * panel en el del botón, y Floating UI le suma `crossAxis = -alignOffset`. Para
+ * que acabe en `filo` hace falta `alignOffset = disparador.right - filo`, que
+ * sale NEGATIVO (mueve a la derecha) para todo botón que no esté ya en el filo.
+ * Escribirlo al revés no da error: deja el panel al otro lado del botón.
  *
- * `alignOffset` negativo: con `align="end"` un positivo mueve a la izquierda y
- * un negativo a la derecha; al revés no da error, deja el panel al otro lado.
- * **Nunca pasa a `align="start"` ni a `"center"`**: eso es lo que hacía que la
- * cita naciera en el centro o hacia la derecha.
+ * Y el ancho se acota para que el borde IZQUIERDO no se salga de la ventana:
+ * a la izquierda de la conversación está la columna de chats, que es pantalla,
+ * así que un menú puede pasar por encima de ella, pero no por fuera.
  */
-export function colgarDelFiloDerecho(
+export function alFiloDeLaConversacion(
     cabeceraCaja: Caja,
     disparador: Caja,
     ancho: number | undefined,
     primitiva: Primitiva,
     anchoDeLaVentana: number = Number.POSITIVE_INFINITY,
 ): Geometria {
-    // Lo más ancho que cabe en la ventana, con su margen a cada lado.
-    const cabeEnLaVentana = Math.max(0, anchoDeLaVentana - MARGEN_DE_LA_VENTANA * 2);
-    // Lo que hay del filo del botón al borde izquierdo de la VENTANA.
-    const aLaIzquierda = Math.max(0, disparador.right - MARGEN_DE_LA_VENTANA);
-    const mide = ancho === undefined ? undefined : Math.min(ancho, cabeEnLaVentana);
-    const corrimiento = mide !== undefined && mide > aLaIzquierda ? Math.round(mide - aLaIzquierda) : 0;
+    const filo = elFiloDeLaConversacion(cabeceraCaja, anchoDeLaVentana);
+    // Lo más ancho que cabe entre el filo y el margen izquierdo de la ventana.
+    const cabe = Math.max(0, filo - MARGEN_DE_LA_VENTANA);
+    const mide = ancho === undefined ? undefined : Math.min(ancho, cabe);
     return {
         side: "bottom",
         align: "end",
         collisionPadding: MARGEN_DE_LA_VENTANA,
-        alignOffset: corrimiento === 0 ? 0 : -corrimiento,
+        alignOffset: Math.round(disparador.right - filo),
         sideOffset: Math.max(0, Math.round(cabeceraCaja.bottom - disparador.bottom)),
         avoidCollisions: false,
         estilo: {
             ...(mide === undefined ? {} : { width: `${mide}px` }),
-            maxWidth: `${mide ?? Math.round(Math.min(aLaIzquierda, cabeEnLaVentana))}px`,
+            maxWidth: `${mide ?? cabe}px`,
             maxHeight: `min(${TOPE_FIJADO}, ${alturaDisponible(primitiva)})`,
         },
     };

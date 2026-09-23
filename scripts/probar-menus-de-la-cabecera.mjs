@@ -1,20 +1,16 @@
 /**
  * Los cinco menús de la cabecera de la conversación, sobre la página SERVIDA.
  *
- * Macros, Etiquetas, Cita agendada, Registros del lead y Acciones: cada uno
- * tiene que nacer con su filo DERECHO en el filo derecho de SU botón y crecer
- * hacia la izquierda. Solo se separa del botón si a su izquierda se saldría de
- * la PANTALLA, y entonces lo justo: su borde izquierdo en el margen.
+ * Macros, Etiquetas, Cita agendada, Registros del lead y Acciones, y además el
+ * menú de llamar de la fila de iconos: todos tienen que nacer con su filo
+ * DERECHO en el filo derecho del PANEL DE CONVERSACIÓN menos 16 px, y crecer
+ * hacia la izquierda. **El mismo filo para todos**: abrir uno tras otro no
+ * mueve el borde derecho. No se alinean al botón que los abre.
  *
  * Se ejerce con la cabecera ancha, con la ficha de contacto abierta y con un
- * panel lateral («Nueva tarea») abierto, a cuatro anchuras. Es la mitad que
- * cazó el fallo: a 1024 con un panel abierto la conversación mide 260 px y la
- * regla vieja —acotar contra el borde de la CABECERA— corría la cita +103 px,
- * Macros +93 y Registros +47 a la derecha de su botón.
- *
- * El botón se mide DESPUÉS de pulsarlo: la fila de iconos se desplaza en
- * horizontal y Playwright la mueve al hacer clic, así que medirlo antes da un
- * sitio que ya no es el suyo.
+ * panel lateral («Nueva tarea») abierto, a cuatro anchuras. `MODO=roto` —con un
+ * `.next` del commit de antes— tiene que FALLAR: ahí cada menú colgaba de su
+ * botón (#905) y el filo saltaba de uno a otro.
  */
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
@@ -31,7 +27,9 @@ const MENUS = [
     { nombre: "Cita agendada", sel: 'button[title="Estado de cita"]' },
     { nombre: "Registros del lead", sel: 'button[title="Registros del lead"]' },
     { nombre: "Acciones", sel: '[data-cabecera-de-chat] button:has-text("Acciones")' },
+    { nombre: "Llamar", sel: '[data-cabecera-de-chat] button[title="Llamar"]', opcional: true },
 ];
+const MARGEN_INTERIOR = 16;
 const ESTADOS = ["sin panel", "ficha abierta", "panel lateral abierto"];
 
 const fallos = [];
@@ -70,8 +68,26 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
         if (estado === "panel lateral abierto") await (await visible(p, 'button[title="Nueva tarea"]'))?.click();
         await p.waitForTimeout(900);
 
+        const derechos = new Set();
         for (const m of MENUS) {
             const boton = await visible(p, m.sel);
+            if (!boton && m.opcional) continue;
+            // Llamar vive en la fila de iconos, que se recorta cuando la
+            // conversación se estrecha: si en esta combinación queda tapado no
+            // se puede pulsar, y lo que se mide aquí es dónde nace el menú, no
+            // si la fila de iconos cabe. Se dice y se sigue.
+            if (boton && m.opcional) {
+                const alcanzable = await boton.evaluate((n) => {
+                    n.scrollIntoView({ block: "nearest", inline: "nearest" });
+                    const r = n.getBoundingClientRect();
+                    const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                    return !!e && (e === n || n.contains(e));
+                });
+                if (!alcanzable) {
+                    filas.push({ ancho, estado, menu: m.nombre, nota: "tapado en esta anchura: no se mide" });
+                    continue;
+                }
+            }
             exigir(!!boton, `${ancho} · ${estado}: no se encontró el botón de «${m.nombre}»`);
             if (!boton) continue;
             await boton.click();
@@ -79,25 +95,29 @@ for (const ancho of [1440, 1366, 1280, 1024]) {
             const b = await boton.boundingBox();
             const r = await p.evaluate(() => {
                 const c = document.querySelector("[data-radix-popper-content-wrapper] > [data-state='open']");
+                const cab = Array.from(document.querySelectorAll("[data-cabecera-de-chat]")).find((n) => n.getBoundingClientRect().width > 0);
                 const x = c?.getBoundingClientRect();
-                return x ? { left: Math.round(x.left), right: Math.round(x.right), top: Math.round(x.top) } : null;
+                const k = cab?.getBoundingClientRect();
+                return x && k
+                    ? { left: Math.round(x.left), right: Math.round(x.right), top: Math.round(x.top), cabRight: Math.round(k.right) }
+                    : null;
             });
-            const derecho = Math.round(b.x + b.width);
             exigir(!!r, `${ancho} · ${estado}: «${m.nombre}» no se abrió`);
             if (r) {
-                const pegadoAlBoton = Math.abs(r.right - derecho) <= 1;
-                const corridoLoJusto = Math.abs(r.left - MARGEN) <= 1 && r.right > derecho;
+                const filo = Math.min(r.cabRight - MARGEN_INTERIOR, ancho - MARGEN);
                 exigir(
-                    pegadoAlBoton || corridoLoJusto,
-                    `${ancho} · ${estado}: «${m.nombre}» no cuelga de su botón (panel ${r.left}→${r.right}, botón acaba en ${derecho})`,
+                    Math.abs(r.right - filo) <= 1,
+                    `${ancho} · ${estado}: «${m.nombre}» no tiene el filo de la conversación (panel ${r.left}→${r.right}, filo ${filo}, botón acaba en ${Math.round(b.x + b.width)})`,
                 );
-                exigir(r.left < derecho, `${ancho} · ${estado}: «${m.nombre}» no crece hacia la izquierda`);
+                exigir(r.left < r.right, `${ancho} · ${estado}: «${m.nombre}» no crece hacia la izquierda`);
                 exigir(r.left >= MARGEN - 1 && r.right <= ancho - MARGEN + 1, `${ancho} · ${estado}: «${m.nombre}» se sale de la pantalla (${r.left}→${r.right})`);
-                filas.push({ ancho, estado, menu: m.nombre, boton: derecho, panel: `${r.left}→${r.right}`, desfase: r.right - derecho });
+                derechos.add(r.right);
+                filas.push({ ancho, estado, menu: m.nombre, boton: Math.round(b.x + b.width), panel: `${r.left}→${r.right}`, filo, desfase: r.right - filo });
             }
             await p.keyboard.press("Escape");
             await p.waitForTimeout(400);
         }
+        exigir(derechos.size <= 1, `${ancho} · ${estado}: los menús no comparten el filo derecho (${[...derechos].join(", ")})`);
     }
     await contexto.close();
 }
@@ -108,4 +128,4 @@ if (fallos.length) {
     console.error(`\n${fallos.length} fallo(s):\n - ${fallos.join("\n - ")}`);
     process.exit(1);
 }
-console.log("\nlos cinco menús de la cabecera cuelgan de su botón, con y sin panel lateral, en las cuatro anchuras");
+console.log("\nlos menús de la cabecera comparten el filo de la conversación, con y sin panel lateral, en las cuatro anchuras");

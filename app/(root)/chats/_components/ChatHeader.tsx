@@ -661,8 +661,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   return (
     /* `data-cabecera-de-chat`: de aquí salen los DOS números con los que se
-       coloca todo panel de esta fila de iconos —su borde DERECHO, que es el
-       filo del área de conversación, y su borde de ABAJO, que queda justo por
+       coloca todo panel de esta cabecera —su borde DERECHO, que es el filo
+       del panel de conversación (todos los menús acaban ahí menos
+       `MARGEN_DERECHO_DE_LA_CABECERA`, el mismo píxel que Acciones), y su borde de ABAJO, que queda justo por
        debajo de la fila de Macros y Acciones (es la última del encabezado)—.
        Un solo elemento y una sola medida: así los seis nacen a la misma altura
        y se puede pasar de uno a otro sin cerrar. Lo lee `usePanelFlotante`. */
