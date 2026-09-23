@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
     GripVertical,
     Loader2,
-    Maximize2,
     Mic,
     MicOff,
-    Minus,
+    Minimize2,
     MonitorUp,
     Phone,
     PhoneOff,
@@ -15,6 +14,13 @@ import {
     Video,
     VideoOff,
 } from "lucide-react";
+import {
+    losMandosDeLaLlamada,
+    meRechazaronElVideo,
+    nombreDelModo,
+    type ModoDeLlamada,
+    type PeticionDeVideo,
+} from "@/lib/modo-de-la-llamada";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -30,10 +36,16 @@ import {
     VentanaDeLlamada,
 } from "@/components/shared/VentanaDeLlamada";
 import { esperarLosCandidatos } from "@/lib/webrtc-del-navegador";
-import { comoSeLeeLaDuracion, type FinDeLlamada } from "@/lib/llamada-de-voz";
+import {
+    CADA_CUANTO_ESCUCHA_MS,
+    comoSeLeeLaDuracion,
+    type FinDeLlamada,
+} from "@/lib/llamada-de-voz";
 import {
     contestarAction,
+    contestarVideoAction,
     llamarAction,
+    pedirVideoAction,
     losServidoresDeLlamadaAction,
     terminarAction,
 } from "@/actions/llamadas-actions";
@@ -94,6 +106,7 @@ export function LaLlamada({
     canalId,
     conQuien,
     entrante,
+    modoInicial = "voz",
     onSonando,
     onCerrar,
 }: {
@@ -103,6 +116,12 @@ export function LaLlamada({
     conQuien: string;
     /** La oferta de quien llama, si esto es una llamada entrante. */
     entrante: { id: string; oferta: string | null } | null;
+    /**
+     * Voz o video, tal como se lanzó. Una de voz arranca en voz y ofrece
+     * SUBIR a video; una videollamada arranca con la cámara encendida. Ver
+     * `lib/modo-de-la-llamada.ts`.
+     */
+    modoInicial?: ModoDeLlamada;
     /**
      * Si AHORA MISMO hay que estar timbrando.
      *
@@ -118,6 +137,26 @@ export function LaLlamada({
 }) {
     const [estado, setEstado] = useState<Estado>(entrante ? "sonando" : "preparando");
     const [segundos, setSegundos] = useState(0);
+    /**
+     * El modo lo manda el SERVIDOR una vez la llamada está en curso: es lo que
+     * hace que las dos puntas pasen a video a la vez, y solo cuando la otra
+     * aceptó. Aquí se arranca con el de la llamada tal como se lanzó.
+     */
+    const [modo, setModo] = useState<ModoDeLlamada>(modoInicial);
+    const modoRef = useRef<ModoDeLlamada>(modoInicial);
+    modoRef.current = modo;
+    /** La petición de subir a video, vista desde esta punta. */
+    const [peticion, setPeticion] = useState<PeticionDeVideo>("nada");
+    const peticionRef = useRef<PeticionDeVideo>("nada");
+    const [pidiendoVideo, setPidiendoVideo] = useState(false);
+    /**
+     * Cuándo se pidió el video desde aquí.
+     *
+     * Una vuelta del reloj que salió ANTES de pedirlo vuelve diciendo «no hay
+     * petición», y eso se leería como un rechazo que nadie ha dado. Durante
+     * unos segundos después de pedir, ese «nada» no se cree.
+     */
+    const pedidoEnRef = useRef(0);
     /**
      * Arranca PLEGADA, y eso vale también para una llamada entrante.
      *
@@ -201,7 +240,10 @@ export function LaLlamada({
             return null;
         }
 
-        if (!(await mediosRef.current.arrancar(false))) {
+        // Una videollamada arranca ya en video: la cámara se pide con el micro.
+        // Una de voz, solo el micro — pedir la cámara a quien solo quería
+        // hablar es un permiso de más y un piloto encendido para nada.
+        if (!(await mediosRef.current.arrancar(modoRef.current === "video"))) {
             // Sin micro no hay llamada. El hook ya dijo por qué —permiso
             // denegado, sin dispositivo, ocupado por otra aplicación— con
             // palabras que se puedan usar.
@@ -269,7 +311,11 @@ export function LaLlamada({
             await pc.setLocalDescription(oferta);
             await esperarLosCandidatos(pc);
 
-            const res = await llamarAction(canalId, JSON.stringify(pc.localDescription));
+            const res = await llamarAction(
+                canalId,
+                JSON.stringify(pc.localDescription),
+                modoRef.current,
+            );
             if (!vivo) return;
             if (!res.success) {
                 // «No está conectado ahora mismo» sale por aquí: no llegó a
@@ -386,6 +432,103 @@ export function LaLlamada({
         };
     }, [onCerrar, ponerLaRespuesta, soltarTodo]);
 
+    // ── Voz o video, según diga el servidor ─────────────────────────────────
+    //
+    // Llega por el mismo reloj que la respuesta. Tres cosas pasan aquí:
+    //
+    // 1. **Pasar a video enciende la cámara**, en las dos puntas, y solo
+    //    cuando el servidor dice que el otro aceptó. Dentro de la MISMA
+    //    conexión: el video ya está negociado desde la primera oferta, así que
+    //    la llamada no se corta ni un segundo.
+    // 2. **Una petición del otro despliega la ventana.** Plegada, la pregunta
+    //    no se vería y el otro se quedaría esperando una respuesta que nadie
+    //    lee.
+    // 3. **Un rechazo se dice** a quien lo pidió: sin eso el botón volvería a
+    //    su sitio sin explicar por qué no pasó nada.
+    useEffect(() => {
+        const alCambiar = (e: Event) => {
+            const d = (e as CustomEvent<{
+                id: string;
+                modo: ModoDeLlamada;
+                peticion: PeticionDeVideo;
+            }>).detail;
+            if (!d || d.id !== idRef.current || cerradoRef.current) return;
+
+            const antes = peticionRef.current;
+            const vueltaVieja =
+                antes === "esperando" &&
+                d.peticion === "nada" &&
+                d.modo === "voz" &&
+                Date.now() - pedidoEnRef.current < 2 * CADA_CUANTO_ESCUCHA_MS;
+            if (vueltaVieja) return;
+            if (meRechazaronElVideo(antes, d.peticion, d.modo)) {
+                toast.message(`${conQuien} prefiere seguir solo con voz.`);
+            }
+            peticionRef.current = d.peticion;
+            setPeticion(d.peticion);
+            if (d.peticion === "decidir" && antes !== "decidir") setMinimizada(false);
+
+            if (d.modo === "video" && modoRef.current !== "video") {
+                modoRef.current = "video";
+                setModo("video");
+                if (!mediosRef.current.camaraEncendida) {
+                    void mediosRef.current.alternarCamara();
+                }
+            }
+        };
+        window.addEventListener("llamada:estado", alCambiar);
+        return () => window.removeEventListener("llamada:estado", alCambiar);
+    }, [conQuien]);
+
+    /** Pedir subir a video. La cámara NO se enciende hasta que el otro acepte. */
+    const pedirVideo = useCallback(async () => {
+        const id = idRef.current;
+        if (!id || pidiendoVideo) return;
+        setPidiendoVideo(true);
+        try {
+            const res = await pedirVideoAction(id);
+            if (!res.success) {
+                toast.error(res.message);
+                return;
+            }
+            // Se pinta al momento: el reloj lo confirmaría en su vuelta, pero
+            // un botón que no cambia al pulsarlo se pulsa cinco veces.
+            pedidoEnRef.current = Date.now();
+            peticionRef.current = "esperando";
+            setPeticion("esperando");
+        } catch (error) {
+            console.warn("[llamadas] no se pudo pedir el video", error);
+            toast.error("No se pudo pedir el video.");
+        } finally {
+            setPidiendoVideo(false);
+        }
+    }, [pidiendoVideo]);
+
+    /** Contestar la petición del otro. Aceptar enciende la cámara aquí mismo. */
+    const contestarVideo = useCallback(async (acepta: boolean) => {
+        const id = idRef.current;
+        if (!id) return;
+        peticionRef.current = "nada";
+        setPeticion("nada");
+        try {
+            const res = await contestarVideoAction(id, acepta);
+            if (!res.success) {
+                toast.error(res.message);
+                return;
+            }
+            if (acepta) {
+                modoRef.current = "video";
+                setModo("video");
+                if (!mediosRef.current.camaraEncendida) {
+                    await mediosRef.current.alternarCamara();
+                }
+            }
+        } catch (error) {
+            console.warn("[llamadas] no se pudo contestar el video", error);
+            toast.error("No se pudo contestar.");
+        }
+    }, []);
+
     // ── El contador, y el plazo de conexión ─────────────────────────────────
     useEffect(() => {
         if (estado !== "hablando") return;
@@ -412,6 +555,27 @@ export function LaLlamada({
     // Los dos `<video>` se enganchan aquí y solo si cambió: reasignar el mismo
     // `srcObject` reinicia la reproducción y hace parpadear la imagen en cada
     // repintado.
+    //
+    // Y se enganchan TAMBIÉN al montarse el elemento (el ref de callback de
+    // abajo). Con solo el efecto, un `<video>` que aparece después de que
+    // llegara la imagen —al pasar de voz a video, o al volver a ampliar una
+    // llamada plegada— se quedaba sin `srcObject` para siempre: el efecto ya
+    // había corrido con el elemento desmontado y no volvía a correr. Desde
+    // fuera, «el otro tiene la cámara encendida y yo veo negro».
+    const remotoRef = useRef(remoto);
+    remotoRef.current = remoto;
+    const localRef = useRef(medios.local);
+    localRef.current = medios.local;
+
+    const engancharRemoto = useCallback((el: HTMLVideoElement | null) => {
+        videoRef.current = el;
+        if (el && el.srcObject !== remotoRef.current) el.srcObject = remotoRef.current;
+    }, []);
+    const engancharPropio = useCallback((el: HTMLVideoElement | null) => {
+        propioRef.current = el;
+        if (el && el.srcObject !== localRef.current) el.srcObject = localRef.current;
+    }, []);
+
     useEffect(() => {
         const el = videoRef.current;
         if (el && el.srcObject !== remoto) el.srcObject = remoto;
@@ -423,7 +587,12 @@ export function LaLlamada({
     }, [medios.local]);
 
     /** Si hay algo de imagen, de cualquiera de los dos lados. */
-    const hayImagen = estado === "hablando" && (hayVideoRemoto || Boolean(medios.local));
+    const hayImagen =
+        modo === "video" &&
+        estado === "hablando" &&
+        (hayVideoRemoto || Boolean(medios.local));
+    /** Los mandos de este momento: los decide el modo, no la pantalla. */
+    const mandos = losMandosDeLaLlamada(modo, estado === "hablando");
 
     // ── Arrastrar y minimizar ───────────────────────────────────────────────
     //
@@ -449,16 +618,18 @@ export function LaLlamada({
         activa: true,
         // Plegar y desplegar cambia el alto: una barra pegada al borde de
         // abajo se saldría por ahí al desplegarse, y fuera está el de colgar.
-        tamano: minimizada,
+        tamano: `${minimizada}-${modo}`,
     });
 
     const rotulo =
         estado === "hablando"
-            ? "En llamada"
+            ? modo === "video"
+                ? "En videollamada"
+                : "En llamada"
             : estado === "conectando"
               ? "Conectando…"
               : entrante
-                ? "Llamada entrante"
+                ? `${nombreDelModo(modo)} entrante`
                 : "Llamando…";
 
     return (
@@ -508,14 +679,70 @@ export function LaLlamada({
                     onColgar={() => void terminar("contestada")}
                 />
             ) : (
-                <div className="relative flex flex-col gap-4 p-4">
-                    {/* La imagen, solo cuando la hay. Sin ella la tarjeta es la
-                        de siempre: una llamada de voz no tiene por qué
-                        reservar sitio para un recuadro negro. */}
+                <div className="flex flex-col gap-3 p-3" data-llamada="tarjeta">
+                    {/* La barra de ARRIBA, y el botón de plegar en ella.
+                      *
+                      * Antes iba `absolute` en la esquina, encima de la tarjeta.
+                      * Con la imagen puesta esa esquina es el VIDEO: un botón
+                      * fantasma de icono oscuro sobre un recuadro casi negro no
+                      * se ve, y la tarjeta se quedaba grande sin forma aparente
+                      * de volver a la pastilla. Ahora va en su propia fila, con
+                      * el fondo de la tarjeta detrás, y en el MISMO sitio que el
+                      * de ampliar de la pastilla: el extremo derecho de la fila
+                      * de arriba. Plegar y ampliar son el mismo gesto de ida y
+                      * vuelta, así que el dedo va al mismo sitio.
+                      *
+                      * Y FUERA del asa: el asa captura el puntero al agarrarla y
+                      * el `click` de un botón de dentro no llegaría a salir. */}
+                    <div className="flex items-start gap-1">
+                        {/* Contrapeso del botón de la derecha: sin él, el
+                            nombre no queda centrado en la tarjeta. */}
+                        {sePuedePlegar ? (
+                            <span className="-ml-1.5 h-8 w-8 shrink-0" aria-hidden />
+                        ) : null}
+                        <div
+                            {...asa}
+                            className={cn(
+                                "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg py-1 text-center",
+                                asa.className,
+                            )}
+                        >
+                            <span className="text-sm text-muted-foreground">{rotulo}</span>
+                            <span className="max-w-full truncate text-lg font-medium">
+                                {conQuien}
+                            </span>
+                            {estado === "hablando" && (
+                                <span className="font-mono text-sm tabular-nums text-muted-foreground">
+                                    {comoSeLeeLaDuracion(segundos)}
+                                </span>
+                            )}
+                        </div>
+                        {sePuedePlegar ? (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                // El negativo lo pone a la MISMA distancia del
+                                // borde que el de ampliar en la pastilla (6 px
+                                // a la derecha, 4 arriba): sin él quedaría 6 px
+                                // más adentro y el dedo no lo encuentra donde
+                                // estaba.
+                                className="-mr-1.5 -mt-2 h-8 w-8 shrink-0"
+                                onClick={() => setMinimizada(true)}
+                                aria-label="Plegar la llamada"
+                                title="Plegar la llamada"
+                                data-mando="plegar"
+                            >
+                                <Minimize2 className="h-4 w-4" />
+                            </Button>
+                        ) : null}
+                    </div>
+
+                    {/* La imagen, solo en video y cuando la hay. En voz la
+                        tarjeta no reserva sitio para un recuadro negro. */}
                     {hayImagen ? (
                         <div className="relative overflow-hidden rounded-lg bg-zinc-900">
                             <video
-                                ref={videoRef}
+                                ref={engancharRemoto}
                                 autoPlay
                                 playsInline
                                 className={cn(
@@ -534,7 +761,7 @@ export function LaLlamada({
                                 pantalla saldría al revés. */}
                             {medios.local ? (
                                 <video
-                                    ref={propioRef}
+                                    ref={engancharPropio}
                                     autoPlay
                                     playsInline
                                     muted
@@ -546,46 +773,35 @@ export function LaLlamada({
                             ) : null}
                         </div>
                     ) : null}
-                    {/* `gap` y no `space-y-*`: el botón de plegar va fuera del
-                        flujo, y `space-y-*` le reparte margen igual — que es lo
-                        que descuadra la tarjeta ocho píxeles.
 
-                        Y va FUERA del asa, no dentro: el asa captura el puntero
-                        al agarrarla, así que los eventos de después se le
-                        redirigen a ella y el `click` del botón no llegaría a
-                        salir nunca. Un botón que no hace nada. */}
-                    {sePuedePlegar && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-2 top-2 z-10 h-8 w-8"
-                            onClick={() => setMinimizada(true)}
-                            aria-label="Plegar la llamada"
+                    {/* El otro quiere pasar a video: se decide aquí. Nadie
+                        enciende la cámara hasta que esta punta acepte. */}
+                    {estado === "hablando" && peticion === "decidir" ? (
+                        <div
+                            className="flex flex-col gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-900 dark:bg-sky-950/40"
+                            data-llamada="peticion-de-video"
                         >
-                            <Minus className="h-4 w-4" />
-                        </Button>
-                    )}
-                    <div
-                        {...asa}
-                        className={cn(
-                            // El hueco del botón se reserva: un nombre largo
-                            // pasaría por debajo, y lo que no se ve ocupa igual.
-                            "flex flex-col items-center gap-1 rounded-lg px-8 py-1 text-center",
-                            asa.className,
-                        )}
-                    >
-                        <span className="text-sm text-muted-foreground">{rotulo}</span>
-                        <span className="max-w-full truncate text-lg font-medium">
-                            {conQuien}
-                        </span>
-                        {estado === "hablando" && (
-                            <span className="font-mono text-sm tabular-nums text-muted-foreground">
-                                {comoSeLeeLaDuracion(segundos)}
-                            </span>
-                        )}
-                    </div>
+                            <span>{conQuien} quiere pasar a videollamada.</span>
+                            <div className="flex justify-end gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => void contestarVideo(false)}
+                                >
+                                    Seguir con voz
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="bg-sky-600 text-white hover:bg-sky-700"
+                                    onClick={() => void contestarVideo(true)}
+                                >
+                                    Aceptar video
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
 
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex items-center justify-center gap-3" data-llamada="mandos">
                         {entrante && estado === "sonando" ? (
                             <>
                                 <Button
@@ -607,47 +823,94 @@ export function LaLlamada({
                                 </Button>
                             </>
                         ) : (
-                            <>
-                                {estado === "hablando" && (
-                                    <>
-                                        <MandoDeLlamada
-                                            encendido={medios.micEncendido}
-                                            onClick={medios.alternarMic}
-                                            rotuloEncendido="Silenciar"
-                                            rotuloApagado="Activar el micrófono"
-                                            Icono={Mic}
-                                            IconoApagado={MicOff}
-                                        />
-                                        <MandoDeLlamada
-                                            encendido={medios.camaraEncendida}
-                                            onClick={() => void medios.alternarCamara()}
-                                            rotuloEncendido="Apagar la cámara"
-                                            rotuloApagado="Encender la cámara"
-                                            Icono={Video}
-                                            IconoApagado={VideoOff}
-                                            ocupado={medios.pidiendo}
-                                        />
-                                        <MandoDeLlamada
-                                            encendido={medios.compartiendo}
-                                            onClick={() => void medios.alternarPantalla()}
-                                            rotuloEncendido="Dejar de compartir"
-                                            rotuloApagado="Compartir la pantalla"
-                                            Icono={MonitorUp}
-                                            IconoApagado={ScreenShare}
-                                            alReves
-                                        />
-                                    </>
-                                )}
-                                <Button
-                                    variant="destructive"
-                                    size="icon"
-                                    className="h-12 w-12 rounded-full"
-                                    onClick={() => void terminar("contestada")}
-                                    aria-label="Colgar"
-                                >
-                                    <PhoneOff className="h-5 w-5" />
-                                </Button>
-                            </>
+                            // Los mandos salen de `losMandosDeLaLlamada`: en voz
+                            // NO hay cámara ni pantalla compartida, hay «subir a
+                            // video»; en video, cámara y pantalla. Con la lista
+                            // escrita aquí es como la pantalla compartida acabó
+                            // saliendo en una llamada de voz.
+                            mandos.map((m) => {
+                                switch (m) {
+                                    case "micro":
+                                        return (
+                                            <MandoDeLlamada
+                                                key={m}
+                                                encendido={medios.micEncendido}
+                                                onClick={medios.alternarMic}
+                                                rotuloEncendido="Silenciar"
+                                                rotuloApagado="Activar el micrófono"
+                                                Icono={Mic}
+                                                IconoApagado={MicOff}
+                                            />
+                                        );
+                                    case "camara":
+                                        return (
+                                            <MandoDeLlamada
+                                                key={m}
+                                                encendido={medios.camaraEncendida}
+                                                onClick={() => void medios.alternarCamara()}
+                                                rotuloEncendido="Apagar la cámara"
+                                                rotuloApagado="Encender la cámara"
+                                                Icono={Video}
+                                                IconoApagado={VideoOff}
+                                                ocupado={medios.pidiendo}
+                                            />
+                                        );
+                                    case "pantalla":
+                                        return (
+                                            <MandoDeLlamada
+                                                key={m}
+                                                encendido={medios.compartiendo}
+                                                onClick={() => void medios.alternarPantalla()}
+                                                rotuloEncendido="Dejar de compartir"
+                                                rotuloApagado="Compartir la pantalla"
+                                                Icono={MonitorUp}
+                                                IconoApagado={ScreenShare}
+                                                alReves
+                                            />
+                                        );
+                                    case "subirAVideo": {
+                                        const esperando = peticion === "esperando";
+                                        const rotuloSubir = esperando
+                                            ? `Esperando a que ${conQuien} acepte el video`
+                                            : "Pasar a videollamada";
+                                        return (
+                                            <Button
+                                                key={m}
+                                                variant="ghost"
+                                                size="icon"
+                                                className={cn(
+                                                    "h-12 w-12 rounded-full border border-border bg-background hover:bg-muted",
+                                                    esperando && "animate-pulse",
+                                                )}
+                                                onClick={() => void pedirVideo()}
+                                                disabled={esperando || pidiendoVideo}
+                                                aria-label={rotuloSubir}
+                                                title={rotuloSubir}
+                                                data-mando="subir-a-video"
+                                            >
+                                                {pidiendoVideo ? (
+                                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                                ) : (
+                                                    <Video className="h-5 w-5" />
+                                                )}
+                                            </Button>
+                                        );
+                                    }
+                                    case "colgar":
+                                        return (
+                                            <Button
+                                                key={m}
+                                                variant="destructive"
+                                                size="icon"
+                                                className="h-12 w-12 rounded-full"
+                                                onClick={() => void terminar("contestada")}
+                                                aria-label="Colgar"
+                                            >
+                                                <PhoneOff className="h-5 w-5" />
+                                            </Button>
+                                        );
+                                }
+                            })
                         )}
                     </div>
                 </div>

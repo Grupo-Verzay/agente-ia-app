@@ -1851,21 +1851,49 @@ function BarraDeCanales({
                   * verdad esta en la accion —comprueba que sea un directo y que
                   * quien llama pertenezca—; esto es la fachada. */}
                 {canal.tipo === "directo" && (
-                    <button
-                        type="button"
-                        onClick={() =>
-                            window.dispatchEvent(
-                                new CustomEvent("llamada:salir", {
-                                    detail: { canalId: canal.id, conQuien: canal.nombre },
-                                }),
-                            )
-                        }
-                        aria-label={`Llamar a ${canal.nombre}`}
-                        title={`Llamar a ${canal.nombre}`}
-                        className="shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40"
-                    >
-                        <Phone className="h-4 w-4" />
-                    </button>
+                    // Un MENÚ y no dos botones: voz o video. Es el mismo
+                    // reparto que el menú de llamar de Chats. Una de voz
+                    // arranca en voz y se puede subir a video a mitad —si el
+                    // otro acepta—; una videollamada arranca ya en video.
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label={`Llamar a ${canal.nombre}`}
+                                title={`Llamar a ${canal.nombre}`}
+                                data-boton="llamar-en-el-directo"
+                                className="shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40"
+                            >
+                                <Phone className="h-4 w-4" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            {(["voz", "video"] as const).map((modo) => (
+                                <DropdownMenuItem
+                                    key={modo}
+                                    data-llamar={modo}
+                                    onSelect={() =>
+                                        window.dispatchEvent(
+                                            new CustomEvent("llamada:salir", {
+                                                detail: {
+                                                    canalId: canal.id,
+                                                    conQuien: canal.nombre,
+                                                    modo,
+                                                },
+                                            }),
+                                        )
+                                    }
+                                >
+                                    {modo === "video" ? (
+                                        <Video className="mr-2 h-4 w-4" />
+                                    ) : (
+                                        <Phone className="mr-2 h-4 w-4" />
+                                    )}
+                                    {modo === "video" ? "Videollamada" : "Llamada de voz"}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 )}
                 {/* La reunión, en CUALQUIER canal y no solo en un directo.
                   *

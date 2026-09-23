@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CADA_CUANTO_ESCUCHA_MS } from "@/lib/llamada-de-voz";
+import { comoModo, type ModoDeLlamada } from "@/lib/modo-de-la-llamada";
 import { atenderLlamadasAction } from "@/actions/llamadas-actions";
 import { LaLlamada } from "./LaLlamada";
 
@@ -36,8 +37,12 @@ export function OyenteDeLlamadas() {
         canalId: string;
         oferta: string | null;
         deQuien: string;
+        modo: ModoDeLlamada;
     } | null>(null);
-    const [saliente, setSaliente] = useState<{ canalId: string } | null>(null);
+    const [saliente, setSaliente] = useState<{
+        canalId: string;
+        modo: ModoDeLlamada;
+    } | null>(null);
     /** Con quién es la llamada abierta. Lo pone quien la abre, de los dos lados. */
     const [conQuien, setConQuien] = useState("");
     /**
@@ -78,6 +83,7 @@ export function OyenteDeLlamadas() {
                     canalId: datos.entrante.canalId,
                     oferta: datos.entrante.oferta,
                     deQuien: datos.entrante.deQuienNombre,
+                    modo: comoModo(datos.entrante.modo),
                 });
             }
 
@@ -89,6 +95,15 @@ export function OyenteDeLlamadas() {
                     new CustomEvent("llamada:respuesta", {
                         detail: { id: datos.mia.id, respuesta: datos.mia.respuesta },
                     }),
+                );
+            }
+
+            // Y el modo de la que está en curso, con la petición de video si
+            // la hay. Por el mismo camino que la respuesta: un evento, porque
+            // la ventana es quien sabe qué hacer con él.
+            if (datos.enCurso) {
+                window.dispatchEvent(
+                    new CustomEvent("llamada:estado", { detail: datos.enCurso }),
                 );
             }
 
@@ -195,10 +210,15 @@ export function OyenteDeLlamadas() {
     // Salir a llamar desde la cabecera del directo.
     useEffect(() => {
         const alLlamar = (e: Event) => {
-            const d = (e as CustomEvent<{ canalId: string; conQuien: string }>).detail;
+            const d = (e as CustomEvent<{
+                canalId: string;
+                conQuien: string;
+                modo?: string;
+            }>).detail;
             if (!d?.canalId || abiertaRef.current) return;
             setConQuien(d.conQuien);
-            setSaliente({ canalId: d.canalId });
+            // Sin modo es voz: es lo que mandaba la cabecera de antes.
+            setSaliente({ canalId: d.canalId, modo: comoModo(d.modo) });
         };
         window.addEventListener("llamada:salir", alLlamar);
         return () => window.removeEventListener("llamada:salir", alLlamar);
@@ -211,6 +231,7 @@ export function OyenteDeLlamadas() {
                 canalId={entrante.canalId}
                 conQuien={entrante.deQuien}
                 entrante={{ id: entrante.id, oferta: entrante.oferta }}
+                modoInicial={entrante.modo}
                 onSonando={setTimbrando}
                 onCerrar={() => {
                     setEntrante(null);
@@ -228,6 +249,7 @@ export function OyenteDeLlamadas() {
                 canalId={saliente.canalId}
                 conQuien={conQuien}
                 entrante={null}
+                modoInicial={saliente.modo}
                 onCerrar={() => setSaliente(null)}
             />
         );

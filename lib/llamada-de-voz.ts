@@ -21,6 +21,8 @@
  * tres segundos, quien llama puede esperar eso a que suene al otro lado.
  */
 
+import { nombreDelModo, type ModoDeLlamada } from "./modo-de-la-llamada";
+
 /** Cada cuánto pregunta el oyente de llamadas. Ver el comentario de arriba. */
 export const CADA_CUANTO_ESCUCHA_MS = 3_000;
 
@@ -140,21 +142,30 @@ export function comoSeLeeLaDuracion(segundos: number): string {
  * escriban lo mismo: quien cuelga es una u otra según quién colgara antes, y
  * dos redacciones darían dos versiones del mismo hecho.
  */
-export function comoSeCuentaLaLlamada(fin: FinDeLlamada, segundos: number): string {
+export function comoSeCuentaLaLlamada(
+    fin: FinDeLlamada,
+    segundos: number,
+    modo: ModoDeLlamada = "voz",
+): string {
+    // Una videollamada se anota como videollamada: con el mismo rótulo, el
+    // hilo diría «llamada de voz» de algo en lo que se vieron las caras. Una
+    // de voz que SUBIÓ a video se anota como videollamada, que es lo que
+    // acabó siendo.
+    const que = nombreDelModo(modo);
     switch (fin) {
         case "contestada":
-            return `Llamada de voz · ${comoSeLeeLaDuracion(segundos)}`;
+            return `${que} · ${comoSeLeeLaDuracion(segundos)}`;
         case "rechazada":
-            return "Llamada de voz · rechazada";
+            return `${que} · rechazada`;
         case "sin_respuesta":
-            return "Llamada de voz · sin respuesta";
+            return `${que} · sin respuesta`;
         case "no_disponible":
-            return "Llamada de voz · no estaba disponible";
+            return `${que} · no estaba disponible`;
         case "sin_conexion":
             // El caso de las dos redes que no dejan conectar directo. Se dice
             // con todas las letras: sin TURN no hay ruta para el audio, y
             // «se cortó» mandaría a buscar el fallo donde no está.
-            return "Llamada de voz · no se pudo conectar";
+            return `${que} · no se pudo conectar`;
     }
 }
 

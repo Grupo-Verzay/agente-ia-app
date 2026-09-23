@@ -9,6 +9,7 @@ import {
     type EstadoDeLlamada,
     type FinDeLlamada,
 } from "@/lib/llamada-de-voz";
+import { comoModo, type ModoDeLlamada } from "@/lib/modo-de-la-llamada";
 
 /**
  * Las dos tablas de las llamadas de voz, y el latido que dice quién está.
@@ -46,6 +47,19 @@ function asegurarLasTablas(): Promise<void> {
                 "contestadaEn" TIMESTAMP(3),
                 "terminadaEn" TIMESTAMP(3)
             )
+        `;
+        // Voz o video, y quién pidió pasar a video. Entran con
+        // `ADD COLUMN IF NOT EXISTS` y NO reescribiendo el `CREATE`: la tabla
+        // ya está en producción y un `CREATE TABLE IF NOT EXISTS` no toca una
+        // que ya existe. Las filas de antes quedan en 'voz', que es lo que
+        // eran: esto no necesita backfill.
+        await db.$executeRaw`
+            ALTER TABLE "llamadas_de_voz"
+            ADD COLUMN IF NOT EXISTS "modo" TEXT NOT NULL DEFAULT 'voz'
+        `;
+        await db.$executeRaw`
+            ALTER TABLE "llamadas_de_voz"
+            ADD COLUMN IF NOT EXISTS "videoPedidoPor" TEXT
         `;
         // Lo que pregunta el reloj: «¿me está sonando algo?». Por destinatario
         // y estado, que es exactamente el `WHERE`.
@@ -110,6 +124,9 @@ export type FilaDeLlamada = {
     dellamaId: string;
     aQuienId: string;
     estado: EstadoDeLlamada;
+    modo: ModoDeLlamada;
+    /** Quién pidió pasar de voz a video, mientras el otro no conteste. */
+    videoPedidoPor: string | null;
     oferta: string | null;
     respuesta: string | null;
     fin: FinDeLlamada | null;
@@ -147,19 +164,22 @@ export async function crearLaLlamada(input: {
     dellamaId: string;
     aQuienId: string;
     oferta: string;
+    /** Lo que llegue se pasa por `comoModo`: lo que no se reconozca es voz. */
+    modo?: ModoDeLlamada;
 }): Promise<string> {
     const id = randomUUID();
+    const modo = comoModo(input.modo);
     await conLasTablas(() => db.$executeRaw`
         INSERT INTO "llamadas_de_voz"
-            ("id", "canalId", "cuentaId", "dellamaId", "aQuienId", "estado", "oferta")
+            ("id", "canalId", "cuentaId", "dellamaId", "aQuienId", "estado", "oferta", "modo")
         VALUES (${id}, ${input.canalId}, ${input.cuentaId}, ${input.dellamaId},
-                ${input.aQuienId}, 'sonando', ${input.oferta})
+                ${input.aQuienId}, 'sonando', ${input.oferta}, ${modo})
     `);
     return id;
 }
 
 const COLUMNAS = `"id", "canalId", "cuentaId", "dellamaId", "aQuienId", "estado",
-                  "oferta", "respuesta", "fin", "creadoEn", "contestadaEn", "terminadaEn"`;
+                  "modo", "videoPedidoPor", "oferta", "respuesta", "fin", "creadoEn", "contestadaEn", "terminadaEn"`;
 
 /**
  * Lo que el reloj de una persona necesita saber, **en una sola consulta**.
@@ -225,6 +245,56 @@ export async function terminarLaLlamada(
         fin,
     ));
     return filas[0] ?? null;
+}
+
+/**
+ * Pedir pasar de voz a video.
+ *
+ * **Condicionado a que la llamada esté en curso, en voz y sin otra petición
+ * pendiente**, y devuelve si tocó fila. Las tres condiciones van en el
+ * `WHERE` y no en un `SELECT` previo: dos pulsaciones a la vez —una en cada
+ * punta— leerían las dos que no hay nada pedido y se pisarían.
+ */
+export async function pedirElVideo(id: string, personaId: string): Promise<boolean> {
+    const tocadas = await conLasTablas(() => db.$executeRaw`
+        UPDATE "llamadas_de_voz"
+        SET "videoPedidoPor" = ${personaId}
+        WHERE "id" = ${id} AND "estado" = 'en_curso' AND "modo" = 'voz'
+          AND "videoPedidoPor" IS NULL
+          AND (${personaId} = "dellamaId" OR ${personaId} = "aQuienId")
+    `);
+    return tocadas > 0;
+}
+
+/**
+ * Contestar la petición: aceptarla pasa la llamada a video; no aceptarla la
+ * borra y la llamada sigue en voz.
+ *
+ * **Solo la contesta el OTRO**: `"videoPedidoPor" <> quien contesta`. Sin esa
+ * condición, quien pidió el video podría aceptárselo a sí mismo — y eso es
+ * justo lo que la regla prohíbe: pasar a video por decisión de uno solo.
+ */
+export async function contestarElVideo(
+    id: string,
+    personaId: string,
+    acepta: boolean,
+): Promise<boolean> {
+    const tocadas = acepta
+        ? await conLasTablas(() => db.$executeRaw`
+              UPDATE "llamadas_de_voz"
+              SET "modo" = 'video', "videoPedidoPor" = NULL
+              WHERE "id" = ${id} AND "estado" = 'en_curso' AND "modo" = 'voz'
+                AND "videoPedidoPor" IS NOT NULL AND "videoPedidoPor" <> ${personaId}
+                AND (${personaId} = "dellamaId" OR ${personaId} = "aQuienId")
+          `)
+        : await conLasTablas(() => db.$executeRaw`
+              UPDATE "llamadas_de_voz"
+              SET "videoPedidoPor" = NULL
+              WHERE "id" = ${id} AND "estado" = 'en_curso'
+                AND "videoPedidoPor" IS NOT NULL AND "videoPedidoPor" <> ${personaId}
+                AND (${personaId} = "dellamaId" OR ${personaId} = "aQuienId")
+          `);
+    return tocadas > 0;
 }
 
 /**

@@ -179,15 +179,6 @@ export function PastillaDeLlamada({
                 </Button>
             ) : null}
             <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={onAmpliar}
-                aria-label="Ampliar la llamada"
-            >
-                <Maximize2 className="h-4 w-4" />
-            </Button>
-            <Button
                 variant="destructive"
                 size="icon"
                 className="h-8 w-8 shrink-0 rounded-full"
@@ -195,6 +186,21 @@ export function PastillaDeLlamada({
                 aria-label="Colgar"
             >
                 <PhoneOff className="h-4 w-4" />
+            </Button>
+            {/* Ampliar va el ÚLTIMO, pegado al borde derecho: es el mismo sitio
+                que ocupa el de plegar en la tarjeta desplegada. Plegar y
+                ampliar son un gesto de ida y vuelta, así que el botón no puede
+                cambiar de sitio entre una forma y la otra. */}
+            <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={onAmpliar}
+                aria-label="Ampliar la llamada"
+                title="Ampliar la llamada"
+                data-mando="ampliar"
+            >
+                <Maximize2 className="h-4 w-4" />
             </Button>
         </div>
     );

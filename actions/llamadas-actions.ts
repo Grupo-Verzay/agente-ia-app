@@ -16,15 +16,23 @@ import {
 } from "@/lib/llamada-de-voz";
 import {
     cerrarLasQueSePasaron,
+    contestarElVideo,
     contestarLaLlamada,
     crearLaLlamada,
     cuandoSeLeVio,
     dejarElLatido,
     laLlamada,
     loQueMeIncumbe,
+    pedirElVideo,
     terminarLaLlamada,
     type FilaDeLlamada,
 } from "@/lib/llamadas-db";
+import {
+    comoModo,
+    laPeticionDeVideo,
+    type ModoDeLlamada,
+    type PeticionDeVideo,
+} from "@/lib/modo-de-la-llamada";
 
 /**
  * Las llamadas de voz de un directo: señalización, presencia y registro.
@@ -109,6 +117,11 @@ async function elDirecto(canalId: string, yo: Awaited<ReturnType<typeof quien>>)
 export async function llamarAction(
     canalId: string,
     oferta: string,
+    /**
+     * Voz o video. Opcional para que un navegador con el paquete de antes
+     * —que no lo manda— siga llamando como siempre: en voz.
+     */
+    modo?: string,
 ): Promise<Respuesta<{ llamadaId: string }>> {
     try {
         const yo = await quien();
@@ -138,6 +151,7 @@ export async function llamarAction(
             dellamaId: yo.personaId,
             aQuienId: directo.otra,
             oferta,
+            modo: comoModo(modo),
         });
         return { success: true, llamadaId };
     } catch (error) {
@@ -165,12 +179,32 @@ export type LoQuePasa = {
          */
         deQuienNombre: string;
         oferta: string | null;
+        /** Para que suene como lo que es: «Videollamada entrante». */
+        modo: ModoDeLlamada;
     } | null;
     /** La mía, y en qué punto va. */
     mia: {
         id: string;
         estado: string;
         respuesta: string | null;
+    } | null;
+    /**
+     * La que tengo en curso, de cualquiera de las dos puntas, con su modo y la
+     * petición de video pendiente.
+     *
+     * Es lo que hace que subir a video llegue a la otra punta: la petición y la
+     * aceptación viajan por la base, en este mismo reloj, como la oferta y la
+     * respuesta. Sin esto, quien contestó la llamada no se enteraría nunca de
+     * que el otro quiere verle.
+     */
+    enCurso: {
+        id: string;
+        modo: ModoDeLlamada;
+        /**
+         * Vista desde MI punta (`laPeticionDeVideo`): se resuelve aquí, que es
+         * quien sabe quién soy, y a la pantalla no le llega ningún id.
+         */
+        peticion: PeticionDeVideo;
     } | null;
     /** Las que acaban de terminar, para que la pantalla se cierre sola. */
     terminadas: Array<{ id: string; fin: string }>;
@@ -203,6 +237,7 @@ export async function atenderLlamadasAction(): Promise<Respuesta<{ datos: LoQueP
             (f) => f.aQuienId === yo.personaId && f.estado === "sonando",
         );
         const mia = filas.find((f) => f.dellamaId === yo.personaId);
+        const enCurso = filas.find((f) => f.estado === "en_curso");
 
         return {
             success: true,
@@ -214,9 +249,21 @@ export async function atenderLlamadasAction(): Promise<Respuesta<{ datos: LoQueP
                           deQuienId: entrante.dellamaId,
                           deQuienNombre: await comoSeLlamaQuienLlama(entrante.dellamaId),
                           oferta: entrante.oferta,
+                          modo: comoModo(entrante.modo),
                       }
                     : null,
                 mia: mia ? { id: mia.id, estado: mia.estado, respuesta: mia.respuesta } : null,
+                enCurso: enCurso
+                    ? {
+                          id: enCurso.id,
+                          modo: comoModo(enCurso.modo),
+                          peticion: laPeticionDeVideo(
+                              comoModo(enCurso.modo),
+                              enCurso.videoPedidoPor,
+                              yo.personaId,
+                          ),
+                      }
+                    : null,
                 terminadas: caducadas.map((f) => ({ id: f.id, fin: f.fin ?? "sin_respuesta" })),
             },
         };
@@ -310,6 +357,51 @@ export async function terminarAction(
 }
 
 /**
+ * Pedir pasar de voz a video.
+ *
+ * La cámara NO se enciende aquí ni al pulsar: se enciende cuando el otro
+ * acepta. Una llamada de voz no se convierte en video por decisión de uno.
+ * Quién puede pedirlo lo decide la propia consulta —estar dentro de la llamada,
+ * que esté en curso y en voz, y que no haya otra petición—; aquí solo se
+ * resuelve quién llama.
+ */
+export async function pedirVideoAction(
+    llamadaId: string,
+): Promise<Respuesta<{ listo?: true }>> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+        if (!(await pedirElVideo(llamadaId, yo.personaId))) {
+            return { success: false, message: "Ahora no se puede pasar a video." };
+        }
+        return { success: true };
+    } catch (error) {
+        console.warn("[llamadas] no se pudo pedir el video", error);
+        return { success: false, message: "No se pudo pedir el video." };
+    }
+}
+
+/** Aceptar o no pasar a video. Solo lo contesta quien NO lo pidió. */
+export async function contestarVideoAction(
+    llamadaId: string,
+    acepta: boolean,
+): Promise<Respuesta<{ listo?: true }>> {
+    try {
+        const yo = await quien();
+        if (!yo) return { success: false, message: "No autorizado." };
+        if (!(await contestarElVideo(llamadaId, yo.personaId, acepta === true))) {
+            // Se retiró la petición, colgaron, o ya estaba en video: no es un
+            // error que haya que explicar más.
+            return { success: false, message: "Esa petición ya no está." };
+        }
+        return { success: true };
+    } catch (error) {
+        console.warn("[llamadas] no se pudo contestar el video", error);
+        return { success: false, message: "No se pudo contestar." };
+    }
+}
+
+/**
  * Dejar la llamada escrita en el directo, como un mensaje más.
  *
  * **Nunca lanza.** La llamada ya pasó y eso es lo que importa; pero tampoco es
@@ -329,7 +421,7 @@ async function anotarEnElDirecto(fila: FilaDeLlamada): Promise<void> {
             autorId: fila.dellamaId,
             autorNombre: null,
             escritoDesde: null,
-            texto: comoSeCuentaLaLlamada(fin, segundos),
+            texto: comoSeCuentaLaLlamada(fin, segundos, comoModo(fila.modo)),
             mencionados: [],
             chat: null,
             // Una llamada no cita a nadie: el registro lo deja la llamada al
