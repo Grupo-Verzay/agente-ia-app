@@ -184,7 +184,7 @@ function ChatContactItemBase({
         <TooltipProvider key="escalada">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-orange-300 bg-orange-50 px-1.5 dark:border-orange-700 dark:bg-orange-950">
+              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-orange-300 bg-orange-50 px-1 dark:border-orange-700 dark:bg-orange-950">
                 <Hand className="h-3 w-3 text-orange-600 dark:text-orange-400 shrink-0" />
                 <span className="text-[10px] font-bold leading-none text-orange-700 dark:text-orange-300">
                   {cuanto}
@@ -233,7 +233,7 @@ function ChatContactItemBase({
         <TooltipProvider key="reminders">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1.5 dark:border-amber-700 dark:bg-amber-950">
+              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1 dark:border-amber-700 dark:bg-amber-950">
                 <Bell className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
                 <span className="text-[10px] font-bold leading-none tabular-nums text-amber-700 dark:text-amber-300">
                   {recordatorios > 99 ? "99+" : recordatorios}
@@ -252,7 +252,7 @@ function ChatContactItemBase({
     }
   }
   if (contact.chatSession?.flujos) {
-    badgeItems.push(<FlowListOrder key="flow" raw={contact.chatSession.flujos} />);
+    badgeItems.push(<FlowListOrder key="flow" raw={contact.chatSession.flujos} compacta />);
   }
   if ((contact.chatSession?.pendingSeguimientos ?? 0) > 0) {
     badgeItems.push(
@@ -260,6 +260,7 @@ function ChatContactItemBase({
         key="seguimiento"
         count={contact.chatSession!.pendingSeguimientos ?? 0}
         tipos={contact.chatSession!.seguimientosTipos}
+        compacta
       />
     );
   }
@@ -268,7 +269,7 @@ function ChatContactItemBase({
       <TooltipProvider key="appt">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-violet-300 bg-violet-50 px-1.5 dark:border-violet-700 dark:bg-violet-950">
+            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-violet-300 bg-violet-50 px-1 dark:border-violet-700 dark:bg-violet-950">
               <CalendarClock className="h-3 w-3 text-violet-600 dark:text-violet-400 shrink-0" />
               <span className={cn('w-2 h-2 rounded-full shrink-0', APPT_DOT[apptStatus] ?? 'bg-gray-400')} />
             </span>
@@ -286,7 +287,7 @@ function ChatContactItemBase({
       <TooltipProvider key="notes">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1.5 dark:border-amber-700 dark:bg-amber-950">
+            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1 dark:border-amber-700 dark:bg-amber-950">
               <Lock className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
             </span>
           </TooltipTrigger>
@@ -305,7 +306,7 @@ function ChatContactItemBase({
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex">
-              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-violet-300 bg-violet-100 px-2 text-xs font-medium text-violet-800 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-violet-300 bg-violet-100 px-1.5 text-xs font-medium text-violet-800 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300">
                 <Tag className="h-3 w-3 shrink-0" />
                 {tags.length}
               </span>
@@ -691,7 +692,7 @@ function ChatContactItemBase({
             <TooltipProvider delayDuration={150}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center h-6 rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground shrink-0 cursor-default">
+                  <span className="inline-flex items-center h-6 rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground shrink-0 cursor-default">
                     +{hiddenCount}
                   </span>
                 </TooltipTrigger>

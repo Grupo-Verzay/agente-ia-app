@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 # El banco de la fila de pastillas de cada tarjeta de Chats.
 #
-# La fila (estado, asignación, contadores, etiquetas) ya llegaba al borde de su
-# tarjeta; lo que no llegaba al borde de la columna era la TARJETA: la barra de
-# desplazamiento de la lista —pista transparente, 10 px con barras clásicas—
-# se quedaba su ancho a la derecha. 13 px de margen a la izquierda y 23 a la
-# derecha, y esos 10 px eran los que mandaban las etiquetas a otra línea.
+# La lista de Chats enseña su barra de desplazamiento, como todas las listas de
+# la plataforma, y la barra se come 10 px con barras clásicas. Con ella,
+# «Descartado» + «Asignar» + tres contadores + etiquetas se partía en dos a
+# 1024. El ancho se recupera bajando 2 px por lado el relleno de TODAS las
+# pastillas de la fila (`lib/pastillas-de-la-fila.ts`).
 #
-# Se mide en Chromium CON barras de verdad (sin `--hide-scrollbars`, que es lo
-# que Playwright pone por defecto y que esconde justo el fallo), sobre el CSS
-# del build y con `ChatContactItem` real, a 1440/1280/1024 y con la ficha
-# lateral abierta y cerrada.
+# Se mide en Chromium CON barras de verdad (sin `--hide-scrollbars`), sobre el
+# CSS del build y con `ChatContactItem` real, a 1440/1280/1024, con la ficha
+# lateral abierta y cerrada, y con contadores de una y de dos cifras.
 #
-# `MODO=roto` pinta la lista con la clase de `ANTES_REF`, sacada de git —no
-# escrita aquí—, y AFIRMA el fallo.
+# `MODO=roto` pinta la MISMA lista con las pastillas de `ANTES_REF`, sacadas de
+# git a un árbol aparte —no escritas aquí—, y AFIRMA el fallo.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -22,10 +21,10 @@ export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 
 MODO="${MODO:-bueno}"
-# El commit de ANTES del arreglo. Pinchado, nunca `origin/main`: en cuanto el
-# arreglo se fusiona, `origin/main` pasa a ser el «después» y el modo roto
-# saldría verde sin reproducir nada.
-ANTES_REF="${ANTES_REF:-093f071}"
+# El commit de ANTES: las pastillas con su relleno de siempre. Pinchado, nunca
+# `origin/main`: en cuanto el arreglo se fusiona, `origin/main` pasa a ser el
+# «después» y el modo roto saldría verde sin reproducir nada.
+ANTES_REF="${ANTES_REF:-0808c00}"
 
 if [ ! -d ".next/static/css" ]; then
   echo "falta el CSS del build (.next/static/css): corre 'npm run build' antes" >&2
@@ -33,30 +32,32 @@ if [ ! -d ".next/static/css" ]; then
 fi
 
 ENTRY=".banco-pastillas-entry.tsx"
-LISTA_ANTES=".banco-lista-antes.ts"
 OUT="lib/__tests__/.compilado/harness-pastillas-de-la-fila.js"
+ARBOL=""
 mkdir -p "$(dirname "$OUT")"
-trap 'rm -f "$ENTRY" "$LISTA_ANTES"' EXIT
+limpiar() {
+  rm -f "$ENTRY"
+  if [ -n "$ARBOL" ]; then git worktree remove --force "$ARBOL" >/dev/null 2>&1 || true; fi
+}
+trap limpiar EXIT
 
+# La lista es la de HOY en los dos modos: con su barra. Lo único que cambia
+# entre ellos son las pastillas.
 if [ "$MODO" = "roto" ]; then
-  CLASE=$(git show "$ANTES_REF:app/(root)/chats/_components/chat-sidebar.tsx" \
-    | grep -o 'className="flex-1 overflow-y-auto[^"]*"' | head -1 | sed 's/className="\(.*\)"/\1/')
-  if [ -z "$CLASE" ]; then
-    echo "no se encontró la clase de la lista en $ANTES_REF" >&2
-    exit 1
-  fi
-  echo "export const LISTA_DE_CHATS = \"$CLASE\";" > "$LISTA_ANTES"
-  LISTA="./$LISTA_ANTES"
+  ARBOL="$(mktemp -d)/antes"
+  git worktree add --detach "$ARBOL" "$ANTES_REF" >/dev/null
+  ln -s "$(pwd)/node_modules" "$ARBOL/node_modules"
+  RAIZ_DE_LAS_PASTILLAS="$ARBOL"
 else
-  LISTA="@/lib/lista-de-chats"
+  RAIZ_DE_LAS_PASTILLAS="$(pwd)"
 fi
 
-sed -e 's#__FILA__#@/app/(root)/chats/_components/ChatContactItem#' \
-    -e "s#__LISTA__#$LISTA#" \
+sed -e "s#__FILA__#$RAIZ_DE_LAS_PASTILLAS/app/(root)/chats/_components/ChatContactItem#" \
+    -e "s#__LISTA__#./lib/lista-de-chats#" \
     lib/__tests__/fingido/entrada-de-pastillas-de-la-fila.tsx > "$ENTRY"
 
 npx --yes esbuild "$ENTRY" --bundle --format=esm --outfile="$OUT" \
-  --alias:@="$(pwd)" \
+  --alias:@="$RAIZ_DE_LAS_PASTILLAS" \
   --alias:@/actions/session-action=./lib/__tests__/fingido/acciones-mudas.ts \
   --alias:@/actions/advisor-assign-actions=./lib/__tests__/fingido/acciones-mudas.ts \
   --loader:.tsx=tsx --jsx=automatic \

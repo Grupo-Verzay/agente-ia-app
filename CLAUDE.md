@@ -1913,41 +1913,47 @@ Y el rótulo se cambió **en los dos sitios donde se nombra ese filtro**: la
 pastilla y el atajo de la pantalla vacía. Con dos nombres para el mismo filtro,
 se leen como dos filtros distintos.
 
-## Chats: la barra de la lista se comía el margen derecho de cada tarjeta
+## Chats: la barra de la lista se QUEDA; el ancho sale de las pastillas
 
 «La fila de pastillas no llega al filo derecho y las etiquetas se caen a otra
-línea con sitio». Medido en Chromium **con barras de verdad**: la fila SÍ
-llegaba al borde de su tarjeta; lo que no llegaba al borde de la columna era la
-tarjeta. La lista desplaza con `overflow-y-auto`, y con barras clásicas
-(Windows, Linux) la barra se queda su ancho —10 px con `scrollbar-width: thin`—
-aunque su pista sea transparente:
+línea con sitio». Medido en Chromium **con barras de verdad**: la fila sí
+llegaba al borde de su tarjeta; lo que se comía el ancho era la barra de
+desplazamiento de la lista, que con barras clásicas (Windows, Linux) ocupa
+10 px aunque su pista sea transparente. Con ella, a 1024 la fila tiene 314 px y
+«Descartado» + «Asignar» + tres contadores + etiquetas pedía ~326.
 
-| | izquierda | derecha | ancho de la fila (1440 / 1024) |
-| --- | --- | --- | --- |
-| antes | 13 px | **23 px** | 346 / 314 |
-| ahora | 13 px | **13 px** | 356 / 324 |
+El #915 lo arregló **escondiendo la barra**, y se deshizo: la lista de Chats
+enseña su barra como todas las listas de la plataforma, **no es la excepción**.
+`LISTA_DE_CHATS` (`lib/lista-de-chats.ts`) vuelve a ser
+`flex-1 overflow-y-auto p-1`.
 
-Esos 10 px eran el hueco muerto a la vista y lo que mandaba las etiquetas abajo
-(con contadores de dos cifras, a 1440 y 1280). La lista va con
-`scrollbar-hidden`, en **una** constante (`LISTA_DE_CHATS`,
-`lib/lista-de-chats.ts`) que usan la lista y la de la caché. Se sigue
-desplazando igual; lo que se quita es la pista. Las pastillas no se tocan.
+> **El ancho se recupera en las pastillas: cada una pierde 2 px de relleno por
+> lado, la MISMA cantidad todas** (`lib/pastillas-de-la-fila.ts`): `px-2` →
+> `px-1.5`, `px-1.5` → `px-1`, `px-1` → `px-0.5`. Estado, «Asignar» (con su
+> palabra y su icono), los contadores, las notas, la cita, la espera y las
+> etiquetas. Ni el texto, ni el alto, ni los colores, ni el orden cambian.
 
-Dos cosas que hay que saber:
+Tres cosas que hay que mantener:
 
-1. **Playwright esconde las barras por defecto** (`--hide-scrollbars`). Con esa
-   bandera este fallo no existe en el banco: la lista mide lo mismo con y sin
-   barra. `lib/__tests__/pastillas-de-la-fila.test.mjs` la quita
-   (`ignoreDefaultArgs`). Un banco de maquetación de una lista que desplaza,
-   igual.
-2. **A 1024 «Descartado» + «Asignar» + tres contadores + etiquetas NO cabe en
-   una línea**, ni simétrico: pide 326 px y la columna de 22 rem deja 324. Ahí
-   la caída es honrada y el banco solo comprueba eso (lo que sobra arriba es
-   menos que la pastilla que baja). Meterla exigiría tocar tamaños o márgenes.
+1. **Parejo, no a ojo.** Quitarle más a una que a otra deja una pastilla más
+   apretada al lado de otra holgada, y la fila pierde la simetría que se vino
+   a ganar.
+2. **Solo en la fila de Chats.** `LeadStatusBadge`, `FlowListOrder` y
+   `SeguimientoBadge` se pintan también en el CRM y en `/sessions`: llegan con
+   `compacta` y fuera de aquí conservan su relleno. `AdvisorAssignBadge` con
+   `size="sm"` solo lo usa esta fila.
+3. **Hasta dónde llega**: con contadores de una cifra cabe en una línea a
+   1440, 1280 y 1024, con la ficha abierta y cerrada. Con **tres contadores de
+   dos cifras a 1024** pide ~325 px y hay 314: no cabe ni con esto, y el banco
+   solo comprueba que esa caída es honrada. Meterlo exigiría quitar otro px por
+   lado (y «Asignar» quedaría con 1 px) o tocar tamaños.
 
-Lo prueba `scripts/banco-pastillas-de-la-fila.sh` a 1440/1280/1024 con la ficha
-abierta y cerrada; `MODO=roto` monta la lista con la clase de `ANTES_REF` y
-afirma el margen de 23 y la caída de las etiquetas.
+Lo prueba `scripts/banco-pastillas-de-la-fila.sh`, en Chromium **sin
+`--hide-scrollbars`** (Playwright esconde las barras por defecto y entonces
+este caso no existe), a 1440/1280/1024 × ficha abierta y cerrada × una y dos
+cifras. Mide el relleno, el alto y la letra de cada pastilla contra una tabla.
+`MODO=roto` pinta la MISMA lista con las pastillas de `ANTES_REF` —un árbol de
+git aparte— y afirma la tabla de antes y la caída de las etiquetas a 1024.
 
 ## Chats: el menú de Acciones no puede crecer con el equipo
 
