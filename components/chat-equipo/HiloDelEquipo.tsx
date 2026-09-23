@@ -17,7 +17,9 @@ import {
     PhoneOff,
     Plus,
     Download,
+    Eraser,
     FileText,
+    GripVertical,
     MoreHorizontal,
     Paperclip,
     Search,
@@ -34,6 +36,31 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+    DndContext,
+    KeyboardSensor,
+    PointerSensor,
+    closestCenter,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useOrdenDeColumna } from "@/components/shared/OrdenDeColumna";
+import { moverEnLaColumna } from "@/lib/orden-del-tablero";
+import { ordenarLosDirectos } from "@/lib/orden-de-los-directos";
+import {
+    PALABRA_PARA_LIMPIAR,
+    confirmaLaLimpieza,
+    laAdvertenciaDeLimpiar,
+} from "@/lib/historial-del-equipo";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -91,6 +118,7 @@ import {
     crearCanalAction,
     enviarAlEquipoAction,
     hiloDelEquipoAction,
+    limpiarHistorialDelCanalAction,
     ponerMiembrosAction,
     borrarMensajeDelEquipoAction,
     editarMensajeDelEquipoAction,
@@ -1819,6 +1847,7 @@ function BarraDeCanales({
 }) {
     const [creando, setCreando] = useState(false);
     const [reunion, setReunion] = useState(false);
+    const [limpiando, setLimpiando] = useState(false);
 
     const areas = datos.canales.filter((c) => c.tipo !== "directo");
     const directos = datos.canales.filter((c) => c.tipo === "directo");
@@ -1918,6 +1947,45 @@ function BarraDeCanales({
                     abierto={reunion}
                     onAbierto={setReunion}
                 />
+                {/* Limpiar el historial: SOLO el súper administrador. La puerta
+                  * de verdad está en `limpiarHistorialDelCanalAction`, que lo
+                  * vuelve a preguntar; esto solo decide si se enseña. Va en un
+                  * «⋯» y no suelto en la cabecera: es algo de una vez, y un
+                  * botón de borrar al lado de «llamar» se pulsa sin querer. */}
+                {datos.puedoLimpiar && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label={`Más opciones de ${canal.nombre}`}
+                                title="Más opciones"
+                                data-boton="opciones-del-canal"
+                                className="mr-2 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            >
+                                <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                                data-opcion="limpiar-historial"
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => setLimpiando(true)}
+                            >
+                                <Eraser className="mr-2 h-4 w-4" />
+                                Limpiar historial
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
+                {datos.puedoLimpiar && (
+                    <LimpiarHistorial
+                        canal={canal}
+                        personas={datos.equipo.length}
+                        abierto={limpiando}
+                        onAbierto={setLimpiando}
+                        onLimpio={onRefrescar}
+                    />
+                )}
             </div>
 
             {abierta && (
@@ -1958,28 +2026,14 @@ function BarraDeCanales({
                     </Grupo>
 
                     <Grupo titulo="Directos">
-                        {directos.map((c) => (
-                            <FilaDeCanal
-                                key={c.id}
-                                canal={c}
-                                activo={c.id === canal.id}
-                                mando={datos.mando}
-                                gente={datos.gente}
-                                cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
-                                onElegir={onElegir}
-                                onRefrescar={onRefrescar}
-                            />
-                        ))}
-                        {porAbrir.map((p) => (
-                            <AbrirDirecto
-                                key={p.id}
-                                persona={p}
-                                onAbierto={(id) => {
-                                    onRefrescar();
-                                    onElegir(id);
-                                }}
-                            />
-                        ))}
+                        <ListaDeDirectos
+                            directos={directos}
+                            porAbrir={porAbrir}
+                            canalActivo={canal.id}
+                            datos={datos}
+                            onElegir={onElegir}
+                            onRefrescar={onRefrescar}
+                        />
                         {!directos.length && !porAbrir.length && (
                             <p className="px-2 py-1.5 text-xs text-muted-foreground">
                                 No hay nadie más en esta cuenta.
@@ -1989,6 +2043,254 @@ function BarraDeCanales({
                 </div>
             )}
         </div>
+    );
+}
+
+/**
+ * La lista de DIRECTOS, en el orden que ESTA persona le puso arrastrando.
+ *
+ * Mezcla los directos que ya existen y la gente con quien todavía no hay
+ * ninguno, y se ordena **por la persona**, no por el canal
+ * (`lib/orden-de-los-directos.ts`): así abrir por primera vez un directo no
+ * mueve a nadie de sitio. Lo que no tiene posición va detrás, en el orden de
+ * siempre, así que quien nunca ha arrastrado ve la lista exactamente como antes.
+ *
+ * Se guarda con la tubería de los tableros —`useOrdenDeColumna`, tipo
+ * `directos`, tablero = la persona— y no con una propia. El orden se pinta al
+ * momento y, si el servidor dice que no, vuelve a como estaba.
+ *
+ * Un directo que se lee sin pertenecer —los que ve quien administra— **no se
+ * ordena**: no es una persona con quien se habla, y va al final, fuera de la
+ * parte que se arrastra.
+ */
+function ListaDeDirectos({
+    directos,
+    porAbrir,
+    canalActivo,
+    datos,
+    onElegir,
+    onRefrescar,
+}: {
+    directos: CanalDeEquipo[];
+    porAbrir: PersonaMencionable[];
+    canalActivo: string;
+    datos: HiloAbierto;
+    onElegir: (id: string) => void;
+    onRefrescar: () => void;
+}) {
+    const orden = useOrdenDeColumna("directos", datos.yo, true);
+
+    type Item = { clave: string | null; canal?: CanalDeEquipo; persona?: PersonaMencionable };
+    const items = useMemo(() => {
+        const todos: Item[] = [
+            ...directos.map((c) => ({ clave: c.pertenezco ? c.conQuienId : null, canal: c })),
+            ...porAbrir.map((p) => ({ clave: p.id, persona: p })),
+        ];
+        const posiciones: Record<string, number> = {};
+        for (const it of todos) {
+            if (!it.clave) continue;
+            const p = orden.posicionDe(it.clave, datos.ordenDeDirectos?.[it.clave]);
+            if (typeof p === "number") posiciones[it.clave] = p;
+        }
+        return ordenarLosDirectos(todos, posiciones, (it) => it.clave);
+    }, [directos, porAbrir, orden, datos.ordenDeDirectos]);
+
+    const ids = items.map((it) => it.clave).filter((c): c is string => Boolean(c));
+
+    // El sensor exige mover unos píxeles antes de arrastrar: un clic limpio
+    // sobre el asa no hace nada y uno sobre el nombre sigue abriendo el
+    // directo. Y teclado, para quien no usa ratón.
+    const sensores = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
+
+    const alSoltar = (ev: DragEndEvent) => {
+        const arrastrada = String(ev.active.id ?? "");
+        const sobre = String(ev.over?.id ?? "");
+        if (!arrastrada || !sobre || arrastrada === sobre) return;
+        const nuevos = moverEnLaColumna(ids, arrastrada, sobre);
+        if (nuevos === ids) return;
+        void orden.reordenar(nuevos);
+    };
+
+    return (
+        <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={alSoltar}>
+            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+                <div data-lista="directos" className="flex flex-col">
+                    {items.map((it) => {
+                        const fila = it.canal ? (
+                            <FilaDeCanal
+                                canal={it.canal}
+                                activo={it.canal.id === canalActivo}
+                                mando={datos.mando}
+                                gente={datos.gente}
+                                cuentasDeLaFamilia={datos.cuentasDeLaFamilia}
+                                onElegir={onElegir}
+                                onRefrescar={onRefrescar}
+                            />
+                        ) : it.persona ? (
+                            <AbrirDirecto
+                                persona={it.persona}
+                                onAbierto={(id) => {
+                                    onRefrescar();
+                                    onElegir(id);
+                                }}
+                            />
+                        ) : null;
+                        if (!it.clave) {
+                            return (
+                                <div key={it.canal?.id} className="pl-5">
+                                    {fila}
+                                </div>
+                            );
+                        }
+                        return (
+                            <DirectoArrastrable key={it.clave} id={it.clave}>
+                                {fila}
+                            </DirectoArrastrable>
+                        );
+                    })}
+                </div>
+            </SortableContext>
+        </DndContext>
+    );
+}
+
+/**
+ * Una fila de la lista de directos, que se arrastra **por su asa**.
+ *
+ * Por el asa y no por la fila entera: la fila es un botón que abre la
+ * conversación, y con los oyentes en ella cada clic competiría con un
+ * arrastre. `touch-none` en el asa, o en un móvil el navegador se queda el
+ * gesto para desplazar la lista y no se arrastra nunca.
+ */
+function DirectoArrastrable({ id, children }: { id: string; children: React.ReactNode }) {
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+        useSortable({ id });
+    return (
+        <div
+            ref={setNodeRef}
+            data-directo={id}
+            style={{
+                transform: CSS.Transform.toString(transform),
+                transition,
+                ...(isDragging ? { zIndex: 50, position: "relative" as const, opacity: 0.85 } : {}),
+            }}
+            className="flex items-center"
+        >
+            <button
+                type="button"
+                ref={setActivatorNodeRef}
+                aria-label="Arrastrar para ordenar"
+                title="Arrastrar para ordenar"
+                data-asa="directo"
+                className="flex w-5 shrink-0 cursor-grab touch-none justify-center rounded py-0.5 text-muted-foreground/60 hover:text-foreground active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+            >
+                <GripVertical className="h-3.5 w-3.5" />
+            </button>
+            <div className="min-w-0 flex-1">{children}</div>
+        </div>
+    );
+}
+
+/**
+ * La confirmación de limpiar el historial de una conversación.
+ *
+ * Pide **teclear una palabra** y no solo pulsar: es un borrado de verdad y, en
+ * un canal, de lo que escribió todo el mundo. La advertencia sale de
+ * `laAdvertenciaDeLimpiar`, que es quien garantiza que diga las dos cosas —que
+ * es irreversible y, en un canal, que afecta a todos sus miembros—.
+ */
+function LimpiarHistorial({
+    canal,
+    personas,
+    abierto,
+    onAbierto,
+    onLimpio,
+}: {
+    canal: CanalDeEquipo;
+    personas: number;
+    abierto: boolean;
+    onAbierto: (v: boolean) => void;
+    onLimpio: () => void;
+}) {
+    const [texto, setTexto] = useState("");
+    const [limpiando, setLimpiando] = useState(false);
+
+    useEffect(() => {
+        if (!abierto) setTexto("");
+    }, [abierto]);
+
+    const limpiar = async () => {
+        if (!confirmaLaLimpieza(texto) || limpiando) return;
+        setLimpiando(true);
+        try {
+            const res = await limpiarHistorialDelCanalAction(canal.id, texto);
+            if (!res.success) {
+                toast.error(res.message);
+                return;
+            }
+            toast.success(
+                res.data.mensajes === 1
+                    ? "Historial limpiado: se borró 1 mensaje."
+                    : `Historial limpiado: se borraron ${res.data.mensajes} mensajes.`,
+            );
+            onAbierto(false);
+            onLimpio();
+        } catch (error) {
+            console.warn("[chat-equipo] la limpieza no llegó al servidor", error);
+            toast.error("No se pudo limpiar el historial. Revisa la conexión.");
+        } finally {
+            setLimpiando(false);
+        }
+    };
+
+    return (
+        <AlertDialog open={abierto} onOpenChange={(v) => !limpiando && onAbierto(v)}>
+            <AlertDialogContent data-dialogo="limpiar-historial">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Limpiar el historial de «{canal.nombre}»?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {laAdvertenciaDeLimpiar({
+                            tipo: canal.tipo,
+                            nombre: canal.nombre,
+                            personas: canal.tipo === "directo" ? undefined : personas,
+                        })}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-1">
+                    <label htmlFor="confirmar-limpieza" className="text-sm">
+                        Escribe <strong>{PALABRA_PARA_LIMPIAR}</strong> para confirmar
+                    </label>
+                    <Input
+                        id="confirmar-limpieza"
+                        value={texto}
+                        autoComplete="off"
+                        onChange={(e) => setTexto(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                void limpiar();
+                            }
+                        }}
+                    />
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={limpiando}>Cancelar</AlertDialogCancel>
+                    <Button
+                        variant="destructive"
+                        data-boton="confirmar-limpieza"
+                        disabled={!confirmaLaLimpieza(texto) || limpiando}
+                        onClick={() => void limpiar()}
+                    >
+                        {limpiando ? "Limpiando…" : "Limpiar historial"}
+                    </Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 }
 

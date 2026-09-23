@@ -70,6 +70,8 @@ import {
 import { resetAllLinkedAccounts } from "@/actions/linked-account-actions";
 import { bulkAutoAssign } from "@/actions/advisor-assign-actions";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { sugiereNuevoOcupante } from "@/lib/historial-del-equipo";
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 
@@ -123,7 +125,21 @@ type EditForm = {
   email: string;
   password: string;
   role: "agente" | "administrador";
+  /** El correo con el que se abrió: de ahí sale si se propone un nuevo ocupante. */
+  correoOriginal: string;
+  /**
+   * Si entra OTRA persona en el puesto. `null` = seguir la propuesta
+   * (`sugiereNuevoOcupante`: cambió el correo); un booleano = lo decidió quien
+   * edita, y entonces cambiar el correo después ya no lo mueve.
+   */
+  nuevoOcupante: boolean | null;
 };
+
+/** Lo que dice la casilla: lo decidido a mano, o la propuesta. */
+function esNuevoOcupante(f: EditForm | null): boolean {
+  if (!f) return false;
+  return f.nuevoOcupante ?? sugiereNuevoOcupante(f.correoOriginal, f.email);
+}
 
 async function safeInvoke<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
   try {
@@ -292,6 +308,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
         email: editForm.email,
         password: editForm.password,
         role: editForm.role,
+        nuevoOcupante: esNuevoOcupante(editForm),
       });
       if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message ?? "Asesor actualizado.");
@@ -663,6 +680,8 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                                   email: advisor.email,
                                   password: "",
                                   role: advisor.advisorRole === "administrador" ? "administrador" : "agente",
+                                  correoOriginal: advisor.email,
+                                  nuevoOcupante: null,
                                 })
                               }
                             >
@@ -935,6 +954,32 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                 </SelectContent>
               </Select>
             </div>
+            {/* Otra persona entra en este puesto. Se propone sola al cambiar el
+                correo —que es el inicio de sesión— y se puede desmarcar: la
+                misma persona también puede cambiar de correo. Marcada, sus
+                conversaciones directas del chat de equipo arrancan sin
+                historial para que la persona nueva no lea las de la anterior. */}
+            <label
+              htmlFor="edit-nuevo-ocupante"
+              data-casilla="nuevo-ocupante"
+              className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-3"
+            >
+              <Checkbox
+                id="edit-nuevo-ocupante"
+                className="mt-0.5"
+                checked={esNuevoOcupante(editForm)}
+                onCheckedChange={(v) =>
+                  setEditForm((prev) => (prev ? { ...prev, nuevoOcupante: v === true } : null))
+                }
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm font-medium">Entra otra persona en este puesto</span>
+                <span className="block text-xs text-muted-foreground">
+                  Sus conversaciones directas del chat de equipo arrancarán sin historial: la
+                  persona nueva no verá lo que se habló con quien estuvo antes. No se puede deshacer.
+                </span>
+              </span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditForm(null)}>Cancelar</Button>

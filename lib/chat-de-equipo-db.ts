@@ -1198,6 +1198,94 @@ export async function elMensajeQueSeToca(id: string): Promise<{
     };
 }
 
+// ── Limpiar el historial ────────────────────────────────────────────────────
+
+/**
+ * El filtro de «los mensajes de este canal», escrito una vez.
+ *
+ * El **general** no es una fila de canal: sus mensajes cuelgan de las cuentas
+ * de la FAMILIA con `canalId` nulo —los de cuando el hilo era uno solo— o
+ * `'general'`. Sin el `IS NULL` la limpieza dejaría viva la mitad vieja del
+ * general, que es justo la que más historial tiene. Y sin acotar por la
+ * familia se llevaría por delante el general de TODAS las cuentas de la
+ * plataforma, que comparten el mismo `'general'`.
+ *
+ * Cualquier otro canal se busca **por su id y nada más**: sus mensajes cuelgan
+ * de la cuenta dueña del canal, los escriba quien los escriba.
+ */
+function losMensajesDelCanal(canalId: string, cuentas: string[]): Prisma.Sql {
+    if (canalId === CANAL_GENERAL) {
+        return Prisma.sql`"cuentaId" = ANY(${cuentas}::text[])
+            AND ("canalId" IS NULL OR "canalId" = ${CANAL_GENERAL})`;
+    }
+    return Prisma.sql`"canalId" = ${canalId}`;
+}
+
+/**
+ * Vacía el historial de una conversación: sus mensajes y sus reacciones.
+ *
+ * **Borrado de verdad, no la señal de «Mensaje eliminado».** Borrar un mensaje
+ * deja la fila para que el hilo no tenga un hueco inexplicable; limpiar es lo
+ * contrario —que la conversación arranque de cero—, y dejar cien filas de
+ * «Mensaje eliminado» no sería limpiarla.
+ *
+ * Va en una transacción: reacciones y mensajes a la vez. A medias quedarían
+ * reacciones colgando de mensajes que no existen, o mensajes sin las suyas.
+ *
+ * Devuelve cuántos mensajes se fueron y las direcciones de sus archivos, para
+ * que quien llama los quite del bucket DESPUÉS: el bucket no puede tumbar una
+ * limpieza que ya se hizo en la base.
+ *
+ * El canal y la marca de leído se quedan: el canal sigue existiendo —vacío—, y
+ * una marca vieja con cero mensajes detrás no cuenta nada como sin leer.
+ */
+export async function vaciarElHistorial(input: {
+    canalId: string;
+    /** La familia de quien limpia. Solo cuenta para el general. */
+    cuentas: string[];
+}): Promise<{ mensajes: number; archivos: string[] }> {
+    const canalId = input.canalId.trim();
+    if (!canalId) return { mensajes: 0, archivos: [] };
+    const cuentas = input.cuentas.filter(Boolean);
+    // El general sin familia no se vacía: con una lista vacía el `ANY` no casa
+    // con nada, pero decirlo aquí evita depender de eso.
+    if (canalId === CANAL_GENERAL && cuentas.length === 0) return { mensajes: 0, archivos: [] };
+
+    const donde = losMensajesDelCanal(canalId, cuentas);
+    return conLaTabla(() =>
+        db.$transaction(async (tx) => {
+            const conArchivo = await tx.$queryRaw<Array<{ adjuntoUrl: string | null; audioUrl: string | null }>>`
+                SELECT "adjuntoUrl", "audioUrl" FROM "team_chat_messages"
+                WHERE ${donde} AND ("adjuntoUrl" IS NOT NULL OR "audioUrl" IS NOT NULL)
+            `;
+            await tx.$executeRaw`
+                DELETE FROM "team_chat_reactions"
+                WHERE "mensajeId" IN (SELECT "id" FROM "team_chat_messages" WHERE ${donde})
+            `;
+            const mensajes = await tx.$executeRaw`
+                DELETE FROM "team_chat_messages" WHERE ${donde}
+            `;
+            const archivos: string[] = [];
+            for (const f of conArchivo) {
+                if (f.adjuntoUrl) archivos.push(f.adjuntoUrl);
+                if (f.audioUrl) archivos.push(f.audioUrl);
+            }
+            return { mensajes, archivos };
+        }),
+    );
+}
+
+/** Los directos en los que está una persona. */
+export async function losDirectosDe(personaId: string): Promise<string[]> {
+    if (!personaId.trim()) return [];
+    const filas = await conLaTabla(() => db.$queryRaw<Array<{ id: string }>>`
+        SELECT c."id" FROM "team_channels" c
+        JOIN "team_channel_members" m ON m."canalId" = c."id"
+        WHERE c."tipo" = 'directo' AND m."personaId" = ${personaId}
+    `);
+    return filas.map((f) => f.id);
+}
+
 // ── Los canales ─────────────────────────────────────────────────────────────
 
 export type FilaDeCanal = {

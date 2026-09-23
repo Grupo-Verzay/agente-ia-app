@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaQueConfigura } from "@/lib/cuenta-que-configura";
 import { db } from "@/lib/db";
+import { arrancarDeCeroElPuesto } from "@/lib/historial-del-equipo.server";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
 import { getAllModules } from "@/actions/module-actions";
@@ -519,6 +520,13 @@ export async function updateAdvisor(input: {
   /** Vacío = no tocar la contraseña. */
   password: string;
   role: string;
+  /**
+   * Entra OTRA persona en este puesto: sus directos del chat de equipo
+   * arrancan sin historial (`arrancarDeCeroElPuesto`). La pantalla lo propone
+   * al cambiar el correo, pero **solo se hace con la marca explícita**: se
+   * borran conversaciones, y eso no puede deducirse en silencio.
+   */
+  nuevoOcupante?: boolean;
 }): Promise<ActionResult<{ name: string; email: string; advisorRole: string }>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
@@ -549,6 +557,26 @@ export async function updateAdvisor(input: {
     { correoActual: actual.email, correoYaUsado },
   );
   if (!decision.ok) return { success: false, message: decision.motivo };
+
+  // El puesto cambia de ocupante: su historial de directos se va ANTES de
+  // tocar la identidad. Al revés, un fallo a mitad dejaría a la persona nueva
+  // con el correo ya puesto —o sea, dentro— y la conversación de la anterior
+  // todavía ahí. Si esto falla no se cambia nada y se dice.
+  if (input.nuevoOcupante === true) {
+    try {
+      const hecho = await arrancarDeCeroElPuesto(input.advisorId);
+      console.info("[equipo] nuevo ocupante: los directos arrancan sin historial", {
+        puesto: input.advisorId,
+        ...hecho,
+      });
+    } catch (error) {
+      console.error("[equipo] no se pudo vaciar el historial del puesto", error);
+      return {
+        success: false,
+        message: "No se pudo vaciar el historial de sus directos. No se ha cambiado nada; inténtalo de nuevo.",
+      };
+    }
+  }
 
   // El rol: donde vive depende de si es cuenta vinculada. Igual que
   // `updateAdvisorRole`, para no tener dos caminos que un día discrepen.

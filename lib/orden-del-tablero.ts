@@ -73,6 +73,14 @@ export type PosicionesDelTablero = Record<string, number>;
  * su grupo. Mezclando los ids en una sola columna, mover una carpeta tendría
  * que saber cuántos espacios hay debajo de cada una.
  */
+/*
+ * Y `directos` es la lista de DIRECTOS del chat de equipo, con `tableroId` = la
+ * PERSONA que mira: es el único cuya llave es una persona, porque ese orden es
+ * de cada quien y no de la cuenta —lo que coloca uno no se lo mueve a nadie—.
+ * La tarjeta es la persona con quien se habla, no el canal: ver
+ * `lib/orden-de-los-directos.ts`, que es quien lo ordena (con lo sin colocar
+ * DETRÁS, al revés que `ordenarLaColumna`).
+ */
 export const TIPOS_DE_TABLERO = [
     "proyecto",
     "tickets",
@@ -80,6 +88,7 @@ export const TIPOS_DE_TABLERO = [
     "espacio",
     "arbol",
     "carpetas",
+    "directos",
 ] as const;
 export type TipoDeTablero = (typeof TIPOS_DE_TABLERO)[number];
 
