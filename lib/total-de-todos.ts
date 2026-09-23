@@ -2,17 +2,15 @@
  * «Todos» cuenta las conversaciones ACTIVAS: ni borradas, ni archivadas, ni
  * resueltas. Exactamente las que la lista enseña bajo esa pastilla.
  *
- * El numero sale de dos sitios, y los dos tienen que decir lo mismo:
+ * Las filas que cuentan las decide `lasFilasDeLaLista`
+ * (`app/(root)/chats/_components/lo-que-ve-todos.ts`), la MISMA regla con la
+ * que la barra lateral pinta la lista. Aqui solo se reparte el numero entre lo
+ * que el navegador tiene cargado y lo que el servidor sabe de la bandeja
+ * entera.
  *
- *  - el SERVIDOR (`contarChatsPorLinea`), un `COUNT` sobre `Session` que no
- *    esta topado por la pagina cargada;
- *  - el NAVEGADOR, que sabe lo que ha cambiado DESPUES de ese `COUNT`: resolver,
- *    reabrir, archivar, borrar, un mensaje del cliente que reabre solo.
- *
- * Antes el navegador hacia `max(servidor, cargadas)` y el servidor no
- * descontaba las resueltas. Asi que resolver sacaba la fila de la lista y el
- * numero no se movia —ni recargando—: un contador que no baja cuando la lista
- * baja se lee como un contador roto, y un cliente lo reporto.
+ * Antes el servidor contaba LEADS (un `COUNT` sobre `Session`) y la lista
+ * enseña CONVERSACIONES, asi que los dos numeros no se encontraban nunca: 32
+ * contra 16, 34 contra 14.
  *
  * Este modulo es puro: la regla de «resuelta» y el reparto del numero entre las
  * dos fuentes. Lo usan la barra lateral (que decide que filas se ven) y el
@@ -25,8 +23,8 @@
  *
  * Resuelta es tener la marca de «Resolver conversacion» (`resolved_at`) y que
  * no haya llegado nada despues: si el ultimo mensaje es posterior a la marca,
- * vuelve sola a la bandeja. El servidor usa la MISMA regla en SQL
- * (`contarChatsPorLinea`); si se cambia aqui, se cambia alli.
+ * vuelve sola a la bandeja. El servidor la usa tal cual: pasa la bandeja
+ * entera por `lasFilasDeLaLista`, que llama a esta.
  *
  * Las dos horas van en milisegundos.
  */
@@ -35,70 +33,94 @@ export function estaResuelta(ultimoMensajeMs: number, resueltaEnMs: number | nul
   return ultimoMensajeMs <= resueltaEnMs;
 }
 
-/** Lo que el conteo necesita saber de cada fila cargada. */
+/** Cuantas filas tiene cada linea y cuantas salen bajo «Todos». */
+export type ConteoPorLinea = {
+  /** Las filas de la linea que la lista tiene o tendria: todas menos las borradas. */
+  filas: Record<string, number>;
+  /** Las que salen bajo «Todos». */
+  todos: Record<string, number>;
+};
+
+/** Lo que la correccion en vivo necesita de cada fila cargada. */
 export type FilaDelConteo = {
-  /** Una por linea y numero: la misma llave con la que la lista quita repetidos. */
+  /** La misma llave con la que la lista quita repetidos (`claveEnLaLista`). */
   clave: string;
   linea: string;
-  /**
-   * Si la fila tiene ficha en `Session`. Solo esas entran en el `COUNT` del
-   * servidor, y solo de esas se sabe si estan resueltas: la sesion llega unos
-   * segundos despues de pintar la lista.
-   */
-  conSesion: boolean;
   /** No borrada, no archivada, no resuelta. */
   activa: boolean;
 };
 
 /**
- * El total de «Todos» por linea.
+ * El numero de «Todos» por linea.
  *
- * `base` recuerda, para cada fila con sesion, si estaba activa la PRIMERA vez
- * que se la vio con su sesion puesta: eso es lo que el `COUNT` del servidor dio
- * por hecho. Cada fila que cambio despues suma o resta uno sobre el numero del
- * servidor. Asi resolver baja el numero al momento, reabrir lo sube, y no hace
- * falta volver a preguntar.
+ * Las dos fuentes cuentan LO MISMO —las filas de la lista, pasadas por la misma
+ * regla (`lasFilasDeLaLista`)—; lo que cambia es sobre que filas:
  *
- * Por que la primera vez CON SESION y no la primera vez a secas: las sesiones
- * llegan despues que la lista, y una fila resuelta se ve «activa» hasta que su
- * sesion llega. Apuntarla en ese momento restaria de nuevo algo que el servidor
- * ya habia descontado.
+ *  - `cargado`: lo que el navegador tiene. Es EXACTO cuando la linea esta
+ *    entera, y en ese caso manda sin discusion: el numero dice lo que la lista
+ *    enseña, ni una mas.
+ *  - `servidor`: la bandeja ENTERA de la linea, sin el tope de la pagina. Solo
+ *    hace falta cuando la linea tiene filas que el navegador todavia no ha
+ *    cargado.
+ *
+ * Una linea esta entera cuando el navegador ya tiene al menos tantas filas
+ * como el servidor dijo que habia. Asi no hay que suponer nada sobre paginas.
+ *
+ * Para una linea a medias el numero es el del servidor corregido con lo que
+ * cambio despues en la pantalla: resolver, reabrir, archivar, borrar. `base`
+ * recuerda, para cada fila, si estaba activa la PRIMERA vez que se la vio con
+ * las sesiones ya cargadas —antes no se sabe si esta resuelta—; cada fila que
+ * cambio despues suma o resta uno. Nunca baja de lo que la pantalla cuenta.
  *
  * `base` se modifica en el sitio (es la memoria de quien llama) y se reinicia
  * cuando llega un numero nuevo del servidor.
- *
- * Y el resultado nunca baja de lo que la pantalla cuenta activo: puede haber
- * conversaciones sin ficha que el `COUNT` no conoce.
  */
 export function totalesDeTodos(
+  cargado: ConteoPorLinea,
   filas: FilaDelConteo[],
-  servidor: Record<string, number> | null | undefined,
+  servidor: ConteoPorLinea | null | undefined,
   base: Map<string, boolean>,
+  sesionesListas: boolean,
 ): Record<string, number> {
-  const cargadas: Record<string, number> = {};
   const cambio: Record<string, number> = {};
-
-  for (const f of filas) {
-    if (!f.linea) continue;
-    if (f.activa) cargadas[f.linea] = (cargadas[f.linea] ?? 0) + 1;
-    if (!f.conSesion) continue;
-
-    const antes = base.get(f.clave);
-    if (antes === undefined) {
-      base.set(f.clave, f.activa);
-      continue;
-    }
-    if (antes !== f.activa) {
-      cambio[f.linea] = (cambio[f.linea] ?? 0) + (f.activa ? 1 : -1);
+  if (sesionesListas) {
+    for (const f of filas) {
+      if (!f.linea) continue;
+      const antes = base.get(f.clave);
+      if (antes === undefined) {
+        base.set(f.clave, f.activa);
+        continue;
+      }
+      if (antes !== f.activa) {
+        cambio[f.linea] = (cambio[f.linea] ?? 0) + (f.activa ? 1 : -1);
+      }
     }
   }
 
-  if (!servidor) return cargadas;
+  const totales: Record<string, number> = {};
+  const lineas = new Set([
+    ...Object.keys(cargado.filas),
+    ...Object.keys(cargado.todos),
+    ...Object.keys(servidor?.filas ?? {}),
+    ...Object.keys(servidor?.todos ?? {}),
+  ]);
+  for (const linea of lineas) {
+    if (!linea) continue;
+    const enPantalla = cargado.todos[linea] ?? 0;
+    const delServidor = servidor?.todos[linea];
+    const entera = !servidor || (cargado.filas[linea] ?? 0) >= (servidor.filas[linea] ?? 0);
 
-  const totales: Record<string, number> = { ...cargadas };
-  for (const [linea, total] of Object.entries(servidor)) {
-    const corregido = Math.max(0, total + (cambio[linea] ?? 0));
-    totales[linea] = Math.max(corregido, cargadas[linea] ?? 0);
+    if (delServidor === undefined) {
+      totales[linea] = enPantalla;
+    } else if (!sesionesListas) {
+      // Sin sesiones todavia no se sabe que esta resuelta: lo cargado cuenta de
+      // mas. El servidor si lo sabe.
+      totales[linea] = delServidor;
+    } else if (entera) {
+      totales[linea] = enPantalla;
+    } else {
+      totales[linea] = Math.max(enPantalla, Math.max(0, delServidor + (cambio[linea] ?? 0)));
+    }
   }
   return totales;
 }

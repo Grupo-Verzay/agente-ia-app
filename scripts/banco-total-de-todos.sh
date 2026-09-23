@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# El banco del contador de «Todos»: cuenta lo mismo que la lista enseña.
+# El banco del numero de «Todos»: sale de LO MISMO que la lista.
 #
 # Postgres de usar y tirar con el esquema REAL (`prisma db push`) y las
-# funciones de PRODUCCION: el COUNT del servidor, resolver y reabrir, y la regla
-# que corrige el numero en el navegador. Corre en DOS modos: el roto lleva la
-# consulta y la cuenta de antes escritas en el test y AFIRMA el fallo (resolver
-# no baja el numero, ni recontando).
+# funciones de PRODUCCION: la consulta de la lista pagina a pagina, la regla de
+# la barra lateral, el conteo del servidor sobre la bandeja entera, resolver y
+# reabrir. Varias lineas, historial importado a medias, resueltas, archivadas,
+# el mismo contacto en dos lineas y mas de una pagina. Corre en DOS modos: el
+# roto lleva el COUNT de leads y el cursor de antes escritos en el test y
+# AFIRMA el fallo.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -32,6 +34,10 @@ export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
        S3_ENDPOINT=http://localhost S3_PUBLIC_URL=http://localhost GEMINI_API_KEY=banco
 
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
+# Existe en produccion por un ALTER TABLE en caliente y NO en el esquema de
+# Prisma: sin ella la consulta de la bandeja cae con 42703.
+psql -h "$PGDIR" -p "$PORT" -U postgres -d banco -q \
+  -c 'ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS "profilePicUrl" text' >/dev/null
 
 OUT=lib/__tests__/.compilado/todos
 mkdir -p "$OUT"
@@ -42,7 +48,7 @@ npx esbuild lib/__tests__/fingido/entrada-de-todos.ts --bundle \
 sed -i '/server-only/d' "$OUT/entrada-de-todos.js"
 
 echo "=== MODO BUENO ==="
-node --test lib/__tests__/total-de-todos-db.test.mjs
+node --test lib/__tests__/todos-como-la-lista-db.test.mjs
 echo
-echo "=== MODO ROTO (la consulta y la cuenta de antes: resolver no baja el numero) ==="
-MODO=roto node --test lib/__tests__/total-de-todos-db.test.mjs
+echo "=== MODO ROTO (el COUNT de leads y el cursor en segundos de antes) ==="
+MODO=roto node --test lib/__tests__/todos-como-la-lista-db.test.mjs

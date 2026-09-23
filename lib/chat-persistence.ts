@@ -10,7 +10,6 @@ import {
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
-import { ensureResolvedAtColumn as asegurarColumnaResolvedAt } from '@/lib/session-resolved';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -56,6 +55,8 @@ type InboxRow = {
   /** Inicio de la conversación: la más temprana de conversación y sesión. */
   createdAt: Date | null;
   lastMessageDeleted?: boolean | null;
+  /** El `senderPn` de la conversacion: una identidad mas del contacto. */
+  senderPn?: string | null;
 };
 
 export type PersistChatMessageInput = {
@@ -595,6 +596,7 @@ function inboxRowToChat(row: InboxRow): ChatData {
   const rawSnapshot = getRawEvolutionSnapshot(row.raw);
   const aliases = buildWhatsAppJidCandidates(row.remoteJid, [
     row.remoteJidAlt,
+    row.senderPn,
     rawSnapshot?.key?.remoteJid,
     rawSnapshot?.key?.remoteJidAlt,
     rawSnapshot?.key?.senderPn,
@@ -1890,148 +1892,6 @@ function recortarRawSql(col: Prisma.Sql): Prisma.Sql {
 `;
 }
 
-/**
- * Cuantas conversaciones tiene cada linea DE VERDAD.
- *
- * El numero y la lista son dos cosas distintas y llegaron a ser la misma: el
- * contador de cada canal se sacaba contando las filas cargadas, asi que con el
- * tope de la bandeja mordiendo decia 290 en una linea de 576. Nadie baja mas
- * alla de los primeros chats, asi que la LISTA puede seguir acotada; lo que no
- * puede estar recortado es el NUMERO.
- *
- * Es **un solo `COUNT`** sobre `Session`, sin tocar `chat_conversations` ni el
- * JSON pesado de `lastMessageRaw`, que es lo que obligaba a poner tope.
- *
- * Dos cosas que lo hacen dar el numero bueno y no uno parecido:
- *
- * 1. **`COUNT(DISTINCT remoteJid)`, no `COUNT(*)`.** La bandeja mira las lineas
- *    de VARIAS cuentas a la vez (`allSessionUserIds`: la propia, la de sesion,
- *    las vinculadas), y una misma linea puede tener la ficha del mismo contacto
- *    bajo mas de un `userId` -pasa con las conversaciones viejas guardadas bajo
- *    el dueño anterior de la linea-. Contando filas, una linea de 576 decia
- *    **1036**: el mismo contacto contado dos veces.
- * 2. **Las borradas y las archivadas se descuentan dentro de la consulta**, con
- *    un `NOT EXISTS`, para que siga cumpliendose lo de siempre: limpiar chats
- *    baja el numero de la linea. Restar marcas por fuera no vale: una sola
- *    conversacion borrada deja marca bajo todas sus identidades (`remoteJid`,
- *    `remoteJidAlt`, `senderPn`, el `@lid`), asi que restaria hasta cuatro
- *    veces de mas.
- */
-export async function contarChatsPorLinea(params: {
-  userIds: string[];
-  instanceNames?: string[];
-}): Promise<Record<string, number>> {
-  const userIds = params.userIds.filter(Boolean);
-  if (!userIds.length) return {};
-
-  // SOLO las lineas de la bandeja, las mismas que se le piden a la lista.
-  //
-  // Sin esto el contador contaba TODAS las lineas que aparecen en `Session`
-  // —las borradas, los restos `_V2`, los canales `_wh`— y volvian al
-  // desplegable las filas «Linea sin ficha» que se habian quitado del lado de
-  // los chats: con numero, pero al elegirlas la lista salia vacia («No hay
-  // chats que coincidan con el filtro»). Un filtro que promete 18 y enseña 0.
-  const lineas = params.instanceNames?.filter(Boolean) ?? [];
-  if (params.instanceNames && !lineas.length) return {};
-
-  try {
-    const __t0 = performance.now();
-    // Las marcas se sacan UNA vez y se cruzan con un hash join, no con un
-    // `NOT EXISTS` correlacionado.
-    //
-    // El primer intento era `NOT EXISTS (... p."remoteJid" = s."remoteJid" OR
-    // p."remoteJid" = s."remoteJidAlt")`, o sea la misma trampa que ya costo
-    // caro en `levantarMarcasSiElContactoEscribio`: un `OR` sobre dos columnas
-    // dentro de un correlacionado no puede usar indice y se ejecuta UNA VEZ POR
-    // SESION. Con 15.000 leads son 15.000 busquedas.
-    //
-    // Asi son dos pasadas y ya: la tabla de marcas es pequeña -solo hay fila
-    // por chat borrado o archivado- y entra entera en memoria.
-    // `resolved_at` se crea en caliente (ver lib/session-resolved.ts); sin la
-    // columna la consulta caeria con 42703 y el numero volveria a lo cargado.
-    await asegurarColumnaResolvedAt();
-    const filas = await db.$queryRaw<{ linea: string | null; total: bigint }[]>`
-      WITH marcas AS (
-        SELECT DISTINCT "userId", "remoteJid"
-        FROM "ChatConversationPreference"
-        WHERE "userId" IN (${Prisma.join(userIds)})
-          AND ("deletedAt" IS NOT NULL OR "archivedAt" IS NOT NULL)
-      )
-      SELECT linea, COUNT(DISTINCT jid)::bigint AS total FROM (
-        SELECT s."instanceId" AS linea, s."remoteJid" AS jid
-        FROM "Session" s
-        LEFT JOIN marcas m  ON m."userId"  = s."userId" AND m."remoteJid"  = s."remoteJid"
-        LEFT JOIN marcas ma ON ma."userId" = s."userId" AND ma."remoteJid" = s."remoteJidAlt"
-        WHERE s."userId" IN (${Prisma.join(userIds)})
-          AND s."remoteJid" NOT LIKE '%@lid'
-          ${lineas.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(lineas)})` : Prisma.empty}
-          AND m."remoteJid" IS NULL
-          AND ma."remoteJid" IS NULL
-          -- Y SIN LAS RESUELTAS, que la lista no enseña bajo «Todos». Resuelta
-          -- es la regla de estaResuelta (lib/total-de-todos.ts): tener la marca
-          -- y que no haya llegado nada despues. Sin esto, resolver sacaba la
-          -- fila y el numero no bajaba ni recargando.
-          --
-          -- El EXISTS solo se evalua para las que tienen marca (el OR corta
-          -- antes), y entra por el indice unico (userId, instanceName, remoteJid).
-          AND (
-            s.resolved_at IS NULL
-            OR EXISTS (
-              SELECT 1 FROM "chat_conversations" cc
-              WHERE cc."userId" = s."userId"
-                AND cc."instanceName" = s."instanceId"
-                AND cc."remoteJid" IN (s."remoteJid", s."remoteJidAlt")
-                AND cc."lastMessageTimestamp" > s.resolved_at
-            )
-          )
-
-        UNION
-
-        -- Y LOS GRUPOS SIN FICHA. Un grupo no siempre tiene Session, y la lista
-        -- si los enseña: contaban cero, que es el fallo de siempre —un filtro
-        -- que ofrece un numero al que no se puede llegar—, del reves.
-        --
-        -- Los que SI tienen ficha ya salen arriba (con su marca de resuelto), y
-        -- el UNION con COUNT DISTINCT hace que no se cuenten dos veces: antes
-        -- las dos ramas se SUMABAN y un grupo con ficha contaba doble.
-        SELECT c."instanceName" AS linea, c."remoteJid" AS jid
-        FROM "chat_conversations" c
-        LEFT JOIN marcas mg ON mg."userId" = c."userId" AND mg."remoteJid" = c."remoteJid"
-        LEFT JOIN "Session" sg
-          ON sg."userId" = c."userId" AND sg."instanceId" = c."instanceName" AND sg."remoteJid" = c."remoteJid"
-        WHERE c."userId" IN (${Prisma.join(userIds)})
-          AND c."remoteJid" LIKE '%@g.us'
-          ${lineas.length ? Prisma.sql`AND c."instanceName" IN (${Prisma.join(lineas)})` : Prisma.empty}
-          AND mg."remoteJid" IS NULL
-          AND sg."id" IS NULL
-      ) AS todo
-      GROUP BY linea
-    `;
-
-    // Un contador nunca deberia costar; si algun dia cuesta, que se vea.
-    const __ms = performance.now() - __t0;
-    if (__ms > 300) {
-      console.warn(`[PERF] contarChatsPorLinea ${Math.round(__ms)}ms`, {
-        cuentas: userIds.length,
-        lineas: lineas.length || 'todas',
-      });
-    }
-
-    const conteos: Record<string, number> = {};
-    for (const f of filas) {
-      const linea = f.linea ?? "";
-      if (!linea) continue;
-      conteos[linea] = Number(f.total);
-    }
-    return conteos;
-  } catch (error) {
-    // Sin numero se cae al conteo de las filas cargadas, que es lo de antes.
-    // Callarlo aqui seria volver a un numero corto sin explicacion.
-    console.error("[chats] no se pudo contar las conversaciones por linea", error);
-    return {};
-  }
-}
-
 export async function getPersistedInboxChats(params: {
   userIds: string[];
   instanceNames?: string[];
@@ -2067,8 +1927,33 @@ export function invalidatePersistedInboxCache(): void {
   inboxCache.clear();
 }
 
+/**
+ * La bandeja ENTERA: las mismas filas que la lista, sin la ventana de
+ * candidatos y sin el tope de la pagina.
+ *
+ * Es lo que cuenta el numero de «Todos» para las lineas que el navegador
+ * todavia no tiene cargadas del todo (`lib/conteo-de-todos.server.ts`). Sale de
+ * la MISMA consulta que la lista a proposito: el contador anterior era un
+ * `COUNT` sobre `Session` —los leads— y la lista enseña conversaciones, asi que
+ * los dos numeros no se encontraban nunca.
+ *
+ * Sin el JSON del ultimo mensaje (`raw`): el conteo solo necesita las
+ * identidades, de quien es el ultimo mensaje y su hora, y esas vienen en
+ * columnas. Leer `lastMessageRaw` de toda la cuenta seria descomprimir cientos
+ * de megas para contar filas.
+ */
+export async function leerLaBandejaEntera(params: {
+  userIds: string[];
+  instanceNames?: string[];
+}): Promise<ChatData[]> {
+  const userIds = params.userIds.filter(Boolean);
+  if (!userIds.length) return [];
+  if (params.instanceNames && !params.instanceNames.filter(Boolean).length) return [];
+  return loadPersistedInboxChats({ ...params, completa: true }, userIds);
+}
+
 async function loadPersistedInboxChats(
-  params: { userIds: string[]; instanceNames?: string[]; take?: number; antesDe?: Date },
+  params: { userIds: string[]; instanceNames?: string[]; take?: number; antesDe?: Date; completa?: boolean },
   userIds: string[],
 ): Promise<ChatData[]> {
   return readWithTablesFallback(async () => {
@@ -2125,6 +2010,10 @@ async function loadPersistedInboxChats(
       FROM "chat_conversations" c
       WHERE c."userId" IN (${Prisma.join(userIds)})
         AND c."lastMessageTimestamp" IS NOT NULL
+        -- La pagina siguiente recorta la ventana DESDE su cursor. Sin esto la
+        -- ventana era siempre la de las mas recientes de la cuenta, y lo que
+        -- quedaba fuera de ella no llegaba a la lista por mucho que se bajara.
+        ${params.antesDe ? Prisma.sql`AND c."lastMessageTimestamp" < ${params.antesDe}` : Prisma.empty}
       ORDER BY c."lastMessageTimestamp" DESC
       LIMIT ${ventana}
     ),
@@ -2138,6 +2027,7 @@ async function loadPersistedInboxChats(
       SELECT s."id"
       FROM "Session" s
       WHERE s."userId" IN (${Prisma.join(userIds)})
+        ${params.antesDe ? Prisma.sql`AND s."updatedAt" < ${params.antesDe}` : Prisma.empty}
       ORDER BY s."updatedAt" DESC
       LIMIT ${ventana}
     ),
@@ -2158,6 +2048,7 @@ async function loadPersistedInboxChats(
           -- siempre, no se pueden recortar por una columna que tienen vacia.
           c."lastMessageTimestamp" IS NULL
           OR c."id" IN (SELECT "id" FROM pre_conv)
+          ${params.completa ? Prisma.sql`OR TRUE` : Prisma.empty}
         )
     ),
     sess AS (
@@ -2167,7 +2058,7 @@ async function loadPersistedInboxChats(
         s."updatedAt" AS s_updated, s."createdAt" AS s_created
       FROM "Session" s
       WHERE s."userId" IN (${Prisma.join(userIds)})
-        AND s."id" IN (SELECT "id" FROM pre_sess)
+        AND (s."id" IN (SELECT "id" FROM pre_sess) ${params.completa ? Prisma.sql`OR TRUE` : Prisma.empty})
     ),
     -- Las marcas de BORRADO de la cuenta. La lista tambien las limpia, no solo
     -- el contador.
@@ -2264,6 +2155,7 @@ async function loadPersistedInboxChats(
         COALESCE(m.c_user, m.s_user) AS "userId",
         COALESCE(m.c_jid, m.s_jid) AS "remoteJid",
         COALESCE(m.c_alt, m.s_alt) AS "remoteJidAlt",
+        m.c_sender AS "senderPn",
         COALESCE(m.c_push, m.s_push) AS "pushName",
         m.c_pic AS "profilePicUrl",
         COALESCE(m.c_instance, i."instanceName", m.s_instance) AS "instanceName",
@@ -2355,7 +2247,7 @@ async function loadPersistedInboxChats(
           : Prisma.empty
       }
       ORDER BY COALESCE("messageTimestamp", "sessionUpdatedAt") DESC
-      LIMIT ${params.take ?? TOPE_DE_LA_BANDEJA}
+      ${params.completa ? Prisma.sql`LIMIT ALL` : Prisma.sql`LIMIT ${params.take ?? TOPE_DE_LA_BANDEJA}`}
     ) ir
     LEFT JOIN "chat_conversations" c ON c."id" = ir."convId"
     ORDER BY COALESCE(ir."messageTimestamp", ir."sessionUpdatedAt") DESC
@@ -2367,7 +2259,10 @@ async function loadPersistedInboxChats(
   // intentar la versión ligera hasta el próximo reinicio, para no pagar dos
   // consultas en cada carga.
   let rows: InboxRow[];
-  if (slimRawDisponible) {
+  if (params.completa) {
+    // Para contar no hace falta el JSON: todo lo que el conteo mira va en columnas.
+    rows = await consultarBandeja(Prisma.sql`NULL::jsonb`);
+  } else if (slimRawDisponible) {
     try {
       rows = await consultarBandeja(recortarRawSql(Prisma.sql`c."lastMessageRaw"`));
     } catch (error) {
@@ -2393,7 +2288,7 @@ async function loadPersistedInboxChats(
   // distinción costó una sesión entera. Va como `info` y no como `warn`
   // justamente porque es lo esperado en una cuenta grande.
   const tope = params.take ?? TOPE_DE_LA_BANDEJA;
-  if (rows.length >= tope) {
+  if (!params.completa && rows.length >= tope) {
     console.info(
       `[chats] la lista viene al tope: ${rows.length} de ${tope}. El contador de cada línea NO depende de esto.`,
       { cuentas: userIds.length, lineas: params.instanceNames?.length ?? 'todas' },
@@ -2422,7 +2317,7 @@ async function loadPersistedInboxChats(
   // estimado.
   const sinUltimoMensaje = rows.reduce((n, r) => (r.convId == null ? n + 1 : n), 0);
 
-  if (__ms + __msMap > 500 || sinUltimoMensaje > 0) {
+  if (!params.completa && (__ms + __msMap > 500 || sinUltimoMensaje > 0)) {
     console.error(
       `[PERF] getPersistedInboxChats consulta=${Math.round(__ms)}ms ` +
         `armado=${Math.round(__msMap)}ms ` +

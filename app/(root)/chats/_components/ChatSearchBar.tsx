@@ -125,7 +125,7 @@ export function ChatSearchBar({
                   que el número vuelve. Si algún día vuelven a separarse, se
                   arregla la fuente, no se esconde el número. */}
               <div className="flex items-center gap-1.5">
-                {totalCount > 0 && (
+                {Object.keys(channelCounts).length > 0 && (
                   <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground">
                     {totalCount}
                   </span>
@@ -137,7 +137,10 @@ export function ChatSearchBar({
             {/* Por instancia */}
             {channels.map((ch) => {
               const isActive = selectedChannel === ch.instanceName;
-              const count = channelCounts[ch.instanceName] ?? 0;
+              // Sin numero solo cuando todavia no se sabe. Una linea con cero
+              // conversaciones bajo «Todos» enseña su 0: sin el, la suma de
+              // arriba no se puede comprobar a ojo.
+              const count = channelCounts[ch.instanceName];
               const label = getInstanceUiDisplayName(ch);
               return (
                 <DropdownMenuItem
@@ -154,7 +157,7 @@ export function ChatSearchBar({
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    {count > 0 && (
+                    {count !== undefined && (
                       <span className={cn(
                         "rounded-full px-1.5 py-px text-[10px] font-semibold",
                         isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",

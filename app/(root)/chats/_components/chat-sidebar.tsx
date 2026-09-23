@@ -1,5 +1,6 @@
 "use client";
 
+import { claveEnLaLista, ordenDeLaLista } from "./lo-que-ve-todos";
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -526,11 +527,10 @@ export function ChatSidebar({
           _hasUnreadFromServer: hasUnreadFromServer,
         } satisfies SidebarContact & LoParaNoLeido;
       })
-      .sort((a, b) => {
-        if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
-        if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
-        return b.ts - a.ts;
-      })
+      // El orden y la llave de repetidos son los de `lo-que-ve-todos`: el
+      // numero de «Todos» cuenta con ellos, y con dos copias la fila que la
+      // lista quita y la que el numero cuenta podrian no ser la misma.
+      .sort(ordenDeLaLista)
       .filter((() => {
         /**
          * Una fila por LINEA y numero, no una por numero.
@@ -554,7 +554,7 @@ export function ChatSidebar({
          */
         const vistos = new Set<string>();
         return (c: SidebarContact) => {
-          const clave = c.isGroup ? c.id : `${c.instanceName ?? ""}::${c.id}`;
+          const clave = claveEnLaLista(c);
           if (vistos.has(clave)) return false;
           vistos.add(clave);
           return true;
