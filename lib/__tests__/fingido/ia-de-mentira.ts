@@ -15,13 +15,20 @@
 export const laIa = {
     transcripcion: "Operador: buenas tardes.\nCliente: hola, sí, me interesa.",
     resumen: "- El cliente confirma interés.\nPróximo paso: Hacer seguimiento.",
+    /**
+     * Lo que contesta cuando se le pide CLASIFICAR el resultado de la llamada.
+     * Es otra pregunta que el resumen y va por el mismo `chat.completions`, así
+     * que el doble la distingue por sus instrucciones.
+     */
+    resultado: "interesado",
     /** Para poder afirmar que de verdad se le pidió, y con qué. */
-    pedidos: [] as { que: "transcribir" | "resumir"; modelo: string; pista?: string }[],
+    pedidos: [] as { que: "transcribir" | "resumir" | "clasificar"; modelo: string; pista?: string }[],
 };
 
-export function ponerLoQueDiceLaIa(input: { transcripcion?: string; resumen?: string }): void {
+export function ponerLoQueDiceLaIa(input: { transcripcion?: string; resumen?: string; resultado?: string }): void {
     if (input.transcripcion !== undefined) laIa.transcripcion = input.transcripcion;
     if (input.resumen !== undefined) laIa.resumen = input.resumen;
+    if (input.resultado !== undefined) laIa.resultado = input.resultado;
 }
 
 export function loQueSeLePidioALaIa(): { que: string; modelo: string; pista?: string }[] {

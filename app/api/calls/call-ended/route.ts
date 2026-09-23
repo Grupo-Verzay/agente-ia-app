@@ -63,6 +63,10 @@ export async function POST(request: Request) {
     // se sabe», y darlo por falso dejaría sin transcribir una grabación que sí
     // está — lo mismo que ya decide `abierta` en las tarjetas de reunión.
     hasRecording: body?.hasRecording !== false,
+    // Solo de una llamada del BOT sabe AstraCalls si se contestó (arranca el
+    // bot al conectar). En una manual `answered` viaja en falso siempre, así
+    // que no se da por dicho.
+    answered: body?.isBot === true && body?.answered === false ? false : undefined,
   });
 
   return NextResponse.json(resultado, { status: resultado.success ? 202 : 404 });

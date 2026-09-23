@@ -17,6 +17,7 @@ import {
   MessageSquare,
   ArrowUpDown,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TableHead } from '@/components/ui/table';
@@ -62,6 +63,7 @@ import {
   type CallsKpis,
 } from '@/actions/calls-crm-actions';
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
+import { elResultadoQueSeVe } from '@/lib/resultado-de-la-llamada';
 import { startBotCallAction } from '@/actions/voicebot-actions';
 import { BarraDeAcciones } from '@/components/shared/BarraDeAcciones';
 import { DialogoDeLlamar } from './DialogoDeLlamar';
@@ -334,10 +336,17 @@ export function CallsCrmClient({
   };
 
   // Actualiza la disposición de una llamada (optimista en el estado local).
+  // Elegirla a mano la marca `manual`: desde ese momento la IA ya no la pisa
+  // al reprocesar, y la pastilla deja de decir «propuesto por IA».
   const applyDisposition = useCallback(async (callId: string, value: string) => {
     setData((prev) =>
       prev
-        ? { ...prev, calls: prev.calls.map((c) => (c.id === callId ? { ...c, disposition: value } : c)) }
+        ? {
+            ...prev,
+            calls: prev.calls.map((c) =>
+              c.id === callId ? { ...c, disposition: value, dispositionSource: 'manual' as const } : c,
+            ),
+          }
         : prev,
     );
     const res = await setCallDisposition(callId, value);
@@ -369,8 +378,8 @@ export function CallsCrmClient({
           case 'nombre': cmp = cleanName(a.contactName).localeCompare(cleanName(b.contactName)); break;
           case 'duracion': cmp = a.durationSecs - b.durationSecs; break;
           case 'fecha': cmp = a.ts - b.ts; break;
-          // La MISMA funcion que pinta la celda: ordenando por `leadSynthesis`
-          // a secas, la columna se ordenaba por un valor y ensenaba otro.
+          // La MISMA funcion que pinta la celda: ordenando por otro texto,
+          // la columna se ordenaba por un valor y ensenaba otro.
           case 'detalle': cmp = elDetalleDeLaLlamada(a).localeCompare(elDetalleDeLaLlamada(b)); break;
           case 'resultado': cmp = (a.disposition ?? '').localeCompare(b.disposition ?? ''); break;
         }
@@ -663,6 +672,11 @@ export function CallsCrmClient({
                       onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
                       onOpenChat={() => openChat(c.phone)}
                       onChanged={load}
+                      onDetalle={(fresca) =>
+                        setData((prev) =>
+                          prev ? { ...prev, calls: prev.calls.map((x) => (x.id === fresca.id ? fresca : x)) } : prev,
+                        )
+                      }
                       onDelete={async () => {
                         if (!confirm('¿Eliminar esta llamada del historial?')) return;
                         const res = await deleteCallAction(c.id);
@@ -926,6 +940,7 @@ function CallTableRow({
   onOpenChat,
   onDelete,
   onChanged,
+  onDetalle,
   nombreDeLaCuenta,
   ajena = false,
 }: {
@@ -936,6 +951,8 @@ function CallTableRow({
   onOpenChat: () => void;
   onDelete: () => void;
   onChanged?: () => void;
+  /** El diálogo trae la llamada fresca al abrirse: la fila se pone al día. */
+  onDetalle?: (fresca: CallRow) => void;
   /** Solo llega consolidando. */
   nombreDeLaCuenta?: string;
   /**
@@ -952,14 +969,15 @@ function CallTableRow({
    */
   ajena?: boolean;
 }) {
-  const dispMeta = getDispositionMeta(call.disposition);
+  const resultado = elResultadoQueSeVe(call);
+  const dispMeta = getDispositionMeta(resultado.valor);
   const callable = /\d{6,}/.test(call.phone);
   const [detailOpen, setDetailOpen] = useState(false);
   const hasDetail = call.hasRecording || !!call.transcript || !!call.summary;
   const name = cleanName(call.contactName);
-  // No es solo `leadSynthesis`: una llamada con su resumen y su transcripcion
-  // guardados decia «Sin detalle», y eso se lee como que la grabacion no dejo
-  // nada. Ver `lib/detalle-de-la-llamada.ts`.
+  // La primera linea del RESUMEN de la llamada, y nada mas: la sintesis del
+  // lead es contexto del chat, no de esta llamada. Ver
+  // `lib/detalle-de-la-llamada.ts`.
   const sintesis = elDetalleDeLaLlamada(call);
   const recordingUrl =
     call.recordingUrl // llamadas Meta: URL directa de la grabación subida a S3
@@ -1044,7 +1062,15 @@ function CallTableRow({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              title={dispMeta ? dispMeta.label : 'Marcar resultado'}
+              title={
+                dispMeta
+                  ? resultado.deIa
+                    ? `${dispMeta.label} · propuesto por IA (puedes cambiarlo)`
+                    : dispMeta.label
+                  : 'Marcar resultado'
+              }
+              data-resultado={resultado.valor ?? ''}
+              data-resultado-ia={resultado.deIa ? 'si' : 'no'}
               className={cn(
                 // Un solo tamaño en toda la tabla, también en la pastilla. Y
                 // encoge con su columna: el rótulo se recorta con «…» y el
@@ -1055,7 +1081,12 @@ function CallTableRow({
                   : 'border-dashed border-border bg-transparent text-muted-foreground hover:bg-muted/60',
               )}
             >
-              {dispMeta && <Tag className="h-3 w-3 shrink-0" />}
+              {dispMeta &&
+                (resultado.deIa ? (
+                  <Sparkles className="h-3 w-3 shrink-0" aria-label="Propuesto por IA" />
+                ) : (
+                  <Tag className="h-3 w-3 shrink-0" />
+                ))}
               <span className="truncate">{dispMeta ? dispMeta.label : 'Marcar resultado'}</span>
               <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
             </button>
@@ -1117,7 +1148,7 @@ function CallTableRow({
       recordingUrl={recordingUrl}
       open={detailOpen}
       onOpenChange={setDetailOpen}
-      onSynthesisSaved={onChanged}
+      onDetalle={onDetalle}
     />
     </>
   );

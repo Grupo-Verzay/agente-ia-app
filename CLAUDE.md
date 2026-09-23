@@ -14044,12 +14044,15 @@ contestado: la columna **Detalle** de CRM › Llamadas pintaba `leadSynthesis`
 ni la transcripción. Así que aunque el camino entero hubiera funcionado desde
 el primer día, esa columna habría seguido diciendo «Sin detalle».
 
-`elDetalleDeLaLlamada` (`lib/detalle-de-la-llamada.ts`, puro) mira, por ese
-orden, `leadSynthesis`, el **resumen** y la **transcripción**, y se queda con la
-primera línea con contenido —saltándose el guion de una viñeta, que es como
-escribe el resumen—. Lo usan la celda **y el comparador de ordenación**: con
-dos criterios, ordenar por Detalle ordenaría por un texto que no es el que se
-ve.
+`elDetalleDeLaLlamada` (`lib/detalle-de-la-llamada.ts`, puro) se queda con la
+primera línea con contenido **del resumen de la llamada** —saltándose el guion
+de una viñeta, que es como escribe el resumen— y nada más. Lo usan la celda
+**y el comparador de ordenación**: con dos criterios, ordenar por Detalle
+ordenaría por un texto que no es el que se ve.
+
+> Esto decía antes que miraba primero `leadSynthesis`. **Ya no**: la síntesis
+> es contexto del CHAT, no de la llamada, y se queda allá. Ver *CRM ›
+> Llamadas: cinco arreglos en la misma pantalla*.
 
 ### El arreglo: el aviso viaja por el canal que YA existe
 
@@ -16592,6 +16595,74 @@ servidor mudas** (`scripts/empaquetar-con-acciones-mudas.mjs`): cada import de
 importa. Un módulo **por importador**: esbuild guarda cada módulo por su ruta,
 y con una sola el segundo recibiría los nombres del primero. `MODO=roto` pinta
 las dos tablas de `ANTES_REF` y afirma los cuatro fallos.
+
+## CRM › Llamadas: cinco arreglos en la misma pantalla
+
+Detalle, el diálogo, el reproductor, el timbre y el resultado. Cinco fallos
+reportados juntos; lo que los une es que la pantalla enseñaba cosas que **no
+eran de la llamada** o que **no estaban al día**.
+
+### 1. Detalle es la primera línea del RESUMEN de la llamada
+
+Nada de síntesis del lead: esa es del chat. Sin resumen, «Sin detalle». Lo
+decide `elDetalleDeLaLlamada` (puro), que también ordena la columna.
+
+### 2. El diálogo trae la llamada FRESCA, y ya no tiene la síntesis
+
+La fila de la tabla es la foto de cuando se cargó la lista, y la transcripción
+llega minutos después: el diálogo abría «sin resumen y sin transcripción» con
+las dos ya en la base. Ahora pide la fila al abrir (`getCallDetailAction`,
+acotada por el mismo alcance del CRM), y mientras haya grabación sin
+transcripción vuelve a preguntar cada 8 s con tope de 15 vueltas. Lo fresco
+sube a la tabla (`onDetalle`), así la fila también se pone al día.
+
+La síntesis del lead y su campo para escribirla **se fueron del diálogo**: eso
+se edita en el chat (*la síntesis se edita en el Contexto del lead*).
+
+### 3. El reproductor enseña la duración desde que abre
+
+`<audio controls>` marca «0:00 / 0:00» hasta que el navegador baja los
+metadatos —con un webm, hasta pulsar play—. El reproductor es propio y su
+total es `laDuracionDelReproductor(durationSecs, audio.duration)`: **manda la
+columna Duración**, y la del navegador solo cuenta si la fila no la trae (un
+`Infinity` o un `NaN` de webm no cuentan nunca).
+
+### 4. Duración y grabación empiezan cuando CONTESTAN (AstraCalls)
+
+El grabador arrancaba al marcar, así que el timbre entraba en el audio y en la
+duración. `MarkAnswered()` —al pasar a `StatusConnected`— reinicia el reloj y
+vacía lo grabado hasta ahí: el WAV y los segundos cuentan desde la respuesta.
+Lo prueba `grabacion_al_contestar_test.go` en astracalls.
+
+### 5. Cinco resultados, y la IA propone pero la persona manda
+
+Interesado, **Link enviado** (antes «Agendó»), Volver a llamar, No contesta y
+No interesado. «Buzón de voz» y «Número equivocado» se fueron; las filas viejas
+se leen con `comoResultadoVigente` (agendo → Link enviado, buzón → No contesta,
+número equivocado → sin marcar). **Ni migración ni backfill**.
+
+Al procesar la grabación, `clasificar` le pide al modelo uno de los cinco
+(`INSTRUCCIONES_DE_CLASIFICACION`) y `leerElResultadoDeLaIa` lo interpreta
+—«no interesado» se mira antes que «interesado», y «link enviado» gana sobre
+«interesado»—. Sin transcripción no se pregunta: es No contesta.
+
+Tres cosas que hay que mantener:
+
+1. **La propuesta se guarda siempre en `dispositionIa`**, y en `disposition`
+   solo si no hay nada puesto o lo puso la IA (`laIaPuedeEscribir`, la MISMA
+   condición del `UPDATE` de `proponerElResultado`). Un resultado viejo sin
+   `dispositionSource` cuenta como manual.
+2. **Cambiarlo a mano escribe `dispositionSource: 'manual'`** y la IA ya no lo
+   pisa. La pastilla lleva el destello cuando lo propuso la IA; sin nada,
+   «Marcar resultado».
+3. **El fin de llamada solo propone No contesta con `isBot === true` y
+   `answered === false`**: una manual sin ese dato no se toca.
+
+Lo prueba `scripts/banco-cinco-de-llamadas.sh`, en dos modos: en Chromium la
+columna con y sin resumen, el diálogo con y sin resumen/transcripción, la
+carga fresca, la duración sin pulsar play y la pastilla IA con la corrección
+manual encima; y sin navegador la clasificación y la regla de quién manda.
+`MODO=roto` pinta la pantalla de `ANTES_REF` y afirma los fallos.
 
 ## Llamadas: la cuenta es «● Ventas» junto al nombre, no una columna
 
