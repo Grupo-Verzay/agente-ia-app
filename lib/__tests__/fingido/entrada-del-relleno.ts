@@ -5,6 +5,8 @@
  */
 export {
   rellenarLaLinea,
+  rellenarTodasLasLineas,
+  buscarLineas,
   rellenarUnChat,
   revisarUnChat,
   estadoDelRelleno,
@@ -12,6 +14,6 @@ export {
   traidoDeEvolution,
   traidoDeWaha,
 } from "@/lib/relleno-de-historial.server";
-export { planDelChat, chatsQueQuedan, dondeViveLaConversacion } from "@/lib/relleno-de-historial";
+export { planDelChat, chatsQueQuedan, dondeViveLaConversacion, lineasQueQuedan, laLineaCasa, RECORRIDO_DE_TODAS } from "@/lib/relleno-de-historial";
 export { persistEvolutionMessages } from "@/lib/chat-persistence";
 export { db } from "@/lib/db";

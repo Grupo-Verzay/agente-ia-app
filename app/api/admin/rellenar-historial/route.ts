@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/auth';
 import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad';
+import { RECORRIDO_DE_TODAS } from '@/lib/relleno-de-historial';
 import {
+  buscarLineas,
   estadoDelRelleno,
   laLineaDelRelleno,
   proveedorDeLaLinea,
   rellenarLaLinea,
+  rellenarTodasLasLineas,
   rellenarUnChat,
   revisarUnChat,
 } from '@/lib/relleno-de-historial.server';
@@ -24,6 +27,13 @@ import {
  *   POST { linea, todos:true }        → lanza la línea entera de fondo (202);
  *                                       relanzarlo retoma donde se quedó
  *   POST { linea, todos:true, desdeCero:true } → la empieza otra vez
+ *
+ *   GET  ?buscar=RCA                  → las líneas que casan (nombre, dueño,
+ *                                       empresa, correo o número), con su estado
+ *   POST { todasLasLineas:true }      → TODAS las líneas por QR, en serie y con
+ *                                       pausas (202). Se salta la que terminó en
+ *                                       este recorrido o hace menos de un día.
+ *   GET  ?todas=1                     → cómo va el recorrido de todas
  */
 
 function porClave(request: Request): boolean {
@@ -43,14 +53,30 @@ async function autorizado(request: Request): Promise<boolean> {
 
 export async function GET(request: Request) {
   if (!(await autorizado(request))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  const linea = new URL(request.url).searchParams.get('linea')?.trim();
-  if (!linea) return NextResponse.json({ error: 'Falta la línea (?linea=)' }, { status: 400 });
+  const params = new URL(request.url).searchParams;
+  const buscado = params.get('buscar')?.trim();
+  if (buscado) return NextResponse.json({ lineas: await buscarLineas(buscado) });
+  if (params.get('todas')) return NextResponse.json({ estado: await estadoDelRelleno(RECORRIDO_DE_TODAS) });
+  const linea = params.get('linea')?.trim();
+  if (!linea) return NextResponse.json({ error: 'Falta la línea (?linea=), ?buscar= o ?todas=1' }, { status: 400 });
   return NextResponse.json({ estado: await estadoDelRelleno(linea) });
 }
 
 export async function POST(request: Request) {
   if (!(await autorizado(request))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const cuerpo = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+
+  if (cuerpo.todasLasLineas === true) {
+    // De fondo, como una línea: el avance está en la tabla, no en esta promesa.
+    void rellenarTodasLasLineas({ desdeCero: cuerpo.desdeCero === true }).then((r) => {
+      if (!r.ok) console.warn('[relleno] el recorrido de todas no se lanzó o se cortó', { motivo: r.motivo });
+    });
+    return NextResponse.json(
+      { lanzado: true, comoVa: 'GET /api/admin/rellenar-historial?todas=1' },
+      { status: 202 },
+    );
+  }
+
   const nombre = typeof cuerpo.linea === 'string' ? cuerpo.linea.trim() : '';
   if (!nombre) return NextResponse.json({ error: 'Falta la línea' }, { status: 400 });
 
