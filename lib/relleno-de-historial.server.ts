@@ -298,6 +298,29 @@ async function llavesDeLaLinea(cuentas: string[], linea: string): Promise<Set<st
   return new Set(filas.map((f) => llaveDelMensaje(f.messageId, f.fromMe)));
 }
 
+/**
+ * Lo que entró EN VIVO en la línea desde `desde`: se suma a las llaves antes de
+ * cada chat. Una línea grande tarda horas, y lo que la IA o el cliente escriben
+ * mientras tanto no estaba en la foto inicial: AMERICA_PENSIONADO_ALIADO dejó 8
+ * repetidos así (respuestas de la IA guardadas en vivo a mitad del recorrido).
+ * Va por `messageTimestamp` —lo vivo trae la hora de ahora— y entra por el
+ * índice (userId, instanceName, messageTimestamp): no relee la línea entera.
+ */
+async function sumarLoQueEntroEnVivo(
+  cuentas: string[],
+  linea: string,
+  desde: Date,
+  llaves: Set<string>,
+): Promise<void> {
+  const filas = await db.$queryRaw<{ messageId: string; fromMe: boolean }[]>`
+    SELECT "messageId", "fromMe" FROM "chat_messages"
+     WHERE "userId" = ANY(${cuentas}) AND "instanceName" = ${linea} AND "messageTimestamp" >= ${desde}`;
+  for (const f of filas) llaves.add(llaveDelMensaje(f.messageId, f.fromMe));
+}
+
+/** Cuánto antes del arranque se mira lo vivo: relojes que no cuadran, colas del webhook. */
+const MARGEN_DE_LO_VIVO_MS = 15 * 60 * 1000;
+
 function esGrupo(jid: string): boolean {
   return /@g\.us$/i.test(jid);
 }
@@ -587,6 +610,7 @@ export async function rellenarLaLinea(
   const pausa = opciones.pausaEntreChatsMs ?? PAUSA_ENTRE_CHATS_MS;
   try {
     const cuentas = await cuentasDeLaLinea(linea);
+    const desdeLoVivo = new Date(Date.now() - MARGEN_DE_LO_VIVO_MS);
     const llaves = await llavesDeLaLinea(cuentas, linea.instanceName);
     const delProveedor = await proveedor.listarChats();
     // También los que ya tenemos: el proveedor puede no listar uno viejo.
@@ -603,6 +627,7 @@ export async function rellenarLaLinea(
     for (const jid of quedan) {
       let inf: InformeDelChat | null = null;
       try {
+        await sumarLoQueEntroEnVivo(cuentas, linea.instanceName, desdeLoVivo, llaves);
         inf = await rellenarUnChat(linea, proveedor, jid, cuentas, llaves);
       } catch (error) {
         console.warn('[relleno] fallo en un chat, se sigue con el siguiente', {

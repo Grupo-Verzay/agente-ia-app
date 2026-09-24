@@ -16569,6 +16569,20 @@ número (con o sin indicativo) sin devolver los teléfonos.
 4. Una línea sin credenciales o ya en marcha **no corta** el recorrido: se
    cuenta en `chatsFallidos`, se dice en `ultimoError` y se sigue.
 
+### Y lo que entra EN VIVO mientras corre también cuenta
+
+Una línea grande tarda horas, y la foto de llaves se toma al empezar. Lo que la
+IA o el cliente escriben mientras tanto no está en ella: AMERICA_PENSIONADO_ALIADO
+dejó **8 repetidos** así —respuestas de la IA guardadas en vivo bajo un jid
+pelado (`528711997020`, sin `@s.whatsapp.net`) que el relleno volvió a escribir
+bajo el bueno—. Antes de cada chat se suma a las llaves lo que tenga
+`messageTimestamp` desde el arranque menos `MARGEN_DE_LO_VIVO_MS`
+(`sumarLoQueEntroEnVivo`), por el índice `(userId, instanceName,
+messageTimestamp)`: no se relee la línea entera.
+
+Lo del jid pelado es otro fallo, del backend al guardar la respuesta de la IA, y
+está sin arreglar: parte la conversación en Chats.
+
 Lo prueba `scripts/banco-relleno-de-historial.sh` contra Postgres, con
 `persistChatMessage` de verdad y solo la red fingida (el proveedor se arma con
 los mismos traductores, `traidoDeEvolution` y `traidoDeWaha`).
