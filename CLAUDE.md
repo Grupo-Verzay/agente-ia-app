@@ -16525,6 +16525,28 @@ Tres cosas del recorrido:
   historial de Waha al abrir un chat. Y el tope por chat son 5.000 mensajes; uno
   más largo se cuenta en `chatsRecortados`.
 
+### Un id de WhatsApp ya guardado en la línea NO se vuelve a escribir, bajo ninguna identidad
+
+La primera pasada sobre RCA (`MULTIGAMA_SA`, 2026-09-24) escribió 11.893
+mensajes y **129 salieron repetidos**. Dos causas, y las dos eran de mirar
+solo las identidades que da el proveedor:
+
+1. **El puente estaba en una sola fila.** Un chat abierto por su `@lid` tenía
+   su historial viejo bajo el número, y lo único que los unía era el
+   `remoteJidAlt` de una fila: se veían 24 de 324 mensajes y se reescribía el
+   resto. `filasCerradas` sigue ese puente hasta cerrarlo (nunca en un grupo:
+   su `senderPn` es quien escribió).
+2. **Sin puente ninguno.** Waha listaba al mismo contacto dos veces —por su
+   número y por su `@lid`— y devolvía el mismo mensaje en las dos, cada vez con
+   su propio `from`. Nada en la base unía las dos. Así que ahora se cargan
+   **una vez por línea** las llaves de todo lo que ya tiene
+   (`llavesDeLaLinea`) y un id que ya está se da por guardado, venga bajo la
+   identidad que venga. Un id de WhatsApp es único: no hace falta saber de
+   quién es para saber que ya está.
+
+Los dos casos están en el banco con la forma exacta de producción, y cada uno
+se pone rojo si se quita su mitad del arreglo.
+
 ### Todas las líneas: en serie, y la del cliente primero a mano
 
 `POST { todasLasLineas: true }` recorre **todas** las líneas por QR (Evolution

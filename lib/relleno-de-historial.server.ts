@@ -17,6 +17,7 @@ import {
   chatsQueQuedan,
   laLineaCasa,
   lineasQueQuedan,
+  llaveDelMensaje,
   planDelChat,
   RECORRIDO_DE_TODAS,
   type FilaExistente,
@@ -270,17 +271,75 @@ async function cuentasDeLaLinea(linea: LineaDelRelleno): Promise<string[]> {
  * columna, para que cada una use su índice: un `OR` sobre las tres recorre la
  * tabla entera (CLAUDE.md, «la marca de borrado»).
  */
-async function filasDelChat(cuentas: string[], linea: string, identidades: string[]): Promise<FilaExistente[]> {
+type FilaConIdentidades = FilaExistente & { remoteJidAlt: string | null; senderPn: string | null };
+
+async function filasDelChat(cuentas: string[], linea: string, identidades: string[]): Promise<FilaConIdentidades[]> {
   if (identidades.length === 0) return [];
-  return db.$queryRaw<FilaExistente[]>`
-    SELECT "messageId", "fromMe", "remoteJid" FROM "chat_messages"
+  return db.$queryRaw<FilaConIdentidades[]>`
+    SELECT "messageId", "fromMe", "remoteJid", "remoteJidAlt", "senderPn" FROM "chat_messages"
      WHERE "userId" = ANY(${cuentas}) AND "instanceName" = ${linea} AND "remoteJid" = ANY(${identidades})
     UNION
-    SELECT "messageId", "fromMe", "remoteJid" FROM "chat_messages"
+    SELECT "messageId", "fromMe", "remoteJid", "remoteJidAlt", "senderPn" FROM "chat_messages"
      WHERE "userId" = ANY(${cuentas}) AND "instanceName" = ${linea} AND "remoteJidAlt" = ANY(${identidades})
     UNION
-    SELECT "messageId", "fromMe", "remoteJid" FROM "chat_messages"
+    SELECT "messageId", "fromMe", "remoteJid", "remoteJidAlt", "senderPn" FROM "chat_messages"
      WHERE "userId" = ANY(${cuentas}) AND "instanceName" = ${linea} AND "senderPn" = ANY(${identidades})`;
+}
+
+/**
+ * Las llaves (`llaveDelMensaje`) de todo lo que la línea ya tiene. Se lee UNA
+ * vez por recorrido —entra por el índice de (userId, instanceName)— y se va
+ * completando con lo que se escribe.
+ */
+async function llavesDeLaLinea(cuentas: string[], linea: string): Promise<Set<string>> {
+  const filas = await db.$queryRaw<{ messageId: string; fromMe: boolean }[]>`
+    SELECT "messageId", "fromMe" FROM "chat_messages"
+     WHERE "userId" = ANY(${cuentas}) AND "instanceName" = ${linea}`;
+  return new Set(filas.map((f) => llaveDelMensaje(f.messageId, f.fromMe)));
+}
+
+function esGrupo(jid: string): boolean {
+  return /@g\.us$/i.test(jid);
+}
+
+/** Una identidad de un CONTACTO (no un grupo, ni una difusión). */
+function esIdentidadDeContacto(jid: string | null | undefined): jid is string {
+  return typeof jid === 'string' && /@(s\.whatsapp\.net|c\.us|lid)$/i.test(jid);
+}
+
+/**
+ * Las filas del chat, siguiendo el puente entre sus identidades hasta cerrarlo.
+ *
+ * Una conversación abierta por su `@lid` puede tener su historial viejo bajo el
+ * NÚMERO, y lo único que une las dos es el `remoteJidAlt` de unas pocas filas.
+ * Preguntando solo por las identidades que da el proveedor se ven esas pocas y
+ * no las demás, y el relleno escribía otra vez todo lo que ya estaba (lo cazó
+ * RCA: 24 de 324). Así que cada vuelta añade las identidades que traen las
+ * filas encontradas, hasta que no aparece ninguna nueva.
+ *
+ * En un GRUPO no se sigue: su `senderPn` es quien escribió, y seguirlo metería
+ * en el grupo la conversación privada de ese participante.
+ */
+async function filasCerradas(
+  cuentas: string[],
+  linea: string,
+  identidades: Set<string>,
+  grupo: boolean,
+): Promise<FilaExistente[]> {
+  let filas = await filasDelChat(cuentas, linea, Array.from(identidades));
+  if (grupo) return filas;
+  for (let vuelta = 0; vuelta < 4; vuelta++) {
+    const antes = identidades.size;
+    for (const f of filas) {
+      for (const j of [f.remoteJid, f.remoteJidAlt, f.senderPn]) if (esIdentidadDeContacto(j)) identidades.add(j);
+    }
+    for (const j of await identidadesGuardadas(cuentas, linea, Array.from(identidades))) {
+      if (esIdentidadDeContacto(j)) identidades.add(j);
+    }
+    if (identidades.size === antes) return filas;
+    filas = await filasDelChat(cuentas, linea, Array.from(identidades));
+  }
+  return filas;
 }
 
 /** Las identidades que ya conocemos del contacto, sacadas de su conversación guardada. */
@@ -317,6 +376,7 @@ async function planearUnChat(
   proveedor: ProveedorDeHistorial,
   jid: string,
   cuentas: string[],
+  llavesDeLaLinea: Set<string>,
 ): Promise<{ plan: PlanDelChat<Traido>; traidos: number; recortado: boolean } | null> {
   const traida = await proveedor.traerMensajes(jid);
   if (!traida) return null;
@@ -324,8 +384,8 @@ async function planearUnChat(
   for (const m of traida.mensajes) for (const j of m.jids) vistas.add(j);
   const identidades = new Set<string>(vistas);
   for (const j of await identidadesGuardadas(cuentas, linea.instanceName, Array.from(vistas))) identidades.add(j);
-  const existentes = await filasDelChat(cuentas, linea.instanceName, Array.from(identidades));
-  const plan = planDelChat({ jidDelProveedor: jid, traidos: traida.mensajes, existentes });
+  const existentes = await filasCerradas(cuentas, linea.instanceName, identidades, esGrupo(jid));
+  const plan = planDelChat({ jidDelProveedor: jid, traidos: traida.mensajes, existentes, llavesDeLaLinea });
   return { plan, traidos: traida.mensajes.length, recortado: traida.recortado };
 }
 
@@ -336,7 +396,7 @@ export async function revisarUnChat(
   jid: string,
 ): Promise<InformeDelChat | null> {
   const cuentas = await cuentasDeLaLinea(linea);
-  const r = await planearUnChat(linea, proveedor, jid, cuentas);
+  const r = await planearUnChat(linea, proveedor, jid, cuentas, await llavesDeLaLinea(cuentas, linea.instanceName));
   if (!r) return null;
   return informe(jid, r, 0, 0);
 }
@@ -369,15 +429,19 @@ export async function rellenarUnChat(
   proveedor: ProveedorDeHistorial,
   jid: string,
   cuentas?: string[],
+  llaves?: Set<string>,
 ): Promise<InformeDelChat | null> {
   const lasCuentas = cuentas ?? (await cuentasDeLaLinea(linea));
-  const r = await planearUnChat(linea, proveedor, jid, lasCuentas);
+  const lasLlaves = llaves ?? (await llavesDeLaLinea(lasCuentas, linea.instanceName));
+  const r = await planearUnChat(linea, proveedor, jid, lasCuentas, lasLlaves);
   if (!r) return null;
   let escritos = 0;
   let fallidos = 0;
   for (const m of r.plan.aEscribir) {
     try {
       await persistChatMessage(m.entrada(r.plan.escribirBajo, linea.userId));
+      // El chat siguiente de este mismo contacto lo tiene que ver.
+      lasLlaves.add(llaveDelMensaje(m.messageId, m.fromMe));
       escritos++;
     } catch (error) {
       fallidos++;
@@ -523,6 +587,7 @@ export async function rellenarLaLinea(
   const pausa = opciones.pausaEntreChatsMs ?? PAUSA_ENTRE_CHATS_MS;
   try {
     const cuentas = await cuentasDeLaLinea(linea);
+    const llaves = await llavesDeLaLinea(cuentas, linea.instanceName);
     const delProveedor = await proveedor.listarChats();
     // También los que ya tenemos: el proveedor puede no listar uno viejo.
     const nuestros = await db.$queryRaw<{ remoteJid: string }[]>`
@@ -538,7 +603,7 @@ export async function rellenarLaLinea(
     for (const jid of quedan) {
       let inf: InformeDelChat | null = null;
       try {
-        inf = await rellenarUnChat(linea, proveedor, jid, cuentas);
+        inf = await rellenarUnChat(linea, proveedor, jid, cuentas, llaves);
       } catch (error) {
         console.warn('[relleno] fallo en un chat, se sigue con el siguiente', {
           instanceName: linea.instanceName,
