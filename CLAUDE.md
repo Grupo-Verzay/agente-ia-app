@@ -16583,6 +16583,20 @@ messageTimestamp)`: no se relee la línea entera.
 Lo del jid pelado es otro fallo, del backend al guardar la respuesta de la IA, y
 está sin arreglar: parte la conversación en Chats.
 
+### Y una línea que cambia de proveedor a mitad se CORTA, no se quema
+
+El proveedor se elige al empezar la línea. AUDFONOS_IPS pasó de Evolution a
+Waha a mitad del recorrido: su instancia desapareció de Evolution, cada
+`findMessages` contestó `404`, y el recorrido siguió **contando 2.000 chats
+como fallidos sin escribir una línea en el registro**, porque un chat que el
+proveedor no devuelve no lanzaba nada. Desde fuera parecía una línea que iba
+bien.
+
+Ahora un chat sin respuesta **se dice** (`[relleno] el proveedor no devolvió el
+chat`), y `TOPE_DE_FALLOS_SEGUIDOS` (25) seguidos cortan la línea como
+`fallido`, con el motivo en `ultimoError` —si cambió de proveedor, lo nombra—.
+El recorrido de todas sigue con la siguiente; esa línea se relanza a mano.
+
 Lo prueba `scripts/banco-relleno-de-historial.sh` contra Postgres, con
 `persistChatMessage` de verdad y solo la red fingida (el proveedor se arma con
 los mismos traductores, `traidoDeEvolution` y `traidoDeWaha`).

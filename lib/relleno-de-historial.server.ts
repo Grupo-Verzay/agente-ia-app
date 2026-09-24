@@ -124,6 +124,12 @@ export function traidoDeWaha(crudo: MensajeDeWaha, instanceName: string): Traido
   };
 }
 
+/**
+ * Cuántos chats seguidos sin respuesta del proveedor hacen falta para dar la
+ * línea por perdida en este recorrido (ver `rellenarLaLinea`).
+ */
+export const TOPE_DE_FALLOS_SEGUIDOS = 25;
+
 /* ── Los dos proveedores ─────────────────────────────────────────────────── */
 
 async function proveedorDeEvolution(linea: LineaDelRelleno): Promise<ProveedorDeHistorial | null> {
@@ -624,11 +630,21 @@ export async function rellenarLaLinea(
       UPDATE "relleno_de_historial" SET "chatsTotal" = ${total}, "latidoEn" = NOW()
        WHERE "instanceName" = ${linea.instanceName}`;
 
+    let seguidosSinRespuesta = 0;
     for (const jid of quedan) {
       let inf: InformeDelChat | null = null;
       try {
         await sumarLoQueEntroEnVivo(cuentas, linea.instanceName, desdeLoVivo, llaves);
         inf = await rellenarUnChat(linea, proveedor, jid, cuentas, llaves);
+        if (!inf) {
+          // El proveedor no devolvió el chat. Callado, esto se ve como una
+          // línea que "va bien" y no escribe nada.
+          console.warn('[relleno] el proveedor no devolvió el chat', {
+            instanceName: linea.instanceName,
+            proveedor: proveedor.nombre,
+            jid,
+          });
+        }
       } catch (error) {
         console.warn('[relleno] fallo en un chat, se sigue con el siguiente', {
           instanceName: linea.instanceName,
@@ -636,6 +652,7 @@ export async function rellenarLaLinea(
           error: String(error),
         });
       }
+      seguidosSinRespuesta = inf ? 0 : seguidosSinRespuesta + 1;
       await db.$executeRaw`
         UPDATE "relleno_de_historial" SET
           "chatsHechos" = "chatsHechos" + 1,
@@ -648,6 +665,20 @@ export async function rellenarLaLinea(
           "latidoEn" = NOW()
          WHERE "instanceName" = ${linea.instanceName}`;
       if (opciones.alLatir) await opciones.alLatir().catch(() => undefined);
+      if (seguidosSinRespuesta >= TOPE_DE_FALLOS_SEGUIDOS) {
+        // Muchos seguidos no es un chat raro: es que el proveedor dejó de
+        // contestar por esta línea (la cambiaron de proveedor, la borraron o
+        // está caído). Seguir quemaría el resto de chats como fallidos, y el
+        // recorrido no vuelve a ellos. Se corta y se dice por qué.
+        const ahora = await laLineaDelRelleno(linea.instanceName);
+        const cambio =
+          ahora && proveedorDeLaFila(ahora.instanceType) !== proveedorDeLaFila(linea.instanceType)
+            ? ` La línea pasó de ${proveedorDeLaFila(linea.instanceType)} a ${proveedorDeLaFila(ahora.instanceType)} a mitad del recorrido: relánzala.`
+            : '';
+        throw new Error(
+          `El proveedor (${proveedor.nombre}) no devolvió ${seguidosSinRespuesta} chats seguidos; se corta la línea.${cambio}`,
+        );
+      }
       if (pausa > 0) await esperar(pausa);
     }
 
