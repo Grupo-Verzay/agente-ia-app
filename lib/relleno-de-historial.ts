@@ -65,6 +65,14 @@ export function planDelChat<T extends MensajeTraido>(params: {
   jidDelProveedor: string;
   traidos: T[];
   existentes: FilaExistente[];
+  /**
+   * Las llaves de TODA la línea (`llaveDelMensaje`). Un id de WhatsApp es
+   * único: si ya está en la línea bajo la identidad que sea, el mensaje ya
+   * está, aunque ninguna fila una esa identidad con este chat. Sin esto, un
+   * contacto que el proveedor lista dos veces —por su número y por su `@lid`—
+   * salía guardado dos veces (lo cazó RCA).
+   */
+  llavesDeLaLinea?: Set<string>;
 }): PlanDelChat<T> {
   const identidadesConFilas: Record<string, number> = {};
   const yaGuardadas = new Map<string, string>();
@@ -94,6 +102,11 @@ export function planDelChat<T extends MensajeTraido>(params: {
     if (donde !== undefined) {
       yaEstaban++;
       if (donde !== escribirBajo) yaEstabanBajoOtraIdentidad++;
+      continue;
+    }
+    if (params.llavesDeLaLinea?.has(llave)) {
+      yaEstaban++;
+      yaEstabanBajoOtraIdentidad++;
       continue;
     }
     aEscribir.push(m);
