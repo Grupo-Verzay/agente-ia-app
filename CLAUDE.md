@@ -16525,6 +16525,28 @@ Tres cosas del recorrido:
   historial de Waha al abrir un chat. Y el tope por chat son 5.000 mensajes; uno
   más largo se cuenta en `chatsRecortados`.
 
+### Todas las líneas: en serie, y la del cliente primero a mano
+
+`POST { todasLasLineas: true }` recorre **todas** las líneas por QR (Evolution
+y Waha) con `rellenarLaLinea`, una detrás de otra y con
+`PAUSA_ENTRE_LINEAS_MS` entre medias: nunca dos a la vez, que serían dos
+ráfagas contra el proveedor. `GET ?todas=1` dice cómo va, y `GET ?buscar=RCA`
+encuentra una línea por su nombre, el de su dueño, su empresa, su correo o su
+número (con o sin indicativo) sin devolver los teléfonos.
+
+1. **El avance vive en la misma tabla**, en la fila `RECORRIDO_DE_TODAS`
+   (líneas en `chatsTotal`/`chatsHechos`, la que va en `ultimoChat`). Tras un
+   despliegue, relanzarlo sigue por las que faltan.
+2. **Se salta la que terminó en ESTE recorrido o hace menos de un día**
+   (`lineasQueQuedan`, `RECIEN_TERMINADA_MS`): así se puede rellenar a mano la
+   línea del cliente que reclama, mirar cómo quedó, y lanzar el resto sin
+   repetirla.
+3. **Cada chat hace latir también el recorrido de arriba** (`alLatir`): una
+   línea larga tarda horas, y sin ese latido un segundo lanzamiento lo daría
+   por muerto y correría en paralelo.
+4. Una línea sin credenciales o ya en marcha **no corta** el recorrido: se
+   cuenta en `chatsFallidos`, se dice en `ultimoError` y se sigue.
+
 Lo prueba `scripts/banco-relleno-de-historial.sh` contra Postgres, con
 `persistChatMessage` de verdad y solo la red fingida (el proveedor se arma con
 los mismos traductores, `traidoDeEvolution` y `traidoDeWaha`).

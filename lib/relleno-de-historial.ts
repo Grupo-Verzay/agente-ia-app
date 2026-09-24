@@ -147,3 +147,72 @@ export function chatsQueQuedan(chats: string[], ultimoHecho: string | null): str
   if (!ultimoHecho) return ordenados;
   return ordenados.filter((c) => c > ultimoHecho);
 }
+
+/* ── Todas las líneas de la plataforma ───────────────────────────────────── */
+
+/**
+ * La fila de `relleno_de_historial` con la que se lleva el recorrido de TODAS
+ * las líneas. No puede chocar con una línea de verdad: un `instanceName` no
+ * lleva asteriscos.
+ */
+export const RECORRIDO_DE_TODAS = '*todas-las-lineas*';
+
+/**
+ * Una línea que terminó su relleno hace menos de esto no se vuelve a recorrer
+ * en el paso por todas: es la que se lanzó a mano justo antes (la del cliente
+ * que reclama) y repetirla es un día de pedirle historial al proveedor para no
+ * escribir nada.
+ */
+export const RECIEN_TERMINADA_MS = 24 * 60 * 60 * 1000;
+
+export type LineaEnElRecorrido = { instanceName: string; terminadoEn: Date | null };
+
+/**
+ * Las líneas que quedan por recorrer, en serie y en orden alfabético.
+ * Se salta la que terminó después de que empezara ESTE recorrido —así un
+ * despliegue a mitad no repite las hechas— o hace menos de un día.
+ */
+export function lineasQueQuedan(
+  lineas: LineaEnElRecorrido[],
+  empezadoEn: Date,
+  ahora: Date = new Date(),
+): string[] {
+  const desde = Math.min(empezadoEn.getTime(), ahora.getTime() - RECIEN_TERMINADA_MS);
+  const vistas = new Set<string>();
+  const quedan: string[] = [];
+  for (const l of [...lineas].sort((a, b) => a.instanceName.localeCompare(b.instanceName))) {
+    if (!l.instanceName || vistas.has(l.instanceName) || l.instanceName === RECORRIDO_DE_TODAS) continue;
+    vistas.add(l.instanceName);
+    if (l.terminadoEn && new Date(l.terminadoEn).getTime() >= desde) continue;
+    quedan.push(l.instanceName);
+  }
+  return quedan;
+}
+
+/** Solo dígitos: «+507 6284-4456» y «50762844456» son el mismo número. */
+export function soloDigitos(texto: string | null | undefined): string {
+  return (texto ?? '').replace(/\D/g, '');
+}
+
+/**
+ * ¿Esta línea es la que se busca? Por su nombre, el de su pantalla, el nombre,
+ * la empresa o el correo del dueño, o por un número (se comparan los últimos
+ * dígitos: el mismo número se guarda con y sin indicativo).
+ */
+export function laLineaCasa(
+  buscado: string,
+  datos: { instanceName: string; displayName?: string | null; nombre?: string | null; empresa?: string | null; correo?: string | null; telefonos?: (string | null | undefined)[] },
+): boolean {
+  const q = buscado.trim().toLowerCase();
+  if (!q) return false;
+  const digitos = soloDigitos(q);
+  if (digitos.length >= 7) {
+    const cola = digitos.slice(-8);
+    for (const t of datos.telefonos ?? []) {
+      const d = soloDigitos(t);
+      if (d.length >= 7 && (d.endsWith(cola) || cola.endsWith(d.slice(-8)))) return true;
+    }
+  }
+  const textos = [datos.instanceName, datos.displayName, datos.nombre, datos.empresa, datos.correo];
+  return textos.some((t) => (t ?? '').toLowerCase().includes(q));
+}

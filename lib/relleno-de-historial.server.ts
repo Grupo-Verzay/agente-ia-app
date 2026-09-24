@@ -15,7 +15,10 @@ import { mensajeDeWahaParaGuardar } from '@/lib/waha-historial';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import {
   chatsQueQuedan,
+  laLineaCasa,
+  lineasQueQuedan,
   planDelChat,
+  RECORRIDO_DE_TODAS,
   type FilaExistente,
   type MensajeTraido,
   type PlanDelChat,
@@ -494,6 +497,12 @@ export type OpcionesDelRecorrido = {
   desdeCero?: boolean;
   /** Para el banco: el proveedor fingido. */
   proveedor?: ProveedorDeHistorial;
+  /**
+   * Se llama después de cada chat. El recorrido de todas las líneas lo usa para
+   * dejar SU latido: una línea larga tarda horas, y sin latir, el recorrido de
+   * arriba se daría por muerto y un segundo lanzamiento correría en paralelo.
+   */
+  alLatir?: () => Promise<void>;
 };
 
 /**
@@ -548,6 +557,7 @@ export async function rellenarLaLinea(
           "ultimoChat" = ${jid},
           "latidoEn" = NOW()
          WHERE "instanceName" = ${linea.instanceName}`;
+      if (opciones.alLatir) await opciones.alLatir().catch(() => undefined);
       if (pausa > 0) await esperar(pausa);
     }
 
@@ -562,6 +572,162 @@ export async function rellenarLaLinea(
       UPDATE "relleno_de_historial" SET "estado" = 'fallido', "ultimoError" = ${String(error)}, "latidoEn" = NOW()
        WHERE "instanceName" = ${linea.instanceName}`;
     console.error('[relleno] la línea se cortó', { instanceName: linea.instanceName, error: String(error) });
+    return { ok: false, motivo: String(error) };
+  }
+}
+
+/* ── Todas las líneas de la plataforma ───────────────────────────────────── */
+
+export const PAUSA_ENTRE_LINEAS_MS = 5000;
+
+export type LineaListada = LineaDelRelleno & {
+  displayName: string | null;
+  proveedor: 'evolution' | 'waha';
+  dueno: { nombre: string | null; empresa: string | null; correo: string | null };
+};
+
+/**
+ * Las líneas de WhatsApp por QR de la plataforma (Evolution y Waha). Las de
+ * Meta, Telegram, Facebook e Instagram no tienen un historial que pedir.
+ */
+export async function lineasDelRelleno(): Promise<LineaListada[]> {
+  const filas = await db.instancia.findMany({
+    select: {
+      instanceName: true,
+      displayName: true,
+      instanceType: true,
+      userId: true,
+      user: { select: { name: true, company: true, email: true, notificationNumber: true, ownerModePhone: true } },
+    },
+    orderBy: { instanceName: 'asc' },
+  });
+  const vistas = new Set<string>();
+  const lineas: (LineaListada & { telefonos: (string | null)[] })[] = [];
+  for (const f of filas) {
+    const p = proveedorDeLaFila(f.instanceType);
+    if (p !== 'evolution' && p !== 'waha') continue;
+    if (!f.userId || vistas.has(f.instanceName)) continue;
+    vistas.add(f.instanceName);
+    lineas.push({
+      instanceName: f.instanceName,
+      instanceType: f.instanceType,
+      userId: f.userId,
+      displayName: f.displayName,
+      proveedor: p,
+      dueno: { nombre: f.user?.name ?? null, empresa: f.user?.company ?? null, correo: f.user?.email ?? null },
+      telefonos: [f.user?.notificationNumber ?? null, f.user?.ownerModePhone ?? null],
+    });
+  }
+  return lineas;
+}
+
+/** Busca líneas por su nombre, el de su dueño, su empresa, su correo o su número. */
+export async function buscarLineas(buscado: string) {
+  const lineas = await lineasDelRelleno();
+  const casan = lineas.filter((l) =>
+    laLineaCasa(buscado, {
+      instanceName: l.instanceName,
+      displayName: l.displayName,
+      nombre: l.dueno.nombre,
+      empresa: l.dueno.empresa,
+      correo: l.dueno.correo,
+      telefonos: (l as LineaListada & { telefonos?: (string | null)[] }).telefonos,
+    }),
+  );
+  const conEstado = [];
+  for (const l of casan) {
+    const { telefonos: _t, ...sinTelefonos } = l as LineaListada & { telefonos?: unknown };
+    conEstado.push({ ...sinTelefonos, relleno: await estadoDelRelleno(l.instanceName) });
+  }
+  return conEstado;
+}
+
+export type OpcionesDeTodas = {
+  desdeCero?: boolean;
+  pausaEntreLineasMs?: number;
+  pausaEntreChatsMs?: number;
+  /** Para el banco: las líneas y su proveedor fingidos. */
+  lineas?: LineaDelRelleno[];
+  proveedorDe?: (linea: LineaDelRelleno) => Promise<ProveedorDeHistorial | null>;
+};
+
+/**
+ * Recorre TODAS las líneas por QR, una detrás de otra, con `rellenarLaLinea` y
+ * con pausa entre medias. Nunca dos líneas a la vez: cada una ya pide al
+ * proveedor chat a chat, y dos en paralelo son dos ráfagas.
+ *
+ * Su avance vive en la fila `RECORRIDO_DE_TODAS` de la misma tabla (líneas
+ * totales en `chatsTotal`, hechas en `chatsHechos`, la que va en `ultimoChat`).
+ * Lanzarlo otra vez tras un despliegue sigue por las que faltan: se salta la
+ * que ya terminó en este recorrido o hace menos de un día.
+ */
+export async function rellenarTodasLasLineas(
+  opciones: OpcionesDeTodas = {},
+): Promise<{ ok: true; estado: EstadoDelRelleno } | { ok: false; motivo: string }> {
+  const tomado = await tomarElRecorrido(RECORRIDO_DE_TODAS, !!opciones.desdeCero);
+  if (!tomado) return { ok: false, motivo: 'Ya hay un recorrido de todas las líneas en marcha.' };
+
+  const latir = async () => {
+    await db.$executeRaw`
+      UPDATE "relleno_de_historial" SET "latidoEn" = NOW() WHERE "instanceName" = ${RECORRIDO_DE_TODAS}`;
+  };
+  const pausa = opciones.pausaEntreLineasMs ?? PAUSA_ENTRE_LINEAS_MS;
+
+  try {
+    const lineas: LineaDelRelleno[] = opciones.lineas ?? (await lineasDelRelleno());
+    const porNombre = new Map(lineas.map((l) => [l.instanceName, l]));
+    const estados = await db.$queryRaw<{ instanceName: string; terminadoEn: Date | null; estado: string }[]>`
+      SELECT "instanceName", "terminadoEn", "estado" FROM "relleno_de_historial"
+       WHERE "instanceName" = ANY(${Array.from(porNombre.keys())})`;
+    const terminadas = new Map(
+      estados.filter((e) => e.estado === 'terminado').map((e) => [e.instanceName, e.terminadoEn]),
+    );
+    const quedan = lineasQueQuedan(
+      lineas.map((l) => ({ instanceName: l.instanceName, terminadoEn: terminadas.get(l.instanceName) ?? null })),
+      new Date(tomado.empezadoEn),
+    );
+    await db.$executeRaw`
+      UPDATE "relleno_de_historial" SET "chatsTotal" = ${tomado.chatsHechos + quedan.length}, "latidoEn" = NOW()
+       WHERE "instanceName" = ${RECORRIDO_DE_TODAS}`;
+
+    for (const nombre of quedan) {
+      const linea = porNombre.get(nombre)!;
+      const proveedor = opciones.proveedorDe ? await opciones.proveedorDe(linea) : undefined;
+      const r = await rellenarLaLinea(linea, {
+        proveedor: proveedor ?? undefined,
+        pausaEntreChatsMs: opciones.pausaEntreChatsMs,
+        alLatir: latir,
+      });
+      if (!r.ok) {
+        // Una línea sin credenciales o ya en marcha no corta el recorrido: se dice y se sigue.
+        console.warn('[relleno] línea saltada en el recorrido de todas', { instanceName: nombre, motivo: r.motivo });
+      }
+      await db.$executeRaw`
+        UPDATE "relleno_de_historial" SET
+          "chatsHechos" = "chatsHechos" + 1,
+          "escritos" = "escritos" + ${r.ok ? r.estado.escritos : 0},
+          "yaEstaban" = "yaEstaban" + ${r.ok ? r.estado.yaEstaban : 0},
+          "chatsPartidos" = "chatsPartidos" + ${r.ok ? r.estado.chatsPartidos : 0},
+          "chatsRecortados" = "chatsRecortados" + ${r.ok ? r.estado.chatsRecortados : 0},
+          "chatsFallidos" = "chatsFallidos" + ${r.ok ? 0 : 1},
+          "ultimoChat" = ${nombre},
+          "ultimoError" = ${r.ok ? null : `${nombre}: ${r.motivo}`},
+          "latidoEn" = NOW()
+         WHERE "instanceName" = ${RECORRIDO_DE_TODAS}`;
+      if (pausa > 0) await esperar(pausa);
+    }
+
+    await db.$executeRaw`
+      UPDATE "relleno_de_historial" SET "estado" = 'terminado', "terminadoEn" = NOW(), "latidoEn" = NOW()
+       WHERE "instanceName" = ${RECORRIDO_DE_TODAS}`;
+    const estado = (await estadoDelRelleno(RECORRIDO_DE_TODAS))!;
+    console.info('[relleno] todas las líneas terminadas', estado);
+    return { ok: true, estado };
+  } catch (error) {
+    await db.$executeRaw`
+      UPDATE "relleno_de_historial" SET "estado" = 'fallido', "ultimoError" = ${String(error)}, "latidoEn" = NOW()
+       WHERE "instanceName" = ${RECORRIDO_DE_TODAS}`;
+    console.error('[relleno] el recorrido de todas se cortó', { error: String(error) });
     return { ok: false, motivo: String(error) };
   }
 }
