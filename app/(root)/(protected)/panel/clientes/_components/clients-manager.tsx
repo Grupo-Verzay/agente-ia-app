@@ -15,7 +15,7 @@ import {
 import { autoConfigureUserAi } from '@/actions/userAiconfig-actions';
 import { createIaCreditForUser, rechargeIaCredit } from '@/actions/actions-ia-credits';
 import { onCreditsToTokens } from '@/utils/onTokensToCredits';
-import { CreateDialog, DeleteDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, ClientAdvisorsDialog } from './';
+import { CreateDialog, DeleteDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, ClientAdvisorsDialog, PromptMaestroDialog } from './';
 import { PlanDialog } from '@/components/shared/PlanDialog';
 import { ApiKey } from '@prisma/client';
 import { UserFormValues } from '@/schema/user';
@@ -34,7 +34,7 @@ import {
 import { useAterrizajeDeMencion } from '@/hooks/useAterrizajeDeMencion';
 
 
-export type DialogType = 'editar' | 'evo' | 'delete' | 'modules' | 'plan' | 'asignar'
+export type DialogType = 'editar' | 'evo' | 'delete' | 'modules' | 'plan' | 'asignar' | 'prompt'
 
 interface Props {
     users: ClientInterface[],
@@ -43,13 +43,15 @@ interface Props {
     currentUserRol: string,
     /** Con qué rol reparte roles quien mira. Lo calcula el servidor. */
     rolQueReparte: string,
+    /** Quien mira es el dueño de la plataforma: ve «Prompt maestro». */
+    esDuenoDeLaPlataforma?: boolean,
     countries: Country[],
     allModules: ModuleWithItems[],
     resellerPools: ResellerPoolOption[],
     initialSearch?: string,
 };
 
-export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, rolQueReparte, countries, allModules, resellerPools, initialSearch }: Props) => {
+export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, rolQueReparte, esDuenoDeLaPlataforma = false, countries, allModules, resellerPools, initialSearch }: Props) => {
     const router = useRouter();
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -58,6 +60,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openModulesDialog, setOpenModulesDialog] = useState(false);
     const [openPlanDialog, setOpenPlanDialog] = useState(false);
     const [openAsignarDialog, setOpenAsignarDialog] = useState(false);
+    const [openPromptDialog, setOpenPromptDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
     // «En total hay 35 pero no todos son clientes activos». Este filtro es el
@@ -268,6 +271,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         if (dialog === 'modules') return setOpenModulesDialog(state);
         if (dialog === 'plan') return setOpenPlanDialog(state);
         if (dialog === 'asignar') return setOpenAsignarDialog(state);
+        if (dialog === 'prompt') return setOpenPromptDialog(state);
     };
 
     const openCreateDialogUser = () => {
@@ -304,7 +308,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         return true;
     });
 
-    const columns = getColumns(openDialogGetUserId, currentUserRol);
+    const columns = getColumns(openDialogGetUserId, currentUserRol, esDuenoDeLaPlataforma);
 
     return (
         <TooltipProvider delayDuration={120}>
@@ -391,6 +395,14 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     setOpen={setOpenAsignarDialog}
                     clientId={user.id}
                     clientName={user.company || user.name || user.email}
+                />
+            )}
+            {/* Prompt maestro propio: solo el dueño de la plataforma */}
+            {user && esDuenoDeLaPlataforma && (
+                <PromptMaestroDialog
+                    open={openPromptDialog}
+                    setOpen={setOpenPromptDialog}
+                    user={user}
                 />
             )}
             {/* Módulos */}

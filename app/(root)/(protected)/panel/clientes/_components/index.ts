@@ -6,3 +6,4 @@ export * from './ColumnFilterInput';
 export * from './FormUser';
 export * from './ClientStatusPanel';
 export * from './ClientAdvisorsDialog';
+export * from './prompt-maestro-dialog';

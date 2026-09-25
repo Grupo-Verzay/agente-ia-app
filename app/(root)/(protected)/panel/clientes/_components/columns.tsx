@@ -16,7 +16,7 @@ const resellerFilterFn = (row: Row<any>, columnId: string, filterValue: string) 
   return resellerName.includes(filterValue.toLowerCase())
 };
 
-export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogType, state: boolean) => void, currentUserRol: string): ColumnDef<ClientInterface>[] => [
+export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogType, state: boolean) => void, currentUserRol: string, esDuenoDeLaPlataforma = false): ColumnDef<ClientInterface>[] => [
   // La casilla va PRIMERO, y solo para quien puede gestionar clientes: es la
   // misma puerta que ya decide el botón de crear y el de eliminar de cada fila.
   // A quien no puede, una columna de casillas le ofrece marcar filas para nada.
@@ -266,6 +266,7 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <div className="flex justify-center">
         <UserActionsMenu
           currentUserRol={currentUserRol}
+          esDuenoDeLaPlataforma={esDuenoDeLaPlataforma}
           user={row.original}
           openDialogGetUserId={openDialogGetUserId}
         />
