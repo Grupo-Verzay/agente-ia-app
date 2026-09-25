@@ -2,12 +2,18 @@
 
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, Loader2, ListOrdered } from 'lucide-react';
+import { Loader2, ListOrdered } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
+import {
+    FILA_DEL_MENU,
+    FILA_PUESTA,
+    NOMBRE_EN_LA_FILA,
+    SANGRIA_DEL_MENU,
+} from '@/lib/filas-de-los-menus';
 import {
     COLORES_DE_ETAPA,
     elColorDeLaEtapa,
@@ -53,6 +59,15 @@ import { anotarCambioDeEtapa } from '@/lib/etapa-desde-el-chat';
  * igual que hace su vecino `ChatAppointmentStatusButton`. Si esa conversación
  * no estaba en la página cargada de la bandeja, el icono sale neutro hasta que
  * se abre, que es como estaba antes.
+ *
+ * # Lo puesto se marca con un GRIS, no con un chulito
+ *
+ * La fila de la etapa en la que está la conversación lleva un fondo gris suave y
+ * nada más. Lo que decide cómo se ve una fila —su sangrado, su redondeo, el
+ * nombre en mayúscula y ese gris— vive en `lib/filas-de-los-menus.ts`, al lado
+ * de lo que usa el menú de Etiquetas: son dos componentes que no se parecen por
+ * debajo (aquel es un `Command` de cmdk) y abiertos uno tras otro tienen que
+ * leerse como la misma pantalla.
  */
 export function SelectorDeEtapaDelEmbudo({
     sessionId,
@@ -196,7 +211,12 @@ export function SelectorDeEtapaDelEmbudo({
                 {...panel.props}
                 className={cn('w-60 space-y-2', RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
             >
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <p
+                    className={cn(
+                        'text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+                        SANGRIA_DEL_MENU,
+                    )}
+                >
                     {datos?.embudoNombre ? `Embudo · ${datos.embudoNombre}` : 'Embudo'}
                 </p>
 
@@ -216,7 +236,14 @@ export function SelectorDeEtapaDelEmbudo({
 
                 {!cargando && !fallo && datos?.embudoId && (
                     <>
-                        <div className="max-h-64 space-y-0.5 overflow-auto">
+                        {/* `listbox` con sus `option`: quitado el chulito, lo
+                            puesto lo dice el fondo —y para un lector de pantalla,
+                            `aria-selected`, que es lo único que le queda—. */}
+                        <div
+                            role="listbox"
+                            aria-label="Etapas del embudo"
+                            className="max-h-64 space-y-0.5 overflow-auto"
+                        >
                             {datos.etapas.map((etapa, i) => {
                                 const color = elColorDeLaEtapa(etapa.color, i);
                                 const puesta = etapa.id === datos.etapaId;
@@ -224,6 +251,8 @@ export function SelectorDeEtapaDelEmbudo({
                                     <button
                                         key={etapa.id}
                                         type="button"
+                                        role="option"
+                                        aria-selected={puesta}
                                         // Un asesor VE la etapa de una conversación
                                         // que no lleva y no la cambia: el motivo va
                                         // escrito abajo, que es lo que un botón
@@ -231,18 +260,24 @@ export function SelectorDeEtapaDelEmbudo({
                                         disabled={!datos.puedeMover || moviendo}
                                         onClick={() => void mover(etapa.id)}
                                         className={cn(
-                                            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs',
+                                            'flex w-full items-center gap-2 text-left',
+                                            FILA_DEL_MENU,
                                             datos.puedeMover && !moviendo
                                                 ? 'cursor-pointer hover:bg-muted'
                                                 : 'cursor-default',
-                                            puesta && 'font-medium',
+                                            // El gris suave ES la marca. Va DESPUÉS
+                                            // del `hover`, que es el mismo gris: así
+                                            // apuntar a la fila puesta no le cambia
+                                            // nada.
+                                            puesta && FILA_PUESTA,
                                         )}
                                     >
-                                        <Check
-                                            className={cn('h-3 w-3 shrink-0', puesta ? 'opacity-100' : 'opacity-0')}
-                                        />
                                         <span className={cn('h-2 w-2 shrink-0 rounded-full', color.punto)} />
-                                        <span className="truncate">{etapa.nombre}</span>
+                                        {/* En mayúscula se recorta antes, así que el
+                                            nombre entero se lee en el globo. */}
+                                        <span className={NOMBRE_EN_LA_FILA} title={etapa.nombre}>
+                                            {etapa.nombre}
+                                        </span>
                                     </button>
                                 );
                             })}
