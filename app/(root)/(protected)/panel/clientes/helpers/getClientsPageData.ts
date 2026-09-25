@@ -8,6 +8,7 @@ import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
 import { rolConElQueReparte } from "@/lib/gestion-de-clientes";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { db } from "@/lib/db";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 import { PLAN_LABELS } from "@/types/plans";
 import type { ClientInterface } from "@/lib/types";
 import type { ApiKey, Plan } from "@prisma/client";
@@ -34,6 +35,11 @@ type ClientsPageData = {
      * aceptar — misma función, `lib/roles-que-puede-otorgar.ts`.
      */
     rolQueReparte: string;
+    /**
+     * Quien mira es el dueño de la plataforma. Decide si el menú de la fila
+     * ofrece «Prompt maestro»; las acciones lo vuelven a comprobar.
+     */
+    esDuenoDeLaPlataforma: boolean;
     countries: Country[];
     allModules: ModuleWithItems[];
     resellerPools: ResellerPoolOption[];
@@ -158,6 +164,7 @@ export async function getClientsPageData(): Promise<
                 // puerta.
                 currentUserRol: cuenta.role,
                 rolQueReparte,
+                esDuenoDeLaPlataforma: esSuperAdminDeVerdad(user),
                 countries,
                 allModules: allModules as ModuleWithItems[],
                 resellerPools,

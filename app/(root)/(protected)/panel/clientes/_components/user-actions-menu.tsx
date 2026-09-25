@@ -20,12 +20,14 @@ import { elRolGestionaClientes } from '@/lib/rol-que-gestiona-clientes'
 
 interface propsActionsMenu {
     currentUserRol: string
+    /** Solo el dueño de la plataforma edita el prompt maestro de una cuenta. */
+    esDuenoDeLaPlataforma?: boolean
     user: ClientInterface
     openDialogGetUserId: (userId: string, dialog: DialogType, state: boolean) => void
 }
 
 /* El user es el usuario seleccionado de la tabla y el currentUserRol es el usuario logueado */
-export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: propsActionsMenu) => {
+export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol, esDuenoDeLaPlataforma = false }: propsActionsMenu) => {
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
 
@@ -92,6 +94,13 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                             onClick={() => openDialogGetUserId(user.id, 'asignar', true)}
                         >
                             Asignar a
+                        </DropdownMenuItem>
+                    }
+                    {esDuenoDeLaPlataforma &&
+                        <DropdownMenuItem
+                            onClick={() => openDialogGetUserId(user.id, 'prompt', true)}
+                        >
+                            Prompt maestro
                         </DropdownMenuItem>
                     }
                     {/* Mover un cliente de una licencia a otra. Solo tiene sentido

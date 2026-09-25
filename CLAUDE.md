@@ -16686,6 +16686,44 @@ Postgres y la pantalla; `MODO=roto` afirma que antes no había opción) y el del
 mismo nombre en `api-webhook` (la reserva contra Postgres; `MODO=roto` lleva el
 candado viejo y afirma que no dejaba repetir).
 
+## El prompt maestro: el global, o el PROPIO de la cuenta si el dueño se lo escribió
+
+El prompt maestro son las filas `SystemMessage` (TRAINING) de la cuenta de la
+plataforma, y el backend lo pone delante del entrenamiento de cada cuenta en
+las dos llamadas del agente (`ai-agent.service.ts`, la respuesta normal y el
+seguimiento). Una cuenta puede tener además el suyo, en Panel › Clientes ›
+«⋯» › **Prompt maestro**.
+
+> **Si el propio tiene texto, SUSTITUYE al global para esa cuenta; si está
+> vacío, la cuenta recibe el global exactamente como antes.** No se concatenan:
+> dos maestros juntos se contradirían y el modelo elegiría uno por su cuenta.
+> Lo decide `PromptService.getPromptMaestro(cuentaId)` en el backend, con la
+> regla pura en `prompt-maestro.ts`; la App lleva su copia del saneado
+> (`lib/prompt-maestro-de-cuenta.ts`) con el MISMO criterio de vacío.
+
+Cuatro cosas que hay que mantener:
+
+1. **Solo lo edita el dueño de la plataforma** (`esSuperAdminDeVerdad`), en las
+   dos acciones (`actions/prompt-maestro-actions.ts`) y no solo en el menú. Ni
+   el administrador de una cuenta, ni un reseller, ni el cliente; y con
+   «Ingresar» puesto tampoco, porque ahí el rol propio no cuenta.
+2. **La tabla es de la App**, `prompt_maestro_de_cuenta` (`cuentaId` PK), con
+   `CREATE TABLE IF NOT EXISTS` y sin clave foránea. **Ni una columna en
+   `User`** (#360). Vaciar el campo **borra la fila**: «sin fila» = global.
+3. **Que no se pueda leer nunca deja a la cuenta sin maestro**: sin la tabla
+   (42P01) el backend cae en el global sin avisar, y con cualquier otro fallo
+   cae en el global y lo dice.
+4. **La cuenta es la dueña de la LÍNEA** (el `userId` con el que el agente
+   responde), no quien mira. No se hereda por la familia: cada cuenta tiene el
+   suyo o el global.
+
+Lo prueban `api-webhook/scripts/banco-prompt-maestro.sh` —los dos casos del
+encargo contra Postgres con el `PromptService` real: la cuenta con el campo
+vacío recibe el global y la cuenta con el campo lleno recibe el suyo; su
+`MODO=roto` lleva la llamada de antes y afirma que la cuenta llena recibía el
+global— y `scripts/banco-prompt-maestro.sh` aquí, con las acciones de verdad y
+su puerta.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
