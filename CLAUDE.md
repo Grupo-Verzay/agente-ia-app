@@ -17841,15 +17841,28 @@ pastilla más y lo que sobre cae en el «+N» con su globo, igual que las demás
 darle un privilegio sería justo lo contrario de la simetría que se venía a
 ganar.
 
-Lo prueba `scripts/banco-pastilla-de-etapa.sh`, en dos mitades: las reglas y un
-barrido del código sin navegador, y la fila y la cabecera **reales** en Chromium
-sobre el CSS del build a 1440/1280/1024 —que la pastilla mide lo mismo que la de
-estado en los siete campos que la definen, que va entre el estado y «Asignar»
-medido en píxeles, que el botón de la cabecera mide lo que sus vecinos y no
-lleva rótulo, y que nada se desborda ni con 40 letras anchas—. `MODO=roto` pinta
-las mismas dos pantallas con los componentes de `ANTES_REF` y afirma los dos
-fallos: ninguna pastilla en la fila y un botón con el nombre escrito que se come
-el ancho de sus vecinos.
+Lo prueba `scripts/banco-pastilla-de-etapa.sh`, en tres mitades:
+
+1. **Las reglas y un barrido del código**, sin navegador.
+2. **Las consultas contra Postgres**, que es lo que un banco puro no puede
+   decir: que las tres lecturas en bloque **corren** —los `::text[]`, los
+   `::int[]` y unas tablas que crea la App y no Prisma— y que la conversación
+   cae en el embudo de su asesor, que dos cuentas a la vez sacan cada una de
+   los suyos, que una posición guardada en OTRO embudo no se cuela y que una
+   etapa borrada cae en la primera. Y el encadenado, que es la prueba de oro:
+   **la fila y la cabecera dicen la misma etapa**.
+3. **La fila y la cabecera reales en Chromium** sobre el CSS del build, a
+   1440/1280/1024: que la pastilla mide lo mismo que la de estado en los siete
+   campos que la definen, que va entre el estado y «Asignar» medido en píxeles,
+   que el botón de la cabecera mide lo que sus vecinos y no lleva rótulo, y que
+   nada se desborda ni con 40 letras anchas.
+
+`MODO=roto` pinta las dos pantallas con los componentes de `ANTES_REF` y afirma
+los dos fallos —ninguna pastilla en la fila y un botón con el nombre escrito que
+se come el ancho de sus vecinos—; la mitad de Postgres se salta ahí y lo dice,
+porque el «antes» no tenía ninguna de esas consultas que afirmar. Comprobado
+además que caza: quitando la pastilla de la fila caen cuatro casos del
+navegador, y sacando el embudo de la llave de las posiciones, tres de Postgres.
 
 ## Embudos: el tablero de OTRA cuenta, y todos los asesores juntos
 
