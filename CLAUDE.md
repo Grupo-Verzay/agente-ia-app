@@ -17851,6 +17851,217 @@ las mismas dos pantallas con los componentes de `ANTES_REF` y afirma los dos
 fallos: ninguna pastilla en la fila y un botón con el nombre escrito que se come
 el ancho de sus vecinos.
 
+## Embudos: el tablero de OTRA cuenta, y todos los asesores juntos
+
+Dos ejes sobre el tablero que ya existía, y el primero es el que decide la forma
+de todo lo demás.
+
+### La cuenta es UNA, y eso no es una preferencia de diseño
+
+Desde una cuenta madre se elige cualquiera de las que cuelgan de ella y se ve
+**su** tablero. Vale igual para un reseller con sus líneas y para el dueño de la
+plataforma con las cuentas cliente que administra. Y **nunca se mezclan dos
+cuentas en un tablero**:
+
+> **Las columnas de un tablero son las etapas de un embudo, y un embudo es de
+> una cuenta.** Dos cuentas tienen embudos distintos, con etapas distintas y con
+> ids distintos, así que no existe ninguna columna en la que pudieran caer las
+> tarjetas de las dos. Un tablero «consolidado» tendría que inventarse las
+> columnas —emparejando etapas por su nombre, que es lo único que se parece— y
+> entonces mover una tarjeta escribiría una posición en un embudo que no es el
+> de su conversación.
+
+Por eso `laCuentaDelTablero` (`lib/embudos-de-la-cuenta.ts`, puro) **devuelve una
+cadena y no una lista**: no hay forma de pedir dos, ni desde la URL ni desde una
+acción. Es la diferencia entera con las otras dos pantallas que cruzan cuentas, y
+conviene tenerla delante antes de «unificar» nada:
+
+| | qué hace su selector |
+| --- | --- |
+| Finanzas de la familia | marcar varias y **sumarlas** |
+| CRM de la familia | quitar de un conjunto que por defecto son **todas** |
+| **Embudos** | **elegir una**, y solo una |
+
+Y de ahí que **no se reutilice `components/shared/SelectorDeCuentas.tsx`**: aquel
+es de casillas porque su encargo es consolidar, y darle una prop para «una o
+varias» sería un componente cuya documentación se contradice a sí misma. Lo que
+sí se comparte es lo único que importa —**quién puede elegir qué**—, que sale del
+servidor con la misma regla de alcance del CRM.
+
+### El alcance va HACIA ABAJO, y son TRES fuentes
+
+Una cuenta llega a otra por tres caminos, y los tres son hacia abajo. **Hacen
+falta los tres**: con solo el primero, un reseller no vería a sus clientes —sus
+líneas no cuelgan de él por `linked_accounts`— y eso era la mitad del encargo.
+
+| fuente | qué añade | quién la usa |
+| --- | --- | --- |
+| `lasCuentasQueCuelganDe` | sus hijas, y las hijas de sus hijas | una cuenta madre con su familia |
+| `clientesDeLaCuenta` (tabla `reseller`) | los clientes que creó y los que le asignaron | un reseller |
+| `clientesDeLaCuenta` (rol de la casa) | las cuentas cliente que administra | `admin`, el dueño de la plataforma |
+
+Las dos últimas salen de **la misma función** con la que `/panel/clientes` y el
+reparto de módulos deciden a qué clientes llega cada quien. Escribir aquí otra
+consulta sería un segundo reparto, y el día que se afine uno el otro deja ver de
+más o de menos.
+
+**Nunca hacia arriba ni hacia los lados**: no se llega a la madre ni a una
+hermana, y una pareja recíproca se anula por los dos lados. El
+superadministrador de verdad ve su familia entera, porque toda ella cuelga de él.
+
+Cinco cosas que hay que mantener:
+
+1. **La lista solo OFRECE; la puerta es la de siempre.** La cuenta elegida pasa
+   además por `assertCanAccessTargetUser`, la puerta de más de sesenta acciones
+   —que desde el #898 tampoco sube—. Es a propósito: la lista se construye de
+   fuentes que ya van hacia abajo, y si algún día una se ensanchara sin querer,
+   la puerta lo sigue negando. Y se pregunta **solo cuando la cuenta no es la
+   propia**: en la propia no hay nada que preguntar y sería una consulta por
+   carga para nada.
+2. **Un `agente` alcanza SOLO su cuenta**, y eso es lo que hace airtight a
+   `mandaEnLaCuenta`: si a otra cuenta solo se llega administrándola, tener una
+   delante ya significa mandar en ella. Con el agente dentro del alcance, esa
+   línea le daría mando en la cuenta que nombrara.
+3. **La cuenta viaja en CADA acción y se re-resuelve.** Una acción de servidor
+   ES un endpoint: las siete del tablero reciben la cuenta y la vuelven a pasar
+   por `resolverLaCuentaDelTablero`. Lo que no se alcanza cae en la propia y se
+   dice — lo típico no es un ataque, es un `?cuenta=` rancio de un enlace
+   guardado.
+4. **Las dos que van por una CONVERSACIÓN no reciben cuenta**, a propósito:
+   mover una tarjeta y leer su etapa la resuelven de la propia fila
+   (`quienMiraEstaConversacion`), así que no dependen de que el navegador mande
+   la correcta. Eso arregla de paso un fallo que ya estaba: `laConversacion`
+   exigía la cuenta propia, así que en Chats —que **ya** enseña las líneas de las
+   hijas— la cabecera decía «esa conversación no es de tu cuenta» sobre una
+   conversación perfectamente alcanzable.
+5. **Se recuerda unos segundos** (`lib/cache-de-sesion`, 5 s), con la llave de
+   los ids que deciden: la cuenta, su rol y si es superadministrador. El rol
+   entra porque decide si se consulta la cartera, y lo de superadministrador
+   porque él y el administrador de la misma cuenta no ven lo mismo — con la
+   llave compartida, cinco segundos le pasarían a uno el alcance del otro.
+
+**Se mira, se crea y se mueve en la cuenta elegida, y se avisa**: la barra pone
+el nombre en azul y encima del tablero sale «Estás viendo el tablero de X. Lo que
+crees o muevas aquí es de esa cuenta». Sin decirlo se edita el embudo de un
+cliente creyendo estar en el propio.
+
+### Y el filtro de asesor puede cambiar de embudo, y TIENE que poder
+
+El tablero enseñaba las conversaciones de los asesores que tienen ESE embudo
+asignado y no había forma de mirar a uno solo. Ahora el filtro tiene tres
+estados —**todos** (el de partida), uno, o las que no tienen asesor— y con
+«todos» salen juntas todas las del embudo, que en el caso normal —nadie con
+embudo asignado, así que todos caen en el por defecto— son literalmente las de
+todo el mundo.
+
+> **Eligiendo a un asesor cuyo embudo es otro, el tablero se va a SU embudo.**
+> Es el único donde sus tarjetas tienen posición y donde moverlas vale
+> —`moverTarjetaAction` deduce el embudo de la conversación, y esa regla no se
+> toca—. Sin eso, filtrar a ese asesor enseñaría sus tarjetas en columnas ajenas
+> y al arrastrarlas contestaría «esta conversación cambió de embudo mientras
+> tanto»: menú abierto, puerta cerrada.
+
+Y por eso cada nombre del menú lleva al lado el embudo al que llevaría cuando no
+es el abierto (`→ Soporte`): sin ese aviso, el tablero cambia de columnas y no
+hay forma de entender por qué.
+
+Tres cosas más:
+
+1. **Un id que no es del equipo de ESA cuenta cae en «todos»**, no acota. Si
+   acotara, preguntar por el id de alguien de otra cuenta diría si tiene
+   conversaciones aquí.
+2. **Un asesor no filtra**: ve lo suyo y en su embudo, pida lo que pida, así que
+   el mando no se le pinta. Es la misma regla que ya decidía su embudo.
+3. **«Todos» es la dirección limpia.** Los tres parámetros (`?cuenta=`,
+   `?embudo=`, `?asesor=`) se escriben solo cuando no son el estado de siempre,
+   así que la URL sin nada es la que ya funcionaba antes de que esto existiera. Y
+   **cambiar de cuenta no arrastra el embudo ni el asesor de la anterior**: son
+   ids de otra cuenta, y mandarlos sería pedir algo que no existe.
+
+### El total de una etapa es un COUNT, no un `length`
+
+El número de la cabecera de cada columna era `tarjetas.length`, y el tablero trae
+como mucho `TOPE_DE_TARJETAS` (500): **en cuanto una cuenta pasa de ahí, ese
+número dice «cuántas de las primeras 500 cayeron aquí»**, que no es un dato que
+nadie pueda usar. Es la misma familia que *un contador es un `COUNT`, no un
+`length`*.
+
+`losConteosPorEtapa` lo cuenta de verdad —un `GROUP BY` sobre
+`embudo_posiciones` unido a `Session`— y `losTotalesPorEtapa` reparte el resto.
+Cuatro cosas:
+
+1. **Lo que no tiene posición guardada, y lo que la tiene en una etapa BORRADA,
+   cuenta en la PRIMERA etapa** — que es exactamente donde
+   `laEtapaDeLaConversacion` lo pinta. Si no, la columna enseñaría una tarjeta
+   que su cabecera no cuenta.
+2. **Nunca un número negativo.** Entre el `COUNT` y el `GROUP BY` puede entrar
+   una conversación, y un negativo en una cabecera no significa nada.
+3. **Buscando, el badge dice `los que casan/el total`**, que es lo que hay
+   delante. Con dos números distintos sin explicar, uno de los dos se lee como
+   un fallo.
+4. **Y es UNA consulta por carga**, en el mismo `Promise.all` que ya traía las
+   tarjetas y el `COUNT`: entra por `embudo_posiciones_embudo_idx` y de ahí a
+   `Session` por su clave primaria. No toca `chat_messages` ni ninguna de las
+   tablas grandes.
+
+Y la columna del SQL en crudo es **la de la BASE**: `assigned_advisor_id`, no
+`assignedAdvisorId` —en crudo Prisma no traduce los `@map`—, mientras `userId` y
+`remoteJid` van tal cual porque no lo llevan. Escribirlas «las tres a juego»
+rompe justo las que funcionan, así que el banco las comprueba contra
+`information_schema`.
+
+### Una decisión, dos consultas: `AQuienSeMira`
+
+A quién se le miran las conversaciones se decide **una vez** y de ahí salen las
+dos consultas —el `where` de Prisma de las tarjetas y el trozo de SQL del conteo,
+que va en crudo porque tiene que unir `embudo_posiciones`—. Los dos renderizados
+viven uno al lado del otro en `lib/embudos-db.ts` a propósito: separados, el día
+que se afine uno las cabeceras dirían un número y las columnas enseñarían otro, y
+eso no se ve como un error — se ve como un número que no cuadra con lo que hay
+debajo.
+
+**Las listas vacías van con `= ANY(array)` y no con `IN (…)`.** Un `IN ()` es un
+error de sintaxis, así que con cero ajenos —una cuenta donde nadie tiene embudo
+asignado, que es lo normal— la consulta se caería entera. Con `ANY` de un arreglo
+vacío el resultado es falso y su negación cierta, que es justo lo que hace falta:
+sin ajenos, entran todos.
+
+### El banco, y su «antes» pinchado
+
+`scripts/banco-embudos.sh` gana dos mitades y
+`scripts/banco-embudos-navegador.sh` dos pasos:
+
+- **La decisión**, sin base: que la cuenta pedida solo vale si se alcanza, que
+  devuelve una cadena y no una lista, que el filtro de un id de fuera cae en
+  «todos», que filtrando a un asesor se abre SU embudo, y el reparto de totales
+  con sus casos raros —etapa borrada, conteos negativos, sin etapas—.
+- **Las ACCIONES contra Postgres**, con la familia real sembrada: una madre con
+  dos hijas, una cuenta ajena y un reseller con su cliente. Probar
+  `laCuentaDelTablero` a solas sería probar el lado que **no tiene puerta**; lo
+  que hay que demostrar es que las acciones pasan por ella y que el alcance sale
+  de FILAS. Incluye el caso que de verdad ejerce el `COUNT`: **520
+  conversaciones**, o sea más que el tope, donde `tarjetas.length` es 500 y la
+  cabecera sigue diciendo 520.
+- **Y la pantalla servida**: los tres mandos en la barra, filtrar a un asesor,
+  «sin asesor», volver a «todos», elegir la cuenta hija —que la madre ve su
+  estado vacío, le crea un embudo y aparecen SUS dos conversaciones y ninguna de
+  la madre— y que la hija no ve a su madre por ningún lado.
+
+> **`ANTES_DEL_SELECTOR` va PINCHADO a un commit, nunca a `origin/main`.** En
+> cuanto este cambio se fusione, `origin/main` pasa a ser el «después»: el modo
+> roto dejaría de reproducir nada y **se pondría verde sin ejercerlo**, que es la
+> peor forma de tener un banco. Es la lección de *el «antes» de un banco CADUCA
+> el día que su PR se fusiona*, que este repositorio ya pagó una vez.
+
+El modo roto empaqueta las acciones y el cargador de ese commit, con el `import`
+del cargador **apuntado** al viejo —sin el alias resolvería al de hoy, que ya
+lleva el arreglo— y afirma los tres fallos: pedir otra cuenta devolvía la propia,
+el asesor pedido se ignoraba, y el tablero no traía totales por etapa.
+
+Y se comprobó lo único que de verdad dice que un banco mira: **quitándole el
+arreglo al modo bueno se pone en rojo**. Con la elección de cuenta rota caen 7
+casos, con el reparto de totales 7, y con el filtro de asesor 3.
+
 ## Lo que crea un asesor es SUYO: etiquetas y respuestas rápidas
 
 Las etiquetas (`Tag`) y las respuestas rápidas (`rr`) siguen siendo filas de la

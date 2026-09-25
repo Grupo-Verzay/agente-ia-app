@@ -6,38 +6,59 @@ import { canManageWorkspace } from "@/lib/workspace-roles";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import {
     TOPE_DE_TARJETAS,
-    elEmbudoQueSeAbre,
     laEtapaDeLaConversacion,
     quienCaeEnElEmbudo,
     type Embudo,
     type Etapa,
     type QuienMira,
 } from "@/lib/embudos";
-import { lasAsignacionesDe, lasEtapasDe, lasPosicionesDe, losEmbudosDe } from "@/lib/embudos-db";
+import {
+    FILTRO_DE_TODOS,
+    aQuienSeMira,
+    comoParametroDeAsesor,
+    elEmbudoDelTablero,
+    elFiltroDeAsesor,
+    esOtraCuenta,
+    losTotalesPorEtapa,
+    mandaEnLaCuenta,
+    type CuentaDelTablero,
+    type FiltroDeAsesor,
+} from "@/lib/embudos-de-la-cuenta";
+import {
+    comoWhereDeAsesor,
+    lasAsignacionesDe,
+    lasEtapasDe,
+    lasPosicionesDe,
+    losConteosPorEtapa,
+    losEmbudosDe,
+} from "@/lib/embudos-db";
+import {
+    lasCuentasDeEmbudosQueAlcanza,
+    laPuertaPermiteLaCuenta,
+    resolverLaCuentaDelTablero,
+    type PersonaQueMira,
+} from "@/lib/cuentas-de-embudos.server";
 import { lasEtiquetasQueVe } from "@/lib/personales-db";
 
 /**
  * Quién mira los embudos y sobre qué cuenta.
  *
- * - `cuentaId` es la fila EFECTIVA (`ownerId ?? id`): es un alcance, y los
- *   embudos cuelgan de la cuenta, no de la persona.
+ * - `cuentaId` es la cuenta cuyo tablero se está mirando: la propia, o una de
+ *   las que cuelgan de ella si se eligió en el selector. **Nunca dos**: las
+ *   columnas de un tablero son las etapas de UN embudo, y un embudo es de una
+ *   cuenta (ver `lib/embudos-de-la-cuenta.ts`).
+ * - `propia` es la fila EFECTIVA de quien mira, y sirve para saber si está en
+ *   su casa o en otra cuenta.
  * - `personaId` es la PERSONA: con ella se asigna un embudo y con ella se sabe
  *   qué conversaciones son de un asesor (`Session.assignedAdvisorId` guarda
  *   personas).
- * - `manda`: dueño y administrador, con los mismos permisos.
+ * - `manda`: dueño y administrador en la propia; en otra cuenta, siempre —a
+ *   otra cuenta solo se llega administrándola—.
  */
-export type QuienMiraLosEmbudos = QuienMira & { cuentaId: string };
+export type QuienMiraLosEmbudos = QuienMira & { cuentaId: string; propia: string };
 
-export type UsuarioQueMira = Parameters<typeof canManageWorkspace>[0] &
+export type UsuarioQueMira = PersonaQueMira &
     Parameters<typeof laPersonaQueActua>[0] & { effectiveId: string };
-
-export function quienMiraLosEmbudos(user: UsuarioQueMira): QuienMiraLosEmbudos {
-    return {
-        cuentaId: user.effectiveId,
-        personaId: laPersonaQueActua(user).id,
-        manda: canManageWorkspace(user),
-    };
-}
 
 export type TarjetaDeEmbudo = {
     id: number;
@@ -62,6 +83,12 @@ export type TableroDeEmbudo = {
     tarjetas: TarjetaDeEmbudo[];
     /** Cuántas conversaciones caen en el embudo, aunque no se traigan todas. */
     total: number;
+    /**
+     * etapa → cuántas conversaciones tiene, de verdad. Un `COUNT`, no el
+     * `length` de las tarjetas cargadas: con el tope de `TOPE_DE_TARJETAS` ese
+     * número miente en cuanto una cuenta pasa de ahí.
+     */
+    totales: Record<string, number>;
     /** persona → embudo. Solo lo ve quien manda. */
     asignaciones: Record<string, string>;
     /** El equipo de la cuenta. Solo lo ve quien manda. */
@@ -70,6 +97,16 @@ export type TableroDeEmbudo = {
     nombres: Record<string, string>;
     manda: boolean;
     personaId: string;
+    /** La cuenta que se está mirando, y desde la que se mira. */
+    cuentaId: string;
+    cuentaNombre: string;
+    esOtraCuenta: boolean;
+    /** Las cuentas que se pueden elegir. `[]` = no se pinta el selector. */
+    cuentas: CuentaDelTablero[];
+    puedeElegirCuenta: boolean;
+    cuentasRecortadas: boolean;
+    /** El filtro de asesor puesto, tal cual vuelve a la URL. `null` = todos. */
+    asesor: string | null;
 };
 
 /** El equipo de la cuenta: la cuenta misma y quien cuelga de ella. */
@@ -87,6 +124,74 @@ async function elEquipoDe(cuentaId: string): Promise<PersonaDelEquipo[]> {
 }
 
 /**
+ * Quién mira, y qué cuenta, con la pedida ya comprobada contra las que alcanza.
+ *
+ * Lo llaman la página y **todas** las acciones del tablero: la cuenta viaja en
+ * la URL y en los parámetros, así que se re-resuelve en cada una. Esconder el
+ * selector no cierra la petición directa.
+ */
+export async function quienMiraElTablero(
+    user: UsuarioQueMira,
+    cuentaPedida?: unknown,
+): Promise<{
+    quien: QuienMiraLosEmbudos;
+    cuentas: CuentaDelTablero[];
+    puedeElegirCuenta: boolean;
+    cuentasRecortadas: boolean;
+}> {
+    const alcance = await resolverLaCuentaDelTablero(user, cuentaPedida);
+    return {
+        quien: {
+            cuentaId: alcance.elegida,
+            propia: alcance.propia,
+            personaId: laPersonaQueActua(user).id,
+            manda: mandaEnLaCuenta(alcance.mandaEnLaPropia, alcance.elegida, alcance.propia),
+        },
+        cuentas: alcance.disponibles,
+        puedeElegirCuenta: alcance.puedeElegir,
+        cuentasRecortadas: alcance.recortadas,
+    };
+}
+
+/**
+ * Quién mira UNA conversación, por la cuenta de la propia conversación.
+ *
+ * Es la lectura que usan mover una tarjeta y la cabecera del chat, y **no
+ * depende de que el navegador mande la cuenta correcta**: se resuelve el dueño
+ * de la fila y se comprueba que esté entre los que esta persona alcanza. Antes
+ * se exigía que fuera la cuenta propia, así que con el selector puesto la
+ * conversación de una hija se rechazaba estando en su tablero — y en Chats, que
+ * ya enseña las líneas de las hijas, la cabecera decía «no es de tu cuenta»
+ * sobre una conversación perfectamente alcanzable.
+ *
+ * `null` = no se alcanza.
+ */
+export async function quienMiraEstaConversacion(
+    user: UsuarioQueMira,
+    cuentaDeLaConversacion: string,
+): Promise<QuienMiraLosEmbudos | null> {
+    const propia = String(user.effectiveId ?? "").trim();
+    const dueno = String(cuentaDeLaConversacion ?? "").trim();
+    if (!dueno) return null;
+
+    const comun = {
+        propia,
+        personaId: laPersonaQueActua(user).id,
+    };
+    if (dueno === propia) {
+        return { ...comun, cuentaId: dueno, manda: canManageWorkspace(user) };
+    }
+    const alcanza = await lasCuentasDeEmbudosQueAlcanza(user);
+    if (!alcanza.includes(dueno)) return null;
+    // Y encima la puerta de siempre, como en el selector: la lista solo dice
+    // qué se ofrece. Solo se paga cuando la conversación es de OTRA cuenta, que
+    // no es el camino de todos los días.
+    if (!(await laPuertaPermiteLaCuenta(dueno))) return null;
+    // A otra cuenta solo se llega administrándola.
+    return { ...comun, cuentaId: dueno, manda: true };
+}
+
+/**
  * El tablero de un embudo, entero, de una vez: embudos, etapas y tarjetas.
  *
  * Lo llaman la página (primera carga) y la acción de recargar, así que la
@@ -95,48 +200,68 @@ async function elEquipoDe(cuentaId: string): Promise<PersonaDelEquipo[]> {
 export async function elTableroDelEmbudo(
     quien: QuienMiraLosEmbudos,
     pedido?: string | null,
+    asesorPedido?: unknown,
+    cuentas?: {
+        disponibles: CuentaDelTablero[];
+        puedeElegir: boolean;
+        recortadas: boolean;
+    },
 ): Promise<TableroDeEmbudo> {
     const [todos, asignaciones] = await Promise.all([
         losEmbudosDe(quien.cuentaId),
         lasAsignacionesDe(quien.cuentaId),
     ]);
 
-    const embudoId = elEmbudoQueSeAbre(quien, pedido, asignaciones, todos);
+    // El equipo hace falta antes que nada: el filtro de asesor solo acepta
+    // personas de ESTA cuenta, y sin esa comprobación un id de fuera acotaría
+    // la consulta —o sea que preguntar por él diría si tiene algo aquí—.
+    const equipo = quien.manda ? await elEquipoDe(quien.cuentaId) : [];
+    const filtro: FiltroDeAsesor = quien.manda
+        ? elFiltroDeAsesor(
+              asesorPedido,
+              equipo.map((p) => p.id),
+          )
+        : FILTRO_DE_TODOS;
+
+    const embudoId = elEmbudoDelTablero(quien, pedido, filtro, asignaciones, todos);
     // Un asesor solo conoce el suyo: ni el nombre de los demás le llega.
     const embudos = quien.manda ? todos : todos.filter((e) => e.id === embudoId);
 
-    const equipo = quien.manda ? await elEquipoDe(quien.cuentaId) : [];
+    const nombres: Record<string, string> = {};
+    for (const p of equipo) nombres[p.id] = p.nombre;
+
+    const deLaCuenta = cuentas?.disponibles.find((c) => c.id === quien.cuentaId);
     const vacio: TableroDeEmbudo = {
         embudos,
         embudoId,
         etapas: [],
         tarjetas: [],
         total: 0,
+        totales: {},
         asignaciones: quien.manda ? asignaciones : {},
         equipo,
-        nombres: {},
+        nombres,
         manda: quien.manda,
         personaId: quien.personaId,
+        cuentaId: quien.cuentaId,
+        cuentaNombre: deLaCuenta?.nombre ?? "",
+        esOtraCuenta: esOtraCuenta(quien.cuentaId, quien.propia),
+        cuentas: cuentas?.disponibles ?? [],
+        puedeElegirCuenta: cuentas?.puedeElegir ?? false,
+        cuentasRecortadas: cuentas?.recortadas ?? false,
+        asesor: comoParametroDeAsesor(filtro),
     };
     if (!embudoId) return vacio;
 
     const etapas = await lasEtapasDe([embudoId]);
 
-    // Qué conversaciones caen aquí. Un asesor: las suyas y nada más. Quien
-    // manda: las de los asesores de este embudo, y si es el por defecto, además
-    // las que no tienen asesor o lo tienen sin embudo.
-    let filtroDeAsesor: Record<string, unknown>;
-    if (!quien.manda) {
-        filtroDeAsesor = { assignedAdvisorId: quien.personaId };
-    } else {
-        const { asesores, incluyeSinEmbudo, ajenos } = quienCaeEnElEmbudo(embudoId, asignaciones, todos);
-        filtroDeAsesor = incluyeSinEmbudo
-            ? { OR: [{ assignedAdvisorId: null }, { assignedAdvisorId: { notIn: ajenos } }] }
-            : { assignedAdvisorId: { in: asesores } };
-    }
-    const where = { userId: quien.cuentaId, ...SIN_GRUPOS, AND: [filtroDeAsesor] };
+    // Qué conversaciones caen aquí. **Una sola decisión**, y de ella salen las
+    // dos consultas: el `where` de las tarjetas y el conteo por etapa. Ver
+    // `AQuienSeMira`.
+    const aQuien = aQuienSeMira(quien, filtro, quienCaeEnElEmbudo(embudoId, asignaciones, todos));
+    const where = { userId: quien.cuentaId, ...SIN_GRUPOS, AND: [comoWhereDeAsesor(aQuien)] };
 
-    const [sesiones, total] = await Promise.all([
+    const [sesiones, total, conteos] = await Promise.all([
         db.session.findMany({
             where,
             select: {
@@ -154,6 +279,9 @@ export async function elTableroDelEmbudo(
             take: TOPE_DE_TARJETAS,
         }),
         db.session.count({ where }),
+        etapas.length > 0
+            ? losConteosPorEtapa({ embudoId, cuentaId: quien.cuentaId, aQuien })
+            : Promise.resolve({}),
     ]);
 
     const posiciones = await lasPosicionesDe(
@@ -177,8 +305,11 @@ export async function elTableroDelEmbudo(
         actualizadoEn: s.updatedAt.toISOString(),
     }));
 
-    const nombres: Record<string, string> = {};
-    for (const p of equipo) nombres[p.id] = p.nombre;
-
-    return { ...vacio, etapas, tarjetas, total, nombres };
+    return {
+        ...vacio,
+        etapas,
+        tarjetas,
+        total,
+        totales: losTotalesPorEtapa(etapas, conteos, total),
+    };
 }
