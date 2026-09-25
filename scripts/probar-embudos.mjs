@@ -1,0 +1,176 @@
+/**
+ * Embudos, en Chromium y sobre la página SERVIDA, de punta a punta:
+ *
+ *  1. El dueño entra, crea «Ventas» por la pantalla y asigna a Ana.
+ *  2. La administradora entra y ve lo mismo que el dueño, con los mismos mandos.
+ *  3. Ana entra: ve SU embudo con solo sus dos conversaciones, sin selector,
+ *     sin «Nuevo», sin «⋯», sin editar etapas; arrastra una tarjeta a otra
+ *     etapa y al recargar sigue ahí.
+ *  4. Beto, sin embudo, ve la pantalla vacía que lo dice.
+ *
+ * Y en cada paso, a 1440 y a 390: que la página no se desplaza a lo ancho.
+ * Deja capturas en `CAPTURAS` para mirarlas.
+ */
+import { createRequire } from "node:module";
+import fs from "node:fs";
+const require = createRequire(import.meta.url);
+const { chromium } = require("playwright");
+
+const BASE = process.env.BASE ?? "http://localhost:3947";
+const CLAVE = "banco1234";
+const CAPTURAS = process.env.CAPTURAS ?? "/tmp/embudos-capturas";
+fs.mkdirSync(CAPTURAS, { recursive: true });
+
+const fallos = [];
+const exigir = (bien, que) => {
+    if (!bien) fallos.push(que);
+    console.log(`${bien ? "ok  " : "MAL "} ${que}`);
+};
+
+async function entrar(navegador, email, ancho = 1440) {
+    const contexto = await navegador.newContext({ viewport: { width: ancho, height: 900 } });
+    const pagina = await contexto.newPage();
+    pagina.on("pageerror", (e) => fallos.push(`error en la página (${email}): ${e.message}`));
+    await pagina.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+    await pagina.waitForTimeout(2500);
+    await pagina.fill('input[name="email"]', email);
+    await pagina.fill('input[name="password"]', CLAVE);
+    await pagina.click('button[type="submit"]');
+    for (let i = 0; i < 120 && pagina.url().includes("/login"); i += 1) await pagina.waitForTimeout(500);
+    if (pagina.url().includes("/login")) throw new Error(`no se pudo entrar como ${email}`);
+    return { contexto, pagina };
+}
+
+async function abrirEmbudos(pagina) {
+    await pagina.goto(`${BASE}/embudos`, { waitUntil: "networkidle" });
+    // Diálogos de bienvenida u otros que tapen los clics.
+    for (let i = 0; i < 4; i += 1) {
+        const capa = await pagina.$('div[data-state="open"].fixed.inset-0');
+        if (!capa) break;
+        await pagina.keyboard.press("Escape");
+        await pagina.waitForTimeout(250);
+    }
+    await pagina.waitForSelector("[data-barra-de-acciones]", { timeout: 20000 });
+}
+
+const sinDesborde = (pagina) =>
+    pagina.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+const columnas = (pagina) =>
+    pagina.$$eval("[data-barra-de-acciones] ~ div span.uppercase, span.uppercase.text-white", (els) =>
+        els.map((e) => e.textContent?.trim()),
+    );
+const tarjetas = (pagina) =>
+    pagina.$$eval("p.capitalize", (els) => els.map((e) => e.textContent?.trim()).filter(Boolean));
+
+const navegador = await chromium.launch();
+try {
+    // ── 1. El dueño crea y asigna ─────────────────────────────────────────
+    {
+        const { contexto, pagina } = await entrar(navegador, "dueno@embudos.test");
+        await abrirEmbudos(pagina);
+        exigir(await pagina.getByText("Aún no hay embudos en esta cuenta").isVisible(), "dueño: sin embudos, lo dice");
+        await pagina.getByRole("button", { name: "Nuevo" }).click();
+        await pagina.getByLabel("Nombre del embudo").fill("Ventas");
+        await pagina.getByRole("button", { name: "Crear" }).click();
+        await pagina.getByText("Etapas del embudo").waitFor({ timeout: 15000 });
+        await pagina.waitForTimeout(800);
+        exigir(
+            (await pagina.$$('input[aria-label^="Nombre de la etapa"]')).length === 3,
+            "dueño: el embudo nace con tres etapas y se abre su panel",
+        );
+        await pagina.getByLabel("Nombre de la etapa 2").fill("Cotización enviada");
+        await pagina.getByRole("button", { name: "Guardar" }).click();
+        await pagina.getByText("Etapas guardadas.").waitFor({ timeout: 15000 });
+        await pagina.waitForTimeout(800);
+        const cols = await columnas(pagina);
+        exigir(cols.includes("Cotización enviada"), `dueño: la etapa renombrada sale en el tablero (${cols.join(", ")})`);
+        const vistas = await tarjetas(pagina);
+        exigir(vistas.length === 4, `dueño: ve las cuatro conversaciones de la cuenta (${vistas.length})`);
+        exigir(await pagina.getByText("Sin asignar").first().isVisible(), "dueño: la conversación sin asesor lo dice");
+        await pagina.screenshot({ path: `${CAPTURAS}/1-dueno-1440.png` });
+
+        // Asignar a Ana.
+        await pagina.getByRole("button", { name: "Acciones" }).click();
+        await pagina.getByRole("menuitem", { name: "Asignar asesores" }).click();
+        await pagina.getByLabel("Embudo de Ana Ruiz").click();
+        await pagina.getByRole("option", { name: "Ventas" }).click();
+        await pagina.getByRole("button", { name: "Guardar" }).click();
+        await pagina.getByText("Asignaciones guardadas.").waitFor({ timeout: 15000 });
+        exigir(await sinDesborde(pagina), "dueño 1440: la página no se desplaza a lo ancho");
+        await contexto.close();
+    }
+
+    // ── 2. La administradora: los mismos mandos ────────────────────────────
+    {
+        const { contexto, pagina } = await entrar(navegador, "monica@embudos.test");
+        await abrirEmbudos(pagina);
+        exigir(await pagina.getByRole("button", { name: "Nuevo" }).isVisible(), "administradora: tiene «Nuevo»");
+        exigir(await pagina.getByText("Embudo: Ventas").isVisible(), "administradora: tiene el selector de embudo");
+        exigir((await tarjetas(pagina)).length === 4, "administradora: ve las cuatro conversaciones");
+        await pagina.getByRole("button", { name: "Acciones" }).click();
+        exigir(await pagina.getByRole("menuitem", { name: "Editar etapas" }).isVisible(), "administradora: puede editar etapas");
+        await pagina.keyboard.press("Escape");
+        await contexto.close();
+    }
+
+    // ── 3. Ana: su embudo y nada más ───────────────────────────────────────
+    for (const ancho of [1440, 390]) {
+        const { contexto, pagina } = await entrar(navegador, "ana@embudos.test", ancho);
+        await abrirEmbudos(pagina);
+        const vistas = await tarjetas(pagina);
+        exigir(
+            vistas.length === 2 && vistas.every((n) => /María|Julián/.test(n)),
+            `Ana ${ancho}: ve solo sus dos conversaciones (${vistas.join(", ")})`,
+        );
+        exigir((await pagina.getByRole("button", { name: "Nuevo" }).count()) === 0, `Ana ${ancho}: sin «Nuevo»`);
+        exigir((await pagina.getByRole("button", { name: "Acciones" }).count()) === 0, `Ana ${ancho}: sin «⋯»`);
+        exigir((await pagina.getByLabel("Editar etapas").count()) === 0, `Ana ${ancho}: sin editar etapas`);
+        exigir((await pagina.getByText("Nueva etapa").count()) === 0, `Ana ${ancho}: sin «Nueva etapa»`);
+        exigir(await pagina.locator("[title^='Te lo asignó']").isVisible(), `Ana ${ancho}: su embudo, con candado`);
+        exigir(await sinDesborde(pagina), `Ana ${ancho}: la página no se desplaza a lo ancho`);
+        await pagina.screenshot({ path: `${CAPTURAS}/3-ana-${ancho}.png` });
+
+        if (ancho === 1440) {
+            // Arrastrar «Julián» a la tercera columna, con el ratón de verdad.
+            const origen = pagina.locator("p.capitalize", { hasText: "Julián" });
+            const destino = pagina.locator("span.uppercase.text-white", { hasText: "Cerrado" });
+            const a = await origen.boundingBox();
+            const d = await destino.boundingBox();
+            await pagina.mouse.move(a.x + 20, a.y + 5);
+            await pagina.mouse.down();
+            await pagina.mouse.move(a.x + 40, a.y + 20, { steps: 5 });
+            await pagina.mouse.move(d.x + 30, d.y + 120, { steps: 20 });
+            await pagina.mouse.up();
+            await pagina.waitForTimeout(2000);
+            await pagina.reload({ waitUntil: "networkidle" });
+            await pagina.waitForSelector("[data-barra-de-acciones]");
+            const enCerrado = await pagina.evaluate(() => {
+                const cab = [...document.querySelectorAll("span.uppercase.text-white")].find(
+                    (s) => s.textContent?.trim() === "Cerrado",
+                );
+                const col = cab?.closest("div.rounded-xl");
+                return [...(col?.querySelectorAll("p.capitalize") ?? [])].map((p) => p.textContent?.trim());
+            });
+            exigir(enCerrado.some((n) => /Julián/.test(n ?? "")), `Ana: la tarjeta arrastrada sigue en «Cerrado» al recargar (${enCerrado})`);
+        }
+        await contexto.close();
+    }
+
+    // ── 4. Beto, sin embudo ────────────────────────────────────────────────
+    {
+        const { contexto, pagina } = await entrar(navegador, "beto@embudos.test");
+        await abrirEmbudos(pagina);
+        exigir(await pagina.getByText("Aún no tienes un embudo asignado").isVisible(), "Beto: sin embudo, lo dice");
+        exigir((await tarjetas(pagina)).length === 0, "Beto: no ve ninguna conversación");
+        await pagina.screenshot({ path: `${CAPTURAS}/4-beto-1440.png` });
+        await contexto.close();
+    }
+} finally {
+    await navegador.close();
+}
+
+if (fallos.length) {
+    console.error(`\n${fallos.length} fallo(s):\n - ${fallos.join("\n - ")}`);
+    process.exit(1);
+}
+console.log("\nEmbudos, sobre la página servida: todo en su sitio.");

@@ -199,6 +199,7 @@ export async function loadChatBootstrapData(
       order: tag.order ?? 0,
       sessionCount: tag._count?.sessionTags ?? 0,
       userId: tag.userId,
+      grupo: tag.grupo,
     })) ?? [];
 
   const workflows = workflowsRes?.success && Array.isArray(workflowsRes.data)
@@ -240,6 +241,7 @@ export async function loadChatBootstrapData(
       workflowId: quickReply.workflowId ?? null,
       workflowName: workflow?.name ?? null,
       cuentaId: cuentaDe(quickReply.userId),
+      grupo: quickReply.grupo,
     });
     return items;
   }, []);

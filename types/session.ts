@@ -27,6 +27,11 @@ export type SimpleTag = {
    * (`lib/etiquetas-de-la-linea.ts`).
    */
   userId?: string;
+  /**
+   * Si es de la cuenta, de quien mira o de otro asesor. Lo decide el servidor
+   * (`lib/personales.ts`); la pantalla solo agrupa.
+   */
+  grupo?: "mias" | "de-asesores" | "de-la-cuenta";
 };
 
 export type LeadStatus = PrismaLeadStatus;

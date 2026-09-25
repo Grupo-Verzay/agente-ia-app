@@ -3,11 +3,44 @@
 import { db } from '@/lib/db';
 import { QuickReply } from '@prisma/client';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { elGrupo, laPuedeTocar, laVe, naceSuya, type Grupo } from '@/lib/personales';
+import {
+    lasDuenasDeRespuestas,
+    marcarComoPersonal,
+    olvidarLaMarca,
+    quienVeLoPersonal,
+} from '@/lib/personales-db';
+
+/**
+ * `personal`: la persona dueña si la respuesta es de un asesor, o `null` si es
+ * de la cuenta. Un asesor ve las suyas y las de la cuenta; el dueño y los
+ * administradores, todas. Ver `lib/personales.ts`.
+ */
+export type RespuestaRapida = QuickReply & { personal?: string | null; grupo?: Grupo };
 
 interface RROperationResponse {
     success: boolean;
     message: string;
-    data?: QuickReply[];
+    data?: RespuestaRapida[];
+}
+
+/** Deja solo las que quien mira puede ver, cada una con su dueña. */
+async function soloLasQueVe(filas: QuickReply[]): Promise<RespuestaRapida[]> {
+    const quien = await quienVeLoPersonal();
+    if (!quien) return [];
+    const duenas = await lasDuenasDeRespuestas(filas.map((f) => f.id));
+    return filas
+        .filter((f) => laVe(duenas.get(f.id), quien))
+        .map((f) => ({ ...f, personal: duenas.get(f.id) ?? null, grupo: elGrupo(duenas.get(f.id), quien) }));
+}
+
+/** ¿Puede quien llama editar o borrar esta respuesta? */
+async function laPuedeTocarQuienLlama(id: number): Promise<boolean> {
+    const quien = await quienVeLoPersonal();
+    if (!quien) return false;
+    const ok = laPuedeTocar((await lasDuenasDeRespuestas([id])).get(id), quien);
+    if (!ok) console.warn('[respuestas] un asesor intentó tocar una respuesta que no es suya', { id });
+    return ok;
 }
 
 /**
@@ -44,7 +77,7 @@ export async function getAllRRs(userId: string): Promise<RROperationResponse> {
         return {
             success: true,
             message: 'Registros obtenidos correctamente.',
-            data: list,
+            data: await soloLasQueVe(list),
         };
     } catch (error) {
         console.error('Error al obtener registros rr:', error);
@@ -76,7 +109,7 @@ export async function getAllRRsByUserIds(userIds: string[]): Promise<RROperation
         return {
             success: true,
             message: 'Registros obtenidos correctamente.',
-            data: list,
+            data: await soloLasQueVe(list),
         };
     } catch (error) {
         console.error('Error al obtener registros rr:', error);
@@ -98,7 +131,19 @@ export async function createRR(data: {
         const cuenta = await laCuentaDeLaAccion(data.userId);
         if (!cuenta) return { success: false, message: 'No autorizado.' };
 
-        await db.quickReply.create({ data: { ...data, userId: cuenta } });
+        const quien = await quienVeLoPersonal();
+        if (!quien) return { success: false, message: 'No autorizado.' };
+        const creada = await db.quickReply.create({ data: { ...data, userId: cuenta } });
+        // Lo que crea un asesor es SUYO: sus compañeros no la ven.
+        if (naceSuya(quien)) {
+            try {
+                await marcarComoPersonal('respuesta', creada.id, quien.personaId, cuenta);
+            } catch (error) {
+                console.error('[respuestas] no se pudo marcar como personal; se deshace', error);
+                await db.quickReply.delete({ where: { id: creada.id } }).catch(() => undefined);
+                return { success: false, message: 'Error al crear el registro.' };
+            }
+        }
         return {
             success: true,
             message: 'Registro creado correctamente.',
@@ -127,7 +172,7 @@ export async function getAllRRsByWorkflowId(workflowId: string): Promise<RROpera
         return {
             success: true,
             message: 'Registros obtenidos correctamente.',
-            data: suyas,
+            data: await soloLasQueVe(suyas),
         };
     } catch (error) {
         console.error('Error al obtener registros rr:', error);
@@ -140,7 +185,7 @@ export async function getAllRRsByWorkflowId(workflowId: string): Promise<RROpera
 
 export async function updateRR(id: number, data: Partial<QuickReply>): Promise<RROperationResponse> {
     try {
-        if (!(await laCuentaDeLaRespuesta(id))) {
+        if (!(await laCuentaDeLaRespuesta(id)) || !(await laPuedeTocarQuienLlama(id))) {
             return { success: false, message: 'No autorizado.' };
         }
 
@@ -166,11 +211,12 @@ export async function updateRR(id: number, data: Partial<QuickReply>): Promise<R
 
 export async function deleteRR(id: number): Promise<RROperationResponse> {
     try {
-        if (!(await laCuentaDeLaRespuesta(id))) {
+        if (!(await laCuentaDeLaRespuesta(id)) || !(await laPuedeTocarQuienLlama(id))) {
             return { success: false, message: 'No autorizado.' };
         }
 
         await db.quickReply.delete({ where: { id } });
+        await olvidarLaMarca('respuesta', id);
         return {
             success: true,
             message: 'Registro eliminado correctamente.',
@@ -186,7 +232,12 @@ export async function deleteRR(id: number): Promise<RROperationResponse> {
 
 export async function updateRROrder(id: number, order: number): Promise<RROperationResponse> {
     try {
-        if (!(await laCuentaDeLaRespuesta(id))) {
+        const quien = await quienVeLoPersonal();
+        if (
+            !(await laCuentaDeLaRespuesta(id)) ||
+            !quien ||
+            !laVe((await lasDuenasDeRespuestas([id])).get(id), quien)
+        ) {
             return { success: false, message: 'No autorizado.' };
         }
 

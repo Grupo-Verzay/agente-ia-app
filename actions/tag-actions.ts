@@ -6,6 +6,13 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { comoListaDeCuentas } from '@/lib/etiquetas-de-la-linea';
+import { elGrupo, laPuedeTocar, laVe, naceSuya, slugPersonal, type Grupo } from '@/lib/personales';
+import {
+    lasDuenasDeEtiquetas,
+    marcarComoPersonal,
+    olvidarLaMarca,
+    quienVeLoPersonal,
+} from '@/lib/personales-db';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` llegaba
@@ -26,7 +33,31 @@ export interface ActionResponse<T> {
 
 export type TagWithCount = Tag & {
   _count: { sessionTags: number };
+  /**
+   * La persona dueña si la etiqueta es PERSONAL de un asesor, o `null` si es de
+   * la cuenta. Ver `lib/personales.ts`: un asesor ve las suyas y las de la
+   * cuenta; el dueño y los administradores, todas.
+   */
+  personal?: string | null;
+  /** Cómo agruparla para quien mira: «Mis etiquetas», «De los asesores» o «De la cuenta». */
+  grupo?: Grupo;
 };
+
+/**
+ * Deja solo las etiquetas que quien mira puede ver, cada una con su dueña.
+ * Lo usan las dos listas: con la regla en una sola, la otra ofrecería al asesor
+ * las etiquetas personales de sus compañeros.
+ */
+async function soloLasQueVe<T extends { id: number }>(
+    tags: T[],
+): Promise<(T & { personal: string | null; grupo: Grupo })[]> {
+    const quien = await quienVeLoPersonal();
+    if (!quien) return [];
+    const duenas = await lasDuenasDeEtiquetas(tags.map((t) => t.id));
+    return tags
+        .filter((t) => laVe(duenas.get(t.id), quien))
+        .map((t) => ({ ...t, personal: duenas.get(t.id) ?? null, grupo: elGrupo(duenas.get(t.id), quien) }));
+}
 
 // Helper simple para normalizar el nombre a slug
 function slugify(name: string): string {
@@ -91,7 +122,7 @@ export async function listTagsAction(
         return {
             success: true,
             message: "Tags obtenidos correctamente.",
-            data: tags,
+            data: await soloLasQueVe(tags),
         };
     } catch (error) {
         console.error("listTagsAction error:", error);
@@ -134,7 +165,7 @@ export async function listTagsDeLasCuentasAction(
             include: { _count: { select: { sessionTags: true } } },
         });
 
-        return { success: true, message: "Tags obtenidos correctamente.", data: tags };
+        return { success: true, message: "Tags obtenidos correctamente.", data: await soloLasQueVe(tags) };
     } catch (error) {
         console.error("listTagsDeLasCuentasAction error:", error);
         return { success: false, message: "Error obteniendo los tags." };
@@ -148,8 +179,12 @@ export async function createTagAction(
     try {
         const { userId, name, color } = baseTagSchema.parse(input);
         const cuenta = await laCuentaDeLaAccion(userId);
-        if (!cuenta) return { success: false, message: 'No autorizado.' };
-        const slug = slugify(name);
+        const quien = await quienVeLoPersonal();
+        if (!cuenta || !quien) return { success: false, message: 'No autorizado.' };
+        // Lo que crea un asesor es SUYO: su slug lleva su persona dentro, para
+        // que dos asesores puedan tener cada uno su «Llamar tarde».
+        const personal = naceSuya(quien);
+        const slug = personal ? slugPersonal(slugify(name), quien.personaId) : slugify(name);
 
         // Verificar si ya existe para ese usuario
         const existing = await db.tag.findFirst({
@@ -180,6 +215,18 @@ export async function createTagAction(
             },
         });
 
+        if (personal) {
+            try {
+                await marcarComoPersonal('etiqueta', tag.id, quien.personaId, cuenta);
+            } catch (error) {
+                // Sin la marca, la etiqueta quedaría a la vista de todo el
+                // equipo: se deshace antes que dejarla compartida sin querer.
+                console.error('[etiquetas] no se pudo marcar como personal; se deshace', error);
+                await db.tag.delete({ where: { id: tag.id } }).catch(() => undefined);
+                return { success: false, message: 'No se pudo crear la etiqueta.' };
+            }
+        }
+
         return {
             success: true,
             message: 'Tag creado correctamente.',
@@ -202,8 +249,15 @@ export async function updateTagAction(
         const parsedId = z.number().int().positive().parse(input.id);
         const { userId, name, color } = baseTagSchema.parse(input);
         const cuenta = await laCuentaDeLaAccion(userId);
-        if (!cuenta) return { success: false, message: 'No autorizado.' };
-        const slug = slugify(name);
+        const quien = await quienVeLoPersonal();
+        if (!cuenta || !quien) return { success: false, message: 'No autorizado.' };
+        const duena = (await lasDuenasDeEtiquetas([parsedId])).get(parsedId) ?? null;
+        if (!laPuedeTocar(duena, quien)) {
+            console.warn('[etiquetas] un asesor intentó editar una etiqueta que no es suya', { tag: parsedId });
+            return { success: false, message: 'Solo puedes editar tus propias etiquetas.' };
+        }
+        // Una etiqueta personal conserva su persona en el slug al renombrarla.
+        const slug = duena ? slugPersonal(slugify(name), duena) : slugify(name);
 
         // Aseguramos que el tag pertenece al user y que el nuevo slug no choque
         const existing = await db.tag.findFirst({
@@ -268,6 +322,10 @@ export async function updateTagOrderAction(
         if (!(await laCuentaDeLaEtiqueta(tagId))) {
             return { success: false, message: 'No autorizado.' };
         }
+        const quien = await quienVeLoPersonal();
+        if (!quien || !laVe((await lasDuenasDeEtiquetas([tagId])).get(tagId), quien)) {
+            return { success: false, message: 'No autorizado.' };
+        }
 
         await db.tag.update({
             where: { id: tagId },
@@ -298,6 +356,12 @@ export async function batchUpdateTagOrderAction(
             if (fila.userId && (await laCuentaDeLaAccion(fila.userId))) alcanzadas.add(fila.id);
         }
         if (updates.some((u) => !alcanzadas.has(u.id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+        // Tampoco se ordena lo que no se ve: la etiqueta personal de otro asesor.
+        const quien = await quienVeLoPersonal();
+        const duenas = await lasDuenasDeEtiquetas(updates.map((u) => u.id));
+        if (!quien || updates.some((u) => !laVe(duenas.get(u.id), quien))) {
             return { success: false, message: 'No autorizado.' };
         }
 
@@ -331,10 +395,17 @@ export async function deleteTagAction(
                 message: 'Tag no encontrado o no pertenece a este usuario.',
             };
         }
+        const quien = await quienVeLoPersonal();
+        const duena = (await lasDuenasDeEtiquetas([id])).get(id) ?? null;
+        if (!quien || !laPuedeTocar(duena, quien)) {
+            console.warn('[etiquetas] un asesor intentó borrar una etiqueta que no es suya', { tag: id });
+            return { success: false, message: 'Solo puedes eliminar tus propias etiquetas.' };
+        }
 
         await db.tag.delete({
             where: { id },
         });
+        if (duena) await olvidarLaMarca('etiqueta', id);
 
         return {
             success: true,
@@ -392,12 +463,14 @@ export async function getSessionTagsAction(
             };
         }
 
-        const tags = session.sessionTags.map((st) => ({
-            id: st.tag.id,
-            name: st.tag.name,
-            slug: st.tag.slug,
-            color: st.tag.color,
-            order: st.tag.order,
+        const tags = (
+            await soloLasQueVe(session.sessionTags.map((st) => st.tag))
+        ).map((t) => ({
+            id: t.id,
+            name: t.name,
+            slug: t.slug,
+            color: t.color,
+            order: t.order,
         }));
 
         return {
@@ -462,6 +535,10 @@ export async function assignTagToSessionAction(
                 success: false,
                 message: 'Tag no encontrado o no pertenece a este usuario.',
             };
+        }
+        const quien = await quienVeLoPersonal();
+        if (!quien || !laVe((await lasDuenasDeEtiquetas([tagId])).get(tagId), quien)) {
+            return { success: false, message: 'Tag no encontrado o no pertenece a este usuario.' };
         }
 
         // ¿Ya estaba asignado? Para disparar automatizaciones solo cuando es nuevo.
@@ -531,6 +608,11 @@ export async function removeTagFromSessionAction(
             };
         }
 
+        const quien = await quienVeLoPersonal();
+        if (!quien || !laVe((await lasDuenasDeEtiquetas([tagId])).get(tagId), quien)) {
+            return { success: false, message: 'Tag no encontrado o no pertenece a este usuario.' };
+        }
+
         await db.sessionTag.deleteMany({
             where: {
                 sessionId,
@@ -598,15 +680,28 @@ export async function replaceSessionTagsAction(
         });
         const prevSet = new Set(prev.map((p: { tagId: number }) => p.tagId));
 
+        // Lo que llega es la lista que quien guarda VE. Las etiquetas personales
+        // de otro asesor no están en ella porque no se le enseñan, así que
+        // reemplazar a secas se las llevaría por delante sin que nadie lo sepa:
+        // se conservan. Y no se puede poner una que no se ve.
+        const quien = await quienVeLoPersonal();
+        if (!quien) return { success: false, message: 'No autorizado.' };
+        const duenas = await lasDuenasDeEtiquetas([...tagIds, ...prevSet]);
+        if (tagIds.some((id) => !laVe(duenas.get(id), quien))) {
+            return { success: false, message: 'Uno o más tags no pertenecen a este usuario.' };
+        }
+        const ocultas = Array.from(prevSet).filter((id) => !laVe(duenas.get(id), quien));
+        const finales = Array.from(new Set([...tagIds, ...ocultas]));
+
         // Borrar relaciones actuales
         await db.sessionTag.deleteMany({
             where: { sessionId },
         });
 
         // Crear nuevas relaciones
-        if (tagIds.length > 0) {
+        if (finales.length > 0) {
             await db.sessionTag.createMany({
-                data: tagIds.map((tagId) => ({
+                data: finales.map((tagId) => ({
                     sessionId,
                     tagId,
                 })),

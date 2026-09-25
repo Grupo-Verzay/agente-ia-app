@@ -17,6 +17,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
+import { TITULO_DE_LAS_RESPUESTAS, enGrupos } from '@/lib/personales';
 import {
   getQuickReplyCategoryClass,
   getQuickReplyCategoryLabel,
@@ -210,9 +211,13 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
                       ? vacioDeLaLinea('respuestas rapidas', lineaDeLosAtajos)
                       : 'Ninguna respuesta rapida coincide.'}
                   </CommandEmpty>
-                  <CommandGroup className="max-h-64 overflow-auto">
-                    {filteredQuickReplies
-                      .filter((qr) => qr.name !== null)
+                  <div className="max-h-64 overflow-auto">
+                  {enGrupos(
+                    filteredQuickReplies.filter((qr) => qr.name !== null),
+                    TITULO_DE_LAS_RESPUESTAS,
+                  ).map((grupo) => (
+                  <CommandGroup key={grupo.grupo} heading={grupo.titulo ?? undefined}>
+                    {grupo.filas
                       .map((quickReply) => (
                         <CommandItem
                           key={quickReply.id}
@@ -238,6 +243,8 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
                         </CommandItem>
                       ))}
                   </CommandGroup>
+                  ))}
+                  </div>
                 </CommandList>
               </Command>
             </div>

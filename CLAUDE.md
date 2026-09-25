@@ -17520,3 +17520,86 @@ sobre el CSS del build, en los seis casos y a 1440/1280/1024, junto a la fila
 REAL de la lista con el mismo nombre. `MODO=roto` la pinta desde dos «antes»,
 cada uno con su propio CSS: `6686021` (la línea aplastada) y `1a1f6a8` (11 px,
 el nombre en otro peso que la lista y recortado a lo alto).
+
+## Embudos: la conversación va al embudo de SU ASESOR, y eso no se guarda
+
+`/embudos` es el tablero de cada asesor: la cuenta tiene varios embudos, cada
+uno con sus etapas, y cada persona del equipo tiene asignado uno. El asesor ve
+SU embudo con solo sus conversaciones, y lo único que hace es mover sus
+tarjetas de etapa. El dueño y los administradores —**los mismos permisos**—
+ven todos los embudos, crean, renombran, borran, editan etapas (nombre, orden
+y color), eligen el por defecto y asignan asesores.
+
+Va **fuera de `/crm`** a propósito: el layout del CRM saca a los agentes, y
+esta es su pantalla de trabajo. La ruta está en `navigationRoutes` y no se
+monta en ningún módulo: se asigna a mano, como `/cobros`.
+
+> **De qué embudo es una conversación se DEDUCE de su asesor**
+> (`elEmbudoDeLaConversacion`, `lib/embudos.ts`): el de su asesor, y sin asesor
+> —o con uno sin embudo— el embudo **por defecto**. Guardarlo obligaría a cada
+> camino que reasigna una conversación (la bandeja, la transferencia, el
+> reparto automático, el escalado, el backend) a acordarse de moverla, y el
+> que se olvide la deja en un tablero que ya no es el suyo.
+
+Cinco cosas que hay que mantener:
+
+1. **La etapa se guarda por conversación Y embudo** (`embudo_posiciones`,
+   clave `(sessionId, embudoId)`). Si pasa a un asesor con otro embudo entra en
+   la primera etapa; si vuelve, recupera la que tenía. Una etapa guardada que
+   ya no existe cae en la primera: **ninguna tarjeta desaparece por su etapa**.
+2. **El filtro del tablero y la regla de la conversación dicen lo mismo**
+   (`quienCaeEnElEmbudo` frente a `elEmbudoDeLaConversacion`). El banco las
+   encadena para cada asesor posible: si discreparan, una tarjeta saldría en
+   un tablero y al moverla diría «cambió de embudo».
+3. **Mover no da el embudo por bueno**: `moverTarjetaAction` lo vuelve a
+   deducir y exige que la etapa sea de él. Una pestaña con un tablero viejo no
+   deja una posición en un embudo que ya no es el suyo, y lo dice.
+4. **Sin embudo marcado, el por defecto es el primero** (`elEmbudoPorDefecto`),
+   y el primero que se crea nace marcado. Borrar el por defecto no deja
+   conversaciones fuera de todos los tableros.
+5. **Cuatro tablas de la App, sin columna nueva en `Session`** (es del backend,
+   el #360), con `ddl()` para las dos réplicas. Borrar un embudo o una etapa no
+   toca ni una conversación.
+
+La tarjeta **es la del Kanban del CRM** (`KanbanCardItem`, exportada con un
+hueco `pie` para el asesor): con una copia, el día que se afine una la otra se
+queda atrás.
+
+## Lo que crea un asesor es SUYO: etiquetas y respuestas rápidas
+
+Las etiquetas (`Tag`) y las respuestas rápidas (`rr`) siguen siendo filas de la
+CUENTA —así las asigna, lista y comprueba todo lo que ya existía—, y al lado
+una marca dice «esta es de esta persona» (`etiquetas_personales`,
+`respuestas_personales`, `lib/personales-db.ts`). Ni una columna en `Tag`.
+
+> **Lo que crea quien NO manda (un agente) nace suyo** (`naceSuya`). Lo ven su
+> dueña, el dueño y los administradores; los demás asesores no. Lo que crean
+> el dueño o un administrador es de la cuenta, como siempre. No hay casilla:
+> el asesor las crea en sus pantallas de siempre, Etiquetas y Respuestas
+> rápidas. Lo que ya existía se queda de la cuenta — no se sabe quién lo creó.
+
+Cuatro cosas que hay que mantener:
+
+1. **Reemplazar las etiquetas de una conversación CONSERVA las que no se ven.**
+   `replaceSessionTagsAction` recibe la lista que quien guarda VE; sin esto, un
+   asesor guardando se llevaría por delante la etiqueta personal de su
+   compañero sin saber que existía. El banco lo prueba quitando esa línea: se
+   pone en rojo.
+2. **El slug de una personal lleva a su persona** (`slugPersonal`): `Tag` es
+   única por `(cuenta, slug)`, y sin eso dos asesores no podrían tener cada uno
+   su «Llamar tarde».
+3. **Se filtra en todos los sitios que enseñan etiquetas a un asesor**: las dos
+   listas, las de una conversación, la bandeja de Chats
+   (`getSesionesDeLaCuenta`) y el Kanban de `/tags`. Quien manda no paga la
+   consulta extra.
+4. **El grupo lo dice el servidor** (`grupo`: «Mis etiquetas», «De los
+   asesores», «De la cuenta») y Chats solo agrupa (`enGrupos`). Sin nada
+   personal sale un solo grupo sin título: donde nadie tiene nada propio, la
+   lista se ve como antes.
+
+Lo prueban `scripts/banco-embudos.sh` —reglas puras y acciones contra
+Postgres; `MODO=roto` corre las acciones de etiquetas y respuestas de
+`ANTES_REF` y afirma que el compañero veía, pisaba y borraba lo del otro— y
+`scripts/banco-embudos-navegador.sh`, sobre la página servida: el dueño crea y
+asigna por la pantalla, la administradora tiene sus mismos mandos, un agente ve
+solo su embudo y arrastra, y otro sin embudo ve la pantalla que lo dice.

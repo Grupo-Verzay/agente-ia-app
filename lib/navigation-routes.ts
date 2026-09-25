@@ -43,6 +43,11 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/crm/reportes" },
     { route: "/crm/rules" },
     { route: "/crm/llamadas" },
+    // Los embudos por asesor. Va FUERA de `/crm` porque el layout del CRM saca a
+    // los agentes, y este tablero es su pantalla de trabajo. No se monta en
+    // ningun modulo: se asigna a mano en «Editar modulo», como `/cobros`, y la
+    // puerta vive en la carga y en cada accion.
+    { route: "/embudos" },
     { route: "/ia" },
     { route: "/tags" },
     { route: "/tareas" },

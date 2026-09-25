@@ -38,6 +38,8 @@ import {
   buildWhatsAppJidCandidates,
   pickObservedAlternateRemoteJid,
 } from '@/lib/whatsapp-jid';
+import { laVe } from '@/lib/personales';
+import { lasDuenasDeEtiquetas, quienVeLoPersonal } from '@/lib/personales-db';
 
 // schema para agregar varios tags a una sesión
 const addTagsToSessionSchema = z.object({
@@ -473,6 +475,20 @@ export async function getSesionesDeLaCuenta(
         },
       }),
     );
+
+    // Las etiquetas PERSONALES de otro asesor no se le enseñan a un asesor
+    // (`lib/personales.ts`). Quien manda lo ve todo y no paga la consulta.
+    await medir('etiquetasPersonales', async () => {
+      const quien = await quienVeLoPersonal();
+      if (!quien || quien.manda) return;
+      const duenas = await lasDuenasDeEtiquetas(
+        sessions.flatMap((s) => s.sessionTags.map((st) => st.tagId)),
+      );
+      if (duenas.size === 0) return;
+      for (const s of sessions) {
+        s.sessionTags = s.sessionTags.filter((st) => laVe(duenas.get(st.tagId), quien));
+      }
+    });
 
     const allRemoteJids = Array.from(
       new Set(sessions.map((s) => s.remoteJid).filter(Boolean) as string[]),

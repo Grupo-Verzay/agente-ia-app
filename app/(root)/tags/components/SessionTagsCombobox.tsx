@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { enGrupos, type Grupo } from "@/lib/personales";
 
 type SimpleTag = {
     id: number;
@@ -28,6 +29,8 @@ type SimpleTag = {
     slug?: string;
     color?: string | null;
     sessionCount?: number | null;
+    /** De la cuenta, de quien mira o de otro asesor. Lo decide el servidor. */
+    grupo?: Grupo;
 };
 
 interface SessionTagsComboboxProps {
@@ -184,8 +187,10 @@ export function SessionTagsCombobox({
                                 ? "Esta línea no tiene etiquetas creadas."
                                 : "No se encontraron etiquetas."}
                         </CommandEmpty>
-                        <CommandGroup className="max-h-64 overflow-auto">
-                            {allTags.map((tag) => {
+                        <div className="max-h-64 overflow-auto">
+                        {enGrupos(allTags).map((grupo) => (
+                        <CommandGroup key={grupo.grupo} heading={grupo.titulo ?? undefined}>
+                            {grupo.filas.map((tag) => {
                                 const active = isSelected(tag.id);
                                 const count = tag.sessionCount ?? 0;
 
@@ -221,6 +226,8 @@ export function SessionTagsCombobox({
                                 );
                             })}
                         </CommandGroup>
+                        ))}
+                        </div>
                     </CommandList>
                 </Command>
             </PopoverContent>
