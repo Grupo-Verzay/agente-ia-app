@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
-import { elTableroDelEmbudo, quienMiraElTablero } from "@/lib/tablero-de-embudo.server";
+import {
+    elTableroDelEmbudo,
+    laCuentaConLaQueAbre,
+    quienMiraElTablero,
+} from "@/lib/tablero-de-embudo.server";
 import { EmbudosClient } from "./_components/EmbudosClient";
 
 /*
@@ -26,7 +30,19 @@ export default async function EmbudosPage({
 
     const uno = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v) ?? null;
 
-    const { quien, ...cuentas } = await quienMiraElTablero(user, uno(searchParams?.cuenta));
+    /*
+     * Sin `?cuenta=` se abre donde se estaba mirando la última vez, no siempre
+     * en la propia: quien trabaja a diario en el tablero de una hija tenía que
+     * elegirla en cada visita.
+     *
+     * El orden no es indiferente: **manda la URL**. Un enlace guardado o
+     * compartido apunta a una cuenta concreta y tiene que llevar ahí, o deja de
+     * ser un enlace. Y lo recordado no abre ninguna puerta: `quienMiraElTablero`
+     * lo filtra contra las alcanzables igual que a cualquier otro parámetro.
+     */
+    const pedida = uno(searchParams?.cuenta) ?? (await laCuentaConLaQueAbre(user));
+
+    const { quien, ...cuentas } = await quienMiraElTablero(user, pedida);
     const tablero = await elTableroDelEmbudo(quien, uno(searchParams?.embudo), uno(searchParams?.asesor), {
         disponibles: cuentas.cuentas,
         puedeElegir: cuentas.puedeElegirCuenta,

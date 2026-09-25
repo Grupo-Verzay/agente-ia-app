@@ -30,6 +30,11 @@ import type { AQuienSeMira } from "@/lib/embudos-de-la-cuenta";
  *   embudo**. La clave es `(sessionId, embudoId)`: por eso una conversación que
  *   cambia de embudo y vuelve recupera la etapa que tenía.
  *
+ * - `embudo_cuenta_recordada` — en qué cuenta abre el tablero cada persona.
+ *   Es lo único de aquí que **no es un dato del embudo sino una preferencia de
+ *   vista**, y vive con las demás para no tener una segunda copia del `ddl` y
+ *   del reintento del `42P01`.
+ *
  * De qué embudo es una conversación NO se guarda: se deduce de su asesor. Ver
  * `lib/embudos.ts`.
  */
@@ -106,6 +111,30 @@ function asegurarLasTablas(): Promise<void> {
         // primaria empieza por sessionId, así que hace falta este.
         await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "embudo_posiciones_embudo_idx" ON "embudo_posiciones" ("embudoId")
+        `);
+        /*
+         * En qué cuenta abre el tablero cada persona.
+         *
+         * **La llave es (persona, cuenta propia), no la persona a secas**, y es
+         * la regla de siempre: la llave son los datos que deciden la respuesta.
+         * Qué cuenta puede abrir alguien depende de desde dónde entra —las
+         * alcanzables se resuelven contra su fila efectiva—, así que con la
+         * persona sola, entrar a otra cuenta con «Ingresar» y recargar ahí
+         * borraría lo elegido en la suya. Con la pareja, cada contexto recuerda
+         * lo suyo y ninguno pisa al otro.
+         *
+         * Sin clave foránea, como el resto de las tablas de la App: al borrar
+         * una cuenta queda una fila huérfana de tres textos, y lo que apunta a
+         * una cuenta que ya no se alcanza se descarta al leerlo.
+         */
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "embudo_cuenta_recordada" (
+                "personaId" TEXT NOT NULL,
+                "cuentaPropia" TEXT NOT NULL,
+                "cuentaElegida" TEXT NOT NULL,
+                "tocadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("personaId", "cuentaPropia")
+            )
         `);
     })().catch((error) => {
         tablasListas = null;
@@ -479,6 +508,64 @@ export async function moverConversacion(input: {
             ON CONFLICT ("sessionId", "embudoId")
             DO UPDATE SET "etapaId" = EXCLUDED."etapaId", "movidoPorId" = EXCLUDED."movidoPorId",
                           "actualizadoEn" = NOW()
+        `;
+    });
+}
+
+/* ───────────────────────── La cuenta en la que abre ────────────────────────
+ *
+ * El selector volvía siempre a la cuenta propia, así que quien trabaja a
+ * diario en el tablero de una hija tenía que elegirla en cada visita. Ahora se
+ * recuerda **dónde estaba mirando** esa persona desde esa cuenta.
+ *
+ * Lo que se guarda NO decide nada por su cuenta: al leerlo vuelve a pasar por
+ * `laCuentaDelTablero`, que lo filtra contra las alcanzables de HOY. Un id de
+ * una cuenta que se desvinculó, o de otra familia, no es un error que enseñar
+ * —es un id que ya no existe para quien pregunta— y lo que toca entonces es su
+ * propio tablero.
+ */
+
+/** En qué cuenta abría el tablero esta persona desde esta cuenta. */
+export async function laCuentaRecordada(
+    personaId: string,
+    cuentaPropia: string,
+): Promise<string | null> {
+    if (!personaId || !cuentaPropia) return null;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ cuentaElegida: string }[]>`
+            SELECT "cuentaElegida" FROM "embudo_cuenta_recordada"
+            WHERE "personaId" = ${personaId} AND "cuentaPropia" = ${cuentaPropia}
+            LIMIT 1
+        `;
+        return filas[0]?.cuentaElegida?.trim() || null;
+    });
+}
+
+/**
+ * Apuntar dónde está mirando.
+ *
+ * Se llama en cada carga del tablero, no solo al elegir: así una elección que
+ * dejó de alcanzarse **se cura sola** —se resuelve a la propia y eso es lo que
+ * queda apuntado— en vez de arrastrar para siempre un id muerto.
+ *
+ * Y por eso el `ON CONFLICT` lleva su `WHERE`: cuando no hay nada que cambiar
+ * Postgres **no escribe la fila**, que es lo que hace que llamarlo en cada
+ * carga no cueste. Es la misma forma que la marca de leído del chat del equipo.
+ */
+export async function recordarLaCuenta(
+    personaId: string,
+    cuentaPropia: string,
+    cuentaElegida: string,
+): Promise<void> {
+    if (!personaId || !cuentaPropia || !cuentaElegida) return;
+    await conLasTablas(async () => {
+        await db.$executeRaw`
+            INSERT INTO "embudo_cuenta_recordada" ("personaId", "cuentaPropia", "cuentaElegida", "tocadoEn")
+            VALUES (${personaId}, ${cuentaPropia}, ${cuentaElegida}, CURRENT_TIMESTAMP)
+            ON CONFLICT ("personaId", "cuentaPropia") DO UPDATE
+               SET "cuentaElegida" = EXCLUDED."cuentaElegida",
+                   "tocadoEn" = CURRENT_TIMESTAMP
+             WHERE "embudo_cuenta_recordada"."cuentaElegida" IS DISTINCT FROM EXCLUDED."cuentaElegida"
         `;
     });
 }

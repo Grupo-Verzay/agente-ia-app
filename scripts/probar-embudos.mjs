@@ -10,6 +10,10 @@
  *  5. El dueño filtra por asesor —«Todos» de partida— y elige la cuenta HIJA:
  *     el tablero pasa a ser el de esa cuenta, con sus conversaciones y sin
  *     ninguna de la madre.
+ *  6. El selector ofrece SOLO su cuenta y la hija —el dueño es `admin`, así que
+ *     antes del #948 le salía además la cuenta cliente sin vínculo— y el
+ *     tablero **abre donde se quedó**: se vuelve a `/embudos` con la dirección
+ *     limpia y sigue en la hija.
  *
  * Y en cada paso, a 1440 y a 390: que la página no se desplaza a lo ancho.
  * Deja capturas en `CAPTURAS` para mirarlas.
@@ -182,6 +186,22 @@ try {
             "dueño: el selector de cuenta abre en la suya",
         );
         await cuenta.click();
+        await pagina.waitForTimeout(400);
+        /*
+         * Lo que OFRECE, que es el fallo del #948: el dueño es `admin`, así que
+         * su cartera son todas las cuentas cliente de la plataforma y el
+         * selector las ofrecía. Solo pueden salir la suya y la que cuelga de
+         * ella.
+         */
+        const ofrecidas = (await pagina.getByRole("menuitem").allTextContents()).map((t) => t.trim());
+        exigir(
+            ofrecidas.length === 2,
+            `dueño: el selector ofrece solo su cuenta y la hija (${ofrecidas.join(" | ")})`,
+        );
+        exigir(
+            !ofrecidas.some((t) => /Sin Vinculo/i.test(t)),
+            "dueño: una cuenta cliente sin vínculo NO se ofrece",
+        );
         await pagina.getByRole("menuitem", { name: /Verzay Ventas/ }).click();
         await pagina.waitForTimeout(2500);
 
@@ -222,6 +242,31 @@ try {
 
         exigir((await cuenta.textContent())?.includes("Verzay Ventas"), "dueño: el mando dice qué cuenta se mira");
 
+        /*
+         * Y abre donde se quedó: se entra a `/embudos` con la dirección LIMPIA
+         * —como quien lo abre desde el menú— y sigue en la hija. Antes volvía
+         * siempre a la propia, así que había que elegirla en cada visita.
+         *
+         * La dirección se pone al día sola: si no, diría «la propia» mientras
+         * se está mirando otra cuenta, y copiarla llevaría a otro sitio.
+         */
+        await pagina.goto(`${BASE}/embudos`, { waitUntil: "domcontentloaded" });
+        await pagina.waitForTimeout(3000);
+        exigir(
+            (await cuenta.textContent())?.includes("Verzay Ventas"),
+            "dueño: al volver con la dirección limpia, el tablero abre en la hija",
+        );
+        exigir(
+            new URL(pagina.url()).searchParams.get("cuenta") !== null,
+            "dueño: y la dirección lo dice, para que el enlace no mienta",
+        );
+        const recordadas = await tarjetas(pagina);
+        exigir(
+            recordadas.length === 2 && !recordadas.some((n) => /María|Julián|Ferretería|Marta/.test(n)),
+            `dueño: y son las de la hija (${recordadas.join(", ")})`,
+        );
+        await pagina.screenshot({ path: `${CAPTURAS}/1b-cuenta-recordada.png` });
+
         // Y volver a la suya devuelve las cuatro.
         await cuenta.click();
         await pagina.getByRole("menuitem", { name: /Banco de Embudos/ }).click();
@@ -234,6 +279,15 @@ try {
         exigir(
             new URL(pagina.url()).searchParams.get("cuenta") === null,
             "dueño: su propia cuenta es la dirección limpia",
+        );
+
+        // Volver a la suya también se recuerda: si no, no habría forma de salir
+        // de la hija sin escribir la dirección a mano en cada visita.
+        await pagina.goto(`${BASE}/embudos`, { waitUntil: "domcontentloaded" });
+        await pagina.waitForTimeout(3000);
+        exigir(
+            (await cuenta.textContent())?.includes("Banco de Embudos"),
+            "dueño: al volver a la suya, eso es lo que se recuerda",
         );
         await contexto.close();
     }

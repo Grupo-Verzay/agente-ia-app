@@ -296,9 +296,13 @@ function Columna({
  * elegir qué**, que lo decide el servidor (`resolverLaCuentaDelTablero`) con la
  * misma regla de alcance hacia abajo del CRM.
  *
- * Lleva buscador a partir de unas cuantas cuentas: la cartera de una cuenta de
- * la casa o de un reseller grande son decenas, y una lista así no se recorre
- * con los ojos.
+ * Y **qué cuentas ofrece es la misma pregunta que en Llamadas y en Finanzas**:
+ * la propia y las que cuelgan de ella, nunca su madre ni sus hermanas. Lo
+ * contesta el servidor con la función que comparten las tres
+ * (`lasCuentasQueAlcanzaHaciaAbajo`); aquí solo se pinta lo que llega.
+ *
+ * El buscador sale a partir de unas cuantas: una familia grande no se recorre
+ * con los ojos, y con dos o tres un campo de buscar es un mando de más.
  */
 const CUENTAS_PARA_BUSCAR = 8;
 
@@ -357,7 +361,7 @@ function SelectorDeLaCuenta({
                 style={{ maxHeight: 'min(70vh, var(--radix-dropdown-menu-content-available-height))' }}
             >
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Cuentas que administras
+                    Esta cuenta y las que cuelgan de ella
                 </DropdownMenuLabel>
                 {conBuscador && (
                     <div className="px-2 pb-1.5">
@@ -614,6 +618,31 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     useEffect(() => {
         if (huboCambioDeEtapa()) void recargar({ embudo: inicial.embudoId });
     }, [recargar, inicial.embudoId]);
+
+    /*
+     * Si el tablero abrió en OTRA cuenta porque se recordaba —la URL venía
+     * limpia—, la dirección lo dice.
+     *
+     * Sin esto la URL mentiría: diría «la propia» mientras se está mirando una
+     * hija, así que copiarla y pasársela a alguien llevaría a otro sitio, y
+     * quitar el parámetro dejaría de significar nada. Es el mismo contrato que
+     * mantiene `recargar`, aplicado a la primera carga.
+     *
+     * **Solo reescribe la dirección**: no pide el tablero otra vez, que es lo
+     * que haría un `router.replace` —y eso sería una segunda carga entera de la
+     * pantalla más cara del módulo para no cambiar ni un dato—.
+     */
+    useEffect(() => {
+        if (!inicial.esOtraCuenta || !inicial.cuentaId) return;
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('cuenta') === inicial.cuentaId) return;
+            url.searchParams.set('cuenta', inicial.cuentaId);
+            window.history.replaceState(null, '', url.toString());
+        } catch {
+            // Sin dirección que tocar no pasa nada: el tablero ya está pintado.
+        }
+    }, [inicial.esOtraCuenta, inicial.cuentaId]);
 
     const visibles = useMemo(() => {
         const q = busqueda.trim().toLowerCase();
