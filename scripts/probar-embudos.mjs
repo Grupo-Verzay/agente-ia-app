@@ -7,6 +7,9 @@
  *     sin «Nuevo», sin «⋯», sin editar etapas; arrastra una tarjeta a otra
  *     etapa y al recargar sigue ahí.
  *  4. Beto, sin embudo, ve la pantalla vacía que lo dice.
+ *  5. El dueño filtra por asesor —«Todos» de partida— y elige la cuenta HIJA:
+ *     el tablero pasa a ser el de esa cuenta, con sus conversaciones y sin
+ *     ninguna de la madre.
  *
  * Y en cada paso, a 1440 y a 390: que la página no se desplaza a lo ancho.
  * Deja capturas en `CAPTURAS` para mirarlas.
@@ -97,6 +100,134 @@ try {
         await pagina.getByRole("button", { name: "Guardar" }).click();
         await pagina.getByText("Asignaciones guardadas.").waitFor({ timeout: 15000 });
         exigir(await sinDesborde(pagina), "dueño 1440: la página no se desplaza a lo ancho");
+        await contexto.close();
+    }
+
+    // ── 1b. El filtro de asesor y el selector de cuenta ────────────────────
+    {
+        const { contexto, pagina } = await entrar(navegador, "dueno@embudos.test");
+        await abrirEmbudos(pagina);
+
+        // Por defecto, TODOS los asesores juntos.
+        const filtro = pagina.getByRole("button", { name: "Todos los asesores" });
+        exigir(await filtro.isVisible(), "dueño: el filtro de asesor abre en «Todos los asesores»");
+        exigir((await tarjetas(pagina)).length === 4, "dueño: con «todos» ve las cuatro");
+
+        // Y el total de cada columna es el de VERDAD, no el de las tarjetas
+        // cargadas: con cuatro conversaciones coinciden, y lo que se comprueba
+        // es que el número sale del tablero y no de contar lo pintado.
+        const totalDeLaPrimera = await pagina.evaluate(() => {
+            const cab = document.querySelector("span.uppercase.text-white")?.closest("div");
+            return cab?.querySelector("div span.rounded-full, div .inline-flex")?.textContent?.trim() ?? null;
+        });
+        exigir(totalDeLaPrimera !== null, `dueño: cada columna lleva su total (${totalDeLaPrimera})`);
+
+        // Filtrar a Ana: solo las suyas.
+        await filtro.click();
+        await pagina.getByRole("menuitem", { name: "Ana Ruiz" }).click();
+        await pagina.waitForTimeout(1500);
+        const deAna = await tarjetas(pagina);
+        exigir(
+            deAna.length === 2 && deAna.every((n) => /María|Julián/.test(n)),
+            `dueño: filtrando a Ana ve solo sus dos (${deAna.join(", ")})`,
+        );
+        exigir(
+            new URL(pagina.url()).searchParams.get("asesor") !== null,
+            "dueño: el asesor filtrado queda en la dirección",
+        );
+
+        // «Sin asesor asignado»: solo la que no tiene.
+        await pagina.getByRole("button", { name: "Ana Ruiz" }).click();
+        await pagina.getByRole("menuitem", { name: "Sin asesor asignado" }).click();
+        await pagina.waitForTimeout(1500);
+        const sinAsesor = await tarjetas(pagina);
+        exigir(
+            sinAsesor.length === 1 && /Marta/.test(sinAsesor[0]),
+            `dueño: «sin asesor» enseña solo la que no tiene (${sinAsesor.join(", ")})`,
+        );
+
+        // Y volver a «todos» las junta otra vez, y limpia la dirección.
+        await pagina.getByRole("button", { name: "Sin asesor" }).click();
+        await pagina.getByRole("menuitem", { name: "Todos los asesores" }).click();
+        await pagina.waitForTimeout(1500);
+        exigir((await tarjetas(pagina)).length === 4, "dueño: volver a «todos» las junta otra vez");
+        exigir(
+            new URL(pagina.url()).searchParams.get("asesor") === null,
+            "dueño: «todos» es la dirección limpia",
+        );
+        await pagina.screenshot({ path: `${CAPTURAS}/1b-filtro-de-asesor.png` });
+
+        // ── El selector de cuenta ──────────────────────────────────────────
+        const cuenta = pagina.getByRole("button", { name: "Banco de Embudos" });
+        exigir(await cuenta.isVisible(), "dueño: el selector de cuenta abre en la suya");
+        await cuenta.click();
+        await pagina.getByRole("menuitem", { name: /Verzay Ventas/ }).click();
+        await pagina.waitForTimeout(2500);
+
+        exigir(
+            new URL(pagina.url()).searchParams.get("cuenta") !== null,
+            "dueño: la cuenta elegida queda en la dirección",
+        );
+        exigir(
+            await pagina.getByText("Estás viendo el tablero de").isVisible(),
+            "dueño: se avisa de que el tablero es de otra cuenta",
+        );
+        // La hija no tiene embudos todavía: la pantalla lo dice, y el mando de
+        // crear sigue ahí porque la madre administra esa cuenta.
+        exigir(
+            await pagina.getByText("Aún no hay embudos en esta cuenta").isVisible(),
+            "dueño: en la hija, que todavía no tiene embudos, lo dice",
+        );
+        await pagina.screenshot({ path: `${CAPTURAS}/1b-cuenta-hija-vacia.png` });
+
+        // Se crea uno EN la hija y aparecen SUS conversaciones, ninguna de la madre.
+        await pagina.getByRole("button", { name: "Nuevo" }).click();
+        await pagina.getByLabel("Nombre del embudo").fill("Ventas hija");
+        await pagina.getByRole("button", { name: "Crear" }).click();
+        await pagina.getByText("Etapas del embudo").waitFor({ timeout: 15000 });
+        await pagina.keyboard.press("Escape");
+        await pagina.waitForTimeout(1500);
+
+        const deLaHija = await tarjetas(pagina);
+        exigir(
+            deLaHija.length === 2 && deLaHija.every((n) => /Panadería|Distribuidora/.test(n)),
+            `dueño: en la hija ve SUS dos conversaciones (${deLaHija.join(", ")})`,
+        );
+        exigir(
+            !deLaHija.some((n) => /María|Julián|Ferretería|Marta/.test(n)),
+            "dueño: ninguna conversación de la madre se cuela en el tablero de la hija",
+        );
+        exigir(await sinDesborde(pagina), "dueño: con los tres mandos la página no se desplaza a lo ancho");
+
+        // Y volver a la suya devuelve las cuatro.
+        await pagina.getByRole("button", { name: /Verzay Ventas/ }).click();
+        await pagina.getByRole("menuitem", { name: /Banco de Embudos/ }).click();
+        await pagina.waitForTimeout(2500);
+        const devuelta = await tarjetas(pagina);
+        exigir(
+            devuelta.length === 4 && !devuelta.some((n) => /Panadería|Distribuidora/.test(n)),
+            `dueño: al volver a su cuenta ve las suyas (${devuelta.join(", ")})`,
+        );
+        exigir(
+            new URL(pagina.url()).searchParams.get("cuenta") === null,
+            "dueño: su propia cuenta es la dirección limpia",
+        );
+        await contexto.close();
+    }
+
+    // ── 1c. La hija no ve a su madre ni puede elegir cuenta ────────────────
+    {
+        const { contexto, pagina } = await entrar(navegador, "hija@embudos.test");
+        await abrirEmbudos(pagina);
+        exigir(
+            (await pagina.getByRole("button", { name: "Banco de Embudos" }).count()) === 0,
+            "la hija: no se le ofrece la cuenta de su madre",
+        );
+        const suyas = await tarjetas(pagina);
+        exigir(
+            suyas.length === 2 && suyas.every((n) => /Panadería|Distribuidora/.test(n)),
+            `la hija: ve solo lo suyo (${suyas.join(", ")})`,
+        );
         await contexto.close();
     }
 

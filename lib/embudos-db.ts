@@ -3,12 +3,14 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { sinGruposSql } from "@/lib/conversaciones-de-grupo";
 import {
     ETAPAS_INICIALES,
     type Embudo,
     type Etapa,
     type EtapaPedida,
 } from "@/lib/embudos";
+import type { AQuienSeMira } from "@/lib/embudos-de-la-cuenta";
 
 /**
  * Dónde viven los embudos.
@@ -193,6 +195,90 @@ export async function lasPosicionesDe(
         `;
         const mapa: Record<number, string> = {};
         for (const f of filas) mapa[Number(f.sessionId)] = f.etapaId;
+        return mapa;
+    });
+}
+
+/**
+ * Las DOS formas de `AQuienSeMira`, escritas una al lado de la otra a propósito.
+ *
+ * Una decisión y dos renderizados: el `where` de Prisma con el que se traen las
+ * tarjetas, y el trozo de SQL con el que se cuentan por etapa —que va en crudo
+ * porque tiene que unir `embudo_posiciones`, que es tabla nuestra—. Separadas,
+ * el día que se afine una las cabeceras dirían un número y las columnas
+ * enseñarían otro.
+ *
+ * **Las listas vacías van con `= ANY(array)` y no con `IN (…)`.** Un `IN ()` es
+ * un error de sintaxis, así que con cero ajenos —una cuenta donde nadie tiene
+ * embudo asignado, que es lo normal— la consulta se caería entera. Con `ANY` de
+ * un arreglo vacío el resultado es falso, y su negación cierta, que es justo lo
+ * que hace falta: sin ajenos, entran todos.
+ */
+export function comoWhereDeAsesor(a: AQuienSeMira): Record<string, unknown> {
+    switch (a.tipo) {
+        case "una-persona":
+            return { assignedAdvisorId: a.personaId };
+        case "sin-asesor":
+            return { assignedAdvisorId: null };
+        case "estos":
+            return { assignedAdvisorId: { in: a.asesores } };
+        case "todos-menos":
+            return { OR: [{ assignedAdvisorId: null }, { assignedAdvisorId: { notIn: a.ajenos } }] };
+    }
+}
+
+/**
+ * El mismo filtro en SQL. La columna es la de la BASE
+ * (`assigned_advisor_id`): en SQL en crudo Prisma no traduce los `@map`, y
+ * escribir `assignedAdvisorId` es el `42703` que ya costó un año de avisos que
+ * nadie leía.
+ */
+function comoSqlDeAsesor(a: AQuienSeMira, alias: string): Prisma.Sql {
+    const col = Prisma.raw(`${alias}."assigned_advisor_id"`);
+    switch (a.tipo) {
+        case "una-persona":
+            return Prisma.sql`${col} = ${a.personaId}`;
+        case "sin-asesor":
+            return Prisma.sql`${col} IS NULL`;
+        case "estos":
+            return Prisma.sql`${col} = ANY(${[...a.asesores]}::text[])`;
+        case "todos-menos":
+            return Prisma.sql`(${col} IS NULL OR NOT (${col} = ANY(${[...a.ajenos]}::text[])))`;
+    }
+}
+
+/**
+ * Cuántas conversaciones hay en cada etapa de un embudo: un `COUNT`, no el
+ * `length` de lo que se pudo cargar.
+ *
+ * El tablero trae como mucho `TOPE_DE_TARJETAS`, así que contar las tarjetas
+ * pintadas da «cuántas de las primeras 500 cayeron aquí», que no es un número
+ * que nadie pueda usar. Devuelve solo las etapas que tienen algo guardado; lo
+ * que no tiene posición —o la tiene en una etapa borrada— lo reparte
+ * `losTotalesPorEtapa` sobre la primera, que es donde se pinta.
+ *
+ * Es UNA consulta por carga del tablero. Entra por `embudo_posiciones_embudo_idx`
+ * y de ahí a `Session` por su clave primaria; no toca `chat_messages` ni ninguna
+ * de las tablas grandes.
+ */
+export async function losConteosPorEtapa(input: {
+    embudoId: string;
+    cuentaId: string;
+    aQuien: AQuienSeMira;
+}): Promise<Record<string, number>> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<{ etapaId: string; cuantas: number }>>`
+            SELECT p."etapaId" AS "etapaId", COUNT(*)::int AS "cuantas"
+            FROM "embudo_posiciones" p
+            JOIN "Session" s ON s."id" = p."sessionId"
+            WHERE p."embudoId" = ${input.embudoId}
+              AND s."userId" = ${input.cuentaId}
+              ${sinGruposSql("s")}
+              AND ${comoSqlDeAsesor(input.aQuien, "s")}
+            GROUP BY p."etapaId"
+        `;
+        const mapa: Record<string, number> = {};
+        for (const f of filas) mapa[f.etapaId] = Number(f.cuantas);
         return mapa;
     });
 }

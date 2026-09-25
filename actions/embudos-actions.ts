@@ -28,35 +28,57 @@ import {
 } from '@/lib/embudos-db';
 import {
     elTableroDelEmbudo,
-    quienMiraLosEmbudos,
+    quienMiraElTablero,
+    quienMiraEstaConversacion,
     type QuienMiraLosEmbudos,
     type TableroDeEmbudo,
+    type UsuarioQueMira,
 } from '@/lib/tablero-de-embudo.server';
 
 /**
  * Los embudos de la cuenta.
  *
- * Una acción de servidor ES un endpoint: todo lo que llega del navegador —el
- * embudo, la etapa, la conversación, la lista de asesores— se vuelve a
- * comprobar aquí contra la cuenta de quien llama. Esconder un botón en la
- * pantalla no cierra la petición directa.
+ * Una acción de servidor ES un endpoint: todo lo que llega del navegador —la
+ * cuenta, el embudo, el asesor, la etapa, la conversación, la lista de
+ * asesores— se vuelve a comprobar aquí contra lo que quien llama alcanza de
+ * verdad. Esconder un botón en la pantalla no cierra la petición directa.
  *
  * - Crear, renombrar, borrar, editar etapas, elegir el por defecto y asignar
  *   asesores: **quien manda** (dueño o administrador, los mismos permisos).
  * - Mover una tarjeta: quien manda, cualquiera; un asesor, solo las suyas.
  *
- * Ningún rechazo es mudo: lo típico no es un ataque sino una pantalla que manda
- * el id equivocado, y sin el aviso no hay forma de saber cuál.
+ * # La CUENTA viaja en cada acción, y se re-resuelve
+ *
+ * El tablero se puede abrir sobre una cuenta que cuelga de la propia, así que
+ * todas estas acciones reciben la cuenta y la vuelven a pasar por
+ * `quienMiraElTablero` → `resolverLaCuentaDelTablero`, que la filtra contra las
+ * alcanzables y encima la somete a `assertCanAccessTargetUser`. Lo que no se
+ * alcanza cae en la cuenta propia: nunca se rechaza la petición entera, porque
+ * lo típico no es un ataque sino un `?cuenta=` rancio de un enlace guardado.
+ *
+ * Las dos que van por una CONVERSACIÓN —mover una tarjeta y leer su etapa— no
+ * reciben cuenta ninguna a propósito: la resuelven de la propia fila
+ * (`quienMiraEstaConversacion`), así que no dependen de que el navegador mande
+ * la correcta.
+ *
+ * Ningún rechazo es mudo: el caso típico es una pantalla que manda el id
+ * equivocado, y sin el aviso no hay forma de saber cuál.
  */
 
 type Respuesta<T = undefined> = { success: boolean; message: string; data?: T };
 
 const RUTA = '/embudos';
 
-async function quienLlama(): Promise<QuienMiraLosEmbudos | null> {
+type Contexto = {
+    quien: QuienMiraLosEmbudos;
+    cuentas: Awaited<ReturnType<typeof quienMiraElTablero>>;
+};
+
+async function quienLlama(cuentaPedida?: unknown): Promise<Contexto | null> {
     const user = await currentUser();
     if (!user?.id) return null;
-    return quienMiraLosEmbudos(user);
+    const cuentas = await quienMiraElTablero(user as UsuarioQueMira, cuentaPedida ?? null);
+    return { quien: cuentas.quien, cuentas };
 }
 
 function noManda(quien: QuienMiraLosEmbudos, que: string): Respuesta<never> {
@@ -68,12 +90,20 @@ function noManda(quien: QuienMiraLosEmbudos, que: string): Respuesta<never> {
     return { success: false, message: 'Solo el dueño o un administrador de la cuenta puede hacerlo.' };
 }
 
-export async function tableroDelEmbudoAction(embudoId?: string | null): Promise<Respuesta<TableroDeEmbudo>> {
+export async function tableroDelEmbudoAction(
+    embudoId?: string | null,
+    cuentaPedida?: unknown,
+    asesorPedido?: unknown,
+): Promise<Respuesta<TableroDeEmbudo>> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
         const pedido = typeof embudoId === 'string' ? embudoId : null;
-        const data = await elTableroDelEmbudo(quien, pedido);
+        const data = await elTableroDelEmbudo(ctx.quien, pedido, asesorPedido, {
+            disponibles: ctx.cuentas.cuentas,
+            puedeElegir: ctx.cuentas.puedeElegirCuenta,
+            recortadas: ctx.cuentas.cuentasRecortadas,
+        });
         return { success: true, message: 'Listo.', data };
     } catch (error) {
         console.error('[embudos] no se pudo cargar el tablero', error);
@@ -81,10 +111,14 @@ export async function tableroDelEmbudoAction(embudoId?: string | null): Promise<
     }
 }
 
-export async function crearEmbudoAction(nombre: unknown): Promise<Respuesta<{ id: string }>> {
+export async function crearEmbudoAction(
+    nombre: unknown,
+    cuentaPedida?: unknown,
+): Promise<Respuesta<{ id: string }>> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
         if (!quien.manda) return noManda(quien, 'crear');
         const limpio = comoNombre(nombre);
         if (!limpio) return { success: false, message: 'Ponle un nombre al embudo.' };
@@ -101,15 +135,20 @@ export async function crearEmbudoAction(nombre: unknown): Promise<Respuesta<{ id
     }
 }
 
-export async function renombrarEmbudoAction(embudoId: unknown, nombre: unknown): Promise<Respuesta> {
+export async function renombrarEmbudoAction(
+    embudoId: unknown,
+    nombre: unknown,
+    cuentaPedida?: unknown,
+): Promise<Respuesta> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
         if (!quien.manda) return noManda(quien, 'renombrar');
         const limpio = comoNombre(nombre);
         if (typeof embudoId !== 'string' || !limpio) return { success: false, message: 'Ponle un nombre al embudo.' };
         const ok = await renombrarEmbudo(quien.cuentaId, embudoId, limpio);
-        if (!ok) return { success: false, message: 'Ese embudo no está en tu cuenta.' };
+        if (!ok) return { success: false, message: 'Ese embudo no está en esta cuenta.' };
         revalidatePath(RUTA);
         return { success: true, message: 'Embudo renombrado.' };
     } catch (error) {
@@ -118,14 +157,15 @@ export async function renombrarEmbudoAction(embudoId: unknown, nombre: unknown):
     }
 }
 
-export async function usarPorDefectoAction(embudoId: unknown): Promise<Respuesta> {
+export async function usarPorDefectoAction(embudoId: unknown, cuentaPedida?: unknown): Promise<Respuesta> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
         if (!quien.manda) return noManda(quien, 'por defecto');
         if (typeof embudoId !== 'string') return { success: false, message: 'Embudo no válido.' };
         const ok = await usarPorDefecto(quien.cuentaId, embudoId);
-        if (!ok) return { success: false, message: 'Ese embudo no está en tu cuenta.' };
+        if (!ok) return { success: false, message: 'Ese embudo no está en esta cuenta.' };
         revalidatePath(RUTA);
         return { success: true, message: 'Ahora las conversaciones sin asesor caen en este embudo.' };
     } catch (error) {
@@ -134,14 +174,15 @@ export async function usarPorDefectoAction(embudoId: unknown): Promise<Respuesta
     }
 }
 
-export async function borrarEmbudoAction(embudoId: unknown): Promise<Respuesta> {
+export async function borrarEmbudoAction(embudoId: unknown, cuentaPedida?: unknown): Promise<Respuesta> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
         if (!quien.manda) return noManda(quien, 'borrar');
         if (typeof embudoId !== 'string') return { success: false, message: 'Embudo no válido.' };
         const ok = await borrarEmbudo(quien.cuentaId, embudoId);
-        if (!ok) return { success: false, message: 'Ese embudo no está en tu cuenta.' };
+        if (!ok) return { success: false, message: 'Ese embudo no está en esta cuenta.' };
         revalidatePath(RUTA);
         return { success: true, message: 'Embudo eliminado. Sus conversaciones siguen intactas.' };
     } catch (error) {
@@ -150,19 +191,24 @@ export async function borrarEmbudoAction(embudoId: unknown): Promise<Respuesta> 
     }
 }
 
-export async function guardarEtapasAction(embudoId: unknown, etapas: unknown): Promise<Respuesta> {
+export async function guardarEtapasAction(
+    embudoId: unknown,
+    etapas: unknown,
+    cuentaPedida?: unknown,
+): Promise<Respuesta> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
         if (!quien.manda) return noManda(quien, 'etapas');
         if (typeof embudoId !== 'string' || !(await esDeLaCuenta(quien.cuentaId, embudoId))) {
-            return { success: false, message: 'Ese embudo no está en tu cuenta.' };
+            return { success: false, message: 'Ese embudo no está en esta cuenta.' };
         }
         const actuales = await lasEtapasDe([embudoId]);
         const lista = comoListaDeEtapas(etapas, new Set(actuales.map((e) => e.id)));
         if (!lista.ok) return { success: false, message: lista.motivo };
         const ok = await guardarEtapas(quien.cuentaId, embudoId, lista.etapas);
-        if (!ok) return { success: false, message: 'Ese embudo no está en tu cuenta.' };
+        if (!ok) return { success: false, message: 'Ese embudo no está en esta cuenta.' };
         revalidatePath(RUTA);
         return { success: true, message: 'Etapas guardadas.' };
     } catch (error) {
@@ -172,13 +218,14 @@ export async function guardarEtapasAction(embudoId: unknown, etapas: unknown): P
 }
 
 /**
- * Qué embudo tiene cada persona del equipo. Solo personas de ESTA cuenta: una
+ * Qué embudo tiene cada persona del equipo. Solo personas de ESA cuenta: una
  * lista que llega de fuera no puede darle un embudo a alguien de otra.
  */
-export async function asignarEmbudosAction(pares: unknown): Promise<Respuesta> {
+export async function asignarEmbudosAction(pares: unknown, cuentaPedida?: unknown): Promise<Respuesta> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
         if (!quien.manda) return noManda(quien, 'asignar');
         if (!Array.isArray(pares)) return { success: false, message: 'La lista no es válida.' };
 
@@ -216,7 +263,7 @@ export async function asignarEmbudosAction(pares: unknown): Promise<Respuesta> {
 }
 
 /**
- * La conversación, comprobada contra la cuenta de quien llama, y si quien mira
+ * La conversación, con la cuenta resuelta de su PROPIA fila, y si quien mira
  * puede moverla.
  *
  * Lo preguntan los DOS caminos que tocan la etapa de una conversación —el
@@ -224,29 +271,46 @@ export async function asignarEmbudosAction(pares: unknown): Promise<Respuesta> {
  * condición escrita en cada uno, el día que se afine una la otra se queda
  * atrás, y aquí eso es un asesor moviendo lo que no lleva.
  *
+ * La cuenta sale de la fila y se comprueba contra las que esta persona alcanza
+ * (`quienMiraEstaConversacion`), no contra la suya a secas: con el selector de
+ * cuenta puesto, exigir la propia rechazaba la conversación de una hija estando
+ * en su tablero — y en Chats, que ya enseña las líneas de las hijas, la cabecera
+ * decía «no es de tu cuenta» sobre una conversación perfectamente alcanzable.
+ *
  * `puedeMover` se DEVUELVE en vez de rechazar, porque leer la etapa de una
- * conversación de la cuenta no es moverla: la cabecera la enseña de solo
+ * conversación que se alcanza no es moverla: la cabecera la enseña de solo
  * lectura diciendo por qué. Quien rechaza es quien escribe.
  */
 async function laConversacion(
-    quien: QuienMiraLosEmbudos,
     sessionId: unknown,
 ): Promise<
-    { ok: false; message: string } | { ok: true; id: number; asesorId: string | null; puedeMover: boolean }
+    | { ok: false; message: string }
+    | { ok: true; id: number; quien: QuienMiraLosEmbudos; asesorId: string | null; puedeMover: boolean }
 > {
+    const user = await currentUser();
+    if (!user?.id) return { ok: false, message: 'No autorizado.' };
+
     const id = typeof sessionId === 'number' ? sessionId : Number(sessionId);
     if (!Number.isInteger(id) || id <= 0) return { ok: false, message: 'Datos no válidos.' };
     const sesion = await db.session.findUnique({
         where: { id },
         select: { userId: true, assignedAdvisorId: true },
     });
-    if (!sesion || sesion.userId !== quien.cuentaId) {
-        console.warn('[embudos] se pidió una conversación de otra cuenta', { id, cuenta: quien.cuentaId });
+    if (!sesion) return { ok: false, message: 'Esa conversación no existe.' };
+
+    const quien = await quienMiraEstaConversacion(user as UsuarioQueMira, sesion.userId);
+    if (!quien) {
+        console.warn('[embudos] se pidió una conversación de una cuenta que no se alcanza', {
+            id,
+            cuenta: sesion.userId,
+            persona: user.id,
+        });
         return { ok: false, message: 'Esa conversación no es de tu cuenta.' };
     }
     return {
         ok: true,
         id,
+        quien,
         asesorId: sesion.assignedAdvisorId ?? null,
         puedeMover: puedeMoverLaTarjeta(quien, sesion.assignedAdvisorId),
     };
@@ -279,6 +343,10 @@ async function elEmbudoDe(
  * mientras tanto— no deja una posición guardada en un embudo que ya no es el
  * suyo, y lo dice.
  *
+ * Esa regla es también la razón por la que el filtro de asesor puede cambiar de
+ * embudo: filtrando a alguien cuyo embudo es otro, el tablero se va a SU embudo,
+ * porque es el único donde sus tarjetas se pueden mover.
+ *
  * La llaman el tablero (arrastrando) y la cabecera del chat (el selector de
  * etapa). **Una sola acción para las dos**, con su validación y su permiso: un
  * segundo camino sería una segunda puerta que mantener a la par.
@@ -291,12 +359,11 @@ async function elEmbudoDe(
  */
 export async function moverTarjetaAction(sessionId: unknown, etapaId: unknown): Promise<Respuesta> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
         if (typeof etapaId !== 'string' || !etapaId) return { success: false, message: 'Datos no válidos.' };
 
-        const conversacion = await laConversacion(quien, sessionId);
+        const conversacion = await laConversacion(sessionId);
         if (!conversacion.ok) return { success: false, message: conversacion.message };
+        const { quien } = conversacion;
         if (!conversacion.puedeMover) {
             console.warn('[embudos] un asesor intentó mover una conversación que no lleva', {
                 id: conversacion.id,
@@ -368,11 +435,9 @@ export async function etapaDeLaConversacionAction(
     sessionId: unknown,
 ): Promise<Respuesta<EtapaDeLaConversacion>> {
     try {
-        const quien = await quienLlama();
-        if (!quien) return { success: false, message: 'No autorizado.' };
-
-        const conversacion = await laConversacion(quien, sessionId);
+        const conversacion = await laConversacion(sessionId);
         if (!conversacion.ok) return { success: false, message: conversacion.message };
+        const { quien } = conversacion;
 
         const { embudoId, nombre } = await elEmbudoDe(quien, conversacion.asesorId);
         const vacio: EtapaDeLaConversacion = {

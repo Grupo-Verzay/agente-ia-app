@@ -16,8 +16,10 @@ import { toast } from 'sonner';
 import {
     ArrowDown,
     ArrowUp,
+    Building2,
     Check,
     ChevronDown,
+    Filter,
     Kanban,
     ListOrdered,
     Lock,
@@ -78,10 +80,16 @@ import {
     elColorDeLaEtapa,
     elEmbudoPorDefecto,
     puedeMoverLaTarjeta,
+    type Embudo,
     type Etapa,
 } from '@/lib/embudos';
+import {
+    SIN_ASIGNAR,
+    TODOS_LOS_ASESORES,
+    type CuentaDelTablero,
+} from '@/lib/embudos-de-la-cuenta';
 import type { KanbanCard } from '@/actions/crm-kanban-actions';
-import type { TableroDeEmbudo, TarjetaDeEmbudo } from '@/lib/tablero-de-embudo.server';
+import type { PersonaDelEquipo, TableroDeEmbudo, TarjetaDeEmbudo } from '@/lib/tablero-de-embudo.server';
 import { huboCambioDeEtapa } from '@/lib/etapa-desde-el-chat';
 import {
     asignarEmbudosAction,
@@ -202,6 +210,8 @@ function Columna({
     etapa,
     posicion,
     tarjetas,
+    total,
+    buscando,
     manda,
     onEditar,
     children,
@@ -209,6 +219,9 @@ function Columna({
     etapa: Etapa;
     posicion: number;
     tarjetas: TarjetaDeEmbudo[];
+    /** El total DE VERDAD de la etapa: un `COUNT`, no las tarjetas cargadas. */
+    total: number;
+    buscando: boolean;
     manda: boolean;
     onEditar: () => void;
     children: React.ReactNode;
@@ -225,7 +238,21 @@ function Columna({
                     {etapa.nombre}
                 </span>
                 <div className="flex shrink-0 items-center gap-1">
-                    <Badge className="border-0 bg-white/20 text-xs font-medium text-white">{tarjetas.length}</Badge>
+                    {/* El número es el `COUNT` de la etapa, no `tarjetas.length`:
+                        el tablero trae como mucho `TOPE_DE_TARJETAS`, así que
+                        contar lo cargado da «cuántas de las primeras 500
+                        cayeron aquí». Buscando sí se cuenta lo que casa, que es
+                        lo que hay delante. */}
+                    <Badge
+                        className="border-0 bg-white/20 text-xs font-medium text-white"
+                        title={
+                            buscando
+                                ? `${tarjetas.length} de ${total} coinciden con la búsqueda`
+                                : `${total} ${total === 1 ? 'conversación' : 'conversaciones'} en esta etapa`
+                        }
+                    >
+                        {buscando ? `${tarjetas.length}/${total}` : total}
+                    </Badge>
                     {manda && (
                         <button
                             type="button"
@@ -254,6 +281,224 @@ function Columna({
                 )}
             </div>
         </div>
+    );
+}
+
+/**
+ * El selector de CUENTA: una, y solo una.
+ *
+ * No reutiliza `components/shared/SelectorDeCuentas.tsx` a propósito, y el
+ * motivo no es estético: aquel es de casillas porque su encargo es **marcar
+ * varias y consolidarlas**, y aquí consolidar es imposible —las columnas de un
+ * tablero son las etapas de un embudo, y un embudo es de una cuenta—. Darle una
+ * prop para elegir «una o varias» sería un componente cuya documentación se
+ * contradice a sí misma. Lo que sí se comparte es lo que importa: **quién puede
+ * elegir qué**, que lo decide el servidor (`resolverLaCuentaDelTablero`) con la
+ * misma regla de alcance hacia abajo del CRM.
+ *
+ * Lleva buscador a partir de unas cuantas cuentas: la cartera de una cuenta de
+ * la casa o de un reseller grande son decenas, y una lista así no se recorre
+ * con los ojos.
+ */
+const CUENTAS_PARA_BUSCAR = 8;
+
+function SelectorDeLaCuenta({
+    cuentas,
+    elegida,
+    recortadas,
+    onElegir,
+}: {
+    cuentas: CuentaDelTablero[];
+    elegida: string;
+    recortadas: boolean;
+    onElegir: (id: string) => void;
+}) {
+    const [abierto, setAbierto] = useState(false);
+    const [filtro, setFiltro] = useState('');
+
+    const conBuscador = cuentas.length >= CUENTAS_PARA_BUSCAR;
+    const visibles = useMemo(() => {
+        const q = filtro.trim().toLowerCase();
+        if (!q) return cuentas;
+        return cuentas.filter((c) => c.nombre.toLowerCase().includes(q));
+    }, [cuentas, filtro]);
+
+    const actual = cuentas.find((c) => c.id === elegida);
+    const esOtra = Boolean(actual) && !actual!.esLaPropia;
+
+    return (
+        <DropdownMenu
+            open={abierto}
+            onOpenChange={(v) => {
+                setAbierto(v);
+                if (!v) setFiltro('');
+            }}
+        >
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="outline"
+                    // Azul cuando se está mirando otra cuenta: lo que se crea y
+                    // lo que se mueve es de ella, y eso tiene que notarse.
+                    className={cn('h-10 max-w-[16rem] shrink-0 justify-start gap-2', esOtra && 'border-blue-500 text-blue-600')}
+                    title={esOtra ? `Estás viendo el tablero de ${actual?.nombre}` : undefined}
+                >
+                    <Building2 className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate">{actual?.nombre ?? 'Cuenta'}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+                </Button>
+            </DropdownMenuTrigger>
+            {/* La lista crece con la cartera, así que lleva su propio scroll
+                acotado al hueco de VERDAD y no a `vh`: con el botón abajo, un
+                `70vh` a secas abre un menú que se sale por arriba. */}
+            <DropdownMenuContent
+                align="start"
+                className="w-72 overflow-y-auto"
+                style={{ maxHeight: 'min(70vh, var(--radix-dropdown-menu-content-available-height))' }}
+            >
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Cuentas que administras
+                </DropdownMenuLabel>
+                {conBuscador && (
+                    <div className="px-2 pb-1.5">
+                        <Input
+                            value={filtro}
+                            onChange={(e) => setFiltro(e.target.value)}
+                            placeholder="Buscar cuenta…"
+                            className="h-8"
+                            aria-label="Buscar cuenta"
+                            // Radix devuelve el foco al disparador con cada
+                            // tecla si no se le dice que esto no es un atajo.
+                            onKeyDown={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                )}
+                {visibles.map((c) => (
+                    <DropdownMenuItem key={c.id} onSelect={() => onElegir(c.id)} className="gap-2">
+                        <span className="flex h-4 w-4 items-center justify-center">
+                            {c.id === elegida && <Check className="h-4 w-4" />}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate" title={c.nombre}>
+                            {c.nombre}
+                        </span>
+                        {c.esLaPropia && (
+                            <span className="shrink-0 text-[10px] uppercase text-muted-foreground">la tuya</span>
+                        )}
+                    </DropdownMenuItem>
+                ))}
+                {visibles.length === 0 && (
+                    <p className="px-2 py-3 text-center text-xs text-muted-foreground">Ninguna coincide.</p>
+                )}
+                {recortadas && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <p className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                            Se muestran las primeras {cuentas.length}. Entra a la cuenta para ver su tablero si no
+                            está en la lista.
+                        </p>
+                    </>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+/**
+ * El filtro de ASESOR. «Todos» es el estado de partida, no una opción más.
+ *
+ * Y la parte que hay que conocer antes de tocarlo: **elegir a un asesor puede
+ * cambiar de embudo**. Si el suyo es otro, el tablero se va a SU embudo, porque
+ * es el único donde sus tarjetas tienen posición y donde moverlas vale
+ * (`moverTarjetaAction` deduce el embudo de la conversación). Por eso cada
+ * nombre lleva al lado el embudo al que llevaría, cuando no es el abierto: sin
+ * eso, el tablero cambiaría de columnas sin que nadie entienda por qué.
+ */
+function FiltroDeAsesores({
+    equipo,
+    asignaciones,
+    embudos,
+    embudoId,
+    elegido,
+    nombres,
+    onElegir,
+}: {
+    equipo: PersonaDelEquipo[];
+    asignaciones: Record<string, string>;
+    embudos: Embudo[];
+    embudoId: string | null;
+    elegido: string | null;
+    nombres: Record<string, string>;
+    onElegir: (valor: string) => void;
+}) {
+    const porDefecto = elEmbudoPorDefecto(embudos);
+    const nombreDelEmbudo = (id: string | null) => embudos.find((e) => e.id === id)?.nombre ?? null;
+
+    const rotulo = !elegido
+        ? 'Todos los asesores'
+        : elegido === SIN_ASIGNAR
+          ? 'Sin asesor'
+          : (nombres[elegido] ?? 'Asesor');
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="outline"
+                    className={cn('h-10 max-w-[14rem] shrink-0 justify-start gap-2', elegido && 'border-blue-500 text-blue-600')}
+                >
+                    <Filter className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate">{rotulo}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+                align="start"
+                className="w-72 overflow-y-auto"
+                style={{ maxHeight: 'min(70vh, var(--radix-dropdown-menu-content-available-height))' }}
+            >
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Ver en el tablero</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => onElegir(TODOS_LOS_ASESORES)} className="gap-2">
+                    <span className="flex h-4 w-4 items-center justify-center">
+                        {!elegido && <Check className="h-4 w-4" />}
+                    </span>
+                    <span className="min-w-0 flex-1">Todos los asesores</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onElegir(SIN_ASIGNAR)} className="gap-2">
+                    <span className="flex h-4 w-4 items-center justify-center">
+                        {elegido === SIN_ASIGNAR && <Check className="h-4 w-4" />}
+                    </span>
+                    <span className="min-w-0 flex-1">Sin asesor asignado</span>
+                    {porDefecto && (
+                        <span className="shrink-0 text-[10px] uppercase text-muted-foreground" title="Las conversaciones sin asesor caen en el embudo por defecto">
+                            {porDefecto.nombre}
+                        </span>
+                    )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {equipo.map((p) => {
+                    const suyo = asignaciones[p.id];
+                    const irA = nombreDelEmbudo(suyo && embudos.some((e) => e.id === suyo) ? suyo : (porDefecto?.id ?? null));
+                    const cambiaDeEmbudo = (suyo && embudos.some((e) => e.id === suyo) ? suyo : porDefecto?.id) !== embudoId;
+                    return (
+                        <DropdownMenuItem key={p.id} onSelect={() => onElegir(p.id)} className="gap-2">
+                            <span className="flex h-4 w-4 items-center justify-center">
+                                {elegido === p.id && <Check className="h-4 w-4" />}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate" title={p.nombre}>
+                                {p.nombre}
+                            </span>
+                            {cambiaDeEmbudo && irA && (
+                                <span
+                                    className="shrink-0 text-[10px] uppercase text-muted-foreground"
+                                    title={`Su embudo es «${irA}»: el tablero cambiará a ese`}
+                                >
+                                    → {irA}
+                                </span>
+                            )}
+                        </DropdownMenuItem>
+                    );
+                })}
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 
@@ -286,25 +531,69 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-    const recargar = useCallback(async (pedido?: string | null) => {
-        setCargando(true);
-        const r = await pedir(() => tableroDelEmbudoAction(pedido ?? null));
-        setCargando(false);
-        if (!r.success || !r.data) {
-            toast.error(r.message);
-            return;
-        }
-        setTablero(r.data);
-        // El embudo abierto queda en la dirección, para volver a él al recargar.
-        try {
-            const url = new URL(window.location.href);
-            if (r.data.embudoId && r.data.manda) url.searchParams.set('embudo', r.data.embudoId);
-            else url.searchParams.delete('embudo');
-            window.history.replaceState(null, '', url.toString());
-        } catch {
-            // Sin dirección que tocar no pasa nada: el tablero ya está pintado.
-        }
-    }, []);
+    /*
+     * Dónde está puesto el tablero: la cuenta, el embudo y el asesor.
+     *
+     * Va en un `ref` y no en las dependencias de `recargar` para que esa función
+     * no cambie de identidad: la usa un efecto, y un `useCallback` que se rehace
+     * en cada pintado lo volvería a disparar. Se actualiza donde de verdad
+     * cambia —al volver del servidor—, que es lo único que decide de verdad
+     * dónde está puesto.
+     */
+    const puesto = useRef({ cuenta: inicial.cuentaId, embudo: inicial.embudoId, asesor: inicial.asesor });
+
+    const recargar = useCallback(
+        async (opciones?: { embudo?: string | null; cuenta?: string; asesor?: string | null }) => {
+            const cuenta = opciones?.cuenta ?? puesto.current.cuenta;
+            // Cambiar de CUENTA no arrastra el embudo ni el asesor de la
+            // anterior: son ids de otra cuenta, así que el servidor los
+            // descartaría y el tablero abriría en su embudo por defecto de
+            // todas formas. Mandarlos sería pedir algo que no existe.
+            const cambiaDeCuenta = cuenta !== puesto.current.cuenta;
+            const embudo = cambiaDeCuenta
+                ? null
+                : opciones && 'embudo' in opciones
+                  ? (opciones.embudo ?? null)
+                  : puesto.current.embudo;
+            const asesor = cambiaDeCuenta
+                ? null
+                : opciones && 'asesor' in opciones
+                  ? (opciones.asesor ?? null)
+                  : puesto.current.asesor;
+
+            setCargando(true);
+            const r = await pedir(() => tableroDelEmbudoAction(embudo, cuenta, asesor));
+            setCargando(false);
+            if (!r.success || !r.data) {
+                toast.error(r.message);
+                return;
+            }
+            setTablero(r.data);
+            puesto.current = { cuenta: r.data.cuentaId, embudo: r.data.embudoId, asesor: r.data.asesor };
+            // Las tres coordenadas quedan en la dirección, para volver a ellas
+            // al recargar y para poder guardar el enlace. **Lo que se escribe es
+            // solo lo que no es el estado de siempre**: la URL limpia es la
+            // cuenta propia, todos los asesores y el embudo por defecto, o sea
+            // la que ya funcionaba antes de que esto existiera.
+            try {
+                const url = new URL(window.location.href);
+                const poner = (clave: string, valor: string | null) => {
+                    if (valor) url.searchParams.set(clave, valor);
+                    else url.searchParams.delete(clave);
+                };
+                poner('embudo', r.data.manda ? r.data.embudoId : null);
+                poner('cuenta', r.data.esOtraCuenta ? r.data.cuentaId : null);
+                poner('asesor', r.data.asesor);
+                window.history.replaceState(null, '', url.toString());
+            } catch {
+                // Sin dirección que tocar no pasa nada: el tablero ya está pintado.
+            }
+        },
+        // Sin dependencias a propósito: dónde está puesto el tablero se lee del
+        // `ref`, así que esta función no cambia de identidad y el efecto que la
+        // usa no se vuelve a disparar en cada pintado.
+        [],
+    );
 
     /*
      * Si se movió una etapa desde la cabecera del chat, el tablero se pide otra
@@ -321,7 +610,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
      * leerla, así que esto corre una sola vez por cambio.
      */
     useEffect(() => {
-        if (huboCambioDeEtapa()) void recargar(inicial.embudoId);
+        if (huboCambioDeEtapa()) void recargar({ embudo: inicial.embudoId });
     }, [recargar, inicial.embudoId]);
 
     const visibles = useMemo(() => {
@@ -373,44 +662,44 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     // ─── Crear / renombrar / borrar / por defecto ──────────────────────────
     const crear = async () => {
         setGuardando(true);
-        const r = await pedir(() => crearEmbudoAction(nombre));
+        const r = await pedir(() => crearEmbudoAction(nombre, tablero.cuentaId));
         setGuardando(false);
         if (!r.success || !r.data) return toast.error(r.message);
         setCrearAbierto(false);
         setNombre('');
         toast.success('Embudo creado. Ajusta sus etapas.');
-        await recargar(r.data.id);
+        await recargar({ embudo: r.data.id });
         abrirEtapasDe(r.data.id);
     };
 
     const renombrar = async () => {
         if (!actual) return;
         setGuardando(true);
-        const r = await pedir(() => renombrarEmbudoAction(actual.id, nombre));
+        const r = await pedir(() => renombrarEmbudoAction(actual.id, nombre, tablero.cuentaId));
         setGuardando(false);
         if (!r.success) return toast.error(r.message);
         setRenombrarAbierto(false);
         toast.success(r.message);
-        await recargar(actual.id);
+        await recargar({ embudo: actual.id });
     };
 
     const borrar = async () => {
         if (!actual) return;
         setGuardando(true);
-        const r = await pedir(() => borrarEmbudoAction(actual.id));
+        const r = await pedir(() => borrarEmbudoAction(actual.id, tablero.cuentaId));
         setGuardando(false);
         setBorrarAbierto(false);
         if (!r.success) return toast.error(r.message);
         toast.success(r.message);
-        await recargar(null);
+        await recargar({ embudo: null });
     };
 
     const marcarPorDefecto = async () => {
         if (!actual) return;
-        const r = await pedir(() => usarPorDefectoAction(actual.id));
+        const r = await pedir(() => usarPorDefectoAction(actual.id, tablero.cuentaId));
         if (!r.success) return toast.error(r.message);
         toast.success(r.message);
-        await recargar(actual.id);
+        await recargar({ embudo: actual.id });
     };
 
     // ─── Etapas ─────────────────────────────────────────────────────────────
@@ -429,7 +718,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
         setEtapasAbierto(true);
         if (fuente === null && id) {
             // Embudo recién creado: se piden sus etapas y se rellenan.
-            void pedir(() => tableroDelEmbudoAction(id)).then((r) => {
+            void pedir(() => tableroDelEmbudoAction(id, tablero.cuentaId, tablero.asesor)).then((r) => {
                 if (r.success && r.data) {
                     setBorradorEtapas(
                         r.data.etapas.map((e) => ({ clave: e.id, id: e.id, nombre: e.nombre, color: e.color })),
@@ -458,13 +747,14 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
             guardarEtapasAction(
                 destino,
                 borradorEtapas.map((e) => ({ id: e.id, nombre: e.nombre, color: e.color })),
+                tablero.cuentaId,
             ),
         );
         setGuardando(false);
         if (!r.success) return toast.error(r.message);
         setEtapasAbierto(false);
         toast.success(r.message);
-        await recargar(destino);
+        await recargar({ embudo: destino });
     };
 
     // ─── Asesores ───────────────────────────────────────────────────────────
@@ -476,12 +766,12 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     const guardarAsesores = async () => {
         setGuardando(true);
         const pares = tablero.equipo.map((p) => ({ personaId: p.id, embudoId: borradorAsesores[p.id] ?? null }));
-        const r = await pedir(() => asignarEmbudosAction(pares));
+        const r = await pedir(() => asignarEmbudosAction(pares, tablero.cuentaId));
         setGuardando(false);
         if (!r.success) return toast.error(r.message);
         setAsesoresAbierto(false);
         toast.success(r.message);
-        await recargar(embudoId);
+        await recargar({ embudo: embudoId });
     };
 
     // ─── Barra ──────────────────────────────────────────────────────────────
@@ -499,7 +789,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                 {embudos.map((e) => {
                     const cuantos = Object.values(tablero.asignaciones).filter((x) => x === e.id).length;
                     return (
-                        <DropdownMenuItem key={e.id} onSelect={() => void recargar(e.id)} className="gap-2">
+                        <DropdownMenuItem key={e.id} onSelect={() => void recargar({ embudo: e.id })} className="gap-2">
                             <span className="flex h-4 w-4 items-center justify-center">
                                 {e.id === embudoId && <Check className="h-4 w-4" />}
                             </span>
@@ -562,6 +852,39 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
 
     const recortadas = tablero.total > tarjetas.length;
 
+    /*
+     * Los tres mandos van juntos en `filtros`, que es el carril que se desplaza
+     * de `BarraDeAcciones`: son lo que acota qué se está mirando —la cuenta, el
+     * embudo y el asesor—, y el buscador y el `⋯` se quedan fijos en sus huecos.
+     */
+    const filtros = (
+        <>
+            {tablero.puedeElegirCuenta && (
+                <SelectorDeLaCuenta
+                    cuentas={tablero.cuentas}
+                    elegida={tablero.cuentaId}
+                    recortadas={tablero.cuentasRecortadas}
+                    onElegir={(id) => {
+                        if (id === tablero.cuentaId) return;
+                        void recargar({ cuenta: id });
+                    }}
+                />
+            )}
+            {selector}
+            {manda && embudoId && tablero.equipo.length > 0 && (
+                <FiltroDeAsesores
+                    equipo={tablero.equipo}
+                    asignaciones={tablero.asignaciones}
+                    embudos={embudos}
+                    embudoId={embudoId}
+                    elegido={tablero.asesor}
+                    nombres={nombres}
+                    onElegir={(valor) => void recargar({ asesor: valor })}
+                />
+            )}
+        </>
+    );
+
     // ─── Pintado ────────────────────────────────────────────────────────────
     return (
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 p-2 sm:p-3">
@@ -578,10 +901,17 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                         />
                     </div>
                 }
-                filtros={selector}
+                filtros={filtros}
                 secundarias={
                     <>
-                        <span className="flex items-center gap-1 whitespace-nowrap text-sm text-muted-foreground" title="Conversaciones en este embudo">
+                        <span
+                            className="flex items-center gap-1 whitespace-nowrap text-sm text-muted-foreground"
+                            title={
+                                tablero.asesor
+                                    ? 'Conversaciones de este asesor en este embudo'
+                                    : 'Conversaciones en este embudo'
+                            }
+                        >
                             <Users className="h-3.5 w-3.5" />
                             <span className="font-medium text-foreground">
                                 {busqueda.trim() ? `${visibles.length}/${tablero.total}` : tablero.total}
@@ -591,7 +921,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                             variant="outline"
                             size="icon"
                             className="h-10 w-10 shrink-0"
-                            onClick={() => void recargar(embudoId)}
+                            onClick={() => void recargar({})}
                             title="Actualizar"
                             aria-label="Actualizar"
                             disabled={cargando}
@@ -604,9 +934,21 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                 acciones={acciones}
             />
 
+            {/* Mirando otra cuenta, lo que se crea y lo que se mueve es de
+                ella. Sin decirlo, se edita el embudo del cliente creyendo estar
+                en el propio. */}
+            {tablero.esOtraCuenta && (
+                <p className="flex items-center gap-1.5 text-xs text-blue-600">
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    Estás viendo el tablero de <span className="font-medium">{tablero.cuentaNombre}</span>. Lo que
+                    crees o muevas aquí es de esa cuenta.
+                </p>
+            )}
+
             {recortadas && (
                 <p className="text-xs text-muted-foreground">
-                    Se muestran las {tarjetas.length} conversaciones más recientes de {tablero.total}. Usa el buscador para encontrar las demás.
+                    Se muestran las {tarjetas.length} conversaciones más recientes de {tablero.total}. Los números de
+                    cada columna son el total de verdad; usa el buscador para encontrar las demás.
                 </p>
             )}
 
@@ -643,6 +985,8 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                                         etapa={etapa}
                                         posicion={i}
                                         tarjetas={suyas}
+                                        total={tablero.totales[etapa.id] ?? suyas.length}
+                                        buscando={Boolean(busqueda.trim())}
                                         manda={manda}
                                         onEditar={() => abrirEtapasDe()}
                                     >

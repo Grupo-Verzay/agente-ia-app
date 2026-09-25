@@ -4,6 +4,11 @@
  * y un módulo que monta `/embudos` (sin ni un módulo el layout pinta un
  * esqueleto y no se mediría nada). Los embudos NO se siembran: los crea la
  * sonda por la pantalla, que es lo que se viene a probar.
+ *
+ * Y una cuenta HIJA con sus propias conversaciones, vinculada bajo la del dueño:
+ * es lo que hace que el selector de cuenta se pinte. Sin ella, el servidor
+ * devuelve `puedeElegirCuenta: false` —con una sola cuenta no hay nada que
+ * elegir— y la sonda mediría una pantalla sin el mando que viene a probar.
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -36,17 +41,32 @@ if ((await db.module.count({ where: { route: "/embudos" } })) === 0) {
     });
 }
 
-await db.session.deleteMany({ where: { userId: dueno.id } });
+// La cuenta hija y su equipo. Es una cuenta de verdad —sin `ownerId`—, así que
+// lo único que la cuelga del dueño es la fila de `linked_accounts`.
+const hija = await persona("hija@embudos.test", "Verzay Ventas", { company: "Verzay Ventas" });
+const hijaAsesor = await persona("sofia@embudos.test", "Sofía Ramos", {
+    ownerId: hija.id,
+    advisorRole: "agente",
+});
+await db.linkedAccount.upsert({
+    where: { masterUserId_linkedUserId: { masterUserId: dueno.id, linkedUserId: hija.id } },
+    update: {},
+    create: { masterUserId: dueno.id, linkedUserId: hija.id },
+});
+
+await db.session.deleteMany({ where: { userId: { in: [dueno.id, hija.id] } } });
 const conversaciones = [
-    ["María Fernanda Gil", ana.id],
-    ["Julián Restrepo", ana.id],
-    ["Ferretería El Tornillo", beto.id],
-    ["Marta Lucía Rendón", null],
+    [dueno.id, "María Fernanda Gil", ana.id],
+    [dueno.id, "Julián Restrepo", ana.id],
+    [dueno.id, "Ferretería El Tornillo", beto.id],
+    [dueno.id, "Marta Lucía Rendón", null],
+    [hija.id, "Panadería La Espiga", hijaAsesor.id],
+    [hija.id, "Distribuidora Andina", null],
 ];
-for (const [i, [nombre, asesor]] of conversaciones.entries()) {
+for (const [i, [cuenta, nombre, asesor]] of conversaciones.entries()) {
     await db.session.create({
         data: {
-            userId: dueno.id,
+            userId: cuenta,
             remoteJid: `57300000000${i}@s.whatsapp.net`,
             pushName: nombre,
             instanceId: "inst-embudos",
@@ -56,5 +76,14 @@ for (const [i, [nombre, asesor]] of conversaciones.entries()) {
     });
 }
 
-console.log(JSON.stringify({ dueno: dueno.id, admin: admin.id, ana: ana.id, beto: beto.id }));
+console.log(
+    JSON.stringify({
+        dueno: dueno.id,
+        admin: admin.id,
+        ana: ana.id,
+        beto: beto.id,
+        hija: hija.id,
+        hijaAsesor: hijaAsesor.id,
+    }),
+);
 await db.$disconnect();
