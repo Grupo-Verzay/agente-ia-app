@@ -10,6 +10,7 @@ import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
 import { cn } from "@/lib/utils";
 import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2 } from "@/lib/cabeceras-de-chats";
 import { LISTA_DE_CHATS } from "@/lib/lista-de-chats";
+import { RECORTE_A_LO_ANCHO, TIPOGRAFIA_DEL_NOMBRE } from "@/lib/nombre-del-contacto";
 import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import type { TabCounts } from "./chat-sidebar.types";
 import {
@@ -159,7 +160,7 @@ export function CachedSidebar() {
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate app-item-title capitalize">
+                      <span className={cn(TIPOGRAFIA_DEL_NOMBRE, RECORTE_A_LO_ANCHO)}>
                         {c.name || "Sin nombre"}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">

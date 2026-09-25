@@ -8,8 +8,8 @@
 #   2. La `ChatHeader` REAL, con sus acciones de servidor mudas, en Chromium
 #      sobre el CSS del build (o `CSS_DEL_BANCO`), a 1440/1280/1024.
 #
-# `MODO=roto` empaqueta el MISMO arnés contra la `ChatHeader` de `ANTES_REF`
-# (un `git worktree` aparte) y afirma el fallo: la línea recortada. El «antes»
+# `MODO=roto` empaqueta el MISMO arnés contra la `ChatHeader` de cada
+# `ANTES_REF` (un `git worktree` aparte) y afirma su fallo. El «antes»
 # va PINCHADO a un commit, nunca a `origin/main`: en cuanto esto se fusione,
 # `origin/main` sería el «ahora» y el modo roto pasaría sin reproducir nada.
 set -euo pipefail
@@ -19,7 +19,11 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
-ANTES_REF="${ANTES_REF:-6686021}"
+# Dos «antes», uno por vuelta, y cada prueba afirma el suyo:
+#   6686021 — antes de #935: la línea de estado recortada (4 px de alto).
+#   1a1f6a8 — #935: la línea a 11 px, el nombre en `font-bold` y los emojis
+#             cortados a lo alto por el `truncate` en 18 px.
+ANTES_REFS="${ANTES_REF:-6686021 1a1f6a8}"
 export MODO
 
 mkdir -p lib/__tests__/.compilado
@@ -32,22 +36,27 @@ if [ ! -d ".next/static/css" ] && [ -z "${CSS_DEL_BANCO:-}" ]; then
   exit 1
 fi
 
-npx esbuild --version >/dev/null 2>&1 || true
 RAIZ="$(pwd)"
 OUT="$RAIZ/lib/__tests__/.compilado/estado-en-la-cabecera.js"
 
 if [ "$MODO" = "roto" ]; then
-  W="$(mktemp -d)/antes"
-  trap 'git worktree remove --force "$W" >/dev/null 2>&1 || true' EXIT
-  git worktree add -f "$W" "$ANTES_REF" -q
-  ln -s "$RAIZ/node_modules" "$W/node_modules"
-  mkdir -p "$W/lib/__tests__/estado-en-la-cabecera"
-  cp lib/__tests__/estado-en-la-cabecera/* "$W/lib/__tests__/estado-en-la-cabecera/"
-  (cd "$W" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
-      lib/__tests__/estado-en-la-cabecera/entrada.tsx "$OUT")
+  for ref in $ANTES_REFS; do
+    W="$(mktemp -d)/antes"
+    git worktree add -f "$W" "$ref" -q
+    ln -s "$RAIZ/node_modules" "$W/node_modules"
+    mkdir -p "$W/lib/__tests__/estado-en-la-cabecera"
+    cp lib/__tests__/estado-en-la-cabecera/* "$W/lib/__tests__/estado-en-la-cabecera/"
+    (cd "$W" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
+        lib/__tests__/estado-en-la-cabecera/entrada.tsx "$OUT")
+    # El CSS del «antes» sale de SU código: con el de ahora, sus clases
+    # (la de 11 px, por ejemplo) no existirían y se mediría otra cosa.
+    (cd "$W" && npx tailwindcss -i app/globals.css -o "$W/antes.css" >/dev/null 2>&1)
+    cp "$W/antes.css" "$RAIZ/lib/__tests__/.compilado/antes.css"
+    git worktree remove --force "$W" >/dev/null 2>&1 || true
+    ANTES_REF="$ref" CSS_DEL_BANCO="$RAIZ/lib/__tests__/.compilado/antes.css" node --test lib/__tests__/estado-en-la-cabecera.test.mjs "$@"
+  done
 else
   node scripts/empaquetar-con-acciones-mudas.mjs \
     lib/__tests__/estado-en-la-cabecera/entrada.tsx "$OUT"
+  node --test lib/__tests__/estado-en-la-cabecera.test.mjs "$@"
 fi
-
-node --test lib/__tests__/estado-en-la-cabecera.test.mjs "$@"
