@@ -18111,3 +18111,18 @@ pasaba al quitarle el arreglo a un camino** — encontraba el del bloque de al
 lado. Un modo roto que pasa no está en verde, está muerto. Lo que se comprueba
 es una invariante **exacta** y no una vecindad, y se comprobó quitando el
 arreglo de cada uno de los cuatro caminos, uno por uno, para ver el rojo.
+
+## Cómo reportar al terminar
+
+Carlos no es programador. Al terminar una tarea, repórtale en dos líneas
+máximo, en español llano:
+
+1. **Qué quedó arreglado o agregado**, en palabras de negocio, no técnicas.
+2. **Qué debe tocar en pantalla para probarlo**, o «nada que probar» si no
+   aplica.
+
+Nada más. No incluyas nombres de archivos, funciones, variables, números de
+PR, ramas, tablas, causas técnicas, ni el detalle de lo que investigaste. Si
+algo salió mal o quedó a medias, dilo en una línea.
+
+Si él pide el detalle, entonces sí lo explicas.
