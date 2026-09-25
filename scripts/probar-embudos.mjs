@@ -109,18 +109,35 @@ try {
         await abrirEmbudos(pagina);
 
         // Por defecto, TODOS los asesores juntos.
-        const filtro = pagina.getByRole("button", { name: "Todos los asesores" });
-        exigir(await filtro.isVisible(), "dueño: el filtro de asesor abre en «Todos los asesores»");
+        const filtro = pagina.locator('[data-filtro="asesor"]');
+        const cuenta = pagina.locator('[data-selector="cuenta"]');
+        exigir(
+            (await filtro.textContent())?.includes("Todos los asesores"),
+            "dueño: el filtro de asesor abre en «Todos los asesores»",
+        );
         exigir((await tarjetas(pagina)).length === 4, "dueño: con «todos» ve las cuatro");
 
-        // Y el total de cada columna es el de VERDAD, no el de las tarjetas
-        // cargadas: con cuatro conversaciones coinciden, y lo que se comprueba
-        // es que el número sale del tablero y no de contar lo pintado.
-        const totalDeLaPrimera = await pagina.evaluate(() => {
-            const cab = document.querySelector("span.uppercase.text-white")?.closest("div");
-            return cab?.querySelector("div span.rounded-full, div .inline-flex")?.textContent?.trim() ?? null;
-        });
-        exigir(totalDeLaPrimera !== null, `dueño: cada columna lleva su total (${totalDeLaPrimera})`);
+        /*
+         * El total de cada columna. Nada se ha movido todavía, así que las
+         * cuatro están en la primera etapa: el reparto tiene que ser 4-0-0.
+         *
+         * Con cuatro conversaciones este número coincide con el de tarjetas
+         * pintadas; lo que se comprueba aquí es que sale del tablero y que cae
+         * en la columna que le toca. Que sea un `COUNT` y no un `length` lo
+         * ejerce el banco de Postgres, con 520 conversaciones —o sea más que el
+         * tope—, que es el único sitio donde los dos números se separan.
+         */
+        const porColumna = await pagina.$$eval("span.uppercase.text-white", (cabs) =>
+            cabs.map((c) => {
+                const fila = c.parentElement;
+                const badge = fila?.querySelector("div > div");
+                return [c.textContent?.trim(), badge?.textContent?.trim()];
+            }),
+        );
+        exigir(
+            JSON.stringify(porColumna.map(([, n]) => n)) === JSON.stringify(["4", "0", "0"]),
+            `dueño: cada columna lleva su total y en su sitio (${JSON.stringify(porColumna)})`,
+        );
 
         // Filtrar a Ana: solo las suyas.
         await filtro.click();
@@ -136,8 +153,10 @@ try {
             "dueño: el asesor filtrado queda en la dirección",
         );
 
+        exigir((await filtro.textContent())?.includes("Ana Ruiz"), "dueño: el mando dice a quién se filtró");
+
         // «Sin asesor asignado»: solo la que no tiene.
-        await pagina.getByRole("button", { name: "Ana Ruiz" }).click();
+        await filtro.click();
         await pagina.getByRole("menuitem", { name: "Sin asesor asignado" }).click();
         await pagina.waitForTimeout(1500);
         const sinAsesor = await tarjetas(pagina);
@@ -147,7 +166,7 @@ try {
         );
 
         // Y volver a «todos» las junta otra vez, y limpia la dirección.
-        await pagina.getByRole("button", { name: "Sin asesor" }).click();
+        await filtro.click();
         await pagina.getByRole("menuitem", { name: "Todos los asesores" }).click();
         await pagina.waitForTimeout(1500);
         exigir((await tarjetas(pagina)).length === 4, "dueño: volver a «todos» las junta otra vez");
@@ -158,8 +177,10 @@ try {
         await pagina.screenshot({ path: `${CAPTURAS}/1b-filtro-de-asesor.png` });
 
         // ── El selector de cuenta ──────────────────────────────────────────
-        const cuenta = pagina.getByRole("button", { name: "Banco de Embudos" });
-        exigir(await cuenta.isVisible(), "dueño: el selector de cuenta abre en la suya");
+        exigir(
+            (await cuenta.textContent())?.includes("Banco de Embudos"),
+            "dueño: el selector de cuenta abre en la suya",
+        );
         await cuenta.click();
         await pagina.getByRole("menuitem", { name: /Verzay Ventas/ }).click();
         await pagina.waitForTimeout(2500);
@@ -199,8 +220,10 @@ try {
         );
         exigir(await sinDesborde(pagina), "dueño: con los tres mandos la página no se desplaza a lo ancho");
 
+        exigir((await cuenta.textContent())?.includes("Verzay Ventas"), "dueño: el mando dice qué cuenta se mira");
+
         // Y volver a la suya devuelve las cuatro.
-        await pagina.getByRole("button", { name: /Verzay Ventas/ }).click();
+        await cuenta.click();
         await pagina.getByRole("menuitem", { name: /Banco de Embudos/ }).click();
         await pagina.waitForTimeout(2500);
         const devuelta = await tarjetas(pagina);
@@ -220,8 +243,8 @@ try {
         const { contexto, pagina } = await entrar(navegador, "hija@embudos.test");
         await abrirEmbudos(pagina);
         exigir(
-            (await pagina.getByRole("button", { name: "Banco de Embudos" }).count()) === 0,
-            "la hija: no se le ofrece la cuenta de su madre",
+            (await pagina.locator('[data-selector="cuenta"]').count()) === 0,
+            "la hija: no se le ofrece ninguna cuenta que elegir",
         );
         const suyas = await tarjetas(pagina);
         exigir(

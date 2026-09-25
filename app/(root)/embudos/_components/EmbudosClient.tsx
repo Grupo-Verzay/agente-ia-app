@@ -337,6 +337,7 @@ function SelectorDeLaCuenta({
             <DropdownMenuTrigger asChild>
                 <Button
                     variant="outline"
+                    data-selector="cuenta"
                     // Azul cuando se está mirando otra cuenta: lo que se crea y
                     // lo que se mueve es de ella, y eso tiene que notarse.
                     className={cn('h-10 max-w-[16rem] shrink-0 justify-start gap-2', esOtra && 'border-blue-500 text-blue-600')}
@@ -443,6 +444,7 @@ function FiltroDeAsesores({
             <DropdownMenuTrigger asChild>
                 <Button
                     variant="outline"
+                    data-filtro="asesor"
                     className={cn('h-10 max-w-[14rem] shrink-0 justify-start gap-2', elegido && 'border-blue-500 text-blue-600')}
                 >
                     <Filter className="h-4 w-4 shrink-0" />
