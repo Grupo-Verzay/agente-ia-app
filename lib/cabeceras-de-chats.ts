@@ -110,3 +110,41 @@ export const CABECERA_DEL_PANEL =
 export const FILA_1_DEL_PANEL = "flex h-8 min-w-0 shrink-0 items-center gap-2";
 /** La segunda fila del panel: sus propios controles (28 px). */
 export const FILA_2_DEL_PANEL = "flex h-7 min-w-0 shrink-0 items-center gap-1";
+
+/**
+ * # El nombre y su línea de estado, dentro de la FILA 1
+ *
+ * Debajo del nombre del contacto va una línea con lo que está haciendo
+ * —«escribiendo…», «grabando audio…», «en línea», «últ. vez…»— o, si no hay
+ * nada de eso, el anuncio del que llegó. Las dos van dentro de los 32 px de
+ * `ALTO_FILA_1`, y **no caben por casualidad: caben por estos dos números**.
+ *
+ * Al apretar la cabecera de 110 a 78 px el bloque del nombre pasó de 36 a 32 px
+ * y la línea **dejó de verse sin desaparecer del código**: dentro de
+ * `.app-module-content` un `.text-sm` vale 16/24 y un `.text-xs` 14/20, y el
+ * lápiz de editar (28 px) fijaba el alto de la fila del nombre. 28 + 20 = 48 en
+ * una caja de 32 con `overflow-hidden`: la línea quedaba recortada debajo.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **El nombre conserva su letra y solo aprieta el interlineado** (18 px), con
+ *    `!` porque `.app-module-content .text-sm` pisa un `leading-*` suelto.
+ * 2. **La línea de estado NO usa `text-xs`**: esa clase vale 14/20 dentro del
+ *    módulo. Va con tamaño propio, más pequeño que el nombre (11/14).
+ * 3. **El lápiz sigue midiendo 28×28, pero no fija el alto de su fila**
+ *    (margen vertical negativo). Asoma 5 px por arriba y por abajo de los 18 px
+ *    del nombre, así que el bloque y la fila recortan solo en horizontal
+ *    (`overflow-x-clip`): con `overflow-hidden` se le cortaría el fondo al pasar
+ *    el ratón. Cabe dentro de los 6 px de margen de la cabecera.
+ *
+ * `ALTO_LINEA_DEL_NOMBRE + ALTO_LINEA_DEL_ESTADO === ALTO_FILA_1`: lo comprueba
+ * el banco (`scripts/banco-estado-en-la-cabecera.sh`).
+ */
+export const ALTO_LINEA_DEL_NOMBRE = 18;
+export const ALTO_LINEA_DEL_ESTADO = 14;
+/** El interlineado del nombre (18 px); la letra no se toca. */
+export const LINEA_DEL_NOMBRE = "!leading-[1.125rem]";
+/** La línea de debajo del nombre: 11 px sobre 14 de interlineado. */
+export const LINEA_DEL_ESTADO = "text-[0.6875rem] leading-[0.875rem]";
+/** Lo que el lápiz sobresale de la línea del nombre, a cada lado: (28 − 18) / 2. */
+export const LAPIZ_SIN_ALTO = "-my-[0.3125rem]";
