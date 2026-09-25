@@ -27,7 +27,7 @@ import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { MacrosMenu } from './MacrosMenu';
 import { SessionTagsCombobox } from '../../tags/components/SessionTagsCombobox';
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
-import { LeadStatusSelect } from './LeadStatusSelect';
+import { SelectorDeEtapaDelEmbudo } from './SelectorDeEtapaDelEmbudo';
 import { reopenSession, resolveSession } from '@/actions/advisor-assign-actions';
 import { addSessionParticipantAction } from '@/actions/collab-actions';
 import { devolverChatALaIaAction, quitarDeEsperaAction } from '@/actions/advisor-assign-actions';
@@ -378,6 +378,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       }}
       panel="cabecera"
     />
+  );
+
+  /*
+   * La etapa del embudo de esta conversación, al lado del buscador de
+   * etiquetas. Cambia la MISMA fila que el tablero (`embudo_posiciones`) y por
+   * la misma acción con su permiso, así que aquí no hay una segunda regla que
+   * mantener a la par.
+   *
+   * `key` por conversación: al cambiar de chat el selector tiene que empezar de
+   * cero, o enseñaría la etapa del anterior hasta que alguien lo abriera.
+   */
+  const selectorDeEtapa = session && (
+    <SelectorDeEtapaDelEmbudo key={session.id} sessionId={session.id} />
   );
 
   const sessionToggle = session && (
@@ -751,6 +764,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {/* La síntesis se ve y se edita en el Contexto del lead (el cerebro). */}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               {tagsCombobox}
+              {selectorDeEtapa}
               {/* 4. Gestión */}
               {sessionToggle}
             </div>
@@ -913,6 +927,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {/* La síntesis se ve y se edita aquí dentro: ya no hay icono aparte. */}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               {tagsCombobox}
+              {selectorDeEtapa}
             </>
           )}
         </div>

@@ -39,7 +39,7 @@ export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 
 OUT=lib/__tests__/.compilado/embudos
-npx esbuild lib/embudos.ts lib/personales.ts --bundle \
+npx esbuild lib/embudos.ts lib/personales.ts lib/etapa-desde-el-chat.ts --bundle \
   --platform=node --format=esm --outdir=$OUT --log-level=error
 
 empaquetar() {

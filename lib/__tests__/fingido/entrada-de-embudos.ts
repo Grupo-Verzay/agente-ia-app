@@ -16,6 +16,7 @@ export {
     guardarEtapasAction,
     asignarEmbudosAction,
     moverTarjetaAction,
+    etapaDeLaConversacionAction,
 } from "@/actions/embudos-actions";
 export {
     createTagAction,
