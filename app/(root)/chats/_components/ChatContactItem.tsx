@@ -36,6 +36,7 @@ import type { SidebarContact } from "./chat-sidebar.types";
 import type { LeadStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
+import { PastillaDeEtapa } from "./PastillaDeEtapa";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from "@/lib/paneles-flotantes";
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
@@ -213,6 +214,13 @@ function ChatContactItemBase({
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus, contact.chatSession?.id)}
       />
     );
+    // 1.5. Etapa del embudo. Va entre el estado y el asesor: se lee «cómo de
+    //      caliente está» → «en qué punto del embudo» → «de quién es». No se
+    //      pinta nada cuando la cuenta no usa embudos (`etapa` en null), y no
+    //      deja hueco: la fila reparte con `gap`.
+    if (contact.chatSession.etapa) {
+      badgeItems.push(<PastillaDeEtapa key="etapa" etapa={contact.chatSession.etapa} />);
+    }
     // 2. Asesor asignado (Sin asignar / iniciales)
     if (advisors && advisors.length > 0) {
       badgeItems.push(

@@ -229,6 +229,85 @@ export async function lasPosicionesDe(
 }
 
 /**
+ * Los embudos y las asignaciones de VARIAS cuentas, en una consulta cada uno.
+ *
+ * La bandeja enseña las líneas de la cuenta y las de las que cuelgan de ella,
+ * así que una carga de Chats mira varias. Con `losEmbudosDe` sería una consulta
+ * por cuenta y otra más por sus asignaciones —2N— en el camino más caliente de
+ * la App, compitiendo por los diez turnos del pool con la propia bandeja. Así
+ * son **dos**, cuenten las cuentas que cuenten.
+ */
+export async function losEmbudosDeVarias(cuentaIds: readonly string[]): Promise<Map<string, Embudo[]>> {
+    const mapa = new Map<string, Embudo[]>();
+    if (cuentaIds.length === 0) return mapa;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<FilaEmbudo & { cuentaId: string }>>`
+            SELECT "cuentaId", "id", "nombre", "porDefecto", "orden"
+            FROM "embudos"
+            WHERE "cuentaId" = ANY(${[...cuentaIds]}::text[])
+            ORDER BY "orden" ASC, "creadoEn" ASC
+        `;
+        for (const f of filas) {
+            const lista = mapa.get(f.cuentaId) ?? [];
+            lista.push({ id: f.id, nombre: f.nombre, porDefecto: f.porDefecto, orden: Number(f.orden) });
+            mapa.set(f.cuentaId, lista);
+        }
+        return mapa;
+    });
+}
+
+/** cuenta → (persona → embudo), para varias cuentas a la vez. */
+export async function lasAsignacionesDeVarias(
+    cuentaIds: readonly string[],
+): Promise<Map<string, Record<string, string>>> {
+    const mapa = new Map<string, Record<string, string>>();
+    if (cuentaIds.length === 0) return mapa;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<{ cuentaId: string; personaId: string; embudoId: string }>>`
+            SELECT "cuentaId", "personaId", "embudoId"
+            FROM "embudo_asesores"
+            WHERE "cuentaId" = ANY(${[...cuentaIds]}::text[])
+        `;
+        for (const f of filas) {
+            const de = mapa.get(f.cuentaId) ?? {};
+            de[f.personaId] = f.embudoId;
+            mapa.set(f.cuentaId, de);
+        }
+        return mapa;
+    });
+}
+
+/**
+ * Lo mismo para VARIOS embudos a la vez: `sessionId → { embudoId, etapaId }`.
+ *
+ * La bandeja pinta la etapa de todas sus filas, y esas filas pueden ser de
+ * varias cuentas y por tanto de varios embudos. Con `lasPosicionesDe` sería una
+ * consulta por embudo en el camino más caliente de la App —«muchas peticiones
+ * pequeñas son turno, no trabajo», por dentro—, así que van todas en una.
+ *
+ * Una conversación puede tener posición guardada en más de un embudo (cambió de
+ * asesor y volvió), así que la llave lleva el embudo dentro: quien lee se queda
+ * con la del embudo que le toca a esa conversación AHORA.
+ */
+export async function lasPosicionesDeVarios(
+    embudoIds: readonly string[],
+    sessionIds: readonly number[],
+): Promise<Map<string, string>> {
+    const mapa = new Map<string, string>();
+    if (embudoIds.length === 0 || sessionIds.length === 0) return mapa;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<{ sessionId: number; embudoId: string; etapaId: string }>>`
+            SELECT "sessionId", "embudoId", "etapaId"
+            FROM "embudo_posiciones"
+            WHERE "embudoId" = ANY(${[...embudoIds]}::text[])
+              AND "sessionId" = ANY(${[...sessionIds]}::int[])
+        `;
+        for (const f of filas) mapa.set(`${f.embudoId}::${Number(f.sessionId)}`, f.etapaId);
+        return mapa;
+    });
+}
+
+/**
  * Las DOS formas de `AQuienSeMira`, escritas una al lado de la otra a propósito.
  *
  * Una decisión y dos renderizados: el `where` de Prisma con el que se traen las

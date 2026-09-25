@@ -15,6 +15,7 @@ import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { ChatContactSessionSummary, LeadStatus, Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
+import type { EtapaDeLaFila } from '@/lib/embudos';
 
 import { reactToMessageAction, deleteMessageAction, editMessageAction } from '@/actions/chat-manual-actions';
 import { generateSuggestedReplyAction } from '@/actions/ai-suggested-reply-action';
@@ -121,6 +122,10 @@ type ChatMainProps = {
   resolvedAt?: number | null;
   /** Desde cuando espera a una persona (ms), o null si no esta en espera. */
   escalatedAt?: number | null;
+  /** La etapa del embudo que ya trae la bandeja, para el icono de la cabecera. */
+  etapaDelEmbudo?: EtapaDeLaFila | null;
+  /** Se cambió la etapa desde la cabecera: pintarlo en la fila al momento. */
+  onEtapaCambiada?: (sessionId: number, etapa: EtapaDeLaFila) => void;
   /**
    * Se resolvio (true) o se reabrio (false): para pintarlo al momento en la
    * lista y en el contador de «Todos», en todas las llaves de la sesion.
@@ -170,6 +175,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   assignedAdvisorId,
   resolvedAt,
   escalatedAt,
+  etapaDelEmbudo,
+  onEtapaCambiada,
   onResolucionCambiada,
   onUnescalated,
   onAssignAdvisor,
@@ -1189,6 +1196,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         assignedAdvisorId={assignedAdvisorId}
         resolvedAt={resolvedAt}
         escalatedAt={escalatedAt}
+        etapaDelEmbudo={etapaDelEmbudo}
+        onEtapaCambiada={onEtapaCambiada}
         onResolucionCambiada={onResolucionCambiada}
         onUnescalated={onUnescalated}
         onAssignAdvisor={onAssignAdvisor}

@@ -17735,6 +17735,143 @@ estaba puesto y no lo usaba nadie desde que el estado del lead se ve en el
 Contexto del lead. Lo pinta la FILA de la lista (`ChatContactItem`), que sí lo
 importa.
 
+### Y se ve sin abrir nada: el COLOR en la cabecera, una pastilla en la fila
+
+La etapa solo se sabía abriendo el selector, chat por chat. Y ese selector era
+**el único control de su fila con rótulo**: llevaba el nombre de la etapa
+escrito al lado (hasta `max-w-[9rem]`) mientras sus siete vecinos —llamar, el
+asesor, el recordatorio, la cita, la tarea, los registros, el contexto— son
+cuadrados de 28 px. Puesto entre ellos no se leía como uno más.
+
+> **En la cabecera, el color del icono ES el dato**: el botón pasa a ser un
+> control de icono como los demás (`CONTROL_DE_ICONO` + `GLIFO_DE_CONTROL`),
+> sin texto, con el icono teñido del color de su etapa y el **nombre entero en
+> el globo**. **En la fila, la etapa es una pastilla igual a la del estado** —el
+> mismo alto, la misma letra, el mismo redondeo y el mismo relleno compacto—,
+> justo detrás de ella y delante de «Asignar». Sin embudo no hay pastilla.
+
+De izquierda a derecha la fila se lee «cómo de caliente está» → «en qué punto
+del embudo» → «de quién es».
+
+#### El dato viaja con la bandeja, no una consulta por fila
+
+La cabecera pide la etapa de UNA conversación y eso son cuatro consultas
+cortas. Repetirlo por cada fila de la lista serían cientos por vuelta, que es
+*muchas peticiones pequeñas son turno, no trabajo*. Así que la etapa entra en
+`getSesionesDeLaCuenta` como una cosa más de la fila —al lado de las etiquetas,
+los seguimientos y las citas— y la resuelve `lib/etapas-de-la-bandeja.server.ts`
+para toda la bandeja de una vez: **tres lecturas por cuenta y dos comunes**, en
+el mismo `Promise.all` que ya estaba y medidas con el resto (`tiempos.etapas`).
+
+Cuatro cosas que hay que mantener:
+
+1. **La regla no se vuelve a escribir.** De qué embudo es una conversación y en
+   qué etapa está lo deciden las MISMAS funciones puras que el tablero y la
+   cabecera (`elEmbudoDeLaConversacion`, `laEtapaDeLaConversacion`). Con la
+   regla escrita aquí otra vez, la fila diría una etapa y el tablero otra, y no
+   habría forma de saber cuál miente.
+2. **Los embudos se resuelven por la cuenta de CADA conversación**
+   (`sesion.userId`), no por la de quien mira: la bandeja enseña además las
+   líneas de las cuentas que cuelgan de ella, y la etapa de una conversación de
+   Ventas sale de los embudos de Ventas.
+3. **Es best-effort y no es muda.** Va en su propio `catch`, como los
+   recordatorios: un fallo suyo no puede dejar la bandeja sin nombres ni
+   etiquetas. Pero se escribe, porque una pastilla que deja de salir sin decir
+   nada se lee como que los embudos se borraron.
+4. **Y el icono de la cabecera sale de ahí, gratis.** La etapa de la
+   conversación abierta baja desde la bandeja (`etapaInicial`), así que el color
+   está puesto sin abrir nada y sin una consulta más. Lo que se sigue cargando
+   al ABRIR el menú es la LISTA de etapas, que es lo caro y lo que casi nunca se
+   mira. Una conversación que no estaba en la página cargada de la bandeja sale
+   con el icono neutro hasta que se abre, como estaba antes.
+
+#### El color viaja como ÍNDICE, ya resuelto
+
+El color de una etapa sin color elegido es **el de su posición** en el embudo, y
+la fila no tiene delante la lista de etapas: solo la suya. Así que el servidor
+manda el índice ya resuelto (`elIndiceDelColorDeLaEtapa`, que es de donde tira
+ahora también `elColorDeLaEtapa`) y la pastilla lo pinta sin deducir nada.
+Deduciéndolo otra vez con una posición que no tiene, la misma etapa saldría de
+un color en el tablero y de otro en la fila. El banco encadena las dos
+funciones para que no puedan separarse.
+
+Y las clases de los cinco sitios donde una etapa se pinta —la cabecera de la
+columna del tablero, el borde de su tarjeta, el punto de la lista, el icono de
+la cabecera del chat y la pastilla de la fila— viven **en la paleta**, no en
+cada pantalla.
+
+#### 14 caracteres, que son los de «Sin clasificar»
+
+Un nombre de etapa admite hasta 40 (`TOPE_DE_NOMBRE`), y la fila ya va justa.
+`elTextoDeLaPastilla` corta a `TOPE_DE_TEXTO_DE_PASTILLA`, que es **lo que mide
+«Sin clasificar»**, la pastilla de al lado y el listón que puso el encargo. Tres
+cosas:
+
+1. **Los puntos suspensivos van DENTRO de los 14** (13 + «…»). Fuera, un nombre
+   de 15 saldría más ancho que la referencia justo en el caso que esto viene a
+   acotar.
+2. **Y encima hay un tope de ANCHO** (`ANCHO_DE_LA_PASTILLA`): los 14
+   caracteres acotan cuántas letras se pintan, no cuánto miden —«WWWWWWW» ocupa
+   el doble que «Sin clasificar»—. El número está MEDIDO, no elegido: en esta
+   fila «Sin clasificar» mide **89,2 px** y el nombre de 14 caracteres más
+   ancho que se ha medido («Esperando res…») **106,4**, así que el tope son
+   **6,75 rem (108 px)**: un 21 % más que la referencia, y lo justo para que 14
+   caracteres normales no se recorten DOS veces —por caracteres y por ancho—.
+   El banco lo mide contra la pastilla de al lado en vez de darlo por bueno.
+3. **El `truncate` va en el HIJO, no en la pastilla.** En un contenedor flex el
+   texto suelto cae en una caja anónima y ahí `text-overflow` no recorta con
+   «…»: se corta a hueso.
+4. **Y la pastilla lleva `data-ui="badge"`.** No es decoración: dentro de
+   `.app-module-content` un `.text-xs` vale **14 px**, y las reglas de
+   `globals.css` solo lo bajan a 12 dentro de un `button`, un `[role="…"]` o un
+   `[data-ui="badge"]`. La de estado los tiene porque es el disparador de su
+   menú; esta no es pulsable, así que sin la marca salía con la letra **dos
+   píxeles más grande que la de al lado**. Lo cazó el banco, no leerlo.
+
+El nombre entero no se pierde: se lee en el globo. Es un `title` y no un
+tooltip de Radix **en los dos sitios**, y eso es a propósito: esta pastilla sale
+en TODAS las filas y la lista tiene miles, así que un proveedor y dos nodos más
+por fila es justo lo que *la lista es grande, no rehacerla por gusto* evita. Los
+tooltips de la fila —la espera, los recordatorios— salen en unas pocas.
+
+#### Y cambiar la etapa desde el chat se pinta en la fila al momento
+
+Es la regla de siempre. La acción es la misma del tablero y ya guardó, pero sin
+avisar a la lista la pastilla se quedaría con la etapa de antes hasta la vuelta
+del reloj de sesiones —hasta 60 s—, y eso se lee como que el cambio no se
+guardó. El selector devuelve la etapa ya resuelta y `chats-client` la aplica con
+`aplicarEnLaSesion`, que busca por `id` y toca todas las llaves de esa sesión.
+El índice del color se resuelve ahí con la MISMA función que el servidor, o la
+pastilla cambiaría de color al llegar la vuelta siguiente.
+
+**El `MAX_BADGES` de la fila no se toca.** La etapa entra en el reparto como una
+pastilla más y lo que sobre cae en el «+N» con su globo, igual que las demás:
+darle un privilegio sería justo lo contrario de la simetría que se venía a
+ganar.
+
+Lo prueba `scripts/banco-pastilla-de-etapa.sh`, en tres mitades:
+
+1. **Las reglas y un barrido del código**, sin navegador.
+2. **Las consultas contra Postgres**, que es lo que un banco puro no puede
+   decir: que las tres lecturas en bloque **corren** —los `::text[]`, los
+   `::int[]` y unas tablas que crea la App y no Prisma— y que la conversación
+   cae en el embudo de su asesor, que dos cuentas a la vez sacan cada una de
+   los suyos, que una posición guardada en OTRO embudo no se cuela y que una
+   etapa borrada cae en la primera. Y el encadenado, que es la prueba de oro:
+   **la fila y la cabecera dicen la misma etapa**.
+3. **La fila y la cabecera reales en Chromium** sobre el CSS del build, a
+   1440/1280/1024: que la pastilla mide lo mismo que la de estado en los siete
+   campos que la definen, que va entre el estado y «Asignar» medido en píxeles,
+   que el botón de la cabecera mide lo que sus vecinos y no lleva rótulo, y que
+   nada se desborda ni con 40 letras anchas.
+
+`MODO=roto` pinta las dos pantallas con los componentes de `ANTES_REF` y afirma
+los dos fallos —ninguna pastilla en la fila y un botón con el nombre escrito que
+se come el ancho de sus vecinos—; la mitad de Postgres se salta ahí y lo dice,
+porque el «antes» no tenía ninguna de esas consultas que afirmar. Comprobado
+además que caza: quitando la pastilla de la fila caen cuatro casos del
+navegador, y sacando el embudo de la llave de las posiciones, tres de Postgres.
+
 ## Embudos: el tablero de OTRA cuenta, y todos los asesores juntos
 
 Dos ejes sobre el tablero que ya existía, y el primero es el que decide la forma
