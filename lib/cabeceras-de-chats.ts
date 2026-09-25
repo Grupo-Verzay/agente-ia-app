@@ -130,7 +130,11 @@ export const FILA_2_DEL_PANEL = "flex h-7 min-w-0 shrink-0 items-center gap-1";
  * 1. **El nombre conserva su letra y solo aprieta el interlineado** (18 px), con
  *    `!` porque `.app-module-content .text-sm` pisa un `leading-*` suelto.
  * 2. **La línea de estado NO usa `text-xs`**: esa clase vale 14/20 dentro del
- *    módulo. Va con tamaño propio, más pequeño que el nombre (11/14).
+ *    módulo. Va con tamaño propio, más pequeño que el nombre: 12/14. Fue 11/14
+ *    y se leía demasiado pequeña; 12 cabe en los mismos 14 porque se recorta
+ *    solo a lo ancho (`RECORTE_A_LO_ANCHO`), así que un acento o una «g» que
+ *    asomen medio píxel no se cortan. Subirla más exige quitarle interlineado
+ *    al nombre, y eso no se hace.
  * 3. **El lápiz sigue midiendo 28×28, pero no fija el alto de su fila**
  *    (margen vertical negativo). Asoma 5 px por arriba y por abajo de los 18 px
  *    del nombre, así que el bloque y la fila recortan solo en horizontal
@@ -144,7 +148,8 @@ export const ALTO_LINEA_DEL_NOMBRE = 18;
 export const ALTO_LINEA_DEL_ESTADO = 14;
 /** El interlineado del nombre (18 px); la letra no se toca. */
 export const LINEA_DEL_NOMBRE = "!leading-[1.125rem]";
-/** La línea de debajo del nombre: 11 px sobre 14 de interlineado. */
-export const LINEA_DEL_ESTADO = "text-[0.6875rem] leading-[0.875rem]";
+/** La línea de debajo del nombre: 12 px sobre 14 de interlineado. */
+export const LETRA_DEL_ESTADO = 12;
+export const LINEA_DEL_ESTADO = "text-[0.75rem] leading-[0.875rem]";
 /** Lo que el lápiz sobresale de la línea del nombre, a cada lado: (28 − 18) / 2. */
 export const LAPIZ_SIN_ALTO = "-my-[0.3125rem]";

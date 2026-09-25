@@ -1,6 +1,11 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { ChatHeader } from "@/app/(root)/chats/_components/ChatHeader";
+import { ChatContactItem } from "@/app/(root)/chats/_components/ChatContactItem";
+
+/** El mismo nombre en la cabecera y en la fila de la lista: con emojis de color,
+ * uno con tono de piel, uno con selector de variación y uno compuesto (ZWJ). */
+const NOMBRE = "Ramírez 🌷🌼🙏🏻❤️👨‍👩‍👧";
 
 /**
  * La maqueta del banco: la cabecera de la conversación REAL (`ChatHeader`),
@@ -44,7 +49,7 @@ function Caso({ caso }: { caso: (typeof CASOS)[number] }) {
                 session={sesion(Boolean(caso.anuncio))}
                 userId="u1"
                 allTags={[]}
-                displayedContactName="Yenny🌷🌼"
+                displayedContactName={NOMBRE}
                 displayedWhatsapp="573001112233"
                 instanceName="BANCO_VENTAS"
                 remoteJid="573001112233@s.whatsapp.net"
@@ -61,9 +66,26 @@ function Caso({ caso }: { caso: (typeof CASOS)[number] }) {
     );
 }
 
+/** La fila de la lista con el MISMO nombre: es la referencia de cómo se pinta. */
+function FilaDeLaLista() {
+    return (
+        <div data-fila-de-la-lista style={{ width: 380 }}>
+            <ChatContactItem
+                contact={{ id: "573001112233@s.whatsapp.net", name: NOMBRE, avatarSrc: "", lastMessage: "hola", lastMessageId: "m1", timestamp: "10:00", ts: Date.now(), instanceName: "BANCO_VENTAS" } as any}
+                onArchive={nada}
+                onDeleteRequest={nada}
+                onSelect={nada}
+                onTogglePin={nada}
+                selected={false}
+            />
+        </div>
+    );
+}
+
 function Maqueta() {
     return (
         <div className="app-module-content h-screen overflow-y-auto">
+            <FilaDeLaLista />
             {CASOS.map((c) => (
                 <Caso key={c.id} caso={c} />
             ))}

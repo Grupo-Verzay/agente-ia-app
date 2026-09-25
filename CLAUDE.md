@@ -17451,12 +17451,37 @@ que el dato no llegaba a la cabecera.
 > **Nombre 18 + estado 14 = los 32 de la fila** (`ALTO_LINEA_DEL_NOMBRE`,
 > `ALTO_LINEA_DEL_ESTADO`, en `lib/cabeceras-de-chats.ts`). El nombre conserva
 > su letra y solo aprieta el interlineado (`!leading-*`, porque la regla del
-> módulo pisa un `leading-*` suelto); la línea va a 11/14 con tamaño propio,
-> **nunca `text-xs`**. El lápiz sigue en 28×28 pero con margen vertical
+> módulo pisa un `leading-*` suelto); la línea va a **12/14** (fue 11/14 y se
+> leía demasiado pequeña) con tamaño propio, **nunca `text-xs`**. El lápiz sigue en 28×28 pero con margen vertical
 > negativo, para no fijar el alto; por eso el bloque y la fila recortan solo en
 > horizontal (`overflow-x-clip`): con `overflow-hidden` se le cortaría el fondo.
 
+### Y el nombre se pinta como en la LISTA, y no se recorta a lo alto
+
+Con #935 el nombre quedó en una línea de 18 px con `truncate` —`overflow:
+hidden` en los DOS ejes— y en `font-bold`, mientras la fila de la lista lo
+pinta en 24 px, con `app-item-title` (600) y sin recorte vertical. Un emoji de
+color reserva más alto que la letra (medido: **23 px** en una caja de 18), y en
+la cabecera salían cuadritos vacíos donde la lista enseñaba los emojis.
+
+> **Cómo se pinta el nombre de un contacto lo dice `lib/nombre-del-contacto.ts`**:
+> `TIPOGRAFIA_DEL_NOMBRE` (la de la lista) y `RECORTE_A_LO_ANCHO`
+> (`overflow-x: clip` con «…»). La usan la fila de la lista, `CachedSidebar` y
+> las dos cabeceras. **Nunca `truncate` en una línea más baja que 24 px**: la
+> línea de estado va igual.
+
+Con Poppins, 600 cae en el mismo fichero Bold que `font-bold`, así que la letra
+latina no cambia. La ficha de contacto y el subtítulo de los paneles laterales
+no tenían el fallo (sin recorte vertical, o 20 px de línea) y no se tocaron.
+Lo que **no** se pudo reproducir aquí es el cuadrito en sí: en Linux Noto Color
+Emoji cabe en 18 px; el banco lo afirma por geometría (caja de 18 con
+`overflow` oculto frente a los 23 que reserva el emoji) y por las fuentes que el
+navegador usa en cada glifo, que ahora son las mismas en la cabecera y en la
+lista.
+
 La cabecera sigue en 78 px, 6 de margen e iconos de 28. Lo prueba
 `scripts/banco-estado-en-la-cabecera.sh` con la `ChatHeader` real en Chromium
-sobre el CSS del build, en los seis casos y a 1440/1280/1024; `MODO=roto` la
-pinta desde `ANTES_REF` y afirma la línea aplastada.
+sobre el CSS del build, en los seis casos y a 1440/1280/1024, junto a la fila
+REAL de la lista con el mismo nombre. `MODO=roto` la pinta desde dos «antes»,
+cada uno con su propio CSS: `6686021` (la línea aplastada) y `1a1f6a8` (11 px,
+el nombre en otro peso que la lista y recortado a lo alto).

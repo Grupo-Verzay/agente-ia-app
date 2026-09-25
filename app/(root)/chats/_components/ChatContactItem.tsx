@@ -1,5 +1,6 @@
 "use client";
 
+import { TIPOGRAFIA_DEL_NOMBRE } from '@/lib/nombre-del-contacto';
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React from "react";
 import { Archive, Bell, Hand, CalendarClock, Check, CheckCheck, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
@@ -452,7 +453,8 @@ function ChatContactItemBase({
                 )}
                 <span
                   className={cn(
-                    "app-item-title shrink-0 capitalize",
+                    TIPOGRAFIA_DEL_NOMBRE,
+                    "shrink-0",
                     isUnread && "text-foreground",
                   )}
                 >

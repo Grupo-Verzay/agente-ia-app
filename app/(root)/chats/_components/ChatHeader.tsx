@@ -39,6 +39,7 @@ import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
+import { RECORTE_A_LO_ANCHO, TIPOGRAFIA_DEL_NOMBRE } from '@/lib/nombre-del-contacto';
 import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL, LAPIZ_SIN_ALTO, LINEA_DEL_ESTADO, LINEA_DEL_NOMBRE } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from '@/lib/paneles-flotantes';
@@ -658,7 +659,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {header.isPinned && (
                 <Pin className="h-3 w-3 fill-current text-amber-500 flex-shrink-0" />
               )}
-              <h2 className="truncate text-sm font-bold leading-tight capitalize">{displayedContactName}</h2>
+              <h2 className={cn(TIPOGRAFIA_DEL_NOMBRE, RECORTE_A_LO_ANCHO)} title={displayedContactName}>{displayedContactName}</h2>
             </div>
             {presencia ? (
               <span className="truncate text-xs italic leading-tight text-emerald-600 dark:text-emerald-400">
@@ -833,7 +834,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
               )}
-              <h2 className={cn("truncate text-sm font-bold capitalize", LINEA_DEL_NOMBRE)} title={displayedContactName}>{displayedContactName}</h2>
+              <h2 data-nombre-del-contacto className={cn(TIPOGRAFIA_DEL_NOMBRE, RECORTE_A_LO_ANCHO, LINEA_DEL_NOMBRE)} title={displayedContactName}>{displayedContactName}</h2>
               {session && (
                 <Button
                   type="button"
@@ -848,18 +849,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               )}
             </div>
             {presencia ? (
-              <span data-estado-del-contacto className={cn("truncate italic text-emerald-600 dark:text-emerald-400", LINEA_DEL_ESTADO)}>
+              <span data-estado-del-contacto className={cn(RECORTE_A_LO_ANCHO, "italic text-emerald-600 dark:text-emerald-400", LINEA_DEL_ESTADO)}>
                 {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
               </span>
             ) : conexion?.estado === "en_linea" ? (
-              <span data-estado-del-contacto className={cn("truncate font-medium text-emerald-600 dark:text-emerald-400", LINEA_DEL_ESTADO)}>en línea</span>
+              <span data-estado-del-contacto className={cn(RECORTE_A_LO_ANCHO, "font-medium text-emerald-600 dark:text-emerald-400", LINEA_DEL_ESTADO)}>en línea</span>
             ) : conexion?.estado === "desconectado" && conexion.lastSeen ? (
-              <span data-estado-del-contacto className={cn("truncate text-muted-foreground", LINEA_DEL_ESTADO)}>
+              <span data-estado-del-contacto className={cn(RECORTE_A_LO_ANCHO, "text-muted-foreground", LINEA_DEL_ESTADO)}>
                 {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
               </span>
             ) : null}
             {!hayLineaDeEstado && adSourceLabel && (
-              <span data-estado-del-contacto className={cn("flex items-center gap-1 text-blue-500 dark:text-blue-400 truncate", LINEA_DEL_ESTADO)}>
+              <span data-estado-del-contacto className={cn(RECORTE_A_LO_ANCHO, "flex items-center gap-1 text-blue-500 dark:text-blue-400", LINEA_DEL_ESTADO)}>
                 <Megaphone className="h-3 w-3 shrink-0" />
                 {adSourceLabel}
               </span>
