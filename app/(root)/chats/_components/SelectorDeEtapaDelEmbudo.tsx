@@ -12,7 +12,7 @@ import {
     FILA_DEL_MENU,
     FILA_PUESTA,
     NOMBRE_EN_LA_FILA,
-    SANGRIA_DEL_MENU,
+    ROTULO_DEL_MENU,
 } from '@/lib/filas-de-los-menus';
 import {
     COLORES_DE_ETAPA,
@@ -211,12 +211,7 @@ export function SelectorDeEtapaDelEmbudo({
                 {...panel.props}
                 className={cn('w-60 space-y-2', RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
             >
-                <p
-                    className={cn(
-                        'text-xs font-semibold uppercase tracking-wide text-muted-foreground',
-                        SANGRIA_DEL_MENU,
-                    )}
-                >
+                <p className={ROTULO_DEL_MENU}>
                     {datos?.embudoNombre ? `Embudo · ${datos.embudoNombre}` : 'Embudo'}
                 </p>
 

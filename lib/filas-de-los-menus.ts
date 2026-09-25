@@ -56,6 +56,27 @@ export const SANGRIA_DEL_MENU = "px-2";
 export const GRUPO_SIN_SANGRIA = "px-0";
 
 /**
+ * El rótulo que encabeza un grupo de filas: el mismo en los dos.
+ *
+ * Los dos menús lo pintan de formas distintas —el de Etapas es un `<p>` y el de
+ * Etiquetas lo pinta **cmdk**, que no deja ponerle clases a ese nodo— así que la
+ * lista está escrita DOS veces: una suelta y otra con el prefijo de variante.
+ *
+ * **No se pueden componer en tiempo de ejecución.** Tailwind lee el código
+ * fuente, así que una clase construida con un `map` no se genera y el rótulo
+ * saldría sin estilo, con el build en verde. Es la familia de `removeConsole`.
+ * Que las dos digan lo mismo lo comprueba el banco, derivando una de la otra.
+ */
+export const ROTULO_DEL_MENU =
+    "px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+
+/** El MISMO rótulo cuando lo pinta cmdk. Escrito a mano y probado contra el de arriba. */
+export const ROTULO_EN_EL_GRUPO =
+    "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:text-xs " +
+    "[&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase " +
+    "[&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground";
+
+/**
  * La caja de una fila, la misma en los dos. `rounded-sm` es el de la casa
  * —`CommandItem`, `DropdownMenuItem` y `SelectItem` lo llevan—; la de Etapas iba
  * en `rounded-md` y era la única.

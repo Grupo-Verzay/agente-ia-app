@@ -13,6 +13,7 @@ import {
     FILA_DEL_MENU,
     GRUPO_SIN_SANGRIA,
     NOMBRE_EN_LA_FILA,
+    ROTULO_EN_EL_GRUPO,
 } from "@/lib/filas-de-los-menus";
 import { usePanelFlotante, type ClaseDePanel } from "@/hooks/usePanelFlotante";
 import {
@@ -203,7 +204,7 @@ export function SessionTagsCombobox({
                         <CommandGroup
                             key={grupo.grupo}
                             heading={grupo.titulo ?? undefined}
-                            className={panel ? GRUPO_SIN_SANGRIA : undefined}
+                            className={panel ? cn(GRUPO_SIN_SANGRIA, ROTULO_EN_EL_GRUPO) : undefined}
                         >
                             {grupo.filas.map((tag) => {
                                 const active = isSelected(tag.id);
