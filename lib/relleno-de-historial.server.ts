@@ -124,6 +124,12 @@ export function traidoDeWaha(crudo: MensajeDeWaha, instanceName: string): Traido
   };
 }
 
+/**
+ * Cuántos chats seguidos sin respuesta del proveedor hacen falta para dar la
+ * línea por perdida en este recorrido (ver `rellenarLaLinea`).
+ */
+export const TOPE_DE_FALLOS_SEGUIDOS = 25;
+
 /* ── Los dos proveedores ─────────────────────────────────────────────────── */
 
 async function proveedorDeEvolution(linea: LineaDelRelleno): Promise<ProveedorDeHistorial | null> {
@@ -297,6 +303,29 @@ async function llavesDeLaLinea(cuentas: string[], linea: string): Promise<Set<st
      WHERE "userId" = ANY(${cuentas}) AND "instanceName" = ${linea}`;
   return new Set(filas.map((f) => llaveDelMensaje(f.messageId, f.fromMe)));
 }
+
+/**
+ * Lo que entró EN VIVO en la línea desde `desde`: se suma a las llaves antes de
+ * cada chat. Una línea grande tarda horas, y lo que la IA o el cliente escriben
+ * mientras tanto no estaba en la foto inicial: AMERICA_PENSIONADO_ALIADO dejó 8
+ * repetidos así (respuestas de la IA guardadas en vivo a mitad del recorrido).
+ * Va por `messageTimestamp` —lo vivo trae la hora de ahora— y entra por el
+ * índice (userId, instanceName, messageTimestamp): no relee la línea entera.
+ */
+async function sumarLoQueEntroEnVivo(
+  cuentas: string[],
+  linea: string,
+  desde: Date,
+  llaves: Set<string>,
+): Promise<void> {
+  const filas = await db.$queryRaw<{ messageId: string; fromMe: boolean }[]>`
+    SELECT "messageId", "fromMe" FROM "chat_messages"
+     WHERE "userId" = ANY(${cuentas}) AND "instanceName" = ${linea} AND "messageTimestamp" >= ${desde}`;
+  for (const f of filas) llaves.add(llaveDelMensaje(f.messageId, f.fromMe));
+}
+
+/** Cuánto antes del arranque se mira lo vivo: relojes que no cuadran, colas del webhook. */
+const MARGEN_DE_LO_VIVO_MS = 15 * 60 * 1000;
 
 function esGrupo(jid: string): boolean {
   return /@g\.us$/i.test(jid);
@@ -587,6 +616,7 @@ export async function rellenarLaLinea(
   const pausa = opciones.pausaEntreChatsMs ?? PAUSA_ENTRE_CHATS_MS;
   try {
     const cuentas = await cuentasDeLaLinea(linea);
+    const desdeLoVivo = new Date(Date.now() - MARGEN_DE_LO_VIVO_MS);
     const llaves = await llavesDeLaLinea(cuentas, linea.instanceName);
     const delProveedor = await proveedor.listarChats();
     // También los que ya tenemos: el proveedor puede no listar uno viejo.
@@ -600,10 +630,21 @@ export async function rellenarLaLinea(
       UPDATE "relleno_de_historial" SET "chatsTotal" = ${total}, "latidoEn" = NOW()
        WHERE "instanceName" = ${linea.instanceName}`;
 
+    let seguidosSinRespuesta = 0;
     for (const jid of quedan) {
       let inf: InformeDelChat | null = null;
       try {
+        await sumarLoQueEntroEnVivo(cuentas, linea.instanceName, desdeLoVivo, llaves);
         inf = await rellenarUnChat(linea, proveedor, jid, cuentas, llaves);
+        if (!inf) {
+          // El proveedor no devolvió el chat. Callado, esto se ve como una
+          // línea que "va bien" y no escribe nada.
+          console.warn('[relleno] el proveedor no devolvió el chat', {
+            instanceName: linea.instanceName,
+            proveedor: proveedor.nombre,
+            jid,
+          });
+        }
       } catch (error) {
         console.warn('[relleno] fallo en un chat, se sigue con el siguiente', {
           instanceName: linea.instanceName,
@@ -611,6 +652,7 @@ export async function rellenarLaLinea(
           error: String(error),
         });
       }
+      seguidosSinRespuesta = inf ? 0 : seguidosSinRespuesta + 1;
       await db.$executeRaw`
         UPDATE "relleno_de_historial" SET
           "chatsHechos" = "chatsHechos" + 1,
@@ -623,6 +665,20 @@ export async function rellenarLaLinea(
           "latidoEn" = NOW()
          WHERE "instanceName" = ${linea.instanceName}`;
       if (opciones.alLatir) await opciones.alLatir().catch(() => undefined);
+      if (seguidosSinRespuesta >= TOPE_DE_FALLOS_SEGUIDOS) {
+        // Muchos seguidos no es un chat raro: es que el proveedor dejó de
+        // contestar por esta línea (la cambiaron de proveedor, la borraron o
+        // está caído). Seguir quemaría el resto de chats como fallidos, y el
+        // recorrido no vuelve a ellos. Se corta y se dice por qué.
+        const ahora = await laLineaDelRelleno(linea.instanceName);
+        const cambio =
+          ahora && proveedorDeLaFila(ahora.instanceType) !== proveedorDeLaFila(linea.instanceType)
+            ? ` La línea pasó de ${proveedorDeLaFila(linea.instanceType)} a ${proveedorDeLaFila(ahora.instanceType)} a mitad del recorrido: relánzala.`
+            : '';
+        throw new Error(
+          `El proveedor (${proveedor.nombre}) no devolvió ${seguidosSinRespuesta} chats seguidos; se corta la línea.${cambio}`,
+        );
+      }
       if (pausa > 0) await esperar(pausa);
     }
 
