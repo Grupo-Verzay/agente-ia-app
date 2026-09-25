@@ -18326,6 +18326,95 @@ lado. Un modo roto que pasa no está en verde, está muerto. Lo que se comprueba
 es una invariante **exacta** y no una vecindad, y se comprobó quitando el
 arreglo de cada uno de los cuatro caminos, uno por uno, para ver el rojo.
 
+## Chats: los dos desplegables de la cabecera se leen igual, y en MAYÚSCULA
+
+Los que se abren desde la cabecera de la conversación —**Etiquetas** y
+**Etapas**— son dos componentes que no se parecen por debajo: uno es un
+`Command` de cmdk con sus grupos y el otro una lista de botones. Abiertos uno
+tras otro se leían como dos pantallas, y la diferencia no estaba escrita en
+ninguna parte.
+
+Medido en Chromium sobre el CSS del build, con la `ChatHeader` real:
+
+| | arranca a | lo puesto | el nombre |
+| --- | --- | --- | --- |
+| Etiquetas | **20 px** del borde del panel | chulito | tal cual |
+| Etapas | **16 px** | chulito | tal cual |
+
+> **Cómo se ve una fila de estos dos menús lo decide `lib/filas-de-los-menus.ts`**
+> —el sangrado, la caja, la mayúscula y el gris de lo puesto—. Dónde NACE el
+> panel sigue siendo `lib/paneles-flotantes.ts`: son dos preguntas y siguen en
+> dos sitios.
+
+### La sangría de más la metía el `p-1` del grupo, y no se ve leyendo
+
+Los cuatro píxeles no los escribía nadie: los pone `CommandGroup` por su cuenta.
+Así que **esto no lo caza un barrido del código** —los dos componentes se leen
+correctos— y solo aparece midiendo. El grupo deja de meter sangría
+(`GRUPO_SIN_SANGRIA`) y el rótulo de Etapas gana la que le faltaba
+(`SANGRIA_DEL_MENU`): las filas y los rótulos de los dos arrancan ya en el mismo
+píxel, en 1440, 1280, 1024 y 390.
+
+Y el sangrado es **un solo número** para las tres cosas —la fila, su rótulo y lo
+que se le quita al grupo—: con dos, vuelven a separarse sin que nadie lo note.
+
+### El nombre va en mayúscula con CSS, nunca convertido
+
+`uppercase` es `text-transform`, así que el `textContent` sigue siendo el nombre
+de verdad. Eso no es un detalle de estilo: **cmdk filtra por ese texto**, así que
+buscar «ventas» sigue encontrando «Ventas», y el globo enseña el nombre tal cual
+se escribió. Convertirlo en el servidor rompería las dos cosas.
+
+Y por eso el globo deja de ser opcional: en mayúscula el mismo nombre ocupa más,
+así que se recorta antes. **Todo nombre en mayúscula lleva su `title`.**
+
+### Lo puesto en Etapas es un GRIS, y el peso no es decoración
+
+Fuera el chulito. La etapa en la que está la conversación lleva fondo gris suave
+y nada más —ni marca de verificación ni recuadro: un borde dentro de una lista de
+filas de 12 px se lee como un recorte—.
+
+Lo que hay que saber antes de tocarlo: **`--muted` y `--accent` son el MISMO
+valor en este tema**, así que el gris de lo puesto y el del cursor encima son
+indistinguibles. Mientras se apunta a otra fila habría dos grises iguales, y lo
+único que sigue diciendo cuál está puesta es el `font-medium`. El banco lo ejerce
+—apunta a una fila y compara los pesos— y **se pone rojo si se quita el peso**.
+
+La otra mitad: el `hover` de la fila es ese mismo gris, así que **apuntar a la
+fila puesta no le cambia nada**. Un marcador que se pierde al apuntarlo no marca.
+
+Y quitado el chulito, `aria-selected` es lo único que le queda a quien no ve el
+fondo: la lista es un `listbox` y cada etapa una `option`.
+
+### Lo que NO entra, y es la mitad que se pierde sola
+
+**Las píldoras de la lista de chats se quedan con su capitalización** —estado,
+etapa, etiquetas—. Y el combobox de Etiquetas lo pintan además el CRM y
+`/sessions`: allí nada de esto se aplica. Lo que marca «esta es la de la
+cabecera» es la prop `panel`, **la misma con la que ya se decide dónde nace el
+panel**, y no una segunda condición que el día que se afine una se quede atrás.
+
+Lo prueba `scripts/banco-filas-de-los-menus.sh`, en dos mitades: las reglas y un
+barrido —que falla si una píldora de la fila se va en mayúscula, si un componente
+escribe la caja a mano, o si `tailwind.config.ts` deja de mirar `lib/`— y los dos
+menús **abiertos de verdad** en Chromium a 1440/1280/1024/390. `MODO=roto`
+empaqueta el mismo arnés contra `ANTES_REF` y afirma los cuatro fallos: los 4 px
+de más, el chulito, ningún nombre en mayúscula y nada marcado con fondo.
+
+Dos cosas del propio banco que costaron su vuelta:
+
+1. **El paquete del arnés y el módulo compilado no pueden llamarse igual.** Los
+   dos caían en `lib/__tests__/.compilado/filas-de-los-menus.js`, así que el
+   segundo pisaba al primero: en modo bueno colaba por el orden y en modo roto el
+   banco de reglas importaba una maqueta de navegador («document is not
+   defined»).
+2. **El disparador se busca entre los que SE VEN.** `ChatHeader` pinta los dos
+   mandos DOS veces —su fila de móvil y su fila de escritorio—, y en un móvil
+   viven además dentro de las herramientas **plegadas**, detrás de la pastilla
+   «Activa». Un `querySelector` a secas se queda con el del móvil, que a 1440
+   está en `display:none`. Es el mismo error que ya costó una vuelta midiendo
+   Macros.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas
