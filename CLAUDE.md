@@ -17436,3 +17436,27 @@ su hermana aunque escriba el parámetro, el filtro que reduce, el cambio de
 estado visto desde las dos cuentas y el aviso saliendo por la línea y con la
 clave de la hija—. `MODO=roto` lee la Agenda de un commit pinchado (`ANTES_REF`)
 y lleva la consulta y el aviso viejos escritos dentro, y afirma el fallo.
+
+## Chats: la línea de estado va DENTRO de los 32 px de la fila del nombre
+
+Al apretar la cabecera de 110 a 78 px, «escribiendo…», «grabando audio…», «en
+línea», «últ. vez» —y el anuncio, que va en el mismo sitio— **dejaron de verse
+sin desaparecer del código**. El bloque del nombre bajó de 36 a 32 px y dentro
+de `.app-module-content` un `.text-sm` vale 16/24 y un `.text-xs` 14/20; el
+lápiz de editar (28 px) fijaba la fila del nombre, y la línea (un `truncate`,
+o sea `min-height: 0` en una columna flex) se aplastaba a **4 px**. No había
+error: solo una línea que no se veía. En la lista sí salía, y por eso parecía
+que el dato no llegaba a la cabecera.
+
+> **Nombre 18 + estado 14 = los 32 de la fila** (`ALTO_LINEA_DEL_NOMBRE`,
+> `ALTO_LINEA_DEL_ESTADO`, en `lib/cabeceras-de-chats.ts`). El nombre conserva
+> su letra y solo aprieta el interlineado (`!leading-*`, porque la regla del
+> módulo pisa un `leading-*` suelto); la línea va a 11/14 con tamaño propio,
+> **nunca `text-xs`**. El lápiz sigue en 28×28 pero con margen vertical
+> negativo, para no fijar el alto; por eso el bloque y la fila recortan solo en
+> horizontal (`overflow-x-clip`): con `overflow-hidden` se le cortaría el fondo.
+
+La cabecera sigue en 78 px, 6 de margen e iconos de 28. Lo prueba
+`scripts/banco-estado-en-la-cabecera.sh` con la `ChatHeader` real en Chromium
+sobre el CSS del build, en los seis casos y a 1440/1280/1024; `MODO=roto` la
+pinta desde `ANTES_REF` y afirma la línea aplastada.

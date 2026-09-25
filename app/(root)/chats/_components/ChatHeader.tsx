@@ -39,7 +39,7 @@ import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
-import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from '@/lib/cabeceras-de-chats';
+import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL, LAPIZ_SIN_ALTO, LINEA_DEL_ESTADO, LINEA_DEL_NOMBRE } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
@@ -806,7 +806,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* Alto FIJO (rem) IGUAL al del toolbar del sidebar → el borde/divisor queda
           continuo de lado a lado a cualquier zoom. Contenido centrado vertical. */}
       <div data-cabecera-escritorio className={cn('hidden md:flex md:flex-col md:justify-center overflow-hidden border-b-2 border-border', CABECERA_ESCRITORIO)}>
-      <div className={cn('flex shrink-0 items-center gap-3 overflow-hidden', CLASE_FILA_1)}>
+      <div className={cn('flex shrink-0 items-center gap-3 overflow-x-clip', CLASE_FILA_1)}>
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onExpandChatList && (
             <Button
@@ -826,19 +826,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </Avatar>
           {/* Alto FIJO del bloque nombre(+subtítulo): con `justify-center` el contenido se
               centra, así el header mide EXACTAMENTE igual con o sin el subtítulo del
-              anuncio → "Mensajes/Notas/Web" queda a la misma altura en todos los chats. */}
-          <div className="flex h-8 flex-col justify-center overflow-hidden min-w-0">
+              anuncio → "Mensajes/Notas/Web" queda a la misma altura en todos los chats.
+              Nombre (18) + estado (14) = los 32 de la fila: ver `LINEA_DEL_ESTADO`. */}
+          <div data-nombre-y-estado className="flex h-8 flex-col justify-center overflow-x-clip min-w-0">
             <div className="flex items-center gap-1.5">
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
               )}
-              <h2 className="truncate text-sm font-bold capitalize" title={displayedContactName}>{displayedContactName}</h2>
+              <h2 className={cn("truncate text-sm font-bold capitalize", LINEA_DEL_NOMBRE)} title={displayedContactName}>{displayedContactName}</h2>
               {session && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 rounded-full hover:bg-muted flex-shrink-0"
+                  className={cn("h-7 w-7 rounded-full hover:bg-muted flex-shrink-0", LAPIZ_SIN_ALTO)}
                   onClick={onOpenContactEditor}
                   title="Editar contacto"
                 >
@@ -847,18 +848,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               )}
             </div>
             {presencia ? (
-              <span className="truncate text-xs italic leading-tight text-emerald-600 dark:text-emerald-400">
+              <span data-estado-del-contacto className={cn("truncate italic text-emerald-600 dark:text-emerald-400", LINEA_DEL_ESTADO)}>
                 {presencia === "grabando" ? "grabando audio…" : "escribiendo…"}
               </span>
             ) : conexion?.estado === "en_linea" ? (
-              <span className="truncate text-xs font-medium leading-tight text-emerald-600 dark:text-emerald-400">en línea</span>
+              <span data-estado-del-contacto className={cn("truncate font-medium text-emerald-600 dark:text-emerald-400", LINEA_DEL_ESTADO)}>en línea</span>
             ) : conexion?.estado === "desconectado" && conexion.lastSeen ? (
-              <span className="truncate text-xs leading-tight text-muted-foreground">
+              <span data-estado-del-contacto className={cn("truncate text-muted-foreground", LINEA_DEL_ESTADO)}>
                 {`últ. vez ${ultimaVezTexto(conexion.lastSeen)}`}
               </span>
             ) : null}
             {!hayLineaDeEstado && adSourceLabel && (
-              <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
+              <span data-estado-del-contacto className={cn("flex items-center gap-1 text-blue-500 dark:text-blue-400 truncate", LINEA_DEL_ESTADO)}>
                 <Megaphone className="h-3 w-3 shrink-0" />
                 {adSourceLabel}
               </span>
