@@ -14670,6 +14670,14 @@ sus nombres, contra Postgres y por `getCallsCrmData` de verdad. `MODO=roto`
 afirma que con la regla vieja Yair alcanzaba a Carlos; y con el código anterior
 puesto, el banco normal se pone rojo por los tres sitios.
 
+Y desde el #948 esa regla no vive en el CRM: la contesta
+`lasCuentasQueAlcanzaHaciaAbajo` (`lib/cuentas-hacia-abajo.server.ts`), que
+comparte con el tablero de **Embudos** —la consulta, el orden y hasta la entrada
+del caché—. Embudos tenía su propia copia y le había añadido la cartera de
+clientes, así que su selector ofrecía cuentas sin ningún vínculo: **dos formas
+de contestar «qué cuentas alcanza esta pantalla» son una que se afina y otra que
+se queda atrás.**
+
 **Vale para las cinco pestañas del CRM**, porque las cinco pasan por la misma
 puerta. Las demás pantallas que cruzan cuentas (Chats, Leads, Finanzas,
 Reuniones, Documentos…) **no se han tocado aquí**: están auditadas en el PR.
@@ -17871,10 +17879,10 @@ de todo lo demás.
 
 ### La cuenta es UNA, y eso no es una preferencia de diseño
 
-Desde una cuenta madre se elige cualquiera de las que cuelgan de ella y se ve
-**su** tablero. Vale igual para un reseller con sus líneas y para el dueño de la
-plataforma con las cuentas cliente que administra. Y **nunca se mezclan dos
-cuentas en un tablero**:
+Desde una cuenta se elige cualquiera de las que **cuelgan de ella** y se ve su
+tablero. Solo esas: ni la madre, ni las hermanas, ni las cuentas cliente que se
+administren sin vínculo —eso se cerró en el #948, y está contado en *el alcance
+va HACIA ABAJO*—. Y **nunca se mezclan dos cuentas en un tablero**:
 
 > **Las columnas de un tablero son las etapas de un embudo, y un embudo es de
 > una cuenta.** Dos cuentas tienen embudos distintos, con etapas distintas y con
@@ -17901,34 +17909,38 @@ varias» sería un componente cuya documentación se contradice a sí misma. Lo 
 sí se comparte es lo único que importa —**quién puede elegir qué**—, que sale del
 servidor con la misma regla de alcance del CRM.
 
-### El alcance va HACIA ABAJO, y son TRES fuentes
+### El alcance va HACIA ABAJO, y sale de la MISMA función que en Llamadas
 
-Una cuenta llega a otra por tres caminos, y los tres son hacia abajo. **Hacen
-falta los tres**: con solo el primero, un reseller no vería a sus clientes —sus
-líneas no cuelgan de él por `linked_accounts`— y eso era la mitad del encargo.
+Esto fueron tres fuentes y es una, y conviene saber por qué antes de volver a
+añadirle ninguna. El selector llegó a **listar todas las cuentas de la
+plataforma**: sumaba al alcance `clientesDeLaCuenta` —la cartera—, y para una
+cuenta de la casa esa función devuelve **todas las cuentas cliente que
+administra**; para un reseller, la suya entera. Cuentas sin un solo vínculo con
+la que se estaba mirando.
 
-| fuente | qué añade | quién la usa |
-| --- | --- | --- |
-| `lasCuentasQueCuelganDe` | sus hijas, y las hijas de sus hijas | una cuenta madre con su familia |
-| `clientesDeLaCuenta` (tabla `reseller`) | los clientes que creó y los que le asignaron | un reseller |
-| `clientesDeLaCuenta` (rol de la casa) | las cuentas cliente que administra | `admin`, el dueño de la plataforma |
+> **Administrar o facturar a un cliente no lo mete en la estructura de una
+> cuenta.** Esa es otra pregunta y la contesta `/panel/clientes`. Lo que hace
+> hija a una cuenta es **`linked_accounts`, y nada más**.
 
-Las dos últimas salen de **la misma función** con la que `/panel/clientes` y el
-reparto de módulos deciden a qué clientes llega cada quien. Escribir aquí otra
-consulta sería un segundo reparto, y el día que se afine uno el otro deja ver de
-más o de menos.
+Y no se arregló quitándole la fuente a esta copia: **se quitó la copia**.
+Llamadas y Finanzas ya resolvían esto, y tener aquí una versión paralela es
+exactamente cómo se llega a que una de las tres pantallas ofrezca otra cosa. La
+contesta `lasCuentasQueAlcanzaHaciaAbajo` (`lib/cuentas-hacia-abajo.server.ts`),
+que usan el CRM y Embudos: la propia y lo que cuelga de ella
+(`lasCuentasQueCuelganDe`), **nunca la madre ni las hermanas**, con la familia
+entera solo para el superadministrador de verdad —porque toda ella cuelga de
+él—. Comparten hasta la entrada del caché, que es la otra mitad de la gracia.
 
-**Nunca hacia arriba ni hacia los lados**: no se llega a la madre ni a una
-hermana, y una pareja recíproca se anula por los dos lados. El
-superadministrador de verdad ve su familia entera, porque toda ella cuelga de él.
+**Si no hay hijas, no se pinta ningún selector**: con una sola cuenta no hay
+nada que elegir, y un mando con una opción dentro es un mando que no hace nada.
 
 Cinco cosas que hay que mantener:
 
 1. **La lista solo OFRECE; la puerta es la de siempre.** La cuenta elegida pasa
    además por `assertCanAccessTargetUser`, la puerta de más de sesenta acciones
    —que desde el #898 tampoco sube—. Es a propósito: la lista se construye de
-   fuentes que ya van hacia abajo, y si algún día una se ensanchara sin querer,
-   la puerta lo sigue negando. Y se pregunta **solo cuando la cuenta no es la
+   una fuente que ya va hacia abajo, y si algún día se ensanchara sin querer, la
+   puerta lo sigue negando. Y se pregunta **solo cuando la cuenta no es la
    propia**: en la propia no hay nada que preguntar y sería una consulta por
    carga para nada.
 2. **Un `agente` alcanza SOLO su cuenta**, y eso es lo que hace airtight a
@@ -17948,15 +17960,61 @@ Cinco cosas que hay que mantener:
    hijas— la cabecera decía «esa conversación no es de tu cuenta» sobre una
    conversación perfectamente alcanzable.
 5. **Se recuerda unos segundos** (`lib/cache-de-sesion`, 5 s), con la llave de
-   los ids que deciden: la cuenta, su rol y si es superadministrador. El rol
-   entra porque decide si se consulta la cartera, y lo de superadministrador
+   los ids que deciden: la cuenta y si es superadministrador. Lo segundo entra
    porque él y el administrador de la misma cuenta no ven lo mismo — con la
-   llave compartida, cinco segundos le pasarían a uno el alcance del otro.
+   llave compartida, cinco segundos le pasarían a uno el alcance del otro. **El
+   rol ya no entra**, y eso es la señal de que la cartera se fue: entraba solo
+   porque decidía si se consultaba.
 
 **Se mira, se crea y se mueve en la cuenta elegida, y se avisa**: la barra pone
 el nombre en azul y encima del tablero sale «Estás viendo el tablero de X. Lo que
 crees o muevas aquí es de esa cuenta». Sin decirlo se edita el embudo de un
 cliente creyendo estar en el propio.
+
+### El tablero abre donde se quedó, y la llave es (persona, cuenta propia)
+
+Volvía siempre a la cuenta propia, así que quien trabaja a diario en el tablero
+de una hija tenía que elegirla en cada visita. Se guarda en
+`embudo_cuenta_recordada`, tabla de la App con `CREATE TABLE IF NOT EXISTS` y
+sin clave foránea — ni una columna en `User`, que es del backend (#360).
+
+> **La llave es la PAREJA, no la persona a secas**, y es la regla de siempre:
+> *la llave son los datos que deciden la respuesta*. Qué cuentas puede abrir
+> alguien depende de **desde dónde entra** —las alcanzables se resuelven contra
+> su fila efectiva—, así que con la persona sola, entrar a otra cuenta con
+> «Ingresar» y recargar ahí **borraría** lo que eligió en la suya: ahí no hay
+> selector, pero una recarga apunta igual. Con la pareja, cada contexto recuerda
+> lo suyo y ninguno pisa al otro.
+
+Cinco cosas que hay que mantener:
+
+1. **Manda la URL.** `?cuenta=` gana sobre lo recordado: un enlace guardado o
+   compartido apunta a una cuenta concreta y tiene que llevar ahí, o deja de ser
+   un enlace.
+2. **Y lo recordado no abre ninguna puerta.** Vuelve a pasar por
+   `laCuentaDelTablero` como cualquier otro parámetro, así que un id de una
+   cuenta que se desvinculó cae en la propia. No es un error que enseñar: es un
+   id que ya no existe para quien pregunta.
+3. **Se apunta la cuenta ya RESUELTA, y en cada carga del tablero**, no solo al
+   elegir. Así una elección que dejó de alcanzarse **se cura sola** en vez de
+   arrastrar para siempre un id muerto. Y no cuesta: el `ON CONFLICT` lleva su
+   `WHERE ... IS DISTINCT FROM`, así que cuando no cambia nada **Postgres no
+   escribe la fila** — la misma forma que la marca de leído del chat del equipo.
+4. **Lo apunta `tableroDelEmbudoAction` y nadie más.** Es la acción por la que
+   pasa todo lo que cambia lo que se tiene delante, el selector incluido; las
+   otras reciben la cuenta para actuar SOBRE ella, no para mirarla. Y la página
+   no apunta nada: es una lectura.
+   **A quien no elige no se le recuerda nada, y ni se le pregunta**: un agente
+   no tiene selector, y Embudos es justamente su pantalla de trabajo — una
+   consulta y una escritura por carga para devolverle siempre su propia cuenta
+   es lo que se paga todo el día. La condición al leer es `canManageWorkspace`
+   y al escribir `quien.manda`, que es falso exactamente para los mismos: a otra
+   cuenta solo se llega administrándola.
+5. **La dirección se pone al día sola** cuando se abre en otra cuenta por lo
+   recordado. Sin eso la URL diría «la propia» mientras se está mirando una
+   hija, y copiarla llevaría a otro sitio. Es un `replaceState`, **no un
+   `router.replace`**: reescribe la dirección sin volver a pedir la pantalla más
+   cara del módulo para no cambiar ni un dato.
 
 ### Y el filtro de asesor puede cambiar de embudo, y TIENE que poder
 
@@ -18055,25 +18113,44 @@ sin ajenos, entran todos.
   de FILAS. Incluye el caso que de verdad ejerce el `COUNT`: **520
   conversaciones**, o sea más que el tope, donde `tarjetas.length` es 500 y la
   cabecera sigue diciendo 520.
+- **El ALCANCE y la memoria** (`embudos-alcance-db.test.mjs`), con una cuenta de
+  la casa —rol `admin`, que es la que tenía la cartera entera dentro— y una
+  cuenta cliente **sin ningún vínculo** al lado: el selector ofrece exactamente
+  la propia y sus dos hijas, la suelta no se abre ni pidiéndola a mano, un
+  reseller no alcanza su cartera, y sin hijas no se pinta selector. Más la
+  memoria: abre donde se quedó, la pareja (persona, cuenta) no se pisa, y una
+  recordada que ya no se alcanza cae en la propia **y se cura sola**.
 - **Y la pantalla servida**: los tres mandos en la barra, filtrar a un asesor,
   «sin asesor», volver a «todos», elegir la cuenta hija —que la madre ve su
   estado vacío, le crea un embudo y aparecen SUS dos conversaciones y ninguna de
-  la madre— y que la hija no ve a su madre por ningún lado.
+  la madre—, que la hija no ve a su madre por ningún lado, **qué ofrece el
+  selector** y que al volver con la dirección limpia sigue en la hija, con la
+  dirección puesta al día.
 
-> **`ANTES_DEL_SELECTOR` va PINCHADO a un commit, nunca a `origin/main`.** En
+  Y para eso la semilla cambió a propósito: el dueño va con rol **`admin`** y hay
+  una cuenta cliente suelta. Con el dueño en `user` la cartera no se consultaba
+  siquiera, así que **la sonda habría pasado con el fallo puesto**.
+
+> **Cada «antes» va PINCHADO a un commit, nunca a `origin/main`.** En
 > cuanto este cambio se fusione, `origin/main` pasa a ser el «después»: el modo
 > roto dejaría de reproducir nada y **se pondría verde sin ejercerlo**, que es la
 > peor forma de tener un banco. Es la lección de *el «antes» de un banco CADUCA
 > el día que su PR se fusiona*, que este repositorio ya pagó una vez.
 
-El modo roto empaqueta las acciones y el cargador de ese commit, con el `import`
-del cargador **apuntado** al viejo —sin el alias resolvería al de hoy, que ya
-lleva el arreglo— y afirma los tres fallos: pedir otra cuenta devolvía la propia,
-el asesor pedido se ignoraba, y el tablero no traía totales por etapa.
+Son **tres** «antes» y tres commits, porque son tres fallos distintos:
+`ANTES_REF` (lo personal), `ANTES_DEL_SELECTOR` (cuando no había selector) y
+`ANTES_DEL_ALCANCE` (cuando ofrecía la plataforma entera y no recordaba nada).
+Cada modo roto empaqueta los ficheros de SU commit, con los `import` que se
+apuntan unos a otros **aliasados** a los viejos —sin eso resolverían a los de
+hoy, que ya llevan el arreglo, y el modo roto pasaría sin ejercer nada— y afirma
+su fallo: pedir otra cuenta devolvía la propia, el asesor pedido se ignoraba, no
+había totales por etapa, **el selector ofrecía una cuenta cliente sin vínculo**
+y no se recordaba en qué cuenta se estaba mirando.
 
 Y se comprobó lo único que de verdad dice que un banco mira: **quitándole el
 arreglo al modo bueno se pone en rojo**. Con la elección de cuenta rota caen 7
-casos, con el reparto de totales 7, y con el filtro de asesor 3.
+casos, con el reparto de totales 7, con el filtro de asesor 3, **con la cartera
+devuelta al alcance 9** y **quitando el apunte de la cuenta recordada 4**.
 
 ## Lo que crea un asesor es SUYO: etiquetas y respuestas rápidas
 

@@ -26,6 +26,13 @@
  * conversación. Por eso `laCuentaDelTablero` devuelve **una cadena y no una
  * lista**: no hay forma de pedir dos, ni desde la URL ni desde una acción.
  *
+ * Y **cuáles se ofrecen es la misma pregunta que en Llamadas y en Finanzas**,
+ * contestada por la misma función (`lasCuentasQueAlcanzaHaciaAbajo`): la propia
+ * y las que cuelgan de ella, nunca su madre ni sus hermanas. Aquí hubo una copia
+ * con una fuente de más —la cartera de clientes— y por eso el selector llegó a
+ * ofrecer cuentas de toda la plataforma; está contado en
+ * `lib/cuentas-hacia-abajo.server.ts`.
+ *
  * # 2. El asesor: todos juntos por defecto
  *
  * El tablero enseñaba las conversaciones de los asesores que tienen ESE embudo
@@ -64,11 +71,10 @@ export type CuentaDelTablero = {
 /**
  * Cuántas cuentas se ofrecen como mucho.
  *
- * Para una cuenta madre con sus hijas esto no recorta nada —la familia mayor de
- * la plataforma son cinco—. Lo que acota es el otro caso: una cuenta de la casa
- * o un reseller grande, cuya cartera son todas las cuentas cliente que
- * administra. Esa lista viaja entera al navegador, así que tiene techo; y lo
- * que se recorta **se dice**, no desaparece.
+ * Hoy no recorta nada —la familia mayor de la plataforma son cinco cuentas— y
+ * está por lo mismo que `TOPE_DE_LA_FAMILIA`: la lista viaja entera al
+ * navegador, así que tiene techo. Y lo que se recorta **se dice**, no
+ * desaparece.
  */
 export const TOPE_DE_CUENTAS = 200;
 

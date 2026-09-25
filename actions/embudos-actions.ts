@@ -30,6 +30,7 @@ import {
     elTableroDelEmbudo,
     quienMiraElTablero,
     quienMiraEstaConversacion,
+    recordarLaCuentaDelTablero,
     type QuienMiraLosEmbudos,
     type TableroDeEmbudo,
     type UsuarioQueMira,
@@ -104,6 +105,19 @@ export async function tableroDelEmbudoAction(
             puedeElegir: ctx.cuentas.puedeElegirCuenta,
             recortadas: ctx.cuentas.cuentasRecortadas,
         });
+        /*
+         * Dónde se está mirando, para la próxima visita.
+         *
+         * Va aquí y no en la página —que es una lectura— porque **esta es la
+         * acción por la que pasa todo lo que cambia lo que se tiene delante**,
+         * el selector de cuenta incluido. Las otras acciones reciben la cuenta
+         * para actuar SOBRE ella, no para mirarla, así que no apuntan nada.
+         *
+         * Se apunta la cuenta ya resuelta, así que una elección que dejó de
+         * alcanzarse se cura sola; y cuando no cambia nada Postgres no escribe
+         * la fila, así que llamarlo en cada recarga no cuesta.
+         */
+        await recordarLaCuentaDelTablero(ctx.quien);
         return { success: true, message: 'Listo.', data };
     } catch (error) {
         console.error('[embudos] no se pudo cargar el tablero', error);
