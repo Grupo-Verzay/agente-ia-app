@@ -223,6 +223,12 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
   }, []);
 
+  // `soltarElSitio` corre también al desmontar, así que no puede depender de
+  // una prop: con `instanceName` en sus dependencias cambiaría de identidad y
+  // el efecto de desmontaje se dispararía en mitad de una llamada viva.
+  const instanceNameRef = useRef(instanceName);
+  instanceNameRef.current = instanceName;
+
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (vigilanciaRef.current) { clearInterval(vigilanciaRef.current); vigilanciaRef.current = null; }
@@ -245,13 +251,60 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     pcRef.current = null;
   }, []);
 
-  const hangup = useCallback(() => {
+  /**
+   * Suelta el sitio que esta llamada ocupa EN EL SERVIDOR.
+   *
+   * El proveedor cuenta un cupo de llamadas simultáneas por línea, y una
+   * llamada solo sale de esa cuenta cuando alguien le pone el final. Hasta
+   * ahora eso solo pasaba al colgar: los demás finales —el audio que no se
+   * pudo conectar, el micrófono denegado, cerrar la tarjeta mientras todavía
+   * estaba llamando— se iban por `cleanup`, que suelta el micro y la conexión
+   * de ESTE navegador y **no le dice nada al servidor**. Así que cada final
+   * malo dejaba un sitio ocupado por una llamada que ya no existe, y a la
+   * octava vez la línea contestaba «Límite de llamadas simultáneas alcanzado»
+   * sin que hubiera nadie hablando.
+   *
+   * Va aparte de `cleanup` a propósito: son dos mitades que no se hacen en los
+   * mismos sitios —el `cancelledRef` de más abajo tiene que soltar el sitio
+   * SIN tocar el micro, porque quien canceló ya está cerrando la tarjeta— y
+   * juntarlas es lo que hizo que una se olvidara.
+   *
+   * Es idempotente: se puede llamar dos veces, y el `DELETE` del proveedor
+   * sobre una llamada que ya no está tampoco es un error.
+   */
+  const soltarElSitio = useCallback(() => {
     const c = callRef.current;
-    if (c?.provider === 'astra') void endAstraCall(c.sid, c.callId);
-    if (c?.provider === 'meta') void endMetaWhatsAppCall({ instanceName: metaInstanceRef.current ?? instanceName, callId: c.callId });
+    if (!c) return;
     callRef.current = null;
+    if (c.provider === 'astra') void endAstraCall(c.sid, c.callId);
+    if (c.provider === 'meta') {
+      void endMetaWhatsAppCall({
+        instanceName: metaInstanceRef.current ?? instanceNameRef.current,
+        callId: c.callId,
+      });
+    }
+  }, []);
+
+  /**
+   * La ÚNICA puerta por la que se abandona una llamada.
+   *
+   * Primero suelta el sitio en el servidor y después el micrófono y la
+   * conexión de aquí. Que sea una sola no es estilo: son dos mitades, y
+   * repartidas por los nueve caminos que tiene esta tarjeta para acabar mal
+   * —el audio que no conecta, el micrófono denegado, cerrar mientras marca,
+   * cada `catch`— olvidarse de una no se nota desde dentro. Se olvidaron
+   * cinco, y el precio fue un sitio del cupo por cada final malo.
+   */
+  const hangup = useCallback(() => {
+    soltarElSitio();
     cleanup();
-  }, [cleanup, instanceName]);
+  }, [cleanup, soltarElSitio]);
+
+  // El desmontaje cuelga por REFERENCIA: si el efecto dependiera de `hangup`,
+  // cualquier cosa que cambiara su identidad ejecutaría su limpieza en mitad
+  // de una llamada viva.
+  const hangupRef = useRef(hangup);
+  hangupRef.current = hangup;
 
   /**
    * Deja el registro de la llamada en los Chats, con su duración.
@@ -625,21 +678,24 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
           phone,
           sdpOffer: pc.localDescription!.sdp,
         });
-        if (cancelledRef.current) return;
         if (!started.success || !started.callId) {
+          if (cancelledRef.current) { hangup(); return; }
           setErrorMsg(started.message || 'No se pudo iniciar la llamada por Meta.');
           setState('error');
-          cleanup();
+          hangup();
           return;
         }
 
+        // Igual que en Astra: se apunta antes del guardián de cancelación,
+        // porque la llamada ya existe al otro lado.
         callRef.current = { provider: 'meta', callId: started.callId };
+        if (cancelledRef.current) { hangup(); return; }
         callLogMetaRef.current = { provider: 'meta', metaCallId: started.callId };
         setErrorMsg('Meta aceptó la solicitud. Falta conectar la respuesta del webhook para el audio.');
         let sdpAnswer = '';
         let rechazo = '';
         for (let attempt = 0; attempt < 20; attempt += 1) {
-          if (cancelledRef.current) return;
+          if (cancelledRef.current) { hangup(); return; }
           const parte = await elEstadoDeLaLlamadaMeta({
             instanceName: effName,
             callId: started.callId,
@@ -661,7 +717,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         if (!sdpAnswer) {
           setErrorMsg(rechazo || 'Meta aceptó la llamada, pero no llegó la respuesta de audio.');
           setState('error');
-          cleanup();
+          hangup();
           return;
         }
 
@@ -672,14 +728,14 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         vigilar(pc, true);
         preguntarleAMeta(started.callId, effName);
       } catch (e: any) {
-        if (cancelledRef.current) return;
+        if (cancelledRef.current) { hangup(); return; }
         setErrorMsg(
           e?.name === 'NotAllowedError'
             ? 'Permiso de micrófono denegado. Actívalo para llamar.'
             : (e?.message || 'Error iniciando llamada por Meta.'),
         );
         setState('error');
-        cleanup();
+        hangup();
       }
       return;
     }
@@ -693,20 +749,30 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     // el CRM se llamaba siempre con el numero de la cuenta propia aunque la
     // conversacion fuera de otra linea.
     const started = await startAstraCall(`+${phone}`, effName);
-    if (cancelledRef.current) return;
     if (!started.success || !started.sid || !started.callId) {
+      if (cancelledRef.current) { hangup(); return; }
       setErrorMsg(started.message || 'No se pudo iniciar la llamada.');
       setState('error');
+      hangup();
       return;
     }
+    // Se apunta ANTES de mirar si nos cancelaron: a partir de aquí la llamada
+    // YA existe en el servidor y ocupa un sitio, así que tiene que haber por
+    // dónde soltarla pase lo que pase. Al revés —que es como estaba— cerrar la
+    // tarjeta mientras salía la llamada dejaba el sitio ocupado para siempre:
+    // `hangup` no encontraba nada que colgar porque esta línea no había corrido
+    // todavía.
     callRef.current = { provider: 'astra', sid: started.sid, callId: started.callId };
+    if (cancelledRef.current) { hangup(); return; }
     astraMetaRef.current = { sid: started.sid, callId: started.callId };
     callLogMetaRef.current = { provider: 'astra', astraSid: started.sid, astraCallId: started.callId };
 
     // 2) WebRTC: micrófono + oferta + intercambio SDP
     try {
       const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (cancelledRef.current) { mic.getTracks().forEach((t) => t.stop()); return; }
+      // La llamada ya salió: cancelar mientras se pedía el micrófono tiene que
+      // soltar su sitio, no solo apagar el micro.
+      if (cancelledRef.current) { mic.getTracks().forEach((t) => t.stop()); hangup(); return; }
       micRef.current = mic;
 
       const pc = new RTCPeerConnection({
@@ -743,11 +809,11 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       });
 
       const res = await astraCallWebrtc(started.sid, started.callId, pc.localDescription!.sdp);
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) { hangup(); return; }
       if (!res.success || !res.sdpAnswer) {
         setErrorMsg(res.message || 'Falló la conexión de audio.');
         setState('error');
-        cleanup();
+        hangup();
         return;
       }
       await pc.setRemoteDescription({ type: 'answer', sdp: res.sdpAnswer });
@@ -759,16 +825,16 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       // que avisa de que el otro colgó es el audio. Es el mismo vigilante.
       vigilar(pc, false);
     } catch (e: any) {
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) { hangup(); return; }
       setErrorMsg(
         e?.name === 'NotAllowedError'
           ? 'Permiso de micrófono denegado. Actívalo para llamar.'
           : (e?.message || 'Error de audio.'),
       );
       setState('error');
-      cleanup();
+      hangup();
     }
-  }, [phone, instanceType, instanceName, hangup, cleanup, armRingTimeout, vigilar, preguntarleAMeta]);
+  }, [phone, instanceType, instanceName, hangup, cleanup, soltarElSitio, armRingTimeout, vigilar, preguntarleAMeta]);
 
   useEffect(() => {
     if (!open) return;
@@ -777,8 +843,12 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Cleanup al desmontar
-  useEffect(() => () => cleanup(), [cleanup]);
+  // Cleanup al desmontar. Suelta TAMBIÉN el sitio en el servidor: si la tarjeta
+  // desaparece con una llamada a medias —se navega fuera, se recarga— nadie
+  // más va a decirle al proveedor que esa llamada acabó. Las dos funciones son
+  // estables (`useCallback` sin dependencias), así que esto sigue corriendo
+  // solo al desmontar y no en cada repintado.
+  useEffect(() => () => { hangupRef.current(); }, []);
 
   const toggleMute = () => {
     const next = !muted;
