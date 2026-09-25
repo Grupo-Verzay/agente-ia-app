@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     DndContext,
     DragOverlay,
@@ -82,6 +82,7 @@ import {
 } from '@/lib/embudos';
 import type { KanbanCard } from '@/actions/crm-kanban-actions';
 import type { TableroDeEmbudo, TarjetaDeEmbudo } from '@/lib/tablero-de-embudo.server';
+import { huboCambioDeEtapa } from '@/lib/etapa-desde-el-chat';
 import {
     asignarEmbudosAction,
     borrarEmbudoAction,
@@ -304,6 +305,24 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
             // Sin dirección que tocar no pasa nada: el tablero ya está pintado.
         }
     }, []);
+
+    /*
+     * Si se movió una etapa desde la cabecera del chat, el tablero se pide otra
+     * vez al montarse.
+     *
+     * El dato ya está en `embudo_posiciones` —lo escribió la misma acción—, así
+     * que esto no lo va a buscar a ningún sitio nuevo: lo que tapa es el caché
+     * del enrutador de Next, que guarda una página dinámica 30 s en el
+     * navegador y puede pintar la foto de antes al volver de Chats. El porqué
+     * de no cerrarlo con `revalidatePath` está en `lib/etapa-desde-el-chat.ts`.
+     *
+     * **Sin marca no se pide nada**: abrir el tablero sin haber tocado nada
+     * —que es el caso normal— no paga ni una consulta. Y la marca se borra al
+     * leerla, así que esto corre una sola vez por cambio.
+     */
+    useEffect(() => {
+        if (huboCambioDeEtapa()) void recargar(inicial.embudoId);
+    }, [recargar, inicial.embudoId]);
 
     const visibles = useMemo(() => {
         const q = busqueda.trim().toLowerCase();

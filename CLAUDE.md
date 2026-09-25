@@ -17653,6 +17653,80 @@ La tarjeta **es la del Kanban del CRM** (`KanbanCardItem`, exportada con un
 hueco `pie` para el asesor): con una copia, el día que se afine una la otra se
 queda atrás.
 
+## Embudos: la etapa se cambia DESDE EL CHAT, y es la misma puerta
+
+Una conversación solo cambiaba de etapa arrastrando su tarjeta en `/embudos`, o
+sea saliéndose del chat que se está atendiendo. En la cabecera de la
+conversación, al lado del buscador de etiquetas, hay un selector que la cambia
+sin salir (`SelectorDeEtapaDelEmbudo`).
+
+> **No hay un segundo camino.** Mueve con **`moverTarjetaAction`** —la misma del
+> tablero, con su validación y su permiso— y lee con
+> **`etapaDeLaConversacionAction`**, que deduce el embudo y la etapa con las
+> MISMAS funciones que el tablero (`elEmbudoDeLaConversacion`,
+> `laEtapaDeLaConversacion`). Lo que se ve aquí y lo que se ve allí no pueden
+> discrepar porque salen del mismo sitio; con la regla copiada, una pantalla
+> enseñaría una etapa y la otra otra, y no habría forma de saber cuál miente.
+
+La lectura es la que faltaba: el tablero contesta lo mismo, pero armándolo
+entero —el equipo, las asignaciones, hasta 500 conversaciones con sus etiquetas
+y sus seguimientos—, que es lo más caro de esa pantalla. Aquí son cuatro
+consultas cortas sobre una sola fila.
+
+Y la puerta se pregunta **una vez**: `laConversacion` —la conversación es de la
+cuenta, y `puedeMoverLaTarjeta`— la usan los dos caminos. `puedeMover` se
+**devuelve** en vez de rechazar, porque leer la etapa no es moverla: un asesor
+VE en qué etapa está una conversación que no lleva, de solo lectura y con el
+motivo escrito debajo. Un botón apagado no dice por qué, y esconderlo deja sin
+ver el dato.
+
+### Se carga al ABRIR el selector, no al abrir la conversación
+
+Es lo que hace su vecino de fila (`ChatAppointmentStatusButton`) y por el mismo
+motivo: Chats es la pantalla más cara de la App y una consulta por conversación
+abierta se paga todo el día, también en las cuentas que no usan embudos. El
+precio se dice: el rótulo pone «Etapa» hasta la primera vez que se abre.
+
+### Y por qué NO lleva `revalidatePath`
+
+El tablero lee `embudo_posiciones` en cada carga, así que en cuanto la acción
+escribe el dato ya está ahí. Lo único que puede taparlo es el **caché del
+enrutador**: Next 14 guarda una página dinámica 30 s en el navegador, así que ir
+a Chats, mover la etapa y volver a Embudos dentro de ese rato pinta la foto de
+antes.
+
+> **`revalidatePath` desde una acción de servidor obliga a re-renderizar la ruta
+> ACTUAL.** Llamado desde el chat eso es la pantalla de Chats entera en cada
+> cambio de etapa; llamado desde el tablero, la consulta de 500 tarjetas en cada
+> arrastre. Es justo el coste que este documento evita, y por eso
+> `moverTarjetaAction` es la única escritura de su fichero que no revalida.
+
+Se cierra con una marca en `sessionStorage` (`lib/etapa-desde-el-chat.ts`): la
+deja quien mueve y la recoge el tablero al montarse, **en la misma pestaña**,
+que es el camino de verdad (Chats → Embudos). Tres cosas:
+
+1. **Sin marca no se pide nada.** Abrir el tablero sin haber tocado nada —el
+   caso normal— no paga ni una consulta.
+2. **Se lee UNA vez**: la marca se borra al leerla. Dejándola puesta, el tablero
+   volvería a pedir sus datos en cada montaje por un cambio que ya recogió.
+3. **Cada acceso va en su `try`.** En una ventana privada tocar el
+   almacenamiento lanza, y ni el chat ni el tablero pueden caerse por eso. Sin
+   almacenamiento se vuelve a lo de siempre —el tablero se refresca al
+   navegar—, que es el lado seguro: se ve de menos unos segundos, nunca una
+   etapa que no es.
+
+Lo prueba `scripts/banco-embudos.sh`: la lectura y el tablero se piden **y se
+comparan encadenados** (dos caminos para la misma pregunta), un asesor ve la
+etapa de una que no lleva y no la mueve, lo que se cambia desde el chat sale en
+el tablero, y una cuenta sin embudos lo dice en vez de reventar. Comprobado que
+caza: aflojando `puedeMover` o dejando que la lectura se invente su propia regla,
+se pone en rojo.
+
+Y de paso se fue el `import` de `LeadStatusSelect` de `ChatHeader.tsx`, que
+estaba puesto y no lo usaba nadie desde que el estado del lead se ve en el
+Contexto del lead. Lo pinta la FILA de la lista (`ChatContactItem`), que sí lo
+importa.
+
 ## Lo que crea un asesor es SUYO: etiquetas y respuestas rápidas
 
 Las etiquetas (`Tag`) y las respuestas rápidas (`rr`) siguen siendo filas de la
