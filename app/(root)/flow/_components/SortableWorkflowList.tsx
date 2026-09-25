@@ -22,20 +22,23 @@ import { GripVertical } from 'lucide-react';
 import { updateWorkflowOrder } from '@/actions/workflow-actions';
 import { IntentTrigger } from '@prisma/client';
 import { WorkflowCard } from './WorkflowCard';
+import type { RepeticionesDeFlujo } from '@/lib/repeticiones-de-flujo';
 
 interface SortableWorkflowListProps {
   workflows: Workflow[];
   userId: string;
   triggers?: IntentTrigger[];
+  repeticiones?: Record<string, RepeticionesDeFlujo>;
 }
 
 interface SortableItemProps {
   workflow: Workflow;
   userId: string;
   trigger?: IntentTrigger | null;
+  repeticiones?: RepeticionesDeFlujo;
 }
 
-const SortableWorkflowItem = ({ workflow, userId, trigger }: SortableItemProps) => {
+const SortableWorkflowItem = ({ workflow, userId, trigger, repeticiones }: SortableItemProps) => {
   const {
     attributes,
     listeners,
@@ -66,13 +69,13 @@ const SortableWorkflowItem = ({ workflow, userId, trigger }: SortableItemProps) 
         <GripVertical className="h-4 w-4" />
       </div>
       <div className="flex-1">
-        <WorkflowCard workflow={workflow} userId={userId} trigger={trigger} />
+        <WorkflowCard workflow={workflow} userId={userId} trigger={trigger} repeticiones={repeticiones} />
       </div>
     </div>
   );
 };
 
-export const SortableWorkflowList = ({ workflows, userId, triggers = [] }: SortableWorkflowListProps) => {
+export const SortableWorkflowList = ({ workflows, userId, triggers = [], repeticiones = {} }: SortableWorkflowListProps) => {
   const [items, setItems] = useState<Workflow[]>(workflows);
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -128,6 +131,7 @@ export const SortableWorkflowList = ({ workflows, userId, triggers = [] }: Sorta
               workflow={workflow}
               userId={userId}
               trigger={triggers.find(t => t.workflowId === workflow.id) ?? null}
+              repeticiones={repeticiones[workflow.id]}
             />
           ))}
         </div>

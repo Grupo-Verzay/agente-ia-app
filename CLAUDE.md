@@ -16636,6 +16636,56 @@ Lo prueba `scripts/banco-relleno-de-historial.sh` contra Postgres, con
 `persistChatMessage` de verdad y solo la red fingida (el proveedor se arma con
 los mismos traductores, `traidoDeEvolution` y `traidoDeWaha`).
 
+## Flujos: una vez por conversación, salvo que el dueño abra REPETICIONES
+
+Lo normal sigue siendo que un flujo se dispare **una sola vez por
+conversación**. En los que lo necesitan —medios de pago, ubicación— el dueño lo
+abre desde el «⋯» de la tarjeta del flujo › **Repeticiones**, con dos controles:
+**máximo de ejecuciones** (por defecto 1) y **tiempo de espera entre
+ejecuciones** (minutos, horas o días con el mismo `TimeInput` de siempre; por
+defecto vacío = sin espera).
+
+> **El ajuste vive en `flujo_repeticiones`, tabla de la App** (`workflowId`,
+> `maxEjecuciones`, `esperaMinutos`) con `CREATE TABLE IF NOT EXISTS` y sin
+> clave foránea. **Ni una columna en `Workflow`**: es del backend, dueño de sus
+> migraciones (#360). Un flujo **sin fila** es 1 vez y sin espera, así que los
+> flujos que ya existen se comportan exactamente igual sin backfill; y volver a
+> lo de siempre **borra** la fila, para que «sin fila» signifique una sola cosa.
+
+**Quien aplica la regla es el backend**, en la misma puerta que ya decidía «una
+vez»: `ChatHistoryService.reservarEjecucion` (`api-webhook`). El conteo y la
+última vez salen de las filas `intention` de `n8n_chat_histories`, una por
+ejecución, **por conversación (`session_id`) y por flujo (`name`)** —las que ya
+existían cuentan—. Cinco cosas que hay que mantener:
+
+1. **Contar y apuntar van en UNA transacción con `pg_advisory_xact_lock`** por
+   (conversación, flujo). El `INSERT … WHERE NOT EXISTS` de antes no bastaba en
+   READ COMMITTED: dos mensajes a la vez pasaban los dos. El banco lo ejerce con
+   ocho reservas simultáneas y se pone rojo si se quita el candado.
+2. **La regla es de las dos**: alcanzado el máximo no se dispara más; sin
+   cumplir la espera no se dispara aunque queden. Pura en
+   `repeticiones-de-flujo.ts` del backend; la App lleva su copia del saneado
+   (`lib/repeticiones-de-flujo.ts`) con **los mismos topes** (100 ejecuciones,
+   365 días). Lo que no se entiende cae en 1 vez y sin espera.
+3. **Soltar una reserva fallida suelta SOLO la última** fila: las anteriores sí
+   salieron y siguen contando.
+4. **La bienvenida y los pasos del embudo NO la usan** (llaman sin
+   `workflowId`): son de una vez por diseño, y su tarjeta no ofrece la opción.
+   Lo que la respeta es lo que ya consultaba la reserva: `Ejecutar_Flujos` de la
+   IA, los disparadores IA y la instrucción literal. Los flujos por **palabra
+   clave** y las respuestas rápidas se disparaban ya en cada coincidencia sin
+   mirar la reserva, y así siguen (solo apuntan la ejecución para que cuente).
+5. **Sin la tabla (nadie abrió el ajuste) el backend no se queja**: es lo de
+   siempre. Cualquier otro fallo al leerla también cae en lo de siempre, pero se
+   dice.
+
+Guardar es de quien manda (`canManageWorkspace`); un `agente` lo ve y no lo
+cambia; el flujo se resuelve por su FILA y pasa por `laCuentaDeLaAccion`. Lo
+prueban `scripts/banco-repeticiones-de-flujo.sh` aquí (regla, acciones contra
+Postgres y la pantalla; `MODO=roto` afirma que antes no había opción) y el del
+mismo nombre en `api-webhook` (la reserva contra Postgres; `MODO=roto` lleva el
+candado viejo y afirma que no dejaba repetir).
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

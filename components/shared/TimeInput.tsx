@@ -20,9 +20,18 @@ interface TimeInputProps {
     onBlur?: () => void
     currentValue?: string // espera 'TimeUnit-value'
     className?: string
+    /** Rótulo del campo. Por defecto el de siempre, «Duración de retraso». */
+    label?: string
+    /**
+     * Con esto el campo puede quedarse VACÍO (se enseña "" en vez de 0) y
+     * emite `unidad-0`. Lo usa la espera entre ejecuciones de un flujo, cuyo
+     * valor por defecto es «sin espera». Sin la prop, todo sigue igual.
+     */
+    permitirVacio?: boolean
+    placeholder?: string
 }
 
-export function TimeInput({ onChange, className, onBlur, currentValue }: TimeInputProps) {
+export function TimeInput({ onChange, className, onBlur, currentValue, label = "Duración de retraso", permitirVacio = false, placeholder }: TimeInputProps) {
     // const maxSeconds = 30 * 24 * 60 * 60 // 30 días
     const maxSeconds = 365 * 24 * 60 * 60 // 365 días
 
@@ -79,7 +88,7 @@ export function TimeInput({ onChange, className, onBlur, currentValue }: TimeInp
     return (
         <div className={cn("flex flex-col gap-1.5", className)}>
             <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">Duración de retraso</Label>
+                <Label className="text-sm font-semibold">{label}</Label>
                 <span className="text-xs text-muted-foreground">Máximo 365 días</span>
             </div>
             <div className="flex gap-2">
@@ -98,7 +107,8 @@ export function TimeInput({ onChange, className, onBlur, currentValue }: TimeInp
                     type="number"
                     min={0}
                     className="flex-1 text-sm"
-                    value={value}
+                    value={permitirVacio && value === 0 ? "" : value}
+                    placeholder={placeholder}
                     onBlur={handleLocalUnBlur}
                     onChange={(e) => {
                         const num = parseInt(e.target.value, 10)

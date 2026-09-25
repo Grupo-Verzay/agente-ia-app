@@ -19,6 +19,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { workflowShema } from "@/lib/zod";
 import { z } from "zod";
 import { getWorkflowEditorPath } from "@/types/workflow";
+import { REPETICIONES_POR_DEFECTO, resumenDeRepeticiones, type RepeticionesDeFlujo } from "@/lib/repeticiones-de-flujo";
+import { RepeticionesDelFlujoDialog } from "./RepeticionesDelFlujoDialog";
 
 type MatchType = "Exacta" | "Contiene";
 
@@ -28,10 +30,12 @@ export const WorkflowCard = ({
     workflow,
     userId,
     trigger,
+    repeticiones,
 }: {
     workflow: Workflow;
     userId: string;
     trigger?: IntentTrigger | null;
+    repeticiones?: RepeticionesDeFlujo;
 }) => {
     const router = useRouter();
     const editorPath = getWorkflowEditorPath(workflow.id, workflow.isPro);
@@ -46,6 +50,13 @@ export const WorkflowCard = ({
     const [welcomeLoading, setWelcomeLoading] = useState(false);
 
     const [funnelActive, setFunnelActive] = useState<boolean>(workflow.isFunnelStep ?? false);
+
+    const [repeticionesLocales, setRepeticionesLocales] = useState<RepeticionesDeFlujo>(repeticiones ?? REPETICIONES_POR_DEFECTO);
+    const [repeticionesOpen, setRepeticionesOpen] = useState(false);
+    // La bienvenida y los pasos del embudo son de una vez por diseño: el motor
+    // no les aplica las repeticiones, así que tampoco se ofrecen.
+    const admiteRepeticiones = !welcomeActive && !funnelActive;
+    const resumenRepeticiones = admiteRepeticiones ? resumenDeRepeticiones(repeticionesLocales) : null;
 
     const handleToggleFunnel = async () => {
         const next = !funnelActive;
@@ -420,6 +431,15 @@ export const WorkflowCard = ({
                                     >
                                         {workflow.isPro ? "Avanzado" : "Basico"}
                                     </Badge>
+                                    {resumenRepeticiones && (
+                                        <Badge
+                                            variant="outline"
+                                            className="h-5 px-1.5 text-[10px] border-emerald-200 bg-emerald-50 text-emerald-700"
+                                            title="Veces que puede dispararse por conversación"
+                                        >
+                                            {resumenRepeticiones}
+                                        </Badge>
+                                    )}
                                     {!welcomeActive && (
                                         <PencilLine className="w-4 h-4 text-muted-foreground opacity-60 group-hover:opacity-100 transition" />
                                     )}
@@ -445,6 +465,7 @@ export const WorkflowCard = ({
                         onSetAsWelcome={handleToggleWelcome}
                         isFunnelStep={funnelActive}
                         onToggleFunnel={!welcomeActive ? handleToggleFunnel : undefined}
+                        onRepeticiones={admiteRepeticiones ? () => setRepeticionesOpen(true) : undefined}
                     />
                 </div>
                 </div>
@@ -488,6 +509,16 @@ export const WorkflowCard = ({
                     </div>
                 )}
             </CardContent>
+
+            {repeticionesOpen && (
+                <RepeticionesDelFlujoDialog
+                    workflowId={workflow.id}
+                    workflowName={workflow.name}
+                    open={repeticionesOpen}
+                    onOpenChange={setRepeticionesOpen}
+                    onGuardado={setRepeticionesLocales}
+                />
+            )}
 
             <IntentTriggerDialog
                 userId={userId}

@@ -14,7 +14,7 @@ import {
 
 import TooltipWrapper from "@/components/TooltipWrapper";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { HomeIcon, ListOrderedIcon, MoreVerticalIcon, ShuffleIcon, TrashIcon, XCircleIcon } from "lucide-react";
+import { HomeIcon, ListOrderedIcon, MoreVerticalIcon, Repeat, ShuffleIcon, TrashIcon, XCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
@@ -27,6 +27,7 @@ export const WorkflowAction = ({
     onSetAsWelcome,
     isFunnelStep,
     onToggleFunnel,
+    onRepeticiones,
 }: {
     workflowId: string;
     userId: string;
@@ -34,6 +35,8 @@ export const WorkflowAction = ({
     onSetAsWelcome?: () => void;
     isFunnelStep?: boolean;
     onToggleFunnel?: () => void;
+    /** Abre el ajuste de repeticiones. Sin él (bienvenida, embudo) no se ofrece. */
+    onRepeticiones?: () => void;
 }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -84,6 +87,15 @@ export const WorkflowAction = ({
                 <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {onRepeticiones && (
+                        <DropdownMenuItem
+                            className="flex items-center gap-2"
+                            onSelect={onRepeticiones}
+                        >
+                            <Repeat size={16} className="text-blue-600" />
+                            Repeticiones
+                        </DropdownMenuItem>
+                    )}
                     {onToggleFunnel && (
                         <DropdownMenuItem
                             className="flex items-center gap-2"
