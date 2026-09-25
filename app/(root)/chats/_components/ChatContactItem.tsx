@@ -192,8 +192,12 @@ function ChatContactItemBase({
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6} className="z-[9999]">
-              <p className="text-xs font-semibold">Pidió un asesor</p>
-              <p className="text-xs">La IA está pausada y espera desde hace {cuanto}.</p>
+              {/* Genérico a propósito: a «En espera» se llega por una petición
+                  de asesor o porque el agente guardó una solicitud, pedido,
+                  reserva, reclamo o cita; y si la IA calla o no lo decide la
+                  configuración de la cuenta, no este estado. */}
+              <p className="text-xs font-semibold">En espera de un asesor</p>
+              <p className="text-xs">Nadie del equipo le ha contestado; espera desde hace {cuanto}.</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

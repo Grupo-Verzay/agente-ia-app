@@ -11549,6 +11549,41 @@ Son dos cosas y hacen falta las dos. Y la segunda es la que cambia producción d
 golpe, así que se decide a sabiendas: qué pasa con las cuentas que ya existen no
 es un detalle de la migración, es la decisión.
 
+### Un registro guardado por el agente también deja la conversación «En espera»
+
+Además de la petición de asesor y la palabra clave, una conversación pasa a
+«En espera» cuando el agente guarda una **SOLICITUD, un PEDIDO, una RESERVA, un
+RECLAMO o una CITA**. Vive en el backend (`api-webhook`): `RegistroService.createRegistro`
+para los cuatro tipos de `Registro` y `crear_cita` / `crear_cita_booking` para
+las citas, las dos por `marcarEnEsperaPorRegistro` (`webhook/utils/marcar-en-espera.ts`).
+
+> **Es el MISMO estado, no uno parecido**: `Session.escalated_at`, el mismo
+> contador de la pastilla, y sale igual —cuando contesta una persona, desde la
+> App o desde el teléfono—. Lo que decide qué tipos cuentan es
+> `ponenEnEspera` (`webhook/utils/espera-por-registro.ts`, puro).
+
+Cuatro cosas que hay que mantener:
+
+1. **No apaga la IA.** No toca `Session.status`: si la IA calla o sigue lo
+   decide la configuración de la cuenta, como siempre.
+2. **No asigna, no avisa y no deja `AssignmentLog`.** Sin ese rastro,
+   `releaseStaleEscalations` no la confunde con un escalado.
+3. **No pisa un sello anterior** (`WHERE escalated_at IS NULL`): si ya esperaba,
+   sigue esperando desde entonces. `REPORTE` (la síntesis, que se reescribe con
+   cada mensaje), `PAGO` y `PRODUCTO` no cuentan.
+4. **Deja escrito su origen, `Session.espera_origen = 'registro'`**, y es la
+   pieza que no se puede quitar: el freno de `Escalar_A_Asesor`
+   (`decidirSiEscalar`) lee el sello para no escalar dos veces. Sin el origen,
+   un pedido guardado haría que la petición de asesor de después se **ignorara**
+   —ni asignación ni aviso—. La escalada de verdad sobrescribe el origen a
+   `escalado` y conserva la hora; una fila sin origen (de antes) cuenta como
+   escalada.
+
+Lo prueba `scripts/banco-en-espera-por-registro.sh` en `api-webhook`, contra
+Postgres y con los servicios de verdad; `MODO=roto` lo corre en un árbol del
+commit de antes y afirma que el registro se guardaba sin poner la conversación
+en espera.
+
 ## Vencimientos: un DÍA, no un instante, y quien lo juzga es uno solo
 
 Las tarjetas de Proyectos y de Tickets llevan fecha de vencimiento, con un

@@ -213,7 +213,8 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
         </button>
       )}
 
-      {/* En espera: pidieron una persona y ninguna les ha contestado aun.
+      {/* En espera: pidieron una persona —o el agente guardo una solicitud,
+          pedido, reserva, reclamo o cita— y nadie les ha contestado aun.
           Va detras de «Sin leer» porque es otro ESTADO del chat, y uno puede
           estar leido y seguir esperando.
 
@@ -229,7 +230,7 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
         <button
           type="button"
           onClick={onToggleEnEspera}
-          title="Pidieron una persona y ninguna les ha contestado aun"
+          title="Pidieron un asesor o el agente guardó un registro, y nadie del equipo les ha contestado aún"
           aria-pressed={!!enEsperaOnly}
           className={cn(
             PASTILLA,
