@@ -93,7 +93,7 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
     const etapas = datos?.etapas ?? [];
     const posicionActual = etapas.findIndex((e) => e.id === datos?.etapaId);
     const actual = posicionActual >= 0 ? etapas[posicionActual] : null;
-    const colorActual = actual ? elColorDeLaEtapa(actual.color, posicionActual) : null;
+    const colorActual = actual ? elColorDeLaEtapa(actual, posicionActual) : null;
 
     return (
         <Popover
@@ -115,7 +115,7 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
                     {/* El color lo pone la etapa, que es el dato; el botón se
                         queda neutro para no pelear con los de al lado. */}
                     {colorActual ? (
-                        <span className={cn('h-2 w-2 shrink-0 rounded-full', colorActual.punto)} />
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colorActual }} />
                     ) : (
                         <ListOrdered className="h-3 w-3 shrink-0" />
                     )}
@@ -151,7 +151,7 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
                     <>
                         <div className="max-h-64 space-y-0.5 overflow-auto">
                             {datos.etapas.map((etapa, i) => {
-                                const color = elColorDeLaEtapa(etapa.color, i);
+                                const color = elColorDeLaEtapa(etapa, i);
                                 const puesta = etapa.id === datos.etapaId;
                                 return (
                                     <button
@@ -174,7 +174,7 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
                                         <Check
                                             className={cn('h-3 w-3 shrink-0', puesta ? 'opacity-100' : 'opacity-0')}
                                         />
-                                        <span className={cn('h-2 w-2 shrink-0 rounded-full', color.punto)} />
+                                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
                                         <span className="truncate">{etapa.nombre}</span>
                                     </button>
                                 );

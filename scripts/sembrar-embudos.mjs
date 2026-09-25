@@ -29,16 +29,24 @@ const admin = await persona("monica@embudos.test", "Mónica Vélez", { ownerId: 
 const ana = await persona("ana@embudos.test", "Ana Ruiz", { ownerId: dueno.id, advisorRole: "agente" });
 const beto = await persona("beto@embudos.test", "Beto Gil", { ownerId: dueno.id, advisorRole: "agente" });
 
-if ((await db.module.count({ where: { route: "/embudos" } })) === 0) {
-    await db.module.create({
-        data: {
-            label: "Embudos",
-            route: "/embudos",
-            icon: "Kanban",
-            order: 1,
-            moduleItems: { create: [{ title: "Embudos", url: "/embudos" }] },
-        },
-    });
+// Embudos, y Etiquetas: la sonda compara la fila de colores del panel de etapas
+// contra la de Etiquetas en la misma sesión, así que esa pantalla tiene que
+// poder abrirse.
+for (const [label, route, icon, title] of [
+    ["Embudos", "/embudos", "Kanban", "Embudos"],
+    ["Etiquetas", "/tags", "Tag", "Etiquetas"],
+]) {
+    if ((await db.module.count({ where: { route } })) === 0) {
+        await db.module.create({
+            data: {
+                label,
+                route,
+                icon,
+                order: 1,
+                moduleItems: { create: [{ title, url: route }] },
+            },
+        });
+    }
 }
 
 // La cuenta hija y su equipo. Es una cuenta de verdad —sin `ownerId`—, así que

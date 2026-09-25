@@ -17938,6 +17938,232 @@ Y se comprobó lo único que de verdad dice que un banco mira: **quitándole el
 arreglo al modo bueno se pone en rojo**. Con la elección de cuenta rota caen 7
 casos, con el reparto de totales 7, y con el filtro de asesor 3.
 
+## Embudos: siete etapas, tres del SISTEMA, y vaciar Perdido SELLA
+
+Una cuenta nueva abría `/embudos` y le salía la pantalla vacía —«esta cuenta no
+tiene embudos»— con un botón para crear el primero y escribir sus etapas a mano.
+Y las etapas eran tres (`Nuevo`, `En proceso`, `Cerrado`) con **un color de una
+lista de seis nombres** (`gris`, `azul`, `verde`…), sin forma de elegir otro.
+
+Ahora toda cuenta nace con **«Embudo de ventas»** y sus siete etapas, en este
+orden: **Nuevo** (gris), Contactado (azul), Interesado (morado), Cotizado
+(amarillo), Negociación (naranja), **Ganado** (verde) y **Perdido** (rojo). Las
+cuatro de en medio son del cliente —se renombran, se recolorean, se mueven, se
+borran y se añaden las que quiera—; las tres en negrita son **del sistema**.
+
+### El embudo nace al PRIMER LEER, no al crear la cuenta
+
+`asegurarElEmbudoPorDefecto` se llama desde `elTableroDelEmbudo`, o sea la
+primera vez que alguien abre el tablero. Sembrarlo en el alta habría dejado
+fuera a **las cuentas que ya existen**, que son todas, y habría hecho falta un
+backfill sobre `User` para algo que se resuelve con una consulta al abrir.
+
+Cuatro cosas que hay que mantener:
+
+1. **Va dentro de un `pg_advisory_xact_lock` por cuenta.** Dos pestañas abriendo
+   el tablero a la vez verían las dos que no hay embudo y sembrarían dos —cada
+   uno con sus siete etapas—, y la cuenta abriría con dos tableros iguales sin
+   que nadie sepa de dónde salió el segundo.
+2. **Solo siembra si la cuenta no tiene NINGUNO.** Una cuenta que ya organizó
+   sus embudos a mano no recibe uno nuevo por abrir la pantalla.
+3. **Un embudo viejo se asciende, no se duplica**, y con **dos** condiciones:
+   que sus tres etapas se llamen exactamente como las de antes **y** que no
+   tenga ni una posición guardada (`embudo_posiciones`). La segunda es la que
+   importa: con tarjetas dentro, reescribir las etapas movería conversaciones de
+   sitio, y eso no se deshace. Con una sola tarjeta colocada el embudo se queda
+   como está.
+4. **Sembrar nunca tumba el tablero**, y tampoco es mudo: un fallo ahí se ve
+   como una pantalla vacía —el fallo original— y hay que poder distinguirlo.
+
+### La marca de sistema es una COLUMNA, no una posición ni un nombre
+
+Es la decisión de la que cuelga todo lo demás, y las dos alternativas obvias
+están mal:
+
+| | por qué no |
+| --- | --- |
+| **por posición** (la primera y las dos últimas) | añadir una etapa al final la convertiría en «Perdido» sin que nadie lo pida, y el botón de vaciar aparecería en la columna equivocada |
+| **por nombre** | **el nombre se puede editar** —es el encargo—, así que renombrar «Perdido» a «Descartado» le quitaría su protección y su botón |
+
+Así que `embudo_etapas` recibe `sistema` (`nuevo` \| `ganado` \| `perdido` \|
+`NULL`) con `ADD COLUMN IF NOT EXISTS`, y **la marca la pone quien crea la
+etapa, nunca un backfill por nombre.** Un embudo nuevo —sembrado o creado a
+mano— nace con sus tres marcadas; el viejo de tres etapas se asciende; y
+**cualquier otro embudo que ya existiera se queda SIN etapas de sistema**, o sea
+igual de editable que hasta ahora.
+
+Es la decisión incómoda de esta vuelta y va escrita con su motivo: marcar por
+nombre las etapas de los embudos que ya están —«el que se llame Perdido, marcado»—
+le quitaría de golpe el borrado y el color a etapas que ese cliente organizó, y
+se equivocaría con cualquiera que use esos nombres para otra cosa. Mejor un
+embudo viejo sin protecciones que un embudo ajeno con protecciones que nadie
+pidió.
+
+Cinco cosas que hay que mantener:
+
+1. **El nombre se edita; el color, la posición y el borrado, no.**
+   `comoListaDeEtapas` recibe las marcas **de la base** (no del navegador),
+   exige que las tres sigan estando y **fuerza su color a nulo**: el de una
+   etapa de sistema se deduce de su marca (`ETAPAS_DE_SISTEMA`) y no se guarda,
+   así que no hay forma de cambiarlo ni escribiendo la petición a mano.
+2. **Y su posición se recoloca al guardar** (`conLasDeSistemaEnSuSitio`):
+   `Nuevo` primera, `Ganado` y `Perdido` últimas en ese orden. Con la validación
+   sola —rechazar el orden malo— una petición a mano dejaría el embudo con
+   `Perdido` en medio; recolocando, lo que llegue mal se endereza.
+3. **Las flechas de subir y bajar se QUITAN, no se pintan en gris**, y el
+   candado dice por qué. Una flecha apagada invita a preguntar, y la respuesta
+   —«esta etapa es del sistema»— no cabe en un botón.
+4. **La fila de una etapa de sistema conserva el hueco de las flechas** (`w-4`)
+   y el del botón de borrar, con un candado en su sitio. Sin él su nombre
+   arrancaría en otra columna que el de las demás y la lista se leería
+   descuadrada — es la regla de *un `opacity-0` no libera sitio*, al revés. Y un
+   candado con su explicación encima dice por qué no se puede, que es lo que un
+   hueco vacío no dice.
+5. **La primera etapa del cliente no puede subir por encima de `Nuevo`.**
+   `sePuedeSubirLaEtapa` mira la etapa de al lado, no el índice: con el índice,
+   la de la posición 1 tendría flecha y al pulsarla no pasaría nada.
+
+### Los colores son hex libre, y los seis rápidos son LITERALMENTE los de Etiquetas
+
+El color era un nombre de una lista de seis y la fila del diálogo llevaba la
+palabra «Color» delante, con los círculos descolgados del campo del nombre. La
+de Etiquetas ya tenía la forma buena —seis círculos pegados a la izquierda y al
+final el cuadrito que abre el selector del navegador, con su rueda y sus
+valores—, así que la de Etapas es esa.
+
+> **Los seis colores viven en `lib/colores-rapidos.ts` y los importan las dos
+> pantallas.** «Los mismos colores» tiene que ser cierto **por construcción**:
+> con la lista copiada en cada sitio, el día que se afine uno el otro se queda
+> atrás, y eso no se ve como un error — se ve como dos pantallas de la misma
+> plataforma que no se parecen.
+
+Y al extraerla apareció un fallo que llevaba ahí sin reportar: la comparación
+era `color === preset` y **los seis están escritos en MAYÚSCULAS mientras el
+selector nativo del navegador devuelve minúsculas**. Así que elegir `#3B82F6`
+con la rueda dejaba el círculo de ese mismo color **sin marcar**: el mismo color
+se leía como dos. Ahora se compara con `mismoColor`, que normaliza las dos
+puntas, y **la comparación está escrita una sola vez**.
+
+Cuatro cosas más:
+
+1. **La columna nueva es `colorHex`, no un `ALTER COLUMN ... TYPE`** sobre la
+   vieja. Cambiarle el tipo a una columna con datos dentro es una migración que
+   no se deshace; una columna al lado, con backfill idempotente desde la paleta
+   vieja, deja los embudos que ya existen exactamente como estaban.
+2. **La paleta vieja se queda de RESPALDO al leer** (`HEX_DEL_COLOR_VIEJO`), no
+   se borra: una fila que el backfill no alcanzara —de un despliegue a medias—
+   saldría sin color, y una columna sin color se lee como una columna rota.
+3. **Lo que llega del navegador pasa por `comoColorHex`**: solo `#RRGGBB`, y se
+   guarda en mayúsculas. Un valor inventado se quedaría escrito y saldría como
+   un color que nadie eligió.
+4. **Y los círculos arrancan en el mismo píxel que el campo del nombre**
+   (`pl-[2.375rem]`, que es el hueco de la flecha más el punto de arrastre y sus
+   dos huecos). El banco lo mide en las **dos** pantallas en la misma sesión:
+   copiado a mano probaría que coincide con lo que alguien recuerda de Etiquetas.
+
+### Vaciar Perdido no BORRA: SELLA, y el barrido diario borra en firme
+
+La columna de Perdido lleva su botón de vaciar, con confirmación que dice
+cuántas se lleva. **No hay borrado de a una tarjeta**, a propósito: lo que se
+descarta se descarta en tanda, y una papelera de a una sería un mando más en
+cada tarjeta para lo que se hace una vez al mes.
+
+> **Vaciar no borra ni una fila: escribe una marca** en `embudo_vaciadas`
+> (`sessionId` como clave, con su etapa y su fecha). Las tarjetas salen del
+> tablero, la papelera las enseña con **los días que les quedan**, y a los
+> **30 días** el trabajo diario de facturación las borra en firme.
+
+Cinco cosas que hay que mantener:
+
+1. **Quién puede vaciar lo decide `sePuedeVaciarLaColumna`, y lo decide por la
+   MARCA** (`sistema === "perdido"`), nunca por el nombre. Con el nombre, un
+   cliente que renombre la etapa se quedaría sin su botón, que es la mitad del
+   encargo.
+2. **Se vacía con el MISMO filtro de asesor que el tablero.** Con el filtro
+   puesto en Ana, «vaciar» se lleva lo que hay delante y no las de sus
+   compañeros; `elAlcanceDeLaColumna` sale de la misma función que arma la
+   consulta del tablero, así que lo que se ve y lo que se lleva no pueden
+   discrepar.
+3. **Restaurar devuelve la conversación a SU etapa, no a la primera.** La marca
+   guarda de dónde salió; sin eso, recuperar treinta conversaciones las metería
+   todas en `Nuevo` y el trabajo de colocarlas se perdería igual.
+4. **Borrar el embudo olvida sus marcas** (`borrarEmbudo`). Si no, una
+   conversación sellada se quedaría fuera de todos los tableros **y sin
+   papelera desde la que sacarla**, condenada a que el barrido la borre sin que
+   nadie pueda evitarlo.
+5. **El borrado en firme desengancha antes dos tablas, y por motivos
+   distintos.** `collab_notifications` **no tiene relación de Prisma a
+   propósito**, así que su `sessionId` no es clave foránea y no lo pone en nulo
+   nadie: sin soltarlo, la campanita se queda con una mención que apunta a una
+   ficha que ya no existe. `FinanceTransaction.session` sí se desengancha solo
+   —es opcional y sin `onDelete`, o sea `SetNull` por omisión— y se suelta igual,
+   porque **lo que hay en producción no tiene que coincidir con el esquema**:
+   esta base ya tiene columnas creadas en caliente por el backend, y una
+   restricción con otra regla dejaría el barrido fallando cada noche por una
+   transacción de hace un año.
+
+**Y el barrido cuelga del cron diario que ya existe** (`/api/cron/billing`), en
+su propio `try` como los cobros: un fallo suyo no puede tumbar el cobro de la
+plataforma, y su cuenta sale en la respuesta para que se vea si un día deja de
+borrar. Va **a trozos** (`POR_VUELTA`, 50): la primera vuelta de una cuenta con
+meses de descartes no puede quedarse borrando miles de fichas mientras alguien
+espera a que le abra otra cosa.
+
+#### Lo que NO se borra, y se dice en vez de disimularlo
+
+**El historial de WhatsApp de esa conversación se queda**, y por tanto la
+conversación **sigue apareciendo en Chats durante esos 30 días** y después. Lo
+que se borra en firme es la **ficha** —el lead, sus etiquetas, sus notas, sus
+seguimientos—, que es lo que vive en el tablero.
+
+Borrarlo del todo sería llamar a `hardDeleteLocalChat`, que además necesita la
+línea y todas las identidades del contacto; es el camino de «Eliminar chat» de
+la bandeja y **es irreversible**, así que no cabe detrás de una papelera de 30
+días. Queda como frente aparte; lo que no puede pasar es que se dé por hecho
+que vaciar borra el chat.
+
+### Y el arrastre tiene que mover los CONTADORES, no solo la tarjeta
+
+Lo cazó el banco, y es el único fallo de producción de esta vuelta: al soltar
+una tarjeta en otra columna se movía la tarjeta y **los totales de las
+cabeceras se quedaban como estaban**, hasta que alguien recargara. Con el
+número de Perdido en 0, su botón de vaciar salía **apagado justo después de
+soltarle dos tarjetas dentro** — o sea un botón que no se puede pulsar sobre una
+columna que tiene cosas delante.
+
+Los totales son un `COUNT` del servidor (no el largo de la lista cargada, que es
+la regla de siempre), así que al mover en local hay que moverlos a mano: **uno
+menos en la de origen y uno más en la de destino**, y al revés si el servidor
+dice que no. Con `Math.max(0, …)` en la resta: un total que empieza en cero por
+una vuelta a medias no puede quedarse en negativo, que en una cabecera no
+significa nada.
+
+### El banco, y su TERCER modo roto
+
+`scripts/banco-embudos.sh` (reglas puras y acciones contra Postgres) y
+`scripts/banco-embudos-navegador.sh` (la página servida), los dos con lo de
+antes **pinchado a un commit** y nunca a `origin/main` — la lección de *el
+«antes» de un banco CADUCA el día que su PR se fusiona*, que este repositorio ya
+pagó una vez.
+
+Y hay un tercer fichero, `embudos-sin-siete.test.mjs`, que **corre siempre** y
+lleva dentro el mundo de antes: la cuenta que abre el tablero sin ningún embudo
+y se queda sin ninguno, las tres etapas viejas y el color por nombre. Sin él, lo
+verde del banco normal no diría si la siembra funciona o si la cuenta ya tenía
+un embudo de otra prueba.
+
+Lo que el banco de navegador mide y no se contesta leyendo: que los seis colores
+son los mismos **en las dos pantallas medidas en la misma sesión**, que los
+círculos y el cuadrito miden lo mismo, que la fila no lleva la palabra «Color»,
+que los círculos arrancan en el píxel del campo del nombre, que una etapa de
+sistema se renombra y no se borra ni se mueve ni cambia de color, que **solo una
+columna** tiene el botón de vaciar y es la de Perdido, y que restaurar devuelve
+cada conversación a su etapa.
+
+Y se comprobó lo único que de verdad dice que un banco mira: **quitándole el
+arreglo al modo bueno se pone en rojo** —cinco casos sin la siembra, cuatro sin
+las protecciones de las etapas de sistema—.
+
 ## Lo que crea un asesor es SUYO: etiquetas y respuestas rápidas
 
 Las etiquetas (`Tag`) y las respuestas rápidas (`rr`) siguen siendo filas de la

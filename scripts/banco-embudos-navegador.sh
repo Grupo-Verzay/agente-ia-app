@@ -46,7 +46,15 @@ export AUTH_SECRET=banco AUTH_TRUST_HOST=true NEXTAUTH_URL="http://localhost:$AP
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 node scripts/sembrar-embudos.mjs >/dev/null
 
-pkill -f "next start -p $APP" 2>/dev/null || true
+# El `next start` de una vuelta anterior: se mata por su línea de comandos
+# entera. Un `pkill -f "next start -p $APP"` no lo alcanza cuando arrancó con
+# `setsid` y ya se renombró a `next-server`, y entonces la vuelta siguiente se
+# cae con EADDRINUSE **contra el build viejo y la base vieja**: el síntoma es
+# «no se pudo entrar», que no se parece a su causa.
+for pid in $(ps -eo pid,args | grep -E "next start -p $APP|next-server" | grep -v grep | awk '{print $1}'); do
+  kill -9 "$pid" 2>/dev/null || true
+done
+sleep 2
 setsid npx next start -p "$APP" >/tmp/banco-embudos-next.log 2>&1 </dev/null &
 for _ in $(seq 1 60); do
   curl -sf -o /dev/null "http://localhost:$APP/login" && break

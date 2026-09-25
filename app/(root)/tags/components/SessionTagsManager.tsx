@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { COLORES_RAPIDOS, COLOR_SIN_ELEGIR, mismoColor } from "@/lib/colores-rapidos";
 import { toast } from "sonner";
 import {
     assignTagToSessionAction,
@@ -30,16 +31,16 @@ interface SessionTagsManagerProps {
     onTagsChanged?: (tags: SimpleTag[]) => void;
 }
 
-const COLOR_PRESETS = [
-    "#3B82F6",
-    "#22C55E",
-    "#F97316",
-    "#EC4899",
-    "#A855F7",
-    "#F59E0B",
-];
-
-const DEFAULT_COLOR = "#64748B";
+/*
+ * Los seis colores rápidos y el gris de «sin color» salen de
+ * `lib/colores-rapidos.ts`, que es de donde los saca también el diálogo de
+ * etapas de un embudo. Estaban escritos aquí y otra vez en `SortableTagList`, o
+ * sea ya eran dos listas que un día dirían cosas distintas: con una tercera
+ * copia, «los mismos colores de Etiquetas» dejaría de ser cierto en cuanto
+ * alguien afinara uno.
+ */
+const COLOR_PRESETS = COLORES_RAPIDOS;
+const DEFAULT_COLOR = COLOR_SIN_ELEGIR;
 
 export const SessionTagsManager = ({
     userId,

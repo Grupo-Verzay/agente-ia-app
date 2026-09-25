@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import {
+    Archive,
     ArrowDown,
     ArrowUp,
     Building2,
@@ -26,10 +27,12 @@ import {
     Pencil,
     Plus,
     RefreshCw,
+    RotateCcw,
     Search,
     Settings2,
     Star,
     Trash2,
+    TriangleAlert,
     UserCog,
     Users,
 } from 'lucide-react';
@@ -74,15 +77,28 @@ import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { cn } from '@/lib/utils';
 import {
-    COLORES_DE_ETAPA,
+    COLORES_RAPIDOS,
+    ETAPAS_DE_SISTEMA,
     TOPE_DE_ETAPAS,
     TOPE_DE_NOMBRE,
+    comoColorHex,
     elColorDeLaEtapa,
     elEmbudoPorDefecto,
+    mismoColor,
     puedeMoverLaTarjeta,
+    sePuedeBajarLaEtapa,
+    sePuedeSubirLaEtapa,
     type Embudo,
     type Etapa,
+    type EtapaDeSistema,
 } from '@/lib/embudos';
+import { COLOR_DEL_SELECTOR } from '@/lib/colores-rapidos';
+import {
+    DIAS_EN_LA_PAPELERA,
+    loQueDiceElVaciado,
+    sePuedeVaciarLaColumna,
+    type EnLaPapelera,
+} from '@/lib/papelera-de-embudos';
 import {
     SIN_ASIGNAR,
     TODOS_LOS_ASESORES,
@@ -95,11 +111,15 @@ import {
     asignarEmbudosAction,
     borrarEmbudoAction,
     crearEmbudoAction,
+    cuantasSeVaciarianAction,
     guardarEtapasAction,
+    laPapeleraAction,
     moverTarjetaAction,
     renombrarEmbudoAction,
+    restaurarDeLaPapeleraAction,
     tableroDelEmbudoAction,
     usarPorDefectoAction,
+    vaciarLaColumnaAction,
 } from '@/actions/embudos-actions';
 import { KanbanCardItem } from '../../crm/kanban/_components/KanbanBoard';
 
@@ -213,7 +233,10 @@ function Columna({
     total,
     buscando,
     manda,
+    enLaPapelera,
     onEditar,
+    onVaciar,
+    onPapelera,
     children,
 }: {
     etapa: Etapa;
@@ -223,17 +246,33 @@ function Columna({
     total: number;
     buscando: boolean;
     manda: boolean;
+    /** Cuántas hay en la papelera de la cuenta. Solo la columna de Perdido la abre. */
+    enLaPapelera: number;
     onEditar: () => void;
+    onVaciar: () => void;
+    onPapelera: () => void;
     children: React.ReactNode;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: etapa.id });
-    const color = elColorDeLaEtapa(etapa.color, posicion);
+    // El color ya es un hex, así que todo va en `style`: con clases habría que
+    // tener una por color, y los colores ahora son libres.
+    const color = elColorDeLaEtapa(etapa, posicion);
+    /*
+     * Vaciar y la papelera **solo en la columna de Perdido**, y se pregunta por
+     * su marca de sistema y no por su nombre: el nombre se puede cambiar, así
+     * que por texto bastaría con renombrar una columna a «Perdido» para que se
+     * le pudiera vaciar encima. La misma función lo decide en el servidor.
+     */
+    const esPerdido = manda && sePuedeVaciarLaColumna(etapa);
     return (
         <div
             className="flex h-full w-[260px] min-w-[260px] shrink-0 flex-col overflow-hidden rounded-xl border-2 shadow-sm"
-            style={{ borderColor: color.borde + '52', backgroundColor: color.borde + '0A' }}
+            style={{ borderColor: color + '52', backgroundColor: color + '0A' }}
         >
-            <div className={cn('flex shrink-0 items-center justify-between px-3 py-2', color.cabecera)}>
+            <div
+                className="flex shrink-0 items-center justify-between px-3 py-2"
+                style={{ backgroundColor: color }}
+            >
                 <span className="truncate text-sm font-semibold uppercase text-white" title={etapa.nombre}>
                     {etapa.nombre}
                 </span>
@@ -253,6 +292,30 @@ function Columna({
                     >
                         {buscando ? `${tarjetas.length}/${total}` : total}
                     </Badge>
+                    {esPerdido && enLaPapelera > 0 && (
+                        <button
+                            type="button"
+                            onClick={onPapelera}
+                            className="flex items-center gap-0.5 rounded px-1 py-0.5 transition-colors hover:bg-white/20"
+                            title={`${enLaPapelera} en la papelera. Se pueden recuperar ${DIAS_EN_LA_PAPELERA} días.`}
+                            aria-label="Abrir la papelera"
+                        >
+                            <Archive className="h-3.5 w-3.5 text-white/80" />
+                            <span className="text-[10px] font-medium text-white/90">{enLaPapelera}</span>
+                        </button>
+                    )}
+                    {esPerdido && (
+                        <button
+                            type="button"
+                            onClick={onVaciar}
+                            disabled={total === 0}
+                            className="rounded p-0.5 transition-colors hover:bg-white/20 disabled:opacity-40"
+                            title={total === 0 ? 'No hay nada que vaciar' : 'Vaciar la columna'}
+                            aria-label="Vaciar la columna"
+                        >
+                            <Trash2 className="h-3.5 w-3.5 text-white/80" />
+                        </button>
+                    )}
                     {manda && (
                         <button
                             type="button"
@@ -504,10 +567,53 @@ function FiltroDeAsesores({
     );
 }
 
-type BorradorDeEtapa = { clave: string; id: string | null; nombre: string; color: number | null };
+/**
+ * Una etapa mientras se edita.
+ *
+ * `sistema` viaja aquí **solo para pintar**: para saber si se le ofrece la
+ * papelera, las flechas y la fila de colores. Quien decide de verdad es el
+ * servidor, que la lee de la base por el id (`lasMarcasDeSistemaDe`) y no de
+ * esta lista.
+ */
+type BorradorDeEtapa = {
+    clave: string;
+    id: string | null;
+    nombre: string;
+    color: string | null;
+    sistema: EtapaDeSistema | null;
+};
+
+const comoBorrador = (e: Etapa): BorradorDeEtapa => ({
+    clave: e.id,
+    id: e.id,
+    nombre: e.nombre,
+    color: e.color,
+    sistema: e.sistema,
+});
 
 let contadorDeClaves = 0;
 const nuevaClave = () => `n${++contadorDeClaves}`;
+
+/**
+ * El borrador de las etapas de un embudo, con una nueva al final si se pidió.
+ *
+ * **La nueva entra antes de las de sistema**, que es donde va a acabar de todas
+ * formas (`conLasDeSistemaEnSuSitio` en el servidor). Puesta al final del todo,
+ * se pintaría debajo de «Perdido» y al guardar saltaría al medio: un salto que
+ * se lee como que la etapa se movió sola.
+ */
+function conUnaNuevaEnLaLista(lista: readonly BorradorDeEtapa[]): BorradorDeEtapa[] {
+    if (lista.length >= TOPE_DE_ETAPAS) return [...lista];
+    const nueva: BorradorDeEtapa = { clave: nuevaClave(), id: null, nombre: '', color: null, sistema: null };
+    const primeraDeSistemaDelFinal = lista.findIndex((e) => e.sistema === 'ganado' || e.sistema === 'perdido');
+    if (primeraDeSistemaDelFinal < 0) return [...lista, nueva];
+    return [...lista.slice(0, primeraDeSistemaDelFinal), nueva, ...lista.slice(primeraDeSistemaDelFinal)];
+}
+
+function conUnaNuevaAlFinal(etapas: readonly Etapa[], conUnaNueva: boolean): BorradorDeEtapa[] {
+    const lista = etapas.map(comoBorrador);
+    return conUnaNueva ? conUnaNuevaEnLaLista(lista) : lista;
+}
 
 export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     const [tablero, setTablero] = useState<TableroDeEmbudo>(inicial);
@@ -526,6 +632,11 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     const [borradorEtapas, setBorradorEtapas] = useState<BorradorDeEtapa[]>([]);
     const [asesoresAbierto, setAsesoresAbierto] = useState(false);
     const [borradorAsesores, setBorradorAsesores] = useState<Record<string, string>>({});
+    // Vaciar la columna de Perdido, y su papelera.
+    const [vaciarAbierto, setVaciarAbierto] = useState(false);
+    const [cuantasSeVacian, setCuantasSeVacian] = useState<number | null>(null);
+    const [papeleraAbierta, setPapeleraAbierta] = useState(false);
+    const [papelera, setPapelera] = useState<EnLaPapelera[] | null>(null);
 
     const { manda, embudos, embudoId, etapas, tarjetas, nombres, personaId } = tablero;
     const actual = embudos.find((e) => e.id === embudoId) ?? null;
@@ -646,17 +757,31 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
         if (destino === tarjeta.etapaId || !etapas.some((x) => x.id === destino)) return;
 
         const origen = tarjeta.etapaId;
-        const poner = (etapa: string) =>
+        /*
+         * Se mueve la tarjeta **y el contador de las dos columnas**.
+         *
+         * El número de la cabecera es un `COUNT` del servidor, así que sin esto
+         * se quedaba como estaba hasta la vuelta siguiente: la columna enseñaba
+         * una tarjeta más de las que decía su número, que son dos números que se
+         * contradicen en la misma cabecera. Y el botón de vaciar Perdido, que
+         * mira ese total, salía apagado justo después de arrastrarle algo.
+         */
+        const poner = (etapa: string, desde: string) =>
             setTablero((t) => ({
                 ...t,
                 tarjetas: t.tarjetas.map((x) => (x.id === tarjeta.id ? { ...x, etapaId: etapa } : x)),
+                totales: {
+                    ...t.totales,
+                    [desde]: Math.max(0, (t.totales[desde] ?? 0) - 1),
+                    [etapa]: (t.totales[etapa] ?? 0) + 1,
+                },
             }));
-        poner(destino);
+        poner(destino, origen);
         moviendo.current = true;
         const r = await pedir(() => moverTarjetaAction(tarjeta.id, destino));
         moviendo.current = false;
         if (!r.success) {
-            poner(origen);
+            poner(origen, destino);
             toast.error(r.message);
         }
     };
@@ -709,23 +834,12 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     // tablero todavía no las tiene en el estado de este pintado.
     const abrirEtapasDe = (id?: string, conUnaNueva = false) => {
         const fuente = id && id !== embudoId ? null : etapas;
-        const lista: BorradorDeEtapa[] = (fuente ?? []).map((e) => ({
-            clave: e.id,
-            id: e.id,
-            nombre: e.nombre,
-            color: e.color,
-        }));
-        if (conUnaNueva) lista.push({ clave: nuevaClave(), id: null, nombre: '', color: null });
-        setBorradorEtapas(lista);
+        setBorradorEtapas(conUnaNuevaAlFinal(fuente ?? [], conUnaNueva));
         setEtapasAbierto(true);
         if (fuente === null && id) {
             // Embudo recién creado: se piden sus etapas y se rellenan.
             void pedir(() => tableroDelEmbudoAction(id, tablero.cuentaId, tablero.asesor)).then((r) => {
-                if (r.success && r.data) {
-                    setBorradorEtapas(
-                        r.data.etapas.map((e) => ({ clave: e.id, id: e.id, nombre: e.nombre, color: e.color })),
-                    );
-                }
+                if (r.success && r.data) setBorradorEtapas(conUnaNuevaAlFinal(r.data.etapas, conUnaNueva));
             });
         }
     };
@@ -734,9 +848,14 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
         setBorradorEtapas((l) => l.map((e) => (e.clave === clave ? { ...e, ...cambio } : e)));
     const moverEtapa = (i: number, hacia: -1 | 1) =>
         setBorradorEtapas((l) => {
-            const j = i + hacia;
-            if (j < 0 || j >= l.length) return l;
+            // La misma regla que apaga la flecha decide también el movimiento:
+            // sin esto, un teclado o una lista vieja moverían una etapa a un
+            // sitio que el servidor luego corrige, y eso se lee como que el
+            // orden no se guarda.
+            const sePuede = hacia === -1 ? sePuedeSubirLaEtapa(l, i) : sePuedeBajarLaEtapa(l, i);
+            if (!sePuede) return l;
             const copia = [...l];
+            const j = i + hacia;
             [copia[i], copia[j]] = [copia[j], copia[i]];
             return copia;
         });
@@ -749,6 +868,9 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
             guardarEtapasAction(
                 destino,
                 borradorEtapas.map((e) => ({ id: e.id, nombre: e.nombre, color: e.color })),
+                // `sistema` NO se manda: la marca es de la fila y el servidor la
+                // lee por el id. Mandarla sería dejar que esta pantalla decidiera
+                // cuál es la columna de Perdido.
                 tablero.cuentaId,
             ),
         );
@@ -773,6 +895,69 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
         if (!r.success) return toast.error(r.message);
         setAsesoresAbierto(false);
         toast.success(r.message);
+        await recargar({ embudo: embudoId });
+    };
+
+    // ─── Vaciar Perdido y su papelera ───────────────────────────────────────
+    /*
+     * La columna de Perdido, si el embudo la tiene. La decide su MARCA de
+     * sistema, igual que en el servidor: por nombre bastaría con renombrar una
+     * columna a «Perdido» para que se le pudiera vaciar encima.
+     */
+    const laDePerdido = etapas.find((e) => sePuedeVaciarLaColumna(e)) ?? null;
+
+    /*
+     * El número se pide al ABRIR el diálogo, no se saca de las tarjetas
+     * cargadas: el tablero trae como mucho `TOPE_DE_TARJETAS`, así que contar lo
+     * pintado diría «cuántas de las primeras 500 cayeron aquí». Y sale del mismo
+     * `COUNT` y del mismo filtro que el vaciado, para que el número que se
+     * confirma sea el que se va a llevar.
+     */
+    const abrirVaciar = () => {
+        if (!embudoId || !laDePerdido) return;
+        setCuantasSeVacian(null);
+        setVaciarAbierto(true);
+        void pedir(() =>
+            cuantasSeVaciarianAction(embudoId, laDePerdido.id, tablero.cuentaId, tablero.asesor),
+        ).then((r) => {
+            if (r.success && r.data) setCuantasSeVacian(r.data.cuantas);
+            else toast.error(r.message);
+        });
+    };
+
+    const vaciar = async () => {
+        if (!embudoId || !laDePerdido) return;
+        setGuardando(true);
+        const r = await pedir(() =>
+            vaciarLaColumnaAction(embudoId, laDePerdido.id, tablero.cuentaId, tablero.asesor),
+        );
+        setGuardando(false);
+        setVaciarAbierto(false);
+        if (!r.success) return toast.error(r.message);
+        toast.success(r.message);
+        await recargar({ embudo: embudoId });
+    };
+
+    const abrirPapelera = () => {
+        setPapelera(null);
+        setPapeleraAbierta(true);
+        void pedir(() => laPapeleraAction(tablero.cuentaId)).then((r) => {
+            if (r.success && r.data) setPapelera(r.data);
+            else toast.error(r.message);
+        });
+    };
+
+    const restaurar = async (sessionIds?: number[]) => {
+        setGuardando(true);
+        const r = await pedir(() => restaurarDeLaPapeleraAction(sessionIds, tablero.cuentaId));
+        setGuardando(false);
+        if (!r.success) return toast.error(r.message);
+        toast.success(r.message);
+        // La papelera se vuelve a pedir en vez de quitar la fila a mano: es una
+        // lista corta y así lo que se ve es lo que hay.
+        void pedir(() => laPapeleraAction(tablero.cuentaId)).then((x) => {
+            if (x.success && x.data) setPapelera(x.data);
+        });
         await recargar({ embudo: embudoId });
     };
 
@@ -990,7 +1175,10 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                                         total={tablero.totales[etapa.id] ?? suyas.length}
                                         buscando={Boolean(busqueda.trim())}
                                         manda={manda}
+                                        enLaPapelera={tablero.enLaPapelera}
                                         onEditar={() => abrirEtapasDe()}
+                                        onVaciar={abrirVaciar}
+                                        onPapelera={abrirPapelera}
                                     >
                                         {suyas.map((t) => (
                                             <TarjetaArrastrable
@@ -1108,24 +1296,41 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                     <SheetHeader>
                         <SheetTitle>Etapas del embudo</SheetTitle>
                         <p className="text-xs text-muted-foreground">
-                            {actual ? `«${actual.nombre}». ` : ''}El color nace por posición y se puede cambiar.
+                            {actual ? `«${actual.nombre}». ` : ''}Nuevo, Ganado y Perdido las pone el sistema: se les
+                            puede cambiar el nombre, pero no se mueven ni se eliminan.
                         </p>
                     </SheetHeader>
                     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
                         {borradorEtapas.map((e, i) => {
-                            const color = elColorDeLaEtapa(e.color, i);
+                            const color = elColorDeLaEtapa(e, i);
+                            const deSistema = e.sistema !== null;
+                            /*
+                             * Una de sistema conserva el HUECO de las flechas y
+                             * el del botón de borrar, con un candado en su sitio.
+                             * Sin el hueco, el nombre de esas tres filas
+                             * arrancaría en otra columna y la lista se leería
+                             * descuadrada; y un candado dice por qué no se puede,
+                             * que es lo que un hueco vacío no dice.
+                             */
                             return (
                                 <div key={e.clave} className="space-y-2 rounded-md border border-border bg-background p-2">
                                     <div className="flex items-center gap-1.5">
-                                        <div className="flex flex-col">
-                                            <button type="button" className="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30" disabled={i === 0} onClick={() => moverEtapa(i, -1)} aria-label="Subir etapa" title="Subir">
-                                                <ArrowUp className="h-3 w-3" />
-                                            </button>
-                                            <button type="button" className="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30" disabled={i === borradorEtapas.length - 1} onClick={() => moverEtapa(i, 1)} aria-label="Bajar etapa" title="Bajar">
-                                                <ArrowDown className="h-3 w-3" />
-                                            </button>
+                                        <div className="flex w-4 shrink-0 flex-col items-center">
+                                            {!deSistema && (
+                                                <>
+                                                    <button type="button" className="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30" disabled={!sePuedeSubirLaEtapa(borradorEtapas, i)} onClick={() => moverEtapa(i, -1)} aria-label="Subir etapa" title="Subir">
+                                                        <ArrowUp className="h-3 w-3" />
+                                                    </button>
+                                                    <button type="button" className="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30" disabled={!sePuedeBajarLaEtapa(borradorEtapas, i)} onClick={() => moverEtapa(i, 1)} aria-label="Bajar etapa" title="Bajar">
+                                                        <ArrowDown className="h-3 w-3" />
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
-                                        <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', color.punto)} />
+                                        <span
+                                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                            style={{ backgroundColor: color }}
+                                        />
                                         <Input
                                             value={e.nombre}
                                             maxLength={TOPE_DE_NOMBRE}
@@ -1134,38 +1339,88 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                                             className="h-8 min-w-0 flex-1"
                                             aria-label={`Nombre de la etapa ${i + 1}`}
                                         />
-                                        <button
-                                            type="button"
-                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent disabled:opacity-30"
-                                            onClick={() => setBorradorEtapas((l) => l.filter((x) => x.clave !== e.clave))}
-                                            disabled={borradorEtapas.length <= 1}
-                                            title={borradorEtapas.length <= 1 ? 'Un embudo necesita al menos una etapa' : 'Eliminar etapa'}
-                                            aria-label="Eliminar etapa"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 pl-6">
-                                        <span className="mr-1 text-[11px] text-muted-foreground">Color</span>
-                                        {COLORES_DE_ETAPA.map((c, k) => (
+                                        {deSistema ? (
+                                            <span
+                                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted-foreground/70"
+                                                title={`«${ETAPAS_DE_SISTEMA[e.sistema!].nombre}» la pone el sistema: no se elimina, no se mueve y no cambia de color. Su nombre sí se puede cambiar.`}
+                                                aria-label="Etapa del sistema"
+                                            >
+                                                <Lock className="h-3.5 w-3.5" />
+                                            </span>
+                                        ) : (
                                             <button
-                                                key={k}
                                                 type="button"
-                                                onClick={() => cambiarEtapa(e.clave, { color: k })}
-                                                title={c.nombre}
-                                                aria-label={`Color ${c.nombre}`}
-                                                aria-pressed={color === c}
-                                                className={cn('h-5 w-5 rounded-full', c.punto, color === c && 'ring-2 ring-ring ring-offset-2')}
-                                            />
-                                        ))}
+                                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent disabled:opacity-30"
+                                                onClick={() => setBorradorEtapas((l) => l.filter((x) => x.clave !== e.clave))}
+                                                disabled={borradorEtapas.length <= 1}
+                                                title={borradorEtapas.length <= 1 ? 'Un embudo necesita al menos una etapa' : 'Eliminar etapa'}
+                                                aria-label="Eliminar etapa"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        )}
                                     </div>
+                                    {/*
+                                        La fila de colores es la MISMA que la de
+                                        Etiquetas: los seis círculos de
+                                        `COLORES_RAPIDOS` —importados de
+                                        `lib/colores-rapidos.ts`, que es de donde
+                                        los saca también Etiquetas— y al final el
+                                        cuadrito que abre el selector libre del
+                                        navegador, con su rueda y sus valores.
+                                        Sin la palabra «Color» delante, y con el
+                                        relleno justo para que el primer círculo
+                                        arranque donde arranca el campo del
+                                        nombre de arriba: 2,375rem = el hueco de
+                                        las flechas (`w-4`, 1rem) + el punto de
+                                        color (0,625rem) + los dos `gap-1.5`
+                                        (0,375rem cada uno). **Lo comprueba la
+                                        sonda midiendo los dos**, que es lo único
+                                        que impide que ese número se desfase el
+                                        día que algo de la fila cambie de tamaño.
+
+                                        Las de sistema no la tienen: su color es
+                                        el suyo y no se cambia.
+                                    */}
+                                    {!deSistema && (
+                                        <div className="flex items-center gap-1.5 pl-[2.375rem]">
+                                            {COLORES_RAPIDOS.map((c) => (
+                                                <button
+                                                    key={c}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        cambiarEtapa(e.clave, {
+                                                            color: mismoColor(e.color, c) ? null : c,
+                                                        })
+                                                    }
+                                                    aria-label={`Color ${c}`}
+                                                    aria-pressed={mismoColor(e.color, c)}
+                                                    className={cn(
+                                                        'h-5 w-5 rounded-full border border-border/60',
+                                                        mismoColor(e.color, c) && 'ring-2 ring-primary',
+                                                    )}
+                                                    style={{ backgroundColor: c }}
+                                                />
+                                            ))}
+                                            <Input
+                                                type="color"
+                                                value={e.color ?? COLOR_DEL_SELECTOR}
+                                                onChange={(ev) =>
+                                                    cambiarEtapa(e.clave, { color: comoColorHex(ev.target.value) })
+                                                }
+                                                className="h-9 w-12 cursor-pointer p-1"
+                                                title="Color personalizado"
+                                                aria-label={`Color personalizado de la etapa ${i + 1}`}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
                         <button
                             type="button"
                             disabled={borradorEtapas.length >= TOPE_DE_ETAPAS}
-                            onClick={() => setBorradorEtapas((l) => [...l, { clave: nuevaClave(), id: null, nombre: '', color: null }])}
+                            onClick={() => setBorradorEtapas((l) => conUnaNuevaEnLaLista(l))}
                             className="flex h-10 w-full items-center justify-center gap-2 rounded-md border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40"
                         >
                             <Plus className="h-4 w-4" />
@@ -1181,6 +1436,113 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                         </Button>
                         <Button variant="save" onClick={() => void guardarEtapas()} disabled={guardando}>
                             {guardando ? 'Guardando…' : 'Guardar'}
+                        </Button>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
+
+            {/* ─── Vaciar la columna de Perdido ─── */}
+            {/*
+                Con confirmación y con el NÚMERO delante, que es lo único que
+                deja decidir: un diálogo que no dice cuántas se lleva se acepta
+                sin leer. No pide teclear ninguna palabra a propósito —esto se
+                deshace durante treinta días—, y lo dice, porque «vaciar» sin más
+                se lee como irreversible y entonces no lo pulsa nadie.
+            */}
+            <AlertDialog open={vaciarAbierto} onOpenChange={(v) => !guardando && setVaciarAbierto(v)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Vaciar «{laDePerdido?.nombre ?? 'Perdido'}»?</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-2">
+                                <p>
+                                    {cuantasSeVacian === null
+                                        ? 'Contando cuántas conversaciones hay…'
+                                        : loQueDiceElVaciado(cuantasSeVacian)}
+                                </p>
+                                {tablero.asesor && (
+                                    <p className="flex items-start gap-1.5 text-amber-600">
+                                        <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                        Hay un filtro de asesor puesto: se vacía solo lo que estás viendo.
+                                    </p>
+                                )}
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={guardando}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                void vaciar();
+                            }}
+                            disabled={guardando || cuantasSeVacian === 0}
+                        >
+                            {guardando ? 'Vaciando…' : 'Vaciar'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* ─── La papelera ─── */}
+            {/*
+                Un plazo de gracia sin pantalla no es un plazo de gracia: sin esto
+                habría que recuperar con un `UPDATE` a mano, que es justo el
+                pendiente que `doc_espacios` dejó escrito.
+            */}
+            <Sheet open={papeleraAbierta} onOpenChange={(v) => !guardando && setPapeleraAbierta(v)}>
+                <SheetContent side="right" className="flex w-[22rem] max-w-full flex-col gap-4 sm:max-w-[22rem]">
+                    <SheetHeader>
+                        <SheetTitle>Papelera de Perdido</SheetTitle>
+                        <p className="text-xs text-muted-foreground">
+                            Lo vaciado se puede recuperar durante {DIAS_EN_LA_PAPELERA} días. Pasado el plazo se borra
+                            en firme, con su historial. Al restaurar vuelve a la etapa de la que salió.
+                        </p>
+                    </SheetHeader>
+                    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                        {papelera === null && <p className="text-sm text-muted-foreground">Cargando…</p>}
+                        {papelera?.length === 0 && (
+                            <p className="text-sm text-muted-foreground">La papelera está vacía.</p>
+                        )}
+                        {papelera?.map((c) => (
+                            <div
+                                key={c.sessionId}
+                                className="flex items-center gap-2 rounded-md border border-border bg-background p-2"
+                            >
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm" title={c.nombre}>
+                                        {c.nombre}
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        {c.diasQueQuedan === 0
+                                            ? 'Se borra en firme en el próximo barrido'
+                                            : `Quedan ${c.diasQueQuedan} ${c.diasQueQuedan === 1 ? 'día' : 'días'}`}
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 shrink-0 gap-1"
+                                    disabled={guardando}
+                                    onClick={() => void restaurar([c.sessionId])}
+                                >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                    Restaurar
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                    <SheetFooter>
+                        <Button variant="outline" onClick={() => setPapeleraAbierta(false)} disabled={guardando}>
+                            Cerrar
+                        </Button>
+                        <Button
+                            variant="save"
+                            onClick={() => void restaurar()}
+                            disabled={guardando || !papelera || papelera.length === 0}
+                        >
+                            {guardando ? 'Restaurando…' : 'Restaurar todo'}
                         </Button>
                     </SheetFooter>
                 </SheetContent>

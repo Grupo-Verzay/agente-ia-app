@@ -6,6 +6,7 @@ import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
 import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
 import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
 import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
+import { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
 import { TOPE_EN_LA_VUELTA_DIARIA } from "@/lib/rescate-de-llamadas";
 import { NextResponse } from "next/server";
 
@@ -129,8 +130,29 @@ export async function POST(request: Request) {
     llamadas = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // Lo que se vació de la columna de Perdido de un embudo y ya pasó de sus 30
+  // días. En su propio `try`, como los demas: un barrido que se cuelgue no
+  // puede tumbar el cobro. Y va acotado por vuelta, que es lo que pide el tope
+  // de 20 s con el que el backend llama a esta ruta.
+  let papeleraDeEmbudos: unknown = null;
+  try {
+    papeleraDeEmbudos = await runPapeleraDeEmbudos();
+  } catch (e) {
+    papeleraDeEmbudos = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   return NextResponse.json(
-    { ...result, resellerBilling, purgaCuentas, podaRevisiones, cobros, vencimientos, grabaciones, llamadas },
+    {
+      ...result,
+      resellerBilling,
+      purgaCuentas,
+      podaRevisiones,
+      cobros,
+      vencimientos,
+      grabaciones,
+      llamadas,
+      papeleraDeEmbudos,
+    },
     { status: result.success ? 200 : 500 },
   );
 }

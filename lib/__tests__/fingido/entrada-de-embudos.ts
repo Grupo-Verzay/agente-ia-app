@@ -17,7 +17,12 @@ export {
     asignarEmbudosAction,
     moverTarjetaAction,
     etapaDeLaConversacionAction,
+    vaciarLaColumnaAction,
+    cuantasSeVaciarianAction,
+    laPapeleraAction,
+    restaurarDeLaPapeleraAction,
 } from "@/actions/embudos-actions";
+export { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
 export {
     createTagAction,
     listTagsAction,

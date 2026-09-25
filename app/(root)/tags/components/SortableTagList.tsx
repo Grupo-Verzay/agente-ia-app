@@ -20,20 +20,14 @@ import { toast } from 'sonner';
 import { GripVertical, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { COLORES_RAPIDOS, COLOR_SIN_ELEGIR, mismoColor } from '@/lib/colores-rapidos';
 import { cn } from '@/lib/utils';
 import { SimpleTag } from '@/types/session';
 import { batchUpdateTagOrderAction } from '@/actions/tag-actions';
 
-const COLOR_PRESETS = [
-  '#3B82F6',
-  '#22C55E',
-  '#F97316',
-  '#EC4899',
-  '#A855F7',
-  '#F59E0B',
-];
-
-const DEFAULT_COLOR = '#64748B';
+/* Los mismos de `lib/colores-rapidos.ts` que usa el formulario de crear. */
+const COLOR_PRESETS = COLORES_RAPIDOS;
+const DEFAULT_COLOR = COLOR_SIN_ELEGIR;
 
 interface SortableTagItemProps {
   tag: SimpleTag;
@@ -97,8 +91,8 @@ const SortableTagItem = ({
             <button
               key={c}
               type="button"
-              onClick={() => onEditColor(editColor === c ? null : c)}
-              className={cn('h-5 w-5 rounded-full border border-border/60', editColor === c && 'ring-2 ring-primary')}
+              onClick={() => onEditColor(mismoColor(editColor, c) ? null : c)}
+              className={cn('h-5 w-5 rounded-full border border-border/60', mismoColor(editColor, c) && 'ring-2 ring-primary')}
               style={{ backgroundColor: c }}
             />
           ))}

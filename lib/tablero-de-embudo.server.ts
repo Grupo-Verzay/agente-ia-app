@@ -25,10 +25,12 @@ import {
     type FiltroDeAsesor,
 } from "@/lib/embudos-de-la-cuenta";
 import {
+    asegurarElEmbudoPorDefecto,
     comoWhereDeAsesor,
     lasAsignacionesDe,
     lasEtapasDe,
     lasPosicionesDe,
+    lasVaciadasDe,
     losConteosPorEtapa,
     losEmbudosDe,
 } from "@/lib/embudos-db";
@@ -107,6 +109,15 @@ export type TableroDeEmbudo = {
     cuentasRecortadas: boolean;
     /** El filtro de asesor puesto, tal cual vuelve a la URL. `null` = todos. */
     asesor: string | null;
+    /**
+     * Cuántas conversaciones hay en la papelera de la cuenta.
+     *
+     * Solo el número, y **sale gratis**: es el largo de la lista que el tablero
+     * ya tuvo que leer para no pintarlas. La lista con sus nombres y sus días se
+     * pide al abrir la papelera, que es una pantalla que casi nunca se abre;
+     * traerla siempre sería una consulta más en cada carga para no enseñarla.
+     */
+    enLaPapelera: number;
 };
 
 /** El equipo de la cuenta: la cuenta misma y quien cuelga de ella. */
@@ -207,6 +218,36 @@ export async function elTableroDelEmbudo(
         recortadas: boolean;
     },
 ): Promise<TableroDeEmbudo> {
+    /*
+     * **Toda cuenta tiene su embudo.** Si esta no tiene ninguno se le crea el por
+     * defecto con sus siete etapas, aquí y no con una migración: así vale igual
+     * para la cuenta que se dé de alta mañana, sin que nadie tenga que acordarse
+     * de sembrarle nada.
+     *
+     * Cuesta una escritura **una vez en la vida de la cuenta**: en cuanto hay un
+     * embudo, `asegurarElEmbudoPorDefecto` lo ve y no escribe. Y no puede tumbar
+     * el tablero —una cuenta que no puede crear su embudo tiene que poder ver el
+     * que ya tenga—, pero tampoco es mudo: sin esto, «mi cuenta no tiene embudo»
+     * no se distingue de «la App no lo creó».
+     */
+    try {
+        const sembrado = await asegurarElEmbudoPorDefecto({
+            cuentaId: quien.cuentaId,
+            creadoPorId: quien.personaId,
+        });
+        if (sembrado.creado || sembrado.puestoAlDia) {
+            console.info("[embudos] la cuenta ya tiene su embudo por defecto", {
+                cuenta: quien.cuentaId,
+                ...sembrado,
+            });
+        }
+    } catch (error) {
+        console.warn("[embudos] no se pudo asegurar el embudo por defecto", {
+            cuenta: quien.cuentaId,
+            error,
+        });
+    }
+
     const [todos, asignaciones] = await Promise.all([
         losEmbudosDe(quien.cuentaId),
         lasAsignacionesDe(quien.cuentaId),
@@ -250,6 +291,7 @@ export async function elTableroDelEmbudo(
         puedeElegirCuenta: cuentas?.puedeElegir ?? false,
         cuentasRecortadas: cuentas?.recortadas ?? false,
         asesor: comoParametroDeAsesor(filtro),
+        enLaPapelera: 0,
     };
     if (!embudoId) return vacio;
 
@@ -259,7 +301,25 @@ export async function elTableroDelEmbudo(
     // dos consultas: el `where` de las tarjetas y el conteo por etapa. Ver
     // `AQuienSeMira`.
     const aQuien = aQuienSeMira(quien, filtro, quienCaeEnElEmbudo(embudoId, asignaciones, todos));
-    const where = { userId: quien.cuentaId, ...SIN_GRUPOS, AND: [comoWhereDeAsesor(aQuien)] };
+    /*
+     * Lo vaciado no sale en el tablero.
+     *
+     * Se excluye con `notIn` y no con un `NOT EXISTS`, que es lo que dejaría la
+     * consulta de tarjetas en Prisma tal como estaba —con sus etiquetas y sus
+     * seguimientos— en vez de rehacerla en SQL crudo. La lista no crece sin fin:
+     * el barrido borra en firme a los treinta días, así que es como mucho lo que
+     * esa cuenta vació en un mes. **Y con la papelera vacía la clave ni se
+     * pone**: `notIn: []` es una condición que Prisma traduce igual pero que no
+     * hace falta pagar en el caso normal, que es el de todas las cuentas que
+     * nunca han vaciado nada.
+     */
+    const vaciadas = await lasVaciadasDe(quien.cuentaId);
+    const where = {
+        userId: quien.cuentaId,
+        ...SIN_GRUPOS,
+        AND: [comoWhereDeAsesor(aQuien)],
+        ...(vaciadas.length > 0 ? { id: { notIn: vaciadas } } : {}),
+    };
 
     const [sesiones, total, conteos] = await Promise.all([
         db.session.findMany({
@@ -311,5 +371,43 @@ export async function elTableroDelEmbudo(
         tarjetas,
         total,
         totales: losTotalesPorEtapa(etapas, conteos, total),
+        enLaPapelera: vaciadas.length,
+    };
+}
+
+/**
+ * El alcance de UNA columna: sus etapas y a quién se le está mirando.
+ *
+ * Lo usa el vaciado, y sale de las MISMAS funciones que el tablero —el equipo,
+ * `elFiltroDeAsesor`, `quienCaeEnElEmbudo`, `aQuienSeMira`—, no de una regla
+ * escrita aparte. Es lo que hace que **se vacíe exactamente lo que se ve**: si
+ * el vaciado resolviera el filtro por su cuenta, con un asesor filtrado se
+ * llevaría por delante las conversaciones de los demás, que es la peor sorpresa
+ * posible y no se deshace mirando la pantalla.
+ *
+ * `null` = ese embudo no es de esta cuenta, o la cuenta no tiene embudos.
+ */
+export async function elAlcanceDeLaColumna(
+    quien: QuienMiraLosEmbudos,
+    embudoId: string,
+    asesorPedido?: unknown,
+): Promise<{ etapas: Etapa[]; aQuien: ReturnType<typeof aQuienSeMira> } | null> {
+    const [todos, asignaciones] = await Promise.all([
+        losEmbudosDe(quien.cuentaId),
+        lasAsignacionesDe(quien.cuentaId),
+    ]);
+    if (!todos.some((e) => e.id === embudoId)) return null;
+
+    const equipo = quien.manda ? await elEquipoDe(quien.cuentaId) : [];
+    const filtro: FiltroDeAsesor = quien.manda
+        ? elFiltroDeAsesor(
+              asesorPedido,
+              equipo.map((p) => p.id),
+          )
+        : FILTRO_DE_TODOS;
+
+    return {
+        etapas: await lasEtapasDe([embudoId]),
+        aQuien: aQuienSeMira(quien, filtro, quienCaeEnElEmbudo(embudoId, asignaciones, todos)),
     };
 }
