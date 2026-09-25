@@ -17765,3 +17765,138 @@ Postgres; `MODO=roto` corre las acciones de etiquetas y respuestas de
 `scripts/banco-embudos-navegador.sh`, sobre la página servida: el dueño crea y
 asigna por la pantalla, la administradora tiene sus mismos mandos, un agente ve
 solo su embudo y arrastra, y otro sin embudo ve la pantalla que lo dice.
+
+## El cupo de llamadas: un sitio que solo se libera cuando todo sale bien no es un cupo
+
+«Límite de llamadas simultáneas alcanzado» al llamar desde un chat, **sin
+ninguna llamada en curso**, y sin forma de arreglarlo desde la App.
+
+El aviso no lo escribe esta plataforma: es un `429` de **AstraCalls**
+(`actions/astracalls-actions.ts`). Su cupo —`-max-calls-per-session` /
+`WACALLS_MAX_CALLS`, 8 por línea— se cuenta sobre `sess.reg`, que es un mapa
+**en memoria**. Una llamada entra al empezar y solo salía cuando alguien le
+ponía el final: el navegador con su `DELETE`, o WhatsApp con su `terminate`.
+
+> **Y ninguno de los dos es de fiar.** Cuando ese aviso no llegaba, el sitio no
+> se liberaba **nunca** —no había ni plazo de timbre, ni duración máxima, ni
+> barrido— así que la única forma de vaciar el contador era reiniciar el
+> proceso. Ocho finales malos seguidos y la línea se queda sin poder llamar,
+> con el cupo entero ocupado por llamadas que no existen.
+
+Y desde fuera eso no se parece a un fallo: se parece a una línea agotada. La
+tarjeta ofrece «Volver a llamar» justo debajo del aviso, así que se reintenta,
+y el reintento contesta lo mismo.
+
+### Los nueve caminos, y los cinco que se habían olvidado
+
+En el navegador `CallDialog` tenía **una sola** puerta que avisara al servidor
+—`hangup`— y todo lo demás se iba por `cleanup()`, que suelta el micrófono y
+la conexión de ESTE navegador y no le dice nada a nadie:
+
+| camino | qué dejaba |
+| --- | --- |
+| el audio que no conecta (`astraCallWebrtc` falla) | un sitio ocupado **y el teléfono del cliente sonando** |
+| micrófono denegado, y los dos `catch` | igual |
+| **cerrar la tarjeta mientras la llamada salía** | el peor: `hangup` no encontraba nada que colgar porque `callRef` se apuntaba en la línea **siguiente** al guardián de cancelación |
+| desmontar —recargar con F5, navegar fuera— | `cleanup()` a secas |
+
+**La regla: toda salida va por `hangup()`, que es la única puerta.** Que sea
+una no es estilo: son dos mitades —soltar el sitio y soltar el micro— y
+repartidas por nueve caminos olvidarse de una no se nota desde dentro. Y **la
+llamada se apunta ANTES del guardián de cancelación**: desde que el servidor la
+crea hay un sitio que liberar pase lo que pase.
+
+### Pero el navegador siempre se puede morir: el plazo vive en el SERVIDOR
+
+Es la mitad que de verdad cierra esto, y es la misma forma que *la red tiene
+que salir de la BASE, no de la memoria de nadie*: no se puede depender de que
+un aviso salga de una pestaña que puede desaparecer —y **una llamada del bot no
+tiene pestaña detrás en absoluto**—.
+
+> **Toda llamada nace con un plazo. Si nadie la termina, la termina el reloj.**
+> Un barrido cada 30 s en astracalls (`cmd/server/barrido-de-llamadas.go`)
+> suelta lo que pasó de su plazo: **2 min sin contestar**
+> (`WACALLS_RING_TIMEOUT_SECS`) y **4 h hablando** (`WACALLS_MAX_CALL_SECS`).
+
+Son dos plazos y no uno porque una llamada sonando cinco minutos no existe y
+una conversación de cinco minutos es lo más normal del mundo. Y son red de
+seguridad, no política: se eligen tan largos que ninguna llamada de verdad los
+alcanza, porque cortar una conversación en curso es mucho peor que tener un
+sitio ocupado un rato de más.
+
+**Y por encima de los dos manda el AUDIO.** Mientras entren tramas del otro
+lado la llamada no se toca, por vieja que sea. Es la misma regla que ya rige el
+fin de una llamada de WhatsApp —*el detector principal es el audio, no el
+proveedor*— y aquí es lo que impide la regresión que este barrido podría
+causar: cualquier camino en el que una conversación viva no llegara a marcarse
+como «contestada» se cortaría a los dos minutos. Un minuto entero sin una sola
+trama no es «no está hablando»: con DTX son cientos de paquetes que no
+llegaron.
+
+Cuatro cosas más que hay que mantener:
+
+1. **Un plazo que no se entiende cae en el de por defecto, NUNCA en «sin
+   plazo».** Equivocarse hacia un plazo de más cuesta un sitio ocupado unas
+   horas; equivocarse hacia el infinito es volver al fallo, y callado.
+2. **La llamada se sella al ENTRAR al registro**, no donde se cree: es la línea
+   que ocupa el sitio, así que no puede haber forma de entrar sin fecha. Sin
+   sello el barrido no la juzga y se queda para siempre.
+3. **`soltarLlamada` va aparte de `terminateCall`, y hace falta.** Aquel **no
+   libera una llamada atascada**, que es justo lo que hay que liberar:
+   `EndCall` se rinde en su primera línea cuando ya no hay un `currentCall`
+   vivo —`if call == nil || call.IsEnded() { return nil }`— así que no sale
+   ningún `OnEnded` y nadie la quita del registro. Y esos son exactamente los
+   dos estados en los que se queda una colgada. Se avisa a WhatsApp si se
+   puede y después se quita **sin preguntar**, que es el orden que `doEndCall`
+   lleva usando desde siempre sin dejar un sitio ocupado.
+4. **El sello de «contestada» se pone una sola vez, y sin condiciones
+   delante.** Iba a colgar del grabador, que solo existe con `RECORDINGS_DIR`
+   puesto: una instalación sin grabación no habría marcado nunca «contestada»
+   y el barrido le habría aplicado el plazo de timbre a una conversación en
+   curso.
+
+### Los tres huecos concretos, que son por donde más se llegaba
+
+No son el plazo: son sitios donde ya se sabía que la llamada había muerto y se
+volvía sin decirlo.
+
+| | qué pasaba |
+| --- | --- |
+| `HandleCallAck` con `error` | WhatsApp rechaza el offer —el número no recibe llamadas, está bloqueado, hay límite—. Es un NO definitivo, así que **no hay ningún `terminate` que esperar**. Se escribía el error y la llamada se quedaba sonando en el registro para siempre. Basta con llamar a un número que no se puede llamar |
+| el offer que no llega a salir | la consulta se rinde a los 15 s, se escribía y se volvía. Igual |
+| `LoggedOut` | desvinculada la sesión sus llamadas no pueden seguir vivas, y se quedaban ocupando el cupo hasta reiniciar |
+
+### Y ahora se puede MIRAR
+
+`GET /api/sessions/{sid}/calls` devuelve además la lista, con la edad de cada
+llamada, si se contestó, si hubo audio, si es del bot y si está colgada
+(`stale`, con su motivo). Sin eso el aviso es un número sin nada detrás: no hay
+forma de saber si son llamadas de verdad o sitios que se quedaron ocupados, ni
+de soltar una por su id. **Un número distinto de cero en `stale` es la señal de
+que algún final no está llegando**, que es la misma idea que *una línea muerta
+no tiene filas*: el cero es el dato.
+
+### Lo que NO se tocó, y se dice
+
+**`duration_ms` sigue sin usarse.** La App lo manda con 300.000 creyendo que es
+un tope de cinco minutos y el servidor lo decodifica y lo ignora desde siempre.
+Honrarlo de golpe cortaría a los cinco minutos toda llamada que hoy dura más,
+así que queda escrito en vez de cambiarse por sorpresa.
+
+### Los bancos, uno por mitad
+
+- `scripts/banco-cupo-de-llamadas.sh` (astracalls) — el barrido devuelve el
+  sitio y se puede volver a llamar, y **no corta lo que está vivo**: ni una
+  conversación de hora y media, ni una que acaba de empezar a sonar, ni una con
+  audio entrando que nunca se marcó. `MODO=roto` corre el barrido por el camino
+  viejo y **afirma el fallo**: las ocho colgadas siguen ahí.
+- `scripts/banco-cupo-de-llamadas.sh` (esta App) — que fuera de `hangup` no se
+  nombren ni `cleanup` ni `soltarElSitio`. `MODO=roto` lee la misma tarjeta de
+  un commit **pinchado** y afirma los once caminos que abandonaban.
+
+Y una del propio banco, que costó una vuelta y vale para cualquiera de esta
+familia: **el primer barrido miraba si había un `soltarElSitio()` CERCA, y
+pasaba al quitarle el arreglo a un camino** — encontraba el del bloque de al
+lado. Un modo roto que pasa no está en verde, está muerto. Lo que se comprueba
+es una invariante **exacta** y no una vecindad, y se comprobó quitando el
+arreglo de cada uno de los cuatro caminos, uno por uno, para ver el rojo.
