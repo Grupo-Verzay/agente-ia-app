@@ -22,6 +22,7 @@ import { SwitchStatus } from '../../sessions/_components/SwitchStatus';
 import { initialFromName } from './chat-message-utils';
 import type { ChatHeader as ChatHeaderData } from './chat-message-types';
 import type { Session, SimpleTag } from '@/types/session';
+import type { EtapaDeLaFila } from '@/lib/embudos';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { MacrosMenu } from './MacrosMenu';
@@ -121,6 +122,14 @@ interface ChatHeaderProps {
   /** Desde cuando espera a una persona (ms), o null si no esta en espera. */
   escalatedAt?: number | null;
   /**
+   * La etapa del embudo de esta conversación, tal como la trae la bandeja.
+   * Solo sirve para que el icono salga con su color sin abrir el menú; la lista
+   * de etapas la sigue cargando el selector al abrirse.
+   */
+  etapaDelEmbudo?: EtapaDeLaFila | null;
+  /** Para pintar la pastilla de la FILA al momento cuando se cambia aquí. */
+  onEtapaCambiada?: (sessionId: number, etapa: EtapaDeLaFila) => void;
+  /**
    * Se resolvio (true) o se reabrio (false). La lista y el contador de «Todos»
    * lo pintan al momento; sin este aviso esperaban al reloj de sesiones (60 s)
    * y el numero no bajaba al resolver.
@@ -168,6 +177,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   assignedAdvisorId,
   resolvedAt,
   escalatedAt,
+  etapaDelEmbudo,
+  onEtapaCambiada,
   onResolucionCambiada,
   onUnescalated,
   onAssignAdvisor,
@@ -390,7 +401,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
    * cero, o enseñaría la etapa del anterior hasta que alguien lo abriera.
    */
   const selectorDeEtapa = session && (
-    <SelectorDeEtapaDelEmbudo key={session.id} sessionId={session.id} />
+    <SelectorDeEtapaDelEmbudo
+      key={session.id}
+      sessionId={session.id}
+      etapaInicial={etapaDelEmbudo}
+      onEtapaCambiada={(etapa) => onEtapaCambiada?.(session.id, etapa)}
+    />
   );
 
   const sessionToggle = session && (
