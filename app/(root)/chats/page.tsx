@@ -601,6 +601,7 @@ export default async function ChatsPage({
       order: tag.order ?? 0,
       sessionCount: tag._count?.sessionTags ?? 0,
       userId: tag.userId,
+      grupo: tag.grupo,
     })) ?? [];
 
   const initialChatPreferences = initialPreferencesResult.success

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
     DndContext,
@@ -132,12 +132,13 @@ function ScoreBadge({ score }: { score: number }) {
 
 // ─── Draggable Card ───────────────────────────────────────────────────────────
 
-function KanbanCardItem({
+export function KanbanCardItem({
     card,
     isDragging = false,
     onScore,
     scoring = false,
     nombreDeLaCuenta,
+    pie,
 }: {
     card: KanbanCard;
     isDragging?: boolean;
@@ -148,6 +149,13 @@ function KanbanCardItem({
      * con tres cuentas dentro es un revoltijo.
      */
     nombreDeLaCuenta?: string;
+    /**
+     * Una línea más al final, para quien reutiliza la tarjeta: el tablero de
+     * Embudos pinta aquí el asesor que lleva la conversación. Es la MISMA
+     * tarjeta en los dos tableros; con una copia, el día que se afine una la
+     * otra se queda atrás.
+     */
+    pie?: React.ReactNode;
 }) {
     const ago = timeAgo(card.leadStatusUpdatedAt);
     return (
@@ -236,6 +244,8 @@ function KanbanCardItem({
                     )}
                 </div>
             )}
+
+            {pie}
         </div>
     );
 }

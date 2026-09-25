@@ -5,6 +5,8 @@ import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
 import type { LeadStatus } from '@prisma/client';
+import { laVe } from '@/lib/personales';
+import { lasDuenasDeEtiquetas, quienVeLoPersonal } from '@/lib/personales-db';
 
 export type KanbanCard = {
     id: number;
@@ -68,6 +70,20 @@ export async function getKanbanSessionsAction(
                 { updatedAt: 'desc' },
             ],
         });
+
+        // Las etiquetas PERSONALES de otro asesor no se le enseñan a un asesor
+        // (`lib/personales.ts`). Quien manda lo ve todo y no paga la consulta.
+        const quien = await quienVeLoPersonal();
+        if (quien && !quien.manda) {
+            const duenas = await lasDuenasDeEtiquetas(
+                sessions.flatMap((s) => s.sessionTags.map((st) => st.tagId)),
+            );
+            if (duenas.size > 0) {
+                for (const s of sessions) {
+                    s.sessionTags = s.sessionTags.filter((st) => laVe(duenas.get(st.tagId), quien));
+                }
+            }
+        }
 
         const cards: KanbanCard[] = sessions.map((s) => ({
             id: s.id,

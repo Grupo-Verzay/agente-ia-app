@@ -37,6 +37,8 @@ export type ChatQuickReplyOption = {
   workflowName: string | null;
   /** La cuenta dueña (ver `lib/atajos-de-la-linea.ts`). Filtra el panel de Atajos. */
   cuentaId: string;
+  /** Si es de la cuenta, de quien mira o de otro asesor (`lib/personales.ts`). */
+  grupo?: "mias" | "de-asesores" | "de-la-cuenta";
 };
 
 export type ChatToolActionResult =
