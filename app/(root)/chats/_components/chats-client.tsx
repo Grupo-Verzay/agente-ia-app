@@ -2593,6 +2593,23 @@ export function ChatsClient({
   );
 
   /**
+   * Se cambio la etapa del embudo desde la cabecera del chat: pintarlo en la
+   * fila al momento.
+   *
+   * El servidor ya la guardo (la acción es la misma del tablero, con su
+   * permiso). Sin esto la pastilla de la fila se quedaria con la etapa de antes
+   * hasta la vuelta del reloj de sesiones —hasta 60 s—, y eso se lee como que
+   * el cambio no se guardo. Es el mismo reparto que el estado del lead y el
+   * interruptor de la IA.
+   */
+  const handleEtapaChange = useCallback(
+    (sessionId: number, etapa: import("@/lib/embudos").EtapaDeLaFila) => {
+      aplicarEnLaSesion(sessionId, "", { etapa }, "la etapa del embudo");
+    },
+    [aplicarEnLaSesion],
+  );
+
+  /**
    * Se resolvio o se reabrio: pintarlo al momento, en TODAS las llaves.
    *
    * Resolver escribia la marca en la base y no en la pantalla, asi que la fila
@@ -5463,6 +5480,11 @@ export function ChatsClient({
             assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
             resolvedAt={currentContactSession?.resolvedAt ?? null}
             escalatedAt={currentContactSession?.escalatedAt ?? null}
+            /* La etapa del embudo baja desde la bandeja, que ya la trae para
+               todas sus filas: el icono de la cabecera sale con su color sin
+               costar una consulta. */
+            etapaDelEmbudo={currentContactSession?.etapa ?? null}
+            onEtapaCambiada={handleEtapaChange}
             onResolucionCambiada={handleResolucionCambiada}
             onUnescalated={(sessionId) =>
               aplicarEnLaSesion(sessionId, selectedJid, { escalatedAt: null }, "quitar de espera")

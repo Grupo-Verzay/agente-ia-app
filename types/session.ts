@@ -1,4 +1,5 @@
 import type { ResumenDeRegistros } from "@/lib/registros-del-lead";
+import type { EtapaDeLaFila } from "@/lib/embudos";
 import type {
   Prisma,
   AppointmentStatus,
@@ -132,6 +133,16 @@ export type ChatContactSessionSummary = {
    */
   instanceId?: string | null;
   updatedAt?: number | null;
+  /**
+   * La etapa del embudo en la que está esta conversación, ya resuelta, o
+   * `undefined` si su cuenta no usa embudos.
+   *
+   * No se guarda en `Session`: se deduce del asesor que la lleva (ver
+   * `lib/embudos.ts`) y la resuelve `lib/etapas-de-la-bandeja.server.ts` para
+   * toda la bandeja de una vez. Viaja aquí —y no en una consulta aparte— por lo
+   * mismo que las etiquetas y los contadores: una por fila serían cientos.
+   */
+  etapa?: EtapaDeLaFila | null;
 };
 
 export type ChatContactSessionMap = Record<string, ChatContactSessionSummary>;
