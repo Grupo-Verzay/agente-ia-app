@@ -8,6 +8,7 @@ import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { PastillasDeMetricas, type Metrica } from '@/components/shared/PastillasDeMetricas';
 import CreateWorflowDialog from './CreateWorflowDialog';
 import FollowUpWindowDialog from './FollowUpWindowDialog';
+import type { RepeticionesDeFlujo } from '@/lib/repeticiones-de-flujo';
 import { SortableWorkflowList } from './SortableWorkflowList';
 
 interface WorkflowListContentProps {
@@ -15,11 +16,12 @@ interface WorkflowListContentProps {
     userId: string;
     isPro: boolean;
     triggers?: IntentTrigger[];
+    repeticiones?: Record<string, RepeticionesDeFlujo>;
     /** Las cifras del resumen, que se pintan en la barra. */
     metricas?: Metrica[];
 }
 
-export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], metricas = [] }: WorkflowListContentProps) => {
+export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], metricas = [], repeticiones = {} }: WorkflowListContentProps) => {
     const [search, setSearch] = useState('');
     const filteredWorkflows = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -63,7 +65,7 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], m
                         No se encontraron flujos.
                     </p>
                 ) : (
-                    <SortableWorkflowList workflows={filteredWorkflows} userId={userId} triggers={triggers} />
+                    <SortableWorkflowList workflows={filteredWorkflows} userId={userId} triggers={triggers} repeticiones={repeticiones} />
                 )}
             </div>
         </>

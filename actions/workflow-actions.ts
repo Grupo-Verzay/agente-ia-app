@@ -1,4 +1,5 @@
 ﻿"use server";
+import { olvidarRepeticiones } from "@/lib/repeticiones-de-flujo-db";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -264,6 +265,12 @@ export const deleteEntireWorkflow = async (userId: string, workflowId: string) =
                 detail: workflowRes.message,
             };
         }
+
+        // #6. Su ajuste de repeticiones (tabla de la App, sin clave foránea).
+        // No puede tumbar un borrado que ya se hizo, pero tampoco es mudo.
+        await olvidarRepeticiones(workflowId).catch((error) =>
+            console.warn("[flujos] no se pudo borrar el ajuste de repeticiones", { workflowId, error }),
+        );
 
         return {
             success: true,
