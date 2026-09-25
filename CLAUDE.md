@@ -18358,6 +18358,21 @@ píxel, en 1440, 1280, 1024 y 390.
 Y el sangrado es **un solo número** para las tres cosas —la fila, su rótulo y lo
 que se le quita al grupo—: con dos, vuelven a separarse sin que nadie lo note.
 
+### Y el RÓTULO es el mismo, aunque uno lo pinte cmdk
+
+La primera vuelta alineó las filas y dejó los rótulos con dos tipografías: el de
+Etapas ya iba en mayúscula y negrita, y el de Etiquetas lo pinta cmdk con las
+suyas (`font-medium`, sin mayúscula). Puestas las dos capturas una al lado de
+otra se leía a la primera, así que el rótulo también sale de un sitio.
+
+Y sale **escrito dos veces**, a propósito: cmdk no deja ponerle clases al nodo
+del título, así que la segunda copia lleva el prefijo de variante
+(`[&_[cmdk-group-heading]]:…`). **No se pueden componer en tiempo de
+ejecución** —Tailwind lee el código, así que una clase construida con un `map`
+no se genera y el rótulo saldría sin estilo con el build en verde; es la familia
+de `removeConsole`—. Que las dos digan lo mismo lo comprueba el banco,
+derivando una de la otra.
+
 ### El nombre va en mayúscula con CSS, nunca convertido
 
 `uppercase` es `text-transform`, así que el `textContent` sigue siendo el nombre
