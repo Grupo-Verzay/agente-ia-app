@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +9,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LeadStatusBadge } from "../../crm/dashboard/components/records-table/LeadStatusBadge";
 import { LEAD_STATUS_FILTER_OPTIONS } from "../../crm/dashboard/helpers/leadStatus";
-import { updateSessionLeadStatus } from "@/actions/session-action";
 import type { LeadStatus } from "@/types/session";
+import { useCambiarCalificacion } from "@/hooks/useCambiarCalificacion";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
+import { DISPARADOR_DE_LA_PASTILLA } from "@/lib/pastillas-de-la-fila";
 
 interface LeadStatusSelectProps {
   sessionId: number;
@@ -23,34 +22,23 @@ interface LeadStatusSelectProps {
 }
 
 export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadStatusSelectProps) {
-  const [isPending, setIsPending] = useState(false);
+  // El mismo camino de escritura que el menú «⋯» de la fila, que es el único
+  // que queda cuando la conversación no está calificada y esta pastilla no se
+  // pinta (`lib/calificacion-del-lead.ts`).
+  const { cambiar, pendiente } = useCambiarCalificacion(sessionId, currentStatus, onUpdated);
   // La temperatura vive en una FILA de la lista, así que su panel nace pegado
   // al filo derecho de la columna, bajo su control, y voltea arriba si la fila
   // está abajo del todo. Antes era `align="start"`: salía hacia la derecha y
   // se montaba sobre la conversación.
   const panel = usePanelFlotante("columnaDerecha", "menu");
 
-  const handleSelect = async (status: LeadStatus | null) => {
-    if (status === currentStatus) return;
-    setIsPending(true);
-    try {
-      const result = await updateSessionLeadStatus(sessionId, status);
-      if (result.success) {
-        await onUpdated?.(status);
-      } else {
-        toast.error(result.message);
-      }
-    } finally {
-      setIsPending(false);
-    }
-  };
 
   return (
     <DropdownMenu onOpenChange={panel.alAbrir}>
       <DropdownMenuTrigger
         ref={panel.disparador}
-        disabled={isPending}
-        className="inline-flex h-7 items-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 focus:outline-none"
+        disabled={pendiente}
+        className={`${DISPARADOR_DE_LA_PASTILLA} cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-50 focus:outline-none`}
         aria-label="Cambiar estado del lead"
       >
         <LeadStatusBadge status={currentStatus} showDot={false} compacta />
@@ -60,7 +48,7 @@ export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadSt
           {LEAD_STATUS_FILTER_OPTIONS.map((option) => (
             <DropdownMenuItem
               key={option.value}
-              onSelect={() => handleSelect(option.value)}
+              onSelect={() => void cambiar(option.value)}
               className={currentStatus === option.value ? "bg-muted" : ""}
             >
               <LeadStatusBadge status={option.value} />

@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { LeadStatusBadge } from "@/app/(root)/crm/dashboard/components/records-table/LeadStatusBadge";
 import { ChatContactItem } from "@/app/(root)/chats/_components/ChatContactItem";
 import { ChatHeader } from "@/app/(root)/chats/_components/ChatHeader";
 
@@ -27,8 +28,13 @@ const ETAPA_LARGA = "Esperando respuesta del cliente final";
 const ETAPA_ANCHA = "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW";
 
 const FILAS: Array<{ id: string; etapa: any; lead: any }> = [
-    // La referencia de ANCHO: «Sin clasificar», que es el listón del encargo.
-    { id: "sin_etapa", etapa: null, lead: null },
+    // La fila SIN etapa, para comprobar que no pinta pastilla ni deja su hueco.
+    // Lleva calificación como las demás: desde que la fila no pinta la
+    // calificación cuando no la hay (`lib/calificacion-del-lead.ts`), con
+    // `lead: null` esta fila se quedaría sin NINGUNA pastilla y no habría
+    // renglón que comparar con el de `corta` —se estarían midiendo dos cajas
+    // distintas—.
+    { id: "sin_etapa", etapa: null, lead: "TIBIO" },
     // Las demás llevan estado puesto, que es la forma NORMAL de la pastilla de
     // al lado —con su fondo y su `font-medium`— y por tanto contra la que se
     // compara. «Sin clasificar» es el caso vacío y va en punteado.
@@ -124,6 +130,15 @@ function Maqueta() {
             {FILAS.map((f) => (
                 <Fila key={f.id} id={f.id} etapa={f.etapa} lead={f.lead} />
             ))}
+            {/* La referencia de ANCHO del encargo: lo que mide «Sin
+                clasificar», que es el listón contra el que se acota la
+                pastilla de etapa. Se mide aquí y ya no en una fila: la fila
+                dejó de pintar la calificación cuando no la hay. Es el MISMO
+                componente con el mismo `compacta` y en el mismo contexto
+                —sigue vivo en el CRM y en el menú—, así que mide lo mismo. */}
+            <div data-referencia="sin-clasificar" style={{ width: 380 }}>
+                <LeadStatusBadge status={null} showDot={false} compacta />
+            </div>
             <Cabecera id="con_etapa" etapa={{ id: "e2", nombre: ETAPA_LARGA, color: 2 }} />
             <Cabecera id="sin_etapa" etapa={null} />
         </div>

@@ -19886,6 +19886,118 @@ fila contaba 0 pastillas y daba por bueno «no hay dos líneas». Los tres van y
 por `[data-renglon-de-pastillas]` con la clase vieja de respaldo, que es lo que
 mantiene vivo su modo roto.
 
+## Chats: «Sin clasificar» no es un dato, así que no gasta una pastilla
+
+La calificación del lead se pintaba SIEMPRE, y sin calificar decía «Sin
+clasificar» dentro de un recuadro de borde punteado. O sea que toda
+conversación que nadie ha calificado —que es como nacen todas— gastaba una
+pastilla entera del renglón, que es **lo único que escasea en esa fila**, para
+enseñar un hueco. Y lo que empujaba al «+N» era la etapa, los recordatorios o
+las etiquetas, que sí llevan un dato.
+
+> **La calificación se pinta cuando la hay: Frío, Tibio, Caliente, Finalizado
+> o Descartado. Sin calificar no se pinta nada, y no deja hueco** —el renglón
+> reparte con `gap`—. Lo decide `seVeLaCalificacion`
+> (`lib/calificacion-del-lead.ts`, pura).
+
+Es la misma regla que la etapa del embudo ya cumplía en la fila de al lado: una
+cuenta sin embudos no pinta ninguna pastilla de etapa. Lo que no cuadraba es
+que dos pastillas vecinas contestaran distinto a la misma pregunta.
+
+### Quitar la pastilla NO puede quitar el mando
+
+Es la mitad que se olvida, y aquí era la cara: esa pastilla **era el disparador
+del menú con el que se califica, y el único que hay en Chats** —el menú «⋯» de
+la fila no lo ofrecía, y el Contexto del lead solo enseña la etiqueta—.
+Escondiéndola a secas, la conversación que hay que calificar —la que nadie ha
+calificado todavía— se quedaba sin ninguna forma de hacerlo. Eso es el «menú
+cerrado por dentro» que ya costó una vuelta en el tablero de Embudos, y se lee
+igual de mal: *no se puede*.
+
+Así que calificar se mudó al **menú «⋯» de la fila**
+(`ClasificarLeadSubmenu`), al lado de «Asignar agente» y «Asignar etiqueta»,
+que es donde ya viven las acciones de la fila. Va en un **submenú** por la
+regla de siempre —*si la lista es el motivo del menú, scroll; si es una opción
+más entre otras, submenú*— y no en un botón nuevo de la fila: devolverle un
+mando al renglón sería deshacer el arreglo.
+
+Cuatro cosas que hay que mantener:
+
+1. **El camino de escritura es UNO**, `useCambiarCalificacion`, y lo usan la
+   pastilla y el menú. Con dos, el día que se afine uno el otro se queda atrás
+   —y eso no se ve como un error: se ve como que «desde el menú a veces no se
+   guarda»—.
+2. **«Sin clasificar» va primero en el submenú y QUITA la calificación**, como
+   «Sin asignar» en el del asesor. Sin esa entrada, una calificación puesta por
+   error no se podría deshacer desde ninguna parte.
+3. **Lo que pinta una pastilla es EXACTAMENTE lo que el menú ofrece.** Si se
+   separaran, el menú dejaría poner una calificación que la fila no enseña —un
+   cambio que no se ve— o la fila pintaría una que el menú no sabe quitar. El
+   banco las **encadena** en vez de comprobar cada una por su lado.
+4. **Lo que llega de fuera no decide**: `comoCalificacion` deja pasar las cinco
+   y trata cualquier otra cosa como «sin clasificar», que es el lado seguro —se
+   borra una calificación, que se vuelve a poner en un clic; nunca se guarda un
+   valor inventado que después ninguna pastilla sabe pintar—.
+
+### Y el disparador era el único `h-7` entre pastillas de `h-6`
+
+Lo destapó medir, no leer. Tres pastillas de la fila abren menú, y dos de ellas
+SON el botón: `PastillaDeEtapa` y `AdvisorAssignBadge` se pintan con `h-6` y ya
+está. La calificación no: su disparador era un `h-7` envolviendo un badge de
+`h-6`, o sea **2 px muertos por arriba y por abajo**.
+
+Eso no se ve como una pastilla descuadrada —va centrada— pero **estira la fila
+entera**. Medido en la columna de producción, la misma fila con y sin
+calificación:
+
+| | alto de la fila |
+| --- | --- |
+| con calificación | **96 px** |
+| sin ella | **92 px** |
+
+Cuatro píxeles que cambian según el lead esté calificado o no, en una lista
+donde cada fila lleva al lado otra que no lo está. Y la bandeja **estima el
+alto de sus filas con un número fijo** para virtualizar, así que un alto que
+varía le descuadra además la ventana. El disparador mide ya lo que la pastilla
+que lleva dentro (`DISPARADOR_DE_LA_PASTILLA`).
+
+**En el «antes» esa diferencia no se podía ver**, y conviene saber por qué en
+vez de fingir un rojo: allí TODAS las filas llevaban la pastilla —la calificada
+y la que decía «Sin clasificar»— así que las dos medían los mismos 96 px. El
+fallo estaba igual; solo se convierte en una DIFERENCIA ahora, cuando una de
+las dos deja de pintarla.
+
+### Los tres bancos vecinos tenían una fila sin calificar dentro
+
+Y por eso se pusieron rojos al quitar la pastilla, que es lo correcto. Cada uno
+se arregló por lo que ese banco viene a probar, no bajando el listón:
+
+- **`renglon-de-pastillas`** y **`simetria-de-la-fila`**: su fila `sinNada`
+  ahora sí es lo que su nombre decía desde el principio —ni una pastilla, ni
+  renglón, ni la franja de 24 px de un renglón vacío—. Los dos tenían escrita
+  la concesión: «conserva la calificación, que se pinta siempre».
+- **`pastilla-de-etapa`**: usaba esa fila como **referencia de ancho** —lo que
+  mide «Sin clasificar», que es el listón contra el que se acota la etapa—. La
+  referencia se mide ya en su propio nodo, con el MISMO componente y el mismo
+  `compacta`: sigue viva en el CRM y en el menú. Y su fila `sin_etapa` lleva
+  calificación, o se quedaría sin ninguna pastilla y no habría renglón que
+  comparar con el de al lado —se estarían midiendo dos cajas distintas—.
+
+Lo prueba `scripts/banco-calificacion-del-lead.sh`, en dos mitades: la decisión
+y el invariante que junta las dos listas, sin navegador; y la fila REAL en
+Chromium sobre el CSS del build, a 1440/1280/1024/390, donde se contestan las
+dos cosas que no se leen en el código —cuánto ancho devuelve quitar la
+pastilla, y que el menú «⋯» (que Radix pinta en un portal y solo al abrirlo)
+sigue teniendo con qué calificar—. `MODO=roto` pinta la misma maqueta con los
+componentes de un commit **pinchado** y afirma los dos fallos: la pastilla
+«Sin clasificar» en una conversación sin calificar, y el menú sin ninguna forma
+de calificarla.
+
+Comprobado además lo único que dice que un banco mira: **quitándole cada
+arreglo al modo bueno se pone en rojo** —la pastilla incondicional tumba dos
+casos, el submenú quitado uno, y el `h-7` de vuelta tres—.
+
+
 ## El cupo de llamadas: un sitio que solo se libera cuando todo sale bien no es un cupo
 
 «Límite de llamadas simultáneas alcanzado» al llamar desde un chat, **sin

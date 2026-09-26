@@ -47,6 +47,8 @@ import { useRenglonDePastillas } from "@/hooks/useRenglonDePastillas";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from "@/lib/paneles-flotantes";
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
+import { seVeLaCalificacion } from "@/lib/calificacion-del-lead";
+import { ClasificarLeadSubmenu } from "./ClasificarLeadSubmenu";
 import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 
 function contactInitials(name: string) {
@@ -231,15 +233,27 @@ function ChatContactItemBase({
     if (contact.chatSession.etapa) {
       badgeItems.push(<PastillaDeEtapa key="etapa" etapa={contact.chatSession.etapa} />);
     }
-    // 1.5. Clasificación del lead (Frio, Sin clasificar, etc.)
-    badgeItems.push(
-      <LeadStatusSelect
-        key="status"
-        sessionId={contact.chatSession.id}
-        currentStatus={contact.chatSession.leadStatus ?? null}
-        onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus, contact.chatSession?.id)}
-      />
-    );
+    // 1.5. Calificación del lead. Se pinta SOLO cuando la hay —Frío, Tibio,
+    //    Caliente, Finalizado o Descartado—: sin calificar, la pastilla decía
+    //    «Sin clasificar» dentro de un borde punteado y gastaba el sitio del
+    //    renglón, que es lo único que escasea en esta fila, para enseñar un
+    //    hueco. Es la misma regla que la etapa de arriba, que tampoco se pinta
+    //    cuando la cuenta no usa embudos (`lib/calificacion-del-lead.ts`).
+    //
+    //    Y calificar NO se pierde con la pastilla: esta era su único mando en
+    //    Chats, así que se mudó al menú «⋯» de la fila, que es donde ya viven
+    //    «Asignar agente» y «Asignar etiqueta». La pastilla sigue abriendo el
+    //    mismo menú cuando existe.
+    if (seVeLaCalificacion(contact.chatSession.leadStatus)) {
+      badgeItems.push(
+        <LeadStatusSelect
+          key="status"
+          sessionId={contact.chatSession.id}
+          currentStatus={contact.chatSession.leadStatus}
+          onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus, contact.chatSession?.id)}
+        />
+      );
+    }
     // 2. Asesor asignado (Sin asignar / iniciales)
     if (advisors && advisors.length > 0) {
       badgeItems.push(
@@ -692,6 +706,16 @@ function ChatContactItemBase({
                     ))}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+              )}
+              {/* 3.5. Clasificar lead — el ÚNICO camino cuando la conversación
+                  no está calificada: ahí su pastilla no se pinta, y era la que
+                  abría este mismo menú. */}
+              {contact.chatSession && (
+                <ClasificarLeadSubmenu
+                  sessionId={contact.chatSession.id}
+                  actual={contact.chatSession.leadStatus ?? null}
+                  alCambiar={(nueva) => onLeadStatusChange?.(contact.id, nueva, contact.chatSession?.id)}
+                />
               )}
               {/* 4. Asignar etiqueta */}
               {onAssignTag && etiquetasDeEstaLinea.length > 0 && (
