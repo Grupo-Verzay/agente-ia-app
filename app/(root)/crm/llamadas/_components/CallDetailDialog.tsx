@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Sparkles, FileText, AudioWaveform, Loader2, PhoneOutgoing, PhoneMissed, Bot, User } from "lucide-react";
+import { Sparkles, FileText, AudioWaveform, Loader2, PhoneOutgoing, PhoneMissed, Bot, User, AlertTriangle, RotateCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -13,6 +13,10 @@ import { getCallDetailAction } from "@/actions/calls-crm-actions";
 import type { CallRow } from "@/lib/fila-de-llamada";
 import { NotaDeVozSuelta } from "@/components/shared/NotaDeVoz";
 import { losTurnos, type QuienHabla } from "@/lib/turnos-de-la-transcripcion";
+import { loQueSeEnsenaDeLaLlamada } from "@/lib/transcripcion-de-la-llamada";
+import { reintentarLaTranscripcionAction } from "@/actions/calls-recording-actions";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const DATE_FMT = new Intl.DateTimeFormat("es-CO", {
   day: "2-digit",
@@ -65,6 +69,7 @@ export function CallDetailDialog({
 }) {
   const [fresca, setFresca] = useState<CallRow | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [reintentando, setReintentando] = useState(false);
   const onDetalleRef = useRef(onDetalle);
   onDetalleRef.current = onDetalle;
 
@@ -98,7 +103,9 @@ export function CallDetailDialog({
       setCargando(false);
       vueltas += 1;
       const base = r ?? callDeLaLista;
-      if (base.hasRecording && !base.transcript && vueltas < TOPE_DE_CONSULTAS) {
+      // Con un motivo escrito ya no hay nada que esperar: seguir preguntando
+      // sería pedir quince veces lo que la fila ya contestó.
+      if (base.hasRecording && !base.transcript && !base.transcripcionMotivo && vueltas < TOPE_DE_CONSULTAS) {
         temporizador = setTimeout(vuelta, ESPERA_ENTRE_CONSULTAS_MS);
       }
     };
@@ -113,7 +120,37 @@ export function CallDetailDialog({
 
   const isOut = call.direction === "outgoing";
   const url = recordingUrl ?? call.recordingUrl;
-  const procesando = call.hasRecording && !call.transcript;
+  // Qué se enseña lo decide una función PURA (`loQueSeEnsenaDeLaLlamada`), no
+  // un `hasRecording && !transcript` escrito aquí: de esa condición solo sale
+  // «Procesando…», también cuando el proceso abandonó hace media hora. Ver el
+  // porqué en `lib/transcripcion-de-la-llamada.ts`.
+  const queSeEnsena = loQueSeEnsenaDeLaLlamada({
+    transcript: call.transcript,
+    hasRecording: call.hasRecording,
+    motivo: call.transcripcionMotivo,
+    hacenFalta: call.transcripcionHacenFalta,
+    quedan: call.transcripcionQuedan,
+    cargando,
+  });
+  const procesando = queSeEnsena.estado === "procesando";
+
+  const reintentar = async () => {
+    if (reintentando) return;
+    setReintentando(true);
+    try {
+      const r = await reintentarLaTranscripcionAction(call.id);
+      if (r.success) {
+        toast.success("Transcripción lista.");
+      } else {
+        toast.error(r.message || "No se pudo transcribir.");
+      }
+      await traer();
+    } catch {
+      toast.error("No se pudo transcribir.");
+    } finally {
+      setReintentando(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,7 +200,13 @@ export function CallDetailDialog({
             <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-sm">{call.summary}</p>
           ) : (
             <p className="text-sm italic text-muted-foreground">
-              {cargando ? "Cargando…" : procesando ? "Procesando…" : "Sin resumen"}
+              {queSeEnsena.estado === "cargando"
+                ? "Cargando…"
+                : queSeEnsena.estado === "procesando"
+                  ? "Procesando…"
+                  : queSeEnsena.estado === "fallo"
+                    ? "Sin resumen: no hubo transcripción."
+                    : "Sin resumen"}
             </p>
           )}
         </div>
@@ -175,10 +218,44 @@ export function CallDetailDialog({
           </div>
           {call.transcript ? (
             <Transcripcion texto={call.transcript} />
+          ) : queSeEnsena.estado === "fallo" ? (
+            /* **Un fallo se DICE, y con lo que hay que hacer al lado.** Esto
+               decía «Procesando…» para siempre: ni el motivo, ni forma de
+               reintentar. El botón solo sale cuando reintentar puede cambiar
+               algo — sin créditos o sin clave no mejora pulsando. */
+            <div className="space-y-1.5" data-transcripcion-fallo>
+              <p className="flex items-start gap-1.5 text-sm text-amber-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{queSeEnsena.texto}</span>
+              </p>
+              {queSeEnsena.sePuedeReintentar && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={reintentar}
+                  disabled={reintentando}
+                  data-reintentar-transcripcion
+                >
+                  {reintentando ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Transcribiendo…
+                    </>
+                  ) : (
+                    <>
+                      <RotateCw className="mr-1.5 h-3.5 w-3.5" /> Reintentar
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           ) : (
             <p className="flex items-center gap-1.5 text-sm italic text-muted-foreground">
               {(cargando || procesando) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {cargando ? "Cargando…" : procesando ? "Procesando…" : "Sin transcripción"}
+              {queSeEnsena.estado === "cargando"
+                ? "Cargando…"
+                : procesando
+                  ? "Procesando…"
+                  : "Sin transcripción"}
             </p>
           )}
         </div>

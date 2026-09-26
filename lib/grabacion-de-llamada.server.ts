@@ -37,6 +37,11 @@ import {
   TOPE_DE_BYTES_DE_AUDIO,
   porQueNoSeTranscribio,
   queHacerConLaGrabacion,
+  elMotivoDeLaGrabacion,
+  laMarcaDeLaLlamada,
+  valeLaPenaSeguirEsperando,
+  type MarcaDeLaLlamada,
+  type MotivoDeLaLlamada,
 } from '@/lib/transcripcion-de-la-llamada';
 import { segundosDelWav, trozosDeWav } from '@/lib/wav-en-trozos';
 import { PISTA_DE_VOCABULARIO, conElNombreDeLaMarca } from '@/lib/nombres-de-la-marca';
@@ -416,12 +421,69 @@ export async function proponerElResultado(id: bigint, valor: CallDisposition): P
  * lanzado por una automatización (sin sesión de navegador: la pide el backend
  * por su cuenta cuando detecta que la grabación ya está lista).
  */
+/**
+ * Cómo quedó un intento de procesar la grabación.
+ *
+ * `motivo` es la parte que faltaba: antes esto era `{ success, message }` y el
+ * `message` se miraba **comparando su texto** para decidir si seguir
+ * sondeando. Un texto no es un valor: el día que alguien le cambiara una tilde
+ * al aviso, el bucle dejaría de reintentar y nadie lo notaría hasta ver una
+ * pantalla diciendo «Procesando…» semanas después.
+ */
+export type ComoQuedoLaLlamada = {
+  success: boolean;
+  message?: string;
+  motivo?: MotivoDeLaLlamada;
+};
+
+/**
+ * Deja escrito en la fila POR QUÉ no salió, o lo borra cuando sí sale.
+ *
+ * Es la misma forma que ya tiene una nota de voz de Chats —el motivo vive en
+ * `raw`, no en una columna nueva—, y por el mismo motivo: `chat_messages` la
+ * tocan la App, el webhook del backend y el chat-store, así que añadirle
+ * columnas desde aquí es lo que reventó el #360.
+ *
+ * Tres cosas que hay que mantener:
+ *
+ * 1. **Es un MERGE**, como sus dos vecinas. Escribir `raw` entero se llevaría
+ *    por delante la duración, los ids o el resultado que otro camino acabe de
+ *    dejar.
+ * 2. **No pisa una transcripción que ya esté.** Si otra vuelta ganó la carrera
+ *    y guardó el texto, marcar «falló» encima sería contar un error sobre una
+ *    llamada que salió bien.
+ * 3. **No lanza.** Se llama desde caminos que siguen después; pero **no es
+ *    mudo**, que es exactamente lo que convirtió esto en un fallo invisible.
+ */
+async function anotarLaMarca(id: bigint, marca: MarcaDeLaLlamada | null): Promise<void> {
+  try {
+    await db.$executeRaw`
+      UPDATE "chat_messages"
+         SET "raw" = COALESCE("raw", '{}'::jsonb)
+                  || jsonb_build_object(
+                       'call',
+                       COALESCE("raw" -> 'call', '{}'::jsonb)
+                       || ${JSON.stringify({ transcripcion: marca })}::jsonb
+                     ),
+             "updatedAt" = NOW()
+       WHERE "id" = ${id}
+         AND ("raw" -> 'call' ->> 'transcript') IS NULL
+    `;
+  } catch (error) {
+    console.warn('[llamadas] no se pudo anotar por que no se transcribio', {
+      chatMessageId: String(id),
+      motivo: marca?.motivo ?? null,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export async function processCallRecordingForUser(input: {
   userId: string;
   chatMessageId: string;
   astraSid: string;
   astraCallId: string;
-}): Promise<{ success: boolean; message?: string }> {
+}): Promise<ComoQuedoLaLlamada> {
   if (!BASE || !KEY) return { success: false, message: 'Llamadas no configuradas.' };
 
   let id: bigint;
@@ -451,7 +513,11 @@ export async function processCallRecordingForUser(input: {
       chatMessageId: input.chatMessageId,
       astraCallId: input.astraCallId,
     });
-    return { success: false, message: 'Grabación no disponible aún.' };
+    // NO deja marca: «todavía no está» es el estado NORMAL mientras se habla.
+    // Escribirla aquí pintaría un error en la tarjeta de cada llamada en
+    // curso. Lo que sí es un final —y el bucle lo distingue por el mensaje—
+    // es agotar la ventana, y de eso se encarga quien espera.
+    return { success: false, message: 'Grabación no disponible aún.', motivo: 'no_bajo' };
   }
 
   // La duración solo se recalcula si aún no hay una (p.ej. la llamada del
@@ -493,7 +559,19 @@ export async function processCallRecordingForUser(input: {
       cuentaQuePaga: paga,
       motivo,
     });
-    return { success: false, message: motivo };
+    // **Y queda escrito en la fila.** Antes esto era un `console.warn` en un
+    // servidor y un `success: false` hacia un `void`: la tarjeta se quedaba
+    // diciendo «Procesando…» para siempre, que es justo lo que se reportó.
+    const marca = elMotivoDeLaGrabacion(que);
+    if (marca) {
+      await anotarLaMarca(id, {
+        motivo: marca,
+        ...(que.hacer === 'sin_creditos'
+          ? { hacenFalta: que.costo.creditos, quedan: que.disponibles }
+          : {}),
+      });
+    }
+    return { success: false, message: motivo, motivo: marca ?? undefined };
   }
 
   const cfg = await getUserAiConfig(input.userId);
@@ -502,25 +580,47 @@ export async function processCallRecordingForUser(input: {
       chatMessageId: input.chatMessageId,
       userId: input.userId,
     });
-    return { success: false, message: 'Sin configuración de IA activa.' };
+    await anotarLaMarca(id, { motivo: 'sin_ia' });
+    return { success: false, message: 'Sin configuración de IA activa.', motivo: 'sin_ia' };
   }
 
   // El nombre de la marca se corrige al GUARDAR, no en la voz: ver
   // `lib/nombres-de-la-marca.ts`.
   const transcript = conElNombreDeLaMarca(await transcribe(audio, cfg));
   if (!transcript) {
+    // **Esto era la causa del «Procesando…» eterno.**
+    //
+    // Una transcripción vacía —OpenAI no contestó, la red, un pico de carga—
+    // devolvía `success: true`, así que quien esperaba la daba por hecha y
+    // **paraba para siempre**: la fila se quedaba con `hasRecording` y sin
+    // texto, la tarjeta decía «Procesando…» sin error, y sin transcripción
+    // tampoco se proponía resultado. Los tres síntomas del reporte, los tres
+    // a la vez, y ninguno se veía desde fuera.
+    //
+    // La llamada en vivo del asesor no lo sufría porque hay alguien delante:
+    // elige el resultado a mano y vuelve a llamar si hace falta. La del bot no
+    // tiene a nadie, así que un abandono callado es definitivo.
+    //
+    // Es un fallo **de hoy**: no se ha cobrado nada —el cobro va después de
+    // tener el texto— así que se dice y se reintenta.
     console.warn('[llamadas] la transcripcion volvio vacia', {
       chatMessageId: input.chatMessageId,
       proveedor: cfg.providerName,
       bytes: audio.length,
       segundos: duracion,
     });
+    await anotarLaMarca(id, { motivo: 'no_transcribio' });
+    return {
+      success: false,
+      message: 'El servicio de transcripción no respondió.',
+      motivo: 'no_transcribio',
+    };
   }
   // Y también en el resumen: sale de la transcripción ya corregida, pero el
   // modelo puede volver a escribirlo a su manera.
-  const summary = transcript ? conElNombreDeLaMarca(await summarize(transcript, cfg)) : '';
+  const summary = conElNombreDeLaMarca(await summarize(transcript, cfg));
   // El resultado se propone con la transcripción ya corregida.
-  const propuesta = transcript ? await clasificar(transcript, cfg) : null;
+  const propuesta = await clasificar(transcript, cfg);
 
   const escribio = await guardarYCobrar({
     id,
@@ -528,11 +628,15 @@ export async function processCallRecordingForUser(input: {
       hasRecording: true,
       astraSid: input.astraSid,
       astraCallId: input.astraCallId,
-      transcript: transcript || null,
+      transcript,
       summary: summary || null,
+      // Salió: la marca de un intento anterior se BORRA en la misma escritura.
+      // Dejarla puesta haría que la tarjeta enseñara el error de ayer debajo
+      // de la transcripción de hoy.
+      transcripcion: null,
     },
     cuentaQuePaga: paga,
-    tokens: transcript ? que.costo.tokens : 0,
+    tokens: que.costo.tokens,
   });
   if (escribio && propuesta) await proponerElResultado(id, propuesta);
   return { success: true };
@@ -692,10 +796,22 @@ export async function esperarYProcesarLaGrabacion(input: {
         });
         return;
       }
-      // Lo que no es «todavía no está» es firme —sin créditos, demasiado
-      // grande, sin clave de IA— y no mejora sondeando: se para aquí, que ya
-      // lo dijo `processCallRecordingForUser`.
-      if (res.message !== 'Grabación no disponible aún.') return;
+      // **Se sigue mientras el fallo sea de HOY, y se para con los firmes.**
+      //
+      // Esto comparaba el TEXTO del aviso (`!== 'Grabación no disponible
+      // aún.'`), así que cualquier otro final paraba el bucle — incluida una
+      // transcripción vacía, que es un tropiezo de un momento y no una
+      // respuesta. Ahora lo decide el motivo, con la MISMA regla que ya usa el
+      // botón de una nota de voz (`sePuedeReintentar`): sin créditos, sin
+      // clave o demasiado grande no mejoran sondeando; que OpenAI no conteste
+      // o que el audio no esté todavía, sí.
+      if (res.motivo && !valeLaPenaSeguirEsperando(res.motivo)) {
+        console.info('[llamadas] se deja de esperar: el motivo no cambia en esta ventana', {
+          chatMessageId: input.chatMessageId,
+          motivo: res.motivo,
+        });
+        return;
+      }
     } catch (error) {
       console.warn('[llamadas] fallo una vuelta esperando la grabacion', {
         chatMessageId: input.chatMessageId,
@@ -705,6 +821,13 @@ export async function esperarYProcesarLaGrabacion(input: {
     }
   }
 
+  // Agotar la ventana SÍ es un final, y aquí sí se marca: mientras se sondeaba
+  // no se marcaba a propósito —«todavía no está» es el estado normal de una
+  // llamada en curso—, pero media hora después ya no lo es. Sin esta marca la
+  // tarjeta se quedaba diciendo «Procesando…» para siempre, que es el fallo
+  // que esto vino a cerrar. El rescate la sigue recogiendo: `no_bajo` se
+  // reintenta.
+  await anotarLaMarca(BigInt(input.chatMessageId), { motivo: 'no_bajo' }).catch(() => {});
   console.warn('[llamadas] la grabacion nunca quedo lista', {
     chatMessageId: input.chatMessageId,
     astraCallId: input.astraCallId,
@@ -859,7 +982,7 @@ export async function procesarElFinDeLaLlamada(input: {
         });
         return;
       }
-      if (res.message !== 'Grabación no disponible aún.') return;
+      if (res.motivo && !valeLaPenaSeguirEsperando(res.motivo)) return;
     } catch (error) {
       console.warn('[llamadas] fallo el primer intento al colgar', {
         chatMessageId: trabajo.chatMessageId,

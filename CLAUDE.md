@@ -11092,6 +11092,130 @@ Cuatro cosas que hay que mantener:
 Cómo se comprueba que no queda nada, sin desplegar: buscar en el repo texto que
 se pueda reparar. Si alguna línea vuelve a ser distinta al repararla, está rota.
 
+## Un abandono sin motivo es «Procesando…» para siempre
+
+Las llamadas que hace una persona quedaban completas —grabación, transcripción,
+resumen y resultado— y las que hace la IA se quedaban **solo con la grabación**:
+la tarjeta decía «Procesando…» sin cambiar nunca, sin error y sin resultado.
+
+Los dos caminos comparten `processCallRecordingForUser`, con la MISMA cuenta
+(`laCuentaDeLaFilaDeLlamada`). Así que la asimetría no estaba en el procesado:
+estaba en **quién lo dispara y qué pasa cuando abandona**.
+
+| | la humana | la de la IA |
+| --- | --- | --- |
+| lo dispara | **el navegador**, 1,5 s tras colgar, con 3 reintentos | el aviso de fin, una promesa suelta y el barrido |
+| si abandona | hay alguien delante: elige el resultado a mano y vuelve a llamar | **no se entera nadie, nunca** |
+
+### La causa: una transcripción vacía contaba como ÉXITO
+
+```ts
+const transcript = conElNombreDeLaMarca(await transcribe(audio, cfg));
+if (!transcript) { console.warn(...); }        // ← y seguía
+...
+return { success: true };                       // ← SIEMPRE
+```
+
+OpenAI no contesta, la red, un pico de carga: la transcripción vuelve vacía y
+`processCallRecordingForUser` devolvía **éxito**. Con eso, los tres síntomas del
+reporte salen a la vez y ninguno se ve desde fuera:
+
+- `esperarYProcesarLaGrabacion` veía `success` y **paraba para siempre**;
+- la fila quedaba con `hasRecording: true` y sin texto, que es exactamente de
+  donde la tarjeta sacaba su «Procesando…» (`hasRecording && !transcript`);
+- y sin transcripción **no se propone resultado**, porque la propuesta sale de
+  clasificar ese texto.
+
+Y los abandonos firmes —sin créditos, sin clave de IA, demasiado grande— no
+dejaban **nada** en la fila: solo un `console.warn` en un servidor. Misma
+pantalla, mismo silencio.
+
+> **Un abandono deja su MOTIVO en la fila** (`raw.call.transcripcion`, por
+> `anotarLaMarca`), con el MISMO vocabulario que una nota de voz de Chats
+> —`NoSeTranscribio`, con su frase y su regla—. Dos vocabularios paralelos es
+> uno que se afina y otro que se queda atrás, y la misma avería contada de dos
+> maneras según dónde se mire. Es la misma decisión que la tarifa.
+
+Y va en `raw`, **no en una columna nueva**: `chat_messages` la tocan la App, el
+webhook del backend y el chat-store (el #360).
+
+### «¿Se puede volver a pulsar?» y «¿sigo sondeando AHORA?» son DOS preguntas
+
+Confundirlas cuesta por los dos lados, así que son dos funciones:
+
+| | quién la usa | incluye `sin_creditos` |
+| --- | --- | --- |
+| `sePuedeReintentar` | el botón de la tarjeta y el barrido de abajo | **sí**: se recarga y se reintenta |
+| `valeLaPenaSeguirEsperando` | el bucle de media hora | **no** |
+
+Nadie recarga créditos en los treinta minutos siguientes a una llamada, y
+**cada vuelta se baja el WAV entero**: serían sesenta descargas para abandonar
+en el mismo sitio. Lo que sí es de este momento —el audio que aún no está
+cerrado, OpenAI que no contestó— se sigue reintentando: para eso está la
+ventana.
+
+Cinco cosas que hay que mantener:
+
+1. **El bucle decide por el MOTIVO, no por el texto del aviso.** Comparaba
+   `res.message !== 'Grabación no disponible aún.'`; un texto no es un valor, y
+   el día que alguien le cambiara una tilde el bucle dejaría de reintentar sin
+   que nadie lo notara hasta ver una pantalla semanas después.
+2. **Mientras se sondea NO se marca nada.** «Todavía no está» es el estado
+   normal de una llamada en curso: marcarlo pintaría un error en la tarjeta de
+   cada llamada que se está hablando. Lo que sí se marca es **agotar la
+   ventana**, que media hora después ya no es normal.
+3. **La marca se BORRA cuando sí sale**, en la misma escritura que guarda el
+   texto. Dejarla pondría el error de ayer debajo de la transcripción de hoy.
+   Y `anotarLaMarca` no pisa una transcripción que ya esté: si otra vuelta ganó
+   la carrera, marcar «falló» encima sería contar un error sobre algo que salió
+   bien.
+4. **Lo que no se entiende en la marca vale «no hay marca».** Se ve de menos,
+   nunca de más: equivocarse hacia «esta falló» pinta un aviso encima de una
+   llamada que va perfectamente.
+5. **Y hay botón** (`reintentarLaTranscripcionAction`), como en una nota de voz.
+   El par de ids sale de la FILA, nunca del navegador: aceptarlos de fuera sería
+   pedirle a AstraCalls la grabación que alguien nombrara y escribirla aquí.
+
+### El relay se tragaba `isBot`, y por eso el «No contesta» no se marcaba nunca
+
+AstraCalls solo sabe si se contestó cuando la llamada es del bot —arranca la IA
+al conectar—; en una manual `answered` viaja en falso **siempre**. Por eso la
+App exige las dos cosas juntas:
+
+```ts
+answered: body?.isBot === true && body?.answered === false ? false : undefined
+```
+
+Y el relay del backend mandaba `sid`, `callId`, `durationSecs`, `hasRecording` y
+`answered` — **`isBot` no**. Así que esa condición era falsa siempre, `answered`
+llegaba como «no se sabe», y el resultado **«No contesta» de una llamada del bot
+no se marcaba jamás**: la tarjeta se quedaba en «Marcar resultado» como si nadie
+la hubiera atendido.
+
+**Ese relay no decide nada: pasa el recado ENTERO.** Si se añade otro campo al
+aviso de fin, va igual.
+
+### Y la tarjeta no puede deducir el estado de dos booleanos
+
+`hasRecording && !transcript` solo produce «Procesando…», también media hora
+después de haber abandonado: una llamada que se está transcribiendo ahora y una
+que ya no va a salir se veían **idénticas**, y la segunda no volvía a cambiar.
+
+Lo decide `loQueSeEnsenaDeLaLlamada` (puro, en
+`lib/transcripcion-de-la-llamada.ts`), con los cuatro estados que de verdad
+existen —cada uno lleva a una acción distinta: esperar, recargar, reintentar o
+nada— y **el motivo manda sobre «cargando»**: enseñar «Cargando…» sobre algo
+que ya se sabe que falló insinúa que todavía puede salir. Con un motivo escrito,
+el diálogo además **deja de sondear**: seguir preguntando sería pedir quince
+veces lo que la fila ya contestó.
+
+Lo prueban `scripts/banco-grabacion-de-llamada.sh` (sección I: la vacía deja su
+motivo y se reintenta, el reintento completa la llamada, lo firme se para y una
+marca rota no pinta ningún error; `MODO=roto` lleva escrito literal el guardado
+de antes y **afirma el fallo** —la vacía dada por buena, el bucle parándose y la
+fila sin motivo—) y `scripts/banco-voicebot.sh` en el backend, que encadena el
+relay con la regla de la App: sin `isBot`, «No contesta» no se puede marcar.
+
 ## Mudar un servicio de servidor: el certificado va DESPUÉS del DNS, y no se reintenta solo
 
 Se movió WAHA del servidor de la App (`89.117.150.148`) al de Evolution
