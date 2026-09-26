@@ -33,6 +33,12 @@
  * proyecto.
  */
 
+import {
+    alcanzaPara,
+    loQueQueda,
+    type SaldoDeLaCuenta,
+} from "@/lib/saldo-de-la-cuenta";
+
 // ── Lo que se graba ─────────────────────────────────────────────────────────
 
 export type ModoDeGrabacion = "audio" | "video";
@@ -266,7 +272,14 @@ export type QueHacerConLaGrabacion =
     | { hacer: "ya_esta" }
     | { hacer: "sin_audio" }
     | { hacer: "demasiado_grande" }
-    | { hacer: "sin_creditos"; hacenFalta: number; quedan: number };
+    /**
+     * No se puede pagar. **Las dos formas de no poder van separadas**, igual
+     * que en una nota de voz y en una llamada: la bolsa vacía se recarga; la
+     * que no existe hay que asignarla, y eso es otra pantalla y otra persona.
+     * `quedan` es `null` en el segundo caso — un cero ahí se lee como «se te
+     * acabaron».
+     */
+    | { hacer: "sin_creditos" | "sin_bolsa"; hacenFalta: number; quedan: number | null };
 
 /**
  * Qué se puede hacer con una grabación cuando alguien pulsa «Transcribir».
@@ -285,17 +298,17 @@ export function queHacerConLaGrabacion(input: {
     yaTranscrita: boolean;
     audioBytes: number | null;
     costo: { creditos: number; tokens: number };
-    /** `null` = ilimitados: la cuenta paga su propia IA. */
-    creditosDisponibles: number | null;
+    /** Lo que la plataforma sabe de la bolsa de la cuenta que paga. */
+    saldo: SaldoDeLaCuenta;
 }): QueHacerConLaGrabacion {
     if (input.yaTranscrita) return { hacer: "ya_esta" };
     if (!input.audioBytes || input.audioBytes <= 0) return { hacer: "sin_audio" };
     if (input.audioBytes > TOPE_DE_OPENAI) return { hacer: "demasiado_grande" };
-    if (input.creditosDisponibles !== null && input.creditosDisponibles < input.costo.creditos) {
+    if (!alcanzaPara(input.saldo, input.costo.creditos)) {
         return {
-            hacer: "sin_creditos",
+            hacer: input.saldo.estado === "sin_bolsa" ? "sin_bolsa" : "sin_creditos",
             hacenFalta: input.costo.creditos,
-            quedan: input.creditosDisponibles,
+            quedan: loQueQueda(input.saldo),
         };
     }
     return { hacer: "transcribir", creditos: input.costo.creditos, tokens: input.costo.tokens };
@@ -312,7 +325,11 @@ export function porQueNoSeTranscribe(que: QueHacerConLaGrabacion): string | null
         case "demasiado_grande":
             return "La grabación es demasiado larga para transcribirla de una vez.";
         case "sin_creditos":
-            return `No hay créditos suficientes: hacen falta ${que.hacenFalta} y quedan ${que.quedan}.`;
+            return `Esta cuenta se quedó sin créditos: hacen falta ${que.hacenFalta} y quedan ${que.quedan ?? 0}.`;
+        case "sin_bolsa":
+            // **No es «quedan 0».** Se arregla asignándole un cupo a la cuenta
+            // de la reunión, no recargando.
+            return `Esta cuenta no tiene créditos asignados: la transcripción cuesta ${que.hacenFalta}. Asígnale un cupo en Panel › Clientes.`;
     }
 }
 

@@ -103,8 +103,10 @@ import {
 } from "@/lib/grabacion-de-reunion.server";
 import { costoDeLaNota } from "@/lib/transcripcion-de-voz";
 import { laCuentaQuePagaLaTranscripcion } from "@/lib/nota-de-voz-del-equipo";
+import { comoSeLeeElSaldo, seCobra } from "@/lib/saldo-de-la-cuenta";
 import {
-    losCreditosQueQuedan,
+    elSaldoDeLaCuenta,
+    elNombreDeLaCuentaQuePaga,
     descontarLaTranscripcion,
     laClaveDeOpenAi,
     pedirleElTextoAOpenAi,
@@ -1951,16 +1953,28 @@ export async function transcribirLaReunionAction(input: {
             raizDeLaFamilia: familia.raiz,
         });
 
-        const quedan = await losCreditosQueQuedan(paga);
+        const saldo = await elSaldoDeLaCuenta(paga);
         const que = queHacerConLaGrabacion({
             yaTranscrita: false,
             audioBytes: fila.audioBytes,
             costo: costoDeLaNota(fila.segundos),
-            creditosDisponibles: quedan,
+            saldo,
         });
         if (que.hacer !== "transcribir") {
             const porQue = porQueNoSeTranscribe(que);
-            return { success: false, message: porQue ?? "No se puede transcribir." };
+            // Con el nombre de la cuenta delante: la bolsa que se mira es la
+            // de la cuenta DUEÑA de la grabación, que desde la madre no es la
+            // de quien está leyendo el aviso.
+            const cuenta =
+                que.hacer === "sin_creditos" || que.hacer === "sin_bolsa"
+                    ? await elNombreDeLaCuentaQuePaga(paga)
+                    : null;
+            return {
+                success: false,
+                message: cuenta
+                    ? `${cuenta}: ${porQue ?? "No se puede transcribir."}`
+                    : porQue ?? "No se puede transcribir.",
+            };
         }
 
         const clave = await laClaveDeOpenAi(paga);
@@ -1994,13 +2008,13 @@ export async function transcribirLaReunionAction(input: {
 
         // Se cobra DESPUÉS de tener el texto, y no cuando la cuenta paga su
         // propia IA (`quedan === null`).
-        if (quedan !== null) await descontarLaTranscripcion(paga, que.tokens);
+        if (seCobra(saldo)) await descontarLaTranscripcion(paga, que.tokens);
 
         console.info("[reuniones] reunion transcrita", {
             grabacion: fila.id,
             paga,
             segundos: fila.segundos,
-            creditos: quedan === null ? "ilimitados" : que.creditos,
+            creditos: seCobra(saldo) ? que.creditos : comoSeLeeElSaldo(saldo),
             conResumen: Boolean(resumen),
         });
 
@@ -2048,8 +2062,10 @@ function comoSeVeLaGrabacion(f: FilaDeGrabacion): GrabacionEnLaFicha {
         // Los créditos no se miran aquí: esta función pinta una lista y
         // preguntarlos por fila sería una consulta por grabación. Lo que sí se
         // resuelve es lo que no depende de ellos —sin audio, demasiado grande—,
-        // y los créditos los comprueba la acción al pulsar.
-        creditosDisponibles: null,
+        // y los créditos los comprueba la acción al pulsar. Por eso entra como
+        // «ilimitado»: es lo que hace que esta pasada no decida nada sobre la
+        // bolsa, ni para bien ni para mal.
+        saldo: { estado: "ilimitado" },
     });
     return {
         id: f.id,

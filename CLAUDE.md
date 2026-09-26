@@ -11826,6 +11826,117 @@ de antes y **afirma el fallo** —la vacía dada por buena, el bucle parándose 
 fila sin motivo—) y `scripts/banco-voicebot.sh` en el backend, que encadena el
 relay con la regla de la App: sin `isBot`, «No contesta» no se puede marcar.
 
+## El saldo de una cuenta lo lee UNA regla, y la App y el motor tienen que decir lo mismo
+
+«Las llamadas salen bien y quedan con su duración, y la transcripción dice
+**"No hay créditos suficientes: hacen falta 14 y quedan 0"** sobre una cuenta
+que sí tiene créditos. Sin transcripción tampoco hay Resumen IA.»
+
+La sospecha razonable —que la transcripción mira la bolsa de OTRA cuenta,
+probablemente la madre— **se descartó siguiendo la cadena entera**, y conviene
+tenerlo escrito para no volver a buscar ahí:
+
+| paso | con qué cuenta |
+| --- | --- |
+| la llamada sale | el `sid` de `laCuentaDeLaLlamada` |
+| la fila se anota | `logOutgoingCallAction`, bajo la cuenta **dueña de la línea** |
+| la grabación se busca | `laCuentaDeLaFilaDeLlamada`, o sea el `userId` de esa fila |
+| la transcripción cobra | `laCuentaQuePagaLaLlamada`, que **es la identidad** |
+
+Las cuatro son la misma cuenta, y el banco lo ejerce contra Postgres (`D1`).
+**La cuenta nunca fue la equivocada. Lo equivocado era la REGLA con la que se
+leía su bolsa.**
+
+> **Quién autoriza la llamada y quién autoriza su transcripción son dos
+> procesos distintos** —el motor (`api-webhook`, `AiCreditsService`) y esta
+> App— **y leían la misma fila con reglas distintas.** Así que una llamada
+> podía salir y su transcripción decir «quedan 0» sobre la misma bolsa, en el
+> mismo minuto, sin un solo error por el camino.
+
+### Las dos filas donde discrepaban, que son exactamente las del reporte
+
+| la fila de `ia_credits` | el MOTOR dice | la App decía |
+| --- | --- | --- |
+| `total: -1` (**sin tope**, puesto a mano) | **ilimitado** | `max(0, -1 − usados)` = **0** |
+| **no existe** | ilimitado (`!credit` → deja pasar) | **0** |
+
+La primera es la del reporte al pie de la letra: una cuenta marcada «sin tope»
+con consumo acumulado. El motor la dejaba llamar y la App le decía que le
+quedaban cero — y encima el número de la izquierda era cierto: **14 créditos
+son 140 segundos a la tarifa de siempre**. Un aviso perfectamente creíble sobre
+una cuenta perfectamente sana, que es la peor clase de fallo.
+
+> **Quién contesta «cuánto le queda a esta cuenta» es `lib/saldo-de-la-cuenta.ts`,
+> puro, y nadie más.** Devuelve un ESTADO —`ilimitado`, `sin_bolsa`,
+> `quedan`— y no un número, porque el número no puede distinguir los tres. Lo
+> preguntan las **cuatro** pantallas que transcriben (las notas de Chats, las
+> del chat de equipo, una reunión y una llamada) y el Perfil.
+
+Cinco cosas que hay que mantener:
+
+1. **`null` no es cero, y «sin bolsa» tampoco.** Eran los tres el mismo cero, y
+   los tres llevan a acciones distintas: *no se cobra*, *asígnale un cupo* y
+   *recarga*. Con un `number | null` la segunda no se podía ni expresar.
+2. **El banco ENCADENA la regla con la del motor**, escrita literal a su lado
+   (`A5`): probar cada lado por su cuenta es exactamente lo que dejó pasar
+   esto, porque los dos «estaban bien».
+3. **Nunca se cae a la bolsa de la madre.** La llamada la paga la cuenta dueña
+   de la conversación, así que su transcripción también. Un respaldo hacia
+   arriba haría que una hija sin cupo gastara el de la casa sin que nadie lo
+   pidiera. Lo dice el propio módulo, con su motivo al lado.
+4. **Lo ilimitado no se cobra** (`seCobra`). Antes el camino de la llamada
+   descontaba igual: `used` subía sobre una cuenta que paga su propia IA, y el
+   día que volviera a una llave de la casa arrancaría con un consumo inventado.
+5. **Y el aviso NOMBRA la cuenta que paga.** «Quedan 0» a secas manda a mirar
+   la bolsa de la cuenta con la que uno entró —que es otra— y ahí no hay nada
+   que arreglar. La marca guarda `cuenta` y la tarjeta la pinta.
+
+### Y con el mismo barrido salieron tres asimetrías más
+
+Ninguna se había reportado y las tres se ven igual desde fuera:
+
+| | qué pasaba |
+| --- | --- |
+| **el audio que no se puede cortar** | `cuantosTrozos(bytes, tope)` contaba sobre un NÚMERO, así que prometía dos trozos para un audio que `trozosDeWav` **no sabe partir** —un webm de Meta, un WAV con el encabezado roto—. Se mandaba entero, OpenAI lo rechazaba por tamaño y el `catch` lo convertía en **«El servicio de transcripción no respondió»**, que es una respuesta falsa: el servicio contestó perfectamente y lo que pasaba es que no cabía |
+| **agotar la ventana** | al rendirse tras media hora se escribía `no_bajo` —«No se pudo descargar el audio»— **encima** del `no_transcribio` que habían dejado las sesenta vueltas. El audio se bajó sesenta veces; los dos avisos mandan a mirar sitios distintos |
+| **el camino de Meta** | abandonaba por créditos o por falta de clave **devolviendo `success: true`** y sin dejar marca: la tarjeta se quedaba en «Procesando…» para siempre |
+
+> **`cuantosTrozosDeVerdad` recibe el BUFFER, no su tamaño**, y lee el MISMO
+> encabezado que `trozosDeWav`: así las dos no pueden discrepar. Lo que no cabe
+> y no se sabe cortar vale `Infinity`, cae por el tope de trozos como cualquier
+> otro número, y **lo dice con otras palabras** —habla de MB, no de minutos—,
+> porque «es muy largo» y «no cabe de una pieza y no sé partirlo» son dos
+> cosas distintas.
+
+Y `esperarYProcesarLaGrabacion` recuerda el **último motivo de verdad** y solo
+cae en `no_bajo` cuando de verdad nunca llegó el audio. Los dos se reintentan
+igual y los recoge el rescate: lo único que cambia es que el aviso deje de
+mandar a mirar donde no es.
+
+### El banco
+
+`scripts/banco-saldo-de-la-cuenta.sh` —la regla, qué se decide con ella, el
+corte de un audio que no se puede cortar, y un **barrido** que exige que las
+cuatro pantallas pasen por `elSaldoDeLaCuenta` y que ninguna vuelva a comparar
+un número contra `null`—, y `scripts/banco-grabacion-de-llamada.sh` contra
+Postgres, con las secciones **J** (una cuenta `total: -1` transcribe y no se le
+cobra; una sin fila deja `sin_bolsa` **con su nombre y sin `quedan`**, porque
+un 0 ahí se lee como «se te acabaron») y **K** (agotar la ventana no pisa el
+motivo, y una llamada cuyo audio nunca llega sí dice `no_bajo`).
+
+Los dos en **dos modos**, con el lector y la decisión de antes escritos
+literales dentro —`elSaldoDeAntes`, `cuantosTrozosDeAntes`, `laDecisionDeAntes`—
+y afirmando el fallo: sobre esa misma fila, «cuesta 14 y quedan 0». Y
+comprobado lo único que dice que un banco mira: **quitándole cada arreglo al
+modo bueno se pone en rojo** —el `total < 0`, el `sin_bolsa` y el recuerdo del
+último motivo, cada uno por sus casos—.
+
+De paso se resucitaron tres bancos que **no arrancaban**: el de las notas de voz
+se caía al importar `porQueNoHayTexto`, que dejó de existir en un renombrado, y
+los de la nota del equipo y la reunión no tenían quien los compilara. Un banco
+que no arranca no se lee como un fallo: se lee como que ahí no hay nada que
+probar.
+
 ## Mudar un servicio de servidor: el certificado va DESPUÉS del DNS, y no se reintenta solo
 
 Se movió WAHA del servidor de la App (`89.117.150.148`) al de Evolution

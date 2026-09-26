@@ -19,7 +19,11 @@ import {
     type CostoDeLaNota,
     type NoSeTranscribio,
 } from "@/lib/transcripcion-de-voz";
-import { cuantosTrozos } from "@/lib/wav-en-trozos";
+import {
+    alcanzaPara,
+    loQueQueda,
+    type SaldoDeLaCuenta,
+} from "@/lib/saldo-de-la-cuenta";
 
 /**
  * Lo más grande que OpenAI acepta en **una** transcripción: **25 MB**.
@@ -55,8 +59,19 @@ export const TOPE_DE_TROZOS = 12;
 
 export type QueHacerConLaGrabacion =
     | { hacer: "transcribir"; costo: CostoDeLaNota; trozos: number }
-    | { hacer: "demasiado_grande"; bytes: number }
-    | { hacer: "sin_creditos"; costo: CostoDeLaNota; disponibles: number };
+    /** `sePuedeCortar: false` = no cabe de una pieza y no se sabe partir. */
+    | { hacer: "demasiado_grande"; bytes: number; sePuedeCortar: boolean }
+    /**
+     * No se puede pagar. **Las dos formas de no poder van separadas**: la
+     * bolsa vacía se recarga; la bolsa que no existe hay que asignarla, que es
+     * otra pantalla y otra persona. `disponibles` es `null` en el segundo caso
+     * — un cero ahí se lee como «se acabaron».
+     */
+    | {
+          hacer: "sin_creditos" | "sin_bolsa";
+          costo: CostoDeLaNota;
+          disponibles: number | null;
+      };
 
 /**
  * Decide si esta grabación se transcribe, en cuántos trozos y cuánto cuesta.
@@ -66,29 +81,46 @@ export type QueHacerConLaGrabacion =
  * créditos» sobre algo que tampoco se habría transcrito con ellos manda a
  * recargar para nada. Después los créditos.
  *
- * `null` en `creditosDisponibles` es **ilimitado** —la cuenta paga su propia
- * IA— y no es cero: confundirlos dejaría a esas cuentas sin transcribir nada,
- * que es el fallo que ya costó una vuelta en el voicebot.
+ * **El saldo son TRES estados y no un número**: sin tope, sin bolsa y con
+ * bolsa. Confundir los dos primeros con un cero es lo que dejaba a una cuenta
+ * ilimitada con «quedan 0» mientras el motor le dejaba hacer la llamada — ver
+ * `lib/saldo-de-la-cuenta.ts`.
  */
 export function queHacerConLaGrabacion(input: {
     /** Duración del audio, en segundos. Decide el precio. */
     segundos: number;
-    /** Lo que pesa el audio ya descargado. */
+    /** Lo que pesa el audio ya descargado. Solo para el aviso. */
     bytes: number;
-    /** Lo que le queda a la cuenta que paga, o `null` si son ilimitados. */
-    creditosDisponibles: number | null;
+    /**
+     * En cuántos trozos se va a partir DE VERDAD, de `cuantosTrozosDeVerdad`.
+     *
+     * Lo cuenta quien tiene el buffer delante y con el MISMO encabezado que
+     * después lo corta, no con un `ceil(bytes / tope)` sobre un número: eso
+     * prometía dos trozos para un audio que no se sabe partir, se mandaba
+     * entero, y el rechazo por tamaño salía después como «el servicio de
+     * transcripción no respondió».
+     */
+    trozos: number;
+    /** Lo que la plataforma sabe de la bolsa de la cuenta que paga. */
+    saldo: SaldoDeLaCuenta;
 }): QueHacerConLaGrabacion {
-    const trozos = cuantosTrozos(input.bytes, TOPE_DE_BYTES_DE_AUDIO);
-    if (trozos > TOPE_DE_TROZOS) {
-        return { hacer: "demasiado_grande", bytes: input.bytes };
+    if (input.trozos > TOPE_DE_TROZOS) {
+        return {
+            hacer: "demasiado_grande",
+            bytes: input.bytes,
+            sePuedeCortar: Number.isFinite(input.trozos),
+        };
     }
 
     const costo = costoDeLaNota(input.segundos);
-    if (input.creditosDisponibles === null) return { hacer: "transcribir", costo, trozos };
-    if (input.creditosDisponibles < costo.creditos) {
-        return { hacer: "sin_creditos", costo, disponibles: input.creditosDisponibles };
+    if (alcanzaPara(input.saldo, costo.creditos)) {
+        return { hacer: "transcribir", costo, trozos: input.trozos };
     }
-    return { hacer: "transcribir", costo, trozos };
+    return {
+        hacer: input.saldo.estado === "sin_bolsa" ? "sin_bolsa" : "sin_creditos",
+        costo,
+        disponibles: loQueQueda(input.saldo),
+    };
 }
 
 /**
@@ -104,10 +136,21 @@ export function porQueNoSeTranscribio(que: QueHacerConLaGrabacion): string | nul
     if (que.hacer === "transcribir") return null;
     if (que.hacer === "demasiado_grande") {
         const mb = Math.round((que.bytes / (1024 * 1024)) * 10) / 10;
+        // **Dos avisos, porque son dos cosas.** Un WAV se corta, así que lo que
+        // sobra son minutos; lo que no se sabe cortar no sobra por largo, sobra
+        // porque tiene que caber de una pieza. Decir «el máximo son 79 minutos»
+        // sobre un webm de 30 MB manda a buscar una llamada larga que no existe.
+        if (!que.sePuedeCortar) {
+            const tope = Math.round(TOPE_DE_BYTES_DE_AUDIO / (1024 * 1024));
+            return `La grabación pesa ${mb} MB y no se puede partir en trozos, así que no cabe en una transcripción (el máximo de una pieza son ${tope} MB).`;
+        }
         const minutos = Math.floor((TOPE_DE_TROZOS * TOPE_DE_BYTES_DE_AUDIO) / 64_000 / 60);
         return `La grabación pesa ${mb} MB y no se puede transcribir: el máximo son unos ${minutos} minutos de llamada.`;
     }
-    return `Sin créditos suficientes para transcribir: cuesta ${que.costo.creditos} y quedan ${que.disponibles}.`;
+    if (que.hacer === "sin_bolsa") {
+        return `Esta cuenta no tiene créditos asignados: la transcripción cuesta ${que.costo.creditos}.`;
+    }
+    return `Sin créditos suficientes para transcribir: cuesta ${que.costo.creditos} y quedan ${que.disponibles ?? 0}.`;
 }
 
 /**
@@ -127,7 +170,7 @@ export function porQueNoSeTranscribio(que: QueHacerConLaGrabacion): string | nul
  */
 export type MotivoDeLaLlamada = Extract<
     NoSeTranscribio,
-    "muy_larga" | "sin_creditos" | "sin_ia" | "no_bajo" | "no_transcribio"
+    "muy_larga" | "sin_creditos" | "sin_bolsa" | "sin_ia" | "no_bajo" | "no_transcribio"
 >;
 
 /**
@@ -138,7 +181,8 @@ export type MotivoDeLaLlamada = Extract<
  */
 export function elMotivoDeLaGrabacion(que: QueHacerConLaGrabacion): MotivoDeLaLlamada | null {
     if (que.hacer === "transcribir") return null;
-    return que.hacer === "demasiado_grande" ? "muy_larga" : "sin_creditos";
+    if (que.hacer === "demasiado_grande") return "muy_larga";
+    return que.hacer;
 }
 
 /**
@@ -155,6 +199,19 @@ export type MarcaDeLaLlamada = {
     /** Para el aviso de los créditos, que lleva los números delante. */
     hacenFalta?: number;
     quedan?: number;
+    /**
+     * **El nombre de la cuenta que paga.**
+     *
+     * Sin él, el aviso decía «no hay créditos» sin decir de quién, y quien lo
+     * leía iba a mirar la bolsa de la cuenta con la que había entrado —que
+     * tenía créditos de sobra— y concluía que la App mentía. La bolsa que se
+     * mira es la de la cuenta dueña de la línea, que en una familia es otra.
+     *
+     * Se copia DENTRO de la marca, como `autorNombre` en un mensaje: el aviso
+     * sigue diciendo de quién hablaba aunque la cuenta cambie de nombre, y
+     * pintarlo no cuesta una consulta por fila.
+     */
+    cuenta?: string;
 };
 
 /**
@@ -171,15 +228,21 @@ export function laMarcaDeLaLlamada(valor: unknown): MarcaDeLaLlamada | null {
     const vale =
         motivo === "muy_larga" ||
         motivo === "sin_creditos" ||
+        motivo === "sin_bolsa" ||
         motivo === "sin_ia" ||
         motivo === "no_bajo" ||
         motivo === "no_transcribio";
     if (!vale) return null;
-    const numero = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+    const numero = (v: unknown) =>
+        v === null || v === undefined || v === "" || !Number.isFinite(Number(v))
+            ? undefined
+            : Number(v);
+    const cuenta = typeof crudo.cuenta === "string" ? crudo.cuenta.trim() : "";
     return {
         motivo: motivo as MotivoDeLaLlamada,
         hacenFalta: numero(crudo.hacenFalta),
         quedan: numero(crudo.quedan),
+        ...(cuenta ? { cuenta } : {}),
     };
 }
 
@@ -208,6 +271,8 @@ export function loQueSeEnsenaDeLaLlamada(input: {
     motivo: MotivoDeLaLlamada | null;
     hacenFalta?: number | null;
     quedan?: number | null;
+    /** El nombre de la cuenta que paga, para que el aviso diga de quién habla. */
+    cuenta?: string | null;
     cargando: boolean;
 }): LoQueSeEnsena {
     if (input.transcript) return { estado: "listo" };
@@ -220,6 +285,7 @@ export function loQueSeEnsenaDeLaLlamada(input: {
             texto: porQueNoSeTranscribioLaLlamada(input.motivo, {
                 hacenFalta: input.hacenFalta ?? undefined,
                 quedan: input.quedan ?? undefined,
+                cuenta: input.cuenta ?? undefined,
             }),
             sePuedeReintentar: sePuedeReintentar(input.motivo),
         };
@@ -250,5 +316,7 @@ export function loQueSeEnsenaDeLaLlamada(input: {
  * ventana.
  */
 export function valeLaPenaSeguirEsperando(motivo: MotivoDeLaLlamada): boolean {
+    // `sin_bolsa` tampoco: nadie le asigna un cupo a una cuenta en los treinta
+    // minutos siguientes a una llamada, y cada vuelta se baja el WAV entero.
     return motivo === "no_bajo" || motivo === "no_transcribio";
 }
