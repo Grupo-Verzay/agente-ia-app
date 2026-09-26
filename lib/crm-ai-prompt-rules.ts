@@ -140,7 +140,8 @@ export const CRM_LEAD_FUNNEL_PROMPT_DEFAULTS: CrmLeadFunnelPromptConfig = {
     "Debes responder SOLO con JSON valido, sin markdown y sin texto adicional.",
     'Si kind="REGISTRO": "tipo" solo puede ser uno de: SOLICITUD, PEDIDO, RECLAMO, RESERVA, PAGO.',
     'Si kind="REGISTRO": "estado" debe ser uno de los estados válidos para ese tipo (ver lista abajo).',
-    "Si hay intencion de compra, cotizacion, informacion, soporte, agendar, pagar, reclamo => REGISTRO.",
+    "Si hay una compra, un pago, un reclamo, una reserva o un pedido con sus datos ya tomados => REGISTRO.",
+    "Pedir informacion o una cotizacion, por si solo, NO es un registro => REPORTE.",
     "Si es saludo, charla, mensajes sueltos sin intencion clara o sin requerir accion => REPORTE.",
   ].join("\n"),
   priorityOrder: "SOLICITUD > PEDIDO > RECLAMO > RESERVA > PAGO",
@@ -154,7 +155,7 @@ export const CRM_LEAD_FUNNEL_PROMPT_DEFAULTS: CrmLeadFunnelPromptConfig = {
     PEDIDO:
       'Confirma compra, solicita cantidad/talla/modelo, dirección o envío. Usa frases como: "lo quiero", "quiero pedir", "hazme el pedido", "orden", "compra".',
     SOLICITUD:
-      "Pide información, precio, cotización, catálogo, disponibilidad, horarios, ubicación o métodos de pago (pero SIN comprobante). Preguntas para decidir.",
+      "Un pedido con los DATOS YA TOMADOS: el NOMBRE del cliente, el PRODUCTO o SERVICIO concreto que pidió y los DETALLES de ese pedido (cantidad, medida, modelo, color, fecha, destino). Si falta uno de los tres, NO es SOLICITUD: pedir información, precio, cotización, catálogo, disponibilidad, horarios o ubicación es conversación y va a la síntesis.",
   },
   paymentStateRule:
     'El estado al crear SIEMPRE debe ser "Pendiente" (aunque el cliente diga que ya pagó).',
@@ -170,9 +171,9 @@ export const CRM_LEAD_FUNNEL_PROMPT_DEFAULTS: CrmLeadFunnelPromptConfig = {
   extraInstructions: `Si el lead envía una imagen o foto, clasifica siempre como kind="REGISTRO" tipo PAGO
 Si el lead menciona un número de referencia o transacción, es REGISTRO tipo PAGO
 Si el lead agenda o confirma una fecha, es REGISTRO tipo RESERVA
-Si el lead dice "quiero", "me interesa", "cómo compro", es REGISTRO tipo SOLICITUD
+Si el lead dice "quiero", "me interesa" o "cómo compro" pero todavía no ha dado su nombre y lo que pide, NO es SOLICITUD: es REPORTE
 Si el lead expresa queja, inconformidad o pide devolución, es REGISTRO tipo RECLAMO
-No clasifiques como REPORTE si hay una intención comercial implícita en el mensaje`,
+No clasifiques como REPORTE un pago, un reclamo, una reserva o un pedido con sus datos ya tomados, aunque el mensaje sea corto`,
 };
 
 function normalizeMultilineText(value: string | null | undefined) {

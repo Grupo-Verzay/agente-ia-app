@@ -12286,13 +12286,15 @@ es un detalle de la migración, es la decisión.
 ### Un registro archivado por el embudo también deja la conversación «En espera»
 
 Además de la petición de asesor y la palabra clave, una conversación pasa a
-«En espera» cuando queda archivado un **PEDIDO, una RESERVA, un RECLAMO o una
-CITA**. Vive en el backend (`api-webhook`): `RegistroService.createRegistro`
-para los tres tipos de `Registro` y `crear_cita` / `crear_cita_booking` para
-las citas, las dos por `marcarEnEsperaPorRegistro` (`webhook/utils/marcar-en-espera.ts`).
+«En espera» cuando queda archivada una **SOLICITUD, un PEDIDO, una RESERVA, un
+RECLAMO** o una **CITA**. Vive en el backend (`api-webhook`):
+`RegistroService.createRegistro` para los cuatro tipos de `Registro` y
+`crear_cita` / `crear_cita_booking` para las citas, las dos por
+`marcarEnEsperaPorRegistro` (`webhook/utils/marcar-en-espera.ts`).
 
-**`SOLICITUD` NO, y esa es la parte que no se puede deshacer**: está contado
-entero en *la entrada de una conversación no queda «En espera»*, ahí abajo.
+**Y lo que hace correcta a `SOLICITUD` no está en esa lista, sino en el
+clasificador**: está contado entero en *una SOLICITUD no es pedir información*,
+ahí abajo.
 
 > **Es el MISMO estado, no uno parecido**: `Session.escalated_at`, el mismo
 > contador de la pastilla, y sale igual —cuando contesta una persona, desde la
@@ -12306,8 +12308,8 @@ Cuatro cosas que hay que mantener:
 2. **No asigna, no avisa y no deja `AssignmentLog`.** Sin ese rastro,
    `releaseStaleEscalations` no la confunde con un escalado.
 3. **No pisa un sello anterior** (`WHERE escalated_at IS NULL`): si ya esperaba,
-   sigue esperando desde entonces. `SOLICITUD` (ver abajo), `REPORTE` (la
-   síntesis, que se reescribe con cada mensaje), `PAGO` y `PRODUCTO` no cuentan.
+   sigue esperando desde entonces. `REPORTE` (la síntesis, que se reescribe con
+   cada mensaje), `PAGO` y `PRODUCTO` no cuentan.
 4. **Deja escrito su origen, `Session.espera_origen = 'registro'`**, y es la
    pieza que no se puede quitar: el freno de `Escalar_A_Asesor`
    (`decidirSiEscalar`) lee el sello para no escalar dos veces. Sin el origen,
@@ -12321,84 +12323,191 @@ Postgres y con los servicios de verdad; `MODO=roto` lo corre en un árbol del
 commit de antes y afirma que el registro se guardaba sin poner la conversación
 en espera.
 
-### Y la entrada de una conversación NO queda «En espera»: quien archiva es el CLASIFICADOR
+### Y una SOLICITUD no es pedir información: quien archiva es el CLASIFICADOR
 
-La regla de arriba entró con **cuatro** tipos y el cuarto dejó casi toda la
-bandeja en espera desde el primer mensaje. El reporte: conversaciones marcadas
-«En espera» en el mensaje de entrada, **sin que el agente lo pidiera, sin
-palabra clave y sin nadie asignado**, con mensajes tan simples como «Hola,
-quiero más información».
+Esta sección se ha escrito **dos veces** y la primera se pasó de frenada.
+Conviene tener las dos vueltas delante, porque la segunda deshace media
+decisión de la primera y el motivo es el que importa.
 
-La causa está entera en una frase que esta misma sección tenía escrita y **era
-falsa**: «cuando el agente GUARDA un registro». El agente no guarda ninguno.
+**La primera vuelta.** Conversaciones marcadas «En espera» en el mensaje de
+entrada, sin que el agente lo pidiera, sin palabra clave y sin nadie asignado,
+con mensajes tan simples como «Hola, quiero más información». La causa estaba
+entera en una frase que esta sección tenía escrita y **era falsa**: «cuando el
+agente GUARDA un registro». El agente no guarda ninguno.
 `RegistroService.createRegistro` tiene **un solo llamador**:
 `LeadFunnelService.processIncomingText`, que corre —sin esperar— en **cada
 mensaje entrante** y pasa el texto por un segundo modelo, el clasificador del
 CRM. Ahí no hay ninguna decisión del agente: es un lector de fondo archivando
-lo que ve. La CITA sí es del agente (`crear_cita` es una herramienta suya), y
-por eso esa se queda.
-
-Y lo que ese clasificador archiva en la entrada es, por su propio prompt, una
-SOLICITUD:
+lo que ve. (La CITA sí es del agente, `crear_cita` es una herramienta suya, y
+por eso esa nunca estuvo en duda.) Y lo que ese clasificador archivaba en la
+entrada era, por su propio prompt, una SOLICITUD:
 
 ```
 - SOLICITUD: pide información/precio/cotización/catálogo, disponibilidad,
   horarios, ubicación, métodos de pago (pero SIN comprobante)…
 ```
 
-Que es el primer mensaje de prácticamente cualquier lead de WhatsApp. Así que
-el sello no marcaba los chats que piden una persona: **los marcaba todos** —y,
-como este camino no asigna a propósito, los dejaba en la bandeja de nadie—.
+o sea el primer mensaje de cualquier lead. El arreglo de entonces fue **sacar
+SOLICITUD de la lista**.
 
-> **La prueba para meter un tipo en `TIPOS_QUE_PONEN_EN_ESPERA`, y hay que
-> hacerla: ¿el clasificador se lo pone a la entrada de una conversación
-> normal?** Si sí, no entra, por razonable que suene. Es exactamente el motivo
-> por el que `REPORTE` quedó fuera —«se reescribe con cada mensaje, dejaría
-> toda la bandeja en espera»— y no se comprobó contra `SOLICITUD`.
+**La segunda vuelta, y es la que manda.** Eso estaba mal: una solicitud de
+verdad —«tres sillas negras para Juan Pérez, entrega en Medellín»— es
+exactamente lo que alguien del equipo tiene que atender, así que quitarla dejó
+fuera justo lo que la lista existe para marcar.
 
-**La asimetría, que es lo que de verdad había que cerrar.** La plataforma se
-contradecía a sí misma sobre el MISMO mensaje. La descripción de
-`Escalar_A_Asesor` dice:
+> **El fallo nunca fue la lista: era que dos cosas distintas se llamaban
+> SOLICITUD.**
+>
+> | | cuándo pasa | qué es |
+> | --- | --- | --- |
+> | pedir información | al principio, sin nombre y sin producto | conversación: la atiende el agente |
+> | una SOLICITUD | después, con los datos tomados | un pedido que alguien tiene que atender |
+>
+> **`tipo="SOLICITUD"` solo si están los TRES datos concretos —nombre del
+> cliente, producto o servicio, y sus detalles—.** Sin los tres es un REPORTE.
+> Con eso SOLICITUD vuelve a la lista y las dos mitades dejan de
+> contradecirse.
+
+Vive en `lead-funnel/utils/solicitud-con-datos.ts` (`api-webhook`), puro.
+
+#### La prueba para meter un tipo en la lista, y cómo se pasa
+
+> **¿El clasificador se lo pone a la entrada de una conversación normal?** Si
+> sí, no entra —da igual lo razonable que suene— **o se arregla el
+> clasificador**, que es lo que se hizo con SOLICITUD. Es el motivo por el que
+> `REPORTE` quedó fuera («se reescribe con cada mensaje, dejaría toda la
+> bandeja en espera»), y la primera vuelta no lo comprobó contra `SOLICITUD`.
+
+Las cuatro que están pasan la prueba: una compra confirmada, una fecha
+apartada, una queja y un pedido con los datos tomados. Ninguna es la forma
+normal de saludar.
+
+#### Se pide en el prompt Y se comprueba al leer, porque el prompt es EDITABLE
+
+Es la parte que no se puede ablandar, y el motivo es concreto: **el prompt del
+clasificador ya está guardado, por cuenta, con la definición vieja**. La App
+escribe una fila en `agentPrompt` la primera vez que alguien abre CRM › Reglas
+(`ensureCrmPrompt`), con el texto que arma `buildLeadFunnelPromptFromConfig`, y
+`resolveLeadFunnelPrompt` prefiere esa fila sobre el prompt de la casa. Así que
+el prompt vive en DOS sitios y el que manda casi nunca es el del backend:
+
+| | dónde | quién manda |
+| --- | --- | --- |
+| el de la casa | `api-webhook`, `lead-funnel.prompt.ts` | solo si la cuenta NO tiene fila |
+| el de la cuenta | la App lo arma y lo guarda en `agentPrompt` | **en cuanto alguien abre CRM › Reglas**, y su texto de SOLICITUD es editable |
+
+Cambiar solo el prompt de la casa no habría cambiado nada para esas cuentas —y
+el suyo dice, literalmente, «Si el lead dice "quiero", "me interesa", "cómo
+compro", es REGISTRO tipo SOLICITUD»—. Son dos mitades y hacen falta las dos:
+
+1. **Se pide**: `REGLA_DE_LA_SOLICITUD` se **añade al prompt en el servidor**
+   (`conLaReglaDeLaSolicitud`, dentro de `resolveLeadFunnelPrompt`), sea el de
+   la casa o el que la cuenta guardó, y dice que manda sobre cualquier
+   definición de arriba. Así no hay cuenta que se la salte y **no hace falta
+   reescribir ni una fila**.
+2. **Y se comprueba**: `comoSeClasifica` degrada a REPORTE toda SOLICITUD que
+   llegue sin los datos. Es la forma de siempre de esta casa para lo que una
+   regla no puede dar por bueno —se pide al modelo y se quita al leer—, la
+   misma que los hashtags de WhatsApp en el copy de un anuncio.
+
+**El fallo de ese guardián es el lado seguro**: ante la duda no es una
+solicitud, así que se archiva de menos y **nunca se sella de más**, que es el
+fallo del que venimos.
+
+#### Seis cosas que hay que mantener
+
+1. **Los datos se leen SOLO de `datos`, nunca de `meta`.** Los prompts
+   guardados piden `"meta": { "cualquier_dato_util": "..." }`, así que un
+   «¿tienen sillas?» puede llegar con `meta.producto = "sillas"`: aceptarlo de
+   ahí devolvería el fallo por la otra puerta.
+2. **Un `producto` que es «información», «precios» o «catálogo» no es un
+   producto.** Se compara por palabra y contra el valor entero, no por
+   substring: «asesoría contable» es un servicio de verdad y lleva dentro una de
+   esas palabras.
+3. **El `nombre` de arriba no basta por sí solo**, y por eso no se mira solo él:
+   los dos prompts lo rellenan con el `pushName` de WhatsApp, así que está
+   siempre. Lo que decide son los tres juntos.
+4. **`comoSeClasifica` es el ÚNICO normalizador**, y absorbió el
+   `kind=REGISTRO tipo=REPORTE` que estaba escrito a mano en el embudo. Dos
+   normalizadores son uno que se afina y otro que se queda atrás.
+5. **Va en el EMBUDO, no dentro de `classify()`.** El banco finge el modelo: con
+   el guardián dentro del clasificador, el banco lo saltaría y estaría probando
+   algo que en producción no corre.
+6. **Y no es mudo.** Una corrección se escribe en el registro
+   (`[CLASIFICACION] corregida … => REPORTE`): un registro que deja de
+   archivarse sin decir por qué se ve como que el CRM perdió filas.
+
+#### El invariante del que vive la lista
+
+> **Toda SOLICITUD archivada trae sus datos tomados.** Por eso `ponenEnEspera`
+> puede seguir decidiendo por el TIPO y no hace falta volver a mirar el registro
+> al sellar. Una segunda regla —«sella si además trae datos»— serían dos que
+> mantener a la par, y el día que discreparan la conversación saldría en la
+> pestaña «En espera» sin sello, o sellada sin salir.
+
+Y los datos se guardan **con el registro** (`meta.datos`): son la prueba de que
+se tomaron, y lo único con lo que después se puede distinguir una solicitud de
+verdad de una pregunta.
+
+#### La simetría, que es lo que de verdad había que cerrar
+
+La plataforma se contradecía a sí misma sobre el MISMO mensaje. La descripción
+de `Escalar_A_Asesor` dice:
 
 > «NUNCA la llames si el cliente solo: saluda; pregunta precios, planes o
 > costos; **pide información general** (horarios, ubicación, catálogo,
-> garantía); dice "me interesa" o **"quiero saber más"**»
+> garantía); dice "me interesa" o **"quiero saber más"**; […] o **todavía no ha
+> pedido nada concreto**»
 
-…y la regla del registro ponía en espera justo eso. Dos reglas de la misma casa
-dando respuestas opuestas. **El banco las encadena** —lee el prompt del
-clasificador, lee la descripción de la herramienta y cruza las dos con
-`ponenEnEspera`— para que no puedan volver a separarse: comprobar cada lado por
-su cuenta no lo habría cazado, porque los dos «estaban bien».
+Esa última línea es la que hace que las dos mitades encajen ahora: lo que la
+herramienta no escala es «nada concreto», y lo que el clasificador llama
+SOLICITUD es justo lo concreto. **El banco las encadena** —lee la descripción
+de la herramienta, lee el prompt del clasificador y cruza las dos con
+`comoSeClasifica` y `ponenEnEspera`— para que no puedan volver a separarse:
+comprobar cada lado por su cuenta no lo habría cazado, porque los dos «estaban
+bien».
 
-Quedan **PEDIDO, RESERVA y RECLAMO**, que pasan la prueba: una compra
-confirmada, una fecha apartada y una queja no son la forma normal de saludar. Y
-un RECLAMO además **coincide** con lo que la herramienta sí manda escalar
-(«cuando se queje de que no le han resuelto»), que es la simetría por el otro
-lado.
+Y el mismo barrido alcanza a las reglas sueltas que decían lo contrario: la
+obligatoria de los dos prompts («si hay intención de … información … =>
+REGISTRO») y la instrucción extra de la App («"quiero", "me interesa", "cómo
+compro" => SOLICITUD»). Las dos decían REGISTRO donde la herramienta dice «no
+escales».
 
-#### Y los sellos ya escritos se limpian, porque no se iban solos
+#### Lo que se degrada NO se pierde, y de paso gana
 
-El sello se quita cuando contesta una **persona**, y a estas conversaciones no
-hay nada que contestarles —las está atendiendo el agente—, así que se habrían
-quedado «En espera» para siempre. La migración
-`20260926120000_quitar_espera_por_solicitud` las borra, y su condición es
-estrecha a propósito para que el borrado sea **exacto y no aproximado**: con
-`espera_origen = 'registro'` los únicos que pudieron poner ese sello son un
-registro de la lista o una cita, así que descartados un `PEDIDO`/`RESERVA`/
-`RECLAMO` y descartada la cita (`Appointment`), no queda otro candidato que una
-SOLICITUD.
+Un «quiero más información» ya no se archiva, así que ahora sí entra en la
+**síntesis** —con el resumen que el propio modelo escribió, y de última con el
+mensaje—. Antes ese camino salía por el `return` del REGISTRO y se saltaba
+entero el estado del lead, los seguimientos del CRM y las automatizaciones de
+etapa. Se dice porque es un cambio de comportamiento: esos tres se disparan
+ahora en mensajes en los que antes no se disparaban, cada uno con el
+interruptor de su cuenta delante.
 
-**No se toca nada más**: ni un sello de escalado, ni uno sin origen (las filas
-de antes de esa columna, que eran escalados), ni el asesor asignado, ni
-`status`, ni una sola fila de `Registro`. La conversación no se va a ninguna
-parte: sale de la pestaña «En espera» y sigue en la bandeja con todo lo suyo.
+#### El límite, y se dice
 
-Lo prueba `scripts/banco-solicitud-no-pone-en-espera.sh` en `api-webhook`,
-contra Postgres y con el embudo de verdad —`LeadFunnelService` →
-`RegistroService` → el sello—; lo único fingido es la llamada al modelo, que
-devuelve lo que su propio prompt dicta. Ejerce además el `migration.sql` real
-sobre las seis clases de fila. `MODO=roto` lo corre en un árbol del commit de
-antes y **afirma el fallo**: la entrada queda en espera y sin asignar.
+Un modelo que se invente los tres datos sobre un «¿tienen sillas?» pasa. Lo que
+el código puede garantizar es que **sin los datos no hay solicitud** y que un
+`producto` que es «información» no es un producto. Cerrarlo del todo pide que
+la solicitud la declare el **AGENTE con una herramienta suya** —como la CITA,
+que por eso sí es de fiar— en vez de un lector de fondo. Es un frente aparte;
+lo que no puede pasar es que se dé por cerrado.
+
+#### La migración que ya corrió, y por qué no hay otra
+
+`20260926120000_quitar_espera_por_solicitud` borró los sellos que solo una
+SOLICITUD pudo poner. Con la definición vieja eso era lo correcto; con la nueva
+significa que **también se llevó los de las solicitudes de verdad**.
+
+**No se deshace, y no se intenta.** El dato que las distingue —`datos`— no
+existía cuando se escribieron, así que de una fila vieja no hay forma de saber
+si era un pedido con los datos tomados o una pregunta. Volver a sellar «toda
+conversación con un registro de SOLICITUD» sería sellar la bandeja entera otra
+vez, a propósito. Lo que se pierde es una entrada en la cola: la conversación
+sigue en la bandeja con todo lo suyo, y el siguiente mensaje que traiga una
+solicitud de verdad la vuelve a sellar.
+
+**Y la migración no se toca**: Prisma guarda su checksum, así que editar una ya
+aplicada rompe el `migrate deploy` del despliegue siguiente.
 
 #### Las citas son DOS tablas, y solo una tiene `sessionId`
 
@@ -12412,25 +12521,27 @@ conversación no tiene cita»:
 
 Las dos sellan por el mismo `marcarEnEsperaPorRegistro`, así que **desde la
 fila de `Session` una reserva de equipos es indistinguible de una SOLICITUD**.
-La migración solo mira `Appointment`, y lo que la hace aceptable es que la
+La migración solo miró `Appointment`, y lo que la hizo aceptable es que la
 conversación que llega a reservar dice «agendar / reservar / confirmar fecha»
 —que el clasificador archiva como **RESERVA**, y RESERVA conserva el sello—.
 No es una coincidencia: es la definición del propio prompt, y el banco la lee
-de ahí en vez de darla por buena.
+de ahí en vez de darla por buena. Si algún día hace falta ser exacto también
+con las reservas de equipos, el cruce es por dígitos (`clientPhone` contra
+`remoteJid`) y va detrás de un `to_regclass`, porque `booking_appointments` es
+una tabla de la App y puede no existir en una base del backend.
 
-**Lo que cuesta, y se dice:** una reserva de equipos a la que el clasificador
-nunca le puso un RESERVA pudo perder su sello en esa limpieza de una vez. No
-se deshace —la hora se borró y no quedó rastro de cuál se limpió— y no se
-intenta: volver a sellarlas a ojo sellaría también las que una persona ya
-había atendido, que es peor. La cita sigue en pie, con sus recordatorios y su
-confirmación ya enviada; lo que se pierde es una entrada en la cola.
+#### Los bancos, que son tres y cada uno dice una cosa
 
-**Y la migración no se toca ya**: Prisma guarda su checksum, así que editar una
-migración aplicada rompe el `migrate deploy` del despliegue siguiente. Si algún
-día hace falta ser exacto también con las reservas de equipos, el cruce es por
-dígitos (`clientPhone` contra `remoteJid`) y va detrás de un `to_regclass`,
-porque `booking_appointments` es una tabla de la App y puede no existir en una
-base del backend.
+| | qué prueba |
+| --- | --- |
+| `api-webhook`, `banco-solicitud-con-datos.sh` | contra Postgres y con el embudo de verdad: la solicitud CON datos sella y guarda sus datos; pedir información ni se archiva ni sella; y la regla viaja en el prompt **también cuando la cuenta tiene el suyo guardado**. `MODO=roto` afirma el fallo por las DOS puntas |
+| `api-webhook`, `banco-la-entrada-no-queda-en-espera.sh` | que la entrada sigue sin sellarse —hoy por otro motivo: ya no es una SOLICITUD— y ejerce el `migration.sql` real sobre las seis clases de fila |
+| la App, `banco-solicitud-en-las-reglas.sh` | que CRM › Reglas no promete una SOLICITUD que el servidor no va a archivar: el texto por defecto y el aviso de la pantalla |
+
+Y el de la App tiene su motivo propio: el campo de SOLICITUD de esa pantalla es
+**editable**, así que lleva debajo una línea que dice lo que de verdad decide
+—los tres datos—. Un campo que promete algo que el código no hace es peor que
+no tenerlo.
 
 ## Vencimientos: un DÍA, no un instante, y quien lo juzga es uno solo
 

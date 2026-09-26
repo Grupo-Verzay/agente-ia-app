@@ -330,7 +330,7 @@ export function CrmLeadFunnelPromptWizard({
                 <Badge variant="outline">{type}</Badge>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <Textarea
                 rows={6}
                 value={draft.typeInstructions[type]}
@@ -338,6 +338,23 @@ export function CrmLeadFunnelPromptWizard({
                   patchTypeInstruction(type, event.target.value)
                 }
               />
+              {/*
+                Lo que se escriba aquí para SOLICITUD no decide solo: el
+                servidor añade su regla al prompt y comprueba la respuesta, así
+                que una solicitud sin los tres datos se guarda como síntesis.
+                Se dice aquí porque este texto puede llevar años guardado con la
+                definición vieja («pide información»), y un campo que promete
+                algo que el código no hace es peor que no tenerlo.
+              */}
+              {type === "SOLICITUD" ? (
+                <p className="text-xs text-muted-foreground">
+                  Una SOLICITUD se guarda solo cuando ya están los tres datos
+                  concretos: nombre del cliente, producto o servicio, y los
+                  detalles del pedido. Pedir información —precio, catálogo,
+                  horarios— va a la síntesis de la conversación, no a un
+                  registro, escribas lo que escribas aquí.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
         ))}
