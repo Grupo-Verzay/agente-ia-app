@@ -59,7 +59,59 @@ export const FORMA_DE_LA_PASTILLA =
  * lo que ve escrito, así que un tono compuesto en tiempo de ejecución no
  * existiría en el CSS).
  */
-export const PASTILLA_CONTADORA = `${FORMA_DE_LA_PASTILLA} gap-1 border ${RELLENO_DE_PX_1_5}`;
+/**
+ * El ancho mínimo de una pastilla CONTADORA, el mismo para las cinco. El
+ * porqué y los números están en `PASTILLA_CONTADORA`, justo debajo.
+ */
+export const ANCHO_DE_LA_CONTADORA = "min-w-9";
+
+/**
+ * El mismo ancho, en píxeles, para quien tiene que CONTAR con él antes de que
+ * exista el nodo: el reparto del renglón necesita saber lo que va a ocupar el
+ * «+N» para decidir cuántas pastillas caben, y el «+N» es una contadora más.
+ *
+ * Los dos valores dicen lo mismo y tienen que seguir diciéndolo —`min-w-9` es
+ * `2.25rem`, o sea 36 px con la raíz por defecto—, así que el banco lo
+ * comprueba midiendo el «+N» pintado contra este número en vez de darlo por
+ * bueno. Y no decide nada por su cuenta: en cuanto el «+N» existe se mide de
+ * verdad, y cuando no existe es porque caben todas, que se contesta sin mirar
+ * su ancho.
+ */
+export const ANCHO_DE_LA_CONTADORA_PX = 36;
+
+/**
+ * # Todas las contadoras miden LO MISMO
+ *
+ * Son cinco —flujos, seguimientos, la cita, las notas y las etiquetas— y hasta
+ * ahora medían cinco anchos distintos. Medido en la columna de verdad, con la
+ * misma fila:
+ *
+ * | pastilla                | antes      |
+ * | ----------------------- | ---------- |
+ * | notas (solo el candado) | **24,0**   |
+ * | etiquetas «2»           | **31,7**   |
+ * | recordatorios «3»       | 32,1       |
+ * | cita                    | 34,0       |
+ * | seguimientos «2»        | **34,9**   |
+ *
+ * La de etiquetas era de las más estrechas, y `rounded-full` sobre la más
+ * estrecha del renglón es lo que se lee como «esa se ve más redonda que las
+ * otras». Y no era solo el ancho: flujos y seguimientos iban con el relleno y
+ * la letra de una pastilla de TEXTO —6 px por lado, número de 12— mientras las
+ * demás llevaban los de una contadora —4 px, número de 10— y un punto de 8 px
+ * donde las otras tienen un glifo de 12. Tres anatomías para la misma cosa.
+ *
+ * > **Una contadora es un glifo de 12, un hueco de 4 y un número de 10, con
+ * > 4 px de relleno por lado; y su ancho mínimo es el mismo para todas.**
+ *
+ * `min-w-9` (36 px) no es un número elegido a ojo: es lo que mide la más ancha
+ * del grupo con **dos cifras** —los recordatorios con «12», 35,5 px—, así que
+ * de una cifra a dos ninguna cambia de ancho y las cinco salen exactamente
+ * iguales. Con tres caracteres («99+») crece, y crece **igual en todas**,
+ * porque la regla es una. El banco lo mide contra la pastilla de al lado en
+ * vez de darlo por bueno.
+ */
+export const PASTILLA_CONTADORA = `${FORMA_DE_LA_PASTILLA} gap-1 border ${RELLENO_DE_PX_1_5} ${ANCHO_DE_LA_CONTADORA}`;
 
 /** El icono de una pastilla contadora. */
 export const GLIFO_DE_LA_PASTILLA = "h-3 w-3 shrink-0";
@@ -79,3 +131,16 @@ export const NUMERO_DE_LA_PASTILLA = "text-[10px] font-bold leading-none tabular
  * mucho (`initials`) y caben de sobra en 24 px.
  */
 export const CIRCULO_DEL_ASESOR = "h-6 w-6";
+
+/**
+ * La anatomía de una pastilla de TEXTO de la fila: la calificación del lead, la
+ * etapa del embudo y el mando de asignar.
+ *
+ * Las tres llevan una palabra dentro y se leen seguidas, así que tienen que
+ * medir la letra igual y respirar igual. La de asignar no lo hacía: iba con
+ * `text-[10px]` y 2 px de relleno por lado —dos escalones por debajo de sus
+ * vecinas— porque tenía que hacerle sitio a un icono de persona que no
+ * informaba de nada. Sin el icono, la palabra se lee sola y la pastilla puede
+ * ser una más.
+ */
+export const PASTILLA_DE_TEXTO = `${FORMA_DE_LA_PASTILLA} gap-1 border text-xs font-medium ${RELLENO_DE_PX_2}`;
