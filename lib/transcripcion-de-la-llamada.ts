@@ -75,9 +75,22 @@ export function queHacerConLaGrabacion(input: {
     segundos: number;
     /** Lo que pesa el audio ya descargado. */
     bytes: number;
+    /**
+     * Si este audio se puede partir (`sePuedeCortarElWav`). **Obligatorio a
+     * propósito**: con un valor por defecto, la condición que este parámetro
+     * existe para cerrar se volvería a saltar en el siguiente sitio que llame a
+     * esta función sin pasarlo.
+     */
+    sePuedeCortar: boolean;
     /** Lo que le queda a la cuenta que paga, o `null` si son ilimitados. */
     creditosDisponibles: number | null;
 }): QueHacerConLaGrabacion {
+    // **Lo que no cabe y no se puede cortar es «demasiado grande», no «no
+    // respondió».** Mandarlo igual es un 413 que `transcribe` se traga y una
+    // llamada marcada con un motivo que invita a reintentar para siempre.
+    if (input.bytes > TOPE_DE_BYTES_DE_AUDIO && !input.sePuedeCortar) {
+        return { hacer: "demasiado_grande", bytes: input.bytes };
+    }
     const trozos = cuantosTrozos(input.bytes, TOPE_DE_BYTES_DE_AUDIO);
     if (trozos > TOPE_DE_TROZOS) {
         return { hacer: "demasiado_grande", bytes: input.bytes };

@@ -124,6 +124,10 @@ export function trozosDeWav(buffer: Buffer, topeDeBytes: number): Buffer[] {
     if (buffer.length <= topeDeBytes) return [buffer];
 
     const f = elFormatoDelWav(buffer);
+    // La MISMA condición que lee `sePuedeCortarElWav`, y por eso sale de aquí:
+    // quien decide si se transcribe necesita saber si esto va a poder cortarse,
+    // y con dos formas de contestarlo una diría que sí y la otra devolvería el
+    // audio entero.
     if (!f) return [buffer];
 
     // Cuántos bytes de AUDIO caben en un trozo, descontando su encabezado y
@@ -147,4 +151,26 @@ export function trozosDeWav(buffer: Buffer, topeDeBytes: number): Buffer[] {
 export function cuantosTrozos(bytes: number, topeDeBytes: number): number {
     if (bytes <= topeDeBytes) return 1;
     return Math.ceil(bytes / (topeDeBytes - 44));
+}
+
+/**
+ * **Si este audio se puede cortar en trozos.**
+ *
+ * Es la otra mitad de `trozosDeWav`, y hace falta **antes** de decidir si se
+ * transcribe. Antes la decisión se tomaba sobre `cuantosTrozos`, que es una
+ * cuenta de bytes: para un audio de 40 MB decía «dos trozos, adelante» y
+ * `trozosDeWav` —que no sabe leer ese encabezado— devolvía **uno solo de 40
+ * MB**. OpenAI lo rechaza con un 413, el `catch` de `transcribe` se lo tragaba,
+ * y la llamada se quedaba con «El servicio de transcripción no respondió».
+ *
+ * Eso es mentira dos veces: el servicio respondió, y respondió que no cabía. Y
+ * encima el motivo que se guardaba era de los que se reintentan, así que el
+ * botón volvía a bajarse el WAV para volver a fallar en el mismo sitio.
+ *
+ * Pasa con un WAV truncado —una grabación que se cerró a lo bruto y se quedó sin
+ * su chunk `data`— y con **todo lo que no es un WAV**: la grabación de una
+ * llamada de Meta es webm, y un webm largo entra por aquí igual.
+ */
+export function sePuedeCortarElWav(buffer: Buffer): boolean {
+    return elFormatoDelWav(buffer) !== null;
 }

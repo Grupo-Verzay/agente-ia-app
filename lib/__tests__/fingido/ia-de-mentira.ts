@@ -23,6 +23,13 @@ export const laIa = {
     resultado: "interesado",
     /** Para poder afirmar que de verdad se le pidió, y con qué. */
     pedidos: [] as { que: "transcribir" | "resumir" | "clasificar"; modelo: string; pista?: string }[],
+    /**
+     * **Con qué CLAVE se le habló.** Es lo único que prueba de qué cuenta salió
+     * la IA, y por tanto que el cobro y la clave miran la misma bolsa: decidir
+     * «ilimitado» sobre las claves de una cuenta y transcribir con la de otra es
+     * cobrarle a quien no gasta.
+     */
+    claves: [] as string[],
 };
 
 export function ponerLoQueDiceLaIa(input: { transcripcion?: string; resumen?: string; resultado?: string }): void {
@@ -37,4 +44,10 @@ export function loQueSeLePidioALaIa(): { que: string; modelo: string; pista?: st
 
 export function olvidarLoPedido(): void {
     laIa.pedidos.length = 0;
+    laIa.claves.length = 0;
+}
+
+/** Las claves con las que se le habló a la IA, en orden. */
+export function lasClavesQueSeUsaron(): string[] {
+    return laIa.claves.slice();
 }

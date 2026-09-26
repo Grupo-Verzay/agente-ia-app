@@ -62,6 +62,21 @@ export { costoDeLaNota, TOKENS_POR_CREDITO } from "@/lib/transcripcion-de-voz";
 export { conElNombreDeLaMarca, PISTA_DE_VOCABULARIO } from "@/lib/nombres-de-la-marca";
 export { descontarLaTranscripcion, losCreditosQueQuedan } from "@/lib/creditos-de-transcripcion";
 
+// **Quien paga la transcripcion es quien pago la llamada.** La regla pura y la
+// consulta que resuelve la cuenta de un `astraSid`, que es lo que este arreglo
+// vino a unificar: con dos preguntas distintas, la llamada la cobraba una cuenta
+// y la transcripcion leia el saldo de otra.
+export { laCuentaQuePaga } from "@/lib/cuenta-que-paga-la-llamada";
+export { laCuentaQuePagaLaLlamada, elDuenoDelSid } from "@/lib/cuenta-que-paga-la-llamada.server";
+
+// La otra mitad del mismo reporte: un audio que no se puede cortar y no cabe es
+// «demasiado grande», no «el servicio no respondio».
+export { sePuedeCortarElWav } from "@/lib/wav-en-trozos";
+
+// La grabacion de una llamada de Meta: la hermana a la que se le habia pasado
+// dejar su motivo en la fila.
+export { processMetaCallRecordingForUser } from "@/lib/grabacion-de-llamada.server";
+
 // El resultado: lo que propone la IA y la corrección a mano encima, con las
 // acciones de verdad de CRM › Llamadas.
 export { setCallDisposition, getCallDetailAction } from "@/actions/calls-crm-actions";

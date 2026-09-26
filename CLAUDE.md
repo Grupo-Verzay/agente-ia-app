@@ -18354,6 +18354,133 @@ IA por la elegida salen con su número, se registran en ella y le cobran a ella;
 y en Chromium, el diálogo real. `MODO=roto` monta el diálogo de `ANTES_REF` y
 afirma el fallo: sin «Vía:» y llamando sin cuenta.
 
+### Y la transcripción la paga QUIEN PAGÓ LA LLAMADA, que no es el dueño de la fila
+
+«Las llamadas se realizan bien y quedan con su duración, pero la transcripción
+falla con *No hay créditos suficientes: hacen falta 14 y quedan 0*, aunque la
+cuenta desde la que salió la llamada sí tiene créditos.» Y en el mismo listado,
+otras con *El servicio de transcripción no respondió*.
+
+La sospecha era «se lee la bolsa de la madre», y arreglarlo mirando a la madre
+no habría servido de nada: el fallo está una capa más abajo.
+
+> **La cuenta que PAGA una llamada y la cuenta bajo la que queda su FILA se
+> resuelven con dos preguntas distintas sobre un dato que NO es único.**
+
+| quién | cómo resuelve la cuenta |
+| --- | --- |
+| el **cobrador** (wacalls → `VoicebotService`) | `WHERE astra_calls_sid = <sid>` |
+| la **App**, al llamar | el dueño de la línea, y de ahí `elSidDe(cuenta)` |
+| la **transcripción**, hasta ahora | el dueño de la fila de `chat_messages` |
+
+Las dos primeras son **inversas de la misma columna**, y una inversa solo es una
+función cuando la columna es única. `User.astra_calls_sid` es un `String?`
+pelado: **sin índice único y sin índice de ninguna clase**. Así que dos cuentas
+pueden llevar el mismo sid —nada lo impide— y entonces el `LIMIT 1` **sin
+`ORDER BY`** devuelve *una cualquiera*, que puede no ser la misma en dos
+consultas seguidas. Y esa consulta estaba escrita **cuatro veces** en
+`voicebot.service.ts` —`resolve`, `chargeUsage`, la respuesta de llamada perdida
+y `executeTool`—, así que las cuatro podían aterrizar en cuentas distintas para
+la misma llamada: los créditos de una, el WhatsApp de otra.
+
+De ahí el «quedan 0»: la llamada la cobra la cuenta que el índice devolvió y la
+transcripción miraba la bolsa del dueño de la fila; cuando esa no tiene fila en
+`ia_credits`, `losCreditosQueQuedan` devuelve **0** —lo correcto para ella— sobre
+una llamada que acababa de pagarse con créditos de verdad.
+
+> **La regla: quien paga la transcripción es el dueño del `astraSid` con el que
+> se lanzó la llamada**, que es la definición literal de «quien pagó la llamada»
+> —la misma llave y el mismo desempate que usa el cobrador—. Lo decide
+> `laCuentaQuePaga` (`lib/cuenta-que-paga-la-llamada.ts`, puro) y lo resuelve
+> `lib/cuenta-que-paga-la-llamada.server.ts`. **Y el sid se resuelve con
+> `ORDER BY "id" ASC`**, en la App y en los cuatro sitios del backend
+> (`src/modules/voicebot/cuenta-del-sid.ts`): el desempate no es decoración, es
+> lo único que hace que las dos no puedan discrepar **por construcción**.
+
+Seis cosas que hay que mantener:
+
+1. **El `astraSid` sale de la FILA, nunca del navegador.** Lo escribió este mismo
+   servidor al lanzar la llamada, así que es un dato nuestro. Aceptándolo de
+   fuera, cualquiera elegiría a quién se le gastan los créditos.
+2. **Y la CLAVE de IA sale de la misma cuenta que paga.** Es la otra mitad del
+   mismo reporte: `losCreditosQueQuedan` decide «ilimitado» leyendo las claves de
+   quien paga (`pagaElClienteSuIa`), así que transcribir con la de otra cuenta es
+   decidir el cobro sobre una clave y gastar otra — y con una cuenta sin key
+   activa, OpenAI contesta **401**, `transcribe` vuelve vacía y la tarjeta decía
+   «El servicio de transcripción no respondió».
+3. **No se le cobra a una cuenta de FUERA de la familia.** Si el sid resolviera a
+   una cuenta sin relación —dos cuentas ajenas compartiéndolo— se queda con la
+   fila y se dice. Equivocarse hacia «la fila» cuesta este fallo; equivocarse
+   hacia «una cuenta cualquiera» le gasta los créditos a quien no llamó.
+4. **El camino normal no paga NADA de más.** Cuando el sid es de la misma cuenta
+   de la fila —la inmensa mayoría— no se consulta la familia: esa guarda solo
+   corre cuando las dos cuentas de verdad difieren.
+5. **Sin puerta de sesión, a propósito.** Esto lo llaman también la ruta interna
+   del flujo y la espera de fondo, donde no hay sesión: un `currentUser()` aquí
+   no cerraría nada, **apagaría** la transcripción de las llamadas que lanza un
+   flujo. La puerta está antes, en la acción (`laCuentaDeLaFilaDeLlamada`).
+6. **La columna sigue sin índice único, y no se le pone desde aquí.** `User` es
+   del BACKEND, y un índice único sobre datos que ya tienen duplicados **no se
+   crea**: fallaría el despliegue. Lo que arregla el desacuerdo es el desempate.
+   Si algún día se limpia la columna y se le pone el índice, el banco del backend
+   (`quien-cobra-la-llamada.banco.ts`) se cae en su siembra y avisa: entonces
+   sobra y hay que venir a quitarlo.
+
+#### «No respondió» tiene que ser VERDAD
+
+El otro síntoma del listado, y no era la misma causa por los dos lados. La
+decisión de si se transcribe se tomaba sobre `cuantosTrozos`, que es una **cuenta
+de bytes**: para un audio de 40 MB decía «dos trozos, adelante» y `trozosDeWav`
+—que solo sabe partir un WAV cuyo encabezado entiende— devolvía **uno solo de
+40 MB**. OpenAI lo rechaza con un 413, el `catch` de `transcribe` se lo tragaba,
+y quedaba marcado `no_transcribio`: «El servicio de transcripción no respondió».
+
+Eso es mentira dos veces —el servicio respondió, y respondió que no cabía— y
+encima ese motivo **invita a reintentar**, así que el botón volvía a bajarse el
+WAV para fallar en el mismo sitio. Pasa con un WAV truncado y con **todo lo que
+no es un WAV**: la grabación de una llamada de Meta es webm.
+
+> **`queHacerConLaGrabacion` recibe `sePuedeCortar`, y sale de la MISMA función
+> que corta** (`sePuedeCortarElWav`, en `lib/wav-en-trozos.ts`). Lo que no cabe y
+> no se puede partir es **`demasiado_grande`** —un motivo firme, que no ofrece
+> reintentar— y dice cuánto pesa. El parámetro es **obligatorio a propósito**:
+> con un valor por defecto, la condición que existe para cerrar se volvería a
+> saltar en el siguiente sitio que llame sin pasarlo.
+
+Y «no respondió» conserva su caso: una transcripción vacía de verdad —la red, un
+pico de carga— sigue dejando su motivo, sigue sin cobrar nada y **sí** se
+reintenta.
+
+#### Y la grabación de Meta deja su MOTIVO, como la de Astra
+
+A esta hermana se le había pasado: escribía el motivo en un `console.warn` y
+**nada en la fila**, así que la tarjeta se quedaba diciendo «Procesando…» para
+siempre — el mismo fallo que la otra mitad ya tenía arreglado. Ahora la marca se
+decide **después** de intentarlo, como allí, así que cubre los tres finales (no
+se transcribe, no hay clave, la transcripción volvió vacía), y **al salir bien se
+borra**: dejar la de ayer debajo del texto de hoy ya costó una vuelta en Astra.
+
+Y de paso, en el backend `chargeUsage` llamaba `credits` a lo que son **tokens**
+y lo escribía así en el registro. El valor era correcto —`trackTokens` incrementa
+`ia_credits.used`, que está en tokens— pero un log que dice «cobrados 50.000
+créditos» es exactamente cómo se cuela un día una conversión de más.
+
+Lo prueban `scripts/banco-quien-paga-la-llamada.sh` —contra Postgres, con las
+funciones de producción y la forma exacta del reporte: la fila bajo la madre a
+cero, el sid de la hija con créditos, y se afirma que **paga la hija**, que la
+clave que llegó a la IA es la suya, y que el botón del detalle pasa por la misma
+puerta— y `scripts/banco-voicebot.sh` en el backend, con
+`cuenta-del-sid.spec.ts`, que además **barre el servicio** y falla si alguna de
+las cuatro consultas se queda sin desempate. Los dos en dos modos; el roto va
+**pinchado a un commit** y afirma el fallo con su mensaje al pie de la letra.
+
+**Lo que NO se pudo medir, y se dice**: esta sesión no tiene acceso a la base de
+producción, así que cuál de las cuentas lleva el sid duplicado —o si lo que
+divergía era otra de las tres resoluciones— no se comprobó con datos. Lo que sí
+queda establecido, y es lo que hace que el arreglo valga igual, es la causa
+estructural: esas resoluciones **no podían coincidir por construcción**, y ahora
+sí.
+
 ## La Agenda de la familia: las CITAS bajan, la configuración se queda
 
 El tablero de Agenda (Dashboard y Kanban de `/schedule`) enseña las citas de

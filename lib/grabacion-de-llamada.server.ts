@@ -33,6 +33,7 @@ import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
 import { minioClient } from '@/lib/minio';
 import { descontarLaTranscripcion, losCreditosQueQuedan } from '@/lib/creditos-de-transcripcion';
+import { laCuentaQuePagaLaLlamada } from '@/lib/cuenta-que-paga-la-llamada.server';
 import {
   TOPE_DE_BYTES_DE_AUDIO,
   porQueNoSeTranscribio,
@@ -43,7 +44,7 @@ import {
   type MarcaDeLaLlamada,
   type MotivoDeLaLlamada,
 } from '@/lib/transcripcion-de-la-llamada';
-import { segundosDelWav, trozosDeWav } from '@/lib/wav-en-trozos';
+import { segundosDelWav, sePuedeCortarElWav, trozosDeWav } from '@/lib/wav-en-trozos';
 import { PISTA_DE_VOCABULARIO, conElNombreDeLaMarca } from '@/lib/nombres-de-la-marca';
 import {
   INSTRUCCIONES_DE_CLASIFICACION,
@@ -133,21 +134,19 @@ async function getUserAiConfig(userId: string): Promise<AiCfg | null> {
 }
 
 /**
- * Quien PAGA la transcripcion de una llamada: **la cuenta bajo la que quedo la
- * fila**, que es la DUENA de la conversacion desde la que se llamo.
+ * Quien PAGA la transcripcion vive en `lib/cuenta-que-paga-la-llamada.ts`.
+ *
+ * Aqui habia una funcion de una linea que devolvia el dueño de la FILA, y ahi
+ * estaba el fallo reportado: la llamada la cobra el cobrador por el `astraSid`
+ * con el que se lanzo, y `astra_calls_sid` NO es unica — asi que esas dos
+ * preguntas no tienen por que dar la misma cuenta. El porque, con la tabla de
+ * las tres resoluciones, esta en ese modulo.
  *
  * **La cuenta, nunca la persona**: `ia_credits` tiene una fila por cuenta, y
- * cobrarle a una persona seria cobrarle a una fila que no existe.
- *
- * Y **no sube a la madre de la familia**, a proposito y distinto de las notas
- * del chat de equipo: una llamada con IA la lanza, la configura y la gasta la
- * cuenta de la linea de la conversacion (Ventas por Ventas, Atencion por
- * Atencion). Cobrarsela a la madre es exactamente el fallo de «la llamada queda
- * en la cuenta de quien mira», movido de la fila a la bolsa de creditos.
+ * cobrarle a una persona seria cobrarle a una fila que no existe. Y **no sube a
+ * la madre de la familia**, a proposito y distinto de las notas del chat de
+ * equipo: eso era la sospecha del reporte, y resulto ser otra cosa.
  */
-async function laCuentaQuePagaLaLlamada(cuentaId: string): Promise<string> {
-  return cuentaId;
-}
 
 /**
  * Se baja el WAV. **Devuelve el Buffer, no su base64.**
@@ -545,11 +544,17 @@ export async function processCallRecordingForUser(input: {
     astraCallId: input.astraCallId,
   });
 
-  // Quien paga: la CUENTA de la llamada, y la madre dentro de una familia.
-  const paga = await laCuentaQuePagaLaLlamada(input.userId);
+  // **Quien paga es quien pago la llamada**: el dueño del `astraSid` con el que
+  // se lanzo, que es la misma llave con la que la cobro el cobrador. Ver
+  // `lib/cuenta-que-paga-la-llamada.ts`.
+  const { cuentaId: paga } = await laCuentaQuePagaLaLlamada(input.userId, input.astraSid);
   const que = queHacerConLaGrabacion({
     segundos: duracion,
     bytes: audio.length,
+    // Lo que de verdad se va a mandar, no una cuenta de bytes: un audio que no
+    // se puede cortar y no cabe se rechazaba con un 413 que el `catch` de
+    // `transcribe` se tragaba, y salia «el servicio no respondio».
+    sePuedeCortar: sePuedeCortarElWav(audio),
     creditosDisponibles: await losCreditosQueQuedan(paga),
   });
   if (que.hacer !== 'transcribir') {
@@ -574,11 +579,18 @@ export async function processCallRecordingForUser(input: {
     return { success: false, message: motivo, motivo: marca ?? undefined };
   }
 
-  const cfg = await getUserAiConfig(input.userId);
+  // **La clave sale de la cuenta que PAGA, no del dueño de la fila.** Las dos
+  // preguntas miran la misma lista de claves: `losCreditosQueQuedan` decide
+  // «ilimitado» leyendo las de `paga` (`pagaElClienteSuIa`), asi que transcribir
+  // con la clave de otra cuenta seria decidir el cobro sobre una clave y gastar
+  // otra. Y era la otra mitad del fallo reportado: con la clave de una cuenta
+  // sin key activa, OpenAI contesta 401, `transcribe` vuelve vacia y la tarjeta
+  // decia «el servicio de transcripcion no respondio».
+  const cfg = await getUserAiConfig(paga);
   if (!cfg) {
     console.warn('[llamadas] la cuenta no tiene ninguna clave de IA activa', {
       chatMessageId: input.chatMessageId,
-      userId: input.userId,
+      cuentaQuePaga: paga,
     });
     await anotarLaMarca(id, { motivo: 'sin_ia' });
     return { success: false, message: 'Sin configuración de IA activa.', motivo: 'sin_ia' };
@@ -1068,14 +1080,25 @@ export async function processMetaCallRecordingForUser(input: {
   //    y **cobrarlo igual**. Es el mismo Whisper sobre el mismo audio: dejar
   //    gratis una de las dos mitades es la familia de «a una hermana se le
   //    pasa», y no se ve — se nota en la factura de quien paga la clave.
-  const paga = await laCuentaQuePagaLaLlamada(userId);
+  // La misma pregunta que en el camino de Astra, con la misma funcion. Una
+  // grabacion de Meta no trae `astraSid` —la graba el navegador— asi que aqui
+  // cae en el dueño de la fila, que es lo que se hacia; el dia que lo traiga,
+  // paga quien pago la llamada sin tocar una linea de aqui.
+  const { cuentaId: paga } = await laCuentaQuePagaLaLlamada(
+    userId,
+    typeof callObj.astraSid === 'string' ? callObj.astraSid : null,
+  );
   const que = queHacerConLaGrabacion({
     segundos: Number(callObj.durationSecs ?? 0),
     bytes: buffer.length,
+    // Un webm no se corta por bytes, asi que uno que se pase del tope es
+    // «demasiado grande» y no «no respondio»: ver el camino de Astra.
+    sePuedeCortar: sePuedeCortarElWav(buffer),
     creditosDisponibles: await losCreditosQueQuedan(paga),
   });
 
-  const cfg = que.hacer === 'transcribir' ? await getUserAiConfig(userId) : null;
+  // La clave, de la cuenta que PAGA. Igual que en Astra.
+  const cfg = que.hacer === 'transcribir' ? await getUserAiConfig(paga) : null;
   if (que.hacer !== 'transcribir') {
     console.warn('[llamadas] no se transcribe la grabacion de Meta', {
       chatMessageId: input.chatMessageId,
@@ -1097,6 +1120,22 @@ export async function processMetaCallRecordingForUser(input: {
   }
   const propuesta = transcript && cfg ? await clasificar(transcript, cfg) : null;
 
+  // **El motivo queda ESCRITO en la fila, igual que en el camino de Astra.**
+  // Esta hermana lo dejaba en un `console.warn` y nada mas, asi que la tarjeta
+  // se quedaba diciendo «Procesando…» para siempre — el mismo fallo que la otra
+  // mitad ya tenia arreglado. Se decide DESPUES de intentarlo, como alli, para
+  // que cubra los tres finales: no se transcribe, no hay clave, y la
+  // transcripcion volvio vacia.
+  const marcaDeMeta: MotivoDeLaLlamada | null =
+    elMotivoDeLaGrabacion(que) ?? (!cfg ? 'sin_ia' : !transcript ? 'no_transcribio' : null);
+  if (marcaDeMeta) {
+    console.warn('[llamadas] la grabacion de Meta no dejo transcripcion', {
+      chatMessageId: input.chatMessageId,
+      cuentaQuePaga: paga,
+      motivo: marcaDeMeta,
+    });
+  }
+
   const escribio = await guardarYCobrar({
     id,
     campos: {
@@ -1104,6 +1143,16 @@ export async function processMetaCallRecordingForUser(input: {
       recordingUrl: recordingUrl || null,
       transcript: transcript || null,
       summary: summary || null,
+      // Salio o no, la marca dice lo que paso ESTA vuelta: dejar la de ayer
+      // debajo del texto de hoy es lo que ya costo una vuelta en Astra.
+      transcripcion: marcaDeMeta
+        ? {
+            motivo: marcaDeMeta,
+            ...(que.hacer === 'sin_creditos'
+              ? { hacenFalta: que.costo.creditos, quedan: que.disponibles }
+              : {}),
+          }
+        : null,
     },
     cuentaQuePaga: paga,
     tokens: transcript && que.hacer === 'transcribir' ? que.costo.tokens : 0,

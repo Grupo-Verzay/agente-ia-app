@@ -37,7 +37,10 @@ class OpenAiDeMentira {
         },
     };
 
-    constructor(_opciones?: { apiKey?: string }) {}
+    constructor(opciones?: { apiKey?: string }) {
+        // La clave se apunta para poder afirmar DE QUÉ CUENTA salió la IA.
+        if (opciones?.apiKey) laIa.claves.push(opciones.apiKey);
+    }
 }
 
 export default OpenAiDeMentira;
