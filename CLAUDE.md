@@ -12271,6 +12271,38 @@ devuelve lo que su propio prompt dicta. Ejerce además el `migration.sql` real
 sobre las seis clases de fila. `MODO=roto` lo corre en un árbol del commit de
 antes y **afirma el fallo**: la entrada queda en espera y sin asignar.
 
+#### Las citas son DOS tablas, y solo una tiene `sessionId`
+
+Hay que saberlo antes de escribir cualquier otra limpieza que dependa de «esta
+conversación no tiene cita»:
+
+| herramienta | ruta | tabla | ¿`sessionId`? |
+| --- | --- | --- | --- |
+| `crear_cita` | `/api/schedule/appointment` | `Appointment` | **sí** |
+| `crear_cita_booking` | `/api/bookings/appointment` | `booking_appointments` | **no** — va por `teamId` + `clientPhone` |
+
+Las dos sellan por el mismo `marcarEnEsperaPorRegistro`, así que **desde la
+fila de `Session` una reserva de equipos es indistinguible de una SOLICITUD**.
+La migración solo mira `Appointment`, y lo que la hace aceptable es que la
+conversación que llega a reservar dice «agendar / reservar / confirmar fecha»
+—que el clasificador archiva como **RESERVA**, y RESERVA conserva el sello—.
+No es una coincidencia: es la definición del propio prompt, y el banco la lee
+de ahí en vez de darla por buena.
+
+**Lo que cuesta, y se dice:** una reserva de equipos a la que el clasificador
+nunca le puso un RESERVA pudo perder su sello en esa limpieza de una vez. No
+se deshace —la hora se borró y no quedó rastro de cuál se limpió— y no se
+intenta: volver a sellarlas a ojo sellaría también las que una persona ya
+había atendido, que es peor. La cita sigue en pie, con sus recordatorios y su
+confirmación ya enviada; lo que se pierde es una entrada en la cola.
+
+**Y la migración no se toca ya**: Prisma guarda su checksum, así que editar una
+migración aplicada rompe el `migrate deploy` del despliegue siguiente. Si algún
+día hace falta ser exacto también con las reservas de equipos, el cruce es por
+dígitos (`clientPhone` contra `remoteJid`) y va detrás de un `to_regclass`,
+porque `booking_appointments` es una tabla de la App y puede no existir en una
+base del backend.
+
 ## Vencimientos: un DÍA, no un instante, y quien lo juzga es uno solo
 
 Las tarjetas de Proyectos y de Tickets llevan fecha de vencimiento, con un
