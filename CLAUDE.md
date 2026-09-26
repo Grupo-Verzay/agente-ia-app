@@ -18164,6 +18164,14 @@ Y se comprobó lo único que de verdad dice que un banco mira: **quitándole el
 arreglo al modo bueno se pone en rojo** —cinco casos sin la siembra, cuatro sin
 las protecciones de las etapas de sistema—.
 
+Una del propio banco de navegador, que salió al correrlo dos veces seguidas: el
+`next start` de la vuelta anterior se mataba **después** del `dropdb`, así que su
+conexión dejaba el borrado sin efecto, el `createdb` decía «ya existe» y el banco
+se caía **antes de ejercer un solo caso** — cero «ok» y cero «MAL», que no se lee
+como un fallo: se lee como que no hay nada que probar. Se mata antes, y el
+`dropdb` va con `--force`. **Un banco que no se puede volver a correr no es un
+banco**, y el modo en que fallaba era el peor: en silencio y en verde.
+
 ## Lo que crea un asesor es SUYO: etiquetas y respuestas rápidas
 
 Las etiquetas (`Tag`) y las respuestas rápidas (`rr`) siguen siendo filas de la
