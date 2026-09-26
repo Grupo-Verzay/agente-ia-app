@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useAdGenerator } from './hooks/useAdGenerator'
 import { AdPreviewPanel } from './AdPreviewPanel'
+import { AdCopyPanel } from './AdCopyPanel'
 import { StepNav } from './StepNav'
 import { StepFooter } from './StepFooter'
 import { StepImages } from './steps/StepImages'
@@ -163,6 +164,11 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
         </CardContent>
       </Card>
 
+      {/* La columna de la derecha: la vista previa y, JUNTO a ella, el texto
+          del post de esa misma vista. La previa cede el alto (`min-h-0`) y el
+          panel del texto se queda con el suyo, para que la imagen no empuje al
+          copy fuera de la pantalla ni al revés. */}
+      <div className="flex min-h-0 flex-col gap-3">
       <AdPreviewPanel
         sourceImagesCount={studio.sourceImages.length}
         activeImageIndex={studio.activeImageIndex}
@@ -182,6 +188,17 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
         selectedTemplate={studio.selectedTemplate}
         onDownload={studio.downloadImage}
       />
+
+      <AdCopyPanel
+        previewFormat={studio.previewFormat}
+        copy={studio.currentCopy}
+        onCopyChange={studio.editarElCopy}
+        onRegenerate={studio.regenerarElCopy}
+        isGenerating={studio.isGeneratingCopy}
+        error={studio.copyError}
+        hasPreview={Boolean(studio.currentPreview)}
+      />
+      </div>
     </div>
   )
 }

@@ -16732,6 +16732,120 @@ vacío recibe el global y la cuenta con el campo lleno recibe el suyo; su
 global— y `scripts/banco-prompt-maestro.sh` aquí, con las acciones de verdad y
 su puerta.
 
+## AI imágenes: el COPY sale de la RED de la vista previa, y se escribe con la misma clave
+
+La pantalla generaba la imagen del producto y **el texto del post había que
+escribirlo a mano**. Lo que faltaba no era otra pantalla: era el texto, y el
+texto no es el mismo en las tres redes.
+
+> **La red sale del FORMATO de la vista previa, no de un mando nuevo.** `1:1` es
+> un post de Instagram, `9:16` una historia de WhatsApp y `16:9` un post de
+> Facebook — que es lo que `AD_FORMATS` ya dice en esa pantalla. Con un segundo
+> selector, la imagen se vería en un formato y el copy hablaría de otra red, y
+> eso no se lee como un error: se lee como un texto que no pega con lo que hay
+> encima.
+
+Lo decide `lib/copy-del-anuncio.ts`, **puro**, y lo pide
+`generarCopyDelAnuncio` en `actions/ai-image-actions.ts`, con
+`getGeminiApiKey()` — **la misma clave que el diálogo de esa pantalla ya
+guarda**: ni una variable de entorno, ni una segunda credencial que configurar.
+
+### Y lo que una red no soporta se QUITA al leer, no solo se pide en el prompt
+
+WhatsApp **no indexa hashtags**: ahí son texto muerto con una almohadilla
+delante. Pedirle al modelo que no los ponga es una instrucción que a veces se
+ignora, y «casi siempre» no basta — el copy de una historia sale con seis
+etiquetas que no llevan a ninguna parte. Se pide **y** se comprueba
+(`comoSeLeeElCopy`).
+
+Y la condición del hashtag no es la almohadilla: es **la almohadilla con al
+menos una letra detrás**. Sin ella, limpiar una historia se llevaría por delante
+el «#1» de «el #1 en ventas», que no es una etiqueta — es parte de la frase.
+
+Instagram lleva hasta 6, Facebook 2 —ahí casi nadie los usa— y **WhatsApp cero,
+que es una decisión y no un olvido**. El llamado a la acción, en cambio, va en
+las tres.
+
+### El texto habla de la IMAGEN, así que la imagen viaja en la petición
+
+La imagen ya generada va dentro de la llamada. Sin ella, dos productos distintos
+con la misma plantilla darían el mismo texto.
+
+Y **el modelo del copy NO es el del paso «Motor»**: aquellos son generadores de
+imagen y no devuelven texto. `MODELO_DEL_COPY` es el de texto de la misma
+familia, escrito en un solo sitio y comprobado por el banco: si alguien pone ahí
+uno con `image` en el nombre, se pone rojo.
+
+### Un fallo del texto no puede tumbar la tanda de imágenes
+
+`generarCopyDelAnuncio` **devuelve un resultado, no lanza**. Corre detrás de la
+imagen, que es lo que de verdad se vino a generar. Pero **no es mudo**: el
+motivo baja al panel y se queda ahí —debajo, no en un aviso que se va— porque
+quien vuelve un minuto después tiene que poder saber por qué no hay texto.
+
+Cinco cosas más que hay que mantener:
+
+1. **La llave de la vista se escribe en UN sitio** (`laLlaveDeLaVista`). El copy
+   y su imagen comparten llave: con dos formas de construirla, el panel
+   enseñaría el texto de otra vista sin dar ningún error. El banco falla si el
+   hook vuelve a montarla a mano.
+2. **Por qué falló Gemini lo lee UNA función** (`porQueFalloGemini`), y la usan
+   el ciclo de imágenes y el del copy. Con la lista de rechazos copiada en dos
+   sitios, uno de los dos acabaría diciendo «error desconocido» sobre una clave
+   caducada. Al extraerla salió un fallo que ya estaba: **el `catch` del ciclo
+   de imágenes se rendía en silencio** cuando el error no encajaba en ninguno de
+   sus tres casos — la variante no salía y en pantalla no había nada que mirar.
+   Ahora lo desconocido también se dice.
+3. **El copy se pide DETRÁS de la imagen y solo si alguna salió**, y **una por
+   vista, no por variante**: el texto habla del producto y de la red, y esos no
+   cambian entre variantes de la misma imagen.
+4. **Los copies se reindexan igual que las imágenes** al quitar un producto
+   (`reindexarSinEl`, una función para los dos mapas). Si no, al quitar el
+   producto 1 el texto del 2 se quedaría debajo de la imagen del 3.
+5. **Lo editado a mano se guarda en SU vista.** Cambiar de red y volver lo
+   conserva; sin eso, el trabajo de escribirlo se tiraría sin decir nada.
+
+Y copiar al portapapeles va en su `try`: en un origen sin HTTPS
+`navigator.clipboard` lanza, y **un botón que da error al pulsarlo es peor que
+no tenerlo** — se dice qué hacer (seleccionar y Ctrl+C) en vez de fallar callado.
+
+### Los bancos, y por qué son dos
+
+- `scripts/banco-copy-del-anuncio.sh` — la decisión pura y un barrido, más las
+  **acciones de verdad contra Postgres**: que la clave que llega a Google es la
+  que esa pantalla guardó —el entorno lleva a propósito una clave que canta,
+  para que caerse a ella se vea—, que la imagen viaja dentro, y que un fallo
+  vuelve con su motivo en vez de lanzar.
+- `scripts/banco-copy-en-la-pantalla.sh` — el `AdGeneratorStudio` de VERDAD en
+  Chromium: se sube un producto, se pulsa «Generar imagen», y se comprueba que
+  el texto aparece junto a la previa, que sigue al formato que se elige ahí, que
+  lo editado se conserva al cambiar de red y volver, que regenerar lo cambia,
+  que copiar deja el portapapeles puesto, y que la previa no se queda sin sitio
+  a 1440/1280/1024/390.
+
+La segunda tiene que ser en navegador: **«¿el texto que se ve es el de la imagen
+que se ve?» depende de que las dos llaves sean la misma**, y un barrido leería
+dos funciones correctas.
+
+Los dos modos rotos van **pinchados a un commit**, nunca a `origin/main`, y
+afirman el fallo: no había módulo, ni acción, ni panel. Comprobado además lo
+único que dice que un banco mira — quitándole el arreglo al modo bueno se pone
+en rojo: siete casos al deshacer las reglas de red, el aviso o la llamada, y los
+cinco del navegador al quitar el panel.
+
+Tres cosas del arnés de navegador que costaron su vuelta:
+
+1. **El botón de generar solo existe en el ÚLTIMO paso**, así que el banco
+   recorre el asistente como lo recorre una persona — y con «Siguiente», no por
+   el rótulo del paso: los de la barra van `hidden sm:block`, o sea que a 390 no
+   hay texto que pulsar.
+2. **`GoogleKeyDialog` usa `useRouter`**, que fuera de Next revienta al montar:
+   `window.listo` no llega nunca y lo único que se ve es un plazo agotado, que
+   no se parece en nada a su causa. Va aliasado a `next-navigation-mudo`.
+3. **Y la red se corta en el contexto.** Sin eso Chromium se queda esperando a
+   hosts de Google que la salida de este equipo deniega.
+
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
