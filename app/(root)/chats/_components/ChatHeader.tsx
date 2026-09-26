@@ -41,7 +41,7 @@ import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
 import { RECORTE_A_LO_ANCHO, TIPOGRAFIA_DEL_NOMBRE } from '@/lib/nombre-del-contacto';
-import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CONTROL_DE_ICONO, GLIFO_DE_CONTROL, LAPIZ_SIN_ALTO, LINEA_DEL_ESTADO, LINEA_DEL_NOMBRE } from '@/lib/cabeceras-de-chats';
+import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2, CLASE_HUECO_ENTRE_CONTROLES, CONTROL_DE_ICONO, GLIFO_DE_CONTROL, LAPIZ_SIN_ALTO, LINEA_DEL_ESTADO, LINEA_DEL_NOMBRE } from '@/lib/cabeceras-de-chats';
 import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
@@ -737,7 +737,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {/* Herramientas expandibles — una fila con scroll */}
         {session && mobileToolsOpen && (
           <div className="-mx-2 border-t border-border/30 bg-muted/30">
-            <div className="flex items-center justify-between gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-none">
+            {/* `justify-start` y no `justify-between`: aquel reparte el
+                sobrante entre los huecos, así que con sitio de sobra los
+                controles salen más separados de lo que declara el `gap`. El
+                hueco es el mismo número que en la fila de escritorio. */}
+            <div className={cn('flex items-center justify-start px-2 py-1.5 overflow-x-auto scrollbar-none', CLASE_HUECO_ENTRE_CONTROLES)}>
               {/* 1. Acción directa */}
               <MenuDeLlamada datos={datosParaLlamar} className="h-7 w-7" iconoClassName="h-3.5 w-3.5" />
               {advisorBadge}
@@ -779,8 +783,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               />
               {/* La síntesis se ve y se edita en el Contexto del lead (el cerebro). */}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
-              {tagsCombobox}
               {selectorDeEtapa}
+              {tagsCombobox}
               {/* 4. Gestión */}
               {sessionToggle}
             </div>
@@ -898,75 +902,81 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </div>
         </div>
 
-        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {session && (
-            <>
-              {/* 1. Acción directa */}
-              <MenuDeLlamada datos={datosParaLlamar} className={cn(CONTROL_DE_ICONO, "w-7")} iconoClassName={GLIFO_DE_CONTROL} />
-              {advisorBadge}
-              {/* 2. CRM / agenda */}
-              <ChatReminderDialog session={session!} userId={userId} />
-              <ChatAppointmentStatusButton
-                sessionId={session.id}
-                userId={session.userId}
-                pushName={session.pushName}
-                remoteJid={session.remoteJid}
-                instanceId={session.instanceId}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                onClick={() => setTaskDialogOpen(true)}
-                title="Nueva tarea"
-              >
-                <ClipboardList className="h-3.5 w-3.5" />
-              </Button>
-              {/* 3. Datos del contacto */}
-              <ChatRegistrosBadge
-                sessionId={session.id}
-                sessionPushName={session.pushName}
-                whatsapp={displayedWhatsapp}
-                userId={session.userId}
-                remoteJid={session.remoteJid}
-                instanceId={session.instanceId}
-                flujos={session.flujos}
-                leadStatus={session.leadStatus}
-                leadScore={session.leadScore}
-                leadScoreReason={session.leadScoreReason}
-                tags={session.tags}
-                sessionSeguimientos={session.seguimientos}
-                registrosResumen={session.registrosResumen}
-                onSessionRefresh={onSessionRefresh}
-              />
-              {/* La síntesis se ve y se edita aquí dentro: ya no hay icono aparte. */}
-              <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
-              {tagsCombobox}
-              {selectorDeEtapa}
-            </>
+        {/* La tira y la ficha, en UNA caja con el hueco común de los controles.
+            La ficha sigue FUERA de la tira (ver el comentario de abajo), pero el
+            hueco que la separa ya no es el `gap-3` de la fila —12 px, medidos—
+            sino el mismo que hay entre los otros nueve. */}
+        <div className={cn('flex min-w-0 items-center', CLASE_HUECO_ENTRE_CONTROLES)}>
+          <div className={cn('flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', CLASE_HUECO_ENTRE_CONTROLES)}>
+            {session && (
+              <>
+                {/* 1. Acción directa */}
+                <MenuDeLlamada datos={datosParaLlamar} className={cn(CONTROL_DE_ICONO, "w-7")} iconoClassName={GLIFO_DE_CONTROL} />
+                {advisorBadge}
+                {/* 2. CRM / agenda */}
+                <ChatReminderDialog session={session!} userId={userId} />
+                <ChatAppointmentStatusButton
+                  sessionId={session.id}
+                  userId={session.userId}
+                  pushName={session.pushName}
+                  remoteJid={session.remoteJid}
+                  instanceId={session.instanceId}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  onClick={() => setTaskDialogOpen(true)}
+                  title="Nueva tarea"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                </Button>
+                {/* 3. Datos del contacto */}
+                <ChatRegistrosBadge
+                  sessionId={session.id}
+                  sessionPushName={session.pushName}
+                  whatsapp={displayedWhatsapp}
+                  userId={session.userId}
+                  remoteJid={session.remoteJid}
+                  instanceId={session.instanceId}
+                  flujos={session.flujos}
+                  leadStatus={session.leadStatus}
+                  leadScore={session.leadScore}
+                  leadScoreReason={session.leadScoreReason}
+                  tags={session.tags}
+                  sessionSeguimientos={session.seguimientos}
+                  registrosResumen={session.registrosResumen}
+                  onSessionRefresh={onSessionRefresh}
+                />
+                {/* La síntesis se ve y se edita aquí dentro: ya no hay icono aparte. */}
+                <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
+                {selectorDeEtapa}
+                {tagsCombobox}
+              </>
+            )}
+          </div>
+          {/* La ficha va FUERA de la tira que se desplaza, como Acciones en la
+              fila de abajo. Dentro, cuando la conversación se estrechaba —la
+              ficha abierta, un panel lateral— la tira desbordaba y la ficha se
+              iba por la derecha (medido: 72 px fuera a 1024) o quedaba en otro
+              filo que Acciones. Así las dos acaban en el mismo píxel: el borde
+              menos el margen de la cabecera. */}
+          {onToggleInfoPanel && session && (
+            <Button
+              type="button"
+              onClick={onToggleInfoPanel}
+              title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
+              className={cn("hidden md:flex items-center gap-1.5 px-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors", CONTROL_DE_ICONO)}
+              size="sm"
+            >
+              <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
+              {infoPanelOpen
+                ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
+            </Button>
           )}
-        </div>
-        {/* La ficha va FUERA de la tira que se desplaza, como Acciones en la
-            fila de abajo. Dentro, cuando la conversación se estrechaba —la
-            ficha abierta, un panel lateral— la tira desbordaba y la ficha se
-            iba por la derecha (medido: 72 px fuera a 1024) o quedaba en otro
-            filo que Acciones. Así las dos acaban en el mismo píxel: el borde
-            menos el margen de la cabecera. */}
-        {onToggleInfoPanel && session && (
-          <Button
-            type="button"
-            onClick={onToggleInfoPanel}
-            title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
-            className={cn("hidden md:flex items-center gap-1.5 px-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors", CONTROL_DE_ICONO)}
-            size="sm"
-          >
-            <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
-            {infoPanelOpen
-              ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
-              : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
-          </Button>
-        )}
+        </div>{/* end la tira y la ficha */}
       </div>{/* end fila 1 */}
 
       {/* ── Fila 2: pestañas + búsqueda, Macros y Acciones ──

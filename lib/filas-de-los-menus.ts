@@ -84,6 +84,61 @@ export const ROTULO_EN_EL_GRUPO =
 export const FILA_DEL_MENU = "rounded-sm px-2 py-1.5 text-xs";
 
 /**
+ * La MARCA de color que abre una fila: el punto que lleva el color de la etapa
+ * o de la etiqueta, y lo primero que se ve de la fila.
+ *
+ * # El chulito invisible metía 24 px de sangría
+ *
+ * La fila de Etiquetas abría con un `Check` de 16 px puesto a `opacity-0`
+ * mientras esa etiqueta no estuviera asignada —y **un `opacity-0` no libera
+ * sitio: el hueco sigue ahí**—, así que con su `gap-2` detrás el icono de la
+ * etiqueta empezaba 24 px más adentro que el punto de Etapas. Medido en
+ * Chromium sobre el CSS del build:
+ *
+ * | | la marca que se VE | el nombre |
+ * | --- | --- | --- |
+ * | Etiquetas (antes) | **40** px del borde del panel | **64** |
+ * | Etapas | 16 | 32 |
+ *
+ * Y el banco de las filas no lo cazaba porque medía el primer HIJO de la fila
+ * —que en Etiquetas es el envoltorio, y ese sí arrancaba en 16—, no la primera
+ * cosa que se ve. Un hueco que lo mete un elemento invisible no aparece leyendo
+ * el código ni midiendo la caja de la fila: aparece midiendo el glifo.
+ *
+ * # Una marca, y del mismo tamaño en los dos
+ *
+ * Los dos menús abren con un punto de 8 px del color de lo que nombra la fila
+ * —el de Etapas ya iba así— así que **la marca, el nombre y el hueco entre los
+ * dos caen en el mismo píxel en los dos menús**. En Etiquetas eso sustituye al
+ * icono de etiqueta, que dentro del panel de Etiquetas no decía nada que el
+ * rótulo no dijera ya y que `CommandItem` fuerza a 16 px (`[&_svg]:size-4`), o
+ * sea al doble del punto: con el icono, los nombres seguirían sin alinearse.
+ *
+ * `bg-current` es el respaldo: una etiqueta puede no tener color y un punto
+ * transparente no se ve. Una etapa siempre lo trae (`elColorDeLaEtapa`).
+ */
+export const MARCA_DE_LA_FILA = "h-2 w-2 shrink-0 rounded-full bg-current";
+
+/**
+ * Lo que dice que una fila está PUESTA cuando la marca no cabe delante del
+ * nombre: un chulito al final, pegado al contador.
+ *
+ * Va al final y no al principio por lo de arriba —delante, invisible, era la
+ * sangría— y **sigue existiendo** porque Etiquetas es de selección múltiple: el
+ * gris de `FILA_PUESTA` dice «esta está puesta» igual que en Etapas, pero con
+ * varias puestas a la vez el chulito es lo que deja recorrer la lista y ver
+ * cuáles. Se queda con su `opacity-0` cuando no está puesta: al final de la
+ * fila un hueco reservado no mueve nada de la izquierda, y mantiene los
+ * contadores en la misma columna en todas las filas.
+ *
+ * El tamaño que se ve son 16 px y no 12: `CommandItem` lleva `[&_svg]:size-4` y
+ * eso gana a un `h-3 w-3` suelto en el glifo (un selector de descendiente puede
+ * más que una clase). Las clases se conservan tal cual las tenía para no cambiar
+ * de tamaño al mudarlo de sitio.
+ */
+export const CHULITO_AL_FINAL = "h-3 w-3 shrink-0";
+
+/**
  * El nombre de una etiqueta o de una etapa: en mayúscula sostenida y recortado
  * con «…» cuando no cabe. Va con su `title`, que es lo único que conserva el
  * nombre entero.
