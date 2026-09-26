@@ -107,6 +107,16 @@ import {
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
 import { etiquetasDelLote } from "@/lib/etiquetas-de-la-linea";
+import {
+  type CriterioDeBorrado,
+  type CuantasParaBorrar,
+  type LoQueSeBorro,
+} from "@/lib/borrado-de-chats";
+// La palabra que confirma un borrado masivo es UNA en toda la plataforma, y ya
+// estaba escrita: «LIMPIAR», la del chat de equipo, que a su vez sigue el
+// «VACIAR» de Finanzas. Una copia aqui seria una tercera palabra que el dia que
+// se afine una de las otras dos se queda atras.
+import { confirmaLaLimpieza, PALABRA_PARA_LIMPIAR } from "@/lib/historial-del-equipo";
 import { normalizeDeliveryState } from "./chat-message-utils";
 import { saveSidebarCache } from "./chats-sidebar-cache";
 import type { ChatData } from "@/actions/chat-actions";
@@ -262,6 +272,17 @@ type ChatSidebarProps = {
   // la que se marco.
   onBulkArchive?: (chats: SeleccionDeChat[], archived: boolean) => Promise<void>;
   onBulkDelete?: (chats: SeleccionDeChat[]) => Promise<void>;
+  /**
+   * Cuantas conversaciones se llevaria el borrado por criterio, contadas en el
+   * SERVIDOR sobre la bandeja entera.
+   *
+   * El dialogo contaba sobre `contacts`, o sea sobre las filas cargadas, y la
+   * bandeja carga acotada: lo que no se habia cargado no existia para el
+   * dialogo. Ese era el tope que nadie encontraba.
+   */
+  onContarParaBorrar?: (criterio: CriterioDeBorrado) => Promise<CuantasParaBorrar | null>;
+  /** Limpia la base por criterio. Devuelve cuantas se fueron y cuantas quedan. */
+  onBorrarPorCriterio?: (criterio: CriterioDeBorrado) => Promise<LoQueSeBorro | null>;
   onBulkPin?: (chats: SeleccionDeChat[], isPinned: boolean) => Promise<void>;
   onBulkAssignAdvisor?: (chats: SeleccionDeChat[], advisorId: string | null) => Promise<void>;
   onBulkAddTag?: (chats: SeleccionDeChat[], tagId: number) => Promise<void>;
@@ -310,6 +331,8 @@ export function ChatSidebar({
   presencias,
   onBulkArchive,
   onBulkDelete,
+  onContarParaBorrar,
+  onBorrarPorCriterio,
   onBulkPin,
   onBulkAssignAdvisor,
   onBulkAddTag,
@@ -351,6 +374,18 @@ export function ChatSidebar({
   const [dateDeleteOpen, setDateDeleteOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  /**
+   * Lo que el SERVIDOR dice que entra, y en que va el borrado.
+   *
+   * `null` = todavia no se ha preguntado. No es lo mismo que cero: un cero
+   * mientras se cuenta se lee como «no hay nada que borrar», que es justo lo
+   * contrario de lo que este dialogo viene a decir.
+   */
+  const [cuantasEntran, setCuantasEntran] = useState<CuantasParaBorrar | null>(null);
+  const [contando, setContando] = useState(false);
+  const [borrando, setBorrando] = useState<{ hechas: number; total: number } | null>(null);
+  /** La palabra que hay que teclear para llevarse la base ENTERA. */
+  const [palabra, setPalabra] = useState("");
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
   const [starredJidsArray, setStarredJidsArray] = useState<string[]>([]);
   const [enEsperaOnly, setEnEsperaOnly] = useState(false);
@@ -1288,45 +1323,107 @@ export function ChatSidebar({
   const hoyISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   /**
-   * Conversaciones cuyo ultimo mensaje es anterior al corte.
+   * Las lineas sobre las que trabaja el borrado por criterio.
    *
-   * Se excluyen las ancladas -anclar es justo decir "esta me importa"- y las
-   * que ya estan eliminadas, que no hay que volver a eliminar. Las que no
-   * tienen fecha de ultimo mensaje tampoco entran: sin fecha no se puede
-   * afirmar que sean viejas.
+   * La elegida en Canales si hay una, y si no todas las de la bandeja. Se manda
+   * el NOMBRE y nada mas: de quien es cada linea lo resuelve el servidor, y si se
+   * puede borrar ahi lo decide su puerta. Una lista que llega del navegador no
+   * elige en que cuenta se borra.
    */
-  const contactosEnElRango = useMemo(() => {
-    if (!dateFrom && !dateTo) return [] as SidebarContact[];
+  const lineasDelBorrado = useMemo(() => {
+    if (selectedChannel) return [selectedChannel];
+    const nombres = new Set<string>();
+    for (const i of instancias ?? []) if (i.instanceName) nombres.add(i.instanceName);
+    // Respaldo: una linea que traiga chats y no tenga ficha en `instancias`
+    // seguiria sin poder limpiarse. Es el mismo caso que el filtro de canales ya
+    // cubre con sus «lineas sin ficha».
+    for (const c of contacts) if (c.instanceName) nombres.add(c.instanceName);
+    return Array.from(nombres);
+  }, [selectedChannel, instancias, contacts]);
 
-    // Desde vacio = desde la primera conversacion. Hasta vacio = hasta hoy.
-    // El "hasta" incluye el dia entero, no se corta a medianoche.
-    const desde = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : -Infinity;
-    const hasta = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : Infinity;
-    if (Number.isNaN(desde) || Number.isNaN(hasta) || desde > hasta) return [] as SidebarContact[];
+  /** Sin ninguna de las dos fechas: se lleva la base ENTERA. */
+  const esTodaLaBaseDeChats = !dateFrom && !dateTo;
 
-    return contacts.filter(
-      (c) => !c.isDeleted && !c.isPinned && c.ts > 0 && c.ts >= desde && c.ts <= hasta,
-    );
-  }, [contacts, dateFrom, dateTo]);
+  const criterioDelBorrado = useMemo(
+    (): CriterioDeBorrado => ({
+      lineas: lineasDelBorrado,
+      desde: dateFrom || undefined,
+      hasta: dateTo || undefined,
+    }),
+    [lineasDelBorrado, dateFrom, dateTo],
+  );
 
   // El rango real de lo que hay, para que se sepa que fechas tiene sentido
-  // escribir en vez de adivinar.
+  // escribir en vez de adivinar. Sale de lo cargado a proposito: es una ayuda
+  // para escribir, no el universo del borrado —ese lo cuenta el servidor—.
   const rangoDisponible = useMemo(() => {
     const fechas = contacts.filter((c) => !c.isDeleted && c.ts > 0).map((c) => c.ts);
     if (fechas.length === 0) return null;
     return { desde: new Date(Math.min(...fechas)), hasta: new Date(Math.max(...fechas)) };
   }, [contacts]);
 
+  /**
+   * Cuantas entran, preguntandolo al SERVIDOR.
+   *
+   * Antes esto se contaba sobre `contacts` —las filas cargadas— y la bandeja
+   * carga acotada, asi que lo que no se habia cargado no existia para el dialogo.
+   * Ese era el tope que nadie encontraba: no hay ningun numero escrito.
+   */
+  useEffect(() => {
+    if (!dateDeleteOpen || !onContarParaBorrar) return;
+    let vigente = true;
+    setContando(true);
+    // Un respiro: escribir una fecha son varias pulsaciones, y cada una pedia
+    // la bandeja entera.
+    const t = setTimeout(() => {
+      void onContarParaBorrar(criterioDelBorrado)
+        .then((cuantas) => {
+          if (vigente) setCuantasEntran(cuantas);
+        })
+        .finally(() => {
+          if (vigente) setContando(false);
+        });
+    }, 350);
+    return () => {
+      vigente = false;
+      clearTimeout(t);
+    };
+  }, [dateDeleteOpen, onContarParaBorrar, criterioDelBorrado]);
+
+  /**
+   * Limpia la base por criterio, a trozos y con el contador a la vista.
+   *
+   * El servidor se lleva hasta su tope por vuelta y dice cuantas quedan, asi que
+   * aqui se repite mientras queden. Cada vuelta es una peticion corta: es lo que
+   * evita el corte del proxy con una cuenta de decenas de miles de
+   * conversaciones, que es el fallo del que venimos.
+   */
   const handleDeleteByDate = useCallback(async () => {
-    if (!onBulkDelete || contactosEnElRango.length === 0) return;
-    await onBulkDelete(
-      contactosEnElRango.map((c) => ({ remoteJid: c.id, instanceName: c.instanceName })),
-    );
+    if (!onBorrarPorCriterio) return;
+    const total = cuantasEntran?.total ?? 0;
+    if (total === 0) return;
+
+    setBorrando({ hechas: 0, total });
+    let hechas = 0;
+    // Un tope de vueltas: una cola que no baja —porque todas fallan— dejaria el
+    // dialogo dando vueltas para siempre.
+    for (let vuelta = 0; vuelta < 200; vuelta += 1) {
+      const salida = await onBorrarPorCriterio(criterioDelBorrado);
+      if (!salida) break;
+      hechas += salida.borradas;
+      setBorrando({ hechas, total: Math.max(total, hechas) });
+      // Ni queda nada, ni se avanzo: en los dos casos seguir es dar vueltas.
+      if (salida.quedan === 0 || salida.borradas === 0) break;
+    }
+
+    setBorrando(null);
     setDateDeleteOpen(false);
     setDateFrom("");
     setDateTo("");
+    setPalabra("");
+    setCuantasEntran(null);
     clearSelection();
-  }, [onBulkDelete, contactosEnElRango, clearSelection]);
+  }, [onBorrarPorCriterio, criterioDelBorrado, cuantasEntran, clearSelection]);
 
   const handleBulkDelete = useCallback(async () => {
     if (!onBulkDelete || selectedChats.length === 0) return;
@@ -1694,7 +1791,7 @@ export function ChatSidebar({
             notesOnly={notesOnly}
             onToggleNotes={() => setNotesOnly((v) => !v)}
             notesCount={filterCounts.notes}
-            onDeleteByDate={canDeleteChats && onBulkDelete ? () => setDateDeleteOpen(true) : undefined}
+            onDeleteByDate={canDeleteChats && onBorrarPorCriterio ? () => setDateDeleteOpen(true) : undefined}
           />
           </div>
 
@@ -1807,13 +1904,30 @@ export function ChatSidebar({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={dateDeleteOpen} onOpenChange={setDateDeleteOpen}>
+      <AlertDialog
+        open={dateDeleteOpen}
+        onOpenChange={(abierto) => {
+          // Mientras borra no se cierra: el contador va por tandas y cerrarlo
+          // dejaria las demas corriendo sin que nadie las vea.
+          if (borrando) return;
+          setDateDeleteOpen(abierto);
+          if (!abierto) {
+            // Al cerrar se olvida todo: reabrir con la palabra ya tecleada de la
+            // vez anterior seria un borrado masivo a un clic.
+            setPalabra("");
+            setCuantasEntran(null);
+            setDateFrom("");
+            setDateTo("");
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar por fecha</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar conversaciones</AlertDialogTitle>
             <AlertDialogDescription>
               Se eliminan las conversaciones cuyo último mensaje caiga dentro
-              del rango. Las ancladas no se tocan.
+              del rango, o <span className="font-medium">todas</span> si no se
+              escribe ninguna fecha. Las ancladas no se tocan.
               {rangoDisponible && (
                 <>
                   {" "}Hay conversaciones desde el{" "}
@@ -1863,41 +1977,103 @@ export function ChatSidebar({
             <p className="text-xs text-muted-foreground">
               Deje <span className="font-medium">Desde</span> vacío para empezar
               por la más antigua, o <span className="font-medium">Hasta</span>{" "}
-              vacío para llegar hasta hoy.
+              vacío para llegar hasta hoy. Con las{" "}
+              <span className="font-medium">dos vacías</span> se eliminan{" "}
+              <span className="font-medium">todas</span>.
             </p>
 
-            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-              {!dateFrom && !dateTo
-                ? "Elija al menos una fecha para ver cuántas conversaciones entran."
-                : contactosEnElRango.length === 0
-                  ? "Ninguna conversación cae en ese rango."
-                  : (
-                    <>
-                      Se eliminarán{" "}
-                      <span className="font-semibold text-foreground">
-                        {contactosEnElRango.length}
-                      </span>{" "}
-                      conversación{contactosEnElRango.length !== 1 ? "es" : ""}, del{" "}
-                      <span className="font-medium text-foreground">
-                        {formatDiaLargo(new Date(Math.min(...contactosEnElRango.map((c) => c.ts))))}
-                      </span>{" "}
-                      al{" "}
-                      <span className="font-medium text-foreground">
-                        {formatDiaLargo(new Date(Math.max(...contactosEnElRango.map((c) => c.ts))))}
-                      </span>.
-                    </>
-                  )}
+            {/*
+              El numero lo cuenta el SERVIDOR sobre la bandeja entera.
+              Se contaba sobre las filas cargadas, y la bandeja carga acotada:
+              lo que no se habia cargado no existia para este dialogo, y eso era
+              el tope que nadie encontraba.
+            */}
+            <div
+              data-cuantas-entran
+              className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+            >
+              {contando && cuantasEntran === null
+                ? "Contando conversaciones…"
+                : cuantasEntran === null
+                  ? "No se pudo contar cuántas conversaciones entran."
+                  : cuantasEntran.total === 0
+                    ? esTodaLaBaseDeChats
+                      ? "No hay conversaciones que eliminar."
+                      : "Ninguna conversación cae en ese rango."
+                    : (
+                      <>
+                        Se eliminarán{" "}
+                        <span className="font-semibold text-foreground">
+                          {cuantasEntran.total}
+                        </span>{" "}
+                        conversación{cuantasEntran.total !== 1 ? "es" : ""}
+                        {esTodaLaBaseDeChats ? " — todas las de esta bandeja" : ""}.
+                        {cuantasEntran.quedan > 0 && (
+                          <>
+                            {" "}Van por tandas de{" "}
+                            <span className="font-medium text-foreground">
+                              {cuantasEntran.enEstaVuelta}
+                            </span>
+                            ; el diálogo sigue hasta acabar.
+                          </>
+                        )}
+                        {contando && " Actualizando…"}
+                      </>
+                    )}
             </div>
+
+            {/*
+              Llevarse la base ENTERA se teclea.
+              Un «Aceptar» se pulsa sin leer, y esto no se deshace: el historial
+              se va de verdad. Con un rango de fechas no se pide —ahi la persona
+              acaba de escribir las dos fechas, que ya es el gesto deliberado—.
+            */}
+            {esTodaLaBaseDeChats && (cuantasEntran?.total ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <label htmlFor="palabra-borrar" className="text-sm font-medium">
+                  Escriba <span className="font-mono">{PALABRA_PARA_LIMPIAR}</span> para confirmar
+                </label>
+                <input
+                  id="palabra-borrar"
+                  value={palabra}
+                  onChange={(e) => setPalabra(e.target.value)}
+                  autoComplete="off"
+                  placeholder={PALABRA_PARA_LIMPIAR}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </div>
+            )}
+
+            {borrando && (
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                Eliminando{" "}
+                <span className="font-semibold text-foreground">{borrando.hechas}</span> de{" "}
+                <span className="font-semibold text-foreground">{borrando.total}</span>…
+              </div>
+            )}
           </div>
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={Boolean(borrando)}>Cancelar</AlertDialogCancel>
+            {/*
+              El boton NO se cierra al pulsarlo: el borrado va por tandas y el
+              contador tiene que poder verse. `onSelect` con `preventDefault` es
+              lo que se lo impide; sin eso el dialogo se va con la primera tanda y
+              las demas corren sin que nadie las vea.
+            */}
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
-              disabled={contactosEnElRango.length === 0}
+              disabled={
+                Boolean(borrando) ||
+                (cuantasEntran?.total ?? 0) === 0 ||
+                (esTodaLaBaseDeChats && !confirmaLaLimpieza(palabra))
+              }
+              onSelect={(e) => e.preventDefault()}
               onClick={() => void handleDeleteByDate()}
             >
-              Eliminar {contactosEnElRango.length || ""}
+              {borrando
+                ? "Eliminando…"
+                : `Eliminar ${cuantasEntran?.total || ""}`.trim()}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

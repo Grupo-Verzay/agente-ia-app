@@ -659,6 +659,185 @@ encima una condición propia, porque borrar no es anclar: **un `agente` no
 borra**. Si se añade otra acción destructiva en Chats, va igual: la misma puerta
 que las demás, más lo suyo.
 
+## Chats: borrar en bloque es MARCAR ya y purgar de fondo
+
+«Al intentar eliminar en bloque sale un error de API, y además hay un tope que no
+deja borrar más allá de cierta cantidad de conversaciones.» Son dos cosas, y
+**ninguna de las dos era un número escrito en el código**.
+
+### El error de API tiene nombre, y es el de Prisma
+
+`bulkDeleteChatsAction` hacía `Promise.all` sobre `hardDeleteLocalChat`, y cada
+uno de esos es **una transacción interactiva**: tres consultas de identidades,
+una del tipo de línea, una decena de sentencias dentro de la transacción y hasta
+ocho upserts. El pool es de **diez conexiones por proceso** y el `maxWait` de una
+transacción de Prisma son **dos segundos**: pasado ese plazo sin conseguir
+conexión, se rinde con
+
+```
+Transaction API error: Unable to start a transaction in the given time.
+```
+
+que es, literalmente, el «error de API» de la pantalla. Reproducido en el banco
+contra Postgres: con mil conversaciones la acción devuelve ese mensaje.
+
+**Y lo peor no es el error.** `Promise.all` se rinde con el PRIMER rechazo, así
+que la pantalla recibía «no se pudieron eliminar» y **no quitaba ni una fila**…
+habiendo borrado de verdad varios cientos. Medido: de mil, se borraron 398 y la
+lista siguió enseñándolas todas.
+
+De ahí sale también la sensación de tope: el umbral es **cuántas transacciones
+caben a la vez**, así que baja con lo cargada que esté la base. En el banco, con
+Postgres local, hacen falta unas mil; en producción, con la base compartida y
+`chat_messages` de millones de filas, son unas pocas decenas. Buscar el número en
+el código es perder la tarde: no hay ninguno.
+
+### El otro tope: el diálogo contaba lo CARGADO
+
+«Eliminar por fecha» y «seleccionar todas» trabajaban sobre `contacts`, o sea
+sobre las filas que el navegador tenía cargadas, y la bandeja carga acotada
+(`TOPE_DE_LA_BANDEJA`, 300; las siguientes páginas llegan al bajar). Lo que no se
+había cargado **no existía para el diálogo**, así que no había forma de pedir
+«bórralas todas».
+
+> **El universo del borrado sale del SERVIDOR, de `leerLaBandejaEntera` —la MISMA
+> consulta que la lista, sin la ventana ni el tope de la página—**, se deduplica
+> con `dedupeAndSortChats` igual que la lista y se filtra con `entraEnElBorrado`,
+> que son las tres condiciones que el diálogo aplicaba a mano (ni anclada, ni ya
+> borrada, y dentro del rango si hay rango). De ahí sale gratis lo que importa:
+> **el número que el diálogo promete es el que la lista enseñaría bajando hasta el
+> final**, ni uno más. Es la regla de siempre —un filtro que vive un paso después
+> del servidor no es un filtro— y la misma fuente que ya alimenta el contador de
+> «Todos».
+
+Y **las dos fechas vacías significan TODAS**. Eso es lo que hacía falta para poder
+limpiar la base entera.
+
+### Las dos fases, que son las del borrado de una cuenta de cliente
+
+Es el patrón que ya funciona en esta casa (`deleteUser` → `purgarCuentaEliminada`):
+
+1. **Fase 1, aquí y ahora: la marca.** Es lo que saca la conversación de la
+   bandeja y lo único que la pantalla necesita para contestar. Es barata: un
+   `INSERT … ON CONFLICT` con `unnest` por cada `MARCAS_POR_SENTENCIA` (500)
+   filas —cuatro parámetros pase lo que pase, y Postgres topa en 65.535 por
+   sentencia— sin ninguna transacción interactiva.
+2. **Fase 2, de fondo: el historial.** Sesiones, conversaciones, mensajes y el
+   rastro del contacto, **de a uno y en serie**, por `hardDeleteLocalChat` —la
+   MISMA función de siempre, sin una segunda copia—. Nadie la espera.
+3. **Y un barrido diario** que retoma lo que un despliegue se lleve a medias.
+
+**La cola de la fase 2 no es una tabla nueva: es la propia marca.** La columna
+`purgedAt` ya significa «no queda rastro que borrar» —lo dice el esquema— así que
+`deletedAt` puesto y `purgedAt` en nulo **ES** la conversación eliminada cuyo
+historial sigue ahí, y su índice `(userId, purgedAt)` ya existe. Una tabla aparte
+sería un segundo sitio donde apuntar lo mismo, y el día que uno de los dos se
+olvide, la cola miente.
+
+Y de ahí sale que esto sea **reanudable**, que es de lo que vive: esta App se
+despliega decenas de veces al día y corre con dos réplicas, así que una promesa de
+fondo se pierde a mitad sin dejar rastro. La marca no: se queda escrita.
+
+Ocho cosas que hay que mantener:
+
+1. **En serie, nunca en paralelo.** El pool son diez conexiones y son las mismas
+   que atienden la bandeja y el chat abierto, que es lo que la gente está mirando.
+   Nadie espera esta purga, así que no hay prisa que justifique robarle turnos a
+   los mensajes. Es la misma razón por la que `borrarUnaAUna` va en serie.
+2. **Un solo obrero por proceso.** Sin el candado, cinco pulsaciones seguidas
+   arrancan cinco recorridos a la vez —o sea cinco transacciones simultáneas—, que
+   es el fallo del que venimos por la puerta de al lado. El que ya corre recoge lo
+   que llegue después, porque la cola se relee en cada vuelta.
+3. **La cola se lee lo MÁS RECIENTE primero.** Al revés, la cabeza serían las
+   marcas de antes de que existiera `purgedAt`: filas cuyo historial ya se borró
+   en su día, así que purgarlas no hace nada, y a cincuenta por vuelta tardarían
+   años en drenar mientras lo que alguien acaba de borrar espera detrás.
+4. **La marca ANTIGUA sin línea no entra en la cola.** `hardDeleteLocalChat` se
+   niega a borrar sin saber de qué línea es —y hace bien: sin línea el `DELETE` se
+   llevaría el historial del contacto en TODAS—, así que meterla sería un fallo
+   garantizado en cada vuelta.
+5. **Antes de purgar se comprueba que la fila siga pendiente.** Una conversación
+   deja varias marcas —una por identidad— así que la cola trae varias filas del
+   MISMO chat y purgar una cubre a sus hermanas. Preguntarlo cuesta una consulta
+   por el índice único y ahorra repetir la transacción cuatro veces.
+6. **El `revalidatePath("/chats")` salió de `hardDeleteLocalChat` y lo hace la
+   acción.** No es estilo: el obrero de fondo y el barrido corren **fuera de una
+   petición de Next**, y ahí `revalidatePath` revienta. Y llamarlo una vez por
+   chat era N veces lo mismo.
+7. **Va a trozos y DICE cuántas quedan** (`TOPE_POR_VUELTA`). Marcar es barato
+   pero no infinito: una cuenta de decenas de miles tardaría minutos en una sola
+   petición y volvería el corte del proxy, que es el fallo del que venimos. El
+   diálogo repite mientras queden, con el contador a la vista, y cada vuelta es
+   una petición corta.
+8. **Su número ES la alarma.** El barrido devuelve `pendientes`; muy por encima de
+   lo que se acaba de borrar significa que la purga de fondo no está llegando. Es
+   la misma idea que «una línea muerta no tiene filas»: el cero es el dato.
+
+### Y `hardDeleteLocalChat` se mudó a `lib/*.server.ts`
+
+Era una función privada de un fichero `'use server'`, y eso la dejaba fuera del
+alcance de cualquier cron: ahí **todo lo exportado es un POST** al que se llega
+desde el navegador con los parámetros que uno quiera, y esto borra historial de
+clientes sin preguntarle a nadie quién llama —porque quien la llama es un barrido,
+donde no hay sesión que preguntar—. `server-only` conserva lo único que
+`'use server'` aportaba de verdad —que no se empaquete hacia el navegador, y que
+el build se caiga en el sitio si alguien lo importa desde un componente de
+cliente— y quita el endpoint.
+
+**El código se movió tal cual.** Lo prueba el banco que ya existía
+(`scripts/banco-borrado-chats.sh`, sus tres casos en verde): era el frente que
+`lib/papelera-de-embudos-runner.server.ts` dejó escrito como «cirugía en el camino
+de borrado de la pantalla más delicada del repositorio», y lo que lo hace seguro
+es que su banco estaba puesto antes de tocarlo.
+
+### Archivar y anclar en lote tenían el MISMO defecto, y uno más
+
+`bulkArchiveChatsAction` y `bulkPinChatsAction` hacían `Promise.all` de un upsert
+por chat —y el de anclar, de `upsertPreferenceEnTodasLasIdentidades`, que son tres
+consultas y N upserts **cada uno**, más un `revalidatePath` por chat—. Con una
+selección de verdad eso son miles de idas y vueltas para escribir una columna.
+
+Y archivar tenía además el fallo de siempre en esta familia: **escribía bajo UNA
+sola identidad** (`upsertPreference`). Es justo lo que la regla de «la marca va
+bajo TODAS las identidades» arregló para el archivado de uno en uno, y a esta
+hermana se le había pasado, así que un chat archivado en lote volvía por su otra
+identidad.
+
+Los tres van ya por `marcarEnBloque`, que **solo toca las columnas que se le
+nombran**: anclar no puede llevarse por delante el archivado ni el borrado.
+
+### Llevarse la base ENTERA se teclea
+
+Con un rango de fechas no se pide nada: escribir las dos fechas ya es el gesto
+deliberado. **Sin ninguna fecha —o sea, todas— hay que teclear `LIMPIAR`**, que es
+la palabra que esta plataforma ya usa para un borrado masivo en el chat de equipo,
+que a su vez sigue el «VACIAR» de Finanzas. Una tercera palabra sería una que el
+día que se afine una de las otras dos se queda atrás, así que se importa
+`confirmaLaLimpieza` y no se copia.
+
+Y el botón **no cierra el diálogo**: el borrado va por tandas y el contador tiene
+que poder verse. Lo impide un `preventDefault` en su `onSelect`; sin eso, el
+diálogo se va con la primera tanda y las demás corren sin que nadie las vea.
+
+### Lo que NO cambia, y conviene saberlo
+
+- **La selección múltiple sigue marcando lo que se VE.** Esa regla no se toca —que
+  marcar «todos» con un filtro puesto se lleve lo escondido es la peor sorpresa
+  posible— y ahora tiene al lado un camino para «todas» que sí resuelve el
+  servidor.
+- **`hardDeleteLocalChat` no cambió una línea** salvo el `revalidatePath` que se
+  fue a la acción. La fase 2 llama a la función de siempre.
+- **El historial de WhatsApp sigue siendo lo que se borra**; lo que se reparte en
+  dos fases es CUÁNDO.
+
+Lo prueba `scripts/banco-borrado-masivo.sh`, contra Postgres y con las acciones de
+verdad: mil conversaciones en bloque, la fase 1 que marca y no purga, la cola que
+sale de la propia marca, el barrido que retoma, el universo más allá de una página
+de bandeja, «toda la base» a trozos con su contador, y archivar y anclar bajo
+todas las identidades. `MODO=roto` apunta el borrado a un commit **pinchado** —no a
+`origin/main`, que deja de servir en cuanto esto se fusione— y **afirma el fallo**:
+el «Transaction API error» y la pantalla mintiendo con varios cientos ya borrados.
+
 ## Un grupo TIENE ficha, y toda consulta de CRM la excluye
 
 Los grupos entran en la bandeja y su barra de arriba —etiquetas, asignar
