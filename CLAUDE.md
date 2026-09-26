@@ -17747,11 +17747,14 @@ cuadrados de 28 px. Puesto entre ellos no se leía como uno más.
 > control de icono como los demás (`CONTROL_DE_ICONO` + `GLIFO_DE_CONTROL`),
 > sin texto, con el icono teñido del color de su etapa y el **nombre entero en
 > el globo**. **En la fila, la etapa es una pastilla igual a la del estado** —el
-> mismo alto, la misma letra, el mismo redondeo y el mismo relleno compacto—,
-> justo detrás de ella y delante de «Asignar». Sin embudo no hay pastilla.
+> mismo alto, la misma letra, el mismo redondeo y el mismo relleno compacto—.
+> Sin embudo no hay pastilla.
 
-De izquierda a derecha la fila se lee «cómo de caliente está» → «en qué punto
-del embudo» → «de quién es».
+De izquierda a derecha la fila se lee «en qué punto del embudo está» → «cómo de
+caliente» → «de quién es». **Ese orden cambió**: la etapa nació entre el estado
+y «Asignar» y hoy va la primera, para que la fila y el menú de la cabecera no
+cuenten lo mismo al revés (ver *ninguna pastilla de la fila es más estrecha que
+alta*).
 
 #### El dato viaja con la bandeja, no una consulta por fila
 
@@ -17861,7 +17864,9 @@ Lo prueba `scripts/banco-pastilla-de-etapa.sh`, en tres mitades:
    **la fila y la cabecera dicen la misma etapa**.
 3. **La fila y la cabecera reales en Chromium** sobre el CSS del build, a
    1440/1280/1024: que la pastilla mide lo mismo que la de estado en los siete
-   campos que la definen, que va entre el estado y «Asignar» medido en píxeles,
+   campos que la definen, que va **delante** del estado y de «Asignar» medido en
+   píxeles (iba entre los dos hasta *ninguna pastilla de la fila es más estrecha
+   que alta*),
    que el botón de la cabecera mide lo que sus vecinos y no lleva rótulo, y que
    nada se desborda ni con 40 letras anchas.
 
@@ -18450,6 +18455,138 @@ Postgres; `MODO=roto` corre las acciones de etiquetas y respuestas de
 `scripts/banco-embudos-navegador.sh`, sobre la página servida: el dueño crea y
 asigna por la pantalla, la administradora tiene sus mismos mandos, un agente ve
 solo su embudo y arrastra, y otro sin embudo ve la pantalla que lo dice.
+
+## Chats: ninguna pastilla de la fila es más estrecha que alta
+
+Tres cosas reportadas juntas de la fila de la lista, y las dos últimas son el
+mismo defecto: «el círculo del asesor se ve estirado hacia arriba» y «la
+píldora de las etiquetas sale como un óvalo de pie, sin color, y dice +1
+habiendo dos etiquetas».
+
+Medido en Chromium sobre el CSS del build, con `ChatContactItem` real:
+
+| pastilla | antes | ahora |
+| --- | --- | --- |
+| etapa del embudo | **detrás** de la calificación | **delante** |
+| asesor asignado | **20,9 × 24** | **24 × 24** |
+| etiquetas | escondida en el «+N» | **31,7 × 24**, violeta, siempre |
+| el «+N» | **18 × 24**, casi blanco | **24 × 24**, con borde |
+| notas internas | 22 × 24 | 24 × 24 |
+| seguimientos (en la fila) | letra de **14 px** | 12 px, la de sus vecinas |
+
+### 1. El orden: primero la etapa, después la calificación
+
+La fila y el menú de la cabecera contaban lo mismo **al revés**. Se lee
+«en qué punto del embudo está» → «cómo de caliente» → «de quién es».
+
+Esto deshace media frase de *Chats: la etapa del embudo*, que decía «va entre
+el estado y el asesor». Lo que no cambia es que **la etapa no deja hueco**
+cuando la cuenta no usa embudos: la fila reparte con `gap`.
+
+### 2. La regla de la forma: el suelo de una pastilla es su propio alto
+
+Una pastilla de esta fila es `rounded-full` y mide 24 px de alto. Con el ancho
+libre, la que lleva poco dentro —dos iniciales, un «+1»— sale **más estrecha
+que alta**, y `rounded-full` sobre una caja así no es una pastilla: es un
+**óvalo de pie**. No se lee como un ancho mal puesto; se lee como una fila
+descuadrada, que es exactamente como se reportó.
+
+> **`FORMA_DE_LA_PASTILLA` (`lib/pastillas-de-la-fila.ts`) pone el suelo:
+> `min-w-6`, o sea el propio alto. En su forma más estrecha una pastilla es un
+> CÍRCULO, nunca un óvalo.** Y `justify-center`, que es lo que centra el
+> contenido cuando ese suelo entra en juego; con el contenido más ancho no hace
+> nada. Se escribe **una vez**: con las medidas a mano en cada componente, una
+> queda un par de píxeles distinta de la de al lado y nadie sabe por qué.
+
+El **asesor** es aparte, y por eso tiene su propia constante
+(`CIRCULO_DEL_ASESOR`): no es una pastilla, es un **avatar**. Fuera de la fila
+ya era `h-7 w-7` —redondo—; dentro iba `h-6` con relleno y sin ancho. El ancho
+es el alto y el relleno sobra, porque `initials()` devuelve dos caracteres como
+mucho. Lo que sí sigue siendo una pastilla, con su relleno, es «Yo», «Tomar» y
+«Asignar»: llevan una palabra dentro.
+
+### 3. Una pastilla que YA es un resumen no cae dentro del «+N»
+
+Es lo que producía el «+1» del reporte, y **no se arregla con el tope**: la
+fila sigue enseñando seis pastillas (`MAX_BADGES` no se toca) y lo que sobra
+sigue cayendo en el «+N».
+
+> **La de ETIQUETAS no entra en ese reparto, y no es un privilegio: es que ella
+> ya es un resumen con su propio número.** Cayendo dentro del «+N» quedaban
+> **dos números para lo mismo** y el de fuera mentía — con dos etiquetas y la
+> pastilla escondida, la fila decía «+1», que se lee como «una etiqueta».
+> Resumir un resumen no informa de nada.
+
+Y el «+N» dejó de titular su globo «Más etiquetas»: ahí cae cualquier pastilla
+que no cupo —una cita, una nota, un recordatorio— y **nunca una etiqueta**.
+
+### 4. Las contadoras son UNA anatomía, no cuatro parecidas
+
+La espera de un asesor, los recordatorios, la cita, las notas y las etiquetas
+son todas *un icono y un número*. Cuatro estaban escritas iguales a mano y la
+de etiquetas iba por su cuenta con `text-xs font-medium` y otro relleno. Ahora
+salen de `PASTILLA_CONTADORA`, `GLIFO_DE_LA_PASTILLA` y
+`NUMERO_DE_LA_PASTILLA`; **lo único suyo es el color**, que cada una escribe
+con clases literales —Tailwind solo genera lo que ve escrito, así que un tono
+compuesto en tiempo de ejecución no existiría en el CSS—.
+
+Dos cosas que hay que mantener:
+
+1. **`tabular-nums` en el número.** Sin él 1 y 7 no miden lo mismo, la pastilla
+   cambia de ancho al subir el contador y la fila se mueve sola.
+2. **`data-ui="badge"` donde haya un `.text-xs`.** Dentro de
+   `.app-module-content` un `.text-xs` vale **14 px** y solo lo bajan a 12 los
+   controles y lo que lleve esa marca. La de etiquetas salía con la letra dos
+   píxeles más grande que la de al lado; `SeguimientoBadge` y `FlowListOrder`
+   también, y a esas dos la marca se les pone **solo con `compacta`** —la
+   prop que ya significa «en la fila de Chats»—: en el CRM y en `/sessions` se
+   quedan exactamente como estaban.
+
+### Y no encarece la fila: sigue siendo un renglón
+
+La pregunta razonable es si sacar las etiquetas del reparto hace la fila más
+alta. Medido con la columna de verdad —`var(--ancho-lateral)` con las clases de
+`LISTA_DE_CHATS` y **con la barra de desplazamiento a la vista**, que se come su
+ancho—:
+
+| caso | pastillas | 1440 | 1280 | 1024 |
+| --- | --- | --- | --- | --- |
+| el normal | 4 | 1 renglón | 1 | 1 |
+| el del reporte | 7 | **1 renglón** | 1 | 1 |
+| todo puesto a la vez | 8 | 2 renglones | 2 | 2 |
+
+La fila del reporte cabe en un renglón en las tres: la de etiquetas (31,7 px)
+ocupa ocho más que el «+1» al que sustituyó. Solo se parte con las ocho —espera,
+etapa, calificación, asesor, recordatorios, seguimientos, etiquetas y el «+N»—,
+que es lo que `flex-wrap` viene haciendo desde siempre y no es nuevo.
+
+### El banco
+
+`scripts/banco-simetria-de-la-fila.sh`, con `ChatContactItem` REAL sobre el CSS
+del build y dentro de `.app-module-content`, a 1440/1280/1024 y con cinco filas
+—el caso normal, el tope justo de seis pastillas, una que desborda, una con UNA
+etiqueta y otra sin nada—. **El ancho de la columna no se escribe a mano**: sale
+de `var(--ancho-lateral)` y de `LISTA_DE_CHATS`, así que las tres anchuras miden
+tres columnas distintas de verdad. Comprueba el orden en píxeles (no por el orden del
+JSX), que las etiquetas salen siempre con el total y sus nombres en el globo,
+que el asesor es cuadrado de lado, y **la regla de la forma en TODAS las
+pastillas**, no solo en las dos del reporte.
+
+`MODO=roto` pinta la misma maqueta con los componentes de `ANTES_REF` —un
+`git worktree` aparte, nunca `origin/main`— y afirma los tres fallos con sus
+números, el «+1» incluido.
+
+Dos cosas del propio banco que costaron su vuelta:
+
+1. **El nodo que se mide no es el hijo del contenedor.** Varias pastillas viven
+   dentro de un `TooltipProvider` y de un envoltorio `inline-flex` que no pinta
+   nada: hay que bajar hasta el primero con redondeo completo, o se miden
+   envoltorios transparentes de 0 px de relleno y el banco dice que todas están
+   mal.
+2. **El «antes» no lleva las marcas de hoy.** Buscar `data-pastilla-de-etiquetas`
+   en el árbol viejo hace que el modo roto se caiga con un plazo agotado en vez
+   de afirmar su fallo; se busca por el icono y por el texto, que es lo único
+   que existe en los dos mundos.
 
 ## El cupo de llamadas: un sitio que solo se libera cuando todo sale bien no es un cupo
 

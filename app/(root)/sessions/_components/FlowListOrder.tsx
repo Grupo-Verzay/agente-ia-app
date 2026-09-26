@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/tooltip";
 import React from "react";
 import { cn } from "@/lib/utils";
-import { RELLENO_DE_PX_2 } from "@/lib/pastillas-de-la-fila";
+import { FORMA_DE_LA_PASTILLA, RELLENO_DE_PX_2 } from "@/lib/pastillas-de-la-fila";
 
 type FlowEntry = { id: string; name: string };
 
@@ -49,7 +49,22 @@ export const FlowListOrder = ({ raw, compacta = false }: { raw: string; compacta
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span className="inline-flex">
-                        <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full border border-blue-300 bg-blue-100 text-xs font-medium text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300", compacta ? RELLENO_DE_PX_2 : "px-2")}>
+                        <span
+                          /* Dos cosas, y las dos SOLO en la fila de Chats (`compacta`):
+                           * el ancho mínimo de `FORMA_DE_LA_PASTILLA` —para que
+                           * `rounded-full` no salga como un óvalo de pie cuando el
+                           * contador es corto— y `data-ui="badge"`, que es el gancho con
+                           * el que `globals.css` baja un `.text-xs` a 12 px dentro de
+                           * `.app-module-content`, donde si no vale 14. Sin él esta
+                           * pastilla salía con la letra DOS píxeles más grande que la de
+                           * estado y la de etapa de al lado. Medido. Fuera de la fila
+                           * —el CRM, `/sessions`— se queda exactamente como estaba. */
+                          {...(compacta ? { "data-ui": "badge" } : {})}
+                          className={cn(
+                            "inline-flex h-6 items-center gap-1.5 rounded-full border border-blue-300 bg-blue-100 text-xs font-medium text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300",
+                            compacta ? cn(FORMA_DE_LA_PASTILLA, "gap-1.5", RELLENO_DE_PX_2) : "px-2",
+                          )}
+                        >
                             <span className="h-2 w-2 rounded-full bg-blue-500 dark:bg-blue-400" />
                             {count}
                         </span>
