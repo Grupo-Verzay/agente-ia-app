@@ -28,10 +28,11 @@
  *
  * - `chat_conversations` no tiene ninguna columna de «sin leer».
  * - `persistedRowToChat` pone `unreadCount` a 1 solo en Telegram y Meta; para
- *   WhatsApp escribe **0 siempre**.
- * - Lo que la bandeja llama «sin leer» es el `unreadCount` del proveedor
- *   cruzado con las marcas de `seenMessages`, que son de **este navegador**
- *   (`localStorage`, `hooks/chats/useSeenMessages`).
+ *   WhatsApp escribe **0 siempre** — y por eso ese contador dejó de decidir
+ *   nada: daba por leído todo lo que saliera de nuestra base.
+ * - Lo que la bandeja llama «sin leer» sale de las marcas de **este
+ *   navegador** —qué chats se abrieron y hasta cuándo estaba leída cada línea:
+ *   `hooks/chats/useSeenMessages`, con la regla en `lib/no-leido-de-la-fila`—.
  *
  * Así que el servidor no puede contarlo, y **no se le deja adivinarlo**: un
  * número que no se puede calcular no se sustituye por otro. Quien lo dice es
