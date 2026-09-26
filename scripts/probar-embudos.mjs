@@ -1,7 +1,9 @@
 /**
  * Embudos, en Chromium y sobre la página SERVIDA, de punta a punta:
  *
- *  1. El dueño entra, crea «Ventas» por la pantalla y asigna a Ana.
+ *  1. El dueño entra, crea «Ventas» por la pantalla y asigna a Ana. Y su
+ *     tablero **acaba en sus etapas**: ni un recuadro de «Nueva etapa» entre
+ *     las columnas, que se crean en «Etapas del embudo».
  *  2. La administradora entra y ve lo mismo que el dueño, con los mismos mandos.
  *  3. Ana entra: ve SU embudo con solo sus dos conversaciones, sin selector,
  *     sin «Nuevo», sin «⋯», sin editar etapas; arrastra una tarjeta a otra
@@ -178,6 +180,33 @@ try {
         );
         exigir(await pagina.getByText("Embudo: Embudo de ventas").isVisible(), "dueño: y su embudo tiene nombre");
 
+        /*
+         * El tablero ACABA EN SUS ETAPAS.
+         *
+         * Detrás de las columnas hubo un recuadro punteado del alto de una
+         * columna con «Nueva etapa» dentro, y se leía como una etapa más —vacía
+         * y sin nombre—. Se mira con el dueño delante, que es quien lo veía; un
+         * asesor nunca lo tuvo, y eso ya se comprueba abajo.
+         */
+        exigir(
+            (await pagina.getByText("Nueva etapa").count()) === 0,
+            "dueño: el tablero no ofrece ningún «Nueva etapa» entre las columnas",
+        );
+        const finalDeLaFila = await pagina.evaluate(() => {
+            const cab = document.querySelector("span.uppercase.text-white");
+            const fila = cab?.closest("div.rounded-xl")?.parentElement;
+            if (!fila) return null;
+            const ultimo = fila.children[fila.children.length - 1];
+            return {
+                hijos: fila.children.length,
+                ultimoEsColumna: Boolean(ultimo?.querySelector("span.uppercase.text-white")),
+            };
+        });
+        exigir(
+            finalDeLaFila?.hijos === 7 && finalDeLaFila.ultimoEsColumna,
+            `dueño: la fila tiene un hijo por etapa y acaba en una columna (${JSON.stringify(finalDeLaFila)})`,
+        );
+
         // Renombrar una del cliente se ve en el tablero.
         await pagina.getByRole("button", { name: "Acciones" }).click();
         await pagina.getByRole("menuitem", { name: "Editar etapas" }).click();
@@ -186,6 +215,13 @@ try {
         exigir(
             (await pagina.$$('input[aria-label^="Nombre de la etapa"]')).length === 7,
             "dueño: el panel de etapas trae las siete",
+        );
+        // Y aquí SÍ hay un «Nueva etapa»: es el otro lado del cambio de arriba
+        // —las etapas se crean donde se editan—, así que quitarlo del tablero
+        // no deja a nadie sin poder crear una.
+        exigir(
+            (await pagina.getByRole("button", { name: "Nueva etapa" }).count()) === 1,
+            "dueño: y las etapas se crean aquí, en «Etapas del embudo»",
         );
         await pagina.getByLabel("Nombre de la etapa 4").fill("Cotización enviada");
         await pagina.getByRole("button", { name: "Guardar" }).click();
