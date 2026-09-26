@@ -45,7 +45,7 @@ export const AdPreviewPanel = ({
   selectedTemplate,
   onDownload,
 }: AdPreviewPanelProps) => (
-  <Card className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border-border shadow-sm">
+  <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border-border shadow-sm">
     <CardHeader className="flex flex-row items-center justify-between gap-3 border-b bg-background/95 px-4 py-3">
       <div className="space-y-0.5">
       <CardTitle className="text-lg font-semibold">Vista previa de imágenes</CardTitle>
@@ -122,6 +122,7 @@ export const AdPreviewPanel = ({
             <button
               key={format.id}
               type="button"
+              data-formato={format.id}
               onClick={() => onSelectFormat(format.id)}
               className={`rounded-2xl border px-3 py-2 text-center transition ${
                 activeFormat === format.id
