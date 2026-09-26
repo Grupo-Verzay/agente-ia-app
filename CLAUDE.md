@@ -7299,6 +7299,153 @@ y 390, con una persona y con dos, y en los tres tamaños de ventana:
 - y la **pastilla** de la reunión plegada no se esconde nunca: ahí no hay mandos
   que apartar, y dejarla escondida sería una reunión sin forma de colgar.
 
+## Reuniones: moderar donde se mira, y que la puerta SUENE
+
+Tres controles del anfitrión, reportados juntos como que faltaban. El
+diagnóstico no fue el que parecía, y conviene tenerlo delante:
+
+| | servidor | interfaz |
+| --- | --- | --- |
+| sacar a quien ya entró | **estaba entero** (`sacarDeLaSalaAction`, con su puerta) | solo en el panel lateral › pestaña «Gente» |
+| pedirle silencio | **estaba entero** (`silenciarAAction`) | igual |
+| avisar de quien llama a la puerta | — | **no existía**: una franja ámbar y nada más |
+
+O sea que dos de los tres **ya funcionaban** y no se encontraban. El panel
+**nace plegado** y su pestaña por defecto es «chat», así que para sacar a quien
+sobró de la reunión anterior hacían falta tres pasos que nadie descubre: abrir
+el panel, cambiar de pestaña y pulsar un icono de 24 px sin rótulo. Es el «menú
+cerrado por dentro» que ya costó una vuelta en Embudos — el contrario del «menú
+abierto, puerta cerrada», y se lee igual de mal: *no se puede*.
+
+> **Un mando SOBRE una persona se ofrece donde esa persona está.** Los dos van
+> ahora en un «⋯» sobre su recuadro, además de en la lista de gente. **La
+> acción es la misma, el camino es el mismo y la decisión es la misma**: no se
+> escribió un segundo camino de moderación.
+
+### La decisión es UNA, y tiene que decir lo que dice el servidor
+
+`losMandosDeModeracion` (`lib/moderar-en-la-sala.ts`, puro) contesta qué se
+ofrece, y lo preguntan **los dos** sitios. Con la condición escrita en cada uno
+—`moderas && !soyYo && micEncendido`, que es como estaba— el día que se afine
+una el otro ofrece otra cosa, y eso no se ve como un error: se ve como que
+«desde el recuadro a veces no deja».
+
+Y ofrece **exactamente** las tres cosas que el servidor rechaza, ni una más:
+no moderar, hacérselo a uno mismo, y hacérselo a quien ya no está dentro.
+Ofreciendo de más sale un botón que da error; de menos, una puerta abierta sin
+menú. El banco lo encadena **leyendo los mensajes del propio servidor**: copiar
+las tres condiciones a mano dejaría el banco en verde el día que aparezca una
+cuarta.
+
+El camino también es uno (`useModerarEnLaSala`): con el `try`/`catch`, el «no
+se pudo» y el aviso de que la orden salió escritos en cada sitio, al segundo se
+le olvida uno de los tres.
+
+### Dónde va el menú es una MEDIDA, no una preferencia
+
+Esto costó dos intentos y es lo que no se ve leyendo. La reunión tiene **dos
+barras flotando `absolute z-20` encima de los recuadros** —la cabecera arriba y
+los mandos abajo, 352 px centrados—, así que un botón puede estar perfectamente
+pintado y **debajo de otra cosa**:
+
+| dónde se probó | qué lo tapaba |
+| --- | --- |
+| al final del pie | la barra de mandos, en los recuadros de la fila de abajo |
+| arriba a la derecha, `z-10` | los mandos de la cabecera, en el recuadro de esa esquina |
+| **arriba a la derecha, `z-30`** | **nada, en las 24 combinaciones** |
+
+Las dos primeras las cazó el banco con `elementFromPoint`, que es lo único que
+sabe qué hay de verdad en un punto: `getBoundingClientRect` decía que el botón
+estaba donde tenía que estar, y estaba debajo.
+
+> **Lo que lo resuelve es el `z-30`**: ni el recuadro (`relative` sin `z`) ni la
+> rejilla crean contexto de apilamiento, así que el botón compite DIRECTAMENTE
+> con las barras y les gana. Bajarlo a `z-10` —que es lo que se escribe solo—
+> lo devuelve debajo de las dos.
+
+Y va **también en la tira de miniaturas**, no solo en el recuadro grande: en la
+vista de orador —la de por defecto— casi todo el mundo está en la tira, así que
+un menú solo en el grande obligaría a esperar a que esa persona hablara para
+poder moderarla.
+
+### El aviso de la puerta: suena, se repite, y PARA al pulsar
+
+La sala de espera era solo visual, y esa franja no la ve nadie con la reunión
+plegada, con la pestaña de fondo o mirando a quien habla. Es *un aviso que
+espera es un aviso que no llega*, otra vez.
+
+**Ni un sondeo nuevo**: la lista de quién espera ya llega en la vuelta del
+reloj de la sala. Lo único propio es un latido de un segundo que pregunta
+«¿toca?», y **solo existe mientras hay alguien en la puerta sin atender** — el
+99 % de una reunión no hay nadie y no corre nada. El ritmo de verdad lo pone la
+decisión pura (`CADA_CUANTO_SUENA_LA_PUERTA_MS`, 6 s); con un `setInterval` del
+intervalo entero, cada persona que llegara reiniciaría el reloj.
+
+Cinco cosas que hay que mantener:
+
+1. **PARA al pulsar, no en la vuelta siguiente.** Al decidir sobre alguien su
+   id deja de contar al instante (`losQueEsperanSinAtender`), y **si el
+   servidor dice que no —la sala está llena— vuelve a contar**: esa persona
+   sigue esperando. Es la misma regla que quitar la fila de un chat antes de
+   preguntar y devolverla si falla. Sin esto, entre el clic y la vuelta del
+   reloj el aviso suena otra vez, y eso se lee como que el botón no hizo nada.
+2. **A quien no puede abrir la puerta no le suena.** Sonaría por algo que no
+   puede atender. Sale casi gratis: el servidor ya le manda la lista vacía.
+3. **Se puede callar, y solo mientras dure esta reunión.** Un sonido que se
+   repite y no se puede parar es lo que hace que se silencie la pestaña entera
+   —y entonces se pierden también los avisos que sí importan—. En memoria y no
+   en `localStorage`: callarlo para siempre sería volver al fallo del que
+   viene, y nadie se acordaría de haberlo hecho. El botón va en la propia
+   franja, que es donde se mira cuando suena.
+4. **No hay tope de repeticiones**, a propósito: pararlo solo sería volver a
+   que nadie se entere. Lo que hay en su lugar es esa decisión de quien modera.
+5. **Y la pastilla lo dice.** Plegada, la pastilla es lo único que se ve de la
+   reunión, y un sonido sin nada que mirar es peor que ninguno: lleva su número
+   en ámbar, como ya llevaba el punto de grabación y el de reconexión. Va
+   **dentro del asa** y no como botón — el asa se queda el puntero al agarrarla
+   y el clic de un botón de dentro no llegaría a salir.
+
+#### El tono: el único que BAJA, y el más bajo de los tres
+
+| | de → a | dura | volumen |
+| --- | --- | --- | --- |
+| clientes (`useAdvisorNotifications`) | 880 → 1100 | 450 ms | 0.25 |
+| equipo (`TONO_DEL_EQUIPO`) | 1320 → 1760 | 180 ms | 0.14 |
+| **la puerta** | **660 → 495** | **120 ms ×2** | **0.10** |
+
+Tres decisiones, cada una por algo distinto: **baja** en vez de subir, que es
+lo único que de verdad distingue un aviso de otro estando distraído; **dos
+golpes**, como se llama a una puerta, porque uno solo se oye como un error del
+navegador; y **el más bajo de los tres**, porque es el único que se repite — al
+volumen del de clientes, a la tercera vuelta habría que silenciarlo. El banco
+compara los tres, para que nadie lo suba sin darse cuenta.
+
+**Un solo `AudioContext`, perezoso y para siempre.** Cada uno es un hilo de
+audio del sistema: abriendo uno por pitido se acumulan hasta que el navegador
+deja de dar más, y entonces **deja de sonar todo**, la llamada de WhatsApp
+incluida. Es lo que ya hace el sonido del chat del equipo.
+
+### El banco, y lo que de verdad prueba
+
+`scripts/banco-controles-de-la-reunion.sh`, dos mitades, porque el cambio vive
+en dos capas: la decisión y un barrido sin navegador (27 casos), y **los
+componentes reales en Chromium** (17), donde se contestan las dos preguntas que
+no se contestan leyendo: si el menú **se alcanza** y si el sonido **suena, se
+repite y para**. El intervalo se lee **del módulo**, no se escribe en el banco:
+copiado, probaría que coincide consigo mismo y no con el que corre.
+
+`MODO=roto` corre el «antes» **pinchado a un commit** —nunca `origin/main`, que
+el día de la fusión pasa a ser el «después» y el modo roto se pone verde sin
+ejercer nada— y afirma el fallo: ni decisión compartida, ni un mando sobre el
+recuadro, ni un solo `createOscillator` en todo el módulo de video.
+
+Y una del propio banco que conviene no repetir: **17 pruebas saltadas se leen
+como 17 verdes.** Pasó mientras se escribía esto —el CSS del build se estaba
+regenerando— y el banco decía «0 fallos». Ahora **se cae con estruendo si no
+ejerce ni una**: un banco que no arranca se parece muchísimo a un banco que
+pasa.
+
+
 ## Un hilo se abre por el final, y no se mueve solo
 
 Los cinco listados de mensajes de la plataforma —Chats, el chat de equipo y los
@@ -11243,6 +11390,130 @@ Cuatro cosas que hay que mantener:
 
 Cómo se comprueba que no queda nada, sin desplegar: buscar en el repo texto que
 se pueda reparar. Si alguna línea vuelve a ser distinta al repararla, está rota.
+
+## Un abandono sin motivo es «Procesando…» para siempre
+
+Las llamadas que hace una persona quedaban completas —grabación, transcripción,
+resumen y resultado— y las que hace la IA se quedaban **solo con la grabación**:
+la tarjeta decía «Procesando…» sin cambiar nunca, sin error y sin resultado.
+
+Los dos caminos comparten `processCallRecordingForUser`, con la MISMA cuenta
+(`laCuentaDeLaFilaDeLlamada`). Así que la asimetría no estaba en el procesado:
+estaba en **quién lo dispara y qué pasa cuando abandona**.
+
+| | la humana | la de la IA |
+| --- | --- | --- |
+| lo dispara | **el navegador**, 1,5 s tras colgar, con 3 reintentos | el aviso de fin, una promesa suelta y el barrido |
+| si abandona | hay alguien delante: elige el resultado a mano y vuelve a llamar | **no se entera nadie, nunca** |
+
+### La causa: una transcripción vacía contaba como ÉXITO
+
+```ts
+const transcript = conElNombreDeLaMarca(await transcribe(audio, cfg));
+if (!transcript) { console.warn(...); }        // ← y seguía
+...
+return { success: true };                       // ← SIEMPRE
+```
+
+OpenAI no contesta, la red, un pico de carga: la transcripción vuelve vacía y
+`processCallRecordingForUser` devolvía **éxito**. Con eso, los tres síntomas del
+reporte salen a la vez y ninguno se ve desde fuera:
+
+- `esperarYProcesarLaGrabacion` veía `success` y **paraba para siempre**;
+- la fila quedaba con `hasRecording: true` y sin texto, que es exactamente de
+  donde la tarjeta sacaba su «Procesando…» (`hasRecording && !transcript`);
+- y sin transcripción **no se propone resultado**, porque la propuesta sale de
+  clasificar ese texto.
+
+Y los abandonos firmes —sin créditos, sin clave de IA, demasiado grande— no
+dejaban **nada** en la fila: solo un `console.warn` en un servidor. Misma
+pantalla, mismo silencio.
+
+> **Un abandono deja su MOTIVO en la fila** (`raw.call.transcripcion`, por
+> `anotarLaMarca`), con el MISMO vocabulario que una nota de voz de Chats
+> —`NoSeTranscribio`, con su frase y su regla—. Dos vocabularios paralelos es
+> uno que se afina y otro que se queda atrás, y la misma avería contada de dos
+> maneras según dónde se mire. Es la misma decisión que la tarifa.
+
+Y va en `raw`, **no en una columna nueva**: `chat_messages` la tocan la App, el
+webhook del backend y el chat-store (el #360).
+
+### «¿Se puede volver a pulsar?» y «¿sigo sondeando AHORA?» son DOS preguntas
+
+Confundirlas cuesta por los dos lados, así que son dos funciones:
+
+| | quién la usa | incluye `sin_creditos` |
+| --- | --- | --- |
+| `sePuedeReintentar` | el botón de la tarjeta y el barrido de abajo | **sí**: se recarga y se reintenta |
+| `valeLaPenaSeguirEsperando` | el bucle de media hora | **no** |
+
+Nadie recarga créditos en los treinta minutos siguientes a una llamada, y
+**cada vuelta se baja el WAV entero**: serían sesenta descargas para abandonar
+en el mismo sitio. Lo que sí es de este momento —el audio que aún no está
+cerrado, OpenAI que no contestó— se sigue reintentando: para eso está la
+ventana.
+
+Cinco cosas que hay que mantener:
+
+1. **El bucle decide por el MOTIVO, no por el texto del aviso.** Comparaba
+   `res.message !== 'Grabación no disponible aún.'`; un texto no es un valor, y
+   el día que alguien le cambiara una tilde el bucle dejaría de reintentar sin
+   que nadie lo notara hasta ver una pantalla semanas después.
+2. **Mientras se sondea NO se marca nada.** «Todavía no está» es el estado
+   normal de una llamada en curso: marcarlo pintaría un error en la tarjeta de
+   cada llamada que se está hablando. Lo que sí se marca es **agotar la
+   ventana**, que media hora después ya no es normal.
+3. **La marca se BORRA cuando sí sale**, en la misma escritura que guarda el
+   texto. Dejarla pondría el error de ayer debajo de la transcripción de hoy.
+   Y `anotarLaMarca` no pisa una transcripción que ya esté: si otra vuelta ganó
+   la carrera, marcar «falló» encima sería contar un error sobre algo que salió
+   bien.
+4. **Lo que no se entiende en la marca vale «no hay marca».** Se ve de menos,
+   nunca de más: equivocarse hacia «esta falló» pinta un aviso encima de una
+   llamada que va perfectamente.
+5. **Y hay botón** (`reintentarLaTranscripcionAction`), como en una nota de voz.
+   El par de ids sale de la FILA, nunca del navegador: aceptarlos de fuera sería
+   pedirle a AstraCalls la grabación que alguien nombrara y escribirla aquí.
+
+### El relay se tragaba `isBot`, y por eso el «No contesta» no se marcaba nunca
+
+AstraCalls solo sabe si se contestó cuando la llamada es del bot —arranca la IA
+al conectar—; en una manual `answered` viaja en falso **siempre**. Por eso la
+App exige las dos cosas juntas:
+
+```ts
+answered: body?.isBot === true && body?.answered === false ? false : undefined
+```
+
+Y el relay del backend mandaba `sid`, `callId`, `durationSecs`, `hasRecording` y
+`answered` — **`isBot` no**. Así que esa condición era falsa siempre, `answered`
+llegaba como «no se sabe», y el resultado **«No contesta» de una llamada del bot
+no se marcaba jamás**: la tarjeta se quedaba en «Marcar resultado» como si nadie
+la hubiera atendido.
+
+**Ese relay no decide nada: pasa el recado ENTERO.** Si se añade otro campo al
+aviso de fin, va igual.
+
+### Y la tarjeta no puede deducir el estado de dos booleanos
+
+`hasRecording && !transcript` solo produce «Procesando…», también media hora
+después de haber abandonado: una llamada que se está transcribiendo ahora y una
+que ya no va a salir se veían **idénticas**, y la segunda no volvía a cambiar.
+
+Lo decide `loQueSeEnsenaDeLaLlamada` (puro, en
+`lib/transcripcion-de-la-llamada.ts`), con los cuatro estados que de verdad
+existen —cada uno lleva a una acción distinta: esperar, recargar, reintentar o
+nada— y **el motivo manda sobre «cargando»**: enseñar «Cargando…» sobre algo
+que ya se sabe que falló insinúa que todavía puede salir. Con un motivo escrito,
+el diálogo además **deja de sondear**: seguir preguntando sería pedir quince
+veces lo que la fila ya contestó.
+
+Lo prueban `scripts/banco-grabacion-de-llamada.sh` (sección I: la vacía deja su
+motivo y se reintenta, el reintento completa la llamada, lo firme se para y una
+marca rota no pinta ningún error; `MODO=roto` lleva escrito literal el guardado
+de antes y **afirma el fallo** —la vacía dada por buena, el bucle parándose y la
+fila sin motivo—) y `scripts/banco-voicebot.sh` en el backend, que encadena el
+relay con la regla de la App: sin `isBot`, «No contesta» no se puede marcar.
 
 ## Mudar un servicio de servidor: el certificado va DESPUÉS del DNS, y no se reintenta solo
 
@@ -16883,6 +17154,120 @@ vacío recibe el global y la cuenta con el campo lleno recibe el suyo; su
 `MODO=roto` lleva la llamada de antes y afirma que la cuenta llena recibía el
 global— y `scripts/banco-prompt-maestro.sh` aquí, con las acciones de verdad y
 su puerta.
+
+## AI imágenes: el COPY sale de la RED de la vista previa, y se escribe con la misma clave
+
+La pantalla generaba la imagen del producto y **el texto del post había que
+escribirlo a mano**. Lo que faltaba no era otra pantalla: era el texto, y el
+texto no es el mismo en las tres redes.
+
+> **La red sale del FORMATO de la vista previa, no de un mando nuevo.** `1:1` es
+> un post de Instagram, `9:16` una historia de WhatsApp y `16:9` un post de
+> Facebook — que es lo que `AD_FORMATS` ya dice en esa pantalla. Con un segundo
+> selector, la imagen se vería en un formato y el copy hablaría de otra red, y
+> eso no se lee como un error: se lee como un texto que no pega con lo que hay
+> encima.
+
+Lo decide `lib/copy-del-anuncio.ts`, **puro**, y lo pide
+`generarCopyDelAnuncio` en `actions/ai-image-actions.ts`, con
+`getGeminiApiKey()` — **la misma clave que el diálogo de esa pantalla ya
+guarda**: ni una variable de entorno, ni una segunda credencial que configurar.
+
+### Y lo que una red no soporta se QUITA al leer, no solo se pide en el prompt
+
+WhatsApp **no indexa hashtags**: ahí son texto muerto con una almohadilla
+delante. Pedirle al modelo que no los ponga es una instrucción que a veces se
+ignora, y «casi siempre» no basta — el copy de una historia sale con seis
+etiquetas que no llevan a ninguna parte. Se pide **y** se comprueba
+(`comoSeLeeElCopy`).
+
+Y la condición del hashtag no es la almohadilla: es **la almohadilla con al
+menos una letra detrás**. Sin ella, limpiar una historia se llevaría por delante
+el «#1» de «el #1 en ventas», que no es una etiqueta — es parte de la frase.
+
+Instagram lleva hasta 6, Facebook 2 —ahí casi nadie los usa— y **WhatsApp cero,
+que es una decisión y no un olvido**. El llamado a la acción, en cambio, va en
+las tres.
+
+### El texto habla de la IMAGEN, así que la imagen viaja en la petición
+
+La imagen ya generada va dentro de la llamada. Sin ella, dos productos distintos
+con la misma plantilla darían el mismo texto.
+
+Y **el modelo del copy NO es el del paso «Motor»**: aquellos son generadores de
+imagen y no devuelven texto. `MODELO_DEL_COPY` es el de texto de la misma
+familia, escrito en un solo sitio y comprobado por el banco: si alguien pone ahí
+uno con `image` en el nombre, se pone rojo.
+
+### Un fallo del texto no puede tumbar la tanda de imágenes
+
+`generarCopyDelAnuncio` **devuelve un resultado, no lanza**. Corre detrás de la
+imagen, que es lo que de verdad se vino a generar. Pero **no es mudo**: el
+motivo baja al panel y se queda ahí —debajo, no en un aviso que se va— porque
+quien vuelve un minuto después tiene que poder saber por qué no hay texto.
+
+Cinco cosas más que hay que mantener:
+
+1. **La llave de la vista se escribe en UN sitio** (`laLlaveDeLaVista`). El copy
+   y su imagen comparten llave: con dos formas de construirla, el panel
+   enseñaría el texto de otra vista sin dar ningún error. El banco falla si el
+   hook vuelve a montarla a mano.
+2. **Por qué falló Gemini lo lee UNA función** (`porQueFalloGemini`), y la usan
+   el ciclo de imágenes y el del copy. Con la lista de rechazos copiada en dos
+   sitios, uno de los dos acabaría diciendo «error desconocido» sobre una clave
+   caducada. Al extraerla salió un fallo que ya estaba: **el `catch` del ciclo
+   de imágenes se rendía en silencio** cuando el error no encajaba en ninguno de
+   sus tres casos — la variante no salía y en pantalla no había nada que mirar.
+   Ahora lo desconocido también se dice.
+3. **El copy se pide DETRÁS de la imagen y solo si alguna salió**, y **una por
+   vista, no por variante**: el texto habla del producto y de la red, y esos no
+   cambian entre variantes de la misma imagen.
+4. **Los copies se reindexan igual que las imágenes** al quitar un producto
+   (`reindexarSinEl`, una función para los dos mapas). Si no, al quitar el
+   producto 1 el texto del 2 se quedaría debajo de la imagen del 3.
+5. **Lo editado a mano se guarda en SU vista.** Cambiar de red y volver lo
+   conserva; sin eso, el trabajo de escribirlo se tiraría sin decir nada.
+
+Y copiar al portapapeles va en su `try`: en un origen sin HTTPS
+`navigator.clipboard` lanza, y **un botón que da error al pulsarlo es peor que
+no tenerlo** — se dice qué hacer (seleccionar y Ctrl+C) en vez de fallar callado.
+
+### Los bancos, y por qué son dos
+
+- `scripts/banco-copy-del-anuncio.sh` — la decisión pura y un barrido, más las
+  **acciones de verdad contra Postgres**: que la clave que llega a Google es la
+  que esa pantalla guardó —el entorno lleva a propósito una clave que canta,
+  para que caerse a ella se vea—, que la imagen viaja dentro, y que un fallo
+  vuelve con su motivo en vez de lanzar.
+- `scripts/banco-copy-en-la-pantalla.sh` — el `AdGeneratorStudio` de VERDAD en
+  Chromium: se sube un producto, se pulsa «Generar imagen», y se comprueba que
+  el texto aparece junto a la previa, que sigue al formato que se elige ahí, que
+  lo editado se conserva al cambiar de red y volver, que regenerar lo cambia,
+  que copiar deja el portapapeles puesto, y que la previa no se queda sin sitio
+  a 1440/1280/1024/390.
+
+La segunda tiene que ser en navegador: **«¿el texto que se ve es el de la imagen
+que se ve?» depende de que las dos llaves sean la misma**, y un barrido leería
+dos funciones correctas.
+
+Los dos modos rotos van **pinchados a un commit**, nunca a `origin/main`, y
+afirman el fallo: no había módulo, ni acción, ni panel. Comprobado además lo
+único que dice que un banco mira — quitándole el arreglo al modo bueno se pone
+en rojo: siete casos al deshacer las reglas de red, el aviso o la llamada, y los
+cinco del navegador al quitar el panel.
+
+Tres cosas del arnés de navegador que costaron su vuelta:
+
+1. **El botón de generar solo existe en el ÚLTIMO paso**, así que el banco
+   recorre el asistente como lo recorre una persona — y con «Siguiente», no por
+   el rótulo del paso: los de la barra van `hidden sm:block`, o sea que a 390 no
+   hay texto que pulsar.
+2. **`GoogleKeyDialog` usa `useRouter`**, que fuera de Next revienta al montar:
+   `window.listo` no llega nunca y lo único que se ve es un plazo agotado, que
+   no se parece en nada a su causa. Va aliasado a `next-navigation-mudo`.
+3. **Y la red se corta en el contexto.** Sin eso Chromium se queda esperando a
+   hosts de Google que la salida de este equipo deniega.
+
 
 # Pendientes
 

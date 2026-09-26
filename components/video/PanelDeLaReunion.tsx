@@ -8,12 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { TOPE_DEL_MENSAJE, comoSeGuardaElMensaje } from "@/lib/sala-de-video";
-import {
-    escribirEnLaReunionAction,
-    sacarDeLaSalaAction,
-    silenciarAAction,
-    type MensajeDeLaSala,
-} from "@/actions/salas-de-video-actions";
+import { escribirEnLaReunionAction, type MensajeDeLaSala } from "@/actions/salas-de-video-actions";
+import { losMandosDeModeracion } from "@/lib/moderar-en-la-sala";
+import type { QueSeModera } from "@/hooks/useModerarEnLaSala";
 
 /**
  * El panel de al lado: el chat de la reunión y la lista de gente.
@@ -58,6 +55,8 @@ export function PanelDeLaReunion({
     mensajes,
     gente,
     moderas,
+    moderar,
+    ocupadoCon,
     miId,
     alCerrar,
     pestana,
@@ -69,6 +68,17 @@ export function PanelDeLaReunion({
     gente: QuienEnElPanel[];
     /** Si puedo silenciar y sacar. Lo dice el servidor, no se calcula aquí. */
     moderas: boolean;
+    /**
+     * Moderar, por el MISMO camino que el menú del recuadro.
+     *
+     * Llega de fuera y no se monta aquí: con un `useModerarEnLaSala` propio
+     * serían dos estados de «hay algo en vuelo», y moderar desde el recuadro
+     * dejaría los botones de esta lista encendidos sobre alguien a quien ya se
+     * está sacando — o sea, un segundo clic que manda la misma orden otra vez.
+     */
+    moderar: (que: QueSeModera, quien: { id: string; nombre: string }) => void;
+    /** Sobre quién hay algo en vuelo, por su id. */
+    ocupadoCon: string | null;
     miId: string | null;
     /** Plegarlo: el video recupera el ancho y se recuerda que quedó plegado. */
     alCerrar: () => void;
@@ -104,7 +114,12 @@ export function PanelDeLaReunion({
             {pestana === "chat" ? (
                 <ElChat codigo={codigo} token={token} mensajes={mensajes} miId={miId} />
             ) : (
-                <LaGente codigo={codigo} gente={gente} moderas={moderas} />
+                <LaGente
+                    gente={gente}
+                    moderas={moderas}
+                    moderar={moderar}
+                    ocupadoCon={ocupadoCon}
+                />
             )}
         </div>
     );
@@ -258,18 +273,27 @@ function ElChat({
 }
 
 function LaGente({
-    codigo,
     gente,
     moderas,
+    moderar,
+    ocupadoCon,
 }: {
-    codigo: string;
     gente: QuienEnElPanel[];
     moderas: boolean;
+    moderar: (que: QueSeModera, quien: { id: string; nombre: string }) => void;
+    /** El id, no un booleano: apagar por persona y no la lista entera. */
+    ocupadoCon: string | null;
 }) {
     return (
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {gente.map((q) => (
-                <FilaDeGente key={q.id} quien={q} codigo={codigo} moderas={moderas} />
+                <FilaDeGente
+                    key={q.id}
+                    quien={q}
+                    moderas={moderas}
+                    moderar={moderar}
+                    ocupado={ocupadoCon === q.id}
+                />
             ))}
             {!moderas ? (
                 <p className="px-1 pt-3 text-[11px] leading-relaxed text-zinc-500">
@@ -282,49 +306,24 @@ function LaGente({
 
 function FilaDeGente({
     quien,
-    codigo,
     moderas,
+    moderar,
+    ocupado,
 }: {
     quien: QuienEnElPanel;
-    codigo: string;
     moderas: boolean;
+    moderar: (que: QueSeModera, quien: { id: string; nombre: string }) => void;
+    ocupado: boolean;
 }) {
-    const [ocupado, setOcupado] = useState(false);
-
-    /**
-     * Los dos botones de moderar, por el mismo camino.
-     *
-     * Con dos manejadores separados, el `try`/`catch` y el «no se pudo» se
-     * escriben dos veces — y el segundo se olvida, que es como se queda un
-     * botón que no dice por qué no hizo nada.
-     */
-    const hacer = useCallback(
-        async (que: "silenciar" | "sacar") => {
-            if (ocupado) return;
-            setOcupado(true);
-            try {
-                const res =
-                    que === "silenciar"
-                        ? await silenciarAAction({ codigo, participanteId: quien.id })
-                        : await sacarDeLaSalaAction({ codigo, participanteId: quien.id });
-                if (!res.success) toast.error(res.message);
-                else if (que === "silenciar") {
-                    // Se dice que la orden salió, porque **no es un
-                    // interruptor**: entre pulsar y que esa persona se calle
-                    // pasa una vuelta de su reloj. Sin este aviso, el botón
-                    // parece no hacer nada durante dos segundos y se pulsa otra
-                    // vez.
-                    toast.success(`Se le pidió a ${quien.nombre} que silencie su micrófono.`);
-                }
-            } catch (error) {
-                console.warn("[sala] no se pudo moderar", { que, error });
-                toast.error("No se pudo. Inténtalo otra vez.");
-            } finally {
-                setOcupado(false);
-            }
-        },
-        [codigo, ocupado, quien.id, quien.nombre],
-    );
+    // La MISMA decisión que pinta el menú del recuadro. Escrita otra vez aquí
+    // —«moderas && !soyYo && micEncendido»— serían dos, y el día que se afine
+    // una este sitio ofrecería otra cosa que el otro.
+    const mandos = losMandosDeModeracion({
+        moderas,
+        soyYo: quien.soyYo,
+        micEncendido: quien.micEncendido,
+        nombre: quien.nombre,
+    });
 
     return (
         <div className="flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-zinc-800/60">
@@ -345,23 +344,20 @@ function FilaDeGente({
             ) : null}
             {/* Los botones solo para quien modera Y sobre otra persona. Sobre
                 uno mismo no se pintan: silenciarse tiene su propio botón —y ese
-                sí apaga la pista de verdad— y sacarse a uno mismo es colgar. */}
-            {moderas && !quien.soyYo ? (
+                sí apaga la pista de verdad— y sacarse a uno mismo es colgar.
+                Lo decide `losMandosDeModeracion`, no una condición de aquí. */}
+            {mandos.hayMenu ? (
                 <>
                     <Button
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 shrink-0 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
-                        onClick={() => void hacer("silenciar")}
-                        disabled={ocupado || !quien.micEncendido}
+                        onClick={() => moderar("silenciar", quien)}
+                        disabled={ocupado || !mandos.silenciar.puede}
                         // Y se dice POR QUÉ está apagado: un botón gris sin
                         // explicación se lee como que la App está rota.
-                        title={
-                            quien.micEncendido
-                                ? `Pedirle a ${quien.nombre} que se silencie`
-                                : "Ya tiene el micrófono apagado"
-                        }
-                        aria-label={`Pedirle a ${quien.nombre} que se silencie`}
+                        title={mandos.silenciar.porQue}
+                        aria-label={mandos.silenciar.porQue}
                     >
                         <MicOff className="h-3.5 w-3.5" />
                     </Button>
@@ -369,10 +365,10 @@ function FilaDeGente({
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 shrink-0 text-zinc-400 hover:bg-red-600 hover:text-white"
-                        onClick={() => void hacer("sacar")}
-                        disabled={ocupado}
-                        title={`Sacar a ${quien.nombre} de la reunión`}
-                        aria-label={`Sacar a ${quien.nombre} de la reunión`}
+                        onClick={() => moderar("sacar", quien)}
+                        disabled={ocupado || !mandos.sacar.puede}
+                        title={mandos.sacar.porQue}
+                        aria-label={mandos.sacar.porQue}
                     >
                         <UserX className="h-3.5 w-3.5" />
                     </Button>

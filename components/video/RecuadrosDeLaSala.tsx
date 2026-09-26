@@ -1,11 +1,20 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Hand, Loader2, MicOff, MonitorUp } from "lucide-react";
+import { Hand, Loader2, MicOff, MonitorUp, MoreVertical, UserX } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { laRejilla, lasIniciales } from "@/lib/sala-de-video";
 import { laTiraDeMiniaturas } from "@/lib/voz-activa";
+import type { MandosDeModeracion } from "@/lib/moderar-en-la-sala";
+import type { QueSeModera } from "@/hooks/useModerarEnLaSala";
 
 /**
  * Los recuadros de una reunión, en sus dos repartos.
@@ -76,12 +85,41 @@ export type LoQueSePinta = {
     reconectando?: boolean;
 };
 
+/**
+ * Los mandos de moderar, ya decididos, para pintarlos SOBRE cada persona.
+ *
+ * Llegan hechos y no se calculan aquí a propósito. Este componente no sabe
+ * —ni tiene por qué— quién modera, cómo se llama cada uno sin sus adornos
+ * («· invitado», «(tú)», que el pie sí pinta) ni qué rechaza el servidor. Todo
+ * eso lo contesta `losMandosDeModeracion`, en un solo sitio, y de ahí salen
+ * **los dos** puntos que ofrecen estos mandos: el recuadro y la lista de gente
+ * del panel. Con la decisión escrita también aquí serían dos, y el día que se
+ * afine una el otro sitio ofrecería otra cosa.
+ */
+/** Lo de UNA persona, ya resuelto por el reparto. Ver `mandosDe`. */
+export type MandosDelRecuadro = {
+    mandos: MandosDeModeracion;
+    /** Si hay algo en vuelo sobre ESTA persona. */
+    ocupado: boolean;
+    hacer: (que: QueSeModera) => void;
+};
+
+export type ModeracionDeLosRecuadros = {
+    /** Qué se le puede hacer a cada persona, por su id. Sin entrada, nada. */
+    mandos: Record<string, MandosDeModeracion>;
+    /** Hacerlo. El camino es uno: `useModerarEnLaSala`. */
+    moderar: (que: QueSeModera, id: string) => void;
+    /** Sobre quién hay algo en vuelo, para apagar solo sus botones. */
+    ocupadoCon: string | null;
+};
+
 export function RecuadrosDeLaSala({
     gente,
     distribucion,
     enGrande,
     tiraPlegada = false,
     className,
+    moderacion,
 }: {
     gente: LoQueSePinta[];
     distribucion: "orador" | "cuadricula";
@@ -97,6 +135,11 @@ export function RecuadrosDeLaSala({
      */
     tiraPlegada?: boolean;
     className?: string;
+    /**
+     * Los mandos de moderar. Sin esto no se pinta ninguno, que es el caso de
+     * todo el mundo menos quien organiza la reunión.
+     */
+    moderacion?: ModeracionDeLosRecuadros;
 }) {
     // El sonido va SIEMPRE por el pool, monte donde monte el reparto de abajo su
     // `<video>`. Es lo primero que se pinta y con `key` estable, así que ningún
@@ -105,13 +148,38 @@ export function RecuadrosDeLaSala({
         <>
             <PoolDeAudioDeLaSala gente={gente} />
             {distribucion === "cuadricula" || gente.length <= 1
-                ? repartoEnCuadricula(gente, className)
-                : repartoDeOrador(gente, enGrande, tiraPlegada, className)}
+                ? repartoEnCuadricula(gente, className, moderacion)
+                : repartoDeOrador(gente, enGrande, tiraPlegada, className, moderacion)}
         </>
     );
 }
 
-function repartoEnCuadricula(gente: LoQueSePinta[], className?: string) {
+/**
+ * Lo que este recuadro puede ofrecer, ya resuelto.
+ *
+ * Se resuelve **aquí**, en el reparto, y no dentro del `Recuadro`: así el
+ * recuadro no tiene que conocer el mapa entero ni el id de nadie más, y sigue
+ * siendo lo que era —una caja que pinta a una persona—.
+ */
+function mandosDe(
+    id: string,
+    moderacion?: ModeracionDeLosRecuadros,
+): MandosDelRecuadro | undefined {
+    if (!moderacion) return undefined;
+    const mandos = moderacion.mandos[id];
+    if (!mandos?.hayMenu) return undefined;
+    return {
+        mandos,
+        ocupado: moderacion.ocupadoCon === id,
+        hacer: (que: QueSeModera) => moderacion.moderar(que, id),
+    };
+}
+
+function repartoEnCuadricula(
+    gente: LoQueSePinta[],
+    className?: string,
+    moderacion?: ModeracionDeLosRecuadros,
+) {
     return (
         // `overflow-hidden` y no `overflow-y-auto`: la rejilla tiene que
         // CABER. Una videollamada en la que hay que bajar para ver al
@@ -127,7 +195,12 @@ function repartoEnCuadricula(gente: LoQueSePinta[], className?: string) {
                     // ni borde ni esquinas: un marco redondeado a sangre
                     // deja cuatro muescas del fondo en las esquinas y se
                     // lee como que el video no llega al borde.
-                    <Recuadro key={g.id} {...g} sinMarco={gente.length <= 1} />
+                    <Recuadro
+                        key={g.id}
+                        {...g}
+                        sinMarco={gente.length <= 1}
+                        moderar={mandosDe(g.id, moderacion)}
+                    />
                 ))}
             </div>
         </div>
@@ -139,6 +212,7 @@ function repartoDeOrador(
     enGrande: string | null,
     tiraPlegada: boolean,
     className?: string,
+    moderacion?: ModeracionDeLosRecuadros,
 ) {
     // Quien va en grande, y los demás en la tira. Si el elegido ya no está
     // —se fue entre dos vueltas— se cae al primero en vez de dejar el hueco
@@ -160,7 +234,7 @@ function repartoDeOrador(
                 encoger a su hijo por debajo de su contenido y el recuadro
                 grande empuja la tira fuera de la caja. */}
             <div className="min-h-0 min-w-0 flex-1">
-                <Recuadro {...grande} grande />
+                <Recuadro {...grande} grande moderar={mandosDe(grande.id, moderacion)} />
             </div>
             <div
                 className={cn(
@@ -187,7 +261,14 @@ function repartoDeOrador(
                         // reparten el ancho y salen como rendijas.
                         className="h-full w-28 shrink-0 sm:h-24 sm:w-full"
                     >
-                        <Recuadro {...g} />
+                        {/* El menú también en la tira, y no solo en el
+                            grande: en la vista de orador —la de por defecto—
+                            casi todo el mundo está AQUÍ, así que un menú que
+                            solo saliera en el recuadro grande obligaría a
+                            esperar a que esa persona hablara para poder
+                            moderarla. Cabe: son 24 px en una miniatura de
+                            112. */}
+                        <Recuadro {...g} moderar={mandosDe(g.id, moderacion)} />
                     </div>
                 ))}
             </div>
@@ -269,7 +350,13 @@ export function Recuadro({
     reconectando = false,
     grande = false,
     sinMarco = false,
-}: LoQueSePinta & { grande?: boolean; sinMarco?: boolean }) {
+    moderar,
+}: LoQueSePinta & {
+    grande?: boolean;
+    sinMarco?: boolean;
+    /** Sin esto no se pinta ningún mando. Lo resuelve `mandosDe`. */
+    moderar?: MandosDelRecuadro;
+}) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
     useEffect(() => {
@@ -377,6 +464,27 @@ export function Recuadro({
                 acompaña. Es `shrink-0` y solo aparece cuando la mano está
                 levantada —raro—, así que como mucho recorta un poco el nombre en
                 una miniatura, que es lo que antes se evitaba sacándola del pie. */}
+            {/* Los mandos de moderar, arriba a la derecha.
+
+                **Dónde van y con qué `z` está MEDIDO, no elegido**, y las dos
+                mitades hacen falta. La reunión tiene dos barras flotando
+                `absolute z-20` ENCIMA de los recuadros —la cabecera arriba y
+                los mandos abajo, 352 px centrados—, así que un botón puede
+                estar perfectamente pintado y **debajo de otra cosa**:
+
+                  - en el pie lo tapa la barra de mandos, en los recuadros de
+                    la fila de abajo cuyo extremo derecho cae en el centro;
+                  - arriba a la derecha lo tapan los mandos de la cabecera, en
+                    el recuadro que toca esa esquina.
+
+                Las dos las cazó el banco con `elementFromPoint`, que es lo
+                único que sabe qué hay de verdad en un punto. Lo que lo
+                resuelve es el **`z-30`**: ni el recuadro (`relative` sin `z`)
+                ni la rejilla crean contexto de apilamiento, así que el botón
+                compite DIRECTAMENTE con las barras y les gana. Bajarlo a `z-10`
+                —que es lo que se escribe solo— lo devuelve debajo de las dos. */}
+            {moderar ? <MenuDeModeracion nombre={nombre} {...moderar} /> : null}
+
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
                 {manoLevantada ? (
                     <span
@@ -396,5 +504,72 @@ export function Recuadro({
                 ) : null}
             </div>
         </div>
+    );
+}
+
+/**
+ * Silenciar y sacar, sobre el recuadro de la persona.
+ *
+ * Un menú y no dos botones sueltos: son dos acciones que se usan de vez en
+ * cuando y cada botón con su icono le quita ancho al nombre en una miniatura
+ * de 112 px, que es donde va más justo. Es el mismo reparto que el «⋯» del
+ * resto del producto — lo que se usa a diario se ve sin desplegar nada, lo
+ * demás va dentro.
+ *
+ * **Y el mismo camino que la lista de gente del panel.** Aquí no se decide qué
+ * se ofrece ni se llama a ninguna acción: lo uno lo contesta
+ * `losMandosDeModeracion` y lo otro `useModerarEnLaSala`, los dos una sola vez.
+ */
+function MenuDeModeracion({
+    nombre,
+    mandos,
+    ocupado,
+    hacer,
+}: MandosDelRecuadro & { nombre: string }) {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    // Siempre visible, no solo al pasar el cursor: en un táctil
+                    // no hay cursor que pasar, y entonces no habría forma de
+                    // llegar a él.
+                    //
+                    // Con su propio fondo: flota sobre la imagen, y un icono
+                    // claro sobre una cara clara no se ve.
+                    className="absolute right-1 top-1 z-30 h-6 w-6 rounded-full bg-black/60 text-zinc-100 hover:bg-black/80 hover:text-white"
+                    disabled={ocupado}
+                    aria-label={`Moderar a ${nombre}`}
+                    title={`Moderar a ${nombre}`}
+                >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+            </DropdownMenuTrigger>
+            {/* Alineado al final y hacia arriba: el pie está abajo del todo, y
+                un menú que se abriera hacia abajo se saldría de la caja del
+                video. */}
+            <DropdownMenuContent align="end" side="top" className="w-56">
+                <DropdownMenuItem
+                    disabled={!mandos.silenciar.puede}
+                    onSelect={() => hacer("silenciar")}
+                >
+                    <MicOff className="mr-2 h-4 w-4" />
+                    {/* El rótulo dice lo que HACE, no «silenciar» a secas: no
+                        le apaga el micro desde aquí —el servidor no tiene
+                        ninguna pista que tocar—, le deja una orden que su
+                        navegador obedece en su siguiente vuelta. */}
+                    Pedirle que se silencie
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    disabled={!mandos.sacar.puede}
+                    onSelect={() => hacer("sacar")}
+                    className="text-red-600 focus:text-red-600"
+                >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Sacar de la reunión
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

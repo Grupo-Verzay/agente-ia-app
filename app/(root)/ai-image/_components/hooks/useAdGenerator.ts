@@ -1,7 +1,13 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { deleteUserVisualStyle, generateAdImage, saveUserVisualStyle } from '@/actions/ai-image-actions'
+import {
+  deleteUserVisualStyle,
+  generarCopyDelAnuncio,
+  generateAdImage,
+  saveUserVisualStyle,
+} from '@/actions/ai-image-actions'
+import { laLlaveDeLaVista, porQueFalloGemini } from '@/lib/copy-del-anuncio'
 import {
   AD_FORMATS,
   DEFAULT_STYLES,
@@ -15,10 +21,21 @@ import type { AdFormat, CustomStyle, StudioStepId } from '../ad-generator.types'
 // Record<imageIndex, Record<"templateId_formatId", string[]>>
 type GeneratedImages = Record<number, Record<string, string[]>>
 
+// El copy vive en la MISMA llave que su imagen: una por producto y vista, no
+// una por variante — el texto habla del producto y de la red, y esos no cambian
+// entre variantes de la misma imagen.
+type CopiesGenerados = Record<number, Record<string, string>>
+
+/** Para los avisos y el «generando»: el producto y su vista, en una cadena. */
+const llaveDelAviso = (imageIndex: number, vista: string) => `${imageIndex}|${vista}`
+
 export const useAdGenerator = (initialDbStyles: { id: string; name: string; description: string }[] = []) => {
   const [activeStep, setActiveStep] = useState<StudioStepId>('images')
   const [sourceImages, setSourceImages] = useState<string[]>([])
   const [generatedImages, setGeneratedImages] = useState<GeneratedImages>({})
+  const [copies, setCopies] = useState<CopiesGenerados>({})
+  const [copyEnMarcha, setCopyEnMarcha] = useState<string | null>(null)
+  const [copyErrores, setCopyErrores] = useState<Record<string, string>>({})
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLandingKitMode, setIsLandingKitMode] = useState(false)
   const [includeText, setIncludeText] = useState(false)
@@ -45,6 +62,17 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
   const [newStyleDesc, setNewStyleDesc] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  /** Quita un producto del mapa y corre los de detrás, conservando sus vistas. */
+  const reindexarSinEl = <T,>(mapa: Record<number, T>, index: number): Record<number, T> => {
+    const next: Record<number, T> = {}
+    Object.entries(mapa).forEach(([key, value]) => {
+      const imageIndex = Number(key)
+      if (imageIndex < index) { next[imageIndex] = value; return }
+      if (imageIndex > index) { next[imageIndex - 1] = value }
+    })
+    return next
+  }
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
@@ -83,10 +111,17 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
   const canGenerate = sourceImages.length > 0 && !isGenerating
 
   const previewFormat: AdFormat = isLandingKitMode ? '1:1' : activeFormat
-  const currentKey = `${isLandingKitMode ? activeTemplate : selectedTemplate}_${previewFormat}`
+  const previewTemplate = isLandingKitMode ? activeTemplate : selectedTemplate
+  const currentKey = laLlaveDeLaVista(previewTemplate, previewFormat)
   const currentVariants = generatedImages[activeImageIndex]?.[currentKey] ?? []
   const safeVariant = Math.min(activeVariant, Math.max(0, currentVariants.length - 1))
   const currentPreview = currentVariants[safeVariant]
+
+  // El copy que se ve es el de la vista que se ve: misma llave que la imagen.
+  const llaveDeEsteAviso = llaveDelAviso(activeImageIndex, currentKey)
+  const currentCopy = copies[activeImageIndex]?.[currentKey] ?? ''
+  const isGeneratingCopy = copyEnMarcha === llaveDeEsteAviso
+  const copyError = copyErrores[llaveDeEsteAviso] ?? null
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -125,15 +160,14 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
       return next
     })
 
-    setGeneratedImages((prev) => {
-      const next: GeneratedImages = {}
-      Object.entries(prev).forEach(([key, value]) => {
-        const imageIndex = Number(key)
-        if (imageIndex < index) { next[imageIndex] = value; return }
-        if (imageIndex > index) { next[imageIndex - 1] = value }
-      })
-      return next
-    })
+    setGeneratedImages((prev) => reindexarSinEl(prev, index))
+    // Los copies se corren IGUAL que las imágenes: si no, al quitar el producto
+    // 1 el texto del 2 se quedaría debajo de la imagen del 3.
+    setCopies((prev) => reindexarSinEl(prev, index))
+    // Los avisos llevan el índice del producto dentro de su llave, así que
+    // después de correrlos apuntarían al de al lado: se vacían. Un aviso que
+    // se va no pierde nada — vuelve a salir al reintentar.
+    setCopyErrores({})
   }
 
   const addCustomStyle = async () => {
@@ -160,6 +194,74 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
     if (selectedStyleId === id) setSelectedStyleId(DEFAULT_STYLES[0].id)
   }
 
+  /**
+   * Pide el texto del post de una vista ya generada.
+   *
+   * Es UNA función y la llaman los dos caminos —la tanda y el botón de volver a
+   * generar—: con dos, el copy de la tanda y el de regenerar podrían pedirse
+   * con datos distintos y el texto cambiaría de tono sin que nadie lo pidiera.
+   *
+   * No lanza nunca: esto corre detrás de la imagen, y un fallo del texto no
+   * puede tumbar la tanda que ya la generó.
+   */
+  const pedirElCopy = async (imageIndex: number, templateId: string, formatId: AdFormat, imagen: string) => {
+    const vista = laLlaveDeLaVista(templateId, formatId)
+    const aviso = llaveDelAviso(imageIndex, vista)
+    const plantilla = MARKETING_TEMPLATES.find((t) => t.id === templateId)
+    const styleDesc = customStyles.find((s) => s.id === selectedStyleId)?.description ?? ''
+
+    setCopyEnMarcha(aviso)
+    setCopyErrores((prev) => {
+      const next = { ...prev }
+      delete next[aviso]
+      return next
+    })
+
+    try {
+      const resultado = await generarCopyDelAnuncio(
+        imagen,
+        formatId,
+        plantilla ? `${plantilla.name} — ${plantilla.description}` : undefined,
+        styleDesc,
+        customPrompt,
+        visualDNA
+      )
+
+      if (resultado.ok && resultado.copy) {
+        setCopies((prev) => ({
+          ...prev,
+          [imageIndex]: { ...(prev[imageIndex] ?? {}), [vista]: resultado.copy as string },
+        }))
+        return true
+      }
+
+      // Un copy que no sale sin decir por qué se lee como que la función no
+      // existe: el motivo se queda debajo del panel, no en un aviso que se va.
+      setCopyErrores((prev) => ({ ...prev, [aviso]: resultado.motivo ?? 'No se pudo generar el texto.' }))
+      return false
+    } catch (err) {
+      console.error('[ai-image] fallo al pedir el copy', err)
+      setCopyErrores((prev) => ({ ...prev, [aviso]: porQueFalloGemini(err).mensaje }))
+      return false
+    } finally {
+      setCopyEnMarcha(null)
+    }
+  }
+
+  /** El botón de volver a generar: la vista que se tiene delante. */
+  const regenerarElCopy = async () => {
+    if (!currentPreview || isGeneratingCopy) return
+    await pedirElCopy(activeImageIndex, previewTemplate, previewFormat, currentPreview)
+  }
+
+  /** La edición a mano se guarda en su vista: cambiar de red y volver la conserva. */
+  const editarElCopy = (texto: string) => {
+    setCopies((prev) => ({
+      ...prev,
+      [activeImageIndex]: { ...(prev[activeImageIndex] ?? {}), [currentKey]: texto },
+    }))
+  }
+
   const handleGenerateAll = async () => {
     if (sourceImages.length === 0) return
     setIsGenerating(true)
@@ -180,7 +282,7 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
 
         for (const templateId of templatesToGen) {
           for (const formatId of formatsToGen as AdFormat[]) {
-            const key = `${templateId}_${formatId}`
+            const key = laLlaveDeLaVista(templateId, formatId)
             newGenerated[i][key] = []
 
             for (let v = 0; v < imageCount; v++) {
@@ -205,29 +307,29 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
                 setGeneratedImages({ ...newGenerated })
               } catch (err: unknown) {
                 console.error(`Error generating image ${i} key ${key} variant ${v}:`, err)
-                const message = String((err as Error)?.message ?? '').toLowerCase()
+                // Por qué falló Gemini lo lee UNA función, la misma que usa el
+                // copy: con la lista de rechazos copiada en dos sitios, uno de
+                // los dos acabaría diciendo «error desconocido» sobre una clave
+                // caducada.
+                const { causa, mensaje, detiene } = porQueFalloGemini(err)
 
-                if (message.includes('falta la api key de gemini')) {
-                  setError('No tienes una API key de Google configurada. Ve a Mi Perfil para agregarla.')
+                if (detiene) {
+                  setError(causa === 'cuota' ? `${mensaje} Se generaron algunas imágenes.` : mensaje)
                   setIsGenerating(false)
                   return
                 }
-                if (
-                  message.includes('permission_denied') ||
-                  message.includes('unregistered callers') ||
-                  message.includes('api key should be set')
-                ) {
-                  setError('Google rechazó la API key. Verifica que sea válida en Mi Perfil → Configurar proveedor.')
-                  setIsGenerating(false)
-                  return
-                }
-                if (message.includes('429') || message.includes('quota')) {
-                  setError('Limite de cuota alcanzado. Se generaron algunas imagenes.')
-                  setIsGenerating(false)
-                  return
-                }
+                // Lo que no se reconoce ya NO es mudo: antes este `catch` se
+                // acababa aquí sin escribir nada, así que la variante no salía
+                // y en pantalla no había ni un aviso que mirar.
+                setError(mensaje)
               }
             }
+
+            // El copy va DETRÁS de la imagen y solo si alguna salió: sin imagen
+            // no hay de qué hablar, y pedirlo igual gastaría una llamada para
+            // devolver un texto que no acompaña a nada.
+            const primera = newGenerated[i][key][0]
+            if (primera) await pedirElCopy(i, templateId, formatId, primera)
           }
         }
       }
@@ -240,7 +342,7 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
   }
 
   const downloadImage = (imageIndex: number, templateId: string, formatId: AdFormat, variantIndex?: number) => {
-    const key = `${templateId}_${formatId}`
+    const key = laLlaveDeLaVista(templateId, formatId)
     const variants = generatedImages[imageIndex]?.[key]
     const img = variants?.[variantIndex ?? safeVariant]
     if (!img) return
@@ -313,15 +415,22 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
     canMoveForward,
     canGenerate,
     previewFormat,
+    previewTemplate,
     currentPreview,
     currentVariants,
     safeVariant,
+    // El copy de la vista que se ve
+    currentCopy,
+    isGeneratingCopy,
+    copyError,
     // Handlers
     handleImageUpload,
     removeImage,
     addCustomStyle,
     deleteCustomStyle,
     handleGenerateAll,
+    regenerarElCopy,
+    editarElCopy,
     downloadImage,
     goToPreviousStep,
     goToNextStep,
