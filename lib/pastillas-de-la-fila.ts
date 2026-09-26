@@ -144,3 +144,25 @@ export const CIRCULO_DEL_ASESOR = "h-6 w-6";
  * ser una más.
  */
 export const PASTILLA_DE_TEXTO = `${FORMA_DE_LA_PASTILLA} gap-1 border text-xs font-medium ${RELLENO_DE_PX_2}`;
+
+/**
+ * El DISPARADOR de una pastilla que abre un menú.
+ *
+ * Tres pastillas de la fila abren menú —la calificación, la etapa y el
+ * asesor— y dos de ellas SON el botón: `PastillaDeEtapa` y
+ * `AdvisorAssignBadge` se pintan con `h-6` y ya está. La calificación no: su
+ * disparador era un `h-7` envolviendo un badge de `h-6`, o sea 2 px muertos
+ * por arriba y por abajo.
+ *
+ * Eso no se ve como una pastilla descuadrada —va centrada— pero **estira la
+ * fila entera**: medido, una fila con calificación medía 96 px y la misma sin
+ * ella 92. Cuatro píxeles que cambian según el lead esté calificado o no, en
+ * una lista donde cada fila lleva al lado otra que no lo está. Y la bandeja
+ * estima el alto de sus filas con un número fijo para virtualizar, así que un
+ * alto que varía le descuadra además la ventana.
+ *
+ * El disparador mide lo que la pastilla que lleva dentro. El área de pulsación
+ * que se pierde son 2 px por lado de una caja de 24: el resto de la fila lleva
+ * años así.
+ */
+export const DISPARADOR_DE_LA_PASTILLA = "inline-flex h-6 shrink-0 items-center";
