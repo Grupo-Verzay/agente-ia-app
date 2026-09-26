@@ -2,7 +2,31 @@
 
 import { Bot, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BOTON_DEL_BORDE, GLIFO_DEL_BOTON_DEL_BORDE } from "@/lib/botones-del-borde";
 
+/**
+ * El botón del copiloto: **el EJE** de la columna del borde derecho.
+ *
+ * # Ya no trae su posición, y eso es el arreglo
+ *
+ * Traía `fixed right-0 top-1/2 -translate-y-1/2` de fábrica más su copia para
+ * `max-sm:`, y quien lo montaba en la columna se lo tenía que deshacer con
+ * `static right-auto top-auto translate-y-0 max-sm:...`. Una clase que se pone
+ * para quitarla es una clase que el día que se afine deja de quitarse entera.
+ * La posición la pone la columna (`lib/botones-del-borde.ts`), que es la que
+ * sabe cuántos botones hay y cuál va centrado.
+ *
+ * # Y la forma tampoco es suya
+ *
+ * Los 36 px y la media luna contra el borde estaban escritos aquí y otra vez en
+ * el del equipo, con un comentario que decía «si uno cambia, cambian los dos»
+ * —que es la forma de reconocer que el día que cambie uno el otro se queda—.
+ * Ahora son `BOTON_DEL_BORDE` y los tres la importan.
+ *
+ * Los 36 y no 48 siguen teniendo su motivo: va pegado al borde y por encima de
+ * todo, así que su alto es una franja donde no se puede pulsar lo que haya
+ * debajo — tapaba los tres puntos de las filas de Chats.
+ */
 export const ChatLauncher = ({
     open,
     onOpenChange,
@@ -21,20 +45,18 @@ export const ChatLauncher = ({
             aria-label={open ? "Cerrar copiloto" : "Abrir copiloto"}
             aria-controls={controlsId}
             aria-expanded={open}
+            data-boton-del-borde="copiloto"
             className={cn(
-                // Mide 36 y no 48. Va pegado al borde derecho y por encima de
-                // todo, asi que su alto es una franja donde no se puede pulsar
-                // lo que haya debajo: tapaba los tres puntos de acciones de los
-                // chats y habia que apuntar entre los dos. Doce pixeles menos
-                // de alto y de ancho quitan el estorbo sin que deje de verse.
-                "group fixed z-[60] flex h-9 w-9 items-center justify-center rounded-l-full border border-r-0 border-primary/25 bg-background text-primary shadow-lg shadow-black/10 transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                "right-0 top-1/2 -translate-y-1/2",
-                "max-sm:right-0 max-sm:top-1/2 max-sm:h-9 max-sm:w-9 max-sm:-translate-y-1/2 max-sm:rounded-l-full max-sm:border max-sm:border-r-0 max-sm:p-0",
+                BOTON_DEL_BORDE,
                 open && "bg-primary text-primary-foreground",
                 className,
             )}
         >
-            {open ? <X className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+            {open ? (
+                <X className={GLIFO_DEL_BOTON_DEL_BORDE} />
+            ) : (
+                <Bot className={GLIFO_DEL_BOTON_DEL_BORDE} />
+            )}
             <span className="sr-only">{open ? "Cerrar copiloto" : "Abrir copiloto"}</span>
         </button>
     );

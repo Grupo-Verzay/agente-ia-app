@@ -18,3 +18,10 @@ export function usePathname() {
 export function useSearchParams() {
     return new URLSearchParams();
 }
+/**
+ * Añadido para el banco de los botones del borde: el copiloto lo pide
+ * (`useChatContext`). Es aditivo — quien no lo importe no lo nota.
+ */
+export function useParams() {
+    return {} as Record<string, string | string[]>;
+}

@@ -504,8 +504,9 @@ export default async function RootGroupLayout({
                             </div>
                         </div>
                     </main>
-                    {/* El copiloto y el chat del equipo: una pareja de botones
-                        en el borde derecho, con su panel cada uno. */}
+                    {/* La nota rápida, el copiloto y el chat del equipo: tres
+                        botones en el borde derecho, con su panel cada uno y el
+                        copiloto centrado como eje. */}
                     <BotonesDelBorde
                         cuentaId={user.ownerId ?? user.id}
                         personaId={laPersonaQueActua(user).id}
