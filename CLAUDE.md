@@ -18690,6 +18690,113 @@ Dos cosas del propio banco que costaron su vuelta:
    está en `display:none`. Es el mismo error que ya costó una vuelta midiendo
    Macros.
 
+## Chats: los controles de la cabecera, a UNA separación; y la marca abre la fila
+
+Dos fallos de la misma cabecera, reportados juntos: el botón de la **etapa del
+embudo** separado del grupo por un hueco de más y pegado al de la ficha de
+contacto, y cada fila del desplegable de **Etiquetas** arrancando con un espacio
+de más antes de su icono.
+
+### 1. El hueco de más era el `gap-3` de la FILA asomando
+
+La fila de arriba son tres cosas: el bloque del contacto, la tira de controles
+que se desplaza, y la ficha de contacto —que va **fuera** de la tira a
+propósito, o con la conversación estrecha se iría por la derecha (#909)—. Así
+que el hueco entre controles salía de **dos** sitios: la tira lo declaraba
+(`gap-1.5`) y el de la tira a la ficha lo ponía el `gap-3` de la fila, que está
+ahí para despegar el bloque del contacto. Medido en Chromium sobre el CSS del
+build, con la cabecera real, a 1440, 1280 y 1024:
+
+```
+ 6 px  Llamar → asesor → recordatorio → cita → tarea → registros → contexto
+ 6 px  contexto → etapa → etiquetas
+12 px  etiquetas → ficha de contacto     ← el hueco de más
+```
+
+Nueve controles a 6 px y el último a 12. Y no estaba escrito como una decisión
+en ninguna parte: es el gap de la fila asomando por el **único** sitio donde la
+fila separa dos controles en vez de dos bloques.
+
+> **El hueco entre controles es UNO** (`HUECO_ENTRE_CONTROLES` /
+> `CLASE_HUECO_ENTRE_CONTROLES`, `lib/cabeceras-de-chats.ts`): la tira y la
+> ficha van dentro de una caja con ese hueco, y el `gap-3` de la fila se queda
+> para lo único que separa —el bloque del contacto de los controles—. **La ficha
+> sigue fuera de la tira**: lo que cambia es de quién hereda su hueco.
+
+Tres cosas que hay que mantener:
+
+1. **La etapa va ANTES de las etiquetas, en las DOS filas** —la de móvil y la de
+   escritorio—. Con el orden puesto en una sola, la misma cabecera ofrecería sus
+   controles en un orden distinto según la anchura.
+2. **En el móvil, `justify-start` y no `justify-between`.** Aquel reparte el
+   sobrante ENTRE los huecos, así que ninguno mide lo que declara el `gap` y no
+   todos miden lo mismo: medido, **6,7 y 6,6 px** en la misma fila. Es la familia
+   de *`justify-start` amontona TODO el sobrante en el último hueco*, por la otra
+   punta.
+3. **Y el número no se escribe en el componente.** Con el `gap` suelto en la
+   cabecera, el día que se afine el de `lib/` este se queda atrás y vuelve un
+   hueco que nadie declaró.
+
+### 2. La sangría de Etiquetas la metía un elemento INVISIBLE
+
+La fila abría con un `Check` de 16 px a `opacity-0` mientras esa etiqueta no
+estuviera asignada —y **un `opacity-0` no libera sitio: el hueco sigue ahí**—,
+así que con su `gap-2` detrás el icono empezaba 24 px más adentro que el punto de
+Etapas. Medido:
+
+| | la marca que se VE | el nombre |
+| --- | --- | --- |
+| Etiquetas (antes) | **40** px del borde del panel | **64** |
+| Etapas | 16 | 32 |
+
+**Y el banco de las filas (#920) no lo cazaba**, aunque mide exactamente ese
+sangrado: medía el primer **hijo** de la fila —que en Etiquetas es el envoltorio,
+y ese sí arrancaba en 16— y no la primera cosa que **se ve**. Un hueco que lo
+mete un elemento invisible no aparece leyendo el código ni midiendo la caja de la
+fila: aparece midiendo el glifo, y descartando lo que tiene `opacity: 0`.
+
+> **Los dos menús abren con la MISMA marca** (`MARCA_DE_LA_FILA`,
+> `lib/filas-de-los-menus.ts`): un punto de 8 px del color de lo que nombra la
+> fila —el de Etapas ya iba así—, así que la marca, el nombre y el hueco entre
+> los dos caen en el mismo píxel en los dos. Medido después: marca en 16 y nombre
+> en 32 en los dos, en 1440, 1280 y 1024.
+
+Cuatro cosas que hay que mantener:
+
+1. **El chulito no se fue: se movió al final**, pegado al contador
+   (`CHULITO_AL_FINAL`). Etiquetas es de selección **múltiple**: el gris de
+   `FILA_PUESTA` dice «esta está puesta» igual que en Etapas, pero con varias a
+   la vez el chulito es lo que deja recorrer la lista y ver cuáles. Al final, un
+   hueco reservado no mueve nada de la izquierda y mantiene los contadores en la
+   misma columna.
+2. **Lo puesto se marca igual en los dos**: `FILA_PUESTA`, y el `font-medium` es
+   lo que lo distingue de la fila apuntada —`--muted` y `--accent` son el MISMO
+   valor en este tema—.
+3. **En Etiquetas la marca sustituye al icono de etiqueta**, que dentro del panel
+   de Etiquetas no decía nada que su rótulo no dijera ya y que `CommandItem`
+   fuerza a 16 px (`[&_svg]:size-4`, un selector de descendiente que gana a un
+   `h-3 w-3` suelto): con el icono, los nombres seguirían sin alinearse.
+4. **Fuera de Chats la fila NO cambia.** `SessionTagsCombobox` lo pintan también
+   el CRM y `/sessions`, y allí se queda con su chulito y su icono delante. Lo
+   que marca «esta es la de la cabecera» es la prop `panel`, la misma con la que
+   ya se decide dónde nace el panel, y no una segunda condición.
+
+### El banco
+
+`scripts/banco-botones-de-la-cabecera.sh`, dos mitades. La segunda tiene que ser
+en navegador, y las dos cosas que mide lo explican: **cuál `gap` cae entre qué
+botones** no se ve leyendo los dos `gap`, y **una sangría que mete algo
+invisible** no se ve ni leyendo ni midiendo la caja de la fila. `MODO=roto`
+empaqueta el mismo arnés contra `ANTES_REF` —pinchado a un commit, nunca a
+`origin/main`— y afirma los tres fallos: 12 px entre el último control y la
+ficha, las etiquetas antes de la etapa, y la marca de una etiqueta 24 px más
+adentro que la de una etapa.
+
+Comprobado además lo único que dice que un banco mira: **quitándole cada arreglo
+al modo bueno se pone en rojo** —sin la caja que envuelve la tira y la ficha,
+sin el cambio de orden, y con el chulito invisible de vuelta delante del
+nombre—.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

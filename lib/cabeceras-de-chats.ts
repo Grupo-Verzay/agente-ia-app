@@ -81,6 +81,39 @@ export const CABECERA_ESCRITORIO_MINIMA = "md:min-h-[4.875rem] md:p-1.5 md:gap-1
 export const CLASE_FILA_1 = "md:h-8";
 export const CLASE_FILA_2 = "md:h-7";
 
+/**
+ * # El hueco entre los controles de la fila: UNO, y el mismo en toda ella
+ *
+ * La fila de arriba de la cabecera de la conversación son tres cosas: el bloque
+ * del contacto (avatar, nombre y su línea de estado), la tira de controles que
+ * se desplaza, y la ficha de contacto —que va FUERA de la tira a propósito, o
+ * con la conversación estrecha se iría por la derecha (ver `ChatHeader`)—.
+ *
+ * Y el hueco entre los controles salía de DOS sitios: la tira lo declaraba
+ * (`gap-1.5`, 6 px) y el que separa la tira de la ficha lo ponía el `gap-3` de
+ * la fila, que está ahí para despegar el bloque del contacto. Medido en
+ * Chromium sobre el CSS del build, con la cabecera real, a 1440, 1280 y 1024:
+ *
+ * ```
+ *  6 px  Llamar → asesor → recordatorio → cita → tarea → registros → contexto
+ *  6 px  contexto → etapa → etiquetas
+ * 12 px  etiquetas → ficha de contacto     ← el hueco de más
+ * ```
+ *
+ * Nueve controles a 6 px y el último a 12: desde fuera se lee como que el
+ * último no es del grupo. Y no estaba escrito en ninguna parte como una
+ * decisión: es el gap de la fila asomando por el único sitio donde la fila
+ * separa dos controles en vez de dos bloques.
+ *
+ * Así que la tira y la ficha van dentro de una caja con **este** hueco, y el
+ * `gap-3` de la fila se queda para lo único que separa: el bloque del contacto
+ * de los controles. Con el número escrito en los dos sitios, el día que se
+ * afine uno el otro se queda atrás y vuelve un hueco que nadie declaró.
+ */
+export const HUECO_ENTRE_CONTROLES = 6;
+/** La clase de ese hueco (6 px). La llevan la tira y la caja que la envuelve. */
+export const CLASE_HUECO_ENTRE_CONTROLES = "gap-1.5";
+
 /** El lado de la caja de un control de icono, en px. */
 export const LADO_DEL_CONTROL = 28;
 /** La caja común de los controles de icono de las dos cabeceras (28 px). */

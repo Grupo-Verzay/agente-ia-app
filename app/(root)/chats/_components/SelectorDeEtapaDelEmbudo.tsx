@@ -11,6 +11,7 @@ import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes
 import {
     FILA_DEL_MENU,
     FILA_PUESTA,
+    MARCA_DE_LA_FILA,
     NOMBRE_EN_LA_FILA,
     ROTULO_DEL_MENU,
 } from '@/lib/filas-de-los-menus';
@@ -269,8 +270,13 @@ export function SelectorDeEtapaDelEmbudo({
                                             puesta && FILA_PUESTA,
                                         )}
                                     >
+                                        {/* La MISMA marca que abre una fila del
+                                            menú de Etiquetas: escrita una vez, o
+                                            los dos menús acaban con dos puntos de
+                                            tamaños distintos y los nombres sin
+                                            alinear. */}
                                         <span
-                                            className="h-2 w-2 shrink-0 rounded-full"
+                                            className={MARCA_DE_LA_FILA}
                                             style={{ backgroundColor: color }}
                                         />
                                         {/* En mayúscula se recorta antes, así que el
