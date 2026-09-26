@@ -169,6 +169,89 @@ export function elColorDeLaEtapa(
     return COLORES_RAPIDOS[((posicion % n) + n) % n];
 }
 
+/**
+ * Los tonos con los que se pinta una etapa, todos derivados de su hex.
+ *
+ * Con el color de una paleta cerrada, cada sitio podía llevar sus clases de
+ * Tailwind escritas —`bg-blue-500`, `border-blue-300 dark:bg-blue-950`…—. **Con
+ * el color libre eso no se puede**: Tailwind solo genera lo que ve literal, así
+ * que no hay clase para un `#7C3AED` que alguien acaba de elegir con la rueda.
+ * Se pinta con `style`, y los tonos salen de **una sola función** para que los
+ * cinco sitios donde se ve una etapa sigan diciendo lo mismo: la cabecera de su
+ * columna, el borde de su tarjeta, el punto del selector, el icono de la
+ * cabecera del chat y la pastilla de la fila de la bandeja.
+ *
+ * El alfa hace lo que hacían las variantes `dark:` a mano: un mismo tono al 12 %
+ * se lee sobre fondo claro y sobre fondo oscuro, mientras que un color pleno de
+ * fondo obligaría a elegir el del texto según el tema.
+ */
+export function losTonosDeLaEtapa(hex: string): {
+    pleno: string;
+    fondo: string;
+    borde: string;
+} {
+    const limpio = comoColorHex(hex) ?? COLOR_SIN_ELEGIR;
+    return { pleno: limpio, fondo: `${limpio}1F`, borde: `${limpio}59` };
+}
+
+/**
+ * # El texto de la pastilla se corta a 14 caracteres
+ *
+ * La fila de la bandeja ya va justa —«Descartado» + la etapa + «Asignar» + tres
+ * contadores + las etiquetas— y un nombre de etapa puede tener hasta
+ * `TOPE_DE_NOMBRE` (40). Sin recorte, una etapa llamada «Esperando respuesta
+ * del cliente» empuja a «Asignar» y a los contadores fuera de la fila.
+ *
+ * 14 porque es lo que mide «Sin clasificar», que es la pastilla de al lado: así
+ * las dos ocupan lo mismo en el peor caso y la fila se lee pareja. El corte
+ * INCLUYE los puntos suspensivos (13 + «…»), o un nombre de 15 saldría más
+ * ancho que la referencia justo en el caso que esto viene a acotar.
+ *
+ * El nombre entero no se pierde: se lee en el globo al posar el cursor.
+ */
+export const TOPE_DE_TEXTO_DE_PASTILLA = 14;
+
+/**
+ * El tope de ancho de la pastilla, la red de seguridad del recorte de arriba.
+ *
+ * Los 14 caracteres acotan cuántas letras se pintan, no cuánto miden: «WWWWWWW»
+ * ocupa el doble que «Sin clasificar». Con este tope la pastilla se recorta
+ * también a lo ancho («…» por CSS) y la fila no se desborda con ningún nombre.
+ *
+ * 6.75rem = 108 px, y el número está medido, no elegido: «Sin clasificar» mide
+ * **89,2 px** en esta fila y el nombre de 14 caracteres más largo que se ha
+ * medido («Esperando res…») **106,4**. Así que 108 es a la vez *un poco más
+ * ancha que la referencia* (+21 %) y lo justo para que un nombre de 14
+ * caracteres normales NO se recorte dos veces —por caracteres y por ancho—.
+ * Por encima solo muerde con letras anchas, que es para lo que está.
+ *
+ * El banco lo mide contra la pastilla de al lado en vez de darlo por bueno: el
+ * tope no puede pasar del 25 % sobre ella, y un nombre de 14 caracteres tiene
+ * que caber sin topar.
+ */
+export const ANCHO_DE_LA_PASTILLA = "max-w-[6.75rem]";
+
+/** El nombre de la etapa recortado para su pastilla, con «…» si no cabe. */
+export function elTextoDeLaPastilla(nombre: string): string {
+    const limpio = nombre.trim();
+    if (limpio.length <= TOPE_DE_TEXTO_DE_PASTILLA) return limpio;
+    return `${limpio.slice(0, TOPE_DE_TEXTO_DE_PASTILLA - 1).trimEnd()}…`;
+}
+
+/**
+ * La etapa de una conversación tal como viaja a la fila de la bandeja: lo justo
+ * para pintar su pastilla.
+ *
+ * `color` es el hex **ya resuelto** (`elColorDeLaEtapa`), no el guardado: la
+ * fila no sabe en qué posición está la etapa dentro de su embudo, y sin esa
+ * posición el color por defecto no se puede deducir.
+ */
+export type EtapaDeLaFila = {
+    id: string;
+    nombre: string;
+    color: string;
+};
+
 /** Un nombre saneado, o `null` si no queda nada. */
 export function comoNombre(valor: unknown): string | null {
     if (typeof valor !== "string") return null;

@@ -27,12 +27,14 @@ import {
 import {
     asegurarElEmbudoPorDefecto,
     comoWhereDeAsesor,
+    laCuentaRecordada,
     lasAsignacionesDe,
     lasEtapasDe,
     lasPosicionesDe,
     lasVaciadasDe,
     losConteosPorEtapa,
     losEmbudosDe,
+    recordarLaCuenta,
 } from "@/lib/embudos-db";
 import {
     lasCuentasDeEmbudosQueAlcanza,
@@ -162,6 +164,60 @@ export async function quienMiraElTablero(
         puedeElegirCuenta: alcance.puedeElegir,
         cuentasRecortadas: alcance.recortadas,
     };
+}
+
+/**
+ * La cuenta con la que ABRE el tablero cuando la URL no dice ninguna.
+ *
+ * Lo llama **solo la página**: las acciones siempre reciben la cuenta que el
+ * navegador tiene delante, así que ahí no hay nada que recordar. Y no decide
+ * nada por su cuenta —devuelve un id que `resolverLaCuentaDelTablero` vuelve a
+ * filtrar contra las alcanzables de hoy—, así que una cuenta que se desvinculó
+ * cae en la propia como cualquier `?cuenta=` rancio.
+ *
+ * **A quien no administra su cuenta no se le recuerda nada, y ni se pregunta.**
+ * Un agente no tiene selector —ve lo suyo y nada más—, y Embudos es justamente
+ * su pantalla de trabajo: una consulta por carga para devolverle siempre su
+ * propia cuenta es una consulta que se paga todo el día.
+ */
+export async function laCuentaConLaQueAbre(user: UsuarioQueMira): Promise<string | null> {
+    if (!canManageWorkspace(user)) return null;
+    try {
+        return await laCuentaRecordada(laPersonaQueActua(user).id, String(user.effectiveId ?? "").trim());
+    } catch (error) {
+        // El tablero abre igual, en la cuenta propia. Pero no es mudo: un
+        // selector que deja de recordar se lee como que la función no existe.
+        console.warn("[embudos] no se pudo leer la cuenta recordada", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+}
+
+/**
+ * Apuntar dónde se está mirando, para la próxima visita.
+ *
+ * Va con la cuenta **ya resuelta**, nunca con la pedida: así lo que queda
+ * apuntado es siempre algo que esa persona alcanza de verdad.
+ *
+ * Y la misma condición que al leer, dicha con lo que ya viene resuelto:
+ * `manda` es falso exactamente para quien no puede elegir ninguna cuenta —a
+ * otra solo se llega administrándola—, así que un agente no deja fila ninguna.
+ *
+ * Nunca lanza y nunca tumba la carga del tablero —lo que se pierde es una
+ * comodidad, no un dato—, pero tampoco es mudo.
+ */
+export async function recordarLaCuentaDelTablero(quien: QuienMiraLosEmbudos): Promise<void> {
+    if (!quien.manda) return;
+    try {
+        await recordarLaCuenta(quien.personaId, quien.propia, quien.cuentaId);
+    } catch (error) {
+        console.warn("[embudos] no se pudo recordar la cuenta del tablero", {
+            persona: quien.personaId,
+            cuenta: quien.cuentaId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 }
 
 /**

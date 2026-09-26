@@ -8,10 +8,15 @@
 #  - Las ACCIONES contra Postgres con el esquema real (`embudos-db.test.mjs`):
 #    dueño, administradora, dos agentes y una cuenta ajena.
 #
-# Y otra vez con la forma vieja (`MODO=roto`): las acciones de etiquetas y
-# respuestas rápidas de ANTES_REF, sacadas con `git show`. Ahí se AFIRMA el
-# fallo — el compañero veía, pisaba y borraba lo del otro. Embudos no tiene
-# «antes» (no existía) y esa parte se salta diciéndolo.
+#  - El ALCANCE del selector y la cuenta recordada
+#    (`embudos-alcance-db.test.mjs`): la propia y las que cuelgan de ella, nunca
+#    la cartera; y el tablero abre donde se quedó.
+#
+# Y otra vez con la forma vieja (`MODO=roto`), que son TRES «antes» distintos
+# porque son tres fallos distintos, cada uno pinchado a su commit: las acciones
+# de etiquetas y respuestas rápidas (ANTES_REF), el tablero de cuando no había
+# selector (ANTES_DEL_SELECTOR) y el selector de cuando ofrecía la plataforma
+# entera (ANTES_DEL_ALCANCE). En los tres se AFIRMA el fallo.
 set -euo pipefail
 cd /home/user/agente-ia-app
 
@@ -20,6 +25,11 @@ ANTES_REF="${ANTES_REF:-9a7007d}"
 # antes, NO `origin/main`. En cuanto este cambio se fusione, `origin/main` sería
 # el «después» y el modo roto pasaría sin reproducir nada.
 ANTES_DEL_SELECTOR="${ANTES_DEL_SELECTOR:-95b56da}"
+# Y el «antes» del ALCANCE del selector: cuando ofrecía la cartera entera —en
+# una cuenta de la casa, todas las cuentas cliente de la plataforma— y no
+# recordaba en qué cuenta se estaba mirando. Otro fallo, otro commit pinchado.
+ANTES_DEL_ALCANCE="${ANTES_DEL_ALCANCE:-d1e778c}"
+
 # Y el «antes» de las siete etapas, de las etapas de sistema y del vaciado de
 # Perdido: el commit de justo antes. Mismo motivo — `origin/main` sería el
 # «después» en cuanto esto se fusione.
@@ -86,6 +96,28 @@ npx esbuild lib/__tests__/fingido/entrada-de-embudos-antes.ts --bundle \
   --log-level=error
 sed -i '/server-only/d' "$OUT/entrada-de-embudos-antes.js"
 
+# El «antes» del ALCANCE: el selector y su cargador tal como estaban. Los dos
+# `import` que se apuntan uno a otro llevan su alias; sin ellos resolverían a
+# los de hoy —que ya llevan el arreglo— y el modo roto pasaría sin ejercer nada.
+ANTES_AL=lib/__tests__/.antes/alcance
+mkdir -p "$ANTES_AL"
+git show "$ANTES_DEL_ALCANCE:actions/embudos-actions.ts" > "$ANTES_AL/embudos-actions.ts"
+git show "$ANTES_DEL_ALCANCE:lib/tablero-de-embudo.server.ts" > "$ANTES_AL/tablero-de-embudo.server.ts"
+git show "$ANTES_DEL_ALCANCE:lib/cuentas-de-embudos.server.ts" > "$ANTES_AL/cuentas-de-embudos.server.ts"
+
+empaquetar lib/__tests__/fingido/entrada-de-embudos-alcance.ts
+
+npx esbuild lib/__tests__/fingido/entrada-de-embudos-alcance-antes.ts --bundle \
+  --platform=node --format=esm --outdir=$OUT \
+  --external:@prisma/client --external:server-only \
+  --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-documentos.ts \
+  --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
+  --alias:react=./lib/__tests__/fingido/react-cache.ts \
+  --alias:@/lib/tablero-de-embudo.server=./lib/__tests__/.antes/alcance/tablero-de-embudo.server.ts \
+  --alias:@/lib/cuentas-de-embudos.server=./lib/__tests__/.antes/alcance/cuentas-de-embudos.server.ts \
+  --log-level=error
+sed -i '/server-only/d' "$OUT/entrada-de-embudos-alcance-antes.js"
+
 # El «antes» de las siete etapas: sus cuatro ficheros, con los `import` de los
 # tres módulos APUNTADOS a los viejos. Sin los alias resolverían a los de hoy
 # —que ya llevan el arreglo— y ese fichero pasaría sin ejercer nada.
@@ -108,6 +140,7 @@ sed -i '/server-only/d' "$OUT/entrada-de-embudos-sin-siete.js"
 
 node --test lib/__tests__/embudos.test.mjs lib/__tests__/embudos-de-la-cuenta.test.mjs \
      lib/__tests__/embudos-db.test.mjs lib/__tests__/embudos-de-la-cuenta-db.test.mjs \
+     lib/__tests__/embudos-alcance-db.test.mjs \
      lib/__tests__/embudos-sin-siete.test.mjs "$@"
 
 echo
@@ -117,3 +150,7 @@ MODO=roto node --test lib/__tests__/embudos-db.test.mjs
 echo
 echo "── el tablero, con el de $ANTES_DEL_SELECTOR (tiene que afirmar el fallo) ──"
 MODO=roto node --test lib/__tests__/embudos-de-la-cuenta-db.test.mjs
+
+echo
+echo "── el alcance del selector, con el de $ANTES_DEL_ALCANCE (tiene que afirmar el fallo) ──"
+MODO=roto node --test lib/__tests__/embudos-alcance-db.test.mjs

@@ -14670,6 +14670,14 @@ sus nombres, contra Postgres y por `getCallsCrmData` de verdad. `MODO=roto`
 afirma que con la regla vieja Yair alcanzaba a Carlos; y con el código anterior
 puesto, el banco normal se pone rojo por los tres sitios.
 
+Y desde el #948 esa regla no vive en el CRM: la contesta
+`lasCuentasQueAlcanzaHaciaAbajo` (`lib/cuentas-hacia-abajo.server.ts`), que
+comparte con el tablero de **Embudos** —la consulta, el orden y hasta la entrada
+del caché—. Embudos tenía su propia copia y le había añadido la cartera de
+clientes, así que su selector ofrecía cuentas sin ningún vínculo: **dos formas
+de contestar «qué cuentas alcanza esta pantalla» son una que se afina y otra que
+se queda atrás.**
+
 **Vale para las cinco pestañas del CRM**, porque las cinco pasan por la misma
 puerta. Las demás pantallas que cruzan cuentas (Chats, Leads, Finanzas,
 Reuniones, Documentos…) **no se han tocado aquí**: están auditadas en el PR.
@@ -17727,6 +17735,143 @@ estaba puesto y no lo usaba nadie desde que el estado del lead se ve en el
 Contexto del lead. Lo pinta la FILA de la lista (`ChatContactItem`), que sí lo
 importa.
 
+### Y se ve sin abrir nada: el COLOR en la cabecera, una pastilla en la fila
+
+La etapa solo se sabía abriendo el selector, chat por chat. Y ese selector era
+**el único control de su fila con rótulo**: llevaba el nombre de la etapa
+escrito al lado (hasta `max-w-[9rem]`) mientras sus siete vecinos —llamar, el
+asesor, el recordatorio, la cita, la tarea, los registros, el contexto— son
+cuadrados de 28 px. Puesto entre ellos no se leía como uno más.
+
+> **En la cabecera, el color del icono ES el dato**: el botón pasa a ser un
+> control de icono como los demás (`CONTROL_DE_ICONO` + `GLIFO_DE_CONTROL`),
+> sin texto, con el icono teñido del color de su etapa y el **nombre entero en
+> el globo**. **En la fila, la etapa es una pastilla igual a la del estado** —el
+> mismo alto, la misma letra, el mismo redondeo y el mismo relleno compacto—,
+> justo detrás de ella y delante de «Asignar». Sin embudo no hay pastilla.
+
+De izquierda a derecha la fila se lee «cómo de caliente está» → «en qué punto
+del embudo» → «de quién es».
+
+#### El dato viaja con la bandeja, no una consulta por fila
+
+La cabecera pide la etapa de UNA conversación y eso son cuatro consultas
+cortas. Repetirlo por cada fila de la lista serían cientos por vuelta, que es
+*muchas peticiones pequeñas son turno, no trabajo*. Así que la etapa entra en
+`getSesionesDeLaCuenta` como una cosa más de la fila —al lado de las etiquetas,
+los seguimientos y las citas— y la resuelve `lib/etapas-de-la-bandeja.server.ts`
+para toda la bandeja de una vez: **tres lecturas por cuenta y dos comunes**, en
+el mismo `Promise.all` que ya estaba y medidas con el resto (`tiempos.etapas`).
+
+Cuatro cosas que hay que mantener:
+
+1. **La regla no se vuelve a escribir.** De qué embudo es una conversación y en
+   qué etapa está lo deciden las MISMAS funciones puras que el tablero y la
+   cabecera (`elEmbudoDeLaConversacion`, `laEtapaDeLaConversacion`). Con la
+   regla escrita aquí otra vez, la fila diría una etapa y el tablero otra, y no
+   habría forma de saber cuál miente.
+2. **Los embudos se resuelven por la cuenta de CADA conversación**
+   (`sesion.userId`), no por la de quien mira: la bandeja enseña además las
+   líneas de las cuentas que cuelgan de ella, y la etapa de una conversación de
+   Ventas sale de los embudos de Ventas.
+3. **Es best-effort y no es muda.** Va en su propio `catch`, como los
+   recordatorios: un fallo suyo no puede dejar la bandeja sin nombres ni
+   etiquetas. Pero se escribe, porque una pastilla que deja de salir sin decir
+   nada se lee como que los embudos se borraron.
+4. **Y el icono de la cabecera sale de ahí, gratis.** La etapa de la
+   conversación abierta baja desde la bandeja (`etapaInicial`), así que el color
+   está puesto sin abrir nada y sin una consulta más. Lo que se sigue cargando
+   al ABRIR el menú es la LISTA de etapas, que es lo caro y lo que casi nunca se
+   mira. Una conversación que no estaba en la página cargada de la bandeja sale
+   con el icono neutro hasta que se abre, como estaba antes.
+
+#### El color viaja como ÍNDICE, ya resuelto
+
+El color de una etapa sin color elegido es **el de su posición** en el embudo, y
+la fila no tiene delante la lista de etapas: solo la suya. Así que el servidor
+manda el índice ya resuelto (`elIndiceDelColorDeLaEtapa`, que es de donde tira
+ahora también `elColorDeLaEtapa`) y la pastilla lo pinta sin deducir nada.
+Deduciéndolo otra vez con una posición que no tiene, la misma etapa saldría de
+un color en el tablero y de otro en la fila. El banco encadena las dos
+funciones para que no puedan separarse.
+
+Y las clases de los cinco sitios donde una etapa se pinta —la cabecera de la
+columna del tablero, el borde de su tarjeta, el punto de la lista, el icono de
+la cabecera del chat y la pastilla de la fila— viven **en la paleta**, no en
+cada pantalla.
+
+#### 14 caracteres, que son los de «Sin clasificar»
+
+Un nombre de etapa admite hasta 40 (`TOPE_DE_NOMBRE`), y la fila ya va justa.
+`elTextoDeLaPastilla` corta a `TOPE_DE_TEXTO_DE_PASTILLA`, que es **lo que mide
+«Sin clasificar»**, la pastilla de al lado y el listón que puso el encargo. Tres
+cosas:
+
+1. **Los puntos suspensivos van DENTRO de los 14** (13 + «…»). Fuera, un nombre
+   de 15 saldría más ancho que la referencia justo en el caso que esto viene a
+   acotar.
+2. **Y encima hay un tope de ANCHO** (`ANCHO_DE_LA_PASTILLA`): los 14
+   caracteres acotan cuántas letras se pintan, no cuánto miden —«WWWWWWW» ocupa
+   el doble que «Sin clasificar»—. El número está MEDIDO, no elegido: en esta
+   fila «Sin clasificar» mide **89,2 px** y el nombre de 14 caracteres más
+   ancho que se ha medido («Esperando res…») **106,4**, así que el tope son
+   **6,75 rem (108 px)**: un 21 % más que la referencia, y lo justo para que 14
+   caracteres normales no se recorten DOS veces —por caracteres y por ancho—.
+   El banco lo mide contra la pastilla de al lado en vez de darlo por bueno.
+3. **El `truncate` va en el HIJO, no en la pastilla.** En un contenedor flex el
+   texto suelto cae en una caja anónima y ahí `text-overflow` no recorta con
+   «…»: se corta a hueso.
+4. **Y la pastilla lleva `data-ui="badge"`.** No es decoración: dentro de
+   `.app-module-content` un `.text-xs` vale **14 px**, y las reglas de
+   `globals.css` solo lo bajan a 12 dentro de un `button`, un `[role="…"]` o un
+   `[data-ui="badge"]`. La de estado los tiene porque es el disparador de su
+   menú; esta no es pulsable, así que sin la marca salía con la letra **dos
+   píxeles más grande que la de al lado**. Lo cazó el banco, no leerlo.
+
+El nombre entero no se pierde: se lee en el globo. Es un `title` y no un
+tooltip de Radix **en los dos sitios**, y eso es a propósito: esta pastilla sale
+en TODAS las filas y la lista tiene miles, así que un proveedor y dos nodos más
+por fila es justo lo que *la lista es grande, no rehacerla por gusto* evita. Los
+tooltips de la fila —la espera, los recordatorios— salen en unas pocas.
+
+#### Y cambiar la etapa desde el chat se pinta en la fila al momento
+
+Es la regla de siempre. La acción es la misma del tablero y ya guardó, pero sin
+avisar a la lista la pastilla se quedaría con la etapa de antes hasta la vuelta
+del reloj de sesiones —hasta 60 s—, y eso se lee como que el cambio no se
+guardó. El selector devuelve la etapa ya resuelta y `chats-client` la aplica con
+`aplicarEnLaSesion`, que busca por `id` y toca todas las llaves de esa sesión.
+El índice del color se resuelve ahí con la MISMA función que el servidor, o la
+pastilla cambiaría de color al llegar la vuelta siguiente.
+
+**El `MAX_BADGES` de la fila no se toca.** La etapa entra en el reparto como una
+pastilla más y lo que sobre cae en el «+N» con su globo, igual que las demás:
+darle un privilegio sería justo lo contrario de la simetría que se venía a
+ganar.
+
+Lo prueba `scripts/banco-pastilla-de-etapa.sh`, en tres mitades:
+
+1. **Las reglas y un barrido del código**, sin navegador.
+2. **Las consultas contra Postgres**, que es lo que un banco puro no puede
+   decir: que las tres lecturas en bloque **corren** —los `::text[]`, los
+   `::int[]` y unas tablas que crea la App y no Prisma— y que la conversación
+   cae en el embudo de su asesor, que dos cuentas a la vez sacan cada una de
+   los suyos, que una posición guardada en OTRO embudo no se cuela y que una
+   etapa borrada cae en la primera. Y el encadenado, que es la prueba de oro:
+   **la fila y la cabecera dicen la misma etapa**.
+3. **La fila y la cabecera reales en Chromium** sobre el CSS del build, a
+   1440/1280/1024: que la pastilla mide lo mismo que la de estado en los siete
+   campos que la definen, que va entre el estado y «Asignar» medido en píxeles,
+   que el botón de la cabecera mide lo que sus vecinos y no lleva rótulo, y que
+   nada se desborda ni con 40 letras anchas.
+
+`MODO=roto` pinta las dos pantallas con los componentes de `ANTES_REF` y afirma
+los dos fallos —ninguna pastilla en la fila y un botón con el nombre escrito que
+se come el ancho de sus vecinos—; la mitad de Postgres se salta ahí y lo dice,
+porque el «antes» no tenía ninguna de esas consultas que afirmar. Comprobado
+además que caza: quitando la pastilla de la fila caen cuatro casos del
+navegador, y sacando el embudo de la llave de las posiciones, tres de Postgres.
+
 ## Embudos: el tablero de OTRA cuenta, y todos los asesores juntos
 
 Dos ejes sobre el tablero que ya existía, y el primero es el que decide la forma
@@ -17734,10 +17879,10 @@ de todo lo demás.
 
 ### La cuenta es UNA, y eso no es una preferencia de diseño
 
-Desde una cuenta madre se elige cualquiera de las que cuelgan de ella y se ve
-**su** tablero. Vale igual para un reseller con sus líneas y para el dueño de la
-plataforma con las cuentas cliente que administra. Y **nunca se mezclan dos
-cuentas en un tablero**:
+Desde una cuenta se elige cualquiera de las que **cuelgan de ella** y se ve su
+tablero. Solo esas: ni la madre, ni las hermanas, ni las cuentas cliente que se
+administren sin vínculo —eso se cerró en el #948, y está contado en *el alcance
+va HACIA ABAJO*—. Y **nunca se mezclan dos cuentas en un tablero**:
 
 > **Las columnas de un tablero son las etapas de un embudo, y un embudo es de
 > una cuenta.** Dos cuentas tienen embudos distintos, con etapas distintas y con
@@ -17764,34 +17909,38 @@ varias» sería un componente cuya documentación se contradice a sí misma. Lo 
 sí se comparte es lo único que importa —**quién puede elegir qué**—, que sale del
 servidor con la misma regla de alcance del CRM.
 
-### El alcance va HACIA ABAJO, y son TRES fuentes
+### El alcance va HACIA ABAJO, y sale de la MISMA función que en Llamadas
 
-Una cuenta llega a otra por tres caminos, y los tres son hacia abajo. **Hacen
-falta los tres**: con solo el primero, un reseller no vería a sus clientes —sus
-líneas no cuelgan de él por `linked_accounts`— y eso era la mitad del encargo.
+Esto fueron tres fuentes y es una, y conviene saber por qué antes de volver a
+añadirle ninguna. El selector llegó a **listar todas las cuentas de la
+plataforma**: sumaba al alcance `clientesDeLaCuenta` —la cartera—, y para una
+cuenta de la casa esa función devuelve **todas las cuentas cliente que
+administra**; para un reseller, la suya entera. Cuentas sin un solo vínculo con
+la que se estaba mirando.
 
-| fuente | qué añade | quién la usa |
-| --- | --- | --- |
-| `lasCuentasQueCuelganDe` | sus hijas, y las hijas de sus hijas | una cuenta madre con su familia |
-| `clientesDeLaCuenta` (tabla `reseller`) | los clientes que creó y los que le asignaron | un reseller |
-| `clientesDeLaCuenta` (rol de la casa) | las cuentas cliente que administra | `admin`, el dueño de la plataforma |
+> **Administrar o facturar a un cliente no lo mete en la estructura de una
+> cuenta.** Esa es otra pregunta y la contesta `/panel/clientes`. Lo que hace
+> hija a una cuenta es **`linked_accounts`, y nada más**.
 
-Las dos últimas salen de **la misma función** con la que `/panel/clientes` y el
-reparto de módulos deciden a qué clientes llega cada quien. Escribir aquí otra
-consulta sería un segundo reparto, y el día que se afine uno el otro deja ver de
-más o de menos.
+Y no se arregló quitándole la fuente a esta copia: **se quitó la copia**.
+Llamadas y Finanzas ya resolvían esto, y tener aquí una versión paralela es
+exactamente cómo se llega a que una de las tres pantallas ofrezca otra cosa. La
+contesta `lasCuentasQueAlcanzaHaciaAbajo` (`lib/cuentas-hacia-abajo.server.ts`),
+que usan el CRM y Embudos: la propia y lo que cuelga de ella
+(`lasCuentasQueCuelganDe`), **nunca la madre ni las hermanas**, con la familia
+entera solo para el superadministrador de verdad —porque toda ella cuelga de
+él—. Comparten hasta la entrada del caché, que es la otra mitad de la gracia.
 
-**Nunca hacia arriba ni hacia los lados**: no se llega a la madre ni a una
-hermana, y una pareja recíproca se anula por los dos lados. El
-superadministrador de verdad ve su familia entera, porque toda ella cuelga de él.
+**Si no hay hijas, no se pinta ningún selector**: con una sola cuenta no hay
+nada que elegir, y un mando con una opción dentro es un mando que no hace nada.
 
 Cinco cosas que hay que mantener:
 
 1. **La lista solo OFRECE; la puerta es la de siempre.** La cuenta elegida pasa
    además por `assertCanAccessTargetUser`, la puerta de más de sesenta acciones
    —que desde el #898 tampoco sube—. Es a propósito: la lista se construye de
-   fuentes que ya van hacia abajo, y si algún día una se ensanchara sin querer,
-   la puerta lo sigue negando. Y se pregunta **solo cuando la cuenta no es la
+   una fuente que ya va hacia abajo, y si algún día se ensanchara sin querer, la
+   puerta lo sigue negando. Y se pregunta **solo cuando la cuenta no es la
    propia**: en la propia no hay nada que preguntar y sería una consulta por
    carga para nada.
 2. **Un `agente` alcanza SOLO su cuenta**, y eso es lo que hace airtight a
@@ -17811,15 +17960,61 @@ Cinco cosas que hay que mantener:
    hijas— la cabecera decía «esa conversación no es de tu cuenta» sobre una
    conversación perfectamente alcanzable.
 5. **Se recuerda unos segundos** (`lib/cache-de-sesion`, 5 s), con la llave de
-   los ids que deciden: la cuenta, su rol y si es superadministrador. El rol
-   entra porque decide si se consulta la cartera, y lo de superadministrador
+   los ids que deciden: la cuenta y si es superadministrador. Lo segundo entra
    porque él y el administrador de la misma cuenta no ven lo mismo — con la
-   llave compartida, cinco segundos le pasarían a uno el alcance del otro.
+   llave compartida, cinco segundos le pasarían a uno el alcance del otro. **El
+   rol ya no entra**, y eso es la señal de que la cartera se fue: entraba solo
+   porque decidía si se consultaba.
 
 **Se mira, se crea y se mueve en la cuenta elegida, y se avisa**: la barra pone
 el nombre en azul y encima del tablero sale «Estás viendo el tablero de X. Lo que
 crees o muevas aquí es de esa cuenta». Sin decirlo se edita el embudo de un
 cliente creyendo estar en el propio.
+
+### El tablero abre donde se quedó, y la llave es (persona, cuenta propia)
+
+Volvía siempre a la cuenta propia, así que quien trabaja a diario en el tablero
+de una hija tenía que elegirla en cada visita. Se guarda en
+`embudo_cuenta_recordada`, tabla de la App con `CREATE TABLE IF NOT EXISTS` y
+sin clave foránea — ni una columna en `User`, que es del backend (#360).
+
+> **La llave es la PAREJA, no la persona a secas**, y es la regla de siempre:
+> *la llave son los datos que deciden la respuesta*. Qué cuentas puede abrir
+> alguien depende de **desde dónde entra** —las alcanzables se resuelven contra
+> su fila efectiva—, así que con la persona sola, entrar a otra cuenta con
+> «Ingresar» y recargar ahí **borraría** lo que eligió en la suya: ahí no hay
+> selector, pero una recarga apunta igual. Con la pareja, cada contexto recuerda
+> lo suyo y ninguno pisa al otro.
+
+Cinco cosas que hay que mantener:
+
+1. **Manda la URL.** `?cuenta=` gana sobre lo recordado: un enlace guardado o
+   compartido apunta a una cuenta concreta y tiene que llevar ahí, o deja de ser
+   un enlace.
+2. **Y lo recordado no abre ninguna puerta.** Vuelve a pasar por
+   `laCuentaDelTablero` como cualquier otro parámetro, así que un id de una
+   cuenta que se desvinculó cae en la propia. No es un error que enseñar: es un
+   id que ya no existe para quien pregunta.
+3. **Se apunta la cuenta ya RESUELTA, y en cada carga del tablero**, no solo al
+   elegir. Así una elección que dejó de alcanzarse **se cura sola** en vez de
+   arrastrar para siempre un id muerto. Y no cuesta: el `ON CONFLICT` lleva su
+   `WHERE ... IS DISTINCT FROM`, así que cuando no cambia nada **Postgres no
+   escribe la fila** — la misma forma que la marca de leído del chat del equipo.
+4. **Lo apunta `tableroDelEmbudoAction` y nadie más.** Es la acción por la que
+   pasa todo lo que cambia lo que se tiene delante, el selector incluido; las
+   otras reciben la cuenta para actuar SOBRE ella, no para mirarla. Y la página
+   no apunta nada: es una lectura.
+   **A quien no elige no se le recuerda nada, y ni se le pregunta**: un agente
+   no tiene selector, y Embudos es justamente su pantalla de trabajo — una
+   consulta y una escritura por carga para devolverle siempre su propia cuenta
+   es lo que se paga todo el día. La condición al leer es `canManageWorkspace`
+   y al escribir `quien.manda`, que es falso exactamente para los mismos: a otra
+   cuenta solo se llega administrándola.
+5. **La dirección se pone al día sola** cuando se abre en otra cuenta por lo
+   recordado. Sin eso la URL diría «la propia» mientras se está mirando una
+   hija, y copiarla llevaría a otro sitio. Es un `replaceState`, **no un
+   `router.replace`**: reescribe la dirección sin volver a pedir la pantalla más
+   cara del módulo para no cambiar ni un dato.
 
 ### Y el filtro de asesor puede cambiar de embudo, y TIENE que poder
 
@@ -17918,25 +18113,44 @@ sin ajenos, entran todos.
   de FILAS. Incluye el caso que de verdad ejerce el `COUNT`: **520
   conversaciones**, o sea más que el tope, donde `tarjetas.length` es 500 y la
   cabecera sigue diciendo 520.
+- **El ALCANCE y la memoria** (`embudos-alcance-db.test.mjs`), con una cuenta de
+  la casa —rol `admin`, que es la que tenía la cartera entera dentro— y una
+  cuenta cliente **sin ningún vínculo** al lado: el selector ofrece exactamente
+  la propia y sus dos hijas, la suelta no se abre ni pidiéndola a mano, un
+  reseller no alcanza su cartera, y sin hijas no se pinta selector. Más la
+  memoria: abre donde se quedó, la pareja (persona, cuenta) no se pisa, y una
+  recordada que ya no se alcanza cae en la propia **y se cura sola**.
 - **Y la pantalla servida**: los tres mandos en la barra, filtrar a un asesor,
   «sin asesor», volver a «todos», elegir la cuenta hija —que la madre ve su
   estado vacío, le crea un embudo y aparecen SUS dos conversaciones y ninguna de
-  la madre— y que la hija no ve a su madre por ningún lado.
+  la madre—, que la hija no ve a su madre por ningún lado, **qué ofrece el
+  selector** y que al volver con la dirección limpia sigue en la hija, con la
+  dirección puesta al día.
 
-> **`ANTES_DEL_SELECTOR` va PINCHADO a un commit, nunca a `origin/main`.** En
+  Y para eso la semilla cambió a propósito: el dueño va con rol **`admin`** y hay
+  una cuenta cliente suelta. Con el dueño en `user` la cartera no se consultaba
+  siquiera, así que **la sonda habría pasado con el fallo puesto**.
+
+> **Cada «antes» va PINCHADO a un commit, nunca a `origin/main`.** En
 > cuanto este cambio se fusione, `origin/main` pasa a ser el «después»: el modo
 > roto dejaría de reproducir nada y **se pondría verde sin ejercerlo**, que es la
 > peor forma de tener un banco. Es la lección de *el «antes» de un banco CADUCA
 > el día que su PR se fusiona*, que este repositorio ya pagó una vez.
 
-El modo roto empaqueta las acciones y el cargador de ese commit, con el `import`
-del cargador **apuntado** al viejo —sin el alias resolvería al de hoy, que ya
-lleva el arreglo— y afirma los tres fallos: pedir otra cuenta devolvía la propia,
-el asesor pedido se ignoraba, y el tablero no traía totales por etapa.
+Son **tres** «antes» y tres commits, porque son tres fallos distintos:
+`ANTES_REF` (lo personal), `ANTES_DEL_SELECTOR` (cuando no había selector) y
+`ANTES_DEL_ALCANCE` (cuando ofrecía la plataforma entera y no recordaba nada).
+Cada modo roto empaqueta los ficheros de SU commit, con los `import` que se
+apuntan unos a otros **aliasados** a los viejos —sin eso resolverían a los de
+hoy, que ya llevan el arreglo, y el modo roto pasaría sin ejercer nada— y afirma
+su fallo: pedir otra cuenta devolvía la propia, el asesor pedido se ignoraba, no
+había totales por etapa, **el selector ofrecía una cuenta cliente sin vínculo**
+y no se recordaba en qué cuenta se estaba mirando.
 
 Y se comprobó lo único que de verdad dice que un banco mira: **quitándole el
 arreglo al modo bueno se pone en rojo**. Con la elección de cuenta rota caen 7
-casos, con el reparto de totales 7, y con el filtro de asesor 3.
+casos, con el reparto de totales 7, con el filtro de asesor 3, **con la cartera
+devuelta al alcance 9** y **quitando el apunte de la cuenta recordada 4**.
 
 ## Embudos: siete etapas, tres del SISTEMA, y vaciar Perdido SELLA
 
@@ -18345,6 +18559,110 @@ pasaba al quitarle el arreglo a un camino** — encontraba el del bloque de al
 lado. Un modo roto que pasa no está en verde, está muerto. Lo que se comprueba
 es una invariante **exacta** y no una vecindad, y se comprobó quitando el
 arreglo de cada uno de los cuatro caminos, uno por uno, para ver el rojo.
+
+## Chats: los dos desplegables de la cabecera se leen igual, y en MAYÚSCULA
+
+Los que se abren desde la cabecera de la conversación —**Etiquetas** y
+**Etapas**— son dos componentes que no se parecen por debajo: uno es un
+`Command` de cmdk con sus grupos y el otro una lista de botones. Abiertos uno
+tras otro se leían como dos pantallas, y la diferencia no estaba escrita en
+ninguna parte.
+
+Medido en Chromium sobre el CSS del build, con la `ChatHeader` real:
+
+| | arranca a | lo puesto | el nombre |
+| --- | --- | --- | --- |
+| Etiquetas | **20 px** del borde del panel | chulito | tal cual |
+| Etapas | **16 px** | chulito | tal cual |
+
+> **Cómo se ve una fila de estos dos menús lo decide `lib/filas-de-los-menus.ts`**
+> —el sangrado, la caja, la mayúscula y el gris de lo puesto—. Dónde NACE el
+> panel sigue siendo `lib/paneles-flotantes.ts`: son dos preguntas y siguen en
+> dos sitios.
+
+### La sangría de más la metía el `p-1` del grupo, y no se ve leyendo
+
+Los cuatro píxeles no los escribía nadie: los pone `CommandGroup` por su cuenta.
+Así que **esto no lo caza un barrido del código** —los dos componentes se leen
+correctos— y solo aparece midiendo. El grupo deja de meter sangría
+(`GRUPO_SIN_SANGRIA`) y el rótulo de Etapas gana la que le faltaba
+(`SANGRIA_DEL_MENU`): las filas y los rótulos de los dos arrancan ya en el mismo
+píxel, en 1440, 1280, 1024 y 390.
+
+Y el sangrado es **un solo número** para las tres cosas —la fila, su rótulo y lo
+que se le quita al grupo—: con dos, vuelven a separarse sin que nadie lo note.
+
+### Y el RÓTULO es el mismo, aunque uno lo pinte cmdk
+
+La primera vuelta alineó las filas y dejó los rótulos con dos tipografías: el de
+Etapas ya iba en mayúscula y negrita, y el de Etiquetas lo pinta cmdk con las
+suyas (`font-medium`, sin mayúscula). Puestas las dos capturas una al lado de
+otra se leía a la primera, así que el rótulo también sale de un sitio.
+
+Y sale **escrito dos veces**, a propósito: cmdk no deja ponerle clases al nodo
+del título, así que la segunda copia lleva el prefijo de variante
+(`[&_[cmdk-group-heading]]:…`). **No se pueden componer en tiempo de
+ejecución** —Tailwind lee el código, así que una clase construida con un `map`
+no se genera y el rótulo saldría sin estilo con el build en verde; es la familia
+de `removeConsole`—. Que las dos digan lo mismo lo comprueba el banco,
+derivando una de la otra.
+
+### El nombre va en mayúscula con CSS, nunca convertido
+
+`uppercase` es `text-transform`, así que el `textContent` sigue siendo el nombre
+de verdad. Eso no es un detalle de estilo: **cmdk filtra por ese texto**, así que
+buscar «ventas» sigue encontrando «Ventas», y el globo enseña el nombre tal cual
+se escribió. Convertirlo en el servidor rompería las dos cosas.
+
+Y por eso el globo deja de ser opcional: en mayúscula el mismo nombre ocupa más,
+así que se recorta antes. **Todo nombre en mayúscula lleva su `title`.**
+
+### Lo puesto en Etapas es un GRIS, y el peso no es decoración
+
+Fuera el chulito. La etapa en la que está la conversación lleva fondo gris suave
+y nada más —ni marca de verificación ni recuadro: un borde dentro de una lista de
+filas de 12 px se lee como un recorte—.
+
+Lo que hay que saber antes de tocarlo: **`--muted` y `--accent` son el MISMO
+valor en este tema**, así que el gris de lo puesto y el del cursor encima son
+indistinguibles. Mientras se apunta a otra fila habría dos grises iguales, y lo
+único que sigue diciendo cuál está puesta es el `font-medium`. El banco lo ejerce
+—apunta a una fila y compara los pesos— y **se pone rojo si se quita el peso**.
+
+La otra mitad: el `hover` de la fila es ese mismo gris, así que **apuntar a la
+fila puesta no le cambia nada**. Un marcador que se pierde al apuntarlo no marca.
+
+Y quitado el chulito, `aria-selected` es lo único que le queda a quien no ve el
+fondo: la lista es un `listbox` y cada etapa una `option`.
+
+### Lo que NO entra, y es la mitad que se pierde sola
+
+**Las píldoras de la lista de chats se quedan con su capitalización** —estado,
+etapa, etiquetas—. Y el combobox de Etiquetas lo pintan además el CRM y
+`/sessions`: allí nada de esto se aplica. Lo que marca «esta es la de la
+cabecera» es la prop `panel`, **la misma con la que ya se decide dónde nace el
+panel**, y no una segunda condición que el día que se afine una se quede atrás.
+
+Lo prueba `scripts/banco-filas-de-los-menus.sh`, en dos mitades: las reglas y un
+barrido —que falla si una píldora de la fila se va en mayúscula, si un componente
+escribe la caja a mano, o si `tailwind.config.ts` deja de mirar `lib/`— y los dos
+menús **abiertos de verdad** en Chromium a 1440/1280/1024/390. `MODO=roto`
+empaqueta el mismo arnés contra `ANTES_REF` y afirma los cuatro fallos: los 4 px
+de más, el chulito, ningún nombre en mayúscula y nada marcado con fondo.
+
+Dos cosas del propio banco que costaron su vuelta:
+
+1. **El paquete del arnés y el módulo compilado no pueden llamarse igual.** Los
+   dos caían en `lib/__tests__/.compilado/filas-de-los-menus.js`, así que el
+   segundo pisaba al primero: en modo bueno colaba por el orden y en modo roto el
+   banco de reglas importaba una maqueta de navegador («document is not
+   defined»).
+2. **El disparador se busca entre los que SE VEN.** `ChatHeader` pinta los dos
+   mandos DOS veces —su fila de móvil y su fila de escritorio—, y en un móvil
+   viven además dentro de las herramientas **plegadas**, detrás de la pastilla
+   «Activa». Un `querySelector` a secas se queda con el del móvil, que a 1440
+   está en `display:none`. Es el mismo error que ya costó una vuelta midiendo
+   Macros.
 
 ## Cómo reportar al terminar
 

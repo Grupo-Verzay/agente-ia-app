@@ -9,6 +9,12 @@ import {
 } from "@/actions/tag-actions";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
+import {
+    FILA_DEL_MENU,
+    GRUPO_SIN_SANGRIA,
+    NOMBRE_EN_LA_FILA,
+    ROTULO_EN_EL_GRUPO,
+} from "@/lib/filas-de-los-menus";
 import { usePanelFlotante, type ClaseDePanel } from "@/hooks/usePanelFlotante";
 import {
     Command,
@@ -46,6 +52,12 @@ interface SessionTagsComboboxProps {
      * combobox lo pintan además el CRM y la tabla de `/sessions`, y allí no hay
      * ninguna cabecera de conversación contra la que medir: unificar Chats no
      * puede moverles el panel a dos pantallas que nadie pidió tocar.
+     *
+     * Y es además lo que marca «esta es la de la cabecera» para lo de DENTRO
+     * —el nombre en mayúscula y el sangrado que lo cuadra con el menú de
+     * Etapas, en `lib/filas-de-los-menus.ts`—, para que no haya una segunda
+     * condición que decida lo mismo por otro lado. Fuera de Chats las filas se
+     * quedan exactamente como estaban.
      */
     panel?: ClaseDePanel;
 }
@@ -189,7 +201,11 @@ export function SessionTagsCombobox({
                         </CommandEmpty>
                         <div className="max-h-64 overflow-auto">
                         {enGrupos(allTags).map((grupo) => (
-                        <CommandGroup key={grupo.grupo} heading={grupo.titulo ?? undefined}>
+                        <CommandGroup
+                            key={grupo.grupo}
+                            heading={grupo.titulo ?? undefined}
+                            className={panel ? cn(GRUPO_SIN_SANGRIA, ROTULO_EN_EL_GRUPO) : undefined}
+                        >
                             {grupo.filas.map((tag) => {
                                 const active = isSelected(tag.id);
                                 const count = tag.sessionCount ?? 0;
@@ -198,7 +214,10 @@ export function SessionTagsCombobox({
                                     <CommandItem
                                         key={tag.id}
                                         onSelect={() => handleToggleTag(tag.id)}
-                                        className="flex items-center justify-between gap-2 text-xs"
+                                        className={cn(
+                                            "flex items-center justify-between gap-2 text-xs",
+                                            panel && FILA_DEL_MENU,
+                                        )}
                                     >
                                         <div className="flex min-w-0 items-center gap-2">
                                             <Check
@@ -213,7 +232,12 @@ export function SessionTagsCombobox({
                                                 style={tag.color ? { color: tag.color } : undefined}
                                             />
 
-                                            <span className="truncate">{tag.name}</span>
+                                            <span
+                                                className={panel ? NOMBRE_EN_LA_FILA : "truncate"}
+                                                title={panel ? tag.name : undefined}
+                                            >
+                                                {tag.name}
+                                            </span>
                                         </div>
 
                                         <Badge

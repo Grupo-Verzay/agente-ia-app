@@ -2,13 +2,23 @@
 
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, Loader2, ListOrdered } from 'lucide-react';
+import { Loader2, ListOrdered } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
-import { elColorDeLaEtapa } from '@/lib/embudos';
+import {
+    FILA_DEL_MENU,
+    FILA_PUESTA,
+    NOMBRE_EN_LA_FILA,
+    ROTULO_DEL_MENU,
+} from '@/lib/filas-de-los-menus';
+import {
+    elColorDeLaEtapa,
+    type EtapaDeLaFila,
+} from '@/lib/embudos';
+import { CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from '@/lib/cabeceras-de-chats';
 import {
     etapaDeLaConversacionAction,
     moverTarjetaAction,
@@ -30,13 +40,44 @@ import { anotarCambioDeEtapa } from '@/lib/etapa-desde-el-chat';
  * las mismas funciones que el tablero. Lo que se ve aquí y lo que se ve allí no
  * pueden discrepar porque salen del mismo sitio.
  *
- * **Se carga al ABRIR, no al abrir la conversación.** Es lo que hace su vecino
- * de fila (`ChatAppointmentStatusButton`) y por el mismo motivo: Chats es la
- * pantalla más cara de la App y una consulta por conversación abierta se paga
- * todo el día, también en las cuentas que no usan embudos. El precio es que el
- * rótulo dice «Etapa» hasta la primera vez que se abre.
+ * # Un control de icono más de la fila, y la lista se carga al ABRIRLO
+ *
+ * El botón es la caja común de la cabecera (`CONTROL_DE_ICONO`), como llamar,
+ * el recordatorio, la cita o la ficha: **solo el icono**, sin rótulo. Llevaba
+ * el nombre de la etapa escrito al lado y era el único de su fila con texto, así
+ * que se leía como otra cosa y se comía hasta 9 rem del ancho que sus vecinos se
+ * reparten. Lo que dice cuál es la etapa es el COLOR del icono, y el nombre
+ * entero se lee en el globo al posar el cursor.
+ *
+ * Para eso el color tiene que estar puesto **antes** de abrir nada, y por eso
+ * entra `etapaInicial`: la bandeja ya trae la etapa de todas sus filas
+ * (`lib/etapas-de-la-bandeja.server.ts`), así que la de la conversación abierta
+ * baja desde ahí y no cuesta ni una consulta. Lo que sigue cargándose al ABRIR
+ * el menú es la LISTA de etapas —que es lo caro y lo que casi nunca se mira—,
+ * igual que hace su vecino `ChatAppointmentStatusButton`. Si esa conversación
+ * no estaba en la página cargada de la bandeja, el icono sale neutro hasta que
+ * se abre, que es como estaba antes.
+ *
+ * # Lo puesto se marca con un GRIS, no con un chulito
+ *
+ * La fila de la etapa en la que está la conversación lleva un fondo gris suave y
+ * nada más. Lo que decide cómo se ve una fila —su sangrado, su redondeo, el
+ * nombre en mayúscula y ese gris— vive en `lib/filas-de-los-menus.ts`, al lado
+ * de lo que usa el menú de Etiquetas: son dos componentes que no se parecen por
+ * debajo (aquel es un `Command` de cmdk) y abiertos uno tras otro tienen que
+ * leerse como la misma pantalla.
  */
-export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
+export function SelectorDeEtapaDelEmbudo({
+    sessionId,
+    etapaInicial,
+    onEtapaCambiada,
+}: {
+    sessionId: number;
+    /** La etapa que ya trae la bandeja, para pintar el icono sin abrir nada. */
+    etapaInicial?: EtapaDeLaFila | null;
+    /** Para que la pastilla de la fila cambie al momento y no en 60 s. */
+    onEtapaCambiada?: (etapa: EtapaDeLaFila) => void;
+}) {
     const [abierto, setAbierto] = useState(false);
     // Uno más de los paneles de la cabecera: nace bajo ella y con el mismo
     // filo derecho que Acciones y los demás.
@@ -68,7 +109,9 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
     const mover = async (etapaId: string) => {
         if (!datos || moviendo || etapaId === datos.etapaId) return;
         const antes = datos.etapaId;
-        const nombre = datos.etapas.find((e) => e.id === etapaId)?.nombre ?? '';
+        const posicion = datos.etapas.findIndex((e) => e.id === etapaId);
+        const etapa = posicion >= 0 ? datos.etapas[posicion] : null;
+        const nombre = etapa?.nombre ?? '';
         // Se pinta al momento: un gesto que no responde se repite, o sea que se
         // pone y se quita.
         setDatos({ ...datos, etapaId });
@@ -84,6 +127,18 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
         // es solo para que el caché del enrutador no se lo tape al volver;
         // `lib/etapa-desde-el-chat.ts` cuenta por qué no va un `revalidatePath`.
         anotarCambioDeEtapa();
+        // Y la pastilla de la FILA se pinta al momento, que es la regla de
+        // siempre: sin esto la lista se quedaría con la etapa de antes hasta la
+        // vuelta del reloj de sesiones (60 s), y eso se lee como que el cambio
+        // no se guardó. El color se resuelve aquí con la misma función que el
+        // servidor, para que las dos pinten el mismo.
+        if (etapa) {
+            onEtapaCambiada?.({
+                id: etapa.id,
+                nombre: etapa.nombre,
+                color: elColorDeLaEtapa(etapa, posicion),
+            });
+        }
         toast.success(`Movida a «${nombre}».`);
         setAbierto(false);
     };
@@ -93,7 +148,22 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
     const etapas = datos?.etapas ?? [];
     const posicionActual = etapas.findIndex((e) => e.id === datos?.etapaId);
     const actual = posicionActual >= 0 ? etapas[posicionActual] : null;
-    const colorActual = actual ? elColorDeLaEtapa(actual, posicionActual) : null;
+
+    /*
+     * Qué etapa pinta el icono: la leída si ya se abrió el menú, y si no la que
+     * bajó con la bandeja. En ese orden y no al revés: una vez abierto, lo que
+     * manda es lo que acaba de contestar el servidor —ahí está también el
+     * movimiento que se acaba de hacer—, y `etapaInicial` puede ser de hace
+     * hasta un minuto.
+     */
+    const laQueSePinta = actual
+        ? { nombre: actual.nombre, color: elColorDeLaEtapa(actual, posicionActual) }
+        : etapaInicial
+          ? {
+                nombre: etapaInicial.nombre,
+                color: etapaInicial.color,
+            }
+          : null;
 
     return (
         <Popover
@@ -106,20 +176,34 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
         >
             <PopoverTrigger asChild ref={panel.disparador}>
                 <Button
-                    variant="outline"
+                    type="button"
+                    variant="ghost"
+                    size="icon"
                     role="combobox"
                     aria-expanded={abierto}
-                    title="Etapa del embudo"
-                    className="h-7 max-w-[9rem] shrink-0 justify-start gap-1.5 px-2 text-xs"
-                >
-                    {/* El color lo pone la etapa, que es el dato; el botón se
-                        queda neutro para no pelear con los de al lado. */}
-                    {colorActual ? (
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colorActual }} />
-                    ) : (
-                        <ListOrdered className="h-3 w-3 shrink-0" />
+                    aria-label="Etapa del embudo"
+                    /* El nombre ENTERO, sin recortar: es lo que sustituye al
+                       rótulo que este botón ya no lleva. */
+                    title={laQueSePinta ? `Etapa · ${laQueSePinta.nombre}` : 'Etapa del embudo'}
+                    className={cn(
+                        'w-7 shrink-0 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+                        CONTROL_DE_ICONO,
                     )}
-                    <span className="truncate">{actual?.nombre ?? 'Etapa'}</span>
+                >
+                    {/* El color del icono ES el dato: dice en qué etapa está sin
+                        gastar ancho. Sin etapa conocida se queda neutro, que es
+                        lo mismo que dice el globo. */}
+                    <ListOrdered
+                        className={cn(
+                            GLIFO_DE_CONTROL,
+                            'shrink-0',
+                            !laQueSePinta && 'text-muted-foreground',
+                        )}
+                        /* Con el color libre no hay clase de Tailwind que valga:
+                           se pinta con `style`, y el tono sale de la misma
+                           función que lo pinta en el tablero y en la fila. */
+                        style={laQueSePinta ? { color: laQueSePinta.color } : undefined}
+                    />
                 </Button>
             </PopoverTrigger>
 
@@ -129,7 +213,7 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
                 {...panel.props}
                 className={cn('w-60 space-y-2', RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
             >
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className={ROTULO_DEL_MENU}>
                     {datos?.embudoNombre ? `Embudo · ${datos.embudoNombre}` : 'Embudo'}
                 </p>
 
@@ -149,7 +233,14 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
 
                 {!cargando && !fallo && datos?.embudoId && (
                     <>
-                        <div className="max-h-64 space-y-0.5 overflow-auto">
+                        {/* `listbox` con sus `option`: quitado el chulito, lo
+                            puesto lo dice el fondo —y para un lector de pantalla,
+                            `aria-selected`, que es lo único que le queda—. */}
+                        <div
+                            role="listbox"
+                            aria-label="Etapas del embudo"
+                            className="max-h-64 space-y-0.5 overflow-auto"
+                        >
                             {datos.etapas.map((etapa, i) => {
                                 const color = elColorDeLaEtapa(etapa, i);
                                 const puesta = etapa.id === datos.etapaId;
@@ -157,6 +248,8 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
                                     <button
                                         key={etapa.id}
                                         type="button"
+                                        role="option"
+                                        aria-selected={puesta}
                                         // Un asesor VE la etapa de una conversación
                                         // que no lleva y no la cambia: el motivo va
                                         // escrito abajo, que es lo que un botón
@@ -164,18 +257,27 @@ export function SelectorDeEtapaDelEmbudo({ sessionId }: { sessionId: number }) {
                                         disabled={!datos.puedeMover || moviendo}
                                         onClick={() => void mover(etapa.id)}
                                         className={cn(
-                                            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs',
+                                            'flex w-full items-center gap-2 text-left',
+                                            FILA_DEL_MENU,
                                             datos.puedeMover && !moviendo
                                                 ? 'cursor-pointer hover:bg-muted'
                                                 : 'cursor-default',
-                                            puesta && 'font-medium',
+                                            // El gris suave ES la marca. Va DESPUÉS
+                                            // del `hover`, que es el mismo gris: así
+                                            // apuntar a la fila puesta no le cambia
+                                            // nada.
+                                            puesta && FILA_PUESTA,
                                         )}
                                     >
-                                        <Check
-                                            className={cn('h-3 w-3 shrink-0', puesta ? 'opacity-100' : 'opacity-0')}
+                                        <span
+                                            className="h-2 w-2 shrink-0 rounded-full"
+                                            style={{ backgroundColor: color }}
                                         />
-                                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                                        <span className="truncate">{etapa.nombre}</span>
+                                        {/* En mayúscula se recorta antes, así que el
+                                            nombre entero se lee en el globo. */}
+                                        <span className={NOMBRE_EN_LA_FILA} title={etapa.nombre}>
+                                            {etapa.nombre}
+                                        </span>
                                     </button>
                                 );
                             })}

@@ -1,16 +1,12 @@
 import "server-only";
 
 import { currentUser } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { canManageWorkspace } from "@/lib/workspace-roles";
-import { laFamiliaDeLaCuenta } from "@/lib/familia-de-cuentas";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
-import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
-import { recordarPorSesion } from "@/lib/cache-de-sesion";
+import { lasCuentasQueAlcanzaHaciaAbajo } from "@/lib/cuentas-hacia-abajo.server";
 import {
     comoListaDeCuentas,
     laSeleccionDelCrm,
-    lasCuentasQueCuelganDe,
     type CuentaDelCrm,
 } from "@/lib/crm-de-la-familia";
 
@@ -63,101 +59,25 @@ type Alcance = { disponibles: CuentaDelCrm[]; puedeElegir: boolean };
 const SOLA: Alcance = { disponibles: [], puedeElegir: false };
 
 /**
- * La llave con la que se recuerda el alcance.
+ * La familia de esta cuenta, con sus nombres.
  *
- * Son **los ids que deciden la respuesta y nada más**, igual que en
- * `getAssociatedAccountIds`: la familia de una cuenta solo depende de esa
- * cuenta, así que dos llamadas con el mismo `propia` devuelven lo mismo venga
- * de donde vengan. No entra la credencial porque no decide nada aquí — lo que
- * decide la persona (`canManageWorkspace`) se resuelve **antes**, sin tocar la
- * base, y ni siquiera llega a esta llave.
- */
-function llaveDelAlcanceDelCrm(propia: string, todaLaFamilia: boolean): string {
-    // `todaLaFamilia` ENTRA en la llave: el superadministrador y el
-    // administrador de la misma cuenta no ven lo mismo, y compartir entrada
-    // cinco segundos le pasaría a uno el alcance del otro.
-    return `crm-de-la-familia|${todaLaFamilia ? "toda" : "abajo"}|${propia}`;
-}
-
-/**
- * La familia de esta cuenta, con sus nombres, recordada unos segundos.
+ * **Quién la resuelve es `lasCuentasQueAlcanzaHaciaAbajo`**, compartida con el
+ * tablero de Embudos: la propia y lo que cuelga de ella, nunca su madre ni sus
+ * hermanas, con su caché de unos segundos y su fallo no mudo. Aquí solo se le
+ * pone la forma que este filtro espera.
  *
- * Son **tres consultas** (`laFamiliaDeLaCuenta`) más una de nombres, y una
- * pantalla del CRM son decenas de llamadas: la lista con su scroll infinito,
- * los totales, el tablero, los dos informes y cada acción de fila. Sin
- * recordarlo, cada una de ellas repetiría el mismo `UNION` recursivo sobre
- * `linked_accounts` para devolver la misma lista de cinco ids.
- *
- * El plazo es el de `lib/cache-de-sesion` (5 s) y se acepta a sabiendas: lo que
- * tarda en notarse es **vincular o desvincular una cuenta**, que no es una
- * operación de cada minuto.
+ * Esa función vive aparte desde el #948, y no por gusto: Embudos tenía su
+ * propia copia de esta consulta y le había añadido la cartera de clientes, así
+ * que su selector ofrecía cuentas sin ningún vínculo. Dos formas de contestar
+ * «qué cuentas alcanza esta pantalla» son una que se afina y otra que se queda
+ * atrás.
  */
 async function alcanceDeLaCuenta(propia: string, todaLaFamilia: boolean): Promise<Alcance> {
-    return recordarPorSesion(
-        llaveDelAlcanceDelCrm(propia, todaLaFamilia),
-        () => consultarElAlcance(propia, todaLaFamilia),
-        // Un alcance recortado por un fallo de la base NO se queda pegado cinco
-        // segundos: sería propagar esa pérdida de vista a las peticiones de al
-        // lado, y eso se ve como una pantalla que a veces trae menos filas.
-        { sirveParaCachear: (a) => a.puedeElegir },
-    );
-}
-
-async function consultarElAlcance(propia: string, todaLaFamilia: boolean): Promise<Alcance> {
-    try {
-        const familia = await laFamiliaDeLaCuenta(propia);
-
-        // El superadministrador ve la familia entera. Cualquier otro, lo que
-        // cuelga de su cuenta hacia abajo — nunca su madre ni sus hermanas.
-        const alcanzables = todaLaFamilia
-            ? familia.cuentas
-            : lasCuentasQueCuelganDe(propia, familia.enlaces ?? []);
-
-        // Con una sola cuenta no hay nada que elegir ni que unificar.
-        if (alcanzables.length <= 1) return SOLA;
-
-        const filas = await db.user.findMany({
-            where: { id: { in: alcanzables } },
-            select: {
-                id: true,
-                name: true,
-                company: true,
-                email: true,
-                preferredCurrencyCode: true,
-            },
-        });
-
-        const disponibles: CuentaDelCrm[] = filas
-            .map((f) => ({
-                id: f.id,
-                // `nombreDeLaCuenta` y no `company` a secas: esa columna nace
-                // «Empresa Demo» y el filtro ofrecería cinco filas iguales.
-                nombre: nombreDeLaCuenta(f) || f.id,
-                // El tipo lo pide porque lo comparte con el selector de
-                // Finanzas. Aquí no decide nada: en el CRM no se suma dinero.
-                moneda: f.preferredCurrencyCode || "COP",
-                esLaPropia: f.id === propia,
-            }))
-            // La propia primero —es la que se mira a diario— y el resto por
-            // nombre, para que la lista no cambie de orden entre dos cargas.
-            .sort((a, b) => {
-                if (a.esLaPropia !== b.esLaPropia) return a.esLaPropia ? -1 : 1;
-                return a.nombre.localeCompare(b.nombre, "es");
-            });
-
-        return { disponibles, puedeElegir: true };
-    } catch (error) {
-        // Nunca lanza: el CRM tiene que abrir igual. Y el lado seguro es la
-        // cuenta propia —se ve de menos, nunca de más—. Pero **no es mudo**: un
-        // filtro que desaparece sin decir nada se lee como que la función no
-        // existe, y una vista que deja de unificar se lee como que faltan
-        // datos.
-        console.warn("[crm] no se pudieron resolver las cuentas de la familia", {
-            cuenta: propia,
-            error: error instanceof Error ? error.message : String(error),
-        });
-        return SOLA;
-    }
+    const cuentas = await lasCuentasQueAlcanzaHaciaAbajo(propia, todaLaFamilia);
+    if (cuentas.length <= 1) return SOLA;
+    // El tipo pide `moneda` porque lo comparte con el selector de Finanzas.
+    // Aquí no decide nada: en el CRM no se suma dinero.
+    return { disponibles: cuentas.map((c) => ({ ...c })), puedeElegir: true };
 }
 
 export async function resolverLasCuentasDelCrm(

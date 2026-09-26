@@ -3,6 +3,8 @@
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
+import type { EtapaDeLaFila } from '@/lib/embudos';
+import { lasEtapasDeLaBandeja } from '@/lib/etapas-de-la-bandeja.server';
 import {
   ESTADOS_DE_CITA_CERRADA,
   ESTADOS_DE_FOLLOWUP_VIVO,
@@ -116,6 +118,7 @@ function mapChatContactSessionSummary(
   reminderCount?: number,
   resolvedAt?: number | null,
   escalatedAt?: number | null,
+  etapa?: EtapaDeLaFila | null,
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
 
@@ -143,6 +146,9 @@ function mapChatContactSessionSummary(
     // Para emparejar en el navegador: de que linea es y cual es mas reciente.
     instanceId: mappedSession.instanceId ?? null,
     updatedAt: mappedSession.updatedAt ? new Date(mappedSession.updatedAt).getTime() : null,
+    // La etapa del embudo, deducida del asesor que la lleva. `null` = su cuenta
+    // no usa embudos, y entonces la fila no pinta pastilla.
+    etapa: etapa ?? null,
   };
 }
 
@@ -509,7 +515,7 @@ export async function getSesionesDeLaCuenta(
     // Resueltas va aparte porque la columna no esta en schema.prisma (se crea
     // en caliente), asi que el findMany de arriba no la trae. Por cuenta, no
     // por lista de ids.
-    const [seguimientosRaw, resueltasMap, appointmentsRaw, escaladasMap, recordatoriosRaw] = await Promise.all([
+    const [seguimientosRaw, resueltasMap, appointmentsRaw, escaladasMap, recordatoriosRaw, etapasMap] = await Promise.all([
       medir('seguimientos', () =>
         allRemoteJids.length
           ? db.seguimiento.findMany({
@@ -542,6 +548,19 @@ export async function getSesionesDeLaCuenta(
           return [];
         }
       }),
+      // La etapa del embudo de cada conversacion. Va en el MISMO `Promise.all`
+      // -no en un viaje aparte- y lleva su propio catch dentro: es un adorno de
+      // la fila, asi que un fallo suyo no puede dejar la bandeja sin nombres ni
+      // etiquetas. Una cuenta sin embudos devuelve el mapa vacio.
+      medir('etapas', () =>
+        lasEtapasDeLaBandeja(
+          sessions.map((fila) => ({
+            id: fila.id,
+            userId: fila.userId,
+            assignedAdvisorId: fila.assignedAdvisorId ?? null,
+          })),
+        ),
+      ),
     ]);
 
     const seguimientosMap = new Map<string, { count: number; tiposMap: Record<string, number> }>();
@@ -576,6 +595,7 @@ export async function getSesionesDeLaCuenta(
         recordatoriosMap.get(sesion.remoteJid) ?? 0,
         resueltasMap.get(sesion.id) ?? null,
         escaladasMap.get(sesion.id) ?? null,
+        etapasMap.get(sesion.id) ?? null,
       );
     });
 

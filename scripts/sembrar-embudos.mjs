@@ -9,6 +9,12 @@
  * es lo que hace que el selector de cuenta se pinte. Sin ella, el servidor
  * devuelve `puedeElegirCuenta: false` —con una sola cuenta no hay nada que
  * elegir— y la sonda mediría una pantalla sin el mando que viene a probar.
+ *
+ * El dueño va con rol **`admin`** y al lado hay una cuenta cliente **sin ningún
+ * vínculo** con él. Las dos cosas son para poder ejercer el fallo del #948: el
+ * selector sumaba la cartera al alcance, y para una cuenta de la casa esa
+ * cartera son todas las cuentas cliente de la plataforma. Con el dueño en `user`
+ * y sin ninguna cuenta suelta, la sonda habría pasado con el fallo puesto.
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -24,7 +30,10 @@ async function persona(email, name, extra = {}) {
     });
 }
 
-const dueno = await persona("dueno@embudos.test", "Carlos Dueño", { company: "Banco de Embudos" });
+const dueno = await persona("dueno@embudos.test", "Carlos Dueño", {
+    company: "Banco de Embudos",
+    role: "admin",
+});
 const admin = await persona("monica@embudos.test", "Mónica Vélez", { ownerId: dueno.id, advisorRole: "administrador" });
 const ana = await persona("ana@embudos.test", "Ana Ruiz", { ownerId: dueno.id, advisorRole: "agente" });
 const beto = await persona("beto@embudos.test", "Beto Gil", { ownerId: dueno.id, advisorRole: "agente" });
@@ -61,6 +70,11 @@ await db.linkedAccount.upsert({
     update: {},
     create: { masterUserId: dueno.id, linkedUserId: hija.id },
 });
+
+// Una cuenta cliente que NO cuelga de nadie: está en la cartera de cualquier
+// cuenta de la casa y no tiene ni un `linked_accounts`. No puede salir en el
+// selector, y que esté sembrada es lo que hace que la sonda pueda decirlo.
+await persona("ajena@embudos.test", "Cliente Sin Vinculo", { company: "Cliente Sin Vinculo" });
 
 await db.session.deleteMany({ where: { userId: { in: [dueno.id, hija.id] } } });
 const conversaciones = [

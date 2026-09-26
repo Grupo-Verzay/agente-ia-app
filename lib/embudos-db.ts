@@ -34,6 +34,11 @@ import type { AQuienSeMira } from "@/lib/embudos-de-la-cuenta";
  * - `embudo_posiciones` — en qué etapa está una conversación **dentro de un
  *   embudo**. La clave es `(sessionId, embudoId)`: por eso una conversación que
  *   cambia de embudo y vuelve recupera la etapa que tenía.
+ *
+ * - `embudo_cuenta_recordada` — en qué cuenta abre el tablero cada persona.
+ *   Es lo único de aquí que **no es un dato del embudo sino una preferencia de
+ *   vista**, y vive con las demás para no tener una segunda copia del `ddl` y
+ *   del reintento del `42P01`.
  * - `embudo_vaciadas` — la papelera de la columna de Perdido: de dónde salió
  *   cada conversación y cuándo, para poder devolverla a su etapa durante
  *   treinta días. La clave es el `sessionId`: una conversación está vaciada o
@@ -127,6 +132,30 @@ function asegurarLasTablas(): Promise<void> {
         // primaria empieza por sessionId, así que hace falta este.
         await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "embudo_posiciones_embudo_idx" ON "embudo_posiciones" ("embudoId")
+        `);
+        /*
+         * En qué cuenta abre el tablero cada persona.
+         *
+         * **La llave es (persona, cuenta propia), no la persona a secas**, y es
+         * la regla de siempre: la llave son los datos que deciden la respuesta.
+         * Qué cuenta puede abrir alguien depende de desde dónde entra —las
+         * alcanzables se resuelven contra su fila efectiva—, así que con la
+         * persona sola, entrar a otra cuenta con «Ingresar» y recargar ahí
+         * borraría lo elegido en la suya. Con la pareja, cada contexto recuerda
+         * lo suyo y ninguno pisa al otro.
+         *
+         * Sin clave foránea, como el resto de las tablas de la App: al borrar
+         * una cuenta queda una fila huérfana de tres textos, y lo que apunta a
+         * una cuenta que ya no se alcanza se descarta al leerlo.
+         */
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "embudo_cuenta_recordada" (
+                "personaId" TEXT NOT NULL,
+                "cuentaPropia" TEXT NOT NULL,
+                "cuentaElegida" TEXT NOT NULL,
+                "tocadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("personaId", "cuentaPropia")
+            )
         `);
 
         // Las etapas de sistema y los colores libres llegaron después: la tabla
@@ -304,6 +333,85 @@ export async function lasPosicionesDe(
         `;
         const mapa: Record<number, string> = {};
         for (const f of filas) mapa[Number(f.sessionId)] = f.etapaId;
+        return mapa;
+    });
+}
+
+/**
+ * Los embudos y las asignaciones de VARIAS cuentas, en una consulta cada uno.
+ *
+ * La bandeja enseña las líneas de la cuenta y las de las que cuelgan de ella,
+ * así que una carga de Chats mira varias. Con `losEmbudosDe` sería una consulta
+ * por cuenta y otra más por sus asignaciones —2N— en el camino más caliente de
+ * la App, compitiendo por los diez turnos del pool con la propia bandeja. Así
+ * son **dos**, cuenten las cuentas que cuenten.
+ */
+export async function losEmbudosDeVarias(cuentaIds: readonly string[]): Promise<Map<string, Embudo[]>> {
+    const mapa = new Map<string, Embudo[]>();
+    if (cuentaIds.length === 0) return mapa;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<FilaEmbudo & { cuentaId: string }>>`
+            SELECT "cuentaId", "id", "nombre", "porDefecto", "orden"
+            FROM "embudos"
+            WHERE "cuentaId" = ANY(${[...cuentaIds]}::text[])
+            ORDER BY "orden" ASC, "creadoEn" ASC
+        `;
+        for (const f of filas) {
+            const lista = mapa.get(f.cuentaId) ?? [];
+            lista.push({ id: f.id, nombre: f.nombre, porDefecto: f.porDefecto, orden: Number(f.orden) });
+            mapa.set(f.cuentaId, lista);
+        }
+        return mapa;
+    });
+}
+
+/** cuenta → (persona → embudo), para varias cuentas a la vez. */
+export async function lasAsignacionesDeVarias(
+    cuentaIds: readonly string[],
+): Promise<Map<string, Record<string, string>>> {
+    const mapa = new Map<string, Record<string, string>>();
+    if (cuentaIds.length === 0) return mapa;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<{ cuentaId: string; personaId: string; embudoId: string }>>`
+            SELECT "cuentaId", "personaId", "embudoId"
+            FROM "embudo_asesores"
+            WHERE "cuentaId" = ANY(${[...cuentaIds]}::text[])
+        `;
+        for (const f of filas) {
+            const de = mapa.get(f.cuentaId) ?? {};
+            de[f.personaId] = f.embudoId;
+            mapa.set(f.cuentaId, de);
+        }
+        return mapa;
+    });
+}
+
+/**
+ * Lo mismo para VARIOS embudos a la vez: `sessionId → { embudoId, etapaId }`.
+ *
+ * La bandeja pinta la etapa de todas sus filas, y esas filas pueden ser de
+ * varias cuentas y por tanto de varios embudos. Con `lasPosicionesDe` sería una
+ * consulta por embudo en el camino más caliente de la App —«muchas peticiones
+ * pequeñas son turno, no trabajo», por dentro—, así que van todas en una.
+ *
+ * Una conversación puede tener posición guardada en más de un embudo (cambió de
+ * asesor y volvió), así que la llave lleva el embudo dentro: quien lee se queda
+ * con la del embudo que le toca a esa conversación AHORA.
+ */
+export async function lasPosicionesDeVarios(
+    embudoIds: readonly string[],
+    sessionIds: readonly number[],
+): Promise<Map<string, string>> {
+    const mapa = new Map<string, string>();
+    if (embudoIds.length === 0 || sessionIds.length === 0) return mapa;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<Array<{ sessionId: number; embudoId: string; etapaId: string }>>`
+            SELECT "sessionId", "embudoId", "etapaId"
+            FROM "embudo_posiciones"
+            WHERE "embudoId" = ANY(${[...embudoIds]}::text[])
+              AND "sessionId" = ANY(${[...sessionIds]}::int[])
+        `;
+        for (const f of filas) mapa.set(`${f.embudoId}::${Number(f.sessionId)}`, f.etapaId);
         return mapa;
     });
 }
@@ -689,6 +797,64 @@ export async function moverConversacion(input: {
             ON CONFLICT ("sessionId", "embudoId")
             DO UPDATE SET "etapaId" = EXCLUDED."etapaId", "movidoPorId" = EXCLUDED."movidoPorId",
                           "actualizadoEn" = NOW()
+        `;
+    });
+}
+
+/* ───────────────────────── La cuenta en la que abre ────────────────────────
+ *
+ * El selector volvía siempre a la cuenta propia, así que quien trabaja a
+ * diario en el tablero de una hija tenía que elegirla en cada visita. Ahora se
+ * recuerda **dónde estaba mirando** esa persona desde esa cuenta.
+ *
+ * Lo que se guarda NO decide nada por su cuenta: al leerlo vuelve a pasar por
+ * `laCuentaDelTablero`, que lo filtra contra las alcanzables de HOY. Un id de
+ * una cuenta que se desvinculó, o de otra familia, no es un error que enseñar
+ * —es un id que ya no existe para quien pregunta— y lo que toca entonces es su
+ * propio tablero.
+ */
+
+/** En qué cuenta abría el tablero esta persona desde esta cuenta. */
+export async function laCuentaRecordada(
+    personaId: string,
+    cuentaPropia: string,
+): Promise<string | null> {
+    if (!personaId || !cuentaPropia) return null;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ cuentaElegida: string }[]>`
+            SELECT "cuentaElegida" FROM "embudo_cuenta_recordada"
+            WHERE "personaId" = ${personaId} AND "cuentaPropia" = ${cuentaPropia}
+            LIMIT 1
+        `;
+        return filas[0]?.cuentaElegida?.trim() || null;
+    });
+}
+
+/**
+ * Apuntar dónde está mirando.
+ *
+ * Se llama en cada carga del tablero, no solo al elegir: así una elección que
+ * dejó de alcanzarse **se cura sola** —se resuelve a la propia y eso es lo que
+ * queda apuntado— en vez de arrastrar para siempre un id muerto.
+ *
+ * Y por eso el `ON CONFLICT` lleva su `WHERE`: cuando no hay nada que cambiar
+ * Postgres **no escribe la fila**, que es lo que hace que llamarlo en cada
+ * carga no cueste. Es la misma forma que la marca de leído del chat del equipo.
+ */
+export async function recordarLaCuenta(
+    personaId: string,
+    cuentaPropia: string,
+    cuentaElegida: string,
+): Promise<void> {
+    if (!personaId || !cuentaPropia || !cuentaElegida) return;
+    await conLasTablas(async () => {
+        await db.$executeRaw`
+            INSERT INTO "embudo_cuenta_recordada" ("personaId", "cuentaPropia", "cuentaElegida", "tocadoEn")
+            VALUES (${personaId}, ${cuentaPropia}, ${cuentaElegida}, CURRENT_TIMESTAMP)
+            ON CONFLICT ("personaId", "cuentaPropia") DO UPDATE
+               SET "cuentaElegida" = EXCLUDED."cuentaElegida",
+                   "tocadoEn" = CURRENT_TIMESTAMP
+             WHERE "embudo_cuenta_recordada"."cuentaElegida" IS DISTINCT FROM EXCLUDED."cuentaElegida"
         `;
     });
 }
