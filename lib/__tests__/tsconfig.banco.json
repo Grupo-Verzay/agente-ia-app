@@ -27,6 +27,9 @@
     "../grabacion-de-reunion.ts",
     "../transcripcion-de-voz.ts",
     "../rango-de-fechas-chats.ts",
-    "../editar-asesor.ts"
+    "../editar-asesor.ts",
+    "../moderar-en-la-sala.ts",
+    "../aviso-de-la-puerta.ts",
+    "../aviso-del-equipo.ts"
   ]
 }
