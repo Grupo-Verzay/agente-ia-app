@@ -7,6 +7,7 @@ import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
 import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
 import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
 import { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
+import { runPurgaDeChats } from "@/lib/purga-de-chats.server";
 import { TOPE_EN_LA_VUELTA_DIARIA } from "@/lib/rescate-de-llamadas";
 import { NextResponse } from "next/server";
 
@@ -141,6 +142,20 @@ export async function POST(request: Request) {
     papeleraDeEmbudos = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // El historial de las conversaciones que se eliminaron y cuya purga se quedo a
+  // medias —un despliegue, un reinicio—. La marca se queda escrita y ESA es la
+  // cola, asi que aqui solo hay que volver a pasar. En su propio `try` y acotado
+  // por vuelta, como los demas.
+  //
+  // Su numero ES la alarma: `pendientes` muy por encima de lo que se acaba de
+  // borrar significa que la purga de fondo no esta llegando.
+  let purgaDeChats: unknown = null;
+  try {
+    purgaDeChats = await runPurgaDeChats();
+  } catch (e) {
+    purgaDeChats = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   return NextResponse.json(
     {
       ...result,
@@ -152,6 +167,7 @@ export async function POST(request: Request) {
       grabaciones,
       llamadas,
       papeleraDeEmbudos,
+      purgaDeChats,
     },
     { status: result.success ? 200 : 500 },
   );

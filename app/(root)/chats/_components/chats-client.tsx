@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import {
   bulkArchiveChatsAction,
   bulkDeleteChatsAction,
+  contarConversacionesParaBorrarAction,
+  borrarConversacionesDeLaBandejaAction,
   bulkPinChatsAction,
   deleteChatConversationAction,
   devolverChatAlEscribirAction,
@@ -71,6 +73,11 @@ import {
   isLidJid,
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
+import type {
+  CriterioDeBorrado,
+  CuantasParaBorrar,
+  LoQueSeBorro,
+} from "@/lib/borrado-de-chats";
 import {
   chatPreferenceKey,
   chatPreferenceKeys,
@@ -4115,6 +4122,70 @@ export function ChatsClient({
     [agruparSeleccionPorCuentaYLinea, selectedJid, selectedInstanceName],
   );
 
+  /**
+   * Quita de la pantalla lo que se acaba de borrar, por LINEA.
+   *
+   * Vive aparte porque lo necesitan los dos caminos del borrado en bloque —la
+   * seleccion multiple y «Eliminar conversaciones»— y con una copia en cada uno,
+   * el dia que se afine una el otro se queda atras. Aqui eso no se ve como un
+   * error: se ve como filas que se quedan puestas despues de borrarlas.
+   *
+   * Se acota SIEMPRE a la linea. Filtrando por identidad a secas, borrar un
+   * contacto en Ventas hacia desaparecer en el acto tambien sus filas de Atencion
+   * y de Notificaciones —conversaciones distintas, que nadie pidio borrar— y
+   * volvian solas en el refresco siguiente, que es lo que lo hacia parecer un
+   * parpadeo y no un fallo.
+   */
+  const quitarChatsBorradosDeLaPantalla = useCallback(
+    (porLinea: Map<string, Set<string>>) => {
+      const seBorro = (chat: ChatData) => {
+        const identidades = chat.instanceName ? porLinea.get(chat.instanceName) : undefined;
+        return Boolean(identidades) && chatMatchesAnyJid(chat, identidades!);
+      };
+
+      setCurrentChatsResult((prev) =>
+        prev.success ? { ...prev, data: prev.data.filter((chat) => !seBorro(chat)) } : prev,
+      );
+      setChatSessions((prev) => {
+        const next = { ...prev };
+        // Las sesiones viven bajo DOS llaves: la de su linea (`linea::numero`) y
+        // la global (el numero pelado). Se quita la de la linea que se borro y
+        // se deja la global, que es la que pueden estar usando las filas del
+        // mismo contacto en las OTRAS lineas. Antes se hacia al reves —se
+        // borraba la global y se dejaba la de la linea—, asi que el borrado se
+        // llevaba por delante el asesor y las etiquetas de conversaciones que
+        // seguian vivas.
+        for (const [linea, identidades] of Array.from(porLinea.entries())) {
+          for (const identidad of Array.from(identidades)) {
+            delete next[`${linea}::${identidad}`];
+          }
+        }
+        return next;
+      });
+
+      // La conversacion abierta se cierra solo si se borro LA SUYA.
+      //
+      // Comparaba por identidad a secas, asi que con el chat de Atencion
+      // abierto, borrar a ese mismo contacto en Ventas cerraba la conversacion
+      // de Atencion, que seguia existiendo. Cuando no se sabe de que linea es la
+      // abierta se conserva el criterio de antes.
+      const identidadesAbiertas = buildWhatsAppJidCandidates(selectedJid);
+      const sueltas = new Set(Array.from(porLinea.values()).flatMap((ids) => Array.from(ids)));
+      const borraronLaAbierta = selectedInstanceName
+        ? (porLinea.get(selectedInstanceName)?.size ?? 0) > 0 &&
+          identidadesAbiertas.some((candidate) =>
+            porLinea.get(selectedInstanceName)!.has(candidate),
+          )
+        : identidadesAbiertas.some((candidate) => sueltas.has(candidate));
+      if (borraronLaAbierta) {
+        setSelectedJid("");
+        setMessages([]);
+        setInfo(undefined);
+      }
+    },
+    [selectedJid, selectedInstanceName],
+  );
+
   const handleBulkDelete = useCallback(
     async (chats: SeleccionDeChat[]) => {
       // Se agrupa por cuenta Y POR LINEA.
@@ -4203,38 +4274,8 @@ export function ChatsClient({
         }
         porLinea.set(linea, identidades);
       }
-      const seBorro = (chat: ChatData) => {
-        const identidades = chat.instanceName ? porLinea.get(chat.instanceName) : undefined;
-        return Boolean(identidades) && chatMatchesAnyJid(chat, identidades!);
-      };
+      quitarChatsBorradosDeLaPantalla(porLinea);
 
-      setCurrentChatsResult((prev) =>
-        prev.success
-          ? { ...prev, data: prev.data.filter((chat) => !seBorro(chat)) }
-          : prev,
-      );
-      setChatSessions((prev) => {
-        const next = { ...prev };
-        // Las sesiones viven bajo DOS llaves: la de su linea (`linea::numero`) y
-        // la global (el numero pelado). Se quita la de la linea que se borro y
-        // se deja la global, que es la que pueden estar usando las filas del
-        // mismo contacto en las OTRAS lineas. Antes se hacia al reves —se
-        // borraba la global y se dejaba la de la linea—, asi que el borrado se
-        // llevaba por delante el asesor y las etiquetas de conversaciones que
-        // seguian vivas.
-        for (const [linea, identidades] of Array.from(porLinea.entries())) {
-          for (const identidad of Array.from(identidades)) {
-            delete next[`${linea}::${identidad}`];
-          }
-        }
-        return next;
-      });
-
-      // Para cerrar la conversacion abierta y para las marcas hacen falta las
-      // identidades sueltas, sin linea: ahi no hay fila que acotar.
-      const deletedJids = new Set(
-        Array.from(porLinea.values()).flatMap((ids) => Array.from(ids)),
-      );
       setChatPreferences((prev) => {
         const next = { ...prev };
         for (const { ownerUserId, result } of ok) {
@@ -4244,24 +4285,6 @@ export function ChatsClient({
         }
         return next;
       });
-      // La conversacion abierta se cierra solo si se borro LA SUYA.
-      //
-      // Comparaba por identidad a secas, asi que con el chat de Atencion
-      // abierto, borrar a ese mismo contacto en Ventas cerraba la conversacion
-      // de Atencion, que seguia existiendo. Cuando no se sabe de que linea es
-      // la abierta se conserva el criterio de antes.
-      const identidadesAbiertas = buildWhatsAppJidCandidates(selectedJid);
-      const borraronLaAbierta = selectedInstanceName
-        ? (porLinea.get(selectedInstanceName)?.size ?? 0) > 0 &&
-          identidadesAbiertas.some((candidate) =>
-            porLinea.get(selectedInstanceName)!.has(candidate),
-          )
-        : identidadesAbiertas.some((candidate) => deletedJids.has(candidate));
-      if (borraronLaAbierta) {
-        setSelectedJid("");
-        setMessages([]);
-        setInfo(undefined);
-      }
       if (sinLinea.length > 0) {
         toast.warning(
           `${sinLinea.length} chat${sinLinea.length !== 1 ? "s" : ""} no se borr${sinLinea.length !== 1 ? "aron" : "o"}: no se pudo saber de que linea ${sinLinea.length !== 1 ? "son" : "es"}. Abre${sinLinea.length !== 1 ? "los" : "lo"} y borra desde la conversacion.`,
@@ -4270,7 +4293,70 @@ export function ChatsClient({
         toast.success(ok[0].result.message);
       }
     },
-    [agruparSeleccionPorCuentaYLinea, identidadesDeLaFila, selectedJid, selectedInstanceName],
+    [
+      agruparSeleccionPorCuentaYLinea,
+      identidadesDeLaFila,
+      quitarChatsBorradosDeLaPantalla,
+    ],
+  );
+
+  /**
+   * Cuantas conversaciones se llevaria el borrado por criterio.
+   *
+   * La cuenta el SERVIDOR sobre la bandeja entera: el dialogo la contaba sobre
+   * las filas cargadas, y la bandeja carga acotada. `null` es «no se pudo»: el
+   * dialogo lo dice en vez de enseñar un cero, que se leeria como «no hay nada».
+   */
+  const handleContarParaBorrar = useCallback(
+    async (criterio: CriterioDeBorrado): Promise<CuantasParaBorrar | null> => {
+      const res = await contarConversacionesParaBorrarAction(criterio);
+      if (!res.success || !res.data) {
+        // Nunca mudo: un dialogo que no sabe cuantas entran no puede callarse.
+        console.warn("[chats] no se pudo contar cuantas conversaciones entran", res.message);
+        return null;
+      }
+      if (res.data.lineasFuera.length > 0) {
+        console.warn("[chats] hay lineas que no se pueden limpiar", res.data.lineasFuera);
+      }
+      return res.data;
+    },
+    [],
+  );
+
+  /**
+   * Limpia la base por criterio: una tanda, y dice cuantas quedan.
+   *
+   * El servidor se lleva hasta su tope por vuelta —marcar miles en una sola
+   * peticion es lo que volveria a cortar el proxy— asi que el dialogo repite. Aqui
+   * solo se quita de la pantalla lo que se fue en ESTA tanda.
+   */
+  const handleBorrarPorCriterio = useCallback(
+    async (criterio: CriterioDeBorrado): Promise<LoQueSeBorro | null> => {
+      const res = await borrarConversacionesDeLaBandejaAction(criterio);
+      if (!res.data) {
+        toast.error(res.message || "No se pudieron eliminar las conversaciones.");
+        return null;
+      }
+
+      const porLinea = new Map<string, Set<string>>();
+      for (const { instanceName, remoteJids } of res.data.porLinea) {
+        const identidades = porLinea.get(instanceName) ?? new Set<string>();
+        for (const jid of remoteJids) {
+          for (const candidato of buildWhatsAppJidCandidates(jid)) identidades.add(candidato);
+        }
+        porLinea.set(instanceName, identidades);
+      }
+      quitarChatsBorradosDeLaPantalla(porLinea);
+
+      // El aviso sale UNA vez, al final: una tanda por toast con dos mil
+      // conversaciones seria una lluvia de avisos.
+      if (res.data.quedan === 0) {
+        if (res.success) toast.success(res.message);
+        else toast.error(res.message);
+      }
+      return res.data;
+    },
+    [quitarChatsBorradosDeLaPantalla],
   );
 
   const handleBulkPin = useCallback(
@@ -5418,6 +5504,8 @@ export function ChatsClient({
           }
           onBulkArchive={handleBulkArchive}
           onBulkDelete={handleBulkDelete}
+          onContarParaBorrar={handleContarParaBorrar}
+          onBorrarPorCriterio={handleBorrarPorCriterio}
           onBulkPin={handleBulkPin}
           onBulkAssignAdvisor={
             advisorRole !== "agente" && advisors && advisors.length > 0

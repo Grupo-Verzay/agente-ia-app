@@ -28,12 +28,15 @@ import { lasQueLesTocaElBorradoEnFirme, olvidarDeLaPapelera } from "@/lib/embudo
  *
  * **El historial de WhatsApp no se borra** (`chat_messages`,
  * `chat_conversations`), así que la conversación sigue en Chats sin su ficha de
- * CRM. Y se dice en vez de disimularlo: llevárselo pide el borrado de Chats
- * entero (`hardDeleteLocalChat`), que hoy es una función privada de un fichero
- * `'use server'` con cinco ayudantes suyos, y sacarla a un `lib/*.server.ts`
- * para poder llamarla desde aquí es cirugía en el camino de borrado de la
- * pantalla más delicada del repositorio. **Ese es el frente aparte**; lo que no
- * puede pasar es que se dé por hecho.
+ * CRM. Y se dice en vez de disimularlo.
+ *
+ * Lo que era el obstáculo **ya no lo es**: `hardDeleteLocalChat` vive ahora en
+ * `lib/borrado-de-chats.server.ts` y se puede llamar desde aquí (la sacó el
+ * arreglo del borrado en bloque, que necesitaba lo mismo para su obrero de
+ * fondo). Lo que queda es la decisión, que es otra cosa: vaciar la columna de
+ * Perdido borra **fichas de CRM**, y llevarse además el historial de WhatsApp de
+ * esas conversaciones es un borrado mucho más ancho del que nadie pidió. Se
+ * decide aparte; lo que no puede pasar es que se dé por hecho.
  */
 
 /** Cuántas se borran por vuelta. */
