@@ -41,8 +41,12 @@ mkdir -p lib/__tests__/.compilado
 # Las funciones puras SIEMPRE se compilan del árbol de ahora: en el «antes» no
 # existían, así que no hay un «antes» suyo que afirmar. Lo que el modo roto lee
 # del otro árbol son los COMPONENTES.
-npx tsc lib/embudos.ts --outDir lib/__tests__/.compilado \
-  --module esnext --target es2022 --moduleResolution bundler --skipLibCheck
+# Con esbuild y `--bundle`, no con `tsc` a secas: desde que el color es libre,
+# `lib/embudos.ts` importa `@/lib/colores-rapidos`, y un `tsc` de la CLI sin
+# tsconfig no sabe resolver ese alias — se cae con un TS2307 que no tiene nada
+# que ver con lo que este banco prueba.
+npx esbuild lib/embudos.ts --bundle --platform=node --format=esm \
+  --outdir=lib/__tests__/.compilado --log-level=error
 
 # ── 2. Las consultas contra Postgres ─────────────────────────────────────
 if [ "$MODO" = "roto" ]; then

@@ -15,9 +15,7 @@ import {
     ROTULO_DEL_MENU,
 } from '@/lib/filas-de-los-menus';
 import {
-    COLORES_DE_ETAPA,
     elColorDeLaEtapa,
-    elIndiceDelColorDeLaEtapa,
     type EtapaDeLaFila,
 } from '@/lib/embudos';
 import { CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from '@/lib/cabeceras-de-chats';
@@ -132,13 +130,13 @@ export function SelectorDeEtapaDelEmbudo({
         // Y la pastilla de la FILA se pinta al momento, que es la regla de
         // siempre: sin esto la lista se quedaría con la etapa de antes hasta la
         // vuelta del reloj de sesiones (60 s), y eso se lee como que el cambio
-        // no se guardó. El índice del color se resuelve aquí con la misma
-        // función que el servidor, para que las dos pinten el mismo color.
+        // no se guardó. El color se resuelve aquí con la misma función que el
+        // servidor, para que las dos pinten el mismo.
         if (etapa) {
             onEtapaCambiada?.({
                 id: etapa.id,
                 nombre: etapa.nombre,
-                color: elIndiceDelColorDeLaEtapa(etapa.color, posicion),
+                color: elColorDeLaEtapa(etapa, posicion),
             });
         }
         toast.success(`Movida a «${nombre}».`);
@@ -159,11 +157,11 @@ export function SelectorDeEtapaDelEmbudo({
      * hasta un minuto.
      */
     const laQueSePinta = actual
-        ? { nombre: actual.nombre, color: elColorDeLaEtapa(actual.color, posicionActual) }
+        ? { nombre: actual.nombre, color: elColorDeLaEtapa(actual, posicionActual) }
         : etapaInicial
           ? {
                 nombre: etapaInicial.nombre,
-                color: COLORES_DE_ETAPA[etapaInicial.color] ?? COLORES_DE_ETAPA[0],
+                color: etapaInicial.color,
             }
           : null;
 
@@ -199,8 +197,12 @@ export function SelectorDeEtapaDelEmbudo({
                         className={cn(
                             GLIFO_DE_CONTROL,
                             'shrink-0',
-                            laQueSePinta ? laQueSePinta.color.texto : 'text-muted-foreground',
+                            !laQueSePinta && 'text-muted-foreground',
                         )}
+                        /* Con el color libre no hay clase de Tailwind que valga:
+                           se pinta con `style`, y el tono sale de la misma
+                           función que lo pinta en el tablero y en la fila. */
+                        style={laQueSePinta ? { color: laQueSePinta.color } : undefined}
                     />
                 </Button>
             </PopoverTrigger>
@@ -240,7 +242,7 @@ export function SelectorDeEtapaDelEmbudo({
                             className="max-h-64 space-y-0.5 overflow-auto"
                         >
                             {datos.etapas.map((etapa, i) => {
-                                const color = elColorDeLaEtapa(etapa.color, i);
+                                const color = elColorDeLaEtapa(etapa, i);
                                 const puesta = etapa.id === datos.etapaId;
                                 return (
                                     <button
@@ -267,7 +269,10 @@ export function SelectorDeEtapaDelEmbudo({
                                             puesta && FILA_PUESTA,
                                         )}
                                     >
-                                        <span className={cn('h-2 w-2 shrink-0 rounded-full', color.punto)} />
+                                        <span
+                                            className="h-2 w-2 shrink-0 rounded-full"
+                                            style={{ backgroundColor: color }}
+                                        />
                                         {/* En mayúscula se recorta antes, así que el
                                             nombre entero se lee en el globo. */}
                                         <span className={NOMBRE_EN_LA_FILA} title={etapa.nombre}>

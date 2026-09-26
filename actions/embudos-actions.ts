@@ -12,21 +12,29 @@ import {
     puedeMoverLaTarjeta,
     type Etapa,
 } from '@/lib/embudos';
+import { sePuedeVaciarLaColumna, type EnLaPapelera } from '@/lib/papelera-de-embudos';
+import { comoListaDeIdsNumericos } from '@/lib/borrado-en-bloque';
 import {
     asignarEmbudos,
     borrarEmbudo,
     crearEmbudo,
+    cuantasHayEnLaEtapa,
     esDeLaCuenta,
     guardarEtapas,
+    laPapeleraDe,
     lasAsignacionesDe,
     lasEtapasDe,
+    lasMarcasDeSistemaDe,
     lasPosicionesDe,
     losEmbudosDe,
     moverConversacion,
     renombrarEmbudo,
+    restaurarDeLaPapelera,
     usarPorDefecto,
+    vaciarLaEtapa,
 } from '@/lib/embudos-db';
 import {
+    elAlcanceDeLaColumna,
     elTableroDelEmbudo,
     quienMiraElTablero,
     quienMiraEstaConversacion,
@@ -218,8 +226,11 @@ export async function guardarEtapasAction(
         if (typeof embudoId !== 'string' || !(await esDeLaCuenta(quien.cuentaId, embudoId))) {
             return { success: false, message: 'Ese embudo no está en esta cuenta.' };
         }
-        const actuales = await lasEtapasDe([embudoId]);
-        const lista = comoListaDeEtapas(etapas, new Set(actuales.map((e) => e.id)));
+        // La marca de sistema de cada etapa sale de la BASE, no de la lista que
+        // llega: si llegara de fuera, una petición a mano convertiría cualquier
+        // columna en «Perdido» —con su botón de vaciar— o le quitaría la marca a
+        // las tres para poder borrarlas.
+        const lista = comoListaDeEtapas(etapas, await lasMarcasDeSistemaDe(embudoId));
         if (!lista.ok) return { success: false, message: lista.motivo };
         const ok = await guardarEtapas(quien.cuentaId, embudoId, lista.etapas);
         if (!ok) return { success: false, message: 'Ese embudo no está en esta cuenta.' };
@@ -228,6 +239,179 @@ export async function guardarEtapasAction(
     } catch (error) {
         console.error('[embudos] no se pudieron guardar las etapas', error);
         return { success: false, message: 'No se pudieron guardar las etapas.' };
+    }
+}
+
+/**
+ * Vacía la columna de Perdido: sus conversaciones pasan a la papelera.
+ *
+ * **No borra nada.** La ficha, el historial y todo lo que cuelga de la
+ * conversación se quedan enteros treinta días; lo único que se borra es su
+ * posición en el embudo, que es lo que la sacaba en esa columna. El borrado en
+ * firme lo hace el barrido diario, y por el camino de borrado que ya existe.
+ *
+ * Cuatro cosas que hay que mantener:
+ *
+ * 1. **Solo la columna de Perdido**, y se pregunta por su MARCA de sistema
+ *    (`sePuedeVaciarLaColumna`), no por su nombre: el nombre se puede cambiar,
+ *    así que con una comprobación por texto bastaría con renombrar una columna a
+ *    «Perdido» para poder vaciarla.
+ * 2. **Se comprueba aquí, no solo en la pantalla.** La columna llega del
+ *    navegador; esconder el botón no cierra la petición directa.
+ * 3. **Se vacía lo que se VE**: el filtro de asesor entra por
+ *    `elAlcanceDeLaColumna`, la misma función que decide qué pinta el tablero.
+ * 4. **El resumen dice los números**, y si quedaron conversationes dentro lo
+ *    dice también: un «listo» que deja doscientas es peor que un error, porque
+ *    nadie vuelve a mirar.
+ */
+export async function vaciarLaColumnaAction(
+    embudoId: unknown,
+    etapaId: unknown,
+    cuentaPedida?: unknown,
+    asesorPedido?: unknown,
+): Promise<Respuesta<{ vaciadas: number; quedan: number }>> {
+    try {
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
+        if (!quien.manda) return noManda(quien, 'vaciar');
+        if (typeof embudoId !== 'string' || typeof etapaId !== 'string') {
+            return { success: false, message: 'Datos no válidos.' };
+        }
+
+        const alcance = await elAlcanceDeLaColumna(quien, embudoId, asesorPedido);
+        if (!alcance) return { success: false, message: 'Ese embudo no está en esta cuenta.' };
+        const etapa = alcance.etapas.find((e) => e.id === etapaId);
+        if (!sePuedeVaciarLaColumna(etapa)) {
+            console.warn('[embudos] se pidió vaciar una columna que no es la de Perdido', {
+                embudoId,
+                etapaId,
+                cuenta: quien.cuentaId,
+            });
+            return { success: false, message: 'Solo se puede vaciar la columna de Perdido.' };
+        }
+
+        const r = await vaciarLaEtapa({
+            embudoId,
+            etapaId,
+            cuentaId: quien.cuentaId,
+            aQuien: alcance.aQuien,
+            vaciadoPorId: quien.personaId,
+        });
+        revalidatePath(RUTA);
+        if (r.vaciadas === 0) {
+            return { success: true, message: 'En esa columna no había nada que vaciar.', data: r };
+        }
+        const cuantas = r.vaciadas === 1 ? '1 conversación' : `${r.vaciadas} conversaciones`;
+        return {
+            success: true,
+            message:
+                r.quedan > 0
+                    ? `Se vaciaron ${cuantas}. Quedan más: vuelve a pulsar para seguir.`
+                    : `Se vaciaron ${cuantas}. Están en la papelera de esta columna.`,
+            data: r,
+        };
+    } catch (error) {
+        console.error('[embudos] no se pudo vaciar la columna', error);
+        return { success: false, message: 'No se pudo vaciar la columna.' };
+    }
+}
+
+/**
+ * Cuántas se van a vaciar, para decirlo ANTES de vaciar.
+ *
+ * Es el mismo `COUNT` que la cabecera de la columna y con el mismo filtro que el
+ * vaciado: si el diálogo dijera un número y el vaciado se llevara otro, el
+ * número no serviría para decidir. Un diálogo sin el número se acepta sin leer.
+ */
+export async function cuantasSeVaciarianAction(
+    embudoId: unknown,
+    etapaId: unknown,
+    cuentaPedida?: unknown,
+    asesorPedido?: unknown,
+): Promise<Respuesta<{ cuantas: number }>> {
+    try {
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
+        if (!quien.manda) return noManda(quien, 'contar para vaciar');
+        if (typeof embudoId !== 'string' || typeof etapaId !== 'string') {
+            return { success: false, message: 'Datos no válidos.' };
+        }
+        const alcance = await elAlcanceDeLaColumna(quien, embudoId, asesorPedido);
+        if (!alcance) return { success: false, message: 'Ese embudo no está en esta cuenta.' };
+        const etapa = alcance.etapas.find((e) => e.id === etapaId);
+        if (!sePuedeVaciarLaColumna(etapa)) {
+            return { success: false, message: 'Solo se puede vaciar la columna de Perdido.' };
+        }
+        const cuantas = await cuantasHayEnLaEtapa({
+            embudoId,
+            etapaId,
+            cuentaId: quien.cuentaId,
+            aQuien: alcance.aQuien,
+        });
+        return { success: true, message: 'Listo.', data: { cuantas } };
+    } catch (error) {
+        console.error('[embudos] no se pudo contar la columna', error);
+        return { success: false, message: 'No se pudo contar la columna.' };
+    }
+}
+
+/**
+ * Lo que hay en la papelera, con los días que le quedan a cada una.
+ *
+ * Se pide **al abrir la papelera**, no en cada carga del tablero: es una
+ * pantalla que casi nunca se abre, y traerla siempre sería una consulta más en
+ * cada entrada para no enseñarla. El tablero solo lleva el número, que le sale
+ * gratis.
+ */
+export async function laPapeleraAction(cuentaPedida?: unknown): Promise<Respuesta<EnLaPapelera[]>> {
+    try {
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
+        if (!quien.manda) return noManda(quien, 'papelera');
+        return { success: true, message: 'Listo.', data: await laPapeleraDe(quien.cuentaId) };
+    } catch (error) {
+        console.error('[embudos] no se pudo leer la papelera', error);
+        return { success: false, message: 'No se pudo leer la papelera.' };
+    }
+}
+
+/**
+ * Devuelve conversaciones de la papelera a su etapa. Sin ids, la papelera
+ * entera.
+ *
+ * Restaurar **no puede tener tope de permisos más estrecho que vaciar**: quien
+ * vació tiene que poder deshacerlo. Y los ids se filtran por la cuenta dentro de
+ * la consulta, así que una lista que llegue de fuera no restaura lo de otra.
+ */
+export async function restaurarDeLaPapeleraAction(
+    sessionIds?: unknown,
+    cuentaPedida?: unknown,
+): Promise<Respuesta<{ restauradas: number }>> {
+    try {
+        const ctx = await quienLlama(cuentaPedida);
+        if (!ctx) return { success: false, message: 'No autorizado.' };
+        const { quien } = ctx;
+        if (!quien.manda) return noManda(quien, 'restaurar');
+        const ids = sessionIds === undefined || sessionIds === null ? [] : comoListaDeIdsNumericos(sessionIds);
+        const restauradas = await restaurarDeLaPapelera({ cuentaId: quien.cuentaId, sessionIds: ids });
+        revalidatePath(RUTA);
+        if (restauradas === 0) {
+            return { success: true, message: 'No había nada que restaurar.', data: { restauradas } };
+        }
+        return {
+            success: true,
+            message:
+                restauradas === 1
+                    ? 'Conversación restaurada a su etapa.'
+                    : `${restauradas} conversaciones restauradas a su etapa.`,
+            data: { restauradas },
+        };
+    } catch (error) {
+        console.error('[embudos] no se pudo restaurar', error);
+        return { success: false, message: 'No se pudo restaurar.' };
     }
 }
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import {
     elEmbudoDeLaConversacion,
-    elIndiceDelColorDeLaEtapa,
+    elColorDeLaEtapa,
     laEtapaDeLaConversacion,
     type Embudo,
     type Etapa,
@@ -117,7 +117,7 @@ export async function lasEtapasDeLaBandeja(
             etapasPorSesion.set(sessionId, {
                 id: etapa.id,
                 nombre: etapa.nombre,
-                color: elIndiceDelColorDeLaEtapa(etapa.color, posicion),
+                color: elColorDeLaEtapa(etapa, posicion),
             });
         }
 

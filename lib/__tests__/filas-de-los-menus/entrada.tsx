@@ -64,7 +64,7 @@ const ETIQUETAS = [
  */
 const SELECCIONADAS = [2];
 
-const ETAPA_ABIERTA = { id: "s2", nombre: "Contactado", color: 2 };
+const ETAPA_ABIERTA = { id: "s2", nombre: "Contactado", color: "#F97316" };
 
 const ASESORES = [
     { id: "a1", name: "Sofía Pérez", email: "sofia@x.com" },

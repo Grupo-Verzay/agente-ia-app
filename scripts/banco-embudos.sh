@@ -30,6 +30,11 @@ ANTES_DEL_SELECTOR="${ANTES_DEL_SELECTOR:-95b56da}"
 # recordaba en qué cuenta se estaba mirando. Otro fallo, otro commit pinchado.
 ANTES_DEL_ALCANCE="${ANTES_DEL_ALCANCE:-d1e778c}"
 
+# Y el «antes» de las siete etapas, de las etapas de sistema y del vaciado de
+# Perdido: el commit de justo antes. Mismo motivo — `origin/main` sería el
+# «después» en cuanto esto se fusione.
+ANTES_DE_LAS_SIETE="${ANTES_DE_LAS_SIETE:-d1e778c}"
+
 export PATH="/usr/lib/postgresql/16/bin:/opt/node22/bin:$PATH"
 PGDIR=/tmp/pgembudos
 PORT=55493
@@ -52,7 +57,8 @@ export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 
 OUT=lib/__tests__/.compilado/embudos
-npx esbuild lib/embudos.ts lib/embudos-de-la-cuenta.ts lib/personales.ts lib/etapa-desde-el-chat.ts --bundle \
+npx esbuild lib/embudos.ts lib/embudos-de-la-cuenta.ts lib/personales.ts lib/etapa-desde-el-chat.ts \
+  lib/papelera-de-embudos.ts lib/colores-rapidos.ts --bundle \
   --platform=node --format=esm --outdir=$OUT --log-level=error
 
 empaquetar() {
@@ -112,9 +118,30 @@ npx esbuild lib/__tests__/fingido/entrada-de-embudos-alcance-antes.ts --bundle \
   --log-level=error
 sed -i '/server-only/d' "$OUT/entrada-de-embudos-alcance-antes.js"
 
+# El «antes» de las siete etapas: sus cuatro ficheros, con los `import` de los
+# tres módulos APUNTADOS a los viejos. Sin los alias resolverían a los de hoy
+# —que ya llevan el arreglo— y ese fichero pasaría sin ejercer nada.
+SIETE=lib/__tests__/.antes/sin-siete/actions
+mkdir -p "$SIETE"
+for f in actions/embudos-actions.ts lib/embudos.ts lib/embudos-db.ts lib/tablero-de-embudo.server.ts; do
+  git show "$ANTES_DE_LAS_SIETE:$f" > "$SIETE/$(basename "$f")"
+done
+npx esbuild lib/__tests__/fingido/entrada-de-embudos-sin-siete.ts --bundle \
+  --platform=node --format=esm --outdir=$OUT \
+  --external:@prisma/client --external:server-only \
+  --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-documentos.ts \
+  --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
+  --alias:react=./lib/__tests__/fingido/react-cache.ts \
+  --alias:@/lib/embudos=./lib/__tests__/.antes/sin-siete/actions/embudos.ts \
+  --alias:@/lib/embudos-db=./lib/__tests__/.antes/sin-siete/actions/embudos-db.ts \
+  --alias:@/lib/tablero-de-embudo.server=./lib/__tests__/.antes/sin-siete/actions/tablero-de-embudo.server.ts \
+  --log-level=error
+sed -i '/server-only/d' "$OUT/entrada-de-embudos-sin-siete.js"
+
 node --test lib/__tests__/embudos.test.mjs lib/__tests__/embudos-de-la-cuenta.test.mjs \
      lib/__tests__/embudos-db.test.mjs lib/__tests__/embudos-de-la-cuenta-db.test.mjs \
-     lib/__tests__/embudos-alcance-db.test.mjs "$@"
+     lib/__tests__/embudos-alcance-db.test.mjs \
+     lib/__tests__/embudos-sin-siete.test.mjs "$@"
 
 echo
 echo "── lo personal, con las acciones de $ANTES_REF (tiene que afirmar el fallo) ──"

@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 import { RELLENO_DE_PX_2 } from "@/lib/pastillas-de-la-fila";
 import {
     ANCHO_DE_LA_PASTILLA,
-    COLORES_DE_ETAPA,
     elTextoDeLaPastilla,
+    losTonosDeLaEtapa,
     type EtapaDeLaFila,
 } from "@/lib/embudos";
 
@@ -45,7 +45,7 @@ import {
 export function PastillaDeEtapa({ etapa }: { etapa?: EtapaDeLaFila | null }) {
     if (!etapa) return null;
 
-    const color = COLORES_DE_ETAPA[etapa.color] ?? COLORES_DE_ETAPA[0];
+    const tonos = losTonosDeLaEtapa(etapa.color);
     const texto = elTextoDeLaPastilla(etapa.nombre);
 
     return (
@@ -65,8 +65,13 @@ export function PastillaDeEtapa({ etapa }: { etapa?: EtapaDeLaFila | null }) {
                 "inline-flex h-6 shrink-0 items-center overflow-hidden rounded-full border text-xs font-medium",
                 RELLENO_DE_PX_2,
                 ANCHO_DE_LA_PASTILLA,
-                color.pastilla,
             )}
+            /* Con el color libre no hay clase de Tailwind que valga —solo genera
+               lo que ve literal—, así que los tres tonos salen de `style` y de
+               la MISMA función que pinta el tablero y el icono de la cabecera.
+               El alfa hace lo que hacían las variantes `dark:` a mano: un tono
+               al 12 % se lee sobre fondo claro y sobre fondo oscuro. */
+            style={{ color: tonos.pleno, backgroundColor: tonos.fondo, borderColor: tonos.borde }}
         >
             {/* El `truncate` va en el hijo y no en la pastilla: en un contenedor
                 flex el texto suelto cae en una caja anónima, y ahí
