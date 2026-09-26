@@ -430,6 +430,11 @@ function ChatContactItemBase({
       role="listitem"
       data-chat-id={contact.id}
       data-chat-instance={contact.instanceName ?? undefined}
+      /* Lo que la fila dice de si misma sobre el no leido. Es la marca con la
+         que el banco lo MIDE sobre la pagina servida: el punto azul es un
+         `<span>` sin nada que lo identifique, y una sonda que lo busque por su
+         clase estaria midiendo el estilo y no el dato. */
+      data-sin-leer={isUnread ? "1" : undefined}
       onMouseEnter={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
       onFocus={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
       onTouchStart={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}

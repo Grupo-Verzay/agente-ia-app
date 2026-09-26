@@ -10,12 +10,16 @@ import { losChatsSinLeer } from "@/lib/insignia-del-favicon";
  *
  * # Por qué no hay una segunda fuente
  *
- * Porque no puede haberla. Lo «no leído» de un WhatsApp sale de cruzar el
- * `unreadCount` del proveedor con las marcas de `seenMessages`, que viven en
- * el `localStorage` de **este navegador**; en nuestra base no hay ni una
- * columna que lo diga. Hubo un tiempo en que el servidor mandaba aquí un
- * conteo propio —las conversaciones cuyo último mensaje es del contacto— para
- * que el icono se pintara también en frío. Ese número no era «sin leer» y se
+ * Porque no puede haberla. Lo «no leído» de un WhatsApp sale de las marcas que
+ * viven en el `localStorage` de **este navegador** —qué chats se abrieron y
+ * hasta cuándo estaba leída cada línea, con la regla en
+ * `lib/no-leido-de-la-fila`—; en nuestra base no hay ni una columna que lo
+ * diga, y el `unreadCount` del proveedor no sirve: para WhatsApp vale 0
+ * siempre cuando la lista sale de nuestra base.
+ *
+ * Hubo un tiempo en que el servidor mandaba aquí un conteo propio —las
+ * conversaciones cuyo último mensaje es del contacto— para que el icono se
+ * pintara también en frío. Ese número no era «sin leer» y se
  * vio en producción: `9+` con la campanita vacía, y `9+` otra vez con la
  * cuenta ENTERA borrada, porque contaba una tabla que sobrevive al borrado de
  * los leads. Está contado en `lib/insignia-del-favicon`.

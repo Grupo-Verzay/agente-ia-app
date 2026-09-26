@@ -31,7 +31,16 @@ import { Button } from "@/components/ui/button";
 import { Inbox, Users, UserX, Check, MessageCircle } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
-import { useChatsVistos, type MessageRecord } from "@/hooks/chats/useSeenMessages";
+import {
+  useChatsVistos,
+  useCortesDeLoYaLeido,
+  type MessageRecord,
+} from "@/hooks/chats/useSeenMessages";
+import {
+  elChatEstaSinLeer,
+  elCorteDeLaLinea,
+  sembrarLosCortes,
+} from "@/lib/no-leido-de-la-fila";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import { elegirPreferenciaDelChat } from "@/lib/chat-preference-key";
 import type { ChatContactSessionMap, SimpleTag } from "@/types/session";
@@ -195,11 +204,16 @@ function formatDiaLargo(fecha: Date) {
     return fecha.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
 }
 
-/** Lo minimo que la pasada barata necesita de cada fila. */
+/**
+ * Lo minimo que la pasada barata necesita de cada fila.
+ *
+ * Ya no lleva el `unreadCount` del proveedor: **ese dato dejo de decidir**. El
+ * porque entero esta en `lib/no-leido-de-la-fila.ts` —para WhatsApp vale 0
+ * siempre cuando la lista sale de nuestra base, asi que daba por leido todo—.
+ */
 type LoParaNoLeido = {
   _remoteJid: string;
   _lastFromMe: boolean;
-  _hasUnreadFromServer: boolean;
 };
 
 type ChatSidebarProps = {
@@ -241,7 +255,6 @@ type ChatSidebarProps = {
   onCargarMas?: () => void;
   isRefreshing?: boolean;
   onCompose?: () => void;
-  inactiveAgentUnreadJids?: Set<string>;
   /** Presencia por fila (`linea::jid`): escribiendo / grabando. */
   presencias?: Record<string, PresenciaContacto>;
   // Cada chat marcado viaja con SU linea: un mismo numero puede estar
@@ -294,7 +307,6 @@ export function ChatSidebar({
   onCargarMas,
   isRefreshing,
   onCompose,
-  inactiveAgentUnreadJids,
   presencias,
   onBulkArchive,
   onBulkDelete,
@@ -372,6 +384,14 @@ export function ChatSidebar({
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
   const [seenMessages, setSeenMessages] = useChatsVistos("seenMessages");
+  // Hasta donde se da por leido lo que YA ESTABA en cada linea. Ver
+  // `lib/no-leido-de-la-fila.ts`: es lo que evita que una cuenta con miles de
+  // chats historicos abra la bandeja entera en rojo el dia del despliegue.
+  const {
+    cortes: cortesDeLoYaLeido,
+    listo: cortesLeidos,
+    guardar: guardarLosCortes,
+  } = useCortesDeLoYaLeido("chatsLeidosHasta");
 
   const markMessageAsSeen = useCallback(
     (remoteJid: string, messageId: string, instanceName?: string, ts?: number) => {
@@ -474,7 +494,6 @@ export function ChatSidebar({
       .map((chat) => {
         const ts = epochToMs(chat.lastMessage?.messageTimestamp);
         const lastMsgData = lastTextFrom(chat);
-        const hasUnreadFromServer = (chat.unreadCount ?? 0) > 0;
         const preference = getPreferenceForChat(
           chat,
           chatPreferences,
@@ -524,7 +543,6 @@ export function ChatSidebar({
           // tener que volver a mirar el chat entero.
           _remoteJid: chat.remoteJid,
           _lastFromMe: lastMsgData.fromMe,
-          _hasUnreadFromServer: hasUnreadFromServer,
         } satisfies SidebarContact & LoParaNoLeido;
       })
       // El orden y la llave de repetidos son los de `lo-que-ve-todos`: el
@@ -566,26 +584,29 @@ export function ChatSidebar({
    * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la
    * pasada cara sin rehacerla, asi que abrir un chat ya no cuesta reconstruir
    * la lista entera.
+   *
+   * **Quien decide es `elChatEstaSinLeer` y nadie mas.** Aqui solo se le ponen
+   * delante los cinco datos que mira; la regla —y por que el `unreadCount` del
+   * proveedor dejo de contar— vive en `lib/no-leido-de-la-fila.ts`.
    */
   const contacts = useMemo<SidebarContact[]>(() => {
     return contactosBase.map((base) => {
       // Abierto es ESTA conversacion, no cualquiera con el mismo numero: si no,
       // abrir la de Ventas daba por leida la de Atencion.
-      const isSelected =
+      const estaAbierto =
         base._remoteJid === selectedJid &&
         (selectedInstanceName == null || base.instanceName === selectedInstanceName);
-      const wasSeenPreviously = base.lastMessageId
-        ? isMessageSeen(base._remoteJid, base.lastMessageId, base.instanceName, base.ts)
-        : false;
-      const hasLocalPending = inactiveAgentUnreadJids?.has(base._remoteJid) ?? false;
-      const isForcedUnread = forcedUnreadJids.has(base._remoteJid);
-      const isRead =
-        !isForcedUnread &&
-        (wasSeenPreviously ||
-          base._lastFromMe ||
-          isSelected ||
-          (!base._hasUnreadFromServer && !hasLocalPending));
-      const isUnreadLocal = (Boolean(base.lastMessageId) || hasLocalPending) && !isRead;
+      const isUnreadLocal = elChatEstaSinLeer({
+        hayUltimoMensaje: Boolean(base.lastMessageId),
+        loMandoLaLinea: base._lastFromMe,
+        estaAbierto,
+        yaSeVio: base.lastMessageId
+          ? isMessageSeen(base._remoteJid, base.lastMessageId, base.instanceName, base.ts)
+          : false,
+        marcadoAMano: forcedUnreadJids.has(base._remoteJid),
+        ts: base.ts,
+        corteDeLaLinea: elCorteDeLaLinea(cortesDeLoYaLeido, base.instanceName),
+      });
 
       // Mismo objeto si nada cambia: asi lo de abajo -filtros, contadores y las
       // filas ya dibujadas- no se rehace por gusto.
@@ -593,9 +614,77 @@ export function ChatSidebar({
     });
   }, [
     contactosBase,
+    cortesDeLoYaLeido,
     forcedUnreadJids,
-    inactiveAgentUnreadJids,
     isMessageSeen,
+    selectedInstanceName,
+    selectedJid,
+  ]);
+
+  /**
+   * Siembra el corte de cada linea la PRIMERA vez que esta pestana la ve.
+   *
+   * Lo que ya estaba en la bandeja cuando se entro se da por leido; lo que
+   * llegue despues cuenta. Sin esto, una cuenta con miles de chats historicos
+   * —de los que este navegador no tiene marca— abriria con todos en rojo.
+   *
+   * Tres cosas que hay que mantener:
+   *
+   * 1. **Va detras de `cortesLeidos`.** Sembrar antes de haber leido lo
+   *    guardado es sembrar sobre un mapa vacio: la linea se re-sembraria en
+   *    cada entrada a Chats, y un corte que se mueve tapa todo lo que haya
+   *    entrado desde el anterior. O sea el fallo original, por la otra puerta.
+   * 2. **`sembrarLosCortes` devuelve `null` cuando no hay nada que sembrar**,
+   *    que es el caso de TODAS las vueltas menos la primera de cada linea. Asi
+   *    esto no escribe en el navegador ni repinta la lista por gusto.
+   * 3. **Se siembra con `contactosBase`, no con `contacts`.** El segundo
+   *    depende de los cortes, asi que sembrar desde el seria un bucle.
+   */
+  useEffect(() => {
+    if (!cortesLeidos || contactosBase.length === 0) return;
+    const nuevos = sembrarLosCortes(cortesDeLoYaLeido, contactosBase, Date.now());
+    if (nuevos) guardarLosCortes(nuevos);
+  }, [contactosBase, cortesDeLoYaLeido, cortesLeidos, guardarLosCortes]);
+
+  /**
+   * Con el chat delante, su marca AVANZA.
+   *
+   * Abrir un chat guarda el mensaje que la fila tenia en ese momento, y hasta
+   * ahi bastaba porque el contador del proveedor tapaba el resto. Ya no: si el
+   * contacto escribe tres veces mientras se le lee y el asesor se va a otro
+   * chat sin contestar, el anterior volveria a salir sin leer —y nadie lo
+   * entenderia, porque lo acaba de leer—.
+   *
+   * **No avanza sobre un chat marcado a mano como no leido**: eso es una
+   * decision de la persona y gana sobre todo, que es lo que ya hacia
+   * `forcedUnreadJids`.
+   *
+   * Y **solo escribe cuando el ultimo mensaje del chat abierto cambia de
+   * verdad**, con `ultimoMarcado` delante. `contactosBase` llega nuevo en cada
+   * vuelta de la lista, asi que sin ese guardian esto llamaria a
+   * `markMessageAsSeen` cada 20 segundos: un Map nuevo, la pasada barata de
+   * miles de filas rehecha y ~60 KB serializados al navegador, todo para no
+   * cambiar nada. Es la regla de siempre de esta pantalla —*la lista es grande,
+   * no rehacerla por gusto*—.
+   */
+  const ultimoMarcado = React.useRef("");
+  useEffect(() => {
+    if (!selectedJid) return;
+    const fila = contactosBase.find(
+      (c) =>
+        c._remoteJid === selectedJid &&
+        (selectedInstanceName == null || c.instanceName === selectedInstanceName),
+    );
+    if (!fila?.lastMessageId) return;
+    if (forcedUnreadJids.has(fila._remoteJid)) return;
+    const llave = `${fila.instanceName ?? ""}::${fila._remoteJid}::${fila.lastMessageId}`;
+    if (ultimoMarcado.current === llave) return;
+    ultimoMarcado.current = llave;
+    markMessageAsSeen(fila._remoteJid, fila.lastMessageId, fila.instanceName, fila.ts);
+  }, [
+    contactosBase,
+    forcedUnreadJids,
+    markMessageAsSeen,
     selectedInstanceName,
     selectedJid,
   ]);
@@ -742,9 +831,10 @@ export function ChatSidebar({
     [advisors],
   );
 
-  // La bandeja es la UNICA que sabe que esta sin leer: eso sale de cruzar el
-  // `unreadCount` del proveedor con las marcas de `seenMessages`, que viven en
-  // el localStorage de este navegador. Asi que lo que se publica aqui es el
+  // La bandeja es la UNICA que sabe que esta sin leer: eso sale de las marcas
+  // que viven en el localStorage de este navegador -que chats se abrieron y
+  // hasta cuando estaba leida cada linea-, con la regla en
+  // `lib/no-leido-de-la-fila`. Asi que lo que se publica aqui es el
   // mismo numero de la pastilla «Sin leer», ni uno mas -y cuando es cero, es
   // cero: el icono de la pestaña y la pastilla del menu dejan de pintarse-.
   //

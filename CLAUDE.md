@@ -4881,6 +4881,155 @@ Nunca están los dos paneles abiertos a la vez: abrir uno cierra el otro. Son do
 paneles en el mismo sitio, y abiertos a la vez uno taparía al otro sin decir
 cuál está delante.
 
+## Chats: un mensaje entrante deja el chat SIN LEER, y solo lo limpia ABRIRLO
+
+Un contacto escribía y el chat nacía **ya leído**, sin que ningún asesor lo
+hubiera abierto ni respondido. Y no era la IA leyéndolo para contestar: pasaba
+igual con la IA apagada.
+
+La causa era la pregunta. La fila decidía así:
+
+```ts
+const isRead = wasSeenPreviously || lastFromMe || isSelected
+            || (!hasUnreadFromServer && !hasLocalPending);   // ← esta
+```
+
+O sea: **«si el proveedor no dice que hay no leídos, dalo por leído»**. Y ese
+dato, para WhatsApp, casi nunca existe:
+
+- Cuando la lista sale de **nuestra base** —toda línea Waha, y cualquier línea
+  cuando Evolution no contesta o se queda corta— `inboxRowToChat` escribe
+  `unreadCount: 0` **siempre**, a propósito: lo pone a 1 solo en Telegram y
+  Meta. Así que `hasUnreadFromServer` era falso para todo, y todo nacía leído.
+- Y cuando la lista sale de Evolution, ese contador es de Baileys y lo limpia
+  cualquier cosa que marque el chat como leído en el teléfono o en la propia
+  sesión. **Un dato que unas veces está y otras no no puede decidir.**
+
+El otro mecanismo que había —`pendingUnreadJids`, del hook de avisos— tampoco
+podía sostenerlo, y conviene saber por qué para no volver a enchufarlo: tenía
+una **ventana de cinco minutos**, **descartaba a propósito los chats que
+aparecen por primera vez** («un chat que aparece por PRIMERA vez NO debe
+notificar», para no soltar cientos de avisos al abrir la App — o sea que **un
+contacto nuevo no salía nunca sin leer**), vivía en **estado de React**, así que
+una recarga lo vaciaba, y agrupaba por número **sin su línea**.
+
+De ahí que el fallo se viera intermitente, que es lo que más despista: con un
+chat ya conocido y la pestaña abierta, ese hook a veces acertaba y el chat salía
+en rojo un rato; al recargar se perdía, y con un contacto nuevo no salía nunca.
+El banco lo reproduce con esa misma asimetría.
+
+> **La regla, y es una frase: un mensaje entrante deja el chat SIN LEER, y solo
+> lo limpia que alguien ABRA el chat.** No lo limpia el proveedor, ni que la IA
+> conteste, ni una vuelta del reloj. Lo decide `elChatEstaSinLeer`
+> (`lib/no-leido-de-la-fila.ts`, puro) y nadie más.
+
+Lo que sí sabe de verdad quién abrió qué es `seenMessages` —una marca por línea
+y chat, con la FECHA de lo último que se vio, en el `localStorage` de este
+navegador—, que ya existía y no se toca.
+
+### El CORTE, que es lo que evita la regresión del día uno
+
+Con la regla a secas, una cuenta de 3.900 chats abriría la bandeja con miles en
+rojo el día del despliegue: de los históricos no hay marca, porque
+`seenMessages` guarda 1.000 entradas y solo de lo que se abrió en ESTE
+navegador. Un contador que dice 2.900 es peor que uno que falta — es el mismo
+«99+ sobre una cuenta vacía» que ya costó una vuelta.
+
+Así que cada línea tiene **un corte** (`chatsLeidosHasta`, una entrada por
+línea): la fecha de lo más reciente que ya estaba en la bandeja la primera vez
+que esta pestaña vio esa línea. Todo lo anterior se da por leído; todo lo que
+llegue después cuenta.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se siembra UNA vez por línea y NO se mueve nunca.** Si se re-sembrara en
+   cada vuelta con lo más reciente, taparía cada mensaje que entre y no saldría
+   nada sin leer jamás — el fallo original por la otra puerta. Por eso la
+   siembra va detrás de haber leído lo guardado (`cortesLeidos`): sembrar sobre
+   el mapa vacío del primer pintado es re-sembrar en cada entrada a Chats.
+2. **Se siembra con la fecha del chat MÁS RECIENTE de esa línea, no con
+   `now()`.** Con `now()` se abre una ventana: un mensaje que entre entre la
+   carga y la siembra se daría por leído. Con la fecha del más reciente no hay
+   ventana, porque lo que llegue después tiene una fecha mayor.
+3. **Es por LÍNEA, no una sola global.** Una línea que se conecta mañana siembra
+   la suya; con un corte global, sus chats históricos saldrían todos sin leer. Y
+   cabe de sobra: una entrada por línea, **no una por chat** — sembrar los 3.900
+   desbordaría el tope de `seenMessages` y podaría justo los más antiguos, que
+   son los que hay que dar por leídos.
+4. **`sembrarLosCortes` devuelve `null` cuando no hay nada que sembrar**, que es
+   el caso de todas las vueltas menos la primera de cada línea. Así no se
+   escribe en el navegador ni se repinta la lista por gusto. Es el mismo patrón
+   que `desplegarElEspacio`.
+
+### Con el chat delante, la marca AVANZA
+
+Abrir un chat guardaba el mensaje que la fila tenía en ese momento, y hasta ahora
+bastaba porque el contador del proveedor tapaba el resto. Ya no: si el contacto
+escribe tres veces mientras se le lee y el asesor se va a otro chat sin
+contestar, el anterior volvería a salir sin leer — y nadie lo entendería, porque
+lo acaba de leer.
+
+**No avanza sobre un chat marcado a mano como no leído**: eso es una decisión de
+la persona y gana sobre todo, que es lo que ya hacía `forcedUnreadJids`. Y de
+paso esto arregla abrir por enlace (`?jid=`), que no pasa por el clic de la fila
+y por tanto no marcaba nada.
+
+### Lo que cuesta, que se dice
+
+1. **Leer el chat desde el móvil ya no limpia la App.** Antes lo hacía a veces,
+   cuando Evolution devolvía su contador a cero. Se pierde a propósito: ese dato
+   es justo el que no era de fiar, y era la causa del fallo.
+2. **En la primerísima vuelta de una línea, un chat que de verdad estuviera sin
+   leer se da por leído.** Una vez por navegador y línea.
+3. **Si una marca se cae del tope de `seenMessages`** (1.000 chats distintos
+   abiertos) ese chat puede volver a salir sin leer. Se limpia abriéndolo.
+
+### Y no queda una segunda fuente
+
+`useAdvisorNotifications` sigue avisando —sonido, notificación del sistema,
+insignia de la pestaña— y **deja de devolver `pendingUnreadJids`**: el conjunto
+se queda dentro, que es lo que evita re-avisar del mismo chat. Dos formas de
+contestar «quién está sin leer» es una que se afina y otra que se queda atrás. Y
+`unreadCount` sigue en `ChatData` para lo que ya lo usaba —la campanita, el
+merge de la lista—: lo que se quitó es que decida la fila.
+
+### El banco
+
+`scripts/banco-no-leido.sh`, dos mitades:
+
+1. **La regla y el corte, sin navegador** (`no-leido-de-la-fila.test.mjs`), con
+   la condición de antes **escrita dentro, literal** —la función de ahora no
+   existía, así que no hay un «antes» suyo que sacar de git— y afirmando el
+   fallo; más un **barrido del código**, que es lo único que dice si la bandeja
+   PASA por la regla: el fallo no estaba en ninguna función, estaba en que la
+   pantalla preguntaba otra cosa. El barrido **quita los comentarios antes de
+   mirar**, porque el arreglo lleva escrito al lado por qué el contador del
+   proveedor ya no decide.
+2. **La bandeja de verdad, sobre la página SERVIDA** (`probar-no-leido.mjs`):
+   línea `waha` con cuatro conversaciones, un mensaje entrante escrito como lo
+   escribe el webhook, y se lee lo que la bandeja dice de sí misma. La regla se
+   puede probar en frío; **que la pantalla la use, no**.
+
+Tres cosas del banco que costaron su vuelta:
+
+1. **Se mide por el PUNTO azul de la fila y por la pastilla**, no solo por el
+   `data-sin-leer` de ahora: con la marca sola, el modo roto diría «cero sin
+   leer» por no encontrar el atributo, que es lo mismo que diría el arreglo
+   funcionando. Y se exige que el punto y la marca digan lo mismo.
+2. **Se espera a que el mensaje LLEGUE a la fila**, comprobando su texto. «No
+   está en rojo» se cumple también mientras el mensaje no ha llegado, así que
+   sin eso el caso del chat abierto pasaba **sin ejercer nada** — comprobado:
+   quitando el avance de la marca seguía en verde.
+3. **El primer `button` de la fila es el AVATAR**, y el último el menú: se pulsa
+   el que lleva el nombre. Un `[data-chat-id] button` a secas no abre nada, y el
+   banco habría dicho «no se limpia» sin haber abierto el chat. Y la «Guía
+   rápida» del copiloto se abre sola con un velo que se come los clics: hay que
+   apartarla o el banco se cae por algo que no tiene que ver.
+
+`MODO=roto BUILD_ANTES=<un .next del commit de antes>` reproduce **cuatro
+fallos**, y dos son el reporte al pie de la letra: un contacto nuevo nace leído,
+y lo que sí salió en rojo se pierde al recargar.
+
 ## El número en la PESTAÑA: solo lo que exige respuesta
 
 Con la pestaña de fondo entre otras diez, lo único que se ve de la App es su
@@ -4944,10 +5093,13 @@ comprobado, no supuesto:
 
 - `chat_conversations` no tiene ninguna columna de «sin leer».
 - `persistedRowToChat` pone `unreadCount` a 1 **solo** en Telegram y Meta; para
-  WhatsApp escribe **0 siempre**.
-- Lo que la bandeja llama «sin leer» sale de cruzar el `unreadCount` del
-  proveedor con las marcas de `seenMessages`, que son del **navegador**
-  (`localStorage`, `hooks/chats/useSeenMessages`). Ni una está guardada aquí.
+  WhatsApp escribe **0 siempre** — y por eso ese contador **dejó de decidir
+  nada**: daba por leído todo lo que saliera de nuestra base. Está contado en
+  *un mensaje entrante deja el chat SIN LEER*.
+- Lo que la bandeja llama «sin leer» sale de las marcas del **navegador** —qué
+  chats se abrieron y hasta cuándo estaba leída cada línea:
+  `hooks/chats/useSeenMessages`, con la regla en `lib/no-leido-de-la-fila`—. Ni
+  una está guardada aquí.
 
 Así que el servidor **no puede** contarlo, y no se le deja adivinarlo: *un
 número que no se puede calcular no se sustituye por otro*. Cualquier proxy —«el

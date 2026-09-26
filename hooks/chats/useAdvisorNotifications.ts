@@ -105,8 +105,16 @@ function playNotificationSound() {
  *    (session.status=false o agentDisabled=true) y el chat no está seleccionado.
  *    La notificación se dispara una sola vez por chat hasta que el usuario lo abra.
  *
- * Devuelve pendingUnreadJids: Set con los remoteJids que tienen mensajes nuevos
- * pendientes de ver, para que el sidebar los muestre como no leídos.
+ * **No decide quien esta sin leer**, y eso es a proposito. Llego a devolver un
+ * `pendingUnreadJids` que la barra lateral sumaba a su propia cuenta, y con dos
+ * fuentes para la misma pregunta la de aqui no podia sostenerse: tenia una
+ * ventana de cinco minutos, descartaba a proposito los chats que aparecen por
+ * primera vez —o sea que un contacto nuevo no salia nunca sin leer— y vivia en
+ * estado de React, asi que una recarga la vaciaba. Quien lo decide ahora es
+ * `elChatEstaSinLeer` (`lib/no-leido-de-la-fila.ts`), y solo el.
+ *
+ * El conjunto se queda DENTRO: es lo que evita re-avisar del mismo chat hasta
+ * que se abra.
  */
 export function useAdvisorNotifications(
   chatSessions: ChatContactSessionMap,
@@ -114,7 +122,7 @@ export function useAdvisorNotifications(
   advisorRole: string | null | undefined,
   chatsResult: FetchChatsResult | null,
   selectedJid: string,
-): { pendingUnreadJids: Set<string> } {
+): void {
   const seenIdsRef = useRef<Set<number> | null>(null);
   const prevMyIdsRef = useRef<Set<number> | null>(null);
   const pendingCountRef = useRef(0);
@@ -318,6 +326,4 @@ export function useAdvisorNotifications(
   // pendingUnreadJids excluido de deps a propósito: usamos el valor del closure sin ciclo
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatsResult, chatSessions, selectedJid, currentAdvisorId]);
-
-  return { pendingUnreadJids };
 }

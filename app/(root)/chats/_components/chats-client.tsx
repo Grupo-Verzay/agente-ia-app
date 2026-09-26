@@ -1805,7 +1805,14 @@ export function ChatsClient({
   }, [messages]);
 
   // Notificaciones: nuevas asignaciones para asesores + mensajes nuevos con agente inactivo
-  const { pendingUnreadJids } = useAdvisorNotifications(chatSessions, currentAdvisorId, advisorRole, currentChatsResult, selectedJid);
+  // Avisa —sonido, notificacion del sistema, insignia de la pestana— y nada
+  // mas: **quien esta sin leer lo decide la bandeja**, con
+  // `elChatEstaSinLeer`. Este hook llego a devolver ademas su propia lista de
+  // pendientes y la barra lateral la sumaba a la suya; eran dos formas de
+  // contestar la misma pregunta, y la de aqui no podia sostenerla —ventana de
+  // cinco minutos, sin los chats que aparecen por primera vez, y en estado de
+  // React, asi que una recarga la vaciaba—. Ver `lib/no-leido-de-la-fila.ts`.
+  useAdvisorNotifications(chatSessions, currentAdvisorId, advisorRole, currentChatsResult, selectedJid);
 
   const toggleSidebarVisibility = useCallback(() => {
     setIsSidebarVisible((previous) => !previous);
@@ -5409,7 +5416,6 @@ export function ChatsClient({
           onRefresh={handleRefresh}
           onCargarMas={cargarMasChats}
           isRefreshing={isRefreshing}
-          inactiveAgentUnreadJids={pendingUnreadJids}
           onCompose={instanceActionSets && instanceActionSets.length > 0 ? () => setIsComposeOpen(true) : undefined}
           onAssignAdvisor={
             assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction

@@ -161,3 +161,86 @@ export function useChatsVistos(
 
   return [vistos, cambiarVistos];
 }
+
+/**
+ * El corte de cada línea: hasta dónde se da por leído lo que YA ESTABA.
+ *
+ * Vive al lado de `seenMessages` y en el mismo sitio —el `localStorage` de este
+ * navegador— porque contesta la otra mitad de la misma pregunta: aquel dice qué
+ * chats se abrieron, y este qué había en la bandeja antes de que esta pestaña
+ * empezara a mirar. El porqué entero está en `lib/no-leido-de-la-fila.ts`.
+ *
+ * Es mucho más simple que su vecino y eso es a propósito: **una entrada por
+ * línea, y se escribe una sola vez por línea** —la primera vuelta con chats
+ * delante—. Sin ráfaga que juntar, así que no hace falta el retardo ni el
+ * volcado al ocultar la pestaña.
+ *
+ * Lo que sí comparte es la guarda que de verdad importa: **hasta que no se ha
+ * leído lo guardado NO se escribe**. Sin ella, el primer pintado —o el doble
+ * montaje de React en desarrollo— guardaría el mapa vacío encima de los cortes
+ * del asesor, y le dejaría la bandeja entera sin leer de golpe, que es justo la
+ * regresión que el corte existe para evitar.
+ */
+export function useCortesDeLoYaLeido(key: string): {
+  cortes: ReadonlyMap<string, number>;
+  /**
+   * Si ya se leyó lo guardado.
+   *
+   * No es un detalle: **hasta que esto sea cierto no se puede sembrar**. Con la
+   * siembra corriendo sobre el mapa vacío del primer pintado, la línea se
+   * sembraría de nuevo cada vez que se entra a Chats —y un corte que se mueve
+   * tapa todo lo que haya entrado desde el anterior—.
+   */
+  listo: boolean;
+  guardar: (nuevos: Map<string, number>) => void;
+} {
+  // Vacío en servidor y en cliente, para que el primer pintado sea el mismo en
+  // los dos y no haya nada que hidratar.
+  const [cortes, setCortes] = useState<ReadonlyMap<string, number>>(() => new Map());
+  const [listo, setListo] = useState(false);
+  // Lo mismo que `listo`, en un `ref`, y hacen falta los dos: el estado lo lee
+  // quien pinta y el `ref` lo lee `guardar`, que es un `useCallback` con `key`
+  // de dependencia. Con `listo` ahí dentro, esa función cambiaría de identidad
+  // al cargar y arrastraría consigo al efecto que siembra.
+  const cargado = useRef(false);
+
+  useEffect(() => {
+    try {
+      const guardado = localStorage.getItem(key);
+      if (!guardado) return;
+      const filas = JSON.parse(guardado) as [string, number][];
+      if (!Array.isArray(filas)) return;
+      const mapa = new Map<string, number>();
+      for (const fila of filas) {
+        // Lo que no se entienda se deja fuera. Un corte con basura dentro
+        // escondería chats sin leer, que es el lado que pierde mensajes.
+        if (!Array.isArray(fila) || typeof fila[0] !== "string") continue;
+        const ts = Number(fila[1]) || 0;
+        if (ts > 0) mapa.set(fila[0], ts);
+      }
+      setCortes(mapa);
+    } catch (error) {
+      console.warn(`[chats] no se pudo leer "${key}" del navegador`, String(error));
+    } finally {
+      cargado.current = true;
+      setListo(true);
+    }
+  }, [key]);
+
+  const guardar = useCallback(
+    (nuevos: Map<string, number>) => {
+      setCortes(nuevos);
+      if (!cargado.current) return;
+      try {
+        localStorage.setItem(key, JSON.stringify([...nuevos.entries()]));
+      } catch (error) {
+        // Mudo no: lo que se pierde es hasta dónde estaba leída cada línea, y
+        // desde fuera eso se ve como una bandeja que se llena de rojo sola.
+        console.warn(`[chats] no se pudo guardar "${key}" en el navegador`, String(error));
+      }
+    },
+    [key],
+  );
+
+  return { cortes, listo, guardar };
+}
