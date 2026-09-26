@@ -12154,13 +12154,16 @@ Son dos cosas y hacen falta las dos. Y la segunda es la que cambia producción d
 golpe, así que se decide a sabiendas: qué pasa con las cuentas que ya existen no
 es un detalle de la migración, es la decisión.
 
-### Un registro guardado por el agente también deja la conversación «En espera»
+### Un registro archivado por el embudo también deja la conversación «En espera»
 
 Además de la petición de asesor y la palabra clave, una conversación pasa a
-«En espera» cuando el agente guarda una **SOLICITUD, un PEDIDO, una RESERVA, un
-RECLAMO o una CITA**. Vive en el backend (`api-webhook`): `RegistroService.createRegistro`
-para los cuatro tipos de `Registro` y `crear_cita` / `crear_cita_booking` para
+«En espera» cuando queda archivado un **PEDIDO, una RESERVA, un RECLAMO o una
+CITA**. Vive en el backend (`api-webhook`): `RegistroService.createRegistro`
+para los tres tipos de `Registro` y `crear_cita` / `crear_cita_booking` para
 las citas, las dos por `marcarEnEsperaPorRegistro` (`webhook/utils/marcar-en-espera.ts`).
+
+**`SOLICITUD` NO, y esa es la parte que no se puede deshacer**: está contado
+entero en *la entrada de una conversación no queda «En espera»*, ahí abajo.
 
 > **Es el MISMO estado, no uno parecido**: `Session.escalated_at`, el mismo
 > contador de la pastilla, y sale igual —cuando contesta una persona, desde la
@@ -12174,8 +12177,8 @@ Cuatro cosas que hay que mantener:
 2. **No asigna, no avisa y no deja `AssignmentLog`.** Sin ese rastro,
    `releaseStaleEscalations` no la confunde con un escalado.
 3. **No pisa un sello anterior** (`WHERE escalated_at IS NULL`): si ya esperaba,
-   sigue esperando desde entonces. `REPORTE` (la síntesis, que se reescribe con
-   cada mensaje), `PAGO` y `PRODUCTO` no cuentan.
+   sigue esperando desde entonces. `SOLICITUD` (ver abajo), `REPORTE` (la
+   síntesis, que se reescribe con cada mensaje), `PAGO` y `PRODUCTO` no cuentan.
 4. **Deja escrito su origen, `Session.espera_origen = 'registro'`**, y es la
    pieza que no se puede quitar: el freno de `Escalar_A_Asesor`
    (`decidirSiEscalar`) lee el sello para no escalar dos veces. Sin el origen,
@@ -12188,6 +12191,85 @@ Lo prueba `scripts/banco-en-espera-por-registro.sh` en `api-webhook`, contra
 Postgres y con los servicios de verdad; `MODO=roto` lo corre en un árbol del
 commit de antes y afirma que el registro se guardaba sin poner la conversación
 en espera.
+
+### Y la entrada de una conversación NO queda «En espera»: quien archiva es el CLASIFICADOR
+
+La regla de arriba entró con **cuatro** tipos y el cuarto dejó casi toda la
+bandeja en espera desde el primer mensaje. El reporte: conversaciones marcadas
+«En espera» en el mensaje de entrada, **sin que el agente lo pidiera, sin
+palabra clave y sin nadie asignado**, con mensajes tan simples como «Hola,
+quiero más información».
+
+La causa está entera en una frase que esta misma sección tenía escrita y **era
+falsa**: «cuando el agente GUARDA un registro». El agente no guarda ninguno.
+`RegistroService.createRegistro` tiene **un solo llamador**:
+`LeadFunnelService.processIncomingText`, que corre —sin esperar— en **cada
+mensaje entrante** y pasa el texto por un segundo modelo, el clasificador del
+CRM. Ahí no hay ninguna decisión del agente: es un lector de fondo archivando
+lo que ve. La CITA sí es del agente (`crear_cita` es una herramienta suya), y
+por eso esa se queda.
+
+Y lo que ese clasificador archiva en la entrada es, por su propio prompt, una
+SOLICITUD:
+
+```
+- SOLICITUD: pide información/precio/cotización/catálogo, disponibilidad,
+  horarios, ubicación, métodos de pago (pero SIN comprobante)…
+```
+
+Que es el primer mensaje de prácticamente cualquier lead de WhatsApp. Así que
+el sello no marcaba los chats que piden una persona: **los marcaba todos** —y,
+como este camino no asigna a propósito, los dejaba en la bandeja de nadie—.
+
+> **La prueba para meter un tipo en `TIPOS_QUE_PONEN_EN_ESPERA`, y hay que
+> hacerla: ¿el clasificador se lo pone a la entrada de una conversación
+> normal?** Si sí, no entra, por razonable que suene. Es exactamente el motivo
+> por el que `REPORTE` quedó fuera —«se reescribe con cada mensaje, dejaría
+> toda la bandeja en espera»— y no se comprobó contra `SOLICITUD`.
+
+**La asimetría, que es lo que de verdad había que cerrar.** La plataforma se
+contradecía a sí misma sobre el MISMO mensaje. La descripción de
+`Escalar_A_Asesor` dice:
+
+> «NUNCA la llames si el cliente solo: saluda; pregunta precios, planes o
+> costos; **pide información general** (horarios, ubicación, catálogo,
+> garantía); dice "me interesa" o **"quiero saber más"**»
+
+…y la regla del registro ponía en espera justo eso. Dos reglas de la misma casa
+dando respuestas opuestas. **El banco las encadena** —lee el prompt del
+clasificador, lee la descripción de la herramienta y cruza las dos con
+`ponenEnEspera`— para que no puedan volver a separarse: comprobar cada lado por
+su cuenta no lo habría cazado, porque los dos «estaban bien».
+
+Quedan **PEDIDO, RESERVA y RECLAMO**, que pasan la prueba: una compra
+confirmada, una fecha apartada y una queja no son la forma normal de saludar. Y
+un RECLAMO además **coincide** con lo que la herramienta sí manda escalar
+(«cuando se queje de que no le han resuelto»), que es la simetría por el otro
+lado.
+
+#### Y los sellos ya escritos se limpian, porque no se iban solos
+
+El sello se quita cuando contesta una **persona**, y a estas conversaciones no
+hay nada que contestarles —las está atendiendo el agente—, así que se habrían
+quedado «En espera» para siempre. La migración
+`20260926120000_quitar_espera_por_solicitud` las borra, y su condición es
+estrecha a propósito para que el borrado sea **exacto y no aproximado**: con
+`espera_origen = 'registro'` los únicos que pudieron poner ese sello son un
+registro de la lista o una cita, así que descartados un `PEDIDO`/`RESERVA`/
+`RECLAMO` y descartada la cita (`Appointment`), no queda otro candidato que una
+SOLICITUD.
+
+**No se toca nada más**: ni un sello de escalado, ni uno sin origen (las filas
+de antes de esa columna, que eran escalados), ni el asesor asignado, ni
+`status`, ni una sola fila de `Registro`. La conversación no se va a ninguna
+parte: sale de la pestaña «En espera» y sigue en la bandeja con todo lo suyo.
+
+Lo prueba `scripts/banco-solicitud-no-pone-en-espera.sh` en `api-webhook`,
+contra Postgres y con el embudo de verdad —`LeadFunnelService` →
+`RegistroService` → el sello—; lo único fingido es la llamada al modelo, que
+devuelve lo que su propio prompt dicta. Ejerce además el `migration.sql` real
+sobre las seis clases de fila. `MODO=roto` lo corre en un árbol del commit de
+antes y **afirma el fallo**: la entrada queda en espera y sin asignar.
 
 ## Vencimientos: un DÍA, no un instante, y quien lo juzga es uno solo
 
