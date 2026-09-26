@@ -6,7 +6,13 @@ import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { usePanelFlotante, type ClaseDePanel } from '@/hooks/usePanelFlotante';
 import { cn } from '@/lib/utils';
-import { RELLENO_DE_PX_1, RELLENO_DE_PX_1_5, RELLENO_DE_PX_2 } from '@/lib/pastillas-de-la-fila';
+import {
+  CIRCULO_DEL_ASESOR,
+  FORMA_DE_LA_PASTILLA,
+  RELLENO_DE_PX_1,
+  RELLENO_DE_PX_1_5,
+  RELLENO_DE_PX_2,
+} from '@/lib/pastillas-de-la-fila';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { AssignmentLogEntry } from '@/actions/advisor-assign-actions';
 import { RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
@@ -123,7 +129,7 @@ export function AdvisorAssignBadge({
           }}
           className={cn(
             'inline-flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50',
-            isPill ? cn('h-6 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
+            isPill ? cn(FORMA_DE_LA_PASTILLA, 'gap-1 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
           )}
           title="Tomar esta conversación"
         >
@@ -137,7 +143,7 @@ export function AdvisorAssignBadge({
         <span
           className={cn(
             'inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-400',
-            isPill ? cn('h-6 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
+            isPill ? cn(FORMA_DE_LA_PASTILLA, 'gap-1 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
           )}
           title="Mi conversación"
         >
@@ -150,10 +156,10 @@ export function AdvisorAssignBadge({
     return (
       <span
         className={cn(
-          'inline-flex items-center justify-center font-semibold text-white shrink-0',
+          'font-semibold text-white',
           isPill
-            ? cn(cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5), assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground')
-            : cn('h-7 w-7 rounded-full text-xs', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground'),
+            ? cn(FORMA_DE_LA_PASTILLA, CIRCULO_DEL_ASESOR, 'text-[10px]', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground')
+            : cn('inline-flex shrink-0 items-center justify-center h-7 w-7 rounded-full text-xs', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground'),
         )}
         title={assigned ? (assigned.name ?? assigned.email) : 'Asignado'}
       >
@@ -189,25 +195,30 @@ export function AdvisorAssignBadge({
             isMySession
               ? cn(
                   'border border-green-300 bg-green-100 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400',
-                  isPill ? cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5) : 'h-7 rounded-full px-2 text-xs',
+                  /* «Yo» es un icono y una palabra: sigue siendo una PASTILLA,
+                     no un avatar, así que conserva su relleno. */
+                  isPill ? cn(FORMA_DE_LA_PASTILLA, 'text-[10px]', RELLENO_DE_PX_1_5) : 'h-7 rounded-full px-2 text-xs',
                 )
               : assigned
               ? cn(
                   'font-semibold text-white',
+                  /* Las iniciales de un asesor son un AVATAR: un círculo, como
+                     fuera de la fila (`h-7 w-7`). Con solo el alto y relleno
+                     salía de 20,9 × 24, o sea un óvalo de pie. */
                   isPill
-                    ? cn(cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5), colorFor(assigned.id))
+                    ? cn(FORMA_DE_LA_PASTILLA, CIRCULO_DEL_ASESOR, 'text-[10px]', colorFor(assigned.id))
                     : cn('h-7 w-7 rounded-full text-xs', colorFor(assigned.id)),
                 )
               : hasAssignment
               ? cn(
                   'font-semibold text-white',
                   isPill
-                    ? cn(cn('h-6 rounded-full text-[10px]', RELLENO_DE_PX_1_5), colorFor(assignedAdvisorId!))
+                    ? cn(FORMA_DE_LA_PASTILLA, CIRCULO_DEL_ASESOR, 'text-[10px]', colorFor(assignedAdvisorId!))
                     : cn('h-7 w-7 rounded-full text-xs', colorFor(assignedAdvisorId!)),
                 )
               : cn(
                   'border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary',
-                  isPill ? cn('h-6 rounded-full gap-0.5 text-[10px]', RELLENO_DE_PX_1) : 'h-7 w-7 rounded-full',
+                  isPill ? cn(FORMA_DE_LA_PASTILLA, 'gap-0.5 text-[10px]', RELLENO_DE_PX_1) : 'h-7 w-7 rounded-full',
                 ),
           )}
         >

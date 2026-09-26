@@ -23,8 +23,11 @@ import {
  * Escrita con sus propias medidas quedaría un par de píxeles distinta de la de
  * al lado y la fila se leería descuadrada sin que nadie supiera por qué.
  *
- * Va justo detrás del estado y antes de «Asignar»: de izquierda a derecha se
- * lee «cómo de caliente está» → «en qué punto del embudo» → «de quién es».
+ * Va la PRIMERA de la fila, delante de la calificación y de «Asignar»: de
+ * izquierda a derecha se lee «en qué punto del embudo está» → «cómo de
+ * caliente» → «de quién es», que es el mismo orden en que se decide en el menú
+ * de la cabecera. Iba entre el estado y el asesor, y así la fila y el menú
+ * contaban lo mismo al revés.
  *
  * # Sin embudo no hay pastilla
  *

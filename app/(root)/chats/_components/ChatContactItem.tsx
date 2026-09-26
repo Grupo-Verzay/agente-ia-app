@@ -37,6 +37,13 @@ import type { LeadStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 import { PastillaDeEtapa } from "./PastillaDeEtapa";
+import {
+  FORMA_DE_LA_PASTILLA,
+  GLIFO_DE_LA_PASTILLA,
+  NUMERO_DE_LA_PASTILLA,
+  PASTILLA_CONTADORA,
+  RELLENO_DE_PX_1_5,
+} from "@/lib/pastillas-de-la-fila";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from "@/lib/paneles-flotantes";
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
@@ -186,9 +193,14 @@ function ChatContactItemBase({
         <TooltipProvider key="escalada">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-orange-300 bg-orange-50 px-1 dark:border-orange-700 dark:bg-orange-950">
-                <Hand className="h-3 w-3 text-orange-600 dark:text-orange-400 shrink-0" />
-                <span className="text-[10px] font-bold leading-none text-orange-700 dark:text-orange-300">
+              <span
+                className={cn(
+                  PASTILLA_CONTADORA,
+                  "border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950",
+                )}
+              >
+                <Hand className={cn(GLIFO_DE_LA_PASTILLA, "text-orange-600 dark:text-orange-400")} />
+                <span className={cn(NUMERO_DE_LA_PASTILLA, "text-orange-700 dark:text-orange-300")}>
                   {cuanto}
                 </span>
               </span>
@@ -205,7 +217,16 @@ function ChatContactItemBase({
         </TooltipProvider>
       );
     }
-    // 1. Clasificación del lead (Frio, Sin clasificar, etc.)
+    // 1. Etapa del embudo. Va PRIMERO, delante de la calificación, para que la
+    //    fila se lea en el mismo orden en que se decide en el menú de la
+    //    cabecera: primero en qué punto del embudo está y después cómo de
+    //    caliente. Con la calificación delante, la fila y el menú contaban lo
+    //    mismo al revés. No se pinta nada cuando la cuenta no usa embudos
+    //    (`etapa` en null), y no deja hueco: la fila reparte con `gap`.
+    if (contact.chatSession.etapa) {
+      badgeItems.push(<PastillaDeEtapa key="etapa" etapa={contact.chatSession.etapa} />);
+    }
+    // 1.5. Clasificación del lead (Frio, Sin clasificar, etc.)
     badgeItems.push(
       <LeadStatusSelect
         key="status"
@@ -214,13 +235,6 @@ function ChatContactItemBase({
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus, contact.chatSession?.id)}
       />
     );
-    // 1.5. Etapa del embudo. Va entre el estado y el asesor: se lee «cómo de
-    //      caliente está» → «en qué punto del embudo» → «de quién es». No se
-    //      pinta nada cuando la cuenta no usa embudos (`etapa` en null), y no
-    //      deja hueco: la fila reparte con `gap`.
-    if (contact.chatSession.etapa) {
-      badgeItems.push(<PastillaDeEtapa key="etapa" etapa={contact.chatSession.etapa} />);
-    }
     // 2. Asesor asignado (Sin asignar / iniciales)
     if (advisors && advisors.length > 0) {
       badgeItems.push(
@@ -246,9 +260,14 @@ function ChatContactItemBase({
         <TooltipProvider key="reminders">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1 dark:border-amber-700 dark:bg-amber-950">
-                <Bell className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span className="text-[10px] font-bold leading-none tabular-nums text-amber-700 dark:text-amber-300">
+              <span
+                className={cn(
+                  PASTILLA_CONTADORA,
+                  "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950",
+                )}
+              >
+                <Bell className={cn(GLIFO_DE_LA_PASTILLA, "text-amber-600 dark:text-amber-400")} />
+                <span className={cn(NUMERO_DE_LA_PASTILLA, "text-amber-700 dark:text-amber-300")}>
                   {recordatorios > 99 ? "99+" : recordatorios}
                 </span>
               </span>
@@ -282,8 +301,13 @@ function ChatContactItemBase({
       <TooltipProvider key="appt">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-violet-300 bg-violet-50 px-1 dark:border-violet-700 dark:bg-violet-950">
-              <CalendarClock className="h-3 w-3 text-violet-600 dark:text-violet-400 shrink-0" />
+            <span
+              className={cn(
+                PASTILLA_CONTADORA,
+                'border-violet-300 bg-violet-50 dark:border-violet-700 dark:bg-violet-950',
+              )}
+            >
+              <CalendarClock className={cn(GLIFO_DE_LA_PASTILLA, 'text-violet-600 dark:text-violet-400')} />
               <span className={cn('w-2 h-2 rounded-full shrink-0', APPT_DOT[apptStatus] ?? 'bg-gray-400')} />
             </span>
           </TooltipTrigger>
@@ -300,8 +324,13 @@ function ChatContactItemBase({
       <TooltipProvider key="notes">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1 dark:border-amber-700 dark:bg-amber-950">
-              <Lock className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span
+              className={cn(
+                PASTILLA_CONTADORA,
+                "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950",
+              )}
+            >
+              <Lock className={cn(GLIFO_DE_LA_PASTILLA, "text-amber-600 dark:text-amber-400")} />
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={6} className="z-[9999]">
@@ -312,22 +341,45 @@ function ChatContactItemBase({
     );
   }
 
-  if (contact.chatSession?.tags && contact.chatSession.tags.length > 0) {
-    const tags = contact.chatSession.tags;
-    badgeItems.push(
+  /*
+   * La pastilla de ETIQUETAS va aparte, y NO entra en el reparto de arriba.
+   *
+   * No es un privilegio: es que ella YA es un resumen con su propio número.
+   * Cayendo dentro del «+N» quedaban **dos números para lo mismo** y el de
+   * fuera mentía — con dos etiquetas y esta pastilla escondida, la fila
+   * enseñaba «+1», que se lee como «una etiqueta». Resumir un resumen no
+   * informa de nada; lo que hay que poder leer es cuántas etiquetas tiene el
+   * chat, y eso lo dice ella.
+   *
+   * Su anatomía es la de las demás contadoras —la espera, los recordatorios—:
+   * un icono de 12 px y el número en 10 px negrita. Antes iba por su cuenta
+   * con `text-xs font-medium`, y como no es un `button` ni lleva
+   * `data-ui="badge"` ese `.text-xs` valía **14 px** dentro de
+   * `.app-module-content` (lo bajan a 12 solo los controles): salía con la
+   * letra dos píxeles más grande que la de al lado. Medido.
+   */
+  const tags = contact.chatSession?.tags ?? [];
+  const pastillaDeEtiquetas =
+    tags.length > 0 ? (
       <TooltipProvider key="tags">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-violet-300 bg-violet-100 px-1.5 text-xs font-medium text-violet-800 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300">
-                <Tag className="h-3 w-3 shrink-0" />
-                {tags.length}
-              </span>
+            <span
+              data-pastilla-de-etiquetas
+              className={cn(
+                PASTILLA_CONTADORA,
+                "border-violet-300 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300",
+              )}
+            >
+              <Tag className={GLIFO_DE_LA_PASTILLA} />
+              <span className={NUMERO_DE_LA_PASTILLA}>{tags.length > 99 ? "99+" : tags.length}</span>
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={6} className="z-[9999] max-w-[280px]">
             <div className="space-y-1">
-              <div className="text-xs font-bold">Etiquetas</div>
+              <div className="text-xs font-bold">
+                {tags.length === 1 ? "1 etiqueta" : `${tags.length} etiquetas`}
+              </div>
               <ul className="list-disc pl-4 text-xs space-y-0.5">
                 {tags.map((tag) => (
                   <li key={tag.id} style={{ color: tag.color ?? undefined }}>
@@ -339,8 +391,7 @@ function ChatContactItemBase({
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-    );
-  }
+    ) : null;
 
   const visibleBadges = badgeItems.slice(0, MAX_BADGES);
   const hiddenBadges = badgeItems.slice(MAX_BADGES);
@@ -698,23 +749,36 @@ function ChatContactItemBase({
         )}
       </div>
 
-      {visibleBadges.length > 0 && (
+      {(visibleBadges.length > 0 || pastillaDeEtiquetas) && (
         <div
           className="mt-1 flex flex-wrap items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
           {visibleBadges}
+          {/* Las etiquetas van detrás de lo que cupo y DELANTE del «+N»: es la
+              última del renglón que se lee, no lo que sobró. */}
+          {pastillaDeEtiquetas}
           {hiddenCount > 0 && (
             <TooltipProvider delayDuration={150}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center h-6 rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground shrink-0 cursor-default">
+                  <span
+                    data-pastilla-de-mas
+                    className={cn(
+                      FORMA_DE_LA_PASTILLA,
+                      RELLENO_DE_PX_1_5,
+                      "cursor-default border border-slate-300 bg-slate-100 text-[10px] font-bold leading-none tabular-nums text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300",
+                    )}
+                  >
                     +{hiddenCount}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="end" sideOffset={6} className="z-[9999] max-w-[260px]">
                   <div className="space-y-1.5">
-                    <div className="text-xs font-bold">Más etiquetas</div>
+                    {/* Lo que cae aquí es cualquier pastilla que no cupo —una
+                        cita, una nota, un recordatorio—, no etiquetas: las
+                        suyas tienen su propia pastilla y no entran nunca. */}
+                    <div className="text-xs font-bold">Más marcas de este chat</div>
                     <div className="flex flex-col items-start gap-1.5">
                       {hiddenBadges}
                     </div>
