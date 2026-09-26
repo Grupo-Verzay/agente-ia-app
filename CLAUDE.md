@@ -4480,9 +4480,11 @@ Dos cosas que hay que mantener:
    escribió para ser barato.
 
 Y el número va **fuera del flujo** (`absolute`) sobre un botón `relative`: el
-botón mide 36 px y es la mitad de una pareja alineada, así que crecer lo
-descuadraría. Re-medido en Chromium al tocar esa columna, como manda la regla:
-la pareja sigue en 76 px, centrada en 400 a 1280×800, con sus 4 px de hueco.
+botón mide 36 px y es uno de los TRES de una columna alineada, así que crecer
+los descuadraría a los tres. Re-medido en Chromium al tocar esa columna, como
+manda la regla: los tres siguen en 36 px con sus 4 px de hueco, y el copiloto
+—el eje— cae en 400 a 1280×800, con la nota en 360 y el equipo en 440. Ver
+*Los botones del borde: el copiloto es el EJE*.
 
 ### Y el SONIDO: solo un directo o una mención, nunca el general a secas
 
@@ -5041,14 +5043,15 @@ Tres cosas que hay que mantener:
    una columna `fixed right-0 top-1/2 -translate-y-1/2` y dentro los dos
    botones, el copiloto encima y el del equipo debajo. Cada uno conserva su
    forma —36 px, media luna contra el borde—; lo único que pierden es decidir
-   dónde se ponen. `ChatLauncher` acepta `className` y `cn` es `tailwind-merge`,
-   así que sus clases de posición las gana la que se le pasa: no hay que
-   tocarlo. Puestos cada uno por su lado habría dos cálculos que mantener a la
-   par, y el día que uno se mueva el otro se queda.
+   dónde se ponen. Desde que son TRES, el `ChatLauncher` ya no trae su
+   posición —la traía y quien lo montaba se la tenía que deshacer— y la forma
+   se escribe una vez en `BOTON_DEL_BORDE`. Puestos cada uno por su lado habría
+   tres cálculos que mantener a la par, y el día que uno se mueva los otros se
+   quedan.
 2. **No tapa la caja de escribir de Chats**, y está medido en Chromium, no a
-   ojo: la pareja mide 76 px centrados en la mitad de la ventana. A 1280×800 su
-   centro cae en 400 —el centro exacto— y quedan **290 px** libres hasta el
-   compositor; en un móvil de 390×667, **223 px**. Si se añade un tercer botón
+   ojo: la columna mide 116 px con el EJE en su mitad, así que su borde de
+   abajo cae en `50vh + 58px`. A 1280×800 quedan **342 px** libres hasta el
+   compositor; en un móvil de 390×667, **275 px**. Si se añade un cuarto botón
    a la columna, se vuelve a medir: el hueco se come por abajo.
 3. **El reloj solo corre con el panel abierto** (`activo`). Esto cuelga del
    layout, o sea de **todas** las pantallas: un sondeo de 5 s corriendo siempre,
