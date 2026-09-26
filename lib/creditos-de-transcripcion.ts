@@ -4,7 +4,11 @@ import { Readable } from "stream";
 
 import { db } from "@/lib/db";
 import { pagaElClienteSuIa } from "@/lib/llaves-de-verzay";
-import { TOKENS_POR_CREDITO } from "@/lib/transcripcion-de-voz";
+import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
+import {
+    elSaldoDeLaFila,
+    type SaldoDeLaCuenta,
+} from "@/lib/saldo-de-la-cuenta";
 
 /**
  * Lo que comparten los DOS caminos que transcriben audio con Whisper.
@@ -21,22 +25,57 @@ import { TOKENS_POR_CREDITO } from "@/lib/transcripcion-de-voz";
  */
 
 /**
- * Los créditos que le quedan a una cuenta, o `null` si son ilimitados.
+ * **El saldo de una cuenta**, con la MISMA regla que el motor.
  *
- * Se lee **igual que lo lee el Perfil** (`getOwnIaCredits`): `total` menos
- * `floor(used / 3085)`, nunca por debajo de cero. Y `null` cuando la cuenta
- * paga su propia IA, que es la misma pregunta que se hace el motor.
+ * Aquí solo se leen los datos: quién decide es `elSaldoDeLaFila`
+ * (`lib/saldo-de-la-cuenta.ts`, puro), que es el sitio donde está escrito el
+ * porqué de cada uno de los tres estados.
  *
- * **Nunca se comparan `used` y `total` en la misma expresión**: son unidades
- * distintas —tokens y créditos— y ese es el fallo de esta familia que ya costó
- * el «sin créditos» del voicebot con 4 créditos gastados de 12.000.
+ * Esto devolvía un `number | null` y ahí estaban los dos fallos que costaron
+ * el reporte de «la llamada sale y la transcripción dice que quedan 0»:
+ *
+ * - **un `total` negativo —el «sin tope» que se pone a mano— salía como 0**,
+ *   mientras el motor lo daba por ilimitado y dejaba salir la llamada;
+ * - **«no tiene fila» salía como 0**, indistinguible de «se le acabaron», así
+ *   que el aviso mandaba a recargar una bolsa que nunca se asignó.
  */
-export async function losCreditosQueQuedan(userId: string): Promise<number | null> {
-    if (await pagaElClienteSuIa(userId)) return null;
+export async function elSaldoDeLaCuenta(userId: string): Promise<SaldoDeLaCuenta> {
+    const [pagaSuIa, fila] = await Promise.all([
+        pagaElClienteSuIa(userId),
+        db.iaCredit.findUnique({ where: { userId }, select: { total: true, used: true } }),
+    ]);
+    return elSaldoDeLaFila({ fila, pagaSuIa });
+}
 
-    const fila = await db.iaCredit.findUnique({ where: { userId } });
-    if (!fila) return 0;
-    return Math.max(0, fila.total - Math.floor(fila.used / TOKENS_POR_CREDITO));
+/**
+ * El nombre con el que se le enseña a una persona la cuenta que paga.
+ *
+ * **Solo se pide cuando algo va a abandonar**, nunca en el camino bueno: es
+ * una consulta de una fila para escribir un aviso, y el aviso solo existe
+ * cuando el aviso hace falta.
+ *
+ * Sale de `nombreDeLaCuenta`, que es la regla de siempre —la empresa si de
+ * verdad se rellenó, luego el nombre, luego el correo— y no `company` a secas,
+ * que nace «Empresa Demo» y haría que todas las cuentas se llamaran igual en
+ * el aviso.
+ */
+export async function elNombreDeLaCuentaQuePaga(userId: string): Promise<string | null> {
+    try {
+        const fila = await db.user.findUnique({
+            where: { id: userId },
+            select: { company: true, name: true, email: true },
+        });
+        if (!fila) return null;
+        return nombreDeLaCuenta(fila) || null;
+    } catch (error) {
+        // Un aviso sin el nombre sigue siendo un aviso; caerse por no poder
+        // leerlo sería tumbar lo que se venía a explicar.
+        console.warn("[transcripcion] no se pudo leer el nombre de la cuenta que paga", {
+            userId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
 }
 
 /**

@@ -33,7 +33,7 @@ export const TECHO_DE_SEGUNDOS = 6 * 60 * 60;
  *
  * Los créditos son de una cuenta y no de un asesor: `ia_credits` tiene una fila
  * por cuenta, así que cobrarle a la persona sería cobrarle a una fila que
- * normalmente no existe — y entonces `losCreditosQueQuedan` devolvería 0 y
+ * normalmente no existe — y entonces `elSaldoDeLaCuenta` devolvería 0 y
  * nadie podría transcribir nada. Es la misma razón por la que las notas de voz
  * de Chats las paga la cuenta dueña de la línea y no quien abre el chat.
  *

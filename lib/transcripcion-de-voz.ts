@@ -43,8 +43,16 @@
  */
 export const CREDITOS_POR_MINUTO_DE_AUDIO = 6;
 
-/** Lo que ya sabe el resto de la App: 1 crédito = 3.085 tokens. */
-export const TOKENS_POR_CREDITO = 3085;
+/**
+ * Lo que ya sabe el resto de la App: 1 crédito = 3.085 tokens.
+ *
+ * **Vive en `lib/saldo-de-la-cuenta.ts`** —que es quien lee `ia_credits.used`,
+ * o sea de quien es esa unidad— y se re-exporta aquí para que sus consumidores
+ * de siempre no cambien de sitio. Escrito dos veces, el día que la conversión
+ * se afine una mitad de la plataforma cobraría otra cosa.
+ */
+export { TOKENS_POR_CREDITO } from "@/lib/saldo-de-la-cuenta";
+import { alcanzaPara, TOKENS_POR_CREDITO, type SaldoDeLaCuenta } from "@/lib/saldo-de-la-cuenta";
 
 /**
  * Lo más larga que puede ser una nota para transcribirla, en segundos.
@@ -207,7 +215,13 @@ export function esNotaDeVozDeCliente(msg: {
 export type QueHacerConLaNota =
     | { hacer: "transcribir"; costo: CostoDeLaNota }
     | { hacer: "saltar"; motivo: MotivoSinTranscribir }
-    | { hacer: "esperar"; porque: "sin_creditos" };
+    /**
+     * No se puede pagar hoy. **`porque` distingue las dos formas de no poder**:
+     * la bolsa está vacía —se recarga— o no existe —hay que asignarle un cupo
+     * a esa cuenta—. Con un solo valor, la segunda se lee como la primera y
+     * manda a recargar algo que nadie asignó.
+     */
+    | { hacer: "esperar"; porque: "sin_creditos" | "sin_bolsa"; costo: CostoDeLaNota };
 
 /**
  * Qué hacer con una nota, **antes de descargar nada y antes de tocar créditos**.
@@ -221,7 +235,7 @@ export type QueHacerConLaNota =
  * `total` en la misma expresión*. Ese fallo ya pasó en el voicebot
  * —`credit.used >= credit.total` daba «sin créditos» con 4 créditos gastados de
  * 12.000, porque comparaba tokens contra créditos—. Aquí entra
- * `creditosDisponibles`, que es lo que devuelve el lector de siempre, y se
+ * el SALDO, que es lo que devuelve el lector de siempre, y se
  * compara contra un costo también en créditos. La conversión a tokens ocurre
  * **después**, solo para escribir.
  *
@@ -234,8 +248,8 @@ export type QueHacerConLaNota =
  */
 export function queHacerConLaNota(input: {
     segundos: number;
-    /** Créditos que le quedan a la cuenta, o `null` si son ilimitados. */
-    creditosDisponibles: number | null;
+    /** Lo que la plataforma sabe de la bolsa de la cuenta que paga. */
+    saldo: SaldoDeLaCuenta;
 }): QueHacerConLaNota {
     if (input.segundos > TOPE_DE_SEGUNDOS) {
         return { hacer: "saltar", motivo: "muy_larga" };
@@ -243,14 +257,16 @@ export function queHacerConLaNota(input: {
 
     const costo = costoDeLaNota(input.segundos);
 
-    // Ilimitados: la cuenta paga su propia IA, así que los créditos no pintan
-    // nada. Se transcribe y no se descuenta.
-    if (input.creditosDisponibles === null) return { hacer: "transcribir", costo };
+    // Sin tope: la cuenta paga su propia IA —o su total es negativo a
+    // propósito—, así que los créditos no pintan nada. Se transcribe y no se
+    // descuenta.
+    if (alcanzaPara(input.saldo, costo.creditos)) return { hacer: "transcribir", costo };
 
-    if (input.creditosDisponibles < costo.creditos) {
-        return { hacer: "esperar", porque: "sin_creditos" };
-    }
-    return { hacer: "transcribir", costo };
+    return {
+        hacer: "esperar",
+        porque: input.saldo.estado === "sin_bolsa" ? "sin_bolsa" : "sin_creditos",
+        costo,
+    };
 }
 
 /**
@@ -270,8 +286,17 @@ export type NoSeTranscribio =
     | "sin_audio"
     /** Por encima del tope de gasto. */
     | "muy_larga"
-    /** La cuenta no tiene créditos suficientes hoy. */
+    /** La cuenta no tiene créditos suficientes hoy. Se recarga. */
     | "sin_creditos"
+    /**
+     * La cuenta **no tiene bolsa de créditos**: nadie le ha asignado un cupo.
+     *
+     * Es un motivo aparte y no `sin_creditos` porque lleva a otra acción —y a
+     * otra persona—: «recarga» no sirve cuando no hay nada que recargar. Es lo
+     * que hacía que un «quedan 0» se leyera como un saldo agotado mientras la
+     * cuenta que se estaba mirando tenía créditos de sobra.
+     */
+    | "sin_bolsa"
     /** La cuenta no tiene configurada su IA. */
     | "sin_ia"
     /** El audio no se pudo descargar. */
@@ -286,14 +311,36 @@ export type NoSeTranscribio =
  * cambian por reintentar, así que el botón se retira y se explica.
  */
 export function sePuedeReintentar(motivo: NoSeTranscribio): boolean {
-    return motivo === "no_bajo" || motivo === "no_transcribio" || motivo === "sin_creditos";
+    return (
+        motivo === "no_bajo" ||
+        motivo === "no_transcribio" ||
+        motivo === "sin_creditos" ||
+        // Asignarle un cupo a la cuenta lo arregla, así que el botón sigue.
+        motivo === "sin_bolsa"
+    );
 }
 
-/** Lo que se lee debajo del audio cuando no salió. */
+/**
+ * Lo que se lee debajo del audio cuando no salió.
+ *
+ * **Y con el nombre de la CUENTA cuando se sabe cuál es.** Esto es lo que
+ * convirtió el fallo reportado en una tarde de búsqueda: el aviso decía «no
+ * hay créditos» sin decir de quién, así que quien lo leía miraba el saldo de
+ * la cuenta con la que había entrado —que tenía créditos de sobra— y concluía
+ * que la App mentía. La bolsa que se mira es la de la cuenta dueña de la
+ * línea, que puede ser otra de la familia.
+ */
 export function porQueNoSeTranscribio(
     motivo: NoSeTranscribio,
-    detalle?: { hacenFalta?: number; quedan?: number },
+    detalle?: {
+        hacenFalta?: number;
+        quedan?: number;
+        /** El nombre de la cuenta que paga, cuando se conoce. */
+        cuenta?: string;
+    },
 ): string {
+    const cuenta = detalle?.cuenta?.trim();
+    const suya = cuenta ? `${cuenta} ` : "";
     switch (motivo) {
         case "sin_linea":
             return "No se sabe de qué línea es esta conversación.";
@@ -304,13 +351,19 @@ export function porQueNoSeTranscribio(
         case "muy_larga":
             return "Demasiado larga para transcribirla.";
         case "sin_creditos":
-            // Con los números delante: «no hay créditos» sin decir cuántos
-            // hacían falta no le sirve a quien tiene que recargar.
+            // Con los números delante Y con la cuenta: «no hay créditos» sin
+            // decir cuántos hacían falta no le sirve a quien tiene que
+            // recargar, y sin decir de QUIÉN manda a mirar la bolsa
+            // equivocada.
             return detalle?.hacenFalta !== undefined
-                ? `No hay créditos suficientes: hacen falta ${detalle.hacenFalta} y quedan ${detalle.quedan ?? 0}.`
-                : "No hay créditos suficientes.";
+                ? `${suya || "Esta cuenta "}se quedó sin créditos: hacen falta ${detalle.hacenFalta} y quedan ${detalle.quedan ?? 0}.`
+                : `${suya || "Esta cuenta "}no tiene créditos suficientes.`;
+        case "sin_bolsa":
+            // **Y esto NO es «quedan 0».** Se arregla asignándole un cupo a
+            // esa cuenta, no recargando: son dos pantallas y dos personas.
+            return `${suya || "Esta cuenta "}no tiene créditos asignados. Asígnale un cupo en Panel › Clientes.`;
         case "sin_ia":
-            return "Esta cuenta no tiene configurada su IA.";
+            return `${suya || "Esta cuenta "}no tiene configurada su IA.`;
         case "no_bajo":
             return "No se pudo descargar el audio. Inténtalo otra vez.";
         case "no_transcribio":

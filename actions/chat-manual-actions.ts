@@ -48,15 +48,16 @@ import {
   laNotaDeVoz,
 } from "@/lib/transcribir-nota-de-chat";
 import {
-  costoDeLaNota,
   porQueNoSeTranscribio,
   queHacerConLaNota,
   type NoSeTranscribio,
 } from "@/lib/transcripcion-de-voz";
+import { comoSeLeeElSaldo, loQueQueda, seCobra } from "@/lib/saldo-de-la-cuenta";
 import {
   descontarLaTranscripcion,
   laClaveDeOpenAi,
-  losCreditosQueQuedan,
+  elSaldoDeLaCuenta,
+  elNombreDeLaCuentaQuePaga,
   pedirleElTextoAOpenAi,
 } from "@/lib/creditos-de-transcripcion";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
@@ -876,7 +877,7 @@ export async function transcribirNotaDeChatAction(
 > {
   const no = (
     motivo: NoSeTranscribio,
-    detalle?: { hacenFalta?: number; quedan?: number },
+    detalle?: { hacenFalta?: number; quedan?: number; cuenta?: string },
   ) => ({ success: false as const, motivo, message: porQueNoSeTranscribio(motivo, detalle) });
 
   try {
@@ -912,15 +913,20 @@ export async function transcribirNotaDeChatAction(
     // La comprobación va en CRÉDITOS y nunca toca `used` y `total` en la misma
     // expresión — es la regla explícita del CLAUDE.md, y el fallo que ya costó
     // caro en el voicebot.
-    const quedan = await losCreditosQueQuedan(duenoDeLaLinea);
-    const que = queHacerConLaNota({
-      segundos: nota.segundos,
-      creditosDisponibles: quedan,
-    });
+    const saldo = await elSaldoDeLaCuenta(duenoDeLaLinea);
+    const que = queHacerConLaNota({ segundos: nota.segundos, saldo });
     if (que.hacer === "saltar") return no("muy_larga");
     if (que.hacer === "esperar") {
-      const costo = costoDeLaNota(nota.segundos);
-      return no("sin_creditos", { hacenFalta: costo.creditos, quedan: quedan ?? 0 });
+      // **Con el nombre de la cuenta y distinguiendo «sin bolsa» de «se
+      // acabaron»**: son dos arreglos distintos —asignar un cupo o recargar—
+      // y la bolsa que se mira es la de la línea, que puede no ser la de quien
+      // está leyendo el aviso.
+      const cuenta = await elNombreDeLaCuentaQuePaga(duenoDeLaLinea);
+      return no(que.porque, {
+        hacenFalta: que.costo.creditos,
+        ...(loQueQueda(saldo) !== null ? { quedan: loQueQueda(saldo) as number } : {}),
+        ...(cuenta ? { cuenta } : {}),
+      });
     }
 
     const clave = await laClaveDeOpenAi(duenoDeLaLinea);
@@ -947,7 +953,7 @@ export async function transcribirNotaDeChatAction(
     // asesores pulsando a la vez, solo una llamada escribe y solo esa descuenta.
     const laEscribiEsta = await guardarLaTranscripcion(nota.fila, texto);
 
-    if (quedan !== null && laEscribiEsta) {
+    if (seCobra(saldo) && laEscribiEsta) {
       await descontarLaTranscripcion(duenoDeLaLinea, que.costo.tokens);
     }
 
@@ -956,7 +962,7 @@ export async function transcribirNotaDeChatAction(
       linea: instanceName,
       paga: duenoDeLaLinea,
       segundos: nota.segundos,
-      creditos: quedan === null ? "ilimitados" : laEscribiEsta ? que.costo.creditos : 0,
+      creditos: !seCobra(saldo) ? comoSeLeeElSaldo(saldo) : laEscribiEsta ? que.costo.creditos : 0,
     });
 
     return { success: true, transcripcion: texto, yaEstaba: !laEscribiEsta };

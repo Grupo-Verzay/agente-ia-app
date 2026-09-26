@@ -141,10 +141,38 @@ export function trozosDeWav(buffer: Buffer, topeDeBytes: number): Buffer[] {
 }
 
 /**
- * Cuántos trozos harían falta para este audio. Es lo que decide si se
- * transcribe o si de verdad es inabarcable.
+ * **En cuántos trozos se va a partir este audio de verdad.** Es lo que decide
+ * si se transcribe o si es inabarcable.
+ *
+ * Recibe el BUFFER y no su tamaño, y eso es el arreglo: contando con
+ * `ceil(bytes / tope)` sobre un número, la decisión prometía dos trozos para
+ * un audio que `trozosDeWav` **no sabe cortar** —una grabación de Meta en
+ * webm, un WAV con el encabezado roto— y entonces se mandaba entero. OpenAI lo
+ * rechazaba por tamaño, el `catch` se lo tragaba y la llamada acababa diciendo
+ * **«El servicio de transcripción no respondió»**, que es una respuesta falsa:
+ * el servicio contestó perfectamente, y lo que pasaba es que no cabía.
+ *
+ * Las dos funciones miran el MISMO encabezado, así que no pueden discrepar.
+ *
+ * **`Infinity` cuando no cabe y no se puede cortar**: se compara contra el
+ * tope de trozos como cualquier otro número y cae, con su motivo, en vez de
+ * salir a la red a por un rechazo.
  */
-export function cuantosTrozos(bytes: number, topeDeBytes: number): number {
-    if (bytes <= topeDeBytes) return 1;
-    return Math.ceil(bytes / (topeDeBytes - 44));
+export function cuantosTrozosDeVerdad(buffer: Buffer, topeDeBytes: number): number {
+    if (buffer.length <= topeDeBytes) return 1;
+
+    const f = elFormatoDelWav(buffer);
+    if (!f) return Infinity;
+
+    const cabenEnUnTrozo = Math.floor((topeDeBytes - 44) / f.bytesPorMuestra) * f.bytesPorMuestra;
+    if (cabenEnUnTrozo <= 0) return Infinity;
+    return Math.ceil(f.bytesDeDatos / cabenEnUnTrozo);
+}
+
+/**
+ * Si este audio se puede cortar. Lo que separa «es muy largo» de «no cabe de
+ * una pieza y no sé partirlo», que son dos avisos distintos.
+ */
+export function sePuedeCortar(buffer: Buffer): boolean {
+    return elFormatoDelWav(buffer) !== null;
 }

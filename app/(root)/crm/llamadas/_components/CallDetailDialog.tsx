@@ -130,6 +130,7 @@ export function CallDetailDialog({
     motivo: call.transcripcionMotivo,
     hacenFalta: call.transcripcionHacenFalta,
     quedan: call.transcripcionQuedan,
+    cuenta: call.transcripcionCuenta,
     cargando,
   });
   const procesando = queSeEnsena.estado === "procesando";

@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
 import { laFechaQueRenueva } from '@/lib/fecha-de-renovacion';
 import { pagaElClienteSuIa } from '@/lib/llaves-de-verzay';
+import { elSaldoDeLaFila, loQueQueda, TOKENS_POR_CREDITO } from '@/lib/saldo-de-la-cuenta';
 import { isAdminLike } from '@/lib/rbac';
 import { IaCredit, Plan } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -124,9 +125,19 @@ export async function getOwnIaCredits(): Promise<{
     // Va ANTES de leer la fila porque una cuenta con su propia key puede no
     // tener ni fila de créditos, y eso salía como «Sin créditos configurados»
     // —que se lee como un problema— cuando en realidad no tiene ninguno.
-    const ilimitados = await pagaElClienteSuIa(me.id);
+    const pagaSuIa = await pagaElClienteSuIa(me.id);
 
     const record = await db.iaCredit.findUnique({ where: { userId: me.id } });
+
+    // **La MISMA regla que usa el motor para autorizar una llamada y la que
+    // usa la App para autorizar una transcripción** (`elSaldoDeLaFila`). Esto
+    // leía la fila por su cuenta, así que un `total` negativo —el «sin tope»
+    // que se pone a mano— salía aquí como «disponibles: 0» mientras el motor
+    // lo daba por ilimitado. Tres lectores para la misma pregunta son tres
+    // respuestas, y no hay forma de saber cuál miente.
+    const saldo = elSaldoDeLaFila({ fila: record, pagaSuIa });
+    const ilimitados = saldo.estado === 'ilimitado';
+
     if (!record) {
       if (!ilimitados) return { success: false, message: 'Sin créditos configurados' };
       return {
@@ -136,8 +147,8 @@ export async function getOwnIaCredits(): Promise<{
       };
     }
 
-    const usedCredits = Math.floor(record.used / 3085);
-    const available = Math.max(0, record.total - usedCredits);
+    const usedCredits = Math.floor(record.used / TOKENS_POR_CREDITO);
+    const available = loQueQueda(saldo) ?? 0;
 
     // La fecha que manda es la del PLAN, no la guardada en los créditos.
     //

@@ -32,7 +32,12 @@ import { Readable } from 'stream';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
 import { minioClient } from '@/lib/minio';
-import { descontarLaTranscripcion, losCreditosQueQuedan } from '@/lib/creditos-de-transcripcion';
+import {
+  descontarLaTranscripcion,
+  elNombreDeLaCuentaQuePaga,
+  elSaldoDeLaCuenta,
+} from '@/lib/creditos-de-transcripcion';
+import { comoSeLeeElSaldo, seCobra } from '@/lib/saldo-de-la-cuenta';
 import {
   TOPE_DE_BYTES_DE_AUDIO,
   porQueNoSeTranscribio,
@@ -42,8 +47,9 @@ import {
   valeLaPenaSeguirEsperando,
   type MarcaDeLaLlamada,
   type MotivoDeLaLlamada,
+  type QueHacerConLaGrabacion,
 } from '@/lib/transcripcion-de-la-llamada';
-import { segundosDelWav, trozosDeWav } from '@/lib/wav-en-trozos';
+import { cuantosTrozosDeVerdad, segundosDelWav, trozosDeWav } from '@/lib/wav-en-trozos';
 import { PISTA_DE_VOCABULARIO, conElNombreDeLaMarca } from '@/lib/nombres-de-la-marca';
 import {
   INSTRUCCIONES_DE_CLASIFICACION,
@@ -147,6 +153,79 @@ async function getUserAiConfig(userId: string): Promise<AiCfg | null> {
  */
 async function laCuentaQuePagaLaLlamada(cuentaId: string): Promise<string> {
   return cuentaId;
+}
+
+/**
+ * **Si esta grabacion se transcribe, y con que bolsa.** Una sola funcion para
+ * los DOS caminos —el WAV de AstraCalls y la grabacion de Meta—.
+ *
+ * Estaban escritos aparte y ya se habian separado: el de Astra dejaba su
+ * motivo en la fila al abandonar y el de Meta se rendia con un `console.warn`
+ * y `success: true`, asi que una llamada de Meta sin creditos se quedaba
+ * diciendo «Procesando…» para siempre. Es la familia de siempre —*a una
+ * hermana se le pasa*— y por eso la decision, el nombre de la cuenta y la
+ * marca salen de aqui.
+ *
+ * **Los trozos se cuentan con el MISMO encabezado que despues los corta**
+ * (`cuantosTrozosDeVerdad`), nunca con un `ceil(bytes / tope)`: contar sobre
+ * un numero prometia dos trozos para un audio que no se sabe partir, se
+ * mandaba entero, y el rechazo por tamaño acababa saliendo como «el servicio
+ * de transcripcion no respondio».
+ */
+async function queHacerConEsteAudio(input: {
+  audio: Buffer;
+  segundos: number;
+  cuentaQuePaga: string;
+}): Promise<{
+  que: QueHacerConLaGrabacion;
+  marca: MarcaDeLaLlamada | null;
+  /**
+   * Si hay bolsa que descontar. **Sin tope no se cobra**, igual que en las
+   * otras tres pantallas que transcriben audio: este camino descontaba
+   * siempre, así que a una cuenta con su propia llave de OpenAI se le inflaba
+   * el `used` de una bolsa que no paga nada — y el día que volviera a una
+   * llave de la casa aparecería con un consumo que nunca tuvo.
+   */
+  cobra: boolean;
+}> {
+  const saldo = await elSaldoDeLaCuenta(input.cuentaQuePaga);
+  const que = queHacerConLaGrabacion({
+    segundos: input.segundos,
+    bytes: input.audio.length,
+    trozos: cuantosTrozosDeVerdad(input.audio, TOPE_DE_BYTES_DE_AUDIO),
+    saldo,
+  });
+
+  const motivo = elMotivoDeLaGrabacion(que);
+  if (!motivo) return { que, marca: null, cobra: seCobra(saldo) };
+
+  // El nombre de la cuenta **solo se pide al abandonar**: es una consulta de
+  // una fila para escribir un aviso, y el aviso solo existe cuando hace falta.
+  const cuenta = await elNombreDeLaCuentaQuePaga(input.cuentaQuePaga);
+  console.warn('[llamadas] no se transcribe la grabacion', {
+    cuentaQuePaga: input.cuentaQuePaga,
+    cuenta,
+    saldo: comoSeLeeElSaldo(saldo),
+    motivo,
+    detalle: porQueNoSeTranscribio(que),
+  });
+
+  return {
+    que,
+    cobra: seCobra(saldo),
+    marca: {
+      motivo,
+      ...(cuenta ? { cuenta } : {}),
+      ...(que.hacer === 'sin_creditos' || que.hacer === 'sin_bolsa'
+        ? {
+            hacenFalta: que.costo.creditos,
+            // `null` —sin bolsa— NO se sustituye por 0: un cero ahi se lee
+            // como «se te acabaron» y manda a recargar lo que nadie asigno.
+            ...(que.disponibles !== null ? { quedan: que.disponibles } : {}),
+          }
+        : {}),
+    },
+  };
 }
 
 /**
@@ -545,33 +624,23 @@ export async function processCallRecordingForUser(input: {
     astraCallId: input.astraCallId,
   });
 
-  // Quien paga: la CUENTA de la llamada, y la madre dentro de una familia.
+  // **Quien paga es la CUENTA bajo la que quedo la fila**, que es la dueña de
+  // la linea desde la que se llamo: la misma con cuyo `sid` salio la llamada y
+  // a la que el motor le cobro los creditos de la llamada. Ni la persona —
+  // `ia_credits` tiene una fila por cuenta— ni la madre de la familia.
   const paga = await laCuentaQuePagaLaLlamada(input.userId);
-  const que = queHacerConLaGrabacion({
+  const { que, marca, cobra } = await queHacerConEsteAudio({
+    audio,
     segundos: duracion,
-    bytes: audio.length,
-    creditosDisponibles: await losCreditosQueQuedan(paga),
+    cuentaQuePaga: paga,
   });
   if (que.hacer !== 'transcribir') {
     const motivo = porQueNoSeTranscribio(que) ?? 'No se pudo transcribir.';
-    console.warn('[llamadas] no se transcribe la grabacion', {
-      chatMessageId: input.chatMessageId,
-      cuentaQuePaga: paga,
-      motivo,
-    });
     // **Y queda escrito en la fila.** Antes esto era un `console.warn` en un
     // servidor y un `success: false` hacia un `void`: la tarjeta se quedaba
     // diciendo «Procesando…» para siempre, que es justo lo que se reportó.
-    const marca = elMotivoDeLaGrabacion(que);
-    if (marca) {
-      await anotarLaMarca(id, {
-        motivo: marca,
-        ...(que.hacer === 'sin_creditos'
-          ? { hacenFalta: que.costo.creditos, quedan: que.disponibles }
-          : {}),
-      });
-    }
-    return { success: false, message: motivo, motivo: marca ?? undefined };
+    if (marca) await anotarLaMarca(id, marca);
+    return { success: false, message: motivo, motivo: marca?.motivo };
   }
 
   const cfg = await getUserAiConfig(input.userId);
@@ -580,7 +649,11 @@ export async function processCallRecordingForUser(input: {
       chatMessageId: input.chatMessageId,
       userId: input.userId,
     });
-    await anotarLaMarca(id, { motivo: 'sin_ia' });
+    // Con el nombre de la cuenta: «esta cuenta no tiene IA» sin decir cual
+    // manda a mirar la configuracion de la cuenta equivocada, que es la mitad
+    // del fallo que costo el reporte de los creditos.
+    const cuenta = await elNombreDeLaCuentaQuePaga(paga);
+    await anotarLaMarca(id, { motivo: 'sin_ia', ...(cuenta ? { cuenta } : {}) });
     return { success: false, message: 'Sin configuración de IA activa.', motivo: 'sin_ia' };
   }
 
@@ -637,6 +710,7 @@ export async function processCallRecordingForUser(input: {
     },
     cuentaQuePaga: paga,
     tokens: que.costo.tokens,
+    cobra,
   });
   if (escribio && propuesta) await proponerElResultado(id, propuesta);
   return { success: true };
@@ -661,6 +735,8 @@ async function guardarYCobrar(input: {
   campos: Record<string, unknown>;
   cuentaQuePaga: string;
   tokens: number;
+  /** `false` cuando la cuenta no tiene tope: no hay bolsa que mover. */
+  cobra: boolean;
 }): Promise<boolean> {
   // **Un MERGE, nunca el objeto entero.** Antes se escribía `raw` completo tal
   // como se leyó ANTES de transcribir —decenas de segundos antes—, así que lo
@@ -685,7 +761,9 @@ async function guardarYCobrar(input: {
     });
     return false;
   }
-  if (input.tokens > 0) await descontarLaTranscripcion(input.cuentaQuePaga, input.tokens);
+  if (input.cobra && input.tokens > 0) {
+    await descontarLaTranscripcion(input.cuentaQuePaga, input.tokens);
+  }
   return true;
 }
 
@@ -785,6 +863,15 @@ export async function esperarYProcesarLaGrabacion(input: {
 }): Promise<void> {
   if (!BASE || !KEY) return;
 
+  // El ULTIMO motivo de verdad que devolvio una vuelta.
+  //
+  // Sin esto, agotar la ventana escribia `no_bajo` —«No se pudo descargar el
+  // audio»— encima de un `no_transcribio`, y eso es **mentir sobre lo que
+  // paso**: el audio se descargo perfectamente sesenta veces y quien no
+  // contesto fue el servicio de transcripcion. Los dos avisos mandan a mirar
+  // sitios distintos, asi que el mas exacto no lo puede pisar el generico.
+  let ultimoMotivo: MotivoDeLaLlamada | null = null;
+
   for (let intento = 1; intento <= INTENTOS_DE_GRABACION; intento++) {
     await new Promise((resolve) => setTimeout(resolve, ESPERA_ENTRE_INTENTOS_MS));
     try {
@@ -805,6 +892,7 @@ export async function esperarYProcesarLaGrabacion(input: {
       // botón de una nota de voz (`sePuedeReintentar`): sin créditos, sin
       // clave o demasiado grande no mejoran sondeando; que OpenAI no conteste
       // o que el audio no esté todavía, sí.
+      if (res.motivo) ultimoMotivo = res.motivo;
       if (res.motivo && !valeLaPenaSeguirEsperando(res.motivo)) {
         console.info('[llamadas] se deja de esperar: el motivo no cambia en esta ventana', {
           chatMessageId: input.chatMessageId,
@@ -827,11 +915,19 @@ export async function esperarYProcesarLaGrabacion(input: {
   // tarjeta se quedaba diciendo «Procesando…» para siempre, que es el fallo
   // que esto vino a cerrar. El rescate la sigue recogiendo: `no_bajo` se
   // reintenta.
-  await anotarLaMarca(BigInt(input.chatMessageId), { motivo: 'no_bajo' }).catch(() => {});
+  //
+  // **Y se marca el ULTIMO motivo de verdad, no `no_bajo` a secas.** Solo se
+  // cae en `no_bajo` cuando de verdad nunca llego el audio, que es lo que ese
+  // aviso dice. Los dos se reintentan igual desde la tarjeta y los recoge el
+  // rescate, asi que lo unico que cambia es que el aviso deje de mandar a
+  // mirar el sitio equivocado.
+  const motivoFinal: MotivoDeLaLlamada = ultimoMotivo ?? 'no_bajo';
+  await anotarLaMarca(BigInt(input.chatMessageId), { motivo: motivoFinal }).catch(() => {});
   console.warn('[llamadas] la grabacion nunca quedo lista', {
     chatMessageId: input.chatMessageId,
     astraCallId: input.astraCallId,
     intentos: INTENTOS_DE_GRABACION,
+    motivo: motivoFinal,
     ventanaMin: Math.round((INTENTOS_DE_GRABACION * ESPERA_ENTRE_INTENTOS_MS) / 60000),
   });
 }
@@ -1069,19 +1165,22 @@ export async function processMetaCallRecordingForUser(input: {
   //    gratis una de las dos mitades es la familia de «a una hermana se le
   //    pasa», y no se ve — se nota en la factura de quien paga la clave.
   const paga = await laCuentaQuePagaLaLlamada(userId);
-  const que = queHacerConLaGrabacion({
+  const { que, marca, cobra } = await queHacerConEsteAudio({
+    audio: buffer,
     segundos: Number(callObj.durationSecs ?? 0),
-    bytes: buffer.length,
-    creditosDisponibles: await losCreditosQueQuedan(paga),
+    cuentaQuePaga: paga,
   });
 
   const cfg = que.hacer === 'transcribir' ? await getUserAiConfig(userId) : null;
-  if (que.hacer !== 'transcribir') {
-    console.warn('[llamadas] no se transcribe la grabacion de Meta', {
-      chatMessageId: input.chatMessageId,
-      cuentaQuePaga: paga,
-      motivo: porQueNoSeTranscribio(que),
-    });
+  // **Y aqui tambien queda escrito en la fila.** Este camino se rendia con un
+  // `console.warn` y `success: true`, asi que una llamada de Meta sin creditos
+  // —o con un audio que no cabe— se quedaba diciendo «Procesando…» para
+  // siempre, sin motivo y sin boton de reintentar, mientras su hermana de
+  // AstraCalls si lo decia. Es la familia de *a una hermana se le pasa*.
+  if (marca) await anotarLaMarca(id, marca);
+  if (que.hacer === 'transcribir' && !cfg) {
+    const cuenta = await elNombreDeLaCuentaQuePaga(paga);
+    await anotarLaMarca(id, { motivo: 'sin_ia', ...(cuenta ? { cuenta } : {}) });
   }
 
   let transcript = '';
@@ -1107,6 +1206,7 @@ export async function processMetaCallRecordingForUser(input: {
     },
     cuentaQuePaga: paga,
     tokens: transcript && que.hacer === 'transcribir' ? que.costo.tokens : 0,
+    cobra,
   });
   if (escribio && propuesta) await proponerElResultado(id, propuesta);
   return { success: true };

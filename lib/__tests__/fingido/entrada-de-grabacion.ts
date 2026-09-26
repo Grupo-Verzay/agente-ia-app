@@ -56,11 +56,28 @@ export { queLeFaltaALaLlamada } from "@/lib/rescate-de-llamadas";
 
 // El corte del WAV: lo que hace que una llamada de mas de 6 min 49 s deje de
 // ser «demasiado grande» y pase a transcribirse por partes.
-export { trozosDeWav, cuantosTrozos, segundosDelWav, elFormatoDelWav } from "@/lib/wav-en-trozos";
+export {
+    trozosDeWav,
+    cuantosTrozosDeVerdad,
+    sePuedeCortar,
+    segundosDelWav,
+    elFormatoDelWav,
+} from "@/lib/wav-en-trozos";
 
 export { costoDeLaNota, TOKENS_POR_CREDITO } from "@/lib/transcripcion-de-voz";
 export { conElNombreDeLaMarca, PISTA_DE_VOCABULARIO } from "@/lib/nombres-de-la-marca";
-export { descontarLaTranscripcion, losCreditosQueQuedan } from "@/lib/creditos-de-transcripcion";
+export {
+    descontarLaTranscripcion,
+    elSaldoDeLaCuenta,
+    elNombreDeLaCuentaQuePaga,
+} from "@/lib/creditos-de-transcripcion";
+export {
+    elSaldoDeLaFila,
+    alcanzaPara,
+    seCobra,
+    loQueQueda,
+    comoSeLeeElSaldo,
+} from "@/lib/saldo-de-la-cuenta";
 
 // El resultado: lo que propone la IA y la corrección a mano encima, con las
 // acciones de verdad de CRM › Llamadas.

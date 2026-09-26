@@ -12,12 +12,17 @@ import {
     laCuentaQuePagaLaTranscripcion,
     puedePedirLaTranscripcion,
 } from "@/lib/nota-de-voz-del-equipo";
-import { costoDeLaNota, queHacerConLaNota } from "@/lib/transcripcion-de-voz";
+import {
+    porQueNoSeTranscribio,
+    queHacerConLaNota,
+} from "@/lib/transcripcion-de-voz";
+import { comoSeLeeElSaldo, loQueQueda, seCobra } from "@/lib/saldo-de-la-cuenta";
 import { llaveDelArchivoSubido } from "@/lib/llave-del-bucket";
 import {
     descontarLaTranscripcion,
     laClaveDeOpenAi,
-    losCreditosQueQuedan,
+    elSaldoDeLaCuenta,
+    elNombreDeLaCuentaQuePaga,
     pedirleElTextoAOpenAi,
 } from "@/lib/creditos-de-transcripcion";
 import { empujarAviso } from "@/lib/empujar-aviso";
@@ -1886,11 +1891,8 @@ export async function transcribirNotaDelEquipoAction(
         // La MISMA tarifa de Chats —seis créditos por minuto prorrateado— y la
         // misma comprobación, que va en CRÉDITOS y nunca toca `used` y `total`
         // en la misma expresión.
-        const quedan = await losCreditosQueQuedan(paga);
-        const que = queHacerConLaNota({
-            segundos: fila.audioSegundos ?? 0,
-            creditosDisponibles: quedan,
-        });
+        const saldo = await elSaldoDeLaCuenta(paga);
+        const que = queHacerConLaNota({ segundos: fila.audioSegundos ?? 0, saldo });
 
         if (que.hacer === "saltar") {
             return {
@@ -1899,12 +1901,18 @@ export async function transcribirNotaDelEquipoAction(
             };
         }
         if (que.hacer === "esperar") {
-            // Se dice con el número delante: «no hay créditos» sin decir cuántos
-            // hacían falta no le sirve a quien tiene que recargar.
-            const costo = costoDeLaNota(fila.audioSegundos ?? 0);
+            // Se dice con el número delante, con el nombre de la cuenta y
+            // distinguiendo «sin bolsa» de «se acabaron»: son dos arreglos
+            // distintos —asignarle un cupo a esa cuenta, o recargar— y el
+            // mensaje sale de la MISMA función que el de una llamada.
+            const cuenta = await elNombreDeLaCuentaQuePaga(paga);
             return {
                 success: false,
-                message: `No hay créditos suficientes: hacen falta ${costo.creditos} y quedan ${quedan ?? 0}.`,
+                message: porQueNoSeTranscribio(que.porque, {
+                    hacenFalta: que.costo.creditos,
+                    ...(loQueQueda(saldo) !== null ? { quedan: loQueQueda(saldo) as number } : {}),
+                    ...(cuenta ? { cuenta } : {}),
+                }),
             };
         }
 
@@ -1933,7 +1941,7 @@ export async function transcribirNotaDelEquipoAction(
         // Se cobra DESPUÉS de tener el texto: cobrar antes y que la llamada
         // falle sería cobrar por algo que no se entregó. Y no se cobra cuando
         // la cuenta paga su propia IA (`quedan === null`).
-        if (quedan !== null) {
+        if (seCobra(saldo)) {
             await descontarLaTranscripcion(paga, que.costo.tokens);
         }
 
@@ -1942,7 +1950,7 @@ export async function transcribirNotaDelEquipoAction(
             canal: canal.id,
             paga,
             segundos: fila.audioSegundos,
-            creditos: quedan === null ? "ilimitados" : que.costo.creditos,
+            creditos: seCobra(saldo) ? que.costo.creditos : comoSeLeeElSaldo(saldo),
         });
 
         return { success: true, data: { transcripcion: texto, yaEstaba: false } };

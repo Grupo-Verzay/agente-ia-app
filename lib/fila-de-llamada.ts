@@ -46,6 +46,16 @@ export interface CallRow {
   /** Los números del aviso de créditos, que van con él o no dice nada útil. */
   transcripcionHacenFalta: number | null;
   transcripcionQuedan: number | null;
+  /**
+   * El nombre de la cuenta que paga la transcripción de esta llamada.
+   *
+   * Va COPIADO dentro de la marca, así que no cuesta una consulta por fila. Sin
+   * él, el aviso decía «no hay créditos» sin decir de quién: quien lo leía
+   * miraba la bolsa de la cuenta con la que había entrado —que tenía créditos
+   * de sobra— y concluía que la App mentía. La bolsa que se mira es la de la
+   * cuenta dueña de la línea, que en una familia es otra.
+   */
+  transcripcionCuenta: string | null;
   ts: number; // epoch ms
   /**
    * La cuenta bajo la que esta guardada la llamada.
@@ -107,6 +117,7 @@ export function elCallRowDesdeLaFila(r: FilaCrudaDeLlamada): CallRow {
     transcripcionMotivo: marca?.motivo ?? null,
     transcripcionHacenFalta: marca?.hacenFalta ?? null,
     transcripcionQuedan: marca?.quedan ?? null,
+    transcripcionCuenta: marca?.cuenta ?? null,
     ts: new Date(r.messageTimestamp).getTime(),
     cuentaId: r.userId,
     instanceName: r.instanceName ?? null,
