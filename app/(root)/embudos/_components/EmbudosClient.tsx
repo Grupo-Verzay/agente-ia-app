@@ -614,10 +614,15 @@ function conUnaNuevaEnLaLista(lista: readonly BorradorDeEtapa[]): BorradorDeEtap
     return [...lista.slice(0, primeraDeSistemaDelFinal), nueva, ...lista.slice(primeraDeSistemaDelFinal)];
 }
 
-function conUnaNuevaAlFinal(etapas: readonly Etapa[], conUnaNueva: boolean): BorradorDeEtapa[] {
-    const lista = etapas.map(comoBorrador);
-    return conUnaNueva ? conUnaNuevaEnLaLista(lista) : lista;
-}
+/**
+ * El borrador con el que se abre el panel de etapas: las que ya hay, tal cual.
+ *
+ * Llevaba un `conUnaNueva` para abrirlo con una fila en blanco al final, y su
+ * único llamador era el recuadro punteado del tablero. Quitado aquel, el
+ * parámetro no podía valer más que `false`: un mando que ya no existe no deja
+ * detrás una rama que nadie ejerce.
+ */
+const comoBorradores = (etapas: readonly Etapa[]): BorradorDeEtapa[] => etapas.map(comoBorrador);
 
 export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     const [tablero, setTablero] = useState<TableroDeEmbudo>(inicial);
@@ -861,14 +866,14 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     // ─── Etapas ─────────────────────────────────────────────────────────────
     // Se abre con las etapas del embudo que se pide: al crear uno nuevo, el
     // tablero todavía no las tiene en el estado de este pintado.
-    const abrirEtapasDe = (id?: string, conUnaNueva = false) => {
+    const abrirEtapasDe = (id?: string) => {
         const fuente = id && id !== embudoId ? null : etapas;
-        setBorradorEtapas(conUnaNuevaAlFinal(fuente ?? [], conUnaNueva));
+        setBorradorEtapas(comoBorradores(fuente ?? []));
         setEtapasAbierto(true);
         if (fuente === null && id) {
             // Embudo recién creado: se piden sus etapas y se rellenan.
             void pedir(() => tableroDelEmbudoAction(id, tablero.cuentaId, tablero.asesor)).then((r) => {
-                if (r.success && r.data) setBorradorEtapas(conUnaNuevaAlFinal(r.data.etapas, conUnaNueva));
+                if (r.success && r.data) setBorradorEtapas(comoBorradores(r.data.etapas));
             });
         }
     };
@@ -1220,16 +1225,23 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                                     </Columna>
                                 );
                             })}
-                            {manda && (
-                                <button
-                                    type="button"
-                                    onClick={() => abrirEtapasDe(undefined, true)}
-                                    className="flex h-full w-[200px] min-w-[200px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                                >
-                                    <Plus className="h-4 w-4" />
-                                    Nueva etapa
-                                </button>
-                            )}
+                            {/*
+                                Y aquí NO va ningún recuadro de «Nueva etapa».
+
+                                Lo hubo, punteado y del alto de una columna, y se
+                                leía como **una columna más del embudo**: con dos
+                                etapas en pantalla parecía que había tres, y una
+                                de ellas vacía y sin nombre. Una columna de este
+                                tablero es una etapa; lo que no es una etapa no se
+                                pinta con su forma.
+
+                                Las etapas se crean donde se editan —«Editar
+                                etapas», que se abre desde el engranaje de
+                                CUALQUIER columna y desde el «⋯» de la barra—, y
+                                ahí el botón sí es un botón dentro de una lista.
+                                Con eso el tablero acaba donde acaban sus etapas,
+                                igual que los de Proyectos, Tickets y Documentos.
+                            */}
                         </div>
                     </div>
                     <DragOverlay>

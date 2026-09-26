@@ -18417,6 +18417,72 @@ como un fallo: se lee como que no hay nada que probar. Se mata antes, y el
 `dropdb` va con `--force`. **Un banco que no se puede volver a correr no es un
 banco**, y el modo en que fallaba era el peor: en silencio y en verde.
 
+## Embudos: una columna del tablero es una ETAPA, y nada más
+
+Al final de las columnas había un recuadro punteado, del alto de una columna y
+con «+ Nueva etapa» dentro. No era una etapa y se leía como una: con un embudo
+al que le habían borrado las etapas del cliente —dos columnas, Ganado y
+Perdido— la pantalla enseñaba **tres recuadros del mismo alto**, y el tercero
+vacío y sin nombre. Desde fuera eso no se lee como un botón: se lee como una
+etapa a medio crear que alguien dejó ahí.
+
+> **La fila de columnas del tablero pinta una etapa por columna y NADA detrás.**
+> Lo que no es una etapa no se pinta con la forma de una etapa. Vale para
+> cualquier mando que se quiera añadir ahí: si crece con el embudo, va dentro
+> de «Etapas del embudo»; si es una acción de la pantalla, va a la barra.
+
+Y por eso no se pierde nada: **las etapas se crean donde se editan**. El panel
+«Etapas del embudo» se abre desde el engranaje de CUALQUIER columna y desde el
+«⋯» de la barra, y ahí el mismo «+ Nueva etapa» sí es lo que parece —un botón
+dentro de una lista de filas—, con el orden, los colores y los candados de las
+de sistema delante. Eran dos puertas a lo mismo y la del tablero era la que
+mentía.
+
+Con eso, además, el tablero acaba donde acaban sus etapas **igual que los otros
+tres de la plataforma**: Proyectos, Tickets y Documentos cierran su fila con el
+`map` de sus columnas y no ofrecen ninguna columna de mentira al final. Embudos
+era la excepción, y nadie sabía por qué.
+
+Tres cosas que hay que mantener:
+
+1. **Lo que se queda muerto se va con el mando.** El recuadro era el único
+   llamador de `abrirEtapasDe(id, conUnaNueva)`, así que ese parámetro —y el
+   `conUnaNuevaAlFinal` que colgaba de él— no podían valer más que `false`: se
+   fueron. Lo que **no** se toca es `conUnaNuevaEnLaLista`, que es quien añade
+   la fila dentro del panel y sigue teniendo su botón.
+2. **La fila de columnas se mide desde lo que SE VE**, subiendo desde una
+   cabecera de columna hasta su padre, y no por una marca del DOM: así el banco
+   mide igual en los dos modos —el «antes» no tendría ninguna marca nueva— y no
+   hay forma de que esté mirando otro nodo.
+3. **Quitar un mando de una pantalla no se prueba leyendo el código.** Un
+   `<button>` con `rounded-xl` y `border-dashed` es indistinguible de cualquier
+   otro hasta que se pinta al lado de las columnas; lo que contesta la pregunta
+   es contar los hijos de la fila.
+
+Lo prueba `scripts/banco-tablero-de-embudos.sh`, en Chromium y sobre el CSS del
+build con el `EmbudosClient` de VERDAD: con **2 etapas y con 7**, a 1440, 1280,
+1024 y 390, la fila tiene un hijo por etapa, ninguno punteado, y el último es
+una columna con su nombre. `MODO=roto` monta el componente de un commit
+**pinchado** en una carpeta hermana de `_components` —así sus `../../crm/kanban/…`
+resuelven igual— y **afirma el fallo**: un hijo de más, punteado y con «Nueva
+etapa» dentro.
+
+Y se comprobó lo único que de verdad dice que un banco mira: **las afirmaciones
+del modo bueno contra el componente de antes se ponen en rojo en las ocho**
+—3 hijos para 2 etapas, 8 para 7—, mientras los dos casos de «esto no se puede
+haber aflojado» —que un asesor sigue sin ver mandos de etapas, y que el
+engranaje abre el panel y su botón añade una fila— pasan **igual en los dos
+modos**. La sonda de la página servida (`scripts/probar-embudos.mjs`) lo mira
+además con el dueño delante, en la App de verdad.
+
+Una del arnés, que costó una vuelta: la tarjeta del kanban trae `next/link`, que
+lee `process.env.__NEXT_*`. En la App eso lo inyecta Next; en un navegador suelto
+no hay nada que lo ponga, así que el módulo **revienta al cargarse** y
+`window.listo` no llega nunca — el banco se queda esperando y su error habla de
+un tiempo agotado, que no se parece en nada a su causa. La página del arnés pone
+un `process.env` vacío, que es lo que ve el navegador con la configuración por
+defecto.
+
 ## Lo que crea un asesor es SUYO: etiquetas y respuestas rápidas
 
 Las etiquetas (`Tag`) y las respuestas rápidas (`rr`) siguen siendo filas de la
