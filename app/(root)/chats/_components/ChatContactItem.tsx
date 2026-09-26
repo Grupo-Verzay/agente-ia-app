@@ -38,12 +38,12 @@ import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 import { PastillaDeEtapa } from "./PastillaDeEtapa";
 import {
-  FORMA_DE_LA_PASTILLA,
   GLIFO_DE_LA_PASTILLA,
   NUMERO_DE_LA_PASTILLA,
   PASTILLA_CONTADORA,
-  RELLENO_DE_PX_1_5,
 } from "@/lib/pastillas-de-la-fila";
+import { RENGLON_DE_PASTILLAS } from "@/lib/renglon-de-pastillas";
+import { useRenglonDePastillas } from "@/hooks/useRenglonDePastillas";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from "@/lib/paneles-flotantes";
 import { etiquetasDeLaConversacion } from "@/lib/etiquetas-de-la-linea";
@@ -176,8 +176,13 @@ function ChatContactItemBase({
   const yaEsMia = contact.chatSession?.assignedAdvisorId === currentAdvisorId;
   const otrosAsesores = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
 
-  const MAX_BADGES = 6;
-
+  /*
+   * El renglón de pastillas MIDE su hueco: no hay ningún tope escrito.
+   *
+   * Cada pastilla que entra aquí lleva su `key`, y de esas llaves sale la
+   * firma con la que el renglón sabe que tiene que volver a medir. Ver
+   * `lib/renglon-de-pastillas.ts`.
+   */
   const badgeItems: React.ReactNode[] = [];
 
   if (contact.chatSession) {
@@ -393,8 +398,20 @@ function ChatContactItemBase({
       </TooltipProvider>
     ) : null;
 
-  const visibleBadges = badgeItems.slice(0, MAX_BADGES);
-  const hiddenBadges = badgeItems.slice(MAX_BADGES);
+  /*
+   * La firma es qué pastillas hay y en qué orden, no cuántas: con solo el
+   * número, cambiar una cita por una nota no volvería a medir y el renglón
+   * repartiría con los anchos de otra cosa.
+   */
+  const llavesDeLasPastillas = badgeItems.map((b) => String((b as { key?: unknown }).key));
+  const firmaDeLasPastillas = llavesDeLasPastillas.join("|");
+  const { renglon, visibles } = useRenglonDePastillas(
+    firmaDeLasPastillas,
+    badgeItems.length,
+    pastillaDeEtiquetas ? 1 : 0,
+  );
+  const visibleBadges = badgeItems.slice(0, visibles);
+  const hiddenBadges = badgeItems.slice(visibles);
   const hiddenCount = hiddenBadges.length;
 
   const selectionMode = isChecked !== undefined;
@@ -754,25 +771,52 @@ function ChatContactItemBase({
         )}
       </div>
 
-      {(visibleBadges.length > 0 || pastillaDeEtiquetas) && (
+      {/* El renglón se pinta si hay ALGO que pintar, no si quedó algo visible:
+          con todas plegadas —una columna muy estrecha— lo único que queda es
+          el «+N», y sin esta condición se perdería junto con ellas. */}
+      {(badgeItems.length > 0 || pastillaDeEtiquetas) && (
         <div
-          className="mt-1 flex flex-wrap items-center gap-1"
+          ref={renglon}
+          data-renglon-de-pastillas
+          className={RENGLON_DE_PASTILLAS}
           onClick={(e) => e.stopPropagation()}
         >
-          {visibleBadges}
+          {/* Cada pastilla va en un envoltorio que dice QUÉ POSICIÓN ocupa.
+              No es decoración: una pastilla puede no pintar ni un nodo —los
+              flujos se cargan con `dynamic` y su `loading` es `null`— así que
+              sin la marca los anchos se deducirían del orden de los hijos y se
+              desplazarían. El envoltorio no cambia lo que se ve: es un
+              `inline-flex` del tamaño de lo que lleva dentro. */}
+          {visibleBadges.map((pastilla, i) => (
+            // La `key` es la de la pastilla, no el índice: con el índice, una
+            // escalada que entra por delante haría que React reutilizara el
+            // nodo de la de al lado.
+            <span key={llavesDeLasPastillas[i]} data-pastilla={i} className="inline-flex shrink-0">
+              {pastilla}
+            </span>
+          ))}
           {/* Las etiquetas van detrás de lo que cupo y DELANTE del «+N»: es la
-              última del renglón que se lee, no lo que sobró. */}
-          {pastillaDeEtiquetas}
+              última del renglón que se lee, no lo que sobró. Y no reparten —ya
+              son un resumen con su número—, pero ocupan, así que el reparto las
+              mide aparte. */}
+          {pastillaDeEtiquetas && (
+            <span data-pastilla-fija={0} className="inline-flex shrink-0">
+              {pastillaDeEtiquetas}
+            </span>
+          )}
           {hiddenCount > 0 && (
+            <span data-pastilla-mas className="inline-flex shrink-0">
             <TooltipProvider delayDuration={150}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span
                     data-pastilla-de-mas
+                    /* El «+N» es una contadora más, y eso no es solo estética:
+                       el reparto tiene que CONTAR con su ancho antes de que
+                       exista el nodo, y lo hace con el de una contadora. */
                     className={cn(
-                      FORMA_DE_LA_PASTILLA,
-                      RELLENO_DE_PX_1_5,
-                      "cursor-default border border-slate-300 bg-slate-100 text-[10px] font-bold leading-none tabular-nums text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300",
+                      PASTILLA_CONTADORA,
+                      "cursor-default border-slate-300 bg-slate-100 text-[10px] font-bold leading-none tabular-nums text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300",
                     )}
                   >
                     +{hiddenCount}
@@ -791,6 +835,7 @@ function ChatContactItemBase({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            </span>
           )}
         </div>
       )}

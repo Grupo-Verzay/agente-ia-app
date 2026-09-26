@@ -19616,6 +19616,165 @@ Dos cosas del propio banco que costaron su vuelta:
    de afirmar su fallo; se busca por el icono y por el texto, que es lo único
    que existe en los dos mundos.
 
+## Chats: el renglón de pastillas MIDE su hueco, y un tope no puede hacerlo
+
+El renglón de la fila de la lista se partía en dos líneas a veces, y otras
+escondía pastillas que sí cabían. Son los dos lados del mismo fallo, y el
+fallo era una línea:
+
+```ts
+const MAX_BADGES = 6;
+```
+
+Un tope en unidades de «cuántas» no puede contestar una pregunta que es de
+**ancho**. Las pastillas no miden lo mismo —«Contactado» 86,7 px y una
+contadora 36—, así que seis pastillas son 150 px o 300 según cuáles. De ahí los
+dos síntomas a la vez, medidos en la columna de verdad (348 px a 1440, con la
+barra de la lista a la vista, que se come sus 10):
+
+| | qué pasaba |
+| --- | --- |
+| **se partía** | la fila del reporte pedía **360,8 px** de 348 **con el tope ya aplicado**, y el renglón iba `flex-wrap`: lo que no cabía bajaba a una segunda línea |
+| **escondía de más** | siete pastillas cortas piden 286,2 px de 348 y la séptima se iba al «+N» igualmente |
+
+Y la segunda línea no es solo feo: la lista **estima el alto de cada fila con
+un número fijo** (`estimateSidebarItemHeight`) para virtualizar, así que una
+fila más alta le descuadra además el cálculo de la ventana.
+
+> **El renglón mide su hueco y entran las que quepan.** Al «+N» va solo lo que
+> de verdad no entra. La decisión es `repartirLasPastillas`
+> (`lib/renglon-de-pastillas.ts`, pura) y quien mide es `useRenglonDePastillas`.
+
+Y **nunca hay una segunda línea**: el renglón va `flex-nowrap` con
+`overflow-hidden`. Eso es la red de seguridad —para el primer pintado y para un
+navegador sin `ResizeObserver`—, no la solución: lo que evita el corte es el
+reparto.
+
+### Se miden los nodos que YA están, no una copia invisible
+
+`PestanasDelChat` resuelve lo mismo con una fila fantasma, y aquí **no se
+puede**: duplicar ocho pastillas —cada una con su `TooltipProvider`— por cada
+fila de una lista de miles es justo lo que *la lista es grande, no rehacerla
+por gusto* evita.
+
+Lo que lo hace posible sin la copia es **recordar los anchos**: el primer
+pintado de una firma lleva todas las pastillas, así que esa pasada las mide
+todas y las guarda por posición. Después el renglón ya no las tiene todas
+—unas se fueron al «+N»— pero sus anchos siguen guardados y **siguen
+valiendo**: una pastilla va `shrink-0` con su contenido fijo, así que su ancho
+no cambia porque cambie el de la columna. Cuando cambia la firma se olvidan y
+se empieza otra vez con todas.
+
+Cuatro cosas que hay que mantener:
+
+1. **Cada pastilla dice QUÉ POSICIÓN ocupa** (`data-pastilla`), y no se deduce
+   del orden de los hijos. Una pastilla puede no pintar ni un nodo: los flujos
+   se cargan con `dynamic` y su `loading` es `null`, y un contador en cero
+   devuelve `null`. Contando hijos, los anchos se desplazan y a una pastilla se
+   le asigna el de la de al lado — **medido: una fila de siete que cabía de
+   sobra se quedaba en seis con un «+1»**, porque el ancho de la última no se
+   llegaba a medir nunca.
+2. **Un array corto no es «hay menos pastillas»: es «falta una medida».** Con
+   `slice` las posiciones sin medir desaparecen y el reparto esconde lo que ni
+   siquiera se llegó a medir; se construye con `Array.from({ length: total })`,
+   y un hueco cae en la guarda de siempre —sin medidas se pintan todas—.
+3. **Se mide en CADA pintado, y antes de pintar.** Antes de pintar porque una
+   fila que naciera con todas puestas y se repartiera después se vería saltar.
+   Y en cada pintado porque lo que cambia el ancho de una pastilla no siempre
+   cambia la firma: el nombre de la etapa, el rótulo de la calificación, una
+   pastilla que llega un instante después. La fila está memoizada, así que solo
+   corre cuando de verdad cambian sus datos.
+4. **Y la LETRA cambia sin que cambie nada más.** El primer pintado sale con la
+   fuente de respaldo y Poppins llega después, así que las pastillas de texto
+   miden otra cosa — y no hay render ni cambio de tamaño del renglón que lo
+   despierte. Se vuelve a medir con `document.fonts.ready`. Sin eso, el reparto
+   se quedaba con los anchos de Arial para el resto de la vida de la fila.
+
+**Un solo `ResizeObserver` para toda la lista** (uno de módulo, con un mapa de
+avisos): la bandeja monta decenas de filas a la vez y uno por fila serían
+decenas de objetos; uno solo admite observar N elementos y entrega **una sola
+llamada** con todas las entradas.
+
+### Todas las contadoras miden LO MISMO
+
+Son cinco —flujos, seguimientos, la cita, las notas y las etiquetas— y medían
+cinco anchos distintos, con **tres anatomías**:
+
+| pastilla | antes |
+| --- | --- |
+| notas (solo el candado) | **24,0** |
+| etiquetas «2» | **31,7** |
+| recordatorios «3» | 32,1 |
+| cita | 34,0 |
+| seguimientos «2» | **34,9** |
+
+La de etiquetas era de las más estrechas, y `rounded-full` sobre la más
+estrecha del renglón es exactamente lo que se lee como «esa se ve más redonda
+que las otras». Y no era solo el ancho: flujos y seguimientos iban con el
+relleno y la letra de una pastilla de TEXTO —6 px y 12— y un punto de 8 px
+donde las demás tienen un glifo de 12.
+
+> **Una contadora es un glifo de 12, un hueco de 4 y un número de 10, con 4 px
+> de relleno por lado; y su ancho mínimo es el mismo para todas**
+> (`ANCHO_DE_LA_CONTADORA`, `min-w-9`).
+
+**36 px no es un número a ojo**: es lo que mide la más ancha del grupo con
+**dos cifras** —los recordatorios con «12», 35,5—, así que de una cifra a dos
+ninguna cambia de ancho y las cinco salen exactamente iguales. Con tres
+caracteres («99+») crece, y crece igual en todas, porque la regla es una.
+
+Y el punto de color de flujos y seguimientos va **dentro de una caja del tamaño
+del glifo de las demás**: así el reparto de dentro es el mismo y el número cae
+en el mismo sitio en las cinco.
+
+**El «+N» es una contadora más**, y eso no es estética: el reparto tiene que
+CONTAR con su ancho **antes de que exista el nodo**. Por eso
+`ANCHO_DE_LA_CONTADORA_PX` vive al lado de la clase y el banco comprueba que el
+«+N» pintado mide exactamente eso. Ese valor **no decide nada por su cuenta**:
+en cuanto el «+N» existe se mide de verdad, y cuando no existe es porque caben
+todas, que se contesta sin mirar su ancho.
+
+### «Asignar» es solo la palabra
+
+El icono de persona delante no añadía nada —la pastilla ya dice «Asignar»— y le
+quitaba a la fila los píxeles que hacen falta para que quepa una pastilla más.
+Con el icono fuera, la palabra se lee sola y la pastilla puede ser **una de
+texto como sus vecinas**: la misma letra y el mismo relleno que la calificación
+y la etapa (`PASTILLA_DE_TEXTO`). Iba con `text-[10px]` y 2 px por lado, dos
+escalones por debajo, justamente para hacerle sitio al icono.
+
+**Cuando ya está asignada no cambia nada**: sigue siendo el círculo de
+iniciales. Y sus otras dos caras —«Tomar» y «Yo», que pinta un `agente`—
+conservan su icono, porque ahí sí dice algo (tomar es un «+», «Yo» es un ✓),
+pero se leen con la misma letra y el mismo relleno.
+
+Una que solo se ve midiendo: **«Yo» del agente es un `<span>`, no un botón**,
+así que sin `data-ui="badge"` su `.text-xs` valdría **14 px** dentro de
+`.app-module-content`, donde los controles lo bajan a 12 — saldría con la letra
+más grande que la calificación de al lado.
+
+### El banco
+
+`scripts/banco-renglon-de-pastillas.sh`, dos mitades, porque el cambio vive en
+dos capas: la **decisión** sin navegador —cuántas caben con medidas de verdad,
+qué pasa sin medidas, que el renglón no puede envolver— y la **fila real** en
+Chromium sobre el CSS del build, a 1440/1280/1024/390 y con ocho filas. Que la
+decisión sea correcta no prueba que la fila la use: eso solo se ve midiendo.
+
+`MODO=roto` pinta la misma maqueta con los componentes de `ANTES_REF` —un
+`git worktree` aparte, nunca `origin/main`— y afirma los tres fallos con sus
+números. Y se comprobó lo único que dice que un banco mira: **quitándole cada
+arreglo al modo bueno se pone en rojo** —el `nowrap`, el tope de vuelta, el
+ancho común de las contadoras, el icono de «Asignar» y la marca de «Yo»—.
+
+Y tres bancos vecinos miraban el renglón por sus CLASES
+(`.mt-1.flex.flex-wrap`, `.flex-wrap`, el padre de la etapa) y se quedaron
+ciegos al cambiar el DOM: **un banco que busca una caja por su clase se rompe
+el día que la caja cambia de clase, y lo hace pasando, no fallando** — el de la
+fila contaba 0 pastillas y daba por bueno «no hay dos líneas». Los tres van ya
+por `[data-renglon-de-pastillas]` con la clase vieja de respaldo, que es lo que
+mantiene vivo su modo roto.
+
 ## El cupo de llamadas: un sitio que solo se libera cuando todo sale bien no es un cupo
 
 «Límite de llamadas simultáneas alcanzado» al llamar desde un chat, **sin

@@ -9,9 +9,8 @@ import { cn } from '@/lib/utils';
 import {
   CIRCULO_DEL_ASESOR,
   FORMA_DE_LA_PASTILLA,
-  RELLENO_DE_PX_1,
-  RELLENO_DE_PX_1_5,
-  RELLENO_DE_PX_2,
+  GLIFO_DE_LA_PASTILLA,
+  PASTILLA_DE_TEXTO,
 } from '@/lib/pastillas-de-la-fila';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { AssignmentLogEntry } from '@/actions/advisor-assign-actions';
@@ -129,11 +128,11 @@ export function AdvisorAssignBadge({
           }}
           className={cn(
             'inline-flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50',
-            isPill ? cn(FORMA_DE_LA_PASTILLA, 'gap-1 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
+            isPill ? cn(PASTILLA_DE_TEXTO, 'font-normal') : 'h-7 px-2 text-xs',
           )}
           title="Tomar esta conversación"
         >
-          <UserPlus className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} />
+          <UserPlus className={cn('shrink-0', isPill ? GLIFO_DE_LA_PASTILLA : 'h-3.5 w-3.5')} />
           Tomar
         </button>
       );
@@ -141,13 +140,18 @@ export function AdvisorAssignBadge({
     if (isMySession) {
       return (
         <span
+          /* No es un botón —el agente no reasigna— así que sin esta marca su
+             `.text-xs` valdría 14 px dentro de `.app-module-content`, donde
+             los controles lo bajan a 12: saldría con la letra más grande que
+             la calificación de al lado. Medido. */
+          data-ui="badge"
           className={cn(
             'inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-400',
-            isPill ? cn(FORMA_DE_LA_PASTILLA, 'gap-1 text-[10px]', RELLENO_DE_PX_2) : 'h-7 px-2 text-xs',
+            isPill ? PASTILLA_DE_TEXTO : 'h-7 px-2 text-xs',
           )}
           title="Mi conversación"
         >
-          <UserCheck className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} />
+          <UserCheck className={cn('shrink-0', isPill ? GLIFO_DE_LA_PASTILLA : 'h-3.5 w-3.5')} />
           Yo
         </span>
       );
@@ -196,8 +200,10 @@ export function AdvisorAssignBadge({
               ? cn(
                   'border border-green-300 bg-green-100 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400',
                   /* «Yo» es un icono y una palabra: sigue siendo una PASTILLA,
-                     no un avatar, así que conserva su relleno. */
-                  isPill ? cn(FORMA_DE_LA_PASTILLA, 'text-[10px]', RELLENO_DE_PX_1_5) : 'h-7 rounded-full px-2 text-xs',
+                     no un avatar, así que conserva su relleno —y el de las
+                     pastillas de texto de la fila, para que se lea igual que
+                     la calificación y la etapa de al lado. */
+                  isPill ? PASTILLA_DE_TEXTO : 'h-7 rounded-full px-2 text-xs',
                 )
               : assigned
               ? cn(
@@ -218,18 +224,27 @@ export function AdvisorAssignBadge({
                 )
               : cn(
                   'border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary',
-                  isPill ? cn(FORMA_DE_LA_PASTILLA, 'gap-0.5 text-[10px]', RELLENO_DE_PX_1) : 'h-7 w-7 rounded-full',
+                  /* Sin el icono de persona, «Asignar» es una palabra y nada
+                     más: pasa a ser una pastilla de TEXTO como la calificación
+                     y la etapa. Iba con `text-[10px]` y 2 px de relleno por
+                     lado —dos escalones por debajo de sus vecinas— porque
+                     tenía que hacerle sitio a un icono que no informaba de
+                     nada: la palabra ya dice lo que hace. */
+                  isPill ? cn(PASTILLA_DE_TEXTO, 'font-normal') : 'h-7 w-7 rounded-full',
                 ),
           )}
         >
           {isMySession
-            ? <><UserCheck className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} /><span>Yo</span></>
+            ? <><UserCheck className={cn('shrink-0', isPill ? GLIFO_DE_LA_PASTILLA : 'h-3.5 w-3.5')} /><span>Yo</span></>
             : assigned
             ? initials(assigned)
             : hasAssignment
               ? '?'
             : isPill
-              ? <><UserPlus className="h-2.5 w-2.5 shrink-0" /><span>Asignar</span></>
+              /* Solo la palabra. El icono de persona delante no añadía nada
+                 —la pastilla ya dice «Asignar»— y le quitaba a la fila los
+                 píxeles que hacen falta para que quepa una pastilla más. */
+              ? <span data-pastilla-de-asignar>Asignar</span>
               : <UserPlus className="h-4 w-4" />
           }
         </button>
