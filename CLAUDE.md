@@ -18275,6 +18275,32 @@ Cuatro cosas más:
    dos huecos). El banco lo mide en las **dos** pantallas en la misma sesión:
    copiado a mano probaría que coincide con lo que alguien recuerda de Etiquetas.
 
+#### Y con el color libre, Tailwind deja de poder ser la fuente
+
+Una etapa se pinta en **cinco** sitios —la cabecera de su columna, el borde de su
+tarjeta, el punto del selector, el icono de la cabecera del chat y la pastilla de
+la fila de la bandeja— y con una paleta cerrada cada color podía traer sus clases
+escritas (`bg-blue-500`, `border-blue-300 dark:bg-blue-950`…), que es lo que hacía
+que los cinco dijeran lo mismo.
+
+> **Con el color libre eso no se puede: Tailwind solo genera lo que ve literal**,
+> así que no existe clase para un `#7C3AED` que alguien acaba de elegir con la
+> rueda. Se pinta con `style`, y los tonos salen de **una sola función**
+> (`losTonosDeLaEtapa`), que es lo que conserva la propiedad que importaba: hay un
+> único sitio que decide el color de una etapa.
+
+Dos cosas que hay que mantener:
+
+1. **El alfa hace lo que hacían las variantes `dark:`.** El fondo de la pastilla
+   es el mismo tono al 12 % y su borde al 35 %: así se lee sobre fondo claro y
+   sobre fondo oscuro con el texto en el tono pleno. Un fondo **pleno** obligaría
+   a elegir el color del texto según el tema, que es justo lo que las clases
+   resolvían a mano y aquí no se puede.
+2. **Lo que no sea un hex no puede dejar una etapa sin color.**
+   `losTonosDeLaEtapa` cae en el gris de «sin elegir», nunca en vacío: una
+   columna o una pastilla sin color se lee como una pantalla rota.
+
+
 ### Vaciar Perdido no BORRA: SELLA, y el barrido diario borra en firme
 
 La columna de Perdido lleva su botón de vaciar, con confirmación que dice
