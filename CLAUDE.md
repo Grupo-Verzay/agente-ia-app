@@ -19716,6 +19716,179 @@ al modo bueno se pone en rojo** —sin la caja que envuelve la tira y la ficha,
 sin el cambio de orden, y con el chulito invisible de vuelta delante del
 nombre—.
 
+## Los botones del borde: el copiloto es el EJE, y la nota rápida
+
+Eran dos —el copiloto y el chat del equipo— y ahora son tres: de arriba abajo
+la **nota rápida**, el **copiloto** y el **chat del equipo**, cada uno con su
+panel y nunca dos abiertos a la vez.
+
+### Centrar la COLUMNA no es centrar ningún botón
+
+La columna iba `top-1/2 -translate-y-1/2`, y eso centra **la columna**. Con dos
+botones de 36 px y 4 de hueco eso son 76 px de alto, así que el copiloto caía
+**20 px por encima** de la mitad de la ventana y el del equipo 20 por debajo:
+ninguno de los dos estaba centrado. Con dos botones iguales eso no se nota, y
+por eso llevaba años así.
+
+Con tres iguales, centrar la columna vuelve a dar lo correcto **por
+casualidad** — el del medio cae justo en el centro—. Y deja de darlo **en
+silencio** el día que entre un cuarto botón o que uno cambie de alto: un botón
+descuadrado no da ningún error, se ve como una columna torcida y nadie sabe
+desde cuándo.
+
+> **La columna se pega a `top: 50%` y se sube lo que mide desde su borde de
+> arriba hasta el CENTRO del botón eje** (`elDesplazamientoDelEje`,
+> `lib/botones-del-borde.ts`). Con eso el eje queda clavado en la mitad de la
+> ventana pase lo que pase, y la simetría de los otros dos sale de que estén a
+> la misma distancia de él en la lista.
+
+Cuatro cosas que hay que mantener:
+
+1. **Va en `style`, no en una clase.** Tailwind solo genera lo que ve escrito
+   literal, así que un `-translate-y-[58px]` armado en tiempo de ejecución no
+   existiría en el CSS y la columna se quedaría sin desplazar **con el build en
+   verde**. Es la familia de `removeConsole`.
+2. **El eje es el copiloto**, y el orden lo pone `ORDEN_DE_LOS_BOTONES`: el eje
+   en medio y los otros dos a un paso por cada lado. Metiendo la nota entre el
+   copiloto y el equipo, el eje dejaría de ser el del medio y sus vecinos
+   caerían a distancias distintas.
+3. **La forma se escribe UNA vez** (`BOTON_DEL_BORDE`). La tenían el copiloto y
+   el del equipo, cada uno la suya, con el comentario de «si uno cambia, cambian
+   los dos» — que es la forma de reconocer que el día que cambie uno el otro se
+   queda. Y **el copiloto ya no trae su posición**: la traía de fábrica y quien
+   lo montaba en la columna se la tenía que deshacer con `static right-auto
+   top-auto translate-y-0 max-sm:…`; una clase que se pone para quitarla es una
+   clase que un día deja de quitarse entera.
+4. **Se quedan quietos: no se arrastran.** Lo que sí se arrastra en esta
+   plataforma es la ventana de una llamada y la de una reunión, que llevan
+   dentro el botón de colgar y pueden tapar lo que se está mirando durante media
+   hora. Estos tres son mandos, no ventanas: un mando que cambia de sitio es un
+   mando que hay que buscar cada vez.
+
+Y siguen sin tapar la caja de escribir de Chats: la columna mide 116 px con el
+eje en su mitad, así que su borde de abajo cae en `50vh + 58px` — a 1280×800 son
+342 px de separación y en un móvil de 667 quedan 275. Los 36 px de lado son de
+cuando el botón tapaba los tres puntos de las filas, y esa medida se respeta.
+
+## La nota rápida: un papel por PERSONA, que se guarda solo
+
+Una sola nota por persona, en texto plano, que se guarda sola y sigue ahí
+mañana. El sitio donde apuntar el dato que acaban de decir por teléfono sin
+salir de la conversación que se tiene delante. Y un botón que la asciende a
+**nota formal** del módulo de Notas cuando deja de ser un recado.
+
+**La tabla es de la App**, `nota_rapida`, con `CREATE TABLE IF NOT EXISTS`, su
+`ddl()` para las dos réplicas y **sin clave foránea**. Ni una columna en `User`:
+esa es del BACKEND y añadirle columnas desde aquí es lo que reventó el #360. Y
+**la clave primaria ES el `personaId`**: «una por persona» no es una decisión de
+la pantalla que alguien pueda saltarse mandando dos, es la forma de la tabla.
+
+### Es de la PERSONA, y el id no llega del navegador
+
+Ninguna de las tres acciones recibe un `userId`, y eso no es comodidad: **es la
+puerta**. Una acción de servidor ES un endpoint, así que un id que llegara de
+fuera sería la forma de leer —y de pisar— la nota de otro. Aquí no hay nada que
+comprobar porque no hay nada que aceptar. Tampoco pasa por `laCuentaDeLaAccion`:
+eso resuelve un ALCANCE y esto no tiene alcance ninguno.
+
+Y es la **persona** (`laPersonaQueActua`), no la fila efectiva: dentro de una
+cuenta ajena con «Ingresar» el papel sigue siendo el de quien está sentado
+delante. Es el mismo reparto que `preferencias_de_persona`.
+
+### Texto plano, y no el editor de la casa
+
+Dos motivos, y el segundo es una trampa menos:
+
+- Lo que se guarda es una cadena, así que el guardado automático —que corre
+  mientras se escribe— manda unos bytes y no el árbol entero de un documento.
+- Y no hay que pasar por `comoJsonPlano`: lo que sale de tiptap lleva dentro
+  objetos con `Object.create(null)` y **no se puede mandar a una acción de
+  servidor** sin aplanarlo. Ese arreglo existe y está escrito, pero es un sitio
+  menos donde caerse.
+
+Cuando lo apuntado deja de ser un recado, el botón del pie lo manda a Notas y
+ahí sí tiene su editor, su carpeta y su título.
+
+### «Se guarda sola» son CUATRO momentos, no un reloj
+
+Un reloj de guardado por sí solo pierde lo último que se escribe cada vez que
+alguien cierra la pestaña antes de que salte. Así que se vuelca:
+
+1. al dejar de teclear (`MS_ANTES_DE_GUARDAR`);
+2. al **cerrar el panel**;
+3. al **esconderse la pestaña**;
+4. y al **irse la página**, que es el único caso en el que el navegador ya no va
+   a esperar a nadie: ahí va por `fetch(..., { keepalive: true })` contra
+   `/api/nota-rapida`, que es lo único que sale con la página muerta. **Una
+   acción de servidor no sobrevive a un `pagehide`.**
+
+Esa ruta **no es una segunda puerta**: resuelve `currentUser()` y saca la
+persona con la MISMA función que la acción —el id no llega nunca del
+navegador— y escribe por `lib/nota-rapida-db`, que es el único camino de
+escritura. Con una copia ahí, la nota se guardaría de dos maneras según por
+dónde entrara.
+
+Tres cosas más:
+
+1. **Lo que se compara es lo GUARDADO, no lo mandado.** Con lo último *mandado*,
+   un guardado que falló contaría como hecho y la tecla siguiente no volvería a
+   intentarlo: el texto se quedaría solo en la pantalla y se perdería al
+   recargar, sin un solo error a la vista.
+2. **Sin cambios no se escribe.** Esto corre cada vez que se deja de teclear, y
+   una escritura por pausa sobre una nota que no cambió es una petición para no
+   cambiar nada.
+3. **Se sanea lo que VUELVE, no solo lo que se manda.** Una respuesta que no
+   traiga una cadena —un despliegue a medias, una acción que cambió de forma—
+   dejaría el papel en `undefined` y la pantalla se cae al primer `trim()`. Lo
+   cazó el banco.
+
+### Ascenderla a Notas: primero se crea, y solo entonces se vacía
+
+**El orden es el único posible.** Al revés, un fallo de `createNote` se llevaría
+por delante lo apuntado sin haberlo guardado en ninguna parte — y eso no se
+deshace. El banco lo ejerce con el orden INGENUO escrito literal dentro y afirma
+la pérdida.
+
+Cuatro cosas:
+
+1. **Se vacía a propósito, y no se pierde nada**: lo apuntado ya está en Notas
+   cuando el papel se vacía, así que lo que se borra es la copia. Dejándolo
+   puesto, el botón se pulsa dos veces sin querer y quedan dos notas iguales.
+   Por eso lo que se dice después del clic no es «listo»: es **qué** se guardó y
+   **dónde**.
+2. **La crea `createNote`, la de siempre.** No hay un segundo camino para crear
+   una nota: de ahí salen gratis el registro de auditoría y dónde aterriza —la
+   nota cae donde `/notas` la crearía para quien está mirando, así que se
+   encuentra donde se va a buscar—. El papel es de la PERSONA y eso es otra
+   pregunta: son dos funciones.
+3. **El título es la primera línea CON ALGO**, no la primera a secas —quien
+   empieza con un salto tendría una nota sin título—, y **el texto entero entra
+   en el cuerpo**, la primera línea incluida: quien asciende un recado espera
+   encontrarlo tal cual lo escribió.
+4. **Una nota en blanco no se manda**, y el botón se **apaga**, no se esconde:
+   un mando que aparece y desaparece mueve de sitio al de al lado justo cuando
+   se va a pulsar. Y mientras se manda dice «Enviando…», que es la regla de *que
+   se vea que se pulsó*.
+
+### El banco
+
+`scripts/banco-nota-rapida.sh`, en tres mitades porque el cambio vive en tres
+capas: las **reglas** puras (dónde cae cada botón, qué se recorta, cómo sale una
+nota formal), un **barrido** del código (que los tres compartan forma, que la
+columna no vuelva a centrarse a sí misma, que el panel pase por `PanelLateral` y
+que ni la acción ni la ruta acepten un id) y las **acciones contra Postgres** más
+los **tres botones en Chromium**, donde además se comprueba que la nota se guarda
+sola —al parar de teclear y al cerrar— y que reabrir el panel la trae.
+
+`MODO=roto` construye con los botones de un commit **pinchado** —nunca
+`origin/main`, que pasa a ser el «ahora» en cuanto esto se fusiona— y afirma el
+fallo: dos botones, sin nota, y el copiloto **20 px por encima del centro** en
+las cuatro anchuras.
+
+Y se comprobó lo único que dice que un banco mira: quitándole el arreglo al modo
+bueno se pone en rojo —el `-translate-y-1/2` de vuelta, el orden ingenuo al
+ascender, un `userId` en una acción y el volcado al cerrar el panel—.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

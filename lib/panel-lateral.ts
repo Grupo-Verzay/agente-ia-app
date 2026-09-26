@@ -229,6 +229,14 @@ export const PANEL_DE_LA_TAREA = "panel-nueva-tarea";
  */
 export const PANEL_DE_LA_FICHA = "panel-ficha-de-contacto";
 export const PANEL_DE_ENVIAR_AL_EQUIPO = "panel-enviar-al-equipo";
+/**
+ * La nota rápida: el papel de al lado del teclado, uno por persona.
+ *
+ * Es un panel más y entra en la exclusión como los demás: abrirlo cierra el
+ * copiloto o el chat del equipo, que nacen en la misma franja. Lo apuntado no
+ * se pierde por eso — al cerrarse se vuelca antes de irse.
+ */
+export const PANEL_DE_LA_NOTA_RAPIDA = "panel-nota-rapida";
 
 /**
  * # En Chats, el panel es la TERCERA COLUMNA y no una hoja sobre la ventana
