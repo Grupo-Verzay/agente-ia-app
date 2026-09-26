@@ -7147,6 +7147,153 @@ y 390, con una persona y con dos, y en los tres tamaños de ventana:
 - y la **pastilla** de la reunión plegada no se esconde nunca: ahí no hay mandos
   que apartar, y dejarla escondida sería una reunión sin forma de colgar.
 
+## Reuniones: moderar donde se mira, y que la puerta SUENE
+
+Tres controles del anfitrión, reportados juntos como que faltaban. El
+diagnóstico no fue el que parecía, y conviene tenerlo delante:
+
+| | servidor | interfaz |
+| --- | --- | --- |
+| sacar a quien ya entró | **estaba entero** (`sacarDeLaSalaAction`, con su puerta) | solo en el panel lateral › pestaña «Gente» |
+| pedirle silencio | **estaba entero** (`silenciarAAction`) | igual |
+| avisar de quien llama a la puerta | — | **no existía**: una franja ámbar y nada más |
+
+O sea que dos de los tres **ya funcionaban** y no se encontraban. El panel
+**nace plegado** y su pestaña por defecto es «chat», así que para sacar a quien
+sobró de la reunión anterior hacían falta tres pasos que nadie descubre: abrir
+el panel, cambiar de pestaña y pulsar un icono de 24 px sin rótulo. Es el «menú
+cerrado por dentro» que ya costó una vuelta en Embudos — el contrario del «menú
+abierto, puerta cerrada», y se lee igual de mal: *no se puede*.
+
+> **Un mando SOBRE una persona se ofrece donde esa persona está.** Los dos van
+> ahora en un «⋯» sobre su recuadro, además de en la lista de gente. **La
+> acción es la misma, el camino es el mismo y la decisión es la misma**: no se
+> escribió un segundo camino de moderación.
+
+### La decisión es UNA, y tiene que decir lo que dice el servidor
+
+`losMandosDeModeracion` (`lib/moderar-en-la-sala.ts`, puro) contesta qué se
+ofrece, y lo preguntan **los dos** sitios. Con la condición escrita en cada uno
+—`moderas && !soyYo && micEncendido`, que es como estaba— el día que se afine
+una el otro ofrece otra cosa, y eso no se ve como un error: se ve como que
+«desde el recuadro a veces no deja».
+
+Y ofrece **exactamente** las tres cosas que el servidor rechaza, ni una más:
+no moderar, hacérselo a uno mismo, y hacérselo a quien ya no está dentro.
+Ofreciendo de más sale un botón que da error; de menos, una puerta abierta sin
+menú. El banco lo encadena **leyendo los mensajes del propio servidor**: copiar
+las tres condiciones a mano dejaría el banco en verde el día que aparezca una
+cuarta.
+
+El camino también es uno (`useModerarEnLaSala`): con el `try`/`catch`, el «no
+se pudo» y el aviso de que la orden salió escritos en cada sitio, al segundo se
+le olvida uno de los tres.
+
+### Dónde va el menú es una MEDIDA, no una preferencia
+
+Esto costó dos intentos y es lo que no se ve leyendo. La reunión tiene **dos
+barras flotando `absolute z-20` encima de los recuadros** —la cabecera arriba y
+los mandos abajo, 352 px centrados—, así que un botón puede estar perfectamente
+pintado y **debajo de otra cosa**:
+
+| dónde se probó | qué lo tapaba |
+| --- | --- |
+| al final del pie | la barra de mandos, en los recuadros de la fila de abajo |
+| arriba a la derecha, `z-10` | los mandos de la cabecera, en el recuadro de esa esquina |
+| **arriba a la derecha, `z-30`** | **nada, en las 24 combinaciones** |
+
+Las dos primeras las cazó el banco con `elementFromPoint`, que es lo único que
+sabe qué hay de verdad en un punto: `getBoundingClientRect` decía que el botón
+estaba donde tenía que estar, y estaba debajo.
+
+> **Lo que lo resuelve es el `z-30`**: ni el recuadro (`relative` sin `z`) ni la
+> rejilla crean contexto de apilamiento, así que el botón compite DIRECTAMENTE
+> con las barras y les gana. Bajarlo a `z-10` —que es lo que se escribe solo—
+> lo devuelve debajo de las dos.
+
+Y va **también en la tira de miniaturas**, no solo en el recuadro grande: en la
+vista de orador —la de por defecto— casi todo el mundo está en la tira, así que
+un menú solo en el grande obligaría a esperar a que esa persona hablara para
+poder moderarla.
+
+### El aviso de la puerta: suena, se repite, y PARA al pulsar
+
+La sala de espera era solo visual, y esa franja no la ve nadie con la reunión
+plegada, con la pestaña de fondo o mirando a quien habla. Es *un aviso que
+espera es un aviso que no llega*, otra vez.
+
+**Ni un sondeo nuevo**: la lista de quién espera ya llega en la vuelta del
+reloj de la sala. Lo único propio es un latido de un segundo que pregunta
+«¿toca?», y **solo existe mientras hay alguien en la puerta sin atender** — el
+99 % de una reunión no hay nadie y no corre nada. El ritmo de verdad lo pone la
+decisión pura (`CADA_CUANTO_SUENA_LA_PUERTA_MS`, 6 s); con un `setInterval` del
+intervalo entero, cada persona que llegara reiniciaría el reloj.
+
+Cinco cosas que hay que mantener:
+
+1. **PARA al pulsar, no en la vuelta siguiente.** Al decidir sobre alguien su
+   id deja de contar al instante (`losQueEsperanSinAtender`), y **si el
+   servidor dice que no —la sala está llena— vuelve a contar**: esa persona
+   sigue esperando. Es la misma regla que quitar la fila de un chat antes de
+   preguntar y devolverla si falla. Sin esto, entre el clic y la vuelta del
+   reloj el aviso suena otra vez, y eso se lee como que el botón no hizo nada.
+2. **A quien no puede abrir la puerta no le suena.** Sonaría por algo que no
+   puede atender. Sale casi gratis: el servidor ya le manda la lista vacía.
+3. **Se puede callar, y solo mientras dure esta reunión.** Un sonido que se
+   repite y no se puede parar es lo que hace que se silencie la pestaña entera
+   —y entonces se pierden también los avisos que sí importan—. En memoria y no
+   en `localStorage`: callarlo para siempre sería volver al fallo del que
+   viene, y nadie se acordaría de haberlo hecho. El botón va en la propia
+   franja, que es donde se mira cuando suena.
+4. **No hay tope de repeticiones**, a propósito: pararlo solo sería volver a
+   que nadie se entere. Lo que hay en su lugar es esa decisión de quien modera.
+5. **Y la pastilla lo dice.** Plegada, la pastilla es lo único que se ve de la
+   reunión, y un sonido sin nada que mirar es peor que ninguno: lleva su número
+   en ámbar, como ya llevaba el punto de grabación y el de reconexión. Va
+   **dentro del asa** y no como botón — el asa se queda el puntero al agarrarla
+   y el clic de un botón de dentro no llegaría a salir.
+
+#### El tono: el único que BAJA, y el más bajo de los tres
+
+| | de → a | dura | volumen |
+| --- | --- | --- | --- |
+| clientes (`useAdvisorNotifications`) | 880 → 1100 | 450 ms | 0.25 |
+| equipo (`TONO_DEL_EQUIPO`) | 1320 → 1760 | 180 ms | 0.14 |
+| **la puerta** | **660 → 495** | **120 ms ×2** | **0.10** |
+
+Tres decisiones, cada una por algo distinto: **baja** en vez de subir, que es
+lo único que de verdad distingue un aviso de otro estando distraído; **dos
+golpes**, como se llama a una puerta, porque uno solo se oye como un error del
+navegador; y **el más bajo de los tres**, porque es el único que se repite — al
+volumen del de clientes, a la tercera vuelta habría que silenciarlo. El banco
+compara los tres, para que nadie lo suba sin darse cuenta.
+
+**Un solo `AudioContext`, perezoso y para siempre.** Cada uno es un hilo de
+audio del sistema: abriendo uno por pitido se acumulan hasta que el navegador
+deja de dar más, y entonces **deja de sonar todo**, la llamada de WhatsApp
+incluida. Es lo que ya hace el sonido del chat del equipo.
+
+### El banco, y lo que de verdad prueba
+
+`scripts/banco-controles-de-la-reunion.sh`, dos mitades, porque el cambio vive
+en dos capas: la decisión y un barrido sin navegador (27 casos), y **los
+componentes reales en Chromium** (17), donde se contestan las dos preguntas que
+no se contestan leyendo: si el menú **se alcanza** y si el sonido **suena, se
+repite y para**. El intervalo se lee **del módulo**, no se escribe en el banco:
+copiado, probaría que coincide consigo mismo y no con el que corre.
+
+`MODO=roto` corre el «antes» **pinchado a un commit** —nunca `origin/main`, que
+el día de la fusión pasa a ser el «después» y el modo roto se pone verde sin
+ejercer nada— y afirma el fallo: ni decisión compartida, ni un mando sobre el
+recuadro, ni un solo `createOscillator` en todo el módulo de video.
+
+Y una del propio banco que conviene no repetir: **17 pruebas saltadas se leen
+como 17 verdes.** Pasó mientras se escribía esto —el CSS del build se estaba
+regenerando— y el banco decía «0 fallos». Ahora **se cae con estruendo si no
+ejerce ni una**: un banco que no arranca se parece muchísimo a un banco que
+pasa.
+
+
 ## Un hilo se abre por el final, y no se mueve solo
 
 Los cinco listados de mensajes de la plataforma —Chats, el chat de equipo y los

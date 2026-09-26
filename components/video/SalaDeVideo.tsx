@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AudioLines,
+    Bell,
+    BellOff,
     Copy,
     GripVertical,
     Hand,
@@ -84,7 +86,15 @@ import { useGrabacionDeLaReunion } from "@/hooks/useGrabacionDeLaReunion";
 import { bytesPorHora, comoSeLeenLosBytes } from "@/lib/grabacion-de-reunion";
 import { useMallaDeVideo } from "@/hooks/useMallaDeVideo";
 import { useVozActiva } from "@/hooks/useVozActiva";
-import { RecuadrosDeLaSala, type LoQueSePinta } from "@/components/video/RecuadrosDeLaSala";
+import { useAvisoDeLaPuerta } from "@/hooks/useAvisoDeLaPuerta";
+import { useModerarEnLaSala } from "@/hooks/useModerarEnLaSala";
+import { losMandosDeModeracion, type MandosDeModeracion } from "@/lib/moderar-en-la-sala";
+import { elAvisoDeLaPuerta, losQueEsperanSinAtender } from "@/lib/aviso-de-la-puerta";
+import {
+    RecuadrosDeLaSala,
+    type LoQueSePinta,
+    type ModeracionDeLosRecuadros,
+} from "@/components/video/RecuadrosDeLaSala";
 import { PanelDeLaReunion, type QuienEnElPanel } from "@/components/video/PanelDeLaReunion";
 import {
     dejarPasarAction,
@@ -239,6 +249,24 @@ export function SalaDeVideo({
     // NO —esconder las caras de la gente por defecto sería empezar la reunión
     // ocultando a todos—, y se recuerda como el panel (#837).
     const [tiraPlegada, setTiraPlegada] = useState(false);
+
+    // ── El aviso de la puerta ───────────────────────────────────────────────
+    //
+    // Sobre quiénes ya se decidió y la vuelta del reloj todavía no lo refleja.
+    // Es lo que hace que el sonido pare **al pulsar** y no dos segundos
+    // después: la misma regla con la que la fila de un chat se quita antes de
+    // preguntarle al servidor. Si el servidor dice que no —la sala está
+    // llena—, ese id se devuelve y vuelve a sonar, que es lo correcto: esa
+    // persona sigue esperando.
+    const [yaDecididos, setYaDecididos] = useState<string[]>([]);
+    /**
+     * Si quien modera calló el aviso de ESTA reunión.
+     *
+     * En memoria y no en `localStorage`: callarlo para siempre sería volver al
+     * fallo del que viene esto —alguien en la puerta y nadie enterándose— y
+     * además nadie se acordaría de haberlo hecho. Dura lo que dura la reunión.
+     */
+    const [avisoCallado, setAvisoCallado] = useState(false);
 
     useEffect(() => {
         try {
@@ -735,6 +763,95 @@ export function SalaDeVideo({
         [malla.remotos, malla.yo?.manoLevantada, malla.yo?.nombre, medios.micEncendido, miId],
     );
 
+    // ── Moderar, desde el recuadro y desde la lista ─────────────────────────
+    //
+    // El camino es UNO (`useModerarEnLaSala`) y la decisión también
+    // (`losMandosDeModeracion`). Lo que cambia entre los dos sitios es solo
+    // dónde se pinta: aquí se calcula el mapa por id y el panel lo vuelve a
+    // calcular para su fila con la misma función, así que no pueden discrepar.
+    const { moderar, ocupadoCon } = useModerarEnLaSala(codigo);
+    const moderas = Boolean(malla.yo?.moderas);
+
+    const moderacion: ModeracionDeLosRecuadros | undefined = useMemo(() => {
+        // Sin moderar no se construye ni el mapa: es el caso de todo el mundo
+        // menos quien organiza, y sin él los recuadros no pintan ningún mando.
+        if (!moderas) return undefined;
+        const mandos: Record<string, MandosDeModeracion> = {};
+        for (const r of malla.remotos) {
+            mandos[r.id] = losMandosDeModeracion({
+                moderas,
+                soyYo: false,
+                micEncendido: r.micEncendido,
+                // El nombre LIMPIO, sin el « · invitado» que el pie del
+                // recuadro pega detrás: un rótulo no puede decir «Sacar a Ana
+                // · invitado de la reunión».
+                nombre: r.nombre,
+            });
+        }
+        return {
+            mandos,
+            // El recuadro solo conoce el id; el nombre —que el aviso necesita
+            // para decir de quién habla— lo tiene este mapa. Se resuelve aquí
+            // y no allí para que el recuadro siga sin saber nada de nadie más.
+            moderar: (que, id) => {
+                const quien = malla.remotos.find((r) => r.id === id);
+                if (quien) moderar(que, { id, nombre: quien.nombre });
+            },
+            ocupadoCon,
+        };
+    }, [malla.remotos, moderar, moderas, ocupadoCon]);
+
+    // ── El aviso sonoro de la puerta ────────────────────────────────────────
+    //
+    // Cuelga de la lista que el reloj de la sala YA trae, así que no hay ni un
+    // sondeo nuevo. Va antes de cualquier `return` de esta función —los hooks
+    // no admiten otra cosa— y eso además es lo correcto: con la reunión
+    // plegada a su pastilla este componente sigue montado, que es justo cuando
+    // más falta hace que suene.
+    const esperanSinAtender = losQueEsperanSinAtender({
+        esperando: malla.esperando,
+        yaDecididos,
+    });
+    useAvisoDeLaPuerta({
+        esperando: malla.esperando,
+        abroLaPuerta: Boolean(malla.yo?.abroLaPuerta),
+        silenciado: avisoCallado,
+        yaDecididos,
+    });
+
+    /**
+     * Apuntar y desapuntar a quien se acaba de decidir.
+     *
+     * Se apunta al pulsar —para que el sonido pare ya— y se limpia en cuanto
+     * el reloj deja de traer a esa persona: sin limpiar, la lista crecería
+     * toda la reunión y un id que volviera a esperar (le rechazaron y vuelve a
+     * llamar) se quedaría sin aviso para siempre.
+     */
+    // La llave es solo para saber CUÁNDO mirar; lo que se mira es la lista de
+    // verdad, por referencia. Partiendo la llave habría que elegir un separador
+    // que ningún id pueda llevar dentro, y eso es una suposición sobre los ids
+    // de otro módulo.
+    const idsEnLaPuerta = malla.esperando.map((q) => q.id).join("\n");
+    const enLaPuerta = useRef(malla.esperando);
+    enLaPuerta.current = malla.esperando;
+    useEffect(() => {
+        const siguen = new Set(enLaPuerta.current.map((q) => q.id));
+        setYaDecididos((antes) => {
+            const quedan = antes.filter((id) => siguen.has(id));
+            return quedan.length === antes.length ? antes : quedan;
+        });
+    }, [idsEnLaPuerta]);
+
+    const alDecidir = useCallback((id: string, decidido: boolean) => {
+        setYaDecididos((antes) =>
+            decidido
+                ? antes.includes(id)
+                    ? antes
+                    : [...antes, id]
+                : antes.filter((x) => x !== id),
+        );
+    }, []);
+
     const cuantos = gente.length;
     const nombre = malla.sala?.titulo || "Reunión";
     // Quien se está compartiendo la pantalla gana el recuadro grande sobre
@@ -750,6 +867,7 @@ export function SalaDeVideo({
             distribucion={vistaDeAhora}
             enGrande={enGrande}
             tiraPlegada={tiraPlegada}
+            moderacion={moderacion}
         />
     );
 
@@ -868,6 +986,23 @@ export function SalaDeVideo({
                                 aria-label={malla.reconectando.mensaje}
                             />
                         ) : null}
+                        {/* Y quién llama a la puerta, por el mismo motivo: el
+                            aviso SUENA con la reunión plegada, y un sonido sin
+                            nada que mirar es peor que ninguno. Va dentro del
+                            asa —como el punto de grabación y el de reconexión—
+                            y no como botón: ningún botón puede ir aquí, porque
+                            el asa se queda el puntero al agarrarla y su clic no
+                            llegaría a salir. Para atender se amplía, que es el
+                            botón de al lado. */}
+                        {esperanSinAtender.length ? (
+                            <span
+                                className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-zinc-900"
+                                title={`${elAvisoDeLaPuerta(esperanSinAtender.length)} · amplía la reunión para abrir`}
+                                aria-label={elAvisoDeLaPuerta(esperanSinAtender.length)}
+                            >
+                                {esperanSinAtender.length}
+                            </span>
+                        ) : null}
                     </div>
                     <Button
                         variant="ghost"
@@ -985,14 +1120,47 @@ export function SalaDeVideo({
                 </div>
             ) : null}
 
-            {/* La sala de espera, solo para quien puede abrirla. */}
+            {/* La sala de espera, solo para quien puede abrirla.
+
+                Además de verse, SUENA: esta franja se pierde con la reunión
+                plegada, con la pestaña de fondo o sencillamente mirando a quien
+                habla, y entonces quien llamó a la puerta se queda fuera sin que
+                nadie lo sepa. El aviso lo lleva `useAvisoDeLaPuerta`; aquí solo
+                está el botón de callarlo, que va **en la propia franja** porque
+                es donde se mira cuando suena. */}
             {malla.yo?.abroLaPuerta && malla.esperando.length ? (
                 <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 sm:px-4">
-                    <p className="mb-1.5 text-xs font-medium text-amber-200">
-                        {malla.esperando.length === 1
-                            ? "Alguien está esperando para entrar"
-                            : `${malla.esperando.length} personas esperan para entrar`}
-                    </p>
+                    <div className="mb-1.5 flex items-center gap-2">
+                        <p className="min-w-0 flex-1 truncate text-xs font-medium text-amber-200">
+                            {elAvisoDeLaPuerta(malla.esperando.length)}
+                        </p>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 text-amber-200/80 hover:bg-amber-500/20 hover:text-amber-100"
+                            onClick={() => setAvisoCallado((x) => !x)}
+                            aria-pressed={avisoCallado}
+                            // Y se dice qué hace, en los dos estados: un icono
+                            // de campana tachada sin explicación se lee como
+                            // que el aviso está roto, no como que se calló.
+                            title={
+                                avisoCallado
+                                    ? "El aviso está callado. Volver a oírlo"
+                                    : "Callar el aviso mientras dure esta reunión"
+                            }
+                            aria-label={
+                                avisoCallado
+                                    ? "Volver a oír el aviso de la puerta"
+                                    : "Callar el aviso de la puerta"
+                            }
+                        >
+                            {avisoCallado ? (
+                                <BellOff className="h-3.5 w-3.5" />
+                            ) : (
+                                <Bell className="h-3.5 w-3.5" />
+                            )}
+                        </Button>
+                    </div>
                     <div className="flex flex-col gap-1">
                         {malla.esperando.map((q) => (
                             <FilaDeEspera
@@ -1000,6 +1168,7 @@ export function SalaDeVideo({
                                 quien={q}
                                 codigo={codigo}
                                 lleno={cuantos >= TOPE_DE_LA_SALA}
+                                alDecidir={alDecidir}
                             />
                         ))}
                     </div>
@@ -1350,7 +1519,9 @@ export function SalaDeVideo({
                             token={token}
                             mensajes={malla.mensajes}
                             gente={enElPanel}
-                            moderas={Boolean(malla.yo?.moderas)}
+                            moderas={moderas}
+                            moderar={moderar}
+                            ocupadoCon={ocupadoCon}
                             miId={miId}
                             alCerrar={() => cambiarElPanel(null)}
                             pestana={pestanaDelPanel}
@@ -1387,16 +1558,30 @@ function FilaDeEspera({
     quien,
     codigo,
     lleno,
+    alDecidir,
 }: {
     quien: QuienEstaEnLaSala;
     codigo: string;
     lleno: boolean;
+    /**
+     * Que ya se decidió sobre esta persona, para que el aviso pare **ya**.
+     *
+     * Y que NO, si el servidor lo rechaza: entre pulsar y que el reloj traiga
+     * la lista sin ella pasan un par de segundos, y en ese rato el aviso
+     * volvería a sonar. Desde fuera eso no se lee como un retardo, se lee como
+     * que el botón no hizo nada.
+     */
+    alDecidir: (id: string, decidido: boolean) => void;
 }) {
     const [ocupado, setOcupado] = useState(false);
 
     const decidir = async (pasa: boolean) => {
         if (ocupado) return;
         setOcupado(true);
+        // Se apunta ANTES de preguntar, como la fila de un chat se quita antes
+        // de que el servidor conteste: lo que no puede pasar es que el aviso
+        // siga sonando encima de una decisión ya tomada.
+        alDecidir(quien.id, true);
         try {
             const res = pasa
                 ? await dejarPasarAction({ codigo, participanteId: quien.id })
@@ -1405,11 +1590,18 @@ function FilaDeEspera({
                       participanteId: quien.id,
                       motivo: "rechazado",
                   });
-            if (!res.success) toast.error(res.message);
+            if (!res.success) {
+                toast.error(res.message);
+                // No se pudo: esa persona **sigue esperando**, así que vuelve a
+                // contar para el aviso. Es lo mismo que devolver la fila del
+                // chat que no se pudo borrar.
+                alDecidir(quien.id, false);
+            }
         } catch (error) {
             // Un botón que no dice por qué no hizo nada se pulsa cinco veces.
             console.warn("[sala] no se pudo decidir sobre quien espera", error);
             toast.error("No se pudo. Inténtalo otra vez.");
+            alDecidir(quien.id, false);
         } finally {
             setOcupado(false);
         }
