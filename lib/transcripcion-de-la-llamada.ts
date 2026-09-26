@@ -12,7 +12,13 @@
  * nota meses después en la factura.
  */
 
-import { costoDeLaNota, type CostoDeLaNota } from "@/lib/transcripcion-de-voz";
+import {
+    costoDeLaNota,
+    porQueNoSeTranscribio as porQueNoSeTranscribioLaLlamada,
+    sePuedeReintentar,
+    type CostoDeLaNota,
+    type NoSeTranscribio,
+} from "@/lib/transcripcion-de-voz";
 import { cuantosTrozos } from "@/lib/wav-en-trozos";
 
 /**
@@ -102,4 +108,147 @@ export function porQueNoSeTranscribio(que: QueHacerConLaGrabacion): string | nul
         return `La grabación pesa ${mb} MB y no se puede transcribir: el máximo son unos ${minutos} minutos de llamada.`;
     }
     return `Sin créditos suficientes para transcribir: cuesta ${que.costo.creditos} y quedan ${que.disponibles}.`;
+}
+
+/**
+ * El motivo por el que una llamada se quedó sin transcribir, **con el mismo
+ * vocabulario que una nota de voz**.
+ *
+ * No se escribe una segunda lista de motivos aquí, y no es por ahorrar: es el
+ * mismo Whisper sobre el mismo audio, y los cinco finales posibles ya están
+ * nombrados en `lib/transcripcion-de-voz.ts` —con su frase y con su regla de
+ * reintento—. Con dos vocabularios paralelos, el día que se afine uno el otro
+ * se queda atrás y la misma avería se le cuenta al cliente de dos maneras
+ * distintas según dónde la mire. Es la misma decisión que la tarifa.
+ *
+ * Los tres valores que ese tipo tiene de más (`sin_linea`, `no_es_nota`,
+ * `sin_audio`) no los produce este camino: aquí la fila y su par de ids ya se
+ * comprobaron antes de llegar al audio.
+ */
+export type MotivoDeLaLlamada = Extract<
+    NoSeTranscribio,
+    "muy_larga" | "sin_creditos" | "sin_ia" | "no_bajo" | "no_transcribio"
+>;
+
+/**
+ * Traduce la decisión de `queHacerConLaGrabacion` al motivo que se guarda.
+ *
+ * Devuelve `null` cuando sí hay que transcribir, que es lo que deja el
+ * `if (motivo)` de quien llama leyéndose como lo que es.
+ */
+export function elMotivoDeLaGrabacion(que: QueHacerConLaGrabacion): MotivoDeLaLlamada | null {
+    if (que.hacer === "transcribir") return null;
+    return que.hacer === "demasiado_grande" ? "muy_larga" : "sin_creditos";
+}
+
+/**
+ * Lo que se guarda en la fila cuando una vuelta abandona, y lo que se lee al
+ * pintar la tarjeta.
+ *
+ * **Va en `raw.call`, no en una columna nueva**: `chat_messages` la tocan la
+ * App, el webhook del backend y el chat-store, y añadirle columnas desde aquí
+ * es lo que reventó el #360. Es la misma forma con la que la nota de voz de un
+ * chat guarda el suyo.
+ */
+export type MarcaDeLaLlamada = {
+    motivo: MotivoDeLaLlamada;
+    /** Para el aviso de los créditos, que lleva los números delante. */
+    hacenFalta?: number;
+    quedan?: number;
+};
+
+/**
+ * La marca que trae la fila, saneada.
+ *
+ * Lo que no se entienda cuenta como **«no hay marca»**: se ve de menos, nunca
+ * de más. Equivocarse hacia «esta llamada falló» pintaría un error sobre una
+ * llamada perfectamente normal, que es peor que no decir nada.
+ */
+export function laMarcaDeLaLlamada(valor: unknown): MarcaDeLaLlamada | null {
+    if (!valor || typeof valor !== "object" || Array.isArray(valor)) return null;
+    const crudo = valor as Record<string, unknown>;
+    const motivo = crudo.motivo;
+    const vale =
+        motivo === "muy_larga" ||
+        motivo === "sin_creditos" ||
+        motivo === "sin_ia" ||
+        motivo === "no_bajo" ||
+        motivo === "no_transcribio";
+    if (!vale) return null;
+    const numero = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+    return {
+        motivo: motivo as MotivoDeLaLlamada,
+        hacenFalta: numero(crudo.hacenFalta),
+        quedan: numero(crudo.quedan),
+    };
+}
+
+/**
+ * Qué se enseña en el bloque de Transcripción / Resumen de una llamada.
+ *
+ * Pura para que el banco la ejerza sin navegador, que es donde vivía el fallo:
+ * la tarjeta deducía el estado de `hasRecording && !transcript` y de ahí solo
+ * sale **«Procesando…»**, dijera lo que dijera la realidad. Una llamada que
+ * abandonó hace media hora y una que se está transcribiendo ahora mismo se
+ * veían exactamente igual, y la primera no volvía a cambiar nunca.
+ *
+ * Los cuatro estados son los cuatro que de verdad existen, y cada uno lleva a
+ * una acción distinta: esperar, recargar, reintentar, o nada.
+ */
+export type LoQueSeEnsena =
+    | { estado: "listo" }
+    | { estado: "cargando" }
+    | { estado: "procesando" }
+    | { estado: "fallo"; texto: string; sePuedeReintentar: boolean }
+    | { estado: "nada" };
+
+export function loQueSeEnsenaDeLaLlamada(input: {
+    transcript: string | null;
+    hasRecording: boolean;
+    motivo: MotivoDeLaLlamada | null;
+    hacenFalta?: number | null;
+    quedan?: number | null;
+    cargando: boolean;
+}): LoQueSeEnsena {
+    if (input.transcript) return { estado: "listo" };
+    // **El motivo manda sobre «cargando».** Al revés, una llamada que ya se
+    // sabe que falló enseñaría «Cargando…» en cada apertura antes de decir la
+    // verdad, y el parpadeo se lee como que todavía puede salir.
+    if (input.motivo) {
+        return {
+            estado: "fallo",
+            texto: porQueNoSeTranscribioLaLlamada(input.motivo, {
+                hacenFalta: input.hacenFalta ?? undefined,
+                quedan: input.quedan ?? undefined,
+            }),
+            sePuedeReintentar: sePuedeReintentar(input.motivo),
+        };
+    }
+    if (input.cargando) return { estado: "cargando" };
+    // Sin marca y con grabación: de verdad está en camino. Es el único caso en
+    // que «Procesando…» dice la verdad.
+    if (input.hasRecording) return { estado: "procesando" };
+    return { estado: "nada" };
+}
+
+/**
+ * Si tiene sentido **seguir sondeando ahora mismo**, dentro de la misma media
+ * hora de espera.
+ *
+ * No es la misma pregunta que `sePuedeReintentar`, y confundirlas cuesta por
+ * los dos lados:
+ *
+ * - **«¿Se puede volver a pulsar?»** incluye `sin_creditos`: se recarga y se
+ *   reintenta, y por eso el botón de la tarjeta y el barrido de abajo —que
+ *   vuelve horas después— sí lo ofrecen.
+ * - **«¿Sigo esperando?»** no: nadie recarga créditos en los treinta minutos
+ *   siguientes a una llamada, y **cada vuelta se baja el WAV entero**. Sesenta
+ *   descargas de un audio para volver a abandonar en el mismo sitio.
+ *
+ * Lo que sí es de este momento —que el audio todavía no esté cerrado, que
+ * OpenAI no contestara— se sigue reintentando: es justo para lo que está la
+ * ventana.
+ */
+export function valeLaPenaSeguirEsperando(motivo: MotivoDeLaLlamada): boolean {
+    return motivo === "no_bajo" || motivo === "no_transcribio";
 }

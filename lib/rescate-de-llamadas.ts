@@ -48,6 +48,9 @@
  * prueba entero sin levantar nada.
  */
 
+import { laMarcaDeLaLlamada } from '@/lib/transcripcion-de-la-llamada';
+import { sePuedeReintentar } from '@/lib/transcripcion-de-voz';
+
 /** Cuántas llamadas se rescatan como mucho en una vuelta.
  *
  * Va a trozos por lo mismo que la limpieza del sufijo de dispositivo: la
@@ -107,13 +110,15 @@ export type LlamadaParaRescatar = {
   durationSecs?: unknown;
   hasRecording?: unknown;
   rescate?: unknown;
+  /** Por qué no se transcribió, si ya se sabe (`lib/transcripcion-de-la-llamada`). */
+  transcripcion?: unknown;
 };
 
 export type Veredicto =
   | { rescatar: true; que: 'cerrar' | 'transcribir'; intento: number }
   | {
       rescatar: false;
-      motivo: 'sin_ids' | 'ya_esta' | 'sin_audio' | 'en_curso' | 'todavia_no' | 'agotada';
+      motivo: 'sin_ids' | 'ya_esta' | 'sin_audio' | 'en_curso' | 'todavia_no' | 'agotada' | 'firme';
     };
 
 function comoTexto(valor: unknown): string {
@@ -165,6 +170,13 @@ export function queLeFaltaALaLlamada(input: {
   }
   if (comoTexto(call.transcript)) return { rescatar: false, motivo: 'ya_esta' };
   if (call.hasRecording === false) return { rescatar: false, motivo: 'sin_audio' };
+  // **Un motivo que no mejora reintentando se respeta.** Cada rescate se baja
+  // el WAV entero, así que insistir ocho veces sobre una cuenta sin créditos o
+  // sin clave de IA es bajarse ocho veces un audio para volver a abandonar en
+  // el mismo sitio. Lo de HOY —que OpenAI no contestara, que el audio no
+  // estuviera— sí se reintenta: es justo para lo que está el barrido.
+  const marca = laMarcaDeLaLlamada(call.transcripcion);
+  if (marca && !sePuedeReintentar(marca.motivo)) return { rescatar: false, motivo: 'firme' };
   if (input.edadMs < EDAD_MINIMA_MS) return { rescatar: false, motivo: 'en_curso' };
 
   const sello = elSelloQueTrae(call.rescate);

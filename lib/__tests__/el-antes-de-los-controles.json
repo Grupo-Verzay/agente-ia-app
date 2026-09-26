@@ -1,0 +1,4 @@
+{
+  "commit": "121e369",
+  "porQue": "El estado de main justo antes de estos tres controles. PINCHADO a un commit y no a `origin/main`: en cuanto esto se fusione, `origin/main` sería el «después» y el modo roto pasaría sin ejercer nada."
+}

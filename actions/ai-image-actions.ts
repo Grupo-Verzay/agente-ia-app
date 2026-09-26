@@ -3,6 +3,12 @@
 import { GoogleGenAI } from "@google/genai";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import {
+  comoSeLeeElCopy,
+  instruccionesDelCopy,
+  laRedDelFormato,
+  porQueFalloGemini,
+} from "@/lib/copy-del-anuncio";
 
 async function getGeminiApiKey(): Promise<string> {
   const user = await currentUser();
@@ -256,4 +262,80 @@ export async function generateAdImage(
   throw new Error(
     "El modelo no generó una imagen. Esto puede deberse a un prompt demasiado complejo o restricciones del modelo."
   );
+}
+
+/**
+ * El modelo que escribe el copy.
+ *
+ * NO es el que se elige en el paso «Motor»: aquellos son generadores de
+ * IMAGEN y no devuelven texto. Este es el modelo de texto de la misma familia
+ * y, sobre todo, **usa la misma clave de Gemini** que ya está configurada en
+ * esta pantalla — no hay una segunda credencial que configurar.
+ */
+const MODELO_DEL_COPY = "gemini-2.5-flash";
+
+export interface CopyGenerado {
+  ok: boolean;
+  copy?: string;
+  red?: string;
+  motivo?: string;
+}
+
+/**
+ * El texto del post que acompaña a la imagen ya generada.
+ *
+ * Devuelve un resultado en vez de lanzar, a propósito: esto corre **detrás** de
+ * la imagen, que es lo que de verdad se vino a generar, así que un fallo aquí
+ * no puede tumbar la tanda. Pero tampoco es mudo — el motivo baja al panel y se
+ * escribe en la consola, porque un copy que no aparece sin decir por qué se lee
+ * como que la función no existe.
+ */
+export async function generarCopyDelAnuncio(
+  imagenGenerada: string,
+  formato: string,
+  plantilla?: string,
+  estilo?: string,
+  detalles?: string,
+  adn?: string
+): Promise<CopyGenerado> {
+  const red = laRedDelFormato(formato);
+
+  try {
+    const apiKey = await getGeminiApiKey();
+    const ai = new GoogleGenAI({ apiKey });
+
+    const prompt = instruccionesDelCopy({ formato, plantilla, estilo, detalles, adn });
+
+    // La imagen ya creada va DENTRO de la petición: el copy tiene que hablar de
+    // lo que se ve, no de lo que se pidió. Sin ella, dos productos distintos con
+    // la misma plantilla darían el mismo texto.
+    const datos = typeof imagenGenerada === "string" ? imagenGenerada.split(",")[1] : "";
+
+    const partes: { inlineData?: { data: string; mimeType: string }; text?: string }[] = [];
+    if (datos) partes.push({ inlineData: { data: datos, mimeType: "image/png" } });
+    partes.push({ text: prompt });
+
+    const response = await ai.models.generateContent({
+      model: MODELO_DEL_COPY,
+      contents: { parts: partes },
+    });
+
+    const crudo = (response.candidates?.[0]?.content?.parts ?? [])
+      .map((p) => p.text ?? "")
+      .join("")
+      .trim();
+
+    const copy = comoSeLeeElCopy(crudo, formato);
+
+    if (!copy) {
+      console.warn("[ai-image] el modelo no devolvió copy", { red, modelo: MODELO_DEL_COPY });
+      return { ok: false, red, motivo: "El modelo no devolvió ningún texto. Vuelve a intentarlo." };
+    }
+
+    return { ok: true, copy, red };
+  } catch (error) {
+    const { mensaje } = porQueFalloGemini(error);
+    console.warn("[ai-image] no se pudo generar el copy", { red, mensaje });
+    return { ok: false, red, motivo: mensaje };
+  }
 }
